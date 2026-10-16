@@ -4,3 +4,12 @@ description = "The pane head: the process that stands inside a pane in front of 
 version.workspace = true
 edition.workspace = true
 publish = false
+
+# Its binary holds no tests of its own, so `cargo test` links no test binary of it.
+[[bin]]
+name = "pane-head"
+path = "src/main.rs"
+test = false
+
+[dependencies]
+agent-host = { path = "../agent-host" }

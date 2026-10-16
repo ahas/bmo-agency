@@ -37,7 +37,8 @@ seeds. The other crates and the server reach the store only through it.
 
 - **One row per key, a text value each,** for the values agency keeps that need no table of their own.
 - **The families it holds,** a family being a key or a key with a suffix after its colon:
-  - a run's cancellation, `execution_cancel:*`;
+  - a run's cancellation, `execution_cancel:*`, and the provider order, `provider_order`, which the
+    agent host's supervisor reads again before it starts a child (`docs/agent-control.md`, 「The host」);
   - an agent's sampling, `agent_sampling:*`;
   - a session's record and its summary, `agent_session:*`, `agent_session_summary:*` and
     `agent_session_summary_thread:*`;

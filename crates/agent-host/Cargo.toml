@@ -4,3 +4,21 @@ description = "The agent host: the supervisor that starts, watches and stops the
 version.workspace = true
 edition.workspace = true
 publish = false
+
+# Its binary holds no tests of its own, so `cargo test` links no test binary of it.
+[[bin]]
+name = "agent-host"
+path = "src/main.rs"
+test = false
+
+[dependencies]
+chrono.workspace = true
+clap.workspace = true
+indexmap.workspace = true
+libc.workspace = true
+serde.workspace = true
+serde_json = { workspace = true, features = ["raw_value"] }
+sha2.workspace = true
+sqlx.workspace = true
+store = { path = "../store" }
+tokio.workspace = true

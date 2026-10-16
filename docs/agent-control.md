@@ -1109,9 +1109,10 @@ flowchart TD
      run twice;
   2. waits for the grant until the envelope's deadline, and ends with no child where the grant, the
      cancel file or its collector says not to start;
-  3. reads the store file the envelope names for the provider order and the cancellation markers
-     over the execution's ids, the same reading the launcher made, and refuses the child where either
-     forbids it — a provider the stored order does not name counts as switched on;
+  3. reads the store at the PostgreSQL address the envelope's policy names, read-only, for the
+     provider order and the cancellation markers over the execution's ids, the same reading the
+     launcher made, and refuses the child where either forbids it — a provider the stored order does
+     not name counts as switched on;
      - the envelope's policy may carry the providers the bot's build knows, and the supervisor then
        reads the stored order exactly as the bot does: an order naming a provider outside them,
        naming one twice or leaving none on reads as every provider on;
@@ -1416,10 +1417,10 @@ The CLI argv and environment remain unchanged. Reported native Claude tasks have
 with `sharedPane: true`; these refer to their actual parent's pane, not fabricated new panes.
 Unfinished native tasks retain unknown outcomes when their parent ends.
 
-The structured supervisor independently reads a file-backed archive's provider switch before
+The structured supervisor independently reads the store's provider switch before
 spawning, and the cancellation markers standing over the execution's own id and the names it runs
-under, so a stop that lands before the execution's envelope exists still refuses the child as a stop. In-memory test archives can only exercise the launcher's check; the independent check
-has a separate file-backed regression. A private child-start acknowledgement bounds empty-wrapper
+under, so a stop that lands before the execution's envelope exists still refuses the child as a stop. A launch handed no store address carries no policy, so only the launcher's check runs for it; the
+independent check has a regression of its own against a scratch store. A private child-start acknowledgement bounds empty-wrapper
 failures. The supervisor stops its process group when its collecting process disappears, and a
 pipe-owned guardian kills that group if the supervisor is abruptly killed. Root stop writes
 cancellation markers for recorded descendants. Herdr attachment reconciles durable outcomes and

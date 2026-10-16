@@ -1,0 +1,140 @@
+//! `pane-head <agent>`: what a head pane's loop starts (docs/agent-control.md, 「One standing pane per
+//! agent」). It asks the agent host of its data root what the pane is to become, and replaces itself
+//! with that: the agent's program, or a follower of the agent's view. It installs no signal handler,
+//! so whatever ends it before its `exec` is an end like any other, and the loop asks again.
+
+use std::collections::BTreeMap;
+use std::io;
+use std::os::unix::process::CommandExt;
+use std::path::{Path, PathBuf};
+use std::process::{Command, ExitCode};
+use std::thread;
+use std::time::Duration;
+
+use agent_host::ask::{Answer, Request, ask};
+use agent_host::layout::Layout;
+
+/// The one exit the pane's loop does not start the head again on.
+const HEAD_STOPPED: u8 = 3;
+
+/// The variable a head opened for a host is started with.
+const HOST_HEAD: &str = "BMO_HOST_HEAD";
+
+// What says which terminal the pane is, laid over the program's own environment: the program draws
+// on this pane's terminal, which nothing that wrote the program knows.
+const TERMINAL_VARIABLES: [&str; 4] = ["TERM", "COLORTERM", "TERM_PROGRAM", "TERM_PROGRAM_VERSION"];
+
+// How much of the view a follower shows as it starts.
+const VIEW_LINES: &str = "200";
+
+fn data_root() -> Option<PathBuf> {
+  std::env::var_os("BMO_DATA_DIR")
+    .filter(|root| !root.is_empty())
+    .map(PathBuf::from)
+    .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".local/share/bmo/data")))
+}
+
+/// The program's environment, with the pane's terminal over it.
+fn program_environment(mut env: BTreeMap<String, String>) -> BTreeMap<String, String> {
+  for name in TERMINAL_VARIABLES {
+    if let Some(value) = std::env::var(name).ok().filter(|value| !value.is_empty()) {
+      env.insert(name.to_owned(), value);
+    }
+  }
+
+  env
+}
+
+/// What a start that failed says, naming the executable and the path it was looked for on.
+fn start_failure(program: &str, cwd: &Path, path: &str, why: &io::Error) -> String {
+  if !cwd.is_dir() {
+    return format!("{program}: the directory {} is not there", cwd.display());
+  }
+
+  match why.kind() {
+    io::ErrorKind::NotFound => format!("{program}: no such executable on PATH={path}"),
+    io::ErrorKind::PermissionDenied => format!("{program}: not executable (PATH={path})"),
+    _ => format!("{program}: {why} (PATH={path})"),
+  }
+}
+
+fn main() -> ExitCode {
+  let Some(agent) = std::env::args().nth(1).filter(|agent| !agent.is_empty()) else {
+    eprintln!("usage: pane-head <agent>");
+    return ExitCode::from(2);
+  };
+  let Some(root) = data_root() else {
+    println!("{agent}: no data root: set BMO_DATA_DIR or HOME");
+    return ExitCode::SUCCESS;
+  };
+  let socket = Layout::new(&root).socket();
+  let pid = std::process::id() as i32;
+  let request = Request::Ask {
+    agent: agent.clone(),
+    pane: std::env::var("HERDR_PANE_ID").ok().filter(|pane| !pane.is_empty()),
+    pid,
+    host_head: std::env::var(HOST_HEAD).is_ok_and(|flag| flag == "1"),
+  };
+
+  // The loop asks again a second after this ends, so a host that does not answer only costs a line.
+  let answer = match ask(&socket, &request) {
+    Ok(answer) => answer,
+    Err(why) => {
+      println!("{agent}: the agent host at {} does not answer: {why}", socket.display());
+      return ExitCode::SUCCESS;
+    }
+  };
+
+  match answer {
+    Answer::Program {
+      identity,
+      args,
+      cwd,
+      env,
+      wait_ms,
+    } => {
+      let Some((program, rest)) = args.split_first() else {
+        println!("{agent}: the program written for it names nothing to run");
+        return ExitCode::SUCCESS;
+      };
+
+      if wait_ms > 0 {
+        println!("{agent}: started often lately; starting again in {}s", wait_ms.div_ceil(1000));
+        thread::sleep(Duration::from_millis(wait_ms));
+      }
+
+      let env = program_environment(env);
+      let path = env.get("PATH").cloned().unwrap_or_default();
+      let why = Command::new(program).args(rest).current_dir(&cwd).env_clear().envs(&env).exec();
+      let reason = start_failure(program, &cwd, &path, &why);
+      let report = Request::Failed {
+        agent: agent.clone(),
+        pid,
+        identity,
+        reason: reason.clone(),
+      };
+
+      if let Err(why) = ask(&socket, &report) {
+        println!("{agent}: the failed start could not be reported: {why}");
+      }
+
+      println!("{agent}: the program could not be started — {reason}");
+      ExitCode::SUCCESS
+    }
+    Answer::View { path } => {
+      let why = Command::new("tail").args(["-n", VIEW_LINES, "-F"]).arg(&path).exec();
+
+      println!("{agent}: its view could not be followed: {why}");
+      ExitCode::SUCCESS
+    }
+    Answer::LetGo { reason } => {
+      println!("{agent}: letting go of this pane: {reason}");
+      ExitCode::from(HEAD_STOPPED)
+    }
+    Answer::Recorded => ExitCode::SUCCESS,
+    Answer::Refused { reason } => {
+      println!("{agent}: the agent host refused: {reason}");
+      ExitCode::SUCCESS
+    }
+  }
+}

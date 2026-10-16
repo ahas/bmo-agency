@@ -22,10 +22,15 @@ version = "0.1.0"
 edition = "2024"
 
 [workspace.dependencies]
+chrono = { version = "0.4.41", default-features = false, features = ["std"] }
+clap = { version = "4.5.40", features = ["derive", "env", "string"] }
+indexmap = { version = "2.14.2", features = ["serde"] }
+libc = "0.2.177"
 sea-orm = { version = "1.1.17", default-features = false, features = ["macros", "runtime-tokio-rustls", "sqlx-postgres"] }
 sea-orm-migration = { version = "1.1.17", default-features = false, features = ["runtime-tokio-rustls", "sqlx-postgres"] }
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.138"
+sha2 = "0.10.9"
 sqlx = { version = "0.8.6", default-features = false, features = ["any", "postgres", "runtime-tokio"] }
 tempfile = "3.20.0"
 toml = { version = "0.8.23", default-features = false, features = ["parse"] }
@@ -39,7 +44,9 @@ edition.workspace = true
 publish = false
 
 [dev-dependencies]
+agent-host = { path = "crates/agent-host" }
 herdr = { path = "crates/herdr" }
+libc.workspace = true
 policy = { path = "crates/policy" }
 sea-orm.workspace = true
 sea-orm-migration.workspace = true
