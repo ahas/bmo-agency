@@ -1,0 +1,30 @@
+//! The policy's tests: every part reads as its type from the file compiled in, and what its readers make of
+//! it.
+
+mod agent_renames;
+mod answer_ceilings;
+mod base_prompts;
+mod browser;
+mod chat_health;
+mod chat_line;
+mod companion_runner;
+mod companions;
+mod deployment;
+mod gates;
+mod keepalive;
+mod marks;
+mod model_catalogue;
+mod node_states;
+mod providers;
+mod providers_codex;
+mod reasoning;
+mod registry;
+mod research;
+mod resident_turn;
+mod rest;
+mod roles;
+mod run_lines;
+mod run_stop;
+mod tiers;
+mod work_keys;
+mod workers;

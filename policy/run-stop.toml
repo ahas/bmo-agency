@@ -1,0 +1,16 @@
+# How a run is stopped from outside (docs/agent-control.md, 「Stopping」), read by every process that
+# stops one.
+
+# What a run in a pane is told when it is being stopped. Being asked and being killed reach a pane
+# through the same call, so the difference is entirely in these words: they say to end the work rather
+# than to drop it, and they name the order — commit, report, exit — because a run that simply stopped
+# would leave its change in the checkout and its row open.
+# One basic string with its line breaks escaped, which every TOML reader on both sides reads alike.
+instruction = "Stop here. Do not start anything further and do not carry on with what you were doing.\n\nEnd properly rather than simply stopping: commit and push what you have, write your report covering what you did and what you are leaving unfinished, and exit normally."
+
+# How long a run in a pane that was asked is given to reach its own ending before its pane is closed.
+grace_seconds = 120
+
+# How long a stopped resident turn's collector is given to end it — a job's grace for its stop words
+# and a margin for the interrupt — before the stop reaches the program itself.
+resident_backstop_seconds = 150

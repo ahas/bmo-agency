@@ -1,0 +1,6 @@
+# The names under a worker's workbench agency keeps (docs/worker-bench.md, 「An item's scratch」): the
+# folder that holds each item's scratch, one folder per item number. What a job's prompt says of it is
+# the caller's.
+
+[workbench]
+scratch = "items"

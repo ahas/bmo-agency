@@ -1,0 +1,26 @@
+# The companions' settings (docs/companions.md, 「Its settings」), read by every side that saves them
+# or composes a companion's system prompt.
+
+# Every companion's pieces, in their default order.
+pieces = ["absolute-rules", "frame", "turn", "agent-words", "persona"]
+
+# Whether a companion's turns are given their reference — the sheets, memories and gate picks in
+# front of its words — where its settings never held the switch: a companion with no row, or a row
+# older than the switch that its seed names nothing for.
+reference_on = true
+
+# How long, in characters, a persona its settings hold, and a piece of its own, may be.
+persona_most = 100000
+own_piece_most = 20000
+
+# What a piece of its own may be called: a lowercase letter, then lowercase letters, digits and
+# hyphens, forty characters at most, and none of every companion's pieces.
+own_piece_pattern = '^[a-z][a-z0-9-]{0,39}$'
+
+# What a companion added on the console may be named, its agent name and its room's key: a lowercase
+# letter, then lowercase letters, digits and hyphens, forty characters at most.
+name_pattern = '^[a-z][a-z0-9-]{0,39}$'
+
+# The mark a screen puts beside a companion added on the console.
+added_icon = "i-material-symbols-face-outline"
+

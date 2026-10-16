@@ -1,0 +1,58 @@
+# The owner's Codex subscription, reached through the installed CLI (docs/cache-fallback.md, 「The Codex
+# substitute is the Codex CLI」). Read by this provider's own declaration on each side.
+
+# The provider's name as a screen shows it.
+label = "Codex"
+
+# The lines its program carries.
+lines = ["chat", "gate", "worker", "editor"]
+
+# A mapping of it carries no ceiling on the answer's tokens: the provider publishes none.
+caps_answer_tokens = false
+
+# Codex serves a catalogue of models, so its co-workers each take their own tier's.
+lends_coworkers = true
+
+[effort]
+# Every effort word a mapping of it may hold.
+words = ["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"]
+# A mapping may also name no effort: it is held, and the launch refuses it.
+none_held = true
+# What a launch makes of the mapping's word: one is required.
+launch = "required"
+fault = "This harness requires explicit effort"
+
+[presence]
+# The executable is the whole of what this machine holds for it: the account is signed in once,
+# outside agency. It is looked up on the process's PATH.
+program = "codex"
+missing = "The Codex executable is missing."
+
+[catalogue]
+# The catalogue bundled with the installed executable, which needs neither a network request nor a
+# model run, and how long it is given to answer.
+args = ["debug", "models", "--bundled"]
+seconds = 15
+
+[cache]
+# How long a prefix its models hold stays cached, and how long a thread may stand idle before a ping
+# warms it again, by the longest model name each entry begins: OpenAI publishes 30 minutes for GPT-5.6
+# and later. A model no entry begins publishes no lifetime, and its thread is neither closed for age
+# alone nor warmed (docs/cache-fallback.md).
+models = [
+  { prefix = "gpt-5.6", ttl_minutes = 30, keepalive_idle_minutes = 20 },
+  { prefix = "gpt-6", ttl_minutes = 30, keepalive_idle_minutes = 20 },
+]
+
+[resident]
+# The keys typed into the pane of its standing program, Codex's own screen, that cut a working turn
+# short (docs/agent-control.md, 「Stopping」).
+interrupt = ["escape"]
+# Its surface carries its own turns, read out of the thread's rollout (docs/agent-control.md, 「What a
+# resident turn reads」).
+turns = "rollout"
+# Words put in while a turn works are held on its screen and taken inside the same task (measured).
+words_mid_turn = true
+# The folder-trust question its screen shows before its input box, which herdr reads as idle: only the
+# screen says it stands, and a turn finding it leaves it for a person.
+trust_question = "Do you trust the contents of this directory?"

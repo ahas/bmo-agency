@@ -4,3 +4,7 @@ description = "Agency's policy: the fixed numbers and words it runs by, read fro
 version.workspace = true
 edition.workspace = true
 publish = false
+
+[dependencies]
+serde.workspace = true
+toml.workspace = true

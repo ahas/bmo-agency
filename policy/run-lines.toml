@@ -1,0 +1,64 @@
+# The lines agency runs, named for what the run is for rather than for the program that carries it: a
+# room's turn of any conversational agent, a judgement, a job, a search, a browse, a digest
+# (docs/launch-lines.md, docs/agents.md). One table to a line, read by every side that composes a run of it.
+#
+# needs: what its program has to offer for the line to go out on it. The runners' tools are agency's own
+#   MCP servers and the co-worker gate, so a program that cannot withhold its own tools or gate each
+#   call does not carry them; every other line goes out on whatever program its road names.
+# keeps_session: whether its turns follow one another on one session.
+# composes_typed_lines: whether a line a person types into the line's standing program is handed, by
+#   the place's submit hook, the composition a turn the deployment puts in would carry.
+# capabilities: what every run of the line may reach of the tool host, whoever it runs for;
+#   absent on a line whose runs hold only what their
+#   agent's role gives (docs/agent-roles.md), or that is handed no tools.
+# shown: the placed tool entries, by full name, every run of the line is shown by name in their namespace
+#   whatever its agent's role, where it holds them; every other entry it holds stands in its toolbook.
+
+[chat]
+needs = []
+keeps_session = true
+composes_typed_lines = true
+capabilities = ["room.tools"]
+shown = [
+  "bmo/memory_add", "bmo/memory_candidate", "bmo/memory_done", "bmo/memory_list", "bmo/memory_retire",
+  "bmo/memory_revive", "bmo/memory_update", "bmo/running", "bmo/say", "bmo/task", "bmo/todo_add",
+  "bmo/todo_append", "bmo/todo_approve", "bmo/todo_show",
+]
+
+[gate]
+needs = []
+keeps_session = false
+
+# tools_denied: what its program is never shown — the CLI's web tools, its Artifact tools, the
+#   claude.ai Docs connector, named by its server so every tool it serves is covered, and the tools that
+#   bring a session back after its turn has ended, which a job, whose turn's end is its answer, has no
+#   use for.
+[worker]
+needs = []
+keeps_session = true
+shown = [
+  "web/web_fetch", "web/web_search", "worker/graph_get", "worker/graph_impact", "worker/graph_search",
+  "worker/todo_show",
+]
+tools_denied = [
+  "WebSearch", "WebFetch", "Artifact", "ArtifactCheck", "ArtifactComments", "ArtifactData",
+  "mcp__claude_ai_Claude_Docs", "Monitor", "ScheduleWakeup", "CronCreate", "CronDelete", "CronList",
+]
+
+# A branch goes out on the search line, its record narrowed to what its research settings open.
+[search]
+needs = ["tool-gate", "mcp-only-tools"]
+keeps_session = false
+shown = ["web/danawa_search", "web/exchange_rate", "web/github_issue", "web/huggingface_model", "web/iwedding_product", "web/naver_blog", "web/read_rulebook", "web/reddit", "web/research_branch", "web/view_image", "web/web_fetch", "web/web_search"]
+
+[browse]
+needs = ["tool-gate", "mcp-only-tools"]
+keeps_session = false
+shown = ["web/danawa_search", "web/exchange_rate", "web/github_issue", "web/huggingface_model", "web/iwedding_product", "web/naver_blog", "web/read_rulebook", "web/reddit", "web/research_branch", "web/view_image", "web/web_fetch", "web/web_search"]
+
+[editor]
+needs = []
+keeps_session = false
+capabilities = ["fragments.desk"]
+shown = ["fragments/fragment_owed", "fragments/fragment_search", "fragments/fragment_write"]
+

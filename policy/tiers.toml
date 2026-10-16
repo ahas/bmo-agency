@@ -1,0 +1,26 @@
+# Agency's tier ladder (docs/model-tiers.md). A tier names a level of work — how capable a model it takes —
+# and each provider maps every tier to one of its own models; which model is the archive's row.
+
+# Every tier, in the order the tiers are shown and compared.
+ladder = ["BMO", "Frontier", "Reliable", "Fine", "Light", "Simple"]
+
+# The tiers a co-worker is borrowed at, in the ladder's order, each with the places its pool offers on
+# every provider where nobody set any: the owner's Haiku-class 12 for the tiers that resolve to Haiku,
+# their Sonnet-class 6 for the rest. BMO is the chat agent's own tier and Frontier the job worker's: the builder
+# stage is the worker itself, so neither is ever a borrowed co-worker and neither has a limit
+# (docs/model-tiers.md, 「Common co-worker capacity」).
+[[coworker]]
+tier = "Reliable"
+capacity = 6
+
+[[coworker]]
+tier = "Fine"
+capacity = 6
+
+[[coworker]]
+tier = "Light"
+capacity = 12
+
+[[coworker]]
+tier = "Simple"
+capacity = 12

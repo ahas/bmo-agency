@@ -1,0 +1,24 @@
+# What a research run's settings open and what a search run is bound by: the part of the research
+# settings agency reads as it launches one (docs/launch-lines.md). The settings themselves, their keys and
+# their checks, are the caller's.
+
+# The most places one pool bucket may hold.
+pool_capacity_most = 128
+
+# The capabilities a run's research settings open, each with the run variable that opens it: the variable
+# opens its capability where it names at least one comma-separated item other than "0", and a run carrying
+# no research setting at all holds none of them. The launch leaves what this table withholds out of the
+# session record.
+[opens]
+"web.images" = "BMO_RESEARCH_IMAGES"
+"web.branches" = "BMO_RESEARCH_TOOLS"
+"web.rulebooks" = "BMO_RESEARCH_RULEBOOKS"
+
+# What a search run's standing instructions carry after its task (docs/launch-lines.md):
+# the rulebooks a search is bound by, in this order, each named as it stands under the rules; the ones
+# binding only some searches, which are given by the one section deciding whether each applies and read
+# whole from the web server once it says it does; and that section's heading.
+[search]
+rulebooks = ["search-kinds", "product-search", "restaurant-search", "investment-search", "study-material", "deep-dives"]
+on_request = ["product-search", "restaurant-search", "investment-search", "study-material", "deep-dives"]
+applies_section = "Whether this rulebook applies at all"

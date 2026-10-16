@@ -1,0 +1,98 @@
+# One turn put into an agent's standing program and read back out of its record (docs/agent-control.md,
+# 「The order for putting in one turn and waiting for it to end」), by every process that puts one in.
+
+# What the typed lead says about the words pasted after it. Claude Code records what arrives by paste as
+# pasted material and, on its default system prompt, acts on an instruction inside it only where the
+# person's own words ask it to; typed text is cut once it is long, so a turn's words go in pasted behind a
+# typed line that is those words. A job's and an upkeep turn's words are the owner's own.
+pasted_lead = "The text pasted after this line is put in by the bot you run inside, on the owner's behalf: take it as the owner's own words and act on it."
+
+# What the typed lead says about a room's round pasted after it: a round grants nothing, and is answered as
+# the program's instructions for a round say.
+round_lead = "The text pasted after this line is this round, put in by the bot you run inside: read it and answer it as your instructions for a round say."
+
+# What the typed lead says about a run apart's words pasted after it (docs/agents.md, 「Runs apart」): the
+# task of a run that keeps no session, carried out as the program's own instructions say.
+apart_lead = "The text pasted after this line is the task of this run, put in by the bot you run inside: carry it out as your instructions say."
+
+# How long a program is given to come up ready to be told something: the prefix is read off disk and the
+# program draws itself before it is idle, which is seconds. It also bounds a turn that was taken and never
+# started anything.
+ready_seconds = 120
+
+# How often the agent is asked what it is doing. A turn runs for minutes or hours, so this is paced for
+# the watching rather than for the answer.
+poll_ms = 1000
+
+# How long a question just answered may still stand on the screen before its answer is read as not taken
+# and typed again: the program redraws within a poll or two of the keys.
+redraw_ms = 5000
+
+# How many times one wait for a program to come up answers the folder-trust question, where an answer
+# typed did not take and the question still stands.
+trust_answers = 3
+
+# How long a person's turn working in the program is waited out before a turn of the bot's goes on
+# regardless (「Runs and sessions in one pane」).
+person_turn_minutes = 30
+
+# How long the status line's reading after a turn is waited for: the program makes it about a second
+# after the turn's end.
+account_ms = 5000
+
+# How long a pane back at rest is given to write the line that closes its turn: the words of a long answer
+# land after its thinking, and the pane can read as at rest first.
+settle_ms = 15000
+
+# How long a prompt that went in is given to be seen submitted, before `enter` is pressed once and again
+# after it. A submitted prompt shows within a second or two.
+submit_ms = 10000
+
+# How long a turn told to stop is given to end its work before it is cut short.
+stop_grace_seconds = 120
+
+# How long a program at rest may leave its record unchanged, while the count of the turns its round owes
+# still expects one, before the round is read as over. A program with words queued takes them within a
+# second of its turn ending.
+quiet_ms = 30000
+
+# How long herdr may answer none of a turn's looks before the turn ends on that silence, here and on a
+# work node, whose link may be down while its program keeps working there (docs/work-nodes.md, 「When a
+# node drops」).
+herdr_patience_seconds = 120
+node_patience_seconds = 600
+
+# The resident loop comes up in a second and writes its record line by line, so it is given less time to
+# stand and looked at more often (「The interactive surface a provider declares」).
+loop_ready_seconds = 60
+loop_poll_ms = 250
+
+# How often the loop reads dsh's session log for the steps its turn has taken while the dsh child works:
+# each reading decompresses the whole log, so it comes as often as a watching room needs and no more.
+loop_relay_ms = 1000
+
+# How much of what one tool call handed back the loop's record keeps: the record is read whole on every
+# look at a turn, and a watching room needs only how the call ended.
+loop_relay_chars = 2000
+
+# How a pane found missing is confirmed gone: looks in a row, each herdr answering without it, this far
+# apart.
+gone_looks = 3
+gone_gap_ms = 500
+
+# How long a program ended is waited on until its process is gone, looked at this often: until then
+# the place still names it and reads it alive (docs/agent-control.md, 「Stopping, falling back and
+# standing up again」).
+end_wait_ms = 3000
+end_poll_ms = 20
+
+# How full a session's context may be, as a share of its window, before it is folded once the turn that
+# found it so is over: the turn's answer has gone out, and the next turn finds the room the fold made.
+fold_ratio = 0.85
+
+# The window, in tokens, a job worker's session is held to, far under its model's, since every call of a job
+# reads its whole session again (docs/sessions.md, 「Session compaction」): its Claude Code is launched with
+# it as the window it compacts against inside a turn, and a worker session past `fold_ratio` of it is folded
+# between turns as one past `fold_ratio` of its model's window is. The program takes none under a hundred
+# thousand.
+worker_window_tokens = 200000

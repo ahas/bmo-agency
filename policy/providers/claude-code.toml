@@ -1,0 +1,100 @@
+# Claude Code as a road the owner chooses: the account this program is signed in to (docs/cache-fallback.md,
+# 「The Claude Code road is a list of accounts」). Read by this provider's own declaration on each side.
+
+# The provider's name as a screen shows it.
+label = "Claude Code"
+
+# The lines its program carries.
+lines = ["chat", "gate", "worker", "search", "browse", "editor"]
+
+# A mapping of it carries no ceiling on the answer's tokens: the provider publishes none.
+caps_answer_tokens = false
+
+# The catalogue holds several models, so its co-workers each take their own tier's.
+lends_coworkers = true
+
+[effort]
+# Every effort word a mapping of it may hold, in the order a screen shows them.
+words = ["low", "medium", "high", "xhigh", "max"]
+# A mapping may also name no effort: it is held, and the launch refuses it.
+none_held = true
+# What a launch makes of the mapping's word: one is required.
+launch = "required"
+fault = "This harness requires explicit effort"
+
+[catalogue]
+# Where under a login's configuration directory the CLI keeps the catalogue of the models it offers,
+# and the ending of every file of the surface agency runs on (docs/model-tiers.md, 「The Claude catalogue」).
+dir = "cache/model-catalog"
+suffix = "-cc.json"
+
+[launch]
+# The variables every line of it sets for its part: git's status kept out of the prompt; the
+# next-prompt suggestion and the away recap, which each fork the session and read its whole context out
+# of the cache for nobody, switched off ("1" turns one back on); and the program's own memory, which no
+# agent agency runs writes, switched off (docs/launch-lines.md).
+variables = { CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS = "1", CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION = "0", CLAUDE_CODE_ENABLE_AWAY_SUMMARY = "0", CLAUDE_CODE_DISABLE_AUTO_MEMORY = "1" }
+# The variables the program reads a login off: a configuration directory of its own, or a token handed
+# straight over.
+login_variables = ["CLAUDE_CONFIG_DIR", "CLAUDE_CODE_OAUTH_TOKEN"]
+# What the program writes itself into a session's conversation: the opening of the environment block it sends
+# after a session's first words, and the tag its reminders stand in.
+own_words = ["You have been invoked in the following environment", "<system-reminder>"]
+# The program's tools whose calls wait long — a shell command, a sub-agent, a fetch from the web — which
+# a run on the gateway names in every request, so an engine of the node pool hands its cards on while one
+# runs (docs/agent-control.md, 「What an agent provider is made of」). Every other tool is a short one.
+long_tools = ["Bash", "Agent", "Task", "WebFetch", "WebSearch"]
+
+[cache]
+# How long a prompt prefix it holds stays cached for any model it runs, and how long an agent's session
+# may stand idle before a ping warms it again: a held session older than the cache is closed and
+# started afresh rather than resumed cold (docs/cache-fallback.md).
+ttl_minutes = 60
+keepalive_idle_minutes = 40
+
+[resident]
+# The keys typed into the pane of its standing program, Claude Code's own screen, that cut a working
+# turn short (docs/agent-control.md, 「Stopping」), and close the choice it stands at after a turn it ended on
+# its own error, a full window's 「What do you want to do?」, on its first answer, 「Stop and wait」.
+interrupt = ["escape"]
+# Its lines run their own turns, read out of the session's transcript; its surface carries none.
+turns = "transcript"
+# Words put in while a turn works are taken into that turn (measured).
+words_mid_turn = true
+
+[login]
+# How a login's end is told to the owner (docs/cache-fallback.md), by whichever process watches the logins on
+# the keepalive pass. A day before its end is enough to run one command in, and a long-lived token the CLI
+# issues stands for a year from the day its file was written, since it states no end of its own.
+notice_ahead_hours = 24
+token_life_days = 365
+# The message, one entry to a line, with `{name}`, `{when}`, `{left}`, `{n}` and `{path}` filled in.
+head = 'The login of the Claude account "{name}" {when}'
+gone = "has ended."
+ending = "ends soon."
+ending_in = "ends in {left}."
+minutes = "{n} minutes"
+hours = "{n} hours"
+run = "Running this one line is all it takes:"
+token_command = "CLAUDE_CONFIG_DIR={path} claude setup-token"
+directory_command = "CLAUDE_CONFIG_DIR={path} claude /login"
+token_after = "Write the new token over the file in use now."
+directory_after = "Where the login screen does not open at once, start claude with the same line and type /login."
+gone_after = "Until then, this account's work goes to the next account, and then to the next provider."
+ending_after = "Done before it ends, nothing stops."
+
+[node_login]
+# Each account's token for the work nodes (docs/work-nodes.md, 「The logins on a node」): the directory
+# under the data root's env directory its files stand in, each named by its account's id, and the verb
+# the owner runs on this machine to make one, with `{deploy}` the deploy tree and `{name}` the account's name.
+token_dir = "claude-tokens"
+command = "{deploy}/bin/bmo node claude-token '{name}'"
+# How a token that stopped answering on a node, or is about to, is told to the owner, one entry to a line, with
+# `{name}`, `{when}` and `{left}` filled in; how long is left, the line asking them to run the command and
+# the closing line of a warning are the login's own.
+head = 'The node token of the Claude account "{name}" {when}'
+gone = "has expired or was revoked."
+missing = "does not exist yet."
+ending_in = "ends in {left}."
+after = "Approve it in a browser signed in to this account and paste the token it shows: every node uses the new token from its next run."
+gone_after = "Until then, this account's work on the nodes goes to the next account."
