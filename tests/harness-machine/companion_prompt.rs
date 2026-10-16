@@ -1,0 +1,135 @@
+//! A companion's system prompt: the pieces in order, the base prompt's values, and the persona read
+//! out of the prompt folder its row names rather than one named after it.
+
+use std::collections::BTreeMap;
+use std::path::Path;
+
+use harness_machine::companion_prompt::*;
+use policy::base_prompts::BASE_PROMPTS;
+use policy::companions::COMPANIONS;
+
+// The companion every test composes for: its name, and the prompt folder its row names, which differs
+// from the name so a prompt read by the name would show.
+const PAL: Companion = Companion {
+  name: "tester-pal",
+  prompts: Some("pal-prompts"),
+};
+
+// A tree of agent documents, each naming what it is, and the roots over it.
+fn roots(dir: &Path) -> Roots {
+  let write = |path: &str, text: &str| {
+    let at = dir.join("assets").join(path);
+
+    std::fs::create_dir_all(at.parent().unwrap()).unwrap();
+    std::fs::write(at, format!("{text}\n")).unwrap();
+  };
+
+  write("prompts/rules/self-preservation.md", "keep the system");
+  write("prompts/rules/absolute-rules.md", "ABSOLUTE RULES");
+  write("prompts/rules/agent-words.md", "agent words");
+  write("prompts/agents/companion/frame.md", "frame\n{{tools}}\n{{unknown}}");
+  write("prompts/agents/companion/turn.md", "turn");
+  write("prompts/agents/companion/tools.md", "tools at {{workplace}}, verbs in {{tree}}");
+  write("prompts/agents/pal-prompts/persona.md", "persona file");
+  write("prompts/agents/tester-pal/persona.md", "the name's persona, never read");
+
+  Roots {
+    assets: dir.join("assets"),
+    data: dir.join("data"),
+  }
+}
+
+#[test]
+fn a_companion_whose_row_names_no_prompt_folder_is_sent_no_persona() {
+  let dir = tempfile::tempdir().unwrap();
+  let bare = Companion {
+    name: "tester-pal",
+    prompts: None,
+  };
+  let composed = system(&roots(dir.path()), bare, &Composition::default(), None).unwrap();
+
+  assert!(composed.ends_with("RULEBOOK prompts/rules/agent-words.md:\nagent words"), "{composed}");
+}
+
+#[test]
+fn a_prompt_folder_holding_no_persona_sends_none() {
+  let dir = tempfile::tempdir().unwrap();
+  let roots = roots(dir.path());
+
+  assert_eq!(roots.persona(Some("empty-folder"), None).unwrap(), "");
+  assert_eq!(roots.persona(Some("pal-prompts"), Some("held")).unwrap(), "held");
+}
+
+#[test]
+fn a_prompt_folder_that_is_not_one_plain_name_is_refused() {
+  let dir = tempfile::tempdir().unwrap();
+  let roots = roots(dir.path());
+
+  for folder in ["", "..", "../rules", "pal-prompts/inner", "/etc"] {
+    assert!(roots.prompt_folder(folder).is_err(), "{folder:?}");
+    assert!(roots.persona(Some(folder), None).is_err(), "{folder:?}");
+  }
+
+  assert_eq!(
+    roots.prompt_folder("pal-prompts").unwrap(),
+    dir.path().join("assets/prompts/agents/pal-prompts")
+  );
+}
+
+#[test]
+fn every_policy_piece_has_its_own_text() {
+  let dir = tempfile::tempdir().unwrap();
+  let roots = roots(dir.path());
+
+  for name in &COMPANIONS.pieces {
+    assert!(piece(&roots, PAL, name, &Composition::default()).is_ok(), "{name}");
+  }
+}
+
+#[test]
+fn the_default_prompt_is_the_rulebook_then_the_five_pieces() {
+  let dir = tempfile::tempdir().unwrap();
+  let composed = system(&roots(dir.path()), PAL, &Composition::default(), None).unwrap();
+  let home = dir.path().join("data/companion-homes/tester-pal").display().to_string();
+  let tree = dir.path().join("assets").display().to_string();
+
+  assert_eq!(
+    composed,
+    format!(
+      "RULEBOOK prompts/rules/self-preservation.md:\nkeep the system\n\nABSOLUTE RULES\n\nframe\ntools at {home}, verbs in {tree}\n{{{{unknown}}}}\n\nturn\n\nRULEBOOK prompts/rules/agent-words.md:\nagent words\n\npersona file"
+    )
+  );
+}
+
+#[test]
+fn own_pieces_stand_where_the_settings_place_them_and_the_tools_name_the_folder() {
+  let dir = tempfile::tempdir().unwrap();
+  let roots = roots(dir.path());
+  let settings = Composition {
+    pieces: Some(vec!["greeting".into(), "gone".into(), "frame".into(), "persona".into()]),
+    own_pieces: BTreeMap::from([("greeting".into(), "  Greet the owner first.\n".into())]),
+    persona: Some("short".into()),
+  };
+  let base = Base {
+    text: "\nRun in {{cwd}} on {{model}} for {{nobody}}.\n".into(),
+    model: "model-0-1".into(),
+  };
+  let home = dir.path().join("data/companion-homes/tester-pal").display().to_string();
+  let tree = dir.path().join("assets").display().to_string();
+
+  assert_eq!(
+    system(&roots, PAL, &settings, Some(&base)).unwrap(),
+    format!(
+      "Run in {home} on model-0-1 for {{{{nobody}}}}.\n\nRULEBOOK prompts/rules/self-preservation.md:\nkeep the system\n\nGreet the owner first.\n\nframe\ntools at {home}, verbs in {tree}\n{{{{unknown}}}}\n\nshort"
+    )
+  );
+}
+
+#[test]
+fn every_base_prompt_value_has_a_reading_on_this_side() {
+  for name in &BASE_PROMPTS.values {
+    assert!(base_value(name, Path::new("/w"), "m").is_some(), "{name}");
+  }
+
+  assert!(machine::local_date().len() == 10 && machine::os_version().contains(' '));
+}

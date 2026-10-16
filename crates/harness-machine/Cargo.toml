@@ -4,3 +4,20 @@ description = "The harness machine: what the harness reads, writes and starts on
 version.workspace = true
 edition.workspace = true
 publish = false
+
+# Its binary holds no tests of its own, so `cargo test` links no test binary of it.
+[[bin]]
+name = "harness-machine"
+path = "src/main.rs"
+test = false
+
+[dependencies]
+clap.workspace = true
+libc.workspace = true
+policy = { path = "../policy" }
+regex.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+url.workspace = true

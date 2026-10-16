@@ -80,17 +80,20 @@ flowchart TD
   prompt it chooses at the head, the self-preservation rulebook, then the pieces its settings list in
   their order, joined by a blank line.
 - **Read out of the asset root for every call:** the rulebooks under `prompts/rules/`, the companion
-  frame, turn and hands under `prompts/agents/companion/`, and the companion's own `persona.md`.
-- **What the caller hands it:** the companion, its settings' pieces, own pieces and persona,
-  the text of the base prompt it chooses or none, and the model it is pinned to.
+  frame, turn and hands under `prompts/agents/companion/`, and the `persona.md` of the companion's own
+  prompt folder.
+- **What the caller hands it:** the companion's name, the prompt folder its agent row names under
+  `prompts/agents/` or none, its settings' pieces, own pieces and persona, the text of the base prompt
+  it chooses or none, and the model it is pinned to. The crate never derives a prompt folder from the
+  name, and a folder that is not one plain name is refused.
 - **The base prompt's values are filled in here** (`docs/base-prompts.md`, 「Values filled in as a run
   is composed」): the folder it stands in, today's local date, the operating system's name, its
   kernel's name and release, the shell's name and the model. A value the policy names that the
   prompt does not carry changes nothing, and any other `{{word}}` stays as written.
 - **The folder:** each companion's own under the data root's `companion-homes/`. The crate names the
   folder; the runner that starts a turn makes it.
-- **The persona:** its settings' text, its own file, or none where it holds neither, as a companion added
-  on the console starts.
+- **The persona:** its settings' text, the `persona.md` of its prompt folder, or none where it holds
+  neither, as a companion added on the console starts with no folder.
 
 ## The binary
 
@@ -103,8 +106,8 @@ flowchart TD
 - **`harness-machine model-use start`** starts a choice's unit, **`model-use install`** runs an engine's
   installer into a log, and **`model-use log`** prints a log's last lines.
 - **`harness-machine companion-system`** reads a companion's settings and the base prompt it chooses
-  from standard input and prints the composed system prompt; **`companion-persona <agent>`** prints
-  the persona its own file holds, or nothing where it has none.
+  from standard input and prints the composed system prompt; **`companion-persona <folder>`**
+  prints the persona the prompt folder's file holds, or nothing where it has none.
 - **Every answer is one line of JSON on standard output.** A refusal the owner reads ends with status
   2 and its field and sentence as JSON on standard error; any other failure ends with status 1 and
   its reason there.
@@ -116,4 +119,4 @@ flowchart TD
   - key files written, or not, under the test's scratch data root;
   - a health answered by a stand-in engine on the loopback;
   - a stand-in `systemd-run` on the `PATH`, and a stand-in installer under a scratch source root;
-  - agent documents under the test home's asset root.
+  - agent documents under the test's scratch asset root.

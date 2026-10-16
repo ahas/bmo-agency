@@ -4,3 +4,18 @@ description = "The harness providers: what each provider answers about this mach
 version.workspace = true
 edition.workspace = true
 publish = false
+
+# Its binary holds no tests of its own, so `cargo test` links no test binary of it.
+[[bin]]
+name = "harness-providers"
+path = "src/main.rs"
+test = false
+
+[dependencies]
+clap.workspace = true
+policy = { path = "../policy" }
+regex.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true

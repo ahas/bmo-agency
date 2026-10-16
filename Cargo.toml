@@ -22,10 +22,13 @@ version = "0.1.0"
 edition = "2024"
 
 [workspace.dependencies]
+axum = "0.8.4"
 chrono = { version = "0.4.41", default-features = false, features = ["std"] }
 clap = { version = "4.5.40", features = ["derive", "env", "string"] }
 indexmap = { version = "2.14.2", features = ["serde"] }
 libc = "0.2.177"
+regex = "1.11.1"
+reqwest = { version = "0.13.5", features = ["json"] }
 sea-orm = { version = "1.1.17", default-features = false, features = ["macros", "runtime-tokio-rustls", "sqlx-postgres"] }
 sea-orm-migration = { version = "1.1.17", default-features = false, features = ["runtime-tokio-rustls", "sqlx-postgres"] }
 serde = { version = "1.0.219", features = ["derive"] }
@@ -35,6 +38,7 @@ sqlx = { version = "0.8.6", default-features = false, features = ["any", "postgr
 tempfile = "3.20.0"
 toml = { version = "0.8.23", default-features = false, features = ["parse"] }
 tokio = { version = "1.47.0", features = ["macros", "rt", "rt-multi-thread", "net", "time", "signal", "io-util", "process"] }
+url = "2.5.8"
 
 [package]
 name = "agency-checks"
@@ -45,6 +49,9 @@ publish = false
 
 [dev-dependencies]
 agent-host = { path = "crates/agent-host" }
+axum.workspace = true
+harness-machine = { path = "crates/harness-machine" }
+harness-providers = { path = "crates/harness-providers" }
 herdr = { path = "crates/herdr" }
 libc.workspace = true
 policy = { path = "crates/policy" }
