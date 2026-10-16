@@ -1,0 +1,89 @@
+# What a harness provider answers on this machine
+
+## What it is
+
+- **Two questions each provider answers about this machine:** whether it can answer here at all, and
+  which models it offers. Both are the machine's facts, read in Rust by the `harness-providers`
+  crate for every side that asks.
+- **Two more each provider answers about itself in the same crate,** for the front:
+  - which of the usage windows its slot reported stand for its session and its week — Claude Code's
+    five-hour and seven-day windows, Codex's primary and secondary, none for a provider that
+    publishes none;
+  - whether it holds logins of its own: Claude Code alone, whose logins are its accounts.
+- **What each provider is** — its label, its lines, its effort words, the sentence it says where it is
+  missing, where its catalogue is read — is its own file of agency's policy
+  (`policy/providers/`).
+- **Agency's server links the crate;** the TypeScript that asks — the verbs and the provider
+  modules they import — runs its binary of the same name, out of the deploy tree's `bin/`, the way
+  it runs the node check (`nodes.md`).
+- **What a provider answers out of the store** — the registry's registrations — is read by each side
+  from agency's store, as every row is.
+
+```mermaid
+flowchart TD
+  Policy[policy: one file to a provider] --> Crate[harness-providers crate]
+  Crate --> Front[front: linked in]
+  Crate --> Binary[harness-providers binary]
+  Binary --> TS[TypeScript verbs and modules]
+  Machine[PATH, env, data root, login directory] --> Crate
+```
+
+## Whether a provider can answer here
+
+- **Claude Code** always can: whether one of its logins answers is the account walk's judgement
+  (`docs/cache-fallback.md`, 「The Claude Code road is a list of accounts」).
+- **Codex** can where its executable stands on the asking process's `PATH`.
+- **OpenRouter** can where its key is in the environment. The bun side hands the binary the key its
+  configuration holds, so a caller that asks with no key is answered as a machine with none.
+- **The registered models** can where the gateway's key file stands private under the data root's
+  `env` directory: a file of its own, mode 0600, not empty.
+  - Past that, each side asks agency's store for a registration with an address, and says the policy
+    file's sentence for the store it lacks or the address none has.
+- **A provider that cannot answer** says the English sentence and status its policy file gives,
+  and the screen shows it beside the provider in its own language.
+
+## Which models a provider offers
+
+- **Codex:** the catalogue bundled with the installed executable, asked with the arguments and
+  within the seconds its policy file names.
+  - A model the CLI hides is left out, so the choice offered is the one the CLI offers a person.
+  - Each model carries its id, name, description, context length, default effort and the efforts it
+    takes.
+  - A run that fails is a refusal naming the last error the CLI reported, or else the last line it
+    wrote to its standard error, or else its exit status.
+- **OpenRouter:** the public listing at the address its policy file names, which needs no key.
+  - Each model carries its id, name, context length and whether it is free: a `:free` id priced at
+    zero for both prompt and completion.
+  - An answer that is not a success is a refusal naming its status.
+- **Claude Code:** the catalogue the CLI keeps under the configuration directory of the login the
+  caller names (`docs/model-tiers.md`, 「The Claude catalogue」).
+  - The newest fetch among the files of the surface answers, and an unreadable neighbour is passed
+    over.
+  - A directory with no such file, nothing that parses, or a catalogue naming no model is a refusal.
+  - Each model carries its id, whether the CLI serves it or has superseded it, and the efforts its
+    entry names; the catalogue carries when it was fetched and when the CLI holds it stale.
+- **The registered models:** the registrations with an address, out of the archive.
+
+## The binary
+
+- **`harness-providers presence --data-root <dir>`** prints one line of JSON: every provider in the
+  providers' order with the sentence it says, or none where it can answer.
+- **`harness-providers models <provider>`** prints the provider's catalogue as JSON;
+  `--config-dir <dir>` names the login's directory for Claude Code. A listing that fails ends with a
+  non-zero status and its reason on the standard error.
+- **Nothing it does writes:** it reads the machine and answers.
+- **One reading answers for a second.** A screen asks every provider for every work key at once, so
+  the bun side keeps a presence reading for a second for the environment and data root it was asked
+  in, and asks again after that; a reading that failed is not kept.
+
+## Stand-ins
+
+- **A test stands a provider in by what the machine holds, never by replacing a function,** so a
+  TypeScript test and the server read the same stand-in:
+  - a stand-in `codex` on the `PATH` that prints a catalogue;
+  - the gateway's key file written, or not, under the test's scratch data root;
+  - the OpenRouter key in the environment, or not;
+  - the listing's stand-in address in `BMO_OPENROUTER_LISTING_URL`;
+  - a catalogue file under the login's configuration directory;
+  - beside the providers, the gate's model server address in `BMO_LAYA_URL`, or none, for the routes
+    that offer it to a gate.
