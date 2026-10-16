@@ -4,3 +4,9 @@ description = "Agency's store: its connection pool, statement helpers, registry 
 version.workspace = true
 edition.workspace = true
 publish = false
+
+[dependencies]
+sea-orm.workspace = true
+sea-orm-migration.workspace = true
+sqlx.workspace = true
+tokio.workspace = true

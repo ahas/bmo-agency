@@ -22,8 +22,11 @@ version = "0.1.0"
 edition = "2024"
 
 [workspace.dependencies]
+sea-orm = { version = "1.1.17", default-features = false, features = ["macros", "runtime-tokio-rustls", "sqlx-postgres"] }
+sea-orm-migration = { version = "1.1.17", default-features = false, features = ["runtime-tokio-rustls", "sqlx-postgres"] }
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.138"
+sqlx = { version = "0.8.6", default-features = false, features = ["any", "postgres", "runtime-tokio"] }
 tempfile = "3.20.0"
 tokio = { version = "1.47.0", features = ["macros", "rt", "rt-multi-thread", "net", "time", "signal", "io-util", "process"] }
 
@@ -36,6 +39,10 @@ publish = false
 
 [dev-dependencies]
 herdr = { path = "crates/herdr" }
+sea-orm.workspace = true
+sea-orm-migration.workspace = true
 serde_json.workspace = true
+sqlx.workspace = true
+store = { path = "crates/store" }
 tempfile.workspace = true
 tokio.workspace = true
