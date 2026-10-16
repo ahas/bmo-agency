@@ -49,6 +49,18 @@ pub struct RouteWords {
   pub no_model: String,
 }
 
+/// Why the co-worker pool cannot lend a place.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PoolWords {
+  pub off: String,
+  pub single_model: String,
+  pub no_place: String,
+  pub head_unread: String,
+  pub change_unread: String,
+  pub new_files_unread: String,
+}
+
 /// Why a stop of several runs is not over.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -71,6 +83,7 @@ pub struct QueueWords {
   pub workers: WorkerWords,
   pub pins: PinWords,
   pub routes: RouteWords,
+  pub pool: PoolWords,
   pub stops: StopWords,
   pub leftovers: LeftoverWords,
 }

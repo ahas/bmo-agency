@@ -41,6 +41,16 @@ no_model = "{label} takes no model of its own to pin."
 model_wrong = "Not a valid work model: {selection}"
 no_model = "No provider that is on offers a registered work model."
 
+# Why the co-worker pool cannot lend a place: a provider switched off, one that lends no co-workers, no
+# place to be had, and a standing checkout that could not be laid out of the order's checkout.
+[pool]
+off = "The provider is switched off."
+single_model = "It is a single-model provider and lends no co-workers."
+no_place = "No place could be had for the co-worker."
+head_unread = "The working checkout's commit could not be read."
+change_unread = "The working copy's change could not be read."
+new_files_unread = "The list of new files could not be read."
+
 # Why a stop of several runs is not over: the {units} still standing.
 [stops]
 not_ended = "The runs were asked to stop but are not yet confirmed ended: {units}"

@@ -28,7 +28,7 @@ judges none of it.
 ## Versioning
 
 - **The contract carries the repository's one version, in semver.** The version in the workspace
-  manifest is this boundary's version; the current line is `0.10.0`.
+  manifest is this boundary's version; the current line is `0.11.0`.
 - **A change to this document and a change to the boundary go in one commit.** A change that makes a
   route, an event, a hook or a shared table's contract different repairs this document in the same
   commit, stating what is true now.
@@ -215,6 +215,15 @@ Each hook has a default that does nothing, so agency runs with none registered.
   the ping table, the per-provider-and-tier limit table, and the standing checkouts list. A consumer
   reads them to show the pool and writes a limit; the lease token, the owner proof and the snapshot are
   the pool's own.
+- **The standing checkouts.** A consumer asks a branch's place with its order's checkout, the task's
+  selection, role and tier, and the places its tasks sit in now; agency answers the place's number and
+  lays the checkout's open change into it, records what a finished branch left there, and takes down
+  what stands in herdr for the places an ended order worked in that no task still sits in
+  (`docs/coworker-pool.md`, 「Standing branch checkouts and their list」). The labels and keys of the
+  consumer's work arrive with each request; agency reads none of its orders.
+- **The clocks** are agency's own: every five seconds a reservation's head place is raised and a native
+  call whose caller ended is reclaimed, and every ten minutes what a job's end left in herdr is swept
+  (`docs/agent-control.md`, 「One standing pane per agent」).
 - **The hook** is the owner-end proof (「Hooks」 above). The pool reads no owner's name and judges
   nothing.
 

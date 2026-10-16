@@ -11,6 +11,7 @@ fn the_queue_words_read_with_the_marks_they_are_filled_by() {
   assert!(QUEUE_WORDS.pins.unknown.contains("{providers}"));
   assert!(QUEUE_WORDS.routes.model_wrong.contains("{selection}"));
   assert!(QUEUE_WORDS.stops.not_ended.contains("{units}"));
+  assert!(!QUEUE_WORDS.pool.single_model.is_empty() && !QUEUE_WORDS.pool.no_place.is_empty());
 }
 
 #[test]

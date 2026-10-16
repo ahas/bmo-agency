@@ -182,8 +182,8 @@ The owner's words:
   stood up. A worker's dev server runs its own command and is kept, and so is a standing pane — one
   whose command line carries the standing mark (`bmo-standing-*`), such as a companion's follow pane
   (`docs/companions.md`, 「What a turn shows」).
-- **A job's end sweeps the whole of herdr the same way.** When a job ends, and when a work order ends,
-  agency reads every workspace and every pane in it, on this machine and on each ready work node whose
+- **A job's end sweeps the whole of herdr the same way.** When a job ends, and on agency's own clock
+  every ten minutes, agency reads every workspace and every pane in it, on this machine and on each ready work node whose
   link the node service reports up. Every agent standing counts, a pane a consumer claims among them
   (`docs/api.md`, 「Hooks」, the pane claims). A pane carrying a run, a head (`bmo-head-*`, the
   head script), a node's pane (`bmo-node-*`), a dev server or a standing pane (`bmo-standing-*`) is kept whatever else is true, since what

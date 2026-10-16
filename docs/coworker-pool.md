@@ -118,8 +118,8 @@ warming and standing checkouts, is agency's.
   - If the owner has a reserved place on the same provider and tier, one transaction releases that
     place and admits the actual request as active. If the owner's not-yet-reserved place is that tier's
     FIFO head, the actual request takes over that place's turn.
-  - When a place frees, when the limit changes, and every pool tick, the pool raises a head place to
-    reserved. An already-reserved place is not taken away by lowering the limit — the same promise as
+  - When a place frees, when the limit changes, and on the pool's own clock every five seconds, the pool
+    raises a head place to reserved. An already-reserved place is not taken away by lowering the limit — the same promise as
     an admitted request's snapshot.
 - **Release:** a reservation releases only when the owner releases it or there is evidence the owner
   ended, not for time passing.
@@ -207,9 +207,9 @@ The worker settings' hook takes the place for one native `Agent` call.
   written, the stop is recorded first, and the following end sees it and releases at once.
 
 - **Binding:** a waiting request binds to the waiting hook process, an active lease to the calling CLI
-  process, both with pid and start time. Only with evidence the process ended does a later hook or a
-  co-work runner tick reclaim — cancelling a waiting request and releasing an active lease. Not
-  reclaimed for time passing.
+  process, both with pid and start time. Only with evidence the process ended does a later hook or the
+  pool's own clock, every five seconds, reclaim — cancelling a waiting request and releasing an active
+  lease. Not reclaimed for time passing.
 - **Pre-reserving:** a job can pre-reserve places for native calls it will soon make.
   `bmo-agency coworker pool reserve --role <role> [--tier <tier>] --count <count>` sets a reservation,
   and the same command's `release` releases it.
@@ -249,6 +249,10 @@ The worker settings' hook takes the place for one native `Agent` call.
 
 - **The places branches work in** are the standing checkouts under a runtime directory keyed by the
   pool and the place, and one place takes one task at a time.
+- **Which places are taken is the consumer's to say.** A consumer asking for a place, or ending an order,
+  hands in the places its tasks sit in now — each the checkout its order works in and the place's
+  number — and agency counts those as busy; it reads none of the consumer's orders or jobs. The ask
+  names the order's checkout, the task's selection, its role and the tier it asks for.
 - **A pool is one repository:** the work order checkout's git common directory sets the pool, and the
   pool name is that repository's name plus a short hash of the common directory path.
   - Places stand only as that repository's worktrees, so they never check out another repository's
