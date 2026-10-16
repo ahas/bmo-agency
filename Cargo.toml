@@ -23,6 +23,7 @@ edition = "2024"
 
 [workspace.dependencies]
 axum = "0.8.4"
+base64 = "0.22.1"
 chrono = { version = "0.4.41", default-features = false, features = ["std"] }
 clap = { version = "4.5.40", features = ["derive", "env", "string"] }
 indexmap = { version = "2.14.2", features = ["serde"] }
@@ -54,6 +55,7 @@ harness-machine = { path = "crates/harness-machine" }
 harness-providers = { path = "crates/harness-providers" }
 herdr = { path = "crates/herdr" }
 libc.workspace = true
+node-link = { path = "crates/node-link" }
 policy = { path = "crates/policy" }
 sea-orm.workspace = true
 sea-orm-migration.workspace = true
@@ -62,3 +64,4 @@ sqlx.workspace = true
 store = { path = "crates/store" }
 tempfile.workspace = true
 tokio.workspace = true
+toml.workspace = true

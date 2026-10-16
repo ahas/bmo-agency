@@ -1,1 +1,10 @@
-//! The node link: what the two ends of a link between machines say to each other.
+//! What the link's two ends say to each other and the spec it is held to, shared with the process that
+//! writes the spec (docs/work-nodes.md, 「The link」), so the writer and the reader are held to one shape;
+//! and the two ends themselves, which the binary runs.
+
+pub mod bridge;
+pub mod connect;
+pub mod frame;
+pub mod rewrite;
+pub mod serve;
+pub mod spec;

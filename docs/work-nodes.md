@@ -29,12 +29,15 @@ side of a remote agent, the rotation, and what a dropped node does.
      processor type — is said not ready, as is one where the runtime is installed and still does not
      run;
   4. the code: the deploy tree's commit copied to `<root>/deploy` — its installs, build output, logs,
-     env files and the data root left out — installed there, and the node's own host, pane, link and
-     testbed binaries built there, since this machine's binaries are linked against a newer C library
-     than a node may have. They are built in a workspace of their own under `<root>/build`, the crates
-     they are made of each at the path it holds in the repository, with a node build manifest and the
-     repository's lockfile, since the whole repository workspace names a git dependency a node may not
-     be able to fetch; a build ends the agent host standing on the old binary;
+     env files and the data root left out — installed there, and the node's own host, pane and link
+     binaries built there, since this machine's binaries are linked against a newer C library than a
+     node may have. They are built in a workspace of their own under `<root>/build`, the crates they are
+     made of (the agent host, the store beneath it, the pane head and the node link) each at the path it
+     holds in the repository, with the node link's node build manifest and the repository's lockfile,
+     so a node builds those crates alone and nothing of the server's; the manifest's members and
+     dependencies are the repository workspace's own, which a test holds it to. The testbed binary a
+     node runs is the testbed unit's, not one agency builds; a build ends the agent host standing on the
+     old binary;
   5. the node's data root, `<root>/data`, which holds the node's agent places and nothing of the
      store;
   6. herdr: a node with none is given this machine's, which is one static binary, so a matching one is

@@ -12,6 +12,7 @@ dependencies = [
  "harness-providers",
  "herdr",
  "libc",
+ "node-link",
  "policy",
  "sea-orm",
  "sea-orm-migration",
@@ -20,6 +21,7 @@ dependencies = [
  "store",
  "tempfile",
  "tokio",
+ "toml",
 ]
 
 [[package]]
@@ -1473,6 +1475,14 @@ checksum = "743fb55ba31b18fb1ecef6bdc9aa2743314978ac084044301a7eee33fb99a20d"
 [[package]]
 name = "node-link"
 version = "0.1.0"
+dependencies = [
+ "base64 0.22.1",
+ "clap",
+ "libc",
+ "serde",
+ "serde_json",
+ "tokio",
+]
 
 [[package]]
 name = "num-bigint-dig"

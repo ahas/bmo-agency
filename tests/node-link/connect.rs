@@ -1,0 +1,169 @@
+//! The link's own end: a landing stays inside itself, and the home bridge runs what it is asked.
+
+use std::fs;
+use std::path::{Path, PathBuf};
+
+use node_link::bridge;
+use node_link::connect::*;
+use node_link::frame::{Frame, Pull, encode};
+use node_link::spec::{Landing, Spec};
+use serde_json::{Value, json};
+use tokio::io::AsyncWriteExt;
+
+#[test]
+fn a_landing_takes_no_path_out_of_itself() {
+  assert_eq!(landed(Path::new("/l"), "a/b.json"), Some(PathBuf::from("/l/a/b.json")));
+  assert_eq!(landed(Path::new("/l"), "../x"), None);
+  assert_eq!(landed(Path::new("/l"), "/etc/x"), None);
+}
+
+#[test]
+fn a_grown_file_is_written_from_the_offset_the_node_names() {
+  let dir = tempfile::tempdir().expect("dir");
+  let spec = Spec {
+    pull: vec![Landing {
+      pull: Pull {
+        remote: "/r".into(),
+        files: vec![],
+        tree: true,
+        append: true,
+        alive: false,
+      },
+      local: dir.path().to_owned(),
+    }],
+    ..Spec::default()
+  };
+  let mut state = State::default();
+
+  apply(
+    &spec,
+    Frame::Append {
+      pull: 0,
+      path: "s.jsonl".into(),
+      offset: 0,
+      data: encode(b"one\n"),
+    },
+    &mut state,
+  );
+  apply(
+    &spec,
+    Frame::Append {
+      pull: 0,
+      path: "s.jsonl".into(),
+      offset: 4,
+      data: encode(b"two\n"),
+    },
+    &mut state,
+  );
+  assert_eq!(fs::read_to_string(dir.path().join("s.jsonl")).expect("read"), "one\ntwo\n");
+
+  // The node's file replaced: sent again from nothing, and nothing of the old one stays.
+  apply(
+    &spec,
+    Frame::Append {
+      pull: 0,
+      path: "s.jsonl".into(),
+      offset: 0,
+      data: encode(b"new\n"),
+    },
+    &mut state,
+  );
+  assert_eq!(fs::read_to_string(dir.path().join("s.jsonl")).expect("read"), "new\n");
+}
+
+#[tokio::test]
+async fn the_bridge_runs_a_deploy_script_with_the_runs_own_variables() {
+  let dir = tempfile::tempdir().expect("dir");
+  let deploy = dir.path().join("deploy");
+
+  fs::create_dir_all(deploy.join("scripts")).expect("scripts");
+  fs::write(
+    deploy.join("scripts/echo.ts"),
+    "const input = await Bun.stdin.text();\nconsole.log(JSON.stringify({ args: process.argv.slice(2), input, place: process.env.BMO_AGENT_PLACE, node: process.env.BMO_NODE }));\nconsole.error(\"said\");\nprocess.exit(7);\n",
+  )
+  .expect("script");
+
+  let socket = dir.path().join("bridge.sock");
+  let listener = bind(&socket).expect("bind");
+
+  tokio::spawn(async move {
+    let (stream, _) = listener.accept().await.expect("accept");
+
+    bridge::answer(stream, deploy, "n1".into(), |path| path.replace("/n/data", "/h/data"))
+      .await
+      .expect("answered");
+  });
+
+  let header = json!({ "script": "scripts/echo.ts", "args": ["--show", "/n/data/x"], "env": { "BMO_AGENT_PLACE": "/n/data/agent-places/w" } }).to_string();
+  let (out, err, code) = ask_bridge(&socket, &header, b"hello").await;
+  let said: Value = serde_json::from_slice(&out).expect("json out");
+
+  assert_eq!(code, 7);
+  assert_eq!(String::from_utf8_lossy(&err).trim(), "said");
+  assert_eq!(
+    said,
+    json!({ "args": ["--show", "/h/data/x"], "input": "hello", "place": "/h/data/agent-places/w", "node": "n1" })
+  );
+
+  let refused =
+    ask_bridge(&socket_again(&dir).await, &json!({ "script": "../x.ts" }).to_string(), b"").await;
+
+  assert_eq!(refused.2, 2);
+}
+
+// A second bridge on the same directory, for a refusal.
+async fn socket_again(dir: &tempfile::TempDir) -> PathBuf {
+  let socket = dir.path().join("bridge-2.sock");
+  let listener = bind(&socket).expect("bind");
+  let deploy = dir.path().join("deploy");
+
+  tokio::spawn(async move {
+    let (stream, _) = listener.accept().await.expect("accept");
+
+    bridge::answer(stream, deploy, "n1".into(), str::to_owned).await.expect("answered");
+  });
+
+  socket
+}
+
+/// A bridge asker as the tests drive one: the request line, the input, and the frames read back.
+pub async fn ask_bridge(socket: &Path, header: &str, input: &[u8]) -> (Vec<u8>, Vec<u8>, i32) {
+  use tokio::io::AsyncReadExt;
+
+  let mut stream = tokio::net::UnixStream::connect(socket).await.expect("bridge answers");
+
+  stream.write_all(header.as_bytes()).await.expect("header");
+  stream.write_all(b"\n").await.expect("line end");
+
+  if !input.is_empty() {
+    bridge::write_frame(&mut stream, bridge::IN, input).await.expect("input");
+  }
+
+  bridge::write_frame(&mut stream, 0, &[]).await.expect("end of input");
+
+  let (mut out, mut err, mut code) = (Vec::new(), Vec::new(), -1);
+
+  loop {
+    let mut head = [0u8; 5];
+
+    if stream.read_exact(&mut head).await.is_err() {
+      break;
+    }
+
+    let length = u32::from_be_bytes([head[1], head[2], head[3], head[4]]) as usize;
+    let mut body = vec![0; length];
+
+    stream.read_exact(&mut body).await.expect("body");
+
+    match head[0] {
+      bridge::OUT => out.extend(body),
+      bridge::ERR => err.extend(body),
+      _ => {
+        code = i32::from_be_bytes([body[0], body[1], body[2], body[3]]);
+        break;
+      }
+    }
+  }
+
+  (out, err, code)
+}

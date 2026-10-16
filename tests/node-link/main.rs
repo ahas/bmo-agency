@@ -1,0 +1,14 @@
+//! The node link's tests: its frames, the spec's paths, a program read as the node's, the home bridge,
+//! both ends of the link, the link run whole through an SSH stand-in, and the node build manifest.
+
+#[path = "../support/binary.rs"]
+mod binary;
+
+mod bridge;
+mod connect;
+mod frame;
+mod link;
+mod node_build;
+mod rewrite;
+mod serve;
+mod spec;

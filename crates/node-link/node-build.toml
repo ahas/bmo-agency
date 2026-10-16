@@ -1,0 +1,36 @@
+# The workspace a work node builds its own binaries in (docs/work-nodes.md, 「The workplace on a node」):
+# agent-host, pane-head and node-link, with the store beneath agent-host. A node's setup copies these
+# crates, each to the path it holds in the repository, and this file, as Cargo.toml, into a directory of
+# their own beside its copy of the code, with the repository's Cargo.lock, so a node builds these crates
+# alone and nothing of the server's. The version, each dependency and each member are the root
+# workspace's own, which a test holds this file to.
+
+[workspace]
+resolver = "3"
+members = [
+  "crates/agent-host",
+  "crates/store",
+  "crates/pane-head",
+  "crates/node-link",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+
+[workspace.dependencies]
+base64 = "0.22.1"
+chrono = { version = "0.4.41", default-features = false, features = ["std"] }
+clap = { version = "4.5.40", features = ["derive", "env", "string"] }
+indexmap = { version = "2.14.2", features = ["serde"] }
+libc = "0.2.177"
+sea-orm = { version = "1.1.17", default-features = false, features = ["macros", "runtime-tokio-rustls", "sqlx-postgres"] }
+sea-orm-migration = { version = "1.1.17", default-features = false, features = ["runtime-tokio-rustls", "sqlx-postgres"] }
+serde = { version = "1.0.219", features = ["derive"] }
+serde_json = "1.0.138"
+sha2 = "0.10.9"
+sqlx = { version = "0.8.6", default-features = false, features = ["any", "postgres", "runtime-tokio"] }
+tokio = { version = "1.47.0", features = ["macros", "rt", "rt-multi-thread", "net", "time", "signal", "io-util", "process"] }
+
+[profile.release]
+debug = false
