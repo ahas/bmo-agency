@@ -1,5 +1,5 @@
 //! The node service (docs/api.md, 「Calls agency makes」): this machine's room for another launch, whether
-//! a node's link stands, and the nodes it keeps.
+//! a node's link stands, the nodes it keeps and the SSH login to each.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -27,10 +27,12 @@ pub struct Room {
   pub held: Vec<String>,
 }
 
-/// One node the node service keeps, with its state and what it says of it.
+/// One node the node service keeps, with the label it is shown under, its state and what it says of it.
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
 pub struct NodeRow {
   pub node: String,
+  #[serde(default)]
+  pub label: Option<String>,
   pub state: String,
   #[serde(default)]
   pub detail: Option<String>,
@@ -46,17 +48,26 @@ struct NodeRows {
   nodes: Vec<NodeRow>,
 }
 
+#[derive(Deserialize)]
+struct Login {
+  ssh: Option<Vec<String>>,
+}
+
 /// What agency asks the node service.
 pub trait NodeService: Send + Sync {
   /// This machine's room for another launch.
   fn machine_room(&self) -> Asking<'_, Room>;
   /// Whether a node's link is connected and was heard from lately.
   fn link_up<'a>(&'a self, node: &'a str) -> Asking<'a, bool>;
-  /// Every node the service keeps.
+  /// Every node the service keeps, in the node list's order.
   fn node_rows(&self) -> Asking<'_, Vec<NodeRow>>;
+  /// The arguments that open a batch SSH login to a node, ahead of the command, or none where the node
+  /// has no SSH route.
+  fn ssh_login<'a>(&'a self, node: &'a str) -> Asking<'a, Option<Vec<String>>>;
 }
 
-/// No node service deployed: this machine has room, no link stands, and no node is kept.
+/// No node service deployed: this machine has room, no link stands, no node is kept and none is logged
+/// in to.
 pub struct NoNodeService;
 
 impl NodeService for NoNodeService {
@@ -70,6 +81,10 @@ impl NodeService for NoNodeService {
 
   fn node_rows(&self) -> Asking<'_, Vec<NodeRow>> {
     Box::pin(async { Ok(vec![]) })
+  }
+
+  fn ssh_login<'a>(&'a self, _node: &'a str) -> Asking<'a, Option<Vec<String>>> {
+    Box::pin(async { Ok(None) })
   }
 }
 
@@ -104,6 +119,14 @@ impl NodeService for HttpNodeService {
       let rows: NodeRows = self.caller.post("nodes/list", json!({})).await?;
 
       Ok(rows.nodes)
+    })
+  }
+
+  fn ssh_login<'a>(&'a self, node: &'a str) -> Asking<'a, Option<Vec<String>>> {
+    Box::pin(async move {
+      let login: Login = self.caller.post("nodes/login", json!({ "node": node })).await?;
+
+      Ok(login.ssh)
     })
   }
 }

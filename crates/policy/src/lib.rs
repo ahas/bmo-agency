@@ -18,6 +18,7 @@ pub mod job_prompt;
 pub mod keepalive;
 pub mod model_catalogue;
 pub mod node_states;
+pub mod place_words;
 pub mod providers;
 pub mod reasoning;
 pub mod registry;

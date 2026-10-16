@@ -28,7 +28,7 @@ judges none of it.
 ## Versioning
 
 - **The contract carries the repository's one version, in semver.** The version in the workspace
-  manifest is this boundary's version; the current line is `0.4.0`.
+  manifest is this boundary's version; the current line is `0.5.0`.
 - **A change to this document and a change to the boundary go in one commit.** A change that makes a
   route, an event, a hook or a shared table's contract different repairs this document in the same
   commit, stating what is true now.
@@ -101,7 +101,9 @@ judges none of it.
 - **A run's log lines** are published as the run writes them, so a consumer shows a long turn as it
   goes rather than as a silence (`docs/agent-control.md`, 「A job gone quiet」).
 - **A node's state** is published as it changes — ready, dropped, come back, its load and pressure
-  (`docs/work-nodes.md`, 「When a node drops」, 「In herdr」).
+  (`docs/work-nodes.md`, 「When a node drops」, 「In herdr」). `nodes-moved` is published, carrying
+  nothing, when the node list's shape moves under the places — a node added, removed, renamed,
+  relabelled, reordered or changing state — so a consumer showing the nodes reads them again.
 - **The gateway's settling** is published as a new table starts serving and an old one drains
   (`docs/own-llm.md`, 「The gateway」).
 - **The pool's grants and releases** are published for a consumer that shows the pool's state
@@ -148,6 +150,14 @@ Each hook has a default that does nothing, so agency runs with none registered.
 - **The owner's end, for a reservation.** A reserver registers what proves its owner ended; agency's
   pool releases a reservation only on that proof (`docs/coworker-pool.md`, 「Reserving places and
   keepalive」). The default never releases for time passing.
+- **The pane claims.** A consumer that keeps panes of its own in agency's herdr — a slot it stands an
+  agent in — answers which agents those panes hold, each with its label and whether it may be taken
+  down now for standing idle. Agency counts a claimed agent as standing, so its leftovers sweep spares
+  it, and on its heads' pass takes down each claim marked idle whose agent nothing is running in
+  (`docs/agent-control.md`, 「One standing pane per agent」). The default claims nothing.
+- **A room's title.** The tab a room's following pane stands in is named by the room's title, which the
+  consumer that owns the room answers for its chat id. The default answers none, and the tab is named
+  by the chat id.
 
 ## Co-worker pool
 
@@ -237,13 +247,17 @@ Each hook has a default that does nothing, so agency runs with none registered.
   — where the next launch and the next heavy run go (`docs/work-nodes.md`, 「The rotation」).
 - **The events** are a node's state changing, the gateway settling, and an account becoming unusable,
   so a consumer's health view follows without polling.
+- **Readiness.** The health route answers the server's process id, the code tree it reads its code
+  from, and whether its places have stood once since it started. A deployment that starts agency on a
+  pinned release waits for an answer naming its own process and the tree it pinned, and ready; an
+  answer from an earlier process or another tree is not yet the release it started.
 - **Agency reports faithfully:** a node not ready says what is missing, a gateway still settling says
   so, and a key that is not usable says it is not; nothing is shown ready that is not.
 
 ## Calls agency makes
 
 - **Agency calls three services:** the cache siren for an account's usage windows, the node service for
-  this machine's room, a node's link and the nodes it keeps, and the brain for what a companion's reset
+  this machine's room, a node's link, the nodes it keeps and the SSH login to each, and the brain for what a companion's reset
   does to the agent's brain folder. Each is reached at the base address the deployment names in its
   variable, with the token named beside it.
 - **A service whose address is unset is not called:** each call then answers the default stated beside it
@@ -274,7 +288,8 @@ Each hook has a default that does nothing, so agency runs with none registered.
 | --- | --- | --- | --- | --- |
 | machine room | `/machine/room` | nothing | `held`: what this machine is short of for another launch, each named; empty where it has room | room, nothing held |
 | link state | `/links/state` | `node` | `up` (boolean): the node's link is connected and was heard from lately | down |
-| node rows | `/nodes/list` | nothing | `nodes`: each `node`, `state` and `detail` (or null) | no nodes |
+| node rows | `/nodes/list` | nothing | `nodes`, in the node list's order: each `node`, `label` (or null), `state` and `detail` (or null) | no nodes |
+| node login | `/nodes/login` | `node` | `ssh`: the arguments that open a batch SSH login to the node, ahead of the command, or null where the node has no SSH route | none |
 
 ### The brain
 

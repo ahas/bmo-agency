@@ -16,6 +16,7 @@ mod keepalive;
 mod marks;
 mod model_catalogue;
 mod node_states;
+mod place_words;
 mod providers;
 mod providers_codex;
 mod reasoning;

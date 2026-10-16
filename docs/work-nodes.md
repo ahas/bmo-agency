@@ -69,10 +69,11 @@ side of a remote agent, the rotation, and what a dropped node does.
 ## The link
 
 - **One link per ready workplace:** a connect program of the crate workspace, under a unit of its own,
-  which the chat receiver starts with the workplace's spec — as it starts, once a minute and whenever
-  the workers move — and stops for a workplace no longer ready. Agency's server, the chat receiver,
-  keeps the links (`chat-providers.md`); a process standing on a copy of the data root keeps none.
-- **Its spec is the receiver's:** a link record of the node's under the data root, written whole
+  which agency's server starts with the workplace's spec — as it starts, once a minute and whenever
+  the workers move — and stops for a workplace no longer ready. Agency's server keeps the links; a
+  process standing on a copy of the data root keeps none. The node's SSH login is asked of the node
+  service, which keeps the nodes (`docs/api.md`, 「The node service」).
+- **Its spec is the server's:** a link record of the node's under the data root, written whole
   whenever what it says moves — the login, the forwards, what is mirrored each way, how this machine's
   roots read on the node, which variables of a program go there. The link reads it again as it moves,
   and makes a new connection only where the connection itself changed.

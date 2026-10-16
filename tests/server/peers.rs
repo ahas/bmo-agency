@@ -56,8 +56,13 @@ async fn answer(
     "machine/room" => json!({ "held": ["memory"] }),
     "links/state" => json!({ "up": body["node"] == "near" }),
     "nodes/list" => {
-      json!({ "nodes": [{ "node": "near", "state": "up" }, { "node": "far", "state": "down", "detail": "unheard" }] })
+      json!({ "nodes": [
+        { "node": "near", "label": "Near", "state": "up" },
+        { "node": "far", "state": "down", "detail": "unheard" }
+      ] })
     }
+    "nodes/login" if body["node"] == "near" => json!({ "ssh": ["-o", "BatchMode=yes", "worker@near"] }),
+    "nodes/login" => json!({ "ssh": null }),
     "agents/fence" | "agents/put-back" => json!({ "ok": true }),
     "agents/lock" if body["agent"] == "kept" => json!({ "path": "brains/kept/.lock" }),
     "agents/lock" => json!({ "path": null }),
@@ -147,7 +152,7 @@ async fn the_cache_siren_is_asked_for_an_accounts_windows() {
 }
 
 #[tokio::test]
-async fn the_node_service_is_asked_for_room_links_and_nodes() {
+async fn the_node_service_is_asked_for_room_links_nodes_and_logins() {
   let (address, calls) = stand_in().await;
   let peers = peers_at(&address, None);
 
@@ -164,24 +169,39 @@ async fn the_node_service_is_asked_for_room_links_and_nodes() {
     vec![
       NodeRow {
         node: "near".into(),
+        label: Some("Near".into()),
         state: "up".into(),
         detail: None,
       },
       NodeRow {
         node: "far".into(),
+        label: None,
         state: "down".into(),
         detail: Some("unheard".into()),
       },
     ]
   );
+  assert_eq!(
+    peers.node.ssh_login("near").await.unwrap(),
+    Some(vec!["-o".into(), "BatchMode=yes".into(), "worker@near".into()])
+  );
+  assert_eq!(peers.node.ssh_login("far").await.unwrap(), None);
 
   let calls = taken(&calls);
   let paths: Vec<&str> = calls.iter().map(|call| call.path.as_str()).collect();
 
   assert_eq!(
     paths,
-    ["/base/machine/room", "/base/links/state", "/base/links/state", "/base/nodes/list"]
+    [
+      "/base/machine/room",
+      "/base/links/state",
+      "/base/links/state",
+      "/base/nodes/list",
+      "/base/nodes/login",
+      "/base/nodes/login"
+    ]
   );
+  assert_eq!(calls[4].body, json!({ "node": "near" }));
   assert!(calls.iter().all(|call| call.authorization.is_none()), "no token named, none sent");
   assert_eq!(calls[1].body, json!({ "node": "near" }));
 }
@@ -267,6 +287,7 @@ async fn a_service_with_no_address_answers_its_default() {
   assert_eq!(peers.node.machine_room().await.unwrap(), Room::default());
   assert!(!peers.node.link_up("near").await.unwrap());
   assert!(peers.node.node_rows().await.unwrap().is_empty());
+  assert_eq!(peers.node.ssh_login("near").await.unwrap(), None);
   peers.brain.fence("kept").await.unwrap();
   peers.brain.forget("kept").await.unwrap();
   peers.brain.book_since("kept", 1, 2).await.unwrap();
