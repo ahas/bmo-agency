@@ -325,6 +325,60 @@ impl WindowsRead {
   }
 }
 
+/// One model a run spent tokens on, under the login it is filed against: empty on a road that holds no
+/// logins of agency's.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SpentRow {
+  pub account: String,
+  #[serde(flatten)]
+  pub spend: ModelSpend,
+}
+
+/// What a run spent, published for the reader that keeps usage (docs/api.md, 「Events」): the agent it is
+/// filed under, the run it came from where one is named, when in epoch seconds, and each model it spent
+/// tokens on. Agency keeps no usage rows.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UsageSpent {
+  pub agent: String,
+  pub run: Option<String>,
+  pub at: i64,
+  pub rows: Vec<SpentRow>,
+}
+
+impl Event for UsageSpent {
+  const NAME: &'static str = "usage-spent";
+}
+
+impl UsageSpent {
+  /// What a run spent, each model that spent tokens filed under the login `account_of` names for its
+  /// provider; none where it spent nothing.
+  pub fn of(
+    agent: &str,
+    run: Option<&str>,
+    at: i64,
+    spend: &[ModelSpend],
+    account_of: impl Fn(&ModelSpend) -> String,
+  ) -> Option<Self> {
+    let rows: Vec<SpentRow> = spend
+      .iter()
+      .filter(|one| one.tokens > 0)
+      .map(|one| SpentRow {
+        account: account_of(one),
+        spend: one.clone(),
+      })
+      .collect();
+
+    (!rows.is_empty()).then(|| Self {
+      agent: agent.to_owned(),
+      run: run.map(str::to_owned),
+      at,
+      rows,
+    })
+  }
+}
+
 /// What one request carried, the fresh input apart from the cache it read and wrote.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]

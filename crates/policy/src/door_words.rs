@@ -79,6 +79,7 @@ pub struct StatusLine {
 #[serde(deny_unknown_fields)]
 pub struct DoorWords {
   pub provider_off: String,
+  pub fold_title: String,
   pub notes: Notes,
   pub screens: Screens,
   pub confirm: Confirm,

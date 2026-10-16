@@ -46,7 +46,9 @@ seeds. The other crates and the server reach the store only through it.
     agent host's supervisor reads again before it starts a child (`docs/agent-control.md`, 「The host」);
   - an agent's sampling, `agent_sampling:*`;
   - a session's record and its summary, `agent_session:*`, `agent_session_summary:*` and
-    `agent_session_summary_thread:*`;
+    `agent_session_summary_thread:*`, and the sessions a worker set aside on other models,
+    `agent_session_shelf:*`;
+  - a companion's reset point, `reset_point:*` (`docs/companions.md`, 「What the reset cuts off」);
   - the machine watch's notes: `doctor_standing_failure`, `herdr_leftovers_told`,
     `dev_server_max_age_minutes`;
   - the logins watch's notes: `claude_node_token_gone:*` and its notice keys;

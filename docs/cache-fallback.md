@@ -196,9 +196,9 @@ When a demotion first catches — when a healthy session first drops — two thi
 
 - **A room** hands a sanitised summary as a seed to its new session so conversation continues.
 - **A job** has nothing to hand over — it brings its own instructions and needs no memory of past jobs
-  — so a worker's healing is only the other half: delete the refused session's record, and note which
-  worker dropped to what. The chat agent reads that fact and explains it to the owner. The next job
-  opens a new session.
+  — so a worker's healing is only the other half: delete the refused session's record, and publish
+  which worker dropped to what as `worker-downgraded` (`docs/api.md`, 「Events」). The consumer that
+  owns the owner's room reads that fact and explains it to the owner. The next job opens a new session.
 
 #### A worker the owner keeps on its fallen model
 

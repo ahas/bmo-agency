@@ -107,6 +107,10 @@ session on the owner's ask is `docs/session-resets.md`.
   - between turns, the runner folds a worker session past `fold_ratio` of its model's window.
   - A worker running on a registered model's road is launched with the share its registration
     leaves for the answer instead (`docs/own-llm.md`, 「A turn at the input limit」).
+  - Whatever a consumer sent the session to hold — a co-work result among it — is folded away with
+    the detail, so `session-folded` is published once the fold has reached the session, or may have
+    (`docs/api.md`, 「Events」); a fold that never reached it, held off by a busy pane or a session too
+    short to fold, publishes nothing.
 
 ## Session replacement
 
@@ -134,23 +138,22 @@ session on the owner's ask is `docs/session-resets.md`.
   and out of each round's prompt the messages the room sent and the quiet instructions it was given.
   The rest of a prompt is scaffolding the turn's caller wrote — the chat header, the trailer, and the
   reference block, which carries the room's person book — and none of it reaches the summariser.
-- The tail is handed to the session-summary gate, which runs on its one road, the registration its
-  policy names, and writes what the room was in the middle of as a note of at most
-  1,200 characters (`prompts/agents/session-summary/`).
-- How much of the tail is read, the blocks a round's conversation stands in, the cap and the notes
-  themselves are the policy's handover part (`policy/companion-runner.toml`), which agency's server
-  reads: a worker's session agency replaces or hands over is summarised by its own
-  gate run, out of the record of whichever program it stood on.
-- The note passes the context sanitiser, a summariser hook the caller registers (`docs/api.md`,
-  「Hooks」; `docs/cache-fallback.md`, 「The sanitiser gate」), before it seeds the new session, so a room whose record held an order to attack a real target does not carry
-  that order across the swap.
+- The note is the session summariser's, a hook the caller registers (`docs/api.md`, 「Hooks」): agency
+  hands it what closed — the kind of session, the provider, the session id, the folder, the login, what
+  was said on a road that keeps no session, the worker's own note where it wrote one, and the room — and
+  carries the note it answers. How much of the tail is read, how the conversation is told from the
+  scaffolding, the cap, the notes' wording and the context sanitiser the note passes before it seeds the
+  new session (`docs/cache-fallback.md`, 「The sanitiser gate」) are the summariser's.
+- With no summariser registered, nothing is carried over: the new session opens on its turn's words
+  alone.
 - The session id is cleared, a new session opens on the next run, and the note rides in front of
   that round as a quiet instruction: the room hears nothing and loses detail rather than the thread.
 - Who the people are is not in the note — that reaches the session by the reference gates and the
   person books, as on every turn.
 - A summary that fails, times out or finds nothing worth carrying does not cancel the swap, because
   what decided it was the cost of the old context and a failed summary has not made that context
-  cheaper; the new session is told plainly that it remembers nothing rather than left to invent.
+  cheaper; the summariser's note then tells the new session plainly that it remembers nothing rather
+  than leaving it to invent.
 - A session is never replaced inside a turn: the check runs between rounds, with nothing in flight.
 - **The note is written for the line it opens on.** A replacement reaches every line that keeps a
   session, not the rooms alone, and what the new session is handed is read by it as an instruction —

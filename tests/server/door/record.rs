@@ -613,3 +613,46 @@ fn a_child_is_asked_for_by_its_call_and_ended_by_its_notice() {
     }]
   );
 }
+
+fn spent(mode: &str, model: &str, tokens: i64) -> ModelSpend {
+  ModelSpend {
+    mode: mode.into(),
+    model: model.into(),
+    tokens,
+    input_tokens: tokens,
+    output_tokens: 0,
+    cache_read_tokens: 0,
+    cache_write_tokens: 0,
+    cost: 0.5,
+  }
+}
+
+#[test]
+fn what_a_run_spent_is_published_row_by_row_under_each_rows_login_and_nothing_where_it_spent_nothing() {
+  let spend = [
+    spent("claude-code", "model-a", 10),
+    spent("codex", "model-b", 4),
+    spent("claude-code", "model-c", 0),
+  ];
+  let published = UsageSpent::of("worker", Some("run-1"), 100, &spend, |one| {
+    if one.mode == "codex" { String::new() } else { "acct".into() }
+  })
+  .unwrap();
+
+  assert_eq!(published.rows.len(), 2, "a model that spent nothing is no row");
+  assert_eq!(
+    serde_json::to_value(&published).unwrap(),
+    json!({
+      "agent": "worker",
+      "run": "run-1",
+      "at": 100,
+      "rows": [
+        { "account": "acct", "mode": "claude-code", "model": "model-a", "tokens": 10, "inputTokens": 10,
+          "outputTokens": 0, "cacheReadTokens": 0, "cacheWriteTokens": 0, "cost": 0.5 },
+        { "account": "", "mode": "codex", "model": "model-b", "tokens": 4, "inputTokens": 4,
+          "outputTokens": 0, "cacheReadTokens": 0, "cacheWriteTokens": 0, "cost": 0.5 },
+      ],
+    })
+  );
+  assert_eq!(UsageSpent::of("worker", None, 100, &spend[2..], |_| String::new()), None);
+}

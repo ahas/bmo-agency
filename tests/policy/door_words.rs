@@ -4,6 +4,7 @@ use policy::fill_marks;
 #[test]
 fn reads_its_lines_and_each_names_the_marks_it_is_filled_by() {
   assert!(!DOOR_WORDS.provider_off.is_empty());
+  assert!(!DOOR_WORDS.fold_title.is_empty());
   assert!(DOOR_WORDS.notes.title.contains("{attempt}"));
   assert!(DOOR_WORDS.notes.herdr_back.contains("{state}"));
   assert!(DOOR_WORDS.screens.not_taken.contains("{message}"));

@@ -6,6 +6,20 @@ pub fn length(text: &str) -> usize {
   text.encode_utf16().count()
 }
 
+/// Whether a character is white space as the console's own trim reads it.
+pub fn is_space(character: char) -> bool {
+  matches!(
+    character,
+    '\t' | '\n' | '\u{b}' | '\u{c}' | '\r' | ' ' | '\u{a0}' | '\u{1680}' | '\u{2000}'
+      ..='\u{200a}' | '\u{2028}' | '\u{2029}' | '\u{202f}' | '\u{205f}' | '\u{3000}' | '\u{feff}'
+  )
+}
+
+/// A text with the console's white space taken off both ends, as a note written on either side is read.
+pub fn trim(text: &str) -> &str {
+  text.trim_matches(is_space)
+}
+
 /// The longest head of a text that comes within a number of UTF-16 units, as the console cuts one: a
 /// character that would pass the bound is left out whole.
 pub fn within(text: &str, units: usize) -> &str {

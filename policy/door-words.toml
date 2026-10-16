@@ -7,6 +7,10 @@
 # Why a run is refused where the owner switched its provider off (docs/cache-fallback.md).
 provider_off = "The provider is switched off."
 
+# The title a fold of a worker's session stands under in its pane (docs/sessions.md, 「Session
+# compaction」).
+fold_title = "fold"
+
 # What a turn put into a standing program writes into its run's log as it goes, read by a person on the
 # console and by whoever follows the run up: the {config} and the {cwd} whose trust was written, {why} the
 # trouble, the run's {title}, {model} and {attempt}, the {seconds} herdr or the record stood silent and the

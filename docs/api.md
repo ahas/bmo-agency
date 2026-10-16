@@ -28,7 +28,7 @@ judges none of it.
 ## Versioning
 
 - **The contract carries the repository's one version, in semver.** The version in the workspace
-  manifest is this boundary's version; the current line is `0.6.0`.
+  manifest is this boundary's version; the current line is `0.7.0`.
 - **A change to this document and a change to the boundary go in one commit.** A change that makes a
   route, an event, a hook or a shared table's contract different repairs this document in the same
   commit, stating what is true now.
@@ -127,6 +127,23 @@ judges none of it.
   while a failure stands: its `fact`, its `intent`, its `kind` and its `ttlMs`, how long it stays worth
   saying (`docs/run-records.md`, 「Why a run died」). Agency voices nothing; saying it in the room is the
   consumer's.
+- **What a run spent**, `usage-spent`, is published as a run's answer reports it, for the reader that
+  keeps usage: the `agent` it is filed under, the `run` it came from (or null), `at` in epoch seconds,
+  and `rows`, one for each model it spent tokens on, each its `account` (empty on a road that holds no
+  logins of agency's), `mode`, `model`, `tokens`, `cost`, `inputTokens`, `outputTokens`,
+  `cacheReadTokens` and `cacheWriteTokens` (`docs/agent-ownership.md`). Agency keeps no usage rows.
+- **A worker's session answered on a lesser model**, `worker-downgraded`, is published as the heal reads
+  it: the `worker`, the model it was `launched` on, the models it `answeredOn`, whether its session's
+  record was `dropped`, and the `job` it ran for (or null) (`docs/cache-fallback.md`). Telling the owner
+  is the consumer's.
+- **A session folded**, `session-folded`, is published once a fold has reached, or may have reached, a
+  worker's session, naming the `session`: whatever a consumer sent that session to hold — a co-work
+  result among it — is folded away with it, and the consumer lets its own record of it go
+  (`docs/sessions.md`, 「Session compaction」).
+- **A companion's run going in a room**, `companion-run-going`, is published as a run of the companion's
+  own starts there and again as it ends: the `agent`, the `run`, the `chatId`, and `going`, true while it
+  runs. A consumer that stands cancellations over a room's runs reads which are going from these
+  (`docs/companions.md`, 「What the reset cuts off」).
 
 ## Hooks
 
@@ -161,6 +178,12 @@ Each hook has a default that does nothing, so agency runs with none registered.
 - **A room's title.** The tab a room's following pane stands in is named by the room's title, which the
   consumer that owns the room answers for its chat id. The default answers none, and the tab is named
   by the chat id.
+- **The session summariser.** As a session is replaced, handed over or set aside for another model,
+  agency asks the summariser for the note the next run is handed: what kind of session it was (`chat`,
+  `worker` or `switch`), the provider it stood on, its session id, its folder, the login it was opened
+  under, what was said on a road that keeps no session of its own, the note the worker wrote itself
+  where it wrote one, and the room. The summariser answers the whole note, wording and all, or none
+  (`docs/sessions.md`, 「Session replacement」). The default answers none, and nothing is carried over.
 
 ## Co-worker pool
 

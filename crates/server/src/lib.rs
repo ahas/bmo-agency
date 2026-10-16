@@ -5,6 +5,13 @@
 //! declare them; and the members of the places and the watches that stand on nothing but this.
 
 pub mod clock;
+
+/// A companion's runs (docs/companions.md). Its members stand on the places, the launch lines, the door,
+/// the run log and the queue, and are declared with those; until then the members that stand on nothing
+/// but the ground are built here.
+pub mod companion {
+  pub mod going;
+}
 pub mod config;
 pub mod conversational;
 pub mod data_move;
@@ -19,6 +26,14 @@ pub mod door {
 }
 pub mod events;
 pub mod hooks;
+
+/// What a job's Claude turn comes to (docs/run-records.md, 「Why a run died」). The reset a job carries out
+/// stands on the launch lines and is declared with them.
+pub mod job_run {
+  pub mod claude {
+    pub mod failure;
+  }
+}
 pub mod peers;
 
 /// The workers' places in herdr (docs/agent-control.md, 「One standing pane per agent」). The places stand
@@ -46,6 +61,15 @@ pub mod text;
 /// The machine's watches agency keeps: the links to the work nodes (docs/work-nodes.md, 「The link」).
 pub mod watches {
   pub mod links;
+}
+
+/// A worker's own session (docs/sessions.md, docs/cache-fallback.md). Its turns, records and folds stand on
+/// the door, the launch lines, the queue and the control modules, and are declared whole, through
+/// `worker_session/mod.rs`, together with those; until then the members that stand on nothing but the
+/// ground are built here.
+pub mod worker_session {
+  pub mod summary;
+  pub mod told;
 }
 
 /// The launch lines (docs/launch-lines.md). The lines and the stand-in walk beside them stand on the
