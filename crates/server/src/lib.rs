@@ -1,15 +1,25 @@
 //! The agency service: sessions, places, lines, the co-worker pool, control routes and verbs (docs/api.md).
 //! This is its ground: what every handler stands on, the refusal it answers with, the store's place, the
 //! clock helper, the deployment's configuration, the clients of the services agency calls, and the bus
-//! its events and hooks go through.
+//! its events and hooks go through; and the conversational agents' settings as their rows declare them.
 
 pub mod clock;
 pub mod config;
+pub mod conversational;
 pub mod data_move;
 pub mod events;
 pub mod hooks;
 pub mod peers;
 pub mod text;
+
+/// The launch lines (docs/launch-lines.md). The lines and the stand-in walk beside them stand on the
+/// places, the door, the queue and the control modules, and are declared whole, through `lines/mod.rs`
+/// and `stand_in`, together with those; until then the members that stand on nothing but the ground are
+/// built here.
+pub mod lines {
+  pub mod ordered;
+  pub mod prefix;
+}
 
 use std::path::Path;
 use std::sync::Arc;

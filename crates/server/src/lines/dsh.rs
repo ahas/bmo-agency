@@ -1,0 +1,670 @@
+//! dsh's headless run of the worker's line on OpenRouter (docs/cache-fallback.md, 「The OpenRouter
+//! substitute is the dsh road」): the run one task long, at the version the deployment pins dsh at, its
+//! composition written as an overlay of the pinned profile's rows — the worker's rules after dsh's own
+//! opening line, every tool row on but the web, the sandbox open, the gateway as dsh's one route with the
+//! run's thinking, and the deployment's MCP servers — and its task as words read from a file of their own;
+//! what it answered, and what it said about failing. The keepalive's ping on a worker's OpenRouter run goes
+//! out on it.
+
+use std::collections::BTreeMap;
+use std::path::{Path, PathBuf};
+
+use indexmap::IndexMap;
+use policy::providers::openrouter::OPENROUTER;
+use serde::Deserialize;
+
+use super::fault;
+use super::openrouter::{LOCAL_URL, PROVIDER};
+use super::ordered::Ordered;
+use super::stand_in::StandInRun;
+use super::token::TOKEN_VARIABLE;
+use super::worker::LINE;
+use crate::Refusal;
+use crate::door::record::Reply;
+use crate::host_run::Command;
+
+// The version the deployment runs dsh at. A harness is its whole composition — the rows its profile mounts,
+// the ids they are addressed by — and the overlay below addresses rows by id, so the version moves only
+// with a reading of what moved with it.
+const VERSION: &str = "0.1.2-rc.1";
+
+// The profile that runs one task and prints the answer.
+const PROFILE: &str = "headless";
+
+// The persona the headless profile of the pinned version opens its system prompt with, which the worker's
+// rules are written after; `{{model}}` and `{{cwd}}` are dsh's own prompt variables.
+const HEADLESS_OPENER: &str =
+  "You are a coding agent powered by the {{model}} model. Your working directory is {{cwd}}.";
+
+// The one row of the pinned profile's tools a worker goes without, every other one on: the web reaches it
+// through the deployment's own server.
+const WEB_ROW: &str = "tool-web";
+
+// The row that spends a second model call titling a session nothing opens again; a worker keeps the
+// instruction-file reader, since the checkout's documents are its work's.
+const TITLE_ROW: &str = "session-title-llm";
+
+// What file effects a worker's run may have, in dsh's own word: any, since editing a checkout is what it is
+// for.
+const PERMISSION_MODE: &str = "danger-full-access";
+
+// A header dsh evaluates from its own environment as it loads the overlay, written as a placeholder and
+// laid into the overlay's text as YAML's `!!js` tag.
+const ENVIRONMENT_MARK: &str = "bmo-bearer-from-environment:";
+
+// The most one argument may hold, well inside the kernel's limit whatever the text is made of, and the
+// UTF-16 units that always fit in it.
+const WORD_BYTES: usize = 100_000;
+const WORD_UNITS: usize = WORD_BYTES / 3;
+
+// What npx runs once the pinned package is on its path: bash reads the task's words out of the task file,
+// removes it, and becomes dsh with each word an argument of its own, so a long task never travels in the
+// one string npx hands its shell.
+const LAUNCH: &str = r#"exec bash -c 'mapfile -d "" -t words < "$1"; rm -f -- "$1"; shift; exec dsh "$@" "${words[@]}"' bmo-dsh-task"#;
+
+// How much of an error stream's line is kept beside an exit.
+const FAILURE_TAIL_CHARS: usize = 300;
+
+fn text(value: &str) -> Ordered {
+  Ordered::text(value)
+}
+
+fn map(entries: Vec<(&str, Ordered)>) -> Ordered {
+  Ordered::map(entries)
+}
+
+#[derive(Deserialize)]
+struct McpFile {
+  #[serde(default, rename = "mcpServers")]
+  servers: IndexMap<String, McpServer>,
+}
+
+#[derive(Deserialize)]
+struct McpServer {
+  #[serde(default, rename = "type")]
+  kind: Option<String>,
+  #[serde(default)]
+  url: Option<Ordered>,
+  #[serde(default)]
+  headers: Option<IndexMap<String, Ordered>>,
+  #[serde(default)]
+  command: Option<Ordered>,
+  #[serde(default)]
+  args: Option<Ordered>,
+  #[serde(default)]
+  env: Option<Ordered>,
+}
+
+// The variable a bearer header reads its token from, in the `${NAME}` form the deployment's files write it.
+fn bearer_variable(headers: &IndexMap<String, String>) -> Option<String> {
+  let name = headers.get("Authorization")?.strip_prefix("Bearer ${")?.strip_suffix('}')?;
+  let mut letters = name.chars();
+
+  (letters.next().is_some_and(|first| first.is_ascii_alphabetic() || first == '_')
+    && letters.all(|rest| rest.is_ascii_alphanumeric() || rest == '_'))
+  .then(|| name.to_owned())
+}
+
+// The MCP servers the run may reach, each a client of its own under the name its tools are called by: a
+// server on the tool host as a Streamable HTTP row with its bearer header read from dsh's environment, any
+// other as the command it is spawned on.
+fn mcp_rows(path: Option<&Path>, cwd: &str) -> Result<Vec<Ordered>, Refusal> {
+  let Some(path) = path.filter(|path| !path.as_os_str().is_empty()) else {
+    return Ok(vec![]);
+  };
+
+  let read = std::fs::read_to_string(path).map_err(|why| fault(format!("{}: {why}", path.display())))?;
+  let file: McpFile =
+    serde_json::from_str(&read).map_err(|why| fault(format!("{}: {why}", path.display())))?;
+  let mut rows = vec![];
+
+  for (name, server) in file.servers {
+    let id = format!("mcp-{name}");
+
+    if server.kind.as_deref() == Some("http")
+      && let Some(Ordered::Text(url)) = &server.url
+    {
+      let headers: IndexMap<String, String> = server
+        .headers
+        .iter()
+        .flatten()
+        .filter_map(|(key, value)| value.as_text().map(|value| (key.clone(), value.to_owned())))
+        .collect();
+      let token = bearer_variable(&headers);
+      let mut said: Vec<(&str, Ordered)> =
+        headers.iter().map(|(key, value)| (key.as_str(), text(value))).collect();
+
+      if let Some(token) = &token {
+        said.push(("Authorization", Ordered::Text(format!("{ENVIRONMENT_MARK}{token}"))));
+      }
+
+      rows.push(map(vec![
+        ("id", Ordered::Text(id)),
+        ("name", text("@deepseek-ai/dsh-mcp-client")),
+        (
+          "config",
+          map(vec![
+            ("transport", text("streamable-http")),
+            ("serverName", Ordered::Text(name.clone())),
+            ("url", text(url)),
+            ("headers", map(said)),
+            ("failOnStartupError", Ordered::Flag(false)),
+          ]),
+        ),
+      ]));
+    } else if let Some(Ordered::Text(command)) = &server.command {
+      let args = match &server.args {
+        Some(args @ Ordered::List(_)) => args.clone(),
+        _ => Ordered::List(vec![]),
+      };
+      let env = match &server.env {
+        Some(env @ Ordered::Map(_)) => env.clone(),
+        _ => Ordered::map(Vec::<(String, Ordered)>::new()),
+      };
+
+      rows.push(map(vec![
+        ("id", Ordered::Text(id)),
+        ("name", text("@deepseek-ai/dsh-mcp-client")),
+        (
+          "config",
+          map(vec![
+            ("transport", text("stdio")),
+            ("serverName", Ordered::Text(name.clone())),
+            ("command", text(command)),
+            ("args", args),
+            ("env", env),
+            ("cwd", text(cwd)),
+            ("failOnStartupError", Ordered::Flag(false)),
+          ]),
+        ),
+      ]));
+    }
+  }
+
+  Ok(rows)
+}
+
+// A file the overlay hands over whole.
+fn read(path: &Path) -> Result<String, Refusal> {
+  std::fs::read_to_string(path).map_err(|why| fault(format!("{}: {why}", path.display())))
+}
+
+/// What dsh's overlay for a run of any line is composed out of: the line, its whole system file or the
+/// worker's rules, what it shows and allows of its tools — none for the worker, which takes the whole
+/// working set — where it works, the model, the effort and whether its agent chose one, whether it thinks,
+/// and its MCP servers.
+pub struct Composed<'a> {
+  pub line: &'a str,
+  pub system: Option<&'a Path>,
+  pub rules: Option<&'a Path>,
+  pub shown: Option<&'a str>,
+  pub allowed: Option<&'a str>,
+  pub cwd: &'a str,
+  pub model: &'a str,
+  pub effort: &'a str,
+  pub chosen: bool,
+  pub thinking: bool,
+  pub mcp: Option<&'a Path>,
+}
+
+impl Composed<'_> {
+  fn worker(&self) -> bool {
+    self.line == LINE
+  }
+
+  // Whether the run allows exactly what it shows, MCP tools aside.
+  fn allows_what_it_shows(&self) -> bool {
+    let (Some(shown), Some(allowed)) = (self.shown, self.allowed) else {
+      return self.shown == self.allowed;
+    };
+    let listed = |tools: &str, keep: &dyn Fn(&str) -> bool| {
+      tools
+        .split(',')
+        .map(str::trim)
+        .filter(|tool| !tool.is_empty() && keep(tool))
+        .collect::<Vec<_>>()
+        .join(",")
+    };
+
+    listed(allowed, &|tool| !tool.starts_with("mcp__")) == listed(shown, &|_| true)
+  }
+
+  /// What file effects the run may have, in dsh's own word: none composed for a run shown nothing, any for
+  /// the worker, and writes within where it works for a run that allows what it shows, reads alone
+  /// otherwise.
+  fn permission_mode(&self) -> Option<&'static str> {
+    if self.shown == Some("") {
+      None
+    } else if self.worker() {
+      Some(PERMISSION_MODE)
+    } else if self.allows_what_it_shows() {
+      Some("workspace-write")
+    } else {
+      Some("read-only")
+    }
+  }
+
+  // The tool rows a run's shown tools stand for: the filesystem, and the shell where it is shown Bash; the
+  // worker takes every row but the web, which reaches it through the deployment's own server.
+  fn working_rows(&self) -> Vec<&'static str> {
+    if self.worker() {
+      return TOOL_ROWS.into_iter().filter(|row| *row != WEB_ROW).collect();
+    }
+
+    let files = ["tool-fs", "tool-fs-search", "tool-str-replace-editor"];
+    let shell = self.shown.unwrap_or_default().split(',').any(|tool| tool.trim() == "Bash");
+
+    if shell { std::iter::once("tool-bash").chain(files).collect() } else { files.to_vec() }
+  }
+}
+
+// The overlay for one run: its prompt, the rows it goes without, the sandbox where it is shown tools, the
+// gateway as dsh's one route with the model and its thinking, and its MCP servers.
+fn overlay_of(run: &Composed, env: &BTreeMap<String, String>) -> Result<Ordered, Refusal> {
+  let mut rows = vec![];
+  let persona = match (run.system, run.rules) {
+    (Some(system), _) => Some(read(system)?),
+    (None, Some(rules)) if run.worker() => Some(format!("{HEADLESS_OPENER}\n\n{}", read(rules)?)),
+    _ => None,
+  };
+
+  if let Some(persona) = persona {
+    rows.push(map(vec![
+      ("id", text("system-prompt")),
+      ("config", map(vec![("persona", Ordered::Text(persona))])),
+    ]));
+  }
+
+  // The worker keeps the instruction-file reader, since the checkout's documents are its work's.
+  for id in ["agent-instructions", TITLE_ROW] {
+    if !(run.worker() && id == "agent-instructions") {
+      rows.push(map(vec![("id", text(id)), ("disabled", Ordered::Flag(true))]));
+    }
+  }
+
+  match run.permission_mode() {
+    None => {
+      for id in TOOL_ROWS {
+        rows.push(map(vec![("id", text(id)), ("disabled", Ordered::Flag(true))]));
+      }
+    }
+    Some(mode) => {
+      let working = run.working_rows();
+
+      for id in TOOL_ROWS.into_iter().filter(|row| !working.contains(row)) {
+        rows.push(map(vec![("id", text(id)), ("disabled", Ordered::Flag(true))]));
+      }
+
+      rows.push(map(vec![
+        ("id", text("sandbox-policy")),
+        ("config", map(vec![("mode", text(mode)), ("workspaceRoot", text(run.cwd))])),
+      ]));
+    }
+  }
+
+  // A run that must not think names off, the one level every model answers to; one that thinks at no level
+  // its agent chose is left at the model's own; one that does is declared that level and asks for it.
+  let level = if !run.thinking {
+    Some("off")
+  } else if !run.chosen || run.effort.is_empty() {
+    None
+  } else {
+    Some(run.effort)
+  };
+
+  rows.extend(route_rows(run.model, level, env));
+  rows.extend(mcp_rows(run.mcp, run.cwd)?);
+
+  Ok(Ordered::List(rows))
+}
+
+// The overlay for one worker's run.
+fn overlay(run: &StandInRun, env: &BTreeMap<String, String>) -> Result<Ordered, Refusal> {
+  overlay_of(&worker_composed(run), env)
+}
+
+// A worker's run as its overlay is composed out of.
+fn worker_composed(run: &StandInRun) -> Composed<'_> {
+  Composed {
+    line: LINE,
+    system: run.system_prompt_path.as_deref(),
+    rules: Some(&run.extensions.rules_path),
+    shown: None,
+    allowed: None,
+    cwd: &run.cwd,
+    model: &run.model,
+    effort: &run.effort,
+    chosen: run.reasoning.as_ref().is_some_and(|reasoning| reasoning.effort.is_some()),
+    thinking: run.thinking,
+    mcp: Some(&run.mcp_config_path),
+  }
+}
+
+// The gateway as dsh's one route, with the model on it at the level the run asks where it asks one, and the
+// model as the run's own.
+fn route_rows(model_id: &str, level: Option<&str>, env: &BTreeMap<String, String>) -> [Ordered; 2] {
+  let anthropic = model_id.starts_with("anthropic/");
+  let declared = level.filter(|level| *level != "off");
+  let base = env.get(LOCAL_URL).cloned().unwrap_or_else(|| OPENROUTER.gateway.api_on(env).to_owned());
+  let mut route = vec![
+    ("apiKeyEnv", text(&OPENROUTER.presence.key_env)),
+    ("baseURL", Ordered::Text(base)),
+    ("api", text("openai-completions")),
+  ];
+
+  if let Some(level) = level {
+    route.push(("reasoning", text(level)));
+  }
+
+  if anthropic {
+    route.push(("cacheRetention", text("long")));
+  }
+
+  let mut model = vec![("id", text(model_id))];
+
+  if let Some(level) = declared {
+    model.push(("reasoningEfforts", map(vec![("off", Ordered::Null), (level, text(level))])));
+    model.push(("compat", map(vec![("thinkingFormat", text("openrouter"))])));
+  }
+
+  if anthropic {
+    let mut compat = vec![];
+
+    if declared.is_some() {
+      compat.push(("thinkingFormat", text("openrouter")));
+    }
+
+    compat.push(("supportsLongCacheRetention", Ordered::Flag(true)));
+    model.push(("compat", map(compat)));
+  }
+
+  route.push(("models", Ordered::List(vec![map(model)])));
+
+  [
+    map(vec![
+      ("id", text("llm-pi-ai")),
+      ("config", map(vec![("providers", map(vec![(PROVIDER, map(route))]))])),
+    ]),
+    map(vec![
+      ("id", text("agent-default-model")),
+      ("config", map(vec![("provider", text(PROVIDER)), ("model", text(model_id))])),
+    ]),
+  ]
+}
+
+// Every row of the pinned profile that puts a tool in front of the model, and the plan mode that puts one
+// more there: a gate is shown nothing, which dsh takes as every one of them off.
+const TOOL_ROWS: [&str; 17] = [
+  "tool-bash",
+  "tool-pwsh",
+  "tool-jobs",
+  "tool-fs",
+  "tool-fs-search",
+  "tool-skill",
+  "tool-subagent-control",
+  "tool-subagent-list-agents",
+  "tool-subagent",
+  "tool-subagent-fork",
+  "tool-workflow",
+  "tool-todo",
+  "tool-goal",
+  "tool-ralph",
+  "tool-str-replace-editor",
+  "tool-web",
+  "plan-mode",
+];
+
+// The overlay for a gate's run: its instructions as dsh's persona, the instruction-file reader and the
+// title call off, every tool row off and no sandbox to set, and the gateway as its one route.
+fn gate_overlay(
+  model: &str,
+  thinking: bool,
+  system_path: &Path,
+  env: &BTreeMap<String, String>,
+) -> Result<Ordered, Refusal> {
+  let mut rows = vec![map(vec![
+    ("id", text("system-prompt")),
+    ("config", map(vec![("persona", Ordered::Text(read(system_path)?))])),
+  ])];
+
+  for id in ["agent-instructions", TITLE_ROW].into_iter().chain(TOOL_ROWS) {
+    rows.push(map(vec![("id", text(id)), ("disabled", Ordered::Flag(true))]));
+  }
+
+  rows.extend(route_rows(model, (!thinking).then_some("off"), env));
+
+  Ok(Ordered::List(rows))
+}
+
+/// The command a gate's run on dsh is: the pinned package by npx, the task's words and the overlay each in
+/// a file of the run's own, dsh's home beside the run's environment, and nothing on its input; a gate
+/// composes no file effects, so no permission mode is named.
+pub fn gate_command(
+  model: &str,
+  thinking: bool,
+  system_path: &Path,
+  cwd: &str,
+  prompt: &str,
+  env: &BTreeMap<String, String>,
+  agents: &Path,
+) -> Result<Command, Refusal> {
+  let overlay = overlay_text(&gate_overlay(model, thinking, system_path, env)?)?;
+  launched(GATE_LINE, prompt, &overlay, cwd, env, agents, None)
+}
+
+// The overlay as dsh reads it: JSON, which YAML reads too, with the tool host's bearer placeholder replaced
+// by the tagged expression it stands for.
+fn overlay_text(overlay: &Ordered) -> Result<String, Refusal> {
+  let text = serde_json::to_string_pretty(overlay).map_err(|why| fault(why.to_string()))?;
+  let mark = serde_json::to_string(&format!("{ENVIRONMENT_MARK}{TOKEN_VARIABLE}")).unwrap_or_default();
+  let tagged =
+    serde_json::to_string(&format!("`Bearer ${{process.env.{TOKEN_VARIABLE}}}`")).unwrap_or_default();
+
+  Ok(format!("{}\n", text.replace(&mark, &format!("!!js {tagged}"))))
+}
+
+// The last index at or before `from` that holds a space, as a string's own backward search finds it.
+fn last_space(units: &[u16], from: i64) -> i64 {
+  let from = from.clamp(0, units.len() as i64 - 1);
+
+  (0..=from).rev().find(|at| units[*at as usize] == u16::from(b' ')).unwrap_or(-1)
+}
+
+fn is_hyphen(units: &[u16], at: usize) -> bool {
+  units.get(at) == Some(&u16::from(b'-'))
+}
+
+/// The task as the words headless is handed, each short enough to be one argument: cut at a space that is
+/// dropped, so that joined again with one space it is the task exactly, never before a hyphen, which would
+/// read as an option; a stretch with no such space cut where it runs out, never inside a surrogate pair;
+/// and no NUL, which cannot stand in an argument.
+pub fn task_words(prompt: &str) -> Vec<String> {
+  let mut words = vec![];
+  let mut rest: Vec<u16> = prompt.replace('\0', "").encode_utf16().collect();
+
+  while String::from_utf16_lossy(&rest).len() > WORD_BYTES {
+    let mut cut = last_space(&rest, WORD_UNITS as i64);
+
+    while cut > 0 && is_hyphen(&rest, cut as usize + 1) {
+      cut = last_space(&rest, cut - 1);
+    }
+
+    if cut > 0 {
+      let cut = cut as usize;
+
+      words.push(String::from_utf16_lossy(&rest[..cut]));
+      rest.drain(..=cut);
+      continue;
+    }
+
+    let high = rest.get(WORD_UNITS - 1).is_some_and(|unit| (0xD800..=0xDBFF).contains(unit));
+    let mut end = if high { WORD_UNITS - 1 } else { WORD_UNITS };
+
+    while end > 1 && is_hyphen(&rest, end) {
+      end -= 1;
+    }
+
+    words.push(String::from_utf16_lossy(&rest[..end]));
+    rest.drain(..end);
+  }
+
+  words.push(String::from_utf16_lossy(&rest));
+  words
+}
+
+// A file of the run's own under dsh's home, named so no other run in flight holds it.
+fn own_file(home: &Path, line: &str, dir: &str, extension: &str, body: &str) -> Result<PathBuf, Refusal> {
+  let dir = home.join(dir);
+  let path = dir.join(format!("{line}-{}.{extension}", uuid::Uuid::new_v4()));
+
+  std::fs::create_dir_all(&dir).map_err(|why| fault(format!("{}: {why}", dir.display())))?;
+  std::fs::write(&path, body).map_err(|why| fault(format!("{}: {why}", path.display())))?;
+
+  Ok(path)
+}
+
+fn shell_word(word: &str) -> String {
+  format!("'{}'", word.replace('\'', r"'\''"))
+}
+
+/// Where dsh keeps everything it writes, under the agents root rather than anybody's home.
+pub fn dsh_home(agents: &Path) -> PathBuf {
+  agents.join("dsh")
+}
+
+/// The command a worker's run on dsh is: the pinned package by npx, the task's words and the overlay each
+/// in a file of the run's own, dsh's home and its permission mode beside the run's environment, and nothing
+/// on its input.
+pub fn command(
+  run: &StandInRun,
+  prompt: &str,
+  env: &BTreeMap<String, String>,
+  agents: &Path,
+) -> Result<Command, Refusal> {
+  launched(
+    LINE,
+    prompt,
+    &overlay_text(&overlay(run, env)?)?,
+    &run.cwd,
+    env,
+    agents,
+    Some(PERMISSION_MODE),
+  )
+}
+
+/// The command a run of any line on dsh is, as `command` is a worker's: its permission mode named where it
+/// composes one.
+pub fn line_command(
+  run: &Composed,
+  prompt: &str,
+  env: &BTreeMap<String, String>,
+  agents: &Path,
+) -> Result<Command, Refusal> {
+  let overlay = overlay_text(&overlay_of(run, env)?)?;
+
+  launched(run.line, prompt, &overlay, run.cwd, env, agents, run.permission_mode())
+}
+
+// The line a gate's run goes out on, which its files under dsh's home are named by.
+const GATE_LINE: &str = "gate";
+
+// The pinned package by npx on a run's task words and overlay, each written to a file of the line's own,
+// with its permission mode where it composes one and none otherwise.
+fn launched(
+  line: &str,
+  prompt: &str,
+  overlay: &str,
+  cwd: &str,
+  env: &BTreeMap<String, String>,
+  agents: &Path,
+  mode: Option<&str>,
+) -> Result<Command, Refusal> {
+  let home = dsh_home(agents);
+  let words: String = task_words(prompt).iter().map(|word| format!("{word}\0")).collect();
+  let task = own_file(&home, line, "tasks", "words", &words)?;
+  let patch = own_file(&home, line, "overlays", "yml", overlay)?;
+  let call = std::iter::once(LAUNCH.to_owned())
+    .chain(
+      [
+        task.to_string_lossy().as_ref(),
+        "--profile",
+        PROFILE,
+        "--patch",
+        patch.to_string_lossy().as_ref(),
+      ]
+      .map(shell_word),
+    )
+    .collect::<Vec<_>>()
+    .join(" ");
+  let mut env = env.clone();
+
+  env.insert("DSH_HOME".to_owned(), home.to_string_lossy().into_owned());
+  match mode {
+    Some(mode) => env.insert("DSH_PERMISSION_MODE".to_owned(), mode.to_owned()),
+    None => env.remove("DSH_PERMISSION_MODE"),
+  };
+
+  Ok(Command {
+    args: vec![
+      "npx".to_owned(),
+      "--yes".to_owned(),
+      "--package".to_owned(),
+      format!("@deepseek-ai/dsh@{VERSION}"),
+      "--call".to_owned(),
+      call,
+    ],
+    cwd: cwd.to_owned(),
+    env,
+    stdin: None,
+  })
+}
+
+/// What headless answered: everything it printed, where it exited cleanly; it reports no session and no
+/// spend of its own.
+pub fn answer(stdout: &str, exit_code: i32, run: &StandInRun) -> Reply {
+  reply(stdout, exit_code, &run.model)
+}
+
+/// What headless answered on a model, as `answer` reads a worker's.
+pub fn reply(stdout: &str, exit_code: i32, model: &str) -> Reply {
+  Reply {
+    mode: PROVIDER.to_owned(),
+    model: Some(model.to_owned()),
+    effort: None,
+    text: if exit_code == 0 { stdout.trim().to_owned() } else { String::new() },
+    session_id: None,
+    context_ratio: None,
+    context_tokens: None,
+    session_usage: None,
+    windows: vec![],
+    spend: vec![],
+    live_tasks: vec![],
+    workflows: vec![],
+    account: None,
+    last_request_usage: None,
+    request_usages: None,
+  }
+}
+
+// The first characters of a line, by the UTF-16 units a string counts.
+fn first_units(line: &str, units: usize) -> String {
+  let all: Vec<u16> = line.encode_utf16().collect();
+
+  String::from_utf16_lossy(&all[..units.min(all.len())])
+}
+
+/// What dsh said about a run that did not answer: its own word about the failure wherever in a line it
+/// stands, or the last line that is not the model thinking aloud with the exit, or the exit alone.
+pub fn failure(stderr: &str, exit_code: i32) -> String {
+  let lines: Vec<&str> = stderr.lines().map(str::trim).filter(|line| !line.is_empty()).collect();
+  let aloud = |line: &&&str| !line.starts_with("dsh: reasoning");
+
+  if let Some(said) = lines.iter().filter(aloud).rfind(|line| line.contains("dsh: ")) {
+    return first_units(said, FAILURE_TAIL_CHARS);
+  }
+
+  match lines.iter().rfind(aloud) {
+    Some(tail) => format!("exit {exit_code}: {}", first_units(tail, FAILURE_TAIL_CHARS)),
+    None => format!("exit {exit_code}"),
+  }
+}

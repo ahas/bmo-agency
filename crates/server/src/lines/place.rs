@@ -1,0 +1,597 @@
+//! An agent's place as the launcher writes it (docs/agent-control.md, 「One standing pane per agent」,
+//! 「What a resident turn reads」): the settings its resident program is started with, the program the
+//! head stands, and the session a worker's standing program opened while nothing was said in it. The
+//! head reads the program back as the agent host's place module reads it.
+
+use std::collections::BTreeMap;
+use std::path::{Path, PathBuf};
+
+use agent_host::identity::ProcessIdentity;
+use agent_host::layout::name_component;
+use agent_host::place::{ResidentCommand, RunningProgram};
+use harness_providers::Machine;
+use harness_providers::claude_code::ClaudeCode;
+use serde::{Deserialize, Serialize};
+use serde_json::{Map, Value, json};
+use sha2::{Digest, Sha256};
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+
+use super::fault;
+use crate::Refusal;
+use crate::watches::links::place_node;
+
+/// The variable a resident program names its place in.
+pub const PLACE_VARIABLE: &str = "BMO_AGENT_PLACE";
+
+/// The verbs' binary a place's status line and hooks call, from a tree's root, and the verb they call it
+/// with.
+pub const STATUS_BINARY: &str = "bin/bmo";
+pub const STATUS_VERB: &str = "agent-status";
+/// The kind of call the verb is told it answers where it guards a shell command.
+pub const SHELL_KIND: &str = "shell";
+/// The kind of call the verb is told it answers where a failed request ended the turn.
+pub const FAILURE_KIND: &str = "failure";
+
+// The words the stop hook is started with where its line holds a turn's end while its background work
+// runs, and while its final answer uses a banned word; the word the submit hook is started with where
+// its line composes a person's typed line, and how long the program gives that hook.
+const HOLD_TASKS: &str = "--hold-tasks";
+const HOLD_WORDING: &str = "--hold-wording";
+const COMPOSE_TYPED: &str = "--compose-typed";
+const TYPED_HOOK_SECONDS: u64 = 120;
+
+// How long a link's word on a node's processes stands.
+const NODE_HEARD_WITHIN_MS: i64 = 20_000;
+
+// How long a killed program is waited on to be gone: rounds of a wait each.
+const RELEASE_WAIT_ROUNDS: usize = 40;
+const RELEASE_WAIT_MS: u64 = 50;
+
+/// The variables that belong to one run rather than to the program, and the prefix every other one of
+/// a run's own stands under.
+const TURN_VARIABLES: [&str; 3] = ["BMO_RUN_NAME", "BMO_TASK_LOCKED", "BMO_WORK_ORDER_STEP"];
+const TURN_PREFIX: &str = "BMO_TURN_";
+
+/// Where every agent's place stands under a data root.
+pub fn places_dir(data_root: &Path) -> PathBuf {
+  data_root.join("agent-places")
+}
+
+/// An agent's place under a data root.
+pub fn place_of(data_root: &Path, agent: &str) -> PathBuf {
+  places_dir(data_root).join(name_component(agent))
+}
+
+/// What a line asks of its place's hooks.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Holds {
+  pub tasks: bool,
+  pub wording: bool,
+  pub compose_typed: bool,
+  /// Whether a shell command is read before it runs, and one that starts Claude Code refused
+  /// (docs/agents.md, 「No print mode」).
+  pub shell_guard: bool,
+}
+
+// A word as one shell word, quoted.
+fn quoted(word: &str) -> String {
+  format!("'{}'", word.replace('\'', r"'\''"))
+}
+
+/// The settings a resident program is started with: the status-line command and the four hooks, each
+/// the tree's `bmo agent status` told which place to write into, and the shell guard where the line asks
+/// for it, merged into the settings the line already hands its program so a hook the line had keeps
+/// standing beside these. Written into the place and named back.
+pub fn write_place_settings(
+  place: &Path,
+  mut settings: Map<String, Value>,
+  tree: &Path,
+  holds: Holds,
+) -> Result<PathBuf, Refusal> {
+  let binary = tree.join(STATUS_BINARY);
+  let call = |kind: &str, flags: &[&str]| {
+    let mut words = vec![
+      binary.to_string_lossy().into_owned(),
+      STATUS_VERB.to_owned(),
+      kind.to_owned(),
+      "--place".to_owned(),
+      place.to_string_lossy().into_owned(),
+    ];
+
+    words.extend(flags.iter().map(|flag| (*flag).to_owned()));
+    words.iter().map(|word| quoted(word)).collect::<Vec<_>>().join(" ")
+  };
+  let mut stop_flags = vec![];
+
+  if holds.tasks {
+    stop_flags.push(HOLD_TASKS);
+  }
+
+  if holds.wording {
+    stop_flags.push(HOLD_WORDING);
+  }
+
+  let submit = if holds.compose_typed {
+    json!({ "type": "command", "command": call("submit", &[COMPOSE_TYPED]), "timeout": TYPED_HOOK_SECONDS })
+  } else {
+    json!({ "type": "command", "command": call("submit", &[]) })
+  };
+  let mut own = vec![
+    (
+      "Stop",
+      json!({ "hooks": [{ "type": "command", "command": call("stop", &stop_flags) }] }),
+    ),
+    // A turn a failed request ended fires this in place of the stop, and the program reads nothing it
+    // answers.
+    (
+      "StopFailure",
+      json!({ "hooks": [{ "type": "command", "command": call(FAILURE_KIND, &[]) }] }),
+    ),
+    ("UserPromptSubmit", json!({ "hooks": [submit] })),
+    (
+      "SessionStart",
+      json!({ "hooks": [{ "type": "command", "command": call("start", &[]) }] }),
+    ),
+  ];
+
+  if holds.shell_guard {
+    own.push((
+      "PreToolUse",
+      json!({ "matcher": "Bash", "hooks": [{ "type": "command", "command": call(SHELL_KIND, &[]) }] }),
+    ));
+  }
+  let mut hooks = settings.get("hooks").and_then(Value::as_object).cloned().unwrap_or_default();
+
+  for (event, entry) in own {
+    let mut entries = hooks.get(event).and_then(Value::as_array).cloned().unwrap_or_default();
+
+    entries.push(entry);
+    hooks.insert(event.to_owned(), Value::Array(entries));
+  }
+
+  settings.insert("statusLine".to_owned(), json!({ "type": "command", "command": call("status", &[]) }));
+  settings.insert("hooks".to_owned(), Value::Object(hooks));
+
+  let path = place.join("settings.json");
+  let text = serde_json::to_string_pretty(&settings).map_err(|why| fault(why.to_string()))?;
+
+  std::fs::create_dir_all(place).map_err(|why| fault(format!("{}: {why}", place.display())))?;
+  std::fs::write(&path, format!("{text}\n")).map_err(|why| fault(format!("{}: {why}", path.display())))?;
+
+  Ok(path)
+}
+
+/// Whether a variable belongs to one run rather than to the program.
+pub fn is_turn_variable(name: &str) -> bool {
+  TURN_VARIABLES.contains(&name) || name.starts_with(TURN_PREFIX)
+}
+
+/// The identity of a command a program was started on: its words, where it stands, what it is handed,
+/// and the status command the settings file it is handed names now, with every guard the place's own verb
+/// stands before a tool call, in a fixed order. Two commands with one digest start the same program; a
+/// program keeps the status line and hooks it started with, so one whose settings came to call another
+/// command, or to guard its tools otherwise, is another program.
+pub fn command_digest(command: &ResidentCommand) -> String {
+  #[derive(Serialize)]
+  struct Hashed<'a> {
+    args: &'a [String],
+    cwd: &'a Path,
+    env: Vec<(&'a String, &'a String)>,
+    settings: Vec<String>,
+  }
+
+  let settings = command
+    .args
+    .windows(2)
+    .filter(|pair| pair[0] == "--settings")
+    .map(|pair| {
+      std::fs::read_to_string(command.cwd.join(&pair[1]))
+        .ok()
+        .and_then(|text| serde_json::from_str::<Value>(&text).ok())
+        .and_then(|settings| {
+          let status = settings.pointer("/statusLine/command").and_then(Value::as_str)?.to_owned();
+          let guards = settings
+            .pointer("/hooks/PreToolUse")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .flat_map(|entry| entry["hooks"].as_array().cloned().unwrap_or_default())
+            .filter_map(|hook| hook["command"].as_str().map(str::to_owned))
+            .filter(|command| command.contains(STATUS_VERB));
+
+          Some(std::iter::once(status).chain(guards).collect::<Vec<_>>().join("\n"))
+        })
+        .unwrap_or_default()
+    })
+    .collect();
+  let hashed = Hashed {
+    args: &command.args,
+    cwd: &command.cwd,
+    env: command.env.iter().collect(),
+    settings,
+  };
+  let text = serde_json::to_string(&hashed).unwrap_or_default();
+
+  format!("{:x}", Sha256::digest(text.as_bytes()))[..32].to_owned()
+}
+
+/// The program a launcher writes into a place, as the head reads it back.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Program {
+  pub identity: String,
+  pub command: ResidentCommand,
+  pub restart: Option<ResidentCommand>,
+  /// The record whose existence says the session the first command opens is open, none where it
+  /// opens none; absent from a program whose restart can always be taken.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub opened: Option<Option<PathBuf>>,
+}
+
+impl Program {
+  /// Whether the program stands on the session named: its restart, the form that resumes the session it
+  /// stands on, names it.
+  pub fn resumes(&self, session: &str) -> bool {
+    self.restart.as_ref().is_some_and(|restart| {
+      restart.args.windows(2).any(|pair| pair[0] == "--resume" && pair[1] == session)
+    })
+  }
+}
+
+/// A command that opens a session under a name it chose, as the command that resumes that session.
+pub fn resumed_command(args: &[String], session: &str) -> Vec<String> {
+  let mut resumed = args.to_vec();
+
+  if let Some(at) = args.iter().position(|arg| arg == "--session-id") {
+    resumed.splice(at..(at + 2).min(args.len()), ["--resume".to_owned(), session.to_owned()]);
+  }
+
+  resumed
+}
+
+/// The program a standing agent's command makes: its environment without the run's own variables and
+/// with the place it answers to, compared by the form that resumes its session, and the record whose
+/// existence says the session it opens is open.
+pub fn resident_of(
+  machine: &Machine,
+  place: &Path,
+  cwd: &str,
+  args: &[String],
+  env: &BTreeMap<String, String>,
+  session: &str,
+) -> Program {
+  let mut env: BTreeMap<String, String> = env
+    .iter()
+    .filter(|(name, _)| !is_turn_variable(name))
+    .map(|(name, value)| (name.clone(), value.clone()))
+    .collect();
+
+  env.insert(PLACE_VARIABLE.to_owned(), place.to_string_lossy().into_owned());
+
+  let restart = resumed_command(args, session);
+  let opened = args.iter().any(|arg| arg == "--session-id").then(|| {
+    let config_dir = env
+      .get("CLAUDE_CONFIG_DIR")
+      .filter(|dir| !dir.is_empty())
+      .map_or_else(|| ClaudeCode::machine_config_dir(machine), PathBuf::from);
+
+    ClaudeCode::records_under(&config_dir, Path::new(cwd), session).swap_remove(0)
+  });
+  let command = |args: Vec<String>| ResidentCommand {
+    args,
+    cwd: PathBuf::from(cwd),
+    env: env.clone(),
+  };
+  let restart = command(restart);
+
+  Program {
+    identity: command_digest(&restart),
+    command: command(args.to_vec()),
+    restart: Some(restart),
+    opened: Some(opened),
+  }
+}
+
+/// A place: where it is, and the machine whose processes it names.
+pub struct Place {
+  pub path: PathBuf,
+  data: PathBuf,
+}
+
+impl Place {
+  pub fn of(data_root: &Path, agent: &str) -> Self {
+    Self {
+      path: place_of(data_root, agent),
+      data: data_root.to_path_buf(),
+    }
+  }
+
+  fn program_file(&self) -> PathBuf {
+    self.path.join("program.json")
+  }
+
+  /// The program the place holds, or none.
+  pub fn program(&self) -> Option<Program> {
+    serde_json::from_slice(&std::fs::read(self.program_file()).ok()?).ok()
+  }
+
+  /// The program standing, as its head recorded it.
+  pub fn running(&self) -> Option<RunningProgram> {
+    agent_host::disk::read_json(&self.path.join("running.json"))
+  }
+
+  /// The node the place stands on, or none for a place here.
+  pub fn node(&self) -> Option<String> {
+    place_node(&self.path)
+  }
+
+  /// Whether a process the place names is alive, asked of the machine it runs on: this one's kernel
+  /// for a place here, what the link last told for a place on a node. A link that has told nothing
+  /// lately says nothing either way, and the process is taken as standing rather than stood up again
+  /// over a program that may be working.
+  pub fn alive(&self, pid: i32, birth: Option<&str>) -> bool {
+    if self.node().is_none() {
+      return birth.is_some_and(|birth| {
+        ProcessIdentity {
+          pid,
+          birth: birth.to_owned(),
+        }
+        .alive()
+      });
+    }
+
+    let told: Option<Value> = agent_host::disk::read_json(&self.path.join("node-alive.json"));
+    let Some(at) = told.as_ref().and_then(|told| told.get("at")).and_then(Value::as_i64) else {
+      return true;
+    };
+
+    if crate::now_ms() - at > NODE_HEARD_WITHIN_MS {
+      return true;
+    }
+
+    told
+      .as_ref()
+      .and_then(|told| told.get("alive"))
+      .and_then(Value::as_array)
+      .is_some_and(|alive| {
+        alive.iter().any(|one| {
+          one.get("pid").and_then(Value::as_i64) == Some(i64::from(pid))
+            && birth.is_none_or(|birth| one.get("birth").and_then(Value::as_str) == Some(birth))
+        })
+      })
+  }
+
+  /// The program standing in the place, where its process is alive and still the one recorded.
+  pub fn program_alive(&self) -> Option<RunningProgram> {
+    self.running().filter(|running| self.alive(running.pid, running.birth.as_deref()))
+  }
+
+  /// A process of the place ended on the machine it runs on: signalled here, or through the node's
+  /// link.
+  pub async fn end(&self, pid: i32) {
+    self.signal(pid, libc::SIGTERM).await;
+  }
+
+  // A process of the place sent a signal on the machine it runs on.
+  async fn signal(&self, pid: i32, signal: i32) {
+    let Some(node) = self.node() else {
+      // SAFETY: a signal sent to a pid the place recorded as alive a moment ago.
+      unsafe { libc::kill(pid, signal) };
+
+      return;
+    };
+    let running = self.running();
+    let birth = running.as_ref().and_then(|running| {
+      if running.pid == pid {
+        running.birth.clone()
+      } else if running.head.pid == pid {
+        Some(running.head.birth.clone())
+      } else {
+        None
+      }
+    });
+    let socket = self.data.join("nodes").join(&node).join("control.sock");
+    let asked = json!({ "signal": { "pid": pid, "birth": birth, "signal": signal } });
+    let send = async {
+      let mut stream = tokio::net::UnixStream::connect(&socket).await.ok()?;
+
+      stream.write_all(format!("{asked}\n").as_bytes()).await.ok()?;
+
+      let mut answer = String::new();
+
+      BufReader::new(stream).read_line(&mut answer).await.ok()
+    };
+
+    let _ = tokio::time::timeout(std::time::Duration::from_secs(5), send).await;
+  }
+
+  // Written whole and private: the command carries the login a program goes out on.
+  fn write_program(&self, program: &Program) -> Result<(), Refusal> {
+    agent_host::disk::private_dir(&self.path)
+      .map_err(|why| fault(format!("{}: {why}", self.path.display())))?;
+
+    let mut bytes = serde_json::to_vec(program).map_err(|why| fault(why.to_string()))?;
+
+    bytes.push(b'\n');
+    agent_host::disk::publish_bytes(&self.program_file(), &bytes)
+      .map_err(|why| fault(format!("{}: {why}", self.program_file().display())))
+  }
+
+  /// A program written into a place that holds none, for the head to start with nothing put in. A
+  /// place that already holds one keeps it. Answers whether it was written.
+  pub fn offer(&self, program: &Program) -> Result<bool, Refusal> {
+    if self.program_file().exists() {
+      return Ok(false);
+    }
+
+    self.write_program(program)?;
+
+    Ok(true)
+  }
+
+  /// A program written into a place in place of whatever it holds, and the one standing ended where it
+  /// is another, which the loop answers by starting the new one in the same pane. The new one is
+  /// written first, so the loop finds it rather than nothing. Answers the program the place held
+  /// before, and whether a standing program was ended.
+  pub async fn replace(&self, program: &Program) -> Result<(Option<Program>, bool), Refusal> {
+    let before = self.program();
+    let tokened = token_of(program).is_some() && before.as_ref().and_then(token_of).is_none();
+
+    if before.as_ref().is_some_and(|before| before.identity == program.identity) && !tokened {
+      return Ok((before, false));
+    }
+
+    self.write_program(program)?;
+
+    let Some(running) = self.program_alive() else {
+      return Ok((before, false));
+    };
+
+    if running.identity == program.identity && !tokened {
+      return Ok((before, false));
+    }
+
+    self.end(running.pid).await;
+
+    Ok((before, true))
+  }
+
+  /// A session the standing program opened for itself, made its own: the place holds the program on that
+  /// session, carrying the session token the one it held was started with, and the program standing is
+  /// relabelled rather than started again, where it is still the one `from` names.
+  pub fn adopt(&self, from: &str, program: &Program) -> Result<(), Refusal> {
+    let mut carried = program.clone();
+
+    if let Some(token) = self.program().as_ref().and_then(token_of).map(str::to_owned) {
+      for command in std::iter::once(&mut carried.command).chain(carried.restart.as_mut()) {
+        command.env.insert(super::token::TOKEN_VARIABLE.to_owned(), token.clone());
+      }
+    }
+
+    self.write_program(&carried)?;
+
+    if let Some(running) = self.running().filter(|running| running.identity == from) {
+      agent_host::place::Place(self.path.clone())
+        .record_running(&RunningProgram {
+          identity: program.identity.clone(),
+          ..running
+        })
+        .map_err(|why| fault(format!("{}: {why}", self.path.display())))?;
+    }
+
+    Ok(())
+  }
+
+  /// The place handed back to the host: the program standing ended, and the loop, finding none, serves
+  /// the host. Answers the program the place held, where it held one.
+  pub async fn release(&self) -> Option<Program> {
+    self.release_by(libc::SIGTERM).await.0
+  }
+
+  /// The place left holding no program, as `release` leaves it, where the one standing must write nothing
+  /// more: killed rather than asked to end, which a program answers by writing its session's record as it
+  /// goes, and waited on until it is gone, so a record of its session removed after this is never written
+  /// again.
+  pub async fn release_now(&self) -> Option<Program> {
+    let (before, ended) = self.release_by(libc::SIGKILL).await;
+
+    if let Some(ended) = ended {
+      for _ in 0..RELEASE_WAIT_ROUNDS {
+        if !self.alive(ended.pid, ended.birth.as_deref()) {
+          break;
+        }
+
+        tokio::time::sleep(std::time::Duration::from_millis(RELEASE_WAIT_MS)).await;
+      }
+    }
+
+    before
+  }
+
+  // The place's program let go and the one standing sent the signal: the program it held, and the one it
+  // signalled.
+  async fn release_by(&self, signal: i32) -> (Option<Program>, Option<RunningProgram>) {
+    let before = self.program();
+
+    if !self.program_file().exists() {
+      return (None, None);
+    }
+
+    let _ = std::fs::remove_file(self.program_file());
+
+    let running = self.program_alive();
+
+    if let Some(running) = &running {
+      self.signal(running.pid, signal).await;
+    }
+
+    (before, running)
+  }
+}
+
+/// The session token a written program carries.
+pub fn token_of(program: &Program) -> Option<&str> {
+  program.command.env.get(super::token::TOKEN_VARIABLE).map(String::as_str)
+}
+
+/// The session a worker's standing program opened while nothing has been said in it.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Standby {
+  /// The program this session was opened by, as the place names it.
+  pub identity: String,
+  pub session_id: String,
+  pub model: String,
+  /// The login, as the worker's session records name it.
+  pub account: String,
+  /// The session's own record, which exists once anything has been said in it.
+  pub record: PathBuf,
+  /// What the prefix the session opens on reduces to.
+  pub prefix_digest: Option<String>,
+}
+
+impl Standby {
+  fn file(place: &Path) -> PathBuf {
+    place.join("standby.json")
+  }
+
+  pub fn read(place: &Path) -> Option<Self> {
+    serde_json::from_slice(&std::fs::read(Self::file(place)).ok()?).ok()
+  }
+
+  pub fn write(&self, place: &Path) -> Result<(), Refusal> {
+    agent_host::disk::private_dir(place).map_err(|why| fault(format!("{}: {why}", place.display())))?;
+
+    let mut bytes = serde_json::to_vec(self).map_err(|why| fault(why.to_string()))?;
+
+    bytes.push(b'\n');
+    agent_host::disk::publish_bytes(&Self::file(place), &bytes)
+      .map_err(|why| fault(format!("{}: {why}", Self::file(place).display())))
+  }
+
+  pub fn drop_from(place: &Path) {
+    let _ = std::fs::remove_file(Self::file(place));
+  }
+
+  /// The session a turn about to open a fresh one on this model and login opens instead: the one the
+  /// standing program already opened, while nothing has been said in it. The standby is spent by it.
+  pub fn opening(place: &Path, model: &str, account: &str) -> Option<String> {
+    let standby = Self::read(place)?;
+
+    if standby.model != model || standby.account != account || standby.record.exists() {
+      return None;
+    }
+
+    Self::drop_from(place);
+
+    Some(standby.session_id)
+  }
+}
+
+/// A line's own settings as an object to lay the place's over; none where the file is not there or
+/// is not one.
+pub fn read_settings(path: &Path) -> Map<String, Value> {
+  std::fs::read_to_string(path)
+    .ok()
+    .and_then(|text| serde_json::from_str::<Map<String, Value>>(&text).ok())
+    .unwrap_or_default()
+}

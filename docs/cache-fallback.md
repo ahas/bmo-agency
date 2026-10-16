@@ -671,14 +671,20 @@ When a demotion first catches — when a healthy session first drops — two thi
 
 - **A rest is one account's,** so a room falls quiet only when no account and no provider will answer it.
   Even where every account rests, if the walk meets a usable substitute before the Claude turn it keeps
-  taking the room.
+  taking the room. For this walk a login is closed where its own limit rest stands and its week — the
+  window its provider counts as its week, among the windows the cache siren reads for it (`docs/api.md`,
+  「The cache siren」) — is used past the rest's weekly ceiling; a login the siren holds no reading for is
+  not closed by it.
 - **Which model it switched to is operational information,** so it is not told to other rooms. The owner
   is not told before the first answer either; only when a substitute first answers, or later drops to
-  another, is the owner's private chat told the road and the model. A key set to one provider answering on
-  that provider is a chosen road, not a fallback, so it is neither reported nor marked, while an enabled
-  substitute answering while Claude Code is off is reported as a fallback, since the fact that Claude is
-  not answering still holds. When Claude produces an answer with a real session id, the fallback mark is
-  cleared and the owner is told it is back.
+  another, does agency mark the road answering with the moment the fallback began and publish
+  `fallback-answering` with the owner, the substitute that answered before where a fallback already
+  stood, and the provider and model answering now (`docs/api.md`, 「Events」). Telling the owner's
+  private chat, and in what words, is the consumer's. A key set to one provider answering on that
+  provider is a chosen road, not a fallback, so it is neither published nor marked, while an enabled
+  substitute answering while Claude Code is off is published as a fallback, since the fact that Claude
+  is not answering still holds. When Claude produces an answer with a real session id, the fallback mark
+  is cleared and the owner is told it is back.
 
 ### The response options each road receives
 

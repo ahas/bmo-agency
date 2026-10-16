@@ -28,7 +28,7 @@ judges none of it.
 ## Versioning
 
 - **The contract carries the repository's one version, in semver.** The version in the workspace
-  manifest is this boundary's version; the current line is `0.2.0`.
+  manifest is this boundary's version; the current line is `0.3.0`.
 - **A change to this document and a change to the boundary go in one commit.** A change that makes a
   route, an event, a hook or a shared table's contract different repairs this document in the same
   commit, stating what is true now.
@@ -108,6 +108,11 @@ judges none of it.
   (`docs/coworker-pool.md`).
 - **A session's system-prompt change** is published as the turn that sent a changed prompt records it
   (`docs/companions.md`, 「The session」).
+- **A fallback answering**, `fallback-answering`, is published once for each move of the rooms onto a
+  stand-in: when a substitute first answers while Claude Code's road is closed, and when it later drops
+  to another. It carries the owner, the substitute that answered before where a fallback already stood,
+  and the provider and model answering now (`docs/cache-fallback.md`, 「While a fallback stands, the room
+  is not silent」). What the owner is told of it is the consumer's.
 
 ## Hooks
 

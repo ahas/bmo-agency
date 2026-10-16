@@ -1,7 +1,8 @@
-//! The deployment's configuration: its names and the addresses of the services agency calls, read
-//! through the variables that name them.
+//! The deployment's configuration: its names, the addresses of the services agency calls and the
+//! brain repository, read through the variables that name them.
 
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 
 use agency_server::config::{Config, PeerAddresses};
 use policy::deployment::DEPLOYMENT_NAMES;
@@ -49,4 +50,16 @@ fn an_address_that_is_not_a_url_is_a_fault_naming_its_variable() {
   let fault = read(&[("AGENCY_CACHE_SIREN_URL", "ftp://siren.example/")]).unwrap_err();
 
   assert!(fault.contains("AGENCY_CACHE_SIREN_URL"), "{fault}");
+}
+
+#[test]
+fn the_brain_is_the_named_folder_else_the_one_under_the_data_root() {
+  let data = Path::new("/data");
+
+  assert_eq!(read(&[]).unwrap().brain_root(data), data.join("brain"));
+  assert_eq!(read(&[("AGENCY_BRAIN_ROOT", "  ")]).unwrap().brain_root(data), data.join("brain"));
+  assert_eq!(
+    read(&[("AGENCY_BRAIN_ROOT", " /srv/brain ")]).unwrap().brain_root(data),
+    PathBuf::from("/srv/brain")
+  );
 }

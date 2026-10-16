@@ -316,8 +316,10 @@
   a run apart, one task put in and one answer read off its record, on a session no run resumes. On the Claude road it is Sonnet 5 unless the
   owner chose another model for that key, at high effort, don't-ask mode, exactly Read, Write,
   Edit, Glob and Grep shown, those and the fragment server's tools allowed, no settings, no skills,
-  no Chrome, run in the brain repository. Its task opens on the document-writing rulebooks, the
-  rulebook against destroying the system and the fragment tool's rulebook. Its MCP servers are the
+  no Chrome, run in the brain repository — the folder `AGENCY_BRAIN_ROOT` names, else `brain` under the
+  data root; an editor key whose brain holds no repository yet is not run. Its task opens on the
+  document-writing rulebooks, the rulebook against destroying the system and the fragment tool's
+  rulebook. Its MCP servers are the
   tool host's `fragments` namespace and the toolbook (`fragments.md`, `mcp-host.md`): every run and the
   keepalive are handed the standing `editor.mcp.json`, and a run's session record names the desk its
   batch opened where it opened one, so every run is shown the same tools from the same bytes. On another provider the same run goes over with its file

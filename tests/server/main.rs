@@ -5,8 +5,15 @@ mod scratch;
 
 mod clock;
 mod config;
+mod conversational;
 mod data_move;
 mod events;
 mod ground;
 mod hooks;
 mod peers;
+
+// The launch lines built so far; the others stand beside these and are declared with their modules.
+mod lines {
+  mod ordered;
+  mod prefix;
+}
