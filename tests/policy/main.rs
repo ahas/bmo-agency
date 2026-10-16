@@ -17,6 +17,7 @@ mod marks;
 mod model_catalogue;
 mod node_states;
 mod place_words;
+mod pool_warm;
 mod providers;
 mod providers_codex;
 mod queue_words;

@@ -1,10 +1,11 @@
-//! The services agency calls (docs/api.md, 「Calls agency makes」): the cache siren, the node service and
-//! the brain. Each is a client trait of its own, answered over HTTP where the deployment names the
-//! service's address and by a default that calls nothing where it names none. Every call is one POST of
-//! a JSON body, read by the chat wire protocol's conventions.
+//! The services agency calls (docs/api.md, 「Calls agency makes」): the cache siren, the cache warmer, the
+//! node service and the brain. Each is a client trait of its own, answered over HTTP where the deployment
+//! names the service's address and by a default that calls nothing where it names none. Every call is one
+//! POST of a JSON body, read by the chat wire protocol's conventions.
 
 pub mod brain;
 pub mod cache_siren;
+pub mod cache_warmer;
 pub mod node;
 
 use std::future::Future;
@@ -18,6 +19,7 @@ use url::Url;
 
 use self::brain::Brain;
 use self::cache_siren::CacheSiren;
+use self::cache_warmer::CacheWarmer;
 use self::node::NodeService;
 use crate::config::PeerAddresses;
 
@@ -246,6 +248,7 @@ impl Caller {
 #[derive(Clone)]
 pub struct Peers {
   pub cache_siren: Arc<dyn CacheSiren>,
+  pub cache_warmer: Arc<dyn CacheWarmer>,
   pub node: Arc<dyn NodeService>,
   pub brain: Arc<dyn Brain>,
 }
@@ -255,6 +258,7 @@ impl Peers {
   pub fn of(addresses: &PeerAddresses) -> Self {
     Self {
       cache_siren: cache_siren::client(addresses.cache_siren.clone()),
+      cache_warmer: cache_warmer::client(addresses.cache_warmer.clone()),
       node: node::client(addresses.node.clone()),
       brain: brain::client(addresses.brain.clone()),
     }

@@ -55,6 +55,7 @@ async fn answer(
     }),
     "cache/lifetime" if body["model"] == "unjudged" => json!({ "minutes": null }),
     "cache/lifetime" => json!({ "minutes": 5 }),
+    "pings/schedule" => json!({ "go": body["mode"] == "codex" }),
     "machine/room" => json!({ "held": ["memory"] }),
     "links/state" => json!({ "up": body["node"] == "near" }),
     "nodes/list" => {
@@ -99,8 +100,13 @@ async fn stand_in() -> (String, Calls) {
 
 fn peers_at(address: &str, token: Option<&str>) -> Peers {
   let config = Config::read(|name| match name {
-    "AGENCY_CACHE_SIREN_URL" | "AGENCY_NODE_URL" | "AGENCY_BRAIN_URL" => Some(address.to_owned()),
-    "AGENCY_CACHE_SIREN_TOKEN" | "AGENCY_NODE_TOKEN" | "AGENCY_BRAIN_TOKEN" => token.map(str::to_owned),
+    "AGENCY_CACHE_SIREN_URL" | "AGENCY_CACHE_WARMER_URL" | "AGENCY_NODE_URL" | "AGENCY_BRAIN_URL" => {
+      Some(address.to_owned())
+    }
+    "AGENCY_CACHE_SIREN_TOKEN"
+    | "AGENCY_CACHE_WARMER_TOKEN"
+    | "AGENCY_NODE_TOKEN"
+    | "AGENCY_BRAIN_TOKEN" => token.map(str::to_owned),
     _ => None,
   })
   .unwrap();
@@ -297,6 +303,23 @@ async fn the_cache_siren_is_asked_how_long_a_session_on_a_provider_and_model_sta
 }
 
 #[tokio::test]
+async fn the_cache_warmer_is_asked_whether_a_kinds_pings_go_on_a_provider() {
+  let (address, calls) = stand_in().await;
+  let peers = peers_at(&address, Some("warm-token"));
+
+  assert!(peers.cache_warmer.pings_go("coworker-pool", "codex").await.unwrap());
+  assert!(!peers.cache_warmer.pings_go("coworker-pool", "claude-code").await.unwrap());
+  assert_eq!(
+    taken(&calls)[0],
+    Call {
+      path: "/base/pings/schedule".into(),
+      authorization: Some("Bearer warm-token".into()),
+      body: json!({ "kind": "coworker-pool", "mode": "codex" }),
+    }
+  );
+}
+
+#[tokio::test]
 async fn a_service_with_no_address_answers_its_default() {
   let peers = Peers::of(&PeerAddresses::default());
   let reading = peers.cache_siren.usage_windows("claude-code", "main").await.unwrap();
@@ -304,6 +327,7 @@ async fn a_service_with_no_address_answers_its_default() {
   assert!(reading.windows.is_empty());
   assert_eq!(reading.fresh(), Duration::ZERO);
   assert_eq!(peers.cache_siren.cache_lifetime("claude-code", "model-a").await.unwrap(), None);
+  assert!(!peers.cache_warmer.pings_go("coworker-pool", "codex").await.unwrap());
   assert_eq!(peers.node.machine_room().await.unwrap(), Room::default());
   assert!(!peers.node.link_up("near").await.unwrap());
   assert!(peers.node.node_rows().await.unwrap().is_empty());

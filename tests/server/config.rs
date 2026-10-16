@@ -29,6 +29,7 @@ fn a_named_address_is_read_with_its_token() {
     ("AGENCY_BRAIN_TOKEN", "brain-token"),
     ("AGENCY_NODE_URL", "https://nodes.example/"),
     ("AGENCY_CACHE_SIREN_URL", "   "),
+    ("AGENCY_CACHE_WARMER_URL", "http://127.0.0.1:7100/"),
   ])
   .unwrap();
   let brain = config.peers.brain.unwrap();
@@ -38,6 +39,7 @@ fn a_named_address_is_read_with_its_token() {
   assert_eq!(brain.token.as_deref(), Some("brain-token"));
   assert_eq!(node.url.as_str(), "https://nodes.example/");
   assert_eq!(node.token, None);
+  assert_eq!(config.peers.cache_warmer.unwrap().url.as_str(), "http://127.0.0.1:7100/");
   assert_eq!(config.peers.cache_siren, None, "a blank address names no service");
 }
 

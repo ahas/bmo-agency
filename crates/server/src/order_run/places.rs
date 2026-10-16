@@ -267,7 +267,9 @@ pub async fn agents(db: &DatabaseConnection, pool: &str) -> Result<Vec<Agent>, F
   .map_err(|why| why.to_string())
 }
 
-async fn set_agent(db: &DatabaseConnection, pool: &str, agent: &Agent) -> Result<(), Fault> {
+/// A row of the list written, or written again over the one for the same place, provider, model and
+/// upstream.
+pub async fn set_agent(db: &DatabaseConnection, pool: &str, agent: &Agent) -> Result<(), Fault> {
   run(
     db,
     r#"INSERT INTO "branch_agents" ("pool", "slot", "mode", "model", "role", "upstream", "prefix_digest", "last_reply_at")

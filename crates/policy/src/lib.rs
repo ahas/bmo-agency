@@ -19,6 +19,7 @@ pub mod keepalive;
 pub mod model_catalogue;
 pub mod node_states;
 pub mod place_words;
+pub mod pool_warm;
 pub mod providers;
 pub mod queue_words;
 pub mod reasoning;

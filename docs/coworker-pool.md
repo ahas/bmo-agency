@@ -134,13 +134,17 @@ warming and standing checkouts, is agency's.
 
 The warming judgement is split three ways.
 
-- **The kind of place** names candidates. The reserver registers its kind with the pool, and that kind
-  answers where this provider and model's prefix is, when it was last used, whether a run is working in
-  it now, and what run a ping becomes.
+- **The kind of place** names candidates. Each kind answers for the reservations of its own sources:
+  where this provider and model's prefix is, when it was last used, whether a run is working in it
+  now, and what run a ping becomes. Agency's pool holds two kinds.
   - A co-work branch's place is a line in the standing checkouts list (「Standing branch checkouts and
-    their list」 below).
-  - A search or browse branch's place is the branch run line's prefix (`research-runs.md`).
+    their list」 below). Which pool those lines stand in, and which places the owner's tasks sit in now,
+    the consumer answers for the reservation's owner through the co-work places hook (`docs/api.md`,
+    「Hooks」); where it answers none, the reservation's places are not warmed.
   - A native co-worker is a kind that names no place to warm (「Native co-worker places」 below).
+  - A reservation whose source neither kind answers — a search or browse run's, whose place is the
+    research branch line's prefix (`research-runs.md`) — holds its places, and agency's pool warms
+    nothing for it.
 - **The provider** names the lifetime and the ping method. The lifetime is the value that provider
   announced and its idle threshold, and a ping is running the same run line one turn on that provider's
   program. Each provider's implementation holds that answer, and the pool does not branch by provider
@@ -175,14 +179,17 @@ Per provider:
   tools reports no cache read or write, so there is no clock to keep alive. A registered-model
   reservation only holds the place.
 
-- **The gate** is the existing keepalive's. With keepalive turned off, no ping goes; none goes to a
-  turned-off provider; and no Claude Code ping goes during a rest window — following cache-fallback's
+- **The gate** is the cache warmer's schedule (`docs/api.md`, 「Calls agency makes」, the cache
+  warmer). Before a reservation's places are judged, the pool asks it whether the pool's pings go on
+  that reservation's provider, and asks again before each ping goes; where it says no, or where no
+  warmer is deployed, no ping goes. None goes to a turned-off provider either, and none during a rest
+  window on a provider whose pings rest with the account — Claude Code's, following cache-fallback's
   rule that Codex and OpenRouter warm separately on their own clocks (`docs/cache-fallback.md`). The
   reservation stands regardless of this gate and keeps holding the place.
 - **Auto-progress stop** is the reserver's rule: the co-work runner sets no reservation while stopped
   and releases those it set.
-- **Timing:** the pool's warming runs on the bot's keepalive tick, and raising places runs on the more
-  frequent pool tick.
+- **Timing:** the pool's warming runs on agency's own clock at the keepalive pass's period, after the
+  same start wait, never beside itself; raising places runs on the more frequent pool tick.
 
 ## Native co-worker places
 

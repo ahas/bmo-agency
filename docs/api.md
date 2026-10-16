@@ -28,7 +28,7 @@ judges none of it.
 ## Versioning
 
 - **The contract carries the repository's one version, in semver.** The version in the workspace
-  manifest is this boundary's version; the current line is `0.11.0`.
+  manifest is this boundary's version; the current line is `0.12.0`.
 - **A change to this document and a change to the boundary go in one commit.** A change that makes a
   route, an event, a hook or a shared table's contract different repairs this document in the same
   commit, stating what is true now.
@@ -188,6 +188,11 @@ Each hook has a default that does nothing, so agency runs with none registered.
 - **The owner's end, for a reservation.** A reserver registers what proves its owner ended; agency's
   pool releases a reservation only on that proof (`docs/coworker-pool.md`, 「Reserving places and
   keepalive」). The default never releases for time passing.
+- **The co-work places, for a reservation.** The consumer whose co-work reserves answers, for a
+  reservation's owner, the checkout its order works in and the places its tasks sit in now, each the
+  checkout and the place's number; agency warms that pool's standing checkouts and counts those places
+  as busy (`docs/coworker-pool.md`, 「Standing branch checkouts and their list」). The default answers
+  none, and that reservation's places are not warmed.
 - **The pane claims.** A consumer that keeps panes of its own in agency's herdr — a slot it stands an
   agent in — answers which agents those panes hold, each with its label and whether it may be taken
   down now for standing idle. Agency counts a claimed agent as standing, so its leftovers sweep spares
@@ -222,10 +227,12 @@ Each hook has a default that does nothing, so agency runs with none registered.
   (`docs/coworker-pool.md`, 「Standing branch checkouts and their list」). The labels and keys of the
   consumer's work arrive with each request; agency reads none of its orders.
 - **The clocks** are agency's own: every five seconds a reservation's head place is raised and a native
-  call whose caller ended is reclaimed, and every ten minutes what a job's end left in herdr is swept
-  (`docs/agent-control.md`, 「One standing pane per agent」).
-- **The hook** is the owner-end proof (「Hooks」 above). The pool reads no owner's name and judges
-  nothing.
+  call whose caller ended is reclaimed, every ten minutes what a job's end left in herdr is swept
+  (`docs/agent-control.md`, 「One standing pane per agent」), and on the keepalive pass's period the
+  held reservations' places are warmed where the cache warmer's schedule lets pings go (「Calls agency
+  makes」, the cache warmer).
+- **The hooks** are the owner-end proof and the co-work places (「Hooks」 above). The pool hands an
+  owner's name to them as it stands, reads none and judges nothing.
 
 ## Run log and run records
 
@@ -335,13 +342,13 @@ Each hook has a default that does nothing, so agency runs with none registered.
 
 ## Calls agency makes
 
-- **Agency calls three services:** the cache siren for an account's usage windows and the cache lifetime
-  a session is judged warm by, the node service for
+- **Agency calls four services:** the cache siren for an account's usage windows and the cache lifetime
+  a session is judged warm by, the cache warmer for whether keepalive pings go, the node service for
   this machine's room, a node's link, the nodes it keeps and the SSH login to each, and the brain for what a companion's reset
   does to the agent's brain folder. Each is reached at the base address the deployment names in its
   variable, with the token named beside it.
 - **A service whose address is unset is not called:** each call then answers the default stated beside it
-  below, so agency runs with none of the three deployed. An address that does not read as a URL stops the
+  below, so agency runs with none of the four deployed. An address that does not read as a URL stops the
   service as it starts, naming the variable.
 - **Every call is one POST of a JSON body** under the service's base address, field names in camelCase,
   an operation that sends nothing sending an empty object, with `Authorization: Bearer <token>` where a
@@ -353,6 +360,7 @@ Each hook has a default that does nothing, so agency runs with none registered.
 | Service | Address | Token | Patience |
 | --- | --- | --- | --- |
 | The cache siren | `AGENCY_CACHE_SIREN_URL` | `AGENCY_CACHE_SIREN_TOKEN` | none: a refused connection is a fault at once |
+| The cache warmer | `AGENCY_CACHE_WARMER_URL` | `AGENCY_CACHE_WARMER_TOKEN` | none |
 | The node service | `AGENCY_NODE_URL` | `AGENCY_NODE_TOKEN` | none |
 | The brain | `AGENCY_BRAIN_URL` | `AGENCY_BRAIN_TOKEN` | two minutes, offered every two seconds |
 
@@ -362,6 +370,16 @@ Each hook has a default that does nothing, so agency runs with none registered.
 | --- | --- | --- | --- | --- |
 | usage windows | `/usage/windows` | `mode`, `account` | `windows`: each `name`, `utilization` (the fraction used), `resetsAt` (or null), `seenAt`, `durationMinutes` (or null), `limitName` (or null); and `freshSeconds`, how long a reading stands | no windows, and no reading fresh |
 | cache lifetime | `/cache/lifetime` | `mode`, `model` | `minutes`: how long after its last answer a session on that provider and model stays warm, or null where the siren judges it by none | none, and agency reads the provider's declared lifetime (`docs/sessions.md`, 「A worker's session per model」) |
+
+### The cache warmer
+
+The warmer holds the keepalive schedule: whether pings go, and on which provider. Agency asks it before
+it judges a reservation's places and again before each ping goes, and holds the rest — which places are
+due, the ping itself and its record — itself (`docs/coworker-pool.md`, 「Reserving places and keepalive」).
+
+| Operation | Path | Sends | Answers | With no address |
+| --- | --- | --- | --- | --- |
+| ping schedule | `/pings/schedule` | `kind`, what is warmed (`coworker-pool` for the pool's reserved places); `mode` | `go` (boolean): whether keepalive pings of that kind on that provider go now | no ping goes |
 
 ### The node service
 
