@@ -32,6 +32,11 @@ seeds. The other crates and the server reach the store only through it.
   - the settings, below.
 - **An account's `user_id`** names the user it belongs to, or none for the owner's; agency reads it and
   never fills it in itself, since who the users are is the caller's.
+- **An agent's `prompts`** names the folder under `prompts/agents/` that holds what that agent alone is
+  given, one plain name, or none for an agent given no folder of its own, as a companion added on the
+  console starts. A companion's system prompt and its persona are read from this folder, never from the
+  agent's name (`docs/harness-machine.md`, 「A companion's system prompt」). Whoever makes the row writes
+  it, a companion's seed among them; a row written without it names none.
 
 ## The settings table
 

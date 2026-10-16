@@ -35,6 +35,7 @@ reads the same owner column. `docs/companions.md` is what a companion's session 
 | `session_scope` | one session across its rooms (`agent`) or one in each room (`room`) | `agent` | `room` |
 | `turn_shape` | the shape of its turns: the chat agent's window (`window`) or its settings' pieces (`pieces`) | `window` | `pieces` |
 | `default_answerer` | whether it answers every room that names nobody | yes | no |
+| `prompts` | the folder under `prompts/agents/` a companion's system prompt and persona are read from, one plain name, or none | none: the chat line reads its own documents | none, or the folder its seed names |
 
 - **An agent with no voice makes no voice.** No briefing, voice chip or reading is made for its
   turns, and a voice given to its row later turns all three on with no other change

@@ -176,7 +176,6 @@ pub async fn compose(
   let roots = companion_prompt::Roots {
     assets: trees.code.clone(),
     data: trees.data.clone(),
-    agents: trees.agents.clone(),
   };
   let folder = companion_prompt::folder(&roots, turn.agent);
 

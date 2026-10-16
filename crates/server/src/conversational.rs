@@ -149,6 +149,16 @@ pub async fn is_companion(db: &impl ConnectionTrait, agent: &str) -> Result<bool
   Ok(settings(db, agent).await?.is_some_and(|settings| settings.companion()))
 }
 
+/// The prompt folder an agent's row names under `prompts/agents/`, which a companion's system prompt and
+/// persona are read from, or none where its row names none or it has no row (`docs/store.md`). Every
+/// path composing a companion's prompt hands this as its `prompts`, never the companion's name.
+pub async fn prompt_folder(db: &impl ConnectionTrait, agent: &str) -> Result<Option<String>, Refusal> {
+  match one(db, r#"SELECT "prompts" FROM "agents" WHERE "name" = $1"#, vec![agent.into()]).await? {
+    Some(row) => Ok(row.try_get("", "prompts")?),
+    None => Ok(None),
+  }
+}
+
 /// The agent answering every room that names nobody, by its row. An archive whose rows were never settled
 /// names none, and that agent is then `own`, the deployment's own agent as its configuration names it.
 pub async fn default_answerer(db: &impl ConnectionTrait, own: &str) -> Result<String, Refusal> {

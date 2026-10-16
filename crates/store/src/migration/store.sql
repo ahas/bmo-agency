@@ -100,6 +100,7 @@ CREATE TABLE "agents" (
   "session_scope" text,
   "turn_shape" text,
   "default_answerer" bigint NOT NULL DEFAULT 0,
+  "prompts" text,
   PRIMARY KEY ("name")
 );
 

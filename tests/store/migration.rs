@@ -124,8 +124,8 @@ async fn the_columns_carried_beyond_a_tables_first_shape_stand_after_its_row_id(
 
   let agents = columns("agents").await;
   assert_eq!(
-    agents[agents.len() - 6..],
-    ["rowid", "node", "role", "session_scope", "turn_shape", "default_answerer"]
+    agents[agents.len() - 7..],
+    ["rowid", "node", "role", "session_scope", "turn_shape", "default_answerer", "prompts"]
   );
   assert_eq!(columns("claude_accounts").await.last().unwrap(), "user_id");
   assert_eq!(columns("companion_settings").await.last().unwrap(), "saved_settings");

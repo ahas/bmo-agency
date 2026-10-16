@@ -28,7 +28,7 @@ judges none of it.
 ## Versioning
 
 - **The contract carries the repository's one version, in semver.** The version in the workspace
-  manifest is this boundary's version; the current line is `0.5.0`.
+  manifest is this boundary's version; the current line is `0.6.0`.
 - **A change to this document and a change to the boundary go in one commit.** A change that makes a
   route, an event, a hook or a shared table's contract different repairs this document in the same
   commit, stating what is true now.
@@ -50,7 +50,10 @@ judges none of it.
   (`docs/coworker-pool.md`, 「Standing branch checkouts and their list」).
 - **An agent's documents** are the files agency composes a run's launch from, read from the deploy
   tree and the prompt tree (`docs/agent-documents.md`, `docs/base-prompts.md`, `docs/launch-lines.md`);
-  a consumer hands in the documents it owns and agency hands them to the harness as they stand.
+  a consumer hands in the documents it owns and agency hands them to the harness as they stand. An
+  agent may be registered with a prompt folder, one plain name under `prompts/agents/`, and a
+  companion's system prompt and persona are read from the folder its row names, never from its name
+  (`docs/store.md`, 「Its tables」).
 - **Usage is filed under the agent that spent it,** never added to another's; a run names the agent it
   belongs to and the run it came from (`docs/agent-ownership.md`). A consumer reads an agent's usage
   across the usage boundary described there.
