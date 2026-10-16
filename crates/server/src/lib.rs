@@ -56,6 +56,8 @@ pub mod places {
   pub use ground::{AgentRow, DEPLOY_VARIABLE, Ground, VERBS_BINARY};
 }
 pub mod readiness;
+pub mod rooms;
+pub mod run_log;
 pub mod text;
 
 /// The machine's watches agency keeps: the links to the work nodes (docs/work-nodes.md, 「The link」).

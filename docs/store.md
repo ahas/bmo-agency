@@ -11,6 +11,8 @@ seeds. The other crates and the server reach the store only through it.
 - **The record of what ran is `agency_migrations`,** a table of the store's own, so the store may stand
   in a database beside another service's tables without either's record in the other's way.
 - **A migration is not undone:** a store that must go back is dropped and made again.
+- **The store names its own tables,** the ones its migration makes, so what reads every table of the
+  store — a room forgotten among them — reads them and no other service's beside them in one database.
 - **The tables, by what they keep:**
   - the agents and what they did: `agents`, `agent_log`, `agent_executions`, `execution_attempts`,
     `branch_agents`, `worker_sessions`, `session_resets`;

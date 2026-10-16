@@ -9,11 +9,13 @@ publish = false
 agent-host = { path = "../agent-host" }
 axum.workspace = true
 chrono.workspace = true
+diffy.workspace = true
 glob.workspace = true
 harness-machine = { path = "../harness-machine" }
 harness-providers = { path = "../harness-providers" }
 herdr = { path = "../herdr" }
 indexmap.workspace = true
+inventory.workspace = true
 libc.workspace = true
 node-link = { path = "../node-link" }
 policy = { path = "../policy" }

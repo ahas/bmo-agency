@@ -28,7 +28,7 @@ judges none of it.
 ## Versioning
 
 - **The contract carries the repository's one version, in semver.** The version in the workspace
-  manifest is this boundary's version; the current line is `0.8.0`.
+  manifest is this boundary's version; the current line is `0.9.0`.
 - **A change to this document and a change to the boundary go in one commit.** A change that makes a
   route, an event, a hook or a shared table's contract different repairs this document in the same
   commit, stating what is true now.
@@ -92,6 +92,12 @@ judges none of it.
 - **A reset of a session** is an ask a consumer writes and the next turn carries out; agency takes the
   program down at once and opens a new generation (`docs/session-resets.md`, `docs/companions.md`,
   「Clearing it」).
+- **Forgetting a room.** The consumer that owns a room, removing its registration, asks agency to forget
+  it by its chat id: every row of agency's own tables naming the room — its column `chat_id`, a column
+  opening `chat_` or one holding `_chat` — goes, but those the code owning a table declares stay with
+  their reason: a job's run-log lines, which belong to the job (`docs/run-records.md`, 「Agent log」).
+  A dry run answers what would go, table by table, and what stays and why; the forgetting answers what
+  went. Nothing of another service's tables is read (`docs/store.md`, 「Its tables」).
 - **The events** are the turn's lifecycle (「Events」 below).
 
 ## Events
@@ -140,6 +146,11 @@ judges none of it.
   worker's session, naming the `session`: whatever a consumer sent that session to hold — a co-work
   result among it — is folded away with it, and the consumer lets its own record of it go
   (`docs/sessions.md`, 「Session compaction」).
+- **A login's end told**, `account-login-notice`, is published once for each ending the logins' watch
+  finds: the `account`, which `login` it is (`here`, its login on this machine, or `node-token`, its token
+  for the work nodes), how it `stands` (`gone`, `ending` or `missing`), `leftMs` (or null), and `notice`, the
+  words agency's policy composes of it with the one command the owner runs (`docs/cache-fallback.md`,
+  「A login that is about to end」). Saying it in the owner's private chat is the consumer's.
 - **A companion's run going in a room**, `companion-run-going`, is published as a run of the companion's
   own starts there and again as it ends: the `agent`, the `run`, the `chatId`, and `going`, true while it
   runs. A consumer that stands cancellations over a room's runs reads which are going from these

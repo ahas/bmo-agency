@@ -403,14 +403,15 @@ When a demotion first catches — when a healthy session first drops — two thi
 - **The mark is lifted by the credential, not by anybody's word.** Signing in again writes a moment in
   the future, and the walk's own reading of that credential takes the mark off, so no console action is
   needed to put the account back in the order.
-- **The owner is told before it ends, once — and never about a login that renews itself.** One message
-  in the owner's private chat carries the account, how long is left, and the one command the owner runs
-  to be done with it, each with that account's own configuration directory in front of it. The command
+- **The owner is told before it ends, once — and never about a login that renews itself.** Agency
+  publishes `account-login-notice` (`docs/api.md`, 「Events」), carrying the account, how long is left,
+  and the one command the owner runs to be done with it, with that account's own configuration
+  directory in front of it; the consumer that owns the owner's private chat says it there. The command
   is passed over verbatim rather than reworded, because a command reworded is a command that does not
   run.
-- **Once is per ending, not per login.** The warning is recorded under the moment it is about once it
-  has been sent, so a later pass over the same ending says nothing, while one that could not be
-  delivered is said again next time; a login signed in again is a new moment and is warned about again.
+- **Once is per ending, not per login.** The warning is recorded under the moment it is about as it is
+  published, so a later pass over the same ending publishes nothing; a login signed in again is a new
+  moment and is warned about again. Delivering it is the consumer's.
 - **Recognising that a login needs a person rests on more than one word** — the run's ending read
   through the program's own failure reading, and the credential's moment — asked together in one place,
   with a credential plainly past its end enough on its own.

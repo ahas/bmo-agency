@@ -48,6 +48,16 @@ mod places {
   mod servers;
 }
 mod readiness;
+mod rooms;
+
+mod run_log {
+  mod codex;
+  mod json;
+  mod lines;
+  mod secrets;
+  mod spans;
+  mod writer;
+}
 
 mod watches {
   mod links;

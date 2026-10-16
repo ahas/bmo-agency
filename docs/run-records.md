@@ -35,6 +35,8 @@ about a message is not agency's: the judgement records belong to the units that 
   lines a person reads and they are a small share of what fills the table.
 - The console reads the log through agency's run-log route, by agent and from an id onward
   (`docs/api.md`, 「Run log and run records」), so a finished run is scrolled back page by page.
+- **A room forgotten takes its lines with it,** but a job's: a job's turns are logged under its room
+  and belong to the job, which outlives the room (`docs/api.md`, 「Sessions」, forgetting a room).
 
 ## What a failed run leaves behind
 

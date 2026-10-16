@@ -2,65 +2,9 @@
 //! store's own record.
 
 use sea_orm_migration::MigratorTrait;
-use store::migration::{MIGRATIONS_TABLE, Migrator, TABLES};
+use store::migration::{MIGRATIONS_TABLE, Migrator, OWN_TABLES, TABLES};
 
 use crate::scratch::Scratch;
-
-// Every table the store keeps (docs/store.md, 「Its tables」).
-const STORE_TABLES: [&str; 52] = [
-  "agents",
-  "agent_log",
-  "agent_executions",
-  "execution_attempts",
-  "agent_base_prompts",
-  "base_prompts",
-  "base_prompt_changes",
-  "branch_agents",
-  "worker_sessions",
-  "session_resets",
-  "claude_accounts",
-  "coworker_pool_limits",
-  "coworker_pool_meta",
-  "coworker_pool_native",
-  "coworker_pool_native_reservations",
-  "coworker_pool_native_stops",
-  "coworker_pool_pings",
-  "coworker_pool_place_writes",
-  "coworker_pool_requests",
-  "coworker_pool_reservation_meta",
-  "coworker_pool_reservations",
-  "coworker_pool_roles",
-  "coworker_pool_tier_limits",
-  "coworker_pool_tier_meta",
-  "model_catalogue",
-  "model_fallbacks",
-  "fallback_routes",
-  "fallback_sessions",
-  "model_tier_assignments",
-  "model_tier_backfilled",
-  "model_tier_conflicts",
-  "model_tier_legacy",
-  "model_tier_mappings",
-  "model_tier_meta",
-  "model_tier_seeded",
-  "model_uses",
-  "registered_models",
-  "registered_model_addresses",
-  "node_workplaces",
-  "node_rotation",
-  "node_assignments",
-  "node_hubs",
-  "live_claude_openings",
-  "live_claude_runs",
-  "prefix_moves",
-  "run_records",
-  "room_sessions",
-  "room_session_turns",
-  "room_windows",
-  "companion_settings",
-  "companion_setting_changes",
-  "settings",
-];
 
 async fn tables(scratch: &Scratch) -> Vec<String> {
   let rows = store::all(
@@ -81,7 +25,7 @@ async fn the_migrations_make_every_table_of_the_store_and_nothing_else() {
 
   Migrator::up(scratch.db(), None).await.unwrap();
 
-  let mut expected: Vec<String> = STORE_TABLES.iter().map(|name| (*name).to_owned()).collect();
+  let mut expected: Vec<String> = OWN_TABLES.iter().map(|name| (*name).to_owned()).collect();
   expected.push(MIGRATIONS_TABLE.to_owned());
   expected.sort();
   assert_eq!(tables(&scratch).await, expected);
