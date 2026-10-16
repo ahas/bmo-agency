@@ -46,7 +46,10 @@ seeds. The other crates and the server reach the store only through it.
 - **The families it holds,** a family being a key or a key with a suffix after its colon:
   - a run's cancellation, `execution_cancel:*`, and the provider order, `provider_order`, which the
     agent host's supervisor reads again before it starts a child (`docs/agent-control.md`, 「The host」);
-  - an agent's sampling, `agent_sampling:*`;
+  - an agent's sampling, `agent_sampling:*`, and its own gate switches, `agent_gate:*`, which agency keeps
+    and a turn's consumer reads;
+  - the Claude account chosen to run on and the one in use, `claude_account_chosen` and
+    `claude_account_in_use`;
   - a session's record and its summary, `agent_session:*`, `agent_session_summary:*` and
     `agent_session_summary_thread:*`, and the sessions a worker set aside on other models,
     `agent_session_shelf:*`;
@@ -57,8 +60,9 @@ seeds. The other crates and the server reach the store only through it.
   - a job's road and its stop: `job_route_block:*`, `job_stop:*`;
   - the fallback and the rest: `fallback_since`, `fallback_provider`, `rest_until`, `rest_until:*`,
     `rest_kind`;
-  - the data move's mark, `users_moved_at`, carried with the rows of a store moved across; agency reads
-    it and never writes it, and a store without it reads as not moved.
+  - the data move's mark, `users_moved_at`, and the user who administers the platform,
+    `users_administrator`, carried with the rows of a store moved across; agency reads them and never
+    writes them, and a store without them reads as not moved and as naming no administrator.
 
 ## Its seeds
 

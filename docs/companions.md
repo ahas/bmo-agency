@@ -147,14 +147,24 @@ are the companion unit's, not agency's. This document covers only what agency ho
 - **It is a route of agency's server,** a dry-run read of what it would take and a write that takes
   it, so it runs on the store wherever it stands and the verb and the console only ask it
   (`docs/api.md`).
-- **What each range takes is the companion unit's and the store's;** agency's part is the order the
-  reset runs in and the runs and programs it stops:
-  - the conversation range takes the companion's room sessions, their kept turns and the room records
-    it answers alone in;
-  - the person range takes what the companion remembers;
+- **The caller names the rooms the companion answers,** those it answers alone and those it shares
+  with other agents, since which agents answer a room is the room's owner's; agency reads no room's
+  answerers, and judges only its own rows by the rooms it is handed.
+- **What each range takes of agency's is agency's; the rest is its owners',** told by the reset's
+  event as it ends (`docs/api.md`, 「Events」, `companion-reset`), so each unit takes its own rows:
+  - the conversation range takes the companion's room sessions, their kept turns and windows, its run
+    log lines and their run records, the run log lines of the rooms it answers alone, the records its
+    harnesses keep of the sessions run in its home and the prompts their histories kept of them; the
+    rooms' own records — their messages, judgements and usage — are their owners';
+  - the person range is the brain's: agency asks the brain to reset the companion, which takes what it
+    remembers, its folder among it (`docs/api.md`, 「Calls agency makes」, the brain), and starts the
+    person book of every room it answers from now; agency takes the records its harnesses keep of the
+    recollectors' sessions run in its folder;
   - what it keeps, whichever range — its agent row and pin, its settings, its base prompt choice, its
-    gate options, the rooms themselves, the registry and the engine's placement, and whatever range
+    gate switches, the rooms themselves, the registry and the engine's placement, and whatever range
     was not named.
+- **A dry run reads the same,** agency's rows counted and the brain asked for a preview, nothing
+  written.
 - **Once begun it runs to its end,** apart from the request that asked it, so a caller that stops
   waiting — the console's request running out, a verb killed — loses only the answer and never leaves
   it cut between the steps.
@@ -166,11 +176,13 @@ are the companion unit's, not agency's. This document covers only what agency ho
 - **The reset point** is the moment the reset cut the companion off, kept in the store's settings
   under the companion's name. The reset moves it to now twice: as it begins, before it takes anything,
   and again once the store holds nothing of what it took, so a turn begun while it ran, which may have
-  read what it took, is cut off too.
+  read what it took, is cut off too. Each move is published with the point, `companion-cut-off`
+  (`docs/api.md`, 「Events」).
 - **A turn begun at or before the point is overtaken.** A turn begins as its round takes the words it
   answers; the handoff after a turn is a turn of its own here, begun as it starts.
-  - The reset stands a cancellation over every run of the companion going as it cuts it off, so a run
-    under way stops where it stands, as a run its guard cuts does.
+  - The reset stands a cancellation over every run of the companion going as it cuts it off — the runs
+    `companion-run-going` named going and not yet ended — so a run under way stops where it stands, as a
+    run its guard cuts does.
   - Every call of its tools and every verb its shell runs is refused whole from then on, and the
     refusal tells it to end the turn.
   - It writes nothing of its own: no answer goes into the room, and no kept turn, usage, road, window
@@ -185,7 +197,8 @@ are the companion unit's, not agency's. This document covers only what agency ho
     left them to the turn holding them.
 - **What waited for its turns is let go unread,** in every room it answers: the words its rooms'
   queues were gathering, those its conversations held or waited on, and its quiet instructions, whose
-  rows are settled as delivered so no turn takes them again. A run an overtaken turn launched answers
+  rows are settled as delivered so no turn takes them again. Those are the rooms' owner's, which lets
+  them go on `companion-cut-off`. A run an overtaken turn launched answers
   nothing either: its result is dropped where the run began at or before the point or the reset took
   its row. A round left with nothing to answer runs no turn.
 - **The program standing in its place is taken down where the conversation range is named,** once the

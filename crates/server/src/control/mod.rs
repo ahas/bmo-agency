@@ -1,0 +1,419 @@
+//! Agency's control routes (docs/api.md): every route answered here, a path none answers a 404. A route
+//! registers itself where it is written, so no list of them is kept anywhere; every route answers on
+//! agency's ground, with the store it keeps.
+
+mod agent_sampling;
+pub mod agent_switches;
+pub mod agents;
+mod base_prompts;
+mod catalogues;
+pub mod claude_account_changes;
+pub mod claude_accounts;
+pub mod companion_reset;
+pub mod companions;
+pub mod fallback;
+pub mod fault;
+pub mod harness;
+pub mod model_tiers;
+pub mod models;
+pub mod own_llm;
+pub mod pool;
+pub mod pool_board;
+pub mod quota;
+pub mod registry;
+pub mod roads;
+pub mod sessions;
+pub mod tiers;
+mod worker;
+
+use std::collections::{BTreeSet, HashMap};
+use std::future::Future;
+use std::io;
+use std::net::{Ipv4Addr, SocketAddr};
+use std::path::PathBuf;
+use std::pin::Pin;
+use std::sync::Arc;
+use std::time::Duration;
+
+use axum::Router;
+use axum::extract::{Query, Request, State};
+use axum::http::{Method, StatusCode, header};
+use axum::response::{IntoResponse, Json, Response};
+use harness_providers::Machine;
+use policy::control_words::CONTROL_WORDS;
+use policy::deployment::DEPLOYMENT;
+use sea_orm::{ConnectionTrait, DatabaseConnection};
+use serde_json::{Value, json};
+use tokio::net::TcpListener;
+
+use crate::companion::going::GoingRuns;
+use crate::events::Bus;
+use crate::places::{Ground, Places};
+use crate::queue::settings;
+pub use inventory;
+
+/// One route the front answers, written beside its answer: `crate::moved!(BasePrompts);`
+pub trait Route: Send + Sync + 'static {
+  const METHOD: Method;
+  const PATH: &'static str;
+
+  fn answer(&self, call: Call) -> impl Future<Output = Result<Response, Refused>> + Send;
+}
+
+type Answering<'a> = Pin<Box<dyn Future<Output = Result<Response, Refused>> + Send + 'a>>;
+
+/// A route as the front holds it, whatever its type.
+pub trait Answers: Send + Sync {
+  fn method(&self) -> Method;
+  fn path(&self) -> &'static str;
+  fn answer(&self, call: Call) -> Answering<'_>;
+}
+
+impl<R: Route> Answers for R {
+  fn method(&self) -> Method {
+    R::METHOD
+  }
+
+  fn path(&self) -> &'static str {
+    R::PATH
+  }
+
+  fn answer(&self, call: Call) -> Answering<'_> {
+    Box::pin(Route::answer(self, call))
+  }
+}
+
+/// One registered route.
+pub struct Moved(pub &'static dyn Answers);
+
+inventory::collect!(Moved);
+
+/// Registers a route with the front.
+#[macro_export]
+macro_rules! moved {
+  ($route:expr) => {
+    $crate::control::inventory::submit! { $crate::control::Moved(&$route) }
+  };
+}
+
+/// Every route linked into this binary.
+pub fn moved_routes() -> impl Iterator<Item = &'static dyn Answers> {
+  inventory::iter::<Moved>.into_iter().map(|entry| entry.0)
+}
+
+/// A route's name as a caller writes it: its method and its path.
+pub fn route_name(method: &Method, path: &str) -> String {
+  format!("{method} {path}")
+}
+
+/// What is wrong with the routes linked in: two answers for one route would leave which one answers to
+/// the order they were linked. The front refuses to stand on any.
+pub fn route_faults() -> Vec<String> {
+  let mut seen = BTreeSet::new();
+
+  moved_routes()
+    .map(|route| route_name(&route.method(), route.path()))
+    .filter(|name| !seen.insert(name.clone()))
+    .map(|name| format!("{name}: registered twice"))
+    .collect()
+}
+
+/// A refusal: a status, and a body naming why under `error`, with the status's own kebab-case code.
+#[derive(Debug)]
+pub struct Refused {
+  pub status: StatusCode,
+  pub error: String,
+}
+
+impl Refused {
+  /// A refusal under the status the route gives it.
+  pub fn new(status: StatusCode, error: impl Into<String>) -> Self {
+    Self {
+      status,
+      error: error.into(),
+    }
+  }
+
+  /// What a route answers for a failure it did not expect: 400, with the failure's own words.
+  pub fn failed(error: impl std::fmt::Display) -> Self {
+    Self {
+      status: StatusCode::BAD_REQUEST,
+      error: error.to_string(),
+    }
+  }
+
+  /// The status as a kebab-case code: `bad-request`, `not-found`.
+  pub fn code(&self) -> String {
+    self
+      .status
+      .canonical_reason()
+      .unwrap_or("failed")
+      .to_lowercase()
+      .replace([' ', '\''], "-")
+  }
+}
+
+impl From<sea_orm::DbErr> for Refused {
+  fn from(error: sea_orm::DbErr) -> Self {
+    Self::failed(error)
+  }
+}
+
+// A refusal of agency's own helpers, said as any unexpected failure is.
+impl From<crate::Refusal> for Refused {
+  fn from(refusal: crate::Refusal) -> Self {
+    Self::failed(refusal.detail)
+  }
+}
+
+// A fault of the store's statements, said the same way.
+impl From<store::Fault> for Refused {
+  fn from(fault: store::Fault) -> Self {
+    Self::failed(fault.detail)
+  }
+}
+
+impl IntoResponse for Refused {
+  fn into_response(self) -> Response {
+    (self.status, Json(json!({ "code": self.code(), "error": self.error }))).into_response()
+  }
+}
+
+/// One setting of agency's own `settings` table, as a route reads it.
+pub(crate) async fn setting<C: ConnectionTrait>(db: &C, key: &str) -> Result<Option<String>, Refused> {
+  Ok(settings::get(db, key).await?)
+}
+
+/// One setting written, over whatever it held.
+pub(crate) async fn set_setting<C: ConnectionTrait>(db: &C, key: &str, value: &str) -> Result<(), Refused> {
+  Ok(settings::set(db, key, value).await?)
+}
+
+/// The agent a name stands for: a room's own conversational agent, named `chat:<room>`, is the default
+/// answerer once its one session stands.
+pub(crate) async fn canonical_agent<C: ConnectionTrait>(db: &C, name: &str) -> Result<String, Refused> {
+  let room = name.strip_prefix("chat:").map(|room| room.strip_prefix('-').unwrap_or(room));
+  let names_room =
+    room.is_some_and(|digits| !digits.is_empty() && digits.bytes().all(|byte| byte.is_ascii_digit()));
+
+  if !names_room {
+    return Ok(name.to_owned());
+  }
+
+  // A room's name from before the one session stands for the default answerer, where its session is one
+  // across its rooms.
+  let default = crate::conversational::default_answerer(db, &DEPLOYMENT.agent_key).await?;
+  let one_session = crate::conversational::settings(db, &default)
+    .await?
+    .is_some_and(|settings| settings.scope == crate::conversational::Scope::Agent);
+
+  Ok(if one_session { default } else { name.to_owned() })
+}
+
+/// One request a route answers, on agency's ground.
+pub struct Call {
+  pub request: Request,
+  ground: Arc<Ground>,
+  machine: Arc<Machine>,
+  // The picture of this machine's herdr the server keeps, where one stands, which any route reading what
+  // runs joins with the machine's units.
+  herdr: Option<herdr::picture::Watch>,
+  // The workers' places in herdr the server stands, where it stands them, which any route that changes
+  // what they stand after hands its change to.
+  places: Option<Places>,
+  going: Arc<GoingRuns>,
+}
+
+impl Call {
+  /// The ground the server stands on: its store, configuration, peers, events, hooks and trees.
+  pub fn ground(&self) -> &Ground {
+    &self.ground
+  }
+
+  /// The ground, shared, for work a route sets off past its answer.
+  pub fn shared_ground(&self) -> Arc<Ground> {
+    self.ground.clone()
+  }
+
+  /// Agency's store.
+  pub fn store(&self) -> &DatabaseConnection {
+    &self.ground.db
+  }
+
+  /// The machine the server stands on, as a harness provider reads it (docs/provider-presence.md).
+  pub fn machine(&self) -> &Machine {
+    &self.machine
+  }
+
+  /// The data root the server stands on.
+  pub fn data_root(&self) -> PathBuf {
+    self.ground.roots.data.clone()
+  }
+
+  /// The tree agency's assets — its prompts and its policy — are read out of: the code tree it runs.
+  pub fn asset_root(&self) -> PathBuf {
+    self.ground.code_root()
+  }
+
+  /// The event bus agency publishes on.
+  pub fn events(&self) -> &Bus {
+    &self.ground.events
+  }
+
+  /// What is running on the machine, read off the store's open rows, the machine's units and the
+  /// picture of herdr the server keeps where one stands.
+  pub fn running(&self) -> crate::queue::running::Running {
+    crate::queue::running::Running::new(self.ground.db.clone(), &self.machine, self.herdr.clone())
+  }
+
+  /// The server's stops.
+  pub fn stops(&self) -> crate::queue::stops::Stops {
+    crate::queue::stops::Stops::of(&self.ground, self.herdr.clone())
+  }
+
+  /// The workers' places in herdr, where the server stands them.
+  pub fn places(&self) -> Option<&Places> {
+    self.places.as_ref()
+  }
+
+  /// The companions' runs going now, as `companion-run-going` names them.
+  pub fn going(&self) -> Arc<GoingRuns> {
+    self.going.clone()
+  }
+
+  /// One query parameter, the first where it is given more than once.
+  pub fn query(&self, name: &str) -> Option<String> {
+    let Query(pairs) = Query::<Vec<(String, String)>>::try_from_uri(self.request.uri()).ok()?;
+
+    pairs.into_iter().find(|(key, _)| key == name).map(|(_, value)| value)
+  }
+
+  /// The body read as JSON, whatever its shape; a body that is not JSON is refused. A route reads it once.
+  pub async fn body(&mut self) -> Result<Value, Refused> {
+    let body = std::mem::take(self.request.body_mut());
+    let bytes = axum::body::to_bytes(body, BODY_LIMIT).await.map_err(Refused::failed)?;
+
+    serde_json::from_slice(&bytes).map_err(|_| Refused::failed(CONTROL_WORDS.request.not_json.as_str()))
+  }
+}
+
+// The most a body read whole may carry: 128 MiB.
+const BODY_LIMIT: usize = 128 * 1024 * 1024;
+
+/// A number that is whole, however it was written, as JavaScript's `Number.isInteger` reads one.
+pub fn whole(value: &Value) -> Option<i64> {
+  value
+    .as_i64()
+    .or_else(|| value.as_f64().filter(|number| number.fract() == 0.0).map(|number| number as i64))
+}
+
+/// An answer: a JSON body under a status.
+pub fn answer(status: StatusCode, body: Value) -> Response {
+  (status, Json(body)).into_response()
+}
+
+/// What the front stands on: the token a caller is let in by, agency's ground, the places the server
+/// stands, the picture of herdr it keeps, the companions' runs going, and the routes linked in.
+pub struct Front {
+  token: String,
+  ground: Arc<Ground>,
+  machine: Arc<Machine>,
+  routes: HashMap<String, &'static dyn Answers>,
+  places: Option<Places>,
+  herdr: Option<herdr::picture::Watch>,
+  going: Arc<GoingRuns>,
+}
+
+impl Front {
+  /// A front over the routes linked in, on agency's ground. Refused where they are not a set
+  /// (`route_faults`).
+  pub fn new(token: String, ground: Arc<Ground>) -> Result<Self, String> {
+    let faults = route_faults();
+
+    if !faults.is_empty() {
+      return Err(faults.join("; "));
+    }
+
+    let routes = moved_routes().map(|route| (route_name(&route.method(), route.path()), route)).collect();
+    let machine = Arc::new(ground.machine());
+    let going = Arc::new(GoingRuns::on(&ground.events));
+
+    Ok(Self {
+      token,
+      ground,
+      machine,
+      routes,
+      places: None,
+      herdr: None,
+      going,
+    })
+  }
+
+  /// The front with the workers' places the server stands, and the picture of herdr it keeps.
+  pub fn with_places(mut self, places: Places, herdr: Option<herdr::picture::Watch>) -> Self {
+    self.places = Some(places);
+    self.herdr = herdr;
+    self
+  }
+
+  fn authorised(&self, request: &Request) -> bool {
+    request
+      .headers()
+      .get(header::AUTHORIZATION)
+      .and_then(|value| value.to_str().ok())
+      .is_some_and(|value| value == format!("Bearer {}", self.token))
+  }
+}
+
+async fn dispatch(State(front): State<Arc<Front>>, request: Request) -> Response {
+  if !front.authorised(&request) {
+    return Refused::new(StatusCode::UNAUTHORIZED, "unauthorized").into_response();
+  }
+
+  let Some(route) = front.routes.get(&route_name(request.method(), request.uri().path())).copied() else {
+    return Refused::new(StatusCode::NOT_FOUND, "not found").into_response();
+  };
+  let call = Call {
+    request,
+    ground: front.ground.clone(),
+    machine: front.machine.clone(),
+    herdr: front.herdr.clone(),
+    places: front.places.clone(),
+    going: front.going.clone(),
+  };
+
+  match route.answer(call).await {
+    Ok(response) => response,
+    Err(refused) => refused.into_response(),
+  }
+}
+
+/// The front's router: every request goes through the one dispatch.
+pub fn router(front: Front) -> Router {
+  Router::new().fallback(dispatch).with_state(Arc::new(front))
+}
+
+/// The control port bound on the loopback, asked for again every half second while another process
+/// holds it: the process before it keeps it until a deployment restarts it.
+pub async fn bind(port: u16) -> io::Result<TcpListener> {
+  let mut said = false;
+
+  loop {
+    match TcpListener::bind(SocketAddr::from((Ipv4Addr::LOCALHOST, port))).await {
+      Ok(listener) => return Ok(listener),
+      Err(error) if error.kind() == io::ErrorKind::AddrInUse => {
+        if !said {
+          eprintln!("agency: the control port {port} is held; asking again until it is free");
+          said = true;
+        }
+        tokio::time::sleep(Duration::from_millis(500)).await;
+      }
+      Err(error) => return Err(error),
+    }
+  }
+}
+
+/// Serves the front on a listener until the process ends.
+pub async fn serve(listener: TcpListener, front: Front) -> io::Result<()> {
+  axum::serve(listener, router(front)).await
+}

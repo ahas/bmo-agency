@@ -1,0 +1,218 @@
+# What agency's control routes answer a caller with where they refuse a change (docs/api.md). Each
+# `{name}` is filled in with what it names.
+
+# A request no route can read.
+[request]
+not_json = "The request body is not JSON."
+action = "The requested action is not valid."
+
+# The fallback roads and the run modes: a work key no provider can answer ({key} unknown to the routes),
+# a {provider} model list that could not be had for {why}, the provider order and switches, and the
+# model settings retired for the tiers.
+[fallback]
+no_provider = "No provider that is on can answer this work key. Check the providers' installs, keys and model settings."
+models_unread = "The {provider} model list could not be read: {why}"
+unknown_key = "Unknown fallback key: {key}"
+models_retired = "Per-provider model settings are retired. Use the model tier settings."
+order = "The order must name each of {providers} once."
+all_off = "Not every provider can be turned off: keep at least one on."
+not_carried = "{provider} cannot carry this run."
+provider_switch = "A provider's name and an on or off value are needed."
+run_mode = "The run mode is automatic or one provider."
+unknown_action = "Unknown fallback action."
+no_laya = "Laya cannot be asked, so this gate sends only its default. Check BMO_LAYA_URL."
+laya_unset = "Laya cannot be asked: BMO_LAYA_URL is not set."
+not_offered = "The {key} key cannot be put on {mode}."
+
+# The Claude accounts: what a change to one names wrongly, an {id} or a {name} not known or already
+# taken, a name longer than its {most} characters, a credential path that is not what it says, and the
+# order and switches that would leave no account to run on.
+[accounts]
+switch = "An account and an on or off value are needed."
+run_on = "An account to run on is needed."
+credential_kind = "A credential is a configuration directory or a token file."
+credential_path = "Give the credential's path."
+name_needed = "Give the account a name."
+which_to_change = "Which account to change is needed."
+which_to_remove = "Which account to remove is needed."
+choice = "The account is automatic or one account."
+unknown = "There is no account {id}."
+off = "{name} is turned off."
+no_id = "No identifier could be made for the account."
+name_empty = "The account's name is empty."
+name_long = "An account's name is at most {most} characters."
+name_taken = "There is already an account named \"{name}\"."
+path_empty = "The credential's path is empty."
+path_relative = "The path must be absolute."
+path_missing = "That path does not exist."
+path_not_directory = "That path is not a directory."
+path_not_file = "A token's path must be a file."
+order = "The order must name each registered account once."
+last_off = "Not every account can be turned off: keep at least one on."
+last_gone = "The last account cannot be removed."
+chosen_off = "An account that is off cannot be chosen. Turn it on first."
+
+# A worker brought back to this machine with no path of this machine, and a worker's own sampling: an
+# {agent} not known, one whose {label} is no worker's or a support worker's that follows its base, a save
+# that is not names with values, and a setting {name} the sampling does not take.
+[workers]
+back_here_path = "To bring it back to this machine, give a path on this machine."
+not_found = "There is no worker {name}."
+nothing = "There is nothing to change."
+not_removed = "It could not be removed."
+
+[workers.sampling]
+no_agent = "There is no agent {agent}."
+not_worker = "{label} is not a worker, so it keeps no sampling of its own."
+follows_base = "{label}'s sampling follows its base worker's."
+shape = "A sampling is names paired with values."
+unknown = "The sampling has no setting {name}."
+
+# An agent's own switches: an {agent} not known, one that answers in no room, the {gates} its turn
+# passes, and the {levels} and {roles} a choice must be one of.
+[agents]
+not_found = "There is no agent {agent}."
+no_gates = "{agent} answers in no room, so its turns pass no gate."
+gates_of = "The gates {agent}'s turn passes are {gates}."
+gate_switch = "A gate is on or off."
+follows_tier = "{agent}'s thinking and effort follow the tier settings."
+follows_base = "{agent}'s thinking and effort follow its base worker's."
+thinking = "Thinking is on, off or the default."
+effort = "Effort is one of {levels}, or the default."
+role = "A role is one of {roles}."
+
+# The base prompts: a {name} not known, already taken or out of its shape, a label or a text past its
+# {most} characters, a prompt the {agents} still choose, an {agent} that chooses none, and the reason the
+# resets a changed prompt reaches are kept under.
+[base_prompts]
+unknown = "There is no base prompt {name}."
+label = "A label is 1 to {most} characters."
+text = "A text is 1 to {most} characters."
+name_shape = "A name starts with a lowercase letter and holds only lowercase letters, digits and hyphens, at most {most} characters."
+taken = "The name is already taken: {name}"
+in_use = "It cannot be removed while agents choose it: {agents}"
+not_chooser = "This agent does not choose a base prompt: {agent}"
+choice = "Choose a base prompt's name, or none."
+reset_reason = "base prompt changed"
+
+# A session's reset: an {agent} holding no session to clear, in a {room} or none, a body that names no
+# session, and the reason an ask is kept under.
+[sessions]
+none = "There is no session to clear: {agent}"
+none_in_room = "There is no session to clear: {agent} (room {room})"
+asked_shape = "Name the session to clear by its agent and its room."
+asked = "session reset asked"
+
+# A companion's settings: an {agent} that is no companion, a setting {name} not known, an own piece's
+# {name} out of its shape, beside the {pieces} every companion has, or past its {most} characters, the
+# pieces {offered} to choose from, and the reason the rooms a saved generation reaches are reset under.
+[companions]
+not_companion = "Not a companion: {agent}"
+generation_pairs = "Generation settings are names paired with values."
+not_generation = "Not a generation setting: {name}"
+reference = "The reference switch is on or off."
+own_pairs = "Own pieces are names paired with texts."
+own_name = "The own piece name {name} cannot be used: it starts with a lowercase letter, holds only lowercase letters, digits and hyphens, is at most 40 characters, and is none of {pieces}."
+own_size = "The own piece {name} is 1 to {most} characters."
+pieces = "Pieces are chosen from {offered}."
+pieces_twice = "A piece cannot be put in twice."
+pieces_none = "A system prompt holds at least one piece."
+persona = "A persona is a text of at most {most} characters."
+registration = "Choose a registered model with an address."
+recollector_model = "The recollectors' model is the default or a registered model with an address."
+thinking = "Thinking is on, off or the default."
+reset_reason = "generation settings saved"
+
+# A generation setting's value out of what it takes: its {name}, and the {span} it must stand in, made
+# of a {least} bound above or from its {min} and a {max} it may reach.
+[generation]
+switch = "{name} is on or off."
+number = "{name} is a number."
+whole = "{name} is a whole number."
+range = "{name} is {span}."
+above = "above {min}"
+least = "at least {min}"
+most = "{least} and at most {max}"
+
+# The tier settings: a provider, a tier, a work key or a mapping not chosen, a co-worker role held to the
+# co-worker {tiers}, kept earlier settings not yet accepted, and an answer ceiling only the {providers}
+# that cap one take, out of its {choices}.
+[tiers]
+provider = "Choose a provider."
+tier = "Choose a tier."
+key = "Choose a registered work key."
+coworker = "A co-worker role takes one of {tiers}; the chat agent's tier and the job worker's are never borrowed as co-workers."
+conflicts = "Review the kept earlier settings and agree to the tier first."
+mapping = "Choose a provider, a model and an effort."
+answer_tokens = "An answer ceiling is set only on {providers}, as one of {choices}."
+
+# The registry of models: what names a registration — a {tier}, a {worker}'s pin, a {companion}'s pin, a
+# model file {entry} — a name, a node, an address or a key file out of its shape, a field's {label} out of
+# its {min} to {max}, a label past its {most} characters, a {name} not registered or with no address on a
+# {node}, and {what} cannot be removed while the {names} name it.
+[registry]
+tier = "the {tier} tier"
+worker_pin = "worker {worker}'s pin"
+companion_pin = "companion {companion}'s pin"
+model_file = "model file {entry}"
+name = "A name starts with a lowercase letter and holds only lowercase letters, digits and hyphens, at most 40 characters."
+node = "A node's name starts with a lowercase letter and holds only lowercase letters, digits and hyphens, at most 40 characters."
+url_unread = "The address could not be read."
+url_shape = "An address is an http(s) address ending in /chat/completions."
+key_file = "The key file's name could not be read."
+whole = "{label} is a whole number from {min} to {max}."
+label = "A label is 1 to {most} characters."
+model = "The model's name could not be read."
+context_label = "The context window"
+answer_label = "The answer size"
+wait_label = "The request wait in seconds"
+answer_under_window = "The answer size must be smaller than the context window."
+switches = "The thinking default and the automatic walk are each on or off."
+keeps_research = "Whether searchers keep to this model is on or off."
+unknown = "Not a registered model: {name}"
+key_text = "A key is given as text."
+in_use = "{what} cannot be removed while something names it: {names}"
+last_address = "The last address of {name}"
+no_address = "{name} has no address on {node}."
+the_registration = "The registration {name}"
+
+# The model catalogue: a source, a {what}'s word, a field's {label} out of its {min} and {max}, a label
+# or a note past its {most} characters, a {name} not catalogued or being switched to, an {engine} serving
+# it or busy — set aside for its {reason}, or answering {count} requests — an entry with no engine or no
+# way to reach its file, and a unit that could not be made for {why}.
+[models]
+source_unread = "The source could not be read."
+source_address = "The source's address could not be read."
+source_shape = "A source is an https address or a path under the data root."
+word_unread = "The {what}'s name could not be read."
+above = "{label} is above {min} and at most {max}."
+whole = "{label} is a whole number from {min} to {max}."
+number = "{label} is a number from {min} to {max}."
+label = "A label is 1 to {most} characters."
+file = "A file is a file name ending in .gguf, not a path."
+bytes = "A size is a number of bytes, a positive whole number."
+sha256 = "A SHA-256 is 64 lowercase hexadecimal characters."
+note = "A note is at most {most} characters."
+engine_word = "engine"
+registration_word = "registered model"
+thinking = "Thinking is on, off or the default."
+name = "A name starts with a lowercase letter and holds only lowercase letters, digits and hyphens, at most 40 characters."
+unknown = "Not a model in the catalogue: {name}"
+switching_to = "{name} cannot be removed while the engine is being switched to it."
+serving = "{name} cannot be removed while the {engine} serves it."
+aside = "The engine is set aside ({reason}). Switch once the work holding the card has ended."
+in_hand = "The engine is answering {count} requests. Switch once they are answered."
+no_engine = "{name} names no engine to serve it."
+nowhere = "{name}'s file lies on no node and has no https source to fetch, so it cannot be brought to the head."
+engine_switching = "The {engine} engine is being switched to {entry}; try again once that has ended."
+unit_failed = "The run unit could not be made: {why}"
+node_unread = "The node's name could not be read."
+
+# A companion's reset: one naming no companion or no range, an {agent} that is no companion or whose
+# folder is the brain root, and the reason a room session it ended is recorded under.
+[companion_reset]
+no_agent = "Name the companion to reset."
+no_range = "Choose at least one range to take, the conversation or the person record. To start only its session afresh, reset the session."
+not_companion = "{agent} is not a companion, so it cannot be reset."
+brain_root = "{agent}'s memory folder is the brain root, so it is not reset."
+reason = "companion reset"

@@ -42,12 +42,14 @@ const NODES_PASS: Duration = Duration::from_secs(60);
 const LINKS_PASS: Duration = Duration::from_secs(60);
 
 /// What the places keep across their passes for as long as the process stands: the node list as the
-/// last pass saw it, and the turns that keep two passes over one thing from running at once.
+/// last pass saw it, the turns that keep two passes over one thing from running at once, and the hold a
+/// companion's turns keep what they came to under and its reset moves the reset point under.
 #[derive(Default)]
 pub struct Kept {
   pub nodes: NodeList,
   heads_turn: tokio::sync::Mutex<()>,
   pub follow: FollowTurns,
+  pub reset: crate::companion::overtaken::ResetHold,
 }
 
 /// The places as one server stands them: the ground, and what is kept between passes.

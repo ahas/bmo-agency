@@ -150,9 +150,13 @@ async fn folded(
 
   // A login that is off, at its limit or waiting for a person would only fail the fold, which waits for it.
   if let Some(held) = &login
-    && !crate::control::claude_accounts::account_open(&ground.db, &held.id, crate::now_ms())
-      .await
-      .map_err(|refused| fault(refused.error))?
+    && !crate::control::claude_accounts::account_open(
+      crate::control::claude_accounts::Judging::of(ground),
+      &held.id,
+      crate::now_ms(),
+    )
+    .await
+    .map_err(|refused| fault(refused.error))?
   {
     return Ok((Folded::Busy, String::new()));
   }

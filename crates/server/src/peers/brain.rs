@@ -1,7 +1,7 @@
-//! The brain (docs/api.md, 「Calls agency makes」): what a companion's reset and removal do to the
-//! agent's brain folder. The folder, its editing lock with the lock's queue and fence, the day a person
-//! book starts reading and the recollectors' writing are the brain's; agency names the agent and the
-//! brain finds its folder.
+//! The brain (docs/api.md, 「Calls agency makes」): what a companion's reset and removal do to the agent's
+//! brain folder and the rows it remembers by. The folder, its editing lock with the lock's queue and fence,
+//! the day a person book starts reading and the recollectors' writing are the brain's; agency names the
+//! agent and the brain finds its folder.
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -35,6 +35,17 @@ struct LockPath {
   path: Option<String>,
 }
 
+/// What a reset of an agent took of the brain, or would take: the count of the agent's rows per table
+/// and whether its folder stands, as the brain says them, and what it could not do.
+#[derive(Clone, Debug, Default, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct BrainReset {
+  #[serde(default)]
+  pub took: serde_json::Value,
+  #[serde(default)]
+  pub could_not: Vec<String>,
+}
+
 /// What agency asks the brain.
 pub trait Brain: Send + Sync {
   /// The agent's folder fenced now: no writer begun before this moment takes its editing lock again.
@@ -47,6 +58,9 @@ pub trait Brain: Send + Sync {
   fn book_since<'a>(&'a self, agent: &'a str, chat_id: i64, at: i64) -> Asking<'a, ()>;
   /// What the agent's stopped recollector runs left unwritten in its folder undone.
   fn put_back<'a>(&'a self, agent: &'a str) -> Asking<'a, ()>;
+  /// What the agent remembers taken — its rows and its folder, under its fence and lock — or, for a
+  /// preview, counted with nothing taken.
+  fn reset<'a>(&'a self, agent: &'a str, preview: bool) -> Asking<'a, BrainReset>;
 }
 
 /// No brain deployed: no folder is kept, so nothing is fenced, removed, written or undone, and no lock
@@ -72,6 +86,10 @@ impl Brain for NoBrain {
 
   fn put_back<'a>(&'a self, _agent: &'a str) -> Asking<'a, ()> {
     Box::pin(async { Ok(()) })
+  }
+
+  fn reset<'a>(&'a self, _agent: &'a str, _preview: bool) -> Asking<'a, BrainReset> {
+    Box::pin(async { Ok(BrainReset::default()) })
   }
 }
 
@@ -115,6 +133,10 @@ impl Brain for HttpBrain {
 
   fn put_back<'a>(&'a self, agent: &'a str) -> Asking<'a, ()> {
     Box::pin(self.done("agents/put-back", json!({ "agent": agent })))
+  }
+
+  fn reset<'a>(&'a self, agent: &'a str, preview: bool) -> Asking<'a, BrainReset> {
+    Box::pin(self.caller.post("agents/reset", json!({ "agent": agent, "preview": preview })))
   }
 }
 

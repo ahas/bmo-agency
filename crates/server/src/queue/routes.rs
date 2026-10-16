@@ -16,6 +16,7 @@ use store::one;
 
 use super::settings;
 use crate::Refusal;
+use crate::control::claude_accounts::Judging;
 use crate::control::harness::{enabled_providers, missing, named, provider_enabled};
 use crate::control::roads::{pinned_provider, walked};
 use crate::control::tiers::resolve_execution;
@@ -266,11 +267,8 @@ pub async fn clear_route_block(db: &DatabaseConnection, selection: &str) -> Resu
 
 /// Whether a selection's road is shut now: its provider off, Claude Code while the deployment rests, or a
 /// failure that closed it still standing.
-pub async fn route_blocked(
-  db: &DatabaseConnection,
-  selection: &str,
-  now_ms: i64,
-) -> Result<bool, Unrouted> {
+pub async fn route_blocked(judging: Judging<'_>, selection: &str, now_ms: i64) -> Result<bool, Unrouted> {
+  let db = judging.db;
   let Some(asked) = choice(selection) else {
     return Ok(false);
   };
@@ -280,7 +278,7 @@ pub async fn route_blocked(
   }
 
   if asked.provider == "claude-code"
-    && resting(db, now_ms / 1000).await.map_err(|refusal| Unrouted(refusal.detail))?
+    && resting(judging, now_ms / 1000).await.map_err(|refusal| Unrouted(refusal.detail))?
   {
     return Ok(true);
   }
@@ -298,19 +296,20 @@ pub async fn route_blocked(
 /// Whether an item has a route to run on now: some selection its job may go out on that is not
 /// blocked. A walk that could not be read is no route.
 pub async fn item_route_open(
-  db: &DatabaseConnection,
+  judging: Judging<'_>,
   machine: &Machine,
   model: Option<&str>,
   worker: Option<&str>,
   now_ms: i64,
 ) -> bool {
-  let Ok(candidates) = job_route_candidates(db, machine, Some(model.unwrap_or("auto")), worker, None).await
+  let Ok(candidates) =
+    job_route_candidates(judging.db, machine, Some(model.unwrap_or("auto")), worker, None).await
   else {
     return false;
   };
 
   for selection in candidates {
-    match route_blocked(db, &selection, now_ms).await {
+    match route_blocked(judging, &selection, now_ms).await {
       Ok(false) => return true,
       Ok(true) => {}
       Err(_) => return false,

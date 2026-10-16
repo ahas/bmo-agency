@@ -426,7 +426,7 @@ pub async fn effort_of(
 ) -> Result<Option<String>, Refusal> {
   let Some(reasoning) = reasoning else { return Ok(mapped.map(str::to_owned)) };
   let provider = named(provider).map_err(|refused| fault(refused.error))?;
-  let levels = levels(&ground.db, machine, provider, model).await;
+  let levels = levels(crate::control::claude_accounts::Judging::of(ground), machine, provider, model).await;
 
   Ok(provider.run_effort(mapped, reasoning.thinking, reasoning.level.as_deref(), &levels))
 }

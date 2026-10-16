@@ -11,6 +11,7 @@ pub mod chat_health;
 pub mod chat_line;
 pub mod companion_runner;
 pub mod companions;
+pub mod control_words;
 pub mod deployment;
 pub mod door_words;
 pub mod gates;

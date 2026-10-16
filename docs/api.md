@@ -28,7 +28,7 @@ judges none of it.
 ## Versioning
 
 - **The contract carries the repository's one version, in semver.** The version in the workspace
-  manifest is this boundary's version; the current line is `0.12.0`.
+  manifest is this boundary's version; the current line is `0.13.0`.
 - **A change to this document and a change to the boundary go in one commit.** A change that makes a
   route, an event, a hook or a shared table's contract different repairs this document in the same
   commit, stating what is true now.
@@ -54,6 +54,10 @@ judges none of it.
   agent may be registered with a prompt folder, one plain name under `prompts/agents/`, and a
   companion's system prompt and persona are read from the folder its row names, never from its name
   (`docs/store.md`, 「Its tables」).
+- **A companion's reset** is a route, a dry run and a write, for the companion, the ranges asked, and
+  the rooms it answers alone and those it shares, which the caller names since a room's answerers are
+  its owner's. Agency takes its own rows, asks the brain for the person range, and publishes the rest
+  for its owners (`docs/companions.md`, 「Starting it afresh」).
 - **Usage is filed under the agent that spent it,** never added to another's; a run names the agent it
   belongs to and the run it came from (`docs/agent-ownership.md`). A consumer reads an agent's usage
   across the usage boundary described there.
@@ -162,6 +166,16 @@ judges none of it.
   own starts there and again as it ends: the `agent`, the `run`, the `chatId`, and `going`, true while it
   runs. A consumer that stands cancellations over a room's runs reads which are going from these
   (`docs/companions.md`, 「What the reset cuts off」).
+- **A companion cut off**, `companion-cut-off`, is published each time a reset moves the companion's
+  reset point: the `agent` and the `point`, in epoch milliseconds. A turn begun at or before it is
+  overtaken; the consumer holding the companion's rooms lets go unread what waited for its turns there and
+  settles its quiet instructions as delivered (`docs/companions.md`, 「What the reset cuts off」).
+- **A companion reset**, `companion-reset`, is published once a reset has taken agency's part: the
+  `agent`, the `ranges` taken (`conversation`, `person`), the rooms it answers `alone` and those it
+  answered `shared`, who asked (`by`) and when (`at`, in epoch seconds). Each unit holding rows of the
+  companion's — a room's messages and reads, a gate's judgements, its usage, a copy of a store — takes
+  its own of the ranges named, and the whole record of each room it answers alone
+  (`docs/companions.md`, 「Starting it afresh」).
 
 ## Hooks
 
@@ -281,6 +295,10 @@ Each hook has a default that does nothing, so agency runs with none registered.
   carried to a node with each run; the command that makes one, and the warning before one expires, are
   agency's (`docs/work-nodes.md`, 「The logins on a node」, `docs/cache-fallback.md`, 「A login that is
   about to end」). No token crosses this boundary: a consumer reads only whether an account is usable.
+- **The quota source.** On a loopback port of its own and with no token, agency answers `GET
+  /api/claude` for the cache siren: the login the deployment's chat runs on first, marked active, then
+  the provider's other logins that are on, each with its two headline windows as the siren keeps them.
+  It answers that one path and nothing else.
 - **The rest.** Agency answers whether the deployment rests now and until when: while the service's own
   outage rest stands (`rest_until` with `rest_kind` set to `outage`), or while every enabled account's
   own rest stands (`rest_until:<account>`, or a window of its own read full), until the soonest of them
@@ -345,7 +363,7 @@ Each hook has a default that does nothing, so agency runs with none registered.
 - **Agency calls four services:** the cache siren for an account's usage windows and the cache lifetime
   a session is judged warm by, the cache warmer for whether keepalive pings go, the node service for
   this machine's room, a node's link, the nodes it keeps and the SSH login to each, and the brain for what a companion's reset
-  does to the agent's brain folder. Each is reached at the base address the deployment names in its
+  does to what the agent remembers and to its brain folder. Each is reached at the base address the deployment names in its
   variable, with the token named beside it.
 - **A service whose address is unset is not called:** each call then answers the default stated beside it
   below, so agency runs with none of the four deployed. An address that does not read as a URL stops the
@@ -399,3 +417,4 @@ due, the ping itself and its record — itself (`docs/coworker-pool.md`, 「Rese
 | lock path | `/agents/lock` | `agent` | `path`: the agent's folder's editing lock, relative to the data root, or null where the agent keeps no folder | none |
 | book start | `/agents/book-since` | `agent`, `chatId`, `at` | `ok`; the agent's person book of the room reads from `at` on, in seconds | nothing written |
 | recollector put-back | `/agents/put-back` | `agent` | `ok`; what the agent's stopped recollector runs left unwritten in its folder is undone | nothing undone |
+| reset | `/agents/reset` | `agent`, `preview` (boolean) | `took`: the count of the agent's rows per table and whether its folder stands; with `preview` false, all of it taken, the folder fenced and its lock held meanwhile; and `couldNot`: what it could not do | nothing taken, nothing it could not |

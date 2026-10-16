@@ -169,7 +169,7 @@ pub async fn claude_program(
   cwd: &str,
 ) -> Result<Standing, Refusal> {
   let trees = Trees::of(ground);
-  let walked = claude_accounts::walk_for(&ground.db, JOB_WORK_KEY)
+  let walked = claude_accounts::walk_for(claude_accounts::Judging::of(ground), JOB_WORK_KEY)
     .await
     .map_err(|refused| fault(refused.error))?
     .into_iter()

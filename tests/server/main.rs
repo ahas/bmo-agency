@@ -8,6 +8,7 @@ mod clock;
 // The companion members built so far; the others stand beside these and are declared with their modules.
 mod companion {
   mod going;
+  mod reset;
 }
 mod config;
 mod conversational;

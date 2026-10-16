@@ -9,6 +9,7 @@ mod chat_health;
 mod chat_line;
 mod companion_runner;
 mod companions;
+mod control_words;
 mod deployment;
 mod door_words;
 mod gates;

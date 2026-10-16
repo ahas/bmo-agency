@@ -128,7 +128,7 @@ async fn no_login_answers(ground: &Ground) -> Result<bool, Refusal> {
 /// The login a job's walk offers now on the worker line.
 pub async fn walked_account(ground: &Ground) -> Result<Option<Account>, Refusal> {
   Ok(
-    claude_accounts::walk_for(&ground.db, JOB_WORK_KEY)
+    claude_accounts::walk_for(claude_accounts::Judging::of(ground), JOB_WORK_KEY)
       .await
       .map_err(|refused| fault(refused.error))?
       .into_iter()
@@ -345,9 +345,11 @@ pub async fn turn<W: Watch>(side: &Side<'_>, asked: Asked<'_>, watch: &mut W) ->
       .find(|one| &one.session_id == id),
   };
   let closed = match &held {
-    Some(held) => !claude_accounts::account_open(&ground.db, &held.account, now_ms())
-      .await
-      .map_err(|refused| fault(refused.error))?,
+    Some(held) => {
+      !claude_accounts::account_open(claude_accounts::Judging::of(ground), &held.account, now_ms())
+        .await
+        .map_err(|refused| fault(refused.error))?
+    }
     None => false,
   };
   let (held, resume) = if closed { (None, None) } else { (held, asked.session.clone()) };

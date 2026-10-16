@@ -11,6 +11,7 @@ pub mod clock;
 /// but the ground are built here.
 pub mod companion {
   pub mod going;
+  pub mod reset;
 }
 pub mod config;
 pub mod conversational;

@@ -13,7 +13,7 @@ use store::run;
 
 use crate::Refusal;
 use crate::control::claude_accounts::{
-  Account, account_open, accounts, credential_expiry, login_end, login_standing,
+  Account, Judging, account_open, accounts, credential_expiry, login_end, login_standing,
 };
 use crate::door::place_run::read_run;
 use crate::door::turn::{account_of_login, program_login};
@@ -64,12 +64,9 @@ async fn named(db: &sea_orm::DatabaseConnection, id: &str) -> Result<Option<Acco
 
 /// Every login read once on the pass, as it stands at `now` in milliseconds, each account's token for the
 /// work nodes with it.
-pub async fn watch(
-  db: &sea_orm::DatabaseConnection,
-  events: &Bus,
-  roots: &Roots,
-  now: i64,
-) -> Result<(), Refusal> {
+pub async fn watch(judging: Judging<'_>, events: &Bus, roots: &Roots, now: i64) -> Result<(), Refusal> {
+  let db = judging.db;
+
   for account in every(db).await? {
     clear_if_back(db, &account.id, now).await?;
 
@@ -93,7 +90,7 @@ pub async fn watch(
     tell_node_token(db, events, &held, roots, now).await?;
   }
 
-  retire_closed(db, &roots.data, now).await
+  retire_closed(judging, &roots.data, now).await
 }
 
 /// Every standing program whose login cannot answer now — off, its window full, waiting for a person —
@@ -101,12 +98,8 @@ pub async fn watch(
 /// resume its session there: the place is handed back to the host, and the next turn of that agent stands
 /// its program again on the login the walk offers then, a fresh session where the login moved. A program
 /// that names no login of its own is the machine's and is left alone.
-pub async fn retire_closed(
-  db: &sea_orm::DatabaseConnection,
-  data_root: &Path,
-  now: i64,
-) -> Result<(), Refusal> {
-  let accounts = every(db).await?;
+pub async fn retire_closed(judging: Judging<'_>, data_root: &Path, now: i64) -> Result<(), Refusal> {
+  let accounts = every(judging.db).await?;
   let Ok(places) = std::fs::read_dir(places_dir(data_root)) else { return Ok(()) };
 
   for entry in places.flatten() {
@@ -130,7 +123,7 @@ pub async fn retire_closed(
       continue;
     };
 
-    if account_open(db, &account, now).await.map_err(|refused| fault(refused.error))? {
+    if account_open(judging, &account, now).await.map_err(|refused| fault(refused.error))? {
       continue;
     }
 

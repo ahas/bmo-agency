@@ -20,6 +20,7 @@ use std::time::Duration;
 use policy::pool_warm::POOL_WARM;
 use store::{one, run};
 
+use crate::control::claude_accounts::Judging;
 use crate::control::pool::{self, Reservation};
 use crate::door::record::Reply;
 use crate::lines::fault;
@@ -229,7 +230,7 @@ impl Pool<'_> {
         continue;
       };
 
-      if provider.rests_with_account() && rest::resting(db, now_ms() / 1000).await? {
+      if provider.rests_with_account() && rest::resting(Judging::of(ground), now_ms() / 1000).await? {
         continue;
       }
 

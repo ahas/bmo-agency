@@ -133,7 +133,7 @@ pub fn generation_run(values: &IndexMap<String, Value>) -> (Option<i64>, IndexMa
 /// The login the walk offers an agent now on Claude Code's own road, none where it carries no login of the
 /// deployment's, and the refusal where every login it carries is closed.
 async fn walked_login(ground: &Ground, agent: &str) -> Result<Option<Account>, Refusal> {
-  let login = claude_accounts::walk_for(&ground.db, agent)
+  let login = claude_accounts::walk_for(claude_accounts::Judging::of(ground), agent)
     .await
     .map_err(|refused| fault(refused.error))?
     .into_iter()

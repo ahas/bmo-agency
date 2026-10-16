@@ -6,6 +6,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use agency_server::config::{Config, PeerAddresses};
+use agency_server::peers::brain::BrainReset;
 use agency_server::peers::cache_siren::Window;
 use agency_server::peers::node::{NodeRow, Room};
 use agency_server::peers::{PeerFault, Peers};
@@ -69,6 +70,10 @@ async fn answer(
     "agents/fence" | "agents/put-back" => json!({ "ok": true }),
     "agents/lock" if body["agent"] == "kept" => json!({ "path": "brains/kept/.lock" }),
     "agents/lock" => json!({ "path": null }),
+    "agents/reset" => json!({
+      "took": { "memories": if body["preview"] == true { 3 } else { 0 }, "folder": true },
+      "couldNot": ["brain commit: nothing to push"]
+    }),
     "agents/removed" => json!({
       "answered": false,
       "refusal": { "code": "folder-busy", "message": "The folder is being written." }
@@ -337,4 +342,23 @@ async fn a_service_with_no_address_answers_its_default() {
   peers.brain.book_since("kept", 1, 2).await.unwrap();
   peers.brain.put_back("kept").await.unwrap();
   assert_eq!(peers.brain.lock_path("kept").await.unwrap(), None);
+  assert_eq!(peers.brain.reset("kept", false).await.unwrap(), BrainReset::default());
+}
+
+#[tokio::test]
+async fn the_brain_is_asked_to_reset_an_agent_or_to_preview_it() {
+  let (address, calls) = stand_in().await;
+  let peers = peers_at(&address, None);
+  let preview = peers.brain.reset("kept", true).await.unwrap();
+
+  assert_eq!(preview.took, json!({ "memories": 3, "folder": true }));
+  assert_eq!(preview.could_not, ["brain commit: nothing to push"]);
+  assert_eq!(
+    taken(&calls)[0],
+    Call {
+      path: "/base/agents/reset".into(),
+      authorization: None,
+      body: json!({ "agent": "kept", "preview": true }),
+    }
+  );
 }

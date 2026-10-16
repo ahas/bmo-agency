@@ -1,0 +1,297 @@
+//! An agent's own gate switches, its own thinking and effort, and its role (docs/model-tiers.md, 「An
+//! agent's own thinking and effort」; docs/agent-roles.md, 「Changing a role」). Agency keeps an agent's
+//! switches; whether a turn heeds a gate's is its consumer's. Which gates a turn passes, which agents run
+//! as gates and the scale an effort is named on are the policy's (docs/policy.md).
+
+use axum::http::{Method, StatusCode};
+use axum::response::Response;
+use policy::control_words::CONTROL_WORDS;
+use policy::fill_marks;
+use policy::gates::{COMPANION_TURN, GATE_ORDER};
+use policy::reasoning::REASONING;
+use policy::roles::ROLES;
+use sea_orm::DatabaseConnection;
+use serde_json::{Value, json};
+
+use super::{Call, Refused, Route, answer, canonical_agent, set_setting, setting};
+use crate::conversational::{Settings, Shape};
+use store::{one, run};
+
+/// An agent's row, as far as its switches read it.
+struct Agent {
+  name: String,
+  kind: String,
+  label: Option<String>,
+  support_of: Option<String>,
+  /// The shape of its turns, where it is a conversational agent.
+  shape: Option<Shape>,
+}
+
+impl Agent {
+  /// The agent a name stands for, as the store finds it.
+  async fn find(db: &DatabaseConnection, name: &str) -> Result<Option<Self>, Refused> {
+    let row = one(
+      db,
+      r#"SELECT "name", "kind", "session_scope", "turn_shape", "default_answerer", "label", "support_of" FROM "agents"
+         WHERE "name" = $1"#,
+      vec![canonical_agent(db, name).await?.into()],
+    )
+    .await?;
+
+    let Some(row) = row else { return Ok(None) };
+
+    Ok(Some(Self {
+      name: row.try_get("", "name")?,
+      kind: row.try_get("", "kind")?,
+      label: row.try_get("", "label")?,
+      support_of: row.try_get("", "support_of")?,
+      shape: Settings::of(&row).map_err(Refused::from)?.map(|settings| settings.shape),
+    }))
+  }
+
+  /// The agent's name as a person reads it.
+  fn called<'a>(&'a self, asked: &'a str) -> &'a str {
+    self.label.as_deref().unwrap_or(asked)
+  }
+
+  /// The gates the agent's turn passes, once each.
+  fn turn_gates(&self) -> Option<Vec<String>> {
+    turn_gates_of(self.shape).map(|gates| gates.into_iter().map(|(_, key)| key).collect())
+  }
+
+  fn owns_reasoning(&self) -> bool {
+    owns_reasoning(&self.name, self.support_of.as_deref())
+  }
+
+  /// Why it has no gates to switch.
+  fn no_gates(&self) -> String {
+    fill_marks(
+      &CONTROL_WORDS.agents.no_gates,
+      &[("agent", self.label.as_deref().unwrap_or(&self.name))],
+    )
+  }
+}
+
+/// The gates a conversational agent's turn passes, as the shape of its turns declares them, once each with
+/// the first part it stands in; none for an agent that answers in no room.
+pub fn turn_gates_of(shape: Option<Shape>) -> Option<Vec<(&'static str, String)>> {
+  let turn = match shape? {
+    Shape::Window => GATE_ORDER.turn(),
+    Shape::Pieces => COMPANION_TURN.clone(),
+  };
+
+  Some(turn.gates().into_iter().map(|(part, key)| (part, key.to_owned())).collect())
+}
+
+/// Whether an agent's own choice reaches its runs: not a gate's, a judgement asked under its tier, and
+/// not a support worker's, which runs on its base's.
+pub fn owns_reasoning(name: &str, support_of: Option<&str>) -> bool {
+  !GATE_ORDER.keys().contains(&name) && support_of.is_none()
+}
+
+/// What an agent there is no row of is refused with.
+fn not_found(name: &str) -> String {
+  fill_marks(&CONTROL_WORDS.agents.not_found, &[("agent", name)])
+}
+
+/// The name a body asks about: a string, trimmed, or nothing.
+fn asked_name(body: &Value) -> String {
+  body.get("agent").and_then(Value::as_str).map(str::trim).unwrap_or_default().to_owned()
+}
+
+/// One of an agent's gates switched on or off. The next turn of the agent reads it; nothing stands
+/// again for it.
+pub struct AgentGate;
+
+impl Route for AgentGate {
+  const METHOD: Method = Method::POST;
+  const PATH: &'static str = "/agent-gate";
+
+  async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
+    let body = call.body().await?;
+    let name = asked_name(&body);
+    let gate = body.get("gate").cloned().unwrap_or(Value::Null);
+    let on = body.get("on").cloned().unwrap_or(Value::Null);
+
+    if let Err(fault) = switch_gate(call.store(), &name, &gate, &on).await? {
+      return Err(Refused::new(StatusCode::BAD_REQUEST, fault));
+    }
+
+    Ok(answer(StatusCode::OK, json!({ "ok": true, "agent": name, "gate": gate, "on": on })))
+  }
+}
+
+/// One of an agent's gates switched on or off, or the sentence refusing it: an agent there is no row of,
+/// one that answers in no room, a gate its turn does not pass, and a switch that is neither.
+pub async fn switch_gate(
+  db: &DatabaseConnection,
+  name: &str,
+  gate: &Value,
+  on: &Value,
+) -> Result<Result<(), String>, Refused> {
+  let Some(agent) = Agent::find(db, name).await? else {
+    return Ok(Err(not_found(name)));
+  };
+  let Some(gates) = agent.turn_gates() else {
+    return Ok(Err(agent.no_gates()));
+  };
+  let Some(gate) = gate.as_str().filter(|gate| gates.iter().any(|one| one == gate)) else {
+    return Ok(Err(fill_marks(
+      &CONTROL_WORDS.agents.gates_of,
+      &[("agent", agent.called(name)), ("gates", &gates.join(", "))],
+    )));
+  };
+  let Some(on) = on.as_bool() else {
+    return Ok(Err(CONTROL_WORDS.agents.gate_switch.clone()));
+  };
+
+  set_setting(db, &format!("agent_gate:{}:{gate}", agent.name), if on { "on" } else { "off" }).await?;
+
+  Ok(Ok(()))
+}
+
+/// One gate an agent's turn passes: the part it first stands in, its key, and the agent's own switch.
+pub struct GateSwitch {
+  pub part: &'static str,
+  pub key: String,
+  pub on: bool,
+}
+
+/// Every gate an agent's turn passes, once each in the turn's order, with the agent's own switch, on unless
+/// it holds off; or the sentence saying why it has none.
+pub async fn agent_gates(
+  db: &DatabaseConnection,
+  name: &str,
+) -> Result<Result<Vec<GateSwitch>, String>, Refused> {
+  let Some(agent) = Agent::find(db, name).await? else {
+    return Ok(Err(not_found(name)));
+  };
+  let Some(gates) = turn_gates_of(agent.shape) else {
+    return Ok(Err(agent.no_gates()));
+  };
+  let mut switches = Vec::with_capacity(gates.len());
+
+  for (part, key) in gates {
+    let on = setting(db, &format!("agent_gate:{}:{key}", agent.name)).await?.as_deref() != Some("off");
+
+    switches.push(GateSwitch { part, key, on });
+  }
+
+  Ok(Ok(switches))
+}
+
+crate::moved!(AgentGate);
+
+/// An agent's own thinking and effort set, each null to leave it to the tier and the line. A worker's
+/// standing program is stood again on it, as on a new pin.
+pub struct AgentReasoning;
+
+impl Route for AgentReasoning {
+  const METHOD: Method = Method::POST;
+  const PATH: &'static str = "/agent-reasoning";
+
+  async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
+    let body = call.body().await?;
+    let name = asked_name(&body);
+    let thinking = body.get("thinking").cloned().unwrap_or(Value::Null);
+    let effort = body.get("effort").cloned().unwrap_or(Value::Null);
+    let kind = match set_reasoning(call.store(), &name, &thinking, &effort).await? {
+      Ok(kind) => kind,
+      Err(fault) => return Err(Refused::new(StatusCode::BAD_REQUEST, fault)),
+    };
+
+    // A worker's standing program is stood again on it, as on a new pin, not waited on.
+    if kind == "worker"
+      && let Some(places) = call.places().cloned()
+    {
+      tokio::spawn(async move { crate::places::standby::restand_all(&places.ground, None).await });
+    }
+
+    Ok(answer(
+      StatusCode::OK,
+      json!({ "ok": true, "agent": name, "thinking": thinking, "effort": effort }),
+    ))
+  }
+}
+
+crate::moved!(AgentReasoning);
+
+/// An agent's own thinking and effort written, each null to leave it to the tier and the line: the kind
+/// of the agent it was set on, or the sentence refusing it.
+pub async fn set_reasoning(
+  db: &DatabaseConnection,
+  name: &str,
+  thinking: &Value,
+  effort: &Value,
+) -> Result<Result<String, String>, Refused> {
+  let Some(agent) = Agent::find(db, name).await? else {
+    return Ok(Err(not_found(name)));
+  };
+
+  if !agent.owns_reasoning() {
+    let follows = if agent.support_of.is_none() {
+      &CONTROL_WORDS.agents.follows_tier
+    } else {
+      &CONTROL_WORDS.agents.follows_base
+    };
+
+    return Ok(Err(fill_marks(follows, &[("agent", agent.called(name))])));
+  }
+
+  if !thinking.is_null() && !thinking.is_boolean() {
+    return Ok(Err(CONTROL_WORDS.agents.thinking.clone()));
+  }
+
+  if !effort.is_null() && !effort.as_str().is_some_and(|level| REASONING.holds(level)) {
+    return Ok(Err(fill_marks(
+      &CONTROL_WORDS.agents.effort,
+      &[("levels", &REASONING.levels.join(", "))],
+    )));
+  }
+
+  run(
+    db,
+    r#"UPDATE "agents" SET "thinking" = $1, "effort" = $2 WHERE "name" = $3"#,
+    vec![
+      thinking.as_bool().map(i64::from).into(),
+      effort.as_str().map(str::to_owned).into(),
+      name.into(),
+    ],
+  )
+  .await?;
+
+  Ok(Ok(agent.kind))
+}
+
+/// The role an agent holds from now on. Its next record reads it; nothing running is stopped for it.
+pub struct AgentRole;
+
+impl Route for AgentRole {
+  const METHOD: Method = Method::POST;
+  const PATH: &'static str = "/agent-role";
+
+  async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
+    let body = call.body().await?;
+    let db = call.store();
+    let name = asked_name(&body);
+    let refuse = |fault: String| Err(Refused::new(StatusCode::BAD_REQUEST, fault));
+
+    let Some(agent) = Agent::find(db, &name).await? else {
+      return refuse(not_found(&name));
+    };
+    let Some(role) = body.get("role").and_then(Value::as_str).filter(|role| ROLES.holds(role)) else {
+      return refuse(fill_marks(&CONTROL_WORDS.agents.role, &[("roles", &ROLES.labels().join(", "))]));
+    };
+
+    run(
+      db,
+      r#"UPDATE "agents" SET "role" = $1 WHERE "name" = $2"#,
+      vec![role.to_owned().into(), agent.name.clone().into()],
+    )
+    .await?;
+
+    Ok(answer(StatusCode::OK, json!({ "ok": true, "agent": name, "role": role })))
+  }
+}
+
+crate::moved!(AgentRole);

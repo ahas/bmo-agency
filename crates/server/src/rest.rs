@@ -7,6 +7,7 @@ use sea_orm::DatabaseConnection;
 use store::{all, one};
 
 use crate::Refusal;
+use crate::control::claude_accounts::Judging;
 
 // A rest that names no account: the service's outage, or a limit rest of this machine's own login.
 const REST_UNTIL: &str = "rest_until";
@@ -34,8 +35,8 @@ async fn moment(db: &DatabaseConnection, key: &str) -> Result<Option<i64>, Refus
 }
 
 /// Whether the deployment rests now, `now` in epoch seconds.
-pub async fn resting(db: &DatabaseConnection, now: i64) -> Result<bool, Refusal> {
-  Ok(rest_until(db, now).await?.is_some())
+pub async fn resting(judging: Judging<'_>, now: i64) -> Result<bool, Refusal> {
+  Ok(rest_until(judging, now).await?.is_some())
 }
 
 // The service's own rest, which belongs to no account, where it stands past `now`.
@@ -49,7 +50,9 @@ async fn outage_rest(db: &DatabaseConnection, now: i64) -> Result<Option<i64>, R
 
 /// Until when the deployment rests, in epoch seconds: the service's own rest where one stands, or else the
 /// soonest end of the enabled accounts' rests where every one of them rests; none where it does not rest.
-pub async fn rest_until(db: &DatabaseConnection, now: i64) -> Result<Option<i64>, Refusal> {
+pub async fn rest_until(judging: Judging<'_>, now: i64) -> Result<Option<i64>, Refusal> {
+  let db = judging.db;
+
   if let Some(until) = outage_rest(db, now).await? {
     return Ok(Some(until));
   }
@@ -65,7 +68,7 @@ pub async fn rest_until(db: &DatabaseConnection, now: i64) -> Result<Option<i64>
   for account in &accounts {
     let id: String = account.try_get("", "id")?;
 
-    match account_rest_until(db, &id).await?.filter(|until| *until > now) {
+    match account_rest_until(judging, &id).await?.filter(|until| *until > now) {
       Some(until) => soonest = Some(soonest.map_or(until, |held| held.min(until))),
       None => return Ok(None),
     }
@@ -80,9 +83,9 @@ pub async fn rest_kind(db: &DatabaseConnection, now: i64) -> Result<&'static str
 }
 
 // How long one account's own limit rest stands, as the one account judgement reads it
-// (`control::claude_accounts`): its own rest, or a window of its own read full.
-async fn account_rest_until(db: &DatabaseConnection, account: &str) -> Result<Option<i64>, Refusal> {
-  crate::control::claude_accounts::rest_until(db, account)
+// (`control::claude_accounts`): its own rest, or a window of its own the cache siren reads full.
+async fn account_rest_until(judging: Judging<'_>, account: &str) -> Result<Option<i64>, Refusal> {
+  crate::control::claude_accounts::rest_until(judging, account)
     .await
     .map_err(|refused| Refusal::new(refused.status, "account-rest-unread", refused.error))
 }
