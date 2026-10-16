@@ -23,3 +23,20 @@ mod lines {
   mod ordered;
   mod prefix;
 }
+
+// The places built so far; the others stand beside these and are declared with their modules.
+mod places {
+  mod branch;
+  mod claims;
+  mod follow;
+  mod ground;
+  mod home;
+  mod locks;
+  mod nodes;
+  mod servers;
+}
+mod readiness;
+
+mod watches {
+  mod links;
+}

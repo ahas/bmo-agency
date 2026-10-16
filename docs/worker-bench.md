@@ -361,8 +361,8 @@ Each job worker holds three things beside the work of its jobs:
   head, which names no place, so a group holding the program is never signalled; a server in such a
   group is reported and left.
 - **What is recorded:** each server ended is written to the runner's or agency's journal with the
-  worker, the checkout it ran in, the job whose run it started in (read off the jobs' times), its age,
-  its memory and its command.
+  worker, the checkout it ran in, its age, its memory and its command. Which job's run it started in
+  is the job service's to read off its own jobs' times, so agency's line names no job.
 - **Not swept:** co-worker places and the places of agents that are not workers.
 - **Reading them:** `bmo-agency dev-server list` lists every worker's dev server and every server a job
   left, with the memory each holds and what the sweep would do with it; `--sweep` does it.

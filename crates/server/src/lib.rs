@@ -1,7 +1,8 @@
 //! The agency service: sessions, places, lines, the co-worker pool, control routes and verbs (docs/api.md).
 //! This is its ground: what every handler stands on, the refusal it answers with, the store's place, the
-//! clock helper, the deployment's configuration, the clients of the services agency calls, and the bus
-//! its events and hooks go through; and the conversational agents' settings as their rows declare them.
+//! clock helper, the deployment's configuration, the clients of the services agency calls, the bus its
+//! events and hooks go through, and its readiness; the conversational agents' settings as their rows
+//! declare them; and the members of the places and the watches that stand on nothing but this.
 
 pub mod clock;
 pub mod config;
@@ -19,7 +20,33 @@ pub mod door {
 pub mod events;
 pub mod hooks;
 pub mod peers;
+
+/// The workers' places in herdr (docs/agent-control.md, 「One standing pane per agent」). The places stand
+/// on the launch lines, the queue and the control modules, and are declared whole, through
+/// `places/mod.rs`, together with those; until then the members that stand on nothing but the ground are
+/// built here.
+pub mod places {
+  pub mod branch;
+  pub mod checkouts;
+  pub mod claims;
+  pub mod dev;
+  pub mod follow;
+  mod ground;
+  pub mod home;
+  pub mod locks;
+  pub mod nodes;
+  pub mod servers;
+  pub mod trust;
+
+  pub use ground::{AgentRow, DEPLOY_VARIABLE, Ground, VERBS_BINARY};
+}
+pub mod readiness;
 pub mod text;
+
+/// The machine's watches agency keeps: the links to the work nodes (docs/work-nodes.md, 「The link」).
+pub mod watches {
+  pub mod links;
+}
 
 /// The launch lines (docs/launch-lines.md). The lines and the stand-in walk beside them stand on the
 /// places, the door, the queue and the control modules, and are declared whole, through `lines/mod.rs`
@@ -44,9 +71,11 @@ use crate::config::Config;
 use crate::events::Bus;
 use crate::hooks::Hooks;
 use crate::peers::{PeerFault, Peers};
+use crate::readiness::Readiness;
 
 /// What every handler stands on: the store, the deployment's configuration, the services agency calls,
-/// and the bus its events are published on and its hooks registered with.
+/// the bus its events are published on and its hooks registered with, and whether its places have
+/// stood once since it started.
 #[derive(Clone)]
 pub struct Service {
   pub db: DatabaseConnection,
@@ -54,6 +83,7 @@ pub struct Service {
   pub peers: Peers,
   pub events: Bus,
   pub hooks: Hooks,
+  pub readiness: Arc<Readiness>,
 }
 
 impl Service {
@@ -68,6 +98,7 @@ impl Service {
       peers,
       events: Bus::default(),
       hooks: Hooks::default(),
+      readiness: Arc::default(),
     }
   }
 }

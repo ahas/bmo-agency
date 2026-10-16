@@ -63,3 +63,25 @@ fn the_brain_is_the_named_folder_else_the_one_under_the_data_root() {
     PathBuf::from("/srv/brain")
   );
 }
+
+#[test]
+fn the_release_trees_are_the_named_ones_the_link_standing_under_the_home_where_none_is() {
+  let home = Path::new("/home/tester");
+  let unnamed = read(&[("AGENCY_CODE_DIR", " ")]).unwrap().trees;
+
+  assert_eq!(unnamed.code, None);
+  assert_eq!(unnamed.deploy_link(home), home.join(".local/share/bmo/deploy"));
+  assert_eq!(unnamed.source_root(), std::env::current_dir().unwrap());
+
+  let named = read(&[
+    ("AGENCY_CODE_DIR", "/releases/0123456789ab"),
+    ("AGENCY_DEPLOY_DIR", "/srv/deploy"),
+    ("AGENCY_SOURCE_DIR", "/repos/base"),
+  ])
+  .unwrap()
+  .trees;
+
+  assert_eq!(named.code, Some(PathBuf::from("/releases/0123456789ab")));
+  assert_eq!(named.deploy_link(home), PathBuf::from("/srv/deploy"));
+  assert_eq!(named.source_root(), PathBuf::from("/repos/base"));
+}

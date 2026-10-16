@@ -282,9 +282,11 @@ gate on Claude Code」. How it stands on the places:
   second, and the status line's reading after it is waited for two seconds at most, since a
   judgement's answer is waited on by a room. A reading that does not come in that while leaves the
   judgement's tokens standing with no money, as for any resident turn.
-- **A slot counts as standing** for the sweep after a job's end, so its workspace is never told as a
-  leftover; the standing pass takes down a slot left unused past the pool's idle time — its program
-  released from the place and its workspace closed — where its lock is free.
+- **A slot is a pane its gate claims** (`docs/api.md`, 「Hooks」, the pane claims), so it counts as
+  standing for the sweep after a job's end and its workspace is never told as a leftover. The heads'
+  pass takes down each slot its gate marks idle — its program released from the place and its
+  workspace closed — where its lock is free; how long a slot stands unused before it is marked idle is
+  the gate's.
 
 ### What an agent provider is made of
 

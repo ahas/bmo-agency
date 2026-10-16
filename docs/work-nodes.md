@@ -216,8 +216,10 @@ side of a remote agent, the rotation, and what a dropped node does.
 - **Every node has a workspace of its own in the bot's herdr session,** standing after every other
   workspace, in the list's order, so the nodes read as one block at the bottom of herdr's left side.
 - The workspace carries the token naming the node and is labelled with the node's label and its state
-  word. The receiver stands the workspaces after every pass: it makes a missing one, renames one whose
-  state changed, moves the block back to the bottom and closes the workspace of a node that is gone.
+  word, its name where it has no label. Agency's server stands the workspaces after every reading of
+  the node service's list (`docs/api.md`, 「The node service」): it makes a missing one, renames one
+  whose state changed, moves the block back to the bottom and closes the workspace of a node that is
+  gone, and publishes `nodes-moved` where the list's shape moved since the reading before.
 - The workspace's pane runs the deploy tree's node-pane command, which shows the node's state as the
   table holds it and keeps it current, its connection type among it. On an SSH node Enter logs in,
   interactively — a person is at the pane, so a password is asked for there if no key is taken — and

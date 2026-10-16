@@ -34,11 +34,16 @@ dependencies = [
 name = "agency-server"
 version = "0.6.0"
 dependencies = [
+ "agent-host",
  "axum",
  "chrono",
  "glob",
+ "harness-machine",
+ "harness-providers",
  "herdr",
  "indexmap",
+ "libc",
+ "node-link",
  "policy",
  "regex",
  "reqwest",

@@ -1,7 +1,8 @@
 //! The deployment's configuration: the names its agent and its owner go by (docs/policy.md, 「The
 //! deployment's names」), where each service agency calls is reached (docs/api.md, 「Calls agency
-//! makes」), and the brain repository the editor line runs in (docs/launch-lines.md, 「What is fixed」).
-//! Each is read through the variables the deployment names it in.
+//! makes」), the brain repository the editor line runs in (docs/launch-lines.md, 「What is fixed」), and the
+//! trees its release is read from (docs/agent-control.md, 「The job's release」). Each is read through the
+//! variables the deployment names it in.
 
 use std::path::{Path, PathBuf};
 
@@ -16,6 +17,7 @@ pub struct Config {
   pub peers: PeerAddresses,
   /// The brain repository where the deployment names one; `brain_root` reads it with its default.
   pub brain: Option<PathBuf>,
+  pub trees: Trees,
 }
 
 /// The variable naming the brain repository.
@@ -23,6 +25,52 @@ pub const BRAIN_ROOT: &str = "AGENCY_BRAIN_ROOT";
 
 // The brain repository under the data root where the deployment names none.
 const BRAIN_UNDER_DATA: &str = "brain";
+
+/// The variables naming the trees the server's release is read from (docs/agent-control.md, 「The job's
+/// release」).
+pub const CODE_DIR: &str = "AGENCY_CODE_DIR";
+pub const DEPLOY_DIR: &str = "AGENCY_DEPLOY_DIR";
+pub const SOURCE_DIR: &str = "AGENCY_SOURCE_DIR";
+
+// The deployment's data directory under the home, where the deploy tree's link stands unless named.
+const INSTALLED_UNDER_HOME: &str = ".local/share/bmo";
+
+/// The trees the deployment names, each none where its variable is unset or blank: the code tree it
+/// started the server on, the deploy tree's link and the base checkout.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Trees {
+  pub code: Option<PathBuf>,
+  pub deploy: Option<PathBuf>,
+  pub source: Option<PathBuf>,
+}
+
+impl Trees {
+  fn read(variable: &impl Fn(&str) -> Option<String>) -> Self {
+    let named = |name: &str| {
+      variable(name)
+        .map(|value| value.trim().to_owned())
+        .filter(|value| !value.is_empty())
+        .map(PathBuf::from)
+    };
+
+    Self {
+      code: named(CODE_DIR),
+      deploy: named(DEPLOY_DIR),
+      source: named(SOURCE_DIR),
+    }
+  }
+
+  /// The deploy tree's link: the named one, else `deploy` under the deployment's data directory in the
+  /// home.
+  pub fn deploy_link(&self, home: &Path) -> PathBuf {
+    self.deploy.clone().unwrap_or_else(|| home.join(INSTALLED_UNDER_HOME).join("deploy"))
+  }
+
+  /// The base checkout: the named one, else the working directory.
+  pub fn source_root(&self) -> PathBuf {
+    self.source.clone().unwrap_or_else(|| std::env::current_dir().unwrap_or_default())
+  }
+}
 
 /// Where each service agency calls is reached, or none where the deployment names no address for it.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -47,6 +95,7 @@ impl Config {
         .map(|value| value.trim().to_owned())
         .filter(|value| !value.is_empty())
         .map(PathBuf::from),
+      trees: Trees::read(&variable),
     })
   }
 
