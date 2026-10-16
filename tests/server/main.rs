@@ -58,4 +58,5 @@ mod watches {
 mod worker_session {
   mod summary;
   mod told;
+  mod warmth;
 }

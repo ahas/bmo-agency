@@ -112,6 +112,53 @@ session on the owner's ask is `docs/session-resets.md`.
     (`docs/api.md`, 「Events」); a fold that never reached it, held off by a busy pane or a session too
     short to fold, publishes nothing.
 
+## A worker's session per model
+
+- **A worker keeps its last Claude Code session on each model.** The session its last turn answered
+  on is the one it holds; a session it left for a turn on another model is set aside under its own
+  model, not closed.
+- **Turning to another model** sets the held session aside and opens a new one on the new model,
+  unless a warm session is set aside on that model. The new session is seeded with the note of the
+  session it leaves, asked of the summariser as on a replacement (「Session replacement」 below) for a
+  session of the `switch` kind, set aside rather than closed.
+- **Coming back to a model resumes the session set aside on it** only where all of these hold:
+  - its cache is warm (the criterion below);
+  - it is still the session the worker's record on that model and login names: no reset, lost
+    session or job end has taken the record away;
+  - it stands on the road the turn goes out on — the same provider, model, effort and login — and
+    the prefix it was opened on has not moved.
+- **A resumed session is handed no note.** What the turns on the other model produced reaches it as
+  the new turn's own words: in a co-work, the stage results its prompt opens, none of which that
+  session has read.
+- **A session set aside that fails any of these is dropped** with its record, and the turn opens a
+  new session seeded with the note of the session it leaves, as on any replacement.
+- **The warm/cold criterion:**
+  - warm while the time since the session's last answer is under the cache lifetime, cold from the
+    lifetime on;
+  - the lifetime is asked of the cache siren for the provider and the model (`docs/api.md`, 「The cache
+    siren」), which judges every session's requests warm or cold; agency keeps no cache measurement of
+    its own;
+  - where the siren answers none — none deployed, or none it judges by — the lifetime is the one the
+    provider declares for the model, the table the siren is given: Claude Code's is 60 minutes for
+    every model, the subscription's one-hour lifetime;
+  - a provider that declares none reads one hour for a session set aside; a held session on such a
+    provider has no lifetime to outlive.
+- **A kept session's record goes cold with its cache.** A record whose last answer is past the
+  lifetime is retired as it is read, so neither the standing program nor a turn resumes a session whose
+  cache has gone; the held session it stood for is replaced with its note. `BMO_WORKER_SESSION_TTL_MINUTES`,
+  where the deployment sets it, retires a record sooner, never later.
+- **Only the worker's own Claude Code sessions are set aside,** since they are the ones recorded per
+  model and login. A turn on a stand-in road — Codex, OpenRouter, a registered model — replaces the
+  held session (「Session replacement」 below). A turn back from one resumes a warm session still set
+  aside on its model, as any return does, and otherwise opens a new session; the stand-in's session
+  is never set aside.
+- **Nothing keeps a session set aside warm.** The keepalive warms the held session alone, and while a
+  turn on another model runs, the worker's program is busy with it. A return after the lifetime opens
+  a new session.
+- **A job's end ends them all:** the held session is handed over with its note for the next job, and
+  every session set aside is dropped with its record. A stopped stage retried on a fresh session does
+  the same.
+
 ## Session replacement
 
 - Folding a session is what happens when its window fills. Replacing one is what happens when its

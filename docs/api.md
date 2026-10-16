@@ -28,7 +28,7 @@ judges none of it.
 ## Versioning
 
 - **The contract carries the repository's one version, in semver.** The version in the workspace
-  manifest is this boundary's version; the current line is `0.7.0`.
+  manifest is this boundary's version; the current line is `0.8.0`.
 - **A change to this document and a change to the boundary go in one commit.** A change that makes a
   route, an event, a hook or a shared table's contract different repairs this document in the same
   commit, stating what is true now.
@@ -282,7 +282,8 @@ Each hook has a default that does nothing, so agency runs with none registered.
 
 ## Calls agency makes
 
-- **Agency calls three services:** the cache siren for an account's usage windows, the node service for
+- **Agency calls three services:** the cache siren for an account's usage windows and the cache lifetime
+  a session is judged warm by, the node service for
   this machine's room, a node's link, the nodes it keeps and the SSH login to each, and the brain for what a companion's reset
   does to the agent's brain folder. Each is reached at the base address the deployment names in its
   variable, with the token named beside it.
@@ -307,6 +308,7 @@ Each hook has a default that does nothing, so agency runs with none registered.
 | Operation | Path | Sends | Answers | With no address |
 | --- | --- | --- | --- | --- |
 | usage windows | `/usage/windows` | `mode`, `account` | `windows`: each `name`, `utilization` (the fraction used), `resetsAt` (or null), `seenAt`, `durationMinutes` (or null), `limitName` (or null); and `freshSeconds`, how long a reading stands | no windows, and no reading fresh |
+| cache lifetime | `/cache/lifetime` | `mode`, `model` | `minutes`: how long after its last answer a session on that provider and model stays warm, or null where the siren judges it by none | none, and agency reads the provider's declared lifetime (`docs/sessions.md`, 「A worker's session per model」) |
 
 ### The node service
 

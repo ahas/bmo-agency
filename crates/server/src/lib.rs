@@ -70,6 +70,7 @@ pub mod watches {
 pub mod worker_session {
   pub mod summary;
   pub mod told;
+  pub mod warmth;
 }
 
 /// The launch lines (docs/launch-lines.md). The lines and the stand-in walk beside them stand on the

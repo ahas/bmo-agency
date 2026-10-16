@@ -1,5 +1,4 @@
-//! The session a worker holds: warm under its provider's lifetime, and set aside only where the worker's own
-//! session turns to another model.
+//! The session a worker holds: set aside only where the worker's own session turns to another model.
 
 use std::path::PathBuf;
 
@@ -41,16 +40,6 @@ fn run_on(mode: &'static str, model: &str) -> SessionRun {
     placement: None,
     thread: None,
   }
-}
-
-#[test]
-fn a_session_is_warm_under_its_providers_lifetime_and_an_hour_where_none_is_declared() {
-  let hour = 60 * 60_000;
-
-  assert_eq!(cache_lifetime_ms(MODE, "model-a"), hour);
-  assert_eq!(cache_lifetime_ms("no-such-provider", "model-a"), hour);
-  assert!(warm(&kept(MODE, "model-a", 0), hour - 60_000));
-  assert!(!warm(&kept(MODE, "model-a", 0), hour));
 }
 
 #[test]

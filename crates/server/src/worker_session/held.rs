@@ -18,6 +18,7 @@ use sha2::{Digest, Sha256};
 use store::run;
 
 use super::summary::{self, Closed, Kind};
+use super::warmth;
 use crate::control::claude_accounts::{Account, SEED_ACCOUNT};
 use crate::door::record::Reply;
 use crate::lines::Trees;
@@ -32,9 +33,6 @@ pub const MODE: &str = "claude-code";
 
 // The provider whose threads a worker's scope keeps beside its sessions.
 const CODEX: &str = crate::lines::codex::PROVIDER;
-
-// The cache lifetime a session is judged warm by where its provider declares none: the subscription's hour.
-const DEFAULT_CACHE_MINUTES: i64 = 60;
 
 // How much of what was said on a road with no session of its own is held, in the UTF-16 units the
 // TypeScript side counts a text in, since either side reads the other's.
@@ -201,10 +199,10 @@ async fn must_replace(ground: &Ground, held: Option<&Held>, run: &SessionRun) ->
     return Ok(true);
   }
 
-  // A provider that publishes no lifetime for the model leaves a session nothing to outlive.
-  let ttl = provider(run.mode).and_then(|provider| provider.cache_minutes(&run.line.model));
+  // A lifetime neither the cache siren nor the provider names leaves a session nothing to outlive.
+  let lifetime = warmth::lifetime_ms(ground.peers.cache_siren.as_ref(), run.mode, &run.line.model).await;
 
-  Ok(ttl.is_some_and(|minutes| now_ms() - held.at >= minutes * 60_000))
+  Ok(lifetime.is_some_and(|lifetime| !warmth::warm(held.at, now_ms(), lifetime)))
 }
 
 // The note left for the scope where it belongs to the run's thread.
@@ -242,19 +240,14 @@ async fn keep_shelf(ground: &Ground, scope: &str, shelf: &BTreeMap<String, Held>
   settings::set(&ground.db, &shelf_key(scope), &text).await
 }
 
-/// How long a session's cache stays warm after its last answer: the lifetime its provider declares for the
-/// model — the table the cache siren is given and judges every session's requests by — or an hour, the
-/// subscription's lifetime, where it declares none.
-pub fn cache_lifetime_ms(mode: &str, model: &str) -> i64 {
-  provider(mode)
-    .and_then(|provider| provider.cache_minutes(model))
-    .unwrap_or(DEFAULT_CACHE_MINUTES)
-    * 60_000
-}
+/// Whether a session set aside is still warm at a moment: its last answer inside the cache lifetime the
+/// cache siren judges its provider and model by, or the one the provider declares, or an hour where neither
+/// names one (`super::warmth`).
+pub async fn warm(ground: &Ground, held: &Held, now: i64) -> bool {
+  let lifetime =
+    warmth::set_aside_lifetime_ms(ground.peers.cache_siren.as_ref(), &held.mode, &held.model).await;
 
-/// Whether a session's cache is still warm at a moment: its last answer inside the lifetime.
-pub fn warm(held: &Held, now: i64) -> bool {
-  now - held.at < cache_lifetime_ms(&held.mode, &held.model)
+  warmth::warm(held.at, now, lifetime)
 }
 
 /// Whether the run turns the worker's own session to another model, which sets the held one aside.
@@ -281,7 +274,7 @@ async fn take_shelved(
   if named
     && same_road(&kept, run)
     && kept.prefix == prefix(ground, &run.line, run.mode).await?
-    && warm(&kept, now_ms())
+    && warm(ground, &kept, now_ms()).await
   {
     return Ok(Some(kept));
   }

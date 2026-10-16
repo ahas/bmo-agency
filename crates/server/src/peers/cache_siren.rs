@@ -1,5 +1,5 @@
-//! The cache siren (docs/api.md, 「Calls agency makes」): an account's usage windows, and how long a
-//! reading of them stands.
+//! The cache siren (docs/api.md, 「Calls agency makes」): an account's usage windows, how long a reading
+//! of them stands, and the cache lifetime a session is judged warm by.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -51,18 +51,30 @@ impl UsageWindows {
   }
 }
 
+#[derive(Deserialize)]
+struct Lifetime {
+  minutes: Option<i64>,
+}
+
 /// What agency asks the cache siren.
 pub trait CacheSiren: Send + Sync {
   /// One account's windows under one provider.
   fn usage_windows<'a>(&'a self, mode: &'a str, account: &'a str) -> Asking<'a, UsageWindows>;
+  /// How long after its last answer a session on a provider and model stays warm, in minutes, or none
+  /// where the siren judges it by none.
+  fn cache_lifetime<'a>(&'a self, mode: &'a str, model: &'a str) -> Asking<'a, Option<i64>>;
 }
 
-/// No cache siren deployed: no windows, and no reading fresh.
+/// No cache siren deployed: no windows, no reading fresh, and no lifetime of its own.
 pub struct NoCacheSiren;
 
 impl CacheSiren for NoCacheSiren {
   fn usage_windows<'a>(&'a self, _mode: &'a str, _account: &'a str) -> Asking<'a, UsageWindows> {
     Box::pin(async { Ok(UsageWindows::default()) })
+  }
+
+  fn cache_lifetime<'a>(&'a self, _mode: &'a str, _model: &'a str) -> Asking<'a, Option<i64>> {
+    Box::pin(async { Ok(None) })
   }
 }
 
@@ -82,6 +94,15 @@ impl HttpCacheSiren {
 impl CacheSiren for HttpCacheSiren {
   fn usage_windows<'a>(&'a self, mode: &'a str, account: &'a str) -> Asking<'a, UsageWindows> {
     Box::pin(self.caller.post("usage/windows", json!({ "mode": mode, "account": account })))
+  }
+
+  fn cache_lifetime<'a>(&'a self, mode: &'a str, model: &'a str) -> Asking<'a, Option<i64>> {
+    Box::pin(async move {
+      let lifetime: Lifetime =
+        self.caller.post("cache/lifetime", json!({ "mode": mode, "model": model })).await?;
+
+      Ok(lifetime.minutes.filter(|minutes| *minutes > 0))
+    })
   }
 }
 

@@ -29,6 +29,7 @@ use crate::control::registry;
 use crate::places::Ground;
 use crate::places::trust::{config_file, mark_onboarded, trust_folder};
 use crate::queue::routes::JOB_WORK_KEY;
+use crate::worker_session::warmth;
 use crate::{Refusal, now_ms};
 use store::{all, one, run};
 
@@ -51,15 +52,20 @@ fn recorded(account: Option<&Account>) -> String {
   account.map_or_else(|| SEED_ACCOUNT.to_owned(), |account| account.id.clone())
 }
 
-/// How long a worker's kept session stands unused before it is retired, where the environment gives
-/// one; none by default, since a warm agent stays warm.
-pub fn session_ttl_ms(ground: &Ground) -> Option<i64> {
-  ground
+/// How long a worker's kept session on a model stands unused before its record is retired: the cache
+/// lifetime its Claude Code session is judged warm by, or the life the environment gives a session where
+/// that is sooner (docs/sessions.md, 「A worker's session per model」), so no session whose cache has gone
+/// is resumed.
+pub async fn session_ttl_ms(ground: &Ground, model: &str) -> Option<i64> {
+  let configured = ground
     .vars()
     .get("BMO_WORKER_SESSION_TTL_MINUTES")
     .and_then(|minutes| minutes.trim().parse::<i64>().ok())
     .filter(|minutes| *minutes > 0)
-    .map(|minutes| minutes * 60_000)
+    .map(|minutes| minutes * 60_000);
+  let lifetime = warmth::lifetime_ms(ground.peers.cache_siren.as_ref(), "claude-code", model).await;
+
+  warmth::record_ttl_ms(configured, lifetime)
 }
 
 // The worker's kept session on this model and login, where one is resumable: one idle past the life a
@@ -80,7 +86,7 @@ async fn resumable_session(
   let Some(row) = row else { return Ok(None) };
   let last_reply_at: i64 = row.try_get("", "last_reply_at")?;
 
-  if let Some(ttl) = session_ttl_ms(ground)
+  if let Some(ttl) = session_ttl_ms(ground, model).await
     && now_ms() - last_reply_at * 1000 > ttl
   {
     run(

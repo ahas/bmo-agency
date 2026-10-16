@@ -53,6 +53,8 @@ async fn answer(
       }],
       "freshSeconds": 1800
     }),
+    "cache/lifetime" if body["model"] == "unjudged" => json!({ "minutes": null }),
+    "cache/lifetime" => json!({ "minutes": 5 }),
     "machine/room" => json!({ "held": ["memory"] }),
     "links/state" => json!({ "up": body["node"] == "near" }),
     "nodes/list" => {
@@ -278,12 +280,30 @@ async fn a_service_with_no_listener_is_unreachable() {
 }
 
 #[tokio::test]
+async fn the_cache_siren_is_asked_how_long_a_session_on_a_provider_and_model_stays_warm() {
+  let (address, calls) = stand_in().await;
+  let peers = peers_at(&address, None);
+
+  assert_eq!(peers.cache_siren.cache_lifetime("claude-code", "model-a").await.unwrap(), Some(5));
+  assert_eq!(peers.cache_siren.cache_lifetime("claude-code", "unjudged").await.unwrap(), None);
+  assert_eq!(
+    taken(&calls)[0],
+    Call {
+      path: "/base/cache/lifetime".into(),
+      authorization: None,
+      body: json!({ "mode": "claude-code", "model": "model-a" }),
+    }
+  );
+}
+
+#[tokio::test]
 async fn a_service_with_no_address_answers_its_default() {
   let peers = Peers::of(&PeerAddresses::default());
   let reading = peers.cache_siren.usage_windows("claude-code", "main").await.unwrap();
 
   assert!(reading.windows.is_empty());
   assert_eq!(reading.fresh(), Duration::ZERO);
+  assert_eq!(peers.cache_siren.cache_lifetime("claude-code", "model-a").await.unwrap(), None);
   assert_eq!(peers.node.machine_room().await.unwrap(), Room::default());
   assert!(!peers.node.link_up("near").await.unwrap());
   assert!(peers.node.node_rows().await.unwrap().is_empty());
