@@ -1415,6 +1415,14 @@ small command that makes the request and prints the reply; the catalogue check t
 model stays in the bot, since it is model discovery. Transport tests start the real agent host
 binary on a scratch data root; they do not contact a live model provider.
 
+Each side of the boundary carries the same run and the same turn, so a check holds the two to one
+outcome: the server binary's `bmo-agency host-run <request.json>` carries one run in its agent's host
+and prints how its program ended, what it wrote and its row as it was left, and `bmo-agency
+resident-turn <request.json>` puts one turn into an agent's standing program through the door its
+provider declares and prints what it came to and what was said into it. Each reads the store and the
+data root as the server does; the TypeScript tests put the same request through `ts/agent/` and
+compare.
+
 Structured and interactive attempts save archive execution records. Interactive records precede
 CLI placement; metadata acknowledgement and the existing provider guard precede prompt delivery.
 The CLI argv and environment remain unchanged. Reported native Claude tasks have child records
@@ -2013,7 +2021,7 @@ altogether.
   an empty input box — the same reset step 3 above makes for a prompt that was never submitted — and
   the round is put in once more from the top.
 - **A question is one only where the turn can put it to somebody.** A job's turn is given a way to
-  ask — the runner puts the pane's question to the owner and answers it with what he chose — so a
+  ask — the runner puts the pane's question to the owner and answers it with what the owner chose — so a
   job's pane standing at one is left exactly as it is, and whoever answers finds it where it stands.
   A chat round is given no such way. A pane blocked in front of a round is therefore a question
   nobody is coming to answer, which is a wedge like any other and is cleared like one.
@@ -2148,7 +2156,7 @@ question used to stand until somebody attached to herdr and answered it.
 
 Most of the confirmations a job's pane still raises are its own ordinary work in a shape the CLI's
 check gives up on, such as a `sh -c` script handed to the testbed, and asking the owner about one only costs
-him a message and the job a minute.
+the owner a message and the job a minute.
 
 - **What is read.** A permission question whose first line is `Bash command` and whose command stands
   in the box the CLI draws for it, between two rows of `╌`. The box's left border is taken off each

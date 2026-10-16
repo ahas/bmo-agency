@@ -1,0 +1,561 @@
+import gatePrompts from "@agency/policy/gate-prompts.toml";
+import chatLine from "@agency/policy/chat-line.toml";
+import { TOOL_HOST_AUTHORIZATION, toolHostUrl } from "./tool-host";
+import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { dirname, join, relative } from "node:path";
+
+import { agentsRoot, assetRoot } from "@agency/support/roots";
+import declaredResearch from "@agency/policy/research.toml";
+import declaredBrowser from "@agency/policy/browser.toml";
+import { systemPromptFile } from "./prompt-files";
+
+/**
+ * A gate whose prompt the caller hands in, as the caller's gates file names it: an output gate with
+ * its model and the system prompt it composed, or a reference gate by its name alone, whose system
+ * prompt is its own folder's instructions.
+ */
+export interface GateAgent {
+  name: string;
+  model?: string;
+  system?: () => string;
+}
+
+// Every agent the bot runs is given exactly the documents under prompts/agents/<name>/ plus the
+// rulebooks under prompts/rules/ that name it as a reader, and nothing else. This module is the one
+// place that composes those documents into what an agent sees; the launch lines read from
+// here, and deployAgents writes the same composition out where a person can inspect it.
+
+// The kind of room a prompt is composed for, as the road it belongs to names it.
+export type ChatKind = string;
+
+export interface DeployedFile {
+  path: string;
+  bytes: number;
+}
+
+const rulesDir = join(assetRoot(), "prompts", "rules");
+const agentsDir = join(assetRoot(), "prompts", "agents");
+const runnerNames = ["search", "browse"] as const;
+
+// Where the runners' working directories are deployed (`agentsRoot`).
+export const deployRoot = agentsRoot;
+
+export function runnerCwd(name: (typeof runnerNames)[number]): string {
+  return join(deployRoot(), name);
+}
+
+export function browseMcpConfigPath(): string {
+  return join(runnerCwd("browse"), ".mcp.json");
+}
+
+// Every line's configuration names the tool host's namespaces its line uses (docs/mcp-host.md, 「The
+// configuration」).
+function linePath(name: string): string {
+  return join(deployRoot(), `${name}.mcp.json`);
+}
+
+// One namespace of the tool host as a configuration names it: its URL, and the header that hands
+// the run's token, read from the program's own environment.
+export function hostServer(namespace: string): Record<string, unknown> {
+  return { type: "http", url: toolHostUrl(namespace), headers: { Authorization: TOOL_HOST_AUTHORIZATION } };
+}
+
+// Every line is handed the toolbook beside its namespaces, at the end, where it reaches the tools its
+// namespaces do not list (docs/toolbook.md).
+function mcpFile(servers: Record<string, unknown>): string {
+  return `${JSON.stringify({ mcpServers: { ...servers, toolbook: hostServer("toolbook") } }, null, 2)}\n`;
+}
+
+// The MCP configuration a job worker's line is handed, and no other line is — which is why the
+// file is named for the worker rather than for either of the namespaces in it. It carries two: the
+// web one every agent that may use the web is given, and the worker's own (docs/worker-mcp.md).
+// Its contents are hashed into the worker prefix, so a namespace added here moves that digest.
+export function workerMcpConfigPath(): string {
+  return linePath("worker");
+}
+
+// The two namespaces a worker is handed, as its configuration file holds them. The worker's own — the
+// graph's reading verbs and the queue's two — is not folded into the web one because that one is
+// shared with the search and browse runners, and the graph of this repository and the owner's queue
+// are no business of a research run: a tool shown to a line that will never call it is paid for in
+// that line's prompt on every turn.
+export async function workerMcpConfig(): Promise<string> {
+  return mcpFile({ web: hostServer("web"), worker: hostServer("worker") });
+}
+
+// The chat line's configuration, every conversational agent's: agency's own namespace alone (docs/chat-mcp.md,
+// docs/agents.md). An agent on it reaches the web through the runners it launches, never by a web tool
+// of its own. It names nothing per room, per turn or per agent — these bytes stand in every session's
+// prefix — so what a call is about is read by the host for each call, out of the run's session record.
+export function chatMcpConfigPath(): string {
+  return linePath("chat");
+}
+
+export async function chatMcpConfig(): Promise<string> {
+  return mcpFile({ bmo: hostServer("bmo") });
+}
+
+// The editor line's configuration: the fragment tool alone (docs/fragments.md). Every run is handed
+// the standing file, its desk named in its session record.
+export function editorMcpConfigPath(): string {
+  return linePath("editor");
+}
+
+export async function editorMcpConfig(): Promise<string> {
+  return mcpFile({ fragments: hostServer("fragments") });
+}
+
+// The search runner's standing MCP configuration: the web namespace, its branch tool and rulebook
+// tool shown by what each run's record holds. Every run and branch is handed it, its research settings
+// in its record.
+export function searchMcpConfigPath(): string {
+  return linePath("search");
+}
+
+// The variables through which a program finds a person's graphical session, and the arguments every
+// Chrome agency starts carries so that nothing of that session is asked for: agency's policy
+// (docs/policy.md).
+const browserPolicy = declaredBrowser as { session_variables: string[]; detached_arguments: string[] };
+
+// A research run's MCP configuration: the web namespace alone, what a run's server is told traveling
+// in the run's environment, which its session record is read from. A browse run's sits beside the
+// chrome-devtools server from the browse agent's own document. Its Chrome never reaches a person's
+// session bus or keyring, and on the visible strategy it is shown the private display the runner
+// started instead of its headless flag. The server's environment is laid over the runner's, so a
+// session variable is emptied rather than left out.
+export async function researchMcpConfig(options: {
+  kind: "search" | "branch" | "browse";
+  browserStrategy?: string;
+  display?: { display: string; xauthority: string; runtimeDir: string } | null;
+}): Promise<string> {
+  const web = hostServer("web");
+
+  if (options.kind !== "browse") {
+    return mcpFile({ web });
+  }
+  const own = JSON.parse(readFileSync(join(agentsDir, "browse", ".mcp.json"), "utf8")) as { mcpServers?: Record<string, { args?: string[]; env?: Record<string, string> }> };
+  const servers: Record<string, unknown> = { ...(own.mcpServers ?? {}) };
+  const chrome = own.mcpServers?.["chrome-devtools"];
+  if (chrome !== undefined) {
+    const visible = options.browserStrategy === "visible" && options.display ? options.display : null;
+    const chromeArgs = browserPolicy.detached_arguments.map((arg) => `--chromeArg=${arg}`);
+    const args = (chrome.args ?? []).filter((arg) => !(visible !== null && arg === "--headless"));
+    const emptied = Object.fromEntries(browserPolicy.session_variables.map((name) => [name, ""]));
+    servers["chrome-devtools"] = {
+      ...chrome,
+      args: [...args, ...chromeArgs.filter((arg) => !args.includes(arg))],
+      env: {
+        ...(chrome.env ?? {}),
+        ...emptied,
+        DBUS_SESSION_BUS_ADDRESS: "disabled:",
+        ...(visible === null ? {} : { DISPLAY: visible.display, XAUTHORITY: visible.xauthority, XDG_RUNTIME_DIR: visible.runtimeDir }),
+      },
+    };
+  }
+  return mcpFile({ ...servers, web });
+}
+
+// The browse runner's standing MCP configuration, as a run on the headless strategy is given it.
+async function browseMcpConfig(): Promise<string> {
+  return researchMcpConfig({ kind: "browse" });
+}
+
+function readRequired(path: string): string {
+  return readFileSync(path, "utf8").trim();
+}
+
+// A document of one agent's own folder under the prompts, as it stands in the asset root.
+export function agentFile(agent: string, file: string): string {
+  return readRequired(join(agentsDir, agent, file));
+}
+
+// A rulebook as an agent is given it: named, so the agent can say which rule it applied.
+export function rulebook(name: string): string {
+  return `RULEBOOK prompts/rules/${name}.md:\n${readRequired(join(rulesDir, `${name}.md`))}`;
+}
+
+// What an agent that writes stored documents is given ahead of its own instructions: the rulebooks
+// every such writer follows for language and shape, and for words that read as a person's. Each
+// writer's own composition calls it.
+export function documentWriter(instructions: string): string {
+  return [rulebook("document-writing"), rulebook("plain-writing"), instructions].join("\n\n");
+}
+
+// The rulebook every agent that acts — the chat agent, the workers and their co-workers, the editors and the
+// runners — is given, forbidding it to destroy the system it runs in. A gate holds no tool and is
+// not given it.
+export const selfPreservation = "self-preservation";
+
+// The rulebook every recollector reads: whose memory it writes, from whose view, and what is shared.
+const recollection = "recollection";
+
+export function render(template: string, vars: Record<string, string | number>): string {
+  return template.replaceAll(/\{\{(\w+)\}\}/g, (match, key: string) => {
+    const value = vars[key];
+
+    return value === undefined ? match : String(value);
+  });
+}
+
+// The ABSOLUTE RULES, as every agent that speaks to people opens with them: bare, under their own
+// heading line, since the manuals refer to them by number as ABSOLUTE RULES rather than as a file.
+// One copy serves the chat agent's prompt and every companion's (docs/companions.md).
+export function absoluteRules(): string {
+  return readRequired(join(rulesDir, chatLine.system.absolute_rules));
+}
+
+// The chat's documents around the absolute rules and the rulebooks it reads, as the chat line's policy
+// names them for both sides.
+export function chatSystemStatic(_kind?: ChatKind): string {
+  return [agentFile("chat", chatLine.system.opening), absoluteRules(), agentFile("chat", chatLine.system.manual),
+    ...(chatLine.system.rulebooks as string[]).map((name) => rulebook(name))].join("\n\n");
+}
+
+// The chat's system prompt with the base persona after it under its header, where the caller hands one:
+// the persona is the caller's, read from where it keeps it (docs/launch-lines.md).
+export function chatSystem(basePersona?: string): string {
+  const persona = basePersona?.trim() ?? "";
+
+  return persona === "" ? chatSystemStatic() : `${chatSystemStatic()}
+
+${chatLine.persona.header}
+${persona}`;
+}
+
+export { systemPromptFile };
+
+// The summariser reads the record of a session about to be closed and writes what it was in the
+// middle of. Its instructions are its whole system prompt: it is given one session's record and
+// nothing about this machine.
+//
+// One agent, one key, one route — and two documents, because the two lines it is asked about are
+// not the same thing to read. A room's session is people talking, and the note it needs is the
+// subject and what each of them was saying; a worker's session is jobs being done, and the note it
+// needs is the work. A worker handed the room document would be told to write about a room it
+// never saw.
+//
+// It is a recollector, so it reads the rule every recollector writes by, and its note is the agent's
+// own: the agent is named by the label its words stand under in the transcript it is handed.
+export type SessionSummaryKind = "chat" | "worker";
+
+export function sessionSummarySystem(kind: SessionSummaryKind, agent: string): string {
+  return [rulebook(recollection), render(agentFile("session-summary", `${kind}.md`), { agent })].join("\n\n");
+}
+
+// The context sanitiser reads a room's own words on their way into a session's context and
+// defuses security-intrusion material — an order to attack a real target, an operational account
+// of one carried out, or a recipe for slipping such material past a safety gate — so the
+// safeguard does not read it as live. Its instructions are its whole system prompt; the text it
+// judges is the one call's data.
+export function sanitizerSystem(): string {
+  return agentFile("sanitizer", "instructions.md");
+}
+
+// One folding dialect's gate instructions, which live with that dialect under
+// prompts/agents/output-gate/<dialect>/. The gate judges that dialect's marks, and a dialect whose
+// rooms show plain words asks for neither gate nor document.
+export function gateInstructions(dialect: string, gate: "format"): string {
+  return agentFile("output-gate", join(dialect, `${gate}.md`));
+}
+
+// What a folding dialect's output gate is told on an LLM: its own instructions, the fold judgement
+// and the shape every answer of the chat agent's takes.
+export function outputFormatSystem(dialect: string): string {
+  return [gateInstructions(dialect, "format"), rulebook("formatting-judgement"), rulebook("answer-shape")].join("\n\n");
+}
+
+// The reading gate reads one line the chat agent is about to say out loud and writes the parts a Korean
+// voice has no reading for the way they sound. Its instructions are its whole system prompt: it
+// is given that one line and nothing about this machine.
+export function voiceReadingSystem(): string {
+  return agentFile("voice-reading", "instructions.md");
+}
+
+// The polishing gate rewrites the script of a line's full reading for the ear. Its instructions are
+// its whole system prompt: it is given that one script and nothing about this machine.
+export function voicePolishSystem(): string {
+  return agentFile("voice-polish", "instructions.md");
+}
+
+// How many pieces the person book's search may name, as the shared policy declares it: a variable of
+// the prompt itself, since the gate is told its own ceiling and the deployed copy of that prompt has to
+// say the same number the run says. The person book is searched by a gate of its own and held to a
+// budget of its own, because a turn that wants a great deal of lore and a turn that wants a great deal
+// of one person are not the same turn and neither should spend the other's room.
+export const peopleSelectionCap: number = gatePrompts.people_search.cap;
+
+// The three reference gates read one instruction file each, under their own name. They are told
+// no ceiling: each answers yes or no for every candidate it is offered, and what a turn may carry
+// is a size rather than a count (`docs/reference-selection.md`). Which gate it is is all that
+// differs, so it is a parameter rather than three functions saying the same thing.
+export function referenceGateSystem(gate: string): string {
+  return agentFile(gate, "instructions.md");
+}
+
+// The person book has a search of its own beside the reference gates and a summariser that writes
+// one person's standing sheet. Each is told only what its own layer is for: the search never
+// picks a piece for the sake of the speaker being the speaker, because the sheet is already
+// there, and the summariser is told it is reducing rather than summarising.
+export function peopleSearchSystem(selectionCap: number): string {
+  return render(agentFile("people-search", "instructions.md"), { selectionCap });
+}
+
+export function peopleStandingSystem(): string {
+  return documentWriter(agentFile("people-standing", "instructions.md"));
+}
+
+// The matcher reads one instruction file of its own, under its own name. It is not one of the
+// three, so it is not in their loop: it asks two questions of every rule rather than one, and its
+// candidates are the rows of a table rather than an index's lines (`docs/situation-rules.md`).
+export function situationRulesSystem(): string {
+  return agentFile("situation-rules", "instructions.md");
+}
+
+// The console's document viewer has two gates of its own. The document seeker picks where a
+// question is answered out of an index the console built, and is told its own ceiling as the
+// pickers are; the translator renders one part of a document into the language its prompt names.
+export const documentSeekCap: number = gatePrompts.document_seek.cap;
+
+export function documentSeekSystem(): string {
+  return render(agentFile("document-seek", "instructions.md"), { selectionCap: documentSeekCap });
+}
+
+export function translatorSystem(): string {
+  return agentFile("translator", "instructions.md");
+}
+
+// The same gate rendering a text for a job worker rather than for a person reading a document: the
+// worker cannot read the original, so what a person said is translated too (`docs/worker-language.md`).
+export function workerTranslatorSystem(): string {
+  return agentFile("translator", "worker.md");
+}
+
+// The same gate the other way: a worker's English record on an item rendered into the Korean the
+// owner reads it in, under the plain-writing rulebook every text a person reads follows
+// (`docs/worker-language.md`, 「What a worker writes onto an item」).
+export function recordTranslatorSystem(): string {
+  return [rulebook("plain-writing"), agentFile("translator", "record.md")].join("\n\n");
+}
+
+// The rulebooks a search run is bound by, after its task in this order. The first binds every
+// search and is appended whole. The others bind only some searches, so the task carries the section
+// of each that decides whether it applies, and the run reads the whole of one from its web server
+// once that section says it does.
+const declaredSearch = (declaredResearch as { search: { rulebooks: string[]; on_request: string[]; applies_section: string } }).search;
+export const searchRulebooks: readonly string[] = declaredSearch.rulebooks;
+
+// A research line's instructions are the same for every run on it and stand as its system prompt,
+// in place of the CLI's own; what one run is about is its prompt. So the prefix a warm ping reads
+// on the line is the prefix every run of it reads (docs/launch-lines.md). The search line's and a
+// branch's are composed by agency's server for each run, with the site tools the tool host lists.
+
+export function browseSystem(): string {
+  return [agentFile("browse", "task.md"), rulebook(selfPreservation)].join("\n\n");
+}
+
+// How to ask the code dependency graph, in the one wording every agent that reads this code is
+// given: the job's trailer opens with it, every work-order step closes with it, and a pooled native
+// `Agent` call has it appended to its prompt (docs/graph.md 「Where the graph is handed over」).
+export function workerGraph(): string {
+  return agentFile("worker", "graph.md").trim();
+}
+
+export function workerTrailer(): string {
+  return render(agentFile("worker", "trailer.md"), {
+    graph: workerGraph(),
+    skills: join(workerPluginDir(), "skills"),
+    plainWriting: join(rulesDir, "plain-writing.md"),
+  });
+}
+
+const workerDir = join(agentsDir, "worker");
+
+// What a job worker is given beyond its prompt, and where it comes from.
+//
+// The skills and co-worker definitions a job runs with come from this repository and the archive,
+// never from this machine's own configuration. Skills are repository assets. Role documents seed
+// the archive once; the enabled archive rows and shared tier mappings are what every launch
+// serializes, so the owner edits the catalogue without a second live list.
+//
+// The skills are a plugin directory rather than a checkout's own configuration directory,
+// because a worker works in whichever checkout its row names and only one of those is this
+// repository: a plugin is loaded by path and reaches every worker alike. The co-workers are
+// handed over as JSON instead, because a plugin's agents are named under the plugin and the
+// verification discipline names them plainly.
+export function workerPluginDir(): string {
+  return join(workerDir, "plugin");
+}
+
+function writeDeployed(into: DeployedFile[], path: string, text: string): void {
+  mkdirSync(join(path, ".."), { recursive: true });
+  writeFileSync(path, text.endsWith("\n") ? text : `${text}\n`);
+  into.push({ path, bytes: Buffer.byteLength(text) });
+}
+
+// A run's system prompt file is written by the launch that builds the run, just before the run
+// starts, and the run reads it from then on — a Codex thread reads it again on every exec. So a
+// file a run may still be reading was written no longer ago than a run can stand, and only such
+// files are carried into a rebuilt tree, each with its own modification time so the next carry
+// can still tell. A file no launch has written for longer than that is one nothing reads any
+// more, and it is left behind with the tree it stood in; the next launch that wants it writes it
+// again. A dotted name is a file still being written beside its prompt (`systemPromptFile`), which
+// no run reads, so it is never carried.
+const promptCarryMs = 24 * 60 * 60 * 1000;
+
+export function carryPrompts(from: string, into: string, now = Date.now()): void {
+  if (!existsSync(from)) {
+    return;
+  }
+
+  mkdirSync(into, { recursive: true });
+
+  for (const name of readdirSync(from)) {
+    const path = join(from, name);
+    const stat = statSync(path);
+
+    if (stat.isFile() && !name.startsWith(".") && now - stat.mtimeMs <= promptCarryMs) {
+      cpSync(path, join(into, name), { preserveTimestamps: true });
+    }
+  }
+}
+
+// What one agent document could not be composed into, and what stands in its place.
+export interface AgentFault {
+  // Where the document belongs inside the deployed tree.
+  path: string;
+  // Why composing it failed, in the words the failure came with.
+  reason: string;
+  // Whether the copy the last deployment wrote was carried over in its place.
+  carried: boolean;
+}
+
+// What a deployment wrote, and what it could not compose.
+export interface AgentDeployment {
+  files: DeployedFile[];
+  faults: AgentFault[];
+}
+
+// The one line a fault is said in, wherever a deployment is made: the document, the reason, what
+// stands in its place and what to do about it. A stack trace carries the path and nothing of what
+// it means, and whoever reads the log is reading it after the service has already given up, so the
+// line has to answer the question by itself.
+export function agentFaultLine(fault: AgentFault): string {
+  const instead = fault.carried
+    ? "The copy the last deployment wrote stands in its place."
+    : "No copy stands in its place, so the document goes without.";
+
+  return `The agent document ${fault.path} could not be composed: ${fault.reason} ${instead} A document and the code reading it come from the same tree, so this happens where a commit moved the document without the code following it; a commit mending it clears it once it is deployed.`;
+}
+
+// Writes what every agent is given to the deploy root: the composed prompt of each chat kind
+// and each gate, and for each runner the directory it runs in, holding its task template, the
+// rulebooks it reads, and for the browse runner the MCP servers it gets. The deployed documents
+// are rebuilt on every call, so nothing stale survives. The prompts directory is different: it
+// holds the runtime files the runs in flight read, so the recent ones are carried into the
+// rebuilt tree rather than erased underneath those runs.
+//
+// The build happens beside the root that is being read and is swung over only once every file
+// is written, the way a console release is. A run that refuses the source root outright throws
+// before anything is swung over, and emptying the live root first would leave every runner
+// without the configuration it launches with until somebody noticed.
+// The gates are handed in by the caller, which holds the gate order: an output gate with the system
+// prompt it composed, a reference gate by its name, composed here from its own folder.
+export async function deployAgents(gates: readonly GateAgent[] = []): Promise<AgentDeployment> {
+  const root = deployRoot();
+  const building = `${root}.building`;
+  const written: DeployedFile[] = [];
+  const faults: AgentFault[] = [];
+  // A configuration a line is handed, at the place inside the tree being built that the line
+  // will look for it. The line and the deploy name the file once between them: a file renamed
+  // where the line reads it cannot be left written under its old name here.
+  const asHanded = (path: string): string => join(building, relative(root, path));
+
+  // One document composed into the tree being built. The documents come out of the same tree as the
+  // code reading them, so a checkout moving one reaches nothing here; what can still fail is a
+  // commit whose code and documents disagree with each other. A document is therefore composed on
+  // its own: the fault is kept and named, the copy the last deployment wrote stands in its place
+  // where there is one, and the rest of the tree is built around it. What is lost is one agent's
+  // document until the next deployment; what is kept is every other agent, the chat, the queue and
+  // the control port.
+  const compose = async (path: string, text: () => Promise<string>): Promise<void> => {
+    try {
+      writeDeployed(written, path, await text());
+    } catch (error) {
+      const standing = join(root, relative(building, path));
+      const carried = existsSync(standing);
+
+      if (carried) {
+        mkdirSync(dirname(path), { recursive: true });
+        cpSync(standing, path);
+      }
+
+      faults.push({ path: relative(building, path), reason: error instanceof Error ? error.message : String(error), carried });
+    }
+  };
+
+  // The asset root has to be this repository before anything is built out of it. A root missing
+  // either directory is not a document that moved but the wrong tree altogether, and a deployment
+  // made from it would stand an empty tree in front of the running one and take every agent away
+  // at once. This is the one refusal the path makes; everything past it is tolerated.
+  for (const needed of [rulesDir, agentsDir]) {
+    if (!existsSync(needed)) {
+      throw new Error(`${needed} is missing: ${assetRoot()} is not agency's tree.`);
+    }
+  }
+
+  rmSync(building, { recursive: true, force: true });
+  mkdirSync(building, { recursive: true });
+
+  await compose(join(building, "chat", "system.md"), async () => chatSystem());
+  await compose(join(building, "sanitizer", "system.md"), async () => sanitizerSystem());
+  for (const gate of gates) {
+    const system = gate.system;
+
+    if (system === undefined) {
+      await compose(join(building, gate.name, "system.md"), async () => referenceGateSystem(gate.name));
+    } else {
+      await compose(join(building, "output-gate", `${gate.name}.md`), async () => system());
+    }
+  }
+  await compose(join(building, "people-search", "system.md"), async () => peopleSearchSystem(peopleSelectionCap));
+  await compose(join(building, "people-standing", "system.md"), async () => peopleStandingSystem());
+  await compose(join(building, "situation-rules", "system.md"), async () => situationRulesSystem());
+  await compose(join(building, "voice-polish", "system.md"), async () => voicePolishSystem());
+  await compose(join(building, "voice-reading", "system.md"), async () => voiceReadingSystem());
+  await compose(join(building, "document-seek", "system.md"), async () => documentSeekSystem());
+  await compose(join(building, "translator", "system.md"), async () => translatorSystem());
+  await compose(join(building, "translator", "worker.md"), async () => workerTranslatorSystem());
+  await compose(join(building, "translator", "record.md"), async () => recordTranslatorSystem());
+  await compose(join(building, "session-summary", "chat.md"), async () => sessionSummarySystem("chat", "{{agent}}"));
+  await compose(join(building, "session-summary", "worker.md"), async () => sessionSummarySystem("worker", "{{agent}}"));
+  await compose(join(building, "search", "request.md"), async () => agentFile("search", "request.md"));
+  await compose(asHanded(searchMcpConfigPath()), () => researchMcpConfig({ kind: "search" }));
+  for (const name of searchRulebooks) {
+    await compose(join(building, "search", "rules", `${name}.md`), async () => rulebook(name));
+  }
+  await compose(join(building, "browse", "system.md"), async () => browseSystem());
+  await compose(join(building, "browse", "request.md"), async () => agentFile("browse", "request.md"));
+  await compose(asHanded(browseMcpConfigPath()), browseMcpConfig);
+  await compose(asHanded(workerMcpConfigPath()), workerMcpConfig);
+  await compose(asHanded(chatMcpConfigPath()), chatMcpConfig);
+  await compose(asHanded(editorMcpConfigPath()), editorMcpConfig);
+  await compose(join(building, "worker", "trailer.md"), async () => workerTrailer());
+  await compose(join(building, "digest", "task.md"), async () => documentWriter(agentFile("digest", "task.md")));
+  await compose(join(building, "people", "task.md"), async () => documentWriter(agentFile("people", "task.md")));
+  await compose(join(building, "people", "sort.md"), async () => documentWriter(agentFile("people", "sort.md")));
+
+  carryPrompts(join(root, "prompts"), join(building, "prompts"));
+
+  const previous = `${root}.previous`;
+
+  rmSync(previous, { recursive: true, force: true });
+
+  if (existsSync(root)) {
+    renameSync(root, previous);
+  }
+
+  renameSync(building, root);
+  rmSync(previous, { recursive: true, force: true });
+
+  return { files: written.map((file) => ({ ...file, path: join(root, relative(building, file.path)) })), faults };
+}

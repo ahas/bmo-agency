@@ -35,7 +35,7 @@ and it is seeded on the registration the deployment's configuration names for it
 thinking off on every tier whose older own-engine mapping named none. A provider declared after the
 first seed is seeded by a later seed of the plan: every tier mapped to what the plan names for it,
 written once, the first time the store is settled with that provider in the plan, and recorded as
-given, so a mapping the owner removes afterwards stays removed and one he set is never touched.
+given, so a mapping the owner removes afterwards stays removed and one the owner set is never touched.
 OpenRouter inherits the chat-agent and worker free choices when present; otherwise its initial choice
 is `google/gemma-4-31b-it:free`, observed in the public catalogue by the inventory stage.
 Catalogue presence is not account availability. No paid substitute is selected implicitly.

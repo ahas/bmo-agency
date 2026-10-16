@@ -196,7 +196,7 @@ fn span(left: f64) -> String {
 }
 
 /// The warning about one login's ending, as the owner reads it: the account, when it ends, and the one
-/// command he runs, never anything out of its credential.
+/// command the owner runs, never anything out of its credential.
 pub fn notice(account: &Account, gone: bool, left_ms: Option<f64>) -> String {
   let wording = &CLAUDE_CODE.login;
   let span = left_ms.map(span);
@@ -311,7 +311,7 @@ pub enum NodeToken {
 }
 
 /// The warning about an account's token for the work nodes, as the owner reads it: the account, how its
-/// token stands, and the one command he runs on this machine, never anything out of the token.
+/// token stands, and the one command the owner runs on this machine, never anything out of the token.
 pub fn node_notice(account: &Account, deploy: &Path, standing: NodeToken, left_ms: Option<f64>) -> String {
   let wording = &CLAUDE_CODE.node_login;
   let when = match standing {

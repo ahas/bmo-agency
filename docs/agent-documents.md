@@ -54,6 +54,9 @@ composed into a system prompt, and what the chat agent's own prompt is made of.
   prompt, each gate's, each runner's standing instructions and the request of each run, each editor's
   task — and the launch lines read from it, fresh on every run, so an edited document applies at the
   next launch.
+- **A prompt told its own ceiling** — the person book's search and the document seeker — is rendered
+  with the number `policy/gate-prompts.toml` declares for it, so the deployed copy says the number the
+  gate's run holds to.
 - **A system prompt reaches the CLI as a file,** written under the deploy root's `prompts/` for that
   launch and named after the chat line or the gate, never on the command line: a chat's runs tens of
   kilobytes.
@@ -61,11 +64,13 @@ composed into a system prompt, and what the chat agent's own prompt is made of.
   runs the agent package's `deploy-agents.ts` on Bun out of the code tree; run by the reload path whenever
   a document under `prompts/rules/` or `prompts/agents/` changes, by hand, and on every start of agency's
   server — writes the same composition out under the agents directory the data root holds
-  (`BMO_AGENTS_DIR`). The gate agents beside agency's own are the caller's, named in a JSON file of
-  `{ name, model, system }` entries; the server's start and the reload path name none, so only agency's
-  own are written then. It writes the composed prompts for inspection, and for each runner the directory
-  it runs in, which sits outside the repository on purpose so that neither a project instruction file up
-  the tree nor the repository's git status can enter a runner's prefix.
+  (`BMO_AGENTS_DIR`). The gates beside agency's own agents are the caller's, named in a JSON file: an
+  output gate as `{ name, model, system }`, with the system prompt the caller composed, and a reference
+  gate as `{ name }`, its system prompt composed from its own folder's `instructions.md`. The server's
+  start and the reload path name none, so only agency's own are written then. It writes the composed
+  prompts for inspection, and for each runner the directory it runs in, which sits outside the
+  repository on purpose so that neither a project instruction file up the tree nor the repository's git
+  status can enter a runner's prefix.
 
 ## The chat agent
 

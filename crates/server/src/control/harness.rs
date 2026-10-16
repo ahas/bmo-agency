@@ -124,7 +124,7 @@ pub async fn provider_enabled(db: &DatabaseConnection, name: &str) -> Result<boo
   Ok(provider_order(db).await?.iter().any(|one| one.name == name && one.enabled))
 }
 
-/// The providers the owner has on, in his order.
+/// The providers the owner has on, in the owner's order.
 pub async fn enabled_providers(db: &DatabaseConnection) -> Result<Vec<String>, Refused> {
   Ok(
     provider_order(db)

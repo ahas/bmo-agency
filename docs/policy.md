@@ -11,7 +11,8 @@ says. Each is a TOML file under `policy/`, one file to a part, and the `policy` 
   says what the part is and which document states the behaviour it serves.
 - **Its reader** is a module of the `policy` crate with the part's type. The file is compiled into the
   crate, so a built program carries the policy it was built with and reads no file at run time; editing
-  a part takes a build.
+  a part takes a build. The TypeScript packages import the same file, through the `@agency/policy/`
+  path, and read it in the shape its reader declares.
 - **It is read once,** on first use, into its type. A file that does not read as its type is a fault of
   the build: every part has a test that reads it, so no build that passes its tests carries one.
 - **Its words carry marks.** A line that names something it is said of holds a mark, a name of letters,

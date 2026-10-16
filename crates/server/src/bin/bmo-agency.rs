@@ -17,7 +17,7 @@ use agency_server::verbs::reload::{self, TreeRedeploy};
 use agency_server::verbs::work_node::{self, WorkNodeVerb};
 use agency_server::verbs::{
   Answer, VerbError, agent_status, claude_token, code_tree, companion_follow, coworker_pool, deploy_link,
-  live_claude, node_pane,
+  live_claude, node_pane, turns,
 };
 use clap::{Parser, Subcommand};
 use harness_providers::Machine;
@@ -123,6 +123,20 @@ enum Verb {
   /// The agents' documents composed and written under the agents directory, with the caller's gate agents
   /// named in a JSON file.
   Prompts { gates: Option<PathBuf> },
+  /// One turn put into an agent's standing program through the door its provider declares, from a request
+  /// file, and what it came to printed: what a check carries a turn through.
+  ResidentTurn {
+    request: PathBuf,
+    #[arg(long, env = "BMO_DATA_DIR")]
+    data_root: Option<PathBuf>,
+  },
+  /// One run of a provider's program in its agent's host, from a request file, and what it came to
+  /// printed: what a check carries a run in a host through.
+  HostRun {
+    request: PathBuf,
+    #[arg(long, env = "BMO_DATA_DIR")]
+    data_root: Option<PathBuf>,
+  },
 }
 
 #[derive(Subcommand)]
@@ -186,17 +200,11 @@ enum WorkerVerb {
 #[derive(Subcommand)]
 enum DevVerb {
   /// The worker's dev server started, waited on until it is up.
-  Start {
-    worker: String,
-  },
+  Start { worker: String },
   /// The worker's dev server started again, waited on until the new one is up.
-  Restart {
-    worker: String,
-  },
+  Restart { worker: String },
   /// The worker's dev server stopped, waited on until it is down.
-  Stop {
-    worker: String,
-  },
+  Stop { worker: String },
   /// Every worker's dev server and every server a job left listening; with --sweep the ones due to end
   /// are ended.
   List {
@@ -361,6 +369,14 @@ async fn run(verb: Verb) -> ExitCode {
       what: CompanionVerb::Follow { room, agent, .. },
     } => ended(companion_follow::follow(&data_root, &agent, &room).await.map(|()| Answer::default())),
     Verb::Prompts { gates } => ended(prompts(&data_root, gates).await),
+    Verb::ResidentTurn {
+      request,
+      data_root: named,
+    } => ended(turns::resident_turn(&named.unwrap_or(data_root), &request).await),
+    Verb::HostRun {
+      request,
+      data_root: named,
+    } => ended(turns::host_run(&named.unwrap_or(data_root), &request).await),
   }
 }
 

@@ -4,5 +4,10 @@
   "type": "module",
   "exports": {
     "./*": "./*.ts"
+  },
+  "dependencies": {
+    "@agency/archive": "workspace:*",
+    "@agency/support": "workspace:*",
+    "eventsource-parser": "^4.1.1"
   }
 }

@@ -1,0 +1,59 @@
+import type { AgentRecord } from "@agency/archive/agent-store";
+
+import type { RunLineDeclaration } from "./harness";
+
+// The lines the deployment runs, each declared with what it asks of its program. What a line is,
+// and how a program is judged to carry one, are the harness's; which lines there are is the
+// deployment's own (`run-lines.ts` for agency's), handed over as a function and read the first time it
+// is asked for. A read with nothing composed fails, naming what is missing.
+
+export class RunLinesUncomposed extends Error {
+  constructor() {
+    super("no run lines are composed: a process reads its configuration before it asks what a line keeps, or imports the deployment's registrations itself");
+  }
+}
+
+let composed: (() => readonly RunLineDeclaration[]) | null = null;
+
+export function composeRunLines(lines: () => readonly RunLineDeclaration[]): void {
+  composed = lines;
+}
+
+export function runLineDeclarations(): readonly RunLineDeclaration[] {
+  if (composed === null) {
+    throw new RunLinesUncomposed();
+  }
+
+  return composed();
+}
+
+// Whether a line's turns follow one another on one session. A line the deployment never declared
+// keeps none.
+export function lineKeepsSession(line: string): boolean {
+  return runLineDeclarations().some((one) => one.name === line && one.keepsSession);
+}
+
+// What a line's runs may reach of the tool host. A line the deployment never declared, or a
+// process that composed no lines, reaches nothing.
+export function lineCapabilities(line: string): readonly string[] {
+  try {
+    return runLineDeclarations().find((one) => one.name === line)?.capabilities ?? [];
+  } catch (error) {
+    if (error instanceof RunLinesUncomposed) return [];
+    throw error;
+  }
+}
+
+// Whether a line's standing program hands a person's typed line the composition the deployment's
+// own turns carry. A line the deployment never declared hands it none.
+export function lineComposesTypedLines(line: string): boolean {
+  return runLineDeclarations().some((one) => one.name === line && one.composesTypedLines === true);
+}
+
+/**
+ * The line an agent's work goes out on: a runner is named for its line, and every other agent's
+ * kind is its line's name.
+ */
+export function agentLine(agent: Pick<AgentRecord, "name" | "kind">): string {
+  return agent.kind === "runner" ? agent.name : agent.kind;
+}

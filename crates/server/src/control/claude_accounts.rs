@@ -307,7 +307,7 @@ async fn needs_login(db: &DatabaseConnection, account: &Account, now: i64) -> Re
 }
 
 // The logins that are on, in the order the road takes them: the login in use first, then the account the
-// owner chose where he chose one, then his order.
+// owner chose where one was chosen, then the owner's order.
 async fn road_order(db: &DatabaseConnection) -> Result<Vec<Account>, Refused> {
   let enabled: Vec<Account> = accounts(db).await?.into_iter().filter(|one| one.enabled).collect();
   let mut heads = Vec::new();
@@ -340,8 +340,8 @@ async fn open_now(judging: Judging<'_>, account: &Account, now: i64) -> Result<b
 }
 
 /// The logins the road offers a run pinned to none, in order: the login in use first while it can
-/// answer, then the open ones in the owner's order, started on the account he chose where he chose one. A
-/// login that cannot answer is never offered, so where none is open none is.
+/// answer, then the open ones in the owner's order, started on the account the owner chose where one
+/// was chosen. A login that cannot answer is never offered, so where none is open none is.
 pub async fn open_accounts(judging: Judging<'_>) -> Result<Vec<Account>, Refused> {
   let now = now_ms();
   let mut open = Vec::new();
@@ -355,7 +355,7 @@ pub async fn open_accounts(judging: Judging<'_>) -> Result<Vec<Account>, Refused
   Ok(open)
 }
 
-/// The account the owner chose to run on now, where he chose one that is on.
+/// The account the owner chose to run on now, where the one chosen is on.
 pub async fn chosen_account(db: &DatabaseConnection) -> Result<Option<Account>, Refused> {
   let Some(id) = setting(db, CHOSEN_KEY).await? else {
     return Ok(None);

@@ -1,0 +1,9 @@
+# The ceilings two gates' prompts are told (docs/agent-documents.md): the most pieces of the person book
+# its search may name for one turn, and the most entries the document seeker picks for one question. Each
+# is a variable of the prompt itself, so the deployed copy says the same number the gate's run holds to.
+
+[people_search]
+cap = 4
+
+[document_seek]
+cap = 5

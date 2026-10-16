@@ -12,11 +12,29 @@
     "noEmit": true,
     "types": [
       "bun-types"
-    ]
+    ],
+    "paths": {
+      "@agency/agent/*": [
+        "./agent/*"
+      ],
+      "@agency/archive/*": [
+        "./archive/*"
+      ],
+      "@agency/support/*": [
+        "./support/*"
+      ],
+      "@agency/policy/*": [
+        "../policy/*"
+      ],
+      "@agency/test-support/*": [
+        "../tests/ts/support/*"
+      ]
+    }
   },
   "include": [
     "agent",
     "archive",
-    "support"
+    "support",
+    "../tests/ts"
   ]
 }

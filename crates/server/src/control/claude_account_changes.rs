@@ -36,7 +36,7 @@ fn no_such(id: &str) -> String {
   fill_marks(&CONTROL_WORDS.accounts.unknown, &[("id", id)])
 }
 
-/// The id minted for a new account from the name the owner gave it: never his to type, since every
+/// The id minted for a new account from the name the owner gave it: never the owner's to type, since every
 /// record keys on it, and made even for a name with nothing usable in it.
 pub fn minted_id(name: &str, taken: &[&str]) -> Result<String, String> {
   let mut slug = String::new();

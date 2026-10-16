@@ -14,8 +14,10 @@
   missing, where its catalogue is read — is its own file of agency's policy
   (`policy/providers/`).
 - **Agency's server links the crate;** the TypeScript that asks — the verbs and the provider
-  modules they import — runs its binary of the same name, out of the deploy tree's `bin/`, the way
-  it runs the node check (`nodes.md`).
+  modules they import — runs its binary of the same name, out of the deploy tree's `bin/`. Where the
+  deploy tree holds none — code running out of a checkout, a test among it — it runs the checkout's
+  own debug build, out of the target directory Cargo builds the checkout into: the one
+  `CARGO_TARGET_DIR` names, else the checkout's `target/`.
 - **What a provider answers out of the store** — the registry's registrations — is read by each side
   from agency's store, as every row is.
 

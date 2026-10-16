@@ -160,8 +160,8 @@ async fn named_agent(db: &impl ConnectionTrait, name: &str) -> Result<bool, Refu
   )
 }
 
-/// A worker the owner added, marked as his rather than the machine's, so the bot's next start neither
-/// writes over it nor claims it.
+/// A worker the owner added, marked as the owner's rather than the machine's, so the bot's next start
+/// neither writes over it nor claims it.
 pub struct NewWorker<'a> {
   pub name: &'a str,
   pub label: &'a str,

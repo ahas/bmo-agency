@@ -45,6 +45,8 @@ pub struct AccountsWords {
   pub unknown: String,
   pub off: String,
   pub no_id: String,
+  pub id_shape: String,
+  pub id_taken: String,
   pub name_empty: String,
   pub name_long: String,
   pub name_taken: String,

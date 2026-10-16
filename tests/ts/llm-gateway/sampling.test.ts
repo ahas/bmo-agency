@@ -82,9 +82,9 @@ describe("the gateway's sampling hook", () => {
       { ...sent(header), model: "other" },
     ]);
 
-    expect(entry.chat_template_kwargs).toEqual({ enable_thinking: false, preserve_thinking: true });
-    expect(own.chat_template_kwargs).toEqual({ enable_thinking: true, preserve_thinking: true });
-    expect(unknown.chat_template_kwargs).toEqual({ preserve_thinking: true });
+    expect(entry!.chat_template_kwargs).toEqual({ enable_thinking: false, preserve_thinking: true });
+    expect(own!.chat_template_kwargs).toEqual({ enable_thinking: true, preserve_thinking: true });
+    expect(unknown!.chat_template_kwargs).toEqual({ preserve_thinking: true });
   });
 
   test("takes the thinking of every answer before the last question out where the template is told not to keep it", async () => {
@@ -111,7 +111,7 @@ describe("the gateway's sampling hook", () => {
     ] };
     const [off, on, chatOff] = await hook([asked({ preserve_thinking: false }), asked({ preserve_thinking: true }), chat]);
 
-    expect(off.messages).toEqual([
+    expect(off!.messages).toEqual([
       messages[0],
       { role: "assistant", content: [call("t1")] },
       messages[2],
@@ -121,7 +121,7 @@ describe("the gateway's sampling hook", () => {
       messages[6],
       messages[7],
     ]);
-    expect(on.messages).toEqual(messages);
-    expect(chatOff.messages).toEqual([chat.messages[0], { role: "assistant", content: "answer" }, ...chat.messages.slice(2)]);
+    expect(on!.messages).toEqual(messages);
+    expect(chatOff!.messages).toEqual([chat.messages[0], { role: "assistant", content: "answer" }, ...chat.messages.slice(2)]);
   });
 });
