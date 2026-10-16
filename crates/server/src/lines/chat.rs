@@ -15,8 +15,14 @@ use policy::providers::claude_code::CLAUDE_CODE;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 
-use super::claude::{Session, handed};
+use agent_host::place::ResidentCommand;
+use harness_providers::claude_code::ClaudeCode;
+
+use super::claude::{Command, Runs, Session, command_env, handed, line_environment};
+use super::companion::{ComposedTurn, LOST_SESSION, walked_login};
+use super::place::{Holds, Place, write_place_settings};
 use super::runner::{handed_config, line_servers};
+use super::standing::status_root;
 use super::token::facts;
 use super::worker::{Reasoning, effort_of, reasoning_of, rulebook, system_prompt_file};
 use super::{Trees, fault, read_required};
@@ -42,15 +48,14 @@ pub struct RoomContext {
   pub mark: String,
 }
 
-/// One turn's launch as the round asks for it: the agent whose turn it is, the room and its block, the
-/// owner, the road answering it where that is not the room's own, the session it continues, whether every
-/// new message of it is the owner's, whether it is the keepalive's touch, and the base persona that follows
-/// the system prompt, where the caller keeps one.
+/// One turn's launch as the round asks for it: the agent whose turn it is, the room and its block, the road
+/// answering it where that is not the room's own, the session it continues, whether every new message of it
+/// is the owner's, whether it is the keepalive's touch, and the base persona that follows the system
+/// prompt, where the caller keeps one.
 #[derive(Clone)]
 pub struct ChatLaunch<'a> {
   pub agent: &'a str,
   pub chat_id: i64,
-  pub owner_id: i64,
   pub room: RoomContext,
   pub via: Option<&'a str>,
   pub resume: Option<String>,
@@ -180,6 +185,79 @@ pub async fn chat_run(
     resume: launch.resume.clone(),
     cwd: trees.source.to_string_lossy().into_owned(),
     env,
+  })
+}
+
+/// One turn of the chat line's agent across rooms, composed for the resident program standing in its place
+/// (docs/api.md, 「Sessions」): the chat's run around the caller's room block, road and base persona, on
+/// the login the walk offers the agent now, on the session the launch resumes or a new one. A session it
+/// resumes that its program keeps no record of is refused as lost, which the turn reads as a session gone.
+/// The messages the turn answers and the moment it took its words go among its own variables, and its run's
+/// name last.
+pub async fn compose_turn(
+  ground: &Ground,
+  machine: &Machine,
+  launch: &ChatLaunch<'_>,
+  prompt: &str,
+  run_name: &str,
+  answers: &[i64],
+  began: i64,
+) -> Result<ComposedTurn, Refusal> {
+  let run = chat_run(ground, machine, launch, prompt, false).await?;
+  let trees = Trees::of(ground);
+  let login = walked_login(ground, launch.agent).await?;
+  let home = match &login {
+    Some(login) if login.credential_kind != "token" => PathBuf::from(&login.credential_path),
+    _ => ClaudeCode::machine_config_dir(machine),
+  };
+
+  if let Some(id) = &run.resume
+    && !ClaudeCode::records_under(&home, Path::new(&run.cwd), id)
+      .iter()
+      .any(|record| record.exists())
+  {
+    return Err(fault(format!("{LOST_SESSION}: {id}")));
+  }
+
+  let opened = uuid::Uuid::new_v4().to_string();
+  let place = Place::of(&trees.data, launch.agent);
+  let holds = Holds {
+    shell_guard: true,
+    compose_typed: true,
+    ..Holds::default()
+  };
+  let settings = write_place_settings(&place.path, serde_json::Map::new(), &status_root(ground), holds)?;
+  let mut env =
+    command_env(&run.env, login.as_ref(), &Runs::of_place(&trees.data, &place.path), run.thinking)?;
+
+  env.insert(
+    "BMO_TURN_MESSAGES".to_owned(),
+    Some(answers.iter().map(i64::to_string).collect::<Vec<_>>().join(",")),
+  );
+  env.insert("BMO_TURN_BEGAN".to_owned(), Some(began.to_string()));
+
+  let command = Command {
+    args: resident_args(&run, &settings, &opened)?,
+    cwd: run.cwd.clone(),
+    env,
+  };
+  let env = line_environment(&command, run_name);
+
+  Ok(ComposedTurn {
+    system_path: run.system_path.clone(),
+    command: ResidentCommand {
+      args: command.args,
+      cwd: PathBuf::from(&run.cwd),
+      env,
+    },
+    session: run.resume.clone().unwrap_or(opened),
+    prompt: prompt.to_owned(),
+    model: run.model.clone(),
+    effort: (!run.effort.is_empty()).then(|| run.effort.clone()),
+    placement: None,
+    window: None,
+    account: login.map(|login| login.id),
+    began,
   })
 }
 

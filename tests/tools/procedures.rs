@@ -1,12 +1,12 @@
-//! The procedures: each document listed by its address and read whole outside any room, held in a room's turn
-//! to the verbs its road performs as agency's server answers them, refused where it is no procedure, and none of
-//! it for a turn a companion's reset overtook; then the executable, placed in a tree, reading one in a room's
-//! turn through agency's own server and the consumer registered at its `road-verbs` hook.
+//! The procedures: each document listed by its address and read whole outside any room, held in a room's
+//! turn to the verbs its road performs as agency's server answers them, refused where it is no procedure,
+//! and none of it for a turn a companion's reset overtook; then the executable, placed in a tree, reading
+//! one in a room's turn through agency's own server and the consumer registered at its `road-verbs` hook.
 
 use std::collections::BTreeMap;
-use std::io::{BufRead, BufReader, Write};
+use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
+use std::process::{Command, Stdio};
 
 use axum::Json;
 use axum::extract::{Query, State};
@@ -18,7 +18,7 @@ use procedures_tool::{
 use serde_json::{Value, json};
 use tool_call::Session;
 
-use crate::{binary, scratch};
+use crate::{binary, scratch, standing};
 
 const DOCUMENT: &str = "# Sending\n\nEvery room reads this.\n\n## Stickers [CAP:sticker]\n\n- send one\n\n## Lines\n\n- a line [CAP:text]\n- a pin [CAP:pin]\n  - its fine print\n- plain\n";
 
@@ -182,8 +182,8 @@ fn the_server_is_named_by_the_environment_first_then_the_data_roots_file() {
   );
 }
 
-// A stand-in of agency's server answering the road's verbs: `text` for the room `-5` on the road `console`, and
-// a refusal for any other room. It writes down each token it was asked under.
+// A stand-in of agency's server answering the road's verbs: `text` for the room `-5` on the road `console`,
+// and a refusal for any other room. It writes down each token it was asked under.
 async fn stand_in_server() -> (u16, std::sync::Arc<std::sync::Mutex<Vec<String>>>) {
   let asked = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
   let app = axum::Router::new()
@@ -268,54 +268,19 @@ async fn a_turn_a_companions_reset_overtook_is_listed_none_and_refused_its_read(
   assert_eq!(listed(tree.path(), &after).await.len(), 1);
 }
 
-// Agency's own server started on the store and a data root of its own, its control port named in the data root's
-// `env/agency.env` as the deployment names it; its port once it listens.
-struct Standing {
-  child: Child,
-  port: u16,
-}
+// Agency's own server started on the store and a data root of its own, its control port named in the data
+// root's `env/agency.env` as the deployment names it.
+fn stand_server(home: &Path, data: &Path, store: &str, token: &str) -> standing::Standing {
+  let server = standing::stand_server(home, data, store, token);
 
-impl Drop for Standing {
-  fn drop(&mut self) {
-    let _ = self.child.kill();
-    let _ = self.child.wait();
-  }
-}
-
-fn stand_server(home: &Path, data: &Path, store: &str, token: &str) -> Standing {
-  let mut child = Command::new(binary::built("agency-server", "agency-server"))
-    .arg("--data-root")
-    .arg(data)
-    .current_dir(home)
-    .env("HOME", home)
-    .env("XDG_CONFIG_HOME", home.join(".config"))
-    .env("BMO_ARCHIVE_URL", store)
-    .env("AGENCY_CONTROL_PORT", "0")
-    .env("AGENCY_QUOTA_PORT", "0")
-    .env("AGENCY_CONTROL_TOKEN", token)
-    .stdin(Stdio::null())
-    .stdout(Stdio::piped())
-    .stderr(Stdio::null())
-    .spawn()
-    .unwrap();
-  let mut lines = BufReader::new(child.stdout.take().unwrap()).lines();
-  let port = loop {
-    let line = lines.next().expect("the server said where its control routes are").unwrap();
-
-    if let Some(address) = line.strip_prefix("agency: control routes on http://") {
-      break address.rsplit(':').next().unwrap().trim().parse().unwrap();
-    }
-  };
-
-  std::thread::spawn(move || for _ in lines {});
   std::fs::create_dir_all(data.join("env")).unwrap();
   std::fs::write(
     data.join("env").join("agency.env"),
-    format!("AGENCY_CONTROL_PORT={port}\nAGENCY_CONTROL_TOKEN={token}\n"),
+    format!("AGENCY_CONTROL_PORT={}\nAGENCY_CONTROL_TOKEN={token}\n", server.port),
   )
   .unwrap();
 
-  Standing { child, port }
+  server
 }
 
 // The procedures executable started in the tree's placed folder with a clean environment, as the tool host

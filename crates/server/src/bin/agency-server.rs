@@ -1,6 +1,7 @@
-//! Agency's server: the store settled and the ground stood on it, the places stood in this machine's herdr,
-//! the clocks started, the cache siren's quota source on its loopback port, and the control routes on the
-//! control port under the server's token, for as long as the process runs (docs/api.md).
+//! Agency's server: the store settled with the deployment's seeds and the ground stood on it, the places
+//! stood in this machine's herdr, the clocks started, the cache siren's quota source on its loopback port,
+//! and the control routes on the control port under the server's token, for as long as the process runs
+//! (docs/api.md).
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -75,13 +76,14 @@ async fn serve(args: Args) -> Result<(), String> {
     .await
     .map_err(|why| format!("the store: {why}"))?;
 
-  store::seed::settle(&db, &store::seed::Seeds::default())
+  let machine = Machine::of_process(&data_root);
+
+  store::seed::settle(&db, &agency_server::seeds::deployment(&machine))
     .await
     .map_err(|fault| format!("the store: {fault}"))?;
 
   let config = Config::read(|name| std::env::var(name).ok())?;
   let service = Service::new(db.clone(), config);
-  let machine = Machine::of_process(&data_root);
   let herdr = herdr::socket_path(machine.var("XDG_CONFIG_HOME"), machine.var("HOME"))
     .map(|socket| herdr::Herdr::here(socket, herdr::silences_path(machine.var("BMO_HERDR_SILENCES"))));
   let watch = herdr.clone().map(herdr::picture::Watch::start);

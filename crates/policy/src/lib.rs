@@ -32,6 +32,7 @@ pub mod rest;
 pub mod roles;
 pub mod run_lines;
 pub mod run_stop;
+pub mod seeds;
 pub mod span_words;
 pub mod tiers;
 pub mod verb_words;

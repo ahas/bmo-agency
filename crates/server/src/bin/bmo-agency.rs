@@ -242,7 +242,12 @@ fn main() -> ExitCode {
     }
   };
 
-  runtime.block_on(run(cli.verb))
+  runtime.block_on(async {
+    let ended = run(cli.verb).await;
+
+    agency_server::verbs::relay_events().await;
+    ended
+  })
 }
 
 // What a verb came to, printed: its lines on standard output and its code, or its refusal on the error

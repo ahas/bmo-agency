@@ -1,7 +1,11 @@
 //! The server's tests: its ground, each piece asked as a handler or a later part of the server asks it.
 
+#[path = "../support/binary.rs"]
+mod binary;
 #[path = "../support/scratch.rs"]
 mod scratch;
+#[path = "../support/standing.rs"]
+mod standing;
 
 mod clock;
 mod command_reading {
@@ -22,6 +26,7 @@ mod control {
   mod claude_accounts;
   mod companion_reset;
   mod companions;
+  mod events_publish;
   mod fallback;
   mod front;
   mod harness;
@@ -31,6 +36,7 @@ mod control {
   mod pool_board;
   mod registry;
   mod roads;
+  mod session_ops;
   mod sessions;
   mod tiers;
 }
@@ -104,8 +110,10 @@ mod queue {
   mod workers;
 }
 mod readiness;
+mod relay;
 mod rest;
 mod rooms;
+mod seeds;
 
 mod run_log {
   mod codex;

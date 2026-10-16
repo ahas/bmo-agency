@@ -20,6 +20,7 @@ fn the_boundary_s_routes_are_linked_in() {
     "POST /session/end",
     "GET /session/list",
     "GET /events",
+    "POST /events/publish",
     "POST /hooks",
     "POST /hooks/remove",
     "GET /hooks",

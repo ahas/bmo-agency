@@ -1,19 +1,22 @@
 //! The herdr backend of the session contract (docs/api.md, 「Sessions」): the seven operations answered over
 //! the door, the places and the lines. A worker's session is its own, one per worker, carried by the
 //! worker's session turn on the line a job runs on; a companion's session is one per room, carried by its
-//! resident program on the chat line with the system prompt its settings compose. A session is known by its
-//! agent and its scope — `<agent>@worker`, `<agent>@<room>` — and stands across the generations its harness
-//! opens.
+//! resident program on the chat line with the system prompt its settings compose; a session across rooms is
+//! the one its agent's row keeps, carried by its resident program on the chat line around the room block,
+//! the road and the base persona the turn's caller hands in. A session is known by its agent and its scope
+//! — `<agent>@worker`, `<agent>@<room>`, `<agent>` — and stands across the generations its harness opens.
 //!
 //! A turn is carried whole before *send a turn* answers: whether the program took the words, or refused
 //! them while it waits on a person. What it came to is published as `turn-ended`, and its start as
-//! `turn-started`.
+//! `turn-started`; a conversational turn's road as `road-walked`.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+use std::time::Instant;
 
 use agent_session::{
-  Context, Delivery, Fault, FaultKind, Scope, Session, SessionId, Sessions, Start, State, Turn,
+  Context, Delivery, Fault, FaultKind, RoomBlock, Scope, Session, SessionId, Sessions, Start, State, Turn,
+  TurnContext,
 };
 use indexmap::IndexMap;
 use policy::companion_runner::COMPANION_RUNNER;
@@ -21,7 +24,7 @@ use policy::fill_marks;
 use serde::Serialize;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
-use store::{all, one};
+use store::{all, one, run as written};
 
 use crate::companion::guard::spent_out;
 use crate::companion::handoff::{Companion, Due, hand_over};
@@ -30,9 +33,10 @@ use crate::companion::run::{NoAnswer, Reply, Tally, let_go, run_turn};
 use crate::companion::sessions::{self, Harness, Kept, RoomSession, harness_road};
 use crate::control::claude_accounts::{Judging, account_open};
 use crate::control::companions::Settings;
-use crate::door::record::UsageSpent;
+use crate::door::record::{ModelSpend, UsageSpent};
 use crate::door::turn::Quiet;
 use crate::events::Event;
+use crate::lines::chat::{ChatLaunch, RoomContext, compose_turn};
 use crate::lines::companion::{CompanionTurn, LOST_SESSION, compose, registration_named};
 use crate::places::{AgentRow, Ground, Places};
 use crate::run_log::lines::Line;
@@ -72,6 +76,112 @@ pub struct TurnEnded {
 
 impl Event for TurnEnded {
   const NAME: &'static str = "turn-ended";
+}
+
+/// A session's system prompt changed, as the turn that sent the changed prompt records it.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SystemPromptChanged {
+  pub session: String,
+  pub run: String,
+}
+
+impl Event for SystemPromptChanged {
+  const NAME: &'static str = "system-prompt-changed";
+}
+
+/// The road a conversational turn walked (docs/run-records.md, 「The roads a turn walked」): its stage, the
+/// room and the run, the provider and model it went out on, how it ended, how long it held the run, its
+/// tokens summed over the models that answered — none where it reported none — and how full the session's
+/// window stood after it.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RoadWalked {
+  pub stage: String,
+  pub chat_id: i64,
+  pub run: String,
+  pub provider: String,
+  pub model: String,
+  pub outcome: &'static str,
+  pub ms: i64,
+  pub input_tokens: Option<i64>,
+  pub output_tokens: Option<i64>,
+  pub cache_read_tokens: Option<i64>,
+  pub cache_write_tokens: Option<i64>,
+  pub context_ratio: Option<f64>,
+}
+
+impl Event for RoadWalked {
+  const NAME: &'static str = "road-walked";
+}
+
+impl RoadWalked {
+  /// The road a turn walked from `started`, its tokens added over what each model reported.
+  #[allow(clippy::too_many_arguments)]
+  pub fn of(
+    chat_id: i64,
+    run: &str,
+    provider: &str,
+    model: &str,
+    answered: bool,
+    started: Instant,
+    spend: &[ModelSpend],
+    context_ratio: Option<f64>,
+  ) -> Self {
+    let reported = !spend.is_empty();
+    let sum = |pick: fn(&ModelSpend) -> i64| reported.then(|| spend.iter().map(pick).sum::<i64>());
+
+    Self {
+      stage: COMPANION_RUNNER.turn_stage.clone(),
+      chat_id,
+      run: run.to_owned(),
+      provider: provider.to_owned(),
+      model: model.to_owned(),
+      outcome: if answered { "answered" } else { "error" },
+      ms: i64::try_from(started.elapsed().as_millis()).unwrap_or(i64::MAX),
+      input_tokens: sum(|one| one.input_tokens),
+      output_tokens: sum(|one| one.output_tokens),
+      cache_read_tokens: sum(|one| one.cache_read_tokens),
+      cache_write_tokens: sum(|one| one.cache_write_tokens),
+      context_ratio,
+    }
+  }
+}
+
+// The provider a turn across rooms goes out on: the chat line is mapped on Claude Code alone.
+const CHAT_PROVIDER: &str = "claude-code";
+
+/// The harness session an agent's row keeps across rooms, where it keeps one.
+pub async fn agent_session(
+  db: &sea_orm::DatabaseConnection,
+  agent: &str,
+) -> Result<Option<String>, Refusal> {
+  Ok(
+    one(db, r#"SELECT "session_id" FROM "agents" WHERE "name" = $1"#, vec![agent.into()])
+      .await?
+      .and_then(|row| row.try_get::<Option<String>>("", "session_id").ok().flatten())
+      .filter(|session| !session.is_empty()),
+  )
+}
+
+/// The harness session an agent keeps across rooms written on its row, with the room its last turn
+/// answered; none lets it go.
+pub async fn keep_agent_session(
+  db: &sea_orm::DatabaseConnection,
+  agent: &str,
+  kept: Option<(&str, i64)>,
+) -> Result<(), Refusal> {
+  let (session, chat_id) =
+    kept.map_or((None, None), |(session, chat_id)| (Some(session.to_owned()), Some(chat_id)));
+
+  written(
+    db,
+    r#"UPDATE "agents" SET "session_id" = $2, "chat_id" = COALESCE($3, "chat_id") WHERE "name" = $1"#,
+    vec![agent.into(), session.into(), chat_id.into()],
+  )
+  .await
+  .map(|_| ())
+  .map_err(Refusal::from)
 }
 
 /// The session contract over herdr, on the places the server stands.
@@ -243,12 +353,12 @@ impl HerdrSessions {
       Scope::Worker => Err(fault(FaultKind::Refused, format!("{agent} is not a worker"))),
       Scope::Room(room) if conversational.is_some() => room_number(room).map(|_| row),
       Scope::Room(_) => Err(fault(FaultKind::Refused, format!("{agent} is not a conversational agent"))),
-      Scope::Agent => Err(fault(
-        FaultKind::Refused,
-        format!(
-          "{agent}: a session across rooms goes on the chat line, whose room context its caller composes"
-        ),
-      )),
+      Scope::Agent
+        if conversational.is_some_and(|settings| settings.scope == crate::conversational::Scope::Agent) =>
+      {
+        Ok(row)
+      }
+      Scope::Agent => Err(fault(FaultKind::Refused, format!("{agent} keeps no session across rooms"))),
     }
   }
 
@@ -356,7 +466,14 @@ impl HerdrSessions {
   }
 
   // One turn of a companion in a room, carried by its resident program on its room's session.
-  async fn room_turn(&self, agent: &str, chat_id: i64, run: &str, prompt: &str) -> Result<Came, Fault> {
+  async fn room_turn(
+    &self,
+    agent: &str,
+    chat_id: i64,
+    run: &str,
+    prompt: &str,
+    context: &TurnContext,
+  ) -> Result<Came, Fault> {
     let ground = self.ground();
     let db = ground.db.clone();
     let failed = |why: String| Ok(Came::Failed(why));
@@ -368,7 +485,7 @@ impl HerdrSessions {
       Ok(provider) => provider,
       Err(why) => return failed(why),
     };
-    let began = now_ms();
+    let began = context.began.unwrap_or_else(now_ms);
     let hold = &self.places.kept.reset;
     let keeping = hold.keeping().await;
 
@@ -413,6 +530,10 @@ impl HerdrSessions {
 
       if changed {
         log.write(&db, Line::note(COMPANION_RUNNER.log.system_changed.clone())).await;
+        ground.events.publish(SystemPromptChanged {
+          session: id_of(agent, &Scope::Room(chat_id.to_string())).0,
+          run: run.to_owned(),
+        });
       }
     }
 
@@ -427,6 +548,7 @@ impl HerdrSessions {
 
     drop(keeping);
 
+    let started = Instant::now();
     let mut asked = self
       .room_run(
         &mut log,
@@ -438,6 +560,7 @@ impl HerdrSessions {
         &generation,
         guarded,
         began,
+        context,
       )
       .await;
 
@@ -458,6 +581,7 @@ impl HerdrSessions {
           &generation,
           guarded,
           began,
+          context,
         )
         .await;
     }
@@ -467,6 +591,16 @@ impl HerdrSessions {
       Ok(asked) if !overtaken::overtaken(&db, agent, began).await => asked,
       Ok(_) | Err(NoAnswer::Overtaken) => return Ok(Came::Stopped),
       Err(NoAnswer::Cut(reason) | NoAnswer::Failed(reason) | NoAnswer::Errored { error: reason, .. }) => {
+        ground.events.publish(RoadWalked::of(
+          chat_id,
+          run,
+          provider.name(),
+          &model,
+          false,
+          started,
+          &[],
+          None,
+        ));
         log
           .write(
             &db,
@@ -482,6 +616,16 @@ impl HerdrSessions {
       }
     };
 
+    ground.events.publish(RoadWalked::of(
+      chat_id,
+      run,
+      &reply.mode,
+      &reply.model,
+      true,
+      started,
+      &reply.spend,
+      reply.context_ratio,
+    ));
     self.record_usage(agent, &reply, run).await;
     sessions::record_turn(
       &db,
@@ -557,6 +701,7 @@ impl HerdrSessions {
     generation: &IndexMap<String, Value>,
     guarded: bool,
     began: i64,
+    context: &TurnContext,
   ) -> Result<(Reply, Option<String>), NoAnswer> {
     let ground = self.ground();
 
@@ -580,10 +725,10 @@ impl HerdrSessions {
         model: &model,
         system,
         prompt,
-        privileged: false,
+        privileged: context.privileged,
         resume,
         run: &run,
-        answers: &[],
+        answers: &context.answers,
         generation,
         began,
       },
@@ -611,6 +756,143 @@ impl HerdrSessions {
     .await?;
 
     Ok((reply, composed.placement))
+  }
+
+  // One turn of an agent across rooms, carried by its resident program on the chat line around the room
+  // block, the road and the base persona its caller handed in, on the one session its row keeps; a session
+  // its harness no longer holds is let go, and the turn asked again once on a fresh one.
+  async fn agent_turn(
+    &self,
+    agent: &str,
+    run: &str,
+    prompt: &str,
+    context: &TurnContext,
+  ) -> Result<Came, Fault> {
+    let ground = self.ground();
+    let db = ground.db.clone();
+    let Some(room) = &context.room else {
+      return Err(fault(
+        FaultKind::Refused,
+        format!("{agent}: a turn across rooms names the room it answers"),
+      ));
+    };
+    let began = context.began.unwrap_or_else(now_ms);
+    let mut log = RunLog::new(Target {
+      agent: agent.to_owned(),
+      run: run.to_owned(),
+      chat_id: Some(room.chat_id),
+      job_id: None,
+    });
+    let held = agent_session(&db, agent).await.map_err(store_fault)?;
+    let started = Instant::now();
+    let mut asked = self.agent_run(&mut log, agent, room, context, prompt, held.clone(), began).await;
+
+    if let Err(NoAnswer::Failed(said)) = &asked
+      && held.is_some()
+      && said.contains(LOST_SESSION)
+    {
+      keep_agent_session(&db, agent, None).await.map_err(store_fault)?;
+      asked = self.agent_run(&mut log, agent, room, context, prompt, None, began).await;
+    }
+
+    let reply = match asked {
+      Ok(reply) => reply,
+      Err(NoAnswer::Overtaken) => return Ok(Came::Stopped),
+      Err(NoAnswer::Cut(reason) | NoAnswer::Failed(reason) | NoAnswer::Errored { error: reason, .. }) => {
+        let model = crate::control::tiers::resolve(&db, agent, CHAT_PROVIDER)
+          .await
+          .map(|mapping| mapping.model)
+          .unwrap_or_default();
+
+        ground.events.publish(RoadWalked::of(
+          room.chat_id,
+          run,
+          CHAT_PROVIDER,
+          &model,
+          false,
+          started,
+          &[],
+          None,
+        ));
+        log
+          .write(
+            &db,
+            Line {
+              kind: "end",
+              text: reason.clone(),
+              state: Some("failed"),
+              ..Line::default()
+            },
+          )
+          .await;
+
+        return Ok(Came::Failed(reason));
+      }
+    };
+
+    ground.events.publish(RoadWalked::of(
+      room.chat_id,
+      run,
+      &reply.mode,
+      &reply.model,
+      true,
+      started,
+      &reply.spend,
+      reply.context_ratio,
+    ));
+    self.record_usage(agent, &reply, run).await;
+    keep_agent_session(&db, agent, Some((&reply.session_id, room.chat_id)))
+      .await
+      .map_err(store_fault)?;
+    log
+      .write(
+        &db,
+        Line {
+          kind: "end",
+          text: COMPANION_RUNNER.log.answered.clone(),
+          state: Some("succeeded"),
+          ..Line::default()
+        },
+      )
+      .await;
+
+    Ok(Came::Answered(reply.text))
+  }
+
+  #[allow(clippy::too_many_arguments)]
+  async fn agent_run(
+    &self,
+    log: &mut RunLog,
+    agent: &str,
+    room: &RoomBlock,
+    context: &TurnContext,
+    prompt: &str,
+    resume: Option<String>,
+    began: i64,
+  ) -> Result<Reply, NoAnswer> {
+    let ground = self.ground();
+    let launch = ChatLaunch {
+      agent,
+      chat_id: room.chat_id,
+      room: RoomContext {
+        chat_id: room.chat_id,
+        text: room.text.clone(),
+        mark: room.mark.clone(),
+      },
+      via: context.via.as_deref(),
+      resume: resume.clone(),
+      privileged: context.privileged,
+      ping: false,
+      base_persona: context.base_persona.as_deref(),
+    };
+    let run = log.run().to_owned();
+    let composed = compose_turn(ground, &ground.machine(), &launch, prompt, &run, &context.answers, began)
+      .await
+      .map_err(|refused| NoAnswer::Failed(refused.detail))?;
+
+    log.launched(&ground.db, Some(&composed.system_path), prompt, &[]).await;
+
+    run_turn(ground, agent, CHAT_PROVIDER, &composed, resume.as_deref(), log, false, None).await
   }
 
   // What a companion's run spent is its own: its last answer written and its usage published.
@@ -670,11 +952,16 @@ impl Sessions for HerdrSessions {
     let (agent, scope) = scope_of(&turn.session);
     let row = self.checked(&agent, &scope).await?;
     let at = now_ms();
-    let run = match &scope {
-      Scope::Room(room) => {
+    let room = match &scope {
+      Scope::Room(room) => Some(room.clone()),
+      Scope::Agent => turn.context.room.as_ref().map(|room| room.chat_id.to_string()),
+      Scope::Worker => None,
+    };
+    let run = match room {
+      Some(room) => {
         fill_marks(&COMPANION_RUNNER.runs.turn, &[("chat", room.as_str()), ("at", &at.to_string())])
       }
-      _ => format!("turn:{agent}:{at}"),
+      None => format!("turn:{agent}:{at}"),
     };
 
     {
@@ -696,10 +983,10 @@ impl Sessions for HerdrSessions {
     let came = match &scope {
       Scope::Worker => self.worker_turn(&row, &run, &turn.prompt).await,
       Scope::Room(room) => match room_number(room) {
-        Ok(chat_id) => self.room_turn(&agent, chat_id, &run, &turn.prompt).await,
+        Ok(chat_id) => self.room_turn(&agent, chat_id, &run, &turn.prompt, &turn.context).await,
         Err(refused) => Err(refused),
       },
-      Scope::Agent => Err(fault(FaultKind::Refused, "a session across rooms is not carried here")),
+      Scope::Agent => self.agent_turn(&agent, &run, &turn.prompt, &turn.context).await,
     };
 
     self.going().remove(&turn.session);
@@ -741,7 +1028,31 @@ impl Sessions for HerdrSessions {
           context: None,
         })
       }
-      _ => {
+      Scope::Agent => {
+        if agent_session(&ground.db, &agent).await.map_err(store_fault)?.is_none() {
+          return Err(fault(FaultKind::Unknown, format!("{session} has not been opened")));
+        }
+
+        let model = one(
+          &ground.db,
+          r#"SELECT "last_model" FROM "agents" WHERE "name" = $1"#,
+          vec![agent.clone().into()],
+        )
+        .await
+        .map_err(|why| store_fault(why.into()))?
+        .and_then(|row| row.try_get::<Option<String>>("", "last_model").ok().flatten())
+        .unwrap_or_default();
+
+        Ok(State {
+          session: session.clone(),
+          provider: CHAT_PROVIDER.to_owned(),
+          model,
+          place,
+          generation: 1,
+          context: None,
+        })
+      }
+      Scope::Worker => {
         let Some(held) = self.latest_worker(&agent).await? else {
           return Err(fault(FaultKind::Unknown, format!("{session} has not been opened")));
         };
@@ -808,7 +1119,11 @@ impl Sessions for HerdrSessions {
         hand_over(ground, &self.places.kept.reset, &pinned.companion, chat_id, due).await;
         Ok(())
       }
-      _ => {
+      Scope::Agent => Err(fault(
+        FaultKind::Refused,
+        format!("{session} is carried past its window by its program inside its own turns"),
+      )),
+      Scope::Worker => {
         let Some(held) = self.latest_worker(&agent).await? else {
           return Err(fault(FaultKind::Unknown, format!("{session} has not been opened")));
         };
@@ -843,7 +1158,13 @@ impl Sessions for HerdrSessions {
           sessions::open_generation(&ground.db, &agent, chat_id).await.map_err(store_fault)?;
         }
       }
-      _ => {
+      Scope::Agent => {
+        if let Some(held) = agent_session(&ground.db, &agent).await.map_err(store_fault)? {
+          let_go(ground, &agent, &[held]).await;
+          keep_agent_session(&ground.db, &agent, None).await.map_err(store_fault)?;
+        }
+      }
+      Scope::Worker => {
         let place = crate::lines::place::Place::of(&ground.roots.data, &agent);
 
         place.release().await;
@@ -875,6 +1196,24 @@ impl Sessions for HerdrSessions {
         id: id_of(&agent, &scope),
         agent,
         scope,
+      });
+    }
+
+    let across = all(
+      db,
+      r#"SELECT "name" FROM "agents" WHERE "session_scope" = 'agent' AND "session_id" IS NOT NULL ORDER BY "name""#,
+      vec![],
+    )
+    .await
+    .map_err(|why| store_fault(why.into()))?;
+
+    for row in across {
+      let agent: String = row.try_get("", "name").map_err(|why| store_fault(why.into()))?;
+
+      listed.push(Session {
+        id: id_of(&agent, &Scope::Agent),
+        agent,
+        scope: Scope::Agent,
       });
     }
 

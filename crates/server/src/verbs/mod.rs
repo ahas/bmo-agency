@@ -200,13 +200,69 @@ pub async fn store_at(place: &str) -> Result<DatabaseConnection, VerbError> {
     .map_err(|why| VerbError::Refused(format!("agency's store could not be reached: {why}")))
 }
 
+// The streams of every event the services a verb's process stood published, read once the verb is done.
+static PUBLISHED: std::sync::Mutex<Vec<crate::events::WireSubscription>> =
+  std::sync::Mutex::new(Vec::new());
+
 /// The service a verb's process stands on: the store at the data root's address and the configuration the
-/// environment names.
+/// environment names. What its bus publishes is relayed to the server once the verb is done
+/// ([`relay_events`]).
 pub async fn service(data_root: &Path) -> Result<Service, VerbError> {
   let db = store(data_root).await?;
   let config = Config::read(|name| std::env::var(name).ok()).map_err(VerbError::Refused)?;
+  let service = Service::new(db, config);
 
-  Ok(Service::new(db, config))
+  PUBLISHED
+    .lock()
+    .unwrap_or_else(|poisoned| poisoned.into_inner())
+    .push(service.events.subscribe_wire(None));
+
+  Ok(service)
+}
+
+/// Every event this verb's process published told to the running server, which publishes each on its own
+/// streams (docs/api.md, 「Events」): what a verb publishes lands on its own process's bus, which no consumer
+/// reads. The verb is never failed by it; an event that did not land is said once on the error stream.
+pub async fn relay_events() {
+  let streams = std::mem::take(&mut *PUBLISHED.lock().unwrap_or_else(|poisoned| poisoned.into_inner()));
+  let mut published = vec![];
+
+  for mut stream in streams {
+    while let Some(event) = stream.ready() {
+      published.push(event);
+    }
+  }
+
+  if published.is_empty() {
+    return;
+  }
+
+  let Some(token) = control_token() else {
+    eprintln!(
+      "agency was not told of {} events this verb published — {CONTROL_TOKEN} is not set in this process",
+      published.len()
+    );
+    return;
+  };
+
+  for (at, event) in published.iter().enumerate() {
+    let body = serde_json::json!({ "kind": event.name, "body": event.body });
+    let missed =
+      match control_call(&token, reqwest::Method::POST, "/events/publish", Some(&body), TELL_WAIT).await {
+        Ok((status, _)) if (200..300).contains(&status) => None,
+        Ok((status, _)) => Some(format!("the server answered {status}")),
+        Err(why) => Some(format!("no server answered on port {} ({why})", control_port())),
+      };
+
+    if let Some(missed) = missed {
+      eprintln!(
+        "agency was not told of {} of the events this verb published, {} first — {missed}",
+        published.len() - at,
+        event.name
+      );
+      return;
+    }
+  }
 }
 
 /// The ground a verb's process stands on, on the data root it was given.

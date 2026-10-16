@@ -1496,7 +1496,9 @@ async fn remove_worker(stand: &Stand<'_>, mut said: Said, name: &str) -> Result<
     return Ok(said.refused(fault));
   }
 
-  workers::remove_worker(&stand.ground.db, name).await.map_err(archive_failed)?;
+  workers::remove_worker(&stand.ground.db, &stand.ground.events, name)
+    .await
+    .map_err(archive_failed)?;
   stand.hands.settle(name).await;
   said.line(format!("worker {name} removed"));
 

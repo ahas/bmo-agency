@@ -403,7 +403,7 @@ async fn remove(hands: &Hands, name: &str, held: Option<&Worker>) -> Result<Resp
     return Err(Refused::new(status, fault));
   }
 
-  if !workers::remove_worker(&hands.ground.db, name).await? {
+  if !workers::remove_worker(&hands.ground.db, &hands.ground.events, name).await? {
     return Err(Refused::new(StatusCode::CONFLICT, CONTROL_WORDS.workers.not_removed.as_str()));
   }
 

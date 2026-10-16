@@ -85,22 +85,46 @@ async fn a_stream_reads_the_kinds_it_names_by_name_and_json() {
   assert_eq!(
     said_only.next().await,
     Some(Named {
-      name: "said",
+      name: "said".into(),
       body: json!("hello")
     })
   );
   assert_eq!(
     every.next().await,
     Some(Named {
-      name: "ended",
+      name: "ended".into(),
       body: json!(7)
     })
   );
   assert_eq!(
     every.next().await,
     Some(Named {
-      name: "said",
+      name: "said".into(),
       body: json!("hello")
     })
   );
+}
+
+#[tokio::test]
+async fn an_event_known_by_its_name_reaches_the_streams_reading_its_kind_and_no_typed_subscriber() {
+  let bus = Bus::default();
+  let mut typed = bus.subscribe::<Said>();
+  let mut said_only = bus.subscribe_wire(Some(vec!["said".into()]));
+  let mut ended_only = bus.subscribe_wire(Some(vec!["ended".into()]));
+
+  bus.publish_named(Named {
+    name: "said".to_owned().into(),
+    body: json!("relayed"),
+  });
+
+  assert_eq!(
+    said_only.ready(),
+    Some(Named {
+      name: "said".into(),
+      body: json!("relayed")
+    })
+  );
+  assert_eq!(said_only.ready(), None);
+  assert_eq!(ended_only.ready(), None);
+  assert_eq!(typed.ready(), None);
 }

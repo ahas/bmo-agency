@@ -1,0 +1,159 @@
+# What agency's server seeds a fresh store with as it settles it (docs/store.md, 「Its seeds」), beside the ladder
+# tiers.toml declares and each profile's work key and tier work-keys.toml declares. A seed given once is not
+# given again, so what the owner changed or removed afterwards stands.
+
+# The catalogue's entries, written once as its table is made (docs/model-catalogue.md): none, since a model file
+# is a deployment's. A deployment's own entry is written here in the catalogue's own fields.
+catalogue = []
+
+# The one account a store holding none is given: the login the machine already has. Its credential is the
+# Claude Code login directory of the machine the server runs on, read where the store is settled.
+[account]
+id = "default"
+name = "Default account"
+
+# The first seed's mapping of every tier on each provider the store begins with: the model and the effort each
+# tier's work goes out on until the owner maps it otherwise. The chat agent's tier, the job worker's, the
+# editors' at Reliable, Fine a Reliable mapping told to think less, and the gates' at Light and Simple.
+[[mapping]]
+tier = "BMO"
+provider = "claude-code"
+model = "claude-opus-5"
+effort = "medium"
+
+[[mapping]]
+tier = "BMO"
+provider = "codex"
+model = "gpt-5.6-sol"
+effort = "xhigh"
+
+[[mapping]]
+tier = "BMO"
+provider = "openrouter"
+model = "google/gemma-4-31b-it:free"
+
+[[mapping]]
+tier = "Frontier"
+provider = "claude-code"
+model = "claude-opus-5"
+effort = "high"
+
+[[mapping]]
+tier = "Frontier"
+provider = "codex"
+model = "gpt-5.6-sol"
+effort = "max"
+
+[[mapping]]
+tier = "Frontier"
+provider = "openrouter"
+model = "google/gemma-4-31b-it:free"
+
+[[mapping]]
+tier = "Reliable"
+provider = "claude-code"
+model = "claude-sonnet-5"
+effort = "high"
+
+[[mapping]]
+tier = "Reliable"
+provider = "codex"
+model = "gpt-5.6-terra"
+effort = "high"
+
+[[mapping]]
+tier = "Reliable"
+provider = "openrouter"
+model = "google/gemma-4-31b-it:free"
+
+[[mapping]]
+tier = "Fine"
+provider = "claude-code"
+model = "claude-sonnet-5"
+effort = "low"
+
+[[mapping]]
+tier = "Fine"
+provider = "codex"
+model = "gpt-5.6-terra"
+effort = "low"
+
+[[mapping]]
+tier = "Fine"
+provider = "openrouter"
+model = "google/gemma-4-31b-it:free"
+
+[[mapping]]
+tier = "Light"
+provider = "claude-code"
+model = "claude-haiku-4-5-20251001"
+effort = "low"
+
+[[mapping]]
+tier = "Light"
+provider = "codex"
+model = "gpt-5.6-luna"
+effort = "low"
+
+[[mapping]]
+tier = "Light"
+provider = "openrouter"
+model = "google/gemma-4-31b-it:free"
+
+[[mapping]]
+tier = "Simple"
+provider = "claude-code"
+model = "claude-haiku-4-5-20251001"
+effort = "medium"
+
+[[mapping]]
+tier = "Simple"
+provider = "codex"
+model = "gpt-5.6-luna"
+effort = "low"
+
+[[mapping]]
+tier = "Simple"
+provider = "openrouter"
+model = "google/gemma-4-31b-it:free"
+
+# The work keys no profile declares, each with the tier it starts on: the co-worker roles and the research lines.
+[[key]]
+key = "role:builder"
+tier = "Frontier"
+
+[[key]]
+key = "role:verifier"
+tier = "Reliable"
+
+[[key]]
+key = "role:digest"
+tier = "Fine"
+
+[[key]]
+key = "role:scout"
+tier = "Light"
+
+[[key]]
+key = "role:screener"
+tier = "Light"
+
+[[key]]
+key = "search"
+tier = "Frontier"
+
+[[key]]
+key = "search:basic"
+tier = "Frontier"
+
+[[key]]
+key = "search:thorough"
+tier = "Frontier"
+
+[[key]]
+key = "search:exhaustive"
+tier = "Frontier"
+
+[[key]]
+key = "browse"
+tier = "Frontier"

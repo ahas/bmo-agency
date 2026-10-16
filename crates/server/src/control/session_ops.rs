@@ -2,9 +2,13 @@
 //! state, interrupt, fold, end and list, each answered by the backend the server stands its places on. A
 //! fault is answered with its outcome code and an English sentence saying why.
 
-use agent_session::{Delivery, Fault, FaultKind, Scope, Session, SessionId, Sessions, Start, State, Turn};
+use agent_session::{
+  Delivery, Fault, FaultKind, RoomBlock, Scope, Session, SessionId, Sessions, Start, State, Turn,
+  TurnContext,
+};
 use axum::http::{Method, StatusCode};
 use axum::response::Response;
+use serde::Deserialize;
 use serde_json::{Value, json};
 
 use super::{Call, Refused, Route, answer};
@@ -26,6 +30,56 @@ fn faulted(fault: Fault) -> Response {
   };
 
   answer(status, json!({ "code": fault.kind.code(), "error": fault.message }))
+}
+
+// A turn's context as a body names it, every part optional (docs/api.md, 「Sessions」).
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ContextRead {
+  #[serde(default)]
+  room: Option<RoomRead>,
+  #[serde(default)]
+  via: Option<String>,
+  #[serde(default)]
+  base_persona: Option<String>,
+  #[serde(default)]
+  privileged: bool,
+  #[serde(default)]
+  answers: Vec<i64>,
+  #[serde(default)]
+  began: Option<i64>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RoomRead {
+  chat_id: i64,
+  #[serde(default)]
+  text: String,
+  #[serde(default)]
+  mark: String,
+}
+
+/// The turn's context a body names, or why it does not read as one.
+pub fn context_read(body: &Value) -> Result<TurnContext, Refused> {
+  let read: ContextRead = serde_json::from_value(body.clone()).map_err(|why| {
+    Refused::new(StatusCode::BAD_REQUEST, format!("the turn's context does not read: {why}"))
+  })?;
+  let named =
+    |value: Option<String>| value.map(|value| value.trim().to_owned()).filter(|value| !value.is_empty());
+
+  Ok(TurnContext {
+    room: read.room.map(|room| RoomBlock {
+      chat_id: room.chat_id,
+      text: room.text,
+      mark: room.mark,
+    }),
+    via: named(read.via),
+    base_persona: named(read.base_persona),
+    privileged: read.privileged,
+    answers: read.answers,
+    began: read.began,
+  })
 }
 
 fn scope_value(scope: &Scope) -> Value {
@@ -117,6 +171,7 @@ impl Route for SessionTurn {
     let turn = Turn {
       session: SessionId(text(&body, "session")?.to_owned()),
       prompt: text(&body, "prompt")?.to_owned(),
+      context: context_read(&body)?,
     };
 
     Ok(match backend(&call)?.send_turn(turn).await {

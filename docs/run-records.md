@@ -38,6 +38,19 @@ about a message is not agency's: the judgement records belong to the units that 
 - **A room forgotten takes its lines with it,** but a job's: a job's turns are logged under its room
   and belong to the job, which outlives the room (`docs/api.md`, 「Sessions」, forgetting a room).
 
+## The roads a turn walked
+
+- **Each turn the session contract carries on a conversational agent's line walked one road:** the
+  provider and model it went out on, how it ended, how long it held the run and what it spent. The road
+  records are the gate unit's table, so agency writes none of them: it publishes each road as
+  `road-walked` as the turn ends (`docs/api.md`, 「Events」), and the unit that keeps the road records
+  writes the line.
+- **What a road carries:** its stage, `chat`, the stage a conversational turn's run is written down at
+  (`policy/companion-runner.toml`), the room, the run, the provider and the model, its outcome, `answered`
+  or `error`, how long it held the run in milliseconds, its tokens summed over the models that answered,
+  none where the road reported none, and how full the session's context window stood once it ended.
+- **A turn a reset overtook walked no road,** and none is published for it.
+
 ## What a failed run leaves behind
 
 - A run that died says why on its last lines, and everything above them is the program starting up —

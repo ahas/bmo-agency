@@ -31,6 +31,7 @@ mod rest;
 mod roles;
 mod run_lines;
 mod run_stop;
+mod seeds;
 mod span_words;
 mod tiers;
 mod verb_words;

@@ -300,8 +300,9 @@ pub async fn update_worker(
   Ok(run(db, &sql, values).await? > 0)
 }
 
-/// A worker the owner added, taken away with its sessions; the built-in never is.
-pub async fn remove_worker(db: &DatabaseConnection, name: &str) -> Result<bool, Refusal> {
+/// A worker the owner added, taken away with its sessions, and `worker-removed` published so what it was
+/// lent goes too; the built-in never is. Whether there was one.
+pub async fn remove_worker(db: &DatabaseConnection, events: &Bus, name: &str) -> Result<bool, Refusal> {
   let unit = db.begin().await?;
   let gone = run(
     &unit,
@@ -316,6 +317,12 @@ pub async fn remove_worker(db: &DatabaseConnection, name: &str) -> Result<bool, 
   }
 
   unit.commit().await?;
+
+  if gone {
+    events.publish(WorkerRemoved {
+      worker: name.to_owned(),
+    });
+  }
 
   Ok(gone)
 }

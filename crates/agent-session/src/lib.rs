@@ -47,11 +47,38 @@ pub struct Session {
   pub scope: Scope,
 }
 
-/// One turn: the session it goes into and its prompt alone, since the session keeps the conversation.
+/// One turn: the session it goes into, its prompt, and the context its caller composed around it; the
+/// session keeps the conversation.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Turn {
   pub session: SessionId,
   pub prompt: String,
+  pub context: TurnContext,
+}
+
+/// A room's block as the caller composed it for a turn: the room it is, its text, and the mark the turn's
+/// answer carries.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RoomBlock {
+  pub chat_id: i64,
+  pub text: String,
+  pub mark: String,
+}
+
+/// What the caller composed around a turn's prompt, every part of it optional: the room it answers, which a
+/// session across rooms needs; the road it answers on where that is not the room's own; the persona that
+/// follows the line's system prompt; whether every new message it answers is the owner's or no person's
+/// message opened it; the messages it answers; and the moment it took its words, in epoch milliseconds,
+/// which is the moment it is sent where none is named. A backend carries each part as the line declares
+/// and judges none of it.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct TurnContext {
+  pub room: Option<RoomBlock>,
+  pub via: Option<String>,
+  pub base_persona: Option<String>,
+  pub privileged: bool,
+  pub answers: Vec<i64>,
+  pub began: Option<i64>,
 }
 
 /// What became of a turn sent. Its lifecycle after it is taken is published as events, not answered

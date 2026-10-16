@@ -70,6 +70,15 @@ seeds. The other crates and the server reach the store only through it.
 
 - **The values are the deployment's,** handed to the settling by whoever settles the store; the store
   names none of them and supplies only when each is written.
+- **Agency's server settles the store as it starts** with the values agency's policy declares
+  (`docs/policy.md`): the account `policy/seeds.toml` names, its credential the Claude Code login
+  directory of the machine the server runs on — `CLAUDE_CONFIG_DIR`, else `.claude` under the home
+  folder; the ladder `policy/tiers.toml` declares; the first seed's mapping of every tier on Claude Code,
+  Codex and OpenRouter, and the work keys beyond the profiles with the tier each starts on, both in
+  `policy/seeds.toml`; every profile's work key at the tier `policy/work-keys.toml` gives it; and the
+  catalogue entries `policy/seeds.toml` declares, of which the repository's own declares none, since a
+  model file is a deployment's. No provider is declared after the first seed: the registry's provider is
+  given its mappings by the owner.
 - **The settling** runs the migrations and then writes every seed in one transaction.
 - **The account:** a store holding no account is given the one the seed names, the login the machine
   already has; a list the owner has written to is left alone.

@@ -28,7 +28,7 @@ judges none of it.
 ## Versioning
 
 - **The contract carries the repository's one version, in semver.** The version in the workspace
-  manifest is this boundary's version; the current line is `0.16.0`.
+  manifest is this boundary's version; the current line is `0.17.0`.
 - **A change to this document and a change to the boundary go in one commit.** A change that makes a
   route, an event, a hook or a shared table's contract different repairs this document in the same
   commit, stating what is true now.
@@ -74,6 +74,7 @@ judges none of it.
 | POST | `/rooms/forget` | a room's rows forgotten, or counted | 「Sessions」 |
 | POST | `/documents/reload` | documents a session relies on, moved | 「Sessions」 |
 | GET | `/events` | the stream of agency's events | 「Events」 |
+| POST | `/events/publish` | an event a verb's own process published, published on the server's streams | 「Events」 |
 | GET, POST | `/hooks` | the points a consumer registers at, and a registration | 「Hooks」 |
 | POST | `/hooks/remove` | a registration taken away | 「Hooks」 |
 | POST | `/typed-line` | a typed line's composition, as the submit hook asks it | 「Hooks」 |
@@ -98,9 +99,13 @@ judges none of it.
 - **An agent is a place agency stands and controls.** A consumer names an agent by its stable name;
   agency holds where it stands — the herdr it is in and the node, if any — its one standing pane, and
   its lifecycle (`docs/agent-control.md`, `docs/agents.md`).
-- **The routes** register an agent and its home, stand and retire its place, read its place's state,
-  and list the agents and their panes. A place's home is read and used together with the agent, since a
-  remote agent's pane and ids are its node's (`docs/work-nodes.md`, 「The bot's side of a remote
+- **The routes** list the agents with their places and panes (`GET /agents`), and change what an agent's
+  row holds: its gates, its reasoning, its role, a worker's sampling, its base prompt, a companion's
+  settings, and a worker added, changed, placed or stood again (「Workers」). An agent's place is
+  agency's own to stand and retire: the server stands every agent's place as it starts and again as a
+  change asks for it, and takes it down as the agent goes (`docs/agent-control.md`, 「One standing pane per
+  agent」), so no route stands or retires one. A place's home is read and used together with the agent,
+  since a remote agent's pane and ids are its node's (`docs/work-nodes.md`, 「The bot's side of a remote
   agent」).
 - **An agent's role** is the tools and the policy its runs are shown, named by the consumer and
   resolved by agency (`docs/agent-roles.md`). The role a co-worker place holds is agency's policy's
@@ -118,8 +123,8 @@ judges none of it.
 - **Usage is filed under the agent that spent it,** never added to another's; a run names the agent it
   belongs to and the run it came from (`docs/agent-ownership.md`). A consumer reads an agent's usage
   across the usage boundary described there.
-- **The event** agency publishes for an agent is its place standing, its pane changing, and its
-  retirement.
+- **No event is published for an agent's place;** a consumer showing the places reads `GET /agents`
+  again, and `nodes-moved` tells it when the nodes under them move (「Events」 below).
 
 ## Sessions
 
@@ -130,33 +135,49 @@ judges none of it.
 - **What each operation takes and answers:**
   - *start* takes the agent's stable name and the scope, and answers the session — its id, its agent
     and its scope — the one already kept for that scope where there is one;
-  - *send a turn* takes the session's id and the prompt, and answers whether the program took the
-    words or refused them while it waits on a person, which is not a failure;
+  - *send a turn* takes the session's id, the prompt and the turn's context (below), and answers whether
+    the program took the words or refused them while it waits on a person, which is not a failure;
   - *read state* takes the session's id and answers its state (below);
   - *interrupt*, *fold* and *end* take the session's id and answer nothing but their success;
   - *list* answers every session the backend keeps, each as *start* answers one.
   - An operation not carried out answers a fault with its outcome code — `unknown-session`,
     `session-busy`, `backend-unreachable` or `backend-refused` — and an English sentence saying why.
+- **A turn's context** is what the caller composed around the prompt and hands in with it, every part of
+  it optional: `room`, the room the turn answers — its `chatId`, its block's `text` and the `mark` its
+  answer carries — which a session across rooms needs and a room's session reads as its own; `via`, the
+  road the turn answers its room on where that is not the room's own; `basePersona`, the persona that
+  follows the chat line's system prompt where the caller keeps one; `privileged`, whether every new
+  message the turn answers is the owner's or no person's message opened it; `answers`, the ids of the
+  messages it answers; and `began`, the moment it took its words, in epoch milliseconds, which a reset
+  begun after it overtakes and which is the moment the turn is sent where none is named. Agency carries
+  each part to the program as its line declares and judges none of it: the prompt and the context are the
+  caller's turn assembly (「Hooks」 below).
 - **The routes and the herdr backend.** herdr's backend knows a session by its agent and its scope:
-  `<agent>@worker` for a worker's, `<agent>@<room>` for a companion's in one room. A session across rooms
-  goes on the chat line, whose room context its caller composes, and this backend refuses one.
+  `<agent>@worker` for a worker's, `<agent>@<room>` for a companion's in one room, and `<agent>` for a
+  session across rooms, which only an agent whose row keeps its session at the `agent` scope holds.
   - `POST /session/start` takes `agent` and `scope` — `{ "kind": "worker" }`, `{ "kind": "room", "room":
     <id> }` or `{ "kind": "agent" }` — and answers `id`, `agent` and `scope`.
-  - `POST /session/turn` takes `session` and `prompt`, carries the turn until it ends, and answers
-    `delivery`, `taken` or `blocked`. A worker's turn goes on its session on the model it answered on
-    last, under a login that answers now; a companion's on its room's session, on its pinned provider and
-    model, with the system prompt its settings compose, a lost harness session asked again once on a fresh
-    one, and a handoff begun where the turn's context reached the mark (`docs/companions.md`).
+  - `POST /session/turn` takes `session`, `prompt` and the context's parts by the names above, carries
+    the turn until it ends, and answers `delivery`, `taken` or `blocked`. A worker's turn goes on its
+    session on the model it answered on last, under a login that answers now. A companion's goes on its
+    room's session, on its pinned provider and model, with the system prompt its settings compose, a lost
+    harness session asked again once on a fresh one, and a handoff begun where the turn's context reached
+    the mark (`docs/companions.md`). A turn across rooms goes on the chat line: on Claude Code, on the
+    model and effort its tier maps to, with the chat line's system prompt and the base persona the turn
+    names, its room named in the turn's variables, on the one session its agent's row keeps across rooms
+    (`docs/agents.md`, 「The session's scope」); a turn across rooms that names no room is refused.
   - `GET /session/state?session=<id>` answers `session`, `provider`, `model`, `place`, `generation` and
     `context`.
   - `POST /session/interrupt`, `POST /session/fold` and `POST /session/end` take `session` and answer
-    `ok`. An interrupt with no turn going cuts nothing; a fold or an end refuses a session in a turn.
+    `ok`. An interrupt with no turn going cuts nothing; a fold or an end refuses a session in a turn. A
+    fold asked of a session across rooms is refused, since its program carries it past its window inside
+    its own turns; its end lets the program go and the session its row kept with it.
   - `GET /session/list` answers `sessions`, each as a start answers one.
   - A fault is answered with its outcome code and `error`: `unknown-session` under 404,
     `session-busy` under 409, `backend-unreachable` under 503 and `backend-refused` under 422.
-- **A turn is sent with its prompt alone;** the session keeps the conversation, and agency computes
-  only what is new (`docs/sessions.md`, `docs/agents.md`, 「The session's scope」). What the prompt
-  carries is the consumer's, composed above this boundary (「Hooks」 below).
+- **A turn is sent with its prompt and its context;** the session keeps the conversation, and agency
+  computes only what is new (`docs/sessions.md`, `docs/agents.md`, 「The session's scope」). What the
+  prompt and its context carry is the consumer's, composed above this boundary.
 - **A session's scope** — one session, a room's session, a worker's session — is the consumer's
   declaration; agency keeps one harness session per scope and resumes, folds or hands it over as the
   scope's provider declares (`docs/agents.md`, 「What a provider declares for a conversation」).
@@ -182,7 +203,7 @@ judges none of it.
   and publishes them as `documents-moved` for the consumer that holds the rooms; agency tells no session
   itself (`docs/sessions.md`, 「Document reload」). The brain calls it for its own documents and
   `bmo-agency reload` for the files it is given.
-- **The events** are the turn's lifecycle (「Events」 below).
+- **The events** are the turn's lifecycle and the road it walked (「Events」 below).
 
 ## Events
 
@@ -197,18 +218,29 @@ judges none of it.
   A consumer reads them to show a turn and to wake what a turn's end should wake; agency waits on no
   reader.
 - **An event no consumer subscribed to** is published to nobody, and nothing else of the turn changes.
-- **A run's log lines** are published as the run writes them, so a consumer shows a long turn as it
-  goes rather than as a silence (`docs/agent-control.md`, 「A job gone quiet」).
-- **A node's state** is published as it changes — ready, dropped, come back, its load and pressure
-  (`docs/work-nodes.md`, 「When a node drops」, 「In herdr」). `nodes-moved` is published, carrying
-  nothing, when the node list's shape moves under the places — a node added, removed, renamed,
-  relabelled, reordered or changing state — so a consumer showing the nodes reads them again.
-- **The gateway's settling** is published as a new table starts serving and an old one drains
+- **A run's log lines are read, not published:** a consumer showing a long turn as it goes reads
+  `GET /run-log` from the last id it read onward (「Run log and run records」 below).
+- **A node's state is the node service's** (「Calls agency makes」 below). `nodes-moved` is published,
+  carrying nothing, when the node list's shape moves under the places — a node added, removed, renamed,
+  relabelled, reordered or changing state — so a consumer showing the nodes reads them again
+  (`docs/work-nodes.md`, 「When a node drops」, 「In herdr」).
+- **The gateway's settling is said in its own log,** not published: the gateway is a process of its own
+  beside the server, and a consumer reads the registry's state through the registry's route
   (`docs/own-llm.md`, 「The gateway」).
-- **The pool's grants and releases** are published for a consumer that shows the pool's state
-  (`docs/coworker-pool.md`).
-- **A session's system-prompt change** is published as the turn that sent a changed prompt records it
-  (`docs/companions.md`, 「The session」).
+- **The pool's state is read, not published:** a consumer showing it reads `GET /coworker-pool`, what
+  holds each place now (`docs/coworker-pool.md`).
+- **A session's system-prompt change**, `system-prompt-changed`, is published as the turn that sent a
+  changed prompt records it: the `session` and the `run` (`docs/companions.md`, 「The session」).
+- **A road a turn walked**, `road-walked`, is published once for each turn the session contract carries
+  on a conversational agent's line, for the unit that keeps the road records: the `stage` (`chat`), the
+  `chatId`, the `run`, the `provider` and `model` it went out on, its `outcome`
+  (`answered` or `error`), `ms`, how long it held the run, its `inputTokens`, `outputTokens`,
+  `cacheReadTokens` and `cacheWriteTokens` summed over the models that answered (each null where the
+  road reported none), and its `contextRatio` (or null) (`docs/run-records.md`, 「The roads a turn
+  walked」).
+- **An account becoming unusable** is told by `account-login-notice` for its login and by
+  `deployment-resting` where it was the last login that answered (below); nothing else is published for
+  it.
 - **A fallback answering**, `fallback-answering`, is published once for each move of the rooms onto a
   stand-in: when a substitute first answers while Claude Code's road is closed, and when it later drops
   to another. It carries the owner (`ownerId`), the substitute that answered before where a fallback
@@ -243,6 +275,10 @@ judges none of it.
   consumer's.
 - **A worker removed**, `worker-removed`, names the `worker` whose row and sessions went, so a consumer
   lets go what it lent it.
+- **An event a verb's own process published** reaches the server's streams too: `bmo-agency`, before it
+  ends, posts each event its process published to `POST /events/publish` — the event's `kind` and its
+  `body` — and the server publishes it to every stream reading that kind as it stands. A word that did not
+  land is said once on the verb's error stream, and the verb is never failed by it.
 - **A login's end told**, `account-login-notice`, is published once for each ending the logins' watch
   finds: the `account`, which `login` it is (`here`, its login on this machine, or `node-token`, its token
   for the work nodes), how it `stands` (`gone`, `ending` or `missing`), `leftMs` (or null), and `notice`, the
@@ -287,17 +323,16 @@ Each hook has a default that does nothing, so agency runs with none registered.
   `cowork-places`, `session-summariser`, `typed-line` and `road-verbs`; a registration lasts as long as
   the server's process.
 
-- **Turn assembly.** Before a turn is sent, agency calls the consumer to compose what the turn carries
-  — the prompt, and the material it chose to stand at its head. Agency reads none of it and hands it to
-  the harness as it stands (`docs/sessions.md`). The default sends the turn's words alone.
-- **Reference selection.** A consumer chooses what a turn is given beside its words; agency attaches
-  what the hook returns. The default attaches nothing.
-- **Permission and rule judgement.** A consumer judges whether a run may take an action its harness
-  asks to confirm; agency carries the judgement to the harness (`docs/agent-control.md`, 「Confirming」).
-  The default confirms nothing and leaves the harness's own policy to stand.
-- **Output check.** Before a sent answer leaves, a consumer reads it — a sanitiser, a repeat check —
-  and agency sends what the hook hands back (`docs/companions.md`, 「What a turn shows」). The default
-  sends the answer as it was written.
+- **Turn assembly and reference selection are no hook:** the caller composes the prompt and the turn's
+  context — the material it chose to stand at the turn's head among them — and hands them in with the
+  turn (「Sessions」 above). Agency reads none of it and hands it to the harness as it stands
+  (`docs/sessions.md`).
+- **Permission and rule judgement are no hook:** a question a program puts to a person in the middle of
+  a turn is answered by agency's own reading of the screen where its line allows that, and is otherwise
+  left standing for a person (`docs/agent-control.md`, 「A confirmation in the middle of a turn」).
+- **The output check is no hook:** agency sends nothing to a room. A turn's answer is published as
+  `turn-ended` (「Events」 above), and whatever a consumer checks of it before it leaves is the
+  consumer's (`docs/companions.md`, 「What a turn shows」).
 - **The submit hook**, `typed-line`. A line a person types into an agent's pane is composed by the
   consumer that owns the agent, not by agency or the gateway (`docs/own-llm.md`, 「Claude Code in the
   pane」). The pane's submit hook asks `POST /typed-line` with the `text` and the `sessionId`; agency asks
@@ -308,13 +343,13 @@ Each hook has a default that does nothing, so agency runs with none registered.
   holds the rooms answers. `GET /road-verbs` takes the `chat` and, where the turn names one, the `via`
   road; agency asks the point with both and answers `can`, the verbs. The default answers none, and a
   procedure read in a room keeps none of its marked parts.
-- **The conversation limits.** A provider declares the limits a conversational turn is watched against;
-  a consumer registers what counts as a turn going nowhere, and agency cuts the turn at the first
+- **The conversation limits are no hook:** a provider declares whether a conversational turn is watched,
+  and agency's policy holds the limits it is watched against and cuts the turn at the first it crosses
   (`docs/companions.md`, 「A turn that goes nowhere」, `docs/agents.md`, 「What a provider declares for a
-  conversation」). The default watches nothing.
-- **The owner's end, for a reservation.** A reserver registers what proves its owner ended; agency's
-  pool releases a reservation only on that proof (`docs/coworker-pool.md`, 「Reserving places and
-  keepalive」). The default never releases for time passing.
+  conversation」).
+- **The owner's end, for a reservation, is no hook:** each owner releases its own reservation, and the
+  pool releases a native one once the CLI process that set it is gone, never for time passing
+  (`docs/coworker-pool.md`, 「Reserving places and keepalive」).
 - **The co-work places, for a reservation.** The consumer whose co-work reserves answers, for a
   reservation's owner, the checkout its order works in and the places its tasks sit in now, each the
   checkout and the place's number; agency warms that pool's standing checkouts and counts those places

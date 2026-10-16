@@ -5,6 +5,7 @@
 //! its JSON, from a stream of the kinds it names (docs/api.md, 「Events」).
 
 use std::any::{Any, TypeId};
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard};
 
@@ -20,7 +21,7 @@ type Senders = Vec<Box<dyn Any + Send>>;
 /// One event as a consumer across the boundary reads it: its kind's name and its JSON.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Named {
-  pub name: &'static str,
+  pub name: Cow<'static, str>,
   pub body: serde_json::Value,
 }
 
@@ -70,6 +71,11 @@ impl WireSubscription {
   /// The next event, waiting for one; none once the bus is gone.
   pub async fn next(&mut self) -> Option<Named> {
     self.events.recv().await
+  }
+
+  /// The next event where one is waiting, without waiting for one.
+  pub fn ready(&mut self) -> Option<Named> {
+    self.events.try_recv().ok()
   }
 
   /// The stream itself, for a reader that takes it as a stream.
@@ -124,21 +130,34 @@ impl Bus {
 
   // The event handed, as its JSON, to every stream reading its kind; serialised only where one does.
   fn publish_wire<E: Event>(&self, event: &E) {
-    let mut wires = self.wires.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
-
-    wires.retain(|wire| !wire.sender.is_closed());
-
-    if !wires.iter().any(|wire| wire.reads(E::NAME)) {
+    if !self.read(E::NAME) {
       return;
     }
 
-    let Ok(body) = serde_json::to_value(event) else { return };
-
-    for wire in wires.iter().filter(|wire| wire.reads(E::NAME)) {
-      let _ = wire.sender.send(Named {
-        name: E::NAME,
-        body: body.clone(),
+    if let Ok(body) = serde_json::to_value(event) {
+      self.publish_named(Named {
+        name: Cow::Borrowed(E::NAME),
+        body,
       });
+    }
+  }
+
+  // Whether a stream standing reads a kind; the streams let go since are dropped here.
+  fn read(&self, name: &str) -> bool {
+    let mut wires = self.wires.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+
+    wires.retain(|wire| !wire.sender.is_closed());
+    wires.iter().any(|wire| wire.reads(name))
+  }
+
+  /// An event known by its name and its JSON handed to every stream reading its kind, as an event another
+  /// process of agency's published reaches this one's streams (docs/api.md, 「Events」). Only the streams
+  /// read it: no subscriber of a kind's own type does.
+  pub fn publish_named(&self, event: Named) {
+    let wires = self.wires.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+
+    for wire in wires.iter().filter(|wire| wire.reads(&event.name)) {
+      let _ = wire.sender.send(event.clone());
     }
   }
 
