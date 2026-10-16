@@ -15,7 +15,9 @@ use sha2::{Digest, Sha256};
 use super::record::ChildEvidence;
 use crate::queue::running::EXECUTION_CANCEL_PREFIX;
 use crate::queue::settings;
-use crate::{Refusal, all, now_ms, one, run};
+use store::{all, one, run};
+
+use crate::{Refusal, now_ms};
 
 /// The envelope's file, beside the supervised path's under the same executions root.
 pub const ENVELOPE: &str = "collector.json";
@@ -405,10 +407,10 @@ impl Children {
   }
 }
 
-// A child's row: its parent's, under an id of its own made of the parent's and the provider's word for
-// the child, which is opaque data and never a path. A child of a pane turn has no pane of its own to be
-// absent from, so the evidence that ends it is its parent's ending and never a pane's.
-fn native_child(parent: &Row, native: &str) -> Row {
+/// A child's row: its parent's, under an id of its own made of the parent's and the provider's word for
+/// the child, which is opaque data and never a path. A child of a pane turn has no pane of its own to be
+/// absent from, so the evidence that ends it is its parent's ending and never a pane's.
+pub fn native_child(parent: &Row, native: &str) -> Row {
   let mut body = parent.body.clone();
   let named = json!([parent.id(), parent.text("provider"), native]).to_string();
   let digest = format!("{:x}", Sha256::digest(named.as_bytes()));

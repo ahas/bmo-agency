@@ -48,6 +48,8 @@ impl HookPoint for Summariser {
   }
 }
 
+crate::wired!(Summariser);
+
 /// The note the closed session leaves, as the summariser words it, or none where it answers none: an
 /// empty note is no note.
 pub async fn handover(hooks: &Hooks, closed: Closed) -> Option<String> {

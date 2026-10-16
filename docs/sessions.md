@@ -37,19 +37,26 @@ session on the owner's ask is `docs/session-resets.md`.
   context block instead; changes are picked up on the next turn without invalidating the common
   prefix or waking the session. Agency remembers the last successfully applied room context per
   provider session in its store (`room_sessions`). See `unified-bmo.md`.
-- Which chats a file concerns follows from its place (agency's reload verb): a knowledge chunk the
-  chat its index line is scoped to, or every chat when it is `[shared]`; a person document every
-  chat that person has spoken in; the base persona, a tone layer and the lore every chat.
-- A chat is told at most once an hour: the first change goes out at once, and what changes during
-  the hour after it gathers in the archive (`reload_pending`) and goes out as one instruction naming
-  every file, when the hour is up, on the instruction scheduler's next tick.
-- Only chats that already hold a session are told — a chat without one has no memory to go stale.
-- Who queues them follows from where the document lives. A brain document is runtime data: the
-  digest queues its own, from a before-and-after snapshot of the document directories, whenever a
-  run succeeds, and work that edits one by hand runs `bmo-agency reload --path <file> [--path <file>...]`
-  afterwards, which does the same for the files it names; with `--now` it skips the
-  hour, so the notice rides the very next round of every chat concerned, carrying along whatever was
-  waiting for that chat.
+- **Agency names what moved; the consumer holding the rooms tells them.** Agency's reload verb sorts
+  the files it is given by their place:
+  - a document that is part of a chat session's system prompt marks every awake conversational
+    agent's prompt as moved (`prompt_changed_at`, one `prefix_moves` row per file), and is not
+    announced;
+  - a document a chat turn carries is neither marked nor announced: the next turn carries its text;
+  - every other document is handed to the running server (`POST /documents/reload`), which publishes
+    `documents-moved` with the paths and whether the notice is due at once (`docs/api.md`);
+  - a file under `prompts/rules/` or `prompts/agents/` first has the agents' documents written again
+    by the prompt-composing entry (`docs/agent-documents.md`);
+  - a file a worker's prefix is built from is answered with the advice to fold the worker sessions,
+    since a worker reads its prefix only when a session opens.
+- Which chats a file concerns, the hour a chat is told at most once in, and the gathering of what
+  changes within that hour are the consumer's: it holds the rooms, their people and the queued
+  instructions. It hears `documents-moved` and tells only chats that already hold a session — a chat
+  without one has no memory to go stale.
+- Who reloads follows from where the document lives. A brain document is runtime data: the brain
+  calls `POST /documents/reload` for its own changes whenever a run succeeds, and work that edits one
+  by hand runs `bmo-agency reload --path <file> [--path <file>...]` afterwards; with `--now` the
+  notice is due at once rather than after the hour.
 - A document that ships with the code — the lore, a persona layer, a rulebook, an agent document —
   is read out of the deploy tree, so it is told by the deployment that puts it live, through the
   deploy tree's own reload; the same command run from a checkout refuses such a document

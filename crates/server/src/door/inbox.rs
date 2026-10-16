@@ -22,8 +22,8 @@ use crate::now_ms;
 use crate::places::Ground;
 
 const RUN_NAME: &str = "BMO_RUN_NAME";
-// The gateway address a turn's tap stands at, which travels with the turn rather than the loop.
-const LOCAL_URL: &str = "BMO_DSH_LOCAL_URL";
+/// The gateway address a turn's tap stands at, which travels with the turn rather than the loop.
+pub const LOCAL_URL: &str = "BMO_DSH_LOCAL_URL";
 
 /// The record the loop keeps in its agent's place.
 pub fn record_path(place: &Path) -> PathBuf {
@@ -37,7 +37,7 @@ fn inbox_dir(place: &Path) -> PathBuf {
 /// Whether a variable belongs to one turn rather than to the loop: the gateway address its tap stands
 /// at, and the run's own variables. They travel with the turn through the inbox, so the loop's own
 /// command — and so its identity — stays the same from one turn to the next.
-fn is_loop_turn_variable(name: &str) -> bool {
+pub fn is_loop_turn_variable(name: &str) -> bool {
   name == LOCAL_URL || is_turn_variable(name)
 }
 
@@ -46,9 +46,9 @@ pub fn read_record(place: &Path) -> Vec<Value> {
   record_of(place).1
 }
 
-// The lines of the loop's record as it wrote them and as they read, each one it has ended: what follows the
-// last newline is a line still being written, left for the next look.
-fn record_of(place: &Path) -> (Vec<String>, Vec<Value>) {
+/// The lines of the loop's record as it wrote them and as they read, each one it has ended: what follows
+/// the last newline is a line still being written, left for the next look.
+pub fn record_of(place: &Path) -> (Vec<String>, Vec<Value>) {
   let text = std::fs::read_to_string(record_path(place)).unwrap_or_default();
   let mut lines: Vec<&str> = text.split('\n').collect();
 
@@ -65,7 +65,7 @@ fn kind(record: &Value) -> Option<&str> {
 }
 
 /// Where the lines of the record that belong to one turn stand: from its start to the next turn's start.
-fn span_of(records: &[Value], id: &str) -> Option<Range<usize>> {
+pub fn span_of(records: &[Value], id: &str) -> Option<Range<usize>> {
   let start = records.iter().position(|record| {
     kind(record) == Some("start") && record.get("id").and_then(Value::as_str) == Some(id)
   })?;
@@ -75,7 +75,7 @@ fn span_of(records: &[Value], id: &str) -> Option<Range<usize>> {
 }
 
 /// The lines of the record that belong to one turn.
-fn lines_of<'a>(records: &'a [Value], id: &str) -> Option<&'a [Value]> {
+pub fn lines_of<'a>(records: &'a [Value], id: &str) -> Option<&'a [Value]> {
   span_of(records, id).map(|span| &records[span])
 }
 

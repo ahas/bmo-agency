@@ -26,7 +26,9 @@ seeds. The other crates and the server reach the store only through it.
     seven `model_tier_` tables, `assignments`, `backfilled`, `conflicts`, `legacy`, `mappings`, `meta`
     and `seeded`;
   - the work nodes: `node_workplaces`, `node_rotation`, `node_assignments`, `node_hubs`;
-  - the live Claude guard: `live_claude_openings`, `live_claude_runs`;
+  - the live Claude guard: `live_claude_openings`, `live_claude_runs`; an opening is kept under the run
+    it was opened for, `run`, and carries its job and item only where a caller names them, since a
+    job's rows are the job unit's (`docs/live-claude-guard.md`);
   - the moves of the cache prefix: `prefix_moves`;
   - the run records: `run_records`;
   - the companions' sessions and settings: `room_sessions`, `room_session_turns`, `room_windows`,

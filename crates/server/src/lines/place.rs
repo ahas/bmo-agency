@@ -25,7 +25,7 @@ pub const PLACE_VARIABLE: &str = "BMO_AGENT_PLACE";
 
 /// The verbs' binary a place's status line and hooks call, from a tree's root, and the verb they call it
 /// with.
-pub const STATUS_BINARY: &str = "bin/bmo";
+pub const STATUS_BINARY: &str = "bin/bmo-agency";
 pub const STATUS_VERB: &str = "agent-status";
 /// The kind of call the verb is told it answers where it guards a shell command.
 pub const SHELL_KIND: &str = "shell";

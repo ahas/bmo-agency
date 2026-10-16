@@ -58,8 +58,8 @@ pub async fn route_row(db: &DatabaseConnection, key: &str) -> Result<Option<Rout
   }))
 }
 
-// The road a key takes where the owner wrote none.
-fn default_mode(key: &str) -> &str {
+/// The road a key takes where the owner wrote none.
+pub fn default_mode(key: &str) -> &str {
   profile(key).map_or(AUTO, |profile| profile.default_route_mode.as_str())
 }
 

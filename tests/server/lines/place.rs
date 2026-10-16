@@ -39,7 +39,7 @@ fn a_guard_the_place_s_verb_stands_is_the_program_s_and_another_hook_is_not() {
 
   std::fs::write(&settings, hook("bmo job guard")).unwrap();
   assert_eq!(command_digest(&command), bare);
-  std::fs::write(&settings, hook(&format!("bin/bmo {STATUS_VERB} shell --place p"))).unwrap();
+  std::fs::write(&settings, hook(&format!("bin/bmo-agency {STATUS_VERB} shell --place p"))).unwrap();
   assert_ne!(command_digest(&command), bare);
 }
 
@@ -106,13 +106,13 @@ fn a_places_settings_keep_the_lines_own_hooks_and_add_the_status_line_and_the_fo
   assert_eq!(stop[0]["hooks"][0]["command"], "own");
   assert_eq!(
     stop[1]["hooks"][0]["command"],
-    format!("'/deploy/bin/bmo' 'agent-status' 'stop' '--place' '{}' '--hold-tasks'", place.display())
+    format!("'/deploy/bin/bmo-agency' 'agent-status' 'stop' '--place' '{}' '--hold-tasks'", place.display())
   );
   assert!(settings["statusLine"]["command"].as_str().unwrap().contains("'status'"));
   assert_eq!(settings["hooks"]["SessionStart"].as_array().unwrap().len(), 1);
   assert_eq!(
     settings["hooks"]["StopFailure"][0]["hooks"][0]["command"],
-    format!("'/deploy/bin/bmo' 'agent-status' 'failure' '--place' '{}'", place.display())
+    format!("'/deploy/bin/bmo-agency' 'agent-status' 'failure' '--place' '{}'", place.display())
   );
   assert!(settings["hooks"].get("PreToolUse").is_none());
 }
@@ -137,6 +137,6 @@ fn a_place_whose_line_guards_its_shell_reads_every_bash_call_first() {
   assert_eq!(guard["matcher"], "Bash");
   assert_eq!(
     guard["hooks"][0]["command"],
-    format!("'/deploy/bin/bmo' 'agent-status' 'shell' '--place' '{}'", place.display())
+    format!("'/deploy/bin/bmo-agency' 'agent-status' 'shell' '--place' '{}'", place.display())
   );
 }

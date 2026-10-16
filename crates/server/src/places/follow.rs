@@ -33,6 +33,8 @@ impl HookPoint for RoomTitle {
   }
 }
 
+crate::wired!(RoomTitle);
+
 /// The turns that keep two passes over one agent's follow panes from running at once, for as long as the
 /// process stands.
 #[derive(Default)]
@@ -76,8 +78,8 @@ pub fn follow_verb(binary: &str, chat_id: i64, agent: &str, version: &str) -> Ve
 /// The tabs an agent's room sessions want, one per session in the order of their rooms, each named by
 /// its room's title.
 async fn tabs(ground: &Ground, agent: &str) -> Result<Vec<(String, Launch)>, Refusal> {
-  // A pane started from an older binary keeps running the code it started with, so a pane whose version word
-  // differs is replaced.
+  // A pane started from an older binary keeps running the code it started with, so a pane whose version
+  // word differs is replaced.
   let version = binary_version(ground);
   let root = ground.code_root();
   let binary = root.join("bin").join(VERBS_BINARY).to_string_lossy().into_owned();
@@ -127,8 +129,8 @@ pub async fn stand(ground: &Ground, turns: &FollowTurns, row: &AgentRow) -> Resu
     .map_err(|fault| format!("herdr refused ({fault})"))
 }
 
-/// One agent's follow panes stood as a session of its opens; nothing here throws, since a herdr that cannot be
-/// reached costs the panes and never the turn that asked for them.
+/// One agent's follow panes stood as a session of its opens; nothing here throws, since a herdr that cannot
+/// be reached costs the panes and never the turn that asked for them.
 pub async fn stand_agent(ground: &Ground, turns: &FollowTurns, agent: &str) {
   match AgentRow::named(&ground.db, agent).await {
     Ok(Some(row)) => {

@@ -209,7 +209,7 @@ struct Envelope<'a> {
 
 #[derive(Serialize)]
 struct Policy<'a> {
-  path: String,
+  address: String,
   provider: &'a str,
   names: Vec<String>,
   providers: Vec<&'static str>,
@@ -271,8 +271,8 @@ async fn close_unlaunched(ground: &Ground, row: &mut Row, failure: &Failure) {
   }
 }
 
-// What of a file lies past `offset`, up to its last ended line, or the whole of it where `whole` asks.
-fn unread(path: &Path, offset: usize, whole: bool) -> (String, usize) {
+/// What of a file lies past `offset`, up to its last ended line, or the whole of it where `whole` asks.
+pub fn unread(path: &Path, offset: usize, whole: bool) -> (String, usize) {
   let Ok(bytes) = std::fs::read(path) else { return (String::new(), offset) };
   let Some(fresh) = bytes.get(offset..) else { return (String::new(), offset) };
   let end = if whole {
@@ -345,10 +345,10 @@ impl<H: Heard> Follow<'_, H> {
   }
 }
 
-// How wide a line of the view is kept, and the line as the view holds it: one line, cut with a mark.
-const PROGRESS_WIDTH: usize = 160;
+/// How wide a line of the view is kept, and the line as the view holds it: one line, cut with a mark.
+pub const PROGRESS_WIDTH: usize = 160;
 
-fn flat_line(text: &str) -> String {
+pub fn flat_line(text: &str) -> String {
   let flat = text.split_whitespace().collect::<Vec<_>>().join(" ");
 
   if flat.chars().count() <= PROGRESS_WIDTH {
@@ -721,7 +721,7 @@ async fn carry<H: Heard>(
     deadline,
     timeout_ms: None,
     policy: Policy {
-      path: crate::archive_place(data),
+      address: crate::archive_place(data).unwrap_or_default(),
       provider: asked.provider,
       names: [Some(row.id().to_owned()), Some(row.root().to_owned()), asked.parent.clone()]
         .into_iter()

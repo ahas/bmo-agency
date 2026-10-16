@@ -28,13 +28,65 @@ judges none of it.
 ## Versioning
 
 - **The contract carries the repository's one version, in semver.** The version in the workspace
-  manifest is this boundary's version; the current line is `0.14.0`.
+  manifest is this boundary's version; the current line is `0.15.0`.
 - **A change to this document and a change to the boundary go in one commit.** A change that makes a
   route, an event, a hook or a shared table's contract different repairs this document in the same
   commit, stating what is true now.
 - **The version moves by what changed:** the major on a change to a route, an event, a hook or a
   table's contract that an existing consumer reads; the minor on an addition of one; the patch on
   anything else.
+
+## The control port
+
+- **Every route is answered by agency's server,** the deploy tree's `bin/agency-server`, on the loopback,
+  on the port `AGENCY_CONTROL_PORT` names (3220 where it names none), under `Authorization: Bearer
+  <token>` with the token `AGENCY_CONTROL_TOKEN` holds; the server does not stand without one. A request
+  without the token is answered 401.
+- **A route takes and answers JSON,** field names in camelCase; a GET reads its fields from the query. A
+  refusal is answered with its status and a body of `code`, the status's kebab-case reason, and `error`,
+  an English sentence; a session operation's fault carries its own outcome code (「Sessions」 below).
+- **A verb outside the server tells it what it changed** by a POST to the route concerned, under the same
+  port and token; the verb is never failed by it, and a word that did not land is said once on its error
+  stream.
+- **The routes:**
+
+| Method | Path | What it answers | Section |
+| --- | --- | --- | --- |
+| GET | `/agents` | every agent, its place and its configured and answered roads | 「Agents」 |
+| POST | `/agent-gate` | one of an agent's gates switched on or off | 「Agents」 |
+| POST | `/agent-reasoning` | an agent's own thinking and effort set | 「Agents」 |
+| POST | `/agent-role` | the role an agent holds from now on | 「Agents」 |
+| GET, POST | `/agent-sampling` | a worker's own sampling, read and saved | 「Agents」 |
+| GET, POST | `/base-prompts` | the base prompts and their choosers, read and changed | 「Agents」 |
+| GET, POST | `/companions` | the companions' settings, read and saved | 「Agents」 |
+| GET, POST | `/companions/reset` | a companion's reset, counted and carried out | 「Agents」 |
+| POST | `/session/start` | a session started for an agent at a scope | 「Sessions」 |
+| POST | `/session/turn` | one turn carried into a session | 「Sessions」 |
+| GET | `/session/state` | a session's state, by `session` | 「Sessions」 |
+| POST | `/session/interrupt`, `/session/fold`, `/session/end` | the three operations on one session | 「Sessions」 |
+| GET | `/session/list` | every session the backend keeps | 「Sessions」 |
+| GET | `/sessions` | every session an agent holds, as a reset reads them | 「Sessions」 |
+| POST | `/session-reset` | an ask to clear one session | 「Sessions」 |
+| POST | `/rooms/forget` | a room's rows forgotten, or counted | 「Sessions」 |
+| POST | `/documents/reload` | documents a session relies on, moved | 「Sessions」 |
+| GET | `/events` | the stream of agency's events | 「Events」 |
+| GET, POST | `/hooks` | the points a consumer registers at, and a registration | 「Hooks」 |
+| POST | `/hooks/remove` | a registration taken away | 「Hooks」 |
+| POST | `/typed-line` | a typed line's composition, as the submit hook asks it | 「Hooks」 |
+| GET | `/coworker-pool` | what holds each place of the pool now | 「Co-worker pool」 |
+| POST | `/pool/enqueue`, `/pool/acquire`, `/pool/bind`, `/pool/finish` | a seat or a place asked, let in, bound and given back | 「Co-worker pool」 |
+| POST | `/pool/reserve`, `/pool/reservations/release` | an owner's seats reserved and given back | 「Co-worker pool」 |
+| GET | `/pool/reservations` | the reservations an owner holds | 「Co-worker pool」 |
+| POST | `/places/take`, `/places/prepare`, `/places/remember`, `/places/retire` | a branch's standing checkout | 「Co-worker pool」 |
+| GET | `/run-log`, `/run-records` | a run's lines and its records | 「Run log and run records」 |
+| GET, POST | `/models`, `/registry`, `/model-tiers`, `/fallback` | the catalogue, the registry, the tiers and the roads | 「Models, registry, tiers, roads and fallback」 |
+| GET | `/model-tiers/models`, `/fallback/codex-models`, `/fallback/openrouter-models` | a provider's catalogue | 「Models, registry, tiers, roads and fallback」 |
+| POST | `/worker`, `/worker/node`, `/workers/stand` | a worker added, changed, placed or stood again | 「Workers」 |
+| GET, POST | `/jobs/stop-mark`, `/jobs/stop-mark/clear` | a job's stop mark | 「Workers」 |
+| POST, GET | `/roads/block`, `/roads/open` | a road's block, and whether a road is open | 「Workers」 |
+| POST | `/runs/stop`, `/runs/alive` | runs stopped, and which names are alive | 「Workers」 |
+| GET, POST | `/rest` | the deployment's rest, read and written | 「Accounts」 |
+| GET | `/health` | agency's health and readiness | 「Health」 |
 
 ## Agents
 
@@ -80,6 +132,23 @@ judges none of it.
   - *list* answers every session the backend keeps, each as *start* answers one.
   - An operation not carried out answers a fault with its outcome code — `unknown-session`,
     `session-busy`, `backend-unreachable` or `backend-refused` — and an English sentence saying why.
+- **The routes and the herdr backend.** herdr's backend knows a session by its agent and its scope:
+  `<agent>@worker` for a worker's, `<agent>@<room>` for a companion's in one room. A session across rooms
+  goes on the chat line, whose room context its caller composes, and this backend refuses one.
+  - `POST /session/start` takes `agent` and `scope` — `{ "kind": "worker" }`, `{ "kind": "room", "room":
+    <id> }` or `{ "kind": "agent" }` — and answers `id`, `agent` and `scope`.
+  - `POST /session/turn` takes `session` and `prompt`, carries the turn until it ends, and answers
+    `delivery`, `taken` or `blocked`. A worker's turn goes on its session on the model it answered on
+    last, under a login that answers now; a companion's on its room's session, on its pinned provider and
+    model, with the system prompt its settings compose, a lost harness session asked again once on a fresh
+    one, and a handoff begun where the turn's context reached the mark (`docs/companions.md`).
+  - `GET /session/state?session=<id>` answers `session`, `provider`, `model`, `place`, `generation` and
+    `context`.
+  - `POST /session/interrupt`, `POST /session/fold` and `POST /session/end` take `session` and answer
+    `ok`. An interrupt with no turn going cuts nothing; a fold or an end refuses a session in a turn.
+  - `GET /session/list` answers `sessions`, each as a start answers one.
+  - A fault is answered with its outcome code and `error`: `unknown-session` under 404,
+    `session-busy` under 409, `backend-unreachable` under 503 and `backend-refused` under 422.
 - **A turn is sent with its prompt alone;** the session keeps the conversation, and agency computes
   only what is new (`docs/sessions.md`, `docs/agents.md`, 「The session's scope」). What the prompt
   carries is the consumer's, composed above this boundary (「Hooks」 below).
@@ -101,15 +170,27 @@ judges none of it.
   opening `chat_` or one holding `_chat` — goes, but those the code owning a table declares stay with
   their reason: a job's run-log lines, which belong to the job (`docs/run-records.md`, 「Agent log」).
   A dry run answers what would go, table by table, and what stays and why; the forgetting answers what
-  went. Nothing of another service's tables is read (`docs/store.md`, 「Its tables」).
+  went. Nothing of another service's tables is read (`docs/store.md`, 「Its tables」). `POST /rooms/forget`
+  takes `chatId` and `dryRun`, and answers `gone`, the rows of each table, and `stayed`, each `table`,
+  `rows` and `why`.
+- **Documents moved.** `POST /documents/reload` takes `paths` and `now`, whether the notice is due at once,
+  and publishes them as `documents-moved` for the consumer that holds the rooms; agency tells no session
+  itself (`docs/sessions.md`, 「Document reload」). The brain calls it for its own documents and
+  `bmo-agency reload` for the files it is given.
 - **The events** are the turn's lifecycle (「Events」 below).
 
 ## Events
 
-- **Agency publishes a turn's lifecycle:** the turn started, waiting for its engine with what holds it,
-  the answer being written, sent, failed with its reason, or cut short by a limit its provider declared
-  (`docs/companions.md`, 「What a turn shows」, 「A turn that goes nowhere」). A consumer reads them to
-  show a turn and to wake what a turn's end should wake; agency waits on no reader.
+- **Read across the boundary,** `GET /events?kinds=<name>,<name>` answers a stream of server-sent events
+  of the kinds named, every kind where none is, from the moment it is opened: each event named by its
+  kind and its data the event's JSON. An event published while no stream reads its kind is written out
+  for nobody.
+- **Agency publishes a turn's lifecycle** as the session contract carries it: `turn-started`, the
+  `session`, the `run` it goes out as and `at` in epoch milliseconds; and `turn-ended`, the `session`, the
+  `run`, its `outcome` — `answered`, `blocked`, `stopped` or `failed` — the `answer` where it answered and
+  the `reason` where it failed (`docs/companions.md`, 「What a turn shows」, 「A turn that goes nowhere」).
+  A consumer reads them to show a turn and to wake what a turn's end should wake; agency waits on no
+  reader.
 - **An event no consumer subscribed to** is published to nobody, and nothing else of the turn changes.
 - **A run's log lines** are published as the run writes them, so a consumer shows a long turn as it
   goes rather than as a silence (`docs/agent-control.md`, 「A job gone quiet」).
@@ -125,9 +206,9 @@ judges none of it.
   (`docs/companions.md`, 「The session」).
 - **A fallback answering**, `fallback-answering`, is published once for each move of the rooms onto a
   stand-in: when a substitute first answers while Claude Code's road is closed, and when it later drops
-  to another. It carries the owner, the substitute that answered before where a fallback already stood,
-  and the provider and model answering now (`docs/cache-fallback.md`, 「While a fallback stands, the room
-  is not silent」). What the owner is told of it is the consumer's.
+  to another. It carries the owner (`ownerId`), the substitute that answered before where a fallback
+  already stood (`previous`), and the `provider` and `model` answering now (`docs/cache-fallback.md`,
+  「While a fallback stands, the room is not silent」). What the owner is told of it is the consumer's.
 - **An account's windows read by a turn**, `usage-windows-read`, are published as the turn reads them:
   the mode and the account, the moment they were seen, and each window's `name`, `utilization` (the
   fraction used), `resetsAt` (or null), `durationMinutes` (or null) and `limitName` (or null). The cache
@@ -175,6 +256,10 @@ judges none of it.
   reset point: the `agent` and the `point`, in epoch milliseconds. A turn begun at or before it is
   overtaken; the consumer holding the companion's rooms lets go unread what waited for its turns there and
   settles its quiet instructions as delivered (`docs/companions.md`, 「What the reset cuts off」).
+- **Documents moved**, `documents-moved`, is published as a reload names them: the `paths`, and `now`,
+  whether the notice is due at once rather than after the hour a chat is told once in. Which sessions it
+  concerns and what each is told is the consumer's that holds the rooms (`docs/sessions.md`, 「Document
+  reload」).
 - **A companion reset**, `companion-reset`, is published once a reset has taken agency's part: the
   `agent`, the `ranges` taken (`conversation`, `person`), the rooms it answers `alone` and those it
   answered `shared`, who asked (`by`) and when (`at`, in epoch seconds). Each unit holding rows of the
@@ -185,6 +270,17 @@ judges none of it.
 ## Hooks
 
 Each hook has a default that does nothing, so agency runs with none registered.
+
+- **Registered across the boundary.** `POST /hooks` takes a `point`, by its name, a `url` and a `token`
+  where the consumer wants one, and registers the consumer's address there in place of any before;
+  `POST /hooks/remove` takes a `point` and lets it answer its default again; `GET /hooks` answers
+  `points`, each its `point` and whether one is `registered`. Each ask is posted to the address as
+  `{ "point", "ask" }`, under `Authorization: Bearer <token>` where a token was given, and the answer is
+  read from the `answer` of a 2xx answer. An address that does not answer within ten seconds, answers
+  otherwise or answers what does not read as the point's answer is told once on agency's error stream,
+  and the point answers its default. The points registered this way are `room-title`, `pane-claims`,
+  `cowork-places`, `session-summariser` and `typed-line`; a registration lasts as long as the server's
+  process.
 
 - **Turn assembly.** Before a turn is sent, agency calls the consumer to compose what the turn carries
   — the prompt, and the material it chose to stand at its head. Agency reads none of it and hands it to
@@ -197,9 +293,11 @@ Each hook has a default that does nothing, so agency runs with none registered.
 - **Output check.** Before a sent answer leaves, a consumer reads it — a sanitiser, a repeat check —
   and agency sends what the hook hands back (`docs/companions.md`, 「What a turn shows」). The default
   sends the answer as it was written.
-- **The submit hook.** A line a person types into an agent's pane is composed by the consumer that owns
-  the agent, not by agency or the gateway (`docs/own-llm.md`, 「Claude Code in the pane」). The default
-  sends the line as typed.
+- **The submit hook**, `typed-line`. A line a person types into an agent's pane is composed by the
+  consumer that owns the agent, not by agency or the gateway (`docs/own-llm.md`, 「Claude Code in the
+  pane」). The pane's submit hook asks `POST /typed-line` with the `text` and the `sessionId`; agency asks
+  the point with both and answers the `context` the consumer composed, or 409 where it composed none. The
+  default composes nothing, and the line goes on as typed.
 - **The conversation limits.** A provider declares the limits a conversational turn is watched against;
   a consumer registers what counts as a turn going nowhere, and agency cuts the turn at the first
   (`docs/companions.md`, 「A turn that goes nowhere」, `docs/agents.md`, 「What a provider declares for a
@@ -235,6 +333,17 @@ Each hook has a default that does nothing, so agency runs with none registered.
   one, release and cancel a lease by its token, and set and release a reservation. A builder turn takes
   its place keyed by its checkout. The pre-reserve and release verbs a job runs are routes of this same
   surface (`docs/coworker-pool.md`, 「Native co-worker places」).
+  - `POST /pool/enqueue` takes `source` (`cowork`, a branch's seat, or `turn`, a builder turn's place),
+    `requestKey`, `owner`, `role`, `selection`, `tier` and `provider` where named, `generation`,
+    `yielding`, the `token` of the request it asks again and the `placeKey` of a turn, and answers the
+    request; `POST /pool/acquire` takes its `token` and answers the `request` let in, or null while it
+    waits; `POST /pool/bind` takes the `token` and the `childId` of the unit it launched; `POST
+    /pool/finish` takes the `token`, the `outcome` and `cancel`, and answers whether it was `held`.
+  - `POST /pool/reserve` takes `reservationKey`, `owner`, `source`, `role`, `selection`, `tier` and
+    `provider` where named, and `count`, and answers the reservation; `POST /pool/reservations/release`
+    takes its `token` and the `outcome`; `GET /pool/reservations?owner=` answers the `reservations` held.
+  - A request and a reservation are answered as their table holds them, in camelCase; a step the pool
+    refuses is answered 422 with the pool's own words.
 - **The tables whose contract is shared:** the request table, the leases on it, the reservation table,
   the ping table, the per-provider-and-tier limit table, and the standing checkouts list. A consumer
   reads them to show the pool and writes a limit; the lease token, the owner proof and the snapshot are
@@ -244,7 +353,11 @@ Each hook has a default that does nothing, so agency runs with none registered.
   lays the checkout's open change into it, records what a finished branch left there, and takes down
   what stands in herdr for the places an ended order worked in that no task still sits in
   (`docs/coworker-pool.md`, 「Standing branch checkouts and their list」). The labels and keys of the
-  consumer's work arrive with each request; agency reads none of its orders.
+  consumer's work arrive with each request; agency reads none of its orders. `POST /places/take` takes
+  `cwd`, `selection`, `role`, `tier` and `held`, each a `cwd` and a `slot`, and answers the `slot`; `POST
+  /places/prepare` takes the order's `source` and the place's `cwd`; `POST /places/remember` takes `cwd`,
+  `slot`, `role`, and the `mode`, `model`, `effort` and `upstream` the branch ran on; `POST
+  /places/retire` takes `cwd`, the `used` places and `held`.
 - **The clocks** are agency's own: every five seconds a reservation's head place is raised and a native
   call whose caller ended is reclaimed, every ten minutes what a job's end left in herdr is swept
   (`docs/agent-control.md`, 「One standing pane per agent」), and on the keepalive pass's period the
@@ -257,7 +370,11 @@ Each hook has a default that does nothing, so agency runs with none registered.
 
 - **The run log** is every line a run wrote, under the run's name, written as the run streams and read
   by a consumer to show it (`docs/run-records.md`, `docs/agent-control.md`). Agency writes it; a
-  consumer reads it.
+  consumer reads it, directly or by `GET /run-log?run=<run>&after=<id>`, which answers the run's `lines`
+  after the one given, five hundred at most, each its `id`, `agent`, `run`, `chatId`, `at`, `kind`,
+  `name`, `parent`, `ref`, `text`, `jobId`, `state`, `truncated` and `detail`. `GET
+  /run-records?run=<run>` answers its `records`, each its `id`, `kind`, `text`, `recordId`, `wakes` and
+  `at`.
 - **The run records** hold one line per road a run walked — work key, room and message, provider and
   model, outcome, time, and the tokens the run reported — and the usage filed under the agent
   (`docs/run-records.md`, `docs/own-llm.md`, 「Which road answered is recorded」). A consumer reads them
@@ -300,15 +417,17 @@ Each hook has a default that does nothing, so agency runs with none registered.
   carried to a node with each run; the command that makes one, and the warning before one expires, are
   agency's (`docs/work-nodes.md`, 「The logins on a node」, `docs/cache-fallback.md`, 「A login that is
   about to end」). No token crosses this boundary: a consumer reads only whether an account is usable.
-- **The quota source.** On a loopback port of its own and with no token, agency answers `GET
-  /api/claude` for the cache siren: the login the deployment's chat runs on first, marked active, then
-  the provider's other logins that are on, each with its two headline windows as the siren keeps them.
-  It answers that one path and nothing else.
+- **The quota source.** On a loopback port of its own, the one `AGENCY_QUOTA_PORT` names (9200 where it
+  names none), and with no token, agency answers `GET /api/claude` for the cache siren: the login the
+  deployment's chat runs on first, marked active, then the provider's other logins that are on, each with
+  its two headline windows as the siren keeps them. It answers that one path and nothing else.
 - **The rest.** Agency answers whether the deployment rests now and until when: while the service's own
   outage rest stands (`rest_until` with `rest_kind` set to `outage`), or while every enabled account's
   own rest stands (`rest_until:<account>`, or a window of its own read full), until the soonest of them
   ends; and why, `outage` or `limit` (`docs/cache-fallback.md`). While it rests, Claude Code's road is
-  closed to a job's selection.
+  closed to a job's selection. `GET /rest` answers `resting`, `until` in epoch seconds and `kind`; `POST
+  /rest` takes `until`, `kind` (`limit` or `outage`) and the `account` a limit is its login's, and answers
+  whether the rest is the one that `silenced` the deployment.
 - **The event** agency publishes is an account becoming unusable and coming back.
 
 ## Workers
@@ -326,23 +445,32 @@ Each hook has a default that does nothing, so agency runs with none registered.
   job is and when it runs is the job unit's.
 - **A job's stop mark.** A consumer stopping a job marks it stopped with its reason before the job's
   unit is asked to stop (`job_stop:<job>`); the mark is read by whoever closes the job's record, so it
-  closes as stopped, and taken away with that record. Agency keeps the mark and judges nothing of it.
+  closes as stopped, and taken away with that record. Agency keeps the mark and judges nothing of it:
+  `POST /jobs/stop-mark` takes the `job` and the `reason`, `GET /jobs/stop-mark?job=` answers the
+  `reason` or null, and `POST /jobs/stop-mark/clear` takes the `job`.
 - **A road's block.** A failure that closes a road for a while blocks it until a moment, with its
   reason: a provider, or on a provider whose models are services of their own the one model
   (`job_route_block:<provider>` or `job_route_block:<provider>::<model>`, the value `until` in epoch
   milliseconds and `reason`). Agency reads a road blocked while the moment is ahead, besides a provider
   switched off and Claude Code while the deployment rests, and answers whether an item has a road open
-  now: some selection its job may go out on, in the order the job walks them, that is not blocked.
+  now: some selection its job may go out on, in the order the job walks them, that is not blocked. `POST
+  /roads/block` takes a `selection`, `until` and `reason`, or no `until` to open the road again; `GET
+  /roads/open?selection=` answers whether that road is `open`, and `GET /roads/open?model=&worker=`
+  whether an item's job has one.
 - **Stopping runs.** A consumer asks a run to stop by its name, a unit's or an execution's: a
   cancellation stands over it and everything it owns, a run in a pane is asked to end and its pane closed
   after its grace, a resident turn is left to its collector with its provider's interrupt behind it, and
   a unit still standing is stopped by systemd (`docs/agent-control.md`, 「Stopping」). A consumer ending
   several runs at once — a work order changed — has them stopped and confirmed gone first, each pool
   place given back and each cancellation taken back; the refusal names the units still standing, and
-  closing the consumer's own records of those runs is the consumer's.
+  closing the consumer's own records of those runs is the consumer's. `POST /runs/stop` takes one `run`,
+  or `runs`, each its `unit` and the `poolRequest` it held, and a `reason`; the refusal of a set whose
+  units still stand is 409.
 - **Which names are alive.** Agency answers which of the names asked are running — held by systemd, named
   by an open execution as its parent or root, or held as a pane's run by herdr — or that nobody could
   say, which is never read as nothing running (`docs/agent-control.md`, 「Asking whether it is alive」).
+  `POST /runs/alive` takes `names` and answers `answered` and the `alive` among them, null where nobody
+  could say.
 - **A support worker removed** publishes `worker-removed` (「Events」 above), so a consumer lets go what
   it lent the worker, such as a checkout lease.
 
@@ -356,6 +484,9 @@ Each hook has a default that does nothing, so agency runs with none registered.
   — where the next launch and the next heavy run go (`docs/work-nodes.md`, 「The rotation」).
 - **The events** are a node's state changing, the gateway settling, and an account becoming unusable,
   so a consumer's health view follows without polling.
+- **`GET /health`** answers `pid`, `code` and `ready` (below), `nodes` as the node service keeps them or
+  the `error` it answered with, `pool`, the count of its `active`, `reserved` and `waiting` requests, and
+  `accounts`, each its `id`, `name`, whether it is `enabled` and whether it is `usable` now.
 - **Readiness.** The health route answers the server's process id, the code tree it reads its code
   from, and whether its places have stood once since it started. A deployment that starts agency on a
   pinned release waits for an answer naming its own process and the tree it pinned, and ready; an

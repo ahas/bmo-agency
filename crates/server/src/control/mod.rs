@@ -11,20 +11,30 @@ pub mod claude_account_changes;
 pub mod claude_accounts;
 pub mod companion_reset;
 pub mod companions;
+mod documents;
+mod events_stream;
 pub mod fallback;
 pub mod fault;
 pub mod harness;
+mod health;
+mod hook_routes;
 pub mod model_tiers;
 pub mod models;
 pub mod own_llm;
 pub mod pool;
 pub mod pool_board;
+mod pool_routes;
 pub mod quota;
 pub mod registry;
 pub mod roads;
+mod rooms;
+mod run_log;
+mod session_ops;
 pub mod sessions;
 pub mod tiers;
+pub mod typed_line;
 mod worker;
+mod workers_routes;
 
 use std::collections::{BTreeSet, HashMap};
 use std::future::Future;
@@ -222,6 +232,8 @@ pub struct Call {
   // what they stand after hands its change to.
   places: Option<Places>,
   going: Arc<GoingRuns>,
+  // The session contract over the places the server stands, where it stands them.
+  sessions: Option<crate::herdr_backend::Shared>,
 }
 
 impl Call {
@@ -276,6 +288,11 @@ impl Call {
     self.places.as_ref()
   }
 
+  /// The session contract, where the server stands the places it is carried over.
+  pub fn sessions(&self) -> Option<crate::herdr_backend::Shared> {
+    self.sessions.clone()
+  }
+
   /// The companions' runs going now, as `companion-run-going` names them.
   pub fn going(&self) -> Arc<GoingRuns> {
     self.going.clone()
@@ -322,6 +339,7 @@ pub struct Front {
   places: Option<Places>,
   herdr: Option<herdr::picture::Watch>,
   going: Arc<GoingRuns>,
+  sessions: Option<crate::herdr_backend::Shared>,
 }
 
 impl Front {
@@ -346,11 +364,14 @@ impl Front {
       places: None,
       herdr: None,
       going,
+      sessions: None,
     })
   }
 
-  /// The front with the workers' places the server stands, and the picture of herdr it keeps.
+  /// The front with the workers' places the server stands, the session contract carried over them, and the
+  /// picture of herdr it keeps.
   pub fn with_places(mut self, places: Places, herdr: Option<herdr::picture::Watch>) -> Self {
+    self.sessions = Some(Arc::new(crate::herdr_backend::HerdrSessions::new(places.clone())));
     self.places = Some(places);
     self.herdr = herdr;
     self
@@ -380,6 +401,7 @@ async fn dispatch(State(front): State<Arc<Front>>, request: Request) -> Response
     herdr: front.herdr.clone(),
     places: front.places.clone(),
     going: front.going.clone(),
+    sessions: front.sessions.clone(),
   };
 
   match route.answer(call).await {

@@ -1,12 +1,12 @@
 //! The session an agent holds on its line, as the TypeScript side's agent instance keeps it
 //! (docs/cache-fallback.md): the road it stands on, the prefix it was opened against and when that prefix
-//! was last read, kept in one setting per scope. A run is judged by it on the way in — a session on
-//! another road, another login, a prefix that moved or a cache that outlived its life is replaced, and
-//! the next run is handed the note the replaced one left — and the session that answered is kept again on
-//! the way out. Here it is the worker line's, on the provider the run goes out on; the note itself is the
-//! session summariser's, a hook the caller registers (`super::summary`). A worker's own Claude Code session turned from for another
-//! model is set aside on its own model rather than replaced, and resumed on a return while its cache is warm
-//! (docs/sessions.md, 「A worker's session per model」).
+//! was last read, kept in one setting per scope. A run is judged by it on the way in — a session on another
+//! road, another login, a prefix that moved or a cache that outlived its life is replaced, and the next run
+//! is handed the note the replaced one left — and the session that answered is kept again on the way out.
+//! Here it is the worker line's, on the provider the run goes out on; the note itself is the session
+//! summariser's, a hook the caller registers (`super::summary`). A worker's own Claude Code session turned
+//! from for another model is set aside on its own model rather than replaced, and resumed on a return while
+//! its cache is warm (docs/sessions.md, 「A worker's session per model」).
 
 use std::collections::BTreeMap;
 
@@ -94,10 +94,10 @@ pub struct Held {
   pub thread: Option<String>,
 }
 
-/// One run on a worker's session as it is judged: the provider and the line it goes out on, the words it
-/// is handed, the session it resumes, the login it goes out under, the node its session stands on where its
-/// provider places sessions, and the thread it is on — a job's item, whose next run alone is handed the note
-/// a session closed on it leaves.
+/// One run on a worker's session as it is judged: the provider and the line it goes out on, the words it is
+/// handed, the session it resumes, the login it goes out under, the node its session stands on where its
+/// provider places sessions, and the thread it is on — a job's item, whose next run alone is handed the
+/// note a session closed on it leaves.
 #[derive(Clone, Debug)]
 pub struct SessionRun {
   pub mode: &'static str,
@@ -235,7 +235,8 @@ async fn keep_shelf(ground: &Ground, scope: &str, shelf: &BTreeMap<String, Held>
     return settings::forget(&ground.db, &shelf_key(scope)).await;
   }
 
-  let text = serde_json::to_string(shelf).map_err(|why| Refusal::bad(why.to_string()))?;
+  let text =
+    serde_json::to_string(shelf).map_err(|why| Refusal::bad("session-unwritten", why.to_string()))?;
 
   settings::set(&ground.db, &shelf_key(scope), &text).await
 }
@@ -255,9 +256,9 @@ pub fn turns_from(held: &Held, run: &SessionRun) -> bool {
   held.mode == MODE && run.mode == MODE && held.model != run.line.model
 }
 
-// The session set aside on the run's model, taken off the shelf: handed back where the run resumes it, it is
-// still warm and its road and prefix have not moved; dropped otherwise, with the record that would resume
-// it where the run was about to, so the run opens a new session.
+// The session set aside on the run's model, taken off the shelf: handed back where the run resumes it, it
+// is still warm and its road and prefix have not moved; dropped otherwise, with the record that would
+// resume it where the run was about to, so the run opens a new session.
 async fn take_shelved(
   ground: &Ground,
   worker: &str,
@@ -347,7 +348,8 @@ pub async fn prepare(ground: &Ground, worker: &str, mut run: SessionRun) -> Resu
       _ => {}
     }
 
-    let text = serde_json::to_string(&back).map_err(|why| Refusal::bad(why.to_string()))?;
+    let text =
+      serde_json::to_string(&back).map_err(|why| Refusal::bad("session-unwritten", why.to_string()))?;
 
     settings::set(&ground.db, &key(&scope), &text).await?;
 
@@ -375,8 +377,8 @@ pub async fn prepare(ground: &Ground, worker: &str, mut run: SessionRun) -> Resu
 
 /// The worker's session handed over on purpose — as its job ends, or ahead of a retry on a fresh session:
 /// the session it holds, or the run's own where it holds none, closed with its note left for the run's
-/// thread alone, and every session it set aside on another model dropped. The note is the worker's own where
-/// it wrote one, and otherwise asked of the session summariser out of the session's record.
+/// thread alone, and every session it set aside on another model dropped. The note is the worker's own
+/// where it wrote one, and otherwise asked of the session summariser out of the session's record.
 pub async fn hand_over(
   ground: &Ground,
   worker: &str,
@@ -565,7 +567,8 @@ pub async fn remember(
     transcript,
     thread: run.thread.clone(),
   };
-  let text = serde_json::to_string(&kept).map_err(|why| Refusal::bad(why.to_string()))?;
+  let text =
+    serde_json::to_string(&kept).map_err(|why| Refusal::bad("session-unwritten", why.to_string()))?;
 
   settings::set(&ground.db, &key(&scope), &text).await?;
 

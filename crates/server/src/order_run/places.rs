@@ -23,9 +23,9 @@ use crate::places::branch::{self, place_agent, pool_of, pool_slots, slot_dir, sl
 use crate::places::{AgentRow, Ground};
 use crate::queue::routes;
 
-/// A place a consumer's task sits in now: the checkout its order works in and the place's number. A place is
-/// taken exactly as long as the consumer names it so; a restart frees nothing by hand.
-#[derive(Clone, Debug, PartialEq, Eq)]
+/// A place a consumer's task sits in now: the checkout its order works in and the place's number. A place
+/// is taken exactly as long as the consumer names it so; a restart frees nothing by hand.
+#[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize)]
 pub struct Held {
   pub cwd: String,
   pub slot: i64,
@@ -67,8 +67,8 @@ pub struct Agent {
 }
 
 /// How long a place's prefix is worth counting on for a provider and model: the lifetime the provider
-/// publishes less the pool's margin; none where it publishes none or nothing is left of it after the margin.
-/// A routed model's cache belongs to the upstream that took the turn.
+/// publishes less the pool's margin; none where it publishes none or nothing is left of it after the
+/// margin. A routed model's cache belongs to the upstream that took the turn.
 pub fn ttl_ms(mode: &str, model: &str, upstream: Option<&str>) -> Option<i64> {
   let upstream = upstream.filter(|_| mode == ROUTED);
 
@@ -84,8 +84,8 @@ pub fn alive(agent: &Agent, now: i64) -> bool {
   ttl_ms(&agent.mode, &agent.model, upstream).is_some_and(|ttl| now - agent.last_reply_at * 1000 < ttl)
 }
 
-/// Whether a run opening in the place would hit what the row names: the clock, and for Claude Code the prefix
-/// the place would open on now.
+/// Whether a run opening in the place would hit what the row names: the clock, and for Claude Code the
+/// prefix the place would open on now.
 pub fn warm(agent: &Agent, now: i64, digest_now: &str) -> bool {
   alive(agent, now) && (agent.prefix_digest.is_empty() || agent.prefix_digest == digest_now)
 }
@@ -320,9 +320,9 @@ async fn delete_agents(db: &DatabaseConnection, pool: &str, slot: i64) -> Result
   .map_err(faulted)
 }
 
-/// The places taken in a pool, or in every pool where none is named: the ones the consumer says its tasks sit
-/// in now, each counted in the pool its order's checkout sets. An order of another repository holds numbers of
-/// another pool, and no pool counts every order's together.
+/// The places taken in a pool, or in every pool where none is named: the ones the consumer says its tasks
+/// sit in now, each counted in the pool its order's checkout sets. An order of another repository holds
+/// numbers of another pool, and no pool counts every order's together.
 pub async fn busy_slots(pool: Option<&str>, held: &[Held]) -> HashSet<i64> {
   let mut busy = HashSet::new();
 
@@ -528,7 +528,8 @@ async fn orphan_pools(ground: &Ground, live: &HashSet<String>) -> Result<Vec<Str
 }
 
 /// A place taken away from herdr: its program ended and its workspace closed, so nothing stands for a
-/// checkout that is gone. A herdr this machine does not name leaves the workspace to the next standing pass.
+/// checkout that is gone. A herdr this machine does not name leaves the workspace to the next standing
+/// pass.
 pub async fn retire_place(ground: &Ground, pool: &str, slot: i64) {
   let agent = place_agent(pool, slot);
 
@@ -559,9 +560,9 @@ pub async fn places_to_retire(cwd: &str, used: &[i64], held: &[Held]) -> Option<
   Some((pool, used))
 }
 
-/// What stands in herdr for the places a done or stopped order worked in taken down, as the consumer asks once
-/// its order is no longer active; a place that refuses to go is left standing, since a stage must never fail
-/// over tidying.
+/// What stands in herdr for the places a done or stopped order worked in taken down, as the consumer asks
+/// once its order is no longer active; a place that refuses to go is left standing, since a stage must
+/// never fail over tidying.
 pub async fn retire_places(ground: &Ground, cwd: &str, used: &[i64], held: &[Held]) {
   if let Some((pool, slots)) = places_to_retire(cwd, used, held).await {
     for slot in slots {
@@ -610,9 +611,9 @@ async fn digest_of(ground: &Ground, cwd: &Path, model: &str, effort: Option<&str
   }
 }
 
-/// Which place a branch task works in: a free place whose row for its provider and model still names a cache,
-/// then a free one with nothing to lose, then a new one; rows the clock or a moved prefix has finished with
-/// deleted on the way past, and the pools and places nothing will use taken away first.
+/// Which place a branch task works in: a free place whose row for its provider and model still names a
+/// cache, then a free one with nothing to lose, then a new one; rows the clock or a moved prefix has
+/// finished with deleted on the way past, and the pools and places nothing will use taken away first.
 pub async fn take_slot(ground: &Ground, asked: &Asked<'_>, held: &[Held], now: i64) -> Result<i64, Fault> {
   let db = &ground.db;
   let selection = asked.selection;
@@ -678,9 +679,10 @@ pub async fn slot_cwd(ground: &Ground, cwd: &str, slot: i64) -> PathBuf {
   slot_dir(&ground.roots.data, &pool_of(cwd).await, slot)
 }
 
-/// A place brought back to the shape a task starts in: rewound to the checkout's commit — or made again where
-/// it is no worktree of that repository — with the checkout's open change laid on top, tracked and new files
-/// alike, so the branch reads the tree the item is being done in. Ignored files stay with the place.
+/// A place brought back to the shape a task starts in: rewound to the checkout's commit — or made again
+/// where it is no worktree of that repository — with the checkout's open change laid on top, tracked and
+/// new files alike, so the branch reads the tree the item is being done in. Ignored files stay with the
+/// place.
 pub async fn prepare_slot(source: &str, cwd: &Path) -> Result<(), Fault> {
   let source = Path::new(source);
   let head = git(&["rev-parse", "HEAD"], source, None)
@@ -826,10 +828,10 @@ fn submodules_to_pins(cwd: &Path) -> Result<(), Fault> {
   Ok(())
 }
 
-/// What a finished branch leaves in the list, as the consumer names it — the checkout its order works in, the
-/// place it worked in and its role — with the provider and model that answered there, the upstream that took
-/// it, and the prefix the place now opens on; or nothing where no cache can be named. Only a branch task
-/// leaves a line: the consumer asks it of one.
+/// What a finished branch leaves in the list, as the consumer names it — the checkout its order works in,
+/// the place it worked in and its role — with the provider and model that answered there, the upstream that
+/// took it, and the prefix the place now opens on; or nothing where no cache can be named. Only a branch
+/// task leaves a line: the consumer asks it of one.
 #[allow(clippy::too_many_arguments)]
 pub async fn remember_slot(
   ground: &Ground,

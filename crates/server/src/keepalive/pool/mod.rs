@@ -200,7 +200,7 @@ impl Pool<'_> {
     let db = &ground.db;
     let mut touched = HashSet::new();
 
-    for reservation in held_reservations(db, None).await? {
+    for reservation in held_reservations(db, None).await.map_err(fault)? {
       let seats = pool::seats(db, &reservation.token).await.map_err(|refused| fault(refused.error))?.len();
 
       if seats == 0 {

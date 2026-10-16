@@ -30,7 +30,8 @@ pub struct Limit {
 }
 
 /// One request or seat standing in the pool.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Request {
   pub sequence: i64,
   pub token: String,
@@ -58,7 +59,8 @@ pub struct Request {
 }
 
 /// One owner's reservation.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Reservation {
   pub token: String,
   pub reservation_key: String,

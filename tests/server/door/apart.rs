@@ -1,4 +1,9 @@
+use std::collections::BTreeMap;
+
 use agency_server::door::apart::*;
+use agency_server::door::turn::Ending;
+use agency_server::job_run::claude::failure::Failure;
+use agency_server::lines::claude::Command;
 
 #[test]
 fn the_pane_is_handed_what_the_line_set_and_none_of_the_launchers_own_environment() {

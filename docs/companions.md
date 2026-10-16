@@ -242,9 +242,9 @@ are the companion unit's, not agency's. This document covers only what agency ho
   type into it (`docs/agent-control.md`, 「One standing pane per agent」).
 - **A standing pane shows each session.** In the herdr workspace of the agent, named by its row's
   herdr label, each room session has a tab of its own named by the room's title, running
-  `bmo-agency companion follow <room> --agent <agent>` out of the deploy tree's binary: every turn as
-  it was given and every answer as it was written, as they are appended. A pane started from an older
-  binary is replaced. The pane stands apart from the panes of its worker's jobs, and the console's
+  `bmo-agency companion follow <room> --agent <agent>`, the room named by its number, out of the deploy
+  tree's binary: every turn as it was given and every answer as it was written, as they are appended. A
+  pane started from an older binary is replaced. The pane stands apart from the panes of its worker's jobs, and the console's
   agent screen lists the agent's room sessions and shows each pane.
   - **The verb** prints every generation the session has had, each under a line naming its number — the
     newest with when it opened, which is all the session row keeps — then waits on the newest and

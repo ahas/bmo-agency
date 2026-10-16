@@ -10,6 +10,7 @@ pub mod held;
 pub mod records;
 pub mod summary;
 pub mod told;
+pub mod warmth;
 
 use std::collections::BTreeMap;
 use std::time::Duration;

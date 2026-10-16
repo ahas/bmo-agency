@@ -472,7 +472,7 @@ in the provider's own terms:
     resident turn as failed and starts the fallback walk. The retries the program makes before it gives up are not read while they happen;
     whether they can be is not measured.
   - **Context.** The status line's `context_window` carries the tokens in use and the window's size.
-  - **The status-line command is agency's:** the deploy tree's `bmo-agency agent status`, which the hooks call
+  - **The status-line command is agency's:** the deploy tree's `bmo-agency agent-status`, which the hooks call
     too. It writes what the program hands it into the agent's place under the data root, where the
     readers take the figures from, and it prints the one line the program shows at the foot of its
     screen (「Runs and sessions in one pane」). On a work node it runs on the operations machine, where

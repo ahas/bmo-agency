@@ -1,4 +1,6 @@
 use agency_server::door::inbox::*;
+use agency_server::door::surface::Run;
+use serde_json::{Value, json};
 
 fn run() -> Run {
   serde_json::from_value(json!({ "line": "worker", "model": "free/model", "prompt": "", "cwd": "/w" }))

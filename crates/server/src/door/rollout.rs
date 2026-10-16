@@ -124,7 +124,7 @@ fn sessions_of(home: &Path) -> PathBuf {
 }
 
 /// The rollout of one thread, wherever the day it began filed it.
-fn rollout_of(root: &Path, thread: &str) -> Option<PathBuf> {
+pub fn rollout_of(root: &Path, thread: &str) -> Option<PathBuf> {
   if thread.is_empty() || !thread.chars().all(|one| one.is_ascii_alphanumeric() || one == '-') {
     return None;
   }
@@ -196,7 +196,7 @@ fn read_lines(text: &str) -> Vec<Value> {
 
 /// The rollout's lines as the program wrote them, each one it has ended: what follows the last newline is a
 /// line still being written, left for the next look.
-fn whole_lines(text: &str) -> Vec<&str> {
+pub fn whole_lines(text: &str) -> Vec<&str> {
   let mut lines: Vec<&str> = text.split('\n').collect();
 
   lines.pop();
@@ -215,7 +215,7 @@ fn modified_ms(path: &Path) -> Option<i64> {
 
 /// The rollout of the thread a program opened for itself: one that was not there before the prompt,
 /// begun in the directory the program stands in.
-fn opened_rollout(root: &Path, before: &HashSet<PathBuf>, cwd: &str, since: i64) -> Option<PathBuf> {
+pub fn opened_rollout(root: &Path, before: &HashSet<PathBuf>, cwd: &str, since: i64) -> Option<PathBuf> {
   recent_rollouts(root, OPENED_DAYS).into_iter().find(|path| {
     !before.contains(path)
       && modified_ms(path).is_some_and(|at| at >= since - 1_000)
@@ -252,7 +252,7 @@ fn count(value: Option<&Value>) -> i64 {
 
 /// What a failed turn's error says, in the words the fallback road reads for a limit or an outage: the
 /// program's own code for it where it wrote one, and its message beside it.
-fn error_text(error: &Value) -> String {
+pub fn error_text(error: &Value) -> String {
   if let Some(text) = error.as_str() {
     return text.to_owned();
   }
@@ -382,7 +382,7 @@ pub fn read_rollout(lines: &[Value], run: &Run, provider: &str) -> Reading {
 }
 
 /// The command a program that opened a thread for itself is started on once it is on that thread.
-fn resumed(command: &ResidentCommand, thread: &str) -> ResidentCommand {
+pub fn resumed(command: &ResidentCommand, thread: &str) -> ResidentCommand {
   let mut args = command.args.clone();
 
   args.splice(1.min(args.len())..1.min(args.len()), ["resume".to_owned(), thread.to_owned()]);

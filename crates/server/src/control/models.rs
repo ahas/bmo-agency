@@ -23,7 +23,6 @@ use super::fault::{Fault, refused};
 use super::registry::registration_health;
 use super::sessions::asked_by;
 use super::{Call, Refused, Route, answer};
-use crate::config::SOURCE_DIR;
 use crate::now_ms;
 use crate::text::length;
 use store::{all, one, run};
@@ -641,7 +640,7 @@ async fn start_use<C: ConnectionTrait + TransactionTrait>(
   let start = Start {
     engine,
     use_id: id,
-    db: machine.store_place.clone(),
+    archive: machine.store_place.clone(),
     path: machine.path.clone(),
     source_root: machine.source_root.clone(),
     code_root: machine.code_root.clone(),
@@ -676,6 +675,7 @@ pub mod verb {
 
   use super::super::fault::Fault;
   use super::{Machine, WORD, entry, refused, remove, required, run, save, start_use, view};
+  use crate::config::SOURCE_DIR;
 
   fn said(fault: Fault) -> String {
     match fault {

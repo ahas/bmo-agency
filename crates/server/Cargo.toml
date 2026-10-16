@@ -7,27 +7,38 @@ publish = false
 
 [dependencies]
 agent-host = { path = "../agent-host" }
+agent-session = { path = "../agent-session" }
 axum.workspace = true
-chrono.workspace = true
+brush-parser.workspace = true
+chrono = { workspace = true, features = ["clock"] }
+clap.workspace = true
 diffy.workspace = true
 futures-util.workspace = true
 glob.workspace = true
 harness-machine = { path = "../harness-machine" }
 harness-providers = { path = "../harness-providers" }
 herdr = { path = "../herdr" }
+http-body-util.workspace = true
+hyper.workspace = true
+hyper-util.workspace = true
 indexmap.workspace = true
 inventory.workspace = true
 libc.workspace = true
 node-link = { path = "../node-link" }
+percent-encoding.workspace = true
 policy = { path = "../policy" }
+procfs.workspace = true
 regex.workspace = true
 reqwest = { workspace = true, features = ["stream"] }
+rev_lines.workspace = true
 sea-orm.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-sse-stream.workspace = true
 sha2.workspace = true
+sse-stream.workspace = true
 store = { path = "../store" }
 tokio = { workspace = true, features = ["process", "sync", "time"] }
+tokio-util.workspace = true
+toml.workspace = true
 url.workspace = true
 uuid.workspace = true

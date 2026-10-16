@@ -1,7 +1,11 @@
 //! The hooks: a point answers its default until a consumer registers there, and again once it is let
-//! go.
+//! go; a consumer across the boundary registers by its address, and an address that fails answers the
+//! default.
 
-use agency_server::hooks::{HookPoint, Hooks};
+use agency_server::hooks::{HookPoint, Hooks, Remote, register_remote, wired};
+use axum::Json;
+use axum::http::StatusCode;
+use serde_json::{Value, json};
 
 struct Pick;
 
@@ -52,4 +56,55 @@ async fn a_registered_answer_is_asked_until_it_is_let_go() {
   hooks.unregister::<Pick>();
 
   assert_eq!(hooks.ask::<Pick>(6).await, "default for 6");
+}
+
+// A consumer standing on the loopback, answering each ask with what `answer` makes of it.
+async fn consumer(answer: fn(Value) -> (StatusCode, Value)) -> String {
+  let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+  let address = format!("http://{}/hook", listener.local_addr().unwrap());
+  let app = axum::Router::new().fallback(move |Json(body): Json<Value>| async move {
+    let (status, body) = answer(body);
+
+    (status, Json(body))
+  });
+
+  tokio::spawn(async move { axum::serve(listener, app).await });
+
+  address
+}
+
+#[tokio::test]
+async fn a_remote_answer_is_the_consumer_s_and_a_failing_one_the_default() {
+  let hooks = Hooks::default();
+  let url =
+    consumer(|body| (StatusCode::OK, json!({ "answer": format!("{} {}", body["point"], body["ask"]) })))
+      .await;
+
+  register_remote::<Pick>(&hooks, Remote { url, token: None });
+
+  assert!(hooks.registered::<Pick>());
+  assert_eq!(hooks.ask::<Pick>(3).await, "\"pick\" 3");
+
+  let url = consumer(|_| (StatusCode::INTERNAL_SERVER_ERROR, json!({}))).await;
+
+  register_remote::<Pick>(&hooks, Remote { url, token: None });
+
+  assert_eq!(hooks.ask::<Pick>(4).await, "default for 4");
+}
+
+#[test]
+fn the_points_a_consumer_registers_at_are_each_named_once() {
+  let mut names: Vec<&str> = wired().map(|point| point.name).collect();
+
+  names.sort_unstable();
+
+  let count = names.len();
+
+  names.dedup();
+
+  assert_eq!(names.len(), count);
+
+  for wanted in ["cowork-places", "pane-claims", "room-title", "session-summariser", "typed-line"] {
+    assert!(names.contains(&wanted), "{wanted} is not a point a consumer registers at");
+  }
 }

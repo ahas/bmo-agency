@@ -4,6 +4,11 @@
 mod scratch;
 
 mod clock;
+mod command_reading {
+  mod reading;
+  mod records;
+  mod shell;
+}
 
 // The companion members built so far; the others stand beside these and are declared with their modules.
 mod companion {
@@ -11,17 +16,44 @@ mod companion {
   mod reset;
 }
 mod config;
+mod control {
+  mod agents;
+  mod claude_account_changes;
+  mod claude_accounts;
+  mod companion_reset;
+  mod companions;
+  mod fallback;
+  mod front;
+  mod harness;
+  mod model_tiers;
+  mod models;
+  mod own_llm;
+  mod pool_board;
+  mod registry;
+  mod roads;
+  mod sessions;
+  mod tiers;
+}
 mod conversational;
 mod data_move;
+mod doctor;
 
-// The door's members built so far; the others stand beside these and are declared with their modules.
 mod door {
+  mod apart;
+  mod confirm;
+  mod endpoint;
+  mod execution;
+  mod inbox;
   mod looks;
+  mod place_run;
   mod record;
+  mod rollout;
 }
 mod events;
 mod ground;
+mod herdr_backend;
 mod hooks;
+mod host_run;
 
 // The job run members built so far; the reset stands beside this and is declared with its module.
 mod job_run {
@@ -30,6 +62,17 @@ mod job_run {
   }
   mod openrouter;
   mod openrouter_tap;
+}
+mod keepalive {
+  mod logins;
+  mod pool {
+    mod branch;
+    mod margin;
+  }
+}
+mod order_run {
+  mod dispatch;
+  mod places;
 }
 mod peers;
 
@@ -50,15 +93,18 @@ mod places {
   mod nodes;
   mod servers;
 }
-// The queue members built so far; the others stand beside these and are declared with their modules.
 mod queue {
   mod cancels;
+  mod leftovers;
   mod paths;
+  mod reconcile;
+  mod routes;
   mod settings;
   mod worker_rules;
   mod workers;
 }
 mod readiness;
+mod rest;
 mod rooms;
 
 mod run_log {
@@ -70,9 +116,15 @@ mod run_log {
   mod writer;
 }
 
+mod verbs {
+  mod agents;
+  mod claude_batch;
+}
+
 mod watches {
   mod links;
 }
+mod wording;
 
 // The worker session members built so far; the others stand beside these and are declared with their
 // modules.

@@ -299,7 +299,8 @@ pub async fn listed(ground: &Ground, service: &registry::OwnLlmService, model: &
 /// A stand-in has started answering, or a standing fallback has moved to another (docs/api.md, 「Events」):
 /// the owner it is told to, the stand-in that answered before where a fallback already stood, and the
 /// provider and model answering now. What the owner is told, and on which road, is the consumer's.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct FallbackAnswering {
   pub owner_id: i64,
   pub previous: Option<String>,

@@ -8,7 +8,7 @@
 use crate::hooks::HookPoint;
 
 /// One pane a consumer claims.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize)]
 pub struct PaneClaim {
   pub agent: String,
   pub label: String,
@@ -28,3 +28,5 @@ impl HookPoint for PaneClaims {
     vec![]
   }
 }
+
+crate::wired!(PaneClaims);

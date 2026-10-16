@@ -122,10 +122,8 @@ impl Route for WorkerNode {
     let hands = Hands::of(&call);
     let home = crate::verbs::home();
     let stand = Stand {
-      db: &hands.ground.db,
+      ground: &hands.ground,
       machine: &hands.machine,
-      data_root: &hands.ground.roots.data,
-      source: &hands.ground.source,
       hands: &hands,
       home: &home,
     };
@@ -180,7 +178,7 @@ async fn place(
     (None, Some(path)) => {
       changes.cwd = Some(paths::resolve(path).to_string_lossy().into_owned());
 
-      let held = workers::workers(stand.db, stand.source)
+      let held = workers::workers(&stand.ground.db, &stand.ground.source)
         .await?
         .into_iter()
         .find(|worker| worker.name == name);
@@ -190,12 +188,13 @@ async fn place(
       }
     }
     (Some(node), Some(path)) => {
-      changes.cwd = Some(agents::on_node_home(stand.db, node, path).await.map_err(Refused::failed)?);
+      changes.cwd =
+        Some(agents::on_node_home(&stand.ground.db, node, path).await.map_err(Refused::failed)?);
     }
     _ => {}
   }
 
-  if !workers::update_worker(stand.db, name, &changes).await? {
+  if !workers::update_worker(&stand.ground.db, name, &changes).await? {
     return Err(bad(CONTROL_WORDS.workers.nothing.as_str()));
   }
 

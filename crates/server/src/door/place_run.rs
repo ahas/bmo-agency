@@ -14,11 +14,11 @@ use serde_json::Value;
 
 use crate::lines::place::{FAILURE_KIND, PLACE_VARIABLE, Place, is_turn_variable};
 
-fn run_file(place: &Path) -> PathBuf {
+pub fn run_file(place: &Path) -> PathBuf {
   place.join("run.json")
 }
 
-fn handed_file(place: &Path) -> PathBuf {
+pub fn handed_file(place: &Path) -> PathBuf {
   place.join("handed")
 }
 
@@ -114,7 +114,7 @@ pub fn hand_run(place: &Path, handing: bool) {
 
 /// How far out of their stamps' order two of a place's lines can land: each is stamped as its call arrives
 /// and appended at once, so only calls arriving together cross, by moments, never by this much.
-const CROSSED_MS: i64 = 60_000;
+pub const CROSSED_MS: i64 = 60_000;
 
 /// A stamped line of a place's record.
 trait Stamped {
@@ -193,7 +193,7 @@ impl Stamped for HookRecord {
   }
 }
 
-fn status_file(place: &Path) -> PathBuf {
+pub fn status_file(place: &Path) -> PathBuf {
   place.join("status.jsonl")
 }
 
@@ -202,7 +202,7 @@ pub fn read_status(place: &Path, since: i64) -> Vec<StatusRecord> {
   records_since(&status_file(place), since)
 }
 
-fn hooks_file(place: &Path) -> PathBuf {
+pub fn hooks_file(place: &Path) -> PathBuf {
   place.join("hooks.jsonl")
 }
 
@@ -276,8 +276,8 @@ fn forget_session(path: &Path, session: &str) -> std::io::Result<()> {
   }
 }
 
-// A line appended to one of the place's records.
-fn append(path: &Path, record: &Value) -> std::io::Result<()> {
+/// A line appended to one of the place's records.
+pub fn append(path: &Path, record: &Value) -> std::io::Result<()> {
   use std::io::Write as _;
 
   let mut file = std::fs::OpenOptions::new().create(true).append(true).open(path)?;

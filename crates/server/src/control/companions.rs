@@ -128,6 +128,11 @@ impl Settings {
     self.shown()[name].clone()
   }
 
+  /// The generation settings the row holds, in the order they were saved.
+  pub fn generation(&self) -> &Map<String, Value> {
+    &self.generation
+  }
+
   pub fn composition(&self) -> Composition {
     Composition {
       pieces: self.pieces.clone(),

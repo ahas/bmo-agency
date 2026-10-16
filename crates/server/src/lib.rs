@@ -5,99 +5,67 @@
 //! declare them; and the members of the places and the watches that stand on nothing but this.
 
 pub mod clock;
+pub mod command_reading;
 
-/// A companion's runs (docs/companions.md). Its members stand on the places, the launch lines, the door,
-/// the run log and the queue, and are declared with those; until then the members that stand on nothing
-/// but the ground are built here.
+/// A companion's runs (docs/companions.md): its guard, its handoff, the point its reset cuts it off at, its
+/// runs going, its room sessions, and what its reset tells the units holding the rest of it.
 pub mod companion {
   pub mod going;
+  pub mod guard;
+  pub mod handoff;
+  pub mod overtaken;
   pub mod reset;
+  pub mod run;
+  pub mod sessions;
 }
 pub mod config;
+pub mod control;
 pub mod conversational;
 pub mod data_move;
-
-/// The resident door (docs/agent-control.md, 「What a resident turn reads」). The door stands on the
-/// places, the launch lines, the queue and the control modules, and is declared whole, through
-/// `door/mod.rs`, together with those; until then the members that stand on nothing but the ground are
-/// built here.
-pub mod door {
-  pub mod looks;
-  pub mod record;
-}
+pub mod doctor;
+pub mod door;
 pub mod events;
+pub mod herdr_backend;
 pub mod hooks;
+pub mod host_run;
 
-/// What a job's Claude turn comes to (docs/run-records.md, 「Why a run died」), and the OpenRouter tap and
-/// what it read. The reset a job carries out and the walk of the logins stand on the launch lines and the
-/// control routes, and are declared with them.
+/// What a job's Claude turn comes to (docs/run-records.md, 「Why a run died」), the walk of the logins that
+/// carries it, the reset a worker's sessions are carried out by, and the OpenRouter tap and what it read.
 pub mod job_run {
   pub mod claude {
     pub mod failure;
+    pub mod reset;
+    pub mod walk;
   }
   pub mod openrouter;
   pub mod openrouter_tap;
 }
+
+/// The keepalive agency keeps: the logins' watch, and the co-worker pool's warming of its reserved places.
+pub mod keepalive {
+  pub mod logins;
+  pub mod pool;
+}
+pub mod lines;
+pub mod order_run;
 pub mod peers;
-
-/// The workers' places in herdr (docs/agent-control.md, 「One standing pane per agent」). The places stand
-/// on the launch lines, the queue and the control modules, and are declared whole, through
-/// `places/mod.rs`, together with those; until then the members that stand on nothing but the ground are
-/// built here.
-pub mod places {
-  pub mod branch;
-  pub mod checkouts;
-  pub mod claims;
-  pub mod dev;
-  pub mod follow;
-  mod ground;
-  pub mod home;
-  pub mod locks;
-  pub mod nodes;
-  pub mod servers;
-  pub mod trust;
-
-  pub use ground::{AgentRow, DEPLOY_VARIABLE, Ground, VERBS_BINARY};
-}
-/// The queue's mechanics agency keeps. Its stops, pins, roads, reconciling and leftovers sweep stand on the
-/// control modules, the door and the places, and are declared whole, through `queue/mod.rs`, together with
-/// those; until then the members that stand on nothing but the ground are built here.
-pub mod queue {
-  pub mod cancels;
-  pub mod paths;
-  pub mod running;
-  pub mod settings;
-  pub mod worker_rules;
-  pub mod workers;
-}
+pub mod places;
+pub mod queue;
 pub mod readiness;
+pub mod rest;
 pub mod rooms;
 pub mod run_log;
+pub mod stand_in;
 pub mod text;
+
+pub mod verbs;
 
 /// The machine's watches agency keeps: the links to the work nodes (docs/work-nodes.md, 「The link」).
 pub mod watches {
   pub mod links;
 }
-
-/// A worker's own session (docs/sessions.md, docs/cache-fallback.md). Its turns, records and folds stand on
-/// the door, the launch lines, the queue and the control modules, and are declared whole, through
-/// `worker_session/mod.rs`, together with those; until then the members that stand on nothing but the
-/// ground are built here.
-pub mod worker_session {
-  pub mod summary;
-  pub mod told;
-  pub mod warmth;
-}
-
-/// The launch lines (docs/launch-lines.md). The lines and the stand-in walk beside them stand on the
-/// places, the door, the queue and the control modules, and are declared whole, through `lines/mod.rs`
-/// and `stand_in`, together with those; until then the members that stand on nothing but the ground are
-/// built here.
-pub mod lines {
-  pub mod ordered;
-  pub mod prefix;
-}
+pub mod wording;
+pub mod worker_session;
 
 use std::path::Path;
 use std::sync::Arc;

@@ -20,14 +20,14 @@ const RUN_NAME: &str = "BMO_RUN_NAME";
 const ROUND_LINE: &str = "chat";
 
 /// The session a program's command opens or resumes.
-fn session_named(args: &[String]) -> Option<&str> {
+pub fn session_named(args: &[String]) -> Option<&str> {
   let at = args.iter().position(|word| word == "--session-id" || word == "--resume")?;
 
   args.get(at + 1).map(String::as_str)
 }
 
 /// A reply of the road's: its provider's, with nothing spent in money and no Claude login named.
-fn road_reply(provider: &str, reply: Reply) -> Reply {
+pub fn road_reply(provider: &str, reply: Reply) -> Reply {
   Reply {
     mode: provider.to_owned(),
     account: None,

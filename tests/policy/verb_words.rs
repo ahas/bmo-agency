@@ -1,0 +1,19 @@
+use policy::verb_words::VERB_WORDS;
+
+#[test]
+fn the_verb_words_read_with_the_marks_they_are_filled_by() {
+  let words = &VERB_WORDS;
+
+  assert!(words.claude_token.unknown_account.contains("{named}"));
+  assert!(words.agents.provider_order.contains("{names}"));
+  assert!(words.agents.not_restable.contains("{worker}"));
+  assert!(words.agents.node_checkout.base_on_node.contains("{base}"));
+  assert!(words.agents.node_checkout.base_on_node.contains("{node}"));
+  assert!(words.agents.node_placing.no_jobs.contains("{why}"));
+  assert!(words.dev_servers.server.up.contains("{done}") && words.dev_servers.server.up.contains("{log}"));
+  assert!(words.dev_servers.listing.worker.contains("{megabytes}"));
+  assert!(
+    words.dev_servers.pane.idle.contains("{short}") && words.dev_servers.pane.idle.contains("{minutes}")
+  );
+  assert!(words.dev_servers.pane.closing.contains("{why}"));
+}

@@ -20,7 +20,7 @@ const NODE_PANE_VERB: &str = "node-pane";
 
 /// The node list's shape moved under the places — a node added, removed, renamed, relabelled, reordered
 /// or changing state — so a consumer showing the nodes reads them again. It carries nothing.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub struct NodesMoved;
 
 impl Event for NodesMoved {

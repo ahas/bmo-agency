@@ -1,7 +1,7 @@
 //! The standing branch checkouts as a kind of place the pool warms for a co-work reservation
-//! (docs/coworker-pool.md, 「Standing branch checkouts and their list」). Which pool the reservation's
-//! places stand in, and which of them its owner's tasks sit in now, the consumer answers through the
-//! co-work places hook; agency reads none of its orders. The candidates are the list's rows for the reserved
+//! (docs/coworker-pool.md, 「Standing branch checkouts and their list」). Which pool the reservation's places
+//! stand in, and which of them its owner's tasks sit in now, the consumer answers through the co-work
+//! places hook; agency reads none of its orders. The candidates are the list's rows for the reserved
 //! provider and model whose place still stands; a Claude Code row whose prefix has moved names a cache
 //! nobody can read and is no candidate. The ping is the worker's own line in that place, keeping no
 //! session, and an answer writes the row again with the prefix it read.
@@ -32,7 +32,7 @@ const DIGESTED: &str = "claude-code";
 
 /// What the consumer whose co-work reserves answers for a reservation's owner: the checkout its order works
 /// in, which sets the pool, and the places its tasks sit in now.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Deserialize)]
 pub struct OwnerPlaces {
   pub cwd: String,
   pub held: Vec<Held>,
@@ -51,6 +51,8 @@ impl HookPoint for CoworkPlaces {
     None
   }
 }
+
+crate::wired!(CoworkPlaces);
 
 pub struct BranchPlaces;
 

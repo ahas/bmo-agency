@@ -32,6 +32,7 @@ pub mod roles;
 pub mod run_lines;
 pub mod run_stop;
 pub mod tiers;
+pub mod verb_words;
 pub mod work_keys;
 pub mod workers;
 

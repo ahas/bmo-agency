@@ -1,4 +1,5 @@
 use agency_server::door::endpoint::*;
+use agency_server::door::record::Reply;
 
 #[test]
 fn the_session_is_the_one_the_command_opens_or_resumes() {

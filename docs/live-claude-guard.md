@@ -309,8 +309,9 @@
 - **Scope:** the opening stands for the one job whose run name it was made under, found by that
   name as for everything else here. The stages of a work order are separate jobs, so each stage
   opens it separately. A process outside a job has nothing to open, and the script refuses it.
-- **Both layers read the same opening.** The guard finds the job by its run name and looks in
-  agency's store for an opening that job made.
+- **Both layers read the same opening.** An opening is kept in agency's store under the run name it
+  was made under; the guard looks for an opening of its run's name there. Which job and item a run is,
+  agency does not read: a job's rows are the job unit's.
 - **A copy is still the same job.** A script a job points at a copy of the store — `BMO_DB_PATH`
   or `BMO_DATA_DIR` naming a workbench copy — reads the store it was named first, and where that
   holds no job of the run's name, agency's own store, which holds the job and its opening. The

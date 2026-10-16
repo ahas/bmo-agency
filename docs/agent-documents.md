@@ -57,12 +57,15 @@ composed into a system prompt, and what the chat agent's own prompt is made of.
 - **A system prompt reaches the CLI as a file,** written under the deploy root's `prompts/` for that
   launch and named after the chat line or the gate, never on the command line: a chat's runs tens of
   kilobytes.
-- **The prompt-composing entry of the `bmo-agency` CLI** — run by the reload path whenever a document
-  under `prompts/rules/` or `prompts/agents/` changes, by hand, and on every start of agency's server,
-  for the list of agents its caller names — writes the same composition out under the agents
-  directory the data root holds (`BMO_AGENTS_DIR`): the composed prompts for inspection, and for each runner the directory it runs in, which sits outside the repository on
-  purpose so that neither a project instruction file up the tree nor the repository's git status can
-  enter a runner's prefix.
+- **The prompt-composing entry of the `bmo-agency` CLI** — `bmo-agency prompts [<gates.json>]`, which
+  runs the agent package's `deploy-agents.ts` on Bun out of the code tree; run by the reload path whenever
+  a document under `prompts/rules/` or `prompts/agents/` changes, by hand, and on every start of agency's
+  server — writes the same composition out under the agents directory the data root holds
+  (`BMO_AGENTS_DIR`). The gate agents beside agency's own are the caller's, named in a JSON file of
+  `{ name, model, system }` entries; the server's start and the reload path name none, so only agency's
+  own are written then. It writes the composed prompts for inspection, and for each runner the directory
+  it runs in, which sits outside the repository on purpose so that neither a project instruction file up
+  the tree nor the repository's git status can enter a runner's prefix.
 
 ## The chat agent
 
