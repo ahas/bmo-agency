@@ -1,0 +1,6 @@
+[package]
+name = "agent-session"
+description = "The agent-session contract: the seven operations every backend answers, and their request and answer types."
+version.workspace = true
+edition.workspace = true
+publish = false

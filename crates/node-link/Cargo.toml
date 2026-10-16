@@ -1,0 +1,6 @@
+[package]
+name = "node-link"
+description = "The node link: what the two ends of a link between machines say to each other."
+version.workspace = true
+edition.workspace = true
+publish = false

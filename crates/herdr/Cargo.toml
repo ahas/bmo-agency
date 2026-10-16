@@ -1,0 +1,6 @@
+[package]
+name = "herdr"
+description = "The herdr socket client: herdr's own wire protocol, spoken by the herdr backend."
+version.workspace = true
+edition.workspace = true
+publish = false

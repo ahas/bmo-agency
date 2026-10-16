@@ -1,0 +1,6 @@
+[package]
+name = "llm-gateway"
+description = "The model gateway: the front every run asks, serving the registered models through a LiteLLM child."
+version.workspace = true
+edition.workspace = true
+publish = false

@@ -1,0 +1,29 @@
+# The workspace: the crates agency is built from under `crates/`, and the repository's own package at the
+# root, which publishes nothing and holds every test in `tests/`. The version is the repository's one
+# version, in semver: the major moves on a change to the boundary API or to a table's contract.
+[workspace]
+members = [
+  "crates/agent-session",
+  "crates/herdr",
+  "crates/agent-host",
+  "crates/pane-head",
+  "crates/harness-machine",
+  "crates/harness-providers",
+  "crates/node-link",
+  "crates/llm-gateway",
+  "crates/policy",
+  "crates/store",
+  "crates/server",
+]
+resolver = "3"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+
+[package]
+name = "agency-checks"
+description = "The repository's tests: each crate's behaviour and the checks that span the repository."
+version.workspace = true
+edition.workspace = true
+publish = false

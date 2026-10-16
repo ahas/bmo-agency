@@ -1,0 +1,6 @@
+[package]
+name = "store"
+description = "Agency's store: its connection pool, statement helpers, registry readers and migrations."
+version.workspace = true
+edition.workspace = true
+publish = false

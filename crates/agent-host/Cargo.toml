@@ -1,0 +1,6 @@
+[package]
+name = "agent-host"
+description = "The agent host: the supervisor that starts, watches and stops the executions placed in panes."
+version.workspace = true
+edition.workspace = true
+publish = false

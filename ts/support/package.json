@@ -1,0 +1,8 @@
+{
+  "name": "@agency/support",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./*": "./*.ts"
+  }
+}

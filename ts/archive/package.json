@@ -1,0 +1,8 @@
+{
+  "name": "@agency/archive",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./*": "./*.ts"
+  }
+}

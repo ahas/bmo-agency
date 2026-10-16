@@ -1,0 +1,17 @@
+{
+  "name": "agency-ts",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "agent",
+    "archive",
+    "support"
+  ],
+  "scripts": {
+    "check:types": "bunx tsc --noEmit"
+  },
+  "devDependencies": {
+    "bun-types": "^1.4.0",
+    "typescript": "^7.0.2"
+  }
+}
