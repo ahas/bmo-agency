@@ -19,6 +19,7 @@ mod node_states;
 mod place_words;
 mod providers;
 mod providers_codex;
+mod queue_words;
 mod reasoning;
 mod registry;
 mod research;

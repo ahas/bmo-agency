@@ -28,7 +28,7 @@ judges none of it.
 ## Versioning
 
 - **The contract carries the repository's one version, in semver.** The version in the workspace
-  manifest is this boundary's version; the current line is `0.9.0`.
+  manifest is this boundary's version; the current line is `0.10.0`.
 - **A change to this document and a change to the boundary go in one commit.** A change that makes a
   route, an event, a hook or a shared table's contract different repairs this document in the same
   commit, stating what is true now.
@@ -146,6 +146,13 @@ judges none of it.
   worker's session, naming the `session`: whatever a consumer sent that session to hold — a co-work
   result among it — is folded away with it, and the consumer lets its own record of it go
   (`docs/sessions.md`, 「Session compaction」).
+- **What a job's end left in herdr**, `herdr-leftovers`, is published when the sweep after a job's end finds
+  workspaces it would not close, once for each picture: `panes`, the count, and `workspaces`, each its
+  `workspaceId`, `label`, `panes` and whether it is `marked` as this system's, and `account`, an English
+  sentence of it (`docs/agent-control.md`, 「One standing pane per agent」). Telling the owner is the
+  consumer's.
+- **A worker removed**, `worker-removed`, names the `worker` whose row and sessions went, so a consumer
+  lets go what it lent it.
 - **A login's end told**, `account-login-notice`, is published once for each ending the logins' watch
   finds: the `account`, which `login` it is (`here`, its login on this machine, or `node-token`, its token
   for the work nodes), how it `stands` (`gone`, `ending` or `missing`), `leftMs` (or null), and `notice`, the
@@ -258,6 +265,11 @@ Each hook has a default that does nothing, so agency runs with none registered.
   carried to a node with each run; the command that makes one, and the warning before one expires, are
   agency's (`docs/work-nodes.md`, 「The logins on a node」, `docs/cache-fallback.md`, 「A login that is
   about to end」). No token crosses this boundary: a consumer reads only whether an account is usable.
+- **The rest.** Agency answers whether the deployment rests now and until when: while the service's own
+  outage rest stands (`rest_until` with `rest_kind` set to `outage`), or while every enabled account's
+  own rest stands (`rest_until:<account>`, or a window of its own read full), until the soonest of them
+  ends; and why, `outage` or `limit` (`docs/cache-fallback.md`). While it rests, Claude Code's road is
+  closed to a job's selection.
 - **The event** agency publishes is an account becoming unusable and coming back.
 
 ## Workers
@@ -273,6 +285,27 @@ Each hook has a default that does nothing, so agency runs with none registered.
 - **A worker's jobs** are the consumer's to plan and hand in; agency carries each job's turn into the
   worker's session, on its pin, and reports the turn's lifecycle as an event (「Events」 above). What a
   job is and when it runs is the job unit's.
+- **A job's stop mark.** A consumer stopping a job marks it stopped with its reason before the job's
+  unit is asked to stop (`job_stop:<job>`); the mark is read by whoever closes the job's record, so it
+  closes as stopped, and taken away with that record. Agency keeps the mark and judges nothing of it.
+- **A road's block.** A failure that closes a road for a while blocks it until a moment, with its
+  reason: a provider, or on a provider whose models are services of their own the one model
+  (`job_route_block:<provider>` or `job_route_block:<provider>::<model>`, the value `until` in epoch
+  milliseconds and `reason`). Agency reads a road blocked while the moment is ahead, besides a provider
+  switched off and Claude Code while the deployment rests, and answers whether an item has a road open
+  now: some selection its job may go out on, in the order the job walks them, that is not blocked.
+- **Stopping runs.** A consumer asks a run to stop by its name, a unit's or an execution's: a
+  cancellation stands over it and everything it owns, a run in a pane is asked to end and its pane closed
+  after its grace, a resident turn is left to its collector with its provider's interrupt behind it, and
+  a unit still standing is stopped by systemd (`docs/agent-control.md`, 「Stopping」). A consumer ending
+  several runs at once — a work order changed — has them stopped and confirmed gone first, each pool
+  place given back and each cancellation taken back; the refusal names the units still standing, and
+  closing the consumer's own records of those runs is the consumer's.
+- **Which names are alive.** Agency answers which of the names asked are running — held by systemd, named
+  by an open execution as its parent or root, or held as a pane's run by herdr — or that nobody could
+  say, which is never read as nothing running (`docs/agent-control.md`, 「Asking whether it is alive」).
+- **A support worker removed** publishes `worker-removed` (「Events」 above), so a consumer lets go what
+  it lent the worker, such as a checkout lease.
 
 ## Health
 

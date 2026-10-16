@@ -55,6 +55,17 @@ pub mod places {
 
   pub use ground::{AgentRow, DEPLOY_VARIABLE, Ground, VERBS_BINARY};
 }
+/// The queue's mechanics agency keeps. Its stops, pins, roads, reconciling and leftovers sweep stand on the
+/// control modules, the door and the places, and are declared whole, through `queue/mod.rs`, together with
+/// those; until then the members that stand on nothing but the ground are built here.
+pub mod queue {
+  pub mod cancels;
+  pub mod paths;
+  pub mod running;
+  pub mod settings;
+  pub mod worker_rules;
+  pub mod workers;
+}
 pub mod readiness;
 pub mod rooms;
 pub mod run_log;

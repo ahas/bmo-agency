@@ -183,7 +183,9 @@ The owner's words:
   whose command line carries the standing mark (`bmo-standing-*`), such as a companion's follow pane
   (`docs/companions.md`, 「What a turn shows」).
 - **A job's end sweeps the whole of herdr the same way.** When a job ends, and when a work order ends,
-  the bot reads every workspace and every pane in it. A pane carrying a run, a head (`bmo-head-*`, the
+  agency reads every workspace and every pane in it, on this machine and on each ready work node whose
+  link the node service reports up. Every agent standing counts, a pane a consumer claims among them
+  (`docs/api.md`, 「Hooks」, the pane claims). A pane carrying a run, a head (`bmo-head-*`, the
   head script), a node's pane (`bmo-node-*`), a dev server or a standing pane (`bmo-standing-*`) is kept whatever else is true, since what
   it runs is an agent's or a node's standing process. In a workspace this system marked — one carrying
   an agent's or a node's token — a pane carrying none of those is closed, and a workspace of an agent
@@ -193,10 +195,10 @@ The owner's words:
     its program stand for a worker that takes no work (`jobs.md`, 「There can be more than
     one job worker」). One with a run in it waits for the next sweep.
   - **What the sweep will not close is told, not closed.** A workspace of an agent that no longer
-    stands but still carries something, and a workspace no token marks whose panes carry nothing, reach
-    the chat agent as one `herdr-leftovers` fact — how many panes, in which workspaces, and whether each is marked.
-    An unmarked workspace may be a person's own terminal, so closing it is the chat agent's call after asking. The
-    same picture is told once.
+    stands but still carries something, and a workspace no token marks whose panes carry nothing, are
+    published as one `herdr-leftovers` event — how many panes, in which workspaces, and whether each is
+    marked (`docs/api.md`, 「Events」). An unmarked workspace may be a person's own terminal, so closing it
+    is the call of whoever the consumer tells, after asking. The same picture is published once.
 
 ### Which agents are resident
 

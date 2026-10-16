@@ -1,0 +1,58 @@
+//! A stopped run's cancellation taken back once it is gone (docs/agent-control.md, 「What a cancellation
+//! reaches, and how long it stands」). A marker is the signal that ends one run, never a verdict about a
+//! name for ever: while it stands every launch under that name is refused, so it is dropped once the
+//! work it was raised over has ended — the name asked for and every execution that name owns.
+
+use std::collections::BTreeSet;
+
+use sea_orm::DatabaseConnection;
+use serde_json::Value;
+
+use store::all;
+
+use super::running::EXECUTION_CANCEL_PREFIX;
+use super::settings;
+use crate::Refusal;
+
+/// The names one cancellation covers: the one asked for and every execution it owns — its own
+/// descendants, and anything rooted in it. Never a root, which every run of the same place shares.
+pub fn covered(rows: &[Value], parent: &str) -> BTreeSet<String> {
+  let text = |row: &Value, key: &str| row.get(key).and_then(Value::as_str).map(str::to_owned);
+  let mut owned = BTreeSet::from([parent.to_owned()]);
+  let mut changed = true;
+
+  while changed {
+    changed = false;
+
+    for row in rows {
+      let Some(id) = text(row, "id") else { continue };
+      let rooted = text(row, "root").as_deref() == Some(parent);
+      let child = text(row, "parent").is_some_and(|of| owned.contains(&of));
+
+      if (rooted || child) && owned.insert(id) {
+        changed = true;
+      }
+    }
+  }
+
+  owned
+}
+
+/// Every marker the cancellation of this name raised taken back; the names actually dropped.
+pub async fn take_back(db: &DatabaseConnection, parent: &str) -> Result<Vec<String>, Refusal> {
+  let rows: Vec<Value> = all(db, r#"SELECT "body" FROM "agent_executions" ORDER BY rowid DESC"#, vec![])
+    .await?
+    .iter()
+    .filter_map(|row| row.try_get::<String>("", "body").ok())
+    .filter_map(|body| serde_json::from_str(&body).ok())
+    .collect();
+  let mut dropped = vec![];
+
+  for name in covered(&rows, parent) {
+    if settings::take(db, &format!("{EXECUTION_CANCEL_PREFIX}{name}")).await?.is_some() {
+      dropped.push(name);
+    }
+  }
+
+  Ok(dropped)
+}

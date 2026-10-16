@@ -47,6 +47,14 @@ mod places {
   mod nodes;
   mod servers;
 }
+// The queue members built so far; the others stand beside these and are declared with their modules.
+mod queue {
+  mod cancels;
+  mod paths;
+  mod settings;
+  mod worker_rules;
+  mod workers;
+}
 mod readiness;
 mod rooms;
 
