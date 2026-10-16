@@ -1,0 +1,10 @@
+[package]
+name = "tool-call"
+description = "Agency's side of the tool host's call protocol, which agency's placed tools share."
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true

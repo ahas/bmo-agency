@@ -12,15 +12,7 @@ use tokio::sync::{OwnedRwLockReadGuard, OwnedRwLockWriteGuard, RwLock};
 use crate::queue::running::EXECUTION_CANCEL_PREFIX;
 use crate::queue::settings;
 
-/// The settings key a companion's reset point stands under.
-pub fn reset_point_key(agent: &str) -> String {
-  format!("reset_point:{agent}")
-}
-
-/// Whether the point overtakes a turn begun at `began`.
-pub fn overtakes(point: Option<i64>, began: i64) -> bool {
-  point.is_some_and(|point| began <= point)
-}
+pub use store::reset_point::{key as reset_point_key, overtakes};
 
 /// The agent's reset point, where it was ever reset.
 pub async fn point(db: &impl ConnectionTrait, agent: &str) -> Option<i64> {

@@ -1,0 +1,20 @@
+# A research run's rulebooks, handed out whole by name out of the tree the tool is placed in (docs/tools.md,
+# 「The rulebook reader」). The tests hold the entry here to the Rust tool answering it.
+
+[tool]
+name = "read_rulebook"
+protocol = 1
+language = "rust"
+build = 'cargo build --release -p read-rulebook-tool && cp "$BMO_CARGO_TARGET/release/read-rulebook-tool" "$BMO_TOOL_OUT/"'
+check = 'cargo test -p agency-checks --test tools'
+run = ["read-rulebook-tool"]
+timeout = 30
+
+[[entry]]
+namespace = "web"
+name = "read_rulebook"
+title = "Read rulebook"
+description = "Returns one of this run's rulebooks whole. The prompt carries only the section of each that decides whether it applies to this search; once that section says it does, read the rulebook here before searching, and it binds the search as if it stood in the prompt."
+input = "read_rulebook.json"
+hints = { read_only = true }
+capabilities = ["web.rulebooks"]

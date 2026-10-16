@@ -28,7 +28,7 @@ judges none of it.
 ## Versioning
 
 - **The contract carries the repository's one version, in semver.** The version in the workspace
-  manifest is this boundary's version; the current line is `0.15.0`.
+  manifest is this boundary's version; the current line is `0.16.0`.
 - **A change to this document and a change to the boundary go in one commit.** A change that makes a
   route, an event, a hook or a shared table's contract different repairs this document in the same
   commit, stating what is true now.
@@ -42,6 +42,10 @@ judges none of it.
   on the port `AGENCY_CONTROL_PORT` names (3220 where it names none), under `Authorization: Bearer
   <token>` with the token `AGENCY_CONTROL_TOKEN` holds; the server does not stand without one. A request
   without the token is answered 401.
+- **Both variables stand in the data root's `env/agency.env`,** the file the server's unit takes its
+  environment from. A process of agency's whose environment holds neither — a placed tool, which the
+  tool host hands a clean one (`docs/tools.md`) — reads them there, a variable its own environment holds
+  standing first.
 - **A route takes and answers JSON,** field names in camelCase; a GET reads its fields from the query. A
   refusal is answered with its status and a body of `code`, the status's kebab-case reason, and `error`,
   an English sentence; a session operation's fault carries its own outcome code (「Sessions」 below).
@@ -73,6 +77,7 @@ judges none of it.
 | GET, POST | `/hooks` | the points a consumer registers at, and a registration | 「Hooks」 |
 | POST | `/hooks/remove` | a registration taken away | 「Hooks」 |
 | POST | `/typed-line` | a typed line's composition, as the submit hook asks it | 「Hooks」 |
+| GET | `/road-verbs` | the verbs a room's road performs, as the consumer answers them | 「Hooks」 |
 | GET | `/coworker-pool` | what holds each place of the pool now | 「Co-worker pool」 |
 | POST | `/pool/enqueue`, `/pool/acquire`, `/pool/bind`, `/pool/finish` | a seat or a place asked, let in, bound and given back | 「Co-worker pool」 |
 | POST | `/pool/reserve`, `/pool/reservations/release` | an owner's seats reserved and given back | 「Co-worker pool」 |
@@ -279,8 +284,8 @@ Each hook has a default that does nothing, so agency runs with none registered.
   read from the `answer` of a 2xx answer. An address that does not answer within ten seconds, answers
   otherwise or answers what does not read as the point's answer is told once on agency's error stream,
   and the point answers its default. The points registered this way are `room-title`, `pane-claims`,
-  `cowork-places`, `session-summariser` and `typed-line`; a registration lasts as long as the server's
-  process.
+  `cowork-places`, `session-summariser`, `typed-line` and `road-verbs`; a registration lasts as long as
+  the server's process.
 
 - **Turn assembly.** Before a turn is sent, agency calls the consumer to compose what the turn carries
   — the prompt, and the material it chose to stand at its head. Agency reads none of it and hands it to
@@ -298,6 +303,11 @@ Each hook has a default that does nothing, so agency runs with none registered.
   pane」). The pane's submit hook asks `POST /typed-line` with the `text` and the `sessionId`; agency asks
   the point with both and answers the `context` the consumer composed, or 409 where it composed none. The
   default composes nothing, and the line goes on as typed.
+- **The verbs a room's road performs**, `road-verbs`. A procedure read in a room's turn is held to the
+  verbs the road it answers on performs (`docs/tools.md`, 「The procedures」), which the consumer that
+  holds the rooms answers. `GET /road-verbs` takes the `chat` and, where the turn names one, the `via`
+  road; agency asks the point with both and answers `can`, the verbs. The default answers none, and a
+  procedure read in a room keeps none of its marked parts.
 - **The conversation limits.** A provider declares the limits a conversational turn is watched against;
   a consumer registers what counts as a turn going nowhere, and agency cuts the turn at the first
   (`docs/companions.md`, 「A turn that goes nowhere」, `docs/agents.md`, 「What a provider declares for a

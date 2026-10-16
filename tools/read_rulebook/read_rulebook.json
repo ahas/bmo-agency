@@ -1,0 +1,13 @@
+{
+  "properties": {
+    "name": {
+      "description": "The rulebook, named as its file under prompts/rules/ is named, without .md.",
+      "minLength": 1,
+      "type": "string"
+    }
+  },
+  "required": [
+    "name"
+  ],
+  "type": "object"
+}

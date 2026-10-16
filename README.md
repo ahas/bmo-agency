@@ -25,7 +25,9 @@ provider and tier is given.
 | `crates/llm-gateway` | the front of the registered models |
 | `crates/policy` | the readers of `policy/` |
 | `crates/store` | agency's tables, their migrations and the statements over them |
+| `crates/tool-call` | agency's side of the tool host's call protocol, which its tools share |
 | `crates/server` | the service: sessions, places, lines, the co-worker pool, control routes, verbs; its binaries `agency-server` and `bmo-agency` |
+| `tools/` | the tools agency provides to the tool host: the procedures and the rulebook reader |
 | `ts/` | the TypeScript packages, one Bun workspace |
 | `policy/`, `prompts/` | the fixed values and the prompts agency runs by |
 | `deploy/` | the service units |

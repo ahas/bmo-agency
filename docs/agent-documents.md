@@ -95,10 +95,10 @@ composed into a system prompt, and what the chat agent's own prompt is made of.
   filing and managing TODO items, changing a work order, opening and stopping a word-chain game, a
   fair draw — is in `prompts/agents/chat/procedures/`, one document each, which the session reads
   right before running the command.
-  - It reads one as a resource of its own server, `bmo://procedure/<name>`, or through
-    `bmo procedure show`; either reads it as the room it is read in may use it, leaving out what
-    needs a verb that room's chat provider does not perform, so one copy of each document serves
-    every road.
+  - It reads one as a resource, `bmo://procedure/<name>`, which agency's procedures tool serves
+    (`docs/tools.md`, 「The procedures」); the tool reads it as the room it is read in may use it,
+    leaving out what needs a verb that room's road does not perform, so one copy of each document
+    serves every road.
   - Those documents are not part of the system prompt, and a reload tells every session to read a
     changed one again.
   - How to read the queue, choose, launch a job, write its prompt, and mend a failure before moving
