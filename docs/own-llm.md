@@ -292,13 +292,15 @@ never the model's name.
     OpenAI-compatible address.
   - A request with no tools, on the chat completions path and the model list.
 - **Its table is written from the registry:** the unit's process is agency's gateway launcher, the
-  `llm-gateway` binary. It reads the registry out of whichever database the store stands in, opened
-  read-only for each reading, so it never holds a lock the bot waits on. It writes the table under the
-  data root, private and renamed into place, copies the hooks beside it, and starts LiteLLM on it as a
-  child on a free loopback port. The table names each key by a variable the launcher sets from the key's
-  file in that child's environment alone, and never a key; the child's environment holds nothing else
-  but its `PATH` and `HOME`.
+  `llm-gateway` binary. It reads the registry out of the store, at the address `BMO_ARCHIVE_URL` names
+  or else the one the data root's `env/archive-url` holds, opened read-only for each reading, so it never
+  holds a lock the bot waits on. It writes the table under the data root, private and renamed into
+  place, copies the hooks beside it from the gateway crate's `hooks/` folder in the tree it runs from,
+  and starts LiteLLM on it as a child on a free loopback port. The table names each key by a variable
+  the launcher sets from the key's file in that child's environment alone, and never a key; the child's
+  environment holds nothing else but its `PATH` and `HOME`.
   - A registry not settled yet reads as nothing to serve for now, and is read again at the next beat.
+    A launcher with no store address named at all does not start.
   - A child is ready once its readiness check answers; one that ends or stays silent first is given up,
     and the child serving goes on serving.
   - Tables left by a launcher that ended without stopping its children are removed as it starts.
