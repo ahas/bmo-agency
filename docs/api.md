@@ -63,6 +63,16 @@ judges none of it.
   caller through it: start a session, send a turn into it, read its state, interrupt it, fold it, end
   it, and list sessions. herdr is one backend of that contract; a caller names no backend
   (`docs/sessions.md`, `docs/agent-control.md`).
+- **What each operation takes and answers:**
+  - *start* takes the agent's stable name and the scope, and answers the session — its id, its agent
+    and its scope — the one already kept for that scope where there is one;
+  - *send a turn* takes the session's id and the prompt, and answers whether the program took the
+    words or refused them while it waits on a person, which is not a failure;
+  - *read state* takes the session's id and answers its state (below);
+  - *interrupt*, *fold* and *end* take the session's id and answer nothing but their success;
+  - *list* answers every session the backend keeps, each as *start* answers one.
+  - An operation not carried out answers a fault with its outcome code — `unknown-session`,
+    `session-busy`, `backend-unreachable` or `backend-refused` — and an English sentence saying why.
 - **A turn is sent with its prompt alone;** the session keeps the conversation, and agency computes
   only what is new (`docs/sessions.md`, `docs/agents.md`, 「The session's scope」). What the prompt
   carries is the consumer's, composed above this boundary (「Hooks」 below).

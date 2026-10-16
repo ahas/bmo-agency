@@ -21,9 +21,21 @@ resolver = "3"
 version = "0.1.0"
 edition = "2024"
 
+[workspace.dependencies]
+serde = { version = "1.0.219", features = ["derive"] }
+serde_json = "1.0.138"
+tempfile = "3.20.0"
+tokio = { version = "1.47.0", features = ["macros", "rt", "rt-multi-thread", "net", "time", "signal", "io-util", "process"] }
+
 [package]
 name = "agency-checks"
 description = "The repository's tests: each crate's behaviour and the checks that span the repository."
 version.workspace = true
 edition.workspace = true
 publish = false
+
+[dev-dependencies]
+herdr = { path = "crates/herdr" }
+serde_json.workspace = true
+tempfile.workspace = true
+tokio.workspace = true

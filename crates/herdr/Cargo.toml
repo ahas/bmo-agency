@@ -4,3 +4,9 @@ description = "The herdr socket client: herdr's own wire protocol, spoken by the
 version.workspace = true
 edition.workspace = true
 publish = false
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+# The events read off the subscription are held in a channel until the snapshot is installed.
+tokio = { workspace = true, features = ["sync"] }
