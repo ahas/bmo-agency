@@ -47,7 +47,9 @@ seeds. The other crates and the server reach the store only through it.
   - the logins watch's notes: `claude_node_token_gone:*` and its notice keys;
   - a job's road and its stop: `job_route_block:*`, `job_stop:*`;
   - the fallback and the rest: `fallback_since`, `fallback_provider`, `rest_until`, `rest_until:*`,
-    `rest_kind`.
+    `rest_kind`;
+  - the data move's mark, `users_moved_at`, carried with the rows of a store moved across; agency reads
+    it and never writes it, and a store without it reads as not moved.
 
 ## Its seeds
 
@@ -67,6 +69,8 @@ seeds. The other crates and the server reach the store only through it.
 
 ## Connecting
 
+- **The store's address** is the one `BMO_ARCHIVE_URL` names, else the one the data root's
+  `env/archive-url` holds; a process with neither names no store.
 - **The service opens a pool,** which never hands out a connection opened before the store's shape last
   moved under the process: a statement met with PostgreSQL's code for a plan whose table moved is run
   once more on a fresh connection.

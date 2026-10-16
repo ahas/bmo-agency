@@ -28,7 +28,7 @@ judges none of it.
 ## Versioning
 
 - **The contract carries the repository's one version, in semver.** The version in the workspace
-  manifest is this boundary's version; the current line is `0.1.0`.
+  manifest is this boundary's version; the current line is `0.2.0`.
 - **A change to this document and a change to the boundary go in one commit.** A change that makes a
   route, an event, a hook or a shared table's contract different repairs this document in the same
   commit, stating what is true now.
@@ -97,6 +97,7 @@ judges none of it.
   the answer being written, sent, failed with its reason, or cut short by a limit its provider declared
   (`docs/companions.md`, 「What a turn shows」, 「A turn that goes nowhere」). A consumer reads them to
   show a turn and to wake what a turn's end should wake; agency waits on no reader.
+- **An event no consumer subscribed to** is published to nobody, and nothing else of the turn changes.
 - **A run's log lines** are published as the run writes them, so a consumer shows a long turn as it
   goes rather than as a silence (`docs/agent-control.md`, 「A job gone quiet」).
 - **A node's state** is published as it changes — ready, dropped, come back, its load and pressure
@@ -224,3 +225,49 @@ Each hook has a default that does nothing, so agency runs with none registered.
   so a consumer's health view follows without polling.
 - **Agency reports faithfully:** a node not ready says what is missing, a gateway still settling says
   so, and a key that is not usable says it is not; nothing is shown ready that is not.
+
+## Calls agency makes
+
+- **Agency calls three services:** the cache siren for an account's usage windows, the node service for
+  this machine's room, a node's link and the nodes it keeps, and the brain for what a companion's reset
+  does to the agent's brain folder. Each is reached at the base address the deployment names in its
+  variable, with the token named beside it.
+- **A service whose address is unset is not called:** each call then answers the default stated beside it
+  below, so agency runs with none of the three deployed. An address that does not read as a URL stops the
+  service as it starts, naming the variable.
+- **Every call is one POST of a JSON body** under the service's base address, field names in camelCase,
+  an operation that sends nothing sending an empty object, with `Authorization: Bearer <token>` where a
+  token is named. The calls follow the chat wire protocol's conventions (the protocol document of
+  `bmo-chat`): an answer whose `answered` is false carries a `refusal` with its `code` and `message` and
+  is a refusal; a non-2xx answer carries `code` and `error`; a call is offered again only where the
+  connection was refused, within the service's patience, and never once it reached a listener.
+
+| Service | Address | Token | Patience |
+| --- | --- | --- | --- |
+| The cache siren | `AGENCY_CACHE_SIREN_URL` | `AGENCY_CACHE_SIREN_TOKEN` | none: a refused connection is a fault at once |
+| The node service | `AGENCY_NODE_URL` | `AGENCY_NODE_TOKEN` | none |
+| The brain | `AGENCY_BRAIN_URL` | `AGENCY_BRAIN_TOKEN` | two minutes, offered every two seconds |
+
+### The cache siren
+
+| Operation | Path | Sends | Answers | With no address |
+| --- | --- | --- | --- | --- |
+| usage windows | `/usage/windows` | `mode`, `account` | `windows`: each `name`, `utilization` (the fraction used), `resetsAt` (or null), `seenAt`, `durationMinutes` (or null), `limitName` (or null); and `freshSeconds`, how long a reading stands | no windows, and no reading fresh |
+
+### The node service
+
+| Operation | Path | Sends | Answers | With no address |
+| --- | --- | --- | --- | --- |
+| machine room | `/machine/room` | nothing | `held`: what this machine is short of for another launch, each named; empty where it has room | room, nothing held |
+| link state | `/links/state` | `node` | `up` (boolean): the node's link is connected and was heard from lately | down |
+| node rows | `/nodes/list` | nothing | `nodes`: each `node`, `state` and `detail` (or null) | no nodes |
+
+### The brain
+
+| Operation | Path | Sends | Answers | With no address |
+| --- | --- | --- | --- | --- |
+| fence | `/agents/fence` | `agent` | `ok`; no writer begun before now takes the agent's folder's editing lock again | nothing fenced |
+| forget | `/agents/removed` | `agent` | `ok`; the agent's editing lock, its ticket queue and its fence are removed | nothing to remove |
+| lock path | `/agents/lock` | `agent` | `path`: the agent's folder's editing lock, relative to the data root, or null where the agent keeps no folder | none |
+| book start | `/agents/book-since` | `agent`, `chatId`, `at` | `ok`; the agent's person book of the room reads from `at` on, in seconds | nothing written |
+| recollector put-back | `/agents/put-back` | `agent` | `ok`; what the agent's stopped recollector runs left unwritten in its folder is undone | nothing undone |
