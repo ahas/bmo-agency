@@ -383,8 +383,8 @@
   account its run was put on, and that account's token where the account is a token account,
   so what a run goes out under is a login agency chose rather than whatever the machine happens
   to hold; a reference gate's run also carries `MAX_THINKING_TOKENS=0`; the job worker's line alone
-  carries `CLAUDE_CODE_AUTO_COMPACT_WINDOW`, the window its sessions are held to
-  (`docs/sessions.md`, 「Session compaction」); nothing else is added beyond the switches below.
+  carries `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`, the share of its model's window its sessions compact
+  at (`docs/sessions.md`, 「Session compaction」); nothing else is added beyond the switches below.
   An account's variables are handed to a line by name rather than inherited, because the job
   line rebuilds its environment from a few names and would otherwise drop them. They add
   nothing to a cached prefix — the flags, their order, the system prompt and the files it

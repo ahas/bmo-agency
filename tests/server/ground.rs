@@ -2,7 +2,7 @@
 //! and the text measures.
 
 use agency_server::peers::PeerFault;
-use agency_server::text::{grouped, length};
+use agency_server::text::{grouped, length, within};
 use agency_server::{Refusal, archive_place, now_ms};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
@@ -109,6 +109,15 @@ fn a_text_is_measured_in_utf16_units() {
   assert_eq!(length("é"), 1);
   assert_eq!(length("𝄞"), 2);
   assert_eq!(length(""), 0);
+}
+
+#[test]
+fn a_text_is_cut_within_its_utf16_units_leaving_no_character_split() {
+  assert_eq!(within("agency", 3), "age");
+  assert_eq!(within("agency", 30), "agency");
+  assert_eq!(within("a𝄞b", 2), "a");
+  assert_eq!(within("a𝄞b", 3), "a𝄞");
+  assert_eq!(within("", 0), "");
 }
 
 #[test]

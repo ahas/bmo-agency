@@ -63,10 +63,14 @@ pub struct WorkerRun {
   pub cwd: String,
 }
 
-/// The variables the worker's line carries beside every line's: the window its sessions are held to,
-/// which its Claude Code compacts against inside a turn (docs/sessions.md, 「Session compaction」).
+/// The variables the worker's line carries beside every line's: the share of its model's window its
+/// Claude Code compacts a session at inside a turn, the policy's fold ratio as a percentage to a
+/// ten-thousandth (docs/sessions.md, 「Session compaction」).
 pub fn worker_variables() -> Vec<(String, String)> {
-  vec![(super::claude::COMPACT_WINDOW.to_owned(), RESIDENT_TURN.worker_window_tokens.to_string())]
+  vec![(
+    super::claude::COMPACT_SHARE.to_owned(),
+    format!("{:.4}", RESIDENT_TURN.fold_ratio * 100.0),
+  )]
 }
 
 /// The name a worker's own documents go by: its own, or its base's for a support worker.

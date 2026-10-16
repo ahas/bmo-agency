@@ -36,8 +36,6 @@ pub struct ResidentTurn {
   pub end_poll_ms: u64,
   /// How full a session's context may be before it is folded once its turn is over.
   pub fold_ratio: f64,
-  /// The window a job worker's session is held to, in tokens.
-  pub worker_window_tokens: i64,
 }
 
 crate::part!(pub RESIDENT_TURN: ResidentTurn = "resident-turn.toml");

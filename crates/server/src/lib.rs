@@ -7,6 +7,15 @@ pub mod clock;
 pub mod config;
 pub mod conversational;
 pub mod data_move;
+
+/// The resident door (docs/agent-control.md, 「What a resident turn reads」). The door stands on the
+/// places, the launch lines, the queue and the control modules, and is declared whole, through
+/// `door/mod.rs`, together with those; until then the members that stand on nothing but the ground are
+/// built here.
+pub mod door {
+  pub mod looks;
+  pub mod record;
+}
 pub mod events;
 pub mod hooks;
 pub mod peers;

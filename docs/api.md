@@ -28,7 +28,7 @@ judges none of it.
 ## Versioning
 
 - **The contract carries the repository's one version, in semver.** The version in the workspace
-  manifest is this boundary's version; the current line is `0.3.0`.
+  manifest is this boundary's version; the current line is `0.4.0`.
 - **A change to this document and a change to the boundary go in one commit.** A change that makes a
   route, an event, a hook or a shared table's contract different repairs this document in the same
   commit, stating what is true now.
@@ -113,6 +113,15 @@ judges none of it.
   to another. It carries the owner, the substitute that answered before where a fallback already stood,
   and the provider and model answering now (`docs/cache-fallback.md`, 「While a fallback stands, the room
   is not silent」). What the owner is told of it is the consumer's.
+- **An account's windows read by a turn**, `usage-windows-read`, are published as the turn reads them:
+  the mode and the account, the moment they were seen, and each window's `name`, `utilization` (the
+  fraction used), `resetsAt` (or null), `durationMinutes` (or null) and `limitName` (or null). The cache
+  siren keeps them; agency keeps none and reads them back through 「The cache siren」 below
+  (`docs/agent-control.md`, 「The session record and usage are not squeezed out of the screen」).
+- **A run come back after a failure**, `run-recovered`, is published once when a run answers again
+  while a failure stands: its `fact`, its `intent`, its `kind` and its `ttlMs`, how long it stays worth
+  saying (`docs/run-records.md`, 「Why a run died」). Agency voices nothing; saying it in the room is the
+  consumer's.
 
 ## Hooks
 

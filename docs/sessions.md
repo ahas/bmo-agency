@@ -99,17 +99,14 @@ session on the owner's ask is `docs/session-resets.md`.
 - Compaction runs detached after the reply has been sent, never in the path a chat is waiting on; a
   message that arrives mid-compaction is answered as soon as the compaction finishes. A compaction
   failure leaves the session running as it was.
-- **A job worker's session is held to a window of its own,** the policy's
-  `worker_window_tokens`, far under its model's, since every call of a job reads the whole session
-  again and a job of hundreds of calls pays for that window on each one:
-  - inside a turn, the worker's Claude Code is launched with `CLAUDE_CODE_AUTO_COMPACT_WINDOW` at
-    that figure, so the program compacts at its own share of it while the job goes on, rather than
-    near the model's whole window;
-  - between turns, the runner folds a worker session the same way past `fold_ratio` of that figure,
-    as it does one past `fold_ratio` of its model's window, whichever comes first.
-  - The program takes a figure as low as a hundred thousand tokens and none above the model's own
-    window. A worker running on a registered model's road answers within that model's window and is
-    launched without it.
+- **A job worker's session is held to its own model's window,** folded at the policy's
+  `fold_ratio` of it like every other session:
+  - inside a turn, the worker's Claude Code is launched with `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` at
+    `fold_ratio` as a percentage, so the program compacts at that share of its model's window while
+    the job goes on, rather than near the whole of it;
+  - between turns, the runner folds a worker session past `fold_ratio` of its model's window.
+  - A worker running on a registered model's road is launched with the share its registration
+    leaves for the answer instead (`docs/own-llm.md`, 「A turn at the input limit」).
 
 ## Session replacement
 

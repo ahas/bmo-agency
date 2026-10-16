@@ -1,0 +1,615 @@
+use serde_json::{Value, json};
+
+use agency_server::door::record::*;
+
+fn assistant(text: Option<&str>, model: &str, sidechain: bool, usage: [i64; 4]) -> Value {
+  let [read, made, input, output] = usage;
+  let content: Vec<Value> = text.map(|text| json!({ "type": "text", "text": text })).into_iter().collect();
+
+  json!({
+    "type": "assistant",
+    "isSidechain": sidechain,
+    "effort": "high",
+    "message": {
+      "role": "assistant",
+      "model": model,
+      "content": content,
+      "usage": { "input_tokens": input, "output_tokens": output, "cache_read_input_tokens": read, "cache_creation_input_tokens": made },
+    },
+  })
+}
+
+fn said(text: &str) -> Value {
+  assistant(Some(text), "claude-opus-5", false, [0, 0, 0, 0])
+}
+
+fn tool(id: &str, name: &str, input: Value) -> Value {
+  let mut line = assistant(None, "claude-opus-5", false, [0, 0, 0, 0]);
+
+  line["message"]["content"] = json!([{ "type": "tool_use", "id": id, "name": name, "input": input }]);
+  line
+}
+
+fn answered(id: &str) -> Value {
+  json!({ "type": "user", "message": { "role": "user", "content": [{ "type": "tool_result", "tool_use_id": id, "content": "done" }] } })
+}
+
+fn launched_as(id: &str, text: &str) -> Value {
+  json!({ "type": "user", "message": { "role": "user", "content": [{ "type": "tool_result", "tool_use_id": id, "content": [{ "type": "text", "text": text }] }] } })
+}
+
+fn ended_as(id: &str, status: &str) -> Value {
+  json!({
+    "type": "queue-operation",
+    "operation": "enqueue",
+    "content": format!("<task-notification>\n<task-id>t-{id}</task-id>\n<tool-use-id>{id}</tool-use-id>\n<status>{status}</status>\n<summary>done</summary>\n</task-notification>"),
+  })
+}
+
+const WORKFLOW_LAUNCH: &str = "Workflow launched in background. Task ID: wqdscirps\nSummary: two answers";
+
+fn workflow(name: &str) -> Value {
+  tool(
+    "w1",
+    "Workflow",
+    json!({ "script": format!("export const meta = {{ name: '{name}', description: 'x' }}") }),
+  )
+}
+
+#[test]
+fn a_response_split_into_several_lines_is_counted_once_and_answers_with_all_of_its_text() {
+  let split = |block: Value| {
+    let mut line = assistant(None, "claude-opus-5", false, [0, 53_544, 2, 100]);
+
+    line["message"]["id"] = json!("msg_one");
+    line["message"]["content"] = json!([block]);
+    line
+  };
+  let turn = read_turn(
+    &[
+      split(json!({ "type": "thinking", "thinking": "…" })),
+      split(json!({ "type": "text", "text": "Kept " })),
+      split(json!({ "type": "text", "text": "warm." })),
+    ],
+    0,
+  );
+
+  assert_eq!(
+    serde_json::to_value(&turn.spend).unwrap(),
+    json!([{ "mode": "claude-code", "model": "claude-opus-5", "tokens": 53_646, "inputTokens": 2, "outputTokens": 100, "cacheReadTokens": 0, "cacheWriteTokens": 53_544, "cost": 0.0 }])
+  );
+  assert_eq!(turn.text, "Kept warm.");
+}
+
+#[test]
+fn the_answer_is_the_last_thing_said_and_the_cost_every_line_the_turn_added() {
+  assert_eq!(read_turn(&[said("thinking about it"), said("the answer")], 0).text, "the answer");
+
+  let mut call = assistant(None, "claude-opus-5", false, [33_330, 31_080, 2, 122]);
+
+  call["message"]["content"] = json!([{ "type": "tool_use", "id": "t1", "name": "Bash", "input": {} }]);
+
+  let turn = read_turn(
+    &[
+      call,
+      answered("t1"),
+      assistant(Some("DONE"), "claude-opus-5", false, [64_410, 161, 2, 5]),
+    ],
+    0,
+  );
+  let spend = &turn.spend[0];
+
+  assert_eq!(spend.tokens, 33_330 + 31_080 + 2 + 122 + 64_410 + 161 + 2 + 5);
+  assert_eq!((spend.input_tokens, spend.output_tokens), (4, 127));
+  assert_eq!((spend.cache_read_tokens, spend.cache_write_tokens), (33_330 + 64_410, 31_080 + 161));
+}
+
+#[test]
+fn what_came_before_the_turn_is_not_the_turn_s_and_a_co_worker_s_lines_are_paid_for_but_not_the_answer() {
+  let records = [
+    assistant(Some("an earlier turn"), "claude-opus-5", false, [0, 0, 0, 500]),
+    assistant(Some("this one"), "claude-opus-5", false, [0, 0, 0, 7]),
+  ];
+  let turn = read_turn(&records, 1);
+
+  assert_eq!((turn.text.as_str(), turn.spend[0].output_tokens), ("this one", 7));
+
+  let turn = read_turn(
+    &[
+      assistant(Some("the answer"), "claude-opus-5", false, [0, 0, 0, 10]),
+      assistant(Some("a co-worker's report"), "claude-opus-5", true, [0, 0, 0, 4_000]),
+      assistant(None, "claude-haiku-4-5", true, [0, 0, 0, 30]),
+    ],
+    0,
+  );
+
+  assert_eq!(turn.text, "the answer");
+  assert_eq!(
+    turn.spend.iter().map(|one| (one.model.as_str(), one.output_tokens)).collect::<Vec<_>>(),
+    [("claude-opus-5", 4_010), ("claude-haiku-4-5", 30)]
+  );
+}
+
+#[test]
+fn the_model_effort_and_context_come_off_the_last_line_and_an_empty_turn_says_so() {
+  let turn = read_turn(&[assistant(Some("ok"), "claude-opus-5", false, [64_410, 161, 2, 0])], 0);
+
+  assert_eq!(
+    (turn.model.as_deref(), turn.effort.as_deref(), turn.context_tokens),
+    (Some("claude-opus-5"), Some("high"), Some(64_573))
+  );
+
+  let none = read_turn(&[said("an earlier turn")], 1);
+
+  assert_eq!(
+    (none.text.as_str(), none.model, none.context_tokens, none.spend.len()),
+    ("", None, None, 0)
+  );
+
+  let mut two = said("");
+
+  two["message"]["content"] =
+    json!([{ "type": "text", "text": "first line\n" }, { "type": "text", "text": "second line" }]);
+  assert_eq!(read_turn(&[two], 0).text, "first line\nsecond line");
+}
+
+#[test]
+fn only_a_person_s_prompt_after_the_point_counts_as_submitted() {
+  let before = vec![json!({ "type": "user", "message": { "role": "user", "content": "an earlier turn" } })];
+  let coming = vec![
+    json!({ "type": "system", "subtype": "local_command" }),
+    json!({ "type": "attachment" }),
+    json!({ "type": "user", "isMeta": true, "message": { "role": "user", "content": "<local-command-caveat>" } }),
+    json!({ "type": "user", "message": { "role": "user", "content": [{ "type": "tool_result", "content": "done" }] } }),
+    json!({ "type": "user", "isSidechain": true, "message": { "role": "user", "content": "a co-worker's" } }),
+  ];
+  let mut records = [before.clone(), coming].concat();
+
+  assert!(!prompted_since(&records, 1));
+  records.push(json!({ "type": "user", "message": { "role": "user", "content": "the job" } }));
+  assert!(prompted_since(&records, 1));
+  assert!(prompted_since(
+    &[
+      before[0].clone(),
+      json!({ "type": "user", "message": { "role": "user", "content": [{ "type": "text", "text": "the job" }] } })
+    ],
+    1
+  ));
+}
+
+#[test]
+fn the_work_a_turn_walked_away_from_is_its_own_launches_with_no_ending() {
+  let left = read_turn(&[workflow("review-changes"), launched_as("w1", WORKFLOW_LAUNCH), said("going")], 0);
+
+  assert_eq!(
+    left.workflows,
+    [RunWorkflow {
+      call: "w1".into(),
+      name: "review-changes".into(),
+      status: None
+    }]
+  );
+
+  let stopped = read_turn(
+    &[workflow("stopped-one"), launched_as("w1", WORKFLOW_LAUNCH), ended_as("w1", "stopped")],
+    0,
+  );
+  let taken_up = json!({ "type": "attachment", "attachment": { "type": "queued_command", "prompt": ended_as("w1", "completed")["content"] } });
+  let finished = read_turn(&[workflow("done-one"), launched_as("w1", WORKFLOW_LAUNCH), taken_up], 0);
+
+  assert_eq!(stopped.workflows[0].status.as_deref(), Some("stopped"));
+  assert_eq!(finished.workflows[0].status.as_deref(), Some("completed"));
+  assert!(
+    read_turn(
+      &[
+        workflow("broken"),
+        launched_as("w1", "<tool_use_error>Invalid workflow script</tool_use_error>")
+      ],
+      0
+    )
+    .workflows
+    .is_empty()
+  );
+
+  let branch = tool("b1", "Task", json!({ "subagent_type": "scout", "description": "find the caller" }));
+
+  assert_eq!(
+    read_turn(std::slice::from_ref(&branch), 0).live_tasks,
+    [LiveTask {
+      id: "b1".into(),
+      description: "find the caller".into()
+    }]
+  );
+  assert!(read_turn(&[branch, answered("b1")], 0).live_tasks.is_empty());
+
+  let launch = [
+    tool("c1", "Bash", json!({ "command": "bun run test", "description": "seed the repository" })),
+    launched_as(
+      "c1",
+      "Command running in background with ID: bz1925uj5. Output is being written to: /tmp/x.output.",
+    ),
+  ];
+
+  assert_eq!(
+    read_turn(&launch, 0).live_tasks,
+    [LiveTask {
+      id: "c1".into(),
+      description: "seed the repository".into()
+    }]
+  );
+  assert!(
+    read_turn(&[launch[0].clone(), launch[1].clone(), ended_as("c1", "completed")], 0)
+      .live_tasks
+      .is_empty()
+  );
+  assert!(
+    read_turn(&[workflow("left-behind"), launched_as("w1", WORKFLOW_LAUNCH), said("done")], 2)
+      .workflows
+      .is_empty()
+  );
+
+  let ordinary = read_turn(&[tool("t1", "Bash", json!({ "command": "ls" })), answered("t1")], 0);
+
+  assert!(ordinary.live_tasks.is_empty() && ordinary.workflows.is_empty());
+}
+
+fn response(id: &str, text: &str) -> Value {
+  json!({ "type": "assistant", "sessionId": "s1", "message": { "id": id, "model": "claude-sonnet-5", "content": [{ "type": "text", "text": text }], "usage": { "input_tokens": 10, "output_tokens": 5 } } })
+}
+
+fn step(id: &str) -> Value {
+  json!({ "type": "assistant", "sessionId": "s1", "message": { "id": id, "model": "claude-sonnet-5", "content": [{ "type": "tool_use", "id": format!("t{id}"), "name": "Bash", "input": {} }], "usage": { "input_tokens": 3, "output_tokens": 2 } } })
+}
+
+fn end() -> Value {
+  json!({ "type": "system", "subtype": "turn_duration" })
+}
+
+fn queue(operation: &str) -> Value {
+  json!({ "type": "queue-operation", "operation": operation })
+}
+
+fn words(text: &str) -> Value {
+  json!({ "type": "user", "message": { "content": text } })
+}
+
+#[test]
+fn a_round_is_going_until_its_end_line_and_a_word_taken_inside_it_leaves_nothing_queued() {
+  assert_eq!(read_round(&[json!({ "type": "user" }), step("a")]).state, RoundState::Working);
+
+  let done = read_round(&[json!({ "type": "user" }), step("a"), response("b", "answer"), end()]);
+
+  assert_eq!((done.state, done.text.as_str()), (RoundState::Ended, "answer"));
+  assert_eq!(
+    read_turn(&[json!({ "type": "user" }), step("a"), response("b", "answer"), end()], 0).spend[0]
+      .input_tokens,
+    13
+  );
+
+  let lines = [
+    step("a"),
+    queue("enqueue"),
+    queue("remove"),
+    json!({ "type": "attachment" }),
+    response("b", "both"),
+    end(),
+  ];
+
+  assert_eq!(turns_owed(&lines).queued, 0);
+  assert_eq!(read_round(&lines).state, RoundState::Ended);
+}
+
+#[test]
+fn a_word_pushed_after_the_last_tool_call_opens_a_turn_of_its_own_and_the_round_answers_with_the_last() {
+  let lines = vec![step("a"), queue("enqueue"), response("b", "first answer"), end()];
+
+  assert_eq!(turns_owed(&lines).queued, 1);
+  assert_eq!(read_round(&lines).state, RoundState::Working);
+
+  let after = [lines, vec![queue("dequeue"), words("WORD-X"), response("c", "PINEAPPLE"), end()]].concat();
+  let round = read_round(&after);
+
+  assert_eq!(turns_owed(&after).queued, 0);
+  assert_eq!((round.state, round.text.as_str()), (RoundState::Ended, "PINEAPPLE"));
+}
+
+#[test]
+fn words_that_waited_together_open_one_turn_and_an_answer_written_again_goes_out_once() {
+  let stop_summary = json!({ "type": "system", "subtype": "stop_hook_summary" });
+  let lines = vec![
+    words("ROUND"),
+    step("a"),
+    queue("enqueue"),
+    queue("remove"),
+    step("b"),
+    queue("enqueue"),
+    queue("enqueue"),
+    response("c", "first answer"),
+    queue("dequeue"),
+    queue("dequeue"),
+    stop_summary.clone(),
+    end(),
+  ];
+
+  assert_eq!(turns_owed(&lines).queued, 0);
+  assert_eq!(read_round(&lines).state, RoundState::Working);
+
+  let after = [
+    lines,
+    vec![
+      words("WORD-X"),
+      json!({ "type": "attachment" }),
+      words("WORD-Y"),
+      response("d", "both words"),
+      stop_summary.clone(),
+      end(),
+    ],
+  ]
+  .concat();
+  let round = read_round(&after);
+
+  assert_eq!((round.state, round.text.as_str()), (RoundState::Ended, "both words"));
+
+  let draft = "Not written yet.\n\n| Gate | Accuracy |\n|---|---|\n| people-search | 0.878 |";
+  let rewritten = format!("{draft}\n\nThe audio for B-1000 sentence 2 is uploaded again.");
+  let lines = [
+    words("ROUND"),
+    step("a"),
+    queue("enqueue"),
+    response("b", draft),
+    queue("dequeue"),
+    stop_summary.clone(),
+    end(),
+    words("More for the answer you are making now: and upload the audio too so I can check it"),
+    step("c"),
+    step("d"),
+    response("e", &rewritten),
+    stop_summary,
+    end(),
+  ];
+  let round = read_round(&lines);
+
+  assert_eq!((round.state, round.text.as_str()), (RoundState::Ended, rewritten.as_str()));
+}
+
+#[test]
+fn turns_owed_count_stretches_words_taken_straight_and_words_pulled_back() {
+  let lines = vec![
+    step("a"),
+    queue("enqueue"),
+    queue("enqueue"),
+    response("b", "one"),
+    queue("dequeue"),
+    end(),
+    words("WORD-X"),
+    response("c", "two"),
+    queue("dequeue"),
+    end(),
+    words("WORD-Y"),
+  ];
+
+  assert_eq!(turns_owed(&lines), Owed { queued: 0, owed: 3 });
+  assert_eq!(read_round(&lines).state, RoundState::Working);
+  assert_eq!(
+    read_round(&[lines, vec![response("d", "three"), end()]].concat()).state,
+    RoundState::Ended
+  );
+
+  let lines = vec![
+    words("ROUND"),
+    response("a", "first"),
+    json!({ "type": "system", "subtype": "stop_hook_summary" }),
+    end(),
+    words("More for the answer you are making now: 2 new message(s)"),
+  ];
+
+  assert_eq!(turns_owed(&lines), Owed { queued: 0, owed: 2 });
+  assert_eq!(read_round(&lines).state, RoundState::Working);
+
+  let ended = read_round(&[lines, vec![response("b", "rewritten"), end()]].concat());
+
+  assert_eq!((ended.state, ended.text.as_str()), (RoundState::Ended, "rewritten"));
+
+  let pulled = [
+    step("a"),
+    queue("enqueue"),
+    queue("enqueue"),
+    queue("popAll"),
+    response("b", "x"),
+    end(),
+  ];
+
+  assert_eq!(turns_owed(&pulled), Owed { queued: 0, owed: 1 });
+  assert_eq!(read_round(&pulled).state, RoundState::Ended);
+}
+
+#[test]
+fn an_escape_is_an_interrupted_round_and_the_program_s_error_answers_nothing() {
+  let escaped = [
+    step("a"),
+    json!({ "type": "user", "message": { "content": [{ "type": "text", "text": "[Request interrupted by user for tool use]" }] } }),
+  ];
+
+  assert_eq!(read_round(&escaped).state, RoundState::Interrupted);
+
+  let failed = json!({ "type": "assistant", "isApiErrorMessage": true, "message": { "id": "e", "model": "<synthetic>", "content": [{ "type": "text", "text": "API Error: 529 Overloaded" }] } });
+
+  assert_eq!(
+    read_turn(&[failed.clone(), end()], 0).error.as_deref(),
+    Some("API Error: 529 Overloaded")
+  );
+  // An error line that names no kind has none.
+  assert_eq!(read_turn(&[failed.clone(), end()], 0).error_kind, None);
+  assert_eq!(read_round(&[failed, end()]).text, "");
+}
+
+// The 429 a full window answers with, as Claude Code writes it into the record before standing at its own
+// choice of what to do next: the turn is over by the record, whatever the pane shows.
+#[test]
+fn a_turn_the_program_ended_on_a_full_window_is_over_by_its_record() {
+  let full = json!({ "type": "assistant", "isApiErrorMessage": true, "error": "rate_limit", "apiErrorStatus": 429, "message": { "id": "r", "model": "<synthetic>", "content": [{ "type": "text", "text": "You've hit your weekly limit · resets Oct 16, 6am (Asia/Seoul)" }] } });
+  let prompt = json!({ "type": "user", "message": { "content": "say hi" } });
+
+  assert!(ended_on_error(&[prompt.clone(), full.clone(), end()], 0));
+  assert_eq!(
+    read_turn(&[prompt.clone(), full.clone(), end()], 0).error_kind.as_deref(),
+    Some("rate_limit")
+  );
+  // Not before the line the turn ends with, and not past it.
+  assert!(!ended_on_error(&[prompt.clone(), full.clone()], 0));
+  assert!(!ended_on_error(&[prompt.clone(), full, end()], 3));
+  assert!(!ended_on_error(&[prompt, assistant(Some("hi"), "m", false, [1, 1, 0, 0]), end()], 0));
+}
+
+// A failed request's end the place recorded names the turn's error where the record holds no answer yet,
+// and lends its kind to an error the record names none for; an answered turn is no error whatever the place
+// recorded.
+#[test]
+fn a_turn_s_error_is_its_record_s_own_or_its_place_s_failure_where_the_record_holds_no_answer() {
+  let prompt = json!({ "type": "user", "message": { "content": "say hi" } });
+  let unnamed = json!({ "type": "assistant", "isApiErrorMessage": true, "message": { "id": "e", "model": "<synthetic>", "content": [{ "type": "text", "text": "API Error: 503 card busy" }] } });
+  let failure = || Some(("API Error: 503 card busy".to_owned(), Some("server_error".to_owned())));
+  let errored = read_turn(&[prompt.clone(), unnamed, end()], 0);
+  let answered = read_turn(&[prompt.clone(), assistant(Some("hi"), "m", false, [1, 1, 0, 0]), end()], 0);
+  let nothing = read_turn(&[prompt], 0);
+
+  assert_eq!(
+    turn_error(&errored, true, failure()),
+    Some(("API Error: 503 card busy".to_owned(), Some("server_error".to_owned())))
+  );
+  assert_eq!(turn_error(&errored, true, None), Some(("API Error: 503 card busy".to_owned(), None)));
+  assert_eq!(turn_error(&nothing, false, failure()), failure());
+  assert_eq!(turn_error(&nothing, false, None), None);
+  assert_eq!(turn_error(&answered, true, failure()), None);
+}
+
+fn status(session: &str, total: f64, limits: Option<Value>) -> Value {
+  let mut reading = json!({ "session_id": session, "model": { "id": "claude-sonnet-5" }, "cost": { "total_cost_usd": total }, "context_window": { "used_percentage": 12 } });
+
+  if let Some(limits) = limits {
+    reading["rate_limits"] = limits;
+  }
+
+  reading
+}
+
+#[test]
+fn the_money_is_the_running_total_s_difference_within_one_session_and_nothing_across_two() {
+  let same = status_figures(Some(&status("s1", 0.25, None)), Some(&status("s1", 0.3, None)));
+
+  assert!((same.money.unwrap() - 0.05).abs() < 1e-10);
+  assert_eq!(
+    status_figures(Some(&status("s1", 0.25, None)), Some(&status("s2", 0.01, None))).money,
+    None
+  );
+  assert_eq!(status_figures(None, Some(&status("s1", 0.3, None))).money, None);
+}
+
+#[test]
+fn windows_come_from_the_reading_after_the_turn_as_fractions_and_are_absent_before_a_request() {
+  let limits = json!({ "five_hour": { "used_percentage": 22, "resets_at": 1_789_962_600 }, "seven_day": { "used_percentage": 10, "resets_at": 1_790_528_400 } });
+  let read = status_figures(None, Some(&status("s1", 0.1, Some(limits))));
+  let none = status_figures(None, Some(&status("s1", 0.1, None)));
+
+  assert_eq!(
+    read.session_usage,
+    Some(SessionUsage {
+      utilization: 0.22,
+      resets_at: 1_789_962_600.0,
+      weekly_utilization: Some(0.1),
+      weekly_resets_at: Some(1_790_528_400.0)
+    })
+  );
+  assert_eq!(
+    read.windows.iter().map(|window| window.name.as_str()).collect::<Vec<_>>(),
+    ["five_hour", "seven_day"]
+  );
+  assert!((read.context_ratio.unwrap() - 0.12).abs() < 1e-10);
+  assert_eq!(read.session_id.as_deref(), Some("s1"));
+  assert_eq!((none.session_usage, none.windows.len()), (None, 0));
+}
+
+#[test]
+fn the_last_activity_names_the_tool_called_with_what_it_was_given() {
+  let mut call = tool("t1", "Bash", json!({ "command": "bun   test\n  server", "description": "x" }));
+
+  call["timestamp"] = json!("2026-10-08T01:02:03.000Z");
+
+  let activity = last_activity(&[said("before"), call], 0);
+
+  assert_eq!(activity.what.as_deref(), Some("called Bash (bun test server)"));
+  assert_eq!(
+    activity.at,
+    Some(
+      chrono::DateTime::parse_from_rfc3339("2026-10-08T01:02:03.000Z")
+        .unwrap()
+        .timestamp_millis()
+    )
+  );
+  assert_eq!(last_activity(&[answered("t1")], 0).what.as_deref(), Some("a tool's answer came back"));
+  assert_eq!(last_activity(&[words("x")], 0).what, None);
+  assert_eq!(
+    last_activity(
+      &[json!({ "type": "user", "message": { "content": [{ "type": "text", "text": "x" }] } })],
+      0
+    )
+    .what
+    .as_deref(),
+    Some("was handed words")
+  );
+  assert_eq!(
+    last_activity(&[], 0),
+    Activity {
+      at: None,
+      what: None
+    }
+  );
+}
+
+#[test]
+fn a_record_is_read_as_it_grows_and_a_last_line_still_being_written_counts_only_once_whole() {
+  let dir = tempfile::tempdir().unwrap();
+  let path = dir.path().join("s.jsonl");
+  let mut tail = Tail::new(&path);
+
+  assert!(tail.look().is_empty());
+  std::fs::write(&path, "{\"a\":1}\nnot json\n{\"b\":").unwrap();
+  assert_eq!(tail.look(), [json!({ "a": 1 })]);
+  std::fs::write(&path, "{\"a\":1}\nnot json\n{\"b\":2}").unwrap();
+  assert_eq!(tail.look(), [json!({ "a": 1 }), json!({ "b": 2 })]);
+  std::fs::write(&path, "{\"c\":3}\n").unwrap();
+  assert_eq!(tail.look(), [json!({ "c": 3 })]);
+}
+
+#[test]
+fn a_child_is_asked_for_by_its_call_and_ended_by_its_notice() {
+  let mut reader = ChildReader::default();
+  let asked = tool("toolu_1", "Agent", json!({}));
+  let said = reader.read(&asked, |_| false);
+
+  assert_eq!(
+    said,
+    [ChildEvidence {
+      id: "toolu_1".into(),
+      state: "requested",
+      evidence: "claude.tool_use".into()
+    }]
+  );
+
+  let launched = json!({ "type": "user", "toolUseResult": { "status": "async_launched", "agentId": "a1" }, "message": { "content": [{ "type": "tool_result", "tool_use_id": "toolu_1" }] } });
+
+  assert_eq!(reader.read(&launched, |id| id == "toolu_1")[0].state, "started");
+
+  let notice =
+    json!({ "type": "system", "subtype": "task_notification", "task_id": "a1", "status": "completed" });
+  let ended = reader.read(&notice, |id| id == "toolu_1");
+
+  assert_eq!(
+    ended,
+    [ChildEvidence {
+      id: "toolu_1".into(),
+      state: "completed",
+      evidence: "claude.task_notification:completed".into()
+    }]
+  );
+}

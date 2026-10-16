@@ -236,9 +236,8 @@ pub fn command_env(
   Ok(env)
 }
 
-/// The window, in tokens, Claude Code compacts a session against inside a turn where it is set under its
-/// model's own.
-pub const COMPACT_WINDOW: &str = "CLAUDE_CODE_AUTO_COMPACT_WINDOW";
+/// The share of its window, in percent, at which Claude Code compacts a session inside a turn.
+pub const COMPACT_SHARE: &str = "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE";
 
 /// What a pane running the line's own command is handed, by name: the search path, every `BMO_`
 /// variable but the job runner's marker, the marker where the launcher holds it, the line's own

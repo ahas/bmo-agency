@@ -55,3 +55,23 @@ about a message is not agency's: the judgement records belong to the units that 
 - A failed job's report is kept whole rather than clipped, since the job listing its caller prints is
   where anybody goes looking for a cause.
 
+## Why a run died
+
+- A run of an agent that died is diagnosed from what was read where it ended and nothing else: how it
+  ended — an exit with its code, an exit by a signal, an error handed back in place of an answer, no
+  answer where one was owed, a pane or host that could not be had, or nothing readable — what the
+  program said back, cut to one line, and the last tool call its run log holds, with the command or
+  file it was given. A cause nobody could read is said to be unknown, and a run that held together and
+  said nothing is not counted as broken.
+- The account of a dead run is two lines in the words of `policy/chat-health.toml`: what broke and
+  why, then what it was last doing and where the rest is — the run's log by its name, or, for a failure
+  no run was had for, the journal of the unit the caller names.
+- **The failure standing now is kept in agency's settings** under `doctor_standing_failure`, so a
+  server that went down over its own failure still knows of it after a restart. It holds the cause,
+  what tells this cause from another, the room, how many times in a row the same cause came, and
+  whether the owner has heard of it; once heard of, it stays heard of until a run answers again,
+  whatever cause the latest failure had.
+- **A run that answers again while a failure stands is a recovery,** published as `run-recovered`: the
+  facts of the failure and of the answer, what saying it is for, the kind of notice it is and how long
+  it stays worth saying (`docs/api.md`, 「Events」). Agency voices nothing; the consumer that owns the
+  room says it in its own manner, and the standing failure is cleared.

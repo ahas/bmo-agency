@@ -7,6 +7,12 @@ mod clock;
 mod config;
 mod conversational;
 mod data_move;
+
+// The door's members built so far; the others stand beside these and are declared with their modules.
+mod door {
+  mod looks;
+  mod record;
+}
 mod events;
 mod ground;
 mod hooks;

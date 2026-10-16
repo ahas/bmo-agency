@@ -649,7 +649,7 @@ pub(crate) fn gateway_variables(
     ("CLAUDE_CODE_ATTRIBUTION_HEADER", Some("0".to_owned())),
     ("CLAUDE_CODE_MAX_CONTEXT_TOKENS", Some(held.context_tokens.to_string())),
     ("CLAUDE_CODE_MAX_OUTPUT_TOKENS", Some(answer_tokens.to_string())),
-    ("CLAUDE_AUTOCOMPACT_PCT_OVERRIDE", Some(fold_share(held.context_tokens, answer_tokens))),
+    (claude::COMPACT_SHARE, Some(fold_share(held.context_tokens, answer_tokens))),
     ("CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC", Some("1".to_owned())),
     ("API_TIMEOUT_MS", Some(wait_ms.to_string())),
     ("BUN_CONFIG_HTTP_IDLE_TIMEOUT", Some(((wait_ms + 999) / 1_000).to_string())),

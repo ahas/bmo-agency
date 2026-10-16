@@ -10,6 +10,7 @@ mod chat_line;
 mod companion_runner;
 mod companions;
 mod deployment;
+mod door_words;
 mod gates;
 mod keepalive;
 mod marks;
