@@ -468,10 +468,11 @@ When a demotion first catches — when a healthy session first drops — two thi
   learns the first account was tried. A failure of the work itself moves nothing, and neither does the
   service being down, since no other account would answer that either. A login passed over for its limit
   is put to rest as it is passed, under that login, so nothing that reads the failure afterwards writes a
-  rest under another. Where that rest closes the last open login, the owner hears it once.
-- **Every walk is handed a road to the owner where its process has one.** The road is the process's, set
-  where the process is stood up. A process stood up without one — a check's or a test's ground — tells
-  nothing.
+  rest under another. Where that rest closes the last open login, agency publishes it once as
+  `deployment-resting` (`docs/api.md`, 「Events」), and the consumer holding the owner's chat says it.
+- **A login gone, or its token for the work nodes, is told the way the login watch tells it:** marked as
+  waiting for a person and published once as `account-login-notice`. Agency says nothing in a room
+  itself.
 - **A standing program left on a closed login is taken down.** The loop in an agent's pane starts the
   program its place holds again on the login written into it, so the login watch takes down every
   standing program whose login the judgement closes, unless a turn is in it; the agent's next turn stands

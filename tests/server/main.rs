@@ -28,6 +28,8 @@ mod job_run {
   mod claude {
     mod failure;
   }
+  mod openrouter;
+  mod openrouter_tap;
 }
 mod peers;
 

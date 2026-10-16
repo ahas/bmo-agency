@@ -28,12 +28,15 @@ pub mod door {
 pub mod events;
 pub mod hooks;
 
-/// What a job's Claude turn comes to (docs/run-records.md, 「Why a run died」). The reset a job carries out
-/// stands on the launch lines and is declared with them.
+/// What a job's Claude turn comes to (docs/run-records.md, 「Why a run died」), and the OpenRouter tap and
+/// what it read. The reset a job carries out and the walk of the logins stand on the launch lines and the
+/// control routes, and are declared with them.
 pub mod job_run {
   pub mod claude {
     pub mod failure;
   }
+  pub mod openrouter;
+  pub mod openrouter_tap;
 }
 pub mod peers;
 

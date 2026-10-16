@@ -1,13 +1,18 @@
 //! The deployment's rest as agency's store holds it (docs/api.md, 「Accounts」, the rest): it rests while the
-//! service's own outage rest stands, or while every enabled Claude account has reached its own ceiling, until
-//! the first of them comes back. Agency reads it; whether a stand-in answers a room meanwhile, and what anyone
-//! is told of it, are its consumers'.
+//! service's own outage rest stands, or while every enabled Claude account has reached its own ceiling,
+//! until the first of them comes back. Agency reads it and writes it; the rest that closes the last login
+//! is published once, and whether a stand-in answers a room meanwhile, and what anyone is told of it, are
+//! its consumers'.
 
+use policy::rest::REST;
 use sea_orm::DatabaseConnection;
+use serde::Serialize;
 use store::{all, one};
 
 use crate::Refusal;
-use crate::control::claude_accounts::Judging;
+use crate::control::claude_accounts::{Judging, SEED_ACCOUNT};
+use crate::events::Event;
+use crate::queue::settings;
 
 // A rest that names no account: the service's outage, or a limit rest of this machine's own login.
 const REST_UNTIL: &str = "rest_until";
@@ -88,4 +93,113 @@ async fn account_rest_until(judging: Judging<'_>, account: &str) -> Result<Optio
   crate::control::claude_accounts::rest_until(judging, account)
     .await
     .map_err(|refused| Refusal::new(refused.status, "account-rest-unread", refused.error))
+}
+
+/// What a rest is: one login's limit, or the service's own outage.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RestKind {
+  Limit,
+  Outage,
+}
+
+impl RestKind {
+  /// The word the rest's kind is kept and published under.
+  pub fn word(self) -> &'static str {
+    match self {
+      Self::Limit => "limit",
+      Self::Outage => "outage",
+    }
+  }
+}
+
+/// The rest that closed the last login that would answer, published once as it is written (docs/api.md,
+/// 「Events」): the account it was written under, none for the service's outage, its kind, until when, in
+/// epoch seconds, and the words the owner is told it in.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeploymentResting {
+  pub account: Option<String>,
+  pub kind: &'static str,
+  pub until: i64,
+  pub notice: String,
+}
+
+impl Event for DeploymentResting {
+  const NAME: &'static str = "deployment-resting";
+}
+
+impl DeploymentResting {
+  /// The rest as it is published, in the policy's words.
+  pub fn of(kind: RestKind, account: &str, until: i64) -> Self {
+    Self {
+      account: (kind == RestKind::Limit).then(|| account.to_owned()),
+      kind: kind.word(),
+      until,
+      notice: REST.resting.clone(),
+    }
+  }
+}
+
+/// A rest written down, answering whether it is the one that silenced the deployment: nothing was resting
+/// before it and nothing answers now. A limit's rest is its login's, and a login already resting is left as
+/// it stands; an outage is the service's, and a second one while the first goes on writes nothing. `until`
+/// is in epoch seconds, written in plain decimal, with no fraction where it is whole.
+pub async fn write_rest(
+  judging: Judging<'_>,
+  until: f64,
+  kind: RestKind,
+  account: &str,
+  now: i64,
+) -> Result<bool, Refusal> {
+  let db = judging.db;
+  let was_resting = resting(judging, now).await?;
+
+  match kind {
+    RestKind::Outage => {
+      if outage_rest(db, now).await?.is_some() {
+        return Ok(false);
+      }
+
+      // A limit rest written in the unnamed pair is this machine's login's, put under its own name before
+      // the service's rest takes the pair.
+      let unnamed = if setting(db, REST_KIND).await?.as_deref() == Some("outage") {
+        None
+      } else {
+        moment(db, REST_UNTIL).await?
+      };
+      let seed = format!("{REST_UNTIL}:{SEED_ACCOUNT}");
+
+      if let Some(unnamed) = unnamed
+        && moment(db, &seed).await?.is_none()
+      {
+        settings::set(db, &seed, &unnamed.to_string()).await?;
+      }
+
+      settings::set(db, REST_UNTIL, &until.to_string()).await?;
+      settings::set(db, REST_KIND, "outage").await?;
+    }
+    RestKind::Limit => {
+      if account_rest_until(judging, account).await?.is_some_and(|standing| standing > now) {
+        return Ok(false);
+      }
+
+      settings::set(db, &format!("{REST_UNTIL}:{account}"), &until.to_string()).await?;
+    }
+  }
+
+  let silenced = !was_resting && resting(judging, now).await?;
+  let whose = match kind {
+    RestKind::Outage => "the service".to_owned(),
+    RestKind::Limit => format!("account {account}"),
+  };
+
+  println!(
+    "{whose} rests until {}{}",
+    chrono::DateTime::from_timestamp(until as i64, 0)
+      .map(|moment| moment.to_rfc3339())
+      .unwrap_or_default(),
+    if silenced { ": nothing answers now" } else { "" }
+  );
+
+  Ok(silenced)
 }

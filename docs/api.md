@@ -28,7 +28,7 @@ judges none of it.
 ## Versioning
 
 - **The contract carries the repository's one version, in semver.** The version in the workspace
-  manifest is this boundary's version; the current line is `0.13.0`.
+  manifest is this boundary's version; the current line is `0.14.0`.
 - **A change to this document and a change to the boundary go in one commit.** A change that makes a
   route, an event, a hook or a shared table's contract different repairs this document in the same
   commit, stating what is true now.
@@ -166,6 +166,11 @@ judges none of it.
   own starts there and again as it ends: the `agent`, the `run`, the `chatId`, and `going`, true while it
   runs. A consumer that stands cancellations over a room's runs reads which are going from these
   (`docs/companions.md`, 「What the reset cuts off」).
+- **The deployment resting**, `deployment-resting`, is published once where a rest closes the last
+  login that would answer: the `account` the rest was written under (or null for the service's outage),
+  its `kind` (`limit` or `outage`), `until` in epoch seconds, and `notice`, the words agency's policy
+  gives it. Saying it in the owner's chat is the consumer's (`docs/cache-fallback.md`, 「Automatic walks
+  only on providers, in order」).
 - **A companion cut off**, `companion-cut-off`, is published each time a reset moves the companion's
   reset point: the `agent` and the `point`, in epoch milliseconds. A turn begun at or before it is
   overtaken; the consumer holding the companion's rooms lets go unread what waited for its turns there and

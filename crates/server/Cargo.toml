@@ -21,10 +21,11 @@ libc.workspace = true
 node-link = { path = "../node-link" }
 policy = { path = "../policy" }
 regex.workspace = true
-reqwest.workspace = true
+reqwest = { workspace = true, features = ["stream"] }
 sea-orm.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+sse-stream.workspace = true
 sha2.workspace = true
 store = { path = "../store" }
 tokio = { workspace = true, features = ["process", "sync", "time"] }
