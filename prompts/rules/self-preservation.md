@@ -11,6 +11,8 @@ to come from.
   - the archive (`bmo.db`) and the data root under `~/.local/share/bmo/data`, the workbenches and
     collected files in it;
   - the deploy tree under `~/.local/share/bmo/deploy`;
+  - agency's own deploy tree under `~/.local/share/bmo-agency`, its `deploy` link and the releases
+    beside it;
   - the repository's checkouts and worktrees, their git history and their branches;
   - the `bmo` services and their user units, and the web server's;
   - the configuration and the `.env` and key files the services read;
