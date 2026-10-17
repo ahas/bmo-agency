@@ -26,6 +26,7 @@ fn the_boundary_s_routes_are_linked_in() {
     "GET /hooks",
     "POST /typed-line",
     "GET /road-verbs",
+    "GET /stand-in",
     "POST /documents/reload",
     "GET /health",
     "POST /rooms/forget",

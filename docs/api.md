@@ -28,7 +28,7 @@ judges none of it.
 ## Versioning
 
 - **The contract carries the repository's one version, in semver.** The version in the workspace
-  manifest is this boundary's version; the current line is `0.18.1`.
+  manifest is this boundary's version; the current line is `0.19.0`.
 - **A change to this document and a change to the boundary go in one commit.** A change that makes a
   route, an event, a hook or a shared table's contract different repairs this document in the same
   commit, stating what is true now.
@@ -86,6 +86,7 @@ judges none of it.
 | POST | `/places/take`, `/places/prepare`, `/places/remember`, `/places/retire` | a branch's standing checkout | 「Co-worker pool」 |
 | GET | `/run-log`, `/run-records` | a run's lines and its records | 「Run log and run records」 |
 | GET, POST | `/models`, `/registry`, `/model-tiers`, `/fallback` | the catalogue, the registry, the tiers and the roads | 「Models, registry, tiers, roads and fallback」 |
+| GET | `/stand-in` | whether a stand-in answers an agent while the rest closes Claude Code's road | 「Models, registry, tiers, roads and fallback」 |
 | GET | `/model-tiers/models`, `/fallback/codex-models`, `/fallback/openrouter-models` | a provider's catalogue | 「Models, registry, tiers, roads and fallback」 |
 | POST | `/worker`, `/worker/node`, `/workers/stand` | a worker added, changed, placed or stood again | 「Workers」 |
 | GET, POST | `/jobs/stop-mark`, `/jobs/stop-mark/clear` | a job's stop mark | 「Workers」 |
@@ -153,10 +154,12 @@ judges none of it.
   each part to the program as its line declares and judges none of it: the prompt and the context are the
   caller's turn assembly (「Hooks」 below).
 - **The routes and the herdr backend.** herdr's backend knows a session by its agent and its scope:
-  `<agent>@worker` for a worker's, `<agent>@<room>` for a companion's in one room, and `<agent>` for a
-  session across rooms, which only an agent whose row keeps its session at the `agent` scope holds.
+  `<agent>@worker` for a worker's, `<agent>@<room>` for a companion's in one room, `<agent>` for a
+  session across rooms, which only an agent whose row keeps its session at the `agent` scope holds, and
+  `<key>@editor` for an editor work key's runs.
   - `POST /session/start` takes `agent` and `scope` — `{ "kind": "worker" }`, `{ "kind": "room", "room":
-    <id> }` or `{ "kind": "agent" }` — and answers `id`, `agent` and `scope`.
+    <id> }`, `{ "kind": "agent" }` or `{ "kind": "editor" }` — and answers `id`, `agent` and `scope`. An
+    editor's session is named by its editor work key in place of an agent (below).
   - `POST /session/turn` takes `session`, `prompt` and the context's parts by the names above, carries
     the turn until it ends, and answers `delivery`, `taken` or `blocked`. A worker's turn goes on its
     session on the model it answered on last, under a login that answers now. A companion's goes on its
@@ -165,7 +168,19 @@ judges none of it.
     the mark (`docs/companions.md`). A turn across rooms goes on the chat line: on Claude Code, on the
     model and effort its tier maps to, with the chat line's system prompt and the base persona the turn
     names, its room named in the turn's variables, on the one session its agent's row keeps across rooms
-    (`docs/agents.md`, 「The session's scope」); a turn across rooms that names no room is refused.
+    (`docs/agents.md`, 「The session's scope」); a turn across rooms that names no room is refused. Where
+    the agent's key walks onto a stand-in before Claude Code, or every login of Claude Code is closed and
+    a stand-in answers, the turn goes out on that stand-in instead, and the session the row keeps is left
+    for Claude Code's next turn (`docs/cache-fallback.md`, 「While a fallback stands, the room is not
+    silent」).
+  - An editor's session, `<key>@editor`, carries one editor run a turn: the turn's prompt put into a run
+    apart of the editor line under that editor work key, on a session of its own that nothing resumes, on
+    the login the walk of Claude Code's logins offers the key, in the brain folder (`AGENCY_BRAIN_ROOT`,
+    else `brain` under the data root), with the tier and effort its key maps to (`docs/launch-lines.md`,
+    「Editor runs」). Its answer is the turn's `turn-ended`. A key that is no editor's is refused, and so is
+    a turn where the key maps to no model or the brain folder is no repository yet. An editor's session
+    keeps nothing: its state names the model its key maps to, a fold is refused, an end lets nothing go,
+    and a list names none.
   - `GET /session/state?session=<id>` answers `session`, `provider`, `model`, `place`, `generation` and
     `context`.
   - `POST /session/interrupt`, `POST /session/fold` and `POST /session/end` take `session` and answer
@@ -246,6 +261,10 @@ judges none of it.
   to another. It carries the owner (`ownerId`), the substitute that answered before where a fallback
   already stood (`previous`), and the `provider` and `model` answering now (`docs/cache-fallback.md`,
   「While a fallback stands, the room is not silent」). What the owner is told of it is the consumer's.
+- **A fallback ended**, `fallback-ended`, is published once Claude Code answers a turn across rooms with a
+  session of its own while a fallback stands: the mark of the stand-in answering is cleared, and the event
+  carries the owner (`ownerId`) and the stand-in that answered last (`previous`). What the owner is told of
+  it is the consumer's.
 - **An account's windows read by a turn**, `usage-windows-read`, are published as the turn reads them:
   the mode and the account, the moment they were seen, and each window's `name`, `utilization` (the
   fraction used), `resetsAt` (or null), `durationMinutes` (or null) and `limitName` (or null). The cache
@@ -453,6 +472,11 @@ Each hook has a default that does nothing, so agency runs with none registered.
   OpenRouter and the registry's provider, with the sanitiser gate, the per-key run mode and the account
   judgement (`docs/cache-fallback.md`, `docs/provider-presence.md`). The routes set a key's run mode and
   the provider order, and turn a provider on or off.
+- **Whether a stand-in answers** an agent while the rest closes Claude Code's road is answered for the
+  consumer that gates rooms on the rest: `GET /stand-in?agent=<name>` answers `answers`, true where the
+  agent is pinned to a provider other than Claude Code or its key's walk meets a stand-in now, as the
+  cache siren reads the logins' windows (`docs/cache-fallback.md`, 「While a fallback stands, the room is
+  not silent」).
 - **The catalogue** holds the model files the deployment's own engines serve, and choosing one fetches
   and installs it (`docs/model-catalogue.md`).
 - **The gateway** is agency's one translator in front of every registration; its address and key are

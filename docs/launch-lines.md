@@ -326,6 +326,9 @@
   and the brain repository and the machine's
   temporary directories are the whole of what it may write. A line's MCP tools stand beside the
   file tools it shows rather than narrowing them, so allowing them leaves the run allowed to write.
+  A consumer asks for an editor run as a turn of the key's editor session (`docs/api.md`, 「Sessions」):
+  that session carries the run on Claude Code alone, on the login the walk of its logins offers the
+  key, and names no fragment desk in the run's variables.
 - **Search runner**: the model and the effort its depth's tier assignment names on the first
   enabled provider whose program carries the search line — Frontier at every depth to start with —
   refused rather than launched where that model does not list the effort

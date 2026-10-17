@@ -6,6 +6,7 @@
 //! gateway, sized to the registration and placed on one of its nodes; on Claude Code's own, the program on
 //! the login the walk offers the companion, as every Claude run is.
 
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use agent_host::place::ResidentCommand;
@@ -80,6 +81,11 @@ pub struct ComposedTurn {
   pub account: Option<String>,
   /// The moment the turn took its words, as its variables carry it.
   pub began: i64,
+  /// The variables the turn hands its run where they are not the command's own: a stand-in road's, whose
+  /// command keeps the turn's variables and the road's tap out of the program's identity.
+  pub run_env: Option<BTreeMap<String, String>>,
+  /// The run as a stand-in road describes it, which a loop reads its turn by.
+  pub given: Option<Value>,
 }
 
 /// What a run on a registration was sized to: its window, and the home its program keeps its records under.
@@ -272,6 +278,8 @@ pub async fn compose(
       window: None,
       account: login.map(|login| login.id),
       began: turn.began,
+      run_env: None,
+      given: None,
     });
   };
 
@@ -333,5 +341,7 @@ pub async fn compose(
     }),
     account: None,
     began: turn.began,
+    run_env: None,
+    given: None,
   })
 }

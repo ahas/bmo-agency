@@ -4,6 +4,7 @@
 //! events and hooks go through, and its readiness; the conversational agents' settings as their rows
 //! declare them; and the members of the places and the watches that stand on nothing but this.
 
+pub mod chat_stand_in;
 pub mod clock;
 pub mod command_reading;
 
@@ -24,6 +25,7 @@ pub mod conversational;
 pub mod data_move;
 pub mod doctor;
 pub mod door;
+pub mod editor_session;
 pub mod events;
 pub mod herdr_backend;
 pub mod hooks;

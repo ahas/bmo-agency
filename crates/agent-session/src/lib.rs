@@ -30,6 +30,8 @@ pub enum Scope {
   Room(String),
   /// A worker's session, kept for the work it is given.
   Worker,
+  /// An editor work key's runs, each a run apart on a session of its own that nothing keeps.
+  Editor,
 }
 
 /// A session asked for: the agent, by its stable name, and the scope it is kept for.

@@ -17,18 +17,23 @@ use sha2::{Digest, Sha256};
 
 use agent_host::place::ResidentCommand;
 use harness_providers::claude_code::ClaudeCode;
+use harness_providers::registered::Registered;
+use policy::run_lines::RUN_LINES;
 
 use super::claude::{Command, Runs, Session, command_env, handed, line_environment};
-use super::companion::{ComposedTurn, LOST_SESSION, walked_login};
+use super::codex::{Shape, resident_command_of};
+use super::companion::{ComposedTurn, LOST_SESSION, Window, registration_named, walked_login};
+use super::openrouter::{LOCAL_URL, PROVIDER as OPENROUTER, loop_command};
 use super::place::{Holds, Place, write_place_settings};
 use super::runner::{handed_config, line_servers};
-use super::standing::status_root;
+use super::standing::{OnGateway, Placing, gateway_command, status_root};
 use super::token::facts;
 use super::worker::{Reasoning, effort_of, reasoning_of, rulebook, system_prompt_file};
 use super::{Trees, fault, read_required};
 use crate::Refusal;
 use crate::control::tiers;
 use crate::places::Ground;
+use crate::stand_in::Step;
 
 /// The line the deployment's chat goes out on.
 pub const LINE: &str = "chat";
@@ -258,6 +263,8 @@ pub async fn compose_turn(
     window: None,
     account: login.map(|login| login.id),
     began,
+    run_env: None,
+    given: None,
   })
 }
 
@@ -499,4 +506,154 @@ pub fn prefix(run: &ChatRun, mode: &str) -> String {
   };
 
   format!("{:x}", Sha256::digest(serde_json::to_string(&prefix).unwrap_or_default().as_bytes()))
+}
+
+/// The road a stand-in step's turn goes out on (docs/cache-fallback.md, 「While a fallback stands, the room
+/// is not silent」), with what it holds of the turn beside the step.
+pub enum Door {
+  /// Codex, on the agent's kept thread for the step's model and effort where it keeps one.
+  Codex { thread: Option<String> },
+  /// OpenRouter through dsh's loop, its requests sent through the tap at the address named.
+  Loop { tap: String },
+  /// Claude Code on the gateway, its session placed where the registration places it.
+  Gateway { placement: Option<String> },
+}
+
+/// The chat's turn composed for one stand-in step: the agent's own program on the step's road, on the chat
+/// line's system prompt, tools and MCP configuration, and the turn's variables handed to its run beside a
+/// command that keeps them out of the program's identity. A stand-in's program is handed the process's own
+/// environment and none of Claude Code's launch variables.
+pub async fn compose_stand_in(
+  ground: &Ground,
+  machine: &Machine,
+  run: &ChatRun,
+  step: &Step,
+  door: &Door,
+  answers: &[i64],
+  began: i64,
+) -> Result<ComposedTurn, Refusal> {
+  let mut env: BTreeMap<String, String> = run
+    .env
+    .iter()
+    .filter(|(name, _)| {
+      !CLAUDE_CODE.launch.variables.contains_key(*name) && name.as_str() != "MAX_THINKING_TOKENS"
+    })
+    .map(|(name, value)| (name.clone(), value.clone()))
+    .collect();
+
+  env.insert(
+    "BMO_TURN_MESSAGES".to_owned(),
+    answers.iter().map(i64::to_string).collect::<Vec<_>>().join(","),
+  );
+  env.insert("BMO_TURN_BEGAN".to_owned(), began.to_string());
+
+  let opened = uuid::Uuid::new_v4().to_string();
+  let effort = Some(step.effort.clone()).filter(|effort| !effort.is_empty());
+  // The run as the road describes it, which a loop reads its turn by.
+  let described = |delivery: &str, keep: bool, resume: Option<&str>, env: &BTreeMap<String, String>| {
+    let mut given = serde_json::to_value(run.stand_in(&step.model, &step.effort, delivery, keep))
+      .unwrap_or(serde_json::Value::Null);
+
+    given["prompt"] = serde_json::json!(run.prompt);
+    given["resumeSessionId"] = serde_json::json!(resume);
+    given["env"] = serde_json::json!(env);
+    given
+  };
+  let composed = |command: ResidentCommand, session: String, effort: Option<String>| ComposedTurn {
+    system_path: run.system_path.clone(),
+    command,
+    session,
+    prompt: run.prompt.clone(),
+    model: step.model.clone(),
+    effort,
+    placement: None,
+    window: None,
+    account: None,
+    began,
+    run_env: None,
+    given: None,
+  };
+
+  match door {
+    Door::Codex { thread } => {
+      let shape = Shape::of_line(
+        LINE,
+        &step.model,
+        &step.effort,
+        run.thinking,
+        &run.cwd,
+        Some(run.system_path.clone()),
+        Some(run.mcp_config.clone()),
+        &run.tools_shown,
+        &run.tools_allowed,
+      );
+      let command = resident_command_of(&shape, thread.as_deref(), &env)?;
+
+      Ok(ComposedTurn {
+        given: Some(described("input", true, thread.as_deref(), &env)),
+        run_env: Some(env),
+        ..composed(command, thread.clone().unwrap_or(opened), effort)
+      })
+    }
+    Door::Loop { tap } => {
+      env.insert(LOCAL_URL.to_owned(), tap.clone());
+
+      let script = harness_providers::provider(OPENROUTER)
+        .and_then(|declared| declared.declared().resident.as_ref())
+        .and_then(|resident| resident.loop_script.clone())
+        .ok_or_else(|| fault(format!("{OPENROUTER} stands no loop")))?;
+      let place = Place::of(&ground.roots.data, &run.agent);
+      let command =
+        loop_command(ground, &script, OPENROUTER, &place.path, LINE, &step.model, &run.cwd, &env);
+
+      Ok(ComposedTurn {
+        given: Some(described("argument", false, None, &env)),
+        run_env: Some(env),
+        ..composed(command, opened, None)
+      })
+    }
+    Door::Gateway { placement } => {
+      let held = registration_named(ground, &step.model).await?;
+      let on = OnGateway {
+        agent: &run.agent,
+        model: &step.model,
+        effort: &step.effort,
+        cwd: &run.cwd,
+        settings: serde_json::Map::new(),
+        compose_typed: RUN_LINES.composes_typed_lines(LINE),
+        shell_guard: true,
+        sampling: None,
+      };
+      let (mut command, name) = gateway_command(
+        ground,
+        machine,
+        on,
+        step.answer_tokens,
+        Placing::At(placement.clone()),
+        |name, effort, thinking, settings| {
+          let sent = ChatRun {
+            model: name.to_owned(),
+            effort: effort.to_owned(),
+            thinking,
+            resume: None,
+            ..run.clone()
+          };
+
+          resident_args(&sent, settings, &opened)
+        },
+      )
+      .await?;
+
+      command.env.extend(env.into_iter().filter(|(name, _)| name.starts_with("BMO_TURN_")));
+
+      Ok(ComposedTurn {
+        placement: placement.clone(),
+        window: Some(Window {
+          context_tokens: held.context_tokens,
+          home: Registered::home(machine, &name),
+        }),
+        ..composed(command, opened.clone(), effort)
+      })
+    }
+  }
 }

@@ -686,7 +686,23 @@ When a demotion first catches — when a healthy session first drops — two thi
   provider is a chosen road, not a fallback, so it is neither published nor marked, while an enabled
   substitute answering while Claude Code is off is published as a fallback, since the fact that Claude
   is not answering still holds. When Claude produces an answer with a real session id, the fallback mark
-  is cleared and the owner is told it is back.
+  is cleared and `fallback-ended` is published with the stand-in that answered last; telling the owner it
+  is back is the consumer's.
+- **How the chat's turn goes out on a stand-in.** A turn across rooms walks the agent's own key before
+  Claude Code's turn, each enabled stand-in of the walk in turn on the model and effort the key maps to
+  there, until one answers. It stands in the agent's own pane as that provider's program, on the chat
+  line's system prompt, tools and MCP configuration:
+  - **Codex** on the agent's kept thread for that model and effort, opened afresh where Codex no longer
+    holds it, and the thread that answered kept for the next turn;
+  - **OpenRouter** through dsh's loop and a tap of the turn's own, which reads the turn's figures off the
+    stream; no upstream is pinned, since agency keeps no record of a warmed one;
+  - **a registered model** as Claude Code on the gateway, the registration first held to the gateway's
+    list, on a session of its own placed where the registration places it.
+
+  A walk that had to answer — a key set to one provider, or Claude Code switched off — and met no
+  stand-in that answered fails the turn with the last stand-in's reason; otherwise the turn falls to
+  Claude Code. The session the agent's row keeps across rooms is Claude Code's, and a stand-in's turn
+  leaves it as it stands.
 
 ### The response options each road receives
 

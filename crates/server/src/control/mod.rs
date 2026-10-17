@@ -32,6 +32,7 @@ mod rooms;
 mod run_log;
 pub mod session_ops;
 pub mod sessions;
+pub mod stand_ins;
 pub mod tiers;
 pub mod typed_line;
 mod worker;

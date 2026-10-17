@@ -87,6 +87,7 @@ fn scope_value(scope: &Scope) -> Value {
     Scope::Agent => json!({ "kind": "agent" }),
     Scope::Room(room) => json!({ "kind": "room", "room": room }),
     Scope::Worker => json!({ "kind": "worker" }),
+    Scope::Editor => json!({ "kind": "editor" }),
   }
 }
 
@@ -123,12 +124,13 @@ fn scope_read(body: &Value) -> Result<Scope, Refused> {
   match scope.get("kind").and_then(Value::as_str) {
     Some("agent") => Ok(Scope::Agent),
     Some("worker") => Ok(Scope::Worker),
+    Some("editor") => Ok(Scope::Editor),
     Some("room") => match scope.get("room") {
       Some(Value::String(room)) if !room.is_empty() => Ok(Scope::Room(room.clone())),
       Some(Value::Number(room)) => Ok(Scope::Room(room.to_string())),
       _ => Err(bad("a room's scope names its room")),
     },
-    _ => Err(bad("scope.kind is agent, room or worker")),
+    _ => Err(bad("scope.kind is agent, room, worker or editor")),
   }
 }
 

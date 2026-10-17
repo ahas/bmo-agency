@@ -7,6 +7,7 @@ mod scratch;
 #[path = "../support/standing.rs"]
 mod standing;
 
+mod chat_stand_in;
 mod clock;
 mod command_reading {
   mod reading;
@@ -39,6 +40,7 @@ mod control {
   mod roads;
   mod session_ops;
   mod sessions;
+  mod stand_in_route;
   mod tiers;
 }
 mod conversational;
@@ -56,6 +58,7 @@ mod door {
   mod record;
   mod rollout;
 }
+mod editor_session;
 mod events;
 mod ground;
 mod herdr_backend;
