@@ -87,7 +87,7 @@ end_wait_ms = 3000
 end_poll_ms = 20
 
 # How full a session's context may be, as a share of its window, before it is folded once the turn that
-# found it so is over: the turn's answer has gone out, and the next turn finds the room the fold made. A job
-# worker's Claude Code compacts at the same share of its model's window inside a turn (docs/sessions.md,
-# 「Session compaction」).
+# found it so is over: the turn's answer has gone out, and the next turn finds the room the fold made. Inside
+# a turn, Claude Code compacts at its own default share of its model's window, a job worker's as every other
+# (docs/sessions.md, 「Session compaction」).
 fold_ratio = 0.85

@@ -388,9 +388,12 @@
   left out of its prompt; every Claude line also carries the configuration directory of the
   account its run was put on, and that account's token where the account is a token account,
   so what a run goes out under is a login agency chose rather than whatever the machine happens
-  to hold; a reference gate's run also carries `MAX_THINKING_TOKENS=0`; the job worker's line alone
-  carries `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`, the share of its model's window its sessions compact
-  at (`docs/sessions.md`, 「Session compaction」); nothing else is added beyond the switches below.
+  to hold; a reference gate's run also carries `MAX_THINKING_TOKENS=0`; no line sets the share of
+  its model's window a session compacts at, so every program, the job worker's included, compacts
+  at its own default (`docs/sessions.md`, 「Session compaction」), and only a run on a registered
+  model's road carries `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`, at the share its registration leaves for
+  the answer (`docs/own-llm.md`, 「A turn at the input limit」); nothing else is added beyond the
+  switches below.
   An account's variables are handed to a line by name rather than inherited, because the job
   line rebuilds its environment from a few names and would otherwise drop them. They add
   nothing to a cached prefix — the flags, their order, the system prompt and the files it

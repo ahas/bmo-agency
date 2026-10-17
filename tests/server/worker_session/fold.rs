@@ -6,6 +6,7 @@ use policy::resident_turn::RESIDENT_TURN;
 
 #[test]
 fn a_worker_session_is_full_past_the_fold_ratio_of_its_models_window_alone() {
+  assert_eq!(RESIDENT_TURN.fold_ratio, 0.85);
   assert!(worker_session_full(Some(RESIDENT_TURN.fold_ratio)));
   assert!(!worker_session_full(Some(RESIDENT_TURN.fold_ratio - 0.01)));
   assert!(!worker_session_full(None));

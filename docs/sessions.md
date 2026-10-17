@@ -109,14 +109,14 @@ session on the owner's ask is `docs/session-resets.md`.
 - Compaction runs detached after the reply has been sent, never in the path a chat is waiting on; a
   message that arrives mid-compaction is answered as soon as the compaction finishes. A compaction
   failure leaves the session running as it was.
-- **A job worker's session is held to its own model's window,** folded at the policy's
-  `fold_ratio` of it like every other session:
-  - inside a turn, the worker's Claude Code is launched with `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` at
-    `fold_ratio` as a percentage, so the program compacts at that share of its model's window while
-    the job goes on, rather than near the whole of it;
-  - between turns, the runner folds a worker session past `fold_ratio` of its model's window.
-  - A worker running on a registered model's road is launched with the share its registration
-    leaves for the answer instead (`docs/own-llm.md`, 「A turn at the input limit」).
+- **A job worker's session compacts against its model's own window,** as every other session does:
+  - inside a turn, its Claude Code is launched with no compaction setting of the deployment's, so the
+    program compacts at its own default share of the model's window while the job goes on;
+    compacting a large session early costs more than reading its cached context again;
+  - between turns, the runner folds a worker session past `fold_ratio` of its model's window, the
+    same threshold a chat's session is folded at.
+  - A worker running on a registered model's road is the one exception: it is launched with the share
+    its registration leaves for the answer (`docs/own-llm.md`, 「A turn at the input limit」).
   - Whatever a consumer sent the session to hold — a co-work result among it — is folded away with
     the detail, so `session-folded` is published once the fold has reached the session, or may have
     (`docs/api.md`, 「Events」); a fold that never reached it, held off by a busy pane or a session too

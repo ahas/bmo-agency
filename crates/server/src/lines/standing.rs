@@ -20,9 +20,7 @@ use super::place::{
   Holds, Place, Program, Standby, command_digest, read_settings, resident_of, write_place_settings,
 };
 use super::prefix::{PrefixReading, prefix_digest};
-use super::worker::{
-  self, LINE, Reasoning, WorkerRun, configured, effort_of, worker_run, worker_variables,
-};
+use super::worker::{self, LINE, Reasoning, WorkerRun, configured, effort_of, worker_run};
 use super::{Trees, fault};
 use crate::control::claude_accounts::{self, Account, SEED_ACCOUNT};
 use crate::control::registry;
@@ -238,9 +236,7 @@ pub async fn claude_program(
       line.thinking,
     )?,
   };
-  let mut env = claude::line_environment(&command, &format!("bmo-standby-{worker}"));
-
-  env.extend(worker_variables());
+  let env = claude::line_environment(&command, &format!("bmo-standby-{worker}"));
   let program = resident_of(machine, &place.path, &command.cwd, &command.args, &env, session.id());
   let standby = match (&session, program.opened.clone().flatten()) {
     (Session::Open(id), Some(record)) => Some(Standby {

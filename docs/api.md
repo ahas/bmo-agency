@@ -28,7 +28,7 @@ judges none of it.
 ## Versioning
 
 - **The contract carries the repository's one version, in semver.** The version in the workspace
-  manifest is this boundary's version; the current line is `0.19.1`.
+  manifest is this boundary's version; the current line is `0.19.2`.
 - **A change to this document and a change to the boundary go in one commit.** A change that makes a
   route, an event, a hook or a shared table's contract different repairs this document in the same
   commit, stating what is true now.
