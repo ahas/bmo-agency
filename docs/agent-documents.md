@@ -18,10 +18,11 @@ composed into a system prompt, and what the chat agent's own prompt is made of.
     markdown into, kept beside the rulebooks it points to for the marks and the fold;
   - `search-kinds.md`, `product-search.md`, `restaurant-search.md`, `investment-search.md`,
     `study-material.md` and `deep-dives.md` — the search runner;
-  - `document-writing.md` — every agent that writes a stored document: the digest and person-book
-    editors and the standing-sheet summariser, ahead of their own instructions, `plain-writing.md`
-    right after it; the brain, which composes its writers' whole prompts, reads it with
-    `plain-writing.md` and `self-preservation.md` through the rulebook read (`docs/api.md`, 「Agents」);
+  - `document-writing.md` — every agent that writes a stored document: the standing-sheet
+    summariser, ahead of its own instructions, `plain-writing.md` right after it; the brain, which
+    composes its writers' whole prompts, the digest and person-book editors' and the session
+    summariser's among them, reads it with `plain-writing.md` and `self-preservation.md` through the
+    rulebook read (`docs/api.md`, 「Agents」);
   - `agent-words.md` — every designated agent: the chat session and every companion, for the turns
     another agent's words woke it in;
   - `self-preservation.md` — every agent that acts: the chat session, every job worker and
@@ -35,7 +36,8 @@ composed into a system prompt, and what the chat agent's own prompt is made of.
   it — `system-documents/instructions.md`, `room-rules/instructions.md`,
   `library-knowledge/instructions.md`, `voice-polish/instructions.md`,
   `voice-reading/instructions.md`, `search/task.md` and `request.md`, `browse/task.md` and
-  `request.md` with its `.mcp.json`, `digest/task.md`, `people/task.md` and `worker/trailer.md`.
+  `request.md` with its `.mcp.json`, and `worker/trailer.md`. The editors' tasks and the session
+  summariser's prompt are not among them: the brain keeps and composes those.
 
 ## The web reaches agents through the tool host
 
@@ -50,9 +52,8 @@ composed into a system prompt, and what the chat agent's own prompt is made of.
 ## How the documents are composed
 
 - **Agency's prompt composer composes these into what each agent sees** — the chat session's system
-  prompt, each gate's, each runner's standing instructions and the request of each run, each editor's
-  task — and the launch lines read from it, fresh on every run, so an edited document applies at the
-  next launch.
+  prompt, each gate's, each runner's standing instructions and the request of each run — and the
+  launch lines read from it, fresh on every run, so an edited document applies at the next launch.
 - **A prompt told its own ceiling** — the person book's search and the document seeker — is rendered
   with the number `policy/gate-prompts.toml` declares for it, so the deployed copy says the number the
   gate's run holds to.

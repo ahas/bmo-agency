@@ -516,9 +516,6 @@ export async function deployAgents(gates: readonly GateAgent[] = []): Promise<Ag
   await compose(asHanded(chatMcpConfigPath()), chatMcpConfig);
   await compose(asHanded(editorMcpConfigPath()), editorMcpConfig);
   await compose(join(building, "worker", "trailer.md"), async () => workerTrailer());
-  await compose(join(building, "digest", "task.md"), async () => documentWriter(agentFile("digest", "task.md")));
-  await compose(join(building, "people", "task.md"), async () => documentWriter(agentFile("people", "task.md")));
-  await compose(join(building, "people", "sort.md"), async () => documentWriter(agentFile("people", "sort.md")));
 
   carryPrompts(join(root, "prompts"), join(building, "prompts"));
 
