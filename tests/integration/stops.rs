@@ -26,6 +26,11 @@ struct Bench {
 
 impl Bench {
   async fn new() -> Self {
+    Self::with(&[]).await
+  }
+
+  // The bench with the variables named set beside its own.
+  async fn with(set: &[(&str, String)]) -> Self {
     let scratch = Scratch::new().await;
     let home = tempfile::tempdir().unwrap();
     let systemd = systemd_stand_in(&home.path().join("bin"));
@@ -43,10 +48,12 @@ impl Bench {
       ],
       data,
     );
-    let service = common::service(
-      &scratch,
-      &[("AGENCY_SOURCE_DIR", home.path().join("source").to_string_lossy().into_owned())],
-    );
+    let mut variables =
+      vec![("AGENCY_SOURCE_DIR", home.path().join("source").to_string_lossy().into_owned())];
+
+    variables.extend(set.iter().cloned());
+
+    let service = common::service(&scratch, &variables);
     let ground = Ground::new(&service, &machine, Some(herdr::Herdr::there(herdr.socket.clone())));
 
     Self {
@@ -209,6 +216,38 @@ async fn the_runs_a_change_ended_are_confirmed_gone_before_their_cancellation_is
   stops.stop_runs(&runs, "task skipped").await.unwrap();
 
   assert!(!bench.marked("bmo-task-a").await);
+}
+
+#[tokio::test]
+async fn a_watchs_unit_is_ended_through_the_brain_before_it_is_stopped() {
+  use axum::Json;
+  use axum::extract::State;
+  use std::sync::{Arc, Mutex};
+
+  type Told = Arc<Mutex<Vec<Value>>>;
+
+  async fn stopped(State(told): State<Told>, Json(body): Json<Value>) -> Json<Value> {
+    told.lock().unwrap().push(body);
+
+    Json(json!({ "ended": true }))
+  }
+
+  let told = Told::default();
+  let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+  let address = format!("http://{}", listener.local_addr().unwrap());
+  let brain = axum::Router::new()
+    .route("/watches/stopped", axum::routing::post(stopped))
+    .with_state(told.clone());
+
+  tokio::spawn(async move { axum::serve(listener, brain).await });
+
+  let bench = Bench::with(&[("AGENCY_BRAIN_URL", address)]).await;
+  let stops = bench.stops();
+
+  stops.stop("bmo-watch-5-1700000000000").await;
+  stops.stop("bmo-digest").await;
+
+  assert_eq!(*told.lock().unwrap(), [json!({ "unit": "bmo-watch-5-1700000000000" })]);
 }
 
 #[tokio::test]

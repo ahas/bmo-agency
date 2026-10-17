@@ -1,6 +1,7 @@
-//! `GET /agents`: the agent table as the store holds it (docs/api.md, 「Agents」), each agent with what it
-//! is configured to begin on, what of its own thinking and effort reaches that, its gates and the rooms it
-//! holds sessions in.
+//! `GET /agents`: the agent table as the store holds it (docs/api.md, 「Agents」), every agent, the resting
+//! among them, each with what it is configured to begin on, what of its own thinking and effort reaches
+//! that, its gates and the rooms it holds sessions in, and what a recollector reads of it: whether it is
+//! awake, its brain folder and the registration its recollectors run on.
 
 use std::path::Path;
 use std::sync::LazyLock;
@@ -38,12 +39,7 @@ impl Route for Agents {
   async fn answer(&self, call: Call) -> Result<Response, Refused> {
     let db = call.store();
     let judging = Judging::of(call.ground());
-    let rows = store::all(
-      db,
-      r#"SELECT * FROM "agents" WHERE "resting_since" IS NULL ORDER BY "kind", "name""#,
-      vec![],
-    )
-    .await?;
+    let rows = store::all(db, r#"SELECT * FROM "agents" ORDER BY "kind", "name""#, vec![]).await?;
     let mut agents = Vec::with_capacity(rows.len());
 
     for row in &rows {
@@ -105,6 +101,11 @@ pub struct Agent {
   pinned_model: Option<String>,
   thinking: Option<bool>,
   effort: Option<String>,
+  /// Whether it is awake: no rest stands on it.
+  pub awake: bool,
+  /// Where its long-term memory lives, relative to the brain root, empty for the root; none where it keeps
+  /// none.
+  pub brain_folder: Option<String>,
   /// How the runner carries it, where it is a conversational agent.
   pub conversation: Option<Settings>,
 }
@@ -147,6 +148,8 @@ impl Agent {
       pinned_provider,
       thinking: number("thinking")?.map(|thinking| thinking != 0),
       effort: text("effort")?,
+      awake: number("resting_since")?.is_none(),
+      brain_folder: text("brain_folder")?.map(|folder| folder.trim().trim_end_matches('/').to_owned()),
       conversation: Settings::of(row).map_err(Refused::from)?,
     })
   }
@@ -195,6 +198,12 @@ async fn agent_view(judging: Judging<'_>, machine: &Machine, agent: &Agent) -> R
   put("lastModel", json!(agent.last_model));
   put("lastEffort", json!(agent.last_effort));
   put("label", json!(agent.label));
+  put("awake", json!(agent.awake));
+  put("brainFolder", json!(agent.brain_folder));
+  put(
+    "recollectorRegistration",
+    json!(crate::run_clock::recollector_registration(db, &agent.name).await?),
+  );
   put("aliases", json!(agent.aliases));
   put("icon", json!(agent.icon));
   put("cwd", json!(agent.cwd));

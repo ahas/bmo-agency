@@ -1,0 +1,32 @@
+# The clock a run of work is held to and the ask put past it (docs/agent-control.md, 「A clock asks
+# before it cuts」), read by the server as it carries a clocked run and by the verb that answers an ask.
+
+# The bound an editor run carries, unless the registration its agent's recollectors run on waits longer
+# for one request.
+editor_cap_seconds = 1800
+
+# How long an ask waits for the chat agent's verdict before agency cuts the run itself: the run holds a
+# lock or a place others wait on the whole while.
+answer_wait_seconds = 1800
+
+# How often a run waiting on a verdict looks for one.
+look_every_seconds = 5
+
+# The longest one keep gives; the run is asked about again when it runs out.
+longest_keep_seconds = 7200
+
+# How long a clock's rows are kept once its run has ended.
+kept_days = 7
+
+# The command a verdict is given with, which an ask names for the order that carries it.
+verb = "bmo-agency overtime"
+
+# What an editor run is doing, as an ask says it: the work key, the agent whose memory it writes and the
+# room it reads, and which batch it is where it is one of several; a turn naming no parts is the key's run.
+editor_what = "The {key} run writing the memory of {agent} from room {chat}"
+editor_what_bare = "The {key} run"
+editor_step = ", batch {step} of {steps}"
+
+# Why a run cut on its clock failed: whose call it was, with the clock's length in minutes.
+cut_by_agent = "cut at its {minutes}-minute clock on the chat agent's call: {why}"
+cut_by_agency = "cut at its {minutes}-minute clock: no verdict came within {wait} minutes"

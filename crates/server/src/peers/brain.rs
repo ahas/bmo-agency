@@ -1,7 +1,8 @@
 //! The brain (docs/api.md, 「Calls agency makes」): what a companion's reset and removal do to the agent's
 //! brain folder and the rows it remembers by. The folder, its editing lock with the lock's queue and fence,
 //! the day a person book starts reading and the recollectors' writing are the brain's; agency names the
-//! agent and the brain finds its folder.
+//! agent and the brain finds its folder. And a watch whose unit agency is about to stop, which the brain
+//! ends so its clock does not launch it again.
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -35,6 +36,24 @@ struct LockPath {
   path: Option<String>,
 }
 
+#[derive(Deserialize)]
+struct WatchEnded {
+  ended: bool,
+}
+
+// What the brain names a watch's unit: its prefix, then the watch's number and the moment it was armed.
+const WATCH_UNIT: &str = "bmo-watch-";
+
+/// Whether a unit is one the brain runs a watch in, `bmo-watch-<id>-<milliseconds>`.
+pub fn holds_watch(unit: &str) -> bool {
+  let digits = |part: &str| !part.is_empty() && part.bytes().all(|byte| byte.is_ascii_digit());
+
+  unit
+    .strip_prefix(WATCH_UNIT)
+    .and_then(|rest| rest.split_once('-'))
+    .is_some_and(|(id, at)| digits(id) && digits(at))
+}
+
 /// What a reset of an agent took of the brain, or would take: the count of the agent's rows per table
 /// and whether its folder stands, as the brain says them, and what it could not do.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
@@ -61,10 +80,12 @@ pub trait Brain: Send + Sync {
   /// What the agent remembers taken — its rows and its folder, under its fence and lock — or, for a
   /// preview, counted with nothing taken.
   fn reset<'a>(&'a self, agent: &'a str, preview: bool) -> Asking<'a, BrainReset>;
+  /// The standing watch a unit about to be stopped holds ended as cancelled; whether it held one.
+  fn watch_stopped<'a>(&'a self, unit: &'a str) -> Asking<'a, bool>;
 }
 
-/// No brain deployed: no folder is kept, so nothing is fenced, removed, written or undone, and no lock
-/// stands.
+/// No brain deployed: no folder is kept, so nothing is fenced, removed, written or undone, no lock stands
+/// and no watch is ended.
 pub struct NoBrain;
 
 impl Brain for NoBrain {
@@ -90,6 +111,10 @@ impl Brain for NoBrain {
 
   fn reset<'a>(&'a self, _agent: &'a str, _preview: bool) -> Asking<'a, BrainReset> {
     Box::pin(async { Ok(BrainReset::default()) })
+  }
+
+  fn watch_stopped<'a>(&'a self, _unit: &'a str) -> Asking<'a, bool> {
+    Box::pin(async { Ok(false) })
   }
 }
 
@@ -137,6 +162,14 @@ impl Brain for HttpBrain {
 
   fn reset<'a>(&'a self, agent: &'a str, preview: bool) -> Asking<'a, BrainReset> {
     Box::pin(self.caller.post("agents/reset", json!({ "agent": agent, "preview": preview })))
+  }
+
+  fn watch_stopped<'a>(&'a self, unit: &'a str) -> Asking<'a, bool> {
+    Box::pin(async move {
+      let answer: WatchEnded = self.caller.post("watches/stopped", json!({ "unit": unit })).await?;
+
+      Ok(answer.ended)
+    })
   }
 }
 

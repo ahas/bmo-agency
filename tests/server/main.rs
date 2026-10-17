@@ -36,6 +36,7 @@ mod control {
   mod models;
   mod own_llm;
   mod pool_board;
+  mod recollector_routes;
   mod registry;
   mod roads;
   mod session_ops;
@@ -127,6 +128,7 @@ mod readiness;
 mod relay;
 mod rest;
 mod rooms;
+mod run_clock;
 mod seeds;
 mod stand_in;
 

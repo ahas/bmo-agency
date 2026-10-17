@@ -29,8 +29,9 @@ const TOKEN_BACKSTOP: Duration = Duration::from_secs(24 * 3_600);
 
 /// One run apart as its caller names it: the agent it runs for, the line and provider it goes out on, what
 /// a person watching herdr reads it as, the line's command for it — its words opening `session` — the words
-/// it is told, the work key, model, effort and tier its execution row keeps, and how long it may take
-/// before its caller is asked about it.
+/// it is told, the work key, model, effort and tier its execution row keeps, how long it may take before its
+/// caller is asked about it, and the run its execution is a child of and the root it is counted under, where
+/// the caller names them rather than this process's own unit.
 pub struct Apart<'a> {
   pub agent: &'a str,
   pub line: &'a str,
@@ -44,6 +45,8 @@ pub struct Apart<'a> {
   pub effort: String,
   pub tier: Option<String>,
   pub bound: Option<Duration>,
+  pub parent: Option<String>,
+  pub root: Option<String>,
 }
 
 /// A session of a run's own, which nothing resumes.
@@ -148,8 +151,8 @@ pub async fn run<W: Watch>(ground: &Ground, apart: Apart<'_>, watch: &mut W) -> 
     session: apart.session,
     identity: Identity {
       agent: None,
-      root: Some(execution_root(own.as_deref().unwrap_or_default())),
-      parent: own,
+      root: apart.root.or_else(|| Some(execution_root(own.as_deref().unwrap_or_default()))),
+      parent: apart.parent.or(own),
       work_key: Some(apart.work_key),
       model: Some(apart.model),
       effort: (!apart.effort.is_empty()).then_some(apart.effort),

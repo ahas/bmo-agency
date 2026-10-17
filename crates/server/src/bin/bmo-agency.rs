@@ -1,7 +1,8 @@
 //! Agency's verbs from a shell (docs/api.md, and each verb's own document): the agents and their settings,
 //! an agent's status line and hooks, a job's live Claude runs and native co-worker calls, a batch on a
 //! pinned login, the work nodes, the workers' sessions and dev servers, the model catalogue, the documents
-//! reloaded, a companion's room followed, and the agents' documents composed. Each prints what it came to
+//! reloaded, the chat agent's verdict on a run past its clock, a companion's room followed, and the agents'
+//! documents composed. Each prints what it came to
 //! and ends with its own code; a refusal is said on the error stream.
 
 use std::collections::BTreeMap;
@@ -13,6 +14,7 @@ use agency_server::verbs::claude_batch::{self, ClaudeBatch};
 use agency_server::verbs::dev_servers::{self, DevAction};
 use agency_server::verbs::fold_worker::{self, FoldAsked};
 use agency_server::verbs::models::{self, ModelsArgs};
+use agency_server::verbs::overtime::{self, OvertimeAsked};
 use agency_server::verbs::reload::{self, TreeRedeploy};
 use agency_server::verbs::work_node::{self, WorkNodeVerb};
 use agency_server::verbs::{
@@ -114,6 +116,20 @@ enum Verb {
     /// Due at once, rather than after the hour a chat is told once in.
     #[arg(long)]
     now: bool,
+  },
+  /// The chat agent's verdict on a run past its clock: the asks still open, or keep or cut on one.
+  Overtime {
+    #[arg(long)]
+    list: bool,
+    #[arg(long)]
+    keep: Option<i64>,
+    #[arg(long)]
+    cut: Option<i64>,
+    /// How long a keep holds: `20m`, `1h` or a number of minutes.
+    #[arg(long = "for", allow_hyphen_values = true)]
+    length: Option<String>,
+    #[arg(long, allow_hyphen_values = true)]
+    why: Option<String>,
   },
   /// A companion from the shell.
   Companion {
@@ -370,6 +386,23 @@ async fn run(verb: Verb) -> ExitCode {
     Verb::DevPane { worker, .. } => ended(dev_servers::dev_pane(&data_root, &worker).await),
     Verb::Model(args) => ended(models::models(&data_root, args).await),
     Verb::Reload { paths, now } => ended(reloaded(&data_root, &paths, now).await),
+    Verb::Overtime {
+      list,
+      keep,
+      cut,
+      length,
+      why,
+    } => {
+      let asked = OvertimeAsked {
+        list,
+        keep,
+        cut,
+        length,
+        why,
+      };
+
+      ended(verdict(&data_root, &asked).await)
+    }
     Verb::Companion {
       what: CompanionVerb::Follow { room, agent, .. },
     } => ended(companion_follow::follow(&data_root, &agent, &room).await.map(|()| Answer::default())),
@@ -484,6 +517,12 @@ async fn reloaded(data_root: &std::path::Path, paths: &[String], now: bool) -> R
   reload::reload(&ground.db, &places, paths, now, &redeploy, agency_server::now_ms() / 1000)
     .await
     .map(Answer::from)
+}
+
+async fn verdict(data_root: &std::path::Path, asked: &OvertimeAsked) -> Result<Answer, VerbError> {
+  let ground = agency_server::verbs::ground(data_root).await?;
+
+  overtime::overtime(&ground, asked).await
 }
 
 async fn prompts(data_root: &std::path::Path, gates: Option<PathBuf>) -> Result<Answer, VerbError> {

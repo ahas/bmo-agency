@@ -102,9 +102,9 @@ reads the same owner column. `docs/companions.md` is what a companion's session 
   digest, the person-book writer and the session summariser. Their kind is `recollector`, and
   every screen groups them under that name.
 - **Each run is for one agent.** It reads the words of rooms that agent answers, writes into that
-  agent's folder and rows, and writes from that agent's own first-person view
-  (`prompts/rules/recollection.md`). A room several agents answer is read once per agent, and each
-  run writes its own.
+  agent's folder and rows, and writes from that agent's own first-person view (the recollection
+  rulebook, which the brain keeps with the fragment tool's). A room several agents answer is read once
+  per agent, and each run writes its own.
 - **A room is read for an agent where the agent answers it,** as the room answerers record says;
   a room with no answerers is the chat agent's alone. The digest takes each agent's own notes, and
   the person-book writer keeps each agent's own marks of what it has read (`people-book.md`,

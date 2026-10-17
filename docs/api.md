@@ -28,7 +28,7 @@ judges none of it.
 ## Versioning
 
 - **The contract carries the repository's one version, in semver.** The version in the workspace
-  manifest is this boundary's version; the current line is `0.19.6`.
+  manifest is this boundary's version; the current line is `0.20.0`.
 - **A change to this document and a change to the boundary go in one commit.** A change that makes a
   route, an event, a hook or a shared table's contract different repairs this document in the same
   commit, stating what is true now.
@@ -57,6 +57,7 @@ judges none of it.
 | Method | Path | What it answers | Section |
 | --- | --- | --- | --- |
 | GET | `/agents` | every agent, its place and its configured and answered roads | 「Agents」 |
+| GET | `/rulebooks` | the shared rulebooks named, by their text | 「Agents」 |
 | POST | `/agent-gate` | one of an agent's gates switched on or off | 「Agents」 |
 | POST | `/agent-reasoning` | an agent's own thinking and effort set | 「Agents」 |
 | POST | `/agent-role` | the role an agent holds from now on | 「Agents」 |
@@ -92,6 +93,9 @@ judges none of it.
 | GET, POST | `/jobs/stop-mark`, `/jobs/stop-mark/clear` | a job's stop mark | 「Workers」 |
 | POST, GET | `/roads/block`, `/roads/open` | a road's block, and whether a road is open | 「Workers」 |
 | POST | `/runs/stop`, `/runs/alive` | runs stopped, and which names are alive | 「Workers」 |
+| GET | `/runs/clock` | the clock a run stands on, by its name or the name it runs under | 「Workers」 |
+| GET, POST | `/runs/overtime` | the asks on runs past their clock, and a verdict on one | 「Workers」 |
+| GET | `/editors/cap` | the bound an editor work key's run carries for an agent | 「Workers」 |
 | GET, POST | `/rest` | the deployment's rest, read and written | 「Accounts」 |
 | GET | `/health` | agency's health and readiness | 「Health」 |
 
@@ -108,6 +112,18 @@ judges none of it.
   agent」), so no route stands or retires one. A place's home is read and used together with the agent,
   since a remote agent's pane and ids are its node's (`docs/work-nodes.md`, 「The bot's side of a remote
   agent」).
+- **The agent list.** `GET /agents` answers `agents`, every agent of the store, the resting among them,
+  each with its row's fields and roads as the screen shows them, and beside them what a recollector
+  reads: `awake`, false while the agent rests; `brainFolder`, the folder of the brain its long-term memory
+  is in, relative to the brain root, empty for the root itself, or null for an agent that keeps none;
+  and `recollectorRegistration`, the registration its recollectors run on, or null for their work key's
+  own road (`docs/agent-ownership.md`, 「Long-term memory」). It answers `roles` beside them, every role
+  an agent may hold.
+- **The shared rulebooks.** A consumer that composes a run's whole prompt itself reads the rulebooks
+  more than one writer shares from agency, which keeps one copy of each (`docs/agent-documents.md`):
+  `GET /rulebooks?names=<name>,<name>` answers `rulebooks`, each named rulebook's `name` and its `text`,
+  trimmed, in the order asked, as the deploy tree holds it. A name that is no rulebook of agency's is
+  refused 404 with `not-found`, and a name that is not one plain word 400.
 - **An agent's role** is the tools and the policy its runs are shown, named by the consumer and
   resolved by agency (`docs/agent-roles.md`). The role a co-worker place holds is agency's policy's
   (`docs/coworker-pool.md`, 「Standing branch checkouts and their list」).
@@ -153,6 +169,13 @@ judges none of it.
   begun after it overtakes and which is the moment the turn is sent where none is named. Agency carries
   each part to the program as its line declares and judges none of it: the prompt and the context are the
   caller's turn assembly (「Hooks」 below).
+- **An editor run's parts** are the context an editor session's turn carries, each optional:
+  `run`, the name the caller gives the run; `parent`, the unit it runs under, or null; `agent`, whose
+  long-term memory it writes; `chatId`, the room it reads; `step` and `steps`, which batch it is of how
+  many, or null; `workdir`, the agent's brain folder relative to the brain root, empty for the root;
+  `desk`, the fragment desk its batch opened; and `registration`, the registration it runs on, or null
+  for its work key's own road. Agency carries them and judges none of them (「Sessions」, the editor's
+  session, below).
 - **The routes and the herdr backend.** herdr's backend knows a session by its agent and its scope:
   `<agent>@worker` for a worker's, `<agent>@<room>` for a companion's in one room, `<agent>` for a
   session across rooms, which only an agent whose row keeps its session at the `agent` scope holds, and
@@ -173,16 +196,23 @@ judges none of it.
     a stand-in answers, the turn goes out on that stand-in instead, and the session the row keeps is left
     for Claude Code's next turn (`docs/cache-fallback.md`, 「While a fallback stands, the room is not
     silent」).
-  - An editor's session, `<key>@editor`, carries one editor run a turn: the turn's prompt put into a run
-    apart of the editor line under that editor work key, on a session of its own that nothing resumes, in
-    the brain folder (`AGENCY_BRAIN_ROOT`, else `brain` under the data root) — on the first stand-in the
-    key's walk meets that answers, else on Claude Code with the tier and effort its key maps to, on the
-    login the walk of its logins offers the key (`docs/launch-lines.md`, 「Editor runs」). Its answer is
-    the turn's `turn-ended`. A key that is no editor's is refused; a turn fails where the brain folder is
-    no repository yet, where a walk that had to answer met no stand-in that answered, or where the key
-    maps to no model on Claude Code when the run falls to it. An editor's session keeps nothing: its state
-    names the model its key maps to on Claude Code, a fold is refused, an end lets nothing go, and a list
-    names none.
+  - An editor's session, `<key>@editor`, carries one editor run a turn, and several turns at once: the
+    turn's prompt put into a run apart of the editor line under that editor work key, on a session of its
+    own that nothing resumes, in the brain folder (`AGENCY_BRAIN_ROOT`, else `brain` under the data root)
+    or the folder under it the turn's `workdir` names — on the registration the turn names, else on the
+    first stand-in the key's walk meets that answers, else on Claude Code with the tier and effort its key
+    maps to, on the login the walk of its logins offers the key (`docs/launch-lines.md`, 「Editor runs」).
+    The run goes out under the turn's `run`, which its `turn-started` and `turn-ended` carry: its
+    execution is counted under that name and is a child of the turn's `parent` where it names one, so a
+    stop or an alive asked of either name reaches it; it is handed the turn's `desk` and `chatId` in its record, and it carries the editor
+    cap as its clock (「Workers」, the run's clock). A turn whose `run` is already going on the session is
+    refused `session-busy`. Its answer is the turn's `turn-ended`. A key that is no editor's is refused, and
+    so is a `workdir` that leaves the brain folder; a turn fails where the brain folder is no repository
+    yet, where its `workdir` is not there, where the registration it names did not answer, where a walk
+    that had to answer met no stand-in that answered, or where the key maps to no model on Claude Code
+    when the run falls to it. An editor's session keeps nothing: its state names the model its key maps
+    to on Claude Code, an interrupt cuts every run it carries, a fold is refused, an end lets nothing go,
+    and a list names none.
   - `GET /session/state?session=<id>` answers `session`, `provider`, `model`, `place`, `generation` and
     `context`.
   - `POST /session/interrupt`, `POST /session/fold` and `POST /session/end` take `session` and answer
@@ -217,9 +247,11 @@ judges none of it.
   takes `chatId` and `dryRun`, and answers `gone`, the rows of each table, and `stayed`, each `table`,
   `rows` and `why`.
 - **Documents moved.** `POST /documents/reload` takes `paths` and `now`, whether the notice is due at once,
-  and publishes them as `documents-moved` for the consumer that holds the rooms; agency tells no session
-  itself (`docs/sessions.md`, 「Document reload」). The brain calls it for its own documents and
-  `bmo-agency reload` for the files it is given.
+  and where the caller knows them `agent`, whose documents they are, and `rooms`, the chat ids of the rooms
+  they concern, and publishes them as `documents-moved` for the consumer that holds the rooms; agency
+  tells no session itself (`docs/sessions.md`, 「Document reload」). It answers `paths`, `now`, `agent`
+  and `rooms` as published. The brain calls it for its own documents, its paths relative to the brain
+  root, and `bmo-agency reload` for the files it is given.
 - **The events** are the turn's lifecycle and the road it walked (「Events」 below).
 
 ## Events
@@ -321,10 +353,23 @@ judges none of it.
   reset point: the `agent` and the `point`, in epoch milliseconds. A turn begun at or before it is
   overtaken; the consumer holding the companion's rooms lets go unread what waited for its turns there and
   settles its quiet instructions as delivered (`docs/companions.md`, 「What the reset cuts off」).
-- **Documents moved**, `documents-moved`, is published as a reload names them: the `paths`, and `now`,
-  whether the notice is due at once rather than after the hour a chat is told once in. Which sessions it
-  concerns and what each is told is the consumer's that holds the rooms (`docs/sessions.md`, 「Document
-  reload」).
+- **Documents moved**, `documents-moved`, is published as a reload names them: the `paths`, `now`,
+  whether the notice is due at once rather than after the hour a chat is told once in, `agent`, whose
+  documents they are (or null), and `rooms`, the chat ids of the rooms they concern (empty where the
+  reload named none). Which sessions it concerns — the named agent's sessions in the named rooms where
+  the reload names them — and what each is told is the consumer's that holds the rooms
+  (`docs/sessions.md`, 「Document reload」).
+- **A run past its clock asked about**, `clock-asked`, is published as agency opens an ask on a clocked run
+  (`docs/agent-control.md`, 「A clock asks before it cuts」): the `ask`, its number; the `agent` the run is
+  for and the `run`; `what`, an English sentence of what the run is doing; `startedAt`, `boundMs`,
+  `lastActivityAt` and `lastActivity` (each null where the run cannot say); `answerBy`, the moment agency
+  cuts the run itself where no verdict has come, in epoch milliseconds; and `verb`, the command a verdict
+  is given with. Queuing the order for the chat agent in the owner's private chat, naming the procedure
+  `overtime`, is the consumer's that holds the rooms.
+- **An ask closed**, `clock-ask-closed`, is published as an ask is settled: the `ask`, the `run`, the
+  `verdict` (`keep`, `cut`, or `ended` for a run that ended on its own while asked) and `by` (`agent` for
+  a verdict given, `agency` for a cut for want of one, or null), so the consumer withdraws an order not
+  yet delivered.
 - **A companion reset**, `companion-reset`, is published once a reset has taken agency's part: the
   `agent`, the `ranges` taken (`conversation`, `person`), the rooms it answers `alone` and those it
   answered `shared`, who asked (`by`) and when (`at`, in epoch seconds). Each unit holding rows of the
@@ -545,7 +590,24 @@ Each hook has a default that does nothing, so agency runs with none registered.
   place given back and each cancellation taken back; the refusal names the units still standing, and
   closing the consumer's own records of those runs is the consumer's. `POST /runs/stop` takes one `run`,
   or `runs`, each its `unit` and the `poolRequest` it held, and a `reason`; the refusal of a set whose
-  units still stand is 409.
+  units still stand is 409. Before a unit that holds one of the brain's watches is stopped, by this route
+  or any other stop, the brain is told the watch stopped (「Calls agency makes」, the brain), so its watch
+  ends as cancelled rather than being launched again; a brain that cannot be told is said once on
+  agency's error stream and the unit is stopped all the same.
+- **A run's clock.** A run agency holds to a clock — an editor run among them — is asked about past its
+  bound rather than cut (`docs/agent-control.md`, 「A clock asks before it cuts」). `GET
+  /runs/clock?run=<name>` answers, for the clocked runs standing under that name or as its children,
+  `capEnds`, the moment the latest of their bounds runs out, and `keptUntil`, the moment the latest keep
+  or open ask on them stands until, in epoch milliseconds, each null where none stands.
+- **The asks.** `GET /runs/overtime` answers `asks`, every open ask, each its `ask`, `agent`, `run`,
+  `what`, `askedAt` and `answerBy`. `POST /runs/overtime` takes the `ask`, the `verdict` (`keep` or
+  `cut`), `minutes` for a keep (the run's own bound where none is named, a hundred and twenty at most)
+  and `why`, and answers the ask's `ask`, `run`, `verdict` and `keptUntil` (or null); an ask already
+  closed is refused 409 with `ask-closed`, and no ask of that number 404. `bmo-agency overtime` gives the
+  same verdicts from a shell.
+- **The editor cap.** `GET /editors/cap?workKey=<key>&agent=<name>` answers `capSeconds`, the bound an
+  editor run of that key for that agent carries: thirty minutes, or the request wait of the registration
+  the agent's recollectors run on where that is longer. A key that is no editor's is refused 422.
 - **Which names are alive.** Agency answers which of the names asked are running — held by systemd, named
   by an open execution as its parent or root, or held as a pane's run by herdr — or that nobody could
   say, which is never read as nothing running (`docs/agent-control.md`, 「Asking whether it is alive」).
@@ -579,7 +641,7 @@ Each hook has a default that does nothing, so agency runs with none registered.
 - **Agency calls four services:** the cache siren for an account's usage windows and the cache lifetime
   a session is judged warm by, the cache warmer for whether keepalive pings go, the node service for
   this machine's room, a node's link, the nodes it keeps and the SSH login to each, and the brain for what a companion's reset
-  does to what the agent remembers and to its brain folder. Each is reached at the base address the deployment names in its
+  does to what the agent remembers and to its brain folder, and for a watch whose unit is stopped. Each is reached at the base address the deployment names in its
   variable, with the token named beside it.
 - **A service whose address is unset is not called:** each call then answers the default stated beside it
   below, so agency runs with none of the four deployed. An address that does not read as a URL stops the
@@ -634,3 +696,4 @@ due, the ping itself and its record — itself (`docs/coworker-pool.md`, 「Rese
 | book start | `/agents/book-since` | `agent`, `chatId`, `at` | `ok`; the agent's person book of the room reads from `at` on, in seconds | nothing written |
 | recollector put-back | `/agents/put-back` | `agent` | `ok`; what the agent's stopped recollector runs left unwritten in its folder is undone | nothing undone |
 | reset | `/agents/reset` | `agent`, `preview` (boolean) | `took`: the count of the agent's rows per table and whether its folder stands; with `preview` false, all of it taken, the folder fenced and its lock held meanwhile; and `couldNot`: what it could not do | nothing taken, nothing it could not |
+| watch stopped | `/watches/stopped` | `unit`, a unit named `bmo-watch-<id>-<milliseconds>` about to be stopped | `ended` (boolean): the standing watch that unit holds ended as cancelled, its room told nothing more is coming; false where it holds none | nothing ended |

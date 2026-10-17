@@ -10,12 +10,12 @@ use std::sync::Arc;
 use agency_server::Service;
 use agency_server::config::Config;
 use agency_server::control::harness::{OrderEntry, set_provider_order};
-use agency_server::editor_session::{is_editor, walked};
+use agency_server::editor_session::{Placed, is_editor, walked, workdir_of};
 use agency_server::herdr_backend::{HerdrSessions, TurnEnded};
 use agency_server::places::{Ground, Places};
 use agency_server::run_log::{RunLog, Target};
 use agency_server::seeds::deployment;
-use agent_session::{Delivery, FaultKind, Scope, SessionId, Sessions, Start, Turn, TurnContext};
+use agent_session::{Delivery, FaultKind, RunParts, Scope, SessionId, Sessions, Start, Turn, TurnContext};
 use harness_providers::Machine;
 
 use crate::scratch::Scratch;
@@ -156,6 +156,13 @@ async fn order(bench: &Bench, order: &[(&str, bool)]) {
   set_provider_order(bench._scratch.db(), &entries).await.unwrap();
 }
 
+// The digest's run placed in the bench's brain folder, which it makes.
+async fn placed(bench: &Bench) -> Placed {
+  std::fs::create_dir_all(bench.brain()).unwrap();
+
+  Placed::bare(bench.ground(), &bench.brain(), "digest", "turn:digest:1").await.unwrap()
+}
+
 fn log(key: &str) -> RunLog {
   RunLog::new(Target {
     agent: key.to_owned(),
@@ -175,7 +182,8 @@ async fn an_editor_key_whose_walk_stands_aside_falls_to_claude_code() {
   )
   .await;
 
-  let walked = walked(bench.ground(), "digest", "sort", &bench.brain(), &mut log("digest")).await;
+  let placed = placed(&bench).await;
+  let walked = walked(bench.ground(), "digest", "sort", &placed, &mut log("digest")).await;
 
   assert!(matches!(walked, Ok(None)), "{walked:?}");
 }
@@ -191,7 +199,8 @@ async fn a_walk_that_must_answer_and_meets_no_stand_in_fails_the_editors_turn() 
   )
   .await;
 
-  let walked = walked(bench.ground(), "digest", "sort", &bench.brain(), &mut log("digest")).await;
+  let placed = placed(&bench).await;
+  let walked = walked(bench.ground(), "digest", "sort", &placed, &mut log("digest")).await;
 
   assert!(walked.as_ref().is_err_and(|why| why.contains("did not answer")), "{walked:?}");
 
@@ -208,4 +217,84 @@ async fn a_walk_that_must_answer_and_meets_no_stand_in_fails_the_editors_turn() 
 
   assert_eq!((delivery, ended.outcome), (Delivery::Taken, "failed"));
   assert!(ended.reason.unwrap().contains("did not answer"));
+}
+
+fn parts(run: &str, workdir: &str) -> RunParts {
+  RunParts {
+    name: run.to_owned(),
+    parent: Some("batch-unit".to_owned()),
+    agent: Some("companion".to_owned()),
+    chat_id: Some(-7),
+    step: Some(2),
+    steps: Some(3),
+    workdir: Some(workdir.to_owned()),
+    desk: Some("desk-1".to_owned()),
+    registration: None,
+  }
+}
+
+#[test]
+fn a_workdir_stays_inside_the_brain_folder() {
+  assert_eq!(workdir_of(None).unwrap(), None);
+  assert_eq!(
+    workdir_of(Some(&parts("r", "agents/companion/"))).unwrap(),
+    Some("agents/companion".into())
+  );
+  assert!(workdir_of(Some(&parts("r", "../elsewhere"))).is_err());
+  assert!(workdir_of(Some(&parts("r", "/elsewhere"))).is_err());
+}
+
+#[tokio::test]
+async fn a_run_is_placed_in_its_agents_folder_with_its_desk_room_and_name_and_the_editor_cap() {
+  let bench = Bench::new().await;
+
+  std::fs::create_dir_all(bench.brain().join("agents").join("companion")).unwrap();
+
+  let named = parts("bmo-digest:digest:companion:-7:1", "agents/companion");
+  let placed = Placed::of(bench.ground(), &bench.brain(), "digest", &named.name, Some(&named))
+    .await
+    .unwrap();
+  let variable = |name: &str| {
+    placed
+      .variables
+      .iter()
+      .find(|(named, _)| named == name)
+      .map(|(_, value)| value.as_str())
+  };
+
+  assert_eq!(placed.cwd, bench.brain().join("agents").join("companion"));
+  assert_eq!(variable("BMO_FRAGMENT_DESK"), Some("desk-1"));
+  assert_eq!(variable("BMO_TURN_CHAT"), Some("-7"));
+  assert_eq!(variable("BMO_RUN_NAME"), Some(named.name.as_str()));
+  assert_eq!(placed.parent.as_deref(), Some("batch-unit"));
+  assert_eq!(placed.clocked.parent.as_deref(), Some("batch-unit"));
+  assert!(placed.clocked.what.contains("companion") && placed.clocked.what.contains("batch 2 of 3"));
+  assert_eq!(placed.clocked.bound.as_secs(), policy::run_clock::RUN_CLOCK.editor_cap_seconds);
+
+  let missing = parts("r", "agents/missing");
+
+  assert!(Placed::of(bench.ground(), &bench.brain(), "digest", "r", Some(&missing)).await.is_err());
+}
+
+#[tokio::test]
+async fn an_editor_turn_goes_out_under_its_callers_run_name_and_a_workdir_leaving_the_brain_is_refused() {
+  let mut bench = Bench::new().await;
+  let turn = |parts: RunParts| Turn {
+    session: SessionId("digest@editor".into()),
+    prompt: "sort".into(),
+    context: TurnContext {
+      run: Some(parts),
+      ..TurnContext::default()
+    },
+  };
+  let refused = bench.sessions.send_turn(turn(parts("r", "../elsewhere"))).await.unwrap_err();
+
+  assert_eq!(refused.kind, FaultKind::Refused);
+  assert!(bench.ended.ready().is_none());
+
+  bench.sessions.send_turn(turn(parts("named-run", "agents/companion"))).await.unwrap();
+
+  let ended = bench.ended.ready().expect("the turn's end was published");
+
+  assert_eq!((ended.run.as_str(), ended.outcome), ("named-run", "failed"));
 }

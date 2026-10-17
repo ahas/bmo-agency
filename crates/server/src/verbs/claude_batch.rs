@@ -213,6 +213,8 @@ pub async fn run(asked: ClaudeBatch, data_root: &Path) -> Result<Vec<String>, Ve
       effort: asked.effort,
       tier: None,
       bound: Some(Duration::from_secs(asked.bound_seconds)),
+      parent: None,
+      root: None,
     },
     &mut Stoppable(stop),
   )

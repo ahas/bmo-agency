@@ -1,20 +1,27 @@
 //! An editor work key's runs as the session contract carries them (docs/api.md, 「Sessions」;
 //! docs/launch-lines.md, 「Editor runs」): each turn of the key's editor session is one run apart of the
 //! editor line under that key, its prompt the turn's, on a session of its own that nothing resumes, in the
-//! brain folder the configuration names. The key's walk goes first: each stand-in it meets runs the line on
-//! its own road — Codex's `exec` and dsh in the host, a registered model's Claude Code on the gateway in a
-//! pane of its own — and a stand-in answering where the key walks is published as the fallback it is. Where
-//! none answered and the walk need not answer, the run goes out on the login the walk of Claude Code's
+//! brain folder the configuration names, or the agent's folder under it the turn names. A turn names its
+//! run's parts (docs/api.md, 「Sessions」): the run goes out under the turn's name as a child of the unit the
+//! turn names, its record carries the desk and the room, and a run in a pane carries the editor cap as its
+//! clock, asked about past it (docs/agent-control.md, 「A clock asks before it cuts」). A turn naming a
+//! registration goes out on it alone. Otherwise the key's walk goes first: each stand-in it meets runs the
+//! line on its own road — Codex's `exec` and dsh in the host, a registered model's Claude Code on the gateway
+//! in a pane of its own — and a stand-in answering where the key walks is published as the fallback it is.
+//! Where none answered and the walk need not answer, the run goes out on the login the walk of Claude Code's
 //! logins offers the key. What the run spent and the windows it read are published as every run's are; its
 //! answer is the turn's.
 
 use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::time::Instant;
 
+use agent_session::RunParts;
 use harness_providers::Machine;
+use policy::fill_marks;
 use policy::providers::openrouter::OPENROUTER;
 use policy::providers::registered::REGISTERED;
+use policy::run_clock::RUN_CLOCK;
 use policy::work_keys::WORK_KEYS;
 use sea_orm::DatabaseConnection;
 
@@ -24,8 +31,9 @@ use crate::control::claude_accounts::Account;
 use crate::control::harness::provider_enabled;
 use crate::control::registry;
 use crate::door::apart::{self, Apart, answered, new_session};
-use crate::door::execution::{execution_root, own_unit};
+use crate::door::execution::own_unit;
 use crate::door::record::{ModelSpend, Reply, UsageSpent, WindowsRead};
+use crate::door::turn::Ending;
 use crate::host_run::{self, Asked, Heard, Ran};
 use crate::job_run::claude::failure::Failure;
 use crate::job_run::claude::walk::{Attempt, Walking, on_accounts};
@@ -35,14 +43,17 @@ use crate::lines::Trees;
 use crate::lines::claude::{Command, Runs, command_env};
 use crate::lines::codex::{self, Shape};
 use crate::lines::dsh;
-use crate::lines::editor::{ALLOWED_TOOLS, EditorRun, FILE_TOOLS, LINE, PROVIDER, editor_run, mcp_config};
+use crate::lines::editor::{
+  ALLOWED_TOOLS, DESK_VARIABLE, EditorRun, FILE_TOOLS, LINE, PROVIDER, editor_run, mcp_config,
+};
 use crate::lines::openrouter::{self, LOCAL_URL};
 use crate::lines::standing::{OnGateway, Placing, gateway_command, place_registered};
 use crate::lines::worker::reasoning_of;
 use crate::places::Ground;
+use crate::run_clock::{self, Asked as ClockAsked, Clocked};
 use crate::run_log::lines::Line;
 use crate::run_log::{RunLog, Target};
-use crate::stand_in::{CLAUDE, Step, Walk, announce, listed, step_of, walk_of};
+use crate::stand_in::{CLAUDE, Step, Walk, announce, listed, registration_step, step_of, walk_of};
 use crate::worker_session::records::slot_account;
 use crate::{Refusal, now_ms};
 
@@ -52,6 +63,117 @@ const EDITOR_KIND: &str = "editor";
 /// Whether a work key is an editor's, whose runs an editor session carries.
 pub fn is_editor(key: &str) -> bool {
   WORK_KEYS.profile(key).is_some_and(|profile| profile.kind == EDITOR_KIND)
+}
+
+// The variables a run's record carries its name and its room in (docs/launch-lines.md, 「Editor runs」).
+const RUN_NAME_VARIABLE: &str = "BMO_RUN_NAME";
+const ROOM_VARIABLE: &str = "BMO_TURN_CHAT";
+
+/// The folder under the brain a turn's `workdir` names, or why it names none there: a workdir is a path
+/// relative to the brain folder that never leaves it. None stands for the brain folder itself.
+pub fn workdir_of(parts: Option<&RunParts>) -> Result<Option<PathBuf>, String> {
+  let Some(workdir) = parts.and_then(|parts| parts.workdir.as_deref()) else {
+    return Ok(None);
+  };
+  let path = Path::new(workdir.trim_end_matches('/'));
+
+  if !path.components().all(|part| matches!(part, Component::Normal(_))) {
+    return Err(format!("the workdir {workdir} leaves the brain folder"));
+  }
+
+  Ok(Some(path.to_path_buf()).filter(|path| !path.as_os_str().is_empty()))
+}
+
+/// Where and as what one turn's run goes out: the folder it works in, the variables its record carries, the
+/// unit its execution is a child of, and its clock, whose run is the root its executions are counted under.
+#[derive(Clone, Debug)]
+pub struct Placed {
+  pub cwd: PathBuf,
+  pub variables: Vec<(String, String)>,
+  pub parent: Option<String>,
+  pub clocked: Clocked,
+}
+
+impl Placed {
+  /// A turn's run placed in `brain`: the agent's folder under it where the turn names one, the run's name,
+  /// desk and room in its variables, the unit the turn names as its parent, else this process's own, and
+  /// the editor cap for the agent as its bound.
+  pub async fn of(
+    ground: &Ground,
+    brain: &Path,
+    key: &str,
+    run: &str,
+    parts: Option<&RunParts>,
+  ) -> Result<Self, String> {
+    let cwd = match workdir_of(parts)? {
+      Some(workdir) => brain.join(workdir),
+      None => brain.to_path_buf(),
+    };
+
+    if !cwd.is_dir() {
+      return Err(format!("the run's folder {} is not there", cwd.display()));
+    }
+
+    let agent = parts.and_then(|parts| parts.agent.clone());
+    let registration = parts.and_then(|parts| parts.registration.as_deref());
+    let bound = run_clock::editor_cap(&ground.db, agent.as_deref(), registration)
+      .await
+      .map_err(|why| why.detail)?;
+    let mut variables = vec![(RUN_NAME_VARIABLE.to_owned(), run.to_owned())];
+
+    if let Some(desk) = parts.and_then(|parts| parts.desk.clone()) {
+      variables.push((DESK_VARIABLE.to_owned(), desk));
+    }
+
+    if let Some(chat) = parts.and_then(|parts| parts.chat_id) {
+      variables.push((ROOM_VARIABLE.to_owned(), chat.to_string()));
+    }
+
+    let named_parent = parts.and_then(|parts| parts.parent.clone());
+
+    Ok(Self {
+      cwd,
+      variables,
+      parent: named_parent.clone().or_else(|| own_unit(ground.env())),
+      clocked: Clocked {
+        run: run.to_owned(),
+        parent: named_parent,
+        work_key: key.to_owned(),
+        agent,
+        what: what_of(key, parts),
+        bound,
+      },
+    })
+  }
+
+  /// The run placed in `brain` as a turn naming no parts is.
+  pub async fn bare(ground: &Ground, brain: &Path, key: &str, run: &str) -> Result<Self, String> {
+    Self::of(ground, brain, key, run, None).await
+  }
+
+  fn root(&self) -> String {
+    self.clocked.run.clone()
+  }
+}
+
+// What an editor run is doing, as an ask on it says: the key, whose memory it writes and from which room,
+// and which batch it is where it is one of several.
+fn what_of(key: &str, parts: Option<&RunParts>) -> String {
+  let Some(parts) = parts else {
+    return fill_marks(&RUN_CLOCK.editor_what_bare, &[("key", key)]);
+  };
+  let agent = parts.agent.as_deref().unwrap_or(key);
+  let chat = parts.chat_id.map(|chat| chat.to_string()).unwrap_or_default();
+  let mut what = fill_marks(&RUN_CLOCK.editor_what, &[("key", key), ("agent", agent), ("chat", &chat)]);
+
+  if let (Some(step), Some(steps)) = (parts.step, parts.steps) {
+    what.push_str(&fill_marks(
+      &RUN_CLOCK.editor_step,
+      &[("step", &step.to_string()), ("steps", &steps.to_string())],
+    ));
+  }
+
+  what
 }
 
 /// The key's run as it would go out now, or why it would not: the key resolving to no model on Claude Code,
@@ -69,61 +191,50 @@ pub async fn composed(ground: &Ground, key: &str) -> Result<EditorRun, String> {
   })
 }
 
-// One login's run of the editor line: composed with the login's variables, run apart in the brain folder,
-// its record fed into the turn's log as it is written.
+// One login's run of the editor line: composed with the login's variables and the run's own, run apart in
+// the run's folder on its clock, its record fed into the turn's log as it is written.
 struct OnLogin<'a> {
   ground: &'a Ground,
   editor: &'a EditorRun,
+  placed: &'a Placed,
   prompt: &'a str,
-  run: &'a str,
   log: &'a mut RunLog,
 }
 
 impl Attempt<Reply> for OnLogin<'_> {
   async fn attempt(&mut self, account: Option<Account>) -> Result<Reply, Failure> {
-    let ground = self.ground;
-    let editor = self.editor;
+    let (ground, editor, placed) = (self.ground, self.editor, self.placed);
     let session = new_session();
     let args = editor.args(&session).map_err(|why| Failure::error(why.detail))?;
-    let env = command_env(ground.env(), account.as_ref(), &Runs::Here, editor.thinking)
+    let mut env = command_env(ground.env(), account.as_ref(), &Runs::Here, editor.thinking)
       .map_err(|why| Failure::error(why.detail))?;
+
+    for (name, value) in &placed.variables {
+      env.insert(name.clone(), Some(value.clone()));
+    }
+
     let command = Command {
       args,
-      cwd: editor.cwd.to_string_lossy().into_owned(),
+      cwd: placed.cwd.to_string_lossy().into_owned(),
       env,
     };
-    let mut watched = Watched {
-      ground,
-      log: &mut *self.log,
-      source: PROVIDER,
-      run: self.run.to_owned(),
-      guard: None,
-      tally: None,
-      started: Instant::now(),
-      last_tally: Instant::now(),
-      cut: None,
+    let apart = Apart {
+      agent: &editor.key,
+      line: LINE,
+      provider: PROVIDER,
+      title: format!("{} run", editor.key),
+      command,
+      session,
+      prompt: self.prompt.to_owned(),
+      work_key: editor.key.clone(),
+      model: editor.model.clone(),
+      effort: editor.effort.clone(),
+      tier: Some(editor.tier.clone()),
+      bound: Some(placed.clocked.bound),
+      parent: placed.parent.clone(),
+      root: Some(placed.root()),
     };
-    let ended = apart::run(
-      ground,
-      Apart {
-        agent: &editor.key,
-        line: LINE,
-        provider: PROVIDER,
-        title: format!("{} run", editor.key),
-        command,
-        session,
-        prompt: self.prompt.to_owned(),
-        work_key: editor.key.clone(),
-        model: editor.model.clone(),
-        effort: editor.effort.clone(),
-        tier: Some(editor.tier.clone()),
-        bound: None,
-      },
-      &mut watched,
-    )
-    .await
-    .map_err(Failure::error)?;
-    let reply = answered(ended, &editor.key)?;
+    let reply = clocked_run(ground, placed, &mut *self.log, PROVIDER, apart).await?;
 
     Ok(Reply {
       account: account.map(|account| account.id),
@@ -132,21 +243,73 @@ impl Attempt<Reply> for OnLogin<'_> {
   }
 }
 
-/// One turn of a key's editor session: its run carried on the first stand-in of the key's walk that answers,
-/// else on the logins its key is offered, what it spent and the windows it read published, and its answer's
-/// text; why it gave none otherwise.
-pub async fn editor_turn(ground: &Ground, key: &str, run: &str, prompt: &str) -> Result<String, String> {
+// A run apart in a pane on the run's clock, asked about past its bound: its reply where it answered, and a
+// run cut on its clock failing with whose call it was.
+async fn clocked_run(
+  ground: &Ground,
+  placed: &Placed,
+  log: &mut RunLog,
+  source: &str,
+  apart: Apart<'_>,
+) -> Result<Reply, Failure> {
+  let key = apart.work_key.clone();
+  let watched = Watched {
+    ground,
+    log,
+    source,
+    run: placed.clocked.run.clone(),
+    guard: None,
+    tally: None,
+    started: Instant::now(),
+    last_tally: Instant::now(),
+    cut: None,
+  };
+  let mut asked = ClockAsked::new(watched, &ground.db, &ground.events, &placed.clocked);
+
+  if let Err(why) = run_clock::open(&ground.db, &placed.clocked).await {
+    eprintln!("{key}: the run's clock was not written: {}", why.detail);
+  }
+
+  let ended = apart::run(ground, apart, &mut asked).await.map_err(Failure::error)?;
+
+  if let (Ending::Overran { .. }, Some(cut)) = (&ended, asked.cut.take()) {
+    return Err(Failure::error(format!("{key}: the run was {cut}")));
+  }
+
+  answered(ended, &key)
+}
+
+/// One turn of an editor session as its caller named it: the work key, the run's name, its prompt and the
+/// run's parts, where it named them.
+pub struct EditorTurn<'a> {
+  pub key: &'a str,
+  pub run: &'a str,
+  pub prompt: &'a str,
+  pub parts: Option<&'a RunParts>,
+}
+
+/// One turn of a key's editor session: its run carried on the registration the turn names, else on the first
+/// stand-in of the key's walk that answers, else on the logins its key is offered; its clock closed as it
+/// ends, what it spent and the windows it read published, and its answer's text; why it gave none
+/// otherwise.
+pub async fn editor_turn(ground: &Ground, turn: &EditorTurn<'_>) -> Result<String, String> {
+  let (key, run, prompt) = (turn.key, turn.run, turn.prompt);
   let brain = brain_of(ground)?;
+  let placed = Placed::of(ground, &brain, key, run, turn.parts).await?;
   let mut log = RunLog::new(Target {
     agent: key.to_owned(),
     run: run.to_owned(),
-    chat_id: None,
+    chat_id: turn.parts.and_then(|parts| parts.chat_id),
     job_id: None,
   });
-  let reply = match walked(ground, key, prompt, &brain, &mut log).await? {
-    Some(reply) => reply,
-    None => on_claude(ground, key, run, prompt, &mut log).await?,
-  };
+  let registration = turn.parts.and_then(|parts| parts.registration.as_deref());
+  let carried = carried(ground, key, prompt, &placed, registration, &mut log).await;
+
+  if let Err(why) = run_clock::close(&ground.db, &ground.events, run).await {
+    eprintln!("{key}: the run's clock was not closed: {}", why.detail);
+  }
+
+  let reply = carried?;
   let at = now_ms() / 1000;
   let account = slot_account(&reply.mode, reply.account.as_deref());
 
@@ -165,6 +328,29 @@ pub async fn editor_turn(ground: &Ground, key: &str, run: &str, prompt: &str) ->
   Ok(reply.text)
 }
 
+// The run on the registration the turn names, else on the key's walk, else on Claude Code.
+async fn carried(
+  ground: &Ground,
+  key: &str,
+  prompt: &str,
+  placed: &Placed,
+  registration: Option<&str>,
+  log: &mut RunLog,
+) -> Result<Reply, String> {
+  if let Some(registration) = registration {
+    let machine = ground.machine();
+    let reasoning = reasoning_of(ground, key).await.map_err(|why| why.detail)?;
+    let step = registration_step(ground, key, registration, &reasoning).await?;
+
+    return stand_in(ground, &machine, key, &step, prompt, placed, log).await;
+  }
+
+  match walked(ground, key, prompt, placed, log).await? {
+    Some(reply) => Ok(reply),
+    None => on_claude(ground, key, prompt, placed, log).await,
+  }
+}
+
 // The brain folder an editor's run works in, where it is a repository.
 fn brain_of(ground: &Ground) -> Result<PathBuf, String> {
   let brain = ground.config.brain_root(&ground.roots.data);
@@ -180,8 +366,8 @@ fn brain_of(ground: &Ground) -> Result<PathBuf, String> {
 async fn on_claude(
   ground: &Ground,
   key: &str,
-  run: &str,
   prompt: &str,
+  placed: &Placed,
   log: &mut RunLog,
 ) -> Result<Reply, String> {
   if !provider_enabled(&ground.db, CLAUDE).await.map_err(|why| why.error)? {
@@ -192,8 +378,8 @@ async fn on_claude(
   let mut attempt = OnLogin {
     ground,
     editor: &editor,
+    placed,
     prompt,
-    run,
     log,
   };
 
@@ -209,7 +395,7 @@ pub async fn walked(
   ground: &Ground,
   key: &str,
   prompt: &str,
-  brain: &Path,
+  placed: &Placed,
   log: &mut RunLog,
 ) -> Result<Option<Reply>, String> {
   let machine = ground.machine();
@@ -238,7 +424,7 @@ pub async fn walked(
       }
     };
 
-    match stand_in(ground, &machine, key, &step, prompt, brain, log).await {
+    match stand_in(ground, &machine, key, &step, prompt, placed, log).await {
       Ok(reply) => {
         if provider != &chosen
           && let Err(why) = announce(ground, &ground.events, owner_id(ground), provider, &step.model).await
@@ -280,7 +466,7 @@ async fn stand_in(
   key: &str,
   step: &Step,
   prompt: &str,
-  brain: &Path,
+  placed: &Placed,
   log: &mut RunLog,
 ) -> Result<Reply, String> {
   let db = &ground.db;
@@ -296,7 +482,7 @@ async fn stand_in(
     key,
     step,
     prompt,
-    brain,
+    placed,
   };
   let answered = match step.provider.as_str() {
     codex::PROVIDER => road.on_codex(log).await,
@@ -352,12 +538,12 @@ struct Road<'a> {
   key: &'a str,
   step: &'a Step,
   prompt: &'a str,
-  brain: &'a Path,
+  placed: &'a Placed,
 }
 
 impl Road<'_> {
   fn cwd(&self) -> String {
-    self.brain.to_string_lossy().into_owned()
+    self.placed.cwd.to_string_lossy().into_owned()
   }
 
   fn mcp(&self) -> Result<PathBuf, String> {
@@ -369,10 +555,13 @@ impl Road<'_> {
     &self,
     log: &mut RunLog,
     provider: &str,
-    command: host_run::Command,
+    mut command: host_run::Command,
     sessions: Option<&Path>,
   ) -> Result<Ran, String> {
-    let own = own_unit(self.ground.env());
+    for (name, value) in &self.placed.variables {
+      command.env.insert(name.clone(), value.clone());
+    }
+
     let mut fed = Fed {
       db: &self.ground.db,
       log,
@@ -387,8 +576,8 @@ impl Road<'_> {
         line: LINE,
         provider,
         command,
-        root: Some(execution_root(own.as_deref().unwrap_or_default())),
-        parent: own.clone(),
+        root: Some(self.placed.root()),
+        parent: self.placed.parent.clone(),
         work_key: Some(self.key.to_owned()),
         model: Some(self.step.model.clone()),
         effort: (!self.step.effort.is_empty()).then(|| self.step.effort.clone()),
@@ -503,6 +692,7 @@ impl Road<'_> {
     let cwd = self.cwd();
     let mcp = self.mcp()?;
     let session = new_session();
+    let placed = self.placed;
     let on = OnGateway {
       agent: self.key,
       model: &step.model,
@@ -527,7 +717,7 @@ impl Road<'_> {
           tier: String::new(),
           mcp_config: mcp.clone(),
           thinking,
-          cwd: self.brain.to_path_buf(),
+          cwd: placed.cwd.clone(),
         };
         let mut args = run.args(&session)?;
 
@@ -538,41 +728,36 @@ impl Road<'_> {
     )
     .await
     .map_err(|why| why.detail)?;
-    let mut watched = Watched {
-      ground,
-      log,
-      source: registry::PROVIDER,
-      run: session.clone(),
-      guard: None,
-      tally: None,
-      started: Instant::now(),
-      last_tally: Instant::now(),
-      cut: None,
-    };
-    let ended = apart::run(
-      ground,
-      Apart {
-        agent: self.key,
-        line: LINE,
-        provider: registry::PROVIDER,
-        title: format!("{} run", self.key),
-        command: Command {
-          args: command.args,
-          cwd,
-          env: command.env.into_iter().map(|(name, value)| (name, Some(value))).collect(),
-        },
-        session,
-        prompt: self.prompt.to_owned(),
-        work_key: self.key.to_owned(),
-        model: step.model.clone(),
-        effort: step.effort.clone(),
-        tier: None,
-        bound: None,
+    let mut env: BTreeMap<String, Option<String>> =
+      command.env.into_iter().map(|(name, value)| (name, Some(value))).collect();
+
+    for (name, value) in &placed.variables {
+      env.insert(name.clone(), Some(value.clone()));
+    }
+
+    let apart = Apart {
+      agent: self.key,
+      line: LINE,
+      provider: registry::PROVIDER,
+      title: format!("{} run", self.key),
+      command: Command {
+        args: command.args,
+        cwd,
+        env,
       },
-      &mut watched,
-    )
-    .await?;
-    let reply = answered(ended, self.key).map_err(|failure| failure.message())?;
+      session,
+      prompt: self.prompt.to_owned(),
+      work_key: self.key.to_owned(),
+      model: step.model.clone(),
+      effort: step.effort.clone(),
+      tier: None,
+      bound: Some(placed.clocked.bound),
+      parent: placed.parent.clone(),
+      root: Some(placed.root()),
+    };
+    let reply = clocked_run(ground, placed, log, registry::PROVIDER, apart)
+      .await
+      .map_err(|failure| failure.message())?;
 
     // On a registration every row is the registry's, and costs nothing.
     Ok(Reply {

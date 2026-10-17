@@ -38,7 +38,7 @@ use crate::control::claude_accounts::{Judging, account_open};
 use crate::control::companions::Settings;
 use crate::door::record::{ModelSpend, UsageSpent};
 use crate::door::turn::Quiet;
-use crate::editor_session::{composed as editor_composed, editor_turn, is_editor};
+use crate::editor_session::{EditorTurn, composed as editor_composed, editor_turn, is_editor, workdir_of};
 use crate::events::Event;
 use crate::lines::chat::{ChatLaunch, RoomContext, compose_turn};
 use crate::lines::companion::{CompanionTurn, LOST_SESSION, compose, registration_named};
@@ -195,9 +195,9 @@ pub async fn keep_agent_session(
 /// The session contract over herdr, on the places the server stands.
 pub struct HerdrSessions {
   places: Places,
-  // The run each session's turn goes out as while one goes, which the interrupt stops and a second turn
-  // is refused for.
-  going: Mutex<HashMap<SessionId, String>>,
+  // The runs each session's turns go out as while they go, which the interrupt stops: one a session, a second
+  // turn refused while it goes, but an editor's session, which carries several at once.
+  going: Mutex<HashMap<SessionId, Vec<String>>>,
 }
 
 fn fault(kind: FaultKind, message: impl Into<String>) -> Fault {
@@ -346,8 +346,26 @@ impl HerdrSessions {
     &self.places.ground
   }
 
-  fn going(&self) -> std::sync::MutexGuard<'_, HashMap<SessionId, String>> {
+  fn going(&self) -> std::sync::MutexGuard<'_, HashMap<SessionId, Vec<String>>> {
     self.going.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+  }
+
+  // Whether a session carries a turn now.
+  fn in_turn(&self, session: &SessionId) -> bool {
+    self.going().get(session).is_some_and(|runs| !runs.is_empty())
+  }
+
+  // A run let go of its session's turns as it ends.
+  fn ended(&self, session: &SessionId, run: &str) {
+    let mut going = self.going();
+
+    if let Some(runs) = going.get_mut(session) {
+      runs.retain(|going| going != run);
+
+      if runs.is_empty() {
+        going.remove(session);
+      }
+    }
   }
 
   // The agent a session is asked for, where it can hold a session at that scope.
@@ -992,21 +1010,33 @@ impl Sessions for HerdrSessions {
       Scope::Agent => turn.context.room.as_ref().map(|room| room.chat_id.to_string()),
       Scope::Worker | Scope::Editor => None,
     };
-    let run = match room {
-      Some(room) => {
+    let parts = match scope {
+      Scope::Editor => turn.context.run.as_ref(),
+      _ => None,
+    };
+
+    if let Err(why) = workdir_of(parts) {
+      return Err(fault(FaultKind::Refused, why));
+    }
+
+    let run = match (room, parts) {
+      (_, Some(parts)) => parts.name.clone(),
+      (Some(room), None) => {
         fill_marks(&COMPANION_RUNNER.runs.turn, &[("chat", room.as_str()), ("at", &at.to_string())])
       }
-      None => format!("turn:{agent}:{at}"),
+      (None, None) => format!("turn:{agent}:{at}"),
     };
 
     {
       let mut going = self.going();
+      let runs = going.entry(turn.session.clone()).or_default();
+      let several = matches!(scope, Scope::Editor);
 
-      if going.contains_key(&turn.session) {
+      if runs.contains(&run) || (!several && !runs.is_empty()) {
         return Err(fault(FaultKind::Busy, format!("{} is in a turn", turn.session)));
       }
 
-      going.insert(turn.session.clone(), run.clone());
+      runs.push(run.clone());
     }
 
     self.ground().events.publish(TurnStarted {
@@ -1018,10 +1048,19 @@ impl Sessions for HerdrSessions {
     let came = match (&scope, &row) {
       (Scope::Worker, Some(row)) => self.worker_turn(row, &run, &turn.prompt).await,
       (Scope::Worker, None) => Err(fault(FaultKind::Unknown, format!("no worker is named {agent}"))),
-      (Scope::Editor, _) => Ok(match editor_turn(self.ground(), &agent, &run, &turn.prompt).await {
-        Ok(answer) => Came::Answered(answer),
-        Err(why) => Came::Failed(why),
-      }),
+      (Scope::Editor, _) => {
+        let asked = EditorTurn {
+          key: &agent,
+          run: &run,
+          prompt: &turn.prompt,
+          parts,
+        };
+
+        Ok(match editor_turn(self.ground(), &asked).await {
+          Ok(answer) => Came::Answered(answer),
+          Err(why) => Came::Failed(why),
+        })
+      }
       (Scope::Room(room), _) => match room_number(room) {
         Ok(chat_id) => self.room_turn(&agent, chat_id, &run, &turn.prompt, &turn.context).await,
         Err(refused) => Err(refused),
@@ -1029,7 +1068,7 @@ impl Sessions for HerdrSessions {
       (Scope::Agent, _) => self.agent_turn(&agent, &run, &turn.prompt, &turn.context).await,
     };
 
-    self.going().remove(&turn.session);
+    self.ended(&turn.session, &run);
 
     let came = came?;
 
@@ -1123,12 +1162,12 @@ impl Sessions for HerdrSessions {
   }
 
   async fn interrupt(&self, session: &SessionId) -> Result<(), Fault> {
-    let Some(run) = self.going().get(session).cloned() else {
-      return Ok(());
-    };
+    let runs = self.going().get(session).cloned().unwrap_or_default();
     let stops = crate::queue::stops::Stops::of(self.ground(), None);
 
-    stops.cancel(&run).await.map_err(store_fault)?;
+    for run in &runs {
+      stops.cancel(run).await.map_err(store_fault)?;
+    }
 
     Ok(())
   }
@@ -1138,7 +1177,7 @@ impl Sessions for HerdrSessions {
     let row = self.admitted(&agent, &scope).await?;
     let ground = self.ground();
 
-    if self.going().contains_key(session) {
+    if self.in_turn(session) {
       return Err(fault(FaultKind::Busy, format!("{session} is in a turn")));
     }
 
@@ -1195,7 +1234,7 @@ impl Sessions for HerdrSessions {
 
     self.admitted(&agent, &scope).await?;
 
-    if self.going().contains_key(session) {
+    if self.in_turn(session) {
       return Err(fault(FaultKind::Busy, format!("{session} is in a turn")));
     }
 

@@ -31,6 +31,10 @@ cuts」 is the canonical statement.
 
 ## Answering
 
+- Two services ask, each with its own numbers. A word said to a worker is asked by the job service and
+  answered with `bmo overtime` below. A digest's or a person book's editor run is asked by agency, and
+  its order names `bmo-agency overtime`: answer it with that command and the same flags, `--keep`,
+  `--cut`, `--for`, `--why` and `--list`.
 - Keep: `~/.local/share/bmo/deploy/bin/bmo overtime --keep <number> [--for <length>] --why '<one line>'`
   - `--for` takes `20m`, `1h` or a plain number of minutes; without it the run gets the clock's own
     length again, and two hours is the most one answer gives.

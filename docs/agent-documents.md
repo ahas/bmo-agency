@@ -20,11 +20,10 @@ composed into a system prompt, and what the chat agent's own prompt is made of.
     `study-material.md` and `deep-dives.md` — the search runner;
   - `document-writing.md` — every agent that writes a stored document: the digest and person-book
     editors and the standing-sheet summariser, ahead of their own instructions, `plain-writing.md`
-    right after it;
+    right after it; the brain, which composes its writers' whole prompts, reads it with
+    `plain-writing.md` and `self-preservation.md` through the rulebook read (`docs/api.md`, 「Agents」);
   - `agent-words.md` — every designated agent: the chat session and every companion, for the turns
     another agent's words woke it in;
-  - `recollection.md` — every recollector: the digest, the person-book writer and the session
-    summariser;
   - `self-preservation.md` — every agent that acts: the chat session, every job worker and
     co-worker, the digest and person-book editors, the search runner, its branches, the news page
     writer and the browse runner; never a gate, which holds no tool.

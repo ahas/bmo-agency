@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use agency_server::config::{Config, PeerAddresses};
-use agency_server::peers::brain::BrainReset;
+use agency_server::peers::brain::{BrainReset, holds_watch};
 use agency_server::peers::cache_siren::Window;
 use agency_server::peers::node::{NodeRow, Room};
 use agency_server::peers::{PeerFault, Peers};
@@ -68,6 +68,7 @@ async fn answer(
     "nodes/login" if body["node"] == "near" => json!({ "ssh": ["-o", "BatchMode=yes", "worker@near"] }),
     "nodes/login" => json!({ "ssh": null }),
     "agents/fence" | "agents/put-back" => json!({ "ok": true }),
+    "watches/stopped" => json!({ "ended": body["unit"] == "bmo-watch-12-1700000000000" }),
     "agents/lock" if body["agent"] == "kept" => json!({ "path": "brains/kept/.lock" }),
     "agents/lock" => json!({ "path": null }),
     "agents/reset" => json!({
@@ -343,6 +344,23 @@ async fn a_service_with_no_address_answers_its_default() {
   peers.brain.put_back("kept").await.unwrap();
   assert_eq!(peers.brain.lock_path("kept").await.unwrap(), None);
   assert_eq!(peers.brain.reset("kept", false).await.unwrap(), BrainReset::default());
+  assert!(!peers.brain.watch_stopped("bmo-watch-12-1700000000000").await.unwrap());
+}
+
+#[tokio::test]
+async fn the_brain_is_told_a_watchs_unit_stopped_and_answers_whether_it_held_one() {
+  let (address, calls) = stand_in().await;
+  let peers = peers_at(&address, None);
+
+  assert!(holds_watch("bmo-watch-12-1700000000000"));
+  assert!(!holds_watch("bmo-watch-12"));
+  assert!(!holds_watch("bmo-digest"));
+  assert!(peers.brain.watch_stopped("bmo-watch-12-1700000000000").await.unwrap());
+  assert!(!peers.brain.watch_stopped("bmo-watch-13-1700000000000").await.unwrap());
+  let told = taken(&calls);
+
+  assert_eq!(told[0].path, "/base/watches/stopped");
+  assert_eq!(told[0].body, json!({ "unit": "bmo-watch-12-1700000000000" }));
 }
 
 #[tokio::test]

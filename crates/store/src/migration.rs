@@ -3,6 +3,7 @@
 //! without either's record standing in the other's way.
 
 mod m20261016_000001_store;
+mod m20261017_000001_clocks;
 
 use sea_orm_migration::prelude::*;
 
@@ -14,7 +15,7 @@ pub const TABLES: &str = m20261016_000001_store::NAME;
 
 /// Every table the store's migrations make, beside the record of what ran: what reads every table of the
 /// store reads these and no other service's beside them (docs/store.md, 「Its tables」).
-pub const OWN_TABLES: [&str; 50] = [
+pub const OWN_TABLES: [&str; 52] = [
   "agents",
   "agent_log",
   "agent_executions",
@@ -60,6 +61,8 @@ pub const OWN_TABLES: [&str; 50] = [
   "live_claude_runs",
   "prefix_moves",
   "run_records",
+  "run_clocks",
+  "clock_asks",
   "room_sessions",
   "room_session_turns",
   "room_windows",
@@ -72,7 +75,10 @@ pub struct Migrator;
 #[async_trait::async_trait]
 impl MigratorTrait for Migrator {
   fn migrations() -> Vec<Box<dyn MigrationTrait>> {
-    vec![Box::new(m20261016_000001_store::Migration)]
+    vec![
+      Box::new(m20261016_000001_store::Migration),
+      Box::new(m20261017_000001_clocks::Migration),
+    ]
   }
 
   fn migration_table_name() -> DynIden {

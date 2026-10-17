@@ -56,6 +56,7 @@ pub mod queue;
 pub mod readiness;
 pub mod rest;
 pub mod rooms;
+pub mod run_clock;
 pub mod run_log;
 pub mod seeds;
 pub mod stand_in;

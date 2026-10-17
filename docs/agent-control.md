@@ -957,10 +957,11 @@ flowchart TD
 - **Which runs carry a clock.** A job's turn and a chat round carry none. A word said to a worker
   while nothing of its own runs carries ten minutes, since the worker's queue waits on its lock while
   it runs; a word on a pinned road carries none (`docs/own-llm.md`). The keepalive ping and a fold
-  carry bounds of their own. Outside a pane turn, a digest's or a person book's editor run carries
-  thirty minutes, or the request wait of the registration it runs on where that is longer
-  (`docs/own-llm.md`, 「What a registration holds」), a browse its profile's total time (`research-runs.md`),
-  and a voice run ten minutes for the speaking of its line, on this machine's card or a node.
+  carry bounds of their own. A digest's or a person book's editor run carries the editor cap: thirty
+  minutes, or the request wait of the registration the agent's recollectors run on where that is
+  longer (`docs/own-llm.md`, 「What a registration holds」), which `GET /editors/cap` answers; a browse
+  carries its profile's total time (`research-runs.md`), and a voice run ten minutes for the speaking of
+  its line, on this machine's card or a node.
 - **The mechanism is the run's, the policy its caller's.** A pane turn, and a run that is one
   process or one call, may each be handed an overtime policy, asked each time the bound passes with
   the facts the run can say of itself — when it started, the bound, and its last sign of work: when
@@ -971,22 +972,28 @@ flowchart TD
   book's editor run, a browse and a voice run each hand their clock a policy that asks the chat agent first:
   1. The ask is an order queued for the chat agent's session in the owner's private chat, carrying the facts:
      which agent and run it is and what it is doing, how long it has run, when it last did anything
-     and what that was, and the clock with its length. The order names the procedure `overtime`. A
-     run outside the bot queues it from its own process, and the bot's scheduler finds it there.
-  2. The chat agent decides alone — keep or cut — and never asks the owner. It answers with
-     `bmo-agency overtime`; a keep names how long, the clock's own length where it names none and
-     two hours at most, and the run is asked about again when that runs out.
+     and what that was, and the clock with its length. The order names the procedure `overtime`. Agency
+     opens the ask on a run it carries and publishes it as `clock-asked` (`docs/api.md`, 「Events」); the
+     consumer holding the owner's chat queues the order, since agency sends nothing to a room. A word's
+     turn is asked by the job unit, which holds it.
+  2. The chat agent decides alone — keep or cut — and never asks the owner. It answers an ask of agency's
+     with `bmo-agency overtime`, which the event names, or `POST /runs/overtime`; a keep names how long,
+     the clock's own length where it names none and two hours at most, and the run is asked about again
+     when that runs out. The run's door looks for the verdict every five seconds while the ask stands.
   3. A fault the chat agent sees in the run is filed as a TODO item and fixed by a job, as every change to the
      system is.
   4. Nothing is cut before an answer. Thirty minutes with none — the chat agent resting, its session down, the
      order never delivered — and the bot cuts the run, recorded as its own call for want of an
      answer: the run holds a lock or a place others wait on, and a queue held behind a run nobody
      decides on costs more than the cut.
-  5. A run that ends on its own while asked closes its ask as finished, and an order not yet
-     delivered is withdrawn; a verdict given afterwards is refused as too late.
-- **Every ask is a record.** The store's `clock_holds` row holds the run, what it was, the clock,
-  the facts the order carried, the verdict, who gave it — the chat agent, or the bot for want of an answer —
-  why, and when. A word cut on its clock also says so in the worker's own log under the word, with
+  5. A run that ends on its own while asked closes its ask as ended, published as `clock-ask-closed` so an
+     order not yet delivered is withdrawn; a verdict given afterwards is refused as too late.
+- **Every ask is a record.** A clocked run of agency's is a row of the store's `run_clocks` — its name,
+  the name it runs under, its bound and when it started and ended — and each ask on it a row of
+  `clock_asks`: the facts the order carried, when its answer is due, the verdict, who gave it — the chat
+  agent, or agency for want of an answer — why, and when (`docs/store.md`). A consumer whose waits are
+  sized on the run reads its clock through `GET /runs/clock`: when its bound runs out, and until when a
+  keep or an open ask on it stands. A word cut on its clock also says so in the worker's own log under the word, with
   whose call it was; any other run cut on its clock gives the clock and whose call it was as its
   failure's cause, which is what its room or the owner hears.
 - **A wait sized on a run's clock follows its keep.** Whatever waits behind a clocked run for as long
@@ -1003,7 +1010,8 @@ flowchart TD
   anyone's work and the next round does it again; asking would wake the chat agent for a warming nobody asked
   for.
 - **A gate's clock does not ask.** A gate's judgement time is a wait the chat agent itself is in. An editor run
-  on a road other than the Claude line keeps that road's own ceiling (`docs/cache-fallback.md`).
+  in the host, on Codex or OpenRouter, keeps that road's own ceiling (`docs/cache-fallback.md`); one in a
+  pane, on Claude Code or a registered model, carries the editor cap.
 
 ### What standing costs
 

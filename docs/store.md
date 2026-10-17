@@ -6,8 +6,9 @@ seeds. The other crates and the server reach the store only through it.
 
 ## Its tables
 
-- **Made by the store's migrations,** each table in the shape the archive it was carried from holds it,
-  columns, keys and indexes alike.
+- **Made by the store's migrations,** each table carried from the archive in the shape the archive holds
+  it, columns, keys and indexes alike, and the clocks' two tables in agency's own, each made by a
+  migration of its own after the first.
 - **The record of what ran is `agency_migrations`,** a table of the store's own, so the store may stand
   in a database beside another service's tables without either's record in the other's way.
 - **A migration is not undone:** a store that must go back is dropped and made again.
@@ -31,6 +32,12 @@ seeds. The other crates and the server reach the store only through it.
     job's rows are the job unit's (`docs/live-claude-guard.md`);
   - the moves of the cache prefix: `prefix_moves`;
   - the run records: `run_records`;
+  - the clocks runs are held to and the asks past them: `run_clocks`, one row a clocked run — its name,
+    the name it runs under, its work key and agent, what it is doing, when it started, its bound and when
+    it ended — and `clock_asks`, one row an ask — the run, the facts it carried, when it was asked and
+    when its answer is due, the verdict, until when a keep holds, who gave it, why and when it closed
+    (`docs/agent-control.md`, 「A clock asks before it cuts」); a row ended a week ago goes as the next
+    clock is opened;
   - the companions' sessions and settings: `room_sessions`, `room_session_turns`, `room_windows`,
     `companion_settings`;
   - the settings, below.

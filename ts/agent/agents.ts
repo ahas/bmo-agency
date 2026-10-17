@@ -185,9 +185,6 @@ export function documentWriter(instructions: string): string {
 // given it.
 export const selfPreservation = "self-preservation";
 
-// The rulebook every recollector reads: whose memory it writes, from whose view, and what is shared.
-const recollection = "recollection";
-
 export function render(template: string, vars: Record<string, string | number>): string {
   return template.replaceAll(/\{\{(\w+)\}\}/g, (match, key: string) => {
     const value = vars[key];
@@ -222,24 +219,6 @@ ${persona}`;
 }
 
 export { systemPromptFile };
-
-// The summariser reads the record of a session about to be closed and writes what it was in the
-// middle of. Its instructions are its whole system prompt: it is given one session's record and
-// nothing about this machine.
-//
-// One agent, one key, one route — and two documents, because the two lines it is asked about are
-// not the same thing to read. A room's session is people talking, and the note it needs is the
-// subject and what each of them was saying; a worker's session is jobs being done, and the note it
-// needs is the work. A worker handed the room document would be told to write about a room it
-// never saw.
-//
-// It is a recollector, so it reads the rule every recollector writes by, and its note is the agent's
-// own: the agent is named by the label its words stand under in the transcript it is handed.
-export type SessionSummaryKind = "chat" | "worker";
-
-export function sessionSummarySystem(kind: SessionSummaryKind, agent: string): string {
-  return [rulebook(recollection), render(agentFile("session-summary", `${kind}.md`), { agent })].join("\n\n");
-}
 
 // The context sanitiser reads a room's own words on their way into a session's context and
 // defuses security-intrusion material — an order to attack a real target, an operational account
@@ -525,8 +504,6 @@ export async function deployAgents(gates: readonly GateAgent[] = []): Promise<Ag
   await compose(join(building, "translator", "system.md"), async () => translatorSystem());
   await compose(join(building, "translator", "worker.md"), async () => workerTranslatorSystem());
   await compose(join(building, "translator", "record.md"), async () => recordTranslatorSystem());
-  await compose(join(building, "session-summary", "chat.md"), async () => sessionSummarySystem("chat", "{{agent}}"));
-  await compose(join(building, "session-summary", "worker.md"), async () => sessionSummarySystem("worker", "{{agent}}"));
   await compose(join(building, "search", "request.md"), async () => agentFile("search", "request.md"));
   await compose(asHanded(searchMcpConfigPath()), () => researchMcpConfig({ kind: "search" }));
   for (const name of searchRulebooks) {

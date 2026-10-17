@@ -15,6 +15,7 @@ pub mod fold_worker;
 pub mod live_claude;
 pub mod models;
 pub mod node_pane;
+pub mod overtime;
 pub mod reload;
 pub mod turns;
 pub mod work_node;

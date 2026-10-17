@@ -70,9 +70,9 @@ pub struct RoomBlock {
 /// What the caller composed around a turn's prompt, every part of it optional: the room it answers, which a
 /// session across rooms needs; the road it answers on where that is not the room's own; the persona that
 /// follows the line's system prompt; whether every new message it answers is the owner's or no person's
-/// message opened it; the messages it answers; and the moment it took its words, in epoch milliseconds,
-/// which is the moment it is sent where none is named. A backend carries each part as the line declares
-/// and judges none of it.
+/// message opened it; the messages it answers; the moment it took its words, in epoch milliseconds,
+/// which is the moment it is sent where none is named; and an editor run's parts. A backend carries each
+/// part as the line declares and judges none of it.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct TurnContext {
   pub room: Option<RoomBlock>,
@@ -81,6 +81,24 @@ pub struct TurnContext {
   pub privileged: bool,
   pub answers: Vec<i64>,
   pub began: Option<i64>,
+  pub run: Option<RunParts>,
+}
+
+/// An editor run's parts as its caller names them: the run's name and the unit it runs under, the agent
+/// whose memory it writes and the room it reads, which batch it is of how many, the agent's folder under
+/// the brain, the fragment desk its batch opened, and the registration it runs on, none for its work key's
+/// own road.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct RunParts {
+  pub name: String,
+  pub parent: Option<String>,
+  pub agent: Option<String>,
+  pub chat_id: Option<i64>,
+  pub step: Option<i64>,
+  pub steps: Option<i64>,
+  pub workdir: Option<String>,
+  pub desk: Option<String>,
+  pub registration: Option<String>,
 }
 
 /// What became of a turn sent. Its lifecycle after it is taken is published as events, not answered

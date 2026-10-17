@@ -315,9 +315,10 @@
   owner chose another model for that key, at high effort, don't-ask mode, exactly Read, Write,
   Edit, Glob and Grep shown, those and the fragment server's tools allowed, no settings, no skills,
   no Chrome, run in the brain repository — the folder `AGENCY_BRAIN_ROOT` names, else `brain` under the
-  data root; an editor key whose brain holds no repository yet is not run. Its task opens on the
-  document-writing rulebooks, the rulebook against destroying the system and the fragment tool's
-  rulebook. Its MCP servers are the
+  data root, or the agent's folder under it the turn names; an editor key whose brain holds no
+  repository yet is not run. Its task is the caller's whole prompt: the brain composes it, the
+  rulebooks every document writer shares among it, which it reads through `GET /rulebooks`, and agency
+  adds no rulebook of its own. Its MCP servers are the
   tool host's `fragments` namespace and the toolbook (`fragments.md`, `mcp-host.md`): every run and the
   keepalive are handed the standing `editor.mcp.json`, and a run's session record names the desk its
   batch opened where it opened one, so every run is shown the same tools from the same bytes. On another provider the same run goes over with its file
@@ -327,7 +328,12 @@
   temporary directories are the whole of what it may write. A line's MCP tools stand beside the
   file tools it shows rather than narrowing them, so allowing them leaves the run allowed to write.
   A consumer asks for an editor run as a turn of the key's editor session (`docs/api.md`, 「Sessions」),
-  which names no fragment desk in the run's variables. The session walks the key first
+  several at once where it runs several batches, each with its run's parts: the run's name, which its
+  run variables carry as `BMO_RUN_NAME`; the room, as `BMO_TURN_CHAT`; and the fragment desk, as
+  `BMO_FRAGMENT_DESK`, which its session record names. A run in a pane carries the editor cap as its
+  clock and is asked about past it (`docs/agent-control.md`, 「A clock asks before it cuts」). A turn that
+  names a registration goes out on that registration alone, as this same line through the gateway, and
+  fails where it does not answer. Otherwise the session walks the key first
   (`docs/cache-fallback.md`): each enabled stand-in the walk meets runs the editor line apart on its own
   road, as above — Codex's `exec` and dsh in the host, a registered model's Claude Code on the gateway in
   a pane of its own — and the first that answers is the run's answer, published as `fallback-answering`

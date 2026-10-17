@@ -270,7 +270,35 @@ pub async fn step_of(
     effort: Some(effort).filter(|effort| !effort.is_empty()),
     answer_tokens: mapping.answer_tokens,
   };
-  let settings = registry::run_settings(db, Some(&asked)).await.map_err(|why| why.error)?;
+
+  registered_step(db, key, &asked).await
+}
+
+/// A step on the registration a caller names rather than the one the key maps to: the registration's own
+/// run settings, with the effort the key's agent's own reasoning makes of it, and the answer room the key's
+/// work is given, as the key's mapped step is.
+pub async fn registration_step(
+  ground: &Ground,
+  key: &str,
+  registration: &str,
+  reasoning: &Reasoning,
+) -> Result<Step, String> {
+  let effort =
+    effort_of(ground, &ground.machine(), registry::PROVIDER, registration, None, Some(reasoning))
+      .await
+      .map_err(|why| why.detail)?;
+  let asked = Mapping {
+    model: registration.to_owned(),
+    effort: effort.filter(|effort| !effort.is_empty()),
+    answer_tokens: None,
+  };
+
+  registered_step(&ground.db, key, &asked).await
+}
+
+// A step on a registered model: its run settings, never below the answer floor the key's work declares.
+async fn registered_step(db: &DatabaseConnection, key: &str, asked: &Mapping) -> Result<Step, String> {
+  let settings = registry::run_settings(db, Some(asked)).await.map_err(|why| why.error)?;
   let profile = WORK_KEYS.profile(key);
   let thinking_floor = match (
     settings.thinking,
@@ -283,7 +311,7 @@ pub async fn step_of(
   let floor = profile.and_then(|one| one.answer_floor).unwrap_or(0).max(thinking_floor);
 
   Ok(Step {
-    provider: provider.to_owned(),
+    provider: registry::PROVIDER.to_owned(),
     model: settings.model.clone(),
     effort: settings.effort.clone().unwrap_or_default(),
     thinking: settings.thinking,

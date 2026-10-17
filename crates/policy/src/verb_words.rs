@@ -256,12 +256,27 @@ pub struct CompanionFollowWords {
 #[serde(deny_unknown_fields)]
 pub struct VerbWords {
   pub claude_token: ClaudeTokenWords,
+  pub overtime: OvertimeWords,
   pub models: ModelsWords,
   pub node_pane: NodePaneWords,
   pub worker_fold: WorkerFoldWords,
   pub agents: AgentsWords,
   pub dev_servers: DevServersWords,
   pub companion_follow: CompanionFollowWords,
+}
+
+/// The chat agent's verdict on a run past its clock (docs/agent-control.md, 「A clock asks before it cuts」).
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct OvertimeWords {
+  pub usage: String,
+  pub length: String,
+  pub none_open: String,
+  pub open: String,
+  pub kept: String,
+  pub cut: String,
+  pub unknown: String,
+  pub closed: String,
 }
 
 crate::part!(pub VERB_WORDS: VerbWords = "verb-words.toml");

@@ -30,6 +30,7 @@ pub mod research;
 pub mod resident_turn;
 pub mod rest;
 pub mod roles;
+pub mod run_clock;
 pub mod run_lines;
 pub mod run_stop;
 pub mod seeds;

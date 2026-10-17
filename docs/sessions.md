@@ -30,6 +30,9 @@ session on the owner's ask is `docs/session-resets.md`.
   reference attaches it in full exactly once.
 - Where several chats share one session, a changed file is announced to that session once rather
   than once per chat; a room's own document is announced only to that room.
+- A reload that names the agent whose documents moved and the rooms they concern is told only to that
+  agent's sessions in those rooms; the brain names both for its own documents, having worked out which
+  rooms each changed document concerns (`docs/api.md`, 「Sessions」).
 - The session stays as it is: no restart, no `--resume` into a fresh session, no break in the
   conversation.
 - **Common system-prompt documents are reloaded without waking chats.** They mark the shared chat

@@ -29,6 +29,7 @@ pub mod registry;
 pub mod road_verbs;
 pub mod roads;
 mod rooms;
+pub mod run_clocks;
 mod run_log;
 pub mod session_ops;
 pub mod sessions;
