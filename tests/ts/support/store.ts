@@ -103,9 +103,11 @@ function template(): Promise<string> {
 const dropWithinMs = 15_000;
 const dropEveryMs = 250;
 
-// A copy dropped. The force that ends every connection to it cannot end a background worker of the server's
-// own — an autovacuum worker that opened the fresh copy, say — which holds it for a moment and is named by no
-// role; the drop waits that out and tries again, and says who held it where it never gets through.
+// A copy dropped. The force ends every connection a role holds to it, but not a background worker of the
+// server's own — an autovacuum worker that opened the fresh copy, say — which holds it for a moment and
+// is named by no role; while one does, the whole drop fails, the test's own connections beside it
+// included. So while any holder is named by no role the drop waits and tries again, the force ending the
+// rest on the next try; it says who held it where it never gets through, or where no such worker held it.
 async function dropped(sql: PostgresClient, name: string): Promise<void> {
   const until = Date.now() + dropWithinMs;
 
@@ -115,9 +117,9 @@ async function dropped(sql: PostgresClient, name: string): Promise<void> {
       return;
     } catch (error) {
       const held = await sql.unsafe("SELECT usename::text AS role, backend_type AS kind FROM pg_stat_activity WHERE datname = $1", [name]) as { role: string | null; kind: string }[];
-      const workers = held.length > 0 && held.every((one) => one.role === null);
+      const worker = held.some((one) => one.role === null);
 
-      if (!workers || Date.now() >= until) {
+      if (!worker || Date.now() >= until) {
         throw new Error(`${name} could not be dropped while ${JSON.stringify(held)} held it: ${String(error)}`);
       }
 
