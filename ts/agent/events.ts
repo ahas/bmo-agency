@@ -1,7 +1,13 @@
 // The events agency's TypeScript side publishes, by the names the boundary gives them (docs/api.md,
-// 「Events」), on the stream of the process that publishes them: a listener in that process reads each
-// as it comes, and one that attaches late picks up from the id it last saw within the last stretch.
-// Nothing is stored, and publishing never waits on a listener.
+// 「Events」): on the stream of the process that publishes them, where a listener in that process reads
+// each as it comes and one that attaches late picks up from the id it last saw within the last stretch;
+// and relayed to agency's server, which publishes each on the event streams a consumer reads. Nothing is
+// stored, and publishing waits on neither a listener nor the server.
+
+import { readFileSync } from "node:fs";
+import { parseEnv } from "node:util";
+
+import { dataPath } from "@agency/support/roots";
 
 /** A login's end told (docs/cache-fallback.md, 「A login that is about to end」). */
 export interface AccountLoginNotice {
@@ -32,9 +38,70 @@ const bufferSize = 500;
 
 const buffer: AgencyEvent[] = [];
 const listeners = new Set<AgencyEventListener>();
+const relaying = new Set<Promise<void>>();
 let nextId = 1;
+let missedSaid = false;
 
-/** An event published to every listener; one that throws is logged and the rest are told all the same. */
+// The port agency's server listens on where nothing names one.
+const defaultControlPort = 3220;
+
+// Long enough for a server that is up to answer, short enough that a dead one holds nothing for long.
+const relayWaitMs = 2_000;
+
+/**
+ * Agency's server as this process reaches it: the port and the token its environment names, else those
+ * the data root's `env/agency.env` names (docs/api.md, 「The control port」); none where neither names a
+ * token.
+ */
+export function controlServer(): { port: number; token: string } | null {
+  let file: Record<string, string | undefined> = {};
+
+  try {
+    file = parseEnv(readFileSync(dataPath("env", "agency.env"), "utf8"));
+  } catch {
+    // A data root with no such file names nothing.
+  }
+
+  const named = (name: string) => {
+    const value = (process.env[name] ?? "").trim() || (file[name] ?? "").trim();
+
+    return value === "" ? null : value;
+  };
+  const token = named("AGENCY_CONTROL_TOKEN");
+  const port = Number(named("AGENCY_CONTROL_PORT") ?? defaultControlPort);
+
+  return token === null || !Number.isInteger(port) ? null : { port, token };
+}
+
+// One event posted to agency's server, which publishes it on its streams; a word that did not land is said
+// once on the error stream.
+async function relayed(server: { port: number; token: string }, name: string, body: unknown): Promise<void> {
+  try {
+    const answered = await fetch(`http://127.0.0.1:${server.port}/events/publish`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${server.token}`, "content-type": "application/json" },
+      body: JSON.stringify({ kind: name, body }),
+      signal: AbortSignal.timeout(relayWaitMs),
+    });
+
+    if (!answered.ok) throw new Error(`the server answered ${answered.status}`);
+  } catch (error) {
+    if (!missedSaid) {
+      missedSaid = true;
+      console.error(`agency's server was not told of the event ${name}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+}
+
+/** Every relay to agency's server begun so far, ended. */
+export async function agencyEventsRelayed(): Promise<void> {
+  await Promise.all([...relaying]);
+}
+
+/**
+ * An event published to every listener, and relayed to agency's server where this process reaches one; a
+ * listener that throws is logged and the rest are told all the same.
+ */
 export function emitAgencyEvent<Name extends AgencyEventName>(name: Name, body: AgencyEvents[Name]): AgencyEvent {
   const emitted = { name, body, id: nextId, at: Math.floor(Date.now() / 1000) } as AgencyEvent;
 
@@ -51,6 +118,14 @@ export function emitAgencyEvent<Name extends AgencyEventName>(name: Name, body: 
     } catch (error) {
       console.error("agency event listener failed:", error);
     }
+  }
+
+  const server = controlServer();
+
+  if (server !== null) {
+    const relay = relayed(server, name, body).finally(() => relaying.delete(relay));
+
+    relaying.add(relay);
   }
 
   return emitted;

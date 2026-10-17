@@ -138,9 +138,13 @@ made of is `docs/companions.md`.
 
 ## Where a role comes from
 
-- **Every row added names its role:** the deployment's archive seed names the chat agent's, the
-  workers', runners', gates' and recollectors' rows it writes; a worker added by the owner holds the
-  worker role; a companion's seed names its own, and one that names none holds the chat role.
+- **The role each kind is for** is declared in `policy/roles.toml` under `kinds`: the chat role for the
+  `chat` kind, the worker role for `worker`, the searcher role for `runner`, the gate role for `gate`
+  and the recollector role for `recollector`. Agency's own processes register it as they load, so a row
+  the store makes for a kind with no role named holds its kind's.
+- **Every row added names its role:** a row written for a kind holds its kind's role unless the writer
+  names another; a worker added by the owner holds the worker role; a companion's seed names its own,
+  and one that names none holds the chat role.
 - **A row that stood before roles** holds the role its kind is for, written once as the column is
   added: the chat agent and every companion the chat role, a worker the worker role, a runner the
   searcher role, a gate the gate role and a recollector the recollector role.

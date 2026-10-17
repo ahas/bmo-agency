@@ -14,7 +14,7 @@ import { join } from "node:path";
 import { codeRoot, homeDir } from "./roots";
 
 /** The systemd unit agency's server runs as, kept under the code root's `deploy/`. */
-export const SERVER_UNIT = "agency-server";
+export const SERVER_UNIT = "bmo-agency";
 
 // The directories agency's server runs on, as its unit names them: `%h` is the home, and a unit naming no
 // PATH names nothing. Only the one `Environment=PATH=` assignment is read, line by line, since no reader

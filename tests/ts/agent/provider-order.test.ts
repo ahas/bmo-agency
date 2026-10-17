@@ -17,7 +17,7 @@ test("an order is every provider exactly once", () => {
   expect(isProviderOrder(["claude-code", "codex", "openrouter"])).toBe(false);
   expect(isProviderOrder(["claude-code", "codex", "codex", "registered"])).toBe(false);
   expect(isProviderOrder(["claude-code", "codex", "openrouter", "gemini"])).toBe(false);
-  expect(isProviderOrder(["claude-code", "codex", "openrouter", "registered", "j3090"])).toBe(false);
+  expect(isProviderOrder(["claude-code", "codex", "openrouter", "registered", "retired"])).toBe(false);
   expect(isProviderOrder(["claude-code", "codex", "openrouter", "registered", "auto"])).toBe(false);
   expect(isProviderOrder("claude-code,codex,openrouter,registered")).toBe(false);
   expect(isProviderOrder([1, 2, 3, 4, 5])).toBe(false);
@@ -38,25 +38,25 @@ test("a changed order is kept, and setting the default back removes the row", as
 test("a stored value that is not an order reads as the default", async () => {
   const archive = await scratchArchive();
 
-  for (const stored of ["not json", "[\"codex\",\"codex\",\"openrouter\",\"j3090\"]", "{\"order\":1}", "[\"claude-code\",\"codex\",\"openrouter\",\"dsh\"]", JSON.stringify(defaultProviderOrder.map((name) => ({ name, enabled: false })))]) {
+  for (const stored of ["not json", "[\"codex\",\"codex\",\"openrouter\",\"retired\"]", "{\"order\":1}", "[\"claude-code\",\"codex\",\"openrouter\",\"dsh\"]", JSON.stringify(defaultProviderOrder.map((name) => ({ name, enabled: false })))]) {
     await archive.settings().setSetting("provider_order", stored);
     expect(await enabledProviders(archive)).toEqual([...defaultProviderOrder]);
   }
 });
 
 test("a saved order read under a provider it does not name keeps its order and flags, and gains that provider on at the end", () => {
-  const five = ["claude-code", "codex", "openrouter", "j3090", "fifth"] as const;
+  const five = ["claude-code", "codex", "openrouter", "retired", "fifth"] as const;
   const saved: { name: (typeof five)[number]; enabled: boolean }[] = [
     { name: "openrouter", enabled: true },
     { name: "claude-code", enabled: false },
-    { name: "j3090", enabled: true },
+    { name: "retired", enabled: true },
     { name: "codex", enabled: false },
   ];
 
   expect(readProviderOrder(saved, five)).toEqual([...saved, { name: "fifth", enabled: true }]);
   // A plain list of names reads every name on, and the missing provider on after it.
-  expect(readProviderOrder(["j3090", "codex", "claude-code", "openrouter"], five)).toEqual([
-    { name: "j3090", enabled: true },
+  expect(readProviderOrder(["retired", "codex", "claude-code", "openrouter"], five)).toEqual([
+    { name: "retired", enabled: true },
     { name: "codex", enabled: true },
     { name: "claude-code", enabled: true },
     { name: "openrouter", enabled: true },
@@ -65,10 +65,10 @@ test("a saved order read under a provider it does not name keeps its order and f
 });
 
 test("a saved order naming an unknown provider or one provider twice is still refused", () => {
-  const five = ["claude-code", "codex", "openrouter", "j3090", "fifth"] as const;
+  const five = ["claude-code", "codex", "openrouter", "retired", "fifth"] as const;
 
   expect(readProviderOrder(["claude-code", "codex", "openrouter", "gemini"], five)).toBeNull();
-  expect(readProviderOrder(["claude-code", "codex", "codex", "j3090"], five)).toBeNull();
+  expect(readProviderOrder(["claude-code", "codex", "codex", "retired"], five)).toBeNull();
   expect(readProviderOrder([{ name: "codex", enabled: true }, { name: "codex", enabled: false }], five)).toBeNull();
   expect(readProviderOrder([{ name: "codex", enabled: true }, "openrouter"], five)).toBeNull();
   expect(readProviderOrder("claude-code,codex", five)).toBeNull();

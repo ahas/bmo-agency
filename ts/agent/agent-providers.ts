@@ -5,7 +5,7 @@ import type { Archive } from "@agency/archive/archive";
 import { enabledProviders } from "./provider-order";
 
 // Which agent providers there are and which program carries a line, over a list the deployment
-// composes (docs/packages.md, 「How the runtime core reaches its base packages」). What exists is
+// composes. What exists is
 // code — an implementation is a file, and a build carries the ones it was written with — so the
 // deployment names its members where it composes them and nothing here names one. Which provider
 // runs which work key is the owner's choice, a row of the archive's route table.

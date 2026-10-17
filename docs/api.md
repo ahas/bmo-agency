@@ -28,7 +28,7 @@ judges none of it.
 ## Versioning
 
 - **The contract carries the repository's one version, in semver.** The version in the workspace
-  manifest is this boundary's version; the current line is `0.17.0`.
+  manifest is this boundary's version; the current line is `0.17.1`.
 - **A change to this document and a change to the boundary go in one commit.** A change that makes a
   route, an event, a hook or a shared table's contract different repairs this document in the same
   commit, stating what is true now.
@@ -275,10 +275,13 @@ judges none of it.
   consumer's.
 - **A worker removed**, `worker-removed`, names the `worker` whose row and sessions went, so a consumer
   lets go what it lent it.
-- **An event a verb's own process published** reaches the server's streams too: `bmo-agency`, before it
-  ends, posts each event its process published to `POST /events/publish` — the event's `kind` and its
-  `body` — and the server publishes it to every stream reading that kind as it stands. A word that did not
-  land is said once on the verb's error stream, and the verb is never failed by it.
+- **An event another process of agency's published** reaches the server's streams too: `bmo-agency`,
+  before it ends, posts each event its process published to `POST /events/publish` — the event's `kind`
+  and its `body` — and a TypeScript process of agency's posts each as it publishes it, a login's end
+  told among them; the server publishes it to every stream reading that kind as it stands. Such a process
+  finds the server on the port and with the token its environment names, else those of the data root's
+  `env/agency.env`, and posts nothing where neither names a token. A word that did not land is said once
+  on the process's error stream, and the process is never failed by it.
 - **A login's end told**, `account-login-notice`, is published once for each ending the logins' watch
   finds: the `account`, which `login` it is (`here`, its login on this machine, or `node-token`, its token
   for the work nodes), how it `stands` (`gone`, `ending` or `missing`), `leftMs` (or null), and `notice`, the

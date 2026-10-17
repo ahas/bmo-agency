@@ -1,5 +1,7 @@
 //! The roles an agent may hold and the function bundles each gives (docs/agent-roles.md).
 
+use std::collections::BTreeMap;
+
 use serde::Deserialize;
 
 /// One function bundle a role may give: a capability of the tool host, with the short name a screen
@@ -31,6 +33,8 @@ pub struct Roles {
   pub coworker: String,
   /// The bundle that opens sending into a room.
   pub send: String,
+  /// The role a row of each kind holds where its writer names none, by the kind.
+  pub kinds: BTreeMap<String, String>,
   pub bundles: Vec<Bundle>,
   pub roles: Vec<Role>,
 }

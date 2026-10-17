@@ -1,7 +1,6 @@
-// What agency's store is seeded with that only its deployment can say: its work keys and where each
-// starts, its gates, the role each kind of agent holds, the row its chat agent stands under and its
-// companions. The deployment registers them as its configuration loads, and the few members that read
-// them ask here. Nothing here knows whose they are.
+// What agency's store is seeded with as its rows are written: its work keys and where each starts, its
+// gates, and the role each kind of agent holds. Agency's own processes register them from its policy as
+// their composition loads (`ts/agent/registrations.ts`), and the few members that read them ask here.
 
 // A work key's profile, as far as the store reads one.
 export interface SeededWorkProfile {
@@ -15,18 +14,11 @@ export interface SeededWorkProfile {
 export interface ArchiveSeeds {
   // Every work key's profile: a key's default road is read off them.
   workProfiles: readonly SeededWorkProfile[];
-  // Every gate of the deployment's gate order: a chat's unifying keeps their sessions apart.
+  // Every gate of the gate order: a gate's own thinking and effort are its tier's.
   gateKeys: readonly string[];
-  // The row the deployment's one chat agent stands under once every room is unified into it: its
-  // name is the registered agent key, and these are what the row is seeded with. Its window and the
-  // words that call it are its own values, written where its row has none (docs/agent-ownership.md).
-  chatAgent: { label: string; aliases: string; icon: string; herdrLabel?: string; windowSeconds: number; wakeWords: readonly string[] };
-  // The role a row of each kind holds where nothing names one (docs/agent-roles.md), given to a row
-  // the store makes for a kind with no seed of its own — a worker the owner adds, a support worker,
-  // the chat agent.
+  // The role a row of each kind holds where its writer names none (docs/agent-roles.md), given to a row
+  // the store makes for a kind — a worker the owner adds, a support worker, a companion naming no role.
   roleOfKind: Readonly<Record<string, string>>;
-  // The agents that answer in a room by themselves (docs/companions.md).
-  companions: readonly CompanionSeed[];
 }
 
 // One companion as its deployment declares it: its agent name, what the owner calls it, the mark a
@@ -54,7 +46,7 @@ export interface CompanionSeed {
 export class ArchiveUnseeded extends Error {
   constructor() {
     super(
-      "no archive seeds are registered: a process reads its configuration before it settles the archive or asks it for a seed, or imports the deployment's archive seeds itself",
+      "no archive seeds are registered: a process that writes agency's store imports agency's registrations (`@agency/agent/registrations`) first",
     );
   }
 }

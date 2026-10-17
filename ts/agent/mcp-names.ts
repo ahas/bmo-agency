@@ -27,7 +27,7 @@ export interface CalledTool {
   throughToolbook: boolean;
 }
 
-// The toolbook (`docs/toolbook.md`) reaches a booked tool through two proxy tools of its own, one
+// The toolbook reaches a booked tool through two proxy tools of its own, one
 // for read-only tools and one for tools that act. Each is handed the tool's full name — its
 // namespace and its name joined by a slash — and the tool's own arguments as one object.
 const toolbookServer = "toolbook";

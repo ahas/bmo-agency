@@ -1,10 +1,14 @@
 // Agency's own composition of its agent base, for a process agency itself starts — the loop in a
 // pane, the prompt-composing entry, the pane guardian: the providers this build carries, the lines,
-// the verb a place's status line and hooks call, and the work keys the policy declares. What only a
-// consumer can say — a gate's road, a tool record's extras, the archive seeds of its own agents — the
-// consumer registers beside these, and a process that imports none of it runs on the defaults.
+// the verb a place's status line and hooks call, the work keys the policy declares, and the seeds the
+// store's rows are written from — the work keys, the gate keys and the role each kind holds. What only
+// a consumer can say — a gate's road, a tool record's extras — the consumer registers beside these, and
+// a process that imports none of it runs on the defaults.
 
 import "./harnesses";
+
+import declaredRoles from "@agency/policy/roles.toml";
+import { registerArchiveSeeds } from "@agency/archive/archive-seeding";
 
 import { composeRunLines } from "./line-declarations";
 import { agencyRunLines } from "./run-lines";
@@ -16,3 +20,11 @@ composeRunLines(agencyRunLines);
 // The verb the agent base starts by path: the one a place's status line and hooks call.
 composeAgentVerbs({ statusLine: ["bin/bmo-agency", "agent-status"] });
 composeWorkProfiles(policyWork);
+
+const work = policyWork();
+
+registerArchiveSeeds({
+  workProfiles: work.profiles,
+  gateKeys: work.gateKeys,
+  roleOfKind: (declaredRoles as { kinds: Record<string, string> }).kinds,
+});

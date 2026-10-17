@@ -7,8 +7,7 @@ import { agentProviderNames } from "./provider-names";
 // A stored mode is the automatic walk or one provider the key runs on alone
 // (docs/cache-fallback.md, 「The per-key choice is automatic or one provider」). An explicit job
 // request names a provider in the same terms. Laya is a gate's provider and no agent's: a gate
-// whose profile offers it may stand on it, and nothing else may (docs/laya.md, 「A gate whose
-// provider is Laya」).
+// whose profile offers it may stand on it, and nothing else may.
 export const layaRoad = "laya";
 
 export const fallbackRouteModes = ["auto", ...agentProviderNames, layaRoad] as const;

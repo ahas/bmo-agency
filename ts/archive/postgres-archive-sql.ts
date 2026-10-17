@@ -1,4 +1,4 @@
-// The archive port over PostgreSQL (docs/rust-migration.md, 「The archive port」), on Bun's own
+// The archive port over PostgreSQL (docs/store.md), on Bun's own
 // client. The stores' statements are written once for both databases; what differs is answered
 // here: the placeholders, the types values travel and come back as, the one writer a transaction
 // is, and the catalogue.
@@ -11,7 +11,7 @@ import { jsonKey, jsonPath } from "./archive-sql";
 import type { ArchiveSql, Changed, SqlDialect, SqlValue } from "./archive-sql";
 
 // A JSON member is read off the text column cast to `json`, the very form the indexes over one are
-// declared with (docs/rust-migration.md, 「Type mapping」), so a question filtering by it uses them.
+// declared with (docs/store.md), so a question filtering by it uses them.
 const postgresDialect: SqlDialect = {
   jsonText: (column, key) => `(${column}::json ->> '${jsonKey(key)}')`,
   jsonNumber: (column, key) => `((${column}::json ->> '${jsonKey(key)}')::double precision)`,
@@ -34,9 +34,8 @@ type Client = PostgresClient;
 type Unit = { tx: TransactionSQL; savepoints: number };
 type Rows = Record<string, unknown>[] & { count?: number | null };
 
-// The key of the advisory lock a transaction holds for as long as it is open (「A transaction is the
-// one writer」 in docs/archive-locks.md). Any number every opener agrees on serves; this one spells
-// "bmo" in its low bytes.
+// The key of the advisory lock a transaction holds for as long as it is open (docs/store.md, 「Connecting」).
+// Any number every opener agrees on serves; this one spells "bmo" in its low bytes.
 const WRITER_LOCK = 0x626d6f;
 
 // The pauses between attempts at work the server went away under.
@@ -295,9 +294,8 @@ export class PostgresArchiveSql implements ArchiveSql {
     return open === undefined ? this.using(statement) : statement(open.tx);
   }
 
-  // Work the server went away under is run again whole on a fresh client, with a doubling pause
-  // between attempts, until the reconnect budget is spent (docs/rust-migration.md, 「The archive
-  // port」); every other error is thrown as it came.
+  // Work the server went away under is run again whole on a fresh client, with a doubling pause between
+  // attempts, until the reconnect budget is spent (docs/store.md); every other error is thrown as it came.
   private async using<T>(work: (client: Client) => Promise<T>): Promise<T> {
     if (this.resting !== null) clearTimeout(this.resting);
     this.resting = null;

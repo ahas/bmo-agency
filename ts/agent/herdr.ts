@@ -83,7 +83,7 @@ export async function herdrCall<T = unknown>(
   const socket = options.socket ?? herdrSocketPath();
   const id = `bmo-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
   // A test reaches only a herdr of its own; the machine's is refused before a connection is made,
-  // and the refusal is written where the test's own preload reads it (docs/test-suite.md).
+  // and the refusal is written where the test's own preload reads it.
   const refused = socketRefusal(socket);
 
   if (refused !== null) {

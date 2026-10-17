@@ -1,8 +1,7 @@
-// A client of Bun's own for the PostgreSQL database an address names (docs/rust-migration.md,
-// 「The archive port」). An address is a `postgres:` URL in libpq's form; one whose `host`
-// parameter is a directory names the server's socket in it, which Bun's client is handed as the
-// socket's own path. The role logged in as is the URL's user or its `user` parameter, as libpq
-// reads either, and the user running this process where it names none.
+// A client of Bun's own for the PostgreSQL database an address names (docs/store.md). An address is a
+// `postgres:` URL in libpq's form; one whose `host` parameter is a directory names the server's socket in
+// it, which Bun's client is handed as the socket's own path. The role logged in as is the URL's user or its
+// `user` parameter, as libpq reads either, and the user running this process where it names none.
 
 import { SQL } from "bun";
 import { existsSync } from "node:fs";
@@ -52,7 +51,7 @@ const goneSystemCodes = new Set(["ECONNREFUSED", "ECONNRESET", "ENOENT", "EPIPE"
 
 /**
  * Whether an error is the server going away rather than the statement's own fault
- * (docs/rust-migration.md, 「The archive port」). A socket Bun's client cannot open arrives as a
+ * (docs/store.md). A socket Bun's client cannot open arrives as a
  * plain error carrying no code, told only by the name of the failure its message opens with.
  */
 export function serverWentAway(error: unknown): boolean {

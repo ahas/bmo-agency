@@ -44,7 +44,7 @@ export {
 
 // What a process that holds the store does on its way up: the providers' settings are read out of
 // that store by every run this process makes, rather than one runner silently keeping the code
-// defaults. A gate's road is the gate unit's, registered with `registerGateRoute`.
+// defaults. A gate's road and its runs are the gate unit's.
 export function installHarnessRegistry(archive: Archive): void {
   installProviderSettings(archive);
 }

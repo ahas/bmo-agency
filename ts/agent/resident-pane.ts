@@ -84,7 +84,7 @@ function writePrivate(path: string, value: unknown): void {
 }
 
 // A program carrying its session token in its own environment, and its restart with it, so the
-// pane's loop starts it again on the same record (docs/mcp-host.md, 「The configuration」). The token is
+// pane's loop starts it again on the same record. The token is
 // no part of the program's identity, which is decided before it is laid on.
 export function carryToken(program: ResidentProgram, token: string | null): ResidentProgram {
   if (token === null) return program;
@@ -289,9 +289,9 @@ export async function standResident(options: {
   const waitMs = options.waitMs ?? 30_000;
   let program = options.program;
 
-  // A program about to be written is handed its session token first, and a tool host that does not
-  // answer refuses the turn before anything is written (docs/mcp-host.md, 「When the host is not
-  // there」). A place already holding this program keeps the token it stands on.
+  // A program about to be written is handed its session token first, and a tool host that does not answer
+  // refuses the turn before anything is written. A place already holding this program keeps the token it
+  // stands on.
   const standing = readProgram(options.place);
 
   if (options.line !== undefined && (standing?.identity !== program.identity || programToken(standing) === null)) {

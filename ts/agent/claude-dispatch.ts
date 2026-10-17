@@ -69,11 +69,11 @@ export async function pinnedClaudeAccount(archive: Archive, key: string): Promis
 }
 
 /**
- * The logins the road offers a run that is pinned to none, in order: the login in use first while
- * it can answer, then the open ones in the owner's order, started on the account the owner chose to run on now
+ * The logins the road offers a run that is pinned to none, in order: the login in use first while it can
+ * answer, then the open ones in the owner's order, started on the account the owner chose to run on now
  * where the owner chose one, and where none is open the chosen account and the order as they stand, so the
- * run fails honestly on the first login instead of not happening at all. A login in use is used to
- * the end: an account ahead of it, or the chosen one, answering again moves nothing.
+ * run fails honestly on the first login instead of not happening at all. A login in use is used to the end:
+ * an account ahead of it, or the chosen one, answering again moves nothing.
  */
 export async function openClaudeAccounts(archive: Archive): Promise<ClaudeAccount[]> {
   const chosen = await chosenClaudeAccount(archive);
@@ -106,7 +106,7 @@ function leadingInteger(value: string | null): number | null {
 }
 
 /**
- * Which accounts may carry a run made for a user (docs/rust-migration.md, 「What is whose」): a
+ * Which accounts may carry a run made for a user (docs/store.md): a
  * user's run goes on that user's own accounts alone, and a run made for no user — the platform's
  * own work — on the administrator's and on any account no user owns. Off the multi-user model no
  * account names a user, and every account carries every run.
@@ -162,7 +162,7 @@ export interface ClaudeDispatchDeps {
   // moment, which has one answer whether or not a configuration is in hand.
   config?: Pick<RestSettings, "restFallbackMs"> | null;
   // The user the run is made for, whose own logins alone carry it; the platform's own work where
-  // none is named (docs/rust-migration.md, 「What is whose」).
+  // none is named (docs/store.md).
   user?: number | null;
 }
 

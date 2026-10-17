@@ -129,7 +129,7 @@ export const registeredEndpoint: ClaudeEndpoint = {
   // The program is Claude Code, which gates each call and withholds its own tools as it does on its
   // own road. Whether a runner's prompt fits is a registration's window, so no research key is
   // offered the registry and a research run reaches it only where the registration keeps its
-  // research (docs/research-runs.md, 「A research run set off on a registration」).
+  // research.
   offers: ["tool-gate", "mcp-only-tools"],
 };
 

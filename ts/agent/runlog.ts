@@ -576,8 +576,7 @@ export class RunLog {
 
   // A line into the table, waiting out a writer that holds the lock. A line the lock never lets
   // through is a line lost and nothing worse: a run is not ended by its own record-keeping, so the
-  // loss is counted and the next line that does get through carries the count into the log
-  // (docs/archive-locks.md).
+  // loss is counted and the next line that does get through carries the count into the log.
   private async kept(row: NewAgentLogLine): Promise<number | null> {
     const id = await this.throughTheLock(`a ${row.kind} line`, () => this.target.archive.runs().appendAgentLog(row));
 
@@ -761,9 +760,9 @@ function readSystemPrompt(path: string | null): string | null {
   }
 }
 
-// What the log may not keep: the lines of one agent past the newest few thousand or past its
-// share of text, and every line anywhere past the age. An agent named sweeps its own rows, which is what a writer does
-// as it goes; null sweeps the whole table, every agent at once.
+// What the log may not keep: the lines of one agent past the newest few thousand or past its share of text,
+// and every line anywhere past the age. An agent named sweeps its own rows, which is what a writer does as
+// it goes; null sweeps the whole table, every agent at once.
 export async function pruneRunLog(archive: Archive, agent: string | null): Promise<void> {
   await archive.runs().pruneAgentLog({
     agent,

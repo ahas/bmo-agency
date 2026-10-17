@@ -9,9 +9,18 @@
 # coworker: the role a co-worker's run holds. A co-worker is a sub-agent for a worker's use alone, and
 #   the place it works in, a standing branch checkout, has no agents row to name a role of its own.
 # send: the bundle that opens sending into a room, which every guard of a send reads here.
+# [kinds]: the role a row of each kind holds where its writer names none (docs/agent-roles.md, 「Where a
+#   role comes from」).
 
 coworker = "worker"
 send = "room.send"
+
+[kinds]
+chat = "chat"
+worker = "worker"
+runner = "searcher"
+gate = "gate"
+recollector = "recollector"
 
 [[bundles]]
 name = "room.chat"

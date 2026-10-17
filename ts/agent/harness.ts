@@ -39,9 +39,8 @@ export interface RunLineDeclaration {
   // submit hook, the composition a turn the deployment puts in would carry. Left out, it is handed
   // nothing.
   composesTypedLines?: boolean;
-  // What its runs may reach of the tool host, as capabilities (docs/mcp-host.md, 「Namespaces and
-  // capabilities」). A run is issued a session record holding these, narrowed where it holds less.
-  // Absent on a line that is handed no tools.
+  // What its runs may reach of the tool host, as capabilities. A run is issued a session record holding
+  // these, narrowed where it holds less. Absent on a line that is handed no tools.
   capabilities?: readonly string[];
 }
 
@@ -122,7 +121,7 @@ export interface HarnessRun {
   // Whether this run is a keepalive touch, whatever its words say.
   ping?: boolean;
   // The room's own block, and the one line that restates it to a session holding this version of it
-  // from earlier (`docs/unified-bmo.md`, 「The system prompt and the room switch」).
+  // from earlier.
   roomContext?: { chatId: number; text: string; mark: string };
   promptDelivery: PromptDelivery;
   // The session this run continues, and whether a session is kept at all. A judgement keeps none:

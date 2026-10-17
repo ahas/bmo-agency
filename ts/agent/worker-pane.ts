@@ -446,14 +446,14 @@ async function wordWrittenDown(path: string, from: number, timing: { waitMs: num
 
 // The work a run walked away from, read out of the record the way the record says it.
 //
-// A run's background work — a Claude Workflow, a co-worker sent off on its own, a shell command left going —
-// is launched by a call that is answered at once, with a line saying the work is now running in
-// the background, and it ends later in a task notification naming the call it was launched by and
-// the status it ended with. So what was still going when the turn stopped is a launch this turn
-// made with no ending anywhere after it, and a Claude Workflow is one it walked away from unless its
-// ending said it ran to the end. A call that never got an answer at all was cut off in the middle,
-// which is the same state. Only this turn's own launches are counted: a session carries every
-// earlier turn too, and a launch some earlier run abandoned is that run's to have been judged by.
+// A run's background work — a Claude Workflow, a co-worker sent off on its own, a shell command left going
+// — is launched by a call that is answered at once, with a line saying the work is now running in the
+// background, and it ends later in a task notification naming the call it was launched by and the status it
+// ended with. So what was still going when the turn stopped is a launch this turn made with no ending
+// anywhere after it, and a Claude Workflow is one it walked away from unless its ending said it ran to the
+// end. A call that never got an answer at all was cut off in the middle, which is the same state. Only this
+// turn's own launches are counted: a session carries every earlier turn too, and a launch some earlier run
+// abandoned is that run's to have been judged by.
 const launchedWording = /running in background with ID|moved to the background|launched in background|Async agent launched/i;
 const notification = /<task-notification>([\s\S]*?)<\/task-notification>/g;
 
@@ -702,7 +702,7 @@ export async function runTurnInPane(options: {
   const owner = { pid: process.pid, birth: processBirth(process.pid) };
   // The turn's own record-keeping, and a lock another writer holds is not the turn's to die of:
   // what the caller is owed is the answer, so a row the lock never lets through is said in the
-  // journal and left as it stood (docs/archive-locks.md).
+  // journal and left as it stood.
   const recorded = async (what: string, work: () => Promise<void>): Promise<void> => {
     await keptThroughLock(`${options.name}: ${what}`, work);
   };
@@ -978,7 +978,8 @@ export async function runTurnInPane(options: {
 
     execution.state = "running"; await saveRow();
     let seen = from;
-    // A look that saw the program at work while the prompt was being seen submitted is a look of this turn's.
+    // A look that saw the program at work while the prompt was being seen submitted is a look of this
+    // turn's.
     let worked = taken === "working";
     // Moved on, not lifted, by the caller's overtime policy each time it answers anything but a cut.
     let deadline = options.turnMs === undefined ? null : Date.now() + options.turnMs;

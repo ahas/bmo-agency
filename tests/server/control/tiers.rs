@@ -12,7 +12,7 @@ fn mapping(tier: &str, provider: &str, model: &str, answer_tokens: Option<i64>) 
 
 #[test]
 fn a_mapping_is_held_to_what_holds_whoever_its_provider_is() {
-  assert_eq!(check_mapping(&mapping("Simple", "registered", "j3090", Some(2048))), Ok(()));
+  assert_eq!(check_mapping(&mapping("Simple", "registered", "local-model", Some(2048))), Ok(()));
   assert_eq!(
     check_mapping(&mapping("Huge", "codex", "m", None)).unwrap_err(),
     "Unknown model tier: Huge"
@@ -23,7 +23,7 @@ fn a_mapping_is_held_to_what_holds_whoever_its_provider_is() {
     "Invalid model identifier"
   );
   assert_eq!(
-    check_mapping(&mapping("Simple", "registered", "j3090", Some(3000))).unwrap_err(),
+    check_mapping(&mapping("Simple", "registered", "local-model", Some(3000))).unwrap_err(),
     "Unsupported answer token ceiling"
   );
 }

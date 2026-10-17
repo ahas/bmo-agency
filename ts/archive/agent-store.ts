@@ -1,6 +1,6 @@
 // The archive's `agents`, `legacy_chat_agents`, `bmo_rooms`, `bmo_session_rooms` and
 // `bmo_room_contexts` tables, read and written here and nowhere else in the archive
-// (docs/archive-schema.md, 「The query stores」).
+// (docs/store.md).
 
 import { archiveSeeds } from "./archive-seeding";
 import { chatAgentConversation, companionConversation, conversationOf, defaultAnswerer, isCompanion } from "./conversational";
@@ -449,7 +449,7 @@ export class AgentStore {
 
   // Every worker, the built-in first and the rest by name, each base followed by its support workers
   // in their order, which is the order a list of them reads in. A resting worker is no worker of
-  // this list (`docs/jobs.md`, 「There can be more than one job worker」).
+  // this list.
   async listWorkers(): Promise<AgentRecord[]> {
     const rows = await this.sql.all(`
         SELECT a.* FROM agents a WHERE a.kind = 'worker' AND ${await this.awake("a.")}
@@ -598,7 +598,8 @@ export class AgentStore {
     });
   }
 
-  // Whether the chat agent keeps one session across every room it answers (docs/unified-bmo.md).
+  // Whether the chat agent keeps one session across every room it answers (docs/agents.md, 「The session's
+  // scope」).
   async isBmoUnified(): Promise<boolean> {
     return await this.oneSessionAgent() !== null;
   }

@@ -1,5 +1,5 @@
 // The archive's `worker_sessions` and `branch_agents` tables, read and written here and nowhere
-// else in the archive (docs/archive-schema.md, 「The query stores」).
+// else in the archive (docs/store.md).
 
 import { SEED_ACCOUNT_ID } from "./account-seed";
 import type { AgentProviderName as AgentMode } from "./provider-names";

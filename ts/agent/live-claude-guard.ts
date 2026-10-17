@@ -12,8 +12,7 @@ import { basename, join, resolve, sep } from "node:path";
 import { REFUSED_LOG, TEST_HOME_VARIABLE } from "@agency/support/roots";
 import { runNameOf, turnEnvironment } from "./agent-place";
 
-// Where a Claude Code session is opened, and who may open one (`docs/live-claude-guard.md`,
-// `docs/test-suite.md`).
+// Where a Claude Code session is opened, and who may open one (`docs/live-claude-guard.md`).
 //
 // A session opened afresh, or a session record copied and continued, writes its whole prefix and
 // conversation to the cache again. The bot opens sessions as its own work and knows what they cost.
@@ -95,7 +94,7 @@ export async function launchRefusal(
       return null;
     }
 
-    return `a test was about to start ${found}, the machine's own ${basename(program)}; a test starts only the stand-in in its own home or a fake of its own (docs/test-suite.md)`;
+    return `a test was about to start ${found}, the machine's own ${basename(program)}; a test starts only the stand-in in its own home or a fake of its own`;
   }
 
   if (basename(program) !== "claude" || !sessionLines.has(line)) {
@@ -118,7 +117,7 @@ export function socketRefusal(socket: string, env: Env = process.env): string | 
     return null;
   }
 
-  return `a test was about to reach the herdr at ${socket}; a test reaches only a stand-in under its own home or the temporary directory (docs/test-suite.md)`;
+  return `a test was about to reach the herdr at ${socket}; a test reaches only a stand-in under its own home or the temporary directory`;
 }
 
 // Why a call to herdr is refused in a job, or nothing: a call that puts words or keys into a pane, and

@@ -1,5 +1,5 @@
 // The archive port: what every store is handed to reach its tables, whichever database stands
-// under it (docs/rust-migration.md, 「The archive port」). Every statement answers a promise and
+// under it (docs/store.md). Every statement answers a promise and
 // every transaction is an async unit of work, so a store reads the same over each adapter.
 
 /** A value a statement may be given for one of its parameters. */
@@ -70,7 +70,7 @@ export interface ArchiveSql {
   /**
    * Several statements as one commit. Every statement any store of this archive runs inside
    * `work` is part of it, and a statement run beside it waits for it to end; the whole is run
-   * again where the database refused it for a lock another writer held (docs/archive-locks.md).
+   * again where the database refused it for a lock another writer held.
    */
   transaction<T>(work: () => Promise<T>): Promise<T>;
   /**
@@ -88,7 +88,7 @@ export interface ArchiveSql {
    * A table or a column the code makes for itself outside the settling, named by `what` and made by
    * `statement`, where `stands` says it is missing. A database whose shape the code settles runs the
    * statement; one whose shape is its migrations' never does, since the runtime's role there makes
-   * nothing, and refuses a missing one by name (docs/archive-schema.md, 「The query stores」).
+   * nothing, and refuses a missing one by name (docs/store.md).
    */
   makeMissing(what: string, stands: boolean, statement: string): Promise<void>;
   /** Whether the work asking runs inside a transaction of this archive. */

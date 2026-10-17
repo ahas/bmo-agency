@@ -25,3 +25,21 @@ fn each_role_gives_its_bundles_and_every_bundle_a_role_names_is_declared() {
     }
   }
 }
+
+#[test]
+fn each_kind_holds_a_declared_role_where_its_writer_names_none() {
+  let kinds: Vec<(&str, &str)> =
+    ROLES.kinds.iter().map(|(kind, role)| (kind.as_str(), role.as_str())).collect();
+
+  assert_eq!(
+    kinds,
+    [
+      ("chat", "chat"),
+      ("gate", "gate"),
+      ("recollector", "recollector"),
+      ("runner", "searcher"),
+      ("worker", "worker"),
+    ]
+  );
+  assert!(ROLES.kinds.values().all(|role| ROLES.holds(role)));
+}

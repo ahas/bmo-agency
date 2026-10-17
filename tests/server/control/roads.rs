@@ -6,7 +6,7 @@ fn a_road_is_the_walk_a_provider_or_laya() {
     assert!(is_route_mode(mode), "{mode}");
   }
 
-  assert!(!is_route_mode("j3090"));
+  assert!(!is_route_mode("retired"));
   assert!(!is_route_mode("on"));
 }
 

@@ -1,7 +1,6 @@
-// The launcher's side of the tool host (docs/mcp-host.md, 「The session record」, 「When the host is not
-// there」): a run's session record built out of its line and its command, a token issued for it over
-// the host's local socket before anything starts, and revoked when the run ends. A host that does
-// not answer refuses the launch, naming itself and its socket.
+// The launcher's side of the tool host: a run's session record built out of its line and its command, a
+// token issued for it over the host's local socket before anything starts, and revoked when the run ends. A
+// host that does not answer refuses the launch, naming itself and its socket.
 
 import { storeAddress } from "@agency/archive/archive-place";
 import { lineCapabilities } from "./line-declarations";
@@ -71,10 +70,10 @@ export function toolHostUrl(namespace: string): string {
 export const TOOL_HOST_AUTHORIZATION = `Bearer \${${MCP_TOKEN_VARIABLE}}`;
 
 /**
- * How long a program waits on one call of the tool host before giving it up, in seconds: past the longest call the
- * host carries, a launching tool called in sync waiting for its run (docs/chat-mcp.md, 「Sync and async」). Codex's
- * and dsh's own defaults give a call up after a minute, and a client that gave up first would lose a result the
- * call had already taken from the next turn.
+ * How long a program waits on one call of the tool host before giving it up, in seconds: past the longest
+ * call the host carries, a launching tool called in sync waiting for its run. Codex's and dsh's own
+ * defaults give a call up after a minute, and a client that gave up first would lose a result the call had
+ * already taken from the next turn.
  */
 export const TOOL_HOST_WAIT_SECONDS = 240;
 
@@ -110,10 +109,10 @@ function present(value: string | undefined): string | undefined {
 }
 
 /**
- * A run's record: its line, its agent's role and the capabilities its line declares with what that
- * role grants, less what its own settings withhold; the directory it works in, which is the checkout the graph is read
- * from; the data root and archive it reads; the place and the run's own variables its calls read their
- * turn from; its desk and its research settings; and how long it may stand.
+ * A run's record: its line, its agent's role and the capabilities its line declares with what that role
+ * grants, less what its own settings withhold; the directory it works in, which is the checkout the graph
+ * is read from; the data root and archive it reads; the place and the run's own variables its calls read
+ * their turn from; its desk and its research settings; and how long it may stand.
  */
 export async function toolSessionRecord(line: string, command: ToolRecordRun, deadline?: number): Promise<ToolSessionRecord> {
   const env = command.env;
@@ -178,8 +177,8 @@ export async function issueToolToken(record: ToolSessionRecord, options: { socke
 }
 
 /**
- * What a namespace's owner says of it beside its tools, as the tool host hands it on (docs/mcp-host.md, 「What
- * a namespace says of itself」); null where the host does not answer or the namespace says nothing.
+ * What a namespace's owner says of it beside its tools, as the tool host hands it on; null where the host
+ * does not answer or the namespace says nothing.
  */
 export async function namespaceFacts(namespace: string, options: { socket?: string } = {}): Promise<Record<string, unknown> | null> {
   try {
@@ -225,11 +224,11 @@ export function toolAnswerText(answer: ToolAnswer): string {
 }
 
 /**
- * A tool's entry called for the system on the host's control socket (docs/mcp-host.md, 「The catalogue on the
- * control socket」), under the record `bmo tool call` writes: a shell's line holding the entry's own
- * capabilities, privileged, over this process's data root and archive. An entry the host does not serve, or a host
- * that does not answer, throws; a refusal or a failure of the entry is its answer, marked as an error. A call
- * aborted before it answers hangs up on the host, which ends every process the call started.
+ * A tool's entry called for the system on the host's control socket, under the record `bmo tool call`
+ * writes: a shell's line holding the entry's own capabilities, privileged, over this process's data root
+ * and archive. An entry the host does not serve, or a host that does not answer, throws; a refusal or a
+ * failure of the entry is its answer, marked as an error. A call aborted before it answers hangs up on the
+ * host, which ends every process the call started.
  */
 export async function callToolEntry(
   tool: string,

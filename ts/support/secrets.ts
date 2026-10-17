@@ -60,7 +60,7 @@ const secretName = /^(?:[a-z0-9_.-]*[_.-])?(?:password|passwd|pwd|secret|token|a
 // value came from and takes the value itself. A shape may begin only where its name begins — at the
 // start of a word, or within a bounded reach of what it names — never at every character of one: a
 // picture handed back is a single word hundreds of thousands of characters long, and a shape tried
-// afresh from each of them is searched to its end each time (docs/web.md, 「What a line never carries」).
+// afresh from each of them is searched to its end each time.
 const shapes: [RegExp, string][] = [
   // An authorization header, whichever scheme it carries. The scheme stands as a word of its own:
   // a word that merely ends in one of these, `--token` among them, is a flag and is taken below.

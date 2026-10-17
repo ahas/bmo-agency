@@ -40,8 +40,6 @@ describe("what the archive keeps", () => {
       // Nothing pins this key to a login, so its runs walk the account order.
       account: null,
       claudeModel: null,
-      j3090Model: null,
-      j3090Thinking: null,
       codexModel: "gpt-5.6-terra",
       codexEffort: "high",
       openrouterModel: stand,

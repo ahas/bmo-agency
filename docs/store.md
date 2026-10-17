@@ -103,3 +103,6 @@ seeds. The other crates and the server reach the store only through it.
   pause, for a minute or what `AGENCY_STORE_RECONNECT_MS` names.
 - **Every number is bound at its widest,** a whole number as a 64-bit integer and a fraction as a
   double, so a statement prepared once takes every later value.
+- **The TypeScript side's transactions write one at a time:** each takes one transaction-scoped
+  advisory lock as it begins and holds it until it ends, whichever process of agency's opened it, so a
+  transaction reads what the one before it wrote.

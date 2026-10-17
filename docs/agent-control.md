@@ -2876,9 +2876,7 @@ Digest scheduler, digest-now and people-digest fan-out also refuse herdr launch 
 | Worker warming and compaction | agency's server's keepalive pass and worker fold: a turn into the worker's resident program |
 | Worker keepalive and branch-prefix warming | agency's server's keepalive pool: a turn into the place's resident program |
 | Chat turns and chat compaction | agency's server's conversations: a turn through the chat agent's resident door, or a stand-in road run in the agent's host |
-| Gates | `ts/agent/claude.ts` → `spawnAgentProcess`, in the agent's host |
-| A request with no tools on a registration | `ts/agent/own-llm-call.ts` → `spawnAgentProcess` running `bmo-agency own-llm-call` |
-| Gates the server carries | The server's gate run → its run in the agent's host, an own service's request as `bmo-agency own-llm-call` there |
+| Gates | the gate unit's own runs; agency's TypeScript side starts none |
 | Runner, editor and briefing coordinators | `launchDetachedExecution`, in the agent's host |
 
 The remaining `systemd-run` constructors are task/co-work coordination, deployment

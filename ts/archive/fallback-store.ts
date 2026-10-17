@@ -19,8 +19,6 @@ export interface FallbackRouteRow {
   // key pinned to one login runs on that login alone and is not carried to another.
   account: string | null;
   claudeModel: string | null;
-  j3090Model: string | null;
-  j3090Thinking: boolean | null;
   codexModel: string | null;
   codexEffort: string | null;
   openrouterModel: string | null;
@@ -48,12 +46,10 @@ interface FallbackRouteDbRow {
   routeMode: string;
   account: string | null;
   claudeModel: string | null;
-  j3090Model: string | null;
   codexModel: string | null;
   codexEffort: string | null;
   openrouterModel: string | null;
   setAt: number;
-  j3090Thinking: number | null;
 }
 
 interface FallbackSessionDbRow {
@@ -73,8 +69,6 @@ function fallbackRouteOf(row: FallbackRouteDbRow): FallbackRouteRow {
     routeMode: isFallbackRouteMode(row.routeMode) ? row.routeMode : "auto",
     account: row.account,
     claudeModel: row.claudeModel,
-    j3090Model: row.j3090Model,
-    j3090Thinking: row.j3090Thinking == null ? null : Boolean(row.j3090Thinking),
     codexModel: row.codexModel,
     codexEffort: row.codexEffort,
     openrouterModel: row.openrouterModel,
@@ -86,8 +80,7 @@ function fallbackRouteOf(row: FallbackRouteDbRow): FallbackRouteRow {
 // merged at the edge that needs them, so an untouched choice follows a benchmark-default
 // update while an owner's choice stays put.
 const fallbackRoutesSql = `
-  SELECT key, route_mode AS "routeMode", claude_model AS "claudeModel", j3090_model AS "j3090Model",
-         j3090_thinking AS "j3090Thinking",
+  SELECT key, route_mode AS "routeMode", claude_model AS "claudeModel",
          codex_model AS "codexModel", codex_effort AS "codexEffort",
          openrouter_model AS "openrouterModel", set_at AS "setAt"
   FROM fallback_routes ORDER BY key
@@ -103,8 +96,7 @@ export class FallbackStore {
 
   async fallbackRoute(key: string): Promise<FallbackRouteRow | null> {
     const row = await this.sql.get(`
-        SELECT key, route_mode AS "routeMode", account, claude_model AS "claudeModel", j3090_model AS "j3090Model",
-               j3090_thinking AS "j3090Thinking",
+        SELECT key, route_mode AS "routeMode", account, claude_model AS "claudeModel",
                codex_model AS "codexModel", codex_effort AS "codexEffort",
                openrouter_model AS "openrouterModel", set_at AS "setAt"
         FROM fallback_routes WHERE key = ?
@@ -187,15 +179,14 @@ export class FallbackStore {
   }
 
   // A row that says nothing the key's defaults do not is removed, so the key follows its profile
-  // again. The mode compared is the key's own default: a gate that starts on J3090 and was put on
-  // auto keeps a row saying so.
+  // again. The mode compared is the key's own default: a gate that starts on the registry's provider and
+  // was put on auto keeps a row saying so.
   private async deleteEmptyFallbackRoute(key: string): Promise<void> {
     return await this.sql.wrote(async () => {
       await this.sql.run(`
           DELETE FROM fallback_routes
           WHERE key = ? AND codex_model IS NULL AND codex_effort IS NULL
-            AND openrouter_model IS NULL AND claude_model IS NULL AND j3090_model IS NULL
-            AND j3090_thinking IS NULL
+            AND openrouter_model IS NULL AND claude_model IS NULL
             AND account IS NULL
             AND route_mode = ?
         `, key, this.defaultRouteModeOf(key));

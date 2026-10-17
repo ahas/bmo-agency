@@ -1,5 +1,5 @@
 // The archive's `claude_accounts` table, read and written here and nowhere else in the archive
-// (docs/archive-schema.md, 「The query stores」).
+// (docs/store.md).
 
 import type { ArchiveSql } from "./archive-sql";
 
@@ -18,7 +18,7 @@ export interface ClaudeAccountRow {
   // Null while it is standing, which is every account's ordinary state.
   needsLoginAt: number | null;
   // The user whose account it is once the multi-user model is in force; null on the file
-  // (docs/rust-migration.md, 「What is whose」).
+  // (docs/store.md).
   userId: number | null;
 }
 

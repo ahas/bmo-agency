@@ -1,5 +1,5 @@
 // The archive's `settings` table, read and written here and nowhere else in the archive
-// (docs/archive-schema.md, 「The query stores」).
+// (docs/store.md).
 
 import { takeLockTally, keptThroughLock } from "./archive-lock";
 import type { LockTally } from "./archive-lock";
@@ -21,10 +21,10 @@ interface SettingKeyRow {
 
 const modeSettingKey = "mode";
 // The switch for the whole voice briefing: `off` refuses every briefing, and anything else — the
-// row missing included — leaves it on (docs/voice-briefing.md, 「The switch」).
+// row missing included — leaves it on.
 const voiceBriefingKey = "voice_briefing";
 // Whether a listener plays a briefing by itself: `off` leaves it to a press, and anything else — the
-// row missing included — plays it (docs/voice-briefing.md, 「Playing by itself」).
+// row missing included — plays it.
 const voiceAutoplayKey = "voice_briefing_autoplay";
 
 const defaultMode: BotMode = "owner_only";
@@ -74,8 +74,8 @@ export class SettingStore {
    * the retries carried through leave no trace at all, so a day of constant contention that cost
    * nothing reads exactly like a quiet one, and how often it happens stays a feeling.
    *
-   * One row per day, so the counts can be read against the days the work was heavy
-   * (docs/archive-locks.md). A row this cannot write is a row about the lock lost to the lock,
+   * One row per day, so the counts can be read against the days the work was heavy.
+   * A row this cannot write is a row about the lock lost to the lock,
    * which is not worth holding anything up for.
    */
   async recordLockWaits(at: number = Date.now()): Promise<LockTally | null> {
@@ -149,9 +149,8 @@ export class SettingStore {
     await this.setSetting(voiceAutoplayKey, on ? "on" : "off");
   }
 
-  // A machine's live tracking, under the name the hardware monitor knows it by (docs/hardware.md,
-  // 「Tracking」): `off` stops its reading, and anything else — the row missing included — leaves it
-  // read.
+  // A machine's live tracking, under the name the hardware monitor knows it by: `off` stops its reading,
+  // and anything else — the row missing included — leaves it read.
   async hardwareTrackingOn(machine: string): Promise<boolean> {
     return await this.getSetting(hardwareTrackingKey(machine)) !== "off";
   }
@@ -161,14 +160,14 @@ export class SettingStore {
   }
 
   // The CPU limit set for a machine, in degrees, which stands over the one its chip names; null where
-  // none is set (docs/hardware.md, 「Temperature limits」). The control port writes it.
+  // none is set. The control port writes it.
   async hardwareCpuLimit(machine: string): Promise<number | null> {
     const value = Number.parseFloat(await this.getSetting(hardwareCpuLimitKey(machine)) ?? "");
 
     return Number.isFinite(value) ? value : null;
   }
 
-  // An agent's own switch for one gate its turns pass (docs/gates.md, 「Each agent's own gates」):
+  // An agent's own switch for one gate its turns pass:
   // `off` keeps the gate out of that agent's turns, and anything else — the row missing included —
   // leaves it in.
   async agentGateOn(agent: string, gate: string): Promise<boolean> {

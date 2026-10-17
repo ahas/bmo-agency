@@ -1,5 +1,5 @@
 // The archive's `runs`, `agent_log` and `run_records` tables, read and written here and nowhere
-// else in the archive (docs/archive-schema.md, 「The query stores」).
+// else in the archive (docs/store.md).
 
 import { deploymentNames } from "@agency/support/names";
 import type { AgentStore } from "./agent-store";
@@ -22,7 +22,7 @@ export interface NewRun {
   // agent's turn did, and then the result goes to the room's voice.
   askedBy?: string | null;
   // The process that is the run, named only by a run opening its own row: a launcher opening a row
-  // for a unit it is about to start does not know that process yet (docs/live-state.md).
+  // for a unit it is about to start does not know that process yet.
   process?: RunProcess | null;
   // Which step of a series its opener planned this run is, for a run that is one.
   step?: RunStep | null;
@@ -159,7 +159,7 @@ export class RunStore {
     // The line's place in its job is read and then written, which is the one shape the busy wait
     // does not cover, and this is the archive's busiest writer by far — a job at work writes one of
     // these a second while the bot writes its own. So the two statements are one transaction, and a
-    // transaction the lock refused is run again rather than lost (docs/archive-locks.md).
+    // transaction the lock refused is run again rather than lost.
     return await this.sql.wrote(async () => this.appendedAgentLog(line));
   }
 

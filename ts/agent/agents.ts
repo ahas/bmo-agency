@@ -48,8 +48,7 @@ export function browseMcpConfigPath(): string {
   return join(runnerCwd("browse"), ".mcp.json");
 }
 
-// Every line's configuration names the tool host's namespaces its line uses (docs/mcp-host.md, 「The
-// configuration」).
+// Every line's configuration names the tool host's namespaces its line uses.
 function linePath(name: string): string {
   return join(deployRoot(), `${name}.mcp.json`);
 }
@@ -61,7 +60,7 @@ export function hostServer(namespace: string): Record<string, unknown> {
 }
 
 // Every line is handed the toolbook beside its namespaces, at the end, where it reaches the tools its
-// namespaces do not list (docs/toolbook.md).
+// namespaces do not list.
 function mcpFile(servers: Record<string, unknown>): string {
   return `${JSON.stringify({ mcpServers: { ...servers, toolbook: hostServer("toolbook") } }, null, 2)}\n`;
 }
@@ -83,8 +82,8 @@ export async function workerMcpConfig(): Promise<string> {
   return mcpFile({ web: hostServer("web"), worker: hostServer("worker") });
 }
 
-// The chat line's configuration, every conversational agent's: agency's own namespace alone (docs/chat-mcp.md,
-// docs/agents.md). An agent on it reaches the web through the runners it launches, never by a web tool
+// The chat line's configuration, every conversational agent's: agency's own namespace alone
+// (docs/agents.md). An agent on it reaches the web through the runners it launches, never by a web tool
 // of its own. It names nothing per room, per turn or per agent — these bytes stand in every session's
 // prefix — so what a call is about is read by the host for each call, out of the run's session record.
 export function chatMcpConfigPath(): string {
@@ -95,7 +94,7 @@ export async function chatMcpConfig(): Promise<string> {
   return mcpFile({ bmo: hostServer("bmo") });
 }
 
-// The editor line's configuration: the fragment tool alone (docs/fragments.md). Every run is handed
+// The editor line's configuration: the fragment tool alone. Every run is handed
 // the standing file, its desk named in its session record.
 export function editorMcpConfigPath(): string {
   return linePath("editor");
@@ -181,9 +180,9 @@ export function documentWriter(instructions: string): string {
   return [rulebook("document-writing"), rulebook("plain-writing"), instructions].join("\n\n");
 }
 
-// The rulebook every agent that acts — the chat agent, the workers and their co-workers, the editors and the
-// runners — is given, forbidding it to destroy the system it runs in. A gate holds no tool and is
-// not given it.
+// The rulebook every agent that acts — the chat agent, the workers and their co-workers, the editors and
+// the runners — is given, forbidding it to destroy the system it runs in. A gate holds no tool and is not
+// given it.
 export const selfPreservation = "self-preservation";
 
 // The rulebook every recollector reads: whose memory it writes, from whose view, and what is shared.
@@ -286,7 +285,7 @@ export const peopleSelectionCap: number = gatePrompts.people_search.cap;
 
 // The three reference gates read one instruction file each, under their own name. They are told
 // no ceiling: each answers yes or no for every candidate it is offered, and what a turn may carry
-// is a size rather than a count (`docs/reference-selection.md`). Which gate it is is all that
+// is a size rather than a count. Which gate it is is all that
 // differs, so it is a parameter rather than three functions saying the same thing.
 export function referenceGateSystem(gate: string): string {
   return agentFile(gate, "instructions.md");
@@ -306,7 +305,7 @@ export function peopleStandingSystem(): string {
 
 // The matcher reads one instruction file of its own, under its own name. It is not one of the
 // three, so it is not in their loop: it asks two questions of every rule rather than one, and its
-// candidates are the rows of a table rather than an index's lines (`docs/situation-rules.md`).
+// candidates are the rows of a table rather than an index's lines.
 export function situationRulesSystem(): string {
   return agentFile("situation-rules", "instructions.md");
 }
@@ -355,7 +354,7 @@ export function browseSystem(): string {
 
 // How to ask the code dependency graph, in the one wording every agent that reads this code is
 // given: the job's trailer opens with it, every work-order step closes with it, and a pooled native
-// `Agent` call has it appended to its prompt (docs/graph.md 「Where the graph is handed over」).
+// `Agent` call has it appended to its prompt.
 export function workerGraph(): string {
   return agentFile("worker", "graph.md").trim();
 }

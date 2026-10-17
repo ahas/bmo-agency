@@ -1,6 +1,5 @@
 // One archive file, many writers: the bot, the web console, every script a job runs. SQLite lets
-// one of them write at a time, and this is the whole of how the rest behave while it does
-// (docs/archive-locks.md).
+// one of them write at a time, and this is the whole of how the rest behave while it does.
 
 import type { Database } from "bun:sqlite";
 import { AsyncLocalStorage } from "node:async_hooks";
@@ -51,8 +50,7 @@ const syncLevels = new Set(["off", "normal", "full", "extra"]);
 // How far a commit waits for the disk: the level the environment names where it is one SQLite
 // knows, and `normal` otherwise. In WAL mode `normal` leaves the waiting to the checkpoint, since a
 // sync on a disk something else is writing to can hold one commit, and the write lock with it, for
-// seconds; a run whose archives are thrown away with their directory may name `off`
-// (docs/archive-locks.md).
+// seconds; a run whose archives are thrown away with their directory may name `off`.
 function archiveSyncLevel(): string {
   const level = process.env.BMO_ARCHIVE_SYNC?.trim().toLowerCase() ?? "";
 
@@ -217,7 +215,7 @@ export async function keptThroughLock<T>(what: string, work: () => Promise<T>, o
   }
 }
 
-// The settling's transaction over a bare connection (docs/archive-schema.md): taken immediate and
+// The settling's transaction over a bare connection (docs/store.md): taken immediate and
 // run again where the lock refused it, as every transaction of the archive is. SQLite will not let
 // a transaction that has already read wait for the lock — it refuses on the spot rather than hold a
 // read while it queues — so a deferred transaction is one the busy wait never covers at all.

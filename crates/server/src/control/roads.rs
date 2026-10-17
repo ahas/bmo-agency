@@ -228,8 +228,7 @@ async fn delete_if_empty(db: &DatabaseConnection, key: &str) -> Result<(), Refus
   run(
     db,
     "DELETE FROM fallback_routes WHERE key = $1 AND codex_model IS NULL AND codex_effort IS NULL
-       AND openrouter_model IS NULL AND claude_model IS NULL AND j3090_model IS NULL
-       AND j3090_thinking IS NULL AND account IS NULL AND route_mode = $2",
+       AND openrouter_model IS NULL AND claude_model IS NULL AND account IS NULL AND route_mode = $2",
     vec![key.into(), default_mode(key).into()],
   )
   .await?;

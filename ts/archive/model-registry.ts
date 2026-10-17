@@ -33,8 +33,7 @@ export interface Registration {
   waitSeconds: number;
   thinking: boolean;
   walked: boolean;
-  // Whether a search or a browse a run on it sets off runs on it as well, opening no branch
-  // (docs/research-runs.md, 「A research run set off on a registration」).
+  // Whether a search or a browse a run on it sets off runs on it as well, opening no branch.
   keepsResearch: boolean;
   addresses: RegisteredAddress[];
 }
@@ -190,7 +189,7 @@ interface AddressRow {
 /**
  * The registry's tables made over an archive being settled and, the first time, its seeds given.
  * Only the archive's settling calls it; an ordinary open reads the tables as they stand
- * (docs/archive-schema.md).
+ * (docs/store.md).
  */
 export function settleModelRegistry(db: Database, seeds: readonly RegistrationSeed[], now: number = Date.now()): void {
   db.transaction(() => {
@@ -288,7 +287,7 @@ function seedAddress(db: Database, name: string, address: AddressInput): void {
 
 /**
  * The registry. Its tables and its seeds are written only by `settleModelRegistry`, which the
- * archive's settling calls; an ordinary open reads them as they stand (docs/archive-schema.md).
+ * archive's settling calls; an ordinary open reads them as they stand (docs/store.md).
  */
 export class ModelRegistryStore {
   constructor(private readonly sql: ArchiveSql) {}

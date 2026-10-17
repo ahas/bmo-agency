@@ -6,10 +6,9 @@ export type LayaMode = "off" | "shadow" | "filter" | "asymmetric";
 import type { Sampling } from "./harness";
 import type { FallbackRouteMode } from "@agency/archive/route-modes";
 
-// What a work key's profile is: the defaults a piece of work runs on where its owner has chosen
-// nothing. The profiles themselves — which work keys there are, what each is called and where each
-// starts — are the deployment's own, handed to whatever reads them (docs/packages.md, 「Base — what
-// another agent could be built from」). Routes are configured for work, not for whichever model
+// What a work key's profile is: the defaults a piece of work runs on where its owner has chosen nothing.
+// The profiles themselves — which work keys there are, what each is called and where each starts — are the
+// deployment's own, handed to whatever reads them. Routes are configured for work, not for whichever model
 // happens to do that work today, so a launch-model change never silently moves another work's road.
 
 // The route modes a key may take stand with the archive, which stores them (`route-modes.ts`).
@@ -52,22 +51,20 @@ export interface WorkProfile<Key extends string = string, Kind extends string = 
   // thinking is written out of the same room before the answer, so a work whose answer is a whole
   // document needs room for both; none leaves `answerFloor` alone.
   thinkingAnswerFloor?: number;
-  // The Laya mode of a gate that declares a Laya probe, where the owner has chosen none
-  // (docs/laya.md, 「Mode and τ per gate」). A gate without one has no probe, and no mode but off is
+  // The Laya mode of a gate that declares a Laya probe, where the owner has chosen none.
+  // A gate without one has no probe, and no mode but off is
   // taken for it.
   layaMode?: LayaMode;
   // Whether Laya may be this gate's provider: its probe reads every verdict the gate gives, and the
   // gate names the verdict it takes when Laya gives none. Only such a gate is offered Laya.
   layaRoad?: true;
   // Whether Laya settles this gate one question at a time: its probe says how its input narrows to
-  // some of its questions and how two parts of a verdict join (docs/laya.md, 「A gate settled one
-  // question at a time」). Its agreement is counted by question.
+  // some of its questions and how two parts of a verdict join. Its agreement is counted by question.
   layaEach?: true;
-  // Whether its probe names a safe verdict, which is what lets it be filtered asymmetrically
-  // (docs/laya.md, 「Mode and τ per gate」).
+  // Whether its probe names a safe verdict, which is what lets it be filtered asymmetrically.
   layaSafe?: true;
   // Whether the owner may switch this gate off: its caller has a way of its own without it, so a
-  // gate switched off is simply not asked (docs/gates.md). Every other gate always runs.
+  // gate switched off is simply not asked. Every other gate always runs.
   switchable?: true;
   // Whether its turns are asked about a session rather than held as one, so a turn of it leaves
   // nothing behind to continue or warm, whichever road carried it.

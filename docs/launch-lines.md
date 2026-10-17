@@ -6,8 +6,8 @@
   permission mode and allow list, what of this machine's configuration it reads, how its system
   prompt is delivered, and its environment.
 - **Where the lines are:** agency's server's `lines` module — the chat, a companion's turn, the job
-  worker, the editors and the runners — and its gate run; the gate run of `ts/agent/claude.ts` is
-  the run of a TypeScript verb that asks a gate on its own. The interactive program an agent keeps
+  worker, the editors and the runners. A gate's judgement is the gate unit's to run, on the gate line
+  described below; agency's TypeScript side runs none. The interactive program an agent keeps
   standing in its pane is built from those same lines by the Claude Code surface in
   `ts/agent/claude-code.ts` (`docs/agent-control.md`, 「The interactive surface a
   provider declares」).
@@ -164,7 +164,7 @@
   to fold the session in place, on the same prefix its turns stand on. There is no separate fold
   line for the chat. A turn that finds no pane to stand the program in, herdr down, fails as a
   transport failure and is run in no other shape.
-- **Gate runs** (`runGateModel`): the reading gate that
+- **Gate runs**, which the gate unit carries: the reading gate that
   writes a line the way a Korean voice says it before a briefing is spoken, and the translator that
   renders a document the console's document viewer shows into its other language, and what reaches a
   job worker into English, on Sonnet 5; the
@@ -180,9 +180,7 @@
   content; the rulebook against destroying the system is not among them, since a gate holds no tool to
   act with. No tools at all, no settings but the pool slot's own status line and hooks, no MCP, no
   Chrome, and no session named: the program opens its own, and `/clear` opens the next after every
-  judgement (`gates.md`, 「A gate on Claude Code」). A gate a TypeScript verb asks on Claude Code
-  is handed to the server binary's gate run, `bmo-agency gate-run -`, its
-  request on standard input, and goes into the same pool. The reference gates
+  judgement (`gates.md`, 「A gate on Claude Code」). The reference gates
   and the person-book search run with thinking off: picking slugs out of an index needs none,
   and the thinking was what pushed those runs past their timeout.
   Four of them are kept warm and the rest are not: a prefix held open for a gate that runs only

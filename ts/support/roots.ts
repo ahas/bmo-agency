@@ -48,7 +48,7 @@ export function assetRoot(): string {
 export const TEST_HOME_VARIABLE = "BMO_TEST_HOME";
 
 // The variables that move a root, each read here alone. Every one of them is heard only where it is
-// set and not empty, which is how the test preload takes a caller's away (docs/test-suite.md).
+// set and not empty, which is how the test preload takes a caller's away.
 export const rootVariables = { source: "BMO_SOURCE_DIR", deploy: "BMO_DEPLOY_DIR", data: "BMO_DATA_DIR" } as const;
 
 // The variable a resident program is started with to say which place it answers to. Its environment
@@ -111,7 +111,7 @@ export function deployRoot(): string {
 /**
  * The deploy tree's link, which everything standing beside the tree is found from: the deploy tree
  * itself, or, where `BMO_DEPLOY_DIR` names one of its releases — as a job carries the release it was
- * launched on — the link that release stands under (docs/deploy.md, 「The releases」).
+ * launched on — the link that release stands under.
  */
 export function deployLink(): string {
   const deploy = deployRoot();
@@ -135,7 +135,7 @@ function realPath(path: string): string {
 
 /**
  * Whether a working tree is one of the deployment's own: the release the deploy tree's link names or
- * any other beside it, or the build tree (docs/deploy.md, 「The six directories」). Compared by real
+ * any other beside it, or the build tree. Compared by real
  * path, since a process started through the link stands in the release it names.
  */
 export function isDeploymentTree(tree: string): boolean {
@@ -160,8 +160,7 @@ export function agentsRoot(): string {
  * The tree a script is run out of when what it starts must be the code the suite passed: the deploy
  * tree where it holds that script, and the code root on a machine with no deployment — a test, or a
  * checkout run on its own. A script named here and run out of the checkout would put whatever the
- * checkout holds this minute into service before any deployment had tried it (docs/deploy.md, 「When
- * the deploy tree is behind the checkout」).
+ * checkout holds this minute into service before any deployment had tried it.
  */
 export function deployedTree(script: string): string {
   return existsSync(join(deployRoot(), script)) ? deployRoot() : codeRoot;
@@ -216,7 +215,7 @@ export function testDataRootFault(root: string, live: string | null, env: Record
     return null;
   }
 
-  return `a test reached for the live runtime data root: ${resolve(root)} is inside ${live}; a test names a data root under the temporary directory (docs/test-suite.md)`;
+  return `a test reached for the live runtime data root: ${resolve(root)} is inside ${live}; a test names a data root under the temporary directory`;
 }
 
 /** Where the runtime bytes live. A test asking for the machine's own is refused by a throw. */

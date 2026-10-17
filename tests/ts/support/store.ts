@@ -99,6 +99,33 @@ function template(): Promise<string> {
   return made;
 }
 
+// How long a copy's drop waits out a worker of the server's own that holds it, and how often it tries again.
+const dropWithinMs = 15_000;
+const dropEveryMs = 250;
+
+// A copy dropped. The force that ends every connection to it cannot end a background worker of the server's
+// own — an autovacuum worker that opened the fresh copy, say — which holds it for a moment and is named by no
+// role; the drop waits that out and tries again, and says who held it where it never gets through.
+async function dropped(sql: PostgresClient, name: string): Promise<void> {
+  const until = Date.now() + dropWithinMs;
+
+  for (;;) {
+    try {
+      await sql.unsafe(`DROP DATABASE IF EXISTS "${name}" WITH (FORCE)`);
+      return;
+    } catch (error) {
+      const held = await sql.unsafe("SELECT usename::text AS role, backend_type AS kind FROM pg_stat_activity WHERE datname = $1", [name]) as { role: string | null; kind: string }[];
+      const workers = held.length > 0 && held.every((one) => one.role === null);
+
+      if (!workers || Date.now() >= until) {
+        throw new Error(`${name} could not be dropped while ${JSON.stringify(held)} held it: ${String(error)}`);
+      }
+
+      await Bun.sleep(dropEveryMs);
+    }
+  }
+}
+
 // A database of the test's own made from `from`, dropped when the file that asked is done; its address.
 async function copyOf(from: string): Promise<string> {
   copies += 1;
@@ -106,15 +133,7 @@ async function copyOf(from: string): Promise<string> {
   const name = `${COPY}${process.pid}_${copies}`;
 
   await onServer((sql) => sql.unsafe(`CREATE DATABASE "${name}" TEMPLATE "${from}" ENCODING 'UTF8' LC_COLLATE 'C' LC_CTYPE 'C'`));
-  afterAll(() => onServer(async (sql) => {
-    try {
-      await sql.unsafe(`DROP DATABASE IF EXISTS "${name}" WITH (FORCE)`);
-    } catch (error) {
-      const held = await sql.unsafe("SELECT usename::text AS role, application_name AS program, client_addr::text AS address, backend_start::text AS since FROM pg_stat_activity WHERE datname = $1", [name]);
-
-      throw new Error(`${name} could not be dropped while ${JSON.stringify(held)} held it: ${String(error)}`);
-    }
-  }));
+  afterAll(() => onServer((sql) => dropped(sql, name)));
 
   return addressOf(name);
 }

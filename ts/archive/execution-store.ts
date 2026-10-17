@@ -1,5 +1,5 @@
 // The archive's `agent_executions` and `execution_attempts` tables, read and written here and
-// nowhere else in the archive (docs/archive-schema.md, 「The query stores」).
+// nowhere else in the archive (docs/store.md).
 
 import type { ArchiveSql } from "./archive-sql";
 
@@ -13,8 +13,8 @@ export interface ResidentTurnRow {
 
 export interface ExecutionRecord {
   id: string;
-  // The agent the run is for: whose program a turn goes into, whose host a run is left in, or the agent a host
-  // carries a run for. A companion's removal takes every record naming it.
+  // The agent the run is for: whose program a turn goes into, whose host a run is left in, or the agent a
+  // host carries a run for. A companion's removal takes every record naming it.
   agent?: string | null;
   parent: string | null;
   root?: string;
