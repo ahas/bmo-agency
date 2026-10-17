@@ -133,7 +133,7 @@ for (const name of ["AGENCY_CACHE_SIREN_URL", "AGENCY_CACHE_WARMER_URL", "AGENCY
 
 // The machine's turn for heavy commands is held by the run this file stands in, so a run, a close or a
 // testbed command a test starts takes its turn in this home instead and never waits on its own parent,
-// and the holder's mark the run handed down names nothing here (docs/testbed.md).
+// and the holder's mark the run handed down names nothing here.
 process.env.BMO_TESTBED_LOCK = join(home, "testbed.lock");
 delete process.env.BMO_TESTBED_HELD;
 

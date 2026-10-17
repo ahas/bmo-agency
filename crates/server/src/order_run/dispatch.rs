@@ -1,5 +1,5 @@
-//! A task's place in the common co-worker pool (docs/work-orders.md, 「The common co-worker spawning
-//! pool」, 「Prior requests and yielding requests」): the provider and tier a role resolves to, a branch's
+//! A task's place in the common co-worker pool (docs/coworker-pool.md, 「Requests and leases」, 「Prior
+//! requests and yielding requests」): the provider and tier a role resolves to, a branch's
 //! seat or a builder turn's place asked of the pool, admitted at the head of its line, bound to the unit
 //! it launched and given back with what it came to, and the seats an owner holds for a stage. Every write
 //! is the TypeScript dispatch's, statement for statement, so either side of the pool's twin check leaves the
@@ -254,7 +254,8 @@ pub async fn enqueue_coworker(
 }
 
 /// A native `Agent` call's place asked of the pool, on the mapping its role resolves to on Claude Code, the
-/// call's own row kept beside it in the same transaction (docs/work-orders.md, 「Native co-worker places」).
+/// call's own row kept beside it in the same transaction (docs/coworker-pool.md, 「Native co-worker
+/// places」).
 pub async fn enqueue_native(
   db: &DatabaseConnection,
   asked: &Asked<'_>,

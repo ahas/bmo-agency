@@ -1200,7 +1200,7 @@ async fn node_checkout(
 }
 
 // Resting is set apart from every other change, since a resting worker is no worker of the list the
-// others are read from (docs/jobs.md, 「There can be more than one job worker」).
+// others are read from.
 async fn rest_worker(stand: &Stand<'_>, mut said: Said, name: &str, rest: &str) -> Result<Said, VerbError> {
   let Ok(Some(resting)) = on_off(Some(rest), "--rest") else {
     return Ok(said.refused(fill_marks(&VERB_WORDS.agents.on_off, &[("flag", "--rest")])));
@@ -1445,7 +1445,7 @@ async fn reasoning(
   Ok(said)
 }
 
-// An agent's own gates (docs/gates.md, 「Each agent's own gates」): the one --gate names switched, then
+// An agent's own gate switches (docs/store.md, 「The settings table」): the one --gate names switched, then
 // every gate its turn passes with the switch it stands at.
 async fn gates(
   db: &DatabaseConnection,

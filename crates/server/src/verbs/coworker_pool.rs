@@ -1,4 +1,4 @@
-//! A job's native `Agent` calls held to the common co-worker pool (docs/work-orders.md, 「Native co-worker
+//! A job's native `Agent` calls held to the common co-worker pool (docs/coworker-pool.md, 「Native co-worker
 //! places」): the hooks the worker's settings run around every call — before it, a wait for a place and the
 //! call let out only once it has one; after it returns or fails, and when a background child stops, the
 //! place given back — and the job's own word about the calls it is about to make, seats reserved under the

@@ -1,4 +1,4 @@
-//! The toolbook's proxy calls as the tool each reached (docs/toolbook.md): a booked tool is reached through
+//! The tool host's toolbook proxy calls as the tool each reached: a booked tool is reached through
 //! one of two proxy tools of the toolbook's own server, handed the booked tool's full name and its
 //! arguments, so a call through it is read and shown as the inner call, in the spelling of the road that
 //! made it.

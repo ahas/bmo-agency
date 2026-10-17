@@ -16,7 +16,7 @@ seeds. The other crates and the server reach the store only through it.
 - **The tables, by what they keep:**
   - the agents and what they did: `agents`, `agent_log`, `agent_executions`, `execution_attempts`,
     `branch_agents`, `worker_sessions`, `session_resets`;
-  - the base prompts: `base_prompts`, `agent_base_prompts`, `base_prompt_changes`;
+  - the base prompts: `base_prompts`, `agent_base_prompts`;
   - the accounts: `claude_accounts`;
   - the co-worker pool: the thirteen `coworker_pool_` tables, `limits`, `meta`, `native`,
     `native_reservations`, `native_stops`, `pings`, `place_writes`, `requests`, `reservation_meta`,
@@ -32,7 +32,7 @@ seeds. The other crates and the server reach the store only through it.
   - the moves of the cache prefix: `prefix_moves`;
   - the run records: `run_records`;
   - the companions' sessions and settings: `room_sessions`, `room_session_turns`, `room_windows`,
-    `companion_settings`, `companion_setting_changes`;
+    `companion_settings`;
   - the settings, below.
 - **An account's `user_id`** names the user it belongs to, or none for the owner's; agency reads it and
   never fills it in itself, since who the users are is the caller's.

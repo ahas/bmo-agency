@@ -31,8 +31,9 @@ The owner's words for the scope are:
   agent pane of their own.
 - **The agents table is authoritative** for names, kinds and standing workspaces. A name a run is
   launched under that has no row still gets a workspace of its own under that name. No roster is
-  kept in the code: the seed an empty table starts from is agency's policy's (`policy/agent-catalogue.toml`), and
-  what each agent is called on a screen is the console's own wording.
+  kept in the code: a row is written by whoever registers its agent — a companion from the seed its
+  deployment hands in, a worker the owner adds — and what each agent is called on a screen is the
+  console's own wording.
 
 ### A pane carries the real execution
 

@@ -1,4 +1,4 @@
-//! The standing branch checkouts a work order's branches run in (docs/work-orders.md, 「Standing branch
+//! The standing branch checkouts a work order's branches run in (docs/coworker-pool.md, 「Standing branch
 //! checkouts and their list」): the list's judgement of which place still holds a provider's prefix, a place
 //! taken for a branch — warm first, then one with nothing to lose, then a new one — laid out of the
 //! checkout's open change, its row kept once its result lands, the places an ended order worked in retired

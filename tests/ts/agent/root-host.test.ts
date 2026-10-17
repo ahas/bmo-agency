@@ -17,7 +17,7 @@ import type { ResidentProgram } from "@agency/agent/resident-program";
 import { codeRoot } from "@agency/support/roots";
 import { scratchArchive, scratchDatabase } from "@agency/test-support/store";
 
-// A line standing on the hosts (docs/mcp-host.md, docs/agent-control.md 「The host」), as a launcher
+// A line standing on the hosts (docs/agent-control.md, 「The host」), as a launcher
 // meets them: the data root's agent host, the real binary on a scratch root, and a stand-in for the
 // tool host's issuing socket that hands out tokens and notes what it was told. The worker the runs are
 // issued for holds the worker role, whose bundles are all the worker line's runs are given.

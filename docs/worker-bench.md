@@ -71,7 +71,7 @@ Each job worker holds three things beside the work of its jobs:
 ### The bundle is agency's header plus the owner's text
 
 - **The header:** if the worker has a preamble or a dev-server command, or works in a directory that is
-  not a git checkout, agency writes a header first:
+  not a git checkout, the job's prompt opens with a header:
   - the path of this worker's workbench folder, and where in it what one item alone needs goes
     (「An item's scratch」 below)
   - if the directory is not a checkout, that there is nothing to commit, push or deploy, so the closing
@@ -81,10 +81,11 @@ Each job worker holds three things beside the work of its jobs:
     that is down, failing or serving stale code and carries on, rather than leaving it as unfinished
 - **Below it** stands the owner's text as written.
 - **None present:** a worker with none of the three has no bundle at all in its job prompt.
-- **Language:** the header, like the trailer, is agency speaking to the worker, so it is written in
-  English.
-- **Its lines** are agency's policy's (`policy/worker-preamble.toml`), which agency's job run fills in
-  as it composes the job's prompt.
+- **Language:** the header, like the trailer, is the deployment speaking to the worker, so it is
+  written in English.
+- **Its lines** are the job unit's, which composes the job's prompt; agency keeps what it is composed
+  from: the worker's preamble and dev-server command on its row, and its workbench folder
+  (「Workbench folder」 below).
 
 ## Workbench folder
 

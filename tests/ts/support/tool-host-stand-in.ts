@@ -1,8 +1,8 @@
 import { join } from "node:path";
 
-// The tool host a launch asks for its run's token (docs/mcp-host.md, 「How a token is had and given
-// back」), stood in on a socket in `dir` and named to the code under test until it is stopped: every
-// record is issued a token of its own, and every revocation is taken.
+// The tool host a launch asks for its run's token, stood in on a socket in `dir` and named to the code
+// under test until it is stopped: every record is issued a token of its own, and every revocation is
+// taken.
 export function toolHostStandIn(dir: string): { issued: Record<string, unknown>[]; stop: () => void } {
   const previous = process.env.BMO_MCP_HOST_SOCKET;
   const socket = join(dir, "mcp-host.sock");

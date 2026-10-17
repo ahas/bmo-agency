@@ -87,7 +87,7 @@ flowchart TD
 
 ## Where it is kept
 
-- **In agency's store** (`base_prompts`, `agent_base_prompts`, `base_prompt_changes`):
+- **In agency's store** (`base_prompts`, `agent_base_prompts`):
   - the base prompts: name, label, text, and when and by whom each was last saved;
   - each agent's choice, one row per agent that chooses one, the agent's row being no part of it.
 - **A save overwrites:** a prompt saved replaces its label and text, a prompt removed is gone, and

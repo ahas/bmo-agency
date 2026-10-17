@@ -14,14 +14,13 @@ pub const TABLES: &str = m20261016_000001_store::NAME;
 
 /// Every table the store's migrations make, beside the record of what ran: what reads every table of the
 /// store reads these and no other service's beside them (docs/store.md, 「Its tables」).
-pub const OWN_TABLES: [&str; 52] = [
+pub const OWN_TABLES: [&str; 50] = [
   "agents",
   "agent_log",
   "agent_executions",
   "execution_attempts",
   "agent_base_prompts",
   "base_prompts",
-  "base_prompt_changes",
   "branch_agents",
   "worker_sessions",
   "session_resets",
@@ -65,7 +64,6 @@ pub const OWN_TABLES: [&str; 52] = [
   "room_session_turns",
   "room_windows",
   "companion_settings",
-  "companion_setting_changes",
   "settings",
 ];
 
