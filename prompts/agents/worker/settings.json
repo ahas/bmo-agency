@@ -28,7 +28,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "[ -z \"$BMO_SOURCE_DIR\" ] || timeout 10 \"${BMO_DEPLOY_DIR:-$HOME/.local/share/bmo/deploy}/bin/bmo\" job-guard || true",
+            "command": "[ -z \"$BMO_SOURCE_DIR\" ] || [ -z \"$BMO_JOB_GUARD\" ] || timeout 10 sh -c \"$BMO_JOB_GUARD\" || true",
             "timeout": 20
           }
         ]

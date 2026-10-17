@@ -39,11 +39,14 @@
 - **Where:** a PreToolUse hook in the worker settings (`prompts/agents/worker/settings.json`) takes a job's
   Bash command before it runs and judges it. The same hook also takes the job's file edits, for the
   document below.
-- **Who judges:** `bmo-agency guard`, the deploy tree's agency binary, with the hook's input on standard input. A refusal comes back as a deny
-  decision carrying the reason and the piece of the command the guard read it in — the program word,
-  the redirect's target, the text handed to `eval` or a shell, and where a word was read as a
-  command, why it was read that way. So a job reads what was blocked and why instead of guessing at
-  the rule and writing around it.
+- **Who judges:** the job guard of the service that holds the jobs, which the deployment names in
+  agency's environment as `BMO_JOB_GUARD` and agency hands to every worker program it starts
+  (`docs/api.md`, 「Hooks」). The hook runs it through `sh` with the hook's input on standard input. A
+  refusal comes back as a deny decision carrying the reason and the piece of the command the guard read
+  it in — the program word, the redirect's target, the text handed to `eval` or a shell, and where a word
+  was read as a command, why it was read that way. So a job reads what was blocked and why instead of
+  guessing at the rule and writing around it. What the guard refuses, below, is that service's; agency
+  holds only the hook that hands it the call.
 
 ### The four things it refuses
 
@@ -104,8 +107,9 @@
 
 ### When the hook cannot run
 
-- If the hook cannot run the guard — the worker's line names no source checkout, the binary is
-  missing, or it fails or reads no input — the command is not blocked.
+- If the hook cannot run the guard — the worker's line names no source checkout, the deployment names
+  no guard, the guard is missing, or it fails, runs past ten seconds or reads no input — the command is
+  not blocked.
 - One hook failing to run must not stop every shell command of every worker, and the second layer
   stands behind it.
 

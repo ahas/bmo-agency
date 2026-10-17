@@ -28,7 +28,7 @@ judges none of it.
 ## Versioning
 
 - **The contract carries the repository's one version, in semver.** The version in the workspace
-  manifest is this boundary's version; the current line is `0.17.1`.
+  manifest is this boundary's version; the current line is `0.18.0`.
 - **A change to this document and a change to the boundary go in one commit.** A change that makes a
   route, an event, a hook or a shared table's contract different repairs this document in the same
   commit, stating what is true now.
@@ -366,6 +366,12 @@ Each hook has a default that does nothing, so agency runs with none registered.
 - **A room's title.** The tab a room's following pane stands in is named by the room's title, which the
   consumer that owns the room answers for its chat id. The default answers none, and the tab is named
   by the chat id.
+- **The job guard.** A job worker's shell commands and file edits are judged before they run by the
+  guard of the service that holds the jobs, not by agency (`docs/live-claude-guard.md`, 「First layer: a
+  hook that reads shell commands before they run」). The deployment names that guard in agency's
+  environment as `BMO_JOB_GUARD`, a command line, and agency hands it to every worker program it
+  starts; the worker's `PreToolUse` hook runs it through `sh` with the hook's input on standard input,
+  and its output is the hook's answer. With none named, the hook judges nothing and every call goes on.
 - **The session summariser.** As a session is replaced, handed over or set aside for another model,
   agency asks the summariser for the note the next run is handed: what kind of session it was (`chat`,
   `worker` or `switch`), the provider it stood on, its session id, its folder, the login it was opened

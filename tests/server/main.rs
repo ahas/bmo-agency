@@ -86,6 +86,7 @@ mod peers;
 mod lines {
   mod ordered;
   mod prefix;
+  mod worker_settings;
 }
 
 // The places built so far; the others stand beside these and are declared with their modules.
@@ -127,6 +128,7 @@ mod run_log {
 mod verbs {
   mod agents;
   mod claude_batch;
+  mod reload;
 }
 
 mod watches {

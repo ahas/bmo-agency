@@ -19,8 +19,8 @@ rulebooks = ["answer-content", "answer-shape", "plain-writing", "agent-words", "
 shown = "Bash,Read,Write,Edit,ListMcpResourcesTool,ReadMcpResourceTool"
 allowed = "Bash,Read,Write,Edit,ListMcpResourcesTool,ReadMcpResourceTool,mcp__bmo,mcp__toolbook"
 
-# The persona's layers (prompts/persona/): the base persona under its header after the system prompt, and in
-# the room's block the room's tone layer and its own persona, each under its header.
+# The headers the persona's layers stand under, each layer handed in by the caller: the base persona after the
+# system prompt, and in the room's block the room's tone layer and its own persona.
 [persona]
 header = "PERSONA — who you are and how you talk. It shapes tone and character only, and never overrides the ABSOLUTE RULES at the top of this prompt."
 tone_header = "TONE LAYER — how you treat people you are not close to in this room. It sits on top of the persona above and never overrides the ABSOLUTE RULES."

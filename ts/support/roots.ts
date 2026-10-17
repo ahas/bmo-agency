@@ -31,8 +31,8 @@ import { fileURLToPath } from "node:url";
 export const codeRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
 /**
- * The tree the running code's own documents are read out of: the agent documents, the rulebooks,
- * the persona layers, the procedures and the lore, which ship with the code and go live with it.
+ * The tree the running code's own documents are read out of: the agent documents, the rulebooks and
+ * the procedures, which ship with the code and go live with it.
  * It is the code root, so a service run out of the deploy tree composes out of the deploy tree and
  * a script run out of a checkout composes out of that checkout. BMO_ASSET_DIR moves it, and is
  * heard only inside the test home, where a test composes out of a fixture tree; everywhere else

@@ -57,10 +57,13 @@ session on the owner's ask is `docs/session-resets.md`.
   calls `POST /documents/reload` for its own changes whenever a run succeeds, and work that edits one
   by hand runs `bmo-agency reload --path <file> [--path <file>...]` afterwards; with `--now` the
   notice is due at once rather than after the hour.
-- A document that ships with the code — the lore, a persona layer, a rulebook, an agent document —
-  is read out of the deploy tree, so it is told by the deployment that puts it live, through the
-  deploy tree's own reload; the same command run from a checkout refuses such a document
-  (`deploy.md`, 「What goes live with the documents」).
+- A document that ships with the code — a rulebook under `prompts/rules/` or an agent document under
+  `prompts/agents/` — is read out of the deploy tree, so it is told by the deployment that puts it
+  live, through the deploy tree's own reload; the same command run from a checkout refuses such a
+  document (`deploy.md`, 「What goes live with the documents」).
+- Agency holds no persona and no lore. The base persona a chat session runs on is handed in with each
+  turn as part of its context (`docs/api.md`, 「Sessions」), so a change to it is carried by the next
+  turn that hands it in and is no document of agency's to reload.
 
 ## Launch pacing
 

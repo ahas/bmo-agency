@@ -4,11 +4,11 @@
 //! moved told how to fold it, and the move told to the running server, which publishes it for the consumer
 //! holding the rooms to tell the sessions there.
 //!
-//! A document that ships with the code — the persona layers, the rulebooks, the agent documents — is live
-//! only in the deploy tree, so it is named relative to the tree and told only by the deploy tree's own
-//! binary, which reads the deployed text; run from a checkout, those are refused rather than told as text
-//! the service does not read. A document in the brain keeps its absolute path and is told from wherever
-//! this runs.
+//! A document that ships with the code — the rulebooks and the agent documents — is live only in the deploy
+//! tree, so it is named relative to the tree and told only by the deploy tree's own binary, which reads the
+//! deployed text; run from a checkout, those are refused rather than told as text the service does not read.
+//! A document in the brain keeps its absolute path and is told from wherever this runs. Agency holds no
+//! persona: the base persona is handed in with each turn, so no persona file is a document of its own.
 
 use std::path::{Component, Path, PathBuf};
 
@@ -23,7 +23,7 @@ use crate::lines::prefix::touches_prefix;
 pub const RELOAD_USAGE: &str = "usage: bmo-agency reload --path <file> [--path <file>...] [--now]";
 
 // The tree's document directories a session relies on, relative to its root.
-const DOCUMENT_DIRS: [&str; 3] = ["prompts/persona", "prompts/rules", "prompts/agents"];
+const DOCUMENT_DIRS: [&str; 2] = ["prompts/rules", "prompts/agents"];
 
 // The rulebooks and the chat agent's own documents a chat session is given as its system prompt.
 const CHAT_DOCUMENTS: [&str; 5] = [
@@ -161,8 +161,7 @@ fn is_agent_document(path: &str) -> bool {
 pub fn is_chat_turn_document(path: &str) -> bool {
   let joined = document_parts(path).join("/");
 
-  (joined.starts_with("persona/") && joined != "persona/base.md")
-    || joined == "agents/chat/owner.md"
+  joined == "agents/chat/owner.md"
     || joined == "agents/chat/rules.md"
     || joined == "agents/chat/capabilities.md"
 }
@@ -173,12 +172,9 @@ pub fn is_chat_prompt_document(path: &str) -> bool {
     return false;
   }
 
-  let parts = document_parts(path);
-  let joined = parts.join("/");
+  let joined = document_parts(path).join("/");
 
-  parts.first() == Some(&"persona")
-    || CHAT_SYSTEM_DOCUMENTS.contains(&joined.as_str())
-    || CHAT_DOCUMENTS.contains(&joined.as_str())
+  CHAT_SYSTEM_DOCUMENTS.contains(&joined.as_str()) || CHAT_DOCUMENTS.contains(&joined.as_str())
 }
 
 /// How the agents' documents are written again where a changed rulebook or agent document calls for it, so
