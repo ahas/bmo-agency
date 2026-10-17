@@ -1,16 +1,19 @@
 //! An editor work key's session over the session contract (docs/api.md, 「Sessions」): started for an editor's
 //! key alone, its state the model its key maps to in the brain folder, keeping nothing to fold or let go, named
-//! in no list, and a turn that cannot go out ending as a failure that says why — on a store of the test's own,
-//! with the seeds agency settles.
+//! in no list, and a turn that cannot go out ending as a failure that says why; and the key's walk falling to
+//! Claude Code where it stands aside, and failing the turn where it had to answer and met no stand-in — on a
+//! store of the test's own, with the seeds agency settles.
 
 use std::collections::HashMap;
 use std::sync::Arc;
 
 use agency_server::Service;
 use agency_server::config::Config;
-use agency_server::editor_session::is_editor;
+use agency_server::control::harness::{OrderEntry, set_provider_order};
+use agency_server::editor_session::{is_editor, walked};
 use agency_server::herdr_backend::{HerdrSessions, TurnEnded};
 use agency_server::places::{Ground, Places};
+use agency_server::run_log::{RunLog, Target};
 use agency_server::seeds::deployment;
 use agent_session::{Delivery, FaultKind, Scope, SessionId, Sessions, Start, Turn, TurnContext};
 use harness_providers::Machine;
@@ -21,6 +24,7 @@ use crate::scratch::Scratch;
 struct Bench {
   _scratch: Scratch,
   home: tempfile::TempDir,
+  ground: Ground,
   sessions: HerdrSessions,
   ended: agency_server::events::Subscription<TurnEnded>,
 }
@@ -44,15 +48,21 @@ impl Bench {
       HashMap::from([("AGENCY_BRAIN_ROOT".to_owned(), at(home.path().join("brain")))]);
     let service =
       Service::new(scratch.db().clone(), Config::read(|name| variables.get(name).cloned()).unwrap());
+    let ground = Ground::new(&service, &machine, None);
     let places = Places::new(Ground::new(&service, &machine, None), Arc::default());
     let ended = places.ground.events.subscribe::<TurnEnded>();
 
     Self {
       _scratch: scratch,
       home,
+      ground,
       sessions: HerdrSessions::new(places),
       ended,
     }
+  }
+
+  fn ground(&self) -> &Ground {
+    &self.ground
   }
 
   fn brain(&self) -> std::path::PathBuf {
@@ -131,4 +141,71 @@ async fn a_turn_whose_brain_is_no_repository_ends_failed_saying_why() {
   assert_eq!(delivery, Delivery::Taken);
   assert_eq!((ended.session.as_str(), ended.outcome), ("people-digest@editor", "failed"));
   assert!(ended.reason.unwrap().contains("no repository"));
+}
+
+// The bench's store with its provider order set: each provider named, on or off.
+async fn order(bench: &Bench, order: &[(&str, bool)]) {
+  let entries: Vec<OrderEntry> = order
+    .iter()
+    .map(|(name, enabled)| OrderEntry {
+      name: (*name).to_owned(),
+      enabled: *enabled,
+    })
+    .collect();
+
+  set_provider_order(bench._scratch.db(), &entries).await.unwrap();
+}
+
+fn log(key: &str) -> RunLog {
+  RunLog::new(Target {
+    agent: key.to_owned(),
+    run: format!("turn:{key}:1"),
+    chat_id: None,
+    job_id: None,
+  })
+}
+
+#[tokio::test]
+async fn an_editor_key_whose_walk_stands_aside_falls_to_claude_code() {
+  let bench = Bench::new().await;
+
+  order(
+    &bench,
+    &[("claude-code", true), ("codex", true), ("openrouter", true), ("registered", true)],
+  )
+  .await;
+
+  let walked = walked(bench.ground(), "digest", "sort", &bench.brain(), &mut log("digest")).await;
+
+  assert!(matches!(walked, Ok(None)), "{walked:?}");
+}
+
+#[tokio::test]
+async fn a_walk_that_must_answer_and_meets_no_stand_in_fails_the_editors_turn() {
+  let mut bench = Bench::new().await;
+
+  bench.brain_is_a_repository();
+  order(
+    &bench,
+    &[("claude-code", false), ("codex", true), ("openrouter", true), ("registered", true)],
+  )
+  .await;
+
+  let walked = walked(bench.ground(), "digest", "sort", &bench.brain(), &mut log("digest")).await;
+
+  assert!(walked.as_ref().is_err_and(|why| why.contains("did not answer")), "{walked:?}");
+
+  let delivery = bench
+    .sessions
+    .send_turn(Turn {
+      session: SessionId("digest@editor".into()),
+      prompt: "sort".into(),
+      context: TurnContext::default(),
+    })
+    .await
+    .unwrap();
+  let ended = bench.ended.ready().expect("the turn's end was published");
+
+  assert_eq!((delivery, ended.outcome), (Delivery::Taken, "failed"));
+  assert!(ended.reason.unwrap().contains("did not answer"));
 }

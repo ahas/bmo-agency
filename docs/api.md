@@ -28,7 +28,7 @@ judges none of it.
 ## Versioning
 
 - **The contract carries the repository's one version, in semver.** The version in the workspace
-  manifest is this boundary's version; the current line is `0.19.0`.
+  manifest is this boundary's version; the current line is `0.19.1`.
 - **A change to this document and a change to the boundary go in one commit.** A change that makes a
   route, an event, a hook or a shared table's contract different repairs this document in the same
   commit, stating what is true now.
@@ -174,13 +174,15 @@ judges none of it.
     for Claude Code's next turn (`docs/cache-fallback.md`, 「While a fallback stands, the room is not
     silent」).
   - An editor's session, `<key>@editor`, carries one editor run a turn: the turn's prompt put into a run
-    apart of the editor line under that editor work key, on a session of its own that nothing resumes, on
-    the login the walk of Claude Code's logins offers the key, in the brain folder (`AGENCY_BRAIN_ROOT`,
-    else `brain` under the data root), with the tier and effort its key maps to (`docs/launch-lines.md`,
-    「Editor runs」). Its answer is the turn's `turn-ended`. A key that is no editor's is refused, and so is
-    a turn where the key maps to no model or the brain folder is no repository yet. An editor's session
-    keeps nothing: its state names the model its key maps to, a fold is refused, an end lets nothing go,
-    and a list names none.
+    apart of the editor line under that editor work key, on a session of its own that nothing resumes, in
+    the brain folder (`AGENCY_BRAIN_ROOT`, else `brain` under the data root) — on the first stand-in the
+    key's walk meets that answers, else on Claude Code with the tier and effort its key maps to, on the
+    login the walk of its logins offers the key (`docs/launch-lines.md`, 「Editor runs」). Its answer is
+    the turn's `turn-ended`. A key that is no editor's is refused; a turn fails where the brain folder is
+    no repository yet, where a walk that had to answer met no stand-in that answered, or where the key
+    maps to no model on Claude Code when the run falls to it. An editor's session keeps nothing: its state
+    names the model its key maps to on Claude Code, a fold is refused, an end lets nothing go, and a list
+    names none.
   - `GET /session/state?session=<id>` answers `session`, `provider`, `model`, `place`, `generation` and
     `context`.
   - `POST /session/interrupt`, `POST /session/fold` and `POST /session/end` take `session` and answer
