@@ -20,7 +20,5 @@ Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
 
 [Install]
 WantedBy=default.target
-# Linked and enabled by every deployment, and restarted only where the deployment changed the binary,
-# so the requests in hand are cut only by a new front; a changed hook reaches LiteLLM through a new
-# child instead.
-X-BMO-Deploy=binary
+# Linked, enabled and restarted by every deployment.
+X-BMO-Deploy=restart

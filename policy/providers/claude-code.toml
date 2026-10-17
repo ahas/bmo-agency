@@ -88,7 +88,7 @@ ending_after = "Done before it ends, nothing stops."
 # under the data root's env directory its files stand in, each named by its account's id, and the verb
 # the owner runs on this machine to make one, with `{deploy}` the deploy tree and `{name}` the account's name.
 token_dir = "claude-tokens"
-command = "{deploy}/bin/bmo node claude-token '{name}'"
+command = "{deploy}/bin/bmo-agency node claude-token '{name}'"
 # How a token that stopped answering on a node, or is about to, is told to the owner, one entry to a line, with
 # `{name}`, `{when}` and `{left}` filled in; how long is left, the line asking them to run the command and
 # the closing line of a warning are the login's own.

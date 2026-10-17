@@ -58,14 +58,14 @@ export function promptCacheTtlSeconds(): number {
 const ttlKey = "ttl_s";
 const ttlByModeModelKey = "ttl_by_mode_model_s";
 const sirenUnit = "cache-siren";
-// Where the watch keeps that config. It is a path on one machine rather than anything about the
-// cache, so the environment may say where it went — the way it says where the archive, the
-// collected files and the synthesiser's interpreter are. A machine with no watch has no file
-// there and nothing happens.
+// Where the watch keeps that config: the config.json of the install root its own repository
+// declares. It is a path on one machine rather than anything about the cache, so the environment
+// may say where it went — the way it says where the archive, the collected files and the
+// synthesiser's interpreter are. A machine with no watch has no file there and nothing happens.
 export function sirenConfigPath(): string {
   const named = process.env.BMO_SIREN_CONFIG;
 
-  return named === undefined || named === "" ? join(homeDir(), "repos", "ahas", "infra", "cache-siren", "config.json") : named;
+  return named === undefined || named === "" ? join(homeDir(), ".local", "lib", "cache-siren", "config.json") : named;
 }
 
 export interface TtlPublish {

@@ -9,6 +9,9 @@ belongs to no one service is a repository of its own, not a folder here.
 
 - **`tools/<name>/`** holds the tool's manifest, `tool.toml`, the schema file of each entry it
   declares, and the Rust crate of its executable, a member of agency's workspace.
+- **A deployment places each tool** in its folder's `.placed/` inside the release, the folder the tool
+  host reads: the executable the release's `bin/` holds, beside the manifest and the schema files it
+  names. The steps that do it stand in the testbed's declaration, `testbed.toml`.
 - **The manifest** says the tool's name, the protocol version it speaks, its build and check
   commands, its run command, its timeout, and either its entries or the resources it serves, each
   with the capabilities a session must hold. Its tests hold the manifest to what the executable

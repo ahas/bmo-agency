@@ -251,11 +251,11 @@ describe("the settings a resident program is started with", () => {
   // Claude Code shows a picker row's label at the top of its screen in place of the model it is sent,
   // so a registration's program reads as the registration's label, node and all.
   test("give a model the endpoint labels a picker row under that label", () => {
-    const model = { name: "kakia-0-1@charlie", label: "Kakia 0.1", contextTokens: 1, answerTokens: 1, requestWaitMs: 1, thinking: false, home: root };
+    const model = { name: "local-0-1@charlie", label: "Local 0.1", contextTokens: 1, answerTokens: 1, requestWaitMs: 1, thinking: false, home: root };
     const labelled = JSON.parse(readFileSync(endpointPlaceSettings(run, join(root, "labelled"), model), "utf8"));
     const plain = JSON.parse(readFileSync(endpointPlaceSettings(run, join(root, "plain"), { ...model, label: undefined }), "utf8"));
 
-    expect(labelled.modelPicker).toEqual({ options: [{ model: "kakia-0-1@charlie", label: "Kakia 0.1" }] });
+    expect(labelled.modelPicker).toEqual({ options: [{ model: "local-0-1@charlie", label: "Local 0.1" }] });
     expect(plain.modelPicker).toBeUndefined();
   });
 

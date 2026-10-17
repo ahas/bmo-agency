@@ -21,9 +21,10 @@ is the caller's decision; agency supplies it.
   tiers, the roads and the routes with the control routes, so a crate boundary between them would be a
   cycle.
 - **No other service's code.** Among other repositories only the base libraries `bmo-chat`,
-  `bmo-chat-client` and `bmo-ui` may be depended on or imported. Another service is reached through its
-  API; a call upward is an event agency publishes or a hook the consumer registers, with a default that
-  does nothing; data a higher service holds is handed in by the caller.
+  `bmo-chat-client` and `bmo-ui` may be depended on or imported; `tests/dependencies.rs` and
+  `tests/ts/dependencies.test.ts` fail on any other. Another service is reached through its API; a call
+  upward is an event agency publishes or a hook the consumer registers, with a default that does nothing;
+  data a higher service holds is handed in by the caller.
 - **A variation belongs to its member.** A value that differs per provider, model or consumer is
   answered by that member, never by a central table in the layer below.
 - **No hand-written parser for a general format.** TOML, JSON, YAML, markdown, shell lines and command
@@ -31,14 +32,19 @@ is the caller's decision; agency supplies it.
 - **Tests live in `tests/`.** The root package holds them: a group of tests is a directory under
   `tests/` with its own `main.rs`, the TypeScript tests stand under `tests/ts/`, and the checks that
   span the repository are files at the top of `tests/`. No test module sits in a source file.
-- **English only** in code, comments, strings, tests and documents, and in commit messages. Messages a
-  service shows are English sentences; machine-read outcomes are status codes and kebab-case codes.
-- **No names of agents, owners or hosts, and no personal paths** in code, documents or commits. Write the
-  role instead: the owner, a worker, a node. A path is written from `$HOME` or from a variable.
+- **English only** in code, comments, strings, tests and documents, and in commit messages. Korean stands
+  in `prompts/` alone, where it is what the agents are told and answer in; `tests/literals.rs` fails on
+  Hangul anywhere else. Messages a service shows are English sentences; machine-read outcomes are status
+  codes and kebab-case codes.
+- **No names of agents, owners or hosts, and no personal paths** in code, prompts, documents or commits.
+  Write the role instead: the owner, a worker, a node. A path is written from `$HOME` or from a variable.
+  `tests/literals.rs` fails on the account name, the host name and the committer's address of the
+  machine it runs on.
 - **No directory named after its parent.** `tests/layout.rs` fails on one.
-- **Only Cargo manifests at the root.** The root `Cargo.toml` is the workspace and the root package,
-  which is never published and exists to hold `tests/`. The TypeScript packages are a Bun workspace of
-  their own under `ts/`. `tests/layout.rs` fails on another build tool's manifest at the root.
+- **Only Cargo manifests at the root,** beside `testbed.toml`, the testbed's declaration. The root
+  `Cargo.toml` is the workspace and the root package, which is never published and exists to hold
+  `tests/`. The TypeScript packages are a Bun workspace of their own under `ts/`. `tests/layout.rs` fails
+  on another build tool's manifest at the root.
 - **Documents state what is true now**: no change history, no quoted source and no file-and-line pins.
 
 ## Layout
@@ -51,7 +57,10 @@ is the caller's decision; agency supplies it.
 - `policy/`: the TOML files agency's fixed numbers and words stand in, read by `crates/policy`.
 - `prompts/`: the prompts agency composes an agent's launch from.
 - `docs/`: the canonical documents.
-- `deploy/`: the service units.
+- `deploy/`: the service units. agency's server, the agent host and the model gateway carry the restart
+  mark; herdr's carries none, since herdr is a runtime agency stands on.
+- `testbed.toml`: how the testbed tests, checks, builds and deploys the repository, the tools' placement
+  among it.
 - `tests/`: every test.
 
 ## Checks

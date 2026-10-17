@@ -46,11 +46,11 @@ describe("readClaudeOutput", () => {
     const result = JSON.stringify({
       type: "result", result: "green", session_id: "s1", is_error: false,
       usage: { input_tokens: 9_091, output_tokens: 3, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
-      modelUsage: { "kakia-0-1": { inputTokens: 12_840, outputTokens: 2_995, cacheReadInputTokens: 34_122, cacheCreationInputTokens: 0 } },
+      modelUsage: { "local-0-1": { inputTokens: 12_840, outputTokens: 2_995, cacheReadInputTokens: 34_122, cacheCreationInputTokens: 0 } },
     });
 
-    expect(readClaudeOutput(result, "", 0, null, { ownRun: true }).spend).toMatchObject([{ model: "kakia-0-1", inputTokens: 9_091, outputTokens: 3, cacheReadTokens: 0 }]);
-    expect(readClaudeOutput(result, "", 0).spend).toMatchObject([{ model: "kakia-0-1", inputTokens: 12_840, outputTokens: 2_995 }]);
+    expect(readClaudeOutput(result, "", 0, null, { ownRun: true }).spend).toMatchObject([{ model: "local-0-1", inputTokens: 9_091, outputTokens: 3, cacheReadTokens: 0 }]);
+    expect(readClaudeOutput(result, "", 0).spend).toMatchObject([{ model: "local-0-1", inputTokens: 12_840, outputTokens: 2_995 }]);
   });
 });
 

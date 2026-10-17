@@ -8,10 +8,10 @@ use crate::scratch::Scratch;
 
 // Written out of order, so the reading's own order is what the test sees.
 const ROWS: [&str; 5] = [
-  "INSERT INTO registered_models VALUES ('kakia-0-1', 'Kakia 0.1', 'ko2', 32768, 4096, 2400, 1, 0, 200, 1)",
+  "INSERT INTO registered_models VALUES ('local-0-1', 'Local 0.1', 'ko2', 32768, 4096, 2400, 1, 0, 200, 1)",
   "INSERT INTO registered_models VALUES ('local-model', 'Local model', 'qwen', 65536, 8192, 90, 0, 1, 100, 0)",
-  "INSERT INTO registered_model_addresses VALUES ('kakia-0-1', 'bravo', 2, 'http://127.0.0.1:18023/v1/chat/completions', NULL, 0, NULL)",
-  "INSERT INTO registered_model_addresses VALUES ('kakia-0-1', 'alpha', 1, 'http://127.0.0.1:18021/v1/chat/completions', 'alpha-llm.token', 0, 1700000000)",
+  "INSERT INTO registered_model_addresses VALUES ('local-0-1', 'bravo', 2, 'http://127.0.0.1:18023/v1/chat/completions', NULL, 0, NULL)",
+  "INSERT INTO registered_model_addresses VALUES ('local-0-1', 'alpha', 1, 'http://127.0.0.1:18021/v1/chat/completions', 'alpha-llm.token', 0, 1700000000)",
   "INSERT INTO registered_model_addresses VALUES ('local-model', 'd-vex', 1, 'https://llm.example.com/v1/chat/completions', 'registered/local-model-d-vex.key', 1, NULL)",
 ];
 
@@ -36,8 +36,8 @@ fn expected() -> Vec<Registration> {
       }],
     },
     Registration {
-      name: "kakia-0-1".into(),
-      label: "Kakia 0.1".into(),
+      name: "local-0-1".into(),
+      label: "Local 0.1".into(),
       model: "ko2".into(),
       context_tokens: 32_768,
       answer_tokens: 4_096,

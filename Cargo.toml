@@ -22,7 +22,7 @@ members = [
 resolver = "3"
 
 [workspace.package]
-version = "0.17.1"
+version = "0.17.2"
 edition = "2024"
 
 [workspace.dependencies]
@@ -73,6 +73,8 @@ agent-host = { path = "crates/agent-host" }
 agent-session = { path = "crates/agent-session" }
 axum.workspace = true
 chrono.workspace = true
+clap.workspace = true
+futures-util.workspace = true
 harness-machine = { path = "crates/harness-machine" }
 harness-providers = { path = "crates/harness-providers" }
 herdr = { path = "crates/herdr" }
@@ -85,6 +87,7 @@ node-link = { path = "crates/node-link" }
 policy = { path = "crates/policy" }
 procedures-tool = { path = "tools/procedures" }
 read-rulebook-tool = { path = "tools/read_rulebook" }
+regex.workspace = true
 reqwest.workspace = true
 sea-orm.workspace = true
 sea-orm-migration.workspace = true

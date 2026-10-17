@@ -17,9 +17,9 @@ test("each provider makes its own word of an agent's choice, and the tier's word
   expect(await agentEffort({ provider: "openrouter", model: "some/model", effort: null }, level("high"))).toBe("high");
   expect(await agentEffort({ provider: "openrouter", model: "some/model", effort: null }, level("max"))).toBeNull();
   // A registered model takes thinking alone, as its effort word.
-  expect(await agentEffort({ provider: "registered", model: "kakia-0-1", effort: null }, { thinking: true, effort: "max" })).toBe("thinking");
-  expect(await agentEffort({ provider: "registered", model: "kakia-0-1", effort: "thinking" }, { thinking: false, effort: null })).toBe("no-thinking");
-  expect(await agentEffort({ provider: "registered", model: "kakia-0-1", effort: null }, level("max"))).toBeNull();
+  expect(await agentEffort({ provider: "registered", model: "local-0-1", effort: null }, { thinking: true, effort: "max" })).toBe("thinking");
+  expect(await agentEffort({ provider: "registered", model: "local-0-1", effort: "thinking" }, { thinking: false, effort: null })).toBe("no-thinking");
+  expect(await agentEffort({ provider: "registered", model: "local-0-1", effort: null }, level("max"))).toBeNull();
   // A run no agent's choice reaches goes out on its mapping.
   expect(await agentEffort({ provider: "claude-code", model: "claude-unlisted", effort: "high" }, undefined)).toBe("high");
   expect(await mappedRun({ effort: "high" } as HarnessRun, { provider: "codex", model: "terra", effort: "low", tier: "Fine" })).toMatchObject({ model: "terra", effort: "low", tier: "Fine" });

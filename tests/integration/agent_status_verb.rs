@@ -1,0 +1,470 @@
+//! The status-line command and the hooks of an agent's resident program as `bmo-agency agent-status` answers them
+//! (docs/agent-control.md, 「What a resident turn reads」): what each call writes into the place, the status
+//! line, the holds a stop is given while its background work runs or its answer uses a banned word, a turn's
+//! end left open while the round owes a turn, and a person's typed line answered with the service's
+//! composition, and the shell guard's reading of a command. Each call is the verb's own function, run on a
+//! place of the test's own.
+
+use std::collections::BTreeMap;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
+
+use agency_server::door::place_run::{
+  begin_run, end_run, hand_run, person_submits, read_hooks, read_run, read_status,
+};
+use agency_server::verbs::agent_status::{
+  Asked, Ground, agent_status, shell_guard, typed_hook_output, typed_submission,
+};
+use agency_server::wording::{WORDING_DOCUMENT, parse_glossary};
+use axum::Router;
+use axum::extract::Request;
+use axum::http::StatusCode;
+use http_body_util::BodyExt;
+use serde_json::{Value, json};
+use tokio::net::TcpListener;
+
+const SESSION: &str = "7b357775-bf0e-4e3a-8b77-823abe359a4d";
+
+// The wording document of the code tree a hook reads, holding one banned term a line can carry alone.
+const GLOSSARY: &str = "# Wording\n\n## Banned terms\n\n- en · utilise → use\n";
+
+struct Hook {
+  place: tempfile::TempDir,
+  config: tempfile::TempDir,
+  tree: tempfile::TempDir,
+  env: BTreeMap<String, String>,
+}
+
+impl Hook {
+  fn new() -> Self {
+    let tree = tempfile::tempdir().unwrap();
+
+    std::fs::write(tree.path().join(WORDING_DOCUMENT), GLOSSARY).unwrap();
+
+    Self {
+      place: tempfile::tempdir().unwrap(),
+      config: tempfile::tempdir().unwrap(),
+      tree,
+      env: BTreeMap::new(),
+    }
+  }
+
+  fn path(&self) -> &Path {
+    self.place.path()
+  }
+
+  // One call of the hook with its flags, handed `payload`, at the moment named.
+  async fn call(&self, kind: &str, flags: &[&str], payload: &Value) -> Vec<String> {
+    let asked = Asked {
+      kind: kind.to_owned(),
+      place: self.path().to_string_lossy().into_owned(),
+      hold_tasks: flags.contains(&"--hold-tasks"),
+      hold_wording: flags.contains(&"--hold-wording"),
+      compose_typed: flags.contains(&"--compose-typed"),
+    };
+    let ground = Ground {
+      env: &self.env,
+      code_tree: self.tree.path(),
+      machine_config_dir: self.config.path(),
+      now_ms: chrono::Utc::now().timestamp_millis(),
+    };
+
+    agent_status(&asked, &payload.to_string(), &ground).await
+  }
+}
+
+fn now() -> i64 {
+  chrono::Utc::now().timestamp_millis()
+}
+
+fn at(ms: i64) -> String {
+  chrono::DateTime::from_timestamp_millis(ms).unwrap().to_rfc3339()
+}
+
+fn transcript(dir: &Path, lines: &[Value]) -> PathBuf {
+  let path = dir.join("session.jsonl");
+
+  std::fs::write(&path, lines.iter().map(|line| format!("{line}\n")).collect::<String>()).unwrap();
+  path
+}
+
+/// the script records what it is handed and answers the status line
+#[tokio::test]
+async fn the_hook_records_what_it_is_handed_and_answers_the_status_line() {
+  let hook = Hook::new();
+
+  begin_run(hook.path(), "worker-job-7", "job seven", now(), BTreeMap::new()).unwrap();
+
+  let said = hook
+    .call("status", &[], &json!({ "session_id": "s", "cost": { "total_cost_usd": 0.1 } }))
+    .await;
+
+  assert_eq!(said.len(), 1);
+  assert!(said[0].contains("worker-job-7") && said[0].contains("job seven"), "{said:?}");
+  assert_eq!(read_status(hook.path(), 0).len(), 1);
+  assert!(read_status(hook.path(), 0)[0].login.is_some());
+
+  assert!(hook.call("stop", &[], &json!({})).await.is_empty());
+  assert!(read_run(hook.path()).unwrap().ended_at.is_some());
+}
+
+/// a line that asks for the hold has a stop with its background work running answered with a block
+#[tokio::test]
+async fn a_stop_with_its_background_work_running_is_answered_with_a_block_three_times_then_let_through() {
+  let hook = Hook::new();
+  let running = json!({ "background_tasks": [
+    { "id": "b1", "type": "shell", "status": "running", "description": "dev server" },
+    { "id": "b2", "type": "shell", "status": "completed" }
+  ] });
+
+  begin_run(hook.path(), "worker-job-8", "job eight", now() - 1_000, BTreeMap::new()).unwrap();
+
+  for turn in 1..=3 {
+    let said = hook.call("stop", &["--hold-tasks"], &running).await;
+    let block: Value = serde_json::from_str(&said[0]).unwrap();
+
+    assert_eq!(block["decision"], "block", "hold {turn}");
+    assert!(block["reason"].as_str().unwrap().contains("b1 (dev server)"));
+    assert!(!block["reason"].as_str().unwrap().contains("b2"));
+    assert!(read_run(hook.path()).unwrap().ended_at.is_none());
+  }
+
+  assert_eq!(
+    read_hooks(hook.path(), 0).iter().map(|hook| hook.kind.as_str()).collect::<Vec<_>>(),
+    ["held"; 3]
+  );
+  assert!(hook.call("stop", &["--hold-tasks"], &running).await.is_empty());
+  assert!(read_run(hook.path()).unwrap().ended_at.is_some());
+}
+
+// The first term the glossary sets aside that a line can carry alone, and what it is to be written as.
+fn banned() -> (String, String) {
+  parse_glossary(GLOSSARY)
+    .unwrap()
+    .into_iter()
+    .find(|term| term.keeps.is_empty() && !term.term.contains(' '))
+    .map(|term| (term.term, term.instead))
+    .expect("a banned term in the glossary")
+}
+
+/// a line that holds its wording has a stop whose answer uses a banned word answered with a block
+#[tokio::test]
+async fn a_stop_whose_answer_uses_a_banned_word_is_answered_with_a_block_and_an_answer_written_again_passes()
+ {
+  let hook = Hook::new();
+  let (term, instead) = banned();
+  let started = now() - 1_000;
+
+  begin_run(hook.path(), "worker-job-9", "job nine", started, BTreeMap::new()).unwrap();
+
+  let handed = hook
+    .call(
+      "stop",
+      &["--hold-tasks", "--hold-wording"],
+      &json!({ "last_assistant_message": format!("{term}.") }),
+    )
+    .await;
+  let block: Value = serde_json::from_str(&handed[0]).unwrap();
+
+  assert_eq!(block["decision"], "block");
+  assert!(block["reason"].as_str().unwrap().contains(&format!("\"{term}\" → {instead}")));
+
+  // Without the program's own last message, the answer is read off the session record.
+  let record = transcript(
+    hook.place.path(),
+    &[json!({ "type": "assistant", "timestamp": at(started + 10),
+      "message": { "id": "m1", "content": [{ "type": "text", "text": format!("{term}.") }] } })],
+  );
+  let read = hook.call("stop", &["--hold-wording"], &json!({ "transcript_path": record })).await;
+
+  assert!(
+    serde_json::from_str::<Value>(&read[0]).unwrap()["reason"]
+      .as_str()
+      .unwrap()
+      .contains(&term)
+  );
+
+  assert!(
+    hook
+      .call("stop", &["--hold-wording"], &json!({ "last_assistant_message": format!("{instead}.") }))
+      .await
+      .is_empty()
+  );
+  assert!(read_run(hook.path()).unwrap().ended_at.is_some());
+}
+
+/// the hold lets through a stop with nothing running, and a person's turn
+#[tokio::test]
+async fn the_hold_lets_through_a_stop_with_nothing_running_and_a_persons_turn() {
+  let hook = Hook::new();
+  let let_through = |payload: Value| {
+    let hook = &hook;
+
+    async move { hook.call("stop", &["--hold-tasks"], &payload).await }
+  };
+
+  begin_run(hook.path(), "worker-job-10", "job ten", now() - 1_000, BTreeMap::new()).unwrap();
+  assert!(let_through(json!({ "background_tasks": [] })).await.is_empty());
+  assert!(read_run(hook.path()).unwrap().ended_at.is_some());
+
+  hook.call("submit", &[], &json!({})).await;
+  assert!(read_run(hook.path()).unwrap().person);
+  assert!(
+    let_through(json!({ "background_tasks": [{ "id": "b", "status": "running" }] }))
+      .await
+      .is_empty()
+  );
+  assert_eq!(read_hooks(hook.path(), 0).last().unwrap().kind, "stop");
+}
+
+/// a turn's end leaves the room's run open while the round still owes a turn
+#[tokio::test]
+async fn a_turns_end_leaves_the_bots_run_open_while_the_round_still_owes_a_turn() {
+  let hook = Hook::new();
+  let started = now() - 1_000;
+  let record = transcript(
+    hook.place.path(),
+    &[
+      json!({ "type": "user", "timestamp": at(started + 10), "message": { "content": "the work" } }),
+      json!({ "type": "queue-operation", "operation": "enqueue", "timestamp": at(started + 20) }),
+      json!({ "type": "queue-operation", "operation": "dequeue", "timestamp": at(started + 30) }),
+      json!({ "type": "system", "subtype": "turn_duration", "timestamp": at(started + 40) }),
+    ],
+  );
+  let stop = json!({ "session_id": "s1", "transcript_path": record });
+
+  begin_run(hook.path(), "chat:9", "chat", started, BTreeMap::new()).unwrap();
+  hook.call("stop", &[], &stop).await;
+  assert!(read_run(hook.path()).unwrap().ended_at.is_none());
+
+  hook.call("stop", &[], &stop).await;
+  assert!(read_run(hook.path()).unwrap().ended_at.is_some());
+}
+
+/// a failed request's end is a turn's end: counted against what the round owes, never held, and closing the run
+#[tokio::test]
+async fn a_failed_requests_end_is_a_turns_end_counted_and_never_held() {
+  let hook = Hook::new();
+  let started = now() - 1_000;
+  let record = transcript(
+    hook.place.path(),
+    &[
+      json!({ "type": "user", "timestamp": at(started + 10), "message": { "content": "the words" } }),
+      json!({ "type": "queue-operation", "operation": "enqueue", "timestamp": at(started + 20) }),
+      json!({ "type": "queue-operation", "operation": "dequeue", "timestamp": at(started + 30) }),
+      json!({ "type": "system", "subtype": "turn_duration", "timestamp": at(started + 40) }),
+    ],
+  );
+  let failed = json!({
+    "session_id": "s1",
+    "transcript_path": record,
+    "hook_event_name": "StopFailure",
+    "error": "server_error",
+    "last_assistant_message": "API Error: 503 card busy",
+    "background_tasks": [{ "id": "b", "status": "running" }],
+  });
+
+  begin_run(hook.path(), "chat:9", "chat", started, BTreeMap::new()).unwrap();
+
+  // The first of the round's two turns failed: the run stays open for the second.
+  assert!(hook.call("failure", &[], &failed).await.is_empty());
+  assert!(read_run(hook.path()).unwrap().ended_at.is_none());
+
+  // The second failed too, with work still running, and is let through whatever the hook was asked to hold.
+  assert!(hook.call("failure", &["--hold-tasks"], &failed).await.is_empty());
+  assert!(read_run(hook.path()).unwrap().ended_at.is_some());
+  assert_eq!(read_hooks(hook.path(), 0).last().unwrap().kind, "failure");
+}
+
+// A service answering `/typed-line` with a composition, writing down what it was asked and with what token.
+async fn composing() -> (u16, Arc<Mutex<Vec<(Option<String>, Value)>>>) {
+  let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+  let port = listener.local_addr().unwrap().port();
+  let asked = Arc::new(Mutex::new(vec![]));
+  let heard = asked.clone();
+  let app = Router::new().fallback(move |request: Request| {
+    let heard = heard.clone();
+
+    async move {
+      let token = request
+        .headers()
+        .get("authorization")
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_owned);
+      let body = request.into_body().collect().await.unwrap().to_bytes();
+
+      heard.lock().unwrap().push((token, serde_json::from_slice(&body).unwrap()));
+      axum::Json(json!({ "context": "<round of the owner's chat>" }))
+    }
+  });
+
+  tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+
+  (port, asked)
+}
+
+/// a line that composes typed lines hands a person's line the service's composition, and nothing else
+#[tokio::test]
+async fn a_persons_typed_line_is_handed_the_services_composition_and_nothing_else_is() {
+  let (port, asked) = composing().await;
+  let mut hook = Hook::new();
+
+  hook.env.insert("AGENCY_CONTROL_PORT".into(), port.to_string());
+  hook.env.insert("AGENCY_CONTROL_TOKEN".into(), "typed-token".into());
+
+  let line = json!({ "prompt": "sort out today's plan", "session_id": SESSION });
+
+  begin_run(hook.path(), "chat:9", "chat", now() - 1_000, BTreeMap::new()).unwrap();
+  assert!(hook.call("submit", &["--compose-typed"], &line).await.is_empty());
+  end_run(hook.path(), now()).unwrap();
+
+  assert!(
+    hook
+      .call("submit", &["--compose-typed"], &json!({ "prompt": "/compact", "session_id": SESSION }))
+      .await
+      .is_empty()
+  );
+  hook.call("stop", &[], &json!({})).await;
+
+  let said = hook.call("submit", &["--compose-typed"], &line).await;
+
+  assert_eq!(
+    serde_json::from_str::<Value>(&said[0]).unwrap(),
+    json!({ "hookSpecificOutput": { "hookEventName": "UserPromptSubmit", "additionalContext": "<round of the owner's chat>" } })
+  );
+  assert_eq!(
+    *asked.lock().unwrap(),
+    [(
+      Some("Bearer typed-token".to_owned()),
+      json!({ "text": "sort out today's plan", "sessionId": SESSION })
+    )]
+  );
+  assert!(read_run(hook.path()).unwrap().person);
+}
+
+/// a word the service pushed that lands after the turn's end is the round's, not a typed line
+#[tokio::test]
+async fn a_word_the_service_pushed_that_lands_after_the_turns_end_is_the_rounds_not_a_typed_line() {
+  let (port, asked) = composing().await;
+  let mut hook = Hook::new();
+
+  hook.env.insert("AGENCY_CONTROL_PORT".into(), port.to_string());
+  hook.env.insert("AGENCY_CONTROL_TOKEN".into(), "typed-token".into());
+
+  let env = BTreeMap::from([("BMO_RUN_NAME".to_owned(), "chat:-9:1:174".to_owned())]);
+
+  begin_run(hook.path(), "chat:-9:1:174", "chat", now() - 1_000, env).unwrap();
+  hook.call("stop", &["--compose-typed"], &json!({ "session_id": SESSION })).await;
+  assert!(read_run(hook.path()).unwrap().ended_at.is_some());
+
+  hand_run(hook.path(), true);
+  assert!(
+    hook
+      .call(
+        "submit",
+        &["--compose-typed"],
+        &json!({ "prompt": "More for the answer you are making now", "session_id": SESSION })
+      )
+      .await
+      .is_empty()
+  );
+  assert!(asked.lock().unwrap().is_empty());
+
+  let run = read_run(hook.path()).unwrap();
+
+  assert_eq!((run.name.as_deref(), run.person, run.ended_at), (Some("chat:-9:1:174"), false, None));
+
+  // The submit took the mark away, so once that turn has ended the next line is judged afresh.
+  hook.call("stop", &["--compose-typed"], &json!({ "session_id": SESSION })).await;
+  assert!(person_submits(hook.path()));
+}
+
+/// is handed over with its session, and an empty line, a slash command or no session is left alone
+#[test]
+fn a_typed_line_is_handed_over_with_its_session_and_an_empty_line_a_slash_command_or_no_session_is_left_alone()
+ {
+  assert_eq!(
+    typed_submission(&json!({ "prompt": "sort it out", "session_id": SESSION })),
+    Some(("sort it out".to_owned(), SESSION.to_owned()))
+  );
+  assert_eq!(typed_submission(&json!({ "prompt": "  ", "session_id": SESSION })), None);
+  assert_eq!(typed_submission(&json!({ "prompt": " /compact", "session_id": SESSION })), None);
+  assert_eq!(typed_submission(&json!({ "prompt": "plan", "session_id": "" })), None);
+  assert_eq!(typed_submission(&json!("not json")), None);
+}
+
+// The shell guard's answer to a Bash call: the reason it denies one, or none for a call let through.
+fn shell_refusal(command: &str) -> Option<String> {
+  let answer =
+    shell_guard(&json!({ "tool_name": "Bash", "tool_input": { "command": command } }).to_string())?;
+  let answer: Value = serde_json::from_str(&answer).unwrap();
+
+  assert_eq!(answer["hookSpecificOutput"]["permissionDecision"], "deny");
+
+  answer["hookSpecificOutput"]["permissionDecisionReason"].as_str().map(str::to_owned)
+}
+
+/// refuses a shell command that starts Claude Code, and lets every other through
+#[test]
+fn the_shell_guard_refuses_a_shell_command_that_starts_claude_code_and_lets_every_other_through() {
+  for command in ["claude -p hi", "env A=1 claude", "bash -c 'claude --resume x'"] {
+    let reason = shell_refusal(command).unwrap_or_else(|| panic!("let through: {command}"));
+
+    assert!(reason.starts_with("refused: it starts the Claude Code CLI"), "{reason}");
+    assert!(reason.contains("hand work to a worker with your task tool"), "{reason}");
+  }
+
+  for command in ["ls ~/.claude", "echo claude", "git log"] {
+    assert_eq!(shell_refusal(command), None, "{command}");
+  }
+
+  assert_eq!(
+    shell_guard(&json!({ "tool_name": "Read", "tool_input": { "file_path": "/x" } }).to_string()),
+    None
+  );
+  assert_eq!(shell_guard("not json"), None);
+}
+
+// A service that refuses every line.
+async fn refusing() -> u16 {
+  let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+  let port = listener.local_addr().unwrap().port();
+  let app = Router::new().fallback(|| async {
+    (
+      StatusCode::NOT_IMPLEMENTED,
+      axum::Json(json!({ "error": "no consumer composes a typed line" })),
+    )
+  });
+
+  tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+  port
+}
+
+/// goes on with a line saying why where the service cannot compose it
+#[tokio::test]
+async fn a_typed_line_goes_on_with_a_line_saying_why_where_the_service_cannot_compose_it() {
+  let context = |printed: String| {
+    let said: Value = serde_json::from_str(&printed).unwrap();
+
+    assert_eq!(said["hookSpecificOutput"]["hookEventName"], "UserPromptSubmit");
+    said["hookSpecificOutput"]["additionalContext"].as_str().unwrap().to_owned()
+  };
+  let wait = Duration::from_secs(5);
+  let refused = refusing().await;
+  // A port nothing listens on: one bound and let go.
+  let gone = TcpListener::bind("127.0.0.1:0").await.unwrap().local_addr().unwrap().port();
+
+  assert!(
+    context(typed_hook_output("plan", SESSION, gone, None, wait).await)
+      .contains("could not be composed (the program has no AGENCY_CONTROL_TOKEN to ask agency with)")
+  );
+  assert!(
+    context(typed_hook_output("plan", SESSION, refused, Some("t"), wait).await)
+      .contains("(agency answered 501: no consumer composes a typed line)")
+  );
+  assert!(
+    context(typed_hook_output("plan", SESSION, gone, Some("t"), wait).await)
+      .ends_with("so it goes on as typed.")
+  );
+}

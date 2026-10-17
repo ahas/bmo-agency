@@ -1,0 +1,89 @@
+# How the testbed tests, checks, builds and deploys this repository, in the testbed's declaration format.
+
+testbed = 0
+name = "agency"
+
+[test]
+# The Cargo workspace's crates, the root package's test groups among them. The TypeScript tests under
+# tests/ts are not a file language here: the testbed runs a bun file from the root, where the preload
+# tests/ts/bunfig.toml names is not read, and that preload is what moves every test file into a home of
+# its own before its first line. They run by `bun test` from tests/ts.
+languages = ["cargo"]
+# A release runs the TypeScript half of agency, so its packages are installed in every fresh tree.
+setup = ["cd ts && bun install --frozen-lockfile"]
+
+# The tests make their own scratch databases on the server, so no template is named.
+[test.database]
+
+[projects]
+# ts/ is the Bun workspace; its type check covers the tests under tests/ts as well.
+check_script = "check:types"
+
+[tools]
+# Agency's own tools, each checked by the command its tool.toml names.
+dir = "tools"
+
+[check]
+quick = ["layout", "dependencies"]
+base_libraries = ["bmo-chat", "bmo-chat-client", "bmo-ui"]
+
+[[check.step]]
+id = "check"
+command = "cargo check --workspace --all-targets"
+lane = "wide"
+
+[[check.step]]
+id = "clippy"
+command = "cargo clippy --workspace --all-targets -- -D warnings"
+lane = "wide"
+
+[[check.step]]
+id = "fmt"
+command = "cargo fmt --all --check"
+
+[build]
+# The server and the verbs, the agent host and the programs it runs out of bin/, the model gateway, and
+# the executables of agency's tools.
+binaries = [
+  "agency-server",
+  "bmo-agency",
+  "agent-host",
+  "pane-head",
+  "harness-machine",
+  "harness-providers",
+  "node-link",
+  "llm-gateway",
+  "procedures-tool",
+  "read-rulebook-tool",
+]
+
+# The deploy tree every unit, tool and document of agency names, and the data root agency shares with
+# the store's other readers. The server, the agent host and the gateway carry the restart mark; herdr's
+# unit carries none, since herdr is a runtime agency stands on rather than one of its programs.
+[deploy]
+root = "~/.local/share/bmo"
+link = "deploy"
+data_root = "~/.local/share/bmo/data"
+units = ["deploy/*.service"]
+
+# Each tool is placed in its folder's .placed/, the folder the tool host reads (docs/tools.md, 「A tool's
+# folder」): the executable the release's bin/ holds, its manifest and the schemas beside it.
+[[deploy.step]]
+id = "place-procedures"
+phase = "before-flip"
+command = '''
+set -eu
+rm -rf tools/procedures/.placed
+mkdir -p tools/procedures/.placed
+cp bin/procedures-tool tools/procedures/tool.toml tools/procedures/.placed/
+'''
+
+[[deploy.step]]
+id = "place-read-rulebook"
+phase = "before-flip"
+command = '''
+set -eu
+rm -rf tools/read_rulebook/.placed
+mkdir -p tools/read_rulebook/.placed
+cp bin/read-rulebook-tool tools/read_rulebook/tool.toml tools/read_rulebook/read_rulebook.json tools/read_rulebook/.placed/
+'''

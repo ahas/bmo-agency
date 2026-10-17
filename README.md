@@ -30,7 +30,8 @@ provider and tier is given.
 | `tools/` | the tools agency provides to the tool host: the procedures and the rulebook reader |
 | `ts/` | the TypeScript packages, one Bun workspace |
 | `policy/`, `prompts/` | the fixed values and the prompts agency runs by |
-| `deploy/` | the service units |
+| `deploy/` | the service units: agency's server, the agent host and the model gateway, which every deployment restarts, and herdr's, which no deployment of agency keeps |
+| `testbed.toml` | the testbed's declaration: how the repository is tested, checked, built and deployed |
 | `tests/` | every test |
 
 ## Commands
@@ -41,6 +42,7 @@ cargo test --workspace
 cargo fmt --all --check
 cargo clippy --workspace --all-targets -- -D warnings
 (cd ts && bun install && bunx tsc --noEmit)
+(cd tests/ts && bun test)
 ```
 
 The version is the workspace's, in semver.

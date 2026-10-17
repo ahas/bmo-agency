@@ -250,9 +250,9 @@ test("Claude-off launch and pane delivery checks read the current archive", asyn
   expect(() => guardPanePrompt()).toThrow(queueWords.pool.off);
   // A program pointed at an own LLM service's endpoint is that road's, which Claude being off leaves open.
   const road = { ANTHROPIC_BASE_URL: "http://127.0.0.1:18030" };
-  expect(() => guardHerdrCall("pane.create", { command: ["claude", "--model", "kakia-0-1"], env: road })).not.toThrow();
+  expect(() => guardHerdrCall("pane.create", { command: ["claude", "--model", "local-0-1"], env: road })).not.toThrow();
   expect(() => guardHerdrCall("pane.create", { command: ["claude", "--model", "claude-opus-5-5"], env: {} })).toThrow(queueWords.pool.off);
-  expect(() => guardClaudeLaunch("worker", ["claude", "--model", "kakia-0-1"], road)).not.toThrow(queueWords.pool.off);
+  expect(() => guardClaudeLaunch("worker", ["claude", "--model", "local-0-1"], road)).not.toThrow(queueWords.pool.off);
   expect(() => guardPanePrompt({ claude: false })).not.toThrow();
  } finally { installProviderSettings(null); }
 });

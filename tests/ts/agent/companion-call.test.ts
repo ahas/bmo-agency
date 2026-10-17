@@ -13,8 +13,8 @@ import type { HarnessRun } from "@agency/agent/harness";
 const archive = await scratchArchive();
 
 // The registration the turn goes out on, served at one address, as the owner registers one.
-await archive.modelRegistry().create({ name: "kakia-0-1", label: "Kakia", model: "kakia-0-1", contextTokens: 131_072, answerTokens: 8_192, waitSeconds: 60, thinking: false, walked: false, keepsResearch: false });
-await archive.modelRegistry().setAddress("kakia-0-1", { node: "able", url: "http://127.0.0.1:19001/v1/chat/completions", keyFile: null, keyOwned: false });
+await archive.modelRegistry().create({ name: "local-0-1", label: "Local", model: "local-0-1", contextTokens: 131_072, answerTokens: 8_192, waitSeconds: 60, thinking: false, walked: false, keepsResearch: false });
+await archive.modelRegistry().setAddress("local-0-1", { node: "able", url: "http://127.0.0.1:19001/v1/chat/completions", keyFile: null, keyOwned: false });
 installHarnessRegistry(archive);
 afterAll(() => installProviderSettings(null));
 
@@ -23,16 +23,16 @@ afterAll(() => installProviderSettings(null));
 // (docs/own-llm.md, 「How requests go」).
 describe("what a kept session on a registration holds after a turn", () => {
   test("is its transcript's last request against the registration's window, whatever the result sums", async () => {
-    const window = (await archive.modelRegistry().get("kakia-0-1"))!.contextTokens;
+    const window = (await archive.modelRegistry().get("local-0-1"))!.contextTokens;
     const cwd = scratchDir("bmo-companion-held-");
     const systemPromptPath = join(cwd, "system.md");
 
     writeFileSync(systemPromptPath, "s");
 
-    const run = { line: "chat", model: "kakia-0-1", effort: "", cwd, systemPromptPath, mcpConfigPath: null, prompt: "p", promptDelivery: "input", resumeSessionId: "held-1", keepSession: true, hostCommands: false, thinking: false, answerShape: "unread" } as unknown as HarnessRun;
+    const run = { line: "chat", model: "local-0-1", effort: "", cwd, systemPromptPath, mcpConfigPath: null, prompt: "p", promptDelivery: "input", resumeSessionId: "held-1", keepSession: true, hostCommands: false, thinking: false, answerShape: "unread" } as unknown as HarnessRun;
     const home = (await agencyRegisteredProvider.adapter.command(run)).env.CLAUDE_CONFIG_DIR!;
     const record = transcriptPath(cwd, "held-1", cliProjectsRoot(home));
-    const result = JSON.stringify({ type: "result", result: "yes", session_id: "held-1", is_error: false, usage: { input_tokens: 2_000, cache_read_input_tokens: 40_000 }, modelUsage: { "kakia-0-1": { contextWindow: window } } });
+    const result = JSON.stringify({ type: "result", result: "yes", session_id: "held-1", is_error: false, usage: { input_tokens: 2_000, cache_read_input_tokens: 40_000 }, modelUsage: { "local-0-1": { contextWindow: window } } });
 
     mkdirSync(dirname(record), { recursive: true });
     writeFileSync(record, [{ message: { usage: { input_tokens: 1_000, cache_read_input_tokens: 9_000 } } }, { message: { usage: { input_tokens: 600, cache_read_input_tokens: 10_000 } } }].map((one) => JSON.stringify(one)).join("\n"));

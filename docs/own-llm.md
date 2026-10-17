@@ -395,13 +395,10 @@ never the model's name.
 - **A request without the key is answered `500`, not `401`,** since LiteLLM's own refusal path imports a
   database client the installed LiteLLM does not carry; a wrong key is answered `400`. The front hands
   both back as they came; a caller with the key is answered.
-- **How it stands:** the gateway's unit is linked into the user's systemd directory like the bot's, and
-  the bot's unit wants it, so a start or a restart of the bot — every deployment's among them — starts
-  the gateway where it is down.
-- **Restarted only where its binary changed:** the unit runs the gateway's binary out of the deploy
-  tree's `bin/` and carries the binary mark, so a deployment restarts it only where it replaced that
-  binary with different bytes. That restart is the one moment the front itself goes down, and the
-  requests in hand then are cut with it.
+- **How it stands:** the gateway's unit is linked into the user's systemd directory and enabled by
+  the deployment, and carries the restart mark, so every deployment restarts it with agency's other
+  services. That restart is the one moment the front itself goes down, and the requests in hand then
+  are cut with it.
 - **A changed hook needs no restart:** the table's digest covers the hooks' contents, so the next
   reading of the registry starts a new child on them and hands over the way a changed registry does.
 
