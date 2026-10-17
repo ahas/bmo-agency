@@ -1,4 +1,10 @@
+use std::collections::BTreeMap;
+use std::path::{Path, PathBuf};
+
 use agency_server::lines::place::*;
+use agent_host::place::ResidentCommand;
+use harness_providers::Machine;
+use serde_json::{Map, Value, json};
 
 #[test]
 fn a_program_whose_settings_came_to_call_other_hooks_is_another_program() {
@@ -106,7 +112,10 @@ fn a_places_settings_keep_the_lines_own_hooks_and_add_the_status_line_and_the_fo
   assert_eq!(stop[0]["hooks"][0]["command"], "own");
   assert_eq!(
     stop[1]["hooks"][0]["command"],
-    format!("'/deploy/bin/bmo-agency' 'agent-status' 'stop' '--place' '{}' '--hold-tasks'", place.display())
+    format!(
+      "'/deploy/bin/bmo-agency' 'agent-status' 'stop' '--place' '{}' '--hold-tasks'",
+      place.display()
+    )
   );
   assert!(settings["statusLine"]["command"].as_str().unwrap().contains("'status'"));
   assert_eq!(settings["hooks"]["SessionStart"].as_array().unwrap().len(), 1);

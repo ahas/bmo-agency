@@ -14,10 +14,11 @@ mod command_reading {
   mod shell;
 }
 
-// The companion members built so far; the others stand beside these and are declared with their modules.
 mod companion {
   mod going;
+  mod guard;
   mod reset;
+  mod run;
 }
 mod config;
 mod control {
@@ -82,10 +83,19 @@ mod order_run {
 }
 mod peers;
 
-// The launch lines built so far; the others stand beside these and are declared with their modules.
 mod lines {
+  mod chat;
+  mod claude;
+  mod codex;
+  mod dsh;
   mod ordered;
+  mod place;
   mod prefix;
+  mod runner;
+  mod standing;
+  mod token;
+  mod trees;
+  mod worker;
   mod worker_settings;
 }
 
@@ -115,6 +125,7 @@ mod relay;
 mod rest;
 mod rooms;
 mod seeds;
+mod stand_in;
 
 mod run_log {
   mod codex;
@@ -136,9 +147,10 @@ mod watches {
 }
 mod wording;
 
-// The worker session members built so far; the others stand beside these and are declared with their
-// modules.
 mod worker_session {
+  mod fold;
+  mod held;
+  mod records;
   mod summary;
   mod told;
   mod warmth;

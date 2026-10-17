@@ -1,4 +1,6 @@
 use agency_server::lines::dsh::*;
+use agency_server::lines::ordered::Ordered;
+use agency_server::lines::token::TOKEN_VARIABLE;
 
 #[test]
 fn a_long_task_is_cut_at_spaces_that_join_it_again() {
@@ -24,7 +26,8 @@ fn a_failure_is_dsh_s_own_word_before_the_last_line() {
 
 #[test]
 fn the_overlay_writes_the_bearer_as_dsh_reads_it() {
-  let overlay = map(vec![("Authorization", Ordered::Text(format!("{ENVIRONMENT_MARK}{TOKEN_VARIABLE}")))]);
+  let overlay =
+    Ordered::map(vec![("Authorization", Ordered::Text(format!("{ENVIRONMENT_MARK}{TOKEN_VARIABLE}")))]);
 
   assert_eq!(
     overlay_text(&overlay).unwrap(),

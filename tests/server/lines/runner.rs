@@ -3,11 +3,13 @@
 
 use std::path::PathBuf;
 
+use agency_server::lines::Trees;
 use agency_server::lines::runner::*;
+use agency_server::lines::worker::rulebook;
 
 // The checkout's own prompts, where the instructions are read from.
 fn trees() -> Trees {
-  let code = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").join("..");
+  let code = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
 
   Trees {
     code: code.clone(),
@@ -17,6 +19,13 @@ fn trees() -> Trees {
     home: code,
   }
 }
+
+// The Korean words the rulebooks give the run to write, named by their code points since a test holds no
+// Hangul: the section of a product line's news, the three-line summary, an introduction and a conclusion.
+const NEWS_SECTION: &str = "\u{c2e0}\u{c81c}\u{d488}\u{b7}\u{ac00}\u{aca9} \u{c18c}\u{c2dd}";
+const THREE_LINES: &str = "\u{c138} \u{c904} \u{c694}\u{c57d}";
+const INTRODUCTION: &str = "\u{c11c}\u{b860}";
+const CONCLUSION: &str = "\u{acb0}\u{b860}";
 
 // The catalogue as the tool host's web listing hands it to a run, a tool a line.
 const LISTED: [&str; 2] = [
@@ -210,7 +219,7 @@ fn tells_the_run_to_attach_pictures_where_the_picture_is_the_material() {
       "Design, screens and anything looked at",
       "and in the body where the answer",
       "a question after one value or one fact is answered by that value, and a picture nobody asked for is noise",
-      "the deployment keeps its own copy of every picture you name",
+      "The deployment keeps its own copy of every picture you name",
       "look at every picture you mean to name with the view_image tool",
       "the document shows lines written together as one slide gallery",
       "\"<dish> :: <price>\"",
@@ -264,12 +273,14 @@ fn a_restaurant_search_gives_three_to_five_places() {
 #[test]
 fn the_body_is_the_summary_sections_and_what_went_unconfirmed() {
   let task = task();
+  let bare = format!("no {INTRODUCTION} and no {CONCLUSION}");
+  let summary = format!("### The {THREE_LINES}");
 
   holds(
     &task,
     &[
       "\"SECTION: <what it holds>\"",
-      "no introduction and no conclusion",
+      &bare,
       "Every result has it and it stands last",
       // The three forms, with three facts side by side never the default.
       "background, fact, verdict",
@@ -278,7 +289,7 @@ fn the_body_is_the_summary_sections_and_what_went_unconfirmed() {
       "Three lines is the aim, not a quota",
       // The rulebook appended to the task is where the criteria themselves stand.
       "## The shape of the body",
-      "### The three-line summary",
+      &summary,
       "**The document's nature decides the order**",
     ],
   );
@@ -326,18 +337,18 @@ fn every_candidate_carries_its_release_successor_selling_state_and_discount() {
 // a product search searches the line's news and writes it in a section of its own
 #[test]
 fn a_product_search_searches_the_lines_news() {
+  let quoted = format!("\"SECTION: {NEWS_SECTION}\"");
+  let listed = format!("5. `SECTION: {NEWS_SECTION}`");
+
   holds(
     &task(),
-    &[
-      "**Where it applies, the product line's news is searched beside the sellers**",
-      "\"SECTION: New products and prices\"",
-    ],
+    &["**Where it applies, the product line's news is searched beside the sellers**", &quoted],
   );
   holds(
     &read_once_it_applies("product-search"),
     &[
       "## The product line's news",
-      "5. `SECTION: New products and prices`",
+      &listed,
       "- **The line's news is searched first**",
       "It is filled from the line's news search, never from the seller pages",
     ],

@@ -48,14 +48,14 @@ const TITLE_ROW: &str = "session-title-llm";
 // for.
 const PERMISSION_MODE: &str = "danger-full-access";
 
-// A header dsh evaluates from its own environment as it loads the overlay, written as a placeholder and
-// laid into the overlay's text as YAML's `!!js` tag.
-const ENVIRONMENT_MARK: &str = "bmo-bearer-from-environment:";
+/// A header dsh evaluates from its own environment as it loads the overlay, written as a placeholder and
+/// laid into the overlay's text as YAML's `!!js` tag.
+pub const ENVIRONMENT_MARK: &str = "bmo-bearer-from-environment:";
 
-// The most one argument may hold, well inside the kernel's limit whatever the text is made of, and the
-// UTF-16 units that always fit in it.
-const WORD_BYTES: usize = 100_000;
-const WORD_UNITS: usize = WORD_BYTES / 3;
+/// The most one argument may hold, well inside the kernel's limit whatever the text is made of, and the
+/// UTF-16 units that always fit in it.
+pub const WORD_BYTES: usize = 100_000;
+pub const WORD_UNITS: usize = WORD_BYTES / 3;
 
 // What npx runs once the pinned package is on its path: bash reads the task's words out of the task file,
 // removes it, and becomes dsh with each word an argument of its own, so a long task never travels in the
@@ -452,9 +452,9 @@ pub fn gate_command(
   launched(GATE_LINE, prompt, &overlay, cwd, env, agents, None)
 }
 
-// The overlay as dsh reads it: JSON, which YAML reads too, with the tool host's bearer placeholder replaced
-// by the tagged expression it stands for.
-fn overlay_text(overlay: &Ordered) -> Result<String, Refusal> {
+/// The overlay as dsh reads it: JSON, which YAML reads too, with the tool host's bearer placeholder replaced
+/// by the tagged expression it stands for.
+pub fn overlay_text(overlay: &Ordered) -> Result<String, Refusal> {
   let text = serde_json::to_string_pretty(overlay).map_err(|why| fault(why.to_string()))?;
   let mark = serde_json::to_string(&format!("{ENVIRONMENT_MARK}{TOKEN_VARIABLE}")).unwrap_or_default();
   let tagged =

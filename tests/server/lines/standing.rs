@@ -1,7 +1,7 @@
 use harness_providers::Provider;
 use harness_providers::claude_code::ClaudeCode;
 
-use super::{fold_share, gateway_headers};
+use agency_server::lines::standing::{fold_share, gateway_headers};
 
 #[test]
 fn a_run_on_the_gateway_names_its_wait_its_sampling_and_its_programs_long_tools() {

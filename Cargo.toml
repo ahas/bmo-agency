@@ -22,7 +22,7 @@ members = [
 resolver = "3"
 
 [workspace.package]
-version = "0.18.0"
+version = "0.18.1"
 edition = "2024"
 
 [workspace.dependencies]
@@ -81,6 +81,7 @@ herdr = { path = "crates/herdr" }
 http-body-util.workspace = true
 hyper.workspace = true
 hyper-util.workspace = true
+indexmap.workspace = true
 libc.workspace = true
 llm-gateway = { path = "crates/llm-gateway" }
 node-link = { path = "crates/node-link" }

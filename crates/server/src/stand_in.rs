@@ -25,27 +25,33 @@ use crate::places::Ground;
 use crate::{Refusal, now_ms};
 use store::{all, one};
 
-const CLAUDE: &str = "claude-code";
+/// The provider the walk stands in for.
+pub const CLAUDE: &str = "claude-code";
 const CODEX: &str = "codex";
 const OPENROUTER_NAME: &str = "openrouter";
 
-// One provider whose models are the registry's, as the walk sees it.
-struct Service {
-  provider: String,
-  present: bool,
-  walked: bool,
+/// One provider whose models are the registry's, as the walk sees it.
+pub struct Service {
+  pub provider: String,
+  /// Whether the provider is present on this machine.
+  pub present: bool,
+  /// Whether the key's walk takes its registration.
+  pub walked: bool,
 }
 
-// The facts the walk reads.
-struct Standing {
-  route: Option<String>,
-  order: Vec<String>,
-  codex_present: bool,
-  openrouter_present: bool,
-  services: Vec<Service>,
-  limit_rest: bool,
-  // Each enabled login: whether its own rest stands, and its weekly share.
-  accounts: Vec<(bool, Option<f64>)>,
+/// The facts the walk reads.
+pub struct Standing {
+  /// The provider the key is set to, where it is set to one.
+  pub route: Option<String>,
+  /// The owner's order of the providers.
+  pub order: Vec<String>,
+  pub codex_present: bool,
+  pub openrouter_present: bool,
+  pub services: Vec<Service>,
+  /// Whether a login's rest counts as its own limit, which it does unless the service's outage stands.
+  pub limit_rest: bool,
+  /// Each enabled login: whether its own rest stands, and its weekly share.
+  pub accounts: Vec<(bool, Option<f64>)>,
 }
 
 async fn setting(db: &DatabaseConnection, key: &str) -> Option<String> {
@@ -161,8 +167,8 @@ async fn standing(
   })
 }
 
-// Whether a provider offers a stand-in now.
-fn steps(standing: &Standing, provider: &str) -> bool {
+/// Whether a provider offers a stand-in now.
+pub fn steps(standing: &Standing, provider: &str) -> bool {
   match provider {
     CODEX => standing.codex_present,
     OPENROUTER_NAME => standing.openrouter_present,
@@ -348,11 +354,11 @@ pub async fn announce(
   Ok(())
 }
 
-// The walk over the standing: a key set to Claude Code walks nothing where Claude Code is on; a key set to
-// another provider asks that one alone and must answer there; a key that walks asks each stand-in above the
-// Claude Code entry, and those below it only once every login is closed, a registry's provider whose
-// registration the key does not walk passed by.
-fn walk_over(standing: &Standing) -> Option<Walk> {
+/// The walk over the standing: a key set to Claude Code walks nothing where Claude Code is on; a key set to
+/// another provider asks that one alone and must answer there; a key that walks asks each stand-in above the
+/// Claude Code entry, and those below it only once every login is closed, a registry's provider whose
+/// registration the key does not walk passed by.
+pub fn walk_over(standing: &Standing) -> Option<Walk> {
   let has_claude = standing.order.iter().any(|provider| provider == CLAUDE);
 
   match standing.route.as_deref() {
@@ -402,10 +408,10 @@ fn walk_over(standing: &Standing) -> Option<Walk> {
   })
 }
 
-// Whether the walk over the standing meets a stand-in: the one provider a key is set to, where it is not
-// Claude Code and offers one; otherwise the first in the owner's order before a Claude Code entry its
-// logins have not all closed, a registry's provider whose registration the key does not walk passed by.
-fn meets(standing: &Standing) -> bool {
+/// Whether the walk over the standing meets a stand-in: the one provider a key is set to, where it is not
+/// Claude Code and offers one; otherwise the first in the owner's order before a Claude Code entry its
+/// logins have not all closed, a registry's provider whose registration the key does not walk passed by.
+pub fn meets(standing: &Standing) -> bool {
   if let Some(route) = &standing.route {
     return route != CLAUDE && standing.order.contains(route) && steps(standing, route);
   }

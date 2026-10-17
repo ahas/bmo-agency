@@ -595,7 +595,7 @@ pub(crate) fn keyed_settings(
 
 /// The headers every request of a run on the gateway carries: how long it is waited for, the run's own
 /// sampling where it names any, and the tools of its program whose calls wait long where it names any.
-pub(crate) fn gateway_headers(wait_ms: i64, sampling: Option<&str>, long_tools: &[String]) -> Vec<String> {
+pub fn gateway_headers(wait_ms: i64, sampling: Option<&str>, long_tools: &[String]) -> Vec<String> {
   let seconds = ((wait_ms + 999) / 1_000).max(1);
   let mut headers =
     vec![format!("x-litellm-timeout: {seconds}"), format!("x-litellm-stream-timeout: {seconds}")];
@@ -614,7 +614,7 @@ pub(crate) fn gateway_headers(wait_ms: i64, sampling: Option<&str>, long_tools: 
 /// The share of a registration's window, in percent, a run on it is told to fold its conversation at: what
 /// the answer ceiling leaves of the window, rounded down to a ten-thousandth, so a request at the fold
 /// still carries the whole ceiling (docs/own-llm.md, 「A turn at the input limit」).
-pub(crate) fn fold_share(window: i64, answer: i64) -> String {
+pub fn fold_share(window: i64, answer: i64) -> String {
   let millionths =
     ((window - answer).max(0) as i128 * 1_000_000 / window.max(1) as i128).clamp(1, 1_000_000);
 

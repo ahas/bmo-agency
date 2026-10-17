@@ -110,7 +110,8 @@ pub(crate) fn line_servers(ground: &Ground, namespaces: &[&str]) -> Ordered {
   servers_on(ground.roots.mcp_port, namespaces)
 }
 
-fn servers_on(port: u16, namespaces: &[&str]) -> Ordered {
+/// The same servers on the tool host listening on the port given, each behind the run's token.
+pub fn servers_on(port: u16, namespaces: &[&str]) -> Ordered {
   Ordered::map(
     namespaces
       .iter()

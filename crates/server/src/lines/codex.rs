@@ -60,8 +60,8 @@ struct McpServer {
   env: Option<IndexMap<String, Value>>,
 }
 
-// The variable a bearer header reads its token from, in the `${NAME}` form the deployment's files write it.
-fn bearer_variable(headers: &IndexMap<String, Value>) -> Option<String> {
+/// The variable a bearer header reads its token from, in the `${NAME}` form the deployment's files write it.
+pub fn bearer_variable(headers: &IndexMap<String, Value>) -> Option<String> {
   let said = headers.get("Authorization")?.as_str()?;
   let name = said.strip_prefix("Bearer ${")?.strip_suffix('}')?;
   let mut letters = name.chars();
@@ -71,9 +71,9 @@ fn bearer_variable(headers: &IndexMap<String, Value>) -> Option<String> {
   .then(|| name.to_owned())
 }
 
-// The run's own `BMO_` variables, by name, which Codex hands a server it starts; and the place a
-// resident program reads a run's variables from with them.
-fn forwarded_names(env: &BTreeMap<String, String>) -> Vec<String> {
+/// The run's own `BMO_` variables, by name, which Codex hands a server it starts; and the place a
+/// resident program reads a run's variables from with them.
+pub fn forwarded_names(env: &BTreeMap<String, String>) -> Vec<String> {
   let mut names: Vec<String> = std::iter::once(PLACE_VARIABLE.to_owned())
     .chain(env.keys().filter(|name| name.starts_with("BMO_")).cloned())
     .collect();
@@ -158,7 +158,9 @@ impl Shape {
     }
   }
 
-  fn sandbox(&self) -> &'static str {
+  /// The sandbox Codex runs the line in: none where the chat may write and bypasses, the workspace where the
+  /// line may write, and reading only otherwise.
+  pub fn sandbox(&self) -> &'static str {
     if self.bypass {
       "danger-full-access"
     } else if self.may_write {
@@ -409,8 +411,8 @@ fn kind(event: &Value) -> Option<&str> {
   event.get("type").and_then(Value::as_str)
 }
 
-// A count Codex reported, where it is a positive number; nought otherwise.
-fn count(value: Option<&Value>) -> i64 {
+/// A count Codex reported, where it is a positive number; nought otherwise.
+pub fn count(value: Option<&Value>) -> i64 {
   value
     .and_then(Value::as_f64)
     .filter(|number| number.is_finite() && *number > 0.0)
