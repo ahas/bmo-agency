@@ -77,7 +77,7 @@ fn a_server_started_on_a_release_reads_its_code_there_names_the_link_and_hands_t
 fn a_named_tree_holding_no_code_gives_way_to_the_link_and_a_release_a_launcher_named_wins() {
   let home = tempfile::tempdir().unwrap();
   let empty = home.path().join("empty");
-  let link = home.path().join(".local/share/bmo/deploy");
+  let link = home.path().join(".local/share/bmo-agency/deploy");
   let pinned = home.path().join("pinned");
 
   std::fs::create_dir_all(&empty).unwrap();

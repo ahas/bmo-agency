@@ -9,9 +9,10 @@ belongs to no one service is a repository of its own, not a folder here.
 
 - **`tools/<name>/`** holds the tool's manifest, `tool.toml`, the schema file of each entry it
   declares, and the Rust crate of its executable, a member of agency's workspace.
-- **A deployment places each tool** in its folder's `.placed/` inside the release, the folder the tool
-  host reads: the executable the release's `bin/` holds, beside the manifest and the schema files it
-  names. The steps that do it stand in the testbed's declaration, `testbed.toml`.
+- **A deployment places each tool** in its folder's `.placed/` inside the release of agency's own
+  deploy tree, under `$HOME/.local/share/bmo-agency` (`docs/agent-control.md`, 「The job's release」),
+  the folder the tool host reads: the executable the release's `bin/` holds, beside the manifest and
+  the schema files it names. The steps that do it stand in the testbed's declaration, `testbed.toml`.
 - **The manifest** says the tool's name, the protocol version it speaks, its build and check
   commands, its run command, its timeout, and either its entries or the resources it serves, each
   with the capabilities a session must hold. Its tests hold the manifest to what the executable
@@ -38,7 +39,7 @@ belongs to no one service is a repository of its own, not a folder here.
   milliseconds; `BMO_TURN_CHAT`, the room it answers; and `BMO_TURN_VIA`, the road it answers on.
 - **The tree a tool reads `prompts/` from** is the nearest folder above the one it runs in that holds
   `prompts/`, which is the deploy tree the tool is placed in; else the tree `BMO_DEPLOY_DIR` names;
-  else the deploy link under `$HOME/.local/share/bmo/deploy`.
+  else agency's deploy link, `$HOME/.local/share/bmo-agency/deploy`.
 
 ## The procedures
 

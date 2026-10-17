@@ -57,11 +57,13 @@ binaries = [
   "read-rulebook-tool",
 ]
 
-# The deploy tree every unit, tool and document of agency names, and the data root agency shares with
-# the store's other readers. The server, the agent host and the gateway carry the restart mark; herdr's
-# unit carries none, since herdr is a runtime agency stands on rather than one of its programs.
+# Agency's own deploy tree, which every unit, tool and document of agency names and which holds nothing
+# of another service's, and the data root agency shares with the services that read its files
+# (docs/agent-control.md, 「The job's release」). The server, the agent host and the gateway carry the
+# restart mark; herdr's unit carries none, since herdr is a runtime agency stands on rather than one of
+# its programs.
 [deploy]
-root = "~/.local/share/bmo"
+root = "~/.local/share/bmo-agency"
 link = "deploy"
 data_root = "~/.local/share/bmo/data"
 units = ["deploy/*.service"]

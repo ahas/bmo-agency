@@ -154,12 +154,13 @@ pub fn deploy_root() -> PathBuf {
   }
 }
 
-/// The deploy tree's link, the stable path every unit names.
+/// The deploy tree's link, the stable path every unit names: the configured one, else agency's own.
 pub fn deploy_link() -> PathBuf {
   Config::read(|name| std::env::var(name).ok())
     .ok()
-    .and_then(|config| config.trees.deploy.clone())
-    .unwrap_or_else(|| home().join(".local/share/bmo/deploy"))
+    .map(|config| config.trees)
+    .unwrap_or_default()
+    .deploy_link(&home())
 }
 
 /// The tree a verb stands in: the one its binary was placed in, where it holds agency's prompts, and the

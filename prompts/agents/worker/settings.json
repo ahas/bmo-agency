@@ -38,7 +38,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "[ -z \"$BMO_SOURCE_DIR\" ] || exec \"${BMO_DEPLOY_DIR:-$HOME/.local/share/bmo/deploy}/bin/bmo-agency\" coworker hook",
+            "command": "[ -z \"$BMO_SOURCE_DIR\" ] || exec \"${BMO_DEPLOY_DIR:-$HOME/.local/share/bmo-agency/deploy}/bin/bmo-agency\" coworker hook",
             "timeout": 300
           }
         ]
@@ -50,7 +50,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "[ -z \"$BMO_SOURCE_DIR\" ] || exec \"${BMO_DEPLOY_DIR:-$HOME/.local/share/bmo/deploy}/bin/bmo-agency\" coworker hook",
+            "command": "[ -z \"$BMO_SOURCE_DIR\" ] || exec \"${BMO_DEPLOY_DIR:-$HOME/.local/share/bmo-agency/deploy}/bin/bmo-agency\" coworker hook",
             "timeout": 30
           }
         ]
@@ -62,7 +62,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "[ -z \"$BMO_SOURCE_DIR\" ] || exec \"${BMO_DEPLOY_DIR:-$HOME/.local/share/bmo/deploy}/bin/bmo-agency\" coworker hook",
+            "command": "[ -z \"$BMO_SOURCE_DIR\" ] || exec \"${BMO_DEPLOY_DIR:-$HOME/.local/share/bmo-agency/deploy}/bin/bmo-agency\" coworker hook",
             "timeout": 30
           }
         ]
@@ -73,7 +73,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "[ -z \"$BMO_SOURCE_DIR\" ] || exec \"${BMO_DEPLOY_DIR:-$HOME/.local/share/bmo/deploy}/bin/bmo-agency\" coworker hook",
+            "command": "[ -z \"$BMO_SOURCE_DIR\" ] || exec \"${BMO_DEPLOY_DIR:-$HOME/.local/share/bmo-agency/deploy}/bin/bmo-agency\" coworker hook",
             "timeout": 30
           }
         ]

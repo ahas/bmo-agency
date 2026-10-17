@@ -2587,13 +2587,19 @@ enters the prefix.
 - **The bot hands on the release it runs on** to what it stands up itself, a worker standing with
   nothing to do among them. A program a job finds standing on the job's own release is the same
   program; one standing on another is started again before the job's turn goes in.
+- **Agency's deploy tree is its own:** its link is `deploy` under `$HOME/.local/share/bmo-agency`,
+  with the releases it names beside it, and it holds agency's binaries, its prompts, its tools and its
+  units and nothing of another service's. The data root is not agency's alone:
+  `$HOME/.local/share/bmo/data` is the one agency shares with the services that read its files — its
+  environment file, the agent places, the store's address — and the agents' directory beside it is
+  shared the same way. Another service's program agency hands a run or a node, the CLI's `bin/bmo`
+  among them, is found in that service's own tree, never in agency's.
 - **The server knows its release from its configuration.** `AGENCY_CODE_DIR` names the tree the
   deployment started it on, a release by its real path; `AGENCY_DEPLOY_DIR` names the deploy tree's
-  link, `deploy` under the deployment's data directory in the home where unset; `AGENCY_SOURCE_DIR`
-  names the base checkout, the working directory where unset. The code tree is the named one where it
-  holds code, else the link's, else the working directory, and it is what a child is handed in
-  `BMO_DEPLOY_DIR` where the launcher names none. Text a person reads names the link wherever the
-  link holds code.
+  link, agency's own where unset; `AGENCY_SOURCE_DIR` names the base checkout, the working directory
+  where unset. The code tree is the named one where it holds code, else the link's, else the working
+  directory, and it is what a child is handed in `BMO_DEPLOY_DIR` where the launcher names none. Text
+  a person reads names the link wherever the link holds code.
 - **No release path enters the text a job reads.** The job's prompt names the deploy tree's link
   wherever it names a path of the tree, and the worker prefix's word is read with the release taken
   out of the line's paths (`deploy.md`, 「What the prefix is made of」).

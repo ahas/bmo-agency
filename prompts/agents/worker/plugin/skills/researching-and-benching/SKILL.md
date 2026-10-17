@@ -24,7 +24,7 @@ flowchart TD
   and code, the release notes and changelog, the model card, the configuration files, the paper in
   full, and the issues and pull requests for what the documentation leaves out. What others write
   comes after and is told apart as theirs. The deep dive's rules bind how it is read and told,
-  `~/.local/share/bmo/deploy/prompts/rules/deep-dives.md`.
+  `~/.local/share/bmo-agency/deploy/prompts/rules/deep-dives.md`.
 - **2. What our lab can do with it.** The lab's machines and cards are read from the brain's chunk on
   the compute nodes, `knowledge/compute-nodes-gpu.md`, never from memory. GPU work goes on the lab
   pool through each node's card arbiter: a card is taken by its hold, never by stopping

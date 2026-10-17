@@ -22,7 +22,7 @@ members = [
 resolver = "3"
 
 [workspace.package]
-version = "0.19.3"
+version = "0.19.4"
 edition = "2024"
 
 [workspace.dependencies]

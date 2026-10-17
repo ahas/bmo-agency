@@ -72,7 +72,7 @@ fn the_release_trees_are_the_named_ones_the_link_standing_under_the_home_where_n
   let unnamed = read(&[("AGENCY_CODE_DIR", " ")]).unwrap().trees;
 
   assert_eq!(unnamed.code, None);
-  assert_eq!(unnamed.deploy_link(home), home.join(".local/share/bmo/deploy"));
+  assert_eq!(unnamed.deploy_link(home), home.join(".local/share/bmo-agency/deploy"));
   assert_eq!(unnamed.source_root(), std::env::current_dir().unwrap());
 
   let named = read(&[

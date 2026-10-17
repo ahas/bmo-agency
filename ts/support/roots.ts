@@ -100,12 +100,13 @@ export function homeDir(): string {
   return named === undefined || named === "" ? homedir() : named;
 }
 
-/** The deploy tree the service runs out of, where one has been set up. */
+/** The deploy tree the service runs out of, where one has been set up: agency's own, unless one is named. */
 export function deployRoot(): string {
   const named = process.env[rootVariables.deploy];
 
-  // The installation's directory under the home, a name fixed outside the code.
-  return named === undefined || named === "" ? join(homeDir(), ".local", "share", "bmo", "deploy") : resolve(named);
+  // Agency's own installation directory under the home, a name fixed outside the code. It holds nothing
+  // of another service's; the data root and the agents' directory are the shared installation's.
+  return named === undefined || named === "" ? join(homeDir(), ".local", "share", "bmo-agency", "deploy") : resolve(named);
 }
 
 /**

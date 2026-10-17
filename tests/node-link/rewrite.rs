@@ -6,7 +6,7 @@ use serde_json::Value;
 fn roots() -> Vec<(String, String)> {
   vec![
     ("/h/a/.local/share/bmo/data".into(), "/n/w/data".into()),
-    ("/h/a/.local/share/bmo/deploy".into(), "/n/w/deploy".into()),
+    ("/h/a/.local/share/bmo-agency/deploy".into(), "/n/w/deploy".into()),
     ("/h/a".into(), "/n".into()),
   ]
 }
@@ -18,7 +18,7 @@ fn every_root_in_a_string_reads_as_the_nodes() {
     "--settings=/n/w/data/p/settings.json"
   );
   assert_eq!(
-    rewrite_text("/h/a/bin:/usr/bin:/h/a/.local/share/bmo/deploy/bin", &roots()),
+    rewrite_text("/h/a/bin:/usr/bin:/h/a/.local/share/bmo-agency/deploy/bin", &roots()),
     "/n/bin:/usr/bin:/n/w/deploy/bin"
   );
   assert_eq!(rewrite_text("/h/ab/x", &roots()), "/h/ab/x");

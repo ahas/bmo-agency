@@ -185,7 +185,7 @@ async function jobRefusal(env: Env, what: string): Promise<string | null> {
 
   return [
     `refused: this process runs inside a job's Claude Code session, and a job does not ${what} before it has said what for — it writes a whole prefix to the cache again.`,
-    `To open it for this job: ~/.local/share/bmo/deploy/bin/bmo-agency live-claude --purpose '<what you measure and why>'. Nobody is asked; every run it lets through is recorded and the count goes into the item's report (docs/live-claude-guard.md).`,
+    `To open it for this job: ~/.local/share/bmo-agency/deploy/bin/bmo-agency live-claude --purpose '<what you measure and why>'. Nobody is asked; every run it lets through is recorded and the count goes into the item's report (docs/live-claude-guard.md).`,
   ].join(" ");
 }
 

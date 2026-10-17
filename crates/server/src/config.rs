@@ -32,8 +32,9 @@ pub const CODE_DIR: &str = "AGENCY_CODE_DIR";
 pub const DEPLOY_DIR: &str = "AGENCY_DEPLOY_DIR";
 pub const SOURCE_DIR: &str = "AGENCY_SOURCE_DIR";
 
-// The deployment's data directory under the home, where the deploy tree's link stands unless named.
-const INSTALLED_UNDER_HOME: &str = ".local/share/bmo";
+// Agency's own installation directory under the home, where its deploy tree's link stands unless named.
+// It holds nothing of another service's; the data root agency shares with them stands elsewhere.
+const INSTALLED_UNDER_HOME: &str = ".local/share/bmo-agency";
 
 /// The trees the deployment names, each none where its variable is unset or blank: the code tree it
 /// started the server on, the deploy tree's link and the base checkout.
@@ -60,8 +61,8 @@ impl Trees {
     }
   }
 
-  /// The deploy tree's link: the named one, else `deploy` under the deployment's data directory in the
-  /// home.
+  /// The deploy tree's link: the named one, else `deploy` under agency's own installation directory in
+  /// the home.
   pub fn deploy_link(&self, home: &Path) -> PathBuf {
     self.deploy.clone().unwrap_or_else(|| home.join(INSTALLED_UNDER_HOME).join("deploy"))
   }

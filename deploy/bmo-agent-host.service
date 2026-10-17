@@ -4,9 +4,9 @@ Description=Agency agent host: every structured execution, and what each head pa
 # root has a host of its own, started by its launcher as a transient unit.
 
 [Service]
-WorkingDirectory=%h/.local/share/bmo/deploy
+WorkingDirectory=%h/.local/share/bmo-agency/deploy
 # The deploy tree's binary, which the deployment places into bin/ and then restarts this unit on.
-ExecStart=%h/.local/share/bmo/deploy/bin/agent-host serve --data-root %h/.local/share/bmo/data --code-root %h/.local/share/bmo/deploy
+ExecStart=%h/.local/share/bmo-agency/deploy/bin/agent-host serve --data-root %h/.local/share/bmo/data --code-root %h/.local/share/bmo-agency/deploy
 Restart=always
 RestartSec=2
 # A restart stops the host alone: each supervisor and its child stand in process groups of their own

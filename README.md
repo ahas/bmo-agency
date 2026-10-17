@@ -31,7 +31,7 @@ provider and tier is given.
 | `ts/` | the TypeScript packages, one Bun workspace |
 | `policy/`, `prompts/` | the fixed values and the prompts agency runs by |
 | `deploy/` | the service units: agency's server, the agent host and the model gateway, which every deployment restarts, and herdr's, which no deployment of agency keeps |
-| `testbed.toml` | the testbed's declaration: how the repository is tested, checked, built and deployed |
+| `testbed.toml` | the testbed's declaration: how the repository is tested, checked, built and deployed, into agency's own deploy tree under `~/.local/share/bmo-agency` beside the data root it shares, `~/.local/share/bmo/data` |
 | `tests/` | every test |
 
 ## Commands

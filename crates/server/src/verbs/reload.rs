@@ -274,7 +274,7 @@ pub async fn reload(
   if !moved.is_empty() {
     said.push(format!("reload: this moved the worker's prefix: {}", moved.join(", ")));
     said.push(
-      "reload: fold the worker sessions with: ~/.local/share/bmo/deploy/bin/bmo-agency worker fold"
+      "reload: fold the worker sessions with: ~/.local/share/bmo-agency/deploy/bin/bmo-agency worker fold"
         .to_owned(),
     );
   }

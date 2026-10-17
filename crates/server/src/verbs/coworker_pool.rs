@@ -375,7 +375,7 @@ fn ended(role: &str) -> Admission {
 
 fn no_place(role: &str, mapping: &Mapping, wait: Duration) -> String {
   format!(
-    "The co-worker gate refused this: the common spawning pool had no free {} place ({}) for a {role} within {} seconds. Do this part yourself with the tools you have. Before opening several co-workers of one tier, hold their places first with `~/.local/share/bmo/deploy/bin/bmo-agency coworker pool reserve --role <role> --count <n>` and give them back with `~/.local/share/bmo/deploy/bin/bmo-agency coworker pool release`.",
+    "The co-worker gate refused this: the common spawning pool had no free {} place ({}) for a {role} within {} seconds. Do this part yourself with the tools you have. Before opening several co-workers of one tier, hold their places first with `~/.local/share/bmo-agency/deploy/bin/bmo-agency coworker pool reserve --role <role> --count <n>` and give them back with `~/.local/share/bmo-agency/deploy/bin/bmo-agency coworker pool release`.",
     mapping.tier,
     mapping.model,
     wait.as_secs()

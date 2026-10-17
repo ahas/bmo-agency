@@ -10,8 +10,8 @@ ConditionPathExists=%h/.local/share/bmo/data/env/agency.env
 # machine's herdr, starts its clocks, and serves the quota source and the control routes on the ports and under
 # the token env/agency.env names (docs/api.md). It runs out of the deploy tree, whose bin/ holds it and whose
 # prompts/ it writes the agents' documents from as it starts.
-WorkingDirectory=%h/.local/share/bmo/deploy
-ExecStart=%h/.local/share/bmo/deploy/bin/agency-server --data-root %h/.local/share/bmo/data
+WorkingDirectory=%h/.local/share/bmo-agency/deploy
+ExecStart=%h/.local/share/bmo-agency/deploy/bin/agency-server --data-root %h/.local/share/bmo/data
 EnvironmentFile=%h/.local/share/bmo/data/env/agency.env
 Environment=BMO_DATA_DIR=%h/.local/share/bmo/data
 Environment=PATH=%h/.local/bin:%h/.bun/bin:%h/.cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin

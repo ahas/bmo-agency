@@ -1,6 +1,6 @@
 //! The home bridge's near end (docs/work-nodes.md, 「The home bridge」): a script that only this machine
 //! can run — it reads the archive or the data root — asked for from a node, run here out of the deploy
-//! tree, its output, errors and exit carried back.
+//! tree the spec names, the CLI's, its output, errors and exit carried back.
 //!
 //! One connection is one run. The asker writes one JSON line naming the script, its arguments, the run's
 //! own variables and the directory it was asked from, then its standing input as frames of a channel
@@ -35,7 +35,7 @@ pub struct Asked {
   pub cwd: Option<String>,
 }
 
-/// The verbs' binary under the deploy tree, which the bridge runs as it runs a script.
+/// The CLI's verbs' binary under the deploy tree, which the bridge runs as it runs a script.
 pub const VERBS_BINARY: &str = "bin/bmo";
 
 /// The script asked for, where it is one of the deploy tree's own: a path under its `scripts/` with no
