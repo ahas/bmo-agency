@@ -3,7 +3,7 @@
 
 use agency_server::companion::run::NoAnswer;
 use agency_server::herdr_backend::{TurnEnded, failure_of, id_of, scope_of};
-use agent_session::{Scope, SessionId};
+use agent_session::{Scope, SessionId, TurnEnd};
 use serde_json::json;
 
 #[test]
@@ -25,11 +25,7 @@ fn a_failed_turn_carries_its_engines_error_kind_and_null_for_any_other_failure()
 
     serde_json::to_value(TurnEnded {
       session: "companion-a@-7".into(),
-      run: "run-1".into(),
-      outcome: "failed",
-      answer: None,
-      reason: Some(reason),
-      engine_error,
+      end: TurnEnd::failed("run-1", reason, engine_error),
     })
     .unwrap()
   };
@@ -42,11 +38,18 @@ fn a_failed_turn_carries_its_engines_error_kind_and_null_for_any_other_failure()
     ended(errored(Some("rate_limit"))),
     json!({
       "session": "companion-a@-7",
+      "delivery": "taken",
       "run": "run-1",
       "outcome": "failed",
       "answer": null,
       "reason": "API Error",
       "engineError": { "kind": "rate_limit" },
+      "went_out": null,
+      "reply": null,
+      "failure": null,
+      "spans": [],
+      "compacted": false,
+      "continues": null,
     })
   );
   assert_eq!(ended(errored(None))["engineError"], json!({ "kind": null }));

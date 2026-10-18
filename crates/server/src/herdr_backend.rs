@@ -1,4 +1,4 @@
-//! The herdr backend of the session contract (docs/api.md, 「Sessions」): the eight operations answered over
+//! The herdr backend of the session contract (docs/api.md, 「Sessions」): the ten operations answered over
 //! the door, the places and the lines. A worker's session is its own, one per worker, carried by the
 //! worker's session turn on the line a job runs on; a companion's session is one per room, carried by its
 //! resident program on the chat line with the system prompt its settings compose; a session across rooms is
@@ -8,8 +8,9 @@
 //! its agent and its scope — `<agent>@worker`, `<agent>@<room>`, `<agent>`, `<key>@editor` — and stands across
 //! the generations its harness opens.
 //!
-//! A turn is carried whole before *send a turn* answers: whether the program took the words, or refused
-//! them while it waits on a person. What it came to is published as `turn-ended`, and its start as
+//! A turn is carried whole before *send a turn* answers with its end: whether the program took the words,
+//! or refused them while it waits on a person, and how it ended. Its end is published as `turn-ended`, and
+//! its start as
 //! `turn-started`; a conversational turn's road as `road-walked`. Words pushed into a session are offered to
 //! the run its turn carries, which its door takes at its next look at the working program.
 
@@ -17,9 +18,10 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
+pub use agent_session::EngineError;
 use agent_session::{
-  Aside, Context, Delivery, Fault, FaultKind, RoomBlock, Scope, Session, SessionId, Sessions, Start, State,
-  Turn, TurnContext,
+  Aside, Context, Fault, FaultKind, Outcome, RoomBlock, Scope, Session, SessionId, Sessions, Start, State,
+  Turn, TurnContext, TurnEnd,
 };
 use indexmap::IndexMap;
 use policy::companion_runner::COMPANION_RUNNER;
@@ -61,6 +63,9 @@ const WORKER: &str = "worker";
 // What an editor work key's session is told apart by in its id, after its key.
 const EDITOR: &str = "editor";
 
+// What a thrown-away session is told apart by in its id, after its agent.
+const APART: &str = "apart";
+
 /// A turn put into a session began: the session and the run it goes out as.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -74,25 +79,13 @@ impl Event for TurnStarted {
   const NAME: &'static str = "turn-started";
 }
 
-/// What a turn came to: `answered` with the answer's text, `blocked` where its program waits on a person,
-/// `stopped` where it was ended from outside, or `failed` with why, and with the engine's error where its
-/// engine ended the turn with one.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
+/// What a turn came to, as its send answers it (docs/api.md, 「Sessions」, a turn's end), and the session
+/// it went on.
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct TurnEnded {
   pub session: String,
-  pub run: String,
-  pub outcome: &'static str,
-  pub answer: Option<String>,
-  pub reason: Option<String>,
-  pub engine_error: Option<EngineError>,
-}
-
-/// The error an engine ended a turn with: its kind as the program names it, `rate_limit`, `overloaded`,
-/// `max_output_tokens` and the rest of its list, or none where it named none.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
-pub struct EngineError {
-  pub kind: Option<String>,
+  #[serde(flatten)]
+  pub end: TurnEnd,
 }
 
 impl Event for TurnEnded {
@@ -228,6 +221,8 @@ pub fn id_of(agent: &str, scope: &Scope) -> SessionId {
     Scope::Room(room) => format!("{agent}@{room}"),
     Scope::Worker => format!("{agent}@{WORKER}"),
     Scope::Editor => format!("{agent}@{EDITOR}"),
+    // A thrown-away session is numbered by the backend that holds it, as it starts.
+    Scope::Apart(_) => format!("{agent}@{APART}"),
   })
 }
 
@@ -239,6 +234,11 @@ pub fn scope_of(id: &SessionId) -> (String, Scope) {
     Some((agent, EDITOR)) => (agent.to_owned(), Scope::Editor),
     Some((agent, room)) => (agent.to_owned(), Scope::Room(room.to_owned())),
   }
+}
+
+// A thrown-away session asked of this backend, which carries none.
+fn apart_refused(agent: &str) -> Fault {
+  fault(FaultKind::Refused, format!("{agent}: this backend carries no thrown-away session"))
 }
 
 // A room's id as the store keeps it.
@@ -331,6 +331,18 @@ enum Came {
   Failed(String, Option<EngineError>),
 }
 
+impl Came {
+  // The turn's end under the run it went out as.
+  fn end(self, run: &str) -> TurnEnd {
+    match self {
+      Self::Answered(text) => TurnEnd::answered(run, text),
+      Self::Blocked => TurnEnd::of(run, Outcome::Blocked),
+      Self::Stopped => TurnEnd::of(run, Outcome::Stopped),
+      Self::Failed(why, engine) => TurnEnd::failed(run, why, engine),
+    }
+  }
+}
+
 /// Why a run came to no answer, and the engine's error where its engine ended it with one.
 pub fn failure_of(no: NoAnswer) -> (String, Option<EngineError>) {
   match no {
@@ -398,6 +410,7 @@ impl HerdrSessions {
       Scope::Editor => {
         Err(fault(FaultKind::Refused, format!("{agent} is an editor's work key, not an agent")))
       }
+      Scope::Apart(_) => Err(apart_refused(agent)),
     }
   }
 
@@ -980,22 +993,14 @@ impl HerdrSessions {
     }
   }
 
-  fn published(&self, session: &SessionId, run: &str, came: &Came) {
-    let (outcome, answer, reason, engine_error) = match came {
-      Came::Answered(text) => ("answered", Some(text.clone()), None, None),
-      Came::Blocked => ("blocked", None, None, None),
-      Came::Stopped => ("stopped", None, None, None),
-      Came::Failed(why, engine) => ("failed", None, Some(why.clone()), engine.clone()),
-    };
-
+  // A turn's end published as `turn-ended`, before its send is answered with it.
+  fn published(&self, session: &SessionId, end: TurnEnd) -> TurnEnd {
     self.ground().events.publish(TurnEnded {
       session: session.0.clone(),
-      run: run.to_owned(),
-      outcome,
-      answer,
-      reason,
-      engine_error,
+      end: end.clone(),
     });
+
+    end
   }
 
   // A worker's latest session record, the one a fold or a reading of its state goes by.
@@ -1042,14 +1047,14 @@ impl Sessions for HerdrSessions {
     })
   }
 
-  async fn send_turn(&self, turn: Turn) -> Result<Delivery, Fault> {
+  async fn send_turn(&self, turn: Turn) -> Result<TurnEnd, Fault> {
     let (agent, scope) = scope_of(&turn.session);
     let row = self.admitted(&agent, &scope).await?;
     let at = now_ms();
     let room = match &scope {
       Scope::Room(room) => Some(room.clone()),
       Scope::Agent => turn.context.room.as_ref().map(|room| room.chat_id.to_string()),
-      Scope::Worker | Scope::Editor => None,
+      Scope::Worker | Scope::Editor | Scope::Apart(_) => None,
     };
     let parts = match scope {
       Scope::Editor => turn.context.run.as_ref(),
@@ -1116,18 +1121,22 @@ impl Sessions for HerdrSessions {
         Err(refused) => Err(refused),
       },
       (Scope::Agent, _) => self.agent_turn(&agent, &run, &turn.prompt, &turn.context).await,
+      (Scope::Apart(_), _) => Err(apart_refused(&agent)),
     };
 
     self.ended(&turn.session, &run);
 
-    let came = came?;
-
-    self.published(&turn.session, &run, &came);
-
-    Ok(if matches!(came, Came::Blocked) { Delivery::Blocked } else { Delivery::Taken })
+    // A turn refused once its start was published still ends, failed with the refusal.
+    match came {
+      Ok(came) => Ok(self.published(&turn.session, came.end(&run))),
+      Err(refused) => {
+        self.published(&turn.session, TurnEnd::failed(&run, refused.message.clone(), None));
+        Err(refused)
+      }
+    }
   }
 
-  async fn read_state(&self, session: &SessionId) -> Result<State, Fault> {
+  async fn read_state(&self, session: &SessionId, _model: Option<&str>) -> Result<State, Fault> {
     let (agent, scope) = scope_of(session);
 
     self.admitted(&agent, &scope).await?;
@@ -1139,14 +1148,14 @@ impl Sessions for HerdrSessions {
       Scope::Editor => {
         let editor = editor_composed(ground, &agent).await.map_err(|why| fault(FaultKind::Refused, why))?;
 
-        Ok(State {
-          session: session.clone(),
-          provider: EDITOR_PROVIDER.to_owned(),
-          model: editor.model,
-          place: editor.cwd.to_string_lossy().into_owned(),
-          generation: 1,
-          context: None,
-        })
+        Ok(State::standing(
+          session.clone(),
+          EDITOR_PROVIDER.to_owned(),
+          editor.model,
+          editor.cwd.to_string_lossy().into_owned(),
+          1,
+          None,
+        ))
       }
       Scope::Room(room) => {
         let held = sessions::session(&ground.db, &agent, room_number(room)?).await.map_err(store_fault)?;
@@ -1160,14 +1169,14 @@ impl Sessions for HerdrSessions {
           .map(|(provider, model)| (provider.to_owned(), model.to_owned()))
           .unwrap_or_default();
 
-        Ok(State {
-          session: session.clone(),
+        Ok(State::standing(
+          session.clone(),
           provider,
           model,
           place,
-          generation: u64::try_from(held.generation).unwrap_or_default(),
-          context: None,
-        })
+          u64::try_from(held.generation).unwrap_or_default(),
+          None,
+        ))
       }
       Scope::Agent => {
         if agent_session(&ground.db, &agent).await.map_err(store_fault)?.is_none() {
@@ -1184,30 +1193,23 @@ impl Sessions for HerdrSessions {
         .and_then(|row| row.try_get::<Option<String>>("", "last_model").ok().flatten())
         .unwrap_or_default();
 
-        Ok(State {
-          session: session.clone(),
-          provider: CHAT_PROVIDER.to_owned(),
-          model,
-          place,
-          generation: 1,
-          context: None,
-        })
+        Ok(State::standing(session.clone(), CHAT_PROVIDER.to_owned(), model, place, 1, None))
       }
       Scope::Worker => {
         let Some(held) = self.latest_worker(&agent).await? else {
           return Err(fault(FaultKind::Unknown, format!("{session} has not been opened")));
         };
 
-        Ok(State {
-          session: session.clone(),
-          provider: harness_providers::Provider::name(&harness_providers::claude_code::ClaudeCode)
-            .to_owned(),
-          model: held.answered_model.unwrap_or(held.model),
+        Ok(State::standing(
+          session.clone(),
+          harness_providers::Provider::name(&harness_providers::claude_code::ClaudeCode).to_owned(),
+          held.answered_model.unwrap_or(held.model),
           place,
-          generation: 1,
-          context: None::<Context>,
-        })
+          1,
+          None::<Context>,
+        ))
       }
+      Scope::Apart(_) => Err(apart_refused(&agent)),
     }
   }
 
@@ -1276,6 +1278,7 @@ impl Sessions for HerdrSessions {
           Folded::Failed => Err(fault(FaultKind::Refused, format!("{session} could not be folded"))),
         }
       }
+      Scope::Apart(_) => Err(apart_refused(&agent)),
     }
   }
 
@@ -1318,6 +1321,7 @@ impl Sessions for HerdrSessions {
             .map_err(store_fault)?;
         }
       }
+      Scope::Apart(_) => return Err(apart_refused(&agent)),
     }
 
     Ok(())

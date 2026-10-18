@@ -1,10 +1,11 @@
-//! The session contract's eight operations as routes (docs/api.md, 「Sessions」): start, send a turn, push
-//! words into it, read state, interrupt, fold, end and list, each answered by the backend the server stands
-//! its places on. A fault is answered with its outcome code and an English sentence saying why.
+//! The session contract's ten operations as routes (docs/api.md, 「Sessions」): start, send a turn, push
+//! words into it, read state, answer its question, read its output, interrupt, fold, end and list, each
+//! answered by the backend the server stands its places on. A fault is answered with its outcome code and
+//! an English sentence saying why.
 
 use agent_session::{
-  Aside, Delivery, Fault, FaultKind, JobMark, RoomBlock, RunParts, Scope, Session, SessionId, Sessions,
-  Start, State, Turn, TurnContext,
+  Answer, Apart, Aside, Fault, FaultKind, JobMark, RoomBlock, RunParts, Scope, Session, SessionId,
+  Sessions, Start, State, Turn, TurnContext, WorkParts,
 };
 use axum::http::{Method, StatusCode};
 use axum::response::Response;
@@ -83,11 +84,18 @@ struct RoomRead {
   mark: String,
 }
 
-/// The turn's context a body names, or why it does not read as one.
+/// The turn's context a body names, or why it does not read as one. A work turn's parts are read, whole,
+/// where the body names the line its turn is laid on.
 pub fn context_read(body: &Value) -> Result<TurnContext, Refused> {
   let read: ContextRead = serde_json::from_value(body.clone()).map_err(|why| {
     Refused::new(StatusCode::BAD_REQUEST, format!("the turn's context does not read: {why}"))
   })?;
+  let work = match body.get("mapping") {
+    None | Some(Value::Null) => None,
+    Some(_) => Some(serde_json::from_value::<WorkParts>(body.clone()).map_err(|why| {
+      Refused::new(StatusCode::BAD_REQUEST, format!("the work turn's parts do not read: {why}"))
+    })?),
+  };
   let named =
     |value: Option<String>| value.map(|value| value.trim().to_owned()).filter(|value| !value.is_empty());
 
@@ -119,15 +127,25 @@ pub fn context_read(body: &Value) -> Result<TurnContext, Refused> {
       job,
       item: read.item,
     }),
+    work,
   })
 }
 
-fn scope_value(scope: &Scope) -> Value {
+/// A scope as a start and a list answer it.
+pub fn scope_value(scope: &Scope) -> Value {
   match scope {
     Scope::Agent => json!({ "kind": "agent" }),
     Scope::Room(room) => json!({ "kind": "room", "room": room }),
     Scope::Worker => json!({ "kind": "worker" }),
     Scope::Editor => json!({ "kind": "editor" }),
+    Scope::Apart(apart) => json!({
+      "kind": "apart",
+      "provider": apart.provider,
+      "model": apart.model,
+      "cwd": apart.cwd,
+      "todo": apart.todo,
+      "role": apart.role,
+    }),
   }
 }
 
@@ -135,7 +153,8 @@ fn session_value(session: &Session) -> Value {
   json!({ "id": session.id.0, "agent": session.agent, "scope": scope_value(&session.scope) })
 }
 
-fn state_value(state: &State) -> Value {
+/// A session's state as its route answers it.
+pub fn state_value(state: &State) -> Value {
   json!({
     "session": state.session.0,
     "provider": state.provider,
@@ -143,6 +162,10 @@ fn state_value(state: &State) -> Value {
     "place": state.place,
     "generation": state.generation,
     "context": state.context.map(|context| json!({ "carried": context.carried, "window": context.window })),
+    "run": state.run,
+    "went_out": state.went_out,
+    "question": state.question,
+    "continues": state.continues,
   })
 }
 
@@ -158,7 +181,8 @@ fn text<'a>(body: &'a Value, field: &str) -> Result<&'a str, Refused> {
     .ok_or_else(|| bad(format!("{field} (string) is required")))
 }
 
-fn scope_read(body: &Value) -> Result<Scope, Refused> {
+/// The scope a start's body names, or why it does not read as one.
+pub fn scope_read(body: &Value) -> Result<Scope, Refused> {
   let scope = body.get("scope").ok_or_else(|| bad("scope is required"))?;
 
   match scope.get("kind").and_then(Value::as_str) {
@@ -170,7 +194,27 @@ fn scope_read(body: &Value) -> Result<Scope, Refused> {
       Some(Value::Number(room)) => Ok(Scope::Room(room.to_string())),
       _ => Err(bad("a room's scope names its room")),
     },
-    _ => Err(bad("scope.kind is agent, room, worker or editor")),
+    Some("apart") => {
+      let named = |field: &str| text(scope, field).map(|value| value.trim().to_owned());
+      let todo = match scope.get("todo") {
+        None | Some(Value::Null) => None,
+        Some(todo) => Some(todo.as_i64().ok_or_else(|| bad("a thrown-away scope's todo is a number"))?),
+      };
+      let role = match scope.get("role") {
+        None | Some(Value::Null) => None,
+        Some(Value::String(role)) => Some(role.trim().to_owned()).filter(|role| !role.is_empty()),
+        Some(_) => return Err(bad("a thrown-away scope's role is a string")),
+      };
+
+      Ok(Scope::Apart(Apart {
+        provider: named("provider")?,
+        model: named("model")?,
+        cwd: named("cwd")?,
+        todo,
+        role,
+      }))
+    }
+    _ => Err(bad("scope.kind is agent, room, worker, editor or apart")),
   }
 }
 
@@ -217,8 +261,7 @@ impl Route for SessionTurn {
     };
 
     Ok(match backend(&call)?.send_turn(turn).await {
-      Ok(Delivery::Taken) => answer(StatusCode::OK, json!({ "delivery": "taken" })),
-      Ok(Delivery::Blocked) => answer(StatusCode::OK, json!({ "delivery": "blocked" })),
+      Ok(end) => answer(StatusCode::OK, json!(end)),
       Err(fault) => faulted(fault),
     })
   }
@@ -255,7 +298,7 @@ fn said_word(said: Aside) -> &'static str {
   }
 }
 
-/// A session's state, by its id.
+/// A session's state, by its id; a worker's names what its next turn on the model named would continue.
 pub struct SessionState;
 
 impl Route for SessionState {
@@ -264,8 +307,9 @@ impl Route for SessionState {
 
   async fn answer(&self, call: Call) -> Result<Response, Refused> {
     let session = SessionId(call.query("session").ok_or_else(|| bad("session is required"))?);
+    let model = call.query("model").filter(|model| !model.trim().is_empty());
 
-    Ok(match backend(&call)?.read_state(&session).await {
+    Ok(match backend(&call)?.read_state(&session, model.as_deref()).await {
       Ok(state) => answer(StatusCode::OK, state_value(&state)),
       Err(fault) => faulted(fault),
     })
@@ -273,6 +317,55 @@ impl Route for SessionState {
 }
 
 crate::moved!(SessionState);
+
+/// The answer a body gives the question a session's turn stands on, or why it does not read as one.
+pub fn answer_read(body: &Value) -> Result<Answer, Refused> {
+  let given = body.get("answer").ok_or_else(|| bad("answer is required"))?;
+
+  serde_json::from_value(given.clone())
+    .map_err(|why| bad(format!("answer.kind is allow, leave or refuse, with words for a refusal: {why}")))
+}
+
+/// The caller's answer to the question a session's turn stands on.
+pub struct SessionAnswer;
+
+impl Route for SessionAnswer {
+  const METHOD: Method = Method::POST;
+  const PATH: &'static str = "/session/answer";
+
+  async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
+    let body = call.body().await?;
+    let session = SessionId(text(&body, "session")?.to_owned());
+    let question = text(&body, "question")?;
+    let given = answer_read(&body)?;
+
+    Ok(match backend(&call)?.answer(&session, question, given).await {
+      Ok(()) => ok(),
+      Err(fault) => faulted(fault),
+    })
+  }
+}
+
+crate::moved!(SessionAnswer);
+
+/// What a session's turn now going, or its last one, has written so far.
+pub struct SessionOutput;
+
+impl Route for SessionOutput {
+  const METHOD: Method = Method::GET;
+  const PATH: &'static str = "/session/output";
+
+  async fn answer(&self, call: Call) -> Result<Response, Refused> {
+    let session = SessionId(call.query("session").ok_or_else(|| bad("session is required"))?);
+
+    Ok(match backend(&call)?.output(&session).await {
+      Ok(output) => answer(StatusCode::OK, json!(output)),
+      Err(fault) => faulted(fault),
+    })
+  }
+}
+
+crate::moved!(SessionOutput);
 
 /// Which of the three operations on one session a route carries out.
 #[derive(Clone, Copy)]

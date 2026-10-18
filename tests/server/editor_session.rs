@@ -15,7 +15,9 @@ use agency_server::herdr_backend::{HerdrSessions, TurnEnded};
 use agency_server::places::{Ground, Places};
 use agency_server::run_log::{RunLog, Target};
 use agency_server::seeds::deployment;
-use agent_session::{Delivery, FaultKind, RunParts, Scope, SessionId, Sessions, Start, Turn, TurnContext};
+use agent_session::{
+  Delivery, FaultKind, Outcome, RunParts, Scope, SessionId, Sessions, Start, Turn, TurnContext,
+};
 use harness_providers::Machine;
 
 use crate::scratch::Scratch;
@@ -104,14 +106,14 @@ async fn an_editor_session_is_started_for_an_editors_key_and_refused_for_any_oth
 async fn an_editor_session_names_its_model_in_the_brain_and_keeps_nothing() {
   let bench = Bench::new().await;
   let session = SessionId("digest@editor".into());
-  let refused = bench.sessions.read_state(&session).await.unwrap_err();
+  let refused = bench.sessions.read_state(&session, None).await.unwrap_err();
 
   assert_eq!(refused.kind, FaultKind::Refused);
   assert!(refused.message.contains("no repository"), "{}", refused.message);
 
   bench.brain_is_a_repository();
 
-  let state = bench.sessions.read_state(&session).await.unwrap();
+  let state = bench.sessions.read_state(&session, None).await.unwrap();
 
   assert_eq!(state.provider, "claude-code");
   assert!(!state.model.is_empty());
@@ -127,7 +129,7 @@ async fn an_editor_session_names_its_model_in_the_brain_and_keeps_nothing() {
 #[tokio::test]
 async fn a_turn_whose_brain_is_no_repository_ends_failed_saying_why() {
   let mut bench = Bench::new().await;
-  let delivery = bench
+  let end = bench
     .sessions
     .send_turn(Turn {
       session: SessionId("people-digest@editor".into()),
@@ -138,9 +140,10 @@ async fn a_turn_whose_brain_is_no_repository_ends_failed_saying_why() {
     .unwrap();
   let ended = bench.ended.ready().expect("the turn's end was published");
 
-  assert_eq!(delivery, Delivery::Taken);
-  assert_eq!((ended.session.as_str(), ended.outcome), ("people-digest@editor", "failed"));
-  assert!(ended.reason.unwrap().contains("no repository"));
+  assert_eq!(end, ended.end, "the send answers the end it published");
+  assert_eq!(end.delivery, Delivery::Taken);
+  assert_eq!((ended.session.as_str(), end.outcome), ("people-digest@editor", Outcome::Failed));
+  assert!(end.reason.unwrap().contains("no repository"));
 }
 
 // The bench's store with its provider order set: each provider named, on or off.
@@ -204,7 +207,7 @@ async fn a_walk_that_must_answer_and_meets_no_stand_in_fails_the_editors_turn() 
 
   assert!(walked.as_ref().is_err_and(|why| why.contains("did not answer")), "{walked:?}");
 
-  let delivery = bench
+  let end = bench
     .sessions
     .send_turn(Turn {
       session: SessionId("digest@editor".into()),
@@ -215,8 +218,8 @@ async fn a_walk_that_must_answer_and_meets_no_stand_in_fails_the_editors_turn() 
     .unwrap();
   let ended = bench.ended.ready().expect("the turn's end was published");
 
-  assert_eq!((delivery, ended.outcome), (Delivery::Taken, "failed"));
-  assert!(ended.reason.unwrap().contains("did not answer"));
+  assert_eq!((end.delivery, ended.end.outcome), (Delivery::Taken, Outcome::Failed));
+  assert!(ended.end.reason.unwrap().contains("did not answer"));
 }
 
 fn parts(run: &str, workdir: &str) -> RunParts {
@@ -296,5 +299,5 @@ async fn an_editor_turn_goes_out_under_its_callers_run_name_and_a_workdir_leavin
 
   let ended = bench.ended.ready().expect("the turn's end was published");
 
-  assert_eq!((ended.run.as_str(), ended.outcome), ("named-run", "failed"));
+  assert_eq!((ended.end.run.as_str(), ended.end.outcome), ("named-run", Outcome::Failed));
 }
