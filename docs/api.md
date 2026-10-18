@@ -257,8 +257,11 @@ judges none of it.
     would continue, or null for a fresh one, for the caller to send its prompt again composed for it;
     under `auto`, a kept session the program no longer holds is forgotten and the turn asked again once on
     a fresh one. An answered turn's session is recorded for its model and login, judged against the
-    model it answered on and folded once it is full, as the worker's own record keeps it. A worker turn
-    that names no work parts goes on the model the worker answered on last, under a login that answers
+    model it answered on and folded once it is full, as the worker's own record keeps it. An answered
+    turn's usage is recorded under its worker and the run it is logged under, the turn's `unit` or else
+    its `name`: the worker's last answer is written, and the windows its reply read and what it spent
+    are published as `usage-windows-read` and `usage-spent` (「Events」). A worker turn that names no
+    work parts goes on the model the worker answered on last, under a login that answers
     now. A turn on a provider other than Claude Code is refused `backend-refused`. A companion's goes on its
     room's session, on its pinned provider and model, with the system prompt its settings compose, a lost
     harness session asked again once on a fresh one, and a handoff begun where the turn's context reached
@@ -295,7 +298,9 @@ judges none of it.
     of its own, opened for the turn and closed with it. It carries one turn at a time, a second refused
     `session-busy`. Its state names its provider, its model, its folder as `place` and generation 1;
     an interrupt cuts its turn, a fold is refused, an end lets it go, and a list names every one not
-    ended. A scope naming a provider other than Claude Code is refused `backend-refused`.
+    ended. An answered turn's usage is recorded as a worker's is, under the scope's agent, the branch's
+    name, and the run the turn is logged under. A scope naming a provider other than Claude Code is
+    refused `backend-refused`.
   - `POST /session/push` takes `session` and `words` and answers `said`: `delivered`, `waiting` or
     `refused`. The words go into the turn the session is working at its next look at the working
     program, as the door types any word (`docs/agent-control.md`, 「Words that arrive while a turn is

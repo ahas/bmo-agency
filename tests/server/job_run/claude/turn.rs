@@ -2,7 +2,8 @@
 //! resume settles on, or the turn back to its runner; a lost session asked again once under `auto` and put
 //! back under a session named; the composed turn handed its variables, its agent, its job's marker, its
 //! work key and its unit; and its end read whole — the reply, a turn back, a person waited on, a stop, and
-//! every failure by its kind — with what it went out on, where its time went and its compaction. A worker's
+//! every failure by its kind — with what it went out on, where its time went and its compaction. An
+//! answered turn's usage is recorded under its agent and the run it is logged under. A worker's
 //! state names its generation, its context and what its next turn would continue, on a store of the test's
 //! own.
 
@@ -12,14 +13,17 @@ use std::sync::Arc;
 use agency_server::Service;
 use agency_server::config::Config;
 use agency_server::door::execution::Identity;
-use agency_server::door::record::{LiveTask, ModelSpend, Reply, RequestUsage, RunWorkflow};
+use agency_server::door::record::{
+  AccountWindow, LiveTask, ModelSpend, Reply, ReplyWindow, RequestUsage, RunWorkflow, UsageSpent,
+  WindowsRead,
+};
 use agency_server::door::stand::Interrupt;
 use agency_server::door::turn::{Seat, Timings, Turn};
 use agency_server::herdr_backend::{HerdrSessions, carried_of};
 use agency_server::job_run::claude::failure::{AccountFailure, Failure, RunEnding};
 use agency_server::job_run::claude::turn::{
   Beside, Choice, Settled, TASK_LOCKED, TURN_AGENT, Unanswered, after_unanswered, choose, compacts, ended,
-  failure_of, with_work,
+  failure_of, noted, with_work,
 };
 use agency_server::places::{Ground, Places};
 use agency_server::seeds::deployment;
@@ -459,17 +463,15 @@ async fn a_fresh_session_is_counted_as_a_generation_a_resumed_one_is_not_and_a_f
   assert_eq!(generation(db, "worker-a", "sonnet").await.unwrap(), 1, "each model counts its own");
 }
 
-#[tokio::test]
-async fn a_workers_state_names_its_generation_its_context_and_the_session_its_next_turn_would_continue() {
-  let scratch = Scratch::new().await;
-  let home = tempfile::tempdir().unwrap();
+// A ground on the test's own store and home, with the worker `worker-a` registered on it.
+async fn ground_on(scratch: &Scratch, home: &std::path::Path) -> Ground {
   let at = |path: std::path::PathBuf| path.to_string_lossy().into_owned();
   let machine = Machine::with_env(
     [
-      ("HOME".to_owned(), at(home.path().to_path_buf())),
+      ("HOME".to_owned(), at(home.to_path_buf())),
       ("PATH".to_owned(), "/usr/bin:/bin".to_owned()),
     ],
-    home.path().join("data"),
+    home.join("data"),
   );
 
   store::seed::settle(scratch.db(), &deployment(&machine)).await.unwrap();
@@ -480,7 +482,98 @@ async fn a_workers_state_names_its_generation_its_context_and_the_session_its_ne
   let variables: HashMap<String, String> = HashMap::new();
   let service =
     Service::new(scratch.db().clone(), Config::read(|name| variables.get(name).cloned()).unwrap());
-  let sessions = HerdrSessions::new(Places::new(Ground::new(&service, &machine, None), Arc::default()));
+
+  Ground::new(&service, &machine, None)
+}
+
+#[tokio::test]
+async fn an_answered_job_turns_usage_is_recorded_under_its_agent_and_the_run_it_is_logged_under() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = ground_on(&scratch, home.path()).await;
+  let mut read = ground.events.subscribe::<WindowsRead>();
+  let mut spent = ground.events.subscribe::<UsageSpent>();
+  let window = AccountWindow {
+    name: "five_hour".into(),
+    utilization: 0.4,
+    resets_at: Some(1_800_000_000),
+    duration_minutes: Some(300),
+    limit_name: None,
+  };
+  let reply = Reply {
+    mode: "claude-code".into(),
+    model: Some("claude-opus-5".into()),
+    effort: Some("high".into()),
+    account: Some("second".into()),
+    windows: vec![ReplyWindow::Account(window.clone())],
+    spend: vec![ModelSpend {
+      mode: String::new(),
+      model: "claude-opus-5".into(),
+      tokens: 1_200,
+      input_tokens: 200,
+      output_tokens: 1_000,
+      cache_read_tokens: 0,
+      cache_write_tokens: 0,
+      cost: 0.5,
+    }],
+    ..Reply::default()
+  };
+
+  noted(&ground, "worker-a", "bmo-task-41", &reply).await.unwrap();
+
+  assert_eq!(
+    scratch
+      .count(
+        r#"SELECT COUNT(*) FROM "agents" WHERE "name" = 'worker-a' AND "last_mode" = 'claude-code'
+          AND "last_model" = 'claude-opus-5' AND "last_effort" = 'high'"#,
+        vec![]
+      )
+      .await,
+    1,
+    "the agent's last answer is written"
+  );
+
+  let windows = read.ready().expect("the windows the reply read are published");
+
+  assert_eq!(
+    (windows.mode.as_str(), windows.account.as_deref(), windows.windows),
+    ("claude-code", Some("second"), vec![window])
+  );
+
+  let usage = spent.ready().expect("what the turn spent is published");
+
+  assert_eq!((usage.agent.as_str(), usage.run.as_deref()), ("worker-a", Some("bmo-task-41")));
+  assert_eq!(
+    usage
+      .rows
+      .iter()
+      .map(|row| (row.account.as_str(), row.spend.mode.as_str()))
+      .collect::<Vec<_>>(),
+    [("second", "claude-code")],
+    "a row its program named no provider for is the turn's own provider's"
+  );
+
+  noted(
+    &ground,
+    "worker-a",
+    "bmo-job-41",
+    &Reply {
+      windows: vec![],
+      ..reply
+    },
+  )
+  .await
+  .unwrap();
+
+  assert!(read.ready().is_none(), "a reply that read no window publishes none");
+  assert_eq!(spent.ready().unwrap().run.as_deref(), Some("bmo-job-41"));
+}
+
+#[tokio::test]
+async fn a_workers_state_names_its_generation_its_context_and_the_session_its_next_turn_would_continue() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let sessions = HerdrSessions::new(Places::new(ground_on(&scratch, home.path()).await, Arc::default()));
   let db = scratch.db();
 
   record(db, "worker-a", "opus", "default", "harness-1", None, None).await.unwrap();
