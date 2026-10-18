@@ -2127,96 +2127,53 @@ question used to stand until somebody attached to herdr and answered it.
     what is read, both from the question a person is asked and from what tells one question from the
     next, so a question that is only ticking down is the same question on every look.
   - It hands the question to its caller once per question and keeps polling while the caller decides.
-  - **The job runner first judges a command question itself** (「A command the runner allows
-    itself」 below). A command that stays inside the job's own places is allowed at once: the run's
-    log says so, and nothing goes to the owner's chat.
-  - Any other question the job runner puts to the owner as a job question marked `[confirmation]` in the owner's private chat, with the
-    screen's question as its text: allow or refuse for a permission question; close it or leave it for a
-    person for an unknown one. The minute's wait and the console's stop of the clock are the
-    ordinary job question's (`jobs.md`, 「A job's question to the owner」).
-  - **The recommendation is the answer that carries the work on**, and an unanswered question
-    settles on it. A refusal or a question left standing stalls the job for a turn at best, and the
-    confirmations bypass mode still raises are mostly shapes of an ordinary command. So a
-    permission question recommends allow, and an unknown one recommends close, which tells the job
-    and lets it go on where leaving it would wait on a person who is not there.
-  - The one exception is a command that destroys what nothing on this machine can restore: a
-    recursive removal of the root or of a home directory itself, making a filesystem, a raw write
-    over a device, a force push. The runner reads that off the question's text and recommends
-    refuse; it never allows one without the owner.
+  - **Who is asked is the scope's.** On a worker's and a thrown-away session's turn the caller is the
+    one that sent the turn over the session contract: the question stands on the session's state, is
+    published as `turn-question`, and is answered through `POST /session/answer` (`docs/api.md`,
+    「Sessions」, 「A question in the middle of a turn」). On a companion's, an agent's and an editor's
+    turn nothing is put to anybody and the question stands for a person in the pane.
+  - **Agency judges no question.** Which command a job may run of itself, which question goes to the
+    owner, what is recommended and what a question nobody answers settles on are the caller's: a job's
+    runner holds the job's places and the owner's chat, and agency holds neither (「A command the runner
+    allows itself」 below). A question the caller has not answered stands as long as the turn goes, until
+    a person answers it in the pane or the turn's clock reaches it.
   - An answer is applied only while the pane still shows the same question; an answer that comes
     back to a different question is not typed into it, and the log says so. Allow moves the cursor
-    to `Yes` and presses `enter`. Refuse answers `No` with the refusal as the amended words — the owner's
-    own words where any were written, otherwise a fixed paragraph telling the job the command stopped on
-    a confirmation nobody can answer and how to write it safely. Close presses `esc` and sends the
-    same paragraph as a prompt once the pane is at rest. Leave does nothing and the same screen is
-    not asked about again.
-  - **After the keys, the runner looks whether the question left the screen.** The CLI redraws
-    within a poll or two, so the same question is given five seconds to go. Gone, the log says the
-    question closed on its answer. Still there after that, the same answer is typed again and the log
-    says the question stood after the keys — never a second question to the owner. After three answers the
-    question still stands on, it is left for a person, and the log says that.
-  - **One question is put to the owner once in a turn.** Every answer is kept for the rest of the turn
+    to `Yes` and presses `enter`. Refuse on a permission question answers `No` with the refusal as the
+    amended words — the caller's words where it gave any, otherwise a fixed paragraph telling the job the
+    command stopped on a confirmation nobody can answer and how to write it safely. Refuse on an unknown
+    question presses `esc` and sends the same paragraph as a prompt once the pane is at rest. Leave does
+    nothing and the same screen is not asked about again.
+  - **After the keys, the pane-turn place looks whether the question left the screen.** The CLI
+    redraws within a poll or two, so the same question is given five seconds to go. Gone, the log says
+    the question closed on its answer. Still there after that, the same answer is typed again and the
+    log says the question stood after the keys — never a second question to the caller. After three
+    answers the question still stands on, it is left for a person, and the log says that.
+  - **One question is put to the caller once in a turn.** Every answer is kept for the rest of the turn
     against its question, so the same question raised again — the job retrying the same command —
     is answered with the answer already given, and the log says it was.
   - A pane that stops being blocked before the answer comes — a person answered it in herdr — or a
-    turn that ends first withdraws the question: it is settled as closed before the answer, and the
-    chat is told.
+    turn that ends first withdraws the question: it leaves the session's state, and an answer to it
+    afterwards is refused.
   - Every step is written as a line in the run's log.
 - **How it is seen.** The running report prints a pane whose status is `blocked` as waiting on a
-  confirmation, and a job with an open `[confirmation]` question is marked the same way in the bot's live
-  picture, which the console's live board shows on that job's row; a job with any other open
-  question is marked as waiting on the owner's answer.
+  confirmation. Marking a job as waiting on one is its consumer's, read from `turn-question` and the
+  session's state.
 
 ### A command the runner allows itself
 
 Most of the confirmations a job's pane still raises are its own ordinary work in a shape the CLI's
-check gives up on, such as a `sh -c` script handed to the testbed, and asking the owner about one only costs
-the owner a message and the job a minute.
+check gives up on, such as a `sh -c` script handed to the testbed, and asking the owner about one only
+costs the owner a message and the job a minute. So a job's runner allows such a command itself, and only
+the rest goes to the owner.
 
-- **What is read.** A permission question whose first line is `Bash command` and whose command stands
-  in the box the CLI draws for it, between two rows of `╌`. The box's left border is taken off each
-  row and the rows are joined with spaces, since the CLI wraps a long command over several rows. A
-  question in any other shape is not judged and goes to the owner.
-  - Measured in practice: a command running `sh -c` with a script the CLI cannot read (`This shell
-    -c script runs rm and could not be checked`) is drawn that way, under a line of description.
-- **The job's own places.** The job's checkout, its item's scratch folder in its worker's workbench
-  (`docs/worker-bench.md`, 「An item's scratch」), the system's temporary directory (where the job's
-  scratchpad is), the testbed's log folder under the data root, and the testbed's own program in the
-  deploy tree. The null device and the standard streams are allowed as places too. The rest of the
-  workbench is not a place: what outlives the item there is shared by every job of the worker.
-- **The removal is read from where the command has gone.** The question's own line names a relative
-  target from the directory the pane started in, ignoring a `cd` before it — measured: `cd` into an
-  item's scratch folder followed by `rm -f shots/*` was shown as a target under the checkout. The runner
-  reads the command itself, so the same target is judged inside the scratch folder.
-- **How the command is read.** The way the shell splits it: each simple command's words and redirect
-  targets, the variables the command assigns itself, `~` and `$HOME`, a `cd`, a script handed to a
-  shell with `-c` (read again with only the variables it was exported), an `eval`, and every command
-  substitution.
-- **What allows it.** Every one of these holds, and anything else puts the question to the owner:
-  - Every absolute path the command names, after its own variables are put in, lies inside the
-    places; so does a relative one that climbs with `..`, read from the directory the command is in.
-  - A `cd` goes only into the places, and to a target the reading can resolve.
-  - Every redirect target resolves, with no variable or substitution left open.
-  - A value the reading cannot resolve, such as a command substitution or a variable the command did
-    not assign, is handed only to a program that only reads and writes nowhere but its output, such
-    as `printf`, `rg` or `basename`; anywhere else it could name a file outside the places. A loop over
-    plain names, or over paths inside the places, gives its variable the first of them, since any of
-    them is judged the same; a loop over anything else leaves it unresolved.
-  - Every removal (`rm`, `rmdir`, `unlink`, `shred`, wherever in a command it stands) names at least one
-    target, and every target resolves fully, with no variable or substitution left open, to a path
-    strictly inside the places: never a place itself.
-  - No word holds a removal the reading cannot see into, such as one inside a quoted string handed to
-    a program other than a shell, and nothing is run through `sudo`, `su`, `doas`, `pkexec` or `ssh`.
-  - It is not one of the commands nothing restores after (「A confirmation in the middle of a turn」).
-- **What is out of its sight.** A script file the command runs is read as the job running it, which it
-  may do unasked; what such a script removes is the job's own, as it would be with no question on the
-  screen. So the worker's trailer tells a job to write multi-line shell work, and anything removing
-  files, as a script file in its scratchpad rather than a `sh -c` line, and the question never comes up.
-- **What is told.** The run's log says the runner allowed the command itself, then that the answer went
-  in, as for any answer; no question row is opened and nothing is sent to a room.
-- **Where it is done.** In the runner that watches the job's turn, `bmo-agency job-run`, which
-  judges from the job's own working directory and the roots the process stands on. The pane-turn
-  place only hands the question to its caller.
+- **Where it is done.** In the job's runner, the caller of the job's turns, which reads the question's
+  `text` against the job's own places — its checkout, its item's scratch folder, the temporary
+  directory, the testbed's log folder and program — and against the commands nothing on the machine
+  restores after. Agency hands it the question as the screen shows it, the countdown left out, and types
+  in the answer it gives; it reads no command and knows no job's places.
+- **What agency keeps of it.** Nothing of its own: an answer the runner gave of itself is applied,
+  checked and logged as any answer is (「A confirmation in the middle of a turn」 above).
 
 ## What goes where
 

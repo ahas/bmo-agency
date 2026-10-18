@@ -259,7 +259,11 @@ The worker settings' hook takes the place for one native `Agent` call.
 - **Which places are taken is the consumer's to say.** A consumer asking for a place, or ending an order,
   hands in the places its tasks sit in now — each the checkout its order works in and the place's
   number — and agency counts those as busy; it reads none of the consumer's orders or jobs. The ask
-  names the order's checkout, the task's selection, its role and the tier it asks for.
+  names the order's checkout, the task's selection, its role and the tier it asks for, and is answered
+  with the place's number and its folder.
+- **A branch's turn reaches its place as a thrown-away session** whose folder is the place's, naming
+  the task's item and role (`docs/api.md`, 「Sessions」): agency finds the place by that folder and
+  puts the turn into the place's program under the label below.
 - **A pool is one repository:** the work order checkout's git common directory sets the pool, and the
   pool name is that repository's name plus a short hash of the common directory path.
   - Places stand only as that repository's worktrees, so they never check out another repository's

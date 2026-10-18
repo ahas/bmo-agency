@@ -188,8 +188,9 @@
   has notes to sort, when a
   briefing has something to transliterate, when a job worker is handed text to read in English, or when the owner asks the document viewer to
   translate or to find something would cost more than the runs it serves.
-- **Job worker**: the model and effort `job-worker`'s tier maps to (`docs/model-tiers.md`) unless
-  the job was launched with another model, in
+- **Job worker**: the model, effort and tier the job's turn names in its mapping, which its runner
+  reads off `job-worker`'s tier (`docs/model-tiers.md`) unless the job was launched with another
+  model, and the tier's own where a turn names none, in
   bypass-permissions mode with WebSearch and WebFetch disallowed, and with them every tool that
   publishes a page outside the system's own archive — the CLI's Artifact tools and the claude.ai
   Docs connector — since a document a job shows the owner goes into that archive (`archive.md`, 「A
@@ -277,9 +278,15 @@
   program the keepalive left standing. A model or a login changing is a command changing,
   and the program is started again on the new one in the same pane, between turns. A session whose
   context has filled is folded by `/compact` typed into that same program, so the fold stands on
-  the prefix the jobs stand on. A co-work branch is a
+  the prefix the jobs stand on. Each job's turn goes into the program under the run name its runner
+  gives it, carried as `BMO_RUN_NAME` beside `BMO_TURN_AGENT`, the worker, and `BMO_TASK_LOCKED=1`
+  where the turn has a job, so the verbs the job runs find their job; the variables the turn names
+  stand beside them, and the turn's title is what the pane shows over it (`docs/api.md`, 「Sessions」,
+  a work turn's parts). A co-work branch is a
   turn of the resident program of the standing checkout it works in (`docs/coworker-pool.md`,
-  「Standing branch checkouts and their list」), on a session of its own that it keeps nowhere. There
+  「Standing branch checkouts and their list」), on a thrown-away session of its own that it keeps
+  nowhere; a branch outside every standing checkout, and a research run, goes into a pane of its own
+  opened for the turn. There
   may be more than one worker: the owner adds them, names them and points each at a checkout of
   its own, and a worker is that row and nothing more — the line above is the same for all of
   them, and what differs is the directory the run works in, the session it resumes (one per

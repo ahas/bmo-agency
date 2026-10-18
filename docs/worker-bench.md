@@ -123,7 +123,7 @@ Each job worker holds three things beside the work of its jobs:
   `bmo_item_<item number>_<anything>`. The header tells a job both, and the job reads its item number
   off its own item.
 - **It is one of the job's own places,** so a confirmation on a command that stays inside it is
-  answered by the runner, never put to the owner (`docs/agent-control.md`, 「A command the runner allows
+  answered by the job's runner, never put to the owner (`docs/agent-control.md`, 「A command the runner allows
   itself」).
 - **It goes once no job of the item is open.** Agency's minute watch
   (`docs/agent-control.md`, 「Room on the machine」) looks whenever the set of items with an open job

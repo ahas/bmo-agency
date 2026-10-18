@@ -28,7 +28,7 @@ judges none of it.
 ## Versioning
 
 - **The contract carries the repository's one version, in semver.** The version in the workspace
-  manifest is this boundary's version; the current line is `0.24.0`.
+  manifest is this boundary's version; the current line is `0.25.0`.
 - **A change to this document and a change to the boundary go in one commit.** A change that makes a
   route, an event, a hook or a shared table's contract different repairs this document in the same
   commit, stating what is true now.
@@ -74,6 +74,8 @@ judges none of it.
 | GET | `/session/state` | a session's state, by `session` | 「Sessions」 |
 | POST | `/session/interrupt`, `/session/fold`, `/session/end` | the three operations on one session | 「Sessions」 |
 | GET | `/session/list` | every session the backend keeps | 「Sessions」 |
+| POST | `/session/answer` | the caller's answer to the question a session's turn stands on | 「Sessions」 |
+| GET | `/session/output` | what a session's latest turn has written so far | 「Sessions」 |
 | GET | `/sessions` | every session an agent holds, as a reset reads them | 「Sessions」 |
 | POST | `/session-reset` | an ask to clear one session | 「Sessions」 |
 | POST | `/rooms/forget` | a room's rows forgotten, or counted | 「Sessions」 |
@@ -168,19 +170,26 @@ judges none of it.
 
 ## Sessions
 
-- **The session contract is eight operations,** declared by the session crate and reached by every
+- **The session contract is ten operations,** declared by the session crate and reached by every
   caller through it: start a session, send a turn into it, push words into the turn it is working, read
-  its state, interrupt it, fold it, end it, and list sessions. herdr is one backend of that contract; a
-  caller names no backend (`docs/sessions.md`, `docs/agent-control.md`).
+  its state, answer the question its turn stands on, read what its latest turn has written so far,
+  interrupt it, fold it, end it, and list sessions. herdr is one backend of that contract; a caller
+  names no backend (`docs/sessions.md`, `docs/agent-control.md`).
 - **What each operation takes and answers:**
   - *start* takes the agent's stable name and the scope, and answers the session — its id, its agent
     and its scope — the one already kept for that scope where there is one;
-  - *send a turn* takes the session's id, the prompt and the turn's context (below), and answers whether
-    the program took the words or refused them while it waits on a person, which is not a failure;
+  - *send a turn* takes the session's id, the prompt and the turn's context (below), and answers once the
+    turn has ended: whether the program took the words or refused them while it waits on a person,
+    which is not a failure, the run the turn went out as, and how it ended (「A turn's end」 below);
   - *push* takes the session's id and the words, and answers what became of them: `delivered`, the
     working turn took them; `waiting`, its program waits on a person; or `refused`, they did not go in.
     A backend that cannot put words into a working turn answers `refused`;
   - *read state* takes the session's id and answers its state (below);
+  - *answer* takes the session's id, the id of the question its turn stands on and the caller's answer,
+    and answers nothing but its success. A backend whose turns put no question to their caller refuses
+    it;
+  - *read output* takes the session's id and answers what its turn now running, or its last one, has
+    written so far. A backend that keeps no record of a turn refuses it;
   - *interrupt*, *fold* and *end* take the session's id and answer nothing but their success;
   - *list* answers every session the backend keeps, each as *start* answers one.
   - An operation not carried out answers a fault with its outcome code — `unknown-session`,
@@ -204,16 +213,53 @@ judges none of it.
   `desk`, the fragment desk its batch opened; and `registration`, the registration it runs on, or null
   for its work key's own road. Agency carries them and judges none of them (「Sessions」, the editor's
   session, below).
+- **A work turn's parts** are the context a worker's or a thrown-away session's turn carries, by the
+  names a job's runner sends them, each in snake case: `provider`, the harness the turn goes out on;
+  `model`, the model the worker's session record is kept under; `mapping`, the line the turn is laid on,
+  holding `model`, and `effort`, `tier` and `answer_tokens` where it names them; `resume`, which
+  session the turn goes on — `{ "kind": "auto" }`, the one kept for that model and login,
+  `{ "kind": "fresh" }`, a new one, or `{ "kind": "session", "id": <harness session> }`, the one named;
+  `cwd`, the folder its program works in; `name`, the run's name; `title`, what a person watching the
+  pane reads over the turn; `thread`, the thread its session is kept under, or null; `job` and `item`, as
+  above, none for a research run's turn; `chat`, the room its run's lines stand under; `unit`, the unit
+  it runs under, or null; `user`, the user whose logins carry it, or null; `work_key`, the work key its
+  logins are offered by; `hears_words`, whether words pushed into the session reach the turn; and
+  `variables`, the variables its program is started with beside its own, empty where there are none.
+  The program carries `BMO_RUN_NAME`, the turn's `name`; `BMO_TURN_AGENT`, the agent the session is;
+  and `BMO_TASK_LOCKED=1` where the turn has a `job`, so the verbs it runs know whose job they work for.
+  Its execution is counted under the turn's `name` and is a child of its `unit` where it names one, so a
+  stop or an alive asked of either name reaches it. The Claude Code line names no answer ceiling, so
+  `answer_tokens` is carried and read by nothing there. A turn that names no `name` goes out as
+  `turn:<agent>:<at>`. Agency judges none of the parts: which model, session, login and folder a job's
+  turn needs is its runner's decision.
 - **The routes and the herdr backend.** herdr's backend knows a session by its agent and its scope:
   `<agent>@worker` for a worker's, `<agent>@<room>` for a companion's in one room, `<agent>` for a
-  session across rooms, which only an agent whose row keeps its session at the `agent` scope holds, and
-  `<key>@editor` for an editor work key's runs.
+  session across rooms, which only an agent whose row keeps its session at the `agent` scope holds,
+  `<key>@editor` for an editor work key's runs, and `<agent>@apart:<n>` for a session thrown away.
   - `POST /session/start` takes `agent` and `scope` — `{ "kind": "worker" }`, `{ "kind": "room", "room":
-    <id> }`, `{ "kind": "agent" }` or `{ "kind": "editor" }` — and answers `id`, `agent` and `scope`. An
-    editor's session is named by its editor work key in place of an agent (below).
+    <id> }`, `{ "kind": "agent" }`, `{ "kind": "editor" }` or `{ "kind": "apart", "provider": <name>,
+    "model": <name>, "cwd": <folder>, "todo": <item or null>, "role": <role or null> }` — and answers
+    `id`, `agent` and `scope`. An editor's session is named by its editor work key in place of an agent
+    (below); a thrown-away session is a new one at every start.
   - `POST /session/turn` takes `session`, `prompt` and the context's parts by the names above, carries
-    the turn until it ends, and answers `delivery`, `taken` or `blocked`. A worker's turn goes on its
-    session on the model it answered on last, under a login that answers now. A companion's goes on its
+    the turn until it ends, and answers its end (「A turn's end」 below). A worker's turn goes on its
+    session as its work parts name it: on the mapping's model, effort and tier; on the session its
+    `resume` names — under `auto` the one kept for the turn's `model` and the login carrying it, where the
+    session's lifetime still holds it, under `fresh` none, under `session` the one named; under the
+    logins its `work_key` is offered for its `user`, each tried in turn where one fails on the login
+    rather than on the work, a work node's token checked before a login is tried there; in its `cwd`,
+    under its `thread`, behind the agent lock its worker's jobs share; with a reset the owner asked of
+    the worker's sessions carried out, the standby claimed and the held session judged before it goes
+    (`docs/sessions.md`, 「A worker's session per model」, `docs/cache-fallback.md`). A session the
+    judging replaced goes out fresh on the mapping's model; a kept session that last answered on a lesser
+    model goes out on that one. Where the session the turn settles on is not the one its `resume` named
+    under `session`, nothing is put in and the turn ends `reprepared` with `continues`, the session it
+    would continue, or null for a fresh one, for the caller to send its prompt again composed for it;
+    under `auto`, a kept session the program no longer holds is forgotten and the turn asked again once on
+    a fresh one. An answered turn's session is recorded for its model and login, judged against the
+    model it answered on and folded once it is full, as the worker's own record keeps it. A worker turn
+    that names no work parts goes on the model the worker answered on last, under a login that answers
+    now. A turn on a provider other than Claude Code is refused `backend-refused`. A companion's goes on its
     room's session, on its pinned provider and model, with the system prompt its settings compose, a lost
     harness session asked again once on a fresh one, and a handoff begun where the turn's context reached
     the mark (`docs/companions.md`). A turn across rooms goes on the chat line: on Claude Code, on the
@@ -241,17 +287,40 @@ judges none of it.
     when the run falls to it. An editor's session keeps nothing: its state names the model its key maps
     to on Claude Code, an interrupt cuts every run it carries, a fold is refused, an end lets nothing go,
     and a list names none.
+  - A thrown-away session, `<agent>@apart:<n>`, is a co-work branch's or a research run's: every turn on
+    it goes on a fresh harness session on Claude Code, on the provider, model and folder its scope names
+    and the work parts its turn carries, and nothing of it is resumed, recorded or judged as a worker's
+    session is. Where its `cwd` is a standing branch checkout (「Co-worker pool」 below), the turn goes
+    into that place's pane, under a home labelled by the scope's `todo` and `role`; elsewhere into a pane
+    of its own, opened for the turn and closed with it. It carries one turn at a time, a second refused
+    `session-busy`. Its state names its provider, its model, its folder as `place` and generation 1;
+    an interrupt cuts its turn, a fold is refused, an end lets it go, and a list names every one not
+    ended. A scope naming a provider other than Claude Code is refused `backend-refused`.
   - `POST /session/push` takes `session` and `words` and answers `said`: `delivered`, `waiting` or
     `refused`. The words go into the turn the session is working at its next look at the working
     program, as the door types any word (`docs/agent-control.md`, 「Words that arrive while a turn is
     working」), and only where the turn's provider declares that it takes words mid-turn. They are
-    `refused` where the session carries no turn, where its turn's program takes no words mid-turn or is
-    not working yet, where the turn ends before it takes them, and where no look takes them within the
+    `refused` where the session carries no turn, where its turn's `hears_words` is false, where its
+    turn's program takes no words mid-turn or is not working yet, where the turn ends before it takes
+    them, and where no look takes them within the
     resident turn policy's `push_take_ms`. A refused push changed nothing, so its words are the caller's
     to carry into the next turn. Words a turn took are carried behind its prompt by any later run of the
     same turn, a lost session asked again once on a fresh one.
   - `GET /session/state?session=<id>` answers `session`, `provider`, `model`, `place`, `generation` and
-    `context`.
+    `context`, and while a turn goes `run`, the run it goes out as, `went_out` once its line is settled,
+    and `question` while one stands (below), each null otherwise. A worker's session read with
+    `&model=<model>` also answers `continues`: the harness session a turn on that model under `auto`
+    would continue now, as the worker's record and the first login its walk offers hold it, or null for
+    a fresh one.
+  - `POST /session/answer` takes `session`, `question`, the id of the question its turn stands on, and
+    `answer` — `{ "kind": "allow" }`, `{ "kind": "leave" }` or `{ "kind": "refuse", "words": <words or
+    null> }` — and answers `ok`. A question id that is not the one the session's turn stands on now is
+    refused `unknown-session`, and so is a session whose turns put no question to their caller.
+  - `GET /session/output?session=<id>` answers `run`, the run of the session's turn now going or of its
+    last one, `running`, whether it is still going, and `text`, what its program has written of its
+    answer so far, read from the program's own record as it stands, so a turn stopped from outside still
+    leaves what it wrote. A worker's or a thrown-away session that has carried no turn is nothing found;
+    a session of any other scope is refused `backend-refused`.
   - `POST /session/interrupt`, `POST /session/fold` and `POST /session/end` take `session` and answer
     `ok`. An interrupt with no turn going cuts nothing; a fold or an end refuses a session in a turn. A
     fold asked of a session across rooms is refused, since its program carries it past its window inside
@@ -259,6 +328,41 @@ judges none of it.
   - `GET /session/list` answers `sessions`, each as a start answers one.
   - A fault is answered with its outcome code and `error`: `unknown-session` under 404,
     `session-busy` under 409, `backend-unreachable` under 503 and `backend-refused` under 422.
+- **A turn's end** is what a turn's send answers and its `turn-ended` carries (「Events」 below):
+  `delivery`, `taken` or `blocked`; `run`, the run the turn went out as; `outcome`, `answered`, `blocked`,
+  `stopped`, `failed` or `reprepared`; `answer`, the reply's text where it answered, and `reason`, the
+  failure's words where it failed; `engineError`, as 「Events」 names it; `went_out`, what it went out on
+  once its line was settled — `provider`, `model`, `effort` and `tier`, each null where none was named;
+  `reply`, where it answered, in camel case as the program's record reported it and carried on unjudged
+  — `mode`, `model`, `effort`, `text`, `sessionId` (the harness session it answered on), `account`,
+  `contextRatio`, `contextTokens`, `sessionUsage`, `spend` (each `mode`, `model`, `tokens`,
+  `inputTokens`, `outputTokens`, `cacheReadTokens`, `cacheWriteTokens` and `cost`), `liveTasks` (each
+  `id` and `description`), `workflows` (each `call`, `name` and `status`), `upstream`, the upstream a
+  routed model's request went to, and `requestUsages` (each `inputTokens`, `outputTokens`,
+  `cacheReadTokens` and `cacheWriteTokens`); `failure`, where it failed or stood blocked, an object
+  holding `kind` — `limit` (`resets_at`, `account`, `silenced`), `account` (`failure`: `limit`, `login`,
+  `outage` or `node_token`; `detail`), `died` (`ending`, `{ "kind": "exit", "code": <code> }`; `said`;
+  `message`), `person`, `untrusted` (`folder`, `config`), `stopped`, `transport` (`message`), `refused`
+  (`message`), `unavailable` (`scope`, `mode`, `reason`) or `error` (`name`, `message`); `spans`, where
+  the turn's time and spending went, each `kind`, `name`, `seconds`, `times`, `tokens`, `input_tokens`,
+  `output_tokens`, `cache_read_tokens` and `cache_write_tokens`; `compacted`, whether the session's
+  context was compacted during the turn; and `continues` where it ended `reprepared`. A part a scope's
+  turn does not carry is null or empty: `reply`, `failure`, `went_out`, `spans` and `compacted` are a
+  worker's and a thrown-away session's turn's, and a companion's, an agent's and an editor's turn answer
+  the outcome, `answer`, `reason` and `engineError` alone. A turn refused once its `turn-started` was
+  published still ends, `failed` with the refusal as its `reason`.
+- **A question in the middle of a turn** is put to the turn's caller on a worker's and a thrown-away
+  session's turn, and left standing for a person on every other scope's (`docs/agent-control.md`, 「A
+  confirmation in the middle of a turn」). The question is an object of `id` and `kind`: `permission`,
+  with `text`, the command or request as the screen shows it, and `amendable`, whether the program
+  takes words with a refusal; or `unknown`, a question this reading does not know, with `screen`, the
+  last rows the screen shows. It stands on the session's state and is published as `turn-question`
+  while the turn waits for it to be answered through `POST /session/answer`: `allow` lets it go on,
+  `refuse` refuses it with the words where the program takes them, and `leave` leaves it standing for a
+  person in the pane. A question answered in
+  the pane or gone from the screen is withdrawn, and a later answer to its id is refused. Agency judges
+  no question: which command a job may run of itself, which question goes to the owner and what a
+  question nobody answers comes to are the caller's.
 - **A turn is sent with its prompt and its context;** the session keeps the conversation, and agency
   computes only what is new (`docs/sessions.md`, `docs/agents.md`, 「The session's scope」). What the
   prompt and its context carry is the consumer's, composed above this boundary.
@@ -267,8 +371,10 @@ judges none of it.
   scope's provider declares (`docs/agents.md`, 「What a provider declares for a conversation」).
 - **Reading state** answers the session's id, the provider and model it stands on, its place, its
   generation, and the context its last request carried against the registration's window
-  (`docs/own-llm.md`, 「How requests go」). A consumer reads it to show a session; it builds no run from
-  it.
+  (`docs/own-llm.md`, 「How requests go」). A worker's generation is how many times its session for the
+  model it stands on was opened fresh rather than resumed, and its context the tokens its last answered
+  turn carried against the window they filled, both kept beside the worker's session record. A consumer
+  reads it to show a session; it builds no run from it.
 - **Folding and handing over** are the provider's way of carrying a full session past the window; a
   consumer that keeps a conversation reads the handoff the provider declares rather than agency's fold
   (`docs/companions.md`, 「Its limit」).
@@ -299,12 +405,17 @@ judges none of it.
   for nobody.
 - **Agency publishes a turn's lifecycle** as the session contract carries it: `turn-started`, the
   `session`, the `run` it goes out as and `at` in epoch milliseconds; and `turn-ended`, the `session`, the
-  `run`, its `outcome` — `answered`, `blocked`, `stopped` or `failed` — the `answer` where it answered and
+  `run`, its `outcome` — `answered`, `blocked`, `stopped`, `failed`, or `reprepared` where a worker's turn
+  was put back to its caller before anything went in — the `answer` where it answered and
   the `reason` where it failed, and `engineError`, `{ "kind": <kind or null> }`, where it failed because
   its engine ended it with an error, null otherwise: the kind as the program names it — `rate_limit`,
   `overloaded`, `authentication_failed`, `billing_error`, `invalid_request`, `max_output_tokens` and the
   rest of its list — and null where it named none. A companion's turn in a room and the chat agent's turn
-  carry it alike (`docs/companions.md`, 「What a turn shows」, 「A turn that goes nowhere」).
+  carry it alike (`docs/companions.md`, 「What a turn shows」, 「A turn that goes nowhere」). `turn-ended`
+  carries the whole of the turn's end, as its send answers it (「Sessions」, 「A turn's end」), and is
+  published before the send is answered. `turn-question`, the `session`, the `run` and the `question`,
+  is published when a worker's or a thrown-away session's turn stops on a question put to its caller
+  (「Sessions」, 「A question in the middle of a turn」).
   A consumer reads them to show a turn and to wake what a turn's end should wake; agency waits on no
   reader.
 - **An event no consumer subscribed to** is published to nobody, and nothing else of the turn changes.
@@ -451,8 +562,10 @@ Each hook has a default that does nothing, so agency runs with none registered.
   turn (「Sessions」 above). Agency reads none of it and hands it to the harness as it stands
   (`docs/sessions.md`).
 - **Permission and rule judgement are no hook:** a question a program puts to a person in the middle of
-  a turn is answered by agency's own reading of the screen where its line allows that, and is otherwise
-  left standing for a person (`docs/agent-control.md`, 「A confirmation in the middle of a turn」).
+  a worker's or a thrown-away session's turn is put to the turn's caller over the session contract, which
+  judges it and answers it there, and on every other scope's turn is left standing for a person
+  (「Sessions」, 「A question in the middle of a turn」; `docs/agent-control.md`, 「A confirmation in the
+  middle of a turn」).
 - **The output check is no hook:** agency sends nothing to a room. A turn's answer is published as
   `turn-ended` (「Events」 above), and whatever a consumer checks of it before it leaves is the
   consumer's (`docs/companions.md`, 「What a turn shows」).
@@ -524,13 +637,14 @@ Each hook has a default that does nothing, so agency runs with none registered.
   the pool's own.
 - **The standing checkouts.** A consumer asks a branch's place with its order's checkout, the task's
   selection, role and tier, and the places its tasks sit in now; agency answers the place's number and
-  lays the checkout's open change into it, records what a finished branch left there, and takes down
-  what stands in herdr for the places an ended order worked in that no task still sits in
-  (`docs/coworker-pool.md`, 「Standing branch checkouts and their list」). The labels and keys of the
-  consumer's work arrive with each request; agency reads none of its orders. `POST /places/take` takes
-  `cwd`, `selection`, `role`, `tier` and `held`, each a `cwd` and a `slot`, and answers the `slot`; `POST
-  /places/prepare` takes the order's `source` and the place's `cwd`; `POST /places/remember` takes `cwd`,
-  `slot`, `role`, and the `mode`, `model`, `effort` and `upstream` the branch ran on; `POST
+  its folder, which a branch's thrown-away session names as its `cwd` (「Sessions」), lays the
+  checkout's open change into it, records what a finished branch left there, and takes down what stands
+  in herdr for the places an ended order worked in that no task still sits in (`docs/coworker-pool.md`,
+  「Standing branch checkouts and their list」). The labels and keys of the consumer's work arrive with
+  each request; agency reads none of its orders. `POST /places/take` takes `cwd`, `selection`, `role`,
+  `tier` and `held`, each a `cwd` and a `slot`, and answers the `slot` and the place's folder as `cwd`;
+  `POST /places/prepare` takes the order's `source` and the place's `cwd`; `POST /places/remember` takes
+  `cwd`, `slot`, `role`, and the `mode`, `model`, `effort` and `upstream` the branch ran on; `POST
   /places/retire` takes `cwd`, the `used` places and `held`.
 - **The clocks** are agency's own: every five seconds a reservation's head place is raised and a native
   call whose caller ended is reclaimed, every ten minutes what a job's end left in herdr is swept

@@ -171,6 +171,15 @@ session on the owner's ask is `docs/session-resets.md`.
 - **A job's end ends them all:** the held session is handed over with its note for the next job, and
   every session set aside is dropped with its record. A stopped stage retried on a fresh session does
   the same.
+- **Which model and which session a job's turn goes on are its runner's.** The turn names the model its
+  record is kept under, the mapping it goes out on and whether it resumes the kept session, opens a
+  fresh one or continues one it names; agency carries that choice through the rules above and judges
+  none of it (`docs/api.md`, 「Sessions」, a work turn's parts). A turn whose runner named a session
+  that the walk, a reset or the judging of the held session has moved off is put to the runner again
+  before anything goes in, since its prompt was composed for what that session has read.
+- **The record keeps the session's generation and its context:** how many times the worker's session on
+  that model was opened fresh rather than resumed, and the tokens its last answered turn carried
+  against the window they filled, which a session's state reads.
 
 ## Session replacement
 
