@@ -14,6 +14,7 @@ fn the_boundary_s_routes_are_linked_in() {
   for wanted in [
     "POST /session/start",
     "POST /session/turn",
+    "POST /session/push",
     "GET /session/state",
     "POST /session/interrupt",
     "POST /session/fold",
@@ -43,6 +44,10 @@ fn the_boundary_s_routes_are_linked_in() {
     "GET /rulebooks",
     "GET /rest",
     "POST /rest",
+    "GET /rest/passed",
+    "GET /reset-point",
+    "POST /companions/add",
+    "POST /companions/remove",
     "POST /pool/enqueue",
     "POST /pool/acquire",
     "POST /pool/reserve",

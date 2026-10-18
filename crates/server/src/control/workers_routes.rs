@@ -11,7 +11,7 @@ use super::{Call, Refused, Route, answer, whole};
 use crate::now_ms;
 use crate::queue::routes::{block_route, clear_route_block, item_route_open, route_blocked};
 use crate::queue::stops::{StoppedRun, clear_job_stop, job_stop_reason, mark_job_stopped};
-use crate::rest::{RestKind, rest_kind, rest_until, write_rest};
+use crate::rest::{RestKind, clear_passed_rests, rest_kind, rest_until, write_rest};
 
 fn bad(error: impl Into<String>) -> Refused {
   Refused::new(StatusCode::BAD_REQUEST, error)
@@ -271,3 +271,19 @@ impl Route for RestWrite {
 }
 
 crate::moved!(RestWrite);
+
+/// Why the rest that has just passed silenced the deployment, the passed rests cleared as they are read.
+pub struct RestPassed;
+
+impl Route for RestPassed {
+  const METHOD: Method = Method::GET;
+  const PATH: &'static str = "/rest/passed";
+
+  async fn answer(&self, call: Call) -> Result<Response, Refused> {
+    let kind = clear_passed_rests(Judging::of(call.ground()), now_ms() / 1000).await?;
+
+    Ok(answer(StatusCode::OK, json!({ "kind": kind.map(RestKind::word) })))
+  }
+}
+
+crate::moved!(RestPassed);

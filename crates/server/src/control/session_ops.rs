@@ -1,10 +1,10 @@
-//! The session contract's seven operations as routes (docs/api.md, 「Sessions」): start, send a turn, read
-//! state, interrupt, fold, end and list, each answered by the backend the server stands its places on. A
-//! fault is answered with its outcome code and an English sentence saying why.
+//! The session contract's eight operations as routes (docs/api.md, 「Sessions」): start, send a turn, push
+//! words into it, read state, interrupt, fold, end and list, each answered by the backend the server stands
+//! its places on. A fault is answered with its outcome code and an English sentence saying why.
 
 use agent_session::{
-  Delivery, Fault, FaultKind, RoomBlock, RunParts, Scope, Session, SessionId, Sessions, Start, State, Turn,
-  TurnContext,
+  Aside, Delivery, Fault, FaultKind, RoomBlock, RunParts, Scope, Session, SessionId, Sessions, Start,
+  State, Turn, TurnContext,
 };
 use axum::http::{Method, StatusCode};
 use axum::response::Response;
@@ -217,6 +217,35 @@ impl Route for SessionTurn {
 }
 
 crate::moved!(SessionTurn);
+
+/// Words pushed into the turn a session is working, answered with what became of them.
+pub struct SessionPush;
+
+impl Route for SessionPush {
+  const METHOD: Method = Method::POST;
+  const PATH: &'static str = "/session/push";
+
+  async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
+    let body = call.body().await?;
+    let session = SessionId(text(&body, "session")?.to_owned());
+    let words = text(&body, "words")?;
+
+    Ok(match backend(&call)?.push(&session, words).await {
+      Ok(said) => answer(StatusCode::OK, json!({ "said": said_word(said) })),
+      Err(fault) => faulted(fault),
+    })
+  }
+}
+
+crate::moved!(SessionPush);
+
+fn said_word(said: Aside) -> &'static str {
+  match said {
+    Aside::Delivered => "delivered",
+    Aside::Waiting => "waiting",
+    Aside::Refused => "refused",
+  }
+}
 
 /// A session's state, by its id.
 pub struct SessionState;

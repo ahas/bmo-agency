@@ -791,6 +791,12 @@ The owner's words:
   - again just before the words are typed, off the place and the record: a run the place says has
     ended, or a record whose round has nothing queued and every owed turn ended, refuses the push,
     and its words go back to the buffer for the next round.
+- **The consumer pushes; agency puts the words in.** The consumer holding the room decides what goes
+  and when, and hands the paragraph to the session's push (`docs/api.md`, 「Sessions」). Agency offers
+  it to the run the session's turn is carrying; the door takes it at its next look at the working
+  program, only where the turn's provider declares that it takes words mid-turn, and answers what
+  became of it. An offer no look takes within the resident turn policy's `push_take_ms` is withdrawn
+  and answered refused, and a turn that ends answers every offer it did not take refused.
 - **A word that lands after the end anyway is still the round's.** The end can come between that
   last reading and the keys reaching the program, which then submits the word as a prompt of its
   own. The bot marks the run in the place as handed a word just before typing it, and takes the mark

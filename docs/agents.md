@@ -216,17 +216,11 @@ flowchart TD
 - **A model:** the console's model registry screen adds a registration with its addresses through the
   registry route (`docs/own-llm.md`, 「Registered models」; `docs/api.md`); every run reads the registry as it starts.
 - **A conversational agent:** the console's companions tab adds one — its name, label, pin and the worker
-  its items go to — with a room of the web console's own that it answers alone. The bot writes the
-  agent's row of the kind `chat` with the chat role, the `room` scope and the `pieces` shape, its
-  default settings, its gate options copied from the chat agent's, the room,
-  the agent's sender number in it and the room's answerers.
-  - Nothing is restarted: the receiver reads a room's answerers for every message, the runner reads
-    the agent's row and settings for every turn, and the agent's pane and program are stood by its
-    first turn.
+  its items go to — with a room of the web console's own that it answers alone. Agency writes the
+  agent's row and the room's consumer the room's half (`docs/companions.md`, 「Where a companion and its
+  rooms come from」).
   - The same tab removes a companion it added, with everything the companion kept of its own, and
-    nothing of it is left standing; the rooms it answered stay with their whole record
-    (`docs/companions.md`, 「Where a companion and its rooms come from」): its program is killed, so it writes no record of what the removal
-    took as it goes, its workspace closed, and its place and its home folder taken away.
+    nothing of it is left standing; the rooms it answered stay with their whole record.
 - **Removing what the deployment seeds** is not offered: a seeded companion stands again at the next
   start.
 

@@ -210,6 +210,19 @@ engine_switching = "The {engine} engine is being switched to {entry}; try again 
 unit_failed = "The run unit could not be made: {why}"
 node_unread = "The node's name could not be read."
 
+# A companion added on the console and removed there: a name out of its shape or already an agent's, no
+# label, a {provider} that carries no companion, a model with no address, a {worker} that is no worker, an
+# {agent} that is no companion, and one the deployment seeds, by its {label}.
+[companion_roster]
+name = "A name starts with a lowercase letter and holds only lowercase letters, digits and hyphens, 40 characters at most."
+name_taken = "The name {name} is already another agent's."
+label = "Enter a label."
+provider = "The {provider} provider cannot carry a companion."
+model = "Choose a registered model with an address."
+worker = "Choose the worker among the workers: {worker}"
+not_companion = "Not a companion: {agent}"
+seeded = "{label} is a companion the deployment seeds, so it cannot be removed."
+
 # A companion's reset: one naming no companion or no range, an {agent} that is no companion or whose
 # folder is the brain root, and the reason a room session it ended is recorded under.
 [companion_reset]

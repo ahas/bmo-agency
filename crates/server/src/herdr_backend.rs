@@ -1,4 +1,4 @@
-//! The herdr backend of the session contract (docs/api.md, 「Sessions」): the seven operations answered over
+//! The herdr backend of the session contract (docs/api.md, 「Sessions」): the eight operations answered over
 //! the door, the places and the lines. A worker's session is its own, one per worker, carried by the
 //! worker's session turn on the line a job runs on; a companion's session is one per room, carried by its
 //! resident program on the chat line with the system prompt its settings compose; a session across rooms is
@@ -10,19 +10,21 @@
 //!
 //! A turn is carried whole before *send a turn* answers: whether the program took the words, or refused
 //! them while it waits on a person. What it came to is published as `turn-ended`, and its start as
-//! `turn-started`; a conversational turn's road as `road-walked`.
+//! `turn-started`; a conversational turn's road as `road-walked`. Words pushed into a session are offered to
+//! the run its turn carries, which its door takes at its next look at the working program.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use agent_session::{
-  Context, Delivery, Fault, FaultKind, RoomBlock, Scope, Session, SessionId, Sessions, Start, State, Turn,
-  TurnContext,
+  Aside, Context, Delivery, Fault, FaultKind, RoomBlock, Scope, Session, SessionId, Sessions, Start, State,
+  Turn, TurnContext,
 };
 use indexmap::IndexMap;
 use policy::companion_runner::COMPANION_RUNNER;
 use policy::fill_marks;
+use policy::resident_turn::RESIDENT_TURN;
 use serde::Serialize;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -36,12 +38,13 @@ use crate::companion::run::{NoAnswer, Reply, Tally, let_go, run_turn};
 use crate::companion::sessions::{self, Harness, Kept, RoomSession, harness_road};
 use crate::control::claude_accounts::{Judging, account_open};
 use crate::control::companions::Settings;
+use crate::door::aside;
 use crate::door::record::{ModelSpend, UsageSpent};
-use crate::door::turn::Quiet;
+use crate::door::turn::{AsideOutcome, Quiet};
 use crate::editor_session::{EditorTurn, composed as editor_composed, editor_turn, is_editor, workdir_of};
 use crate::events::Event;
 use crate::lines::chat::{ChatLaunch, RoomContext, compose_turn};
-use crate::lines::companion::{CompanionTurn, LOST_SESSION, compose, registration_named};
+use crate::lines::companion::{CompanionTurn, LOST_SESSION, compose, pinned_provider, registration_named};
 use crate::lines::editor::PROVIDER as EDITOR_PROVIDER;
 use crate::places::{AgentRow, Ground, Places};
 use crate::run_log::lines::Line;
@@ -264,29 +267,12 @@ async fn pinned(ground: &Ground, agent: &str) -> Result<Option<Pinned>, Fault> {
   }))
 }
 
-// The provider a companion is pinned to, where it carries a companion's answers and its model has an
-// address where the registry serves it.
+// The provider a companion's row pins it to (`lines::companion::pinned_provider`).
 async fn provider_of(
   ground: &Ground,
   pinned: &Pinned,
 ) -> Result<&'static dyn harness_providers::Provider, String> {
-  let refused = &COMPANION_RUNNER.refused;
-  let (Some(provider), Some(model)) = (&pinned.provider, &pinned.companion.pinned_model) else {
-    return Err(refused.no_pin.clone());
-  };
-  let Some(found) = harness_providers::provider(provider) else {
-    return Err(fill_marks(&refused.no_provider, &[("provider", provider)]));
-  };
-
-  if !found.declared().lines.iter().any(|line| line == crate::lines::companion::LINE) {
-    return Err(fill_marks(&refused.no_line, &[("label", &found.declared().label)]));
-  }
-
-  if found.not_registered().is_some() && registration_named(ground, model).await.is_err() {
-    return Err(fill_marks(&refused.no_model, &[("model", model)]));
-  }
-
-  Ok(found)
+  pinned_provider(ground, pinned.provider.as_deref(), pinned.companion.pinned_model.as_deref()).await
 }
 
 // The system prompt a companion's settings compose, out of the documents of the tree the process runs.
@@ -355,8 +341,10 @@ impl HerdrSessions {
     self.going().get(session).is_some_and(|runs| !runs.is_empty())
   }
 
-  // A run let go of its session's turns as it ends.
+  // A run let go of its session's turns as it ends, and the words pushed into it with it.
   fn ended(&self, session: &SessionId, run: &str) {
+    aside::forget(run);
+
     let mut going = self.going();
 
     if let Some(runs) = going.get_mut(session) {
@@ -618,7 +606,7 @@ impl HerdrSessions {
           provider,
           &session,
           &system,
-          &prompt,
+          &aside::carried(run, &prompt),
           &generation,
           guarded,
           began,
@@ -849,7 +837,9 @@ impl HerdrSessions {
           && said.contains(LOST_SESSION)
         {
           keep_agent_session(&db, agent, None).await.map_err(store_fault)?;
-          asked = self.agent_run(&mut log, agent, room, context, prompt, None, began).await;
+          asked = self
+            .agent_run(&mut log, agent, room, context, &aside::carried(run, prompt), None, began)
+            .await;
         }
 
         asked
@@ -998,6 +988,33 @@ impl Sessions for HerdrSessions {
       id: id_of(&request.agent, &request.scope),
       agent: request.agent,
       scope: request.scope,
+    })
+  }
+
+  async fn push(&self, session: &SessionId, words: &str) -> Result<Aside, Fault> {
+    let (agent, scope) = scope_of(session);
+
+    self.admitted(&agent, &scope).await?;
+
+    // The run the session's turn carries now; a session carrying several, an editor's, takes words into none.
+    let run = match self.going().get(session).map(Vec::as_slice) {
+      Some([run]) => run.clone(),
+      _ => return Ok(Aside::Refused),
+    };
+    let Some(mut offer) = aside::offer(&run, words) else {
+      return Ok(Aside::Refused);
+    };
+    let said = |outcome: AsideOutcome| match outcome {
+      AsideOutcome::Delivered => Aside::Delivered,
+      AsideOutcome::Waiting => Aside::Waiting,
+      AsideOutcome::Refused => Aside::Refused,
+    };
+    let wait = Duration::from_millis(RESIDENT_TURN.push_take_ms);
+
+    Ok(match tokio::time::timeout(wait, &mut offer.answer).await {
+      Ok(answered) => answered.map_or(Aside::Refused, said),
+      Err(_) if offer.withdraw() => Aside::Refused,
+      Err(_) => (&mut offer.answer).await.map_or(Aside::Refused, said),
     })
   }
 

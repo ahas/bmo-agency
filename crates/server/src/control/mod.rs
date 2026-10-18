@@ -10,6 +10,7 @@ mod catalogues;
 pub mod claude_account_changes;
 pub mod claude_accounts;
 pub mod companion_reset;
+mod companion_roster;
 pub mod companions;
 mod documents;
 pub mod events_stream;

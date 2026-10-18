@@ -28,6 +28,7 @@ mod control {
   mod claude_accounts;
   mod companion_reset;
   mod companions;
+  mod consumer_calls;
   mod events_publish;
   mod fallback;
   mod front;
@@ -50,6 +51,7 @@ mod doctor;
 
 mod door {
   mod apart;
+  mod aside;
   mod confirm;
   mod endpoint;
   mod execution;

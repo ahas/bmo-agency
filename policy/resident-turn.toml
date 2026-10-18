@@ -48,6 +48,11 @@ settle_ms = 15000
 # after it. A submitted prompt shows within a second or two.
 submit_ms = 10000
 
+# How long words pushed into a working turn wait for a look at the working program to take them before
+# they are withdrawn and answered refused: the turn is looked at every poll, so words no look takes in a
+# few polls meet a program that is blocked, at rest or gone, and belong to the next turn.
+push_take_ms = 5000
+
 # How long a turn told to stop is given to end its work before it is cut short.
 stop_grace_seconds = 120
 

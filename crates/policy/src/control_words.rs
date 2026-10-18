@@ -233,6 +233,20 @@ pub struct ModelsWords {
 }
 
 /// A companion's reset.
+/// A companion added on the console and removed there.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CompanionRosterWords {
+  pub name: String,
+  pub name_taken: String,
+  pub label: String,
+  pub provider: String,
+  pub model: String,
+  pub worker: String,
+  pub not_companion: String,
+  pub seeded: String,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CompanionResetWords {
@@ -258,6 +272,7 @@ pub struct ControlWords {
   pub tiers: TiersWords,
   pub registry: RegistryWords,
   pub models: ModelsWords,
+  pub companion_roster: CompanionRosterWords,
   pub companion_reset: CompanionResetWords,
 }
 

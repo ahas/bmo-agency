@@ -16,6 +16,7 @@ use harness_providers::claude_code::ClaudeCode;
 use harness_providers::registered::Registered;
 use indexmap::IndexMap;
 use policy::chat_line::CHAT_LINE;
+use policy::companion_runner::COMPANION_RUNNER;
 use policy::fill_marks;
 use policy::providers::registered::REGISTERED;
 use serde_json::Value;
@@ -164,6 +165,37 @@ pub async fn registration_named(ground: &Ground, model: &str) -> Result<Registra
     .map_err(|refused| fault(refused.error))?
     .filter(|held| !held.addresses.is_empty())
     .ok_or_else(|| fault(format!("{}: {model}", REGISTERED.presence.not_registered)))
+}
+
+/// The provider a companion is pinned to, where it carries a companion's answers and its model has an
+/// address where the registry serves it; otherwise the sentence saying why its turns cannot go out.
+pub async fn pinned_provider(
+  ground: &Ground,
+  provider: Option<&str>,
+  model: Option<&str>,
+) -> Result<&'static dyn harness_providers::Provider, String> {
+  let refused = &COMPANION_RUNNER.refused;
+  let (Some(provider), Some(model)) = (provider, model) else {
+    return Err(refused.no_pin.clone());
+  };
+  let Some(found) = harness_providers::provider(provider) else {
+    return Err(fill_marks(&refused.no_provider, &[("provider", provider)]));
+  };
+
+  if !carries_answers(found) {
+    return Err(fill_marks(&refused.no_line, &[("label", &found.declared().label)]));
+  }
+
+  if found.not_registered().is_some() && registration_named(ground, model).await.is_err() {
+    return Err(fill_marks(&refused.no_model, &[("model", model)]));
+  }
+
+  Ok(found)
+}
+
+/// Whether the provider carries a companion's answers: it declares the companion's line.
+pub fn carries_answers(provider: &dyn harness_providers::Provider) -> bool {
+  provider.declared().lines.iter().any(|line| line == LINE)
 }
 
 /// The turn of one companion, composed.

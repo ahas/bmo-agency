@@ -95,6 +95,51 @@ async fn account_rest_until(judging: Judging<'_>, account: &str) -> Result<Optio
     .map_err(|refused| Refusal::new(refused.status, "account-rest-unread", refused.error))
 }
 
+/// Why the deployment rested, where its rest has just passed: every rest whose moment is behind `now` cleared,
+/// and the kind of the silence that ended — the service's outage or a limit — where the deployment was silent
+/// and rests no longer; none otherwise.
+pub async fn clear_passed_rests(judging: Judging<'_>, now: i64) -> Result<Option<RestKind>, Refusal> {
+  let db = judging.db;
+  let unnamed = moment(db, REST_UNTIL).await?;
+  let outage_held = setting(db, REST_KIND).await?.as_deref() == Some("outage") && unnamed.is_some();
+  let accounts = all(
+    db,
+    r#"SELECT "id" FROM "claude_accounts" WHERE "enabled" <> 0 ORDER BY "place", "rowid""#,
+    vec![],
+  )
+  .await?;
+  let mut held = vec![];
+  let mut passed = vec![];
+
+  if unnamed.is_some_and(|until| until <= now) {
+    passed.push(REST_UNTIL.to_owned());
+    passed.push(REST_KIND.to_owned());
+  }
+
+  for account in &accounts {
+    let id: String = account.try_get("", "id")?;
+    let own_key = format!("{REST_UNTIL}:{id}");
+
+    held.push(account_rest_until(judging, &id).await?);
+
+    if moment(db, &own_key).await?.is_some_and(|until| until <= now) {
+      passed.push(own_key);
+    }
+  }
+
+  let was_silent = outage_held || (!held.is_empty() && held.iter().all(Option::is_some));
+
+  for key in &passed {
+    settings::forget(db, key).await?;
+  }
+
+  if passed.is_empty() || !was_silent || resting(judging, now).await? {
+    return Ok(None);
+  }
+
+  Ok(Some(if outage_held { RestKind::Outage } else { RestKind::Limit }))
+}
+
 /// What a rest is: one login's limit, or the service's own outage.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RestKind {

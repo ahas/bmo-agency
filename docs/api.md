@@ -28,7 +28,7 @@ judges none of it.
 ## Versioning
 
 - **The contract carries the repository's one version, in semver.** The version in the workspace
-  manifest is this boundary's version; the current line is `0.20.1`.
+  manifest is this boundary's version; the current line is `0.21.0`.
 - **A change to this document and a change to the boundary go in one commit.** A change that makes a
   route, an event, a hook or a shared table's contract different repairs this document in the same
   commit, stating what is true now.
@@ -65,8 +65,11 @@ judges none of it.
 | GET, POST | `/base-prompts` | the base prompts and their choosers, read and changed | 「Agents」 |
 | GET, POST | `/companions` | the companions' settings, read and saved | 「Agents」 |
 | GET, POST | `/companions/reset` | a companion's reset, counted and carried out | 「Agents」 |
+| POST | `/companions/add`, `/companions/remove` | a companion's agent row stood up and taken out | 「Agents」 |
+| GET | `/reset-point` | an agent's reset point | 「Agents」 |
 | POST | `/session/start` | a session started for an agent at a scope | 「Sessions」 |
 | POST | `/session/turn` | one turn carried into a session | 「Sessions」 |
+| POST | `/session/push` | words put into the turn a session is working | 「Sessions」 |
 | GET | `/session/state` | a session's state, by `session` | 「Sessions」 |
 | POST | `/session/interrupt`, `/session/fold`, `/session/end` | the three operations on one session | 「Sessions」 |
 | GET | `/session/list` | every session the backend keeps | 「Sessions」 |
@@ -97,6 +100,7 @@ judges none of it.
 | GET, POST | `/runs/overtime` | the asks on runs past their clock, and a verdict on one | 「Workers」 |
 | GET | `/editors/cap` | the bound an editor work key's run carries for an agent | 「Workers」 |
 | GET, POST | `/rest` | the deployment's rest, read and written | 「Accounts」 |
+| GET | `/rest/passed` | why the rest that has just passed silenced the deployment, the passed rests cleared | 「Accounts」 |
 | GET | `/health` | agency's health and readiness | 「Health」 |
 
 ## Agents
@@ -137,6 +141,20 @@ judges none of it.
   the rooms it answers alone and those it shares, which the caller names since a room's answerers are
   its owner's. Agency takes its own rows, asks the brain for the person range, and publishes the rest
   for its owners (`docs/companions.md`, 「Starting it afresh」).
+- **A companion's agent half.** The consumer holding the console's rooms adds a companion with a room
+  of its own and takes it out again; it writes the room's half and agency the agent's
+  (`docs/companions.md`, 「Where a companion and its rooms come from」).
+  - `POST /companions/add` takes `name`, `label`, `provider`, `model` and `worker`, writes the agent's
+    row and answers `ok`. Every field is checked before anything is written, and a field that does not
+    pass is refused 400 with `field`, the field's name, and `error`, the sentence saying why. A field
+    beyond these is not read.
+  - `POST /companions/remove` takes `agent`, `rooms`, the chat ids of the rooms it answers, and `by`,
+    who asked, and answers `ok` once everything of the companion's own is gone. An agent that is no
+    companion, or one the deployment seeds, is refused 400 with `field` and `error`.
+- **An agent's reset point.** `GET /reset-point?agent=<name>` answers `point`, the moment the agent's
+  last reset cut it off at, in epoch milliseconds, or null where it was never reset; a turn begun at or
+  before it is overtaken (`docs/companions.md`, 「What the reset cuts off」). A call naming no agent is
+  refused 400.
 - **Usage is filed under the agent that spent it,** never added to another's; a run names the agent it
   belongs to and the run it came from (`docs/agent-ownership.md`). A consumer reads an agent's usage
   across the usage boundary described there.
@@ -145,15 +163,18 @@ judges none of it.
 
 ## Sessions
 
-- **The session contract is seven operations,** declared by the session crate and reached by every
-  caller through it: start a session, send a turn into it, read its state, interrupt it, fold it, end
-  it, and list sessions. herdr is one backend of that contract; a caller names no backend
-  (`docs/sessions.md`, `docs/agent-control.md`).
+- **The session contract is eight operations,** declared by the session crate and reached by every
+  caller through it: start a session, send a turn into it, push words into the turn it is working, read
+  its state, interrupt it, fold it, end it, and list sessions. herdr is one backend of that contract; a
+  caller names no backend (`docs/sessions.md`, `docs/agent-control.md`).
 - **What each operation takes and answers:**
   - *start* takes the agent's stable name and the scope, and answers the session — its id, its agent
     and its scope — the one already kept for that scope where there is one;
   - *send a turn* takes the session's id, the prompt and the turn's context (below), and answers whether
     the program took the words or refused them while it waits on a person, which is not a failure;
+  - *push* takes the session's id and the words, and answers what became of them: `delivered`, the
+    working turn took them; `waiting`, its program waits on a person; or `refused`, they did not go in.
+    A backend that cannot put words into a working turn answers `refused`;
   - *read state* takes the session's id and answers its state (below);
   - *interrupt*, *fold* and *end* take the session's id and answer nothing but their success;
   - *list* answers every session the backend keeps, each as *start* answers one.
@@ -213,6 +234,15 @@ judges none of it.
     when the run falls to it. An editor's session keeps nothing: its state names the model its key maps
     to on Claude Code, an interrupt cuts every run it carries, a fold is refused, an end lets nothing go,
     and a list names none.
+  - `POST /session/push` takes `session` and `words` and answers `said`: `delivered`, `waiting` or
+    `refused`. The words go into the turn the session is working at its next look at the working
+    program, as the door types any word (`docs/agent-control.md`, 「Words that arrive while a turn is
+    working」), and only where the turn's provider declares that it takes words mid-turn. They are
+    `refused` where the session carries no turn, where its turn's program takes no words mid-turn or is
+    not working yet, where the turn ends before it takes them, and where no look takes them within the
+    resident turn policy's `push_take_ms`. A refused push changed nothing, so its words are the caller's
+    to carry into the next turn. Words a turn took are carried behind its prompt by any later run of the
+    same turn, a lost session asked again once on a fresh one.
   - `GET /session/state?session=<id>` answers `session`, `provider`, `model`, `place`, `generation` and
     `context`.
   - `POST /session/interrupt`, `POST /session/fold` and `POST /session/end` take `session` and answer
@@ -553,6 +583,11 @@ Each hook has a default that does nothing, so agency runs with none registered.
   closed to a job's selection. `GET /rest` answers `resting`, `until` in epoch seconds and `kind`; `POST
   /rest` takes `until`, `kind` (`limit` or `outage`) and the `account` a limit is its login's, and answers
   whether the rest is the one that `silenced` the deployment.
+- **A rest that has passed.** `GET /rest/passed` clears every rest whose moment is behind now — the
+  service's own and each enabled account's — and answers `kind`, why the deployment rested, where it was
+  silent before and rests no longer: `outage` where the service's own rest held it, `limit` otherwise.
+  It answers null where no rest passed, where the deployment was not silent, or where it still rests.
+  The read takes what it reports, so a second call answers null.
 - **The event** agency publishes is an account becoming unusable and coming back.
 
 ## Workers

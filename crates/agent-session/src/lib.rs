@@ -1,4 +1,4 @@
-//! The agent-session contract: the seven operations every backend answers, and their request and answer
+//! The agent-session contract: the eight operations every backend answers, and their request and answer
 //! types (docs/api.md, 「Sessions」). A caller reaches an agent's session through this contract alone and
 //! names no backend; herdr is one backend of it, implemented by the server over its door, places and
 //! lines.
@@ -112,6 +112,17 @@ pub enum Delivery {
   Blocked,
 }
 
+/// What became of words pushed into the turn a session is working.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Aside {
+  /// The working turn took them.
+  Delivered,
+  /// The program is waiting on a person, and the words stayed out.
+  Waiting,
+  /// They did not go in: no turn was working, its program takes no words mid-turn, or it ended first.
+  Refused,
+}
+
 /// The context a session's last request carried against the window of the registration it stands on.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Context {
@@ -182,13 +193,19 @@ impl fmt::Display for Fault {
 
 impl std::error::Error for Fault {}
 
-/// The seven operations every backend answers.
+/// The eight operations every backend answers.
 pub trait Sessions: Send + Sync {
   /// A session started for an agent at a scope, or the one already kept for that scope.
   fn start(&self, request: Start) -> impl Future<Output = Result<Session, Fault>> + Send;
 
   /// One turn sent into a session.
   fn send_turn(&self, turn: Turn) -> impl Future<Output = Result<Delivery, Fault>> + Send;
+
+  /// Words pushed into the turn a session is working. A backend that cannot put words into a working turn
+  /// refuses them, which changes nothing.
+  fn push(&self, _session: &SessionId, _words: &str) -> impl Future<Output = Result<Aside, Fault>> + Send {
+    async { Ok(Aside::Refused) }
+  }
 
   /// A session's state as it stands.
   fn read_state(&self, session: &SessionId) -> impl Future<Output = Result<State, Fault>> + Send;

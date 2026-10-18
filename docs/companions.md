@@ -5,6 +5,37 @@ carries a companion's turns, keeps its sessions, stands its program in a pane an
 the same way it does for any agent; what a companion is told, whom it answers and what it remembers
 are the companion unit's, not agency's. This document covers only what agency holds of a companion.
 
+## Where a companion and its rooms come from
+
+- **A companion is seeded by the deployment or added on the console.** A seeded one stands again at
+  every start, so it is never removed. One added on the console answers a room of the console's own
+  alone, and the room is the consumer's that holds the console's rooms: its number, its title, its
+  answerers and the companion's sender number there. Agency holds the agent's half
+  (`docs/api.md`, 「Agents」).
+- **Adding it writes the agent's row,** once every field has passed, in the order the dialog shows them:
+  - the name follows the companions policy's pattern, and no agent holds it yet;
+  - the label is given;
+  - the provider carries a companion's answers, and the model has an address where that provider
+    answers only a registration;
+  - the worker its items go to is a worker.
+- **The row it writes:** the kind `chat`, the chat role, the `room` scope, the `pieces` shape, not the
+  default answerer, the label, the console's mark from the companions policy, the pinned provider and
+  model, the worker, the brain folder `agents/<name>`, no prompt folder and not seeded. Its gate options
+  are the gate's. Nothing is restarted: the runner reads the row and its settings for every turn, and
+  its place and program are stood by its first turn.
+- **Removing it takes everything of its own,** and only a companion the console added:
+  - first a reset of both ranges, every room the caller names read as one it shares, so each keeps its
+    record (「Starting it afresh」);
+  - then in one write its settings, its base prompt choice, its session reset asks, its gate switches,
+    its sampling, its reset point and its row;
+  - then what stands for it: its program killed, so it writes no record of what the removal took, its
+    workspace closed, its place and home folder taken away, its execution rows with their envelopes —
+    an open row waited on for thirty seconds first, since its collector writes it as it ends — the
+    agent host's view and head records of it, its agent lock, and the brain asked to forget its
+    folder's editing lock. What could not go is logged and refuses nothing, since the removal is
+    written.
+  - Once begun it runs to its end apart from the request, as a reset does.
+
 ## The session
 
 - **One session for each companion in each room,** a row of the room sessions table keyed by the

@@ -454,3 +454,27 @@ async fn carry_out(standing: &Standing, asked: &Asked, by: &str) -> Result<Value
 
   Ok(shown)
 }
+
+/// The moment an agent's last reset cut it off at, which a consumer holds a turn it carries to: a turn begun
+/// at or before it is overtaken.
+pub struct ResetPoint;
+
+impl Route for ResetPoint {
+  const METHOD: Method = Method::GET;
+  const PATH: &'static str = "/reset-point";
+
+  async fn answer(&self, call: Call) -> Result<Response, Refused> {
+    let Some(agent) = call
+      .query("agent")
+      .map(|agent| agent.trim().to_owned())
+      .filter(|agent| !agent.is_empty())
+    else {
+      return Err(Refused::new(StatusCode::BAD_REQUEST, "agent is required"));
+    };
+    let point = crate::companion::overtaken::point(call.store(), &agent).await;
+
+    Ok(answer(StatusCode::OK, json!({ "point": point })))
+  }
+}
+
+crate::moved!(ResetPoint);

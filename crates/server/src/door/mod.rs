@@ -5,6 +5,7 @@
 //! (the agent package's `worker-pane.ts`).
 
 pub mod apart;
+pub mod aside;
 pub mod asked;
 pub mod confirm;
 pub mod endpoint;

@@ -20,6 +20,8 @@ pub struct ResidentTurn {
   pub account_ms: u64,
   pub settle_ms: u64,
   pub submit_ms: u64,
+  /// How long words pushed into a working turn wait for a look to take them.
+  pub push_take_ms: u64,
   pub stop_grace_seconds: u64,
   pub quiet_ms: u64,
   pub herdr_patience_seconds: u64,

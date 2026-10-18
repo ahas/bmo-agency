@@ -27,6 +27,7 @@ use serde::Serialize;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
+use super::aside;
 use super::confirm::{Asking, Confirmation, Questions};
 use super::execution::{Children, Identity, Row, cancelled, publish_envelope};
 use super::guard::{socket_refusal, turn_refusal};
@@ -1109,6 +1110,13 @@ async fn open_pane(herdr: &Herdr, name: &str, label: &str, turn: &Turn) -> Resul
   Ok(pane)
 }
 
+// Whether the provider's standing program takes words put in while a turn works into that turn.
+fn takes_words_mid_turn(provider: &str) -> bool {
+  harness_providers::provider(provider)
+    .and_then(|declared| declared.declared().resident.as_ref())
+    .is_some_and(|resident| resident.words_mid_turn)
+}
+
 async fn watch_turn<W: Watch>(
   door: &mut Door<'_, W>,
   pane: &str,
@@ -1123,6 +1131,8 @@ async fn watch_turn<W: Watch>(
   // started again for this turn writes lines of its own on the way up.
   let mut from = opened_from;
   let mut prompted_at;
+  // Words offered to the run from outside it, taken while its turn works, where its provider takes them.
+  let listening = takes_words_mid_turn(&turn.provider).then(|| aside::listen(&turn.name));
 
   door.save().await;
 
@@ -1518,20 +1528,33 @@ async fn watch_turn<W: Watch>(
 
     // Only while it is working: a word pushed at an agent that has not started is one the turn's own
     // prompt has not reached yet, and one pushed after it has stopped belongs to the next turn.
-    if now.is("working")
-      && let Some(words) = door.watch.words().await
-    {
-      if let Some(why) = turn_refusal(&door.ground.db, JOB_WORK_KEY, &BTreeMap::new()).await {
-        return Err(why);
-      }
-
-      let outcome = match door.push_word(pane, from, &words).await {
-        Ok(_) => AsideOutcome::Delivered,
-        Err(fault) if is_blocked(&fault) => AsideOutcome::Waiting,
-        Err(_) => AsideOutcome::Refused,
+    if now.is("working") {
+      let offered = listening.as_ref().and_then(aside::Listening::take);
+      let words = match &offered {
+        Some(offered) => Some(offered.words.clone()),
+        None => door.watch.words().await,
       };
 
-      door.watch.said(outcome).await;
+      if let Some(words) = words {
+        if let Some(why) = turn_refusal(&door.ground.db, JOB_WORK_KEY, &BTreeMap::new()).await {
+          if let (Some(listening), Some(offered)) = (&listening, offered) {
+            listening.said(offered, AsideOutcome::Refused);
+          }
+
+          return Err(why);
+        }
+
+        let outcome = match door.push_word(pane, from, &words).await {
+          Ok(_) => AsideOutcome::Delivered,
+          Err(fault) if is_blocked(&fault) => AsideOutcome::Waiting,
+          Err(_) => AsideOutcome::Refused,
+        };
+
+        match (&listening, offered) {
+          (Some(listening), Some(offered)) => listening.said(offered, outcome),
+          _ => door.watch.said(outcome).await,
+        }
+      }
     }
 
     tokio::time::sleep(every).await;
