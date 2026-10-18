@@ -177,9 +177,10 @@ session on the owner's ask is `docs/session-resets.md`.
   none of it (`docs/api.md`, 「Sessions」, a work turn's parts). A turn whose runner named a session
   that the walk, a reset or the judging of the held session has moved off is put to the runner again
   before anything goes in, since its prompt was composed for what that session has read.
-- **The record keeps the session's generation and its context:** how many times the worker's session on
-  that model was opened fresh rather than resumed, and the tokens its last answered turn carried
-  against the window they filled, which a session's state reads.
+- **A session's generation and its context are kept for its state to read:** how many times the
+  worker's session on that model was opened fresh rather than resumed, counted beside the records so a
+  record forgotten takes no count with it; and on the record, the tokens its last answered turn carried
+  and the share of the window they filled.
 
 ## Session replacement
 

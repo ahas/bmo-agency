@@ -5,6 +5,7 @@
 mod m20261016_000001_store;
 mod m20261017_000001_clocks;
 mod m20261019_000001_runs;
+mod m20261020_000001_worker_context;
 
 use sea_orm_migration::prelude::*;
 
@@ -80,6 +81,7 @@ impl MigratorTrait for Migrator {
       Box::new(m20261016_000001_store::Migration),
       Box::new(m20261017_000001_clocks::Migration),
       Box::new(m20261019_000001_runs::Migration),
+      Box::new(m20261020_000001_worker_context::Migration),
     ]
   }
 

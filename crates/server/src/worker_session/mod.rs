@@ -20,7 +20,9 @@ use policy::run_lines::RUN_LINES;
 use serde_json::Value;
 
 use self::held::{SessionRun, prepare, remember};
-use self::records::{WorkerSession, fallen_model, heal, launch_model, note_keepalive, note_usage, record};
+use self::records::{
+  WorkerSession, fallen_model, heal, launch_model, note_carried, note_keepalive, note_usage, record,
+};
 use crate::control::claude_accounts::{self, Account};
 use crate::control::harness::provider_enabled;
 use crate::control::roads::pinned_provider;
@@ -40,8 +42,8 @@ use crate::{Refusal, now_ms};
 /// The provider a worker's own session stands on.
 pub const PROVIDER: &str = "claude-code";
 
-// The words the program says when it is asked to resume a session it no longer holds.
-const UNKNOWN_SESSION: &str = "No conversation found with session ID";
+/// The words the program says when it is asked to resume a session it no longer holds.
+pub const UNKNOWN_SESSION: &str = "No conversation found with session ID";
 
 /// What kept a turn from the session: a question a person has to answer, the folder-trust question that
 /// would not clear, a prompt that never became a turn, a stop, Claude Code switched off, a session the
@@ -496,6 +498,7 @@ pub async fn turn<W: Watch>(side: &Side<'_>, asked: Asked<'_>, watch: &mut W) ->
   let fallen = fallen_model(&configured_model, &run.line.model, &fell.models);
 
   record(&ground.db, worker, model, &account, &session_id, Some(&digest), fallen.as_deref()).await?;
+  note_carried(&ground.db, worker, model, &account, run.resume.is_none(), &reply).await?;
   println!(
     "{label} {worker} {model}: {} {session_id}",
     if run.resume.is_none() { "brought up" } else { "resumed" }

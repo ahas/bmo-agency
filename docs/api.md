@@ -373,7 +373,7 @@ judges none of it.
   generation, and the context its last request carried against the registration's window
   (`docs/own-llm.md`, 「How requests go」). A worker's generation is how many times its session for the
   model it stands on was opened fresh rather than resumed, and its context the tokens its last answered
-  turn carried against the window they filled, both kept beside the worker's session record. A consumer
+  turn carried against the window they filled, kept on the session's record. A consumer
   reads it to show a session; it builds no run from it.
 - **Folding and handing over** are the provider's way of carrying a full session past the window; a
   consumer that keeps a conversation reads the handoff the provider declares rather than agency's fold

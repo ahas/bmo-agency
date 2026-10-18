@@ -14,10 +14,15 @@ use crate::control::claude_accounts::SEED_ACCOUNT;
 use crate::door::record::{ModelSpend, Reply, UsageSpent, WindowsRead};
 use crate::events::Bus;
 use crate::places::Ground;
+use crate::queue::settings;
 use crate::{Refusal, now_ms};
 
+// What a worker's count of the sessions it opened fresh on a model is kept under, beside its records, which
+// a forgotten record does not take with it.
+const GENERATION_KEY: &str = "worker_generation";
+
 /// One session record of a worker.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct WorkerSession {
   pub model: String,
   pub account: String,
@@ -26,14 +31,17 @@ pub struct WorkerSession {
   pub last_reply_at: i64,
   /// The model it answers on where that is not its own.
   pub answered_model: Option<String>,
+  /// The tokens its last answered turn carried, and the share of the window they filled.
+  pub context_tokens: Option<i64>,
+  pub context_ratio: Option<f64>,
 }
 
 /// Every session record the worker holds, one per model and login.
 pub async fn sessions(db: &impl ConnectionTrait, worker: &str) -> Result<Vec<WorkerSession>, Refusal> {
   let rows = all(
     db,
-    r#"SELECT "model", "account", "claude_session_id", "last_reply_at", "answered_model" FROM "worker_sessions"
-       WHERE "worker" = $1 ORDER BY "last_reply_at""#,
+    r#"SELECT "model", "account", "claude_session_id", "last_reply_at", "answered_model", "context_tokens",
+         "context_ratio" FROM "worker_sessions" WHERE "worker" = $1 ORDER BY "last_reply_at""#,
     vec![worker.into()],
   )
   .await?;
@@ -48,10 +56,65 @@ pub async fn sessions(db: &impl ConnectionTrait, worker: &str) -> Result<Vec<Wor
           session_id: row.try_get("", "claude_session_id")?,
           last_reply_at: row.try_get("", "last_reply_at")?,
           answered_model: row.try_get("", "answered_model")?,
+          context_tokens: row.try_get("", "context_tokens")?,
+          context_ratio: row.try_get("", "context_ratio")?,
         })
       })
       .collect::<Result<_, _>>()?,
   )
+}
+
+/// The context a recorded session's answered turn carried, kept on its record, and a session opened fresh
+/// counted as the worker's next generation on the model.
+pub async fn note_carried(
+  db: &impl ConnectionTrait,
+  worker: &str,
+  model: &str,
+  account: &str,
+  fresh: bool,
+  reply: &Reply,
+) -> Result<(), Refusal> {
+  run(
+    db,
+    r#"UPDATE "worker_sessions" SET "context_tokens" = $4, "context_ratio" = $5
+       WHERE "worker" = $1 AND "model" = $2 AND "account" = $3"#,
+    vec![
+      worker.into(),
+      model.into(),
+      account.into(),
+      reply.context_tokens.into(),
+      reply.context_ratio.into(),
+    ],
+  )
+  .await?;
+
+  if fresh {
+    let next = opened(db, worker, model).await? + 1;
+
+    settings::set(db, &generation_key(worker, model), &next.to_string()).await?;
+  }
+
+  Ok(())
+}
+
+/// The generation the worker's session on a model stands in: how many times a session on it was opened
+/// fresh rather than resumed, the first counted as one.
+pub async fn generation(db: &impl ConnectionTrait, worker: &str, model: &str) -> Result<u64, Refusal> {
+  Ok(opened(db, worker, model).await?.max(1))
+}
+
+// How many fresh sessions on a model the worker has been counted as opening.
+async fn opened(db: &impl ConnectionTrait, worker: &str, model: &str) -> Result<u64, Refusal> {
+  Ok(
+    settings::get(db, &generation_key(worker, model))
+      .await?
+      .and_then(|count| count.parse::<u64>().ok())
+      .unwrap_or(0),
+  )
+}
+
+fn generation_key(worker: &str, model: &str) -> String {
+  format!("{GENERATION_KEY}:{worker}:{model}")
 }
 
 /// The worker's session on a model and login a turn may resume: none where there is none, or where one

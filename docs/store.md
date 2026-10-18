@@ -8,7 +8,9 @@ seeds. The other crates and the server reach the store only through it.
 
 - **Made by the store's migrations,** each table carried from the archive in the shape the archive holds
   it, columns, keys and indexes alike, and the clocks' two tables and the run ledger in agency's own,
-  each made by a migration of its own after the first.
+  each made by a migration of its own after the first. A column of agency's own beside an archive shape
+  is added by a migration of its own too: a worker's session record keeps the tokens its last answered
+  turn carried and the share of the window they filled.
 - **The record of what ran is `agency_migrations`,** a table of the store's own, so the store may stand
   in a database beside another service's tables without either's record in the other's way.
 - **A migration is not undone:** a store that must go back is dropped and made again.

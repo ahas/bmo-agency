@@ -1,0 +1,732 @@
+//! A job's turn on its worker's own session (docs/api.md, 「Sessions」, a work turn's parts): carried by the
+//! logins its work key is offered for its user, each tried in turn where one fails on the login rather
+//! than on the work; on the model, the mapping and the session its runner named, behind the agent lock the
+//! worker's jobs share, with the owner's waiting reset carried out, the standby claimed and the held session
+//! judged before it goes; in its folder, under its run name and title, its variables beside the line's
+//! own; and read back as the whole of its end — the reply, or the failure by its kind — with what it went
+//! out on, where its time went and whether its session was compacted.
+//!
+//! Which model, which session, which login and which folder a job's turn needs is its runner's: this
+//! carries that choice through the worker's records, the held session's judgement and the door, and
+//! judges none of it. Where the session the turn settles on is not the one its runner composed its prompt
+//! for, nothing goes in and the turn goes back to its runner with the session it would continue.
+
+use agent_session::{
+  self as contract, EngineError, Fault, FaultKind, JobMark, Outcome, Resume, TurnEnd, WentOut, WorkParts,
+};
+use sea_orm::DatabaseConnection;
+use serde_json::Value;
+
+use super::failure::{AccountFailure, Failure, RunEnding, of_unanswered};
+use super::reset::carry_out_worker_reset;
+use super::walk::{Attempt, Walking, on_accounts};
+use crate::Refusal;
+use crate::control::claude_accounts::Account;
+use crate::control::harness::provider_enabled;
+use crate::door::execution::{cancelled, execution_root};
+use crate::door::record::Reply;
+use crate::door::turn::{Ending, Turn, Watch, put};
+use crate::keepalive::logins;
+use crate::lines::Trees;
+use crate::lines::place::Place;
+use crate::lines::standing::{claim_standby, session_ttl_ms, worker_prefix_digest};
+use crate::lines::worker::{WorkerRun, effort_of, worker_run};
+use crate::places::{AgentRow, Ground, locks};
+use crate::queue::stops::job_stop_reason;
+use crate::run_log::lines::Line;
+use crate::run_log::spans::JobSpan;
+use crate::run_log::{RunLog, Target};
+use crate::worker_session::fold::{fold, worker_session_full};
+use crate::worker_session::held::{self, SessionRun};
+use crate::worker_session::records::{self, fallen_model, heal, launch_model, note_carried, record};
+use crate::worker_session::{Composed, PROVIDER, UNKNOWN_SESSION, compose, evidence};
+
+/// The variable the agent a turn's program is a turn of goes by, so what the verbs it runs file stands
+/// under that agent.
+pub const TURN_AGENT: &str = "BMO_TURN_AGENT";
+
+/// The variable that tells the verbs a turn's program runs that they work for the turn's job.
+pub const TASK_LOCKED: &str = "BMO_TASK_LOCKED";
+
+/// A job's turn as its runner asks it: the worker whose session it goes on, its work parts, the job it is
+/// of, and its words.
+pub struct WorkAsked<'a> {
+  pub ground: &'a Ground,
+  pub row: &'a AgentRow,
+  pub work: &'a WorkParts,
+  pub job: Option<JobMark>,
+  pub prompt: &'a str,
+}
+
+/// Which session an attempt goes on, or that the turn goes back to its runner with the session it would
+/// continue, none for a fresh one.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Choice {
+  Go(Option<String>),
+  Back(Option<String>),
+}
+
+/// The session a turn's `resume` goes on, given the one the worker keeps for the turn's model and the login
+/// carrying it: under `auto` the kept one, under `fresh` none, and under `session` the one named where it
+/// is the kept one; a session named that the login carrying the turn does not keep is not the one the
+/// turn's prompt was composed for.
+pub fn choose(resume: &Resume, kept: Option<String>) -> Choice {
+  match resume {
+    Resume::Auto => Choice::Go(kept),
+    Resume::Fresh => Choice::Go(None),
+    Resume::Session { id } if kept.as_deref() == Some(id.as_str()) => Choice::Go(kept),
+    Resume::Session { .. } => Choice::Back(kept),
+  }
+}
+
+/// What a turn that did not answer on a resumed session comes to.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Unanswered {
+  /// The program no longer held the session: under `auto`, asked again once on a fresh one.
+  Again,
+  /// The program no longer held the session the runner named: back to the runner for a fresh one.
+  Back,
+  /// Read as a failure.
+  Failed,
+}
+
+/// What a turn that left no answer comes to, by the session it went on and what it left.
+pub fn after_unanswered(resume: &Resume, went_on: Option<&str>, evidence: &str) -> Unanswered {
+  if went_on.is_none() || !evidence.contains(UNKNOWN_SESSION) {
+    return Unanswered::Failed;
+  }
+
+  match resume {
+    Resume::Session { .. } => Unanswered::Back,
+    Resume::Auto | Resume::Fresh => Unanswered::Again,
+  }
+}
+
+/// The composed turn handed what its runner named beyond the line: its variables beside the line's own,
+/// the agent it is a turn of, the job marker where it has a job and none otherwise, its work key, and the
+/// unit its execution is a child of and counted under, so a stop of the unit reaches it.
+pub fn with_work(mut turn: Turn, agent: &str, work: &WorkParts, job: Option<JobMark>) -> Turn {
+  for (name, value) in &work.variables {
+    turn.env.entry(name.clone()).or_insert_with(|| value.clone());
+  }
+
+  turn.env.insert(TURN_AGENT.to_owned(), agent.to_owned());
+
+  if job.is_some() {
+    turn.env.insert(TASK_LOCKED.to_owned(), "1".to_owned());
+  } else {
+    turn.env.remove(TASK_LOCKED);
+  }
+
+  turn.identity.work_key = Some(work.work_key.clone());
+
+  if let Some(unit) = &work.unit {
+    turn.identity.parent = Some(unit.clone());
+    turn.identity.root = Some(execution_root(unit));
+  }
+
+  turn
+}
+
+/// Whether any of the record's lines is the program compacting its session.
+pub fn compacts(lines: &[String]) -> bool {
+  lines.iter().any(|line| {
+    serde_json::from_str::<Value>(line).is_ok_and(|event| {
+      event.get("type").and_then(Value::as_str) == Some("system")
+        && event.get("subtype").and_then(Value::as_str) == Some("compact_boundary")
+    })
+  })
+}
+
+/// What a line went out on, as a turn's end names it.
+pub fn went_out_of(line: &WorkerRun) -> WentOut {
+  WentOut {
+    provider: PROVIDER.to_owned(),
+    model: line.model.clone(),
+    effort: (!line.effort.is_empty()).then(|| line.effort.clone()),
+    tier: line.tier.clone(),
+  }
+}
+
+/// A reply as the session contract carries it. The Claude Code line goes to no upstream of its own.
+pub fn reply_of(reply: &Reply) -> contract::Reply {
+  contract::Reply {
+    mode: reply.mode.clone(),
+    model: reply.model.clone(),
+    effort: reply.effort.clone(),
+    text: reply.text.clone(),
+    session_id: reply.session_id.clone(),
+    account: reply.account.clone(),
+    context_ratio: reply.context_ratio,
+    context_tokens: reply.context_tokens,
+    session_usage: reply.session_usage.as_ref().and_then(|usage| serde_json::to_value(usage).ok()),
+    spend: reply
+      .spend
+      .iter()
+      .map(|spent| contract::Spend {
+        mode: (!spent.mode.is_empty()).then(|| spent.mode.clone()),
+        model: spent.model.clone(),
+        tokens: spent.tokens,
+        input_tokens: spent.input_tokens,
+        output_tokens: spent.output_tokens,
+        cache_read_tokens: spent.cache_read_tokens,
+        cache_write_tokens: spent.cache_write_tokens,
+        cost: Some(spent.cost),
+      })
+      .collect(),
+    live_tasks: reply
+      .live_tasks
+      .iter()
+      .map(|task| contract::LiveTask {
+        id: task.id.clone(),
+        description: task.description.clone(),
+      })
+      .collect(),
+    workflows: reply
+      .workflows
+      .iter()
+      .map(|workflow| contract::Workflow {
+        call: workflow.call.clone(),
+        name: workflow.name.clone(),
+        status: workflow.status.clone(),
+      })
+      .collect(),
+    upstream: None,
+    request_usages: reply.request_usages.as_ref().map(|usages| {
+      usages
+        .iter()
+        .map(|usage| contract::RequestUsage {
+          input_tokens: usage.input_tokens,
+          output_tokens: usage.output_tokens,
+          cache_read_tokens: usage.cache_read_tokens,
+          cache_write_tokens: usage.cache_write_tokens,
+        })
+        .collect()
+    }),
+  }
+}
+
+/// A failed turn as the session contract carries it. A walk's own endings, which a single turn never
+/// reaches, are read as errors by their words.
+pub fn failure_of(failure: &Failure) -> contract::Failure {
+  match failure {
+    Failure::Limit {
+      resets_at,
+      account,
+      silenced,
+    } => contract::Failure::Limit {
+      resets_at: *resets_at,
+      account: account.clone(),
+      silenced: *silenced,
+    },
+    Failure::Account { failure, detail } => contract::Failure::Account {
+      failure: match failure {
+        AccountFailure::Limit => contract::AccountFailure::Limit,
+        AccountFailure::Login => contract::AccountFailure::Login,
+        AccountFailure::Outage => contract::AccountFailure::Outage,
+        AccountFailure::NodeToken => contract::AccountFailure::NodeToken,
+      },
+      detail: detail.clone(),
+    },
+    Failure::Died {
+      ending,
+      said,
+      message,
+    } => contract::Failure::Died {
+      ending: match ending {
+        RunEnding::Exit { code } => contract::RunEnding::Exit { code: *code },
+      },
+      said: said.clone(),
+      message: message.clone(),
+    },
+    Failure::Person => contract::Failure::Person,
+    Failure::Untrusted { folder, config } => contract::Failure::Untrusted {
+      folder: folder.clone(),
+      config: config.clone(),
+    },
+    Failure::Stopped => contract::Failure::Stopped,
+    Failure::Transport { message } => contract::Failure::Transport {
+      message: message.clone(),
+    },
+    Failure::Refused { message } => contract::Failure::Refused {
+      message: message.clone(),
+    },
+    Failure::Unavailable {
+      scope,
+      mode,
+      reason,
+    } => contract::Failure::Unavailable {
+      scope: scope.clone(),
+      mode: mode.clone(),
+      reason: reason.clone(),
+    },
+    Failure::Error { name, message } => contract::Failure::Error {
+      name: name.clone(),
+      message: message.clone(),
+    },
+    Failure::Attempt | Failure::Exhausted { .. } => contract::Failure::Error {
+      name: "Error".to_owned(),
+      message: failure.message(),
+    },
+  }
+}
+
+/// Where one part of a turn's time went, as the session contract carries it.
+pub fn span_of(span: &JobSpan) -> contract::Span {
+  contract::Span {
+    kind: span.kind.clone(),
+    name: span.name.clone(),
+    seconds: span.seconds,
+    times: span.times,
+    tokens: span.tokens,
+    input_tokens: span.input_tokens,
+    output_tokens: span.output_tokens,
+    cache_read_tokens: span.cache_read_tokens,
+    cache_write_tokens: span.cache_write_tokens,
+  }
+}
+
+/// What a carried turn settled on: its answer, or its going back to its runner with the session it would
+/// continue.
+#[derive(Debug)]
+pub enum Settled {
+  Answered(Box<Reply>),
+  Back(Option<String>),
+}
+
+/// What a turn came to beside its answer or its failure: what it went out on, where its time went, whether
+/// its session was compacted, and the error its engine ended it with where it ended with one.
+#[derive(Debug, Default)]
+pub struct Beside {
+  pub went_out: Option<WentOut>,
+  pub spans: Vec<contract::Span>,
+  pub compacted: bool,
+  pub engine_error: Option<EngineError>,
+}
+
+/// A carried turn's end under its run: an answer, a turn back to its runner, a person waited on, a stop,
+/// or a failure with its words and its kind.
+pub fn ended(run: &str, walked: Result<Settled, Failure>, beside: Beside) -> TurnEnd {
+  let end = match walked {
+    Ok(Settled::Answered(reply)) => TurnEnd {
+      reply: Some(Box::new(reply_of(&reply))),
+      ..TurnEnd::answered(run, reply.text.clone())
+    },
+    Ok(Settled::Back(continues)) => TurnEnd {
+      continues,
+      ..TurnEnd::of(run, Outcome::Reprepared)
+    },
+    Err(Failure::Person) => TurnEnd {
+      failure: Some(contract::Failure::Person),
+      ..TurnEnd::of(run, Outcome::Blocked)
+    },
+    Err(Failure::Stopped) => TurnEnd {
+      failure: Some(contract::Failure::Stopped),
+      ..TurnEnd::of(run, Outcome::Stopped)
+    },
+    Err(failure) => TurnEnd {
+      failure: Some(failure_of(&failure)),
+      ..TurnEnd::failed(run, failure.message(), beside.engine_error.clone())
+    },
+  };
+
+  TurnEnd {
+    went_out: beside.went_out,
+    spans: beside.spans,
+    compacted: beside.compacted,
+    ..end
+  }
+}
+
+/// One job's turn carried on its worker's session to its end. A turn naming a provider other than Claude
+/// Code, or a user that is no user's id, is refused; every other way the turn ends is its end.
+pub async fn carry(asked: &WorkAsked<'_>, shown: &(dyn Fn(&WentOut) + Sync)) -> Result<TurnEnd, Fault> {
+  let work = asked.work;
+
+  if work.provider != PROVIDER {
+    return Err(Fault::new(
+      FaultKind::Refused,
+      format!("{}: a worker's session stands on {PROVIDER}, not {}", asked.row.name, work.provider),
+    ));
+  }
+
+  let user = match work.user.as_deref().map(str::trim).filter(|user| !user.is_empty()) {
+    None => None,
+    Some(user) => Some(
+      user
+        .parse::<i64>()
+        .map_err(|_| Fault::new(FaultKind::Refused, format!("{user} is not a user's id")))?,
+    ),
+  };
+  let mut log = RunLog::new(Target {
+    agent: asked.row.name.clone(),
+    run: work.unit.clone().unwrap_or_else(|| work.name.clone()),
+    chat_id: Some(work.chat),
+    job_id: asked.job.map(|job| job.job),
+  });
+  let mut attempting = Attempting {
+    asked,
+    log: &mut log,
+    shown,
+    beside: Beside::default(),
+  };
+  let walked = on_accounts(
+    &Walking {
+      ground: asked.ground,
+    },
+    &work.work_key,
+    user,
+    &mut attempting,
+  )
+  .await;
+  let mut beside = attempting.beside;
+
+  beside.spans = log.spans().iter().map(span_of).collect();
+
+  Ok(ended(&work.name, walked, beside))
+}
+
+fn refused(why: Refusal) -> Failure {
+  Failure::error(why.detail)
+}
+
+// What one primary run left: its answer, a turn back to its runner, or the text a turn that did not
+// answer left behind.
+enum Primary {
+  Answered(Box<Reply>),
+  Back(Option<String>),
+  Unanswered(String),
+}
+
+// The turn on the logins the walk offers, and what it learned beside its end.
+struct Attempting<'r, 'a> {
+  asked: &'r WorkAsked<'a>,
+  log: &'r mut RunLog,
+  shown: &'r (dyn Fn(&WentOut) + Sync),
+  beside: Beside,
+}
+
+impl Attempt<Settled> for Attempting<'_, '_> {
+  // On a work node the login is the account's token for the nodes (docs/work-nodes.md, 「The logins on a
+  // node」): one marked gone is passed over without a run, and a run there that fails on its login has
+  // found that token gone rather than the account's login here.
+  async fn attempt(&mut self, account: Option<Account>) -> Result<Settled, Failure> {
+    let ground = self.asked.ground;
+    let data = &ground.roots.data;
+    let on_node = Place::of(data, &self.asked.row.name).node().is_some();
+
+    if on_node
+      && let Some(held) = &account
+      && logins::node_token_gone(&ground.db, held, data).await.map_err(refused)?
+    {
+      return Err(Failure::Account {
+        failure: AccountFailure::NodeToken,
+        detail: format!("claude account {}: its token for the work nodes is gone", held.id),
+      });
+    }
+
+    match self.on_login(account).await {
+      Err(failed) if on_node && failed.account_failure() == Some(AccountFailure::Login) => {
+        Err(Failure::Account {
+          failure: AccountFailure::NodeToken,
+          detail: failed.message(),
+        })
+      }
+      tried => tried,
+    }
+  }
+}
+
+impl Attempting<'_, '_> {
+  // One login's attempt: the owner's reset and the standby first, the session the turn's resume settles on,
+  // and the turn asked again on a fresh session where the program has lost the one it resumed.
+  async fn on_login(&mut self, account: Option<Account>) -> Result<Settled, Failure> {
+    let ground = self.asked.ground;
+    let work = self.asked.work;
+    let worker = self.asked.row.name.as_str();
+    let recorded = account.as_ref().map_or_else(
+      || crate::control::claude_accounts::SEED_ACCOUNT.to_owned(),
+      |account| account.id.clone(),
+    );
+
+    if carry_out_worker_reset(ground, worker).await.map_err(refused)? {
+      println!("{worker}: its sessions are cleared as the owner asked, so this job opens a new one");
+    }
+
+    claim_standby(ground, worker, &Place::of(&ground.roots.data, worker))
+      .await
+      .map_err(refused)?;
+
+    let ttl = session_ttl_ms(ground, &work.model).await;
+    let kept = records::resumable(&ground.db, worker, &work.model, &recorded, ttl)
+      .await
+      .map_err(refused)?;
+    let resume = match choose(&work.resume, kept) {
+      Choice::Go(resume) => resume,
+      Choice::Back(continues) => return Ok(Settled::Back(continues)),
+    };
+    let left = match self.primary(resume.clone(), account.clone()).await? {
+      Primary::Answered(reply) => return Ok(Settled::Answered(reply)),
+      Primary::Back(continues) => return Ok(Settled::Back(continues)),
+      Primary::Unanswered(left) => left,
+    };
+
+    match after_unanswered(&work.resume, resume.as_deref(), &left) {
+      Unanswered::Failed => Err(of_unanswered(&left, &work.work_key)),
+      Unanswered::Back => {
+        records::forget(&ground.db, worker, &work.model, Some(&recorded))
+          .await
+          .map_err(refused)?;
+
+        Ok(Settled::Back(None))
+      }
+      Unanswered::Again => {
+        records::forget(&ground.db, worker, &work.model, Some(&recorded))
+          .await
+          .map_err(refused)?;
+
+        match self.primary(None, account).await? {
+          Primary::Answered(reply) => Ok(Settled::Answered(reply)),
+          Primary::Back(continues) => Ok(Settled::Back(continues)),
+          Primary::Unanswered(left) => Err(of_unanswered(&left, &work.work_key)),
+        }
+      }
+    }
+  }
+
+  // The run on the worker line with the turn's mapping laid on it, delivered under the agent's lock: the
+  // held session judged, the turn put in, and the session that answered kept.
+  async fn primary(
+    &mut self,
+    resume: Option<String>,
+    account: Option<Account>,
+  ) -> Result<Primary, Failure> {
+    let ground = self.asked.ground;
+    let db = &ground.db;
+    let work = self.asked.work;
+    let row = self.asked.row;
+    let worker = row.name.as_str();
+    let trees = Trees::of(ground);
+    let machine = ground.machine();
+    let mut line = worker_run(ground, &trees, Some(worker), &work.model, &work.cwd)
+      .await
+      .map_err(refused)?;
+
+    line.effort = effort_of(
+      ground,
+      &machine,
+      PROVIDER,
+      &work.mapping.model,
+      work.mapping.effort.as_deref(),
+      line.reasoning.as_ref(),
+    )
+    .await
+    .map_err(refused)?
+    .unwrap_or_default();
+    line.model.clone_from(&work.mapping.model);
+    line.tier.clone_from(&work.mapping.tier);
+
+    // A kept session the safeguard refused goes out on the model that answered it, whatever the mapping
+    // names; a fresh one goes out on its own model.
+    let own = line.model.clone();
+
+    if let Some(held) = &resume {
+      let mark = records::sessions(db, worker)
+        .await
+        .map_err(refused)?
+        .into_iter()
+        .find(|one| &one.session_id == held)
+        .and_then(|one| one.answered_model);
+
+      line.model = launch_model(db, worker, mark.as_deref(), line.model).await.map_err(refused)?;
+    }
+
+    let lock = locks::agent_lock_path(&ground.roots.data, &held::scope_of(worker));
+    let held_lock = locks::hold(lock).await.map_err(|why| Failure::error(format!("agent lock: {why}")))?;
+    let session = SessionRun {
+      mode: held::MODE,
+      line,
+      prompt: self.asked.prompt.to_owned(),
+      resume,
+      account,
+      placement: None,
+      thread: work.thread.clone(),
+    };
+    let prepared = held::prepare(ground, worker, session).await.map_err(refused)?;
+
+    if !provider_enabled(db, PROVIDER).await.map_err(|why| Failure::error(why.error))? {
+      return Err(Failure::Unavailable {
+        scope: held::scope_of(worker),
+        mode: PROVIDER.to_owned(),
+        reason: "Claude Code is switched off".to_owned(),
+      });
+    }
+
+    // The session the runner named, replaced by the judging, is not the one its prompt was composed for.
+    if let Resume::Session { id } = &work.resume
+      && prepared.resume.as_deref() != Some(id.as_str())
+    {
+      return Ok(Primary::Back(prepared.resume.clone()));
+    }
+
+    let mut sent = prepared.clone();
+
+    // A session the preparation replaced is a fresh one, and a fresh session carries no mark.
+    if sent.resume.is_none() && sent.line.model != own {
+      sent.line.model.clone_from(&own);
+    }
+
+    let went_out = went_out_of(&sent.line);
+
+    (self.shown)(&went_out);
+    self.beside.went_out = Some(went_out);
+    self
+      .log
+      .write(
+        db,
+        Line {
+          source: Some(PROVIDER.to_owned()),
+          state: Some("running"),
+          ..Line::note(format!("{PROVIDER} · {}", sent.line.model))
+        },
+      )
+      .await;
+
+    let composed = compose(
+      ground,
+      row,
+      &sent.line,
+      sent.account.as_ref(),
+      sent.resume.as_deref(),
+      Composed {
+        name: work.name.clone(),
+        title: work.title.clone(),
+        prompt: sent.prompt.clone(),
+        bound: None,
+      },
+    )
+    .await
+    .map_err(refused)?;
+    let turn = with_work(composed, worker, work, self.asked.job);
+    let mut watch = WorkWatch {
+      db,
+      log: self.log,
+      compacted: &mut self.beside.compacted,
+    };
+    let ending = put(ground, &turn, &mut watch).await.map_err(Failure::error)?;
+    let primary = match ending {
+      Ending::Blocked { .. } => Err(Failure::Person),
+      Ending::Untrusted { folder, config, .. } => Err(Failure::Untrusted { folder, config }),
+      Ending::Answered { reply, .. } => {
+        held::remember(ground, worker, &prepared, &reply).await.map_err(refused)?;
+        self.kept(&sent, &own, &reply).await.map_err(refused)?;
+
+        Ok(Primary::Answered(reply))
+      }
+      other => {
+        // Stopped from outside while the turn ran: the ending is the stop, however the pane looked.
+        if self.stopped().await {
+          Err(Failure::Stopped)
+        } else {
+          if let Ending::Errored { kind, .. } = &other {
+            self.beside.engine_error = Some(EngineError { kind: kind.clone() });
+          }
+
+          Ok(Primary::Unanswered(evidence(&other).to_owned()))
+        }
+      }
+    };
+
+    drop(held_lock);
+    primary
+  }
+
+  // The session that answered recorded for the turn's model and login — unless it answered on a lesser
+  // model, when its record is dropped — with the context it carried, and folded once it is full.
+  async fn kept(&self, sent: &SessionRun, own: &str, reply: &Reply) -> Result<(), Refusal> {
+    let ground = self.asked.ground;
+    let work = self.asked.work;
+    let worker = self.asked.row.name.as_str();
+    let Some(session_id) = reply.session_id.clone() else {
+      println!("{worker}: the job's turn named no session, so there is none to hold open");
+
+      return Ok(());
+    };
+    let account = sent.recorded_account();
+    let job = self.asked.job.map(|job| job.job);
+    let fell = heal(ground, worker, &work.model, &sent.line.model, &account, &reply.spend, job).await?;
+
+    if fell.dropped {
+      println!("{worker} {}: dropped {session_id}, the next job opens a fresh one", work.model);
+
+      return Ok(());
+    }
+
+    let digest = worker_prefix_digest(
+      ground,
+      &Trees::of(ground),
+      &work.cwd,
+      &sent.line.model,
+      Some(&sent.line.effort),
+    )
+    .await?;
+    let fallen = fallen_model(own, &sent.line.model, &fell.models);
+
+    record(&ground.db, worker, &work.model, &account, &session_id, Some(&digest), fallen.as_deref())
+      .await?;
+    note_carried(&ground.db, worker, &work.model, &account, sent.resume.is_none(), reply).await?;
+
+    if worker_session_full(reply.context_ratio) {
+      println!("{worker} {}: {session_id} is full, folding it", work.model);
+      fold(ground, self.asked.row, &work.model, &account, &session_id).await;
+    }
+
+    Ok(())
+  }
+
+  // Whether the turn's job was stopped: the owner's stop of its job, or a cancellation over its run or the
+  // unit it runs under.
+  async fn stopped(&self) -> bool {
+    let db = &self.asked.ground.db;
+    let work = self.asked.work;
+
+    if let Some(job) = self.asked.job
+      && job_stop_reason(db, job.job).await.ok().flatten().is_some()
+    {
+      return true;
+    }
+
+    let names = [work.name.as_str(), work.unit.as_deref().unwrap_or("")];
+
+    cancelled(db, &names).await.unwrap_or(false)
+  }
+}
+
+// What a job's turn is watched with: the run log it feeds, and whether the program compacted its session.
+struct WorkWatch<'w> {
+  db: &'w DatabaseConnection,
+  log: &'w mut RunLog,
+  compacted: &'w mut bool,
+}
+
+impl Watch for WorkWatch<'_> {
+  async fn note(&mut self, text: &str) {
+    self.log.write(self.db, Line::note(text)).await;
+  }
+
+  async fn record(&mut self, lines: &[String]) {
+    *self.compacted |= compacts(lines);
+    self.log.feed(self.db, lines, PROVIDER).await;
+  }
+}
+
+/// The harness session a worker's next turn on a model would continue now, as its record and the first
+/// login its walk offers hold it, none for a fresh one.
+pub async fn continues(ground: &Ground, worker: &str, model: &str) -> Result<Option<String>, Refusal> {
+  let account = crate::worker_session::walked_account(ground)
+    .await?
+    .map_or_else(|| crate::control::claude_accounts::SEED_ACCOUNT.to_owned(), |account| account.id);
+  let ttl = session_ttl_ms(ground, model).await;
+
+  records::resumable(&ground.db, worker, model, &account, ttl).await
+}

@@ -37,6 +37,7 @@ pub mod job_run {
   pub mod claude {
     pub mod failure;
     pub mod reset;
+    pub mod turn;
     pub mod walk;
   }
   pub mod openrouter;

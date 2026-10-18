@@ -1,0 +1,511 @@
+//! A job's turn on its worker's session (docs/api.md, 「Sessions」, a work turn's parts): the session its
+//! resume settles on, or the turn back to its runner; a lost session asked again once under `auto` and put
+//! back under a session named; the composed turn handed its variables, its agent, its job's marker, its
+//! work key and its unit; and its end read whole — the reply, a turn back, a person waited on, a stop, and
+//! every failure by its kind — with what it went out on, where its time went and its compaction. A worker's
+//! state names its generation, its context and what its next turn would continue, on a store of the test's
+//! own.
+
+use std::collections::{BTreeMap, HashMap};
+use std::sync::Arc;
+
+use agency_server::Service;
+use agency_server::config::Config;
+use agency_server::door::execution::Identity;
+use agency_server::door::record::{LiveTask, ModelSpend, Reply, RequestUsage, RunWorkflow};
+use agency_server::door::stand::Interrupt;
+use agency_server::door::turn::{Seat, Timings, Turn};
+use agency_server::herdr_backend::{HerdrSessions, carried_of};
+use agency_server::job_run::claude::failure::{AccountFailure, Failure, RunEnding};
+use agency_server::job_run::claude::turn::{
+  Beside, Choice, Settled, TASK_LOCKED, TURN_AGENT, Unanswered, after_unanswered, choose, compacts, ended,
+  failure_of, with_work,
+};
+use agency_server::places::{Ground, Places};
+use agency_server::seeds::deployment;
+use agency_server::worker_session::UNKNOWN_SESSION;
+use agency_server::worker_session::records::{self, generation, note_carried, record};
+use agent_session::{
+  self as contract, Context, EngineError, JobMark, Mapping, Outcome, Resume, SessionId, Sessions, Span,
+  WentOut, WorkParts,
+};
+use harness_providers::Machine;
+use serde_json::json;
+
+use crate::scratch::Scratch;
+
+fn work(resume: Resume) -> WorkParts {
+  WorkParts {
+    provider: "claude-code".into(),
+    model: "opus".into(),
+    mapping: Mapping {
+      model: "claude-opus-5".into(),
+      effort: Some("high".into()),
+      tier: Some("frontier".into()),
+      answer_tokens: None,
+    },
+    resume,
+    cwd: "/checkouts/a".into(),
+    name: "bmo-job-41".into(),
+    title: "#1802 build".into(),
+    thread: Some("todo:1802".into()),
+    chat: -5,
+    unit: Some("bmo-task-41".into()),
+    user: None,
+    work_key: "job-worker".into(),
+    hears_words: true,
+    variables: BTreeMap::from([
+      ("BMO_EXTRA".into(), "1".into()),
+      ("BMO_RUN_NAME".into(), "elsewhere".into()),
+    ]),
+  }
+}
+
+#[test]
+fn the_session_a_turn_goes_on_is_the_one_its_resume_names_or_the_turn_goes_back() {
+  let kept = || Some("harness-1".to_owned());
+
+  assert_eq!(choose(&Resume::Auto, kept()), Choice::Go(kept()));
+  assert_eq!(choose(&Resume::Auto, None), Choice::Go(None));
+  assert_eq!(choose(&Resume::Fresh, kept()), Choice::Go(None));
+  assert_eq!(
+    choose(
+      &Resume::Session {
+        id: "harness-1".into()
+      },
+      kept()
+    ),
+    Choice::Go(kept()),
+    "the session named, where the login carrying the turn keeps it"
+  );
+  assert_eq!(
+    choose(
+      &Resume::Session {
+        id: "harness-0".into()
+      },
+      kept()
+    ),
+    Choice::Back(kept()),
+    "a login whose session differs puts the turn back with the one it would continue"
+  );
+  assert_eq!(
+    choose(
+      &Resume::Session {
+        id: "harness-0".into()
+      },
+      None
+    ),
+    Choice::Back(None)
+  );
+}
+
+#[test]
+fn a_lost_session_is_asked_again_once_under_auto_and_put_back_where_the_runner_named_it() {
+  let lost = format!("Error: {UNKNOWN_SESSION} harness-1");
+
+  assert_eq!(after_unanswered(&Resume::Auto, Some("harness-1"), &lost), Unanswered::Again);
+  assert_eq!(
+    after_unanswered(
+      &Resume::Session {
+        id: "harness-1".into()
+      },
+      Some("harness-1"),
+      &lost
+    ),
+    Unanswered::Back
+  );
+  assert_eq!(
+    after_unanswered(&Resume::Auto, None, &lost),
+    Unanswered::Failed,
+    "a fresh session lost nothing"
+  );
+  assert_eq!(
+    after_unanswered(&Resume::Auto, Some("harness-1"), "the pane went away"),
+    Unanswered::Failed
+  );
+}
+
+fn composed() -> Turn {
+  Turn {
+    name: "bmo-job-41".into(),
+    title: "#1802 build".into(),
+    seat: Seat::Own(herdr::Herdr::there("/nowhere/herdr.sock".into())),
+    cwd: "/checkouts/a".into(),
+    command: vec![],
+    env: BTreeMap::from([("BMO_RUN_NAME".into(), "bmo-job-41".into()), (TASK_LOCKED.into(), "1".into())]),
+    prompt: "build".into(),
+    session: "harness-1".into(),
+    identity: Identity::default(),
+    line: "worker".into(),
+    provider: "claude-code".into(),
+    lead: String::new(),
+    trusts_folder: true,
+    bound: None,
+    interrupt: Interrupt::EndProgram,
+    timings: Timings::default(),
+  }
+}
+
+#[test]
+fn a_job_turn_carries_its_variables_its_agent_its_jobs_marker_its_work_key_and_its_unit() {
+  let job = Some(JobMark {
+    job: 41,
+    item: Some(1802),
+  });
+  let turn = with_work(composed(), "worker-a", &work(Resume::Auto), job);
+
+  assert_eq!(turn.env["BMO_EXTRA"], "1");
+  assert_eq!(
+    turn.env["BMO_RUN_NAME"], "bmo-job-41",
+    "the turn's own name stands over a variable of that name"
+  );
+  assert_eq!(turn.env[TURN_AGENT], "worker-a");
+  assert_eq!(turn.env[TASK_LOCKED], "1");
+  assert_eq!(turn.identity.work_key.as_deref(), Some("job-worker"));
+  assert_eq!(turn.identity.parent.as_deref(), Some("bmo-task-41"));
+  assert_eq!(
+    turn.identity.root.as_deref(),
+    Some("bmo-task-41"),
+    "a task unit counts its turns under itself"
+  );
+
+  let research = with_work(composed(), "worker-a", &work(Resume::Fresh), None);
+
+  assert!(!research.env.contains_key(TASK_LOCKED), "a turn with no job works for none");
+}
+
+#[test]
+fn a_compaction_is_read_off_the_records_lines_and_nothing_else_is_one() {
+  let line = |value: serde_json::Value| value.to_string();
+
+  assert!(compacts(&[
+    line(json!({ "type": "assistant" })),
+    line(json!({ "type": "system", "subtype": "compact_boundary" })),
+  ]));
+  assert!(!compacts(&[line(json!({ "type": "system", "subtype": "init" })), "not json".into()]));
+}
+
+fn beside() -> Beside {
+  Beside {
+    went_out: Some(WentOut {
+      provider: "claude-code".into(),
+      model: "claude-opus-5".into(),
+      effort: Some("high".into()),
+      tier: Some("frontier".into()),
+    }),
+    spans: vec![Span {
+      kind: "tool".into(),
+      name: "Bash".into(),
+      seconds: 2.0,
+      times: 1,
+      tokens: None,
+      input_tokens: None,
+      output_tokens: None,
+      cache_read_tokens: None,
+      cache_write_tokens: None,
+    }],
+    compacted: true,
+    engine_error: None,
+  }
+}
+
+#[test]
+fn an_answered_turn_ends_with_its_whole_reply_what_it_went_out_on_its_spans_and_its_compaction() {
+  let reply = Reply {
+    mode: "claude-code".into(),
+    model: Some("claude-opus-5".into()),
+    effort: Some("high".into()),
+    text: "done".into(),
+    session_id: Some("harness-1".into()),
+    context_ratio: Some(0.25),
+    context_tokens: Some(50_000),
+    spend: vec![ModelSpend {
+      mode: "claude-code".into(),
+      model: "claude-opus-5".into(),
+      tokens: 10,
+      input_tokens: 4,
+      output_tokens: 3,
+      cache_read_tokens: 2,
+      cache_write_tokens: 1,
+      cost: 0.5,
+    }],
+    live_tasks: vec![LiveTask {
+      id: "t-1".into(),
+      description: "a watch".into(),
+    }],
+    workflows: vec![RunWorkflow {
+      call: "c-1".into(),
+      name: "review".into(),
+      status: Some("done".into()),
+    }],
+    account: Some("acct-a".into()),
+    request_usages: Some(vec![RequestUsage {
+      input_tokens: 4,
+      cache_read_tokens: 2,
+      cache_write_tokens: 1,
+      output_tokens: 3,
+    }]),
+    ..Reply::default()
+  };
+  let end = ended("bmo-job-41", Ok(Settled::Answered(Box::new(reply))), beside());
+
+  assert_eq!(
+    (end.outcome, end.answer.as_deref(), end.reason),
+    (Outcome::Answered, Some("done"), None)
+  );
+  assert_eq!(end.run, "bmo-job-41");
+  assert_eq!(end.went_out, beside().went_out);
+  assert_eq!(end.spans, beside().spans);
+  assert!(end.compacted);
+
+  let carried = end.reply.unwrap();
+
+  assert_eq!(
+    (carried.session_id.as_deref(), carried.account.as_deref(), carried.context_tokens),
+    (Some("harness-1"), Some("acct-a"), Some(50_000))
+  );
+  assert_eq!((carried.spend[0].cache_read_tokens, carried.spend[0].cost), (2, Some(0.5)));
+  assert_eq!(carried.live_tasks[0].description, "a watch");
+  assert_eq!(carried.workflows[0].status.as_deref(), Some("done"));
+  assert_eq!(carried.request_usages.unwrap()[0].output_tokens, 3);
+  assert_eq!(carried.upstream, None, "the Claude Code line goes to no upstream of its own");
+}
+
+#[test]
+fn a_turn_put_back_a_person_waited_on_and_a_stop_end_as_themselves() {
+  let back = ended("r", Ok(Settled::Back(Some("harness-2".into()))), Beside::default());
+
+  assert_eq!((back.outcome, back.continues.as_deref()), (Outcome::Reprepared, Some("harness-2")));
+  assert_eq!(ended("r", Ok(Settled::Back(None)), Beside::default()).continues, None);
+
+  let person = ended("r", Err(Failure::Person), Beside::default());
+
+  assert_eq!((person.outcome, person.delivery), (Outcome::Blocked, contract::Delivery::Blocked));
+  assert_eq!(person.failure, Some(contract::Failure::Person));
+
+  let stopped = ended("r", Err(Failure::Stopped), Beside::default());
+
+  assert_eq!((stopped.outcome, stopped.failure), (Outcome::Stopped, Some(contract::Failure::Stopped)));
+}
+
+#[test]
+fn every_failure_a_job_turn_comes_to_ends_failed_by_its_kind_with_its_words() {
+  let died = Failure::Died {
+    ending: RunEnding::Exit { code: 1 },
+    said: Some("gone".into()),
+    message: "claude exited with code 1: gone".into(),
+  };
+  let cases = [
+    (
+      Failure::Limit {
+        resets_at: Some(1_700),
+        account: Some("acct-a".into()),
+        silenced: true,
+      },
+      json!({ "kind": "limit", "resets_at": 1_700, "account": "acct-a", "silenced": true }),
+    ),
+    (
+      Failure::Account {
+        failure: AccountFailure::Login,
+        detail: "job-worker: the login is gone".into(),
+      },
+      json!({ "kind": "account", "failure": "login", "detail": "job-worker: the login is gone" }),
+    ),
+    (
+      Failure::Account {
+        failure: AccountFailure::Outage,
+        detail: "API Error: 529".into(),
+      },
+      json!({ "kind": "account", "failure": "outage", "detail": "API Error: 529" }),
+    ),
+    (
+      Failure::Account {
+        failure: AccountFailure::NodeToken,
+        detail: "its token for the work nodes is gone".into(),
+      },
+      json!({ "kind": "account", "failure": "node_token", "detail": "its token for the work nodes is gone" }),
+    ),
+    (
+      died.clone(),
+      json!({ "kind": "died", "ending": { "kind": "exit", "code": 1 }, "said": "gone",
+        "message": "claude exited with code 1: gone" }),
+    ),
+    (
+      Failure::Untrusted {
+        folder: "/checkouts/a".into(),
+        config: "/checkouts/.claude.json".into(),
+      },
+      json!({ "kind": "untrusted", "folder": "/checkouts/a", "config": "/checkouts/.claude.json" }),
+    ),
+    (
+      Failure::Transport {
+        message: "the pane went away".into(),
+      },
+      json!({ "kind": "transport", "message": "the pane went away" }),
+    ),
+    (
+      Failure::Refused {
+        message: "prompt is too long".into(),
+      },
+      json!({ "kind": "refused", "message": "prompt is too long" }),
+    ),
+    (
+      Failure::Unavailable {
+        scope: "job-worker:worker-a".into(),
+        mode: "claude-code".into(),
+        reason: "Claude Code is switched off".into(),
+      },
+      json!({ "kind": "unavailable", "scope": "job-worker:worker-a", "mode": "claude-code",
+        "reason": "Claude Code is switched off" }),
+    ),
+    (
+      Failure::error("agent lock: busy"),
+      json!({ "kind": "error", "name": "Error", "message": "agent lock: busy" }),
+    ),
+  ];
+
+  for (failure, wire) in cases {
+    let words = failure.message();
+    let end = ended("r", Err(failure), Beside::default());
+
+    assert_eq!(end.outcome, Outcome::Failed);
+    assert_eq!(end.reason.as_deref(), Some(words.as_str()));
+    assert_eq!(json!(end.failure), wire);
+  }
+
+  let errored = ended(
+    "r",
+    Err(died),
+    Beside {
+      engine_error: Some(EngineError {
+        kind: Some("overloaded".into()),
+      }),
+      ..Beside::default()
+    },
+  );
+
+  assert_eq!(
+    errored.engine_error,
+    Some(EngineError {
+      kind: Some("overloaded".into())
+    })
+  );
+  assert_eq!(
+    failure_of(&Failure::Exhausted { attempted: vec![] }),
+    contract::Failure::Error {
+      name: "Error".into(),
+      message: Failure::Exhausted { attempted: vec![] }.message()
+    }
+  );
+}
+
+#[test]
+fn a_records_context_reads_as_the_tokens_it_carried_against_the_window_they_filled() {
+  assert_eq!(
+    carried_of(Some(50_000), Some(0.25)),
+    Some(Context {
+      carried: 50_000,
+      window: 200_000
+    })
+  );
+  assert_eq!(carried_of(Some(50_000), None), None);
+  assert_eq!(carried_of(None, Some(0.25)), None);
+  assert_eq!(carried_of(Some(50_000), Some(0.0)), None);
+}
+
+fn answered(tokens: i64, ratio: f64) -> Reply {
+  Reply {
+    mode: "claude-code".into(),
+    context_tokens: Some(tokens),
+    context_ratio: Some(ratio),
+    ..Reply::default()
+  }
+}
+
+#[tokio::test]
+async fn a_fresh_session_is_counted_as_a_generation_a_resumed_one_is_not_and_a_forgotten_record_keeps_the_count()
+ {
+  let scratch = Scratch::new().await;
+  let db = scratch.db();
+
+  assert_eq!(
+    generation(db, "worker-a", "opus").await.unwrap(),
+    1,
+    "the first session is the first generation"
+  );
+
+  record(db, "worker-a", "opus", "default", "harness-1", None, None).await.unwrap();
+  note_carried(db, "worker-a", "opus", "default", true, &answered(40_000, 0.2))
+    .await
+    .unwrap();
+  record(db, "worker-a", "opus", "default", "harness-1", None, None).await.unwrap();
+  note_carried(db, "worker-a", "opus", "default", false, &answered(60_000, 0.3))
+    .await
+    .unwrap();
+
+  assert_eq!(generation(db, "worker-a", "opus").await.unwrap(), 1);
+
+  let kept = records::sessions(db, "worker-a").await.unwrap();
+
+  assert_eq!((kept[0].context_tokens, kept[0].context_ratio), (Some(60_000), Some(0.3)));
+
+  records::forget(db, "worker-a", "opus", None).await.unwrap();
+  record(db, "worker-a", "opus", "default", "harness-2", None, None).await.unwrap();
+  note_carried(db, "worker-a", "opus", "default", true, &answered(1_000, 0.01))
+    .await
+    .unwrap();
+
+  assert_eq!(generation(db, "worker-a", "opus").await.unwrap(), 2);
+  assert_eq!(generation(db, "worker-a", "sonnet").await.unwrap(), 1, "each model counts its own");
+}
+
+#[tokio::test]
+async fn a_workers_state_names_its_generation_its_context_and_the_session_its_next_turn_would_continue() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let at = |path: std::path::PathBuf| path.to_string_lossy().into_owned();
+  let machine = Machine::with_env(
+    [
+      ("HOME".to_owned(), at(home.path().to_path_buf())),
+      ("PATH".to_owned(), "/usr/bin:/bin".to_owned()),
+    ],
+    home.path().join("data"),
+  );
+
+  store::seed::settle(scratch.db(), &deployment(&machine)).await.unwrap();
+  scratch
+    .run(r#"INSERT INTO "agents" ("name", "kind") VALUES ('worker-a', 'worker')"#, vec![])
+    .await;
+
+  let variables: HashMap<String, String> = HashMap::new();
+  let service =
+    Service::new(scratch.db().clone(), Config::read(|name| variables.get(name).cloned()).unwrap());
+  let sessions = HerdrSessions::new(Places::new(Ground::new(&service, &machine, None), Arc::default()));
+  let db = scratch.db();
+
+  record(db, "worker-a", "opus", "default", "harness-1", None, None).await.unwrap();
+  note_carried(db, "worker-a", "opus", "default", true, &answered(50_000, 0.25))
+    .await
+    .unwrap();
+
+  let session = SessionId("worker-a@worker".into());
+  let state = sessions.read_state(&session, None).await.unwrap();
+
+  assert_eq!(
+    (state.provider.as_str(), state.model.as_str(), state.generation),
+    ("claude-code", "opus", 1)
+  );
+  assert_eq!(
+    state.context,
+    Some(Context {
+      carried: 50_000,
+      window: 200_000
+    })
+  );
+  assert_eq!((state.run, state.went_out, state.continues), (None, None, None));
+  assert_eq!(
+    sessions.read_state(&session, Some("opus")).await.unwrap().continues.as_deref(),
+    Some("harness-1")
+  );
+  assert_eq!(sessions.read_state(&session, Some("sonnet")).await.unwrap().continues, None);
+}

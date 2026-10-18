@@ -21,7 +21,7 @@ use std::time::{Duration, Instant};
 pub use agent_session::EngineError;
 use agent_session::{
   Aside, Context, Fault, FaultKind, Outcome, RoomBlock, Scope, Session, SessionId, Sessions, Start, State,
-  Turn, TurnContext, TurnEnd,
+  Turn, TurnContext, TurnEnd, WentOut,
 };
 use indexmap::IndexMap;
 use policy::companion_runner::COMPANION_RUNNER;
@@ -45,6 +45,7 @@ use crate::door::record::{ModelSpend, UsageSpent};
 use crate::door::turn::{AsideOutcome, Quiet};
 use crate::editor_session::{EditorTurn, composed as editor_composed, editor_turn, is_editor, workdir_of};
 use crate::events::Event;
+use crate::job_run::claude::turn::{WorkAsked, carry, continues};
 use crate::lines::chat::{ChatLaunch, RoomContext, compose_turn};
 use crate::lines::companion::{CompanionTurn, LOST_SESSION, compose, pinned_provider, registration_named};
 use crate::lines::editor::PROVIDER as EDITOR_PROVIDER;
@@ -204,6 +205,9 @@ pub struct HerdrSessions {
   // The runs each session's turns go out as while they go, which the interrupt stops: one a session, a second
   // turn refused while it goes, but an editor's session, which carries several at once.
   going: Mutex<HashMap<SessionId, Vec<String>>>,
+  // What each session's turn going now shows of itself to a reading of its state: what it went out on,
+  // once its line is settled.
+  showing: Mutex<HashMap<SessionId, WentOut>>,
 }
 
 fn fault(kind: FaultKind, message: impl Into<String>) -> Fault {
@@ -234,6 +238,19 @@ pub fn scope_of(id: &SessionId) -> (String, Scope) {
     Some((agent, EDITOR)) => (agent.to_owned(), Scope::Editor),
     Some((agent, room)) => (agent.to_owned(), Scope::Room(room.to_owned())),
   }
+}
+
+/// The context a worker's session record kept of its last answered turn: the tokens it carried, against
+/// the window they filled at the share they filled it; none where its record keeps neither, or its share
+/// reads as nothing.
+pub fn carried_of(tokens: Option<i64>, ratio: Option<f64>) -> Option<Context> {
+  let (tokens, ratio) = (tokens?, ratio?);
+  let carried = u64::try_from(tokens).ok()?;
+
+  (ratio > 0.0).then(|| Context {
+    carried,
+    window: (carried as f64 / ratio).round() as u64,
+  })
 }
 
 // A thrown-away session asked of this backend, which carries none.
@@ -329,6 +346,8 @@ enum Came {
   Blocked,
   Stopped,
   Failed(String, Option<EngineError>),
+  /// A job's turn, whose end is read whole where it is carried.
+  Ended(Box<TurnEnd>),
 }
 
 impl Came {
@@ -339,6 +358,7 @@ impl Came {
       Self::Blocked => TurnEnd::of(run, Outcome::Blocked),
       Self::Stopped => TurnEnd::of(run, Outcome::Stopped),
       Self::Failed(why, engine) => TurnEnd::failed(run, why, engine),
+      Self::Ended(end) => *end,
     }
   }
 }
@@ -357,7 +377,12 @@ impl HerdrSessions {
     Self {
       places,
       going: Mutex::default(),
+      showing: Mutex::default(),
     }
+  }
+
+  fn showing(&self) -> std::sync::MutexGuard<'_, HashMap<SessionId, WentOut>> {
+    self.showing.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
   }
 
   fn ground(&self) -> &Ground {
@@ -376,6 +401,7 @@ impl HerdrSessions {
   // A run let go of its session's turns as it ends, and the words pushed into it with it.
   fn ended(&self, session: &SessionId, run: &str) {
     aside::forget(run);
+    self.showing().remove(session);
 
     let mut going = self.going();
 
@@ -1065,12 +1091,32 @@ impl Sessions for HerdrSessions {
       return Err(fault(FaultKind::Refused, why));
     }
 
-    let run = match (room, parts) {
-      (_, Some(parts)) => parts.name.clone(),
-      (Some(room), None) => {
+    // A worker's job turn goes out under the run name its runner gives it, on Claude Code alone.
+    let work = match scope {
+      Scope::Worker => turn.context.work.as_ref(),
+      _ => None,
+    };
+
+    if let Some(work) = work
+      && work.provider != worker_session::PROVIDER
+    {
+      return Err(fault(
+        FaultKind::Refused,
+        format!(
+          "{agent}: a worker's session stands on {}, not {}",
+          worker_session::PROVIDER,
+          work.provider
+        ),
+      ));
+    }
+
+    let run = match (room, parts, work) {
+      (_, Some(parts), _) => parts.name.clone(),
+      (_, None, Some(work)) => work.name.clone(),
+      (Some(room), None, None) => {
         fill_marks(&COMPANION_RUNNER.runs.turn, &[("chat", room.as_str()), ("at", &at.to_string())])
       }
-      (None, None) => format!("turn:{agent}:{at}"),
+      (None, None, None) => format!("turn:{agent}:{at}"),
     };
 
     {
@@ -1097,7 +1143,23 @@ impl Sessions for HerdrSessions {
 
         keep_worker_job(db, &agent, turn.context.job).await;
 
-        let came = self.worker_turn(row, &run, &turn.prompt).await;
+        let came = match work {
+          Some(work) => {
+            let asked = WorkAsked {
+              ground: self.ground(),
+              row,
+              work,
+              job: turn.context.job,
+              prompt: &turn.prompt,
+            };
+            let shown = |went_out: &WentOut| {
+              self.showing().insert(turn.session.clone(), went_out.clone());
+            };
+
+            carry(&asked, &shown).await.map(|end| Came::Ended(Box::new(end)))
+          }
+          None => self.worker_turn(row, &run, &turn.prompt).await,
+        };
 
         keep_worker_job(db, &agent, None).await;
         came
@@ -1136,7 +1198,7 @@ impl Sessions for HerdrSessions {
     }
   }
 
-  async fn read_state(&self, session: &SessionId, _model: Option<&str>) -> Result<State, Fault> {
+  async fn read_state(&self, session: &SessionId, model: Option<&str>) -> Result<State, Fault> {
     let (agent, scope) = scope_of(session);
 
     self.admitted(&agent, &scope).await?;
@@ -1199,15 +1261,27 @@ impl Sessions for HerdrSessions {
         let Some(held) = self.latest_worker(&agent).await? else {
           return Err(fault(FaultKind::Unknown, format!("{session} has not been opened")));
         };
-
-        Ok(State::standing(
+        let generation = records::generation(&ground.db, &agent, &held.model).await.map_err(store_fault)?;
+        let mut state = State::standing(
           session.clone(),
-          harness_providers::Provider::name(&harness_providers::claude_code::ClaudeCode).to_owned(),
-          held.answered_model.unwrap_or(held.model),
+          worker_session::PROVIDER.to_owned(),
+          held.answered_model.clone().unwrap_or_else(|| held.model.clone()),
           place,
-          1,
-          None::<Context>,
-        ))
+          generation,
+          carried_of(held.context_tokens, held.context_ratio),
+        );
+
+        state.run = match self.going().get(session).map(Vec::as_slice) {
+          Some([run]) => Some(run.clone()),
+          _ => None,
+        };
+        state.went_out = self.showing().get(session).cloned();
+        state.continues = match model {
+          Some(model) => continues(ground, &agent, model).await.map_err(store_fault)?,
+          None => None,
+        };
+
+        Ok(state)
       }
       Scope::Apart(_) => Err(apart_refused(&agent)),
     }

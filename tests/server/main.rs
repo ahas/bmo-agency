@@ -73,6 +73,7 @@ mod host_run;
 mod job_run {
   mod claude {
     mod failure;
+    mod turn;
   }
   mod openrouter;
   mod openrouter_tap;
