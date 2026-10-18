@@ -223,8 +223,10 @@ side of a remote agent, the rotation, and what a dropped node does.
   the node service's list (`docs/api.md`, 「The node service」): it makes a missing one, renames one
   whose state changed, moves the block back to the bottom and closes the workspace of a node that is
   gone, and publishes `nodes-moved` where the list's shape moved since the reading before.
-- The workspace's pane runs the deploy tree's node-pane command, which shows the node's state as the
-  table holds it and keeps it current, its connection type among it. On an SSH node Enter logs in,
+- The workspace's pane runs the deploy tree's node-pane command, which shows the node as the node
+  service lists it and keeps it current: its state, and its kind, `ssh` or `jake` for a node reached
+  through a hub. Agency tells a hub node apart by that kind alone and keeps no record of the hubs
+  itself. On an SSH node Enter logs in, with the login the node service names to it,
   interactively — a person is at the pane, so a password is asked for there if no key is taken — and
   the pane comes back to the state when the login ends. Ctrl-C ends a login — a password prompt
   included — and never the pane: the loop and the pane verb let it pass, so only the login it was meant

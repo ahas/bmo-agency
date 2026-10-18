@@ -1,6 +1,6 @@
 //! What a node's workspace in herdr runs (docs/work-nodes.md, 「In herdr」): the node as the node service
-//! lists it, kept current, and where the service names an SSH login to it, that login on Enter. It ends
-//! with the head's stop once the node is gone, which ends the loop its pane runs it under.
+//! lists it, kept current, and on a node reached over SSH the login the service names to it on Enter. It
+//! ends with the head's stop once the node is gone, which ends the loop its pane runs it under.
 
 use std::io::{BufRead, Write};
 use std::path::Path;
@@ -16,8 +16,9 @@ use crate::places::home::HEAD_STOPPED;
 // How often the pane draws the node again while nobody is logged in from it.
 const REDRAW: Duration = Duration::from_secs(2);
 
-/// What a node's pane shows: the node as the service lists it, and what Enter does there.
-pub fn node_pane_text(node: &NodeRow, logs_in: bool) -> String {
+/// What a node's pane shows: the node as the service lists it, how it is reached, and what Enter does
+/// there.
+pub fn node_pane_text(node: &NodeRow) -> String {
   let words = &VERB_WORDS.node_pane;
   let detail = node
     .detail
@@ -28,9 +29,10 @@ pub fn node_pane_text(node: &NodeRow, logs_in: bool) -> String {
   [
     format!("{} ({})", node.label.as_deref().unwrap_or(&node.node), node.node),
     String::new(),
+    fill_marks(&words.kind, &[("kind", node.kind.word())]),
     fill_marks(&words.state, &[("state", &node.state), ("detail", &detail)]),
     String::new(),
-    if logs_in { words.ssh_enter.clone() } else { words.no_login.clone() },
+    if node.kind.over_ssh() { words.ssh_enter.clone() } else { words.no_login.clone() },
   ]
   .join("\n")
 }
@@ -42,13 +44,17 @@ async fn current(nodes: &dyn NodeService, name: &str) -> Result<Option<NodeRow>,
   Ok(rows.into_iter().find(|row| row.node == name))
 }
 
-// The login the node service names to the node, or none.
-async fn login(nodes: &dyn NodeService, name: &str) -> Option<Vec<String>> {
-  nodes.ssh_login(name).await.ok().flatten()
+// The login the node service names to a node reached over SSH, or none.
+async fn login(nodes: &dyn NodeService, node: &NodeRow) -> Option<Vec<String>> {
+  if !node.kind.over_ssh() {
+    return None;
+  }
+
+  nodes.ssh_login(&node.node).await.ok().flatten()
 }
 
-fn draw(node: &NodeRow, logs_in: bool) {
-  println!("\x1b[2J\x1b[H{}", node_pane_text(node, logs_in));
+fn draw(node: &NodeRow) {
+  println!("\x1b[2J\x1b[H{}", node_pane_text(node));
   let _ = std::io::stdout().flush();
 }
 
@@ -86,18 +92,19 @@ pub async fn node_pane(data_root: &Path, name: &str) -> Result<Answer, VerbError
     }
   });
 
-  let Some(node) = current(nodes.as_ref(), name).await? else { return Ok(gone()) };
+  let Some(mut node) = current(nodes.as_ref(), name).await? else { return Ok(gone()) };
 
-  draw(&node, login(nodes.as_ref(), name).await.is_some());
+  draw(&node);
 
   let mut redraw = tokio::time::interval(REDRAW);
 
   loop {
     tokio::select! {
       _ = redraw.tick() => {
-        let Some(node) = current(nodes.as_ref(), name).await? else { return Ok(gone()) };
+        let Some(now) = current(nodes.as_ref(), name).await? else { return Ok(gone()) };
 
-        draw(&node, login(nodes.as_ref(), name).await.is_some());
+        node = now;
+        draw(&node);
       }
       typed = async {
         match entered.as_mut() {
@@ -111,7 +118,7 @@ pub async fn node_pane(data_root: &Path, name: &str) -> Result<Answer, VerbError
           continue;
         }
 
-        if let Some(args) = login(nodes.as_ref(), name).await {
+        if let Some(args) = login(nodes.as_ref(), &node).await {
           print!("\x1b[2J\x1b[H");
           let _ = std::io::stdout().flush();
           let _ = tokio::process::Command::new("ssh").args(args).status().await;
@@ -119,9 +126,10 @@ pub async fn node_pane(data_root: &Path, name: &str) -> Result<Answer, VerbError
           redraw.reset();
         }
 
-        let Some(node) = current(nodes.as_ref(), name).await? else { return Ok(gone()) };
+        let Some(now) = current(nodes.as_ref(), name).await? else { return Ok(gone()) };
 
-        draw(&node, login(nodes.as_ref(), name).await.is_some());
+        node = now;
+        draw(&node);
         let _ = turn.send(());
       }
     }

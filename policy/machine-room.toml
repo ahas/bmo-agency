@@ -1,0 +1,21 @@
+# The part of this machine's room agency judges (docs/agent-control.md, 「Room on the machine」): its
+# job-count limits, and the clocks of the held launch's watch and of the node service's pressure stream.
+# The machine's own limits are the node service's.
+
+# Each job-count limit: its default, which a row of the settings table keyed `machine_limit:<name>`
+# replaces where it holds a positive number, and the reason a launch held by it is written as, beside
+# the node service's own; {jobs} is the count and {limit} the limit.
+[launch_jobs]
+default = 5
+held = "jobs {jobs} >= {limit}"
+
+[launch_browser_jobs]
+default = 3
+held = "browser jobs {jobs} >= {limit}"
+
+[clocks]
+# How often the room is read again while a held launch's notice stands, in seconds.
+held_watch_seconds = 60
+# How long after the node service's pressure stream drops, or cannot be opened, it is opened again, in
+# seconds.
+pressure_reopen_seconds = 10

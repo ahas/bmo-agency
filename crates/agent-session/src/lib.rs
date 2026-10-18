@@ -71,8 +71,8 @@ pub struct RoomBlock {
 /// session across rooms needs; the road it answers on where that is not the room's own; the persona that
 /// follows the line's system prompt; whether every new message it answers is the owner's or no person's
 /// message opened it; the messages it answers; the moment it took its words, in epoch milliseconds,
-/// which is the moment it is sent where none is named; and an editor run's parts. A backend carries each
-/// part as the line declares and judges none of it.
+/// which is the moment it is sent where none is named; an editor run's parts; and the job a worker's turn
+/// is of. A backend carries each part as the line declares and judges none of it.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct TurnContext {
   pub room: Option<RoomBlock>,
@@ -82,6 +82,14 @@ pub struct TurnContext {
   pub answers: Vec<i64>,
   pub began: Option<i64>,
   pub run: Option<RunParts>,
+  pub job: Option<JobMark>,
+}
+
+/// The job a worker's turn is of, as its caller names it, and the item that job works, where it names one.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct JobMark {
+  pub job: i64,
+  pub item: Option<i64>,
 }
 
 /// An editor run's parts as its caller names them: the run's name and the unit it runs under, the agent

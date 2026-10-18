@@ -1,13 +1,17 @@
-//! The node service (docs/api.md, 「Calls agency makes」): this machine's room for another launch, whether
-//! a node's link stands, the nodes it keeps and the SSH login to each.
+//! The node service (docs/api.md, 「Calls agency makes」): this machine's room for another launch, what
+//! each place on it holds, the pressures it tells, whether a node's link stands, the nodes it keeps and
+//! the SSH login to each.
 
 use std::sync::Arc;
 use std::time::Duration;
 
+use futures_util::StreamExt;
+use futures_util::stream::BoxStream;
 use serde::Deserialize;
-use serde_json::json;
+use serde_json::{Value, json};
+use sse_stream::SseStream;
 
-use super::{Asking, Caller, Patience, PeerAddress, Variables};
+use super::{Asking, Caller, Patience, PeerAddress, PeerFault, Variables};
 
 /// Where the deployment names the node service.
 pub const ADDRESS: Variables = Variables {
@@ -27,12 +31,97 @@ pub struct Room {
   pub held: Vec<String>,
 }
 
-/// One node the node service keeps, with the label it is shown under, its state and what it says of it.
+/// What one agent place on this machine holds: its memory and swap together, and its browsers.
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+pub struct PlaceHolding {
+  pub place: String,
+  pub megabytes: f64,
+  pub browsers: u64,
+}
+
+/// The part of this machine's standing agency reads: how many browsers run, and what each place holds.
+#[derive(Clone, Debug, Default, Deserialize, PartialEq)]
+pub struct Standing {
+  #[serde(default)]
+  pub browsers: u64,
+  #[serde(default)]
+  pub places: Vec<PlaceHolding>,
+}
+
+/// One of the largest processes on this machine, with the place it stands in where it names one.
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+pub struct LargeProcess {
+  pub pid: i64,
+  pub name: String,
+  pub megabytes: f64,
+  #[serde(default)]
+  pub place: Option<String>,
+}
+
+/// A pressure on this machine as the node service tells it, once.
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(tag = "cause", rename_all = "lowercase")]
+pub enum Pressure {
+  /// Memory `full` at or above the alert line, standing for the alert minutes.
+  #[serde(rename_all = "camelCase")]
+  Memory {
+    full_pct: f64,
+    alert_pct: f64,
+    minutes: f64,
+    #[serde(default)]
+    reading: Option<Value>,
+    #[serde(default)]
+    places: Vec<PlaceHolding>,
+    #[serde(default)]
+    largest: Vec<LargeProcess>,
+  },
+  /// The data root's disk under the launch line.
+  #[serde(rename_all = "camelCase")]
+  Disk {
+    free_gb: f64,
+    limit_gb: f64,
+    #[serde(default)]
+    reading: Option<Value>,
+  },
+}
+
+/// The pressures the node service tells, as they come; a stream that drops ends.
+pub type Pressures = BoxStream<'static, Result<Pressure, PeerFault>>;
+
+/// The kind of event the node service tells a pressure as.
+const PRESSURE_EVENT: &str = "machine-pressure";
+
+/// How a node is reached: over SSH, or through a hub its agent attaches to, which offers no shell.
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum NodeKind {
+  Ssh,
+  Jake,
+}
+
+impl NodeKind {
+  /// The word the node service writes it as.
+  pub fn word(self) -> &'static str {
+    match self {
+      Self::Ssh => "ssh",
+      Self::Jake => "jake",
+    }
+  }
+
+  /// Whether a shell, and so a job, reaches the node over SSH.
+  pub fn over_ssh(self) -> bool {
+    self == Self::Ssh
+  }
+}
+
+/// One node the node service keeps, with the label it is shown under, how it is reached, its state and
+/// what it says of it.
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
 pub struct NodeRow {
   pub node: String,
   #[serde(default)]
   pub label: Option<String>,
+  pub kind: NodeKind,
   pub state: String,
   #[serde(default)]
   pub detail: Option<String>,
@@ -64,10 +153,18 @@ pub trait NodeService: Send + Sync {
   /// The arguments that open a batch SSH login to a node, ahead of the command, or none where the node
   /// has no SSH route.
   fn ssh_login<'a>(&'a self, node: &'a str) -> Asking<'a, Option<Vec<String>>>;
+  /// How many browsers run on this machine and what each place holds; none of either by default.
+  fn machine_standing(&self) -> Asking<'_, Standing> {
+    Box::pin(async { Ok(Standing::default()) })
+  }
+  /// The pressures the service tells from now on; by default a stream that tells none and never ends.
+  fn pressures(&self) -> Asking<'_, Pressures> {
+    Box::pin(async { Ok(futures_util::stream::pending().boxed()) })
+  }
 }
 
-/// No node service deployed: this machine has room, no link stands, no node is kept and none is logged
-/// in to.
+/// No node service deployed: this machine has room, no browser runs and no pressure is told, no link
+/// stands, no node is kept and none is logged in to.
 pub struct NoNodeService;
 
 impl NodeService for NoNodeService {
@@ -127,6 +224,33 @@ impl NodeService for HttpNodeService {
       let login: Login = self.caller.post("nodes/login", json!({ "node": node })).await?;
 
       Ok(login.ssh)
+    })
+  }
+
+  fn machine_standing(&self) -> Asking<'_, Standing> {
+    Box::pin(self.caller.get("machine/standing"))
+  }
+
+  fn pressures(&self) -> Asking<'_, Pressures> {
+    Box::pin(async move {
+      let opened = self.caller.open("events", &[("kinds", PRESSURE_EVENT)]).await?;
+      let told = SseStream::from_bytes_stream(opened.bytes_stream()).filter_map(|read| async move {
+        match read {
+          Err(why) => Some(Err(PeerFault::Unreachable {
+            peer: PEER,
+            detail: why.to_string(),
+          })),
+          Ok(event) if event.event.as_deref() != Some(PRESSURE_EVENT) => None,
+          Ok(event) => Some(serde_json::from_str(event.data.as_deref().unwrap_or("null")).map_err(|why| {
+            PeerFault::Malformed {
+              peer: PEER,
+              detail: format!("the {PRESSURE_EVENT} event's data: {why}"),
+            }
+          })),
+        }
+      });
+
+      Ok(told.boxed())
     })
   }
 }

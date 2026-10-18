@@ -151,6 +151,8 @@ mod verbs {
 
 mod watches {
   mod links;
+  mod machine;
+  mod pressure;
 }
 mod wording;
 

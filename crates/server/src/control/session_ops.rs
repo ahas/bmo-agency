@@ -3,8 +3,8 @@
 //! its places on. A fault is answered with its outcome code and an English sentence saying why.
 
 use agent_session::{
-  Aside, Delivery, Fault, FaultKind, RoomBlock, RunParts, Scope, Session, SessionId, Sessions, Start,
-  State, Turn, TurnContext,
+  Aside, Delivery, Fault, FaultKind, JobMark, RoomBlock, RunParts, Scope, Session, SessionId, Sessions,
+  Start, State, Turn, TurnContext,
 };
 use axum::http::{Method, StatusCode};
 use axum::response::Response;
@@ -67,6 +67,10 @@ struct ContextRead {
   desk: Option<String>,
   #[serde(default)]
   registration: Option<String>,
+  #[serde(default)]
+  job: Option<i64>,
+  #[serde(default)]
+  item: Option<i64>,
 }
 
 #[derive(Deserialize)]
@@ -111,6 +115,10 @@ pub fn context_read(body: &Value) -> Result<TurnContext, Refused> {
     answers: read.answers,
     began: read.began,
     run,
+    job: read.job.map(|job| JobMark {
+      job,
+      item: read.item,
+    }),
   })
 }
 

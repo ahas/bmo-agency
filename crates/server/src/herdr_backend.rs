@@ -49,6 +49,7 @@ use crate::lines::editor::PROVIDER as EDITOR_PROVIDER;
 use crate::places::{AgentRow, Ground, Places};
 use crate::run_log::lines::Line;
 use crate::run_log::{RunLog, Target};
+use crate::watches::machine::keep_worker_job;
 use crate::worker_session::fold::{Folded, fold};
 use crate::worker_session::records::{self, note_answer, slot_account};
 use crate::worker_session::{self, Missed, Side};
@@ -1063,7 +1064,16 @@ impl Sessions for HerdrSessions {
     });
 
     let came = match (&scope, &row) {
-      (Scope::Worker, Some(row)) => self.worker_turn(row, &run, &turn.prompt).await,
+      (Scope::Worker, Some(row)) => {
+        let db = &self.ground().db;
+
+        keep_worker_job(db, &agent, turn.context.job).await;
+
+        let came = self.worker_turn(row, &run, &turn.prompt).await;
+
+        keep_worker_job(db, &agent, None).await;
+        came
+      }
       (Scope::Worker, None) => Err(fault(FaultKind::Unknown, format!("no worker is named {agent}"))),
       (Scope::Editor, _) => {
         let asked = EditorTurn {

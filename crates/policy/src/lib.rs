@@ -18,6 +18,7 @@ pub mod gate_prompts;
 pub mod gates;
 pub mod job_prompt;
 pub mod keepalive;
+pub mod machine_room;
 pub mod model_catalogue;
 pub mod node_states;
 pub mod place_words;

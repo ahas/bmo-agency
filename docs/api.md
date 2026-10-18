@@ -28,7 +28,7 @@ judges none of it.
 ## Versioning
 
 - **The contract carries the repository's one version, in semver.** The version in the workspace
-  manifest is this boundary's version; the current line is `0.21.0`.
+  manifest is this boundary's version; the current line is `0.22.0`.
 - **A change to this document and a change to the boundary go in one commit.** A change that makes a
   route, an event, a hook or a shared table's contract different repairs this document in the same
   commit, stating what is true now.
@@ -99,6 +99,8 @@ judges none of it.
 | GET | `/runs/clock` | the clock a run stands on, by its name or the name it runs under | 「Workers」 |
 | GET, POST | `/runs/overtime` | the asks on runs past their clock, and a verdict on one | 「Workers」 |
 | GET | `/editors/cap` | the bound an editor work key's run carries for an agent | 「Workers」 |
+| GET | `/machine/room` | this machine's room for another job's launch | 「Workers」 |
+| POST | `/machine/launch-held` | the launcher's notice that launches are held, or its withdrawal | 「Workers」 |
 | GET, POST | `/rest` | the deployment's rest, read and written | 「Accounts」 |
 | GET | `/rest/passed` | why the rest that has just passed silenced the deployment, the passed rests cleared | 「Accounts」 |
 | GET | `/health` | agency's health and readiness | 「Health」 |
@@ -186,10 +188,12 @@ judges none of it.
   road the turn answers its room on where that is not the room's own; `basePersona`, the persona that
   follows the chat line's system prompt where the caller keeps one; `privileged`, whether every new
   message the turn answers is the owner's or no person's message opened it; `answers`, the ids of the
-  messages it answers; and `began`, the moment it took its words, in epoch milliseconds, which a reset
-  begun after it overtakes and which is the moment the turn is sent where none is named. Agency carries
-  each part to the program as its line declares and judges none of it: the prompt and the context are the
-  caller's turn assembly (「Hooks」 below).
+  messages it answers; `began`, the moment it took its words, in epoch milliseconds, which a reset
+  begun after it overtakes and which is the moment the turn is sent where none is named; and on a
+  worker's turn `job`, the job it is a turn of, and `item`, the item that job works, each a number, which
+  agency keeps beside the worker while the turn goes so a place's pressure on the machine names its job
+  (「Events」, the machine's pressure). Agency carries each part to the program as its line declares and
+  judges none of it: the prompt and the context are the caller's turn assembly (「Hooks」 below).
 - **An editor run's parts** are the context an editor session's turn carries, each optional:
   `run`, the name the caller gives the run; `parent`, the unit it runs under, or null; `agent`, whose
   long-term memory it writes; `chatId`, the room it reads; `step` and `steps`, which batch it is of how
@@ -303,6 +307,19 @@ judges none of it.
   carrying nothing, when the node list's shape moves under the places — a node added, removed, renamed,
   relabelled, reordered or changing state — so a consumer showing the nodes reads them again
   (`docs/work-nodes.md`, 「When a node drops」, 「In herdr」).
+- **Pressure on the machine**, `machine-pressure`, is published for each pressure the node service tells
+  (「Calls agency makes」 below), as it tells it, with the job each place stands for added, which only
+  agency knows: `cause`, `memory` or `disk`; for the memory `fullPct`, `alertPct` and `minutes`, for the
+  disk `freeGb` and `limitGb`; `reading`, as the node service gave it, or null; `holders`, what each agent
+  place holds, largest first, each its `place`, `megabytes` and `browsers`, the `worker` at work in it and
+  the `jobId` and `todoId` its turn named, each null where the place is no worker's at work or its turn
+  named none; `largest`, the largest processes, each its `pid`, `name`, `megabytes`, `place` and the
+  `jobId` of that place, or null; and `jobs` and `browserJobs`, as the machine's room counts them
+  (「Workers」 below). `holders` and `largest` are empty where the node service gave none. Telling the
+  chat agent is the consumer's (`docs/agent-control.md`, 「Pressure told as a fact」).
+- **The machine's room returned**, `machine-room-returned`, is published once a held launch's notice is
+  let go because nothing holds a launch any more: `at`, when the launch was held, and `held`, what held
+  it (「Workers」 below). Telling the queue again is the launcher's.
 - **The gateway's settling is said in its own log,** not published: the gateway is a process of its own
   beside the server, and a consumer reads the registry's state through the registry's route
   (`docs/own-llm.md`, 「The gateway」).
@@ -650,6 +667,18 @@ Each hook has a default that does nothing, so agency runs with none registered.
   could say.
 - **A support worker removed** publishes `worker-removed` (「Events」 above), so a consumer lets go what
   it lent the worker, such as a checkout lease.
+- **The machine's room.** The launcher, the job unit, asks agency before it launches a job on this
+  machine and holds the launch while anything is held (`docs/agent-control.md`, 「Room on the machine」).
+  `GET /machine/room` answers `held`, every reason a launch is held now, each an English sentence with
+  its figure and its limit, empty where there is room: what the node service's machine room holds, then
+  agency's own job-count limits met; `jobs`, the jobs at work on this machine; `browserJobs`, those whose
+  place runs a browser; and `browsers`, the browser main processes running on it. A node service that
+  cannot be asked holds nothing of its part, and the job counts hold all the same.
+- **A held launch told.** `POST /machine/launch-held` takes `at`, when the launcher held, in epoch
+  milliseconds, and `held`, what it held on, and answers `ok`; agency keeps the notice, and an empty
+  `held` withdraws it. While a notice stands agency reads the room every minute, and once nothing is
+  held it lets the notice go and publishes `machine-room-returned` (「Events」 above), on which the
+  launcher tells the queue again.
 
 ## Health
 
@@ -675,7 +704,8 @@ Each hook has a default that does nothing, so agency runs with none registered.
 
 - **Agency calls four services:** the cache siren for an account's usage windows and the cache lifetime
   a session is judged warm by, the cache warmer for whether keepalive pings go, the node service for
-  this machine's room, a node's link, the nodes it keeps and the SSH login to each, and the brain for what a companion's reset
+  this machine's room and what its places hold, the pressures it tells, a node's link, the nodes it keeps
+  and the SSH login to each, and the brain for what a companion's reset
   does to what the agent remembers and to its brain folder, and for a watch whose unit is stopped. Each is reached at the base address the deployment names in its
   variable, with the token named beside it.
 - **A service whose address is unset is not called:** each call then answers the default stated beside it
@@ -686,7 +716,9 @@ Each hook has a default that does nothing, so agency runs with none registered.
   token is named. The calls follow the chat wire protocol's conventions (the protocol document of
   `bmo-chat`): an answer whose `answered` is false carries a `refusal` with its `code` and `message` and
   is a refusal; a non-2xx answer carries `code` and `error`; a call is offered again only where the
-  connection was refused, within the service's patience, and never once it reached a listener.
+  connection was refused, within the service's patience, and never once it reached a listener. The node
+  service's machine standing and its event stream are the exceptions, GETs as that service answers
+  them.
 
 | Service | Address | Token | Patience |
 | --- | --- | --- | --- |
@@ -718,8 +750,17 @@ due, the ping itself and its record — itself (`docs/coworker-pool.md`, 「Rese
 | --- | --- | --- | --- | --- |
 | machine room | `/machine/room` | nothing | `held`: what this machine is short of for another launch, each named; empty where it has room | room, nothing held |
 | link state | `/links/state` | `node` | `up` (boolean): the node's link is connected and was heard from lately | down |
-| node rows | `/nodes/list` | nothing | `nodes`, in the node list's order: each `node`, `label` (or null), `state` and `detail` (or null) | no nodes |
+| node rows | `/nodes/list` | nothing | `nodes`, in the node list's order: each `node`, `label` (or null), `kind` (`ssh`, or `jake` for a node reached through a hub), `state` and `detail` (or null) | no nodes |
 | node login | `/nodes/login` | `node` | `ssh`: the arguments that open a batch SSH login to the node, ahead of the command, or null where the node has no SSH route | none |
+| machine standing | `GET /machine/standing` | nothing | `browsers`, how many browser main processes run, and `places`, what each agent place holds: `place`, `megabytes` and `browsers`; the rest of the standing is not read | no browser, no place |
+| pressure | `GET /events?kinds=machine-pressure` | nothing | a stream of server-sent `machine-pressure` events, each as the node service's boundary states it | no event |
+
+- **A node's kind** is how agency tells a node reached through a hub apart: such a node offers no shell,
+  so it carries no job and its pane offers no login (`docs/work-nodes.md`, 「In herdr」). Agency keeps no
+  record of the hubs.
+- **The stream** is read with no wait on its whole, from the server's start for as long as it runs, and
+  opened again ten seconds after it drops or cannot be opened. An event that does not read is said once
+  on agency's error stream and passed over.
 
 ### The brain
 

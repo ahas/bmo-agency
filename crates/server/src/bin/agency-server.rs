@@ -14,10 +14,12 @@ use agency_server::control::claude_accounts::Judging;
 use agency_server::places::{Ground, Places};
 use agency_server::verbs::reload::{Redeploy, TreeRedeploy};
 use agency_server::verbs::{CONTROL_PORT, CONTROL_TOKEN, DEFAULT_CONTROL_PORT};
+use agency_server::watches::machine;
 use agency_server::{Service, archive_place, control, now_ms};
 use clap::Parser;
 use harness_providers::Machine;
 use policy::keepalive::KEEPALIVE;
+use policy::machine_room::MACHINE_ROOM;
 
 /// The variable naming the quota source's loopback port, and the port it takes where none is named.
 const QUOTA_PORT: &str = "AGENCY_QUOTA_PORT";
@@ -123,7 +125,8 @@ async fn serve(args: Args) -> Result<(), String> {
 }
 
 // The server's own clocks: the run log pruned, the pool's admissions and leftovers, the pool's warming, the
-// queue's reconciliation and the logins' watch on the keepalive pass.
+// queue's reconciliation, the logins' watch on the keepalive pass, the held launch's watch, and the node
+// service's pressures listened to.
 fn clocks(ground: &Arc<Ground>) {
   tokio::spawn(agency_server::run_log::prune::keep(ground.db.clone()));
   tokio::spawn(agency_server::order_run::clocks::keep_pool(ground.db.clone()));
@@ -167,4 +170,23 @@ fn clocks(ground: &Arc<Ground>) {
     })
     .await
   });
+
+  let held = ground.clone();
+  let period = Duration::from_secs(MACHINE_ROOM.clocks.held_watch_seconds);
+
+  tokio::spawn(async move {
+    every("held launch's watch", period, period, move || {
+      let ground = held.clone();
+
+      async move {
+        machine::watch_held(&ground.db, ground.peers.node.as_ref(), &ground.events)
+          .await
+          .map(|_| ())
+          .map_err(|refusal| refusal.detail)
+      }
+    })
+    .await
+  });
+
+  tokio::spawn(agency_server::watches::pressure::relay(ground.clone()));
 }

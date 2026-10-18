@@ -6,7 +6,7 @@ use std::path::Path;
 
 use agency_server::events::Bus;
 use agency_server::peers::Asking;
-use agency_server::peers::node::{NodeRow, NodeService, Room};
+use agency_server::peers::node::{NodeKind, NodeRow, NodeService, Room};
 use agency_server::queue::workers::{BUILTIN_WORKER, WorkerRemoved, settle_support, support_name, workers};
 
 use crate::scratch::Scratch;
@@ -28,6 +28,7 @@ impl NodeService for OneNode {
       Ok(vec![NodeRow {
         node: "n1".into(),
         label: Some("Bench".into()),
+        kind: NodeKind::Ssh,
         state: "connected".into(),
         detail: None,
       }])

@@ -1021,8 +1021,8 @@ fn node_written(path: &str) -> bool {
   path.starts_with('/') || path.starts_with("~/")
 }
 
-/// A node the node service keeps: its name, the label it is shown under and whether the service names an
-/// SSH login to it.
+/// A node the node service keeps: its name, the label it is shown under and whether it is reached over
+/// SSH.
 struct Listed {
   name: String,
   label: String,
@@ -1031,18 +1031,21 @@ struct Listed {
 
 // The node the node service keeps under a name, none where it keeps no such node.
 async fn listed_node(stand: &Stand<'_>, node: &str) -> Result<Option<Listed>, VerbError> {
-  let nodes = stand.ground.peers.node.as_ref();
-  let unreachable = |fault: crate::peers::PeerFault| VerbError::Refused(fault.to_string());
-  let rows = nodes.node_rows().await.map_err(unreachable)?;
+  let rows = stand
+    .ground
+    .peers
+    .node
+    .node_rows()
+    .await
+    .map_err(|fault| VerbError::Refused(fault.to_string()))?;
   let Some(row) = rows.into_iter().find(|row| row.node == node) else {
     return Ok(None);
   };
-  let logs_in = nodes.ssh_login(node).await.map_err(unreachable)?.is_some();
 
   Ok(Some(Listed {
     label: row.label.unwrap_or_else(|| row.node.clone()),
+    logs_in: row.kind.over_ssh(),
     name: row.node,
-    logs_in,
   }))
 }
 

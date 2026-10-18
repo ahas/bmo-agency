@@ -7,33 +7,38 @@ use crate::common;
 
 use std::path::Path;
 
-use agency_server::peers::node::NodeRow;
+use agency_server::peers::node::{NodeKind, NodeRow};
 use agency_server::verbs::node_pane::node_pane_text;
 use common::Scratch;
 use policy::fill_marks;
 use policy::verb_words::VERB_WORDS;
 
-// "shows the node as the service lists it, its state with what the service says of it, and what Enter does"
+// "shows the node as the service lists it, how it is reached, its state with what the service says of it,
+// and what Enter does": a login on a node reached over SSH, none on one behind a hub
 #[test]
-fn a_node_s_pane_shows_the_node_its_state_and_what_enter_does() {
+fn a_node_s_pane_shows_the_node_its_kind_its_state_and_what_enter_does() {
   let pane = &VERB_WORDS.node_pane;
   let refused = NodeRow {
     node: "pc-node".into(),
     label: Some("home pc".into()),
+    kind: NodeKind::Ssh,
     state: "auth".into(),
     detail: Some("Permission denied (publickey,password).".into()),
   };
   let plain = NodeRow {
     node: "agent-a".into(),
     label: None,
+    kind: NodeKind::Jake,
     state: "up".into(),
     detail: None,
   };
-  let ssh = node_pane_text(&refused, true);
-  let hub = node_pane_text(&plain, false);
+  let ssh = node_pane_text(&refused);
+  let hub = node_pane_text(&plain);
   let detail = fill_marks(&pane.detail, &[("detail", "Permission denied (publickey,password).")]);
 
   assert!(ssh.starts_with("home pc (pc-node)"));
+  assert!(ssh.contains(&fill_marks(&pane.kind, &[("kind", "ssh")])));
+  assert!(hub.contains(&fill_marks(&pane.kind, &[("kind", "jake")])));
   assert!(ssh.contains(&fill_marks(&pane.state, &[("state", "auth"), ("detail", &detail)])));
   assert!(ssh.ends_with(&pane.ssh_enter));
   assert!(hub.starts_with("agent-a (agent-a)"));

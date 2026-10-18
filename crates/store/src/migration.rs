@@ -15,7 +15,7 @@ pub const TABLES: &str = m20261016_000001_store::NAME;
 
 /// Every table the store's migrations make, beside the record of what ran: what reads every table of the
 /// store reads these and no other service's beside them (docs/store.md, 「Its tables」).
-pub const OWN_TABLES: [&str; 52] = [
+pub const OWN_TABLES: [&str; 51] = [
   "agents",
   "agent_log",
   "agent_executions",
@@ -56,7 +56,6 @@ pub const OWN_TABLES: [&str; 52] = [
   "node_workplaces",
   "node_rotation",
   "node_assignments",
-  "node_hubs",
   "live_claude_openings",
   "live_claude_runs",
   "prefix_moves",

@@ -514,11 +514,15 @@ async fn stand(
     _ => return Err(VerbError::Refused("no such step".into())),
   };
   let unreachable = |fault: crate::peers::PeerFault| VerbError::Refused(fault.to_string());
-  let row = nodes.node_rows().await.map_err(unreachable)?.into_iter().find(|row| row.node == *node);
-  let login = nodes.ssh_login(node).await.map_err(unreachable)?;
-  let (Some(row), Some(login)) = (row, login) else {
-    return Err(VerbError::Refused(format!("{node} is no node reached over SSH")));
-  };
+  let not_ssh = || VerbError::Refused(format!("{node} is no node reached over SSH"));
+  let row = nodes
+    .node_rows()
+    .await
+    .map_err(unreachable)?
+    .into_iter()
+    .find(|row| row.node == *node && row.kind.over_ssh())
+    .ok_or_else(not_ssh)?;
+  let login = nodes.ssh_login(node).await.map_err(unreachable)?.ok_or_else(not_ssh)?;
 
   if let Some(refused) = work_refusal(&row.node, true, None) {
     return Err(VerbError::Refused(format!("{node} takes no work: {refused}")));

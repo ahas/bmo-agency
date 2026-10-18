@@ -26,7 +26,9 @@ seeds. The other crates and the server reach the store only through it.
     `registered_model_addresses`, `model_fallbacks`, `fallback_routes`, `fallback_sessions`, and the
     seven `model_tier_` tables, `assignments`, `backfilled`, `conflicts`, `legacy`, `mappings`, `meta`
     and `seeded`;
-  - the work nodes: `node_workplaces`, `node_rotation`, `node_assignments`, `node_hubs`;
+  - the work nodes: `node_workplaces`, `node_rotation`, `node_assignments`; the nodes themselves, how
+    each is reached among it, are the node service's and read from it (`docs/api.md`, 「The node
+    service」);
   - the live Claude guard: `live_claude_openings`, `live_claude_runs`; an opening is kept under the run
     it was opened for, `run`, and carries its job and item only where a caller names them, since a
     job's rows are the job unit's (`docs/live-claude-guard.md`);
@@ -67,6 +69,11 @@ seeds. The other crates and the server reach the store only through it.
     `dev_server_max_age_minutes`;
   - the logins watch's notes: `claude_node_token_gone:*` and its notice keys;
   - a job's road and its stop: `job_route_block:*`, `job_stop:*`;
+  - the machine's room: the job-count limits, `machine_limit:launch_jobs` and
+    `machine_limit:launch_browser_jobs`, beside the memory limits the dev servers read; the launcher's
+    notice of launches held, `machine_launch_held`, its `at` and `held` as JSON; and the job and item a
+    worker's turn named while it goes, `worker_job:*` by the worker, as JSON (`docs/agent-control.md`,
+    「Room on the machine」);
   - the fallback and the rest: `fallback_since`, `fallback_provider`, `rest_until`, `rest_until:*`,
     `rest_kind`;
   - the data move's mark, `users_moved_at`, and the user who administers the platform,

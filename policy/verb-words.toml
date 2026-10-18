@@ -72,13 +72,15 @@ not_running = "Not a model switch in progress: {id}"
 failed = "The installer failed."
 
 # What a node's workspace in herdr shows (docs/work-nodes.md, 「In herdr」): the node as the node service
-# lists it, and what Enter does there.
+# lists it, how it is reached, and what Enter does there.
 [node_pane]
+# How the node is reached, {kind}, as the node service writes it: ssh, or jake for a node behind a hub.
+kind = "connection   {kind}"
 # The state word {state}, with what the service says of it, {detail}, in brackets where it says something.
 state = "state        {state}{detail}"
 detail = " ({detail})"
 ssh_enter = "Press Enter to log in."
-no_login = "The node service names no SSH login for this node, so only its state is shown."
+no_login = "A node reached through a hub offers no shell, so only its state is shown."
 # The node, {name}, left the list, so its pane closes.
 gone = "The node {name} is no longer listed, so this pane closes."
 

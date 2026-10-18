@@ -1,7 +1,8 @@
 //! The services agency calls (docs/api.md, 「Calls agency makes」): the cache siren, the cache warmer, the
 //! node service and the brain. Each is a client trait of its own, answered over HTTP where the deployment
 //! names the service's address and by a default that calls nothing where it names none. Every call is one
-//! POST of a JSON body, read by the chat wire protocol's conventions.
+//! POST of a JSON body, read by the chat wire protocol's conventions, but a route a service answers as a
+//! GET, a stream among them.
 
 pub mod brain;
 pub mod cache_siren;
@@ -143,12 +144,14 @@ fn text_of(value: &Value, field: &str) -> Option<String> {
   value.get(field).and_then(Value::as_str).map(str::to_owned)
 }
 
-/// One service's caller: its address, its token, how long an answer is waited for, and its patience.
+/// One service's caller: its address, its token, how long an answer is waited for, and its patience. A
+/// stream it opens is waited on only to connect.
 #[derive(Clone, Debug)]
 pub struct Caller {
   peer: &'static str,
   address: PeerAddress,
   client: reqwest::Client,
+  streaming: reqwest::Client,
   patience: Patience,
 }
 
@@ -160,11 +163,13 @@ impl Caller {
     patience: Patience,
   ) -> Self {
     let client = reqwest::Client::builder().timeout(answer_within).build().unwrap_or_default();
+    let streaming = reqwest::Client::builder().connect_timeout(answer_within).build().unwrap_or_default();
 
     Self {
       peer,
       address,
       client,
+      streaming,
       patience,
     }
   }
@@ -185,20 +190,20 @@ impl Caller {
     }
   }
 
-  /// The service asked at `path` with `body`, its answer read as `T`. A refused connection is offered
-  /// again within the service's patience; a call that reached a listener never is.
-  pub async fn post<T: DeserializeOwned>(&self, path: &str, body: Value) -> Result<T, PeerFault> {
-    let url = self.url(path);
+  // The request `make` builds, sent under the token. A refused connection is offered again within the
+  // service's patience; a call that reached a listener never is.
+  async fn sent(&self, make: impl Fn() -> reqwest::RequestBuilder) -> Result<reqwest::Response, PeerFault> {
     let began = Instant::now();
-    let response = loop {
-      let mut request = self.client.post(url.clone()).json(&body);
+
+    loop {
+      let mut request = make();
 
       if let Some(token) = &self.address.token {
         request = request.bearer_auth(token);
       }
 
       match request.send().await {
-        Ok(response) => break response,
+        Ok(response) => return Ok(response),
         Err(error)
           if error.is_connect() && began.elapsed() + self.patience.every < self.patience.within =>
         {
@@ -206,23 +211,65 @@ impl Caller {
         }
         Err(error) => return Err(self.unreachable(said(&error))),
       }
-    };
+    }
+  }
+
+  fn failed(&self, status: reqwest::StatusCode, text: &str) -> PeerFault {
+    let answer = serde_json::from_str::<Value>(text).unwrap_or(Value::Null);
+
+    PeerFault::Failed {
+      peer: self.peer,
+      status: status.as_u16(),
+      code: text_of(&answer, "code").unwrap_or_default(),
+      error: text_of(&answer, "error").unwrap_or_else(|| text.trim().to_owned()),
+    }
+  }
+
+  /// The service asked at `path` with `body`, its answer read as `T`.
+  pub async fn post<T: DeserializeOwned>(&self, path: &str, body: Value) -> Result<T, PeerFault> {
+    let url = self.url(path);
+    let response = self.sent(|| self.client.post(url.clone()).json(&body)).await?;
+
+    self.read(response).await
+  }
+
+  /// The service asked at `path` by a GET, for a route the service answers that way, its answer read as
+  /// `T`.
+  pub async fn get<T: DeserializeOwned>(&self, path: &str) -> Result<T, PeerFault> {
+    let url = self.url(path);
+    let response = self.sent(|| self.client.get(url.clone())).await?;
+
+    self.read(response).await
+  }
+
+  /// A stream the service answers at `path` with `query`, opened with no wait on its whole: the response
+  /// once its status says the stream stands.
+  pub async fn open(&self, path: &str, query: &[(&str, &str)]) -> Result<reqwest::Response, PeerFault> {
+    let mut url = self.url(path);
+
+    url.query_pairs_mut().extend_pairs(query);
+
+    let response = self.sent(|| self.streaming.get(url.clone())).await?;
     let status = response.status();
-    let text = response.text().await.map_err(|error| self.unreachable(said(&error)))?;
-    let answer = serde_json::from_str::<Value>(&text);
 
-    if !status.is_success() {
-      let answer = answer.unwrap_or(Value::Null);
-
-      return Err(PeerFault::Failed {
-        peer: self.peer,
-        status: status.as_u16(),
-        code: text_of(&answer, "code").unwrap_or_default(),
-        error: text_of(&answer, "error").unwrap_or_else(|| text.trim().to_owned()),
-      });
+    if status.is_success() {
+      return Ok(response);
     }
 
-    let answer = answer.map_err(|error| PeerFault::Malformed {
+    let text = response.text().await.unwrap_or_default();
+
+    Err(self.failed(status, &text))
+  }
+
+  async fn read<T: DeserializeOwned>(&self, response: reqwest::Response) -> Result<T, PeerFault> {
+    let status = response.status();
+    let text = response.text().await.map_err(|error| self.unreachable(said(&error)))?;
+
+    if !status.is_success() {
+      return Err(self.failed(status, &text));
+    }
+
+    let answer = serde_json::from_str::<Value>(&text).map_err(|error| PeerFault::Malformed {
       peer: self.peer,
       detail: error.to_string(),
     })?;

@@ -61,10 +61,11 @@ pub struct ModelsWords {
 }
 
 /// What a node's workspace in herdr shows (docs/work-nodes.md, 「In herdr」): the node as the node service
-/// lists it, and what Enter does there.
+/// lists it, how it is reached, and what Enter does there.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct NodePaneWords {
+  pub kind: String,
   pub state: String,
   pub detail: String,
   pub ssh_enter: String,

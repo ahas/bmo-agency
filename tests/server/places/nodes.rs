@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex};
 use agency_server::Service;
 use agency_server::config::Config;
 use agency_server::peers::Asking;
-use agency_server::peers::node::{NodeRow, NodeService, Room};
+use agency_server::peers::node::{NodeKind, NodeRow, NodeService, Room};
 use agency_server::places::Ground;
 use agency_server::places::nodes::{NodeList, NodesMoved, label, settle};
 use harness_providers::Machine;
@@ -17,6 +17,7 @@ fn row(node: &str, label: Option<&str>, state: &str) -> NodeRow {
   NodeRow {
     node: node.into(),
     label: label.map(str::to_owned),
+    kind: NodeKind::Ssh,
     state: state.into(),
     detail: None,
   }

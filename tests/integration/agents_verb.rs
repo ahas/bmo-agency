@@ -9,7 +9,7 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use agency_server::peers::Asking;
-use agency_server::peers::node::{NodeRow, NodeService, Room};
+use agency_server::peers::node::{NodeKind, NodeRow, NodeService, Room};
 use agency_server::places::Ground;
 use agency_server::verbs::agents::{AgentsArgs, AgentsHands, Said, Stand, agents};
 use common::Scratch;
@@ -64,6 +64,7 @@ impl Listed {
     let row = NodeRow {
       node: name.into(),
       label: Some(label.into()),
+      kind: if logs_in { NodeKind::Ssh } else { NodeKind::Jake },
       state: "connected".into(),
       detail: None,
     };

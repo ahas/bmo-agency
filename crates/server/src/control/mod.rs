@@ -19,6 +19,7 @@ pub mod fault;
 pub mod harness;
 mod health;
 mod hook_routes;
+mod machine;
 pub mod model_tiers;
 pub mod models;
 pub mod own_llm;

@@ -2,7 +2,7 @@
 //! the road and the persona trimmed and none where blank, and a body that does not read refused.
 
 use agency_server::control::session_ops::context_read;
-use agent_session::{RoomBlock, RunParts, TurnContext};
+use agent_session::{JobMark, RoomBlock, RunParts, TurnContext};
 use serde_json::json;
 
 #[test]
@@ -30,9 +30,22 @@ fn a_turns_context_reads_every_part_it_names_and_none_of_what_it_does_not() {
       answers: vec![7, 8],
       began: Some(1_000),
       run: None,
+      job: None,
     }
   );
   assert!(context_read(&json!({ "room": { "text": "no room" } })).is_err());
+  assert_eq!(
+    context_read(&json!({ "job": 41, "item": 1802 })).unwrap().job,
+    Some(JobMark {
+      job: 41,
+      item: Some(1802)
+    })
+  );
+  assert_eq!(
+    context_read(&json!({ "item": 1802 })).unwrap().job,
+    None,
+    "an item with no job names none"
+  );
 
   let parts = context_read(&json!({
     "run": "bmo-digest:digest:companion:-7:1",

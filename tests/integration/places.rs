@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use agency_server::peers::Asking;
-use agency_server::peers::node::{NodeRow, NodeService, Room};
+use agency_server::peers::node::{NodeKind, NodeRow, NodeService, Room};
 use agency_server::places::follow::FollowTurns;
 use agency_server::places::nodes::{NodeList, NodesMoved};
 use agency_server::places::{Ground, Places, checkouts, dev, follow, heads, locks, nodes};
@@ -169,6 +169,7 @@ fn node(name: &str, label: &str, state: &str) -> NodeRow {
   NodeRow {
     node: name.into(),
     label: Some(label.into()),
+    kind: NodeKind::Ssh,
     state: state.into(),
     detail: None,
   }

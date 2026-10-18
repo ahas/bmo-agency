@@ -8,12 +8,13 @@ use std::time::Duration;
 use agency_server::config::{Config, PeerAddresses};
 use agency_server::peers::brain::{BrainReset, holds_watch};
 use agency_server::peers::cache_siren::Window;
-use agency_server::peers::node::{NodeRow, Room};
+use agency_server::peers::node::{LargeProcess, NodeKind, NodeRow, PlaceHolding, Pressure, Room, Standing};
 use agency_server::peers::{PeerFault, Peers};
 use axum::Json;
 use axum::extract::State;
 use axum::http::{HeaderMap, StatusCode, Uri};
 use axum::response::{IntoResponse, Response};
+use futures_util::StreamExt;
 use serde_json::{Value, json};
 use tokio::net::TcpListener;
 
@@ -27,12 +28,20 @@ struct Call {
 
 type Calls = Arc<Mutex<Vec<Call>>>;
 
+// The node service's pressures as its stream tells them: an event of another kind, one whose data does not
+// read, and one pressure of each cause.
+const PRESSURES: &str = "event: nodes-changed\ndata: {}\n\n\
+event: machine-pressure\ndata: {\"cause\":\"heat\"}\n\n\
+event: machine-pressure\ndata: {\"cause\":\"memory\",\"fullPct\":12.5,\"alertPct\":10,\"minutes\":2,\"reading\":{\"load1\":30},\"places\":[{\"place\":\"worker\",\"megabytes\":900.5,\"browsers\":1}],\"largest\":[{\"pid\":7,\"name\":\"chrome\",\"megabytes\":400,\"place\":\"worker\"}]}\n\n\
+event: machine-pressure\ndata: {\"cause\":\"disk\",\"freeGb\":12,\"limitGb\":20}\n\n";
+
 async fn answer(
   State(calls): State<Calls>,
   uri: Uri,
   headers: HeaderMap,
-  Json(body): Json<Value>,
+  body: axum::body::Bytes,
 ) -> Response {
+  let body: Value = serde_json::from_slice(&body).unwrap_or(Value::Null);
   let path = uri.path().to_owned();
   let authorization = headers.get("authorization").map(|value| value.to_str().unwrap().to_owned());
 
@@ -58,11 +67,21 @@ async fn answer(
     "cache/lifetime" => json!({ "minutes": 5 }),
     "pings/schedule" => json!({ "go": body["mode"] == "codex" }),
     "machine/room" => json!({ "held": ["memory"] }),
+    "machine/standing" => json!({
+      "reading": { "load1": 3 },
+      "held": [],
+      "browsers": 2,
+      "places": [{ "place": "worker", "megabytes": 900.5, "browsers": 2 }],
+      "largest": []
+    }),
+    "events" if uri.query() == Some("kinds=machine-pressure") => {
+      return ([("content-type", "text/event-stream")], PRESSURES).into_response();
+    }
     "links/state" => json!({ "up": body["node"] == "near" }),
     "nodes/list" => {
       json!({ "nodes": [
-        { "node": "near", "label": "Near", "state": "up" },
-        { "node": "far", "state": "down", "detail": "unheard" }
+        { "node": "near", "label": "Near", "kind": "ssh", "state": "up" },
+        { "node": "far", "kind": "jake", "state": "down", "detail": "unheard" }
       ] })
     }
     "nodes/login" if body["node"] == "near" => json!({ "ssh": ["-o", "BatchMode=yes", "worker@near"] }),
@@ -184,12 +203,14 @@ async fn the_node_service_is_asked_for_room_links_nodes_and_logins() {
       NodeRow {
         node: "near".into(),
         label: Some("Near".into()),
+        kind: NodeKind::Ssh,
         state: "up".into(),
         detail: None,
       },
       NodeRow {
         node: "far".into(),
         label: None,
+        kind: NodeKind::Jake,
         state: "down".into(),
         detail: Some("unheard".into()),
       },
@@ -218,6 +239,65 @@ async fn the_node_service_is_asked_for_room_links_nodes_and_logins() {
   assert_eq!(calls[4].body, json!({ "node": "near" }));
   assert!(calls.iter().all(|call| call.authorization.is_none()), "no token named, none sent");
   assert_eq!(calls[1].body, json!({ "node": "near" }));
+}
+
+#[tokio::test]
+async fn the_node_service_is_asked_for_its_standing_and_heard_telling_pressures() {
+  let (address, calls) = stand_in().await;
+  let peers = peers_at(&address, Some("node-token"));
+
+  assert_eq!(
+    peers.node.machine_standing().await.unwrap(),
+    Standing {
+      browsers: 2,
+      places: vec![PlaceHolding {
+        place: "worker".into(),
+        megabytes: 900.5,
+        browsers: 2
+      }],
+    }
+  );
+
+  let told: Vec<_> = peers.node.pressures().await.unwrap().collect().await;
+
+  assert_eq!(told.len(), 3, "the event of another kind is passed over: {told:?}");
+  assert!(matches!(told[0], Err(PeerFault::Malformed { .. })), "{:?}", told[0]);
+  assert_eq!(
+    told[1].as_ref().unwrap(),
+    &Pressure::Memory {
+      full_pct: 12.5,
+      alert_pct: 10.0,
+      minutes: 2.0,
+      reading: Some(json!({ "load1": 30 })),
+      places: vec![PlaceHolding {
+        place: "worker".into(),
+        megabytes: 900.5,
+        browsers: 1
+      }],
+      largest: vec![LargeProcess {
+        pid: 7,
+        name: "chrome".into(),
+        megabytes: 400.0,
+        place: Some("worker".into())
+      }],
+    }
+  );
+  assert_eq!(
+    told[2].as_ref().unwrap(),
+    &Pressure::Disk {
+      free_gb: 12.0,
+      limit_gb: 20.0,
+      reading: None
+    }
+  );
+
+  let calls = taken(&calls);
+
+  assert_eq!(
+    calls.iter().map(|call| call.path.as_str()).collect::<Vec<_>>(),
+    ["/base/machine/standing", "/base/events"]
+  );
+  assert!(calls.iter().all(|call| call.authorization.as_deref() == Some("Bearer node-token")));
 }
 
 #[tokio::test]
@@ -335,6 +415,7 @@ async fn a_service_with_no_address_answers_its_default() {
   assert_eq!(peers.cache_siren.cache_lifetime("claude-code", "model-a").await.unwrap(), None);
   assert!(!peers.cache_warmer.pings_go("coworker-pool", "codex").await.unwrap());
   assert_eq!(peers.node.machine_room().await.unwrap(), Room::default());
+  assert_eq!(peers.node.machine_standing().await.unwrap(), Standing::default());
   assert!(!peers.node.link_up("near").await.unwrap());
   assert!(peers.node.node_rows().await.unwrap().is_empty());
   assert_eq!(peers.node.ssh_login("near").await.unwrap(), None);
