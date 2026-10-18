@@ -23,8 +23,8 @@ use std::time::{Duration, Instant};
 
 pub use agent_session::EngineError;
 use agent_session::{
-  Answer, Apart, Aside, Context, Fault, FaultKind, Outcome, RoomBlock, Scope, Session, SessionId, Sessions,
-  Start, State, Turn, TurnContext, TurnEnd, WentOut, WorkParts,
+  Answer, Apart, Aside, Context, Fault, FaultKind, Outcome, Output, RoomBlock, Scope, Session, SessionId,
+  Sessions, Start, State, Turn, TurnContext, TurnEnd, WentOut, WorkParts,
 };
 use indexmap::IndexMap;
 use policy::companion_runner::COMPANION_RUNNER;
@@ -48,13 +48,14 @@ use crate::door::record::{ModelSpend, UsageSpent};
 use crate::door::turn::{AsideOutcome, Quiet};
 use crate::editor_session::{EditorTurn, composed as editor_composed, editor_turn, is_editor, workdir_of};
 use crate::events::Event;
-use crate::job_run::claude::turn::{WorkAsked, WorkSeat, carry, continues};
+use crate::job_run::claude::turn::{Shows, WorkAsked, WorkSeat, carry, continues};
 use crate::lines::chat::{ChatLaunch, RoomContext, compose_turn};
 use crate::lines::companion::{CompanionTurn, LOST_SESSION, compose, pinned_provider, registration_named};
 use crate::lines::editor::PROVIDER as EDITOR_PROVIDER;
 use crate::places::{AgentRow, Ground, Places};
 use crate::run_log::lines::Line;
 use crate::run_log::{RunLog, Target};
+use crate::session_output::Outputs;
 use crate::session_questions::Questions;
 use crate::watches::machine::keep_worker_job;
 use crate::worker_session::fold::{Folded, fold};
@@ -220,6 +221,8 @@ pub struct HerdrSessions {
   questions: Questions,
   // The sessions whose turn going now hears no words pushed into it.
   deaf: Mutex<HashSet<SessionId>>,
+  // What each session's latest job turn wrote of its answer.
+  outputs: Outputs,
 }
 
 fn fault(kind: FaultKind, message: impl Into<String>) -> Fault {
@@ -263,6 +266,23 @@ pub fn carried_of(tokens: Option<i64>, ratio: Option<f64>) -> Option<Context> {
     carried,
     window: (carried as f64 / ratio).round() as u64,
   })
+}
+
+// What a session's job turn shows of itself to a reading of the session while it goes.
+struct Showing<'s> {
+  sessions: &'s HerdrSessions,
+  session: &'s SessionId,
+}
+
+impl Shows for Showing<'_> {
+  fn went_out(&self, went_out: &WentOut) {
+    self.sessions.showing().insert(self.session.clone(), went_out.clone());
+    self.sessions.outputs.attempted(self.session);
+  }
+
+  fn wrote(&self, texts: &[String]) {
+    self.sessions.outputs.wrote(self.session, texts);
+  }
 }
 
 /// Whether words pushed into a session reach the turn it carries: a job's turn says so in its work parts,
@@ -413,6 +433,7 @@ impl HerdrSessions {
       numbered: AtomicU64::new(1),
       questions: Questions::default(),
       deaf: Mutex::default(),
+      outputs: Outputs::default(),
     }
   }
 
@@ -460,6 +481,7 @@ impl HerdrSessions {
     self.showing().remove(session);
     self.questions.clear(session);
     self.deaf().remove(session);
+    self.outputs.ended(session);
 
     let mut going = self.going();
 
@@ -1107,8 +1129,8 @@ impl HerdrSessions {
     state.question = self.questions.shown(session);
   }
 
-  // A job's turn carried on the seat given, what it went out on shown to a reading of its session's state
-  // while it goes.
+  // A job's turn carried on the seat given, what it went out on and what it writes shown to a reading of its
+  // session while it goes.
   async fn carried(
     &self,
     turn: &Turn,
@@ -1126,10 +1148,12 @@ impl HerdrSessions {
       session: &turn.session,
       questions: &self.questions,
     };
-    let shown = |went_out: &WentOut| {
-      self.showing().insert(turn.session.clone(), went_out.clone());
+    let shown = Showing {
+      sessions: self,
+      session: &turn.session,
     };
 
+    self.outputs.begun(&turn.session, &work.name);
     carry(&asked, &shown).await.map(|end| Came::Ended(Box::new(end)))
   }
 
@@ -1436,6 +1460,22 @@ impl Sessions for HerdrSessions {
     }
   }
 
+  // A worker's and a thrown-away session's job turns keep what they write; every other scope's turn is
+  // read by its own events and keeps nothing here.
+  async fn output(&self, session: &SessionId) -> Result<Output, Fault> {
+    let (agent, scope) = self.scope_held(session)?;
+
+    self.admitted(&agent, &scope).await?;
+
+    match scope {
+      Scope::Worker | Scope::Apart(_) => self
+        .outputs
+        .read(session)
+        .ok_or_else(|| fault(FaultKind::Unknown, format!("{session} has carried no job turn to read"))),
+      _ => Err(fault(FaultKind::Refused, format!("{session} keeps no record of a turn to read"))),
+    }
+  }
+
   async fn interrupt(&self, session: &SessionId) -> Result<(), Fault> {
     let runs = self.going().get(session).cloned().unwrap_or_default();
     let stops = crate::queue::stops::Stops::of(self.ground(), None);
@@ -1551,6 +1591,8 @@ impl Sessions for HerdrSessions {
         self.apart().remove(session);
       }
     }
+
+    self.outputs.forget(session);
 
     Ok(())
   }

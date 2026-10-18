@@ -318,9 +318,12 @@ judges none of it.
     refused `unknown-session`, and so is a session whose turns put no question to their caller.
   - `GET /session/output?session=<id>` answers `run`, the run of the session's turn now going or of its
     last one, `running`, whether it is still going, and `text`, what its program has written of its
-    answer so far, read from the program's own record as it stands, so a turn stopped from outside still
-    leaves what it wrote. A worker's or a thrown-away session that has carried no turn is nothing found;
-    a session of any other scope is refused `backend-refused`.
+    answer so far — every text block its answers wrote in the turn's record, in order, a blank line
+    between them — read from the program's own record as the turn goes, so a turn stopped from outside
+    still leaves what it wrote. An attempt that goes out again, on another login or a fresh session,
+    begins the text again. It is kept from the turn's start until the session's next job turn or its end.
+    A worker's or a thrown-away session that has carried no job turn is nothing found; a session of any
+    other scope is refused `backend-refused`.
   - `POST /session/interrupt`, `POST /session/fold` and `POST /session/end` take `session` and answer
     `ok`. An interrupt with no turn going cuts nothing; a fold or an end refuses a session in a turn. A
     fold asked of a session across rooms is refused, since its program carries it past its window inside

@@ -334,6 +334,29 @@ pub fn span_of(span: &JobSpan) -> contract::Span {
   }
 }
 
+/// What a job's turn shows of itself while it goes, to whoever reads its session: what each attempt went
+/// out on, and the words its program writes of its answer, an attempt's going out beginning them again.
+pub trait Shows: Sync {
+  fn went_out(&self, went_out: &WentOut);
+
+  fn wrote(&self, texts: &[String]);
+}
+
+/// Every text block the program's answers wrote in the record's lines, in order: what a turn stopped from
+/// outside had written.
+pub fn assistant_texts(lines: &[String]) -> Vec<String> {
+  lines
+    .iter()
+    .filter_map(|line| serde_json::from_str::<Value>(line).ok())
+    .filter(|event| event.get("type").and_then(Value::as_str) == Some("assistant"))
+    .flat_map(|event| {
+      event.pointer("/message/content").and_then(Value::as_array).cloned().unwrap_or_default()
+    })
+    .filter(|block| block.get("type").and_then(Value::as_str) == Some("text"))
+    .filter_map(|block| block.get("text").and_then(Value::as_str).map(str::to_owned))
+    .collect()
+}
+
 /// What a carried turn settled on: its answer, or its going back to its runner with the session it would
 /// continue.
 #[derive(Debug)]
@@ -388,7 +411,7 @@ pub fn ended(run: &str, walked: Result<Settled, Failure>, beside: Beside) -> Tur
 
 /// One job's turn carried on its session to its end. A turn on a provider other than Claude Code, or naming
 /// a user that is no user's id, is refused; every other way the turn ends is its end.
-pub async fn carry(asked: &WorkAsked<'_>, shown: &(dyn Fn(&WentOut) + Sync)) -> Result<TurnEnd, Fault> {
+pub async fn carry(asked: &WorkAsked<'_>, shown: &dyn Shows) -> Result<TurnEnd, Fault> {
   let work = asked.work;
   let provider = match asked.seat {
     WorkSeat::Worker(_) => &work.provider,
@@ -454,7 +477,7 @@ enum Primary {
 struct Attempting<'r, 'a> {
   asked: &'r WorkAsked<'a>,
   log: &'r mut RunLog,
-  shown: &'r (dyn Fn(&WentOut) + Sync),
+  shown: &'r dyn Shows,
   beside: Beside,
 }
 
@@ -658,7 +681,7 @@ impl Attempting<'_, '_> {
 
     let went_out = went_out_of(&sent.line);
 
-    (self.shown)(&went_out);
+    self.shown.went_out(&went_out);
     self.beside.went_out = Some(went_out);
     self
       .log
@@ -706,6 +729,7 @@ impl Attempting<'_, '_> {
       session: self.asked.session,
       run: &work.name,
       questions: self.asked.questions,
+      shown: self.shown,
     };
     let ending = put(ground, &turn, &mut watch).await.map_err(Failure::error)?;
     let primary = match ending {
@@ -808,6 +832,7 @@ struct WorkWatch<'w> {
   session: &'w SessionId,
   run: &'w str,
   questions: &'w Questions,
+  shown: &'w dyn Shows,
 }
 
 impl Watch for WorkWatch<'_> {
@@ -816,6 +841,12 @@ impl Watch for WorkWatch<'_> {
   }
 
   async fn record(&mut self, lines: &[String]) {
+    let texts = assistant_texts(lines);
+
+    if !texts.is_empty() {
+      self.shown.wrote(&texts);
+    }
+
     *self.compacted |= compacts(lines);
     self.log.feed(&self.ground.db, lines, PROVIDER).await;
   }
