@@ -4,9 +4,11 @@
 //! resident program on the chat line with the system prompt its settings compose; a session across rooms is
 //! the one its agent's row keeps, carried by its resident program on the chat line around the room block,
 //! the road and the base persona the turn's caller hands in, or by a stand-in where the agent's key walks onto
-//! one; an editor work key's session carries one editor run a turn and keeps nothing. A session is known by
-//! its agent and its scope — `<agent>@worker`, `<agent>@<room>`, `<agent>`, `<key>@editor` — and stands across
-//! the generations its harness opens.
+//! one; an editor work key's session carries one editor run a turn and keeps nothing; and a thrown-away
+//! session, held in memory from its start to its end, carries a co-work branch's or a research run's turns,
+//! each on a fresh harness session. A session is known by its agent and its scope — `<agent>@worker`,
+//! `<agent>@<room>`, `<agent>`, `<key>@editor`, `<agent>@apart:<n>` — and stands across the generations its
+//! harness opens.
 //!
 //! A turn is carried whole before *send a turn* answers with its end: whether the program took the words,
 //! or refused them while it waits on a person, and how it ended. Its end is published as `turn-ended`, and
@@ -14,14 +16,15 @@
 //! `turn-started`; a conversational turn's road as `road-walked`. Words pushed into a session are offered to
 //! the run its turn carries, which its door takes at its next look at the working program.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 pub use agent_session::EngineError;
 use agent_session::{
-  Aside, Context, Fault, FaultKind, Outcome, RoomBlock, Scope, Session, SessionId, Sessions, Start, State,
-  Turn, TurnContext, TurnEnd, WentOut,
+  Apart, Aside, Context, Fault, FaultKind, Outcome, RoomBlock, Scope, Session, SessionId, Sessions, Start,
+  State, Turn, TurnContext, TurnEnd, WentOut, WorkParts,
 };
 use indexmap::IndexMap;
 use policy::companion_runner::COMPANION_RUNNER;
@@ -45,7 +48,7 @@ use crate::door::record::{ModelSpend, UsageSpent};
 use crate::door::turn::{AsideOutcome, Quiet};
 use crate::editor_session::{EditorTurn, composed as editor_composed, editor_turn, is_editor, workdir_of};
 use crate::events::Event;
-use crate::job_run::claude::turn::{WorkAsked, carry, continues};
+use crate::job_run::claude::turn::{WorkAsked, WorkSeat, carry, continues};
 use crate::lines::chat::{ChatLaunch, RoomContext, compose_turn};
 use crate::lines::companion::{CompanionTurn, LOST_SESSION, compose, pinned_provider, registration_named};
 use crate::lines::editor::PROVIDER as EDITOR_PROVIDER;
@@ -208,6 +211,10 @@ pub struct HerdrSessions {
   // What each session's turn going now shows of itself to a reading of its state: what it went out on,
   // once its line is settled.
   showing: Mutex<HashMap<SessionId, WentOut>>,
+  // The thrown-away sessions started and not ended, each with its agent and its scope, and the number the
+  // next one is given.
+  apart: Mutex<BTreeMap<SessionId, (String, Apart)>>,
+  numbered: AtomicU64,
 }
 
 fn fault(kind: FaultKind, message: impl Into<String>) -> Fault {
@@ -253,9 +260,22 @@ pub fn carried_of(tokens: Option<i64>, ratio: Option<f64>) -> Option<Context> {
   })
 }
 
-// A thrown-away session asked of this backend, which carries none.
+/// The id a thrown-away session is started under: its agent and the number the backend gave it.
+pub fn apart_id(agent: &str, number: u64) -> SessionId {
+  SessionId(format!("{agent}@{APART}:{number}"))
+}
+
+/// Whether a session's id names a thrown-away session.
+pub fn is_apart(id: &SessionId) -> bool {
+  id.0
+    .split_once('@')
+    .and_then(|(_, scope)| scope.strip_prefix(APART))
+    .is_some_and(|rest| rest.strip_prefix(':').is_some_and(|number| number.parse::<u64>().is_ok()))
+}
+
+// A thrown-away session asked of what is no thrown-away session's to answer.
 fn apart_refused(agent: &str) -> Fault {
-  fault(FaultKind::Refused, format!("{agent}: this backend carries no thrown-away session"))
+  fault(FaultKind::Refused, format!("{agent}: a thrown-away session keeps no agent's row"))
 }
 
 // A room's id as the store keeps it.
@@ -378,11 +398,30 @@ impl HerdrSessions {
       places,
       going: Mutex::default(),
       showing: Mutex::default(),
+      apart: Mutex::default(),
+      numbered: AtomicU64::new(1),
     }
   }
 
   fn showing(&self) -> std::sync::MutexGuard<'_, HashMap<SessionId, WentOut>> {
     self.showing.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+  }
+
+  fn apart(&self) -> std::sync::MutexGuard<'_, BTreeMap<SessionId, (String, Apart)>> {
+    self.apart.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+  }
+
+  // The agent and scope a session's id names: a thrown-away session's as it was started, which one that
+  // has ended or was never started names none of.
+  fn scope_held(&self, id: &SessionId) -> Result<(String, Scope), Fault> {
+    if !is_apart(id) {
+      return Ok(scope_of(id));
+    }
+
+    match self.apart().get(id) {
+      Some((agent, apart)) => Ok((agent.clone(), Scope::Apart(apart.clone()))),
+      None => Err(fault(FaultKind::Unknown, format!("{id} is no thrown-away session standing now"))),
+    }
   }
 
   fn ground(&self) -> &Ground {
@@ -441,11 +480,21 @@ impl HerdrSessions {
   }
 
   // The agent a session's scope stands on, where it stands on one; an editor's session stands on its work
-  // key alone, which must be an editor's.
+  // key alone, which must be an editor's, and a thrown-away session on the name its turns run under, which
+  // is no agent's row.
   async fn admitted(&self, agent: &str, scope: &Scope) -> Result<Option<AgentRow>, Fault> {
     match scope {
       Scope::Editor if is_editor(agent) => Ok(None),
       Scope::Editor => Err(fault(FaultKind::Refused, format!("{agent} is no editor's work key"))),
+      Scope::Apart(apart) if apart.provider != worker_session::PROVIDER => Err(fault(
+        FaultKind::Refused,
+        format!(
+          "{agent}: a thrown-away session goes out on {}, not {}",
+          worker_session::PROVIDER,
+          apart.provider
+        ),
+      )),
+      Scope::Apart(_) => Ok(None),
       _ => self.checked(agent, scope).await.map(Some),
     }
   }
@@ -1029,6 +1078,39 @@ impl HerdrSessions {
     end
   }
 
+  // A state given the turn its session carries now and what that turn went out on.
+  fn going_shown(&self, session: &SessionId, state: &mut State) {
+    state.run = match self.going().get(session).map(Vec::as_slice) {
+      Some([run]) => Some(run.clone()),
+      _ => None,
+    };
+    state.went_out = self.showing().get(session).cloned();
+  }
+
+  // A job's turn carried on the seat given, what it went out on shown to a reading of its session's state
+  // while it goes.
+  async fn carried(
+    &self,
+    turn: &Turn,
+    agent: &str,
+    seat: WorkSeat<'_>,
+    work: &WorkParts,
+  ) -> Result<Came, Fault> {
+    let asked = WorkAsked {
+      ground: self.ground(),
+      agent,
+      seat,
+      work,
+      job: turn.context.job,
+      prompt: &turn.prompt,
+    };
+    let shown = |went_out: &WentOut| {
+      self.showing().insert(turn.session.clone(), went_out.clone());
+    };
+
+    carry(&asked, &shown).await.map(|end| Came::Ended(Box::new(end)))
+  }
+
   // A worker's latest session record, the one a fold or a reading of its state goes by.
   async fn latest_worker(&self, worker: &str) -> Result<Option<records::WorkerSession>, Fault> {
     Ok(records::sessions(&self.ground().db, worker).await.map_err(store_fault)?.pop())
@@ -1039,15 +1121,29 @@ impl Sessions for HerdrSessions {
   async fn start(&self, request: Start) -> Result<Session, Fault> {
     self.admitted(&request.agent, &request.scope).await?;
 
+    let id = match &request.scope {
+      Scope::Apart(apart) => {
+        if request.agent.trim().is_empty() || request.agent.contains('@') {
+          return Err(fault(FaultKind::Refused, format!("{} is no name a turn runs under", request.agent)));
+        }
+
+        let id = apart_id(&request.agent, self.numbered.fetch_add(1, Ordering::Relaxed));
+
+        self.apart().insert(id.clone(), (request.agent.clone(), apart.clone()));
+        id
+      }
+      scope => id_of(&request.agent, scope),
+    };
+
     Ok(Session {
-      id: id_of(&request.agent, &request.scope),
+      id,
       agent: request.agent,
       scope: request.scope,
     })
   }
 
   async fn push(&self, session: &SessionId, words: &str) -> Result<Aside, Fault> {
-    let (agent, scope) = scope_of(session);
+    let (agent, scope) = self.scope_held(session)?;
 
     self.admitted(&agent, &scope).await?;
 
@@ -1074,7 +1170,7 @@ impl Sessions for HerdrSessions {
   }
 
   async fn send_turn(&self, turn: Turn) -> Result<TurnEnd, Fault> {
-    let (agent, scope) = scope_of(&turn.session);
+    let (agent, scope) = self.scope_held(&turn.session)?;
     let row = self.admitted(&agent, &scope).await?;
     let at = now_ms();
     let room = match &scope {
@@ -1091,13 +1187,21 @@ impl Sessions for HerdrSessions {
       return Err(fault(FaultKind::Refused, why));
     }
 
-    // A worker's job turn goes out under the run name its runner gives it, on Claude Code alone.
+    // A job's turn goes out under the run name its runner gives it, on Claude Code alone; a thrown-away
+    // session carries nothing else.
     let work = match scope {
-      Scope::Worker => turn.context.work.as_ref(),
+      Scope::Worker | Scope::Apart(_) => turn.context.work.as_ref(),
       _ => None,
     };
 
-    if let Some(work) = work
+    if matches!(scope, Scope::Apart(_)) && work.is_none() {
+      return Err(fault(
+        FaultKind::Refused,
+        format!("{}: a thrown-away session's turn names its work parts", turn.session),
+      ));
+    }
+
+    if let (Scope::Worker, Some(work)) = (&scope, work)
       && work.provider != worker_session::PROVIDER
     {
       return Err(fault(
@@ -1144,26 +1248,17 @@ impl Sessions for HerdrSessions {
         keep_worker_job(db, &agent, turn.context.job).await;
 
         let came = match work {
-          Some(work) => {
-            let asked = WorkAsked {
-              ground: self.ground(),
-              row,
-              work,
-              job: turn.context.job,
-              prompt: &turn.prompt,
-            };
-            let shown = |went_out: &WentOut| {
-              self.showing().insert(turn.session.clone(), went_out.clone());
-            };
-
-            carry(&asked, &shown).await.map(|end| Came::Ended(Box::new(end)))
-          }
+          Some(work) => self.carried(&turn, &agent, WorkSeat::Worker(row), work).await,
           None => self.worker_turn(row, &run, &turn.prompt).await,
         };
 
         keep_worker_job(db, &agent, None).await;
         came
       }
+      (Scope::Apart(apart), _) => match work {
+        Some(work) => self.carried(&turn, &agent, WorkSeat::Apart(apart), work).await,
+        None => Err(apart_refused(&agent)),
+      },
       (Scope::Worker, None) => Err(fault(FaultKind::Unknown, format!("no worker is named {agent}"))),
       (Scope::Editor, _) => {
         let asked = EditorTurn {
@@ -1183,7 +1278,6 @@ impl Sessions for HerdrSessions {
         Err(refused) => Err(refused),
       },
       (Scope::Agent, _) => self.agent_turn(&agent, &run, &turn.prompt, &turn.context).await,
-      (Scope::Apart(_), _) => Err(apart_refused(&agent)),
     };
 
     self.ended(&turn.session, &run);
@@ -1199,7 +1293,7 @@ impl Sessions for HerdrSessions {
   }
 
   async fn read_state(&self, session: &SessionId, model: Option<&str>) -> Result<State, Fault> {
-    let (agent, scope) = scope_of(session);
+    let (agent, scope) = self.scope_held(session)?;
 
     self.admitted(&agent, &scope).await?;
 
@@ -1271,11 +1365,7 @@ impl Sessions for HerdrSessions {
           carried_of(held.context_tokens, held.context_ratio),
         );
 
-        state.run = match self.going().get(session).map(Vec::as_slice) {
-          Some([run]) => Some(run.clone()),
-          _ => None,
-        };
-        state.went_out = self.showing().get(session).cloned();
+        self.going_shown(session, &mut state);
         state.continues = match model {
           Some(model) => continues(ground, &agent, model).await.map_err(store_fault)?,
           None => None,
@@ -1283,7 +1373,19 @@ impl Sessions for HerdrSessions {
 
         Ok(state)
       }
-      Scope::Apart(_) => Err(apart_refused(&agent)),
+      Scope::Apart(apart) => {
+        let mut state = State::standing(
+          session.clone(),
+          apart.provider.clone(),
+          apart.model.clone(),
+          apart.cwd.clone(),
+          1,
+          None,
+        );
+
+        self.going_shown(session, &mut state);
+        Ok(state)
+      }
     }
   }
 
@@ -1299,7 +1401,7 @@ impl Sessions for HerdrSessions {
   }
 
   async fn fold(&self, session: &SessionId) -> Result<(), Fault> {
-    let (agent, scope) = scope_of(session);
+    let (agent, scope) = self.scope_held(session)?;
     let row = self.admitted(&agent, &scope).await?;
     let ground = self.ground();
 
@@ -1352,12 +1454,15 @@ impl Sessions for HerdrSessions {
           Folded::Failed => Err(fault(FaultKind::Refused, format!("{session} could not be folded"))),
         }
       }
-      Scope::Apart(_) => Err(apart_refused(&agent)),
+      Scope::Apart(_) => Err(fault(
+        FaultKind::Refused,
+        format!("{session} is thrown away, every turn on a fresh session"),
+      )),
     }
   }
 
   async fn end(&self, session: &SessionId) -> Result<(), Fault> {
-    let (agent, scope) = scope_of(session);
+    let (agent, scope) = self.scope_held(session)?;
 
     self.admitted(&agent, &scope).await?;
 
@@ -1395,7 +1500,9 @@ impl Sessions for HerdrSessions {
             .map_err(store_fault)?;
         }
       }
-      Scope::Apart(_) => return Err(apart_refused(&agent)),
+      Scope::Apart(_) => {
+        self.apart().remove(session);
+      }
     }
 
     Ok(())
@@ -1449,6 +1556,14 @@ impl Sessions for HerdrSessions {
         id: id_of(&agent, &Scope::Worker),
         agent,
         scope: Scope::Worker,
+      });
+    }
+
+    for (id, (agent, apart)) in self.apart().iter() {
+      listed.push(Session {
+        id: id.clone(),
+        agent: agent.clone(),
+        scope: Scope::Apart(apart.clone()),
       });
     }
 

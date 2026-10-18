@@ -241,8 +241,9 @@ impl Route for PlaceTake {
     let slot = places::take_slot(call.ground(), &asked, &held(&body), now_ms())
       .await
       .map_err(refused)?;
+    let cwd = places::slot_cwd(call.ground(), asked.cwd, slot).await;
 
-    Ok(answer(StatusCode::OK, json!({ "slot": slot })))
+    Ok(answer(StatusCode::OK, json!({ "slot": slot, "cwd": cwd.to_string_lossy() })))
   }
 }
 

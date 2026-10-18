@@ -7,6 +7,7 @@ mod scratch;
 #[path = "../support/standing.rs"]
 mod standing;
 
+mod apart_session;
 mod chat_stand_in;
 mod clock;
 mod command_reading {

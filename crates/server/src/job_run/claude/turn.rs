@@ -10,9 +10,15 @@
 //! carries that choice through the worker's records, the held session's judgement and the door, and
 //! judges none of it. Where the session the turn settles on is not the one its runner composed its prompt
 //! for, nothing goes in and the turn goes back to its runner with the session it would continue.
+//!
+//! A thrown-away session's turn — a co-work branch's or a research run's — is the same turn on a session
+//! nothing keeps: on the provider, model and folder its scope names, always fresh, with nothing of a
+//! worker's records read, judged, recorded or remembered for it, in the standing branch checkout its
+//! folder is or in a pane of its own.
 
 use agent_session::{
-  self as contract, EngineError, Fault, FaultKind, JobMark, Outcome, Resume, TurnEnd, WentOut, WorkParts,
+  self as contract, Apart, EngineError, Fault, FaultKind, JobMark, Outcome, Resume, TurnEnd, WentOut,
+  WorkParts,
 };
 use sea_orm::DatabaseConnection;
 use serde_json::Value;
@@ -31,6 +37,8 @@ use crate::lines::Trees;
 use crate::lines::place::Place;
 use crate::lines::standing::{claim_standby, session_ttl_ms, worker_prefix_digest};
 use crate::lines::worker::{WorkerRun, effort_of, worker_run};
+use crate::places::branch::{self, BranchRun};
+use crate::places::home::Home;
 use crate::places::{AgentRow, Ground, locks};
 use crate::queue::stops::job_stop_reason;
 use crate::run_log::lines::Line;
@@ -39,7 +47,9 @@ use crate::run_log::{RunLog, Target};
 use crate::worker_session::fold::{fold, worker_session_full};
 use crate::worker_session::held::{self, SessionRun};
 use crate::worker_session::records::{self, fallen_model, heal, launch_model, note_carried, record};
-use crate::worker_session::{Composed, PROVIDER, UNKNOWN_SESSION, compose, evidence};
+use crate::worker_session::{
+  Composed, PROVIDER, UNKNOWN_SESSION, compose, compose_at, compose_own, evidence,
+};
 
 /// The variable the agent a turn's program is a turn of goes by, so what the verbs it runs file stands
 /// under that agent.
@@ -48,14 +58,48 @@ pub const TURN_AGENT: &str = "BMO_TURN_AGENT";
 /// The variable that tells the verbs a turn's program runs that they work for the turn's job.
 pub const TASK_LOCKED: &str = "BMO_TASK_LOCKED";
 
-/// A job's turn as its runner asks it: the worker whose session it goes on, its work parts, the job it is
-/// of, and its words.
+/// A job's turn as its runner asks it: the agent it runs as, the session it goes on, its work parts, the
+/// job it is of, and its words.
 pub struct WorkAsked<'a> {
   pub ground: &'a Ground,
-  pub row: &'a AgentRow,
+  pub agent: &'a str,
+  pub seat: WorkSeat<'a>,
   pub work: &'a WorkParts,
   pub job: Option<JobMark>,
   pub prompt: &'a str,
+}
+
+/// The session a job's turn goes on: the worker's own, by its row, or one thrown away, by its scope.
+#[derive(Clone, Copy)]
+pub enum WorkSeat<'a> {
+  Worker(&'a AgentRow),
+  Apart(&'a Apart),
+}
+
+/// Where a thrown-away session's turn goes: the standing branch checkout its folder is, under the co-work
+/// task's label, or a pane of its own on this machine's herdr.
+#[derive(Clone, Debug)]
+pub enum ApartSeat {
+  Standing(Home),
+  Own(herdr::Herdr),
+}
+
+/// Where a thrown-away session's turn goes, by the folder its scope names; none where it names no
+/// standing checkout and this machine names no herdr to open a pane on.
+pub fn apart_seat(ground: &Ground, apart: &Apart) -> Option<ApartSeat> {
+  let run = match (apart.todo, &apart.role) {
+    (Some(todo), Some(role)) => Some(BranchRun {
+      todo,
+      role: role.clone(),
+    }),
+    _ => None,
+  };
+
+  match branch::home(ground, &apart.cwd, run.as_ref()) {
+    Some(home) => Some(ApartSeat::Standing(home)),
+    None if branch::place_of(&ground.roots.data, &apart.cwd).is_some() => None,
+    None => ground.herdr.clone().map(ApartSeat::Own),
+  }
 }
 
 /// Which session an attempt goes on, or that the turn goes back to its runner with the session it would
@@ -338,15 +382,19 @@ pub fn ended(run: &str, walked: Result<Settled, Failure>, beside: Beside) -> Tur
   }
 }
 
-/// One job's turn carried on its worker's session to its end. A turn naming a provider other than Claude
-/// Code, or a user that is no user's id, is refused; every other way the turn ends is its end.
+/// One job's turn carried on its session to its end. A turn on a provider other than Claude Code, or naming
+/// a user that is no user's id, is refused; every other way the turn ends is its end.
 pub async fn carry(asked: &WorkAsked<'_>, shown: &(dyn Fn(&WentOut) + Sync)) -> Result<TurnEnd, Fault> {
   let work = asked.work;
+  let provider = match asked.seat {
+    WorkSeat::Worker(_) => &work.provider,
+    WorkSeat::Apart(apart) => &apart.provider,
+  };
 
-  if work.provider != PROVIDER {
+  if provider != PROVIDER {
     return Err(Fault::new(
       FaultKind::Refused,
-      format!("{}: a worker's session stands on {PROVIDER}, not {}", asked.row.name, work.provider),
+      format!("{}: a job's turn goes out on {PROVIDER}, not {provider}", asked.agent),
     ));
   }
 
@@ -359,7 +407,7 @@ pub async fn carry(asked: &WorkAsked<'_>, shown: &(dyn Fn(&WentOut) + Sync)) -> 
     ),
   };
   let mut log = RunLog::new(Target {
-    agent: asked.row.name.clone(),
+    agent: asked.agent.to_owned(),
     run: work.unit.clone().unwrap_or_else(|| work.name.clone()),
     chat_id: Some(work.chat),
     job_id: asked.job.map(|job| job.job),
@@ -413,7 +461,7 @@ impl Attempt<Settled> for Attempting<'_, '_> {
   async fn attempt(&mut self, account: Option<Account>) -> Result<Settled, Failure> {
     let ground = self.asked.ground;
     let data = &ground.roots.data;
-    let on_node = Place::of(data, &self.asked.row.name).node().is_some();
+    let on_node = self.standing_agent().is_some_and(|agent| Place::of(data, &agent).node().is_some());
 
     if on_node
       && let Some(held) = &account
@@ -438,12 +486,33 @@ impl Attempt<Settled> for Attempting<'_, '_> {
 }
 
 impl Attempting<'_, '_> {
+  // The agent whose standing program the turn goes into: the worker, or the standing branch checkout a
+  // thrown-away session's folder is; none for a pane of the turn's own.
+  fn standing_agent(&self) -> Option<String> {
+    match self.asked.seat {
+      WorkSeat::Worker(row) => Some(row.name.clone()),
+      WorkSeat::Apart(apart) => match apart_seat(self.asked.ground, apart) {
+        Some(ApartSeat::Standing(home)) => Some(home.agent),
+        _ => None,
+      },
+    }
+  }
+
   // One login's attempt: the owner's reset and the standby first, the session the turn's resume settles on,
-  // and the turn asked again on a fresh session where the program has lost the one it resumed.
+  // and the turn asked again on a fresh session where the program has lost the one it resumed. A
+  // thrown-away session's turn reads none of a worker's sessions and resumes nothing.
   async fn on_login(&mut self, account: Option<Account>) -> Result<Settled, Failure> {
     let ground = self.asked.ground;
     let work = self.asked.work;
-    let worker = self.asked.row.name.as_str();
+    let worker = self.asked.agent;
+
+    if let WorkSeat::Apart(_) = self.asked.seat {
+      return match self.primary(None, account).await? {
+        Primary::Answered(reply) => Ok(Settled::Answered(reply)),
+        Primary::Back(continues) => Ok(Settled::Back(continues)),
+        Primary::Unanswered(left) => Err(of_unanswered(&left, &work.work_key)),
+      };
+    }
     let recorded = account.as_ref().map_or_else(
       || crate::control::claude_accounts::SEED_ACCOUNT.to_owned(),
       |account| account.id.clone(),
@@ -504,26 +573,29 @@ impl Attempting<'_, '_> {
     let ground = self.asked.ground;
     let db = &ground.db;
     let work = self.asked.work;
-    let row = self.asked.row;
-    let worker = row.name.as_str();
+    let seat = self.asked.seat;
+    let worker = self.asked.agent;
     let trees = Trees::of(ground);
     let machine = ground.machine();
-    let mut line = worker_run(ground, &trees, Some(worker), &work.model, &work.cwd)
-      .await
-      .map_err(refused)?;
+    // A thrown-away session goes out on the model and in the folder its scope names.
+    let (kept_on, model, cwd) = match seat {
+      WorkSeat::Worker(_) => (&work.model, &work.mapping.model, &work.cwd),
+      WorkSeat::Apart(apart) => (&apart.model, &apart.model, &apart.cwd),
+    };
+    let mut line = worker_run(ground, &trees, Some(worker), kept_on, cwd).await.map_err(refused)?;
 
     line.effort = effort_of(
       ground,
       &machine,
       PROVIDER,
-      &work.mapping.model,
+      model,
       work.mapping.effort.as_deref(),
       line.reasoning.as_ref(),
     )
     .await
     .map_err(refused)?
     .unwrap_or_default();
-    line.model.clone_from(&work.mapping.model);
+    line.model.clone_from(model);
     line.tier.clone_from(&work.mapping.tier);
 
     // A kept session the safeguard refused goes out on the model that answered it, whatever the mapping
@@ -552,7 +624,11 @@ impl Attempting<'_, '_> {
       placement: None,
       thread: work.thread.clone(),
     };
-    let prepared = held::prepare(ground, worker, session).await.map_err(refused)?;
+    // A session thrown away is no session the worker holds, and is judged by nothing.
+    let prepared = match seat {
+      WorkSeat::Worker(_) => held::prepare(ground, worker, session).await.map_err(refused)?,
+      WorkSeat::Apart(_) => session,
+    };
 
     if !provider_enabled(db, PROVIDER).await.map_err(|why| Failure::error(why.error))? {
       return Err(Failure::Unavailable {
@@ -563,7 +639,7 @@ impl Attempting<'_, '_> {
     }
 
     // The session the runner named, replaced by the judging, is not the one its prompt was composed for.
-    if let Resume::Session { id } = &work.resume
+    if let (WorkSeat::Worker(_), Resume::Session { id }) = (seat, &work.resume)
       && prepared.resume.as_deref() != Some(id.as_str())
     {
       return Ok(Primary::Back(prepared.resume.clone()));
@@ -592,20 +668,31 @@ impl Attempting<'_, '_> {
       )
       .await;
 
-    let composed = compose(
-      ground,
-      row,
-      &sent.line,
-      sent.account.as_ref(),
-      sent.resume.as_deref(),
-      Composed {
-        name: work.name.clone(),
-        title: work.title.clone(),
-        prompt: sent.prompt.clone(),
-        bound: None,
+    let composing = Composed {
+      name: work.name.clone(),
+      title: work.title.clone(),
+      prompt: sent.prompt.clone(),
+      bound: None,
+    };
+    let account = sent.account.as_ref();
+    let composed = match seat {
+      WorkSeat::Worker(row) => {
+        compose(ground, row, &sent.line, account, sent.resume.as_deref(), composing).await
+      }
+      WorkSeat::Apart(apart) => match apart_seat(ground, apart) {
+        Some(ApartSeat::Standing(home)) => {
+          let agent = home.agent.clone();
+
+          compose_at(ground, &agent, home, &sent.line, account, None, composing).await
+        }
+        Some(ApartSeat::Own(herdr)) => compose_own(ground, herdr, &sent.line, account, composing),
+        None => {
+          return Err(Failure::Transport {
+            message: format!("{worker}: this machine names no herdr for the place {cwd} stands in"),
+          });
+        }
       },
-    )
-    .await
+    }
     .map_err(refused)?;
     let turn = with_work(composed, worker, work, self.asked.job);
     let mut watch = WorkWatch {
@@ -618,8 +705,11 @@ impl Attempting<'_, '_> {
       Ending::Blocked { .. } => Err(Failure::Person),
       Ending::Untrusted { folder, config, .. } => Err(Failure::Untrusted { folder, config }),
       Ending::Answered { reply, .. } => {
-        held::remember(ground, worker, &prepared, &reply).await.map_err(refused)?;
-        self.kept(&sent, &own, &reply).await.map_err(refused)?;
+        // A session thrown away keeps no record of what it was sent or of the model it fell to.
+        if let WorkSeat::Worker(row) = seat {
+          held::remember(ground, worker, &prepared, &reply).await.map_err(refused)?;
+          self.kept(row, &sent, &own, &reply).await.map_err(refused)?;
+        }
 
         Ok(Primary::Answered(reply))
       }
@@ -643,10 +733,10 @@ impl Attempting<'_, '_> {
 
   // The session that answered recorded for the turn's model and login — unless it answered on a lesser
   // model, when its record is dropped — with the context it carried, and folded once it is full.
-  async fn kept(&self, sent: &SessionRun, own: &str, reply: &Reply) -> Result<(), Refusal> {
+  async fn kept(&self, row: &AgentRow, sent: &SessionRun, own: &str, reply: &Reply) -> Result<(), Refusal> {
     let ground = self.asked.ground;
     let work = self.asked.work;
-    let worker = self.asked.row.name.as_str();
+    let worker = row.name.as_str();
     let Some(session_id) = reply.session_id.clone() else {
       println!("{worker}: the job's turn named no session, so there is none to hold open");
 
@@ -678,7 +768,7 @@ impl Attempting<'_, '_> {
 
     if worker_session_full(reply.context_ratio) {
       println!("{worker} {}: {session_id} is full, folding it", work.model);
-      fold(ground, self.asked.row, &work.model, &account, &session_id).await;
+      fold(ground, row, &work.model, &account, &session_id).await;
     }
 
     Ok(())
