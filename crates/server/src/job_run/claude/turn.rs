@@ -17,10 +17,9 @@
 //! folder is or in a pane of its own.
 
 use agent_session::{
-  self as contract, Apart, EngineError, Fault, FaultKind, JobMark, Outcome, Resume, TurnEnd, WentOut,
-  WorkParts,
+  self as contract, Apart, EngineError, Fault, FaultKind, JobMark, Outcome, Resume, SessionId, TurnEnd,
+  WentOut, WorkParts,
 };
-use sea_orm::DatabaseConnection;
 use serde_json::Value;
 
 use super::failure::{AccountFailure, Failure, RunEnding, of_unanswered};
@@ -29,6 +28,7 @@ use super::walk::{Attempt, Walking, on_accounts};
 use crate::Refusal;
 use crate::control::claude_accounts::Account;
 use crate::control::harness::provider_enabled;
+use crate::door::confirm::{Asking, Confirmation};
 use crate::door::execution::{cancelled, execution_root};
 use crate::door::record::Reply;
 use crate::door::turn::{Ending, Turn, Watch, put};
@@ -44,6 +44,7 @@ use crate::queue::stops::job_stop_reason;
 use crate::run_log::lines::Line;
 use crate::run_log::spans::JobSpan;
 use crate::run_log::{RunLog, Target};
+use crate::session_questions::{Questions, TurnQuestion};
 use crate::worker_session::fold::{fold, worker_session_full};
 use crate::worker_session::held::{self, SessionRun};
 use crate::worker_session::records::{self, fallen_model, heal, launch_model, note_carried, record};
@@ -67,6 +68,9 @@ pub struct WorkAsked<'a> {
   pub work: &'a WorkParts,
   pub job: Option<JobMark>,
   pub prompt: &'a str,
+  /// The session the turn goes on, which a question the turn stops on is put to the caller under.
+  pub session: &'a SessionId,
+  pub questions: &'a Questions,
 }
 
 /// The session a job's turn goes on: the worker's own, by its row, or one thrown away, by its scope.
@@ -696,9 +700,12 @@ impl Attempting<'_, '_> {
     .map_err(refused)?;
     let turn = with_work(composed, worker, work, self.asked.job);
     let mut watch = WorkWatch {
-      db,
+      ground,
       log: self.log,
       compacted: &mut self.beside.compacted,
+      session: self.asked.session,
+      run: &work.name,
+      questions: self.asked.questions,
     };
     let ending = put(ground, &turn, &mut watch).await.map_err(Failure::error)?;
     let primary = match ending {
@@ -793,20 +800,40 @@ impl Attempting<'_, '_> {
 }
 
 // What a job's turn is watched with: the run log it feeds, and whether the program compacted its session.
+// A question the program stops on is put to the turn's caller over the session it goes on.
 struct WorkWatch<'w> {
-  db: &'w DatabaseConnection,
+  ground: &'w Ground,
   log: &'w mut RunLog,
   compacted: &'w mut bool,
+  session: &'w SessionId,
+  run: &'w str,
+  questions: &'w Questions,
 }
 
 impl Watch for WorkWatch<'_> {
   async fn note(&mut self, text: &str) {
-    self.log.write(self.db, Line::note(text)).await;
+    self.log.write(&self.ground.db, Line::note(text)).await;
   }
 
   async fn record(&mut self, lines: &[String]) {
     *self.compacted |= compacts(lines);
-    self.log.feed(self.db, lines, PROVIDER).await;
+    self.log.feed(&self.ground.db, lines, PROVIDER).await;
+  }
+
+  fn puts_questions(&self) -> bool {
+    true
+  }
+
+  async fn confirm(&mut self, asked: &Confirmation) -> Option<Asking> {
+    let (question, asking) = self.questions.put(self.session, asked);
+
+    self.ground.events.publish(TurnQuestion {
+      session: self.session.0.clone(),
+      run: self.run.to_owned(),
+      question,
+    });
+
+    Some(asking)
   }
 }
 

@@ -135,6 +135,7 @@ mod rest;
 mod rooms;
 mod run_clock;
 mod seeds;
+mod session_questions;
 mod stand_in;
 
 mod run_log {

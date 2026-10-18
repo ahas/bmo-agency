@@ -61,6 +61,7 @@ pub mod run_clock;
 pub mod run_ledger;
 pub mod run_log;
 pub mod seeds;
+pub mod session_questions;
 pub mod stand_in;
 pub mod text;
 

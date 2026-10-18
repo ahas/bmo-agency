@@ -16,15 +16,15 @@
 //! `turn-started`; a conversational turn's road as `road-walked`. Words pushed into a session are offered to
 //! the run its turn carries, which its door takes at its next look at the working program.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 pub use agent_session::EngineError;
 use agent_session::{
-  Apart, Aside, Context, Fault, FaultKind, Outcome, RoomBlock, Scope, Session, SessionId, Sessions, Start,
-  State, Turn, TurnContext, TurnEnd, WentOut, WorkParts,
+  Answer, Apart, Aside, Context, Fault, FaultKind, Outcome, RoomBlock, Scope, Session, SessionId, Sessions,
+  Start, State, Turn, TurnContext, TurnEnd, WentOut, WorkParts,
 };
 use indexmap::IndexMap;
 use policy::companion_runner::COMPANION_RUNNER;
@@ -55,6 +55,7 @@ use crate::lines::editor::PROVIDER as EDITOR_PROVIDER;
 use crate::places::{AgentRow, Ground, Places};
 use crate::run_log::lines::Line;
 use crate::run_log::{RunLog, Target};
+use crate::session_questions::Questions;
 use crate::watches::machine::keep_worker_job;
 use crate::worker_session::fold::{Folded, fold};
 use crate::worker_session::records::{self, note_answer, slot_account};
@@ -215,6 +216,10 @@ pub struct HerdrSessions {
   // next one is given.
   apart: Mutex<BTreeMap<SessionId, (String, Apart)>>,
   numbered: AtomicU64,
+  // The questions the sessions' turns stand on, put to their callers.
+  questions: Questions,
+  // The sessions whose turn going now hears no words pushed into it.
+  deaf: Mutex<HashSet<SessionId>>,
 }
 
 fn fault(kind: FaultKind, message: impl Into<String>) -> Fault {
@@ -258,6 +263,12 @@ pub fn carried_of(tokens: Option<i64>, ratio: Option<f64>) -> Option<Context> {
     carried,
     window: (carried as f64 / ratio).round() as u64,
   })
+}
+
+/// Whether words pushed into a session reach the turn it carries: a job's turn says so in its work parts,
+/// and every other turn hears them.
+pub fn hears_words(work: Option<&WorkParts>) -> bool {
+  work.is_none_or(|work| work.hears_words)
 }
 
 /// The id a thrown-away session is started under: its agent and the number the backend gave it.
@@ -400,7 +411,13 @@ impl HerdrSessions {
       showing: Mutex::default(),
       apart: Mutex::default(),
       numbered: AtomicU64::new(1),
+      questions: Questions::default(),
+      deaf: Mutex::default(),
     }
+  }
+
+  fn deaf(&self) -> std::sync::MutexGuard<'_, HashSet<SessionId>> {
+    self.deaf.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
   }
 
   fn showing(&self) -> std::sync::MutexGuard<'_, HashMap<SessionId, WentOut>> {
@@ -441,6 +458,8 @@ impl HerdrSessions {
   fn ended(&self, session: &SessionId, run: &str) {
     aside::forget(run);
     self.showing().remove(session);
+    self.questions.clear(session);
+    self.deaf().remove(session);
 
     let mut going = self.going();
 
@@ -1085,6 +1104,7 @@ impl HerdrSessions {
       _ => None,
     };
     state.went_out = self.showing().get(session).cloned();
+    state.question = self.questions.shown(session);
   }
 
   // A job's turn carried on the seat given, what it went out on shown to a reading of its session's state
@@ -1103,6 +1123,8 @@ impl HerdrSessions {
       work,
       job: turn.context.job,
       prompt: &turn.prompt,
+      session: &turn.session,
+      questions: &self.questions,
     };
     let shown = |went_out: &WentOut| {
       self.showing().insert(turn.session.clone(), went_out.clone());
@@ -1146,6 +1168,11 @@ impl Sessions for HerdrSessions {
     let (agent, scope) = self.scope_held(session)?;
 
     self.admitted(&agent, &scope).await?;
+
+    // A job's turn that hears no words takes none.
+    if self.deaf().contains(session) {
+      return Ok(Aside::Refused);
+    }
 
     // The run the session's turn carries now; a session carrying several, an editor's, takes words into none.
     let run = match self.going().get(session).map(Vec::as_slice) {
@@ -1233,6 +1260,10 @@ impl Sessions for HerdrSessions {
       }
 
       runs.push(run.clone());
+    }
+
+    if !hears_words(work) {
+      self.deaf().insert(turn.session.clone());
     }
 
     self.ground().events.publish(TurnStarted {
@@ -1386,6 +1417,22 @@ impl Sessions for HerdrSessions {
         self.going_shown(session, &mut state);
         Ok(state)
       }
+    }
+  }
+
+  // A worker's and a thrown-away session's turns put their questions to their caller; every other scope's
+  // leaves them standing for a person, and takes no answer.
+  async fn answer(&self, session: &SessionId, question: &str, answer: Answer) -> Result<(), Fault> {
+    let (agent, scope) = self.scope_held(session)?;
+
+    self.admitted(&agent, &scope).await?;
+
+    match scope {
+      Scope::Worker | Scope::Apart(_) => self.questions.answer(session, question, answer),
+      _ => Err(fault(
+        FaultKind::Unknown,
+        format!("{session} puts no question to its caller, so it stands on no question {question}"),
+      )),
     }
   }
 
