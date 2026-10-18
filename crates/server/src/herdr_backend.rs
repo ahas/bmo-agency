@@ -233,16 +233,23 @@ fn store_fault(refusal: Refusal) -> Fault {
   fault(FaultKind::Unreachable, refusal.detail)
 }
 
-/// A session's id: its agent and its scope.
-pub fn id_of(agent: &str, scope: &Scope) -> SessionId {
-  SessionId(match scope {
+/// A session's id: its agent and its scope. A thrown-away session has none to name here, since its id
+/// carries the number the backend gives it as it starts (`apart_id`).
+pub fn id_of(agent: &str, scope: &Scope) -> Option<SessionId> {
+  let id = match scope {
     Scope::Agent => agent.to_owned(),
     Scope::Room(room) => format!("{agent}@{room}"),
     Scope::Worker => format!("{agent}@{WORKER}"),
     Scope::Editor => format!("{agent}@{EDITOR}"),
-    // A thrown-away session is numbered by the backend that holds it, as it starts.
-    Scope::Apart(_) => format!("{agent}@{APART}"),
-  })
+    Scope::Apart(_) => return None,
+  };
+
+  Some(SessionId(id))
+}
+
+// A session the list names, where its scope gives it an id.
+fn listed(agent: String, scope: Scope) -> Option<Session> {
+  id_of(&agent, &scope).map(|id| Session { id, agent, scope })
 }
 
 /// The agent and scope a session's id names.
@@ -708,10 +715,13 @@ impl HerdrSessions {
 
       if changed {
         log.write(&db, Line::note(COMPANION_RUNNER.log.system_changed.clone())).await;
-        ground.events.publish(SystemPromptChanged {
-          session: id_of(agent, &Scope::Room(chat_id.to_string())).0,
-          run: run.to_owned(),
-        });
+
+        if let Some(session) = id_of(agent, &Scope::Room(chat_id.to_string())) {
+          ground.events.publish(SystemPromptChanged {
+            session: session.0,
+            run: run.to_owned(),
+          });
+        }
       }
     }
 
@@ -1178,7 +1188,9 @@ impl Sessions for HerdrSessions {
         self.apart().insert(id.clone(), (request.agent.clone(), apart.clone()));
         id
       }
-      scope => id_of(&request.agent, scope),
+      scope => id_of(&request.agent, scope).ok_or_else(|| {
+        fault(FaultKind::Refused, format!("{}: its scope names no session", request.agent))
+      })?,
     };
 
     Ok(Session {
@@ -1599,7 +1611,7 @@ impl Sessions for HerdrSessions {
 
   async fn list(&self) -> Result<Vec<Session>, Fault> {
     let db = &self.ground().db;
-    let mut listed = vec![];
+    let mut sessions = vec![];
     let rooms = all(db, "SELECT agent, chat_id FROM room_sessions ORDER BY agent, chat_id", vec![])
       .await
       .map_err(|why| store_fault(why.into()))?;
@@ -1607,13 +1619,8 @@ impl Sessions for HerdrSessions {
     for row in rooms {
       let agent: String = row.try_get("", "agent").map_err(|why| store_fault(why.into()))?;
       let chat_id: i64 = row.try_get("", "chat_id").map_err(|why| store_fault(why.into()))?;
-      let scope = Scope::Room(chat_id.to_string());
 
-      listed.push(Session {
-        id: id_of(&agent, &scope),
-        agent,
-        scope,
-      });
+      sessions.extend(listed(agent, Scope::Room(chat_id.to_string())));
     }
 
     let across = all(
@@ -1627,11 +1634,7 @@ impl Sessions for HerdrSessions {
     for row in across {
       let agent: String = row.try_get("", "name").map_err(|why| store_fault(why.into()))?;
 
-      listed.push(Session {
-        id: id_of(&agent, &Scope::Agent),
-        agent,
-        scope: Scope::Agent,
-      });
+      sessions.extend(listed(agent, Scope::Agent));
     }
 
     let workers = all(db, "SELECT DISTINCT worker FROM worker_sessions ORDER BY worker", vec![])
@@ -1641,22 +1644,18 @@ impl Sessions for HerdrSessions {
     for row in workers {
       let agent: String = row.try_get("", "worker").map_err(|why| store_fault(why.into()))?;
 
-      listed.push(Session {
-        id: id_of(&agent, &Scope::Worker),
-        agent,
-        scope: Scope::Worker,
-      });
+      sessions.extend(listed(agent, Scope::Worker));
     }
 
     for (id, (agent, apart)) in self.apart().iter() {
-      listed.push(Session {
+      sessions.push(Session {
         id: id.clone(),
         agent: agent.clone(),
         scope: Scope::Apart(apart.clone()),
       });
     }
 
-    Ok(listed)
+    Ok(sessions)
   }
 }
 

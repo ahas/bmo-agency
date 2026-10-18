@@ -1,21 +1,35 @@
-//! The herdr backend's session ids: each names its agent and its scope, and reads back as both; and a failed
+//! The herdr backend's session ids: each names its agent and its scope, and reads back as both, but for a
+//! thrown-away session's, which only its start numbers; and a failed
 //! turn's ending, which carries the engine's error kind where its engine ended it with one.
 
 use agency_server::companion::run::NoAnswer;
 use agency_server::herdr_backend::{TurnEnded, failure_of, id_of, scope_of};
-use agent_session::{Scope, SessionId, TurnEnd};
+use agent_session::{Apart, Scope, SessionId, TurnEnd};
 use serde_json::json;
 
 #[test]
 fn a_session_id_names_its_agent_and_scope_and_reads_back() {
   for scope in [Scope::Agent, Scope::Worker, Scope::Room("-1001".into())] {
-    let id = id_of("companion-a", &scope);
+    let id = id_of("companion-a", &scope).expect("the scope names a session");
 
     assert_eq!(scope_of(&id), ("companion-a".to_owned(), scope));
   }
 
-  assert_eq!(id_of("worker-a", &Scope::Worker), SessionId("worker-a@worker".into()));
-  assert_eq!(id_of("companion-a", &Scope::Room("7".into())), SessionId("companion-a@7".into()));
+  assert_eq!(id_of("worker-a", &Scope::Worker), Some(SessionId("worker-a@worker".into())));
+  assert_eq!(id_of("companion-a", &Scope::Room("7".into())), Some(SessionId("companion-a@7".into())));
+}
+
+#[test]
+fn no_id_is_named_for_a_thrown_away_session_ahead_of_its_start() {
+  let apart = Apart {
+    provider: "claude-code".into(),
+    model: "claude-opus-5".into(),
+    cwd: "/checkouts/a".into(),
+    todo: Some(1802),
+    role: Some("build".into()),
+  };
+
+  assert_eq!(id_of("branch-a", &Scope::Apart(apart)), None);
 }
 
 #[test]
