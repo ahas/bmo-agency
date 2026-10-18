@@ -292,11 +292,11 @@ are the companion unit's, not agency's. This document covers only what agency ho
 - **A failure says nothing in the companion's name,** but for one its engine ended. The turn ends
   failed with its reason, which the console shows on the turn's line. A turn cut short is told to the
   room under the chat agent's number (「A turn that goes nowhere」 below).
-- **A turn its engine ended with an error leaves one line in the room** under the companion's own
-  number: that the engine's error kept it from answering, in plain words chosen by the error's kind
-  (busy or over its limit, refused, an answer too long, or any other error). The kind is the one the
-  program's record and its `StopFailure` hook carry (`docs/agent-control.md`, 「What a resident turn
-  reads」).
+- **A turn its engine ended with an error carries that error's kind on its ending,** `engineError` on
+  `turn-ended` (`docs/api.md`, 「Events」), so the consumer holding the room leaves one line there under
+  the companion's own number, in plain words chosen by the kind. The kind is the one the program's
+  record and its `StopFailure` hook carry (`docs/agent-control.md`, 「What a resident turn reads」), as
+  the program names it, or none where it names none.
   - The words the turn took stay untaken, as after any failed run (「A turn that goes nowhere」 below),
     and words that came in while it ran follow as the next turn.
 

@@ -22,12 +22,13 @@ members = [
 resolver = "3"
 
 [workspace.package]
-version = "0.22.0"
+version = "0.23.0"
 edition = "2024"
 
 [workspace.dependencies]
 axum = "0.8.4"
 base64 = "0.22.1"
+bmo-chat = { path = "../chat/provider" }
 brush-parser = "0.4.0"
 chrono = { version = "0.4.41", default-features = false, features = ["std"] }
 clap = { version = "4.5.40", features = ["derive", "env", "string"] }
@@ -41,6 +42,7 @@ hyper-util = { version = "0.1.16", features = ["tokio"] }
 indexmap = { version = "2.14.2", features = ["serde"] }
 inventory = "0.3.20"
 libc = "0.2.177"
+matchit = "0.8.4"
 percent-encoding = "2.3.2"
 procfs = { version = "0.18.0", default-features = false }
 regex = "1.11.1"

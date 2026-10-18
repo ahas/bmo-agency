@@ -32,6 +32,7 @@ pub mod road_verbs;
 pub mod roads;
 mod rooms;
 pub mod run_clocks;
+mod run_ledger;
 mod run_log;
 pub mod session_ops;
 pub mod sessions;
@@ -239,6 +240,8 @@ pub struct Call {
   going: Arc<GoingRuns>,
   // The session contract over the places the server stands, where it stands them.
   sessions: Option<crate::herdr_backend::Shared>,
+  // What the request's path held at each `{name}` of the route's path.
+  params: Vec<(String, String)>,
 }
 
 impl Call {
@@ -303,6 +306,11 @@ impl Call {
     self.going.clone()
   }
 
+  /// What the request's path holds at the route path's `{name}`.
+  pub fn param(&self, name: &str) -> Option<&str> {
+    self.params.iter().find(|(key, _)| key == name).map(|(_, value)| value.as_str())
+  }
+
   /// One query parameter, the first where it is given more than once.
   pub fn query(&self, name: &str) -> Option<String> {
     let Query(pairs) = Query::<Vec<(String, String)>>::try_from_uri(self.request.uri()).ok()?;
@@ -340,7 +348,8 @@ pub struct Front {
   token: String,
   ground: Arc<Ground>,
   machine: Arc<Machine>,
-  routes: HashMap<String, &'static dyn Answers>,
+  // The routes by method, each matched by its path; a path's static segment stands before a `{name}`.
+  routes: HashMap<Method, matchit::Router<&'static dyn Answers>>,
   places: Option<Places>,
   herdr: Option<herdr::picture::Watch>,
   going: Arc<GoingRuns>,
@@ -357,7 +366,16 @@ impl Front {
       return Err(faults.join("; "));
     }
 
-    let routes = moved_routes().map(|route| (route_name(&route.method(), route.path()), route)).collect();
+    let mut routes: HashMap<Method, matchit::Router<&'static dyn Answers>> = HashMap::new();
+
+    for route in moved_routes() {
+      routes
+        .entry(route.method())
+        .or_default()
+        .insert(route.path(), route)
+        .map_err(|error| format!("{}: {error}", route_name(&route.method(), route.path())))?;
+    }
+
     let machine = Arc::new(ground.machine());
     let going = Arc::new(GoingRuns::on(&ground.events));
 
@@ -396,9 +414,15 @@ async fn dispatch(State(front): State<Arc<Front>>, request: Request) -> Response
     return Refused::new(StatusCode::UNAUTHORIZED, "unauthorized").into_response();
   }
 
-  let Some(route) = front.routes.get(&route_name(request.method(), request.uri().path())).copied() else {
+  let Some(found) = front
+    .routes
+    .get(request.method())
+    .and_then(|routes| routes.at(request.uri().path()).ok())
+  else {
     return Refused::new(StatusCode::NOT_FOUND, "not found").into_response();
   };
+  let route = *found.value;
+  let params = found.params.iter().map(|(key, value)| (key.to_owned(), value.to_owned())).collect();
   let call = Call {
     request,
     ground: front.ground.clone(),
@@ -407,6 +431,7 @@ async fn dispatch(State(front): State<Arc<Front>>, request: Request) -> Response
     places: front.places.clone(),
     going: front.going.clone(),
     sessions: front.sessions.clone(),
+    params,
   };
 
   match route.answer(call).await {

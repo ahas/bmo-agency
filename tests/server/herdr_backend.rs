@@ -1,7 +1,10 @@
-//! The herdr backend's session ids: each names its agent and its scope, and reads back as both.
+//! The herdr backend's session ids: each names its agent and its scope, and reads back as both; and a failed
+//! turn's ending, which carries the engine's error kind where its engine ended it with one.
 
-use agency_server::herdr_backend::{id_of, scope_of};
+use agency_server::companion::run::NoAnswer;
+use agency_server::herdr_backend::{TurnEnded, failure_of, id_of, scope_of};
 use agent_session::{Scope, SessionId};
+use serde_json::json;
 
 #[test]
 fn a_session_id_names_its_agent_and_scope_and_reads_back() {
@@ -13,6 +16,42 @@ fn a_session_id_names_its_agent_and_scope_and_reads_back() {
 
   assert_eq!(id_of("worker-a", &Scope::Worker), SessionId("worker-a@worker".into()));
   assert_eq!(id_of("companion-a", &Scope::Room("7".into())), SessionId("companion-a@7".into()));
+}
+
+#[test]
+fn a_failed_turn_carries_its_engines_error_kind_and_null_for_any_other_failure() {
+  let ended = |no: NoAnswer| {
+    let (reason, engine_error) = failure_of(no);
+
+    serde_json::to_value(TurnEnded {
+      session: "companion-a@-7".into(),
+      run: "run-1".into(),
+      outcome: "failed",
+      answer: None,
+      reason: Some(reason),
+      engine_error,
+    })
+    .unwrap()
+  };
+  let errored = |kind: Option<&str>| NoAnswer::Errored {
+    error: "API Error".into(),
+    kind: kind.map(str::to_owned),
+  };
+
+  assert_eq!(
+    ended(errored(Some("rate_limit"))),
+    json!({
+      "session": "companion-a@-7",
+      "run": "run-1",
+      "outcome": "failed",
+      "answer": null,
+      "reason": "API Error",
+      "engineError": { "kind": "rate_limit" },
+    })
+  );
+  assert_eq!(ended(errored(None))["engineError"], json!({ "kind": null }));
+  assert_eq!(ended(NoAnswer::Failed("the pane went away".into()))["engineError"], json!(null));
+  assert_eq!(ended(NoAnswer::Cut("too many tool calls".into()))["engineError"], json!(null));
 }
 
 #[test]

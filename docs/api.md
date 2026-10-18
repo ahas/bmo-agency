@@ -28,7 +28,7 @@ judges none of it.
 ## Versioning
 
 - **The contract carries the repository's one version, in semver.** The version in the workspace
-  manifest is this boundary's version; the current line is `0.22.0`.
+  manifest is this boundary's version; the current line is `0.23.0`.
 - **A change to this document and a change to the boundary go in one commit.** A change that makes a
   route, an event, a hook or a shared table's contract different repairs this document in the same
   commit, stating what is true now.
@@ -46,8 +46,9 @@ judges none of it.
   environment from. A process of agency's whose environment holds neither — a placed tool, which the
   tool host hands a clean one (`docs/tools.md`) — reads them there, a variable its own environment holds
   standing first.
-- **A route takes and answers JSON,** field names in camelCase; a GET reads its fields from the query. A
-  refusal is answered with its status and a body of `code`, the status's kebab-case reason, and `error`,
+- **A route takes and answers JSON,** field names in camelCase, but for a run of the run ledger, whose
+  fields are its columns' names (「Run log and run records」 below); a GET reads its fields from the
+  query, and a path's `{id}` names the row it reads. A refusal is answered with its status and a body of `code`, the status's kebab-case reason, and `error`,
   an English sentence; a session operation's fault carries its own outcome code (「Sessions」 below).
 - **A verb outside the server tells it what it changed** by a POST to the route concerned, under the same
   port and token; the verb is never failed by it, and a word that did not land is said once on its error
@@ -89,6 +90,8 @@ judges none of it.
 | GET | `/pool/reservations` | the reservations an owner holds | 「Co-worker pool」 |
 | POST | `/places/take`, `/places/prepare`, `/places/remember`, `/places/retire` | a branch's standing checkout | 「Co-worker pool」 |
 | GET | `/run-log`, `/run-records` | a run's lines and its records | 「Run log and run records」 |
+| POST, GET | `/runs`, `/runs/{id}` | a run of the ledger opened, and read by its id | 「Run log and run records」 |
+| POST | `/runs/{id}/close` | a run of the ledger closed | 「Run log and run records」 |
 | GET, POST | `/models`, `/registry`, `/model-tiers`, `/fallback` | the catalogue, the registry, the tiers and the roads | 「Models, registry, tiers, roads and fallback」 |
 | GET | `/stand-in` | whether a stand-in answers an agent while the rest closes Claude Code's road | 「Models, registry, tiers, roads and fallback」 |
 | GET | `/model-tiers/models`, `/fallback/codex-models`, `/fallback/openrouter-models` | a provider's catalogue | 「Models, registry, tiers, roads and fallback」 |
@@ -297,7 +300,11 @@ judges none of it.
 - **Agency publishes a turn's lifecycle** as the session contract carries it: `turn-started`, the
   `session`, the `run` it goes out as and `at` in epoch milliseconds; and `turn-ended`, the `session`, the
   `run`, its `outcome` — `answered`, `blocked`, `stopped` or `failed` — the `answer` where it answered and
-  the `reason` where it failed (`docs/companions.md`, 「What a turn shows」, 「A turn that goes nowhere」).
+  the `reason` where it failed, and `engineError`, `{ "kind": <kind or null> }`, where it failed because
+  its engine ended it with an error, null otherwise: the kind as the program names it — `rate_limit`,
+  `overloaded`, `authentication_failed`, `billing_error`, `invalid_request`, `max_output_tokens` and the
+  rest of its list — and null where it named none. A companion's turn in a room and the chat agent's turn
+  carry it alike (`docs/companions.md`, 「What a turn shows」, 「A turn that goes nowhere」).
   A consumer reads them to show a turn and to wake what a turn's end should wake; agency waits on no
   reader.
 - **An event no consumer subscribed to** is published to nobody, and nothing else of the turn changes.
@@ -546,6 +553,19 @@ Each hook has a default that does nothing, so agency runs with none registered.
   model, outcome, time, and the tokens the run reported — and the usage filed under the agent
   (`docs/run-records.md`, `docs/own-llm.md`, 「Which road answered is recorded」). A consumer reads them
   to show a turn's figures and its gates'; agency builds no run from them.
+- **The run ledger** is one row a run of an agent's unit, which the job unit opens as it starts the unit
+  and closes as it ends: `runs`, its `id`, `agent`, `chat_id`, `unit`, `depth`, `cap_ms`, `started_at`,
+  `finished_at`, `outcome`, `started_by`, `context_tokens` and `search_id`, its times in epoch seconds.
+  The routes take and answer it in those column names.
+  - `POST /runs` takes an opening, `agent`, `chat_id?`, `unit`, `depth`, `cap_ms?`, `started_at`,
+    `started_by?` and `search_id?` (a number or a string, kept as text), and answers 201 with the new
+    row's `id`; an opening missing a field it needs is refused 400.
+  - `GET /runs/{id}` answers the run: `id`, `agent`, `chat_id`, `unit`, `depth`, `started_at`,
+    `finished_at`, `outcome` and `context_tokens`, each null where the row holds none; a run with no row
+    is answered 404 with the code `nothing-held`, the base chat library's code for nothing kept at the
+    address a path names.
+  - `POST /runs/{id}/close` takes `finished_at`, `outcome` and `context_tokens?` and answers 204; a run
+    already closed keeps its closing and is refused 409, and a run with no row is answered 404 as above.
 - **The judgement a gate produces** is the consumer's record, written beside the road record agency
   keeps; agency keeps which road a verdict's time was spent on, and the consumer keeps the verdict
   (`docs/run-records.md`).

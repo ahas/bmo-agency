@@ -4,6 +4,7 @@
 
 mod m20261016_000001_store;
 mod m20261017_000001_clocks;
+mod m20261019_000001_runs;
 
 use sea_orm_migration::prelude::*;
 
@@ -15,7 +16,7 @@ pub const TABLES: &str = m20261016_000001_store::NAME;
 
 /// Every table the store's migrations make, beside the record of what ran: what reads every table of the
 /// store reads these and no other service's beside them (docs/store.md, 「Its tables」).
-pub const OWN_TABLES: [&str; 51] = [
+pub const OWN_TABLES: [&str; 52] = [
   "agents",
   "agent_log",
   "agent_executions",
@@ -60,6 +61,7 @@ pub const OWN_TABLES: [&str; 51] = [
   "live_claude_runs",
   "prefix_moves",
   "run_records",
+  "runs",
   "run_clocks",
   "clock_asks",
   "room_sessions",
@@ -77,6 +79,7 @@ impl MigratorTrait for Migrator {
     vec![
       Box::new(m20261016_000001_store::Migration),
       Box::new(m20261017_000001_clocks::Migration),
+      Box::new(m20261019_000001_runs::Migration),
     ]
   }
 

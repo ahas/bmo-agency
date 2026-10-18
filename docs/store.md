@@ -7,8 +7,8 @@ seeds. The other crates and the server reach the store only through it.
 ## Its tables
 
 - **Made by the store's migrations,** each table carried from the archive in the shape the archive holds
-  it, columns, keys and indexes alike, and the clocks' two tables in agency's own, each made by a
-  migration of its own after the first.
+  it, columns, keys and indexes alike, and the clocks' two tables and the run ledger in agency's own,
+  each made by a migration of its own after the first.
 - **The record of what ran is `agency_migrations`,** a table of the store's own, so the store may stand
   in a database beside another service's tables without either's record in the other's way.
 - **A migration is not undone:** a store that must go back is dropped and made again.
@@ -34,6 +34,10 @@ seeds. The other crates and the server reach the store only through it.
     job's rows are the job unit's (`docs/live-claude-guard.md`);
   - the moves of the cache prefix: `prefix_moves`;
   - the run records: `run_records`;
+  - the run ledger: `runs`, one row a run of an agent's unit — its agent and room, its unit, how deep
+    it runs, its bound, when it started and finished in epoch seconds, how it ended, who started it, the
+    tokens its context held and the search it carried — opened and closed by the job unit
+    (`docs/api.md`, 「Run log and run records」); a room forgotten takes its runs with it;
   - the clocks runs are held to and the asks past them: `run_clocks`, one row a clocked run — its name,
     the name it runs under, its work key and agent, what it is doing, when it started, its bound and when
     it ended — and `clock_asks`, one row an ask — the run, the facts it carried, when it was asked and

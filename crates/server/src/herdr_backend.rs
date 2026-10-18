@@ -75,7 +75,8 @@ impl Event for TurnStarted {
 }
 
 /// What a turn came to: `answered` with the answer's text, `blocked` where its program waits on a person,
-/// `stopped` where it was ended from outside, or `failed` with why.
+/// `stopped` where it was ended from outside, or `failed` with why, and with the engine's error where its
+/// engine ended the turn with one.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TurnEnded {
@@ -84,6 +85,14 @@ pub struct TurnEnded {
   pub outcome: &'static str,
   pub answer: Option<String>,
   pub reason: Option<String>,
+  pub engine_error: Option<EngineError>,
+}
+
+/// The error an engine ended a turn with: its kind as the program names it, `rate_limit`, `overloaded`,
+/// `max_output_tokens` and the rest of its list, or none where it named none.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct EngineError {
+  pub kind: Option<String>,
 }
 
 impl Event for TurnEnded {
@@ -313,12 +322,22 @@ fn generation_of(settings: &Settings) -> IndexMap<String, Value> {
     .collect()
 }
 
-// What a turn on a session came to, before it is published.
+// What a turn on a session came to, before it is published: a failure carries why, and the engine's error
+// where its engine ended the turn with one.
 enum Came {
   Answered(String),
   Blocked,
   Stopped,
-  Failed(String),
+  Failed(String, Option<EngineError>),
+}
+
+/// Why a run came to no answer, and the engine's error where its engine ended it with one.
+pub fn failure_of(no: NoAnswer) -> (String, Option<EngineError>) {
+  match no {
+    NoAnswer::Errored { error, kind } => (error, Some(EngineError { kind })),
+    NoAnswer::Cut(why) | NoAnswer::Failed(why) => (why, None),
+    NoAnswer::Overtaken => ("the companion's reset overtook the turn".to_owned(), None),
+  }
 }
 
 impl HerdrSessions {
@@ -452,7 +471,7 @@ impl HerdrSessions {
     Ok(match (turned.reached, turned.missed) {
       (_, Some(Missed::Person)) => Came::Blocked,
       (_, Some(Missed::Stopped)) => Came::Stopped,
-      (false, missed) => Came::Failed(format!("the words did not reach the session ({missed:?})")),
+      (false, missed) => Came::Failed(format!("the words did not reach the session ({missed:?})"), None),
       (true, _) => Came::Answered(turned.reply.map(|reply| reply.text).unwrap_or_default()),
     })
   }
@@ -506,7 +525,7 @@ impl HerdrSessions {
   ) -> Result<Came, Fault> {
     let ground = self.ground();
     let db = ground.db.clone();
-    let failed = |why: String| Ok(Came::Failed(why));
+    let failed = |why: String| Ok(Came::Failed(why, None));
     let detail = |refusal: Refusal| refusal.detail;
     let Some(pinned) = pinned(ground, agent).await? else {
       return Err(fault(FaultKind::Unknown, format!("no agent is named {agent}")));
@@ -620,7 +639,9 @@ impl HerdrSessions {
     let (reply, placement) = match asked {
       Ok(asked) if !overtaken::overtaken(&db, agent, began).await => asked,
       Ok(_) | Err(NoAnswer::Overtaken) => return Ok(Came::Stopped),
-      Err(NoAnswer::Cut(reason) | NoAnswer::Failed(reason) | NoAnswer::Errored { error: reason, .. }) => {
+      Err(no) => {
+        let (reason, engine) = failure_of(no);
+
         ground.events.publish(RoadWalked::of(
           chat_id,
           run,
@@ -642,7 +663,7 @@ impl HerdrSessions {
             },
           )
           .await;
-        return failed(reason);
+        return Ok(Came::Failed(reason, engine));
       }
     };
 
@@ -850,7 +871,8 @@ impl HerdrSessions {
     let reply = match asked {
       Ok(reply) => reply,
       Err(NoAnswer::Overtaken) => return Ok(Came::Stopped),
-      Err(NoAnswer::Cut(reason) | NoAnswer::Failed(reason) | NoAnswer::Errored { error: reason, .. }) => {
+      Err(no) => {
+        let (reason, engine) = failure_of(no);
         let model = crate::control::tiers::resolve(&db, agent, CHAT_PROVIDER)
           .await
           .map(|mapping| mapping.model)
@@ -878,7 +900,7 @@ impl HerdrSessions {
           )
           .await;
 
-        return Ok(Came::Failed(reason));
+        return Ok(Came::Failed(reason, engine));
       }
     };
 
@@ -959,11 +981,11 @@ impl HerdrSessions {
   }
 
   fn published(&self, session: &SessionId, run: &str, came: &Came) {
-    let (outcome, answer, reason) = match came {
-      Came::Answered(text) => ("answered", Some(text.clone()), None),
-      Came::Blocked => ("blocked", None, None),
-      Came::Stopped => ("stopped", None, None),
-      Came::Failed(why) => ("failed", None, Some(why.clone())),
+    let (outcome, answer, reason, engine_error) = match came {
+      Came::Answered(text) => ("answered", Some(text.clone()), None, None),
+      Came::Blocked => ("blocked", None, None, None),
+      Came::Stopped => ("stopped", None, None, None),
+      Came::Failed(why, engine) => ("failed", None, Some(why.clone()), engine.clone()),
     };
 
     self.ground().events.publish(TurnEnded {
@@ -972,6 +994,7 @@ impl HerdrSessions {
       outcome,
       answer,
       reason,
+      engine_error,
     });
   }
 
@@ -1085,7 +1108,7 @@ impl Sessions for HerdrSessions {
 
         Ok(match editor_turn(self.ground(), &asked).await {
           Ok(answer) => Came::Answered(answer),
-          Err(why) => Came::Failed(why),
+          Err(why) => Came::Failed(why, None),
         })
       }
       (Scope::Room(room), _) => match room_number(room) {

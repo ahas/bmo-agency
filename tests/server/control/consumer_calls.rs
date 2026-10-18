@@ -1,7 +1,7 @@
 //! The routes a consumer holding the rooms asks beside a turn, asked of a running server in the shapes that
 //! consumer sends: a companion's agent row stood up and taken out, an agent's reset point, why a rest that has
-//! just passed silenced the deployment, and words pushed into a session's working turn, on a store the server
-//! settled itself.
+//! just passed silenced the deployment, words pushed into a session's working turn, and a run of the ledger
+//! read by its id beside its opening and closing, on a store the server settled itself.
 
 use serde_json::{Value, json};
 
@@ -155,4 +155,95 @@ async fn a_running_server_answers_the_calls_a_room_holder_makes_beside_its_turns
       .await,
     0
   );
+
+  // A run of the ledger, opened and closed in the shapes the job unit sends and read as the room holder reads
+  // it; a run with no row is nothing held, and a static path beside the id's is still its own route.
+  let (status, opened) = post(
+    port,
+    token,
+    "/runs",
+    json!({
+      "agent": "helper",
+      "chat_id": null,
+      "unit": "unit-1",
+      "depth": 2,
+      "cap_ms": 60_000,
+      "started_at": 4_000,
+      "started_by": "chat:-7",
+      "search_id": "12",
+    }),
+  )
+  .await;
+
+  assert_eq!(status, 201, "{opened}");
+
+  let id = opened["id"].as_i64().unwrap();
+  let read = format!("/runs/{id}");
+
+  assert_eq!(
+    get(port, token, &read).await,
+    (
+      200,
+      json!({
+        "id": id,
+        "agent": "helper",
+        "chat_id": null,
+        "unit": "unit-1",
+        "depth": 2,
+        "started_at": 4_000,
+        "finished_at": null,
+        "outcome": null,
+        "context_tokens": null,
+      })
+    )
+  );
+
+  let closing = json!({ "finished_at": 9_000, "outcome": "done", "context_tokens": 30_000 });
+
+  assert_eq!(post(port, token, &format!("{read}/close"), closing.clone()).await.0, 204);
+  assert_eq!(
+    post(port, token, &format!("{read}/close"), json!({ "finished_at": 9_500, "outcome": "cut" }))
+      .await
+      .0,
+    409
+  );
+
+  let (_, closed) = get(port, token, &read).await;
+
+  assert_eq!(
+    (&closed["finished_at"], &closed["outcome"], &closed["context_tokens"]),
+    (&json!(9_000), &json!("done"), &json!(30_000)),
+    "the first closing is kept"
+  );
+
+  let (status, numbered) = post(
+    port,
+    token,
+    "/runs",
+    json!({ "agent": "helper", "unit": "unit-2", "depth": 0, "started_at": 5_000, "search_id": 12 }),
+  )
+  .await;
+
+  assert_eq!(status, 201, "{numbered}");
+  assert_eq!(
+    scratch.count(r#"SELECT count(*) FROM "runs" WHERE "search_id" = '12'"#, vec![]).await,
+    2,
+    "a search named by its number or its text is kept the same"
+  );
+
+  let missing = id + 1_000;
+
+  assert_eq!(
+    get(port, token, &format!("/runs/{missing}")).await,
+    (
+      404,
+      json!({ "code": "nothing-held", "error": format!("the ledger holds no run {missing}") })
+    )
+  );
+  assert_eq!(
+    post(port, token, &format!("/runs/{missing}/close"), closing).await.1["code"],
+    "nothing-held"
+  );
+  assert_eq!(post(port, token, "/runs", json!({ "agent": "helper" })).await.0, 400);
+  assert_eq!(get(port, token, "/runs/clock?run=unit-1").await.0, 200);
 }
