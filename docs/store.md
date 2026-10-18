@@ -37,7 +37,9 @@ seeds. The other crates and the server reach the store only through it.
   - the run ledger: `runs`, one row a run of an agent's unit — its agent and room, its unit, how deep
     it runs, its bound, when it started and finished in epoch seconds, how it ended, who started it, the
     tokens its context held and the search it carried — opened and closed by the job unit
-    (`docs/api.md`, 「Run log and run records」); a room forgotten takes its runs with it;
+    (`docs/api.md`, 「Run log and run records」); a room forgotten takes its runs with it, and a
+    companion's reset of its conversation takes the companion's and those of the rooms it answers alone
+    (`docs/companions.md`, 「Starting it afresh」);
   - the clocks runs are held to and the asks past them: `run_clocks`, one row a clocked run — its name,
     the name it runs under, its work key and agent, what it is doing, when it started, its bound and when
     it ended — and `clock_asks`, one row an ask — the run, the facts it carried, when it was asked and

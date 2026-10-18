@@ -17,7 +17,14 @@ fn the_conversation_range_takes_agency_s_own_tables_and_the_person_range_none() 
 
   assert_eq!(
     tables(&[Range::Conversation]),
-    ["run_records", "agent_log", "room_session_turns", "room_sessions", "room_windows"]
+    [
+      "run_records",
+      "agent_log",
+      "runs",
+      "room_session_turns",
+      "room_sessions",
+      "room_windows"
+    ]
   );
   assert!(tables(&[Range::Person]).is_empty());
 }
@@ -32,6 +39,7 @@ fn placeholders_are_numbered_as_written_and_no_room_is_a_list_nothing_is_in() {
     of("run_records"),
     "run IN (SELECT run FROM agent_log WHERE agent = $1 OR chat_id IN ($2, $3))"
   );
+  assert_eq!(of("runs"), "agent = $1 OR chat_id IN ($2, $3)");
   assert_eq!(of("room_sessions"), "agent = $1");
 
   let none = super::companion_reset_picks(&scope(vec![]));

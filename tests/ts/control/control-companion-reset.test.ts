@@ -124,6 +124,12 @@ async function stand(agent: string, rooms: number): Promise<Stood> {
     await run("INSERT INTO run_records (run, kind, text, at) VALUES (?, 'answer', 'x', 1)", runName);
   }
 
+  // Runs of the ledger: the companion's in either room and another agent's in the lone room go with it, and
+  // another agent's in the shared room stays.
+  for (const [who, chatId] of [[agent, alone], [agent, shared], ["other", alone], ["other", shared]] as const) {
+    await run("INSERT INTO runs (agent, chat_id, unit, depth, started_at) VALUES (?, ?, ?, 0, 1)", who, chatId, `unit-${who}-${chatId}`);
+  }
+
   return {
     agent,
     alone,
@@ -158,7 +164,7 @@ describe("GET /companions/reset, POST /companions/reset", () => {
 
     expect([both.agent, both.label, both.ranges]).toEqual([stood.agent, "Tester", ["conversation", "person"]]);
     expect([both.alone, both.shared]).toEqual([[{ chatId: stood.alone, title: null }], [{ chatId: stood.shared, title: null }]]);
-    expect(rowsOf(both)).toEqual({ run_records: 2, agent_log: 2, room_session_turns: 4, room_sessions: 2, room_windows: 1 });
+    expect(rowsOf(both)).toEqual({ run_records: 2, agent_log: 2, runs: 3, room_session_turns: 4, room_sessions: 2, room_windows: 1 });
     expect(both.files.toSorted()).toEqual([...stood.home, ...stood.recollector].toSorted());
     expect(both.brain).toEqual({ took: { memories: 3, folder: true }, couldNot: [] });
     expect(brainAsked).toEqual([{ path: "/agents/reset", body: { agent: stood.agent, preview: true } }]);
@@ -179,11 +185,12 @@ describe("GET /companions/reset, POST /companions/reset", () => {
 
     const done = await answered(reset({ agent: stood.agent, conversation: true, alone: [stood.alone], shared: [stood.shared] }));
 
-    expect(rowsOf(done)).toEqual({ run_records: 2, agent_log: 2, room_session_turns: 4, room_sessions: 2, room_windows: 1 });
+    expect(rowsOf(done)).toEqual({ run_records: 2, agent_log: 2, runs: 3, room_session_turns: 4, room_sessions: 2, room_windows: 1 });
     expect(done.failures).toEqual([]);
     expect([await count("room_sessions WHERE agent = ?", stood.agent), await count("room_session_turns WHERE agent = ?", stood.agent), await count("room_windows WHERE agent = ?", stood.agent)]).toEqual([0, 0, 0]);
     expect([await count("agent_log WHERE chat_id = ?", stood.alone), await count("agent_log WHERE chat_id = ?", stood.shared)]).toEqual([0, 1]);
     expect(await count("run_records WHERE run = ?", `chat:${stood.shared}:1`)).toBe(1);
+    expect(await archive!.sql.all("SELECT agent, chat_id AS room FROM runs WHERE chat_id IN (?, ?)", stood.alone, stood.shared)).toEqual([{ agent: "other", room: stood.shared }]);
     expect([stood.home.some((path) => existsSync(path)), stood.recollector.every((path) => existsSync(path))]).toEqual([false, true]);
     expect([done.brain, brainAsked]).toEqual([null, []]);
     expect(await archive!.sql.all("SELECT chat_id AS room, asked_by AS by, reason, CASE WHEN done_at IS NULL THEN 'waiting' ELSE 'done' END AS state FROM session_resets WHERE agent = ? ORDER BY id", stood.agent)).toEqual([
@@ -213,7 +220,7 @@ describe("GET /companions/reset, POST /companions/reset", () => {
     ]);
     expect(brainAsked.slice(1).every((one) => Number(one.body.at) >= before)).toBe(true);
     expect([stood.home.every((path) => existsSync(path)), stood.recollector.some((path) => existsSync(path))]).toEqual([true, false]);
-    expect([await count("room_sessions WHERE agent = ?", stood.agent), await count("session_resets WHERE agent = ?", stood.agent)]).toEqual([2, 0]);
+    expect([await count("room_sessions WHERE agent = ?", stood.agent), await count("session_resets WHERE agent = ?", stood.agent), await count("runs WHERE agent = ?", stood.agent)]).toEqual([2, 0, 2]);
   });
 
   test("refuses an agent that is no companion, an ask naming no companion or no range, and a caller without the token", async () => {

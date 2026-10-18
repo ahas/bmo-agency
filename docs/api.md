@@ -28,7 +28,7 @@ judges none of it.
 ## Versioning
 
 - **The contract carries the repository's one version, in semver.** The version in the workspace
-  manifest is this boundary's version; the current line is `0.23.0`.
+  manifest is this boundary's version; the current line is `0.24.0`.
 - **A change to this document and a change to the boundary go in one commit.** A change that makes a
   route, an event, a hook or a shared table's contract different repairs this document in the same
   commit, stating what is true now.
@@ -90,8 +90,8 @@ judges none of it.
 | GET | `/pool/reservations` | the reservations an owner holds | 「Co-worker pool」 |
 | POST | `/places/take`, `/places/prepare`, `/places/remember`, `/places/retire` | a branch's standing checkout | 「Co-worker pool」 |
 | GET | `/run-log`, `/run-records` | a run's lines and its records | 「Run log and run records」 |
-| POST, GET | `/runs`, `/runs/{id}` | a run of the ledger opened, and read by its id | 「Run log and run records」 |
-| POST | `/runs/{id}/close` | a run of the ledger closed | 「Run log and run records」 |
+| POST, GET | `/runs`, `/runs/{id}` | a run of the ledger opened, listed by the search it carried, and read by its id | 「Run log and run records」 |
+| POST | `/runs/{id}/close`, `/runs/{id}/launch` | a run of the ledger closed, and its runner started in its agent's host | 「Run log and run records」 |
 | GET, POST | `/models`, `/registry`, `/model-tiers`, `/fallback` | the catalogue, the registry, the tiers and the roads | 「Models, registry, tiers, roads and fallback」 |
 | GET | `/stand-in` | whether a stand-in answers an agent while the rest closes Claude Code's road | 「Models, registry, tiers, roads and fallback」 |
 | GET | `/model-tiers/models`, `/fallback/codex-models`, `/fallback/openrouter-models` | a provider's catalogue | 「Models, registry, tiers, roads and fallback」 |
@@ -566,6 +566,19 @@ Each hook has a default that does nothing, so agency runs with none registered.
     address a path names.
   - `POST /runs/{id}/close` takes `finished_at`, `outcome` and `context_tokens?` and answers 204; a run
     already closed keeps its closing and is refused 409, and a run with no row is answered 404 as above.
+  - `GET /runs?search=<search>` answers `runs`, the ids of the runs that carried the search, in id
+    order; the search is matched as the text it is kept as, so a caller may name it by its number. A call
+    naming no search is refused 400.
+  - `POST /runs/{id}/launch` takes `title`, `agent` and `command`, the program the run is: `program`,
+    `args`, `cwd` and `environment`, an object of variable names to values. Agency leaves the program in
+    the agent's host, its execution rooted on the run's unit, so the unit's name reads as alive while it
+    runs and a stop of that name reaches it, and a person watching the agent's place reads it by the
+    title. The run closes its own row as it ends. It answers 204 once the program has started; where the
+    host does not start it, agency closes the row with the outcome `error`, finished now, and refuses 503
+    with the sentence saying why. A run with no row is answered 404 as above, a run already closed is
+    refused 409 with nothing started, and a body missing a field, or naming no program, is refused 400.
+    The launch is carried to its end whatever becomes of the caller, so a caller that stops waiting
+    never leaves a refused run's row open.
 - **The judgement a gate produces** is the consumer's record, written beside the road record agency
   keeps; agency keeps which road a verdict's time was spent on, and the consumer keeps the verdict
   (`docs/run-records.md`).

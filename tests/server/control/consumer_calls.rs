@@ -1,7 +1,8 @@
 //! The routes a consumer holding the rooms asks beside a turn, asked of a running server in the shapes that
 //! consumer sends: a companion's agent row stood up and taken out, an agent's reset point, why a rest that has
 //! just passed silenced the deployment, words pushed into a session's working turn, and a run of the ledger
-//! read by its id beside its opening and closing, on a store the server settled itself.
+//! read by its id and listed by its search beside its opening and closing, on a store the server settled
+//! itself.
 
 use serde_json::{Value, json};
 
@@ -230,6 +231,13 @@ async fn a_running_server_answers_the_calls_a_room_holder_makes_beside_its_turns
     2,
     "a search named by its number or its text is kept the same"
   );
+  assert_eq!(
+    get(port, token, "/runs?search=12").await,
+    (200, json!({ "runs": [id, numbered["id"]] })),
+    "the runs that carried a search, in id order"
+  );
+  assert_eq!(get(port, token, "/runs?search=13").await, (200, json!({ "runs": [] })));
+  assert_eq!(get(port, token, "/runs").await.0, 400);
 
   let missing = id + 1_000;
 

@@ -41,6 +41,8 @@ fn the_boundary_s_routes_are_linked_in() {
     "POST /runs",
     "GET /runs/{id}",
     "POST /runs/{id}/close",
+    "GET /runs",
+    "POST /runs/{id}/launch",
     "GET /runs/overtime",
     "POST /runs/overtime",
     "GET /editors/cap",

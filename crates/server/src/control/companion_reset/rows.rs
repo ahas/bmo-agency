@@ -1,7 +1,8 @@
 //! The rows of agency's store a companion's reset takes (docs/companions.md, 「Starting it afresh」): for
-//! the conversation range, its room sessions with their kept turns and windows, and its run log lines with
-//! their run records and those of the rooms it answers alone, counted for a dry run or deleted in one
-//! write. The person range holds no row of agency's: what a companion remembers is the brain's.
+//! the conversation range, its room sessions with their kept turns and windows, its run log lines with
+//! their run records and its runs in the run ledger, and those of the rooms it answers alone, counted for a
+//! dry run or deleted in one write. The person range holds no row of agency's: what a companion remembers
+//! is the brain's.
 
 use sea_orm::{DatabaseConnection, TransactionTrait};
 use store::{one, run};
@@ -121,6 +122,11 @@ pub fn picks(scope: &Scope, ranges: &[Range]) -> Vec<Pick> {
     },
     Pick {
       table: "agent_log",
+      range: Range::Conversation,
+      condition: mine(),
+    },
+    Pick {
+      table: "runs",
       range: Range::Conversation,
       condition: mine(),
     },

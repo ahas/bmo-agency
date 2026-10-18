@@ -40,6 +40,7 @@ mod control {
   mod recollector_routes;
   mod registry;
   mod roads;
+  mod run_launch;
   mod session_ops;
   mod sessions;
   mod stand_in_route;
