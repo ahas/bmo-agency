@@ -20,7 +20,7 @@ use policy::queue_words::QUEUE_WORDS;
 use policy::run_stop::RUN_STOP;
 use sea_orm::DatabaseConnection;
 use serde_json::{Value, json};
-use store::{all, one};
+use store::one;
 
 use super::running::{EXECUTION_CANCEL_PREFIX, Running};
 use super::{cancels, settings};
@@ -123,17 +123,6 @@ impl Stops {
       systemctl: machine.program("systemctl").unwrap_or_else(|| PathBuf::from("systemctl")),
       brain: ground.peers.brain.clone(),
     }
-  }
-
-  async fn executions(&self) -> Result<Vec<Value>, Refusal> {
-    Ok(
-      all(&self.db, r#"SELECT "body" FROM "agent_executions" ORDER BY rowid DESC"#, vec![])
-        .await?
-        .iter()
-        .filter_map(|row| row.try_get::<String>("", "body").ok())
-        .filter_map(|body| serde_json::from_str(&body).ok())
-        .collect(),
-    )
   }
 
   async fn execution(db: &DatabaseConnection, id: &str) -> Option<Value> {
@@ -286,7 +275,7 @@ impl Stops {
   /// its own pane's process by being asked, a resident turn by its collector with the interrupt behind
   /// it. Answers whether anything was signalled and whether a resident turn was among it.
   pub async fn cancel(&self, parent: &str) -> Result<(bool, bool), Refusal> {
-    let rows = self.executions().await?;
+    let rows = cancels::executions(&self.db).await?;
     let owned = cancels::covered(&rows, parent);
 
     for name in &owned {

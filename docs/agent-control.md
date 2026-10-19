@@ -1292,6 +1292,11 @@ attempts on startup. Do not delete completed business records.
 A cancellation is one settings row per name it covers: the name it was asked for and every
 execution that name owns. While a row stands, every launch under that name is refused.
 
+- **A cancellation stands until it is taken back.** A stop of several runs at once takes its own back
+  once the runs are gone; any other is taken back by whoever asked for the stop, through the control
+  port, before a run of that name starts again (`docs/api.md`, 「Workers」). An execution reads as
+  cancelled while a row stands over its own name or over the name of an execution owning it.
+
 - **A stop belongs to the run it was asked of, never to the place that run stands in.** A root is
   shared by every run of the same place — a work task's retries, which differ only in their closing
   number, a task's own turn and the gate it asks for — so it is never one of the names a

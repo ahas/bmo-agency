@@ -28,7 +28,7 @@ judges none of it.
 ## Versioning
 
 - **The contract carries the repository's one version, in semver.** The version in the workspace
-  manifest is this boundary's version; the current line is `0.25.0`.
+  manifest is this boundary's version; the current line is `0.26.0`.
 - **A change to this document and a change to the boundary go in one commit.** A change that makes a
   route, an event, a hook or a shared table's contract different repairs this document in the same
   commit, stating what is true now.
@@ -101,6 +101,8 @@ judges none of it.
 | GET, POST | `/jobs/stop-mark`, `/jobs/stop-mark/clear` | a job's stop mark | 「Workers」 |
 | POST, GET | `/roads/block`, `/roads/open` | a road's block, and whether a road is open | 「Workers」 |
 | POST | `/runs/stop`, `/runs/alive` | runs stopped, and which names are alive | 「Workers」 |
+| GET | `/executions`, `/executions/{id}` | the executions agency recorded, and one by its id | 「Workers」 |
+| DELETE | `/executions/{id}/cancel` | the cancellations a stop of a name stood, taken back | 「Workers」 |
 | GET | `/runs/clock` | the clock a run stands on, by its name or the name it runs under | 「Workers」 |
 | GET, POST | `/runs/overtime` | the asks on runs past their clock, and a verdict on one | 「Workers」 |
 | GET | `/editors/cap` | the bound an editor work key's run carries for an agent | 「Workers」 |
@@ -801,6 +803,19 @@ Each hook has a default that does nothing, so agency runs with none registered.
   or any other stop, the brain is told the watch stopped (「Calls agency makes」, the brain), so its watch
   ends as cancelled rather than being launched again; a brain that cannot be told is said once on
   agency's error stream and the unit is stopped all the same.
+- **Executions.** Every run of an agent's process agency launches is an execution, recorded as it starts
+  and closed as it ends (`docs/agent-control.md`). `GET /executions?open=` answers them as a list, the
+  latest first, only those not yet ended where `open` is `true`; `GET /executions/{id}` answers one, and
+  404 `nothing-held` where none has that id. An execution is its `id`, `parent`, `root`, `line`,
+  `startedAt`, `endedAt` and `outcome`, the ending it recorded where that is an object, each null where it
+  recorded none; `sharedPane`, true where it runs in a pane it shares; `cancelled`, true while a
+  cancellation stands over a name that covers it, its own or that of an execution owning it
+  (`docs/agent-control.md`, 「What a cancellation reaches, and how long it stands」); and `details`, every
+  other field recorded of it, as it stands.
+- **A stop's cancellations taken back.** `DELETE /executions/{id}/cancel` takes back every cancellation
+  standing over the name and the executions it owns, as a stop stood them, and answers `dropped`, the
+  names whose cancellation stood until then. A consumer takes them back before a run of that name starts
+  again; a stop of several runs at once takes its own back by itself.
 - **A run's clock.** A run agency holds to a clock — an editor run among them — is asked about past its
   bound rather than cut (`docs/agent-control.md`, 「A clock asks before it cuts」). `GET
   /runs/clock?run=<name>` answers, for the clocked runs standing under that name or as its children,

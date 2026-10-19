@@ -14,6 +14,7 @@ mod companion_roster;
 pub mod companions;
 mod documents;
 pub mod events_stream;
+mod executions;
 pub mod fallback;
 pub mod fault;
 pub mod harness;

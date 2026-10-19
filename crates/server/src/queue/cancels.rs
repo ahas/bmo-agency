@@ -38,14 +38,29 @@ pub fn covered(rows: &[Value], parent: &str) -> BTreeSet<String> {
   owned
 }
 
+/// Every execution's body, the latest first.
+pub async fn executions(db: &DatabaseConnection) -> Result<Vec<Value>, Refusal> {
+  Ok(
+    all(db, r#"SELECT "body" FROM "agent_executions" ORDER BY rowid DESC"#, vec![])
+      .await?
+      .iter()
+      .filter_map(|row| row.try_get::<String>("", "body").ok())
+      .filter_map(|body| serde_json::from_str(&body).ok())
+      .collect(),
+  )
+}
+
+/// Every name a standing cancellation covers among these executions: each name a marker stands over,
+/// and every execution that name owns.
+pub async fn standing(db: &DatabaseConnection, rows: &[Value]) -> Result<BTreeSet<String>, Refusal> {
+  let marked = settings::named(db, EXECUTION_CANCEL_PREFIX).await?;
+
+  Ok(marked.iter().flat_map(|name| covered(rows, name)).collect())
+}
+
 /// Every marker the cancellation of this name raised taken back; the names actually dropped.
 pub async fn take_back(db: &DatabaseConnection, parent: &str) -> Result<Vec<String>, Refusal> {
-  let rows: Vec<Value> = all(db, r#"SELECT "body" FROM "agent_executions" ORDER BY rowid DESC"#, vec![])
-    .await?
-    .iter()
-    .filter_map(|row| row.try_get::<String>("", "body").ok())
-    .filter_map(|body| serde_json::from_str(&body).ok())
-    .collect();
+  let rows = executions(db).await?;
   let mut dropped = vec![];
 
   for name in covered(&rows, parent) {

@@ -44,19 +44,27 @@ pub async fn take(db: &impl ConnectionTrait, key: &str) -> Result<Option<String>
 /// The numbers after a prefix on every key that carries it, in order: the jobs a family of marks is
 /// kept for.
 pub async fn numbered(db: &impl ConnectionTrait, prefix: &str) -> Result<Vec<i64>, Refusal> {
+  let mut ids: Vec<i64> = named(db, prefix).await?.iter().filter_map(|rest| rest.parse().ok()).collect();
+
+  ids.sort_unstable();
+
+  Ok(ids)
+}
+
+/// What follows a prefix on every key that carries it: the names a family of marks is kept for.
+pub async fn named(db: &impl ConnectionTrait, prefix: &str) -> Result<Vec<String>, Refusal> {
   let rows = all(
     db,
     r#"SELECT "key" FROM "settings" WHERE "key" LIKE $1 ESCAPE '\'"#,
     vec![format!("{}%", prefix.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_")).into()],
   )
   .await?;
-  let mut ids: Vec<i64> = rows
-    .iter()
-    .filter_map(|row| row.try_get::<String>("", "key").ok())
-    .filter_map(|key| key.strip_prefix(prefix).and_then(|rest| rest.parse().ok()))
-    .collect();
 
-  ids.sort_unstable();
-
-  Ok(ids)
+  Ok(
+    rows
+      .iter()
+      .filter_map(|row| row.try_get::<String>("", "key").ok())
+      .filter_map(|key| key.strip_prefix(prefix).map(str::to_owned))
+      .collect(),
+  )
 }

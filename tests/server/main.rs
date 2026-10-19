@@ -31,6 +31,7 @@ mod control {
   mod companions;
   mod consumer_calls;
   mod events_publish;
+  mod executions;
   mod fallback;
   mod front;
   mod harness;
