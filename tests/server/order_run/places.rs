@@ -1,10 +1,36 @@
 //! The standing branch checkouts: a warm place reused oldest first, then a cold one, then a new number; a
 //! line whose prefix moved dying like one past its life; a place going past the cap or rested past the keep;
-//! and the places taken counted from what the consumer hands in.
+//! the places taken counted from what the consumer hands in; and a line's life the provider's published
+//! lifetime less the keepalive schedule's one margin, none where nothing is published.
 
 use std::collections::HashSet;
 
-use agency_server::order_run::places::{Agent, CAP, Held, KEEP_MS, busy_slots, choose, prunable};
+use agency_server::order_run::places::{Agent, CAP, Held, KEEP_MS, busy_slots, choose, prunable, ttl_ms};
+use policy::pool_warm::POOL_WARM;
+use policy::providers::claude_code::CLAUDE_CODE;
+use policy::providers::codex::CODEX;
+
+#[test]
+fn a_lines_life_is_the_published_lifetime_less_the_one_margin_and_none_where_none_is_published() {
+  let margin = POOL_WARM.margin_minutes * 60_000;
+  let codex = CODEX.cache.of("gpt-5.6").unwrap().ttl_minutes * 60_000;
+
+  assert_eq!(
+    ttl_ms("claude-code", "opus", None),
+    Some(CLAUDE_CODE.cache.ttl_minutes * 60_000 - margin)
+  );
+  assert_eq!(
+    ttl_ms("codex", "gpt-5.6-sol", None),
+    Some(codex - margin),
+    "the same margin on every provider"
+  );
+  assert_eq!(
+    ttl_ms("codex", "gpt-4", None),
+    None,
+    "a model with no published lifetime leaves no line"
+  );
+  assert_eq!(ttl_ms("openrouter", "anthropic/model", None), None, "nor does an unrecorded upstream");
+}
 
 fn agent(slot: i64, model: &str, at: i64) -> Agent {
   Agent {
