@@ -28,7 +28,10 @@ fn run(variables: &[(&str, &str)], input: &str) -> (i32, String) {
     .spawn()
     .unwrap();
 
-  child.stdin.take().unwrap().write_all(input.as_bytes()).unwrap();
+  // A hook that judges nothing ends without reading its input, so the input may meet a pipe already closed.
+  if let Err(why) = child.stdin.take().unwrap().write_all(input.as_bytes()) {
+    assert_eq!(why.kind(), std::io::ErrorKind::BrokenPipe, "{why}");
+  }
 
   let done = child.wait_with_output().unwrap();
 
