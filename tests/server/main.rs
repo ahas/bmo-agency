@@ -126,6 +126,7 @@ mod places {
   mod locks;
   mod nodes;
   mod servers;
+  mod workbench;
 }
 mod queue {
   mod cancels;

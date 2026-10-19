@@ -19,6 +19,7 @@ use crate::order_run::dispatch::{
   release_reservation,
 };
 use crate::order_run::places::{self, Held};
+use crate::places::dev;
 
 // The source a builder turn's place is asked under.
 const TURN: &str = "turn";
@@ -443,3 +444,41 @@ impl Route for PlacesRetire {
 }
 
 crate::moved!(PlacesRetire);
+
+/// A worker's workbench folder, with every item's scratch folder standing under it now, in item order.
+pub struct Workbench;
+
+impl Route for Workbench {
+  const METHOD: Method = Method::GET;
+  const PATH: &'static str = "/places/workbench/{worker}";
+
+  async fn answer(&self, call: Call) -> Result<Response, Refused> {
+    let worker = call
+      .param("worker")
+      .filter(|worker| !worker.is_empty())
+      .ok_or_else(|| bad("a worker is required"))?;
+    let root = dev::workbench(call.ground(), worker);
+    let mut scratches: Vec<(i64, String)> = std::fs::read_dir(dev::item_scratches(call.ground(), worker))
+      .into_iter()
+      .flatten()
+      .flatten()
+      .filter(|entry| entry.path().is_dir())
+      .filter_map(|entry| {
+        let item = entry.file_name().to_str()?.parse::<i64>().ok()?;
+
+        Some((item, entry.path().to_string_lossy().into_owned()))
+      })
+      .collect();
+
+    scratches.sort();
+
+    let scratches: Vec<String> = scratches.into_iter().map(|(_, path)| path).collect();
+
+    Ok(answer(
+      StatusCode::OK,
+      json!({ "root": root.to_string_lossy(), "scratches": scratches }),
+    ))
+  }
+}
+
+crate::moved!(Workbench);

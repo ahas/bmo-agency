@@ -115,7 +115,9 @@ Each job worker holds three things beside the work of its jobs:
 - **Left out of deployment backups:** its contents can be remade, and one data copy exceeds a hundred
   megabytes.
 - **How a job learns the path:** only from the header line of the preamble bundle. It is not passed as an
-  environment variable, since the job worker's run-line environment is fixed.
+  environment variable, since the job worker's run-line environment is fixed. The job unit that composes
+  that header asks agency for the path, with the item scratch folders standing under it (`docs/api.md`,
+  「Co-worker pool」, a worker's workbench).
 
 ### An item's scratch
 

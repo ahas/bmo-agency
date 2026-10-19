@@ -93,6 +93,7 @@ judges none of it.
 | GET | `/pool/requests`, `/pool/requests/{token}`, `/pool/roles` | the open requests, one request by its token, and the roles the pool knows | 「Co-worker pool」 |
 | PUT | `/pool/places/{place}/write` | what a place's line was last written with | 「Co-worker pool」 |
 | POST | `/places/take`, `/places/prepare`, `/places/remember`, `/places/retire` | a branch's standing checkout | 「Co-worker pool」 |
+| GET | `/places/workbench/{worker}` | a worker's workbench and its items' scratch folders | 「Co-worker pool」 |
 | GET | `/run-log`, `/run-records` | a run's lines and its records | 「Run log and run records」 |
 | GET | `/log/jobs/{job}`, `/log/jobs/{job}/last` | a job's lines, and its last line | 「Run log and run records」 |
 | POST | `/log/notes`, `/turn-records` | a note written into a run's log, and a turn record kept | 「Run log and run records」 |
@@ -687,6 +688,10 @@ Each hook has a default that does nothing, so agency runs with none registered.
   `POST /places/prepare` takes the order's `source` and the place's `cwd`; `POST /places/remember` takes
   `cwd`, `slot`, `role`, and the `mode`, `model`, `effort` and `upstream` the branch ran on; `POST
   /places/retire` takes `cwd`, the `used` places and `held`.
+- **A worker's workbench.** `GET /places/workbench/{worker}` answers `root`, the worker's workbench folder,
+  and `scratches`, every item's scratch folder standing under it now, in item order, each path absolute on
+  this machine (`docs/worker-bench.md`, 「Workbench folder」). A worker with no workbench made yet answers its
+  root all the same, and no scratch.
 - **The clocks** are agency's own: every five seconds a reservation's head place is raised and a native
   call whose caller ended is reclaimed, every ten minutes what a job's end left in herdr is swept
   (`docs/agent-control.md`, 「One standing pane per agent」), and on the keepalive pass's period the
