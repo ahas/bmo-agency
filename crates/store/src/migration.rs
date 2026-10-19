@@ -7,6 +7,7 @@ mod m20261017_000001_clocks;
 mod m20261019_000001_runs;
 mod m20261020_000001_worker_context;
 mod m20261021_000001_worker_words;
+mod m20261022_000001_usage_windows;
 
 use sea_orm_migration::prelude::*;
 
@@ -18,7 +19,7 @@ pub const TABLES: &str = m20261016_000001_store::NAME;
 
 /// Every table the store's migrations make, beside the record of what ran: what reads every table of the
 /// store reads these and no other service's beside them (docs/store.md, 「Its tables」).
-pub const OWN_TABLES: [&str; 53] = [
+pub const OWN_TABLES: [&str; 54] = [
   "agents",
   "agent_log",
   "agent_executions",
@@ -30,6 +31,7 @@ pub const OWN_TABLES: [&str; 53] = [
   "worker_words",
   "session_resets",
   "claude_accounts",
+  "usage_windows",
   "coworker_pool_limits",
   "coworker_pool_meta",
   "coworker_pool_native",
@@ -85,6 +87,7 @@ impl MigratorTrait for Migrator {
       Box::new(m20261019_000001_runs::Migration),
       Box::new(m20261020_000001_worker_context::Migration),
       Box::new(m20261021_000001_worker_words::Migration),
+      Box::new(m20261022_000001_usage_windows::Migration),
     ]
   }
 

@@ -1,0 +1,11 @@
+[package]
+name = "cache-siren"
+description = "Agency's keeping of the accounts' usage windows and its cache-lifetime judgement."
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+sea-orm.workspace = true
+serde.workspace = true
+store = { path = "../store" }

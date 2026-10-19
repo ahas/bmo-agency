@@ -15,6 +15,7 @@ members = [
   "crates/policy",
   "crates/store",
   "crates/tool-call",
+  "crates/cache-siren",
   "crates/server",
   "tools/procedures",
   "tools/read_rulebook",
@@ -73,6 +74,7 @@ publish = false
 agency-server = { path = "crates/server" }
 agent-host = { path = "crates/agent-host" }
 agent-session = { path = "crates/agent-session" }
+cache-siren = { path = "crates/cache-siren" }
 axum.workspace = true
 chrono.workspace = true
 clap.workspace = true
