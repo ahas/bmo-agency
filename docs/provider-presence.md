@@ -10,9 +10,11 @@
     five-hour and seven-day windows, Codex's primary and secondary, none for a provider that
     publishes none;
   - whether it holds logins of its own: Claude Code alone, whose logins are its accounts.
-- **What each provider is** — its label, its lines, its effort words, the sentence it says where it is
-  missing, where its catalogue is read — is its own file of agency's policy
-  (`policy/providers/`).
+- **What each provider is** — its label, its lines, its effort words, whether co-workers are borrowed
+  on it, the sentence it says where it is missing, where its catalogue is read — is its own file of
+  agency's policy (`policy/providers/`); whether its models are the registry's registrations is its own
+  member's answer. A consumer reads them, with whether the owner has each on, in the provider order
+  (`docs/api.md`, 「Models, registry, tiers, roads and fallback」).
 - **Agency's server links the crate;** the TypeScript that asks — the verbs and the provider
   modules they import — runs its binary of the same name, out of the deploy tree's `bin/`. Where the
   deploy tree holds none — code running out of a checkout, a test among it — it runs the checkout's

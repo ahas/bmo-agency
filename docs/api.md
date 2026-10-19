@@ -97,6 +97,8 @@ judges none of it.
 | POST, GET | `/runs`, `/runs/{id}` | a run of the ledger opened, listed by the search it carried, and read by its id | 「Run log and run records」 |
 | POST | `/runs/{id}/close`, `/runs/{id}/launch` | a run of the ledger closed, and its runner started in its agent's host | 「Run log and run records」 |
 | GET, POST | `/models`, `/registry`, `/model-tiers`, `/fallback` | the catalogue, the registry, the tiers and the roads | 「Models, registry, tiers, roads and fallback」 |
+| GET | `/providers`, `/tiers`, `/providers/{provider}/models/{model}/health` | the providers in the walk's order, the tier ladder, and whether a registered model's engine answers | 「Models, registry, tiers, roads and fallback」 |
+| POST | `/routes/resolve`, `/pins/check` | the mapping a work key goes out on at a tier, and the choice a pin's value names | 「Models, registry, tiers, roads and fallback」 |
 | GET | `/stand-in` | whether a stand-in answers an agent while the rest closes Claude Code's road | 「Models, registry, tiers, roads and fallback」 |
 | GET | `/model-tiers/models`, `/fallback/codex-models`, `/fallback/openrouter-models` | a provider's catalogue | 「Models, registry, tiers, roads and fallback」 |
 | POST | `/worker`, `/worker/node`, `/workers/stand` | a worker added, changed, placed or stood again | 「Workers」 |
@@ -759,6 +761,32 @@ Each hook has a default that does nothing, so agency runs with none registered.
   agent is pinned to a provider other than Claude Code or its key's walk meets a stand-in now, as the
   cache siren reads the logins' windows (`docs/cache-fallback.md`, 「While a fallback stands, the room is
   not silent」).
+- **The providers and the tiers as a consumer walks them.**
+  - `GET /providers` answers every provider in the provider order, the order a walk asks them in, each
+    its `name`, `enabled` (the owner has it on), `registered` (its models are the registry's
+    registrations), `coworker` (co-workers are borrowed on it) and `lines` (the lines its program
+    carries). Whether it is registered, whether it lends co-workers and which lines it carries are each
+    provider's own declaration (`docs/provider-presence.md`).
+  - `GET /tiers` answers every tier in the ladder's order, each its `name` and `coworker`, true where a
+    co-worker may be borrowed at it (`docs/model-tiers.md`).
+  - `POST /routes/resolve` takes `workKey`, `provider?` and `tier`, and answers the mapping the work key
+    goes out on at that tier: `provider`, `tier`, `model`, `effort` and `answerTokens`, each null where
+    the mapping holds none. With a provider named it is that provider's; with none, the first provider
+    that is on, in the provider order, that serves it. A provider that is off, an unsettled migration of
+    the key, a tier its provider maps to nothing, or an effort the provider would not launch serves no
+    route, answered 404 `nothing-held` with the reason; a tier that is not on the ladder is refused 400.
+  - `POST /pins/check` takes a worker's pin `value` — `auto`, a provider, or a provider and a model
+    joined by `::` — and answers the choice it names: `kind` `auto`, or `pinned` with `provider` and
+    `model` (or null). A value naming no provider, one whose program carries no job, a model on a
+    provider that takes none, or a registration with no address, is refused 400 with the sentence saying
+    why (`docs/own-llm.md`, 「A worker pinned to a provider」).
+  - `GET /providers/{provider}/models/{model}/health` answers `answers`: true where the engine behind a
+    registered model answers its health and stands aside for nothing, false otherwise, a provider whose
+    models are not registrations included. A consumer reopens a road it closed for an outage on it.
+  - **A provider's cache lifetime has no route.** Agency reads how long a session on a provider and model
+    stays warm from the cache siren (「Calls agency makes」), or from the provider's declared lifetime,
+    and judges a worker's session warm or cold itself (`docs/sessions.md`, 「A worker's session per
+    model」); no consumer asks it.
 - **The catalogue** holds the model files the deployment's own engines serve, and choosing one fetches
   and installs it (`docs/model-catalogue.md`).
 - **The gateway** is agency's one translator in front of every registration; its address and key are

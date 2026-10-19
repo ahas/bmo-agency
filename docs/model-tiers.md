@@ -88,6 +88,10 @@ high rather than separate medium/high/max values. This is an explicit normalizat
 for one mapping per provider/tier, not a claim that all previous pairs were identical. Stored
 owner model overrides that disagree remain unresolved and fail closed; they are not erased.
 
+A consumer that walks the providers itself asks agency for the mapping a work key goes out on at a
+tier, on one provider or the first that serves it, under the same refusals a run meets (`docs/api.md`,
+「Models, registry, tiers, roads and fallback」).
+
 Each fallback attempt resolves before session lookup. The requested tier stays fixed across
 the walk, while a new provider uses its current mapping. Worker recovery carries a complete
 selection to the physical attempt. Execution and job history retain tier and effective effort;

@@ -40,6 +40,7 @@ pub mod sessions;
 pub mod stand_ins;
 pub mod tiers;
 pub mod typed_line;
+mod walk_reads;
 mod worker;
 mod worker_runtime;
 mod worker_words;
