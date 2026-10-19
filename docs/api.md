@@ -117,6 +117,8 @@ judges none of it.
 | POST | `/machine/launch-held` | the launcher's notice that launches are held, or its withdrawal | 「Workers」 |
 | GET, POST | `/rest` | the deployment's rest, read and written | 「Accounts」 |
 | GET | `/rest/passed` | why the rest that has just passed silenced the deployment, the passed rests cleared | 「Accounts」 |
+| POST | `/accounts/claude/{account}/usage-rest` | the rest a done job's session usage calls for, begun on its login | 「Accounts」 |
+| GET | `/accounts/claude/held`, `/accounts/claude/homes` | whether a user holds a login that is on, and where the logins keep their session records | 「Accounts」 |
 | GET | `/health` | agency's health and readiness | 「Health」 |
 
 ## Agents
@@ -816,6 +818,20 @@ Each hook has a default that does nothing, so agency runs with none registered.
   closed to a job's selection. `GET /rest` answers `resting`, `until` in epoch seconds and `kind`; `POST
   /rest` takes `until`, `kind` (`limit` or `outage`) and the `account` a limit is its login's, and answers
   whether the rest is the one that `silenced` the deployment.
+- **The rest a job's usage calls for.** `POST /accounts/claude/{account}/usage-rest` takes `usage`, the
+  session usage a done job's answer reported on that login, as the turn's end carried it (`utilization`,
+  `resetsAt`, `weeklyUtilization?`, `weeklyResetsAt?`), and answers 204. Agency judges the rest from it:
+  a session window at the policy's threshold rests the login until it resets, a weekly window at its own
+  threshold until the week resets or, where no reset is named, for the policy's fallback while; any other
+  usage rests nothing. It is written as `POST /rest` writes a limit, a login already resting left as it
+  stands, and where it is the rest that silenced the deployment `deployment-resting` is published
+  (「Events」). A usage that does not read as a session's is refused 400.
+- **Whether a user holds a login.** `GET /accounts/claude/held?user=<id>` answers `held`, true where an
+  account that is on belongs to that user, by the `user_id` its row names; who the users are is the
+  caller's. A user that is not a whole number holds none, and a call naming no user is refused 400.
+- **The record homes.** `GET /accounts/claude/homes` answers `homes`, the directory each login keeps its
+  session records under — this machine's own configuration directory first, then each account's, in the
+  accounts' order — each once.
 - **A rest that has passed.** `GET /rest/passed` clears every rest whose moment is behind now — the
   service's own and each enabled account's — and answers `kind`, why the deployment rested, where it was
   silent before and rests no longer: `outage` where the service's own rest held it, `limit` otherwise.

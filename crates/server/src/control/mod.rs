@@ -2,6 +2,7 @@
 //! registers itself where it is written, so no list of them is kept anywhere; every route answers on
 //! agency's ground, with the store it keeps.
 
+mod account_routes;
 mod agent_sampling;
 pub mod agent_switches;
 pub mod agents;

@@ -11,6 +11,7 @@ use store::{all, one};
 
 use crate::Refusal;
 use crate::control::claude_accounts::{Judging, SEED_ACCOUNT};
+use crate::door::record::SessionUsage;
 use crate::events::Event;
 use crate::queue::settings;
 
@@ -23,6 +24,21 @@ async fn setting(db: &DatabaseConnection, key: &str) -> Result<Option<String>, R
   let row = one(db, r#"SELECT "value" FROM "settings" WHERE "key" = $1"#, vec![key.into()]).await?;
 
   Ok(row.map(|row| row.try_get("", "value")).transpose()?)
+}
+
+/// The moment a login's own session usage rests it until, in epoch seconds: its session window's reset where
+/// that window stands at the threshold, its week's where the week does — the policy's fallback while from
+/// now where the week names none — and none otherwise.
+pub fn rest_until_after(usage: &SessionUsage, now: i64) -> Option<f64> {
+  if usage.utilization >= REST.threshold {
+    return Some(usage.resets_at);
+  }
+
+  if usage.weekly_utilization.is_some_and(|weekly| weekly >= REST.weekly_threshold) {
+    return Some(usage.weekly_resets_at.unwrap_or((now + REST.fallback_seconds) as f64));
+  }
+
+  None
 }
 
 /// A rest's moment as its value is written: the leading whole number, a sign before it taken with it.

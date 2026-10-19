@@ -450,7 +450,8 @@ When a demotion first catches — when a healthy session first drops — two thi
   refusal, which rests it as any refusal does.
 - **A rest written from a run's refusal or its own usage is not a reading:** it closes the login until
   its moment whatever the reader later finds, so a login a run found spent is never sent another run
-  before the refusal's own moment.
+  before the refusal's own moment. A done job's usage is handed to agency by the job's runner, which
+  rests the login where a window stands at its threshold (`docs/api.md`, 「Accounts」).
 - **A closed login is never offered.** The walk offers the open logins in its order and none other; a
   key pinned to a closed login is offered none.
 - **A run none of whose logins answers goes out on none.** It ends without launching anything, and
