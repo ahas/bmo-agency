@@ -39,6 +39,7 @@ mod control {
   mod job_log;
   mod model_tiers;
   mod models;
+  mod node_reads;
   mod own_llm;
   mod pool_board;
   mod pool_reads;

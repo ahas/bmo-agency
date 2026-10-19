@@ -24,6 +24,7 @@ mod hook_routes;
 mod machine;
 pub mod model_tiers;
 pub mod models;
+mod node_reads;
 pub mod own_llm;
 pub mod pool;
 pub mod pool_board;

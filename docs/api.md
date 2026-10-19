@@ -107,6 +107,7 @@ judges none of it.
 | POST | `/workers/{worker}/words` | words the owner said to a worker, written down and offered to its session | 「Workers」 |
 | POST | `/workers/{worker}/sessions/handover`, `/workers/{worker}/runs`, `/workers/{worker}/bench`, `/workers/{worker}/servers/sweep`, `/workers/{worker}/prefix-touched` | what a job's run asks of its worker's runtime: a session handed over, a run noted, the bench made ready, the servers its jobs left swept, and what of a change touches the session's prefix | 「Workers」 |
 | GET | `/workers/{worker}/job-documents` | what a worker's agent definition gives a job | 「Workers」 |
+| GET | `/nodes`, `/nodes/{name}/reach`, `/nodes/{name}/copy` | the nodes, how SSH reaches one, and where the copy of a checkout on one is kept here | 「Workers」 |
 | GET, POST | `/jobs/stop-mark`, `/jobs/stop-mark/clear` | a job's stop mark | 「Workers」 |
 | POST, GET | `/roads/block`, `/roads/open` | a road's block, and whether a road is open | 「Workers」 |
 | POST | `/runs/stop`, `/runs/alive` | runs stopped, and which names are alive | 「Workers」 |
@@ -916,6 +917,15 @@ Each hook has a default that does nothing, so agency runs with none registered.
   (`docs/agent-control.md`, 「The keepalive ping goes into the same program as the turns」). What the
   worker is told them in is the consumer's, at the worker's words point (「Hooks」 above). A text that is
   empty, or a name no worker's row holds, is refused 400.
+- **The nodes, as a job's run reads them.** `GET /nodes` answers the nodes as the node service reads them
+  (「Calls agency makes」, the node service), a list in the node list's order, each its `name`, `label`,
+  `kind` (`ssh`, or `jake` for a node reached through a hub), `role` (or null), `state` and `checkedAt`
+  (or null); with no node service, none. `GET /nodes/{name}/reach` answers how SSH reaches a node,
+  `host`, `port`, `user`, `keyPath` (or null) and `shell` (or null), and 404 `nothing-held` for a node
+  reached through a hub, a node not listed, or with no node service. `GET /nodes/{name}/copy?checkout=`
+  answers `path`, where the copy of that checkout on the node is kept on this machine: the shadow the
+  node's link keeps of it under the node's directory (`docs/work-nodes.md`, 「The link」); a call naming no
+  checkout is refused 400.
 - **A worker's runtime, as a job's run asks for it.** The job unit's runner asks agency for what its
   job's turns leave behind on the worker; each answers at once and fails nothing the job did.
   - `POST /workers/{worker}/sessions/handover` takes `model`, `cwd`, `thread?`, `session?` and `note?`
@@ -1053,6 +1063,8 @@ due, the ping itself and its record — itself (`docs/coworker-pool.md`, 「Rese
 | link state | `/links/state` | `node` | `up` (boolean): the node's link is connected and was heard from lately | down |
 | node rows | `/nodes/list` | nothing | `nodes`, in the node list's order: each `node`, `label` (or null), `kind` (`ssh`, or `jake` for a node reached through a hub), `state` and `detail` (or null) | no nodes |
 | node login | `/nodes/login` | `node` | `ssh`: the arguments that open a batch SSH login to the node, ahead of the command, or null where the node has no SSH route | none |
+| node reads | `GET /nodes` | nothing | `nodes`, in the node list's order: each `name`, `label`, `kind`, `role` (or null), `state` and `checkedAt` (or null) | no nodes |
+| node reach | `GET /nodes/{name}/reach` | nothing | an ssh node's `host`, `port`, `user`, `keyPath` (or null) and `shell` (or null); refused `not-ssh` for a node reached through a hub and `no-node` for one not listed | none |
 | machine standing | `GET /machine/standing` | nothing | `browsers`, how many browser main processes run, and `places`, what each agent place holds: `place`, `megabytes` and `browsers`; the rest of the standing is not read | no browser, no place |
 | pressure | `GET /events?kinds=machine-pressure` | nothing | a stream of server-sent `machine-pressure` events, each as the node service's boundary states it | no event |
 

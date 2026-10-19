@@ -383,11 +383,6 @@ pub async fn revoke(ground: &Ground, token: &str) {
 pub fn record_checkout(ground: &Ground, place: &Path, cwd: &str) -> PathBuf {
   match crate::watches::links::place_node(place) {
     None => PathBuf::from(cwd),
-    Some(node) => {
-      let shadow: String =
-        cwd.chars().map(|one| if one.is_ascii_alphanumeric() { one } else { '-' }).collect();
-
-      ground.roots.data.join("nodes").join(node).join("shadow").join(shadow)
-    }
+    Some(node) => crate::watches::links::checkout_shadow(&ground.roots.data, &node, cwd),
   }
 }

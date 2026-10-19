@@ -8,7 +8,9 @@ use std::time::Duration;
 use agency_server::config::{Config, PeerAddresses};
 use agency_server::peers::brain::{BrainReset, holds_watch};
 use agency_server::peers::cache_siren::Window;
-use agency_server::peers::node::{LargeProcess, NodeKind, NodeRow, PlaceHolding, Pressure, Room, Standing};
+use agency_server::peers::node::{
+  LargeProcess, NodeKind, NodeRead, NodeRow, PlaceHolding, Pressure, Room, SshReach, Standing,
+};
 use agency_server::peers::{PeerFault, Peers};
 use axum::Json;
 use axum::extract::State;
@@ -86,6 +88,25 @@ async fn answer(
     }
     "nodes/login" if body["node"] == "near" => json!({ "ssh": ["-o", "BatchMode=yes", "worker@near"] }),
     "nodes/login" => json!({ "ssh": null }),
+    "nodes" => json!({ "nodes": [
+      { "name": "near", "label": "Near", "kind": "ssh", "role": "jobs", "state": "up", "checkedAt": 1_700_000_000 },
+      { "name": "far", "label": "Far", "kind": "jake", "state": "down" }
+    ] }),
+    "nodes/near/reach" => {
+      json!({ "host": "near.lan", "port": 2222, "user": "worker", "keyPath": "/keys/near" })
+    }
+    "nodes/far/reach" => json!({
+      "answered": false,
+      "refusal": { "code": "not-ssh", "message": "The node is reached through a hub." }
+    }),
+    "nodes/gone/reach" => json!({
+      "answered": false,
+      "refusal": { "code": "no-node", "message": "No node of that name is listed." }
+    }),
+    "nodes/odd/reach" => json!({
+      "answered": false,
+      "refusal": { "code": "incomplete", "message": "The node lacks a field." }
+    }),
     "agents/fence" | "agents/put-back" => json!({ "ok": true }),
     "watches/stopped" => json!({ "ended": body["unit"] == "bmo-watch-12-1700000000000" }),
     "agents/lock" if body["agent"] == "kept" => json!({ "path": "brains/kept/.lock" }),
@@ -403,6 +424,65 @@ async fn the_cache_warmer_is_asked_whether_a_kinds_pings_go_on_a_provider() {
       body: json!({ "kind": "coworker-pool", "mode": "codex" }),
     }
   );
+}
+
+#[tokio::test]
+async fn the_node_service_s_reads_are_asked_and_a_node_with_no_reach_is_none() {
+  let (address, calls) = stand_in().await;
+  let peers = peers_at(&address, None);
+
+  assert_eq!(
+    peers.node.node_reads().await.unwrap(),
+    vec![
+      NodeRead {
+        name: "near".into(),
+        label: "Near".into(),
+        kind: NodeKind::Ssh,
+        role: Some("jobs".into()),
+        state: "up".into(),
+        checked_at: Some(1_700_000_000),
+      },
+      NodeRead {
+        name: "far".into(),
+        label: "Far".into(),
+        kind: NodeKind::Jake,
+        role: None,
+        state: "down".into(),
+        checked_at: None,
+      },
+    ]
+  );
+  assert_eq!(
+    peers.node.ssh_reach("near").await.unwrap(),
+    Some(SshReach {
+      host: "near.lan".into(),
+      port: 2222,
+      user: "worker".into(),
+      key_path: Some("/keys/near".into()),
+      shell: None,
+    })
+  );
+  assert_eq!(peers.node.ssh_reach("far").await.unwrap(), None, "reached through a hub");
+  assert_eq!(peers.node.ssh_reach("gone").await.unwrap(), None, "not listed");
+  assert!(matches!(peers.node.ssh_reach("odd").await, Err(PeerFault::Refused { .. })));
+
+  let paths: Vec<String> = taken(&calls).into_iter().map(|call| call.path).collect();
+
+  assert_eq!(
+    paths,
+    [
+      "/base/nodes",
+      "/base/nodes/near/reach",
+      "/base/nodes/far/reach",
+      "/base/nodes/gone/reach",
+      "/base/nodes/odd/reach"
+    ]
+  );
+
+  let none = Peers::of(&PeerAddresses::default());
+
+  assert!(none.node.node_reads().await.unwrap().is_empty());
+  assert_eq!(none.node.ssh_reach("near").await.unwrap(), None);
 }
 
 #[tokio::test]

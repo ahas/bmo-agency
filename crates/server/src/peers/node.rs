@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use futures_util::StreamExt;
 use futures_util::stream::BoxStream;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sse_stream::SseStream;
 
@@ -92,7 +92,7 @@ pub type Pressures = BoxStream<'static, Result<Pressure, PeerFault>>;
 const PRESSURE_EVENT: &str = "machine-pressure";
 
 /// How a node is reached: over SSH, or through a hub its agent attaches to, which offers no shell.
-#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum NodeKind {
   Ssh,
@@ -127,6 +127,42 @@ pub struct NodeRow {
   pub detail: Option<String>,
 }
 
+/// One node as the node service's reads answer it, handed on as it stands.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct NodeRead {
+  pub name: String,
+  pub label: String,
+  pub kind: NodeKind,
+  #[serde(default)]
+  pub role: Option<String>,
+  pub state: String,
+  #[serde(default)]
+  pub checked_at: Option<i64>,
+}
+
+/// How SSH reaches an ssh node, as the node service's reads answer it.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct SshReach {
+  pub host: String,
+  pub port: u16,
+  pub user: String,
+  #[serde(default)]
+  pub key_path: Option<String>,
+  #[serde(default)]
+  pub shell: Option<String>,
+}
+
+// The node service's refusals that say a node has no SSH reach: none of that name, or one reached
+// through a hub.
+const NO_REACH: [&str; 2] = ["no-node", "not-ssh"];
+
+#[derive(Deserialize)]
+struct NodeReads {
+  nodes: Vec<NodeRead>,
+}
+
 #[derive(Deserialize)]
 struct LinkState {
   up: bool,
@@ -153,6 +189,14 @@ pub trait NodeService: Send + Sync {
   /// The arguments that open a batch SSH login to a node, ahead of the command, or none where the node
   /// has no SSH route.
   fn ssh_login<'a>(&'a self, node: &'a str) -> Asking<'a, Option<Vec<String>>>;
+  /// The nodes as the service's reads answer them, in the node list's order; none by default.
+  fn node_reads(&self) -> Asking<'_, Vec<NodeRead>> {
+    Box::pin(async { Ok(vec![]) })
+  }
+  /// How SSH reaches a node, or none where it has no SSH reach or is not listed; none by default.
+  fn ssh_reach<'a>(&'a self, _node: &'a str) -> Asking<'a, Option<SshReach>> {
+    Box::pin(async { Ok(None) })
+  }
   /// How many browsers run on this machine and what each place holds; none of either by default.
   fn machine_standing(&self) -> Asking<'_, Standing> {
     Box::pin(async { Ok(Standing::default()) })
@@ -224,6 +268,24 @@ impl NodeService for HttpNodeService {
       let login: Login = self.caller.post("nodes/login", json!({ "node": node })).await?;
 
       Ok(login.ssh)
+    })
+  }
+
+  fn node_reads(&self) -> Asking<'_, Vec<NodeRead>> {
+    Box::pin(async move {
+      let reads: NodeReads = self.caller.get("nodes").await?;
+
+      Ok(reads.nodes)
+    })
+  }
+
+  fn ssh_reach<'a>(&'a self, node: &'a str) -> Asking<'a, Option<SshReach>> {
+    Box::pin(async move {
+      match self.caller.get(&format!("nodes/{node}/reach")).await {
+        Ok(reach) => Ok(Some(reach)),
+        Err(PeerFault::Refused { code, .. }) if NO_REACH.contains(&code.as_str()) => Ok(None),
+        Err(fault) => Err(fault),
+      }
     })
   }
 

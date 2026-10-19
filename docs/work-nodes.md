@@ -182,7 +182,9 @@ side of a remote agent, the rotation, and what a dropped node does.
 - **The job runner reaches the checkout through the node:** every git question of the job's lifecycle
   — the branch prepared, what is open, what the job committed, parking — runs there over one shared
   connection, main is the remote's, brought up before the job's branch is made from it, and the graph
-  is read through its shadow here.
+  is read through its shadow here. The job unit asks agency where that shadow stands for its checkout,
+  and reads the nodes and how SSH reaches one through agency, which hands on the node service's reads
+  (`docs/api.md`, 「Workers」).
 - **The records read here as they always did,** off the mirrored files: the turn's answer and
   activity, the session collection, the run log, the token usage, a job's quiet and stalled watch.
 
