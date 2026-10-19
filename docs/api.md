@@ -101,6 +101,8 @@ judges none of it.
 | GET | `/model-tiers/models`, `/fallback/codex-models`, `/fallback/openrouter-models` | a provider's catalogue | 「Models, registry, tiers, roads and fallback」 |
 | POST | `/worker`, `/worker/node`, `/workers/stand` | a worker added, changed, placed or stood again | 「Workers」 |
 | POST | `/workers/{worker}/words` | words the owner said to a worker, written down and offered to its session | 「Workers」 |
+| POST | `/workers/{worker}/sessions/handover`, `/workers/{worker}/runs`, `/workers/{worker}/bench`, `/workers/{worker}/servers/sweep`, `/workers/{worker}/prefix-touched` | what a job's run asks of its worker's runtime: a session handed over, a run noted, the bench made ready, the servers its jobs left swept, and what of a change touches the session's prefix | 「Workers」 |
+| GET | `/workers/{worker}/job-documents` | what a worker's agent definition gives a job | 「Workers」 |
 | GET, POST | `/jobs/stop-mark`, `/jobs/stop-mark/clear` | a job's stop mark | 「Workers」 |
 | POST, GET | `/roads/block`, `/roads/open` | a road's block, and whether a road is open | 「Workers」 |
 | POST | `/runs/stop`, `/runs/alive` | runs stopped, and which names are alive | 「Workers」 |
@@ -855,6 +857,37 @@ Each hook has a default that does nothing, so agency runs with none registered.
   (`docs/agent-control.md`, 「The keepalive ping goes into the same program as the turns」). What the
   worker is told them in is the consumer's, at the worker's words point (「Hooks」 above). A text that is
   empty, or a name no worker's row holds, is refused 400.
+- **A worker's runtime, as a job's run asks for it.** The job unit's runner asks agency for what its
+  job's turns leave behind on the worker; each answers at once and fails nothing the job did.
+  - `POST /workers/{worker}/sessions/handover` takes `model`, `cwd`, `thread?`, `session?` and `note?`
+    and answers 204. The session named, or with none named the kept session on that model under the
+    login its record names, is closed with the note the next run on the worker and model opens with —
+    the worker's own where `note` holds it, otherwise asked of the session summariser (「Hooks」) — under
+    the `thread` where one is named, and every session the worker set aside on another model is dropped
+    with its record (`docs/sessions.md`, 「A worker's session per model」). With none named, the kept
+    session's record is dropped too, so the next turn opens fresh; with nothing kept on the model,
+    nothing is handed over.
+  - `POST /workers/{worker}/runs` notes that a run of the worker's began: its run count and the moment
+    of its last run, on its row, and answers 204.
+  - `POST /workers/{worker}/bench` makes the worker's bench ready for a job and answers 204: its
+    workbench folder, with what a job before it asked of its dev server taken back, and its dev pane
+    brought up where its row names a dev command (`docs/worker-bench.md`). A name no row holds is left
+    as it is.
+  - `POST /workers/{worker}/servers/sweep` ends the servers the worker's jobs left listening, the
+    worker's job read as over, and answers `lines`, one for each server ended or left in a shared group
+    (`docs/worker-bench.md`, 「Servers a job leaves listening」).
+  - `GET /workers/{worker}/job-documents` answers what a worker's agent definition gives a job: `graph`,
+    what a job is told of the code graph; `trailer`, the trailer every job is held to, its paths filled in
+    as the deployment shows them; and `handoff`, the instruction the worker writes its own handoff note
+    by, where its own folder holds one, or null (`docs/agent-documents.md`).
+  - `POST /workers/{worker}/prefix-touched` takes `files`, repository-relative paths a job's own commits
+    moved, and answers `touched`, those among them a worker session's prefix is built from, in the order
+    given (`docs/sessions.md`).
+  - **The rest of a job's turn is the worker turn's own, and has no route.** A reset the owner asked of
+    the worker's sessions, the record of the session a job's turn answered on, and that turn's usage are
+    carried out by agency's worker turn itself under the session contract (「Sessions」): its usage is
+    published as `usage-spent` (「Events」) and agency keeps no usage rows, so no turn's usage is counted
+    twice.
 - **A run's clock.** A run agency holds to a clock — an editor run among them — is asked about past its
   bound rather than cut (`docs/agent-control.md`, 「A clock asks before it cuts」). `GET
   /runs/clock?run=<name>` answers, for the clocked runs standing under that name or as its children,

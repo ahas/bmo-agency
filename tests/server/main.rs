@@ -48,6 +48,7 @@ mod control {
   mod sessions;
   mod stand_in_route;
   mod tiers;
+  mod worker_runtime;
 }
 mod conversational;
 mod data_move;

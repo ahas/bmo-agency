@@ -102,7 +102,9 @@ Each job worker holds three things beside the work of its jobs:
 - **Agency creates it:**
   - for every worker when it starts
   - for a worker when that worker is added
-  - for a job's worker when the job starts
+  - for a job's worker when the job starts, which the job's runner asks of agency with the rest of the
+    bench: what a job before it asked of the dev server taken back, and the dev pane brought up where
+    the worker has a dev command (`docs/api.md`, 「Workers」)
   - leaving it as is if it already exists
 - **A co-work branch has none:** its name lives one task and stands in no agents row
   (`docs/coworker-pool.md`, 「Standing branch checkouts and their list」), so a branch's job makes no workbench and its prompt
@@ -352,7 +354,8 @@ Each job worker holds three things beside the work of its jobs:
 - **Why they outlive the job:** the worker's resident program stays up between jobs, kept warm by the
   keepalive, and whatever a job's turn left running stays with it.
 - **When they are swept:**
-  - The job's runner sweeps its own worker's as the job ends, before it hands the job over.
+  - The job's runner sweeps its own worker's as the job ends, before it hands the job over, by asking
+    agency across the boundary (`docs/api.md`, 「Workers」).
   - Agency sweeps every worker's every ten minutes, which catches a runner that died. It takes a server
     whose worker has no job holding its checkout's job hold, and one that has run past the dev
     server's lifetime even while a job runs.

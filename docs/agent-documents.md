@@ -38,6 +38,11 @@ composed into a system prompt, and what the chat agent's own prompt is made of.
   `voice-reading/instructions.md`, `search/task.md` and `request.md`, `browse/task.md` and
   `request.md` with its `.mcp.json`, and `worker/trailer.md`. The editors' tasks and the session
   summariser's prompt are not among them: the brain keeps and composes those.
+- **A job's documents are handed to the job service,** which composes a job's prompt: `worker/graph.md`,
+  what a job is told of the code graph; `worker/trailer.md`, the trailer every job is held to, with the
+  graph text, the path of the worker plugin's skills and the path of `plain-writing.md` filled in as
+  the deployment shows them; and `handoff.md` in a worker's own folder — its base's for a support worker
+  — the instruction it writes its own handoff note by, where it holds one (`docs/api.md`, 「Workers」).
 
 ## The web reaches agents through the tool host
 
