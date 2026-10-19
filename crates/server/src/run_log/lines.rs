@@ -24,6 +24,9 @@ pub struct Line {
   pub metadata: Option<Json>,
 }
 
+/// The states a line stands in: a call asked, a step under way, and how one ended.
+pub const LINE_STATES: [&str; 5] = ["requested", "running", "succeeded", "failed", "unverified"];
+
 impl Line {
   /// A note in the bot's own words.
   pub fn note(text: impl Into<String>) -> Self {

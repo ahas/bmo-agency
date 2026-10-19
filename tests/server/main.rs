@@ -35,6 +35,7 @@ mod control {
   mod fallback;
   mod front;
   mod harness;
+  mod job_log;
   mod model_tiers;
   mod models;
   mod own_llm;

@@ -92,6 +92,8 @@ judges none of it.
 | GET | `/pool/reservations` | the reservations an owner holds | 「Co-worker pool」 |
 | POST | `/places/take`, `/places/prepare`, `/places/remember`, `/places/retire` | a branch's standing checkout | 「Co-worker pool」 |
 | GET | `/run-log`, `/run-records` | a run's lines and its records | 「Run log and run records」 |
+| GET | `/log/jobs/{job}`, `/log/jobs/{job}/last` | a job's lines, and its last line | 「Run log and run records」 |
+| POST | `/log/notes`, `/turn-records` | a note written into a run's log, and a turn record kept | 「Run log and run records」 |
 | POST, GET | `/runs`, `/runs/{id}` | a run of the ledger opened, listed by the search it carried, and read by its id | 「Run log and run records」 |
 | POST | `/runs/{id}/close`, `/runs/{id}/launch` | a run of the ledger closed, and its runner started in its agent's host | 「Run log and run records」 |
 | GET, POST | `/models`, `/registry`, `/model-tiers`, `/fallback` | the catalogue, the registry, the tiers and the roads | 「Models, registry, tiers, roads and fallback」 |
@@ -673,6 +675,26 @@ Each hook has a default that does nothing, so agency runs with none registered.
   `name`, `parent`, `ref`, `text`, `jobId`, `state`, `truncated` and `detail`. `GET
   /run-records?run=<run>` answers its `records`, each its `id`, `kind`, `text`, `recordId`, `wakes` and
   `at`.
+- **A job's lines** are read by the job's id, across every run its turns were logged under; a line's
+  `at` is in epoch seconds, as the log keeps it.
+  - `GET /log/jobs/{job}/last` answers the job's last line, its `id`, `at`, `kind` and `name` (or null);
+    a job with no line is answered 404 `nothing-held`.
+  - `GET /log/jobs/{job}` answers `calls`, each top-level tool call, as `id`, `agent`, `run` (the name
+    the line is kept under), `reference`, `name`, `source`, `at`, `command`, the command it ran where
+    its arguments read as JSON naming one, and `args`, its arguments cut to 2000 characters; `results`,
+    each top-level tool result, as `id`, `agent`, `run`, `reference`, `complete`, false where the log
+    kept only a cut of it, `length` and `at`; `requests`, how many model requests the job's runs made,
+    counted by the distinct requests its tool, text and thinking lines came from; and `compactions`, how
+    often its context was compacted. A job with no line answers empty lists and zero counts. A job id
+    that is not a whole number is refused 400.
+- **A note.** `POST /log/notes` writes a line of the kind `note` into a run's log, in the bot's own
+  words: it takes the `agent` and the `run` it is kept under, `chat?` and `job?`, the `text`, `source?`,
+  the road the line tells of, and `state?`, one of the states a line stands in (`requested`, `running`,
+  `succeeded`, `failed`, `unverified`); it answers 204. A note missing its agent, run or text, or naming
+  another state, is refused 400.
+- **A turn record kept.** `POST /turn-records` takes a record, the `run` it is kept under (the run's name
+  as the run was handed it), `kind`, `text`, `recordId?`, `wakes` and `at`, and answers 204; `GET
+  /run-records` reads it back. A record missing a field it needs is refused 400.
 - **The run records** hold one line per road a run walked — work key, room and message, provider and
   model, outcome, time, and the tokens the run reported — and the usage filed under the agent
   (`docs/run-records.md`, `docs/own-llm.md`, 「Which road answered is recorded」). A consumer reads them

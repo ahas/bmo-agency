@@ -35,6 +35,16 @@ about a message is not agency's: the judgement records belong to the units that 
   lines a person reads and they are a small share of what fills the table.
 - The console reads the log through agency's run-log route, by agent and from an id onward
   (`docs/api.md`, 「Run log and run records」), so a finished run is scrolled back page by page.
+- **A job's lines are read by the job,** across every run its turns were logged under: its last line,
+  and its top-level tool calls and their results with how many model requests it made and how often
+  its context was compacted, which is what the job unit's figures and its watch on a running job are
+  made of.
+- **A note in the bot's own words** is written into a run's log across the boundary by whoever carries
+  the run, such as the job unit telling which road a turn went out on or why the run ended. It stands
+  beside the run's own lines, under the run's agent, room and job, and is kept whole.
+- **A turn record** is one thing a run wrote down for its turn, a row filed or words appended to one,
+  kept under the name the run worked under so the checks on that turn's answer can ask whether a
+  promise in it stands on a record. Whoever carries out the writing keeps it across the boundary.
 - **A room forgotten takes its lines with it,** but a job's: a job's turns are logged under its room
   and belong to the job, which outlives the room (`docs/api.md`, 「Sessions」, forgetting a room).
 
