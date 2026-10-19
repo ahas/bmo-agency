@@ -61,7 +61,8 @@ is the caller's decision; agency supplies it.
 - `crates/`: the Rust crates. `agent-session`, `herdr`, `agent-host`, `pane-head`, `harness-machine`,
   `harness-providers`, `node-link`, `llm-gateway`, `policy`, `store`, `tool-call`, `cache-siren` (the
   accounts' usage windows and the cache-lifetime judgement, `docs/usage-windows.md`), `cache-warmer`
-  (the keepalive schedule, `docs/keepalive-schedule.md`) and `server`.
+  (the keepalive schedule's general rule, a library with no dependencies that other repositories build on
+  by git, `docs/keepalive-schedule.md`) and `server`.
 - `tools/`: the tools agency provides to the tool host, `procedures` and `read_rulebook`, each a folder
   with its `tool.toml` and the crate of its executable (`docs/tools.md`).
 - `ts/`: the TypeScript packages, `agent`, `archive` and `support`, one Bun workspace.

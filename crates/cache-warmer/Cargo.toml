@@ -1,11 +1,10 @@
 [package]
 name = "cache-warmer"
-description = "Agency's keepalive schedule: whether its keepalive pings go, and when a kept prefix is worth a ping."
+description = "The keepalive schedule's general rule: when a kept prompt-cache prefix is due a ping, and in what order a pass pings its targets."
 version.workspace = true
 edition.workspace = true
+readme = "README.md"
 publish = false
 
+# No dependencies: the crate is built alone by every repository that depends on it.
 [dependencies]
-policy = { path = "../policy" }
-sea-orm.workspace = true
-store = { path = "../store" }

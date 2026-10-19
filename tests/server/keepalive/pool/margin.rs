@@ -1,5 +1,5 @@
-//! A ping's reason cut by the units a string counts. The margin off a published lifetime is the keepalive
-//! schedule's, tested with the cache-warmer crate.
+//! A ping's reason cut by the units a string counts, the keepalive schedule's own cut as the pool takes it.
+//! The margin off a published lifetime is tested with the pool's schedule.
 
 use agency_server::keepalive::pool::first_units;
 

@@ -1,8 +1,9 @@
 # The boundary API
 
 This document is agency's boundary: every route it exposes, every event it publishes, every hook a
-consumer registers, and every table whose shape a consumer reads or writes. A consumer reaches agency
-only across this boundary and never into a crate or a module behind it; agency reaches a consumer only
+consumer registers, every table whose shape a consumer reads or writes, and the one library another
+repository builds on. A consumer reaches agency only across this boundary and never into a crate or a
+module behind it; agency reaches a consumer only
 by publishing an event or calling a hook the consumer registered. What a turn is told, whom an agent
 answers, which role and model a piece of work needs, and whether an answer may go out are the
 consumer's, decided above this boundary and handed in; agency supplies, carries and controls, and
@@ -21,6 +22,9 @@ judges none of it.
 - **A table** whose contract is shared is one a consumer reads or writes directly beside agency. Its
   columns, their meaning and the rows' keys are the contract; a column a consumer does not read is
   agency's own.
+- **A library** is a crate of agency's that another repository depends on and calls in its own
+  process: its public names, their fields and what each answers are the contract. The keepalive schedule
+  is the one (「The keepalive schedule library」 below).
 - **A tier, a role and a work key** are the words a consumer names a piece of work with; agency
   resolves each to a provider, a model and an effort (「Models, registry, tiers, roads and fallback」
   below).
@@ -28,12 +32,12 @@ judges none of it.
 ## Versioning
 
 - **The contract carries the repository's one version, in semver.** The version in the workspace
-  manifest is this boundary's version; the current line is `1.0.0`.
+  manifest is this boundary's version; the current line is `1.1.0`.
 - **A change to this document and a change to the boundary go in one commit.** A change that makes a
-  route, an event, a hook or a shared table's contract different repairs this document in the same
+  route, an event, a hook, a shared table's contract or the library's public API different repairs this document in the same
   commit, stating what is true now.
-- **The version moves by what changed:** the major on a change to a route, an event, a hook or a
-  table's contract that an existing consumer reads; the minor on an addition of one; the patch on
+- **The version moves by what changed:** the major on a change to a route, an event, a hook, a
+  table's contract or a library's public name that an existing consumer reads; the minor on an addition of one; the patch on
   anything else.
 
 ## The control port
@@ -1022,6 +1026,42 @@ Each hook has a default that does nothing, so agency runs with none registered.
   answer from an earlier process or another tree is not yet the release it started.
 - **Agency reports faithfully:** a node not ready says what is missing, a gateway still settling says
   so, and a key that is not usable says it is not; nothing is shown ready that is not.
+
+## The keepalive schedule library
+
+- **`crates/cache-warmer` is the keepalive schedule's general rule** (`docs/keepalive-schedule.md`, 「The
+  general rule」), a library of plain values that depends on no other crate. Agency's server calls it
+  for its pool's places; another repository that keeps prompt-cache prefixes warm calls it for its own
+  targets. It reads no clock, no store and no policy: every moment and span is handed in, in epoch
+  milliseconds, and every answer is a value.
+- **Its names, each at the crate's root:**
+  - `Clocks`, a target's registration: `idle_ms`, `lifetime_ms` (none where no lifetime is declared),
+    `margin_ms`, `failure_touches` and `honours_idle_override`. It answers `touch` of a record, the
+    `idle_stretch` under a pass's override, whether it is `due` at a moment under an override, when it is
+    next due (`due_at`, judged without an override), and whether a prefix idle a given span is still
+    `kept`.
+  - `Record`, a target's last touches: `last_used_at`, `last_warmed_at` and `last_failed_at`, each
+    optional; its default is a target never used, warmed or failed.
+  - `Group`, a group's `name` and its `limit` of pings a pass.
+  - `Candidate`, one target as a pass judges it: `consumer`, `target`, `rank`, an optional `group`, its
+    `clocks` and `record`, whether it is `on` and whether it is `paused`. It answers `is_due` in a pass
+    and `due_at` for the list.
+  - `Pass`, what one pass judges by: `now`, an optional `idle_override_ms` and whether the round is
+    `stopped`.
+  - `plan`, the candidates a pass pings, as indexes into what it was handed, in the order it pings them.
+  - `usable`, a lifetime less a margin, none where nothing is left.
+  - `is_on`, whether a target warms from its subject's switch, its registration's default and the
+    policy's default.
+  - `use_clears_pause`, whether a use whose work began at one moment clears a pause set at another.
+  - `first_units`, a text cut to a count of UTF-16 units.
+- **Another repository depends on it by git,** naming the package `cache-warmer` at the agency
+  repository's URL, a `file://` URL to a local checkout where the repository has no remote, and pinning a
+  `rev` or a `tag` where it wants one commit held: `cargo add cache-warmer --git <agency repository URL>`
+  writes that dependency. A checkout beside agency's may name the crate by `path` instead. Either way the
+  crate builds alone, with no other crate of agency's fetched beside it, and carries the repository's
+  version.
+- **What stays the caller's:** the clock, the store a target's record and switches are kept in, the
+  policy its defaults and margins come from, the ping itself and what its answer writes.
 
 ## Calls agency makes
 

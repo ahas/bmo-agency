@@ -5,11 +5,12 @@
 //! provider says how long its cache lives, whether a rest of the account holds its pings, and how its own
 //! program sends one. The pool asks the keepalive schedule which places are due and records every ping, so
 //! a restart neither forgets a reservation nor pings a place a second time inside its idle stretch. Whether
-//! pings go at all is the schedule's too, by the owner's warming switch (docs/keepalive-schedule.md).
+//! pings go at all is the owner's warming switch's (docs/keepalive-schedule.md).
 
 pub mod branch;
 pub mod native;
 pub mod roads;
+pub mod schedule;
 
 use std::collections::HashSet;
 use std::future::Future;
@@ -17,12 +18,13 @@ use std::path::PathBuf;
 use std::pin::Pin;
 use std::time::Duration;
 
-use cache_warmer::Prefix;
 use store::{one, run};
 
+use self::schedule::Prefix;
 use crate::control::claude_accounts::Judging;
 use crate::control::pool::{self, Reservation};
 use crate::door::record::Reply;
+use crate::keepalive::switch;
 use crate::lines::fault;
 use crate::lines::worker::WorkerRun;
 use crate::order_run::dispatch::held_reservations;
@@ -111,17 +113,12 @@ pub struct Pool<'a> {
   pub ground: &'a Ground,
 }
 
-/// The first `units` of a text, by the UTF-16 units a string counts.
-pub fn first_units(text: &str, units: usize) -> String {
-  let all: Vec<u16> = text.encode_utf16().collect();
-
-  String::from_utf16_lossy(&all[..units.min(all.len())])
-}
+pub use cache_warmer::first_units;
 
 impl Pool<'_> {
-  // Whether the keepalive schedule lets pings go now: unless the owner's warming switch stands.
+  // Whether pings go now: unless the owner's warming switch stands.
   async fn scheduled(&self) -> Result<bool, Refusal> {
-    cache_warmer::pings_go(&self.ground.db).await.map_err(|why| fault(why.detail))
+    switch::pings_go(&self.ground.db).await.map_err(|why| fault(why.detail))
   }
 
   async fn lending(&self, provider: &str) -> Result<bool, Refusal> {

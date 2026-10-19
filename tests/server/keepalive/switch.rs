@@ -8,6 +8,7 @@ use std::sync::Arc;
 use agency_server::Service;
 use agency_server::config::Config;
 use agency_server::control::{Front, router};
+use agency_server::keepalive::switch;
 use agency_server::places::Ground;
 use harness_providers::Machine;
 use serde_json::{Value, json};
@@ -22,13 +23,13 @@ async fn pings_go_unless_the_switch_stands() {
   let scratch = Scratch::new().await;
   let db = scratch.db();
 
-  assert!(cache_warmer::pings_go(db).await.unwrap(), "a store with no switch warms");
+  assert!(switch::pings_go(db).await.unwrap(), "a store with no switch warms");
 
-  cache_warmer::set_stopped(db, true).await.unwrap();
-  cache_warmer::set_stopped(db, true).await.unwrap();
+  switch::set_stopped(db, true).await.unwrap();
+  switch::set_stopped(db, true).await.unwrap();
 
-  assert!(cache_warmer::stopped(db).await.unwrap());
-  assert!(!cache_warmer::pings_go(db).await.unwrap());
+  assert!(switch::stopped(db).await.unwrap());
+  assert!(!switch::pings_go(db).await.unwrap());
   assert_eq!(
     scratch
       .count(
@@ -40,9 +41,9 @@ async fn pings_go_unless_the_switch_stands() {
     "the switch stands in the setting docs/store.md names"
   );
 
-  cache_warmer::set_stopped(db, false).await.unwrap();
+  switch::set_stopped(db, false).await.unwrap();
 
-  assert!(cache_warmer::pings_go(db).await.unwrap());
+  assert!(switch::pings_go(db).await.unwrap());
 }
 
 // The server's control front over a scratch store, served on a loopback port of its own.
@@ -84,7 +85,7 @@ async fn the_control_route_reads_and_throws_the_switch() {
   assert_eq!(ask(port, Some(json!({ "stopped": true }))).await, (200, json!({ "stopped": true })));
   assert_eq!(ask(port, None).await, (200, json!({ "stopped": true })));
   assert!(
-    !cache_warmer::pings_go(scratch.db()).await.unwrap(),
+    !switch::pings_go(scratch.db()).await.unwrap(),
     "the route throws the switch the pool reads"
   );
 

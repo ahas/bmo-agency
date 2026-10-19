@@ -92,7 +92,9 @@ mod keepalive {
   mod pool {
     mod branch;
     mod margin;
+    mod schedule;
   }
+  mod switch;
 }
 mod order_run {
   mod dispatch;

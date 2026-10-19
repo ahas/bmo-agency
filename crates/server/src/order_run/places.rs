@@ -16,6 +16,7 @@ use store::{all, run};
 
 use super::dispatch::Fault;
 use crate::control::tiers;
+use crate::keepalive::pool::schedule;
 use crate::lines::Trees;
 use crate::lines::place::Place;
 use crate::lines::standing::worker_prefix_digest;
@@ -75,7 +76,7 @@ pub fn ttl_ms(mode: &str, model: &str, upstream: Option<&str>) -> Option<i64> {
 
   harness_providers::provider(mode)
     .and_then(|provider| provider.place_cache(model, upstream).ok())
-    .and_then(|cache| cache_warmer::usable(cache.ttl_minutes * 60_000))
+    .and_then(|cache| schedule::usable(cache.ttl_minutes * 60_000))
 }
 
 /// Whether the clock still allows a row; `now` in milliseconds, the row's time in seconds.

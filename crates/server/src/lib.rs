@@ -44,10 +44,12 @@ pub mod job_run {
   pub mod openrouter_tap;
 }
 
-/// The keepalive agency keeps: the logins' watch, and the co-worker pool's warming of its reserved places.
+/// The keepalive agency keeps: the logins' watch, the co-worker pool's warming of its reserved places, and
+/// the owner's warming switch that stops it.
 pub mod keepalive {
   pub mod logins;
   pub mod pool;
+  pub mod switch;
 }
 pub mod lines;
 pub mod order_run;

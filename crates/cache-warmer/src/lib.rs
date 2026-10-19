@@ -1,9 +1,15 @@
-//! Agency's keepalive schedule (docs/keepalive-schedule.md): whether its keepalive pings go, by the owner's
-//! warming switch, and when a kept prefix is worth a ping, by its usable lifetime and its idle stretch.
-//! Which places stand, the ping itself and its record are the pool's.
+//! The keepalive schedule's general rule (docs/keepalive-schedule.md, 「The general rule」): when a kept
+//! prompt-cache prefix is due a ping, in what order a pass pings its targets, and the owner's switches as
+//! values. Everything is judged from what it is handed, `now` included; the crate reads no clock, no store
+//! and no policy, and depends on no other crate. Its public names are agency's boundary (docs/api.md,
+//! 「The keepalive schedule library」).
 
-pub mod due;
-pub mod switch;
+mod clocks;
+mod plan;
+mod reason;
+mod switches;
 
-pub use due::{Prefix, usable};
-pub use switch::{pings_go, set_stopped, stopped};
+pub use clocks::{Clocks, Record, usable};
+pub use plan::{Candidate, Group, Pass, plan};
+pub use reason::first_units;
+pub use switches::{is_on, use_clears_pause};
