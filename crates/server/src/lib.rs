@@ -77,6 +77,7 @@ pub mod watches {
 }
 pub mod wording;
 pub mod worker_session;
+pub mod worker_words;
 
 use std::path::Path;
 use std::sync::Arc;

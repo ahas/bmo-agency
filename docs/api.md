@@ -100,6 +100,7 @@ judges none of it.
 | GET | `/stand-in` | whether a stand-in answers an agent while the rest closes Claude Code's road | 「Models, registry, tiers, roads and fallback」 |
 | GET | `/model-tiers/models`, `/fallback/codex-models`, `/fallback/openrouter-models` | a provider's catalogue | 「Models, registry, tiers, roads and fallback」 |
 | POST | `/worker`, `/worker/node`, `/workers/stand` | a worker added, changed, placed or stood again | 「Workers」 |
+| POST | `/workers/{worker}/words` | words the owner said to a worker, written down and offered to its session | 「Workers」 |
 | GET, POST | `/jobs/stop-mark`, `/jobs/stop-mark/clear` | a job's stop mark | 「Workers」 |
 | POST, GET | `/roads/block`, `/roads/open` | a road's block, and whether a road is open | 「Workers」 |
 | POST | `/runs/stop`, `/runs/alive` | runs stopped, and which names are alive | 「Workers」 |
@@ -566,8 +567,8 @@ Each hook has a default that does nothing, so agency runs with none registered.
   read from the `answer` of a 2xx answer. An address that does not answer within ten seconds, answers
   otherwise or answers what does not read as the point's answer is told once on agency's error stream,
   and the point answers its default. The points registered this way are `room-title`, `pane-claims`,
-  `cowork-places`, `session-summariser`, `typed-line` and `road-verbs`; a registration lasts as long as
-  the server's process.
+  `cowork-places`, `session-summariser`, `typed-line`, `road-verbs` and `worker-words`; a registration
+  lasts as long as the server's process.
 
 - **Turn assembly and reference selection are no hook:** the caller composes the prompt and the turn's
   context — the material it chose to stand at the turn's head among them — and hands them in with the
@@ -617,6 +618,12 @@ Each hook has a default that does nothing, so agency runs with none registered.
   environment as `BMO_JOB_GUARD`, a command line, and agency hands it to every worker program it
   starts; the worker's `PreToolUse` hook runs it through `sh` with the hook's input on standard input,
   and its output is the hook's answer. With none named, the hook judges nothing and every call goes on.
+- **The worker's words**, `worker-words`. What a worker is told the words the owner said to it in is
+  composed by the consumer, not by agency (「Workers」, words said to a worker). Agency asks the point with
+  the `worker`, the `way` the words reach it — `task`, a turn of their own; `aside`, into the turn a job
+  of the worker's is working; `more`, into the turn answering earlier words — and the `words`, each its
+  `text` and `saidAt` in epoch milliseconds, and the consumer answers the whole text, or none. The
+  default answers none, and the words go in as said, one after another.
 - **The session summariser.** As a session is replaced, handed over or set aside for another model,
   agency asks the summariser for the note the next run is handed: what kind of session it was (`chat`,
   `worker` or `switch`), the provider it stood on, its session id, its folder, the login it was opened
@@ -838,6 +845,16 @@ Each hook has a default that does nothing, so agency runs with none registered.
   standing over the name and the executions it owns, as a stop stood them, and answers `dropped`, the
   names whose cancellation stood until then. A consumer takes them back before a run of that name starts
   again; a stop of several runs at once takes its own back by itself.
+- **Words said to a worker.** The owner's words to a worker rather than to an agent: `POST
+  /workers/{worker}/words` takes the `text` and answers 204 at once. Agency writes them down with their
+  line in the worker's log, under the name `word`, and offers them to the worker's session without the
+  caller waiting: into the turn the session is working where it hears words, a job's; where none takes
+  them, in a turn of their own on the worker's session, held to ten minutes' clock, which takes the
+  words said meanwhile at its next look, and whose answer stands under the last word it took. The words
+  still waiting are offered again every few seconds, and what held them is written under them once
+  (`docs/agent-control.md`, 「The keepalive ping goes into the same program as the turns」). What the
+  worker is told them in is the consumer's, at the worker's words point (「Hooks」 above). A text that is
+  empty, or a name no worker's row holds, is refused 400.
 - **A run's clock.** A run agency holds to a clock — an editor run among them — is asked about past its
   bound rather than cut (`docs/agent-control.md`, 「A clock asks before it cuts」). `GET
   /runs/clock?run=<name>` answers, for the clocked runs standing under that name or as its children,

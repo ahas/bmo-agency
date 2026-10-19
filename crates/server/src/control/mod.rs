@@ -41,6 +41,7 @@ pub mod stand_ins;
 pub mod tiers;
 pub mod typed_line;
 mod worker;
+mod worker_words;
 mod workers_routes;
 
 use std::collections::{BTreeSet, HashMap};
@@ -67,6 +68,7 @@ use crate::companion::going::GoingRuns;
 use crate::events::Bus;
 use crate::places::{Ground, Places};
 use crate::queue::settings;
+use crate::worker_words::Words;
 pub use inventory;
 
 /// One route the front answers, written beside its answer: `crate::moved!(BasePrompts);`
@@ -241,6 +243,8 @@ pub struct Call {
   going: Arc<GoingRuns>,
   // The session contract over the places the server stands, where it stands them.
   sessions: Option<crate::herdr_backend::Shared>,
+  // The words said to the workers, offered over that contract.
+  words: Option<Words<crate::herdr_backend::HerdrSessions>>,
   // What the request's path held at each `{name}` of the route's path.
   params: Vec<(String, String)>,
 }
@@ -302,6 +306,11 @@ impl Call {
     self.sessions.clone()
   }
 
+  /// The words said to the workers, where the server stands the places they are offered over.
+  pub fn words(&self) -> Option<Words<crate::herdr_backend::HerdrSessions>> {
+    self.words.clone()
+  }
+
   /// The companions' runs going now, as `companion-run-going` names them.
   pub fn going(&self) -> Arc<GoingRuns> {
     self.going.clone()
@@ -355,6 +364,7 @@ pub struct Front {
   herdr: Option<herdr::picture::Watch>,
   going: Arc<GoingRuns>,
   sessions: Option<crate::herdr_backend::Shared>,
+  words: Option<Words<crate::herdr_backend::HerdrSessions>>,
 }
 
 impl Front {
@@ -389,16 +399,25 @@ impl Front {
       herdr: None,
       going,
       sessions: None,
+      words: None,
     })
   }
 
   /// The front with the workers' places the server stands, the session contract carried over them, and the
   /// picture of herdr it keeps.
   pub fn with_places(mut self, places: Places, herdr: Option<herdr::picture::Watch>) -> Self {
-    self.sessions = Some(Arc::new(crate::herdr_backend::HerdrSessions::new(places.clone())));
+    let sessions = Arc::new(crate::herdr_backend::HerdrSessions::new(places.clone()));
+
+    self.words = Some(Words::new(self.ground.clone(), sessions.clone()));
+    self.sessions = Some(sessions);
     self.places = Some(places);
     self.herdr = herdr;
     self
+  }
+
+  /// The words said to the workers, once the front stands over their places.
+  pub fn words(&self) -> Option<Words<crate::herdr_backend::HerdrSessions>> {
+    self.words.clone()
   }
 
   fn authorised(&self, request: &Request) -> bool {
@@ -432,6 +451,7 @@ async fn dispatch(State(front): State<Arc<Front>>, request: Request) -> Response
     places: front.places.clone(),
     going: front.going.clone(),
     sessions: front.sessions.clone(),
+    words: front.words.clone(),
     params,
   };
 

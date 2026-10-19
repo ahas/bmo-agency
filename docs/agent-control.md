@@ -962,7 +962,7 @@ flowchart TD
 
 - **Which runs carry a clock.** A job's turn and a chat round carry none. A word said to a worker
   while nothing of its own runs carries ten minutes, since the worker's queue waits on its lock while
-  it runs; a word on a pinned road carries none (`docs/own-llm.md`). The keepalive ping and a fold
+  it runs; past it the clock asks, as every clocked run's does. The keepalive ping and a fold
   carry bounds of their own. A digest's or a person book's editor run carries the editor cap: thirty
   minutes, or the request wait of the registration the agent's recollectors run on where that is
   longer (`docs/own-llm.md`, 「What a registration holds」), which `GET /editors/cap` answers; a browse
@@ -2471,16 +2471,19 @@ enters the prefix.
     prefix no turn uses. The ping the pool uses to warm a Claude Code co-work place goes into that place's
     resident program for the same reason.
 - **A word said to the worker while nothing of its own is running is the same run with something else
-  said.** It goes into the worker's resident program on the session a job would resume, and it is the
-  worker's pane lock that keeps the two apart (「A worker's pane lock」): the word's turn asks for that
-  lock without waiting, so a word arriving while a turn of the worker's own is running is left to that
-  turn's own reader, which puts it into the working turn. Whichever of them ran, the session, the login it
-  went out on, the downgrade heal and the fold are decided in one place.
+  said.** A word is first offered to the turn the worker's session is working, a job's, which takes it
+  where it hears words; where none takes it, it goes into the worker's resident program on the session a
+  job would resume, in a turn of its own that holds the session as any turn of the session contract
+  does, so neither goes in over the other. Whichever of them ran, the session, the login it went out on,
+  the downgrade heal and the fold are decided in one place.
 - **A word's turn reads further words too.** A word said while the worker is answering an earlier one
-  goes into that same working turn at its next look, behind a paragraph saying the owner said more while
-  it was answering and that the one answer takes both in; the answer then stands under the last word
-  it took. A turn on a pinned provider's program does the same where that program takes words
-  mid-turn.
+  goes into that same working turn at its next look; the answer then stands under the last word it took.
+- **The words are worded by their consumer.** How the worker is told them — in a turn of their own, into a
+  job's working turn, or into the turn answering earlier words — is the consumer's to word at the
+  worker's words point (`docs/api.md`, 「Hooks」); where nobody words them, they go in as said.
+- **A word to a worker pinned to another provider waits.** A worker pinned to a provider other than
+  Claude Code that is on holds no Claude session to say it into, and no run on that pin carries words,
+  so the word waits in the worker's log with a line saying so.
 - **Nothing waits for a slow round.** A word is offered the moment it is said, and the words still
   waiting are offered again every few seconds, one worker apart from another, so a word left by a
   job that ended, a ping or a fold goes in seconds after its pane is free. A worker already being

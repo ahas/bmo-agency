@@ -113,6 +113,12 @@ async fn serve(args: Args) -> Result<(), String> {
   });
 
   let front = control::Front::new(token, ground)?.with_places(places, watch);
+
+  // The words said to the workers still waiting, offered again on the words' own clock.
+  if let Some(words) = front.words() {
+    words.stand();
+  }
+
   let listener = control::bind(args.control_port)
     .await
     .map_err(|why| format!("the control port: {why}"))?;

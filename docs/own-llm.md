@@ -674,15 +674,10 @@ bmo-agency agent --route <work key> --provider <auto|claude-code|codex|openroute
 - **What runs on it:**
   - Automatic jobs of the worker run on the pin alone, and recovery tries no other; a job that names its
     own `<provider>::<model>` still asks that first.
-  - The words said to the worker on its own screen go out on the pin as one run, as a job of it would —
-    on a registered model, one turn of Claude Code in the worker's pane — and the answer stands under
-    them; words said while that turn runs go into it. A worker pinned to Claude Code, pinned to a
-    provider that is switched off, or not pinned, is spoken to in its Claude session as before. A run on
-    the pin that does not answer writes why under the words, and the words count as handed over.
-  - That run has no clock, as a job's has none: it goes on until it answers, fails or is stopped. A
-    registered model reading the worker's line again can stand silent for a long while before its first
-    byte and then answer slowly, so a bound in minutes would cut a word in the middle of its answer. Each
-    request in it is still held to the registration's request wait.
+  - The words said to the worker on its own screen wait in its log while it is pinned to a provider that
+    is on, with a line saying so, since no run on the pin carries words (`docs/agent-control.md`, 「The
+    keepalive ping goes into the same program as the turns」). A worker pinned to Claude Code, pinned to
+    a provider that is switched off, or not pinned, is spoken to in its Claude session.
   - A worker pinned to a provider other than Claude Code is not kept warm on Claude.
 - **Its sampling is its own,** apart from any companion's on the same registration: a worker holds
   sampling settings of its own, kept in the store's settings under its name, and every run of its jobs

@@ -45,13 +45,14 @@ use crate::control::claude_accounts::{Judging, account_open};
 use crate::control::companions::Settings;
 use crate::door::aside;
 use crate::door::record::{ModelSpend, UsageSpent};
-use crate::door::turn::{AsideOutcome, Quiet};
+use crate::door::turn::{AsideOutcome, Quiet, Watch};
 use crate::editor_session::{EditorTurn, composed as editor_composed, editor_turn, is_editor, workdir_of};
 use crate::events::Event;
 use crate::job_run::claude::turn::{Shows, WorkAsked, WorkSeat, carry, continues};
 use crate::lines::chat::{ChatLaunch, RoomContext, compose_turn};
 use crate::lines::companion::{CompanionTurn, LOST_SESSION, compose, pinned_provider, registration_named};
 use crate::lines::editor::PROVIDER as EDITOR_PROVIDER;
+use crate::places::locks::{pane_lock_path, try_hold};
 use crate::places::{AgentRow, Ground, Places};
 use crate::run_log::lines::Line;
 use crate::run_log::{RunLog, Target};
@@ -60,7 +61,8 @@ use crate::session_questions::Questions;
 use crate::watches::machine::keep_worker_job;
 use crate::worker_session::fold::{Folded, fold};
 use crate::worker_session::records::{self, note_answer, slot_account};
-use crate::worker_session::{self, Missed, Side};
+use crate::worker_session::{self, Missed, Side, Turned};
+use crate::worker_words::{WordRoad, WordTurn};
 use crate::{Refusal, now_ms};
 
 // What a worker's session is told apart by in its id, after its agent.
@@ -1685,3 +1687,68 @@ fn launch_of<'a>(
 
 /// The backend shared by the routes that answer the contract.
 pub type Shared = Arc<HerdrSessions>;
+
+// The worker's own session, as the contract names it.
+fn worker_session_id(worker: &str) -> Result<SessionId, Fault> {
+  id_of(worker, &Scope::Worker)
+    .ok_or_else(|| fault(FaultKind::Unknown, format!("{worker} names no worker's session")))
+}
+
+/// The words said to a worker go into its session through the backend: pushed into the turn it is working,
+/// or carried in a turn of their own that holds the session as a contract's turn does, so neither goes in
+/// over the other.
+impl WordRoad for HerdrSessions {
+  async fn push(&self, worker: &str, words: &str) -> Result<Aside, Fault> {
+    Sessions::push(self, &worker_session_id(worker)?, words).await
+  }
+
+  async fn turn<W: Watch + Send + Sync>(
+    &self,
+    worker: &AgentRow,
+    asked: WordTurn,
+    watch: &mut W,
+  ) -> Result<Option<Turned>, Refusal> {
+    let session = worker_session_id(&worker.name).map_err(|why| Refusal::failed(why.message))?;
+    // The worker's pane lock, taken without waiting: a job of the worker's waits out the word's turn on it.
+    let Some(_pane) = try_hold(&pane_lock_path(&self.ground().roots.data, &worker.name)) else {
+      return Ok(None);
+    };
+
+    {
+      let mut going = self.going();
+
+      if going.get(&session).is_some_and(|runs| !runs.is_empty()) {
+        return Ok(None);
+      }
+
+      going.entry(session.clone()).or_default().push(asked.name.clone());
+    }
+
+    let turned = match self.worker_session(&worker.name).await {
+      Ok((model, resumed)) => {
+        worker_session::turn(
+          &Side {
+            ground: self.ground(),
+          },
+          worker_session::Asked {
+            worker,
+            model,
+            session: resumed,
+            prompt: asked.prompt,
+            name: asked.name.clone(),
+            title: asked.title,
+            label: "word".to_owned(),
+            bound: Some(asked.bound),
+          },
+          watch,
+        )
+        .await
+      }
+      Err(why) => Err(Refusal::failed(why.message)),
+    };
+
+    self.ended(&session, &asked.name);
+
+    turned.map(Some)
+  }
+}
