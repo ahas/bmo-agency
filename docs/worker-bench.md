@@ -129,12 +129,13 @@ Each job worker holds three things beside the work of its jobs:
 - **It is one of the job's own places,** so a confirmation on a command that stays inside it is
   answered by the job's runner, never put to the owner (`docs/agent-control.md`, 「A command the runner allows
   itself」).
-- **It goes once no job of the item is open.** Agency's minute watch
-  (`docs/agent-control.md`, 「Room on the machine」) looks whenever the set of items with an open job
-  changes, and once as its process starts: every `items/<n>/` folder of every workbench whose item has no open job is removed, and
-  every `bmo_item_<n>_…` database likewise dropped. The same look removes every empty workbench folder no
-  agent's row names. A database the account cannot drop stays, and the
-  watching process's journal names it.
+- **It goes once no job of the item is open.** Agency's sweep looks every minute, and acts once as its
+  process starts and again whenever the set of items with an open job changes: every `items/<n>/` folder
+  of every workbench whose item has no open job is removed, and every `bmo_item_<n>_…` database on the
+  store's cluster likewise dropped. Which items have an open job is the job unit's, which holds the jobs:
+  agency asks it at the open items point (`docs/api.md`, 「Hooks」), and where nobody answers, no item's
+  scratch and no database is touched. The same look removes every empty workbench folder no agent's row
+  names, whoever answers. A database the account cannot drop stays, and agency's journal names it.
 - **What outlives the item stays beside it,** in the workbench folder itself: the dev server's data
   copy, logins, a tool's environment several items reuse. Nothing outside `items/` is removed by the
   watch.

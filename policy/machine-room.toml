@@ -19,3 +19,5 @@ held_watch_seconds = 60
 # How long after the node service's pressure stream drops, or cannot be opened, it is opened again, in
 # seconds.
 pressure_reopen_seconds = 10
+# How often the item scratch sweep looks whether the items with an open job have changed, in seconds.
+item_sweep_seconds = 60

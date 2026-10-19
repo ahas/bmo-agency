@@ -18,6 +18,7 @@ pub struct CountLimit {
 pub struct MachineClocks {
   pub held_watch_seconds: u64,
   pub pressure_reopen_seconds: u64,
+  pub item_sweep_seconds: u64,
 }
 
 #[derive(Debug, Deserialize)]

@@ -123,6 +123,7 @@ mod places {
   mod follow;
   mod ground;
   mod home;
+  mod item_sweep;
   mod locks;
   mod nodes;
   mod servers;

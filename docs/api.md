@@ -577,8 +577,8 @@ Each hook has a default that does nothing, so agency runs with none registered.
   read from the `answer` of a 2xx answer. An address that does not answer within ten seconds, answers
   otherwise or answers what does not read as the point's answer is told once on agency's error stream,
   and the point answers its default. The points registered this way are `room-title`, `pane-claims`,
-  `cowork-places`, `session-summariser`, `typed-line`, `road-verbs` and `worker-words`; a registration
-  lasts as long as the server's process.
+  `cowork-places`, `session-summariser`, `typed-line`, `road-verbs`, `worker-words` and `open-items`; a
+  registration lasts as long as the server's process.
 
 - **Turn assembly and reference selection are no hook:** the caller composes the prompt and the turn's
   context — the material it chose to stand at the turn's head among them — and hands them in with the
@@ -628,6 +628,11 @@ Each hook has a default that does nothing, so agency runs with none registered.
   environment as `BMO_JOB_GUARD`, a command line, and agency hands it to every worker program it
   starts; the worker's `PreToolUse` hook runs it through `sh` with the hook's input on standard input,
   and its output is the hook's answer. With none named, the hook judges nothing and every call goes on.
+- **The open items**, `open-items`. Which items have a job open is the job unit's, which holds the jobs.
+  Agency's item scratch sweep asks the point with nothing and the consumer answers `items`, the numbers
+  of every item a job of which is open, or none where it cannot say; agency then removes the scratch
+  folders and drops the databases of every other item (`docs/worker-bench.md`, 「An item's scratch」). The
+  default answers none, and no item's scratch is touched.
 - **The worker's words**, `worker-words`. What a worker is told the words the owner said to it in is
   composed by the consumer, not by agency (「Workers」, words said to a worker). Agency asks the point with
   the `worker`, the `way` the words reach it — `task`, a turn of their own; `aside`, into the turn a job

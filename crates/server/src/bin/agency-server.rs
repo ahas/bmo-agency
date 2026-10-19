@@ -131,8 +131,8 @@ async fn serve(args: Args) -> Result<(), String> {
 }
 
 // The server's own clocks: the run log pruned, the pool's admissions and leftovers, the pool's warming, the
-// queue's reconciliation, the logins' watch on the keepalive pass, the held launch's watch, and the node
-// service's pressures listened to.
+// queue's reconciliation, the logins' watch on the keepalive pass, the held launch's watch, the node service's
+// pressures listened to, and what finished items left in the workbenches swept.
 fn clocks(ground: &Arc<Ground>) {
   tokio::spawn(agency_server::run_log::prune::keep(ground.db.clone()));
   tokio::spawn(agency_server::order_run::clocks::keep_pool(ground.db.clone()));
@@ -195,4 +195,21 @@ fn clocks(ground: &Arc<Ground>) {
   });
 
   tokio::spawn(agency_server::watches::pressure::relay(ground.clone()));
+
+  let swept = ground.clone();
+  let sweep = Arc::new(agency_server::places::item_sweep::Sweep::default());
+  let period = Duration::from_secs(MACHINE_ROOM.clocks.item_sweep_seconds);
+
+  tokio::spawn(async move {
+    every("item scratch sweep", Duration::ZERO, period, move || {
+      let (ground, sweep) = (swept.clone(), sweep.clone());
+
+      async move {
+        let cluster = agency_server::places::item_sweep::StoreCluster(&ground.db);
+
+        sweep.sweep(&ground, &cluster).await.map(|_| ()).map_err(|refusal| refusal.detail)
+      }
+    })
+    .await
+  });
 }
