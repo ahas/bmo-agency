@@ -183,11 +183,11 @@ are the companion unit's, not agency's. This document covers only what agency ho
   answerers, and judges only its own rows by the rooms it is handed.
 - **What each range takes of agency's is agency's; the rest is its owners',** told by the reset's
   event as it ends (`docs/api.md`, 「Events」, `companion-reset`), so each unit takes its own rows:
-  - the conversation range takes the companion's room sessions, their kept turns and windows, its run
-    log lines and their run records, the run log lines of the rooms it answers alone, its runs in the
-    run ledger and those of the rooms it answers alone, the records its harnesses keep of the sessions
-    run in its home and the prompts their histories kept of them; the rooms' own records — their
-    messages, judgements and usage — are their owners';
+  - the conversation range takes the companion's room sessions and their kept turns, its run log lines
+    and their run records, the run log lines of the rooms it answers alone, its runs in the run ledger
+    and those of the rooms it answers alone, the records its harnesses keep of the sessions run in its
+    home and the prompts their histories kept of them; the rooms' own records — their messages,
+    judgements, usage and the windows they hold open for it — are their owners';
   - the person range is the brain's: agency asks the brain to reset the companion, which takes what it
     remembers, its folder among it (`docs/api.md`, 「Calls agency makes」, the brain), and starts the
     person book of every room it answers from now; agency takes the records its harnesses keep of the
@@ -217,8 +217,8 @@ are the companion unit's, not agency's. This document covers only what agency ho
     run its guard cuts does.
   - Every call of its tools and every verb its shell runs is refused whole from then on, and the
     refusal tells it to end the turn.
-  - It writes nothing of its own: no answer goes into the room, and no kept turn, usage, road, window
-    or handoff is written. The run log it wrote under its run is taken back, so the turn leaves no
+  - It writes nothing of its own: no answer goes into the room, and no kept turn, usage, road or
+    handoff is written. The run log it wrote under its run is taken back, so the turn leaves no
     record of itself, its first line included.
   - A turn holds the point off whenever it writes, reading the point again under the hold, so a turn
     writing as the reset begins writes whole before the point moves and the reset takes it after, and

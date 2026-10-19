@@ -132,7 +132,6 @@ pub fn picks(scope: &Scope, ranges: &[Range]) -> Vec<Pick> {
     },
     of_agent("room_session_turns", scope),
     of_agent("room_sessions", scope),
-    of_agent("room_windows", scope),
   ];
 
   all.retain(|one| ranges.contains(&one.range));

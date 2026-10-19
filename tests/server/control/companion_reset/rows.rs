@@ -17,14 +17,7 @@ fn the_conversation_range_takes_agency_s_own_tables_and_the_person_range_none() 
 
   assert_eq!(
     tables(&[Range::Conversation]),
-    [
-      "run_records",
-      "agent_log",
-      "runs",
-      "room_session_turns",
-      "room_sessions",
-      "room_windows"
-    ]
+    ["run_records", "agent_log", "runs", "room_session_turns", "room_sessions"]
   );
   assert!(tables(&[Range::Person]).is_empty());
 }

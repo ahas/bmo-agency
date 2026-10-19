@@ -22,12 +22,6 @@ async fn seed(scratch: &Scratch, room: i64) {
       vec![room.into()],
     )
     .await;
-  scratch
-    .run(
-      r#"INSERT INTO "room_windows" ("chat_id", "agent", "open_until") VALUES ($1, 'pal', 9)"#,
-      vec![room.into()],
-    )
-    .await;
 }
 
 #[test]
@@ -46,17 +40,15 @@ async fn a_room_forgotten_takes_its_rows_but_a_jobs_lines_and_leaves_another_roo
   let rows = |room: i64| {
     scratch.count(
       r#"SELECT (SELECT COUNT(*) FROM "agent_log" WHERE "chat_id" = $1)
-              + (SELECT COUNT(*) FROM "room_sessions" WHERE "chat_id" = $1)
-              + (SELECT COUNT(*) FROM "room_windows" WHERE "chat_id" = $1)"#,
+              + (SELECT COUNT(*) FROM "room_sessions" WHERE "chat_id" = $1)"#,
       vec![room.into()],
     )
   };
   let asked = forget(scratch.db(), -7, true).await.unwrap();
 
-  assert_eq!(rows(-7).await, 4, "a dry run writes nothing");
+  assert_eq!(rows(-7).await, 3, "a dry run writes nothing");
   assert_eq!(asked.gone.get("agent_log"), Some(&1));
   assert_eq!(asked.gone.get("room_sessions"), Some(&1));
-  assert_eq!(asked.gone.get("room_windows"), Some(&1));
   assert_eq!(asked.stayed.len(), 1);
   assert_eq!((asked.stayed[0].table.as_str(), asked.stayed[0].rows), ("agent_log", 1));
 
@@ -64,5 +56,5 @@ async fn a_room_forgotten_takes_its_rows_but_a_jobs_lines_and_leaves_another_roo
 
   assert_eq!(forgotten, asked);
   assert_eq!(rows(-7).await, 1, "the job's line stays");
-  assert_eq!(rows(-8).await, 4, "another room's rows are left");
+  assert_eq!(rows(-8).await, 3, "another room's rows are left");
 }

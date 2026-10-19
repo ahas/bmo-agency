@@ -54,8 +54,8 @@ seeds. The other crates and the server reach the store only through it.
     when its answer is due, the verdict, until when a keep holds, who gave it, why and when it closed
     (`docs/agent-control.md`, 「A clock asks before it cuts」); a row ended a week ago goes as the next
     clock is opened;
-  - the companions' sessions and settings: `room_sessions`, `room_session_turns`, `room_windows`,
-    `companion_settings`;
+  - the companions' sessions and settings: `room_sessions`, `room_session_turns`, `companion_settings`;
+    the window a room holds open for an agent is the room's owner's, and agency keeps none;
   - the settings, below.
 - **An account's `user_id`** names the user it belongs to, or none for the owner's; agency reads it and
   never fills it in itself, since who the users are is the caller's.

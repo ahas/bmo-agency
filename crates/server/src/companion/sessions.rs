@@ -280,43 +280,6 @@ pub async fn record_turn(
   Ok(())
 }
 
-/// When the agent's window in the room closes, in seconds; zero where it holds none.
-pub async fn window_open_until(
-  db: &impl ConnectionTrait,
-  chat_id: i64,
-  agent: &str,
-) -> Result<i64, Refusal> {
-  Ok(
-    one(
-      db,
-      "SELECT open_until FROM room_windows WHERE chat_id = $1 AND agent = $2",
-      vec![chat_id.into(), agent.into()],
-    )
-    .await?
-    .map(|row| row.try_get("", "open_until"))
-    .transpose()?
-    .unwrap_or(0),
-  )
-}
-
-/// The agent's window in the room opened until then, never shortened by a later opening.
-pub async fn open_window(
-  db: &DatabaseConnection,
-  chat_id: i64,
-  agent: &str,
-  until: i64,
-) -> Result<(), Refusal> {
-  run(
-    db,
-    "INSERT INTO room_windows (chat_id, agent, open_until) VALUES ($1, $2, $3)
-     ON CONFLICT (chat_id, agent) DO UPDATE SET open_until = GREATEST(room_windows.open_until, excluded.open_until)",
-    vec![chat_id.into(), agent.into(), until.into()],
-  )
-  .await
-  .map(drop)
-  .map_err(Refusal::from)
-}
-
 /// Whether a reset of the room's session was asked and not yet carried out.
 pub async fn reset_waiting(db: &DatabaseConnection, agent: &str, chat_id: i64) -> Result<bool, Refusal> {
   Ok(

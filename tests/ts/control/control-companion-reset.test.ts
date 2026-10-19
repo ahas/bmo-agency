@@ -115,8 +115,6 @@ async function stand(agent: string, rooms: number): Promise<Stood> {
     await run("INSERT INTO room_session_turns (agent, chat_id, generation, position, role, text, at) VALUES (?, ?, 1, 0, 'user', 'hi', 1), (?, ?, 1, 1, 'assistant', 'hello', 2)", agent, chatId, agent, chatId);
   }
 
-  await run("INSERT INTO room_windows (chat_id, agent, open_until) VALUES (?, ?, 1)", shared, agent);
-
   // Its own line in the lone room, another agent's line there, whose room's whole log goes with it, and
   // another agent's line in the shared room, which stays; each with a run record of its own.
   for (const [who, chatId, runName] of [[agent, alone, `chat:${alone}:1`], ["other", alone, `chat:${alone}:2`], ["other", shared, `chat:${shared}:1`]] as const) {
@@ -164,7 +162,7 @@ describe("GET /companions/reset, POST /companions/reset", () => {
 
     expect([both.agent, both.label, both.ranges]).toEqual([stood.agent, "Tester", ["conversation", "person"]]);
     expect([both.alone, both.shared]).toEqual([[{ chatId: stood.alone, title: null }], [{ chatId: stood.shared, title: null }]]);
-    expect(rowsOf(both)).toEqual({ run_records: 2, agent_log: 2, runs: 3, room_session_turns: 4, room_sessions: 2, room_windows: 1 });
+    expect(rowsOf(both)).toEqual({ run_records: 2, agent_log: 2, runs: 3, room_session_turns: 4, room_sessions: 2 });
     expect(both.files.toSorted()).toEqual([...stood.home, ...stood.recollector].toSorted());
     expect(both.brain).toEqual({ took: { memories: 3, folder: true }, couldNot: [] });
     expect(brainAsked).toEqual([{ path: "/agents/reset", body: { agent: stood.agent, preview: true } }]);
@@ -185,9 +183,9 @@ describe("GET /companions/reset, POST /companions/reset", () => {
 
     const done = await answered(reset({ agent: stood.agent, conversation: true, alone: [stood.alone], shared: [stood.shared] }));
 
-    expect(rowsOf(done)).toEqual({ run_records: 2, agent_log: 2, runs: 3, room_session_turns: 4, room_sessions: 2, room_windows: 1 });
+    expect(rowsOf(done)).toEqual({ run_records: 2, agent_log: 2, runs: 3, room_session_turns: 4, room_sessions: 2 });
     expect(done.failures).toEqual([]);
-    expect([await count("room_sessions WHERE agent = ?", stood.agent), await count("room_session_turns WHERE agent = ?", stood.agent), await count("room_windows WHERE agent = ?", stood.agent)]).toEqual([0, 0, 0]);
+    expect([await count("room_sessions WHERE agent = ?", stood.agent), await count("room_session_turns WHERE agent = ?", stood.agent)]).toEqual([0, 0]);
     expect([await count("agent_log WHERE chat_id = ?", stood.alone), await count("agent_log WHERE chat_id = ?", stood.shared)]).toEqual([0, 1]);
     expect(await count("run_records WHERE run = ?", `chat:${stood.shared}:1`)).toBe(1);
     expect(await archive!.sql.all("SELECT agent, chat_id AS room FROM runs WHERE chat_id IN (?, ?)", stood.alone, stood.shared)).toEqual([{ agent: "other", room: stood.shared }]);
