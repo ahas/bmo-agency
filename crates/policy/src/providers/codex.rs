@@ -11,6 +11,20 @@ pub struct Codex {
   pub presence: Presence,
   pub catalogue: Catalogue,
   pub cache: Cache,
+  pub usage: Usage,
+}
+
+/// How the subscription's windows are read on a clock (docs/usage-windows.md, 「The Codex reader」).
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Usage {
+  pub pass_seconds: u64,
+  pub fresh_passes: u32,
+  pub rollout_fresh_seconds: i64,
+  pub rollout_days: usize,
+  pub ask_seconds: u64,
+  pub stderr_seconds: u64,
+  pub app_server_args: Vec<String>,
 }
 
 /// How long a prefix its models hold stays cached, by the model names they begin.

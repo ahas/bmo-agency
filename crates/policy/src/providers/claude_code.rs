@@ -15,6 +15,19 @@ pub struct ClaudeCode {
   pub cache: Cache,
   pub login: Login,
   pub node_login: NodeLogin,
+  pub usage: Usage,
+}
+
+/// How every account's own windows are read on a clock (docs/usage-windows.md, 「The Claude account
+/// reader」).
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Usage {
+  pub url: String,
+  pub ask_seconds: u64,
+  pub pass_seconds: u64,
+  pub fresh_passes: u32,
+  pub windows: Vec<String>,
 }
 
 /// Each account's token for the work nodes: where this machine keeps it, the verb that makes one, and

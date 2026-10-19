@@ -1,8 +1,11 @@
 //! The cache-siren crate's tests: the keeping of the accounts' usage windows on a scratch store of the
-//! test's own, and the cache-lifetime judgement.
+//! test's own, the readers that fill it against stand-in endpoints and programs, and the cache-lifetime
+//! judgement.
 
 #[path = "../support/scratch.rs"]
 mod scratch;
 
+mod claude;
+mod codex;
 mod lifetime;
 mod windows;

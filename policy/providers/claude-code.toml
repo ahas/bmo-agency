@@ -52,6 +52,18 @@ long_tools = ["Bash", "Agent", "Task", "WebFetch", "WebSearch"]
 ttl_minutes = 60
 keepalive_idle_minutes = 40
 
+[usage]
+# Every account's own windows, asked of the account-usage endpoint with the account's own login on a
+# clock (docs/usage-windows.md, 「The Claude account reader」): where it is asked, how long an ask may take,
+# how often every account is read, and for how many passes a reading stands — enough to ride out a
+# passing failure of the endpoint, few enough that a quota that came back early stops closing its login.
+url = "https://api.anthropic.com/oauth/usage"
+ask_seconds = 15
+pass_seconds = 300
+fresh_passes = 6
+# The windows taken out of an answer: the ones every subscription login keeps.
+windows = ["five_hour", "seven_day"]
+
 [resident]
 # The keys typed into the pane of its standing program, Claude Code's own screen, that cut a working
 # turn short (docs/agent-control.md, 「Stopping」), and close the choice it stands at after a turn it ended on

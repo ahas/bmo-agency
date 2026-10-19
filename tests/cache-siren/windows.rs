@@ -5,6 +5,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use cache_siren::reader::Passing;
 use cache_siren::{Keeping, Reader, Slot, Window};
 
 use crate::scratch::Scratch;
@@ -24,6 +25,10 @@ impl Reader for Declares {
 
   fn fresh(&self) -> Duration {
     Duration::from_secs(1800)
+  }
+
+  fn pass<'a>(&'a self, _keeping: &'a Keeping, _now_ms: i64) -> Passing<'a> {
+    Box::pin(async {})
   }
 }
 

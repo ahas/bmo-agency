@@ -44,6 +44,30 @@ models = [
   { prefix = "gpt-6", ttl_minutes = 30, keepalive_idle_minutes = 20 },
 ]
 
+[usage]
+# The subscription's windows, read on a clock where Codex is installed (docs/usage-windows.md, 「The Codex
+# reader」): how often, and for how many passes a reading stands. The newest rollout's reading is taken
+# where a turn wrote it within rollout_fresh_seconds, the newest rollout_days day folders searched for it
+# (a thread resumed today still writes into the day it began on); otherwise the app-server is started with
+# app_server_args and asked, and given ask_seconds to answer and stderr_seconds to say why it failed. The
+# app-server starts its sandbox host as it boots, which this machine's sandbox setup cannot make a user
+# namespace for, so its line asks for full access and never to be asked.
+pass_seconds = 60
+fresh_passes = 6
+rollout_fresh_seconds = 60
+rollout_days = 3
+ask_seconds = 15
+stderr_seconds = 2
+app_server_args = [
+  "app-server",
+  "--listen",
+  "stdio://",
+  "--config",
+  'sandbox_mode="danger-full-access"',
+  "--config",
+  'approval_policy="never"',
+]
+
 [resident]
 # The keys typed into the pane of its standing program, Codex's own screen, that cut a working turn
 # short (docs/agent-control.md, 「Stopping」).
