@@ -1,0 +1,11 @@
+[package]
+name = "cache-warmer"
+description = "Agency's keepalive schedule: whether its keepalive pings go, and when a kept prefix is worth a ping."
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+policy = { path = "../policy" }
+sea-orm.workspace = true
+store = { path = "../store" }

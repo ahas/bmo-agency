@@ -11,6 +11,7 @@ dependencies = [
  "agent-session",
  "axum",
  "cache-siren",
+ "cache-warmer",
  "chrono",
  "clap",
  "futures-util",
@@ -51,6 +52,7 @@ dependencies = [
  "axum",
  "bmo-chat",
  "brush-parser",
+ "cache-warmer",
  "chrono",
  "clap",
  "diffy",
@@ -460,6 +462,15 @@ dependencies = [
  "serde_json",
  "store",
  "tokio",
+]
+
+[[package]]
+name = "cache-warmer"
+version = "1.0.0"
+dependencies = [
+ "policy",
+ "sea-orm",
+ "store",
 ]
 
 [[package]]
