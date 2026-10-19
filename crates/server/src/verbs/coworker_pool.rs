@@ -297,6 +297,7 @@ pub async fn admit(
       selection: "",
       requested_tier: None,
       provider: None,
+      work_key: None,
     },
     generation: 1,
     yielding: false,
@@ -512,6 +513,7 @@ pub async fn reserve(
       selection: "",
       requested_tier: None,
       provider: None,
+      work_key: None,
     },
     count,
   };

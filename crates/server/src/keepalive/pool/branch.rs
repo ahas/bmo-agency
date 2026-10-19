@@ -64,18 +64,19 @@ struct BranchPlace {
   held: Arc<Vec<Held>>,
 }
 
-// The worker's line in the place, laid on the role's tier on the row's provider; it keeps no session.
+// The worker's line in the place, laid on the tier its reservation's work key resolves to on the row's provider;
+// it keeps no session.
 async fn branch_place(
   ground: &Ground,
   trees: &Trees,
   pool: &str,
   row: &Agent,
+  work_key: &str,
   held: &Arc<Vec<Held>>,
 ) -> Result<BranchPlace, Refusal> {
   let cwd = slot_dir(&ground.roots.data, pool, row.slot).to_string_lossy().into_owned();
   let line = worker_run(ground, trees, None, &row.model, &cwd).await?;
-  let line =
-    configured_for(ground, &ground.machine(), line, &format!("role:{}", row.role), &row.mode).await?;
+  let line = configured_for(ground, &ground.machine(), line, work_key, &row.mode).await?;
   let upstream = (!row.upstream.is_empty()).then(|| row.upstream.clone());
   let key = format!(
     "cowork:{pool}:{}:{}:{}{}",
@@ -178,7 +179,7 @@ impl PlaceKind for BranchPlaces {
           continue;
         }
 
-        let place = branch_place(ground, &trees, &pool, &row, &held).await?;
+        let place = branch_place(ground, &trees, &pool, &row, &reservation.work_key, &held).await?;
         let line = &place.warm.run.line;
 
         // A mapping that now resolves elsewhere opens on another prefix than the one the row names.

@@ -647,14 +647,17 @@ Each hook has a default that does nothing, so agency runs with none registered.
   one, release and cancel a lease by its token, and set and release a reservation. A builder turn takes
   its place keyed by its checkout. The pre-reserve and release verbs a job runs are routes of this same
   surface (`docs/coworker-pool.md`, 「Native co-worker places」).
-  - `POST /pool/enqueue` takes `source` (`cowork`, a branch's seat, or `turn`, a builder turn's place),
-    `requestKey`, `owner`, `role`, `selection`, `tier` and `provider` where named, `generation`,
-    `yielding`, the `token` of the request it asks again and the `placeKey` of a turn, and answers the
-    request; `POST /pool/acquire` takes its `token` and answers the `request` let in, or null while it
+  - `POST /pool/enqueue` takes `source` (`turn`, a builder turn's place; any other label a branch's seat,
+    kept as sent — `cowork` for a co-work branch, `cowork` where none is sent), `requestKey`, `owner`,
+    `role`, `selection`, `tier`, `provider` and `workKey` where named, `generation`, `yielding`, the `token`
+    of the request it asks again and the `placeKey` of a turn, and answers the request. The request is
+    resolved and kept under its `workKey` where one is sent — a research line's own key — and under
+    `role:<role>` otherwise; `POST /pool/acquire` takes its `token` and answers the `request` let in, or null while it
     waits; `POST /pool/bind` takes the `token` and the `childId` of the unit it launched; `POST
     /pool/finish` takes the `token`, the `outcome` and `cancel`, and answers whether it was `held`.
-  - `POST /pool/reserve` takes `reservationKey`, `owner`, `source`, `role`, `selection`, `tier` and
-    `provider` where named, and `count`, and answers the reservation; `POST /pool/reservations/release`
+  - `POST /pool/reserve` takes `reservationKey`, `owner`, `source`, `role`, `selection`, `tier`,
+    `provider` and `workKey` where named, and `count`, and answers the reservation, its `workKey` among it,
+    resolved and kept under the key as a request is; `POST /pool/reservations/release`
     takes its `token` and the `outcome`; `GET /pool/reservations?owner=` answers the `reservations` held.
   - `GET /pool/requests/{token}` answers the request a token holds, whatever its state, and 404
     `nothing-held` where none does; `GET /pool/requests?owner=` answers the requests waiting or active, in

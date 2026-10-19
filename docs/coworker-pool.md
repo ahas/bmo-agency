@@ -15,6 +15,13 @@ warming and standing checkouts, is agency's.
 - **Branches:** the caller gives a role and instruction to the common dispatcher, which reads the
   provider order and the `role:<name>` tier assignment and picks the actual `(provider, model,
   effort)` independently of the parent.
+- **A branch's source and work key are the caller's.** A seat is asked under the source label its
+  caller sends — `cowork` for a co-work branch, a research run's own label for its branches — and a
+  builder turn's place under `turn`; the label is kept as sent and only `turn` is a builder turn's. A
+  seat is resolved under the work key its caller names, such as a research line's, and under
+  `role:<name>` where it names none. The key a request or a reservation was resolved under is the one
+  kept on it, and every later reading of it — the request asked again, a reservation's seats — reads
+  that key rather than building it again.
 - **A worker line's native `Agent`:** the role definition that line was handed already set model and
   effort by the `role:<name>` Claude Code mapping, so the worker settings' hook puts the request into
   that provider and tier before the call and sends the call only after taking a place (「Native

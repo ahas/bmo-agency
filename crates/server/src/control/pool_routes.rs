@@ -15,10 +15,13 @@ use store::run;
 use super::{Call, Refused, Route, answer, pool, whole};
 use crate::now_ms;
 use crate::order_run::dispatch::{
-  self, Asked, COWORK, Seats, Wanted, acquire, bind, enqueue_coworker, enqueue_turn, finish,
-  held_reservations, release_reservation,
+  self, Asked, COWORK, Seats, Wanted, acquire, bind, enqueue_seat, enqueue_turn, finish, held_reservations,
+  release_reservation,
 };
 use crate::order_run::places::{self, Held};
+
+// The source a builder turn's place is asked under.
+const TURN: &str = "turn";
 
 fn bad(error: impl Into<String>) -> Refused {
   Refused::new(StatusCode::BAD_REQUEST, error)
@@ -47,6 +50,7 @@ fn wanted(body: &Value) -> Result<Wanted<'_>, Refused> {
     selection: text(body, "selection")?,
     requested_tier: optional(body, "tier"),
     provider: optional(body, "provider"),
+    work_key: optional(body, "workKey"),
   })
 }
 
@@ -81,10 +85,10 @@ impl Route for PoolEnqueue {
       token: optional(&body, "token"),
       place_key: optional(&body, "placeKey"),
     };
+    // A builder turn's place is the one source of its own; any other label is a branch's seat, kept as sent.
     let request = match body.get("source").and_then(Value::as_str).unwrap_or(COWORK) {
-      COWORK => enqueue_coworker(call.store(), &asked, async |_, _| Ok(())).await,
-      "turn" => enqueue_turn(call.store(), &asked, async |_, _| Ok(())).await,
-      other => return Err(bad(format!("a request's source is cowork or turn, not {other}"))),
+      TURN => enqueue_turn(call.store(), &asked, async |_, _| Ok(())).await,
+      source => enqueue_seat(call.store(), &asked, source, async |_, _| Ok(())).await,
     }
     .map_err(refused)?;
 

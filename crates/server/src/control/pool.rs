@@ -68,6 +68,8 @@ pub struct Reservation {
   pub owner: String,
   pub source: String,
   pub role: String,
+  /// The work key the reservation was resolved under, which its seats are kept under.
+  pub work_key: String,
   pub provider: String,
   pub model: String,
   /// None where the mapping it froze names no effort.
@@ -224,6 +226,7 @@ pub(crate) fn reservation_of(row: &QueryResult) -> Result<Reservation, Refused> 
     owner: row.try_get("", "owner")?,
     source: row.try_get("", "source")?,
     role: row.try_get("", "role")?,
+    work_key: row.try_get("", "work_key")?,
     provider: row.try_get("", "provider")?,
     model: row.try_get("", "model")?,
     effort: effort_of(row.try_get("", "effort")?),

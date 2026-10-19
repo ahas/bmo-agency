@@ -127,12 +127,21 @@ pub async fn role_tier(db: &DatabaseConnection, role: &str) -> Result<String, Fa
 }
 
 /// What a place in the pool is resolved from: the role, the selection the task names, the tier it asks
-/// for, and the provider its caller names where only some carry its line.
+/// for, the provider its caller names where only some carry its line, and the work key its caller names
+/// where its line is not the role's own.
 pub struct Wanted<'a> {
   pub role: &'a str,
   pub selection: &'a str,
   pub requested_tier: Option<&'a str>,
   pub provider: Option<&'a str>,
+  pub work_key: Option<&'a str>,
+}
+
+impl Wanted<'_> {
+  /// The work key the place is resolved and kept under: the one its caller named, or the role's.
+  pub fn work_key(&self) -> String {
+    self.work_key.map_or_else(|| format!("role:{}", self.role), str::to_owned)
+  }
 }
 
 /// Where a branch runs, resolved apart from its parent: the selection chooses a provider, the role's tier
@@ -176,7 +185,7 @@ async fn on_providers(
       .map(|choice| choice.provider.to_owned())
       .or_else(|| CLAUDE_MODEL.is_match(selection).then(|| "claude-code".to_owned()))
   });
-  let key = format!("role:{}", wanted.role);
+  let key = wanted.work_key();
   let line = profile(JOB_WORK_KEY).map_or("worker", |profile| profile.line.as_str());
   let provider = match explicit.filter(|explicit| open.contains(explicit)) {
     Some(provider) => Some(provider),
@@ -244,13 +253,24 @@ pub async fn requests<C: ConnectionTrait>(db: &C, states: &[&str]) -> Result<Vec
     .map_err(refused)
 }
 
-/// A branch's seat asked of the pool, or the one its token already holds.
+/// A co-work branch's seat asked of the pool, or the one its token already holds.
 pub async fn enqueue_coworker(
   db: &DatabaseConnection,
   asked: &Asked<'_>,
   retain: impl AsyncFnOnce(&sea_orm::DatabaseTransaction, &Request) -> Result<(), Fault>,
 ) -> Result<Request, Fault> {
-  enqueue_request(db, asked, COWORK, true, retain).await
+  enqueue_seat(db, asked, COWORK, retain).await
+}
+
+/// A branch's seat asked of the pool under the source its caller labels it with — a co-work branch's, a
+/// research run's — or the one its token already holds.
+pub async fn enqueue_seat(
+  db: &DatabaseConnection,
+  asked: &Asked<'_>,
+  source: &str,
+  retain: impl AsyncFnOnce(&sea_orm::DatabaseTransaction, &Request) -> Result<(), Fault>,
+) -> Result<Request, Fault> {
+  enqueue_request(db, asked, source, true, retain).await
 }
 
 /// A native `Agent` call's place asked of the pool, on the mapping its role resolves to on Claude Code, the
@@ -262,7 +282,7 @@ pub async fn enqueue_native(
   mapping: &Mapping,
   retain: impl AsyncFnOnce(&sea_orm::DatabaseTransaction, &Request) -> Result<(), Fault>,
 ) -> Result<Request, Fault> {
-  let work_key = format!("role:{}", asked.wanted.role);
+  let work_key = asked.wanted.work_key();
 
   enqueue(db, asked, NATIVE, &work_key, mapping, true, retain).await
 }
@@ -288,7 +308,7 @@ async fn enqueue_request(
     Some(token) => Some(request(db, token).await?.ok_or("Stored co-worker pool request is missing")?),
     None => None,
   };
-  let work_key = format!("role:{}", asked.wanted.role);
+  let work_key = asked.wanted.work_key();
 
   if let Some(held) = &held
     && (held.request_key != asked.request_key
@@ -796,7 +816,7 @@ pub async fn reserve_on(
   seats: &Seats<'_>,
   mapping: &Mapping,
 ) -> Result<Reservation, Fault> {
-  let work_key = format!("role:{}", seats.wanted.role);
+  let work_key = seats.wanted.work_key();
 
   if !KEY.is_match(&seats.reservation_key) || !KEY.is_match(&seats.owner) || !KEY.is_match(&work_key) {
     return Err("Invalid pool reservation identity".to_owned());
@@ -874,7 +894,7 @@ pub async fn reserve_on(
     && held.role == name
     && held.provider == mapping.provider
     && held.tier == mapping.tier
-    && reservation_work_key(&written, &held.token).await? == work_key;
+    && held.work_key == work_key;
 
   if !same {
     return Err(format!("Pool reservation identity changed: {}", seats.reservation_key));
@@ -989,20 +1009,6 @@ async fn reservation_by_token<C: ConnectionTrait>(db: &C, token: &str) -> Result
     .transpose()
     .map_err(refused)?
     .ok_or_else(|| "the pool reservation is gone".to_owned())
-}
-
-async fn reservation_work_key<C: ConnectionTrait>(db: &C, token: &str) -> Result<String, Fault> {
-  one(
-    db,
-    "SELECT work_key FROM coworker_pool_reservations WHERE token = $1",
-    vec![token.into()],
-  )
-  .await
-  .map_err(faulted)?
-  .map(|row| row.try_get::<String>("", "work_key"))
-  .transpose()
-  .map_err(|why| why.to_string())
-  .map(Option::unwrap_or_default)
 }
 
 async fn live_seats<C: ConnectionTrait>(db: &C, token: &str) -> Result<Vec<Request>, Fault> {
