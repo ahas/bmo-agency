@@ -1,13 +1,14 @@
 //! The fallback settings (docs/cache-fallback.md): every work key with its road, its Claude login and the
 //! roads it is offered; the provider order and the Claude accounts; and the agent serving the chat now
-//! with what it has used, its windows asked of the cache siren. What a caller may know of a credential is
-//! the path it is reached by, and of the OpenRouter key whether there is one. A gate's own options are
-//! its consumer's, kept beside its own judgement.
+//! with what it has used, its windows read off agency's own keeping. What a caller may know of a
+//! credential is the path it is reached by, and of the OpenRouter key whether there is one. A gate's own
+//! options are its consumer's, kept beside its own judgement.
 
 use std::collections::BTreeMap;
 
 use axum::http::{Method, StatusCode};
 use axum::response::Response;
+use cache_siren::{Keeping, Slot};
 use harness_providers::{ARCHIVE_PROVIDERS, Machine, Window, providers};
 use policy::control_words::CONTROL_WORDS;
 use policy::fill_marks;
@@ -27,7 +28,6 @@ use super::roads::{
 };
 use super::{Call, Refused, Route, answer, registry, setting, tiers};
 use crate::now_ms;
-use crate::peers::cache_siren::CacheSiren;
 
 // When the fallback began answering, absent while Claude is answering, and the stand-in it answers on.
 const SINCE_KEY: &str = "fallback_since";
@@ -63,31 +63,38 @@ pub fn chat_key() -> &'static str {
 }
 
 /// One slot's two headline windows, the session's and the week's, as the provider picks them out of every
-/// window the cache siren keeps under the slot; null where the slot holds no such window, or the siren
-/// cannot be asked. A slot with no login is asked under the empty word.
+/// window agency keeps under the slot; null where the slot holds no such window. A slot with no login is
+/// read under the empty account. A keeping that cannot be read is a fault, answered with its cause rather
+/// than read as a slot with no windows.
 pub(super) async fn headline_windows(
-  siren: &dyn CacheSiren,
+  windows: &Keeping,
   name: &str,
   account: Option<&str>,
 ) -> Result<(Value, Value), Refused> {
   let provider = named(name)?;
-  let read = match siren.usage_windows(name, account.unwrap_or_default()).await {
-    Ok(read) => read.windows,
-    Err(fault) => {
-      eprintln!("{name} windows of {}: {fault}", account.unwrap_or("no login"));
-      vec![]
-    }
-  };
+  let read = windows
+    .read(Slot {
+      mode: name,
+      account: account.unwrap_or_default(),
+    })
+    .await
+    .map_err(|fault| {
+      eprintln!("{name} windows of {}: not read: {fault}", account.unwrap_or("no login"));
+      Refused::from(fault)
+    })?
+    .windows;
   let own: Vec<Value> = read
     .iter()
-    .map(|window| {
+    .map(|kept| {
+      let window = &kept.window;
+
       json!({
         "name": window.name,
         "account": account,
         "mode": name,
         "utilization": window.utilization,
         "resetsAt": window.resets_at,
-        "seenAt": window.seen_at,
+        "seenAt": kept.seen_at,
         "durationMinutes": window.duration_minutes,
         "limitName": window.limit_name,
       })
@@ -122,7 +129,7 @@ pub(super) async fn active_agent_usage(judging: Judging<'_>) -> Result<Value, Re
     None
   };
   let id = account.as_ref().map(|one| one.id.clone());
-  let (session, week) = headline_windows(judging.siren, &name, id.as_deref()).await?;
+  let (session, week) = headline_windows(judging.windows, &name, id.as_deref()).await?;
   let held = if provider.holds_logins() {
     accounts(db).await?.iter().filter(|one| one.enabled).count()
   } else {

@@ -131,13 +131,15 @@ async fn serve(args: Args) -> Result<(), String> {
 }
 
 // The server's own clocks: the run log pruned, the pool's admissions and leftovers, the pool's warming, the
-// queue's reconciliation, the logins' watch on the keepalive pass, the held launch's watch, the node service's
-// pressures listened to, and what finished items left in the workbenches swept.
+// accounts' usage windows read, the queue's reconciliation, the logins' watch on the keepalive pass, the held
+// launch's watch, the node service's pressures listened to, and what finished items left in the workbenches
+// swept.
 fn clocks(ground: &Arc<Ground>) {
   tokio::spawn(agency_server::run_log::prune::keep(ground.db.clone()));
   tokio::spawn(agency_server::order_run::clocks::keep_pool(ground.db.clone()));
   tokio::spawn(agency_server::order_run::clocks::keep_leftovers(ground.clone()));
   tokio::spawn(agency_server::order_run::clocks::keep_warm(ground.clone()));
+  tokio::spawn(agency_server::order_run::clocks::keep_usage_windows(ground.clone()));
 
   let reconciled = ground.clone();
 

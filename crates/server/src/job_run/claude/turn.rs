@@ -462,9 +462,9 @@ pub async fn carry(asked: &WorkAsked<'_>, shown: &dyn Shows) -> Result<TurnEnd, 
 }
 
 /// What an answered job turn says about usage, recorded under its agent and the run it is logged under: the
-/// agent's last answer written, and the windows its reply read and what it spent published.
+/// agent's last answer written, the windows its reply read kept, and what it spent published.
 pub async fn noted(ground: &Ground, agent: &str, run: &str, reply: &Reply) -> Result<(), Refusal> {
-  records::note_job_usage(&ground.db, &ground.events, agent, reply, Some(run)).await
+  records::note_job_usage(&ground.db, &ground.windows, &ground.events, agent, reply, Some(run)).await
 }
 
 fn refused(why: Refusal) -> Failure {

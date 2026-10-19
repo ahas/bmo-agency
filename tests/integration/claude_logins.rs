@@ -1,31 +1,24 @@
-//! The one judgement every Claude run is offered a login by, on a scratch store and a cache siren of the
-//! test's own (docs/cache-fallback.md, 「The Claude Code road is a list of accounts」): a login whose window
-//! the siren reads full is closed while the reading stands and not once it is stale, a run none of whose
+//! The one judgement every Claude run is offered a login by, on a scratch store of the test's own and the
+//! windows agency keeps in it (docs/cache-fallback.md, 「The Claude Code road is a list of accounts」): a
+//! login whose window is kept full is closed while the reading stands and not once it is stale, a run none of whose
 //! logins answers goes out on none, a full window rests the login it was met on and no other, the rest that
 //! closes the last open login is published once, and a standing program left on a closed login is taken
 //! down.
 
 use crate::common;
 
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
-
 use agency_server::control::claude_accounts::{Account, Judging, open_accounts, walk_for};
 use agency_server::job_run::claude::failure::Failure;
 use agency_server::job_run::claude::walk::{Attempt, Walking, on_accounts};
 use agency_server::keepalive::logins::retire_closed;
-use agency_server::peers::Asking;
-use agency_server::peers::cache_siren::{CacheSiren, UsageWindows, Window};
 use agency_server::places::Ground;
 use agency_server::rest::DeploymentResting;
+use cache_siren::{Slot, Window};
 use common::Scratch;
 use harness_providers::Machine;
 use serde_json::json;
 
 const HOUR: i64 = 3_600;
-
-// How long the stand-in siren says a reading stands.
-const FRESH: u64 = 15 * 60;
 
 // The program a standing place runs, as its record names it.
 const PROGRAM: &str = "claude";
@@ -34,50 +27,12 @@ fn now() -> i64 {
   chrono::Utc::now().timestamp()
 }
 
-/// A cache siren holding, per account, its weekly window: the share used, its reset and when it was read.
-#[derive(Default)]
-struct Siren(Mutex<HashMap<String, (f64, i64, i64)>>);
-
-impl Siren {
-  fn read(&self, account: &str, used: f64, resets_at: i64, seen_at: i64) {
-    self.0.lock().unwrap().insert(account.to_owned(), (used, resets_at, seen_at));
-  }
-}
-
-impl CacheSiren for Siren {
-  fn usage_windows<'a>(&'a self, _mode: &'a str, account: &'a str) -> Asking<'a, UsageWindows> {
-    let held = self.0.lock().unwrap().get(account).copied();
-
-    Box::pin(async move {
-      Ok(UsageWindows {
-        windows: held
-          .map(|(used, resets_at, seen_at)| Window {
-            name: "seven_day".into(),
-            utilization: used,
-            resets_at: Some(resets_at),
-            seen_at,
-            duration_minutes: Some(10_080),
-            limit_name: None,
-          })
-          .into_iter()
-          .collect(),
-        fresh_seconds: FRESH,
-      })
-    })
-  }
-
-  fn cache_lifetime<'a>(&'a self, _mode: &'a str, _model: &'a str) -> Asking<'a, Option<i64>> {
-    Box::pin(async { Ok(None) })
-  }
-}
-
-/// A store, a data root and the logins' homes of the test's own, and agency's ground on them with the
-/// stand-in siren.
+/// A store, a data root and the logins' homes of the test's own, and agency's ground on them, which keeps
+/// the logins' windows in that store.
 struct Bench {
   scratch: Scratch,
   homes: tempfile::TempDir,
   data: tempfile::TempDir,
-  siren: Arc<Siren>,
   ground: Ground,
 }
 
@@ -87,11 +42,7 @@ impl Bench {
     let scratch = Scratch::new().await;
     let homes = tempfile::tempdir().unwrap();
     let data = tempfile::tempdir().unwrap();
-    let siren = Arc::new(Siren::default());
-    let mut service = common::service(&scratch, &[]);
-
-    service.peers.cache_siren = siren.clone();
-
+    let service = common::service(&scratch, &[]);
     let machine =
       Machine::with_env([("HOME".to_owned(), data.path().to_string_lossy().into_owned())], data.path());
     let ground = Ground::new(&service, &machine, None);
@@ -122,9 +73,33 @@ impl Bench {
       scratch,
       homes,
       data,
-      siren,
       ground,
     }
+  }
+
+  // One login's weekly window kept as read: the share used, its reset and when it was seen.
+  async fn read(&self, account: &str, used: f64, resets_at: i64, seen_at: i64) {
+    let week = Window {
+      name: "seven_day".into(),
+      utilization: used,
+      resets_at: Some(resets_at),
+      duration_minutes: Some(10_080),
+      limit_name: None,
+    };
+
+    self
+      .ground
+      .windows
+      .replace(
+        Slot {
+          mode: "claude-code",
+          account,
+        },
+        &[week],
+        seen_at,
+      )
+      .await
+      .unwrap();
   }
 
   fn judging(&self) -> Judging<'_> {
@@ -183,30 +158,30 @@ impl Attempt<String> for Turn {
   }
 }
 
-// A login the siren reads full is never offered, whatever became of the rest written for it, and one whose
+// A login whose window is kept full is never offered, whatever became of the rest written for it, and one whose
 // window has reset since closes nothing.
 #[tokio::test]
 async fn a_login_whose_window_is_read_full_is_never_offered_whatever_became_of_its_rest() {
   let bench = Bench::new().await;
 
-  bench.siren.read("main", 1.0, now() + 4 * 24 * HOUR, now());
-  bench.siren.read("default", 0.19, now() + 6 * 24 * HOUR, now());
+  bench.read("main", 1.0, now() + 4 * 24 * HOUR, now()).await;
+  bench.read("default", 0.19, now() + 6 * 24 * HOUR, now()).await;
 
   assert_eq!(bench.walk().await, ["default"]);
 
-  bench.siren.read("main", 1.0, now() - 60, now());
+  bench.read("main", 1.0, now() - 60, now()).await;
 
   assert_eq!(bench.walk().await, ["main", "default"]);
 }
 
-// A full reading closes its login for as long as the siren says it stands, and no longer.
+// A full reading closes its login for as long as its reader says it stands, and no longer.
 #[tokio::test]
 async fn a_full_reading_past_its_fresh_span_closes_nothing() {
   let bench = Bench::new().await;
-  let fresh = FRESH as i64;
+  let fresh = bench.ground.windows.fresh("claude-code").as_secs() as i64;
 
-  bench.siren.read("main", 1.0, now() + 4 * 24 * HOUR, now() - fresh + 60);
-  bench.siren.read("default", 1.0, now() + HOUR, now() - fresh - 60);
+  bench.read("main", 1.0, now() + 4 * 24 * HOUR, now() - fresh + 60).await;
+  bench.read("default", 1.0, now() + HOUR, now() - fresh - 60).await;
 
   assert_eq!(bench.walk().await, ["default"]);
 }
@@ -219,7 +194,7 @@ async fn a_run_none_of_whose_logins_answers_goes_out_on_none() {
   let bench = Bench::new().await;
   let reopens = now() + 2 * HOUR;
 
-  bench.siren.read("main", 1.0, now() + 4 * 24 * HOUR, now());
+  bench.read("main", 1.0, now() + 4 * 24 * HOUR, now()).await;
   bench
     .scratch
     .run(
@@ -315,7 +290,7 @@ async fn a_standing_program_on_a_closed_login_is_taken_down_where_no_turn_is_in_
   let data = bench.data.path();
   let homes = bench.homes.path();
 
-  bench.siren.read("main", 1.0, now() + 4 * 24 * HOUR, now());
+  bench.read("main", 1.0, now() + 4 * 24 * HOUR, now()).await;
 
   let place = |agent: &str, login: &str, turn_open: bool| {
     let path = data.join("agent-places").join(agent);

@@ -25,7 +25,7 @@ impl Route for StandInRoute {
       return Err(Refused::new(StatusCode::BAD_REQUEST, "agent is required"));
     };
     let ground = call.ground();
-    let answers = answers(ground, ground.peers.cache_siren.as_ref(), &ground.machine(), &agent).await;
+    let answers = answers(ground, &ground.machine(), &agent).await;
 
     Ok(answer(StatusCode::OK, json!({ "answers": answers })))
   }

@@ -90,7 +90,7 @@ pub async fn stand_in_turn(
     steps,
     required,
     chosen,
-  }) = walk_of(ground, ground.peers.cache_siren.as_ref(), &machine, agent).await
+  }) = walk_of(ground, &machine, agent).await
   else {
     return Ok(None);
   };

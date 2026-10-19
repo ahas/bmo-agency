@@ -1,7 +1,7 @@
 //! The cache siren's quota source (docs/api.md, 「Accounts」): `GET /api/claude` on a loopback port of its
-//! own. The siren asks a fixed address on this machine with no token of its own, so this is a listener
-//! apart from the control port: it answers one path — which login the deployment's chat runs on, and each
-//! login's own windows as the siren keeps them — and can do nothing else.
+//! own. The siren, a monitor outside agency, asks a fixed address on this machine with no token of its own,
+//! so this is a listener apart from the control port: it answers one path — which login the deployment's
+//! chat runs on, and each login's own windows as agency keeps them — and can do nothing else.
 
 use std::io;
 use std::net::{Ipv4Addr, SocketAddr};
@@ -63,7 +63,7 @@ pub async fn quota_source(judging: Judging<'_>) -> Result<Value, Refused> {
         continue;
       }
 
-      let (session, week) = headline_windows(judging.siren, &provider, Some(&account.id)).await?;
+      let (session, week) = headline_windows(judging.windows, &provider, Some(&account.id)).await?;
 
       slots.push(slot(&provider, &json!(account.id), &account.name, &session, &week, false));
     }

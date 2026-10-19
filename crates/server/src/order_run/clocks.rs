@@ -1,8 +1,9 @@
 //! The co-worker pool's own clocks (docs/api.md, 「Co-worker pool」, the clocks): every five seconds a
 //! reservation's head place raised into a place another process gave back, and a native call whose caller
 //! ended reclaimed; every ten minutes what a job's end left in herdr swept; and on the keepalive pass's
-//! period the held reservations' places warmed. Each runs for as long as the process stands, never beside
-//! itself.
+//! period the held reservations' places warmed. Beside them, each reader of the accounts' usage windows
+//! passes on the cadence it declares (docs/usage-windows.md). Each runs for as long as the process stands,
+//! never beside itself.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -50,9 +51,32 @@ pub async fn keep_leftovers(ground: Arc<Ground>) {
   .await;
 }
 
+/// The usage windows' clocks: each reader the keeping knows passing at once and then on its own cadence,
+/// every reading it takes replacing its slot's last.
+pub async fn keep_usage_windows(ground: Arc<Ground>) {
+  let clocks = ground.windows.readers().iter().cloned().map(|reader| {
+    let ground = ground.clone();
+
+    async move {
+      every("usage windows", Duration::ZERO, reader.cadence(), move || {
+        let ground = ground.clone();
+        let reader = reader.clone();
+
+        async move {
+          reader.pass(&ground.windows, now_ms()).await;
+
+          Ok(())
+        }
+      })
+      .await;
+    }
+  });
+
+  futures_util::future::join_all(clocks).await;
+}
+
 /// The warming clock: the places the held reservations will use kept warm, first after the keepalive
-/// pass's start wait and then once each of its periods, as far as the cache warmer's schedule lets pings
-/// go.
+/// pass's start wait and then once each of its periods, as far as the keepalive schedule lets pings go.
 pub async fn keep_warm(ground: Arc<Ground>) {
   let first = Duration::from_secs(KEEPALIVE.start_delay_seconds);
   let period = Duration::from_secs(KEEPALIVE.tick_seconds);

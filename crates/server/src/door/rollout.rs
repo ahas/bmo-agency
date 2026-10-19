@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, UNIX_EPOCH};
 
 use agent_host::place::ResidentCommand;
+use cache_siren::codex::windows_of_rollout;
 use policy::providers::Resident;
 use policy::resident_turn::RESIDENT_TURN;
 use serde_json::{Value, json};
@@ -16,7 +17,7 @@ use serde_json::{Value, json};
 use super::guard::prompt_refusal;
 use super::looks::{GoneConfirm, Look, screen_of, status_of};
 use super::place_run::{begin_run, end_run, resident_environment, run_variables};
-use super::record::{AccountWindow, ModelSpend, Reply, ReplyWindow, RequestUsage};
+use super::record::{ModelSpend, Reply, ReplyWindow, RequestUsage};
 use super::stand::{interrupt_program, stand_resident};
 use super::surface::{Execution, Run, SurfaceEnding, SurfaceTurn, interrupt_of};
 use super::turn::{Watch, run_header};
@@ -28,43 +29,6 @@ const RUN_NAME: &str = "BMO_RUN_NAME";
 // How many of the newest days' rollouts are looked through for the thread a program opened now.
 const OPENED_DAYS: usize = 2;
 static NOTHING: Value = Value::Null;
-
-/// The account windows a rollout's token count carries, in the rollout's own field names: its primary
-/// and its secondary window under the limit it names, each a used percentage, a reset and a length. The
-/// windows a turn read are published with its answer (docs/api.md, 「Events」), so the reader that keeps
-/// an account's windows reads them from there.
-pub fn windows_of_rollout(limits: &Value) -> Vec<AccountWindow> {
-  if !limits.is_object() {
-    return vec![];
-  }
-
-  let id = limits
-    .get("limit_id")
-    .and_then(Value::as_str)
-    .filter(|id| !id.is_empty())
-    .unwrap_or("default");
-  let name = limits.get("limit_name").and_then(Value::as_str).filter(|name| !name.is_empty());
-
-  ["primary", "secondary"]
-    .into_iter()
-    .filter_map(|slot| {
-      let held = limits.get(slot)?;
-      let used = held.get("used_percent").and_then(Value::as_f64).filter(|used| *used >= 0.0)?;
-
-      Some(AccountWindow {
-        name: format!("codex:{id}:{slot}"),
-        utilization: used / 100.0,
-        resets_at: held.get("resets_at").and_then(Value::as_f64).map(|at| at.floor() as i64),
-        duration_minutes: held
-          .get("window_minutes")
-          .and_then(Value::as_f64)
-          .filter(|minutes| *minutes > 0.0)
-          .map(|minutes| minutes.floor() as i64),
-        limit_name: name.map(str::to_owned),
-      })
-    })
-    .collect()
-}
 
 /// The two Codex homes: the one the program runs under, agency's own under the data root, and the user's,
 /// whose login and threads it shares.

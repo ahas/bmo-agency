@@ -484,7 +484,7 @@ pub async fn turn<W: Watch>(side: &Side<'_>, asked: Asked<'_>, watch: &mut W) ->
   };
 
   remember(ground, worker, &run, &reply).await?;
-  note_usage(&ground.db, &ground.events, worker, &reply).await?;
+  note_usage(&ground.db, &ground.windows, &ground.events, worker, &reply).await?;
 
   let fell = heal(ground, worker, model, &run.line.model, &account, &reply.spend, None).await?;
 

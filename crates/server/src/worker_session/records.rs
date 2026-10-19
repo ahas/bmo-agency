@@ -1,17 +1,18 @@
 //! What a turn on a worker's session leaves (docs/cache-fallback.md): the session's record the next job on
 //! the worker and model resumes, the heal of a session the account's safeguard answered on a lesser model,
-//! and the agent's last answer, in the store; and what the turn spent and the windows it read, published
-//! for the readers that keep them (docs/api.md, 「Events」).
+//! and the agent's last answer, in the store; the windows the turn read, kept (docs/usage-windows.md); and
+//! what it spent, published for the reader that keeps usage (docs/api.md, 「Events」).
 
 use std::sync::LazyLock;
 
+use cache_siren::Keeping;
 use regex::Regex;
 use sea_orm::ConnectionTrait;
 use store::{all, one, run};
 
 use super::told::WorkerDowngraded;
 use crate::control::claude_accounts::SEED_ACCOUNT;
-use crate::door::record::{ModelSpend, Reply, UsageSpent, WindowsRead};
+use crate::door::record::{ModelSpend, Reply, UsageSpent};
 use crate::events::Bus;
 use crate::places::Ground;
 use crate::queue::settings;
@@ -353,10 +354,11 @@ pub fn note_spend(events: &Bus, agent: &str, spend: &[ModelSpend], account: &str
   }
 }
 
-/// What a turn's answer says about usage: the agent's last answer written, and each window the answer
-/// read and what it spent published; an answer carrying no window publishes none.
+/// What a turn's answer says about usage: the agent's last answer written, the windows the answer read
+/// kept under the login that answered, and what it spent published.
 pub async fn note_usage(
   db: &impl ConnectionTrait,
+  windows: &Keeping,
   events: &Bus,
   agent: &str,
   reply: &Reply,
@@ -365,10 +367,7 @@ pub async fn note_usage(
   let account = reply.account.clone().unwrap_or_else(|| SEED_ACCOUNT.to_owned());
 
   note_answer(db, agent, &reply.mode, reply.model.as_deref(), reply.effort.as_deref()).await?;
-
-  if let Some(read) = WindowsRead::of_reply(reply, at) {
-    events.publish(read);
-  }
+  crate::usage_windows::keep_reply(windows, reply, at).await;
 
   note_spend(events, agent, &reply.spend, &account);
 
@@ -425,11 +424,12 @@ pub fn note_run_spend(
   }
 }
 
-/// What a job's turn says about usage under the job's run: the agent's last answer written, and each
-/// window the answer read and what it spent published, each on its provider's slot; an answer carrying no
-/// window publishes none.
+/// What a job's turn says about usage under the job's run: the agent's last answer written, the windows
+/// the answer read kept under the login that answered, and what it spent published, each row on its
+/// provider's slot.
 pub async fn note_job_usage(
   db: &impl ConnectionTrait,
+  windows: &Keeping,
   events: &Bus,
   agent: &str,
   reply: &Reply,
@@ -439,13 +439,7 @@ pub async fn note_job_usage(
   let account = reply.account.as_deref();
 
   note_answer(db, agent, &reply.mode, reply.model.as_deref(), reply.effort.as_deref()).await?;
-
-  if let Some(read) = WindowsRead::of_reply(reply, at) {
-    events.publish(WindowsRead {
-      account: Some(slot_account(&reply.mode, account)),
-      ..read
-    });
-  }
+  crate::usage_windows::keep_reply(windows, reply, at).await;
 
   // A row its program named no provider for is the turn's own provider's.
   let spend: Vec<ModelSpend> = reply

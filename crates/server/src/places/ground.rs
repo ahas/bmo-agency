@@ -7,6 +7,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use cache_siren::Keeping;
 use harness_providers::Machine;
 use herdr::Herdr;
 use policy::fill_marks;
@@ -106,14 +107,15 @@ impl AgentRow {
   }
 }
 
-/// What every place is stood on: the store, the service's configuration, the services it calls, the bus
-/// its events go on and the hooks its consumers registered, whether the places have stood once, the
-/// machine's trees and environment, this machine's herdr, and the source root a worker with no directory
-/// of its own works in.
+/// What every place is stood on: the store, the service's configuration, the services it calls, the
+/// accounts' usage windows it keeps, the bus its events go on and the hooks its consumers registered,
+/// whether the places have stood once, the machine's trees and environment, this machine's herdr, and the
+/// source root a worker with no directory of its own works in.
 pub struct Ground {
   pub db: DatabaseConnection,
   pub config: Arc<Config>,
   pub peers: Peers,
+  pub windows: Keeping,
   pub events: Bus,
   pub hooks: Hooks,
   pub readiness: Arc<Readiness>,
@@ -141,6 +143,7 @@ impl Ground {
       db: service.db.clone(),
       config: service.config.clone(),
       peers: service.peers.clone(),
+      windows: crate::usage_windows::keeping(&service.db, machine),
       events: service.events.clone(),
       hooks: service.hooks.clone(),
       readiness: service.readiness.clone(),

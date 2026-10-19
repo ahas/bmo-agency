@@ -15,7 +15,6 @@ use agency_server::config::Config;
 use agency_server::door::execution::Identity;
 use agency_server::door::record::{
   AccountWindow, LiveTask, ModelSpend, Reply, ReplyWindow, RequestUsage, RunWorkflow, UsageSpent,
-  WindowsRead,
 };
 use agency_server::door::stand::Interrupt;
 use agency_server::door::turn::{Seat, Timings, Turn};
@@ -491,8 +490,11 @@ async fn an_answered_job_turns_usage_is_recorded_under_its_agent_and_the_run_it_
   let scratch = Scratch::new().await;
   let home = tempfile::tempdir().unwrap();
   let ground = ground_on(&scratch, home.path()).await;
-  let mut read = ground.events.subscribe::<WindowsRead>();
   let mut spent = ground.events.subscribe::<UsageSpent>();
+  let second = cache_siren::Slot {
+    mode: "claude-code",
+    account: "second",
+  };
   let window = AccountWindow {
     name: "five_hour".into(),
     utilization: 0.4,
@@ -533,11 +535,12 @@ async fn an_answered_job_turns_usage_is_recorded_under_its_agent_and_the_run_it_
     "the agent's last answer is written"
   );
 
-  let windows = read.ready().expect("the windows the reply read are published");
+  let kept = ground.windows.read(second).await.unwrap().windows;
 
   assert_eq!(
-    (windows.mode.as_str(), windows.account.as_deref(), windows.windows),
-    ("claude-code", Some("second"), vec![window])
+    kept.into_iter().map(|kept| kept.window).collect::<Vec<_>>(),
+    std::slice::from_ref(&window),
+    "the windows the reply read are kept under the login that answered"
   );
 
   let usage = spent.ready().expect("what the turn spent is published");
@@ -559,14 +562,44 @@ async fn an_answered_job_turns_usage_is_recorded_under_its_agent_and_the_run_it_
     "bmo-job-41",
     &Reply {
       windows: vec![],
+      ..reply.clone()
+    },
+  )
+  .await
+  .unwrap();
+
+  assert_eq!(
+    ground.windows.read(second).await.unwrap().windows.len(),
+    1,
+    "a reply that read no window leaves the slot as it was"
+  );
+  assert_eq!(spent.ready().unwrap().run.as_deref(), Some("bmo-job-41"));
+
+  noted(
+    &ground,
+    "worker-a",
+    "bmo-job-42",
+    &Reply {
+      account: None,
       ..reply
     },
   )
   .await
   .unwrap();
 
-  assert!(read.ready().is_none(), "a reply that read no window publishes none");
-  assert_eq!(spent.ready().unwrap().run.as_deref(), Some("bmo-job-41"));
+  assert!(
+    ground
+      .windows
+      .read(cache_siren::Slot {
+        mode: "claude-code",
+        account: "default"
+      })
+      .await
+      .unwrap()
+      .windows
+      .is_empty(),
+    "a reading whose login cannot be named is not written"
+  );
 }
 
 #[tokio::test]

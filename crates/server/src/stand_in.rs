@@ -3,9 +3,10 @@
 //! provider that would answer before it reaches a Claude Code entry its logins have not all closed. A room
 //! the rest's gate closed is taken only where one does. Any work key's walk is read the same way, and the
 //! step a walk goes out on — its model, effort and answer room — resolved for that key. A login's weekly
-//! share is the cache siren's reading of its windows; the rests and the fallback's mark are agency's own
-//! settings.
+//! share is read off the windows agency keeps for it (docs/usage-windows.md); the rests and the fallback's
+//! mark are agency's own settings.
 
+use cache_siren::{Keeping, Slot};
 use harness_providers::registered::Registered;
 use harness_providers::{Machine, Window};
 use policy::providers::openrouter::OPENROUTER;
@@ -20,7 +21,6 @@ use crate::control::roads::{pinned_provider, walked};
 use crate::control::tiers;
 use crate::events::{Bus, Event};
 use crate::lines::worker::{Reasoning, effort_of};
-use crate::peers::cache_siren::CacheSiren;
 use crate::places::Ground;
 use crate::{Refusal, now_ms};
 use store::{all, one};
@@ -82,31 +82,39 @@ async fn account_rest(db: &DatabaseConnection, account: &str, outage: bool) -> O
   setting(db, "rest_until").await.and_then(|value| leading(&value))
 }
 
-// One login's weekly share, read off the window its provider counts as its week among the windows the
-// cache siren reads for it, shortest first; none where the siren holds no reading.
-async fn weekly(siren: &dyn CacheSiren, account: &str) -> Option<f64> {
-  let mut read = siren.usage_windows(CLAUDE, account).await.ok()?.windows;
+// One login's weekly share, read off the window its provider counts as its week among the windows agency
+// keeps for it, shortest first; none where it holds no reading. A keeping that cannot be read is said with
+// its cause, and closes nothing.
+async fn weekly(windows: &Keeping, account: &str) -> Option<f64> {
+  let mut read: Vec<_> = match windows
+    .read(Slot {
+      mode: CLAUDE,
+      account,
+    })
+    .await
+  {
+    Ok(reading) => reading.windows.into_iter().map(|kept| kept.window).collect(),
+    Err(fault) => {
+      eprintln!("{CLAUDE} windows of {account}: not read: {fault}");
+      return None;
+    }
+  };
 
   read.sort_by(|one, other| (one.duration_minutes, &one.name).cmp(&(other.duration_minutes, &other.name)));
 
-  let windows: Vec<Window> = read
+  let named: Vec<Window> = read
     .iter()
     .map(|window| Window {
       name: &window.name,
       duration_minutes: window.duration_minutes,
     })
     .collect();
-  let week = harness_providers::provider(CLAUDE)?.headline(&windows).week?;
+  let week = harness_providers::provider(CLAUDE)?.headline(&named).week?;
 
   Some(read.get(week)?.utilization)
 }
 
-async fn standing(
-  ground: &Ground,
-  siren: &dyn CacheSiren,
-  machine: &Machine,
-  key: &str,
-) -> Option<Standing> {
+async fn standing(ground: &Ground, machine: &Machine, key: &str) -> Option<Standing> {
   let db = &ground.db;
   let now = now_ms() / 1000;
   let line = WORK_KEYS.profile(key).map(|profile| profile.line.clone());
@@ -151,7 +159,7 @@ async fn standing(
     let id: String = login.try_get("", "id").ok()?;
     let resting = account_rest(db, &id, outage).await.is_some_and(|until| until > now);
 
-    accounts.push((resting, weekly(siren, &id).await));
+    accounts.push((resting, weekly(&ground.windows, &id).await));
   }
 
   Some(Standing {
@@ -189,7 +197,7 @@ fn claude_closed(standing: &Standing) -> bool {
 /// Whether an agent answers while the rest closes Claude Code's road: an agent pinned to another provider
 /// stands on a road the rest does not close, and any other answers where its key's walk meets a stand-in
 /// now.
-pub async fn answers(ground: &Ground, siren: &dyn CacheSiren, machine: &Machine, agent: &str) -> bool {
+pub async fn answers(ground: &Ground, machine: &Machine, agent: &str) -> bool {
   let pinned = one(
     &ground.db,
     r#"SELECT "pinned_provider" FROM "agents" WHERE "name" = $1"#,
@@ -204,7 +212,7 @@ pub async fn answers(ground: &Ground, siren: &dyn CacheSiren, machine: &Machine,
     return true;
   }
 
-  standing(ground, siren, machine, agent).await.is_some_and(|standing| meets(&standing))
+  standing(ground, machine, agent).await.is_some_and(|standing| meets(&standing))
 }
 
 /// The stand-ins a turn of the chat asks, in the owner's order, whether it must answer on one of them
@@ -217,13 +225,8 @@ pub struct Walk {
 }
 
 /// One work key's walk now, or none where Claude Code is the road it stands on.
-pub async fn walk_of(
-  ground: &Ground,
-  siren: &dyn CacheSiren,
-  machine: &Machine,
-  key: &str,
-) -> Option<Walk> {
-  walk_over(&standing(ground, siren, machine, key).await?)
+pub async fn walk_of(ground: &Ground, machine: &Machine, key: &str) -> Option<Walk> {
+  walk_over(&standing(ground, machine, key).await?)
 }
 
 /// The road a stand-in step goes out on: its provider, the model and effort the walk chose, and on a

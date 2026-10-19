@@ -11,6 +11,7 @@ agent-session = { path = "../agent-session" }
 axum.workspace = true
 bmo-chat.workspace = true
 brush-parser.workspace = true
+cache-siren = { path = "../cache-siren" }
 cache-warmer = { path = "../cache-warmer" }
 chrono = { workspace = true, features = ["clock"] }
 clap.workspace = true

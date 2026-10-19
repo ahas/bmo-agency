@@ -1,11 +1,13 @@
 //! The Claude accounts as agency reads them: the order the owner set, which of them would answer now, and
 //! the login an automatic run goes out on (docs/cache-fallback.md, 「The Claude Code road is a list of
 //! accounts」). A login marked as waiting for a person is asked once more of its own credential, and the
-//! mark goes where the owner has signed in again. An account's windows are the cache siren's, asked of it
-//! with how long its reading stands (docs/api.md, 「The cache siren」).
+//! mark goes where the owner has signed in again. An account's windows are agency's own keeping, read with
+//! how long its reader says a reading stands and its unread mark (docs/usage-windows.md).
 
 use std::path::{Path, PathBuf};
 
+use cache_siren::claude::MODE as CLAUDE_CODE_MODE;
+use cache_siren::{Keeping, Slot};
 use harness_providers::Machine;
 use policy::providers::claude_code::CLAUDE_CODE;
 use policy::rest::REST;
@@ -15,14 +17,15 @@ use store::{all, one, run};
 
 use super::{Refused, set_setting, setting};
 use crate::now_ms;
-use crate::peers::cache_siren::CacheSiren;
 use crate::places::Ground;
 
-/// What the account judgement reads: the store, and the cache siren, which keeps every account's windows.
+pub use cache_siren::claude::window_ceiling;
+
+/// What the account judgement reads: the store, and the keeping of every account's windows.
 #[derive(Clone, Copy)]
 pub struct Judging<'a> {
   pub db: &'a DatabaseConnection,
-  pub siren: &'a dyn CacheSiren,
+  pub windows: &'a Keeping,
 }
 
 impl<'a> Judging<'a> {
@@ -30,7 +33,7 @@ impl<'a> Judging<'a> {
   pub fn of(ground: &'a Ground) -> Self {
     Self {
       db: &ground.db,
-      siren: ground.peers.cache_siren.as_ref(),
+      windows: &ground.windows,
     }
   }
 }
@@ -44,10 +47,6 @@ pub(crate) const IN_USE_KEY: &str = "claude_account_in_use";
 
 // The file a directory account's login sits in.
 pub const CREDENTIAL_FILE: &str = ".credentials.json";
-
-// The provider an account's windows are kept under, and the one window held to the five-hour ceiling.
-const CLAUDE_CODE_MODE: &str = "claude-code";
-const FIVE_HOUR_WINDOW: &str = "five_hour";
 
 // A token carries no ending of its own, so what stands for it is the year it was issued for, as Claude
 // Code declares it.
@@ -186,7 +185,7 @@ pub fn leading_integer(text: &str) -> Option<i64> {
 /// How long one account answers nothing for its limit, in epoch seconds, or nothing: the later of the
 /// rest written under it — a rest written with no login named is the seeded account's, unless it is the
 /// service's outage — and a window of its own read at its ceiling, not yet reset, by a reading still fresh.
-/// A window is read on the siren's clock and off every answer, so a login whose window filled is closed
+/// A window is read on its reader's clock and off every answer, so a login whose window filled is closed
 /// whether or not a run has met the refusal, and whatever became of the rest written for it; a reading
 /// nothing renewed closes nothing, so the next run renews the login's token or meets the refusal that rests
 /// it.
@@ -200,36 +199,38 @@ pub async fn rest_until(judging: Judging<'_>, account: &str) -> Result<Option<i6
     None => None,
   };
 
-  Ok(own.max(full_window_until(judging.siren, account, now_ms().div_euclid(1000)).await))
-}
-
-/// The share past which a window of this name is full: the five-hour window against its own ceiling and
-/// every longer one against the weekly one.
-pub fn window_ceiling(name: &str) -> f64 {
-  if name == FIVE_HOUR_WINDOW { REST.threshold } else { REST.weekly_threshold }
+  Ok(own.max(full_window_until(judging.windows, account, now_ms().div_euclid(1000)).await))
 }
 
 // The moment the latest of an account's windows read at its ceiling resets, where one is, has not reset by
-// `now` and was read freshly: within the span the siren says its reading stands. A full window that named
-// no reset is kept for the policy's fallback after it was read. A siren that cannot be asked closes
-// nothing: the next run meets the refusal that rests the login.
-async fn full_window_until(siren: &dyn CacheSiren, account: &str, now: i64) -> Option<i64> {
-  let reading = match siren.usage_windows(CLAUDE_CODE_MODE, account).await {
+// `now` and was seen by a reading that stands: within the span its reader says a reading stands, and after
+// the account's unread mark. A full window that named no reset is kept for the policy's fallback after it
+// was read. A keeping that cannot be read is said with its cause and closes nothing: the next run meets the
+// refusal that rests the login.
+async fn full_window_until(windows: &Keeping, account: &str, now: i64) -> Option<i64> {
+  let reading = match windows
+    .read(Slot {
+      mode: CLAUDE_CODE_MODE,
+      account,
+    })
+    .await
+  {
     Ok(reading) => reading,
     Err(fault) => {
       eprintln!("claude account {account}: its windows could not be read: {fault}");
       return None;
     }
   };
-  let fresh_after = now - reading.fresh().as_secs() as i64;
   let mut until = None;
 
-  for window in &reading.windows {
-    if window.utilization < window_ceiling(&window.name) || window.seen_at < fresh_after {
+  for kept in reading.standing(now) {
+    let window = &kept.window;
+
+    if window.utilization < window_ceiling(&window.name) {
       continue;
     }
 
-    let reset = window.resets_at.unwrap_or(window.seen_at + REST.fallback_seconds);
+    let reset = window.resets_at.unwrap_or(kept.seen_at + REST.fallback_seconds);
 
     if reset > now {
       until = until.max(Some(reset));

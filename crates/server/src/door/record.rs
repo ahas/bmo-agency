@@ -267,21 +267,13 @@ pub enum ReplyWindow {
 }
 
 /// One window of an account's limit as a program that names each window's length and its limit writes
-/// it: the share of it used, when it resets in epoch seconds, and how long it runs and what its provider
-/// calls it where the provider says.
-#[derive(Clone, Debug, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AccountWindow {
-  pub name: String,
-  pub utilization: f64,
-  pub resets_at: Option<i64>,
-  pub duration_minutes: Option<i64>,
-  pub limit_name: Option<String>,
-}
+/// it, in the shape agency keeps every window in (docs/usage-windows.md): the share of it used, when it
+/// resets in epoch seconds, and how long it runs and what its provider calls it where the provider says.
+pub type AccountWindow = cache_siren::Window;
 
 impl From<&ReplyWindow> for AccountWindow {
-  /// Every window in the one shape its reader keeps: the status line's reset rounded to a second, and
-  /// its length and limit unnamed.
+  /// Every window in the one shape it is kept in: the status line's reset rounded to a second, and its
+  /// length and limit unnamed.
   fn from(window: &ReplyWindow) -> Self {
     match window {
       ReplyWindow::Status(window) => Self {
@@ -293,35 +285,6 @@ impl From<&ReplyWindow> for AccountWindow {
       },
       ReplyWindow::Account(window) => window.clone(),
     }
-  }
-}
-
-/// The account windows a turn's answer read, published for the reader that keeps an account's windows
-/// (docs/api.md, 「Events」): the provider the turn went out on, the login that answered where one is
-/// known, when they were read in epoch seconds, and each window.
-#[derive(Clone, Debug, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct WindowsRead {
-  pub mode: String,
-  pub account: Option<String>,
-  pub seen_at: i64,
-  pub windows: Vec<AccountWindow>,
-}
-
-impl Event for WindowsRead {
-  const NAME: &'static str = "usage-windows-read";
-}
-
-impl WindowsRead {
-  /// What a reply read of its account's windows, at `seen_at`; none where it read none, since an answer
-  /// carrying no window leaves the windows as they were.
-  pub fn of_reply(reply: &Reply, seen_at: i64) -> Option<Self> {
-    (!reply.windows.is_empty()).then(|| Self {
-      mode: reply.mode.clone(),
-      account: reply.account.clone(),
-      seen_at,
-      windows: reply.windows.iter().map(AccountWindow::from).collect(),
-    })
   }
 }
 

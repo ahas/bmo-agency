@@ -1,98 +1,80 @@
 //! The Claude accounts: a setting read as a whole number, a credential's stated end, and a login closed
-//! by a window of its own the cache siren reads full while its reading stands.
+//! by a window of its own agency keeps read full while its reading stands.
+
+use std::sync::Arc;
+use std::time::Duration;
 
 use agency_server::control::claude_accounts::*;
 use agency_server::now_ms;
-use agency_server::peers::cache_siren::{CacheSiren, UsageWindows, Window};
-use agency_server::peers::{Asking, PeerFault};
+use cache_siren::reader::Passing;
+use cache_siren::{Keeping, Reader, Slot, Window};
 
 use crate::scratch::Scratch;
 
-/// A cache siren holding one account's five-hour window at a share, read some seconds ago, standing for a
-/// span; or one that cannot be asked.
-enum Siren {
-  Reads {
-    used: f64,
-    age: i64,
-    fresh: u64,
-    resets_at: i64,
-  },
-  Down,
-}
+/// A reader of Claude Code's windows whose reading stands for half an hour, and which passes over nothing.
+struct HalfHour;
 
-impl CacheSiren for Siren {
-  fn usage_windows<'a>(&'a self, _mode: &'a str, _account: &'a str) -> Asking<'a, UsageWindows> {
-    Box::pin(async move {
-      match self {
-        Self::Reads {
-          used,
-          age,
-          fresh,
-          resets_at,
-        } => Ok(UsageWindows {
-          windows: vec![Window {
-            name: "five_hour".into(),
-            utilization: *used,
-            resets_at: Some(*resets_at),
-            seen_at: now_ms() / 1000 - age,
-            duration_minutes: Some(300),
-            limit_name: None,
-          }],
-          fresh_seconds: *fresh,
-        }),
-        Self::Down => Err(PeerFault::Unreachable {
-          peer: "cache siren",
-          detail: "connection refused".into(),
-        }),
-      }
-    })
+impl Reader for HalfHour {
+  fn mode(&self) -> &str {
+    "claude-code"
   }
 
-  fn cache_lifetime<'a>(&'a self, _mode: &'a str, _model: &'a str) -> Asking<'a, Option<i64>> {
-    Box::pin(async { Ok(None) })
+  fn cadence(&self) -> Duration {
+    Duration::from_secs(300)
+  }
+
+  fn fresh(&self) -> Duration {
+    Duration::from_secs(1800)
+  }
+
+  fn pass<'a>(&'a self, _keeping: &'a Keeping, _now_ms: i64) -> Passing<'a> {
+    Box::pin(async {})
   }
 }
 
-async fn rest_of(db: &sea_orm::DatabaseConnection, siren: &Siren) -> Option<i64> {
-  rest_until(Judging { db, siren }, "spare").await.unwrap()
-}
+const SPARE: Slot<'static> = Slot {
+  mode: "claude-code",
+  account: "spare",
+};
 
 #[tokio::test]
-async fn a_login_rests_while_the_siren_reads_its_window_full_and_its_reading_stands() {
+async fn a_login_rests_while_a_window_of_its_own_is_kept_full_and_its_reading_stands() {
   let scratch = Scratch::new().await;
-  let resets_at = now_ms() / 1000 + 600;
-  let rest = |siren| rest_of(scratch.db(), siren);
+  let db = scratch.db();
+  let now = now_ms() / 1000;
+  let resets_at = now + 600;
+  let read = Keeping::new(db.clone(), vec![Arc::new(HalfHour)]);
+  let unread = Keeping::new(db.clone(), vec![]);
+  let five_hour = |used: f64| Window {
+    name: "five_hour".into(),
+    utilization: used,
+    resets_at: Some(resets_at),
+    duration_minutes: Some(300),
+    limit_name: None,
+  };
+  let rest = |windows| async move { rest_until(Judging { db, windows }, "spare").await.unwrap() };
 
-  let full = Siren::Reads {
-    used: 1.0,
-    age: 10,
-    fresh: 1800,
-    resets_at,
-  };
-  let stale = Siren::Reads {
-    used: 1.0,
-    age: 3600,
-    fresh: 1800,
-    resets_at,
-  };
-  let short = Siren::Reads {
-    used: 0.5,
-    age: 10,
-    fresh: 1800,
-    resets_at,
-  };
-  let unkept = Siren::Reads {
-    used: 1.0,
-    age: 10,
-    fresh: 0,
-    resets_at,
-  };
+  read.replace(SPARE, &[five_hour(1.0)], now - 10).await.unwrap();
 
-  assert_eq!(rest(&full).await, Some(resets_at));
-  assert_eq!(rest(&stale).await, None, "a reading past its span closes nothing");
-  assert_eq!(rest(&short).await, None);
-  assert_eq!(rest(&unkept).await, None, "no reading stands where no reader keeps the windows");
-  assert_eq!(rest(&Siren::Down).await, None, "a siren that cannot be asked closes nothing");
+  assert_eq!(rest(&read).await, Some(resets_at));
+  assert_eq!(rest(&unread).await, None, "no reading stands where no reader keeps the windows");
+
+  read.mark_unread("spare", now - 10).await.unwrap();
+
+  assert_eq!(rest(&read).await, None, "a reading seen at the account's unread mark closes nothing");
+
+  read.lift_unread("spare").await.unwrap();
+  read.replace(SPARE, &[five_hour(1.0)], now - 3600).await.unwrap();
+
+  assert_eq!(rest(&read).await, None, "a reading past its span closes nothing");
+
+  read.replace(SPARE, &[five_hour(0.5)], now - 10).await.unwrap();
+
+  assert_eq!(rest(&read).await, None);
+
+  scratch.run(r#"DROP TABLE "usage_windows""#, vec![]).await;
+
+  assert_eq!(rest(&read).await, None, "a keeping that cannot be read closes nothing");
 }
 
 #[test]

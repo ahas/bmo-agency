@@ -65,6 +65,7 @@ pub mod session_output;
 pub mod session_questions;
 pub mod stand_in;
 pub mod text;
+pub mod usage_windows;
 
 pub mod verbs;
 

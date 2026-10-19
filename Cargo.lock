@@ -52,6 +52,7 @@ dependencies = [
  "axum",
  "bmo-chat",
  "brush-parser",
+ "cache-siren",
  "cache-warmer",
  "chrono",
  "clap",

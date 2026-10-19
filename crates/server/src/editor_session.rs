@@ -32,7 +32,7 @@ use crate::control::harness::provider_enabled;
 use crate::control::registry;
 use crate::door::apart::{self, Apart, answered, new_session};
 use crate::door::execution::own_unit;
-use crate::door::record::{ModelSpend, Reply, UsageSpent, WindowsRead};
+use crate::door::record::{ModelSpend, Reply, UsageSpent};
 use crate::door::turn::Ending;
 use crate::host_run::{self, Asked, Heard, Ran};
 use crate::job_run::claude::failure::Failure;
@@ -317,9 +317,7 @@ pub async fn editor_turn(ground: &Ground, turn: &EditorTurn<'_>) -> Result<Strin
     ground.events.publish(spent);
   }
 
-  if let Some(read) = WindowsRead::of_reply(&reply, at) {
-    ground.events.publish(read);
-  }
+  crate::usage_windows::keep_reply(&ground.windows, &reply, at).await;
 
   if reply.text.trim().is_empty() {
     return Err(format!("{key}: the run ended without a readable answer"));
@@ -403,7 +401,7 @@ pub async fn walked(
     steps,
     required,
     chosen,
-  }) = walk_of(ground, ground.peers.cache_siren.as_ref(), &machine, key).await
+  }) = walk_of(ground, &machine, key).await
   else {
     return Ok(None);
   };

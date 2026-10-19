@@ -91,7 +91,7 @@ impl Attempt<Pinged> for ClaudePing<'_> {
     let pinged = in_place(ground, place, account.as_ref()).await?;
 
     if let Pinged::Answered(reply) = &pinged {
-      note_usage(&ground.db, &ground.events, &place.usage_name, reply)
+      note_usage(&ground.db, &ground.windows, &ground.events, &place.usage_name, reply)
         .await
         .map_err(|why| Failure::error(why.detail))?;
     }

@@ -104,7 +104,7 @@ pub async fn rest_kind(db: &DatabaseConnection, now: i64) -> Result<&'static str
 }
 
 // How long one account's own limit rest stands, as the one account judgement reads it
-// (`control::claude_accounts`): its own rest, or a window of its own the cache siren reads full.
+// (`control::claude_accounts`): its own rest, or a window of its own agency keeps read full.
 async fn account_rest_until(judging: Judging<'_>, account: &str) -> Result<Option<i64>, Refusal> {
   crate::control::claude_accounts::rest_until(judging, account)
     .await
