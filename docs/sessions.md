@@ -148,12 +148,12 @@ session on the owner's ask is `docs/session-resets.md`.
 - **The warm/cold criterion:**
   - warm while the time since the session's last answer is under the cache lifetime, cold from the
     lifetime on;
-  - the lifetime is asked of the cache siren for the provider and the model (`docs/api.md`, 「The cache
-    siren」), which judges every session's requests warm or cold; agency keeps no cache measurement of
-    its own;
-  - where the siren answers none — none deployed, or none it judges by — the lifetime is the one the
-    provider declares for the model, the table the siren is given: Claude Code's is 60 minutes for
-    every model, the subscription's one-hour lifetime;
+  - the lifetime is the one the provider declares for the model, each provider answering for its own
+    models out of its policy file: Claude Code's is 60 minutes for every model, the subscription's
+    one-hour lifetime, and Codex and OpenRouter name theirs per model and per answering upstream;
+    agency keeps no cache measurement of its own;
+  - the judgement itself, the lifetime in milliseconds, the warm/cold line and a record's own life, is
+    the `cache-siren` crate's, which is handed the declared lifetime and knows no provider;
   - a provider that declares none reads one hour for a session set aside; a held session on such a
     provider has no lifetime to outlive.
 - **A kept session's record goes cold with its cache.** A record whose last answer is past the

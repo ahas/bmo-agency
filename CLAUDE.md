@@ -7,6 +7,13 @@ machines. It decides nothing about a turn's content: no turn assembly, no room, 
 judgement, no reference selection and no output check. Which role and which model a piece of work needs
 is the caller's decision; agency supplies it.
 
+## Principles
+
+- **Each service runs on its own,** with no context from another repository.
+- **Services talk only through documented APIs.**
+- **References run one way:** the base never knows what is below it, the lowest service owns a shared
+  policy value, and each repository holds only what it uses.
+
 ## Rules
 
 - **`docs/` is canonical.** `docs/api.md` is the boundary contract, every route and event agency
@@ -52,7 +59,9 @@ is the caller's decision; agency supplies it.
 ## Layout
 
 - `crates/`: the Rust crates. `agent-session`, `herdr`, `agent-host`, `pane-head`, `harness-machine`,
-  `harness-providers`, `node-link`, `llm-gateway`, `policy`, `store`, `tool-call` and `server`.
+  `harness-providers`, `node-link`, `llm-gateway`, `policy`, `store`, `tool-call`, `cache-siren` (the
+  accounts' usage windows and the cache-lifetime judgement, `docs/usage-windows.md`), `cache-warmer`
+  (the keepalive schedule, `docs/keepalive-schedule.md`) and `server`.
 - `tools/`: the tools agency provides to the tool host, `procedures` and `read_rulebook`, each a folder
   with its `tool.toml` and the crate of its executable (`docs/tools.md`).
 - `ts/`: the TypeScript packages, `agent`, `archive` and `support`, one Bun workspace.

@@ -437,7 +437,7 @@ When a demotion first catches — when a healthy session first drops — two thi
   its own, and none falls back to the machine's own login in place of one.
 - **A login is open while all three hold:** it is on; no window of its own is full (neither a limit rest
   standing under it, nor a fresh reading of its own windows showing one at its ceiling that has not
-  reset — `usage.md`); and its login has not gone (「A login that is about to end」).
+  reset — `docs/usage-windows.md`); and its login has not gone (「A login that is about to end」).
 - **A fresh window read full closes its login** whether or not any run has met the refusal yet. The
   windows are read on a clock from the account's own login, so a login spent elsewhere is closed by the
   reading, and a rest removed by hand does not reopen a login whose window is still full.
@@ -675,9 +675,9 @@ When a demotion first catches — when a healthy session first drops — two thi
 - **A rest is one account's,** so a room falls quiet only when no account and no provider will answer it.
   Even where every account rests, if the walk meets a usable substitute before the Claude turn it keeps
   taking the room. For this walk a login is closed where its own limit rest stands and its week — the
-  window its provider counts as its week, among the windows the cache siren reads for it (`docs/api.md`,
-  「The cache siren」) — is used past the rest's weekly ceiling; a login the siren holds no reading for is
-  not closed by it.
+  window its provider counts as its week, among the windows agency keeps for it
+  (`docs/usage-windows.md`) — is used past the rest's weekly ceiling; a login agency holds no reading
+  for is not closed by it.
 - **Which model it switched to is operational information,** so it is not told to other rooms. The owner
   is not told before the first answer either; only when a substitute first answers, or later drops to
   another, does agency mark the road answering with the moment the fallback began and publish

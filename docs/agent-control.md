@@ -1816,12 +1816,12 @@ An interactive run has no print-mode `result` frame, yet there is no scraping of
   are nowhere in the transcript, but the status line hands over `rate_limits.five_hour` and
   `rate_limits.seven_day`, each a used percentage and a reset time, once a request has been made; the
   call at startup has none (measured).
-- **Agency keeps no account's windows; it hands them on.** The windows a turn read — Claude Code's from
-  the status line, Codex's from its rollout's `rate_limits` — are published as `usage-windows-read`,
-  each with its name, the fraction used, its reset and, where the provider says them, its length and
-  the limit it belongs to, under the turn's mode and account and the moment they were seen. The cache
-  siren keeps them, and what any later decision reads of an account's windows it asks the cache siren
-  for (`docs/api.md`, 「Events」, 「The cache siren」). A turn that read no windows publishes nothing.
+- **Agency keeps the windows a turn reads.** The windows a turn read — Claude Code's from the status
+  line, Codex's from its rollout's `rate_limits` — are kept, each with its name, the fraction used, its
+  reset and, where the provider says them, its length and the limit it belongs to, under the turn's
+  mode and the login that answered and the moment they were seen, replacing that slot's last reading.
+  What any later decision reads of an account's windows it reads from that keeping
+  (`docs/usage-windows.md`). A turn that read no windows leaves the slot as it was.
 
 - **The CLI's own error is written in the answer's place too.** When a request fails, the CLI writes its
   own words as an assistant line instead of the model's answer, with `isApiErrorMessage: true` (`model` is

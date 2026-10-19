@@ -159,8 +159,9 @@ The warming judgement is split three ways.
   program. Each provider's implementation holds that answer, and the pool does not branch by provider
   name. A reservation on a provider turned off, or on one that lends no co-workers, is not warmed.
 - **The pool** chooses. For each reservation it picks, up to the desired count, from candidates not
-  currently working, within the lifetime (the announced lifetime less a short margin) with a matching
-  fingerprint, and past the idle threshold, closest to cooling first.
+  currently working with a matching fingerprint that the keepalive schedule finds due — past the idle
+  threshold and within the usable lifetime, the announced lifetime less a short margin
+  (`docs/keepalive-schedule.md`, 「When a prefix is worth a ping」) — closest to cooling first.
   - An already-cooled prefix is left — its value is the same whether a ping or a task uses it, and if
     the reserved work never comes, only what the ping used is wasted.
 - **The record:** each ping writes the reservation token, place, provider, model, time and outcome to
@@ -188,11 +189,11 @@ Per provider:
   tools reports no cache read or write, so there is no clock to keep alive. A registered-model
   reservation only holds the place.
 
-- **The gate** is the cache warmer's schedule (`docs/api.md`, 「Calls agency makes」, the cache
-  warmer). Before a reservation's places are judged, the pool asks it whether the pool's pings go on
-  that reservation's provider, and asks again before each ping goes; where it says no, or where no
-  warmer is deployed, no ping goes. None goes to a turned-off provider either, and none during a rest
-  window on a provider whose pings rest with the account — Claude Code's, following cache-fallback's
+- **The gate** is agency's own keepalive schedule (`docs/keepalive-schedule.md`). Before a
+  reservation's places are judged, the pool asks it whether the pool's pings go on that reservation's
+  provider, and asks again before each ping goes; while the owner's warming switch stands it says no,
+  and no ping goes and nothing is written down. None goes to a turned-off provider either, and none
+  during a rest window on a provider whose pings rest with the account — Claude Code's, following cache-fallback's
   rule that Codex and OpenRouter warm separately on their own clocks (`docs/cache-fallback.md`). The
   reservation stands regardless of this gate and keeps holding the place.
 - **Auto-progress stop** is the reserver's rule: the co-work runner sets no reservation while stopped

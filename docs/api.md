@@ -28,7 +28,7 @@ judges none of it.
 ## Versioning
 
 - **The contract carries the repository's one version, in semver.** The version in the workspace
-  manifest is this boundary's version; the current line is `0.26.0`.
+  manifest is this boundary's version; the current line is `1.0.0`.
 - **A change to this document and a change to the boundary go in one commit.** A change that makes a
   route, an event, a hook or a shared table's contract different repairs this document in the same
   commit, stating what is true now.
@@ -94,6 +94,7 @@ judges none of it.
 | PUT | `/pool/places/{place}/write` | what a place's line was last written with | 「Co-worker pool」 |
 | POST | `/places/take`, `/places/prepare`, `/places/remember`, `/places/retire` | a branch's standing checkout | 「Co-worker pool」 |
 | GET | `/places/workbench/{worker}` | a worker's workbench and its items' scratch folders | 「Co-worker pool」 |
+| GET, POST | `/keepalive` | the owner's warming switch, read and thrown | 「Co-worker pool」 |
 | GET | `/run-log`, `/run-records` | a run's lines and its records | 「Run log and run records」 |
 | GET | `/log/jobs/{job}`, `/log/jobs/{job}/last` | a job's lines, and its last line | 「Run log and run records」 |
 | POST | `/log/notes`, `/turn-records` | a note written into a run's log, and a turn record kept | 「Run log and run records」 |
@@ -274,8 +275,9 @@ judges none of it.
     a fresh one. An answered turn's session is recorded for its model and login, judged against the
     model it answered on and folded once it is full, as the worker's own record keeps it. An answered
     turn's usage is recorded under its worker and the run it is logged under, the turn's `unit` or else
-    its `name`: the worker's last answer is written, and the windows its reply read and what it spent
-    are published as `usage-windows-read` and `usage-spent` (「Events」). A worker turn that names no
+    its `name`: the worker's last answer is written, the windows its reply read are kept under the login
+    that answered (`docs/usage-windows.md`), and what it spent is published as `usage-spent`
+    (「Events」). A worker turn that names no
     work parts goes on the model the worker answered on last, under a login that answers
     now. A turn on a provider other than Claude Code is refused `backend-refused`. A companion's goes on its
     room's session, on its pinned provider and model, with the system prompt its settings compose, a lost
@@ -487,11 +489,6 @@ judges none of it.
   session of its own while a fallback stands: the mark of the stand-in answering is cleared, and the event
   carries the owner (`ownerId`) and the stand-in that answered last (`previous`). What the owner is told of
   it is the consumer's.
-- **An account's windows read by a turn**, `usage-windows-read`, are published as the turn reads them:
-  the mode and the account, the moment they were seen, and each window's `name`, `utilization` (the
-  fraction used), `resetsAt` (or null), `durationMinutes` (or null) and `limitName` (or null). The cache
-  siren keeps them; agency keeps none and reads them back through 「The cache siren」 below
-  (`docs/agent-control.md`, 「The session record and usage are not squeezed out of the screen」).
 - **A run come back after a failure**, `run-recovered`, is published once when a run answers again
   while a failure stands: its `fact`, its `intent`, its `kind` and its `ttlMs`, how long it stays worth
   saying (`docs/run-records.md`, 「Why a run died」). Agency voices nothing; saying it in the room is the
@@ -700,8 +697,13 @@ Each hook has a default that does nothing, so agency runs with none registered.
 - **The clocks** are agency's own: every five seconds a reservation's head place is raised and a native
   call whose caller ended is reclaimed, every ten minutes what a job's end left in herdr is swept
   (`docs/agent-control.md`, 「One standing pane per agent」), and on the keepalive pass's period the
-  held reservations' places are warmed where the cache warmer's schedule lets pings go (「Calls agency
-  makes」, the cache warmer).
+  held reservations' places are warmed where the keepalive schedule lets pings go
+  (`docs/keepalive-schedule.md`).
+- **The warming switch** is the owner's, and stops every keepalive ping of the deployment's while it
+  stands (`docs/keepalive-schedule.md`, 「Whether pings go」). `GET /keepalive` answers `stopped`, whether
+  it stands; `POST /keepalive` takes `stopped`, a boolean, sets the switch to it and answers `stopped` as
+  it now stands. A body whose `stopped` is not a boolean is refused 400. A reservation holds its places
+  whichever way the switch stands.
 - **The hooks** are the owner-end proof and the co-work places (「Hooks」 above). The pool hands an
   owner's name to them as it stands, reads none and judges nothing.
 
@@ -786,9 +788,9 @@ Each hook has a default that does nothing, so agency runs with none registered.
   the provider order, and turn a provider on or off.
 - **Whether a stand-in answers** an agent while the rest closes Claude Code's road is answered for the
   consumer that gates rooms on the rest: `GET /stand-in?agent=<name>` answers `answers`, true where the
-  agent is pinned to a provider other than Claude Code or its key's walk meets a stand-in now, as the
-  cache siren reads the logins' windows (`docs/cache-fallback.md`, 「While a fallback stands, the room is
-  not silent」).
+  agent is pinned to a provider other than Claude Code or its key's walk meets a stand-in now, by the
+  logins' windows agency keeps (`docs/usage-windows.md`, `docs/cache-fallback.md`, 「While a fallback
+  stands, the room is not silent」).
 - **The providers and the tiers as a consumer walks them.**
   - `GET /providers` answers every provider in the provider order, the order a walk asks them in, each
     its `name`, `enabled` (the owner has it on), `registered` (its models are the registry's
@@ -811,10 +813,9 @@ Each hook has a default that does nothing, so agency runs with none registered.
   - `GET /providers/{provider}/models/{model}/health` answers `answers`: true where the engine behind a
     registered model answers its health and stands aside for nothing, false otherwise, a provider whose
     models are not registrations included. A consumer reopens a road it closed for an outage on it.
-  - **A provider's cache lifetime has no route.** Agency reads how long a session on a provider and model
-    stays warm from the cache siren (「Calls agency makes」), or from the provider's declared lifetime,
-    and judges a worker's session warm or cold itself (`docs/sessions.md`, 「A worker's session per
-    model」); no consumer asks it.
+  - **A provider's cache lifetime has no route.** How long a session on a provider and model stays warm
+    is the lifetime that provider declares for the model, and agency judges a worker's session warm or
+    cold by it itself (`docs/sessions.md`, 「A worker's session per model」); no consumer asks it.
 - **The catalogue** holds the model files the deployment's own engines serve, and choosing one fetches
   and installs it (`docs/model-catalogue.md`).
 - **The gateway** is agency's one translator in front of every registration; its address and key are
@@ -834,9 +835,10 @@ Each hook has a default that does nothing, so agency runs with none registered.
   agency's (`docs/work-nodes.md`, 「The logins on a node」, `docs/cache-fallback.md`, 「A login that is
   about to end」). No token crosses this boundary: a consumer reads only whether an account is usable.
 - **The quota source.** On a loopback port of its own, the one `AGENCY_QUOTA_PORT` names (9200 where it
-  names none), and with no token, agency answers `GET /api/claude` for the cache siren: the login the
-  deployment's chat runs on first, marked active, then the provider's other logins that are on, each with
-  its two headline windows as the siren keeps them. It answers that one path and nothing else.
+  names none), and with no token, agency answers `GET /api/claude` for the cache siren, the monitor that
+  shows the quota beside its own watch: the login the deployment's chat runs on first, marked active,
+  then the provider's other logins that are on, each with its two headline windows as agency keeps them
+  (`docs/usage-windows.md`). It answers that one path and nothing else.
 - **The rest.** Agency answers whether the deployment rests now and until when: while the service's own
   outage rest stands (`rest_until` with `rest_kind` set to `outage`), or while every enabled account's
   own rest stands (`rest_until:<account>`, or a window of its own read full), until the soonest of them
@@ -1023,14 +1025,17 @@ Each hook has a default that does nothing, so agency runs with none registered.
 
 ## Calls agency makes
 
-- **Agency calls four services:** the cache siren for an account's usage windows and the cache lifetime
-  a session is judged warm by, the cache warmer for whether keepalive pings go, the node service for
-  this machine's room and what its places hold, the pressures it tells, a node's link, the nodes it keeps
-  and the SSH login to each, and the brain for what a companion's reset
-  does to what the agent remembers and to its brain folder, and for a watch whose unit is stopped. Each is reached at the base address the deployment names in its
-  variable, with the token named beside it.
+- **Agency calls two services:** the node service for this machine's room and what its places hold, the
+  pressures it tells, a node's link, the nodes it keeps and the SSH login to each, and the brain for what
+  a companion's reset does to what the agent remembers and to its brain folder, and for a watch whose
+  unit is stopped. Each is reached at the base address the deployment names in its variable, with the
+  token named beside it.
+- **What agency keeps for itself is called nowhere:** an account's usage windows are agency's own
+  keeping (`docs/usage-windows.md`), the cache lifetime a session is judged warm by is the lifetime its
+  provider declares (`docs/sessions.md`, 「A worker's session per model」), and whether keepalive pings go
+  is agency's own schedule (`docs/keepalive-schedule.md`).
 - **A service whose address is unset is not called:** each call then answers the default stated beside it
-  below, so agency runs with none of the four deployed. An address that does not read as a URL stops the
+  below, so agency runs with neither deployed. An address that does not read as a URL stops the
   service as it starts, naming the variable.
 - **Every call is one POST of a JSON body** under the service's base address, field names in camelCase,
   an operation that sends nothing sending an empty object, with `Authorization: Bearer <token>` where a
@@ -1043,27 +1048,8 @@ Each hook has a default that does nothing, so agency runs with none registered.
 
 | Service | Address | Token | Patience |
 | --- | --- | --- | --- |
-| The cache siren | `AGENCY_CACHE_SIREN_URL` | `AGENCY_CACHE_SIREN_TOKEN` | none: a refused connection is a fault at once |
-| The cache warmer | `AGENCY_CACHE_WARMER_URL` | `AGENCY_CACHE_WARMER_TOKEN` | none |
-| The node service | `AGENCY_NODE_URL` | `AGENCY_NODE_TOKEN` | none |
+| The node service | `AGENCY_NODE_URL` | `AGENCY_NODE_TOKEN` | none: a refused connection is a fault at once |
 | The brain | `AGENCY_BRAIN_URL` | `AGENCY_BRAIN_TOKEN` | two minutes, offered every two seconds |
-
-### The cache siren
-
-| Operation | Path | Sends | Answers | With no address |
-| --- | --- | --- | --- | --- |
-| usage windows | `/usage/windows` | `mode`, `account` | `windows`: each `name`, `utilization` (the fraction used), `resetsAt` (or null), `seenAt`, `durationMinutes` (or null), `limitName` (or null); and `freshSeconds`, how long a reading stands | no windows, and no reading fresh |
-| cache lifetime | `/cache/lifetime` | `mode`, `model` | `minutes`: how long after its last answer a session on that provider and model stays warm, or null where the siren judges it by none | none, and agency reads the provider's declared lifetime (`docs/sessions.md`, 「A worker's session per model」) |
-
-### The cache warmer
-
-The warmer holds the keepalive schedule: whether pings go, and on which provider. Agency asks it before
-it judges a reservation's places and again before each ping goes, and holds the rest — which places are
-due, the ping itself and its record — itself (`docs/coworker-pool.md`, 「Reserving places and keepalive」).
-
-| Operation | Path | Sends | Answers | With no address |
-| --- | --- | --- | --- | --- |
-| ping schedule | `/pings/schedule` | `kind`, what is warmed (`coworker-pool` for the pool's reserved places); `mode` | `go` (boolean): whether keepalive pings of that kind on that provider go now | no ping goes |
 
 ### The node service
 

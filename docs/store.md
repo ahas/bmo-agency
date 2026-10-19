@@ -23,6 +23,10 @@ seeds. The other crates and the server reach the store only through it.
     worker, each kept until a turn has taken it;
   - the base prompts: `base_prompts`, `agent_base_prompts`;
   - the accounts: `claude_accounts`;
+  - the accounts' usage windows: `usage_windows`, one row a window of a slot — its `mode`, its
+    `account` (empty on a provider that holds no logins of agency's) and its `name` together naming it,
+    the fraction used, when it resets in epoch seconds or none, when it was seen, its length in minutes
+    or none and its limit's name or none (`docs/usage-windows.md`);
   - the co-worker pool: the thirteen `coworker_pool_` tables, `limits`, `meta`, `native`,
     `native_reservations`, `native_stops`, `pings`, `place_writes`, `requests`, `reservation_meta`,
     `reservations`, `roles`, `tier_limits` and `tier_meta`;
@@ -86,6 +90,10 @@ seeds. The other crates and the server reach the store only through it.
     「Room on the machine」);
   - the fallback and the rest: `fallback_since`, `fallback_provider`, `rest_until`, `rest_until:*`,
     `rest_kind`;
+  - an account's unread mark, `usage_windows_unread:*` by the account, the moment its reader first found
+    its token could not be read with (`docs/usage-windows.md`, 「The Claude account reader」);
+  - the owner's warming switch, `keepalive_stopped`, standing while it holds `1`
+    (`docs/keepalive-schedule.md`);
   - the data move's mark, `users_moved_at`, and the user who administers the platform,
     `users_administrator`, carried with the rows of a store moved across; agency reads them and never
     writes them, and a store without them reads as not moved and as naming no administrator.
