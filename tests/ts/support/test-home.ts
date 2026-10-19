@@ -127,7 +127,7 @@ process.env.AGENCY_CONTROL_TOKEN = "";
 // The services agency calls are named by no address, for the same reason: a process a test starts
 // reaches the live ones of none of them, and answers each one's default (docs/api.md, 「Calls agency
 // makes」). A test of one passes its own address.
-for (const name of ["AGENCY_CACHE_SIREN_URL", "AGENCY_CACHE_WARMER_URL", "AGENCY_NODE_URL", "AGENCY_BRAIN_URL"]) {
+for (const name of ["AGENCY_NODE_URL", "AGENCY_BRAIN_URL"]) {
   process.env[name] = "";
 }
 

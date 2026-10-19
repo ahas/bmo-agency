@@ -3,9 +3,9 @@
 //! else. Three parties answer three questions. A kind of place says where the prefixes a reservation will
 //! use stand, when each was last written, whether work is in one now and what run reads it again. A
 //! provider says how long its cache lives, whether a rest of the account holds its pings, and how its own
-//! program sends one. The pool decides which places are due and records every ping, so a restart neither
-//! forgets a reservation nor pings a place a second time inside its idle stretch. Whether pings go at all
-//! is the cache warmer's schedule, asked through its API (docs/api.md, 「Calls agency makes」).
+//! program sends one. The pool asks the keepalive schedule which places are due and records every ping, so
+//! a restart neither forgets a reservation nor pings a place a second time inside its idle stretch. Whether
+//! pings go at all is the schedule's too, by the owner's warming switch (docs/keepalive-schedule.md).
 
 pub mod branch;
 pub mod native;
@@ -17,7 +17,7 @@ use std::path::PathBuf;
 use std::pin::Pin;
 use std::time::Duration;
 
-use policy::pool_warm::POOL_WARM;
+use cache_warmer::Prefix;
 use store::{one, run};
 
 use crate::control::claude_accounts::Judging;
@@ -26,7 +26,6 @@ use crate::door::record::Reply;
 use crate::lines::fault;
 use crate::lines::worker::WorkerRun;
 use crate::order_run::dispatch::held_reservations;
-use crate::peers::cache_warmer::COWORKER_POOL;
 use crate::places::Ground;
 use crate::places::home::Home;
 use crate::rest;
@@ -119,23 +118,10 @@ pub fn first_units(text: &str, units: usize) -> String {
   String::from_utf16_lossy(&all[..units.min(all.len())])
 }
 
-/// The usable part of a published lifetime: the margin taken off, and none where nothing is left of it.
-pub fn usable(published_ms: i64) -> Option<i64> {
-  let usable = published_ms - POOL_WARM.margin_minutes * 60_000;
-
-  (usable > 0).then_some(usable)
-}
-
 impl Pool<'_> {
-  // Whether the cache warmer's schedule lets the pool's pings go on a provider now.
-  async fn scheduled(&self, provider: &str) -> Result<bool, Refusal> {
-    self
-      .ground
-      .peers
-      .cache_warmer
-      .pings_go(COWORKER_POOL, provider)
-      .await
-      .map_err(|why| fault(why.to_string()))
+  // Whether the keepalive schedule lets pings go now: unless the owner's warming switch stands.
+  async fn scheduled(&self) -> Result<bool, Refusal> {
+    cache_warmer::pings_go(&self.ground.db).await.map_err(|why| fault(why.detail))
   }
 
   async fn lending(&self, provider: &str) -> Result<bool, Refusal> {
@@ -211,8 +197,8 @@ impl Pool<'_> {
         continue;
       };
 
-      // Nothing is pinged, or written down, while the schedule holds the pings on its provider.
-      if !self.scheduled(&reservation.provider).await? {
+      // Nothing is pinged, or written down, while the schedule holds the pings.
+      if !self.scheduled().await? {
         continue;
       }
 
@@ -251,20 +237,18 @@ impl Pool<'_> {
             continue;
           }
         };
-        let idle_ms = cache.idle_minutes * 60_000;
-        let Some(ttl_ms) = usable(cache.ttl_minutes * 60_000) else { continue };
-        let idle = now - warm.last_write_at;
+        let prefix = Prefix {
+          last_write_at: warm.last_write_at,
+          published_ms: cache.ttl_minutes * 60_000,
+          idle_stretch_ms: cache.idle_minutes * 60_000,
+          last_answered_at: self.last_answered(&warm.key).await?,
+        };
 
-        // Not yet worth a read, or already gone: whoever writes a cold prefix pays the same.
-        if idle < idle_ms || idle >= ttl_ms {
-          continue;
+        // Not yet worth a read, already gone — whoever writes a cold prefix pays the same — or pinged
+        // within its stretch.
+        if prefix.due(now) {
+          due.push(place);
         }
-
-        if self.last_answered(&warm.key).await?.is_some_and(|answered| now - answered < idle_ms) {
-          continue;
-        }
-
-        due.push(place);
       }
 
       due.sort_by_key(|place| place.warm().last_write_at);
@@ -275,7 +259,7 @@ impl Pool<'_> {
         touched.insert(warm.key.clone());
 
         // The schedule or the provider may have moved while an earlier ping was out.
-        if !self.scheduled(&reservation.provider).await? || !self.lending(&reservation.provider).await? {
+        if !self.scheduled().await? || !self.lending(&reservation.provider).await? {
           return Ok(());
         }
 

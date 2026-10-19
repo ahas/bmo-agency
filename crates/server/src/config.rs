@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 
 use policy::deployment::{DEPLOYMENT_NAMES, Deployment};
 
-use crate::peers::{PeerAddress, brain, cache_siren, cache_warmer, node};
+use crate::peers::{PeerAddress, brain, node};
 
 /// The configuration a process runs under.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -76,8 +76,6 @@ impl Trees {
 /// Where each service agency calls is reached, or none where the deployment names no address for it.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct PeerAddresses {
-  pub cache_siren: Option<PeerAddress>,
-  pub cache_warmer: Option<PeerAddress>,
   pub node: Option<PeerAddress>,
   pub brain: Option<PeerAddress>,
 }
@@ -89,8 +87,6 @@ impl Config {
     Ok(Self {
       names: DEPLOYMENT_NAMES.read(&variable),
       peers: PeerAddresses {
-        cache_siren: PeerAddress::read(&cache_siren::ADDRESS, &variable)?,
-        cache_warmer: PeerAddress::read(&cache_warmer::ADDRESS, &variable)?,
         node: PeerAddress::read(&node::ADDRESS, &variable)?,
         brain: PeerAddress::read(&brain::ADDRESS, &variable)?,
       },

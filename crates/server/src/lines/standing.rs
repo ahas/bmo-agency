@@ -61,7 +61,7 @@ pub async fn session_ttl_ms(ground: &Ground, model: &str) -> Option<i64> {
     .and_then(|minutes| minutes.trim().parse::<i64>().ok())
     .filter(|minutes| *minutes > 0)
     .map(|minutes| minutes * 60_000);
-  let lifetime = warmth::lifetime_ms(ground.peers.cache_siren.as_ref(), "claude-code", model).await;
+  let lifetime = warmth::lifetime_ms("claude-code", model);
 
   warmth::record_ttl_ms(configured, lifetime)
 }

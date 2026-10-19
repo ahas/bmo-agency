@@ -59,7 +59,7 @@ fn a_peer_fault_is_refused_as_the_peer_answered() {
   );
 
   let failed = Refusal::from(PeerFault::Malformed {
-    peer: "cache siren",
+    peer: "brain",
     detail: "missing field".into(),
   });
 

@@ -199,8 +199,8 @@ async fn must_replace(ground: &Ground, held: Option<&Held>, run: &SessionRun) ->
     return Ok(true);
   }
 
-  // A lifetime neither the cache siren nor the provider names leaves a session nothing to outlive.
-  let lifetime = warmth::lifetime_ms(ground.peers.cache_siren.as_ref(), run.mode, &run.line.model).await;
+  // A lifetime the provider does not declare leaves a session nothing to outlive.
+  let lifetime = warmth::lifetime_ms(run.mode, &run.line.model);
 
   Ok(lifetime.is_some_and(|lifetime| !warmth::warm(held.at, now_ms(), lifetime)))
 }
@@ -241,14 +241,10 @@ async fn keep_shelf(ground: &Ground, scope: &str, shelf: &BTreeMap<String, Held>
   settings::set(&ground.db, &shelf_key(scope), &text).await
 }
 
-/// Whether a session set aside is still warm at a moment: its last answer inside the cache lifetime the
-/// cache siren judges its provider and model by, or the one the provider declares, or an hour where neither
-/// names one (`super::warmth`).
-pub async fn warm(ground: &Ground, held: &Held, now: i64) -> bool {
-  let lifetime =
-    warmth::set_aside_lifetime_ms(ground.peers.cache_siren.as_ref(), &held.mode, &held.model).await;
-
-  warmth::warm(held.at, now, lifetime)
+/// Whether a session set aside is still warm at a moment: its last answer inside the cache lifetime its
+/// provider declares for its model, or an hour where none is declared (`super::warmth`).
+pub fn warm(held: &Held, now: i64) -> bool {
+  warmth::warm(held.at, now, warmth::set_aside_lifetime_ms(&held.mode, &held.model))
 }
 
 /// Whether the run turns the worker's own session to another model, which sets the held one aside.
@@ -275,7 +271,7 @@ async fn take_shelved(
   if named
     && same_road(&kept, run)
     && kept.prefix == prefix(ground, &run.line, run.mode).await?
-    && warm(ground, &kept, now_ms()).await
+    && warm(&kept, now_ms())
   {
     return Ok(Some(kept));
   }

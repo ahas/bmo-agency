@@ -28,8 +28,6 @@ fn a_named_address_is_read_with_its_token() {
     ("AGENCY_BRAIN_URL", " http://127.0.0.1:7000/brain "),
     ("AGENCY_BRAIN_TOKEN", "brain-token"),
     ("AGENCY_NODE_URL", "https://nodes.example/"),
-    ("AGENCY_CACHE_SIREN_URL", "   "),
-    ("AGENCY_CACHE_WARMER_URL", "http://127.0.0.1:7100/"),
   ])
   .unwrap();
   let brain = config.peers.brain.unwrap();
@@ -39,8 +37,11 @@ fn a_named_address_is_read_with_its_token() {
   assert_eq!(brain.token.as_deref(), Some("brain-token"));
   assert_eq!(node.url.as_str(), "https://nodes.example/");
   assert_eq!(node.token, None);
-  assert_eq!(config.peers.cache_warmer.unwrap().url.as_str(), "http://127.0.0.1:7100/");
-  assert_eq!(config.peers.cache_siren, None, "a blank address names no service");
+  assert_eq!(
+    read(&[("AGENCY_NODE_URL", "   ")]).unwrap().peers.node,
+    None,
+    "a blank address names no service"
+  );
 }
 
 #[test]
@@ -49,9 +50,9 @@ fn an_address_that_is_not_a_url_is_a_fault_naming_its_variable() {
 
   assert!(fault.contains("AGENCY_NODE_URL"), "{fault}");
 
-  let fault = read(&[("AGENCY_CACHE_SIREN_URL", "ftp://siren.example/")]).unwrap_err();
+  let fault = read(&[("AGENCY_BRAIN_URL", "ftp://brain.example/")]).unwrap_err();
 
-  assert!(fault.contains("AGENCY_CACHE_SIREN_URL"), "{fault}");
+  assert!(fault.contains("AGENCY_BRAIN_URL"), "{fault}");
 }
 
 #[test]

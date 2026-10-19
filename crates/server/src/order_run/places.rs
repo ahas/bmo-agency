@@ -67,14 +67,15 @@ pub struct Agent {
 }
 
 /// How long a place's prefix is worth counting on for a provider and model: the lifetime the provider
-/// publishes less the pool's margin; none where it publishes none or nothing is left of it after the
-/// margin. A routed model's cache belongs to the upstream that took the turn.
+/// publishes less the pool's margin, as the keepalive schedule takes it off (docs/keepalive-schedule.md);
+/// none where it publishes none or nothing is left of it after the margin. A routed model's cache belongs to
+/// the upstream that took the turn.
 pub fn ttl_ms(mode: &str, model: &str, upstream: Option<&str>) -> Option<i64> {
   let upstream = upstream.filter(|_| mode == ROUTED);
 
   harness_providers::provider(mode)
     .and_then(|provider| provider.place_cache(model, upstream).ok())
-    .and_then(|cache| crate::keepalive::pool::usable(cache.ttl_minutes * 60_000))
+    .and_then(|cache| cache_warmer::usable(cache.ttl_minutes * 60_000))
 }
 
 /// Whether the clock still allows a row; `now` in milliseconds, the row's time in seconds.
