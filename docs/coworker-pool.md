@@ -144,7 +144,9 @@ The warming judgement is split three ways.
   - A native co-worker is a kind that names no place to warm (「Native co-worker places」 below).
   - A reservation whose source neither kind answers — a search or browse run's, whose place is the
     research branch line's prefix (`research-runs.md`) — holds its places, and agency's pool warms
-    nothing for it.
+    nothing for it. What a branch last wrote that line with is kept all the same, by the place key its
+    consumer names: the provider, model, effort and upstream, and the latest moment it was written,
+    which a later write never moves back (`docs/api.md`, 「Co-worker pool」).
 - **The provider** names the lifetime and the ping method. The lifetime is the value that provider
   announced and its idle threshold, and a ping is running the same run line one turn on that provider's
   program. Each provider's implementation holds that answer, and the pool does not branch by provider

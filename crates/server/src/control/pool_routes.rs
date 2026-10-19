@@ -7,10 +7,12 @@
 use std::path::Path;
 
 use axum::http::{Method, StatusCode};
-use axum::response::Response;
+use axum::response::{IntoResponse, Response};
+use bmo_chat::{ErrorCode, WireError};
 use serde_json::{Value, json};
+use store::run;
 
-use super::{Call, Refused, Route, answer, whole};
+use super::{Call, Refused, Route, answer, pool, whole};
 use crate::now_ms;
 use crate::order_run::dispatch::{
   self, Asked, COWORK, Seats, Wanted, acquire, bind, enqueue_coworker, enqueue_turn, finish,
@@ -222,6 +224,119 @@ impl Route for PoolReservations {
 }
 
 crate::moved!(PoolReservations);
+
+// The request states that are still open: asked, or let in.
+const OPEN: [&str; 2] = ["waiting", "active"];
+
+/// The request a token holds, whatever its state.
+pub struct PoolRequestRead;
+
+impl Route for PoolRequestRead {
+  const METHOD: Method = Method::GET;
+  const PATH: &'static str = "/pool/requests/{token}";
+
+  async fn answer(&self, call: Call) -> Result<Response, Refused> {
+    let token = call.param("token").unwrap_or_default();
+
+    Ok(match dispatch::request(call.store(), token).await.map_err(refused)? {
+      Some(request) => answer(StatusCode::OK, shown(request)?),
+      None => WireError::new(ErrorCode::NothingHeld, format!("no pool request holds the token {token}"))
+        .into_response(),
+    })
+  }
+}
+
+crate::moved!(PoolRequestRead);
+
+/// The requests still open, in the order they came, only an owner's where one is named.
+pub struct PoolOpenRequests;
+
+impl Route for PoolOpenRequests {
+  const METHOD: Method = Method::GET;
+  const PATH: &'static str = "/pool/requests";
+
+  async fn answer(&self, call: Call) -> Result<Response, Refused> {
+    let owner = call.query("owner");
+    let open: Vec<_> = dispatch::requests(call.store(), &OPEN)
+      .await
+      .map_err(refused)?
+      .into_iter()
+      .filter(|request| owner.as_ref().is_none_or(|owner| &request.owner == owner))
+      .collect();
+
+    Ok(answer(StatusCode::OK, shown(open)?))
+  }
+}
+
+crate::moved!(PoolOpenRequests);
+
+/// Every role the pool knows, with the tier its assignment names.
+pub struct PoolRoles;
+
+impl Route for PoolRoles {
+  const METHOD: Method = Method::GET;
+  const PATH: &'static str = "/pool/roles";
+
+  async fn answer(&self, call: Call) -> Result<Response, Refused> {
+    let db = call.store();
+    let mut listed = vec![];
+
+    for role in pool::roles(db, false).await? {
+      let tier = dispatch::role_tier(db, &role.name).await.unwrap_or_default();
+
+      listed.push(json!({
+        "name": role.name,
+        "description": role.description,
+        "enabled": role.enabled,
+        "pooled": role.pooled,
+        "tier": tier,
+      }));
+    }
+
+    Ok(answer(StatusCode::OK, json!(listed)))
+  }
+}
+
+crate::moved!(PoolRoles);
+
+/// What a place's line was last written with, the place keeping the latest moment.
+pub struct PlaceWrite;
+
+impl Route for PlaceWrite {
+  const METHOD: Method = Method::PUT;
+  const PATH: &'static str = "/pool/places/{place}/write";
+
+  async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
+    let place = call.param("place").unwrap_or_default().to_owned();
+    let body = call.body().await?;
+
+    if place.is_empty() {
+      return Err(bad("a place's key is required"));
+    }
+
+    run(
+      call.store(),
+      r#"INSERT INTO "coworker_pool_place_writes" ("place", "provider", "model", "effort", "upstream", "written_at")
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT ("place") DO UPDATE SET "provider" = excluded."provider", "model" = excluded."model",
+           "effort" = excluded."effort", "upstream" = excluded."upstream",
+           "written_at" = GREATEST("coworker_pool_place_writes"."written_at", excluded."written_at")"#,
+      vec![
+        place.into(),
+        text(&body, "provider")?.into(),
+        text(&body, "model")?.into(),
+        optional(&body, "effort").unwrap_or_default().into(),
+        optional(&body, "upstream").into(),
+        now_ms().into(),
+      ],
+    )
+    .await?;
+
+    Ok(StatusCode::NO_CONTENT.into_response())
+  }
+}
+
+crate::moved!(PlaceWrite);
 
 /// A branch's place in its order's pool of standing checkouts, taken.
 pub struct PlaceTake;

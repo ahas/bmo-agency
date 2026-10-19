@@ -90,6 +90,8 @@ judges none of it.
 | POST | `/pool/enqueue`, `/pool/acquire`, `/pool/bind`, `/pool/finish` | a seat or a place asked, let in, bound and given back | 「Co-worker pool」 |
 | POST | `/pool/reserve`, `/pool/reservations/release` | an owner's seats reserved and given back | 「Co-worker pool」 |
 | GET | `/pool/reservations` | the reservations an owner holds | 「Co-worker pool」 |
+| GET | `/pool/requests`, `/pool/requests/{token}`, `/pool/roles` | the open requests, one request by its token, and the roles the pool knows | 「Co-worker pool」 |
+| PUT | `/pool/places/{place}/write` | what a place's line was last written with | 「Co-worker pool」 |
 | POST | `/places/take`, `/places/prepare`, `/places/remember`, `/places/retire` | a branch's standing checkout | 「Co-worker pool」 |
 | GET | `/run-log`, `/run-records` | a run's lines and its records | 「Run log and run records」 |
 | GET | `/log/jobs/{job}`, `/log/jobs/{job}/last` | a job's lines, and its last line | 「Run log and run records」 |
@@ -654,6 +656,16 @@ Each hook has a default that does nothing, so agency runs with none registered.
   - `POST /pool/reserve` takes `reservationKey`, `owner`, `source`, `role`, `selection`, `tier` and
     `provider` where named, and `count`, and answers the reservation; `POST /pool/reservations/release`
     takes its `token` and the `outcome`; `GET /pool/reservations?owner=` answers the `reservations` held.
+  - `GET /pool/requests/{token}` answers the request a token holds, whatever its state, and 404
+    `nothing-held` where none does; `GET /pool/requests?owner=` answers the requests waiting or active, in
+    the order they came, only the owner's where one is named.
+  - `GET /pool/roles` answers every role the pool knows, by name: its `name`, `description`, `enabled`,
+    `pooled` (true where the pool lends it as a co-worker) and `tier`, the tier its `role:<name>`
+    assignment names, empty where it has none on the ladder.
+  - `PUT /pool/places/{place}/write` takes the `provider`, `model`, `effort?` and `upstream?` a place's
+    line was last written with, for the place a consumer names by its own key, such as a research branch
+    line's prefix, and answers 204; the place keeps the latest write's moment, and a later write never
+    moves it back (`docs/coworker-pool.md`, 「Reserving places and keepalive」).
   - A request and a reservation are answered as their table holds them, in camelCase; a step the pool
     refuses is answered 422 with the pool's own words.
 - **The tables whose contract is shared:** the request table, the leases on it, the reservation table,
