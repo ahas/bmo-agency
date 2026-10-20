@@ -76,13 +76,20 @@ export type PromptDelivery = "input" | "argument" | "channel";
 
 // The login a run goes out under, where its provider holds more than one of them. The id is what
 // the run's own records are kept under, the name is what the owner calls it, and the credential is where
-// that login is reached: a path, and what kind of thing stands at it. Neither is read here — what
-// the two mean, and what a program is handed to make it use that login rather than another, is the
-// provider's own.
+// that login is reached: a path, and what kind of thing stands at it. A credential that is an
+// endpoint rather than a login also names where its requests go, the file its key sits in and the
+// model id each family word stands for there. None of it is read here — what the fields mean, and
+// what a program is handed to make it use that login rather than another, is the provider's own.
 export interface AgentAccount {
   id: string;
   name: string;
-  credential: { kind: string; path: string };
+  credential: {
+    kind: string;
+    path: string;
+    endpointUrl?: string;
+    keyFile?: string;
+    models?: Readonly<Record<string, string | undefined>>;
+  };
 }
 
 // The request fields a run's sampling names: each a number by the name the model's server reads it

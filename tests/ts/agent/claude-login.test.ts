@@ -97,6 +97,10 @@ describe("when a login ends, read off its own credential", () => {
       enabled: true,
       credentialKind: "directory",
       credentialPath: join(root, "nowhere"),
+      endpointUrl: null,
+      keyFile: null,
+      endpointModels: null,
+      basePrompt: null,
       addedAt: 1,
       needsLoginAt: null,
       userId: null,
@@ -139,6 +143,10 @@ describe("when a login ends, read off its own credential", () => {
       enabled: true,
       credentialKind: "directory" as const,
       credentialPath: path,
+      endpointUrl: null,
+      keyFile: null,
+      endpointModels: null,
+      basePrompt: null,
       addedAt: 1,
       needsLoginAt: null,
       userId: null,
@@ -198,6 +206,57 @@ describe("a login that is gone", () => {
   });
 });
 
+// An endpoint account holds no login: its key is the whole credential, states no end and carries no
+// refresh. So it is never ending, never warned about, and the only thing that says it stands again
+// after a refusal is its key file written after the mark (docs/cache-fallback.md, 「A login that is
+// about to end」).
+describe("an endpoint account's login", () => {
+  function endpoint(path: string, keyFile: string) {
+    return {
+      kind: "endpoint" as const,
+      path,
+      endpointUrl: "https://api.deepseek.com/anthropic",
+      keyFile,
+      models: { opus: "deepseek-v4-pro" },
+    };
+  }
+
+  test("states no ending, and a run that wrote a fresh key file after its mark lifts it", async () => {
+    made += 1;
+
+    const archive = await scratchArchive();
+    const home = join(root, `endpoint-home-${made}`);
+    const keyFile = join(root, `endpoint-key-${made}`);
+
+    mkdirSync(home, { recursive: true });
+    writeFileSync(keyFile, "sk-not-a-real-key\n");
+
+    const added = await addNamedClaudeAccount(archive, { name: "DeepSeek", credential: endpoint(home, keyFile) });
+
+    expect(loginEnd(added.credential)).toBeNull();
+    expect(credentialExpiry(added.credential)).toBeNull();
+
+    await markLoginGone(archive, added.id);
+
+    const marked = (await archive.claudeAccounts().getClaudeAccount(added.id))?.needsLoginAt as number;
+
+    // A key file older than the mark says nothing: it is the key that was refused.
+    utimesSync(keyFile, new Date(marked * 1000 - 60_000), new Date(marked * 1000 - 60_000));
+    expect(await clearLoginIfBack(archive, added.id)).toBe(false);
+
+    // An empty file is no key at all, however recently it was written.
+    writeFileSync(keyFile, "");
+    utimesSync(keyFile, new Date(marked * 1000 + 60_000), new Date(marked * 1000 + 60_000));
+    expect(await clearLoginIfBack(archive, added.id)).toBe(false);
+
+    // A key put there after the mark is the owner's word that the account stands again.
+    writeFileSync(keyFile, "sk-a-fresh-key\n");
+    utimesSync(keyFile, new Date(marked * 1000 + 60_000), new Date(marked * 1000 + 60_000));
+    expect(await clearLoginIfBack(archive, added.id)).toBe(true);
+    expect((await archive.claudeAccounts().getClaudeAccount(added.id))?.needsLoginAt).toBeNull();
+  });
+});
+
 describe("what the owner is told, and how often", () => {
   const sent: string[] = [];
 
@@ -253,6 +312,29 @@ describe("what the owner is told, and how often", () => {
       name: "Second account",
       credential: { kind: "directory", path: loginDirWithoutRefresh(Date.now() + 30 * 24 * 60 * 60_000) },
     });
+
+    expect(await tellAboutLogin({ archive }, (await archive.claudeAccounts().getClaudeAccount(account.id))!)).toBe(false);
+    expect(sent).toEqual([]);
+  });
+
+  test("an endpoint account is never warned about, marked though it is", async () => {
+    made += 1;
+
+    const archive = await scratchArchive();
+    const home = join(root, `notice-home-${made}`);
+    const keyFile = join(root, `notice-key-${made}`);
+
+    mkdirSync(home, { recursive: true });
+    writeFileSync(keyFile, "sk-not-a-real-key\n");
+
+    catching();
+
+    const account = await addNamedClaudeAccount(archive, {
+      name: "DeepSeek",
+      credential: { kind: "endpoint", path: home, endpointUrl: "https://api.deepseek.com/anthropic", keyFile, models: {} },
+    });
+
+    await markLoginGone(archive, account.id);
 
     expect(await tellAboutLogin({ archive }, (await archive.claudeAccounts().getClaudeAccount(account.id))!)).toBe(false);
     expect(sent).toEqual([]);

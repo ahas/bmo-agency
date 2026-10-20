@@ -1,7 +1,7 @@
 import "@agency/test-support/setup";
 
 import { describe, expect, test } from "bun:test";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { Archive } from "@agency/archive/archive";
@@ -105,6 +105,35 @@ describe("the logins a work key is offered", () => {
 
     expect(await pinnedClaudeAccount(archive, "digest")).toBeNull();
     expect((await claudeAccountWalk(archive, "digest")).map((one) => one.id)).toEqual([SEED_ACCOUNT_ID]);
+  });
+
+  test("an endpoint account is open while its key is there, and passed over while it is not", async () => {
+    const archive = await scratchArchive();
+    const home = join(root, "endpoint-home");
+    const keyFile = join(root, "endpoint.key");
+
+    mkdirSync(home, { recursive: true });
+    writeFileSync(keyFile, "sk-not-a-real-key\n");
+
+    const added = await addNamedClaudeAccount(archive, {
+      name: "DeepSeek",
+      credential: { kind: "endpoint", path: home, endpointUrl: "https://api.deepseek.com/anthropic", keyFile, models: {} },
+    });
+
+    expect(await claudeAccountOpen(archive, added.id)).toBe(true);
+    expect((await claudeAccountWalk(archive, "bmo")).map((one) => one.id)).toEqual([SEED_ACCOUNT_ID, added.id]);
+
+    // Nothing to hand a run is no account to run on: the walk passes it over rather than launching
+    // one that cannot reach its key.
+    rmSync(keyFile);
+    expect(await claudeAccountOpen(archive, added.id)).toBe(false);
+    expect((await claudeAccountWalk(archive, "bmo")).map((one) => one.id)).toEqual([SEED_ACCOUNT_ID]);
+
+    writeFileSync(keyFile, "");
+    expect(await claudeAccountOpen(archive, added.id)).toBe(false);
+
+    writeFileSync(keyFile, "sk-a-fresh-key\n");
+    expect(await claudeAccountOpen(archive, added.id)).toBe(true);
   });
 
   test("a login waiting for a person is passed over by that answer too", async () => {

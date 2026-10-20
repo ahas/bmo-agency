@@ -3,7 +3,13 @@
 
 import type { ArchiveSql } from "./archive-sql";
 
-// One Claude login agency holds. The row says where its credential is reached and nothing about
+// How a run reaches an account's credential (docs/cache-fallback.md, 「The Claude Code road is a
+// list of accounts」): a configuration directory holding a login, a file holding a long-lived token,
+// or another provider's Anthropic-compatible endpoint reached under a configuration home of the
+// account's own with the key its file holds.
+export type ClaudeCredentialKind = "directory" | "token" | "endpoint";
+
+// One Claude account agency holds. The row says where its credential is reached and nothing about
 // what is in there; `ts/agent/claude-account.ts` is what says which ids, names and paths may be
 // written into one.
 export interface ClaudeAccountRow {
@@ -11,8 +17,16 @@ export interface ClaudeAccountRow {
   name: string;
   place: number;
   enabled: boolean;
-  credentialKind: "directory" | "token";
+  credentialKind: ClaudeCredentialKind;
   credentialPath: string;
+  // An endpoint account's own: where its requests go, the file its key sits in and the model map as
+  // the JSON text the row keeps. Null on the other kinds, whose credential is the path alone.
+  endpointUrl: string | null;
+  keyFile: string | null;
+  endpointModels: string | null;
+  // The base prompt the account names, or null. A kept prompt cannot be removed from under it
+  // (docs/base-prompts.md).
+  basePrompt: string | null;
   addedAt: number;
   // When this login was found to be gone — nothing runs on it until a person signs in again.
   // Null while it is standing, which is every account's ordinary state.
@@ -26,8 +40,13 @@ export interface NewClaudeAccountRow {
   id: string;
   name: string;
   enabled: boolean;
-  credentialKind: "directory" | "token";
+  credentialKind: ClaudeCredentialKind;
   credentialPath: string;
+  // An endpoint account's own and a base prompt a row names; absent writes none.
+  endpointUrl?: string | null;
+  keyFile?: string | null;
+  endpointModels?: string | null;
+  basePrompt?: string | null;
 }
 
 interface ClaudeAccountDbRow {
@@ -35,8 +54,12 @@ interface ClaudeAccountDbRow {
   name: string;
   place: number;
   enabled: number;
-  credential_kind: "directory" | "token";
+  credential_kind: ClaudeCredentialKind;
   credential_path: string;
+  endpoint_url?: string | null;
+  key_file?: string | null;
+  endpoint_models?: string | null;
+  base_prompt?: string | null;
   added_at: number;
   needs_login_at: number | null;
   user_id?: number | null;
@@ -76,9 +99,12 @@ export class ClaudeAccountStore {
       const last = await this.sql.get("SELECT MAX(place) AS place FROM claude_accounts") as { place: number | null };
 
       await this.sql.run(`
-          INSERT INTO claude_accounts (id, name, place, enabled, credential_kind, credential_path, added_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?)
-        `, account.id, account.name, (last.place ?? 0) + 1, account.enabled ? 1 : 0, account.credentialKind, account.credentialPath, Math.floor(now / 1000));
+          INSERT INTO claude_accounts (
+            id, name, place, enabled, credential_kind, credential_path,
+            endpoint_url, key_file, endpoint_models, base_prompt, added_at
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `, account.id, account.name, (last.place ?? 0) + 1, account.enabled ? 1 : 0, account.credentialKind, account.credentialPath, account.endpointUrl ?? null, account.keyFile ?? null, account.endpointModels ?? null, account.basePrompt ?? null, Math.floor(now / 1000));
     });
   }
 
@@ -90,12 +116,17 @@ export class ClaudeAccountStore {
       name?: string;
       place?: number;
       enabled?: boolean;
-      credentialKind?: "directory" | "token";
+      credentialKind?: ClaudeCredentialKind;
       credentialPath?: string;
+      // Null clears the column; absent leaves it as it stands.
+      endpointUrl?: string | null;
+      keyFile?: string | null;
+      endpointModels?: string | null;
+      basePrompt?: string | null;
     },
   ): Promise<boolean> {
     const sets: string[] = [];
-    const args: (string | number)[] = [];
+    const args: (string | number | null)[] = [];
 
     if (changes.name !== undefined) {
       sets.push("name = ?");
@@ -120,6 +151,18 @@ export class ClaudeAccountStore {
     if (changes.credentialPath !== undefined) {
       sets.push("credential_path = ?");
       args.push(changes.credentialPath);
+    }
+
+    for (const [column, value] of [
+      ["endpoint_url", changes.endpointUrl],
+      ["key_file", changes.keyFile],
+      ["endpoint_models", changes.endpointModels],
+      ["base_prompt", changes.basePrompt],
+    ] as const) {
+      if (value !== undefined) {
+        sets.push(`${column} = ?`);
+        args.push(value);
+      }
     }
 
     if (sets.length === 0) {
@@ -149,6 +192,10 @@ export class ClaudeAccountStore {
       enabled: row.enabled === 1,
       credentialKind: row.credential_kind,
       credentialPath: row.credential_path,
+      endpointUrl: row.endpoint_url ?? null,
+      keyFile: row.key_file ?? null,
+      endpointModels: row.endpoint_models ?? null,
+      basePrompt: row.base_prompt ?? null,
       addedAt: row.added_at,
       needsLoginAt: row.needs_login_at ?? null,
       userId: row.user_id === undefined || row.user_id === null ? null : Number(row.user_id),

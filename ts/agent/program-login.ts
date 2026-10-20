@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import { machineConfigDir } from "./claude-account";
+import { accountHome, machineConfigDir } from "./claude-account";
 
 import type { ClaudeAccount } from "./claude-account";
 
@@ -47,7 +47,9 @@ function fileFingerprint(path: string): string | null {
 /**
  * The registered account a program's login belongs to, or null where none does. A program handed a
  * token answers on that token whatever directory it keeps its records in, so a token account is
- * matched by its token alone; any other program answers on the login its configuration home holds.
+ * matched by its token alone; any other program answers under a configuration home of its own, so a
+ * directory account and an endpoint account — whose home holds no login but is still the account's
+ * own — are matched by that home.
  */
 export function accountOfLogin(accounts: readonly ClaudeAccount[], login: ProgramLogin): ClaudeAccount | null {
   if (login.token !== null) {
@@ -56,5 +58,9 @@ export function accountOfLogin(accounts: readonly ClaudeAccount[], login: Progra
 
   const home = resolve(login.configDir);
 
-  return accounts.find((account) => account.credential.kind === "directory" && resolve(account.credential.path) === home) ?? null;
+  return accounts.find((account) => {
+    const own = accountHome(account.credential);
+
+    return own !== null && resolve(own) === home;
+  }) ?? null;
 }

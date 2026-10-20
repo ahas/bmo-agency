@@ -3,7 +3,7 @@ import queueWords from "@agency/policy/queue-words.toml";
 import { configuredProviderEnabled } from "./model-settings";
 import { jobWorkKey } from "./work-profile";
 import { SelectedRouteUnavailableError } from "./route-error";
-import { pointedElsewhere } from "./claude-road";
+import { registeredRoad } from "./claude-road";
 
 import { appendFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -137,8 +137,8 @@ export async function herdrCallRefusal(method: string, params: unknown, env: Env
 }
 
 // Every command a herdr call's parameters carry, however deep in a layout it stands — or, asked for
-// a login's alone, every one but those standing beside an environment that points the program at
-// another's endpoint.
+// a login's alone, every one but those standing beside an environment that makes the program the
+// registered models' road (agency's gateway or a registration's own home).
 function commandsIn(params: unknown, loginsOnly = false): string[][] {
   if (Array.isArray(params)) {
     return params.flatMap((one) => commandsIn(one, loginsOnly));
@@ -150,7 +150,7 @@ function commandsIn(params: unknown, loginsOnly = false): string[][] {
 
   const env = (params as { env?: unknown }).env;
 
-  if (loginsOnly && typeof env === "object" && env !== null && pointedElsewhere(env as Env)) {
+  if (loginsOnly && typeof env === "object" && env !== null && registeredRoad(env as Env)) {
     return [];
   }
 
@@ -279,8 +279,9 @@ const recordedLaunches = new WeakSet<readonly string[]>();
 // The calls every launch, every pane prompt and every call to herdr makes. Each throws where the answer
 // is no.
 export async function guardClaudeLaunch(line: string, command: readonly string[], commandEnv?: Env): Promise<void> {
-  // A program pointed at another's endpoint is that road's, which Claude Code being off does not close.
-  if (programOf(command) !== null && !pointedElsewhere(commandEnv ?? {}) && !await configuredProviderEnabled("claude-code")) {
+  // A program on the registered models' road is that road's, which Claude Code being off does not
+  // close; an endpoint account's program is the Claude Code road's and is closed with it.
+  if (programOf(command) !== null && !registeredRoad(commandEnv ?? {}) && !await configuredProviderEnabled("claude-code")) {
     throw new SelectedRouteUnavailableError(line, "claude-code", queueWords.pool.off);
   }
   const reason = await launchRefusal(line, command, { commandEnv });
@@ -298,7 +299,7 @@ export async function guardClaudeLaunch(line: string, command: readonly string[]
 }
 
 export async function guardHerdrCall(method: string, params: unknown): Promise<void> {
-  // A program on another's road is that road's, which Claude Code being off does not close.
+  // A program on the registered models' road is that road's, which Claude Code being off does not close.
   if (commandsIn(params, true).some(startsCli) && !await configuredProviderEnabled("claude-code")) {
     throw new SelectedRouteUnavailableError(jobWorkKey(), "claude-code", queueWords.pool.off);
   }

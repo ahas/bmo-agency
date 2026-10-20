@@ -23,11 +23,24 @@ const account = (id: string, kind: "directory" | "token", path: string): ClaudeA
   place: 1,
   enabled: true,
   credential: { kind, path },
+  basePrompt: null,
   addedAt: 0,
   userId: null,
 });
 
-const accounts = [account("default", "directory", "/home/someone/.claude"), account("main", "directory", "/logins/main"), account("tok", "token", tokenFile)];
+// An endpoint account's home holds no login, but it is still the account's own: a program running
+// under it answers for that account, not for whichever directory the machine happens to keep.
+const endpoint = (id: string, path: string): ClaudeAccount => ({
+  ...account(id, "directory", path),
+  credential: { kind: "endpoint", path, endpointUrl: "https://api.deepseek.com/anthropic", keyFile: "/logins/main/.key", models: { opus: "deepseek-v4-pro" } },
+});
+
+const accounts = [
+  account("default", "directory", "/home/someone/.claude"),
+  account("main", "directory", "/logins/main"),
+  account("tok", "token", tokenFile),
+  endpoint("deep", "/endpoints/deepseek"),
+];
 
 describe("the login a program runs under", () => {
   test("is the configuration home its environment names, or the machine's where it names none", () => {
@@ -47,6 +60,10 @@ describe("the account a login belongs to", () => {
   test("is the directory account whose home it is, however the path is spelled", () => {
     expect(accountOfLogin(accounts, { configDir: "/logins/main/", token: null })?.id).toBe("main");
     expect(accountOfLogin(accounts, { configDir: "/home/someone/.claude", token: null })?.id).toBe("default");
+  });
+
+  test("is the endpoint account whose home it is, which holds no login of its own", () => {
+    expect(accountOfLogin(accounts, { configDir: "/endpoints/deepseek/", token: null })?.id).toBe("deep");
   });
 
   test("is the token account holding that token, whatever home the program keeps its records in", () => {

@@ -294,6 +294,84 @@ describe("the account chosen to run on now", () => {
   });
 });
 
+// An endpoint account is Claude Code run against another provider's Anthropic-compatible endpoint
+// (docs/cache-fallback.md, 「The Claude Code road is a list of accounts」): a configuration home of
+// its own that holds no login, the endpoint's base URL, the file its key sits in and the model ids
+// its family words stand for.
+describe("an endpoint account", () => {
+  const home = join(root, "deepseek-home");
+  const keyFile = join(root, "deepseek.key");
+
+  function endpoint(models: { opus?: string; sonnet?: string; haiku?: string } = { opus: "deepseek-v4-pro", sonnet: "deepseek-flash", haiku: "deepseek-flash" }) {
+    return { kind: "endpoint" as const, path: home, endpointUrl: "https://api.deepseek.com/anthropic", keyFile, models };
+  }
+
+  test("is kept as its own home, base URL, key file and model map, and read back whole", async () => {
+    const store = await archive();
+
+    mkdirSync(home, { recursive: true });
+    writeFileSync(keyFile, "sk-not-a-real-key\n");
+    await store.sql.run(
+      "INSERT INTO base_prompts (name, label, text, updated_at, updated_by) VALUES (?, ?, ?, ?, ?)",
+      "dsh", "DeepSeek Harness based", "the harness's own prompt", 1, "test",
+    );
+
+    const added = await addNamedClaudeAccount(store, { name: "DeepSeek", credential: endpoint(), basePrompt: "dsh" });
+
+    expect(added.credential).toEqual(endpoint());
+    expect(added.basePrompt).toBe("dsh");
+    // The key is read as a run is launched and by nothing here: no row holds any part of it.
+    expect(JSON.stringify(await claudeAccounts(store))).not.toContain("sk-not-a-real-key");
+    // Its home keeps the run's records, and it holds no login file for an end to be read off.
+    expect(accountRecordsDir(added.credential)).toBe(home);
+    expect(credentialFilePath(added.credential)).toBeNull();
+  });
+
+  test("names a base prompt only when one is kept", async () => {
+    const store = await archive();
+
+    mkdirSync(home, { recursive: true });
+    writeFileSync(keyFile, "sk-not-a-real-key\n");
+
+    await expect(addNamedClaudeAccount(store, { name: "DeepSeek", credential: endpoint(), basePrompt: "nobody-keeps-this" })).rejects.toThrow();
+    expect(await claudeAccounts(store)).toHaveLength(1);
+  });
+
+  test("needs a home that is there, an http or https address and a key file", () => {
+    expect(claudeCredentialFault({ ...endpoint(), path: join(root, "nowhere") })).toBe(answers.path_missing);
+    expect(claudeCredentialFault({ ...endpoint(), path: keyFile })).toBe(answers.path_not_directory);
+    expect(claudeCredentialFault({ ...endpoint(), endpointUrl: "api.deepseek.com" })).toBe(answers.endpoint_url);
+    expect(claudeCredentialFault({ ...endpoint(), endpointUrl: "ftp://api.deepseek.com" })).toBe(answers.endpoint_url);
+    expect(claudeCredentialFault({ ...endpoint(), keyFile: join(root, "missing.key") })).toBe(answers.path_missing);
+    expect(claudeCredentialFault({ ...endpoint(), keyFile: home })).toBe(answers.key_not_file);
+    expect(claudeCredentialFault(endpoint())).toBeNull();
+  });
+
+  test("a row this road cannot use is left out rather than read as another kind", async () => {
+    const store = await archive();
+
+    mkdirSync(home, { recursive: true });
+    writeFileSync(keyFile, "sk-not-a-real-key\n");
+
+    const row = (id: string, place: number, kind: string, url: string | null, key: string | null, models: string | null): Promise<unknown> =>
+      store.sql.run(
+        `INSERT INTO claude_accounts (
+          id, name, place, enabled, credential_kind, credential_path,
+          endpoint_url, key_file, endpoint_models, added_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        id, id, place, 1, kind, home, url, key, models, 1,
+      );
+
+    await row("no-url", 9, "endpoint", "", keyFile, null);
+    await row("unknown-kind", 10, "mystery", null, null, null);
+    await row("bad-map", 11, "endpoint", "https://api.deepseek.com/anthropic", keyFile, "{\"opus\": 7}");
+    await row("unknown-family", 12, "endpoint", "https://api.deepseek.com/anthropic", keyFile, "{\"gpt\": \"x\"}");
+    await row("well-formed", 13, "endpoint", "https://api.deepseek.com/anthropic", keyFile, "{\"opus\": \"deepseek-v4-pro\"}");
+
+    expect((await claudeAccounts(store)).map((one) => one.id)).toEqual([SEED_ACCOUNT_ID, "well-formed"]);
+  });
+});
+
 // The rule the whole shape stands on: the archive holds where a credential is, and nothing that
 // touches a credential's own bytes belongs in this module. A reader that has to know when a login
 // ends opens the file for that one moment and keeps the moment, which is its own work elsewhere.

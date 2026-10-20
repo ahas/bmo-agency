@@ -115,6 +115,12 @@ interface CredentialReading {
 
 function readCredential(credential: { kind: string; path: string }): CredentialReading {
   const path = credentialFilePath(credential);
+
+  // An endpoint account holds no login to read: its key states no end and carries no refresh.
+  if (path === null) {
+    return { expiry: null, refresh: false };
+  }
+
   let text: string;
 
   try {
@@ -242,6 +248,13 @@ export function loginStanding(account: ClaudeAccountRow, now: number = Date.now(
     return "gone";
   }
 
+  // An endpoint account has no login to end and no renewal to be warned about: it stands while its
+  // key does, and only a run it refused says otherwise (docs/cache-fallback.md, 「A login that is
+  // about to end」).
+  if (account.credentialKind === "endpoint") {
+    return "standing";
+  }
+
   const ends = loginEnd({ kind: account.credentialKind, path: account.credentialPath });
 
   if (ends === null) {
@@ -267,9 +280,26 @@ export async function markLoginGone(archive: Archive, account: string, now: numb
   console.log(`claude account ${account}: its login is gone and waits for a person`);
 }
 
+// Whether an endpoint account's key file was written after `markedAt`, in the epoch seconds the
+// row keeps. A missing or empty file is no key at all, and counts as nothing written.
+function keyWrittenSince(keyFile: string | null, markedAt: number): boolean {
+  if (keyFile === null || keyFile === "") {
+    return false;
+  }
+
+  try {
+    const held = statSync(keyFile);
+
+    return held.isFile() && held.size > 0 && held.mtimeMs > markedAt * 1000;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * A login standing again. It is read off the credential rather than off anybody's word: a moment
- * in the future is a login somebody has signed in to since, and the mark goes.
+ * in the future is a login somebody has signed in to since, and the mark goes. An endpoint account
+ * has no such moment, so what says it stands again is its key file written after the mark.
  */
 export async function clearLoginIfBack(archive: Archive, account: string, now: number = Date.now()): Promise<boolean> {
   const held = await archive.claudeAccounts().getClaudeAccount(account);
@@ -278,9 +308,18 @@ export async function clearLoginIfBack(archive: Archive, account: string, now: n
     return false;
   }
 
-  const expiry = credentialExpiry({ kind: held.credentialKind, path: held.credentialPath });
+  // An endpoint account's key states no moment to read, so what says the account is back is the key
+  // file itself written after the mark: the owner put a fresh key there, which is the only thing on
+  // this side that can say so.
+  const back = held.credentialKind === "endpoint"
+    ? keyWrittenSince(held.keyFile, held.needsLoginAt)
+    : (() => {
+        const expiry = credentialExpiry({ kind: held.credentialKind, path: held.credentialPath });
 
-  if (expiry === null || expiry <= now) {
+        return expiry !== null && expiry > now;
+      })();
+
+  if (!back) {
     return false;
   }
 
@@ -297,6 +336,12 @@ export async function clearLoginIfBack(archive: Archive, account: string, now: n
  * goes in front, because that is what decides which login is being signed in.
  */
 export function loginCommand(account: ClaudeAccountRow): string {
+  // An endpoint account holds no login, so there is no command that would make one; nothing asks
+  // for it either, since no warning is ever sent about such an account.
+  if (account.credentialKind === "endpoint") {
+    throw new Error(`Account ${account.id} holds no login, so it has no command to make one.`);
+  }
+
   return (account.credentialKind === "token" ? declaredLogin.token_command : declaredLogin.directory_command).replace("{path}", account.credentialPath);
 }
 
@@ -317,6 +362,12 @@ export async function tellAboutLogin(
   account: ClaudeAccountRow,
   now: number = Date.now(),
 ): Promise<boolean> {
+  // An endpoint account has no login to end, so there is nothing to warn about and no command to
+  // sign one in with (docs/cache-fallback.md, 「A login that is about to end」).
+  if (account.credentialKind === "endpoint") {
+    return false;
+  }
+
   const standing = loginStanding(account, now);
 
   if (standing === "standing") {

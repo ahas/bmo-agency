@@ -1,5 +1,5 @@
 import { accountFailure, ClaudeLimitError } from "./claude-failure";
-import { chosenClaudeAccount, claudeAccountInUse, claudeAccounts, enabledClaudeAccounts, holdClaudeAccount, recordedAccount, runAccountFor } from "./claude-account";
+import { chosenClaudeAccount, claudeAccountInUse, claudeAccounts, enabledClaudeAccounts, endpointKeyHeld, holdClaudeAccount, recordedAccount, runAccountFor } from "./claude-account";
 import { providerSettingsArchive } from "./provider-order";
 import { clearLoginIfBack, markLoginGone, tellAboutLogin, withRenewedLogin } from "./claude-login";
 import { isAccountResting, restFallbackDefaultMs, restUntilFor, writeRest } from "./rest-state";
@@ -27,15 +27,15 @@ import { filterInOrder } from "@agency/support/in-order";
 // provider order.
 
 /**
- * Whether a login will answer now: it is on, its own window is not full, and its login has not
- * gone. A login waiting for a person answers nothing at all, so the walk passes it over exactly
- * as it passes over one at its ceiling — and a login somebody has signed in to again is read as
- * standing the moment its credential says so.
+ * Whether a login will answer now: it is on, its key is there where it is an endpoint account, its
+ * own window is not full, and its login has not gone. A login waiting for a person answers nothing
+ * at all, so the walk passes it over exactly as it passes over one at its ceiling — and a login
+ * somebody has signed in to again is read as standing the moment its credential says so.
  */
 export async function claudeAccountOpen(archive: Archive, account: string): Promise<boolean> {
   const held = (await enabledClaudeAccounts(archive)).find((one) => one.id === account);
 
-  if (held === undefined || await isAccountResting(archive, account)) {
+  if (held === undefined || !endpointKeyHeld(held.credential) || await isAccountResting(archive, account)) {
     return false;
   }
 

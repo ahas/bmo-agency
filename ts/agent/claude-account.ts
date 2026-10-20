@@ -32,14 +32,40 @@ import type { AgentAccount } from "./harness";
 // - `token` — the account names a file holding the long-lived token the CLI issues, handed to a
 //   run as `CLAUDE_CODE_OAUTH_TOKEN`. Such a token stands for a year, carries no refresh of its
 //   own and is inference-only, so it dies rather than lapsing.
-export type ClaudeCredentialKind = "directory" | "token";
+// - `endpoint` — the account names a configuration home of its own, an Anthropic-compatible base
+//   URL and the file its key sits in, and may map the family words Claude Code picks a model by to
+//   the endpoint's own model ids. The home holds no login: the key is the whole credential, read
+//   only as a run is launched (docs/cache-fallback.md, 「The Claude Code road is a list of
+//   accounts」).
+export type ClaudeCredentialKind = "directory" | "token" | "endpoint";
 
-export interface ClaudeCredential {
-  kind: ClaudeCredentialKind;
-  // The absolute path the credential is reached by: the configuration directory itself, or the
-  // file the token sits in. Never the credential.
-  path: string;
-}
+// The family words Claude Code picks a model by, and an endpoint's own model id for each of them
+// where the account maps one. A family the map leaves out goes out as Claude Code names it.
+export const ENDPOINT_FAMILIES = ["opus", "sonnet", "haiku"] as const;
+
+export type EndpointFamily = (typeof ENDPOINT_FAMILIES)[number];
+
+export type ClaudeEndpointModels = Readonly<Partial<Record<EndpointFamily, string>>>;
+
+export type ClaudeCredential =
+  | {
+      kind: "directory";
+      // The absolute configuration home the login is kept in. Never the credential.
+      path: string;
+    }
+  | {
+      kind: "token";
+      // The absolute file the token sits in. Never the credential.
+      path: string;
+    }
+  | {
+      kind: "endpoint";
+      // The absolute configuration home of the account's own, which holds no login.
+      path: string;
+      endpointUrl: string;
+      keyFile: string;
+      models: ClaudeEndpointModels;
+    };
 
 export interface ClaudeAccount extends AgentAccount {
   // What every record of this account is keyed by, and what never moves: a session, a usage
@@ -50,6 +76,9 @@ export interface ClaudeAccount extends AgentAccount {
   place: number;
   enabled: boolean;
   credential: ClaudeCredential;
+  // The base prompt a worker's run on this account opens on, where it names one; it wins over the
+  // agent's own choice (docs/base-prompts.md).
+  basePrompt: string | null;
   // When it was registered, which is the order the list falls back to when nothing else says.
   addedAt: number;
   // The user whose account it is, once the multi-user model is in force; null where no user stands.
@@ -61,6 +90,7 @@ export interface NewClaudeAccount {
   name: string;
   credential: ClaudeCredential;
   enabled?: boolean;
+  basePrompt?: string | null;
 }
 
 // What an id may be. It stands in a work key's setting, in a CLI flag and in a session record's
@@ -92,14 +122,48 @@ export function recordedAccount(account: string | { id: string } | null | undefi
 }
 
 /**
+ * The configuration home of the account's own: a directory account's, which holds its login, and an
+ * endpoint account's, which holds no login but keeps the run's records; none for a token account,
+ * which goes out under the machine's own.
+ */
+export function accountHome(credential: { kind: string; path: string } | null | undefined): string | null {
+  if (credential === null || credential === undefined) {
+    return null;
+  }
+
+  return credential.kind === "directory" || credential.kind === "endpoint" ? credential.path : null;
+}
+
+/**
  * The directory the CLI keeps an account's own records under — its transcripts above all. It is
  * the account's configuration home where it has one; a token account has none, so the CLI keeps
  * its records where the machine keeps them, which is what the launch hands such a run.
  */
 export function accountRecordsDir(credential: { kind: string; path: string } | null | undefined): string {
-  return credential !== null && credential !== undefined && credential.kind === "directory"
-    ? credential.path
-    : machineConfigDir();
+  return accountHome(credential) ?? machineConfigDir();
+}
+
+/**
+ * Whether an endpoint account's key is there to be handed to a run: its file present and not empty.
+ * The file is never opened — only its size is read — and every other kind holds no key to judge
+ * (docs/cache-fallback.md, 「The account judgement」).
+ */
+export function endpointKeyHeld(credential: { kind: string; keyFile?: string }): boolean {
+  if (credential.kind !== "endpoint") {
+    return true;
+  }
+
+  if (credential.keyFile === undefined || credential.keyFile === "") {
+    return false;
+  }
+
+  try {
+    const held = statSync(credential.keyFile);
+
+    return held.isFile() && held.size > 0;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -109,8 +173,9 @@ export function accountRecordsDir(credential: { kind: string; path: string } | n
  */
 export async function recordsDirOf(archive: Archive, id: string | null | undefined): Promise<string> {
   const row = id === null || id === undefined ? null : await archive.claudeAccounts().getClaudeAccount(id);
+  const credential = row === null ? null : credentialOf(row);
 
-  return accountRecordsDir(row === null ? null : { kind: row.credentialKind, path: row.credentialPath });
+  return accountRecordsDir(credential);
 }
 
 /**
@@ -121,16 +186,27 @@ export async function recordsDirOf(archive: Archive, id: string | null | undefin
  */
 export async function runAccountFor(archive: Archive, id: string | null | undefined): Promise<AgentAccount | null> {
   const row = id === null || id === undefined ? null : await archive.claudeAccounts().getClaudeAccount(id);
+  const credential = row === null ? null : credentialOf(row);
 
-  return row === null ? null : { id: row.id, name: row.name, credential: { kind: row.credentialKind, path: row.credentialPath } };
+  return row === null || credential === null ? null : { id: row.id, name: row.name, credential };
 }
 
 /**
- * Where a directory account's login sits. Opened only to learn when it ends. The shape it takes is
- * the neutral one a run carries, so a reader holding a run's own login needs no translation.
+ * Where an account's login sits: a directory account's credential file and a token account's token
+ * file. None for an endpoint account, which holds no login — its key file is the credential
+ * itself, handed to the run and never opened here. Opened only to learn when a login ends. The
+ * shape it takes is the neutral one a run carries, so a reader holding a run's own login needs no
+ * translation.
  */
-export function credentialFilePath(credential: { kind: string; path: string }): string {
-  return credential.kind === "token" ? credential.path : join(credential.path, CREDENTIAL_FILE);
+export function credentialFilePath(credential: { kind: string; path: string }): string | null {
+  switch (credential.kind) {
+    case "directory":
+      return join(credential.path, CREDENTIAL_FILE);
+    case "token":
+      return credential.path;
+    default:
+      return null;
+  }
 }
 
 /**
@@ -186,33 +262,167 @@ export function claudeAccountNameFault(name: string, taken: readonly string[]): 
   return taken.includes(given) ? fillMarks(controlAnswers.accounts.name_taken, { name: given }) : null;
 }
 
-/**
- * Why a credential cannot be reached, or nothing. A directory account needs a directory that is
- * there — whether a login has been made in it yet is a different question, and one the login
- * watch answers — and a token account needs the file the token sits in. Neither is opened here.
- */
-export function claudeCredentialFault(credential: ClaudeCredential): string | null {
-  const path = credential.path.trim();
+// Why a path cannot be reached, or nothing: it must be absolute and there, a directory where one is
+// asked and a file otherwise, with the words a path that is not one says.
+function pathFault(path: string, directory: boolean, notIt: string): string | null {
+  const given = path.trim();
 
-  if (path === "") {
+  if (given === "") {
     return controlAnswers.accounts.path_empty;
   }
 
-  if (!isAbsolute(path)) {
+  if (!isAbsolute(given)) {
     return controlAnswers.accounts.path_relative;
   }
 
-  if (!existsSync(path)) {
+  if (!existsSync(given)) {
     return controlAnswers.accounts.path_missing;
   }
 
-  const directory = statSync(path).isDirectory();
+  return statSync(given).isDirectory() === directory ? null : notIt;
+}
 
-  if (credential.kind === "directory") {
-    return directory ? null : controlAnswers.accounts.path_not_directory;
+// Whether a text is an absolute http or https address with a host, which is what an endpoint's base
+// URL has to be.
+function httpUrl(text: string): boolean {
+  try {
+    const url = new URL(text.trim());
+
+    return (url.protocol === "http:" || url.protocol === "https:") && url.host !== "";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Why a credential cannot be reached, or nothing. A directory account needs a directory that is
+ * there — whether a login has been made in it yet is a different question, and one the login
+ * watch answers — a token account needs the file the token sits in, and an endpoint account needs
+ * a configuration home that is there, an http or https base URL and the file its key sits in. No
+ * file is opened here.
+ */
+export function claudeCredentialFault(credential: ClaudeCredential): string | null {
+  const home = pathFault(
+    credential.path,
+    credential.kind !== "token",
+    credential.kind === "token" ? controlAnswers.accounts.path_not_file : controlAnswers.accounts.path_not_directory,
+  );
+
+  if (home !== null || credential.kind !== "endpoint") {
+    return home;
   }
 
-  return directory ? controlAnswers.accounts.path_not_file : null;
+  if (!httpUrl(credential.endpointUrl)) {
+    return controlAnswers.accounts.endpoint_url;
+  }
+
+  return pathFault(credential.keyFile, false, controlAnswers.accounts.key_not_file);
+}
+
+// What a row's columns name, or null where they name no credential this road can use: an unknown
+// kind, an endpoint row missing its base URL or key file, or a model map that is not an object from
+// family words to model ids. Such a row is left out rather than read as another kind.
+function credentialOf(row: ClaudeAccountRow): ClaudeCredential | null {
+  switch (row.credentialKind) {
+    case "directory":
+      return { kind: "directory", path: row.credentialPath };
+    case "token":
+      return { kind: "token", path: row.credentialPath };
+    case "endpoint": {
+      const endpointUrl = row.endpointUrl ?? "";
+      const keyFile = row.keyFile ?? "";
+      const models = modelsOf(row.endpointModels);
+
+      return endpointUrl === "" || keyFile === "" || models === null
+        ? null
+        : { kind: "endpoint", path: row.credentialPath, endpointUrl, keyFile, models };
+    }
+    default:
+      return null;
+  }
+}
+
+// The model map a row's text holds, an empty map where it holds none, or null where the text is not
+// the object the column's contract says.
+function modelsOf(text: string | null): ClaudeEndpointModels | null {
+  if (text === null || text.trim() === "") {
+    return {};
+  }
+
+  let held: unknown;
+
+  try {
+    held = JSON.parse(text);
+  } catch {
+    return null;
+  }
+
+  if (typeof held !== "object" || held === null || Array.isArray(held)) {
+    return null;
+  }
+
+  const models: Partial<Record<EndpointFamily, string>> = {};
+
+  for (const [family, id] of Object.entries(held as Record<string, unknown>)) {
+    if (!(ENDPOINT_FAMILIES as readonly string[]).includes(family)) {
+      return null;
+    }
+
+    if (id === null) {
+      continue;
+    }
+
+    if (typeof id !== "string" || id.trim() === "") {
+      return null;
+    }
+
+    models[family as EndpointFamily] = id;
+  }
+
+  return models;
+}
+
+// A credential as it is stored: each text it names with its edges trimmed.
+function trimmedCredential(credential: ClaudeCredential): ClaudeCredential {
+  switch (credential.kind) {
+    case "endpoint":
+      return {
+        kind: "endpoint",
+        path: credential.path.trim(),
+        endpointUrl: credential.endpointUrl.trim(),
+        keyFile: credential.keyFile.trim(),
+        models: credential.models,
+      };
+    case "directory":
+    case "token":
+      return { kind: credential.kind, path: credential.path.trim() };
+  }
+}
+
+// The columns a credential is kept in, an endpoint account's own set only on that kind
+// (docs/store.md).
+function credentialColumns(credential: ClaudeCredential): {
+  credentialKind: ClaudeCredentialKind;
+  credentialPath: string;
+  endpointUrl: string | null;
+  keyFile: string | null;
+  endpointModels: string | null;
+} {
+  return credential.kind === "endpoint"
+    ? {
+        credentialKind: credential.kind,
+        credentialPath: credential.path,
+        endpointUrl: credential.endpointUrl,
+        keyFile: credential.keyFile,
+        endpointModels: JSON.stringify(credential.models),
+      }
+    : {
+        credentialKind: credential.kind,
+        credentialPath: credential.path,
+        endpointUrl: null,
+        keyFile: null,
+        endpointModels: null,
+      };
 }
 
 /**
@@ -234,6 +444,8 @@ export interface ClaudeAccountChange {
   name?: string;
   credential?: ClaudeCredential;
   enabled?: boolean;
+  // Absent keeps the base the account holds; null clears it.
+  basePrompt?: string | null;
 }
 
 /** What is wrong with changing an account, or nothing. Only what was named is judged. */
@@ -259,7 +471,20 @@ export const lastAccountOffReason: string = controlAnswers.accounts.last_off;
 
 /** The accounts as the owner ordered them, whether they are on or off. */
 export async function claudeAccounts(archive: Archive): Promise<ClaudeAccount[]> {
-  return (await archive.claudeAccounts().claudeAccounts()).map(accountOf);
+  const held: ClaudeAccount[] = [];
+
+  for (const row of await archive.claudeAccounts().claudeAccounts()) {
+    const account = accountOf(row);
+
+    if (account === null) {
+      console.log(`claude account ${row.id}: its row names no credential this road can use, so it is left out`);
+      continue;
+    }
+
+    held.push(account);
+  }
+
+  return held;
 }
 
 /** The accounts the Claude Code entry walks, in order. */
@@ -286,7 +511,7 @@ export async function addClaudeAccount(archive: Archive, account: NewClaudeAccou
   const asked: NewClaudeAccount = {
     ...account,
     name: account.name.trim(),
-    credential: { kind: account.credential.kind, path: account.credential.path.trim() },
+    credential: trimmedCredential(account.credential),
   };
   const fault = newClaudeAccountFault(asked, await claudeAccounts(archive));
 
@@ -298,8 +523,8 @@ export async function addClaudeAccount(archive: Archive, account: NewClaudeAccou
     id: asked.id,
     name: asked.name,
     enabled: asked.enabled ?? true,
-    credentialKind: asked.credential.kind,
-    credentialPath: asked.credential.path,
+    ...credentialColumns(asked.credential),
+    basePrompt: asked.basePrompt ?? null,
   });
 
   return await claudeAccount(archive, asked.id) as ClaudeAccount;
@@ -308,7 +533,7 @@ export async function addClaudeAccount(archive: Archive, account: NewClaudeAccou
 /** An account named by the owner, minted its own id. */
 export async function addNamedClaudeAccount(
   archive: Archive,
-  account: { name: string; credential: ClaudeCredential; enabled?: boolean },
+  account: { name: string; credential: ClaudeCredential; enabled?: boolean; basePrompt?: string | null },
 ): Promise<ClaudeAccount> {
   return addClaudeAccount(archive, {
     ...account,
@@ -321,9 +546,7 @@ export async function updateClaudeAccount(archive: Archive, id: string, change: 
   const asked: ClaudeAccountChange = {
     ...change,
     ...(change.name === undefined ? {} : { name: change.name.trim() }),
-    ...(change.credential === undefined
-      ? {}
-      : { credential: { kind: change.credential.kind, path: change.credential.path.trim() } }),
+    ...(change.credential === undefined ? {} : { credential: trimmedCredential(change.credential) }),
   };
   const fault = claudeAccountChangeFault(id, asked, await claudeAccounts(archive));
 
@@ -334,8 +557,10 @@ export async function updateClaudeAccount(archive: Archive, id: string, change: 
   await archive.claudeAccounts().updateClaudeAccount(id, {
     name: asked.name,
     enabled: asked.enabled,
-    credentialKind: asked.credential?.kind,
-    credentialPath: asked.credential?.path,
+    // A credential given as a whole writes every column it keeps, so an account moved off an
+    // endpoint loses the URL, the key file and the map rather than carrying them under its new kind.
+    ...(asked.credential === undefined ? {} : credentialColumns(asked.credential)),
+    basePrompt: asked.basePrompt,
   });
   await letChoiceGoIfOff(archive);
 
@@ -433,14 +658,19 @@ async function letChoiceGoIfOff(archive: Archive): Promise<void> {
   }
 }
 
-function accountOf(row: ClaudeAccountRow): ClaudeAccount {
-  return {
-    id: row.id,
-    name: row.name,
-    place: row.place,
-    enabled: row.enabled,
-    credential: { kind: row.credentialKind, path: row.credentialPath },
-    addedAt: row.addedAt,
-    userId: row.userId,
-  };
+function accountOf(row: ClaudeAccountRow): ClaudeAccount | null {
+  const credential = credentialOf(row);
+
+  return credential === null
+    ? null
+    : {
+        id: row.id,
+        name: row.name,
+        place: row.place,
+        enabled: row.enabled,
+        credential,
+        basePrompt: row.basePrompt,
+        addedAt: row.addedAt,
+        userId: row.userId,
+      };
 }

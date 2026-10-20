@@ -26,7 +26,7 @@ import { providerSettingsArchive } from "./provider-order";
 // each counted once, and its answer is the text of the last response that was not a side chain's.
 
 import { guardClaudeLaunch, guardPanePrompt } from "./live-claude-guard";
-import { pointedElsewhere } from "./claude-road";
+import { registeredRoad } from "./claude-road";
 import type { Overtime, OvertimeAnswer } from "./overtime-clock";
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -720,8 +720,9 @@ export async function runTurnInPane(options: {
   const checkLaunch = async () => {
     if (await cancelled()) throw new Error("execution cancelled");
     await guardClaudeLaunch("pane", options.command, options.env);
-    // A program on another's road writes no Claude session and Claude being off does not close it.
-    await guardPanePrompt({ claude: !pointedElsewhere(options.env) });
+    // A program on the registered models' road writes no Claude session and Claude being off does
+    // not close it; an endpoint account's program writes one and is closed with Claude.
+    await guardPanePrompt({ claude: !registeredRoad(options.env) });
   };
   // An agent with a standing workspace takes its turn in the program standing in its pane, which is
   // stood up or replaced first where it is not the program this turn needs; a turn that is nobody's
@@ -1033,7 +1034,7 @@ export async function runTurnInPane(options: {
           stopAskedAt = Date.now();
 
           if (asksFirst) {
-            await guardPanePrompt({ claude: !pointedElsewhere(options.env) });
+            await guardPanePrompt({ claude: !registeredRoad(options.env) });
             await promptWithLead(pane, lead, stopInstruction, where);
             await Bun.sleep(everyMs);
             continue;

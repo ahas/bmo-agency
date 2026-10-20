@@ -1,8 +1,8 @@
 // A store of a test's own (docs/store.md): a database on the suite's PostgreSQL server, copied from a
-// template this process makes once out of the same `store.sql` the store crate's migration runs and the
-// account seed a deployment's settling writes, and dropped when the file or the test that asked for it is
-// done. A template or copy a process that is gone left behind is dropped by the next process to make a
-// template.
+// template this process makes once out of the same `store.sql` and the same migrations after it the store
+// crate runs, and the account seed a deployment's settling writes, and dropped when the file or the test
+// that asked for it is done. A template or copy a process that is gone left behind is dropped by the next
+// process to make a template.
 //
 // A store is asked for at a file's top level, inside a test or in a `beforeEach`, never in a
 // `beforeAll`: Bun runs an `afterAll` registered inside a `beforeAll` as soon as that hook ends, so the
@@ -24,8 +24,24 @@ import type { PostgresClient } from "@agency/archive/postgres-client";
 const TEMPLATE = "agency_ts_tmpl_";
 const COPY = "agency_ts_copy_";
 
-// The store's tables, as the store crate's one migration makes them.
-const STORE_SQL = join(import.meta.dir, "..", "..", "..", "crates", "store", "src", "migration", "store.sql");
+// The store's tables, as the store crate's first migration makes them.
+const MIGRATION_DIR = join(import.meta.dir, "..", "..", "..", "crates", "store", "src", "migration");
+const STORE_SQL = join(MIGRATION_DIR, "store.sql");
+
+// The migrations after it, in the order `crates/store/src/migration.rs` runs them: what a store this
+// process makes has to be the store the server's own migration leaves, or a column the TypeScript side
+// reads would be missing only in its tests.
+const LATER_MIGRATIONS: readonly string[] = [
+  "clocks.sql",
+  "runs.sql",
+  "worker_context.sql",
+  "worker_words.sql",
+  "usage_windows.sql",
+  "work.sql",
+  "job_model.sql",
+  "base_prompt_seeds.sql",
+  "endpoint_accounts.sql",
+];
 
 let made: Promise<string> | null = null;
 let copies = 0;
@@ -83,6 +99,10 @@ function template(): Promise<string> {
 
     try {
       await db.unsafe(readFileSync(STORE_SQL, "utf8")).simple();
+
+      for (const migration of LATER_MIGRATIONS) {
+        await db.unsafe(readFileSync(join(MIGRATION_DIR, migration), "utf8")).simple();
+      }
     } finally {
       await db.close();
     }

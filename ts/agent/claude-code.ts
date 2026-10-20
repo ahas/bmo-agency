@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { enabledClaudeAccounts, machineConfigDir, recordedAccount, recordsDirOf } from "./claude-account";
+import { enabledClaudeAccounts, ENDPOINT_FAMILIES, machineConfigDir, recordedAccount, recordsDirOf } from "./claude-account";
 import { machineCatalogue } from "./provider-facts";
 import { providerDeclaration } from "./provider-declaration";
 import declaredClaudeCode from "@agency/policy/providers/claude-code.toml";
@@ -12,7 +12,7 @@ import { providerSettingsArchive } from "./provider-order";
 import { cliProjectsRoot, readLastRequestTokens, transcriptPath } from "./cli-transcripts";
 import { claudeConfigFile, markOnboarded, trustFolder } from "./claude-trust";
 import { writePlaceSettings } from "./agent-place";
-import { pointedElsewhere } from "./claude-road";
+import { registeredRoad } from "./claude-road";
 import { readClaudeOutput } from "./claude";
 import { handedPath } from "@agency/support/launch-paths";
 import { levelReasoning, levelsIn } from "./reasoning";
@@ -224,8 +224,10 @@ function workerLine(run: HarnessRun): string[] {
     "--disallowedTools",
     run.toolsDenied ?? "",
     // The owner's standing rules for every job, appended to the CLI's own prompt rather than replacing
-    // it, so they reach a job in whichever checkout it works. A worker that chooses a base prompt is
-    // handed it with the same rules after it as its whole prompt instead (docs/base-prompts.md).
+    // it, so they reach a job in whichever checkout it works. A worker whose base prompt is decided —
+    // its account's where the account names one, which wins over the agent's own choice, and the
+    // agent's otherwise — is handed that base with the same rules after it as its whole prompt
+    // instead, and the base arrives as the run's system prompt file (docs/base-prompts.md).
     ...(run.systemPromptPath === null
       ? ["--append-system-prompt-file", handedPath(run.line, extensionsOf(run).rulesPath)]
       : ["--system-prompt-file", handedPath(run.line, run.systemPromptPath)]),
@@ -357,23 +359,30 @@ function argsFor(run: HarnessRun): string[] {
 // The account's login as the CLI is handed it. A directory account names the configuration home
 // and the CLI reads the login it keeps there; a token account names the file its token sits in,
 // and the token itself is what the CLI takes, so the file is opened here and its word goes no
-// further than this one process's child.
+// further than this one process's child; an endpoint account names its own configuration home, the
+// base URL its requests go to, the key read from its file as the run's authorisation token and the
+// model id its map names for each family.
 //
-// The two are not symmetrical, and the asymmetry is the point. A directory account clears any
+// The three are not symmetrical, and the asymmetry is the point. A directory account clears any
 // token the launching process happened to be carrying, because a token in the environment would
 // answer for the run instead of the directory's own login and the account the owner chose would be
 // quietly not the one that answered. A token account leaves the configuration directory alone:
 // the token says which login answers, the directory says where the CLI keeps its records, and a
 // token account has no records directory of its own — it uses the machine's, which is what the
-// launching environment already names.
+// launching environment already names. An endpoint account clears every credential the launching
+// process carried, because any of them would answer for the run instead of its key, and names the
+// model family variables outright, an unmapped family included, so a stale one cannot reach the
+// endpoint (docs/cache-fallback.md, 「The Claude Code road is a list of accounts」).
 function accountEnv(account: AgentAccount | null | undefined): Record<string, string | undefined> {
   if (account === null || account === undefined) {
     return {};
   }
 
-  if (account.credential.kind === "token") {
+  const credential = account.credential;
+
+  if (credential.kind === "token") {
     try {
-      return { CLAUDE_CODE_OAUTH_TOKEN: readFileSync(account.credential.path, "utf8").trim() };
+      return { CLAUDE_CODE_OAUTH_TOKEN: readFileSync(credential.path, "utf8").trim() };
     } catch {
       // A launch that cannot reach its token is refused here rather than started and left to fail
       // as an authentication error nobody can place. What is said is which account, never what was
@@ -382,7 +391,43 @@ function accountEnv(account: AgentAccount | null | undefined): Record<string, st
     }
   }
 
-  return { CLAUDE_CONFIG_DIR: account.credential.path, CLAUDE_CODE_OAUTH_TOKEN: undefined };
+  if (credential.kind === "endpoint") {
+    const { endpointUrl, keyFile } = credential;
+
+    if (endpointUrl === undefined || endpointUrl === "" || keyFile === undefined || keyFile === "") {
+      throw new Error(`Account ${account.id} names no endpoint to run on.`);
+    }
+
+    let key = "";
+
+    try {
+      key = readFileSync(keyFile, "utf8").trim();
+    } catch {
+      // Said below, so a file that cannot be read and one that holds nothing read alike.
+    }
+
+    if (key === "") {
+      // The key goes into no log and no record: what is said is which account, never what was in
+      // the file or what was expected to be.
+      throw new Error(`The key file of account ${account.id} cannot be read.`);
+    }
+
+    const env: Record<string, string | undefined> = {
+      CLAUDE_CONFIG_DIR: credential.path,
+      ANTHROPIC_BASE_URL: endpointUrl,
+      ANTHROPIC_AUTH_TOKEN: key,
+      ANTHROPIC_API_KEY: undefined,
+      CLAUDE_CODE_OAUTH_TOKEN: undefined,
+    };
+
+    for (const family of ENDPOINT_FAMILIES) {
+      env[`ANTHROPIC_DEFAULT_${family.toUpperCase()}_MODEL`] = credential.models?.[family];
+    }
+
+    return env;
+  }
+
+  return { CLAUDE_CONFIG_DIR: credential.path, CLAUDE_CODE_OAUTH_TOKEN: undefined };
 }
 
 /**
@@ -709,9 +754,10 @@ export const claudeResident: ResidentSurface = {
   fold: foldPrompt,
   clear: "/clear",
   identity: commandDigest,
-  // The login's own program only: a Claude Code program pointed at another's endpoint stands for that
-  // road (「A road to another's endpoint」 below).
-  owns: (command) => command.args[0] === "claude" && !pointedElsewhere(command.env ?? {}),
+  // The login's own program only: a Claude Code program on the registered models' road stands for
+  // that road (「A road to another's endpoint」 below). A program on an endpoint account's endpoint
+  // is this road's still, since the account is one of its logins.
+  owns: (command) => command.args[0] === "claude" && !registeredRoad(command.env ?? {}),
 };
 
 // ─── A road to another's endpoint ───────────────────────────────────────────────────────────────
