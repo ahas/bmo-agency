@@ -1,16 +1,16 @@
 # The keepalive schedule
 
 When a kept prompt-cache prefix is worth a ping, and whether agency's keepalive pings go. The general
-rule is the `cache-warmer` crate, a library of plain values with no dependency of its own, which agency
-and any other repository that keeps prefixes warm build on (`docs/api.md`, 「The keepalive schedule
-library」). Agency's own schedule stands in the server's keepalive module and calls it: the owner's
-warming switch and the co-worker pool's rule for its places. The pool asks it before it judges a
-reservation's places and again before each ping goes (`docs/coworker-pool.md`, 「Reserving places and
-keepalive」); which places stand, the ping itself and its record stay the pool's.
+rule is the schedule library the `bmo-cache-warmer` package publishes, plain values that use nothing
+outside themselves, which agency and any other repository that keeps prefixes warm build on
+(`docs/api.md`, 「Calls agency makes」). Agency's own schedule stands in the server's keepalive module
+and calls it: the owner's warming switch and the co-worker pool's rule for its places. The pool asks it
+before it judges a reservation's places and again before each ping goes (`docs/coworker-pool.md`,
+「Reserving places and keepalive」); which places stand, the ping itself and its record stay the pool's.
 
 ## The general rule
 
-The crate judges only what it is handed, `now` included: it reads no clock, no store and no policy of
+The library judges only what it is handed, `now` included: it reads no clock, no store and no policy of
 its own. Every moment and span is in epoch milliseconds.
 
 - **A target's clocks** are its registration's: its idle stretch, an optional lifetime, the margin

@@ -2334,7 +2334,7 @@ pub const EVENTS: [&str; 32] = [
   "job.ended",
 ];
 
-/// The units this service calls, through their published clients.
+/// The upstreams this service reaches, through what each repository publishes.
 const CALLS: [&str; 8] = ["brain", "graph", "node", "arbiter", "pocket", "testbed", "cache-warmer", "chat"];
 
 const DESCRIPTION: &str = "The agency's agents, their sessions, turns and runs, the executions on the agent host, \
@@ -2344,11 +2344,11 @@ const DESCRIPTION: &str = "The agency's agents, their sessions, turns and runs, 
   with POST /jobs. The agency never calls the job service and keeps no client of it: the run's progress, \
   questions and outcome are its own events and fields, which the harness reads and carries into the job \
   service, where it reports and closes the item; words appended to the item reach the run as the harness sends \
-  them into the job's session. Everything it remembers or runs on is an upstream it calls through that \
-  upstream's client. It serves only its own nouns: a run with a fixed prompt is an ordinary session started \
-  with POST /sessions and the run's prompt document, and that session calls the upstreams it needs through \
-  their own MCP servers; no route or tool of the agency forwards to them. It calls no downstream; gate and \
-  receiver register at its hook points. It stays one service.";
+  them into the job's session. Everything it remembers or runs on is an upstream it reaches through what \
+  that upstream publishes. It serves only its own nouns: a run with a fixed prompt is an ordinary session \
+  started with POST /sessions and the run's prompt document, and that session calls the upstreams it needs \
+  through their own MCP servers; no route or tool of the agency forwards to them. It calls no \
+  downstream; gate and receiver register at its hook points. It stays one service.";
 
 const ENTRY: &str = "A harness holding an item asks for a worker with agency_assign_worker, hands the item and \
   its lease over with agency_run_job, and reads the job's progress and outcome from the job's events and \

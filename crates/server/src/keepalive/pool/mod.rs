@@ -113,7 +113,7 @@ pub struct Pool<'a> {
   pub ground: &'a Ground,
 }
 
-pub use cache_warmer::first_units;
+pub use bmo_cache_warmer::schedule::first_units;
 
 impl Pool<'_> {
   // Whether pings go now: unless the owner's warming switch stands.

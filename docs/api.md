@@ -1,12 +1,12 @@
 # The boundary API
 
 This document is agency's boundary: every route it exposes, every event it publishes, every hook a
-consumer registers, the tables whose shape a consumer reads or writes, and the one library another
-repository builds on. A consumer reaches agency only across this boundary and never into a crate or a
-module behind it; agency reaches a consumer only by publishing an event or calling a hook the consumer
-registered. What a turn is told, whom an agent answers, which role and model a piece of work needs, and
-whether an answer may go out are the consumer's, decided above this boundary and handed in; agency
-supplies, carries and controls, and judges none of it.
+consumer registers, and the tables whose shape a consumer reads or writes. A consumer reaches agency
+only across this boundary and never into a crate or a module behind it; agency reaches a consumer only
+by publishing an event or calling a hook the consumer registered. What a turn is told, whom an agent
+answers, which role and model a piece of work needs, and whether an answer may go out are the
+consumer's, decided above this boundary and handed in; agency supplies, carries and controls, and judges
+none of it.
 
 `docs/openapi.json` is the machine contract: every route's parameters, bodies, answers and codes, the
 events, the two tools of the harness plugin, and the removed and moved-out members. It is generated from
@@ -28,7 +28,7 @@ a field's exact shape matters, the OpenAPI document is the one to read.
 ## Versioning
 
 - The contract carries the repository's one version, in semver; the workspace manifest is its source. Before
-  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.3`.
+  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.4`.
 - A change to this document and a change to the boundary go in one commit. A change to a route, an event, a
   hook or a shared table's contract repairs this document in the same commit.
 - The major moves on a removed or renamed route, field or event, the minor on an addition, the patch on
@@ -387,11 +387,11 @@ generated from `docs/openapi.json`: every body as a type and a typed call for ev
 
 ## Calls agency makes
 
-Agency calls upstreams only, through their published clients:
+Agency reaches upstreams only, through what their repositories publish: brain, graph, node, arbiter,
+pocket, testbed and chat through their clients, and cache-warmer through the schedule library its
+package publishes.
 
-brain, graph, node, arbiter, pocket, testbed, cache-warmer and chat.
-
-Each client is a crate of its own repository, declared in the workspace manifest and allowed by
+Each surface is a crate of its own repository, declared in the workspace manifest and allowed by
 `tests/dependencies.rs`; every other crate of another repository, a downstream's client among them,
 stays outside the boundary.
 

@@ -11,11 +11,11 @@ agent-session = { path = "../agent-session" }
 axum.workspace = true
 bmo-agency-client.workspace = true
 bmo-brain-client.workspace = true
+bmo-cache-warmer.workspace = true
 bmo-chat.workspace = true
 bmo-node-client.workspace = true
 brush-parser.workspace = true
 cache-siren = { path = "../cache-siren" }
-cache-warmer = { path = "../cache-warmer" }
 chrono = { workspace = true, features = ["clock"] }
 clap.workspace = true
 diffy.workspace = true

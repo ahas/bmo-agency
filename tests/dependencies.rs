@@ -14,6 +14,10 @@ const BASE_LIBRARIES: &[&str] = &["bmo-chat", "bmo-chat-client", "bmo-ui"];
 /// agency makes」). A client is added here when agency starts calling its service.
 const UPSTREAM_CLIENTS: &[&str] = &["bmo-brain-client", "bmo-node-client"];
 
+/// An upstream's published library, which agency builds on as its repository publishes it rather than
+/// calling its service (docs/api.md, 「Calls agency makes」).
+const UPSTREAM_LIBRARIES: &[&str] = &["bmo-cache-warmer"];
+
 fn root() -> PathBuf {
   PathBuf::from(env!("CARGO_MANIFEST_DIR"))
 }
@@ -43,7 +47,10 @@ fn packages(metadata: &Value) -> &[Value] {
 fn crossing(dependency: &Value) -> Option<String> {
   let name = dependency["name"].as_str().unwrap_or_default();
 
-  if BASE_LIBRARIES.contains(&name) || UPSTREAM_CLIENTS.contains(&name) {
+  if BASE_LIBRARIES.contains(&name)
+    || UPSTREAM_CLIENTS.contains(&name)
+    || UPSTREAM_LIBRARIES.contains(&name)
+  {
     return None;
   }
 
@@ -127,6 +134,8 @@ fn a_crossing_is_named() {
   let base = serde_json::json!({ "name": "bmo-chat", "source": null, "path": "/elsewhere/bmo-chat" });
   let upstream =
     serde_json::json!({ "name": "bmo-node-client", "source": null, "path": "/elsewhere/node/client" });
+  let library =
+    serde_json::json!({ "name": "bmo-cache-warmer", "source": null, "path": "/elsewhere/cache-warmer" });
   let downstream =
     serde_json::json!({ "name": "bmo-job-client", "source": null, "path": "/elsewhere/job/client" });
   let registry = serde_json::json!({ "name": "serde", "source": "registry+https://github.com/rust-lang/crates.io-index", "path": null });
@@ -137,5 +146,6 @@ fn a_crossing_is_named() {
   assert!(crossing(&downstream).is_some(), "a downstream's client stays outside the boundary");
   assert_eq!(crossing(&base), None);
   assert_eq!(crossing(&upstream), None, "an upstream's published client is called");
+  assert_eq!(crossing(&library), None, "an upstream's published library is built on");
   assert_eq!(crossing(&registry), None);
 }

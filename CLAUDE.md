@@ -30,10 +30,11 @@ is the caller's decision; agency supplies it.
   tiers, the roads and the routes with the control routes, so a crate boundary between them would be a
   cycle.
 - **No other service's code.** Among other repositories only the base libraries `bmo-chat`,
-  `bmo-chat-client` and `bmo-ui` may be depended on or imported; `tests/dependencies.rs` and
-  `tests/ts/dependencies.test.ts` fail on any other. Another service is reached through its API; a call
-  upward is an event agency publishes or a hook the consumer registers, with a default that does nothing;
-  data a higher service holds is handed in by the caller.
+  `bmo-chat-client` and `bmo-ui` may be depended on or imported, and the Rust side may also build on the
+  published clients and libraries of the upstreams it reaches (`docs/api.md`, 「Calls agency makes」);
+  `tests/dependencies.rs` and `tests/ts/dependencies.test.ts` fail on any other. Another service is
+  reached through its API; a call upward is an event agency publishes or a hook the consumer registers,
+  with a default that does nothing; data a higher service holds is handed in by the caller.
 - **A variation belongs to its member.** A value that differs per provider, model or consumer is
   answered by that member, never by a central table in the layer below.
 - **No hand-written parser for a general format.** TOML, JSON, YAML, markdown, shell lines and command
@@ -60,9 +61,7 @@ is the caller's decision; agency supplies it.
 
 - `crates/`: the Rust crates. `agent-session`, `herdr`, `agent-host`, `pane-head`, `harness-machine`,
   `harness-providers`, `node-link`, `llm-gateway`, `policy`, `store`, `tool-call`, `cache-siren` (the
-  accounts' usage windows and the cache-lifetime judgement, `docs/usage-windows.md`), `cache-warmer`
-  (the keepalive schedule's general rule, a library with no dependencies that other repositories build on
-  by git, `docs/keepalive-schedule.md`) and `server`.
+  accounts' usage windows and the cache-lifetime judgement, `docs/usage-windows.md`) and `server`.
 - `tools/`: the tools agency provides to the tool host, `procedures` and `read_rulebook`, each a folder
   with its `tool.toml` and the crate of its executable (`docs/tools.md`).
 - `ts/`: the TypeScript packages, `agent`, `archive` and `support`, one Bun workspace.
