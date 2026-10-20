@@ -1,8 +1,9 @@
 //! What a failed Claude turn was (docs/run-records.md, 「Why a run died」). A job's
 //! Claude turn always runs in the resident program, so a turn that did not answer leaves no stream: what
 //! it left is the screen or the program's own error, read as the process's error output of a run that
-//! exited with 1. That one text is judged here once — a full window, a login gone, or the run having died
-//! — and the judgement is carried by name, the name its cause is written under.
+//! exited with 1. That one text is judged here once — a full window, a login gone (an endpoint's refused
+//! key or spent balance among them), a short rest for too many requests at once, or the run having died —
+//! and the judgement is carried by name, the name its cause is written under.
 
 use std::sync::LazyLock;
 
@@ -174,6 +175,19 @@ static LIMIT_WORDINGS: LazyLock<[Regex; 3]> = LazyLock::new(|| {
 static LIMIT_RESET: LazyLock<Regex> =
   LazyLock::new(|| Regex::new(r"(?i)limit reached\|(\d{9,11})").expect("the reset wording is a pattern"));
 
+// The status a refused request names, as the CLI writes it: `API Error: 401 <the endpoint's message>` for
+// a key or a balance the endpoint refused, and `API Error: Request rejected (429) · <its message>` for too
+// many requests at once.
+static API_STATUS: LazyLock<Regex> =
+  LazyLock::new(|| Regex::new(r"API Error[^\n]{0,80}?\b(\d{3})\b").expect("an API status"));
+
+// The endpoint's own words for a refusal, where its body reached the run without a status in front: a key
+// it will not take, and a balance spent.
+static KEY_REFUSED: LazyLock<Regex> =
+  LazyLock::new(|| Regex::new(r#""type"\s*:\s*"authentication_error""#).expect("a key refusal"));
+static BALANCE_SPENT: LazyLock<Regex> =
+  LazyLock::new(|| Regex::new(r#"(?i)"message"\s*:\s*"insufficient balance""#).expect("a balance refusal"));
+
 /// Whether a run's words say its login's window is full.
 pub fn mentions_limit(text: &str) -> bool {
   LIMIT_WORDINGS.iter().any(|pattern| pattern.is_match(text))
@@ -259,9 +273,14 @@ fn harness_failure(stderr: &str, code: i64) -> String {
 }
 
 /// What a turn that did not answer comes to, read off the text it left as a run's error output on exit
-/// 1: a login gone, by what the harness reads of it; a full window; or the run having died.
+/// 1: the endpoint refusing its key, its balance or too many requests at once; a login gone, by what the
+/// harness reads of it; a full window; or the run having died.
 pub fn of_unanswered(evidence: &str, key: &str) -> Failure {
   let code = 1;
+
+  if let Some(refused) = status_refusal(evidence, key) {
+    return refused;
+  }
 
   if LOGIN_GONE.is_match(&harness_failure(evidence, code)) {
     return Failure::Account {
@@ -289,13 +308,42 @@ pub fn of_unanswered(evidence: &str, key: &str) -> Failure {
   }
 }
 
-static API_STATUS: LazyLock<Regex> =
-  LazyLock::new(|| Regex::new(r"API Error:\s*(\d{3})").expect("an API status"));
+// What the endpoint's refusal comes to for the account the run went out on: a key or a balance it will
+// not take waits for a person, since nobody else can settle either, and too many requests at once rests
+// it for a short while. A status the endpoint names decides; otherwise its own words for a refused key or
+// a spent balance do.
+fn status_refusal(evidence: &str, key: &str) -> Option<Failure> {
+  let status = API_STATUS.captures(evidence).and_then(|found| found[1].parse::<i64>().ok());
 
-/// What a turn whose program wrote its own error in the answer's place comes to: a full window, with the
-/// reset it names; the service answering with a server error, which no other login would get past either;
-/// or, read as a turn that did not answer, a login gone or the run having died.
+  let gone = match status {
+    Some(401 | 402) => true,
+    None => KEY_REFUSED.is_match(evidence) || BALANCE_SPENT.is_match(evidence),
+    Some(_) => false,
+  };
+
+  if gone {
+    return Some(Failure::Account {
+      failure: AccountFailure::Login,
+      detail: format!("{key}: {}", failure_text(evidence)),
+    });
+  }
+
+  (status == Some(429)).then_some(Failure::Limit {
+    resets_at: None,
+    account: None,
+    silenced: false,
+  })
+}
+
+/// What a turn whose program wrote its own error in the answer's place comes to: the endpoint refusing its
+/// key or its balance, or too many of its requests at once; a full window, with the reset it names; the
+/// service answering with a server error, which no other login would get past either; or, read as a turn
+/// that did not answer, a login gone or the run having died.
 pub fn of_errored(error: &str, key: &str) -> Failure {
+  if let Some(refused) = status_refusal(error, key) {
+    return refused;
+  }
+
   if mentions_limit(error) {
     return Failure::Limit {
       resets_at: limit_reset_from_text(error),

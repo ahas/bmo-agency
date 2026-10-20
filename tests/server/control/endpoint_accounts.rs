@@ -12,7 +12,7 @@ use agency_server::control::claude_account_changes::{BasePromptGiven, Credential
 use agency_server::control::claude_accounts::{
   Account, Credential, CredentialKind, EndpointModels, Judging, accounts, open_accounts,
 };
-use agency_server::job_run::claude::failure::{AccountFailure, Failure};
+use agency_server::job_run::claude::failure::{AccountFailure, Failure, of_errored};
 use agency_server::job_run::claude::walk::{Attempt, Walking, on_accounts};
 use agency_server::now_ms;
 use agency_server::places::Ground;
@@ -218,6 +218,84 @@ impl Attempt<String> for Turn {
 
   fn takes(&self, account: &Account) -> bool {
     account.credential.warmed() && account.credential.runs_on_nodes()
+  }
+}
+
+// A turn that meets the endpoint's refusal on the endpoint account and answers on any other.
+struct Refusing {
+  failure: Failure,
+  tried: Vec<String>,
+}
+
+impl Attempt<String> for Refusing {
+  async fn attempt(&mut self, account: Option<Account>) -> Result<String, Failure> {
+    let id = account.map(|account| account.id).unwrap_or_default();
+
+    self.tried.push(id.clone());
+
+    if id == "deep" { Err(self.failure.clone()) } else { Ok(id) }
+  }
+}
+
+#[tokio::test]
+async fn an_endpoints_refusal_marks_or_rests_its_account_and_the_walk_moves_on() {
+  let refused_401 = "Please run /login · API Error: 401 Authentication Fails, Your api key: ****0000 is invalid (request_id: cf3dd8cd-e802-4102-bd4d-e573aa73c839)";
+  let refused_402 = "API Error: 402 Insufficient Balance";
+  let refused_429 = "API Error: Request rejected (429) · this may be a temporary capacity issue.";
+
+  for (said, rested) in [(refused_401, false), (refused_402, false), (refused_429, true)] {
+    let logins = Logins::new().await;
+
+    // Its key was written long before any mark this run sets, so the mark stands rather than being read
+    // as a key written after it.
+    std::fs::File::options()
+      .write(true)
+      .open(logins.key())
+      .unwrap()
+      .set_modified(std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1_000_000))
+      .unwrap();
+
+    let home = tempfile::tempdir().unwrap();
+    let machine = Machine::with_env(
+      [("HOME".to_owned(), home.path().to_string_lossy().into_owned())],
+      home.path().join("data"),
+    );
+    let variables: HashMap<String, String> = HashMap::new();
+    let service =
+      Service::new(logins.scratch.db().clone(), Config::read(|name| variables.get(name).cloned()).unwrap());
+    let ground = Ground::new(&service, &machine, None);
+    let walking = Walking { ground: &ground };
+
+    // The endpoint first in the walk, so the refusal is met before the account that answers.
+    logins
+      .scratch
+      .run(r#"UPDATE "claude_accounts" SET "place" = 0 WHERE "id" = 'deep'"#, vec![])
+      .await;
+
+    let mut turn = Refusing {
+      failure: of_errored(said, "bmo"),
+      tried: vec![],
+    };
+
+    assert_eq!(on_accounts(&walking, "bmo", None, &mut turn).await, Ok("main".to_owned()), "{said}");
+    assert_eq!(turn.tried, ["deep", "main"], "{said}");
+
+    let deep = logins.deep().await;
+    let rest = logins
+      .scratch
+      .count(r#"SELECT COUNT(*) FROM "settings" WHERE "key" = 'rest_until:deep'"#, vec![])
+      .await;
+
+    if rested {
+      assert_eq!(rest, 1, "{said}: the endpoint rests");
+      assert_eq!(deep.needs_login_at, None, "{said}: a short limit is no login gone");
+    } else {
+      assert_eq!(rest, 0, "{said}: a refused key or balance is no usage rest");
+      assert!(deep.needs_login_at.is_some(), "{said}: the account waits for a person");
+    }
+
+    // Either way the account is closed to the next run.
+    assert_eq!(logins.open(&Keeping::new(logins.scratch.db().clone(), vec![])).await, ["main"]);
   }
 }
 

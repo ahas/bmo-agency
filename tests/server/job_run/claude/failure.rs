@@ -91,6 +91,53 @@ fn a_failure_travels_by_its_kind() {
   );
 }
 
+// The endpoint answers in HTTP status codes rather than in a subscription's words: a refused key or a
+// spent balance waits for a person, and too many requests at once is a short limit. The text is what
+// DeepSeek answered with, in the line Claude Code 2.1.304 writes around it.
+#[test]
+fn an_endpoints_refusals_are_read_as_its_accounts_and_never_as_the_works() {
+  let refused = "API Error: 401 Authentication Fails, Your api key: ****0000 is invalid (request_id: cf3dd8cd-e802-4102-bd4d-e573aa73c839)";
+
+  // The interactive line the resident program leaves, and the line a print run leaves.
+  for said in [format!("Please run /login · {refused}"), format!("Failed to authenticate. {refused}")] {
+    for failed in [of_unanswered(&said, "bmo"), of_errored(&said, "bmo")] {
+      assert_eq!(failed.account_failure(), Some(AccountFailure::Login), "{said}");
+    }
+  }
+
+  // The balance spent, as the endpoint's documented error shape names it, rendered and raw.
+  for said in [
+    "API Error: 402 Insufficient Balance",
+    r#"API Error: {"error":{"message":"Insufficient Balance","type":"unknown_error","param":null,"code":"invalid_request_error"}}"#,
+  ] {
+    assert_eq!(of_errored(said, "bmo").account_failure(), Some(AccountFailure::Login), "{said}");
+  }
+
+  // A body read without a status in front is still its key refused.
+  assert_eq!(
+    of_errored(
+      r#"API Error: {"error":{"message":"Authentication Fails, Your api key: ****0000 is invalid","type":"authentication_error","param":null,"code":"invalid_request_error"}}"#,
+      "bmo"
+    )
+    .account_failure(),
+    Some(AccountFailure::Login)
+  );
+
+  // Too many requests at once is a short rest, never a work failure.
+  assert_eq!(
+    of_errored("API Error: Request rejected (429) · this may be a temporary capacity issue.", "bmo"),
+    Failure::Limit {
+      resets_at: None,
+      account: None,
+      silenced: false,
+    }
+  );
+  assert_eq!(
+    of_unanswered("API Error: Request rejected (429) · Rate limit reached", "bmo").account_failure(),
+    Some(AccountFailure::Limit)
+  );
+}
+
 #[test]
 fn a_server_error_is_an_outage_and_every_failure_names_its_cause_in_english() {
   assert_eq!(
