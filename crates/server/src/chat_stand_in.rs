@@ -23,6 +23,7 @@ use crate::places::Ground;
 use crate::queue::settings;
 use crate::run_log::RunLog;
 use crate::run_log::lines::Line;
+use crate::session_output::OutputWatch;
 use crate::stand_in::{CLAUDE, Step, Walk, announce, listed, step_of, walk_of};
 use crate::{Refusal, now_ms};
 use store::{one, run as written};
@@ -76,6 +77,7 @@ async fn note_failed(ground: &Ground, log: &mut RunLog, step: &Step, why: &str) 
 /// The turn across rooms on the first stand-in of the agent's walk that answers: none where Claude Code is
 /// the road it stands on now or no stand-in answered and Claude Code may still be asked, the stand-in's reply
 /// where one did, and why where the walk had to answer and none did.
+#[allow(clippy::too_many_arguments)]
 pub async fn stand_in_turn(
   ground: &Ground,
   log: &mut RunLog,
@@ -83,6 +85,7 @@ pub async fn stand_in_turn(
   prompt: &str,
   answers: &[i64],
   began: i64,
+  shown: Option<OutputWatch<'_>>,
 ) -> Result<Option<Reply>, NoAnswer> {
   let machine = ground.machine();
   let agent = launch.agent;
@@ -111,9 +114,9 @@ pub async fn stand_in_turn(
       }
     };
     let outcome = match provider.as_str() {
-      CODEX => codex_road(ground, &machine, &run, &step, log, answers, began).await?,
-      OPENROUTER_NAME => openrouter_road(ground, &machine, &run, &step, log, answers, began).await?,
-      _ => registered_road(ground, &machine, &run, &step, log, answers, began).await?,
+      CODEX => codex_road(ground, &machine, &run, &step, log, answers, began, shown).await?,
+      OPENROUTER_NAME => openrouter_road(ground, &machine, &run, &step, log, answers, began, shown).await?,
+      _ => registered_road(ground, &machine, &run, &step, log, answers, began, shown).await?,
     };
 
     match outcome {
@@ -154,6 +157,7 @@ pub async fn turn_on(
   prompt: &str,
   answers: &[i64],
   began: i64,
+  shown: Option<OutputWatch<'_>>,
 ) -> Result<Reply, NoAnswer> {
   let machine = ground.machine();
   let run = chat_run(ground, &machine, launch, prompt, false).await.map_err(refusal)?;
@@ -164,12 +168,12 @@ pub async fn turn_on(
       let kept = launch.resume.clone();
       let on = |thread: Option<String>| Door::Codex { thread };
       let mut outcome =
-        deliver(ground, &machine, &run, &step, &on(kept.clone()), log, answers, began).await?;
+        deliver(ground, &machine, &run, &step, &on(kept.clone()), log, answers, began, shown).await?;
 
       if let (Err(why), Some(_)) = (&outcome, &kept)
         && lost_thread(why)
       {
-        outcome = deliver(ground, &machine, &run, &step, &on(None), log, answers, began).await?;
+        outcome = deliver(ground, &machine, &run, &step, &on(None), log, answers, began, shown).await?;
       }
 
       outcome.map_err(NoAnswer::Failed)
@@ -183,7 +187,7 @@ pub async fn turn_on(
       let door = Door::Loop {
         tap: tap.url.clone(),
       };
-      let outcome = deliver(ground, &machine, &run, &step, &door, log, answers, began).await;
+      let outcome = deliver(ground, &machine, &run, &step, &door, log, answers, began, shown).await;
       let seen = tap.observed();
 
       tap.close();
@@ -215,7 +219,8 @@ pub async fn turn_on(
 
       let placement = place_registered(ground, &step.model).await.map_err(refusal)?;
       let outcome =
-        deliver(ground, &machine, &run, &step, &Door::Gateway { placement }, log, answers, began).await?;
+        deliver(ground, &machine, &run, &step, &Door::Gateway { placement }, log, answers, began, shown)
+          .await?;
       let mut reply = outcome.map_err(NoAnswer::Failed)?;
 
       reply.effort = step.thinking.then(|| "thinking".to_owned());
@@ -283,6 +288,7 @@ async fn deliver(
   log: &mut RunLog,
   answers: &[i64],
   began: i64,
+  shown: Option<OutputWatch<'_>>,
 ) -> Result<Result<Reply, String>, NoAnswer> {
   let composed = match compose_stand_in(ground, machine, run, step, door, answers, began).await {
     Ok(composed) => composed,
@@ -293,7 +299,18 @@ async fn deliver(
     _ => None,
   };
 
-  match run_turn(ground, &run.agent, &step.provider, &composed, resumed.as_deref(), log, false, None).await
+  match run_turn(
+    ground,
+    &run.agent,
+    &step.provider,
+    &composed,
+    resumed.as_deref(),
+    log,
+    false,
+    None,
+    shown,
+  )
+  .await
   {
     Ok(reply) => Ok(Ok(reply)),
     Err(NoAnswer::Overtaken) => Err(NoAnswer::Overtaken),
@@ -327,6 +344,7 @@ async fn forget_thread(ground: &Ground, agent: &str, step: &Step) -> Result<(), 
 
 // One turn on the Codex road: on the agent's kept thread, or one opened afresh where Codex no longer holds
 // it; the thread that answered kept with the run it is resumed and warmed by.
+#[allow(clippy::too_many_arguments)]
 async fn codex_road(
   ground: &Ground,
   machine: &Machine,
@@ -335,16 +353,18 @@ async fn codex_road(
   log: &mut RunLog,
   answers: &[i64],
   began: i64,
+  shown: Option<OutputWatch<'_>>,
 ) -> Result<Result<Reply, String>, NoAnswer> {
   let kept = kept_thread(ground, &run.agent, step).await.map_err(refusal)?;
   let on = |thread: Option<String>| Door::Codex { thread };
-  let mut outcome = deliver(ground, machine, run, step, &on(kept.clone()), log, answers, began).await?;
+  let mut outcome =
+    deliver(ground, machine, run, step, &on(kept.clone()), log, answers, began, shown).await?;
 
   if let (Err(why), Some(_)) = (&outcome, &kept)
     && lost_thread(why)
   {
     forget_thread(ground, &run.agent, step).await.map_err(refusal)?;
-    outcome = deliver(ground, machine, run, step, &on(None), log, answers, began).await?;
+    outcome = deliver(ground, machine, run, step, &on(None), log, answers, began, shown).await?;
   }
 
   let Ok(reply) = outcome else { return Ok(outcome) };
@@ -374,6 +394,7 @@ async fn codex_road(
 }
 
 // One turn on the OpenRouter road through a tap of its own, which reads what the turn spent off the stream.
+#[allow(clippy::too_many_arguments)]
 async fn openrouter_road(
   ground: &Ground,
   machine: &Machine,
@@ -382,6 +403,7 @@ async fn openrouter_road(
   log: &mut RunLog,
   answers: &[i64],
   began: i64,
+  shown: Option<OutputWatch<'_>>,
 ) -> Result<Result<Reply, String>, NoAnswer> {
   let api = OPENROUTER.gateway.api_on(ground.vars()).to_owned();
   let tap = match openrouter_tap::open(None, &api).await {
@@ -391,7 +413,7 @@ async fn openrouter_road(
   let door = Door::Loop {
     tap: tap.url.clone(),
   };
-  let outcome = deliver(ground, machine, run, step, &door, log, answers, began).await;
+  let outcome = deliver(ground, machine, run, step, &door, log, answers, began, shown).await;
   let seen = tap.observed();
 
   tap.close();
@@ -412,6 +434,7 @@ async fn openrouter_road(
 
 // One turn on a registered model's road: Claude Code on the gateway in the agent's pane, the registration
 // first held to the gateway's list, on a session of its own placed where the registration places it.
+#[allow(clippy::too_many_arguments)]
 async fn registered_road(
   ground: &Ground,
   machine: &Machine,
@@ -420,6 +443,7 @@ async fn registered_road(
   log: &mut RunLog,
   answers: &[i64],
   began: i64,
+  shown: Option<OutputWatch<'_>>,
 ) -> Result<Result<Reply, String>, NoAnswer> {
   let Some(service) =
     registry::service_of(&ground.db, &step.model).await.map_err(|why| failed(why.error))?
@@ -433,7 +457,7 @@ async fn registered_road(
 
   let placement = place_registered(ground, &step.model).await.map_err(refusal)?;
   let outcome =
-    deliver(ground, machine, run, step, &Door::Gateway { placement }, log, answers, began).await?;
+    deliver(ground, machine, run, step, &Door::Gateway { placement }, log, answers, began, shown).await?;
   let Ok(mut reply) = outcome else { return Ok(outcome) };
 
   reply.effort = step.thinking.then(|| "thinking".to_owned());

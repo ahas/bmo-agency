@@ -11,7 +11,7 @@ use agency_server::Service;
 use agency_server::config::Config;
 use agency_server::control::harness::{OrderEntry, set_provider_order};
 use agency_server::editor_session::{Placed, is_editor, walked, workdir_of};
-use agency_server::herdr_backend::{HerdrSessions, TurnEnded};
+use agency_server::herdr_backend::{HerdrSessions, TurnEnded, TurnStarted};
 use agency_server::places::{Ground, Places};
 use agency_server::run_log::{RunLog, Target};
 use agency_server::seeds::deployment;
@@ -144,6 +144,49 @@ async fn a_turn_whose_brain_is_no_repository_ends_failed_saying_why() {
   assert_eq!(end.delivery, Delivery::Taken);
   assert_eq!((ended.session.as_str(), end.outcome), ("people-digest@editor", Outcome::Failed));
   assert!(end.reason.unwrap().contains("no repository"));
+}
+
+// A turn is named from its start, and the routes that name a turn act on that id alone.
+#[tokio::test]
+async fn a_turns_start_gives_it_the_id_its_routes_read_and_cut_by() {
+  let bench = Bench::new().await;
+  let mut started = bench.ground.events.subscribe::<TurnStarted>();
+  let session = SessionId("digest@editor".into());
+  let end = bench
+    .sessions
+    .send_turn(Turn {
+      session: session.clone(),
+      prompt: "sort the items".into(),
+      context: TurnContext::default(),
+    })
+    .await
+    .unwrap();
+
+  assert!(end.turn > 0, "the turn's id is the moment it began");
+  assert_eq!(
+    started.ready().expect("the turn's start was published").turn_id,
+    end.turn,
+    "turn.created carries the id the send answers"
+  );
+
+  let read = bench.sessions.output(&session, Some(end.turn)).await.unwrap();
+
+  assert_eq!((read.turn, read.running), (end.turn, false));
+  assert_eq!(
+    bench.sessions.output(&session, Some(end.turn + 1)).await.unwrap_err().kind,
+    FaultKind::UnknownTurn,
+    "a turn no session carried is not read"
+  );
+  assert_eq!(
+    bench.sessions.interrupt(&session, end.turn).await.unwrap_err().kind,
+    FaultKind::UnknownTurn,
+    "a turn that has ended is not cut"
+  );
+  assert_eq!(
+    bench.sessions.push(&session, end.turn, "more words").await.unwrap_err().kind,
+    FaultKind::UnknownTurn,
+    "a turn that has ended takes no words"
+  );
 }
 
 // The bench's store with its provider order set: each provider named, on or off.

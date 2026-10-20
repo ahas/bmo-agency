@@ -635,3 +635,25 @@ async fn a_workers_state_names_its_generation_its_context_and_the_session_its_ne
   );
   assert_eq!(sessions.read_state(&session, Some("sonnet")).await.unwrap().continues, None);
 }
+
+// A worker's state answers the provider it is pinned to, not Claude Code whatever its pin.
+#[tokio::test]
+async fn a_workers_state_names_the_provider_its_pin_stands_on() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let sessions = HerdrSessions::new(Places::new(ground_on(&scratch, home.path()).await, Arc::default()));
+  let db = scratch.db();
+
+  record(db, "worker-a", "opus", "default", "harness-1", None, None).await.unwrap();
+  scratch
+    .run(
+      r#"UPDATE "agents" SET "pinned_provider" = 'openrouter' WHERE "name" = 'worker-a'"#,
+      vec![],
+    )
+    .await;
+
+  let state = sessions.read_state(&SessionId("worker-a@worker".into()), None).await.unwrap();
+
+  assert_eq!(state.provider, "openrouter", "a pinned worker stands on the provider it is pinned to");
+  assert_eq!(state.model, "opus", "its model is still the one its session answered on");
+}

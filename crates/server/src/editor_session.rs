@@ -53,6 +53,7 @@ use crate::places::Ground;
 use crate::run_clock::{self, Asked as ClockAsked, Clocked};
 use crate::run_log::lines::Line;
 use crate::run_log::{RunLog, Target};
+use crate::session_output::OutputWatch;
 use crate::stand_in::{CLAUDE, Step, Walk, announce, listed, registration_step, step_of, walk_of};
 use crate::worker_session::records::slot_account;
 use crate::{Refusal, now_ms};
@@ -199,6 +200,7 @@ struct OnLogin<'a> {
   placed: &'a Placed,
   prompt: &'a str,
   log: &'a mut RunLog,
+  shown: Option<OutputWatch<'a>>,
 }
 
 impl Attempt<Reply> for OnLogin<'_> {
@@ -234,7 +236,7 @@ impl Attempt<Reply> for OnLogin<'_> {
       parent: placed.parent.clone(),
       root: Some(placed.root()),
     };
-    let reply = clocked_run(ground, placed, &mut *self.log, PROVIDER, apart).await?;
+    let reply = clocked_run(ground, placed, &mut *self.log, PROVIDER, apart, self.shown).await?;
 
     Ok(Reply {
       account: account.map(|account| account.id),
@@ -251,6 +253,7 @@ async fn clocked_run(
   log: &mut RunLog,
   source: &str,
   apart: Apart<'_>,
+  shown: Option<OutputWatch<'_>>,
 ) -> Result<Reply, Failure> {
   let key = apart.work_key.clone();
   let watched = Watched {
@@ -263,6 +266,7 @@ async fn clocked_run(
     started: Instant::now(),
     last_tally: Instant::now(),
     cut: None,
+    shown,
   };
   let mut asked = ClockAsked::new(watched, &ground.db, &ground.events, &placed.clocked);
 
@@ -292,7 +296,11 @@ pub struct EditorTurn<'a> {
 /// stand-in of the key's walk that answers, else on the logins its key is offered; its clock closed as it
 /// ends, what it spent and the windows it read published, and its answer's text; why it gave none
 /// otherwise.
-pub async fn editor_turn(ground: &Ground, turn: &EditorTurn<'_>) -> Result<String, String> {
+pub async fn editor_turn(
+  ground: &Ground,
+  turn: &EditorTurn<'_>,
+  shown: OutputWatch<'_>,
+) -> Result<String, String> {
   let (key, run, prompt) = (turn.key, turn.run, turn.prompt);
   let brain = brain_of(ground)?;
   let placed = Placed::of(ground, &brain, key, run, turn.parts).await?;
@@ -303,7 +311,7 @@ pub async fn editor_turn(ground: &Ground, turn: &EditorTurn<'_>) -> Result<Strin
     job_id: None,
   });
   let registration = turn.parts.and_then(|parts| parts.registration.as_deref());
-  let carried = carried(ground, key, prompt, &placed, registration, &mut log).await;
+  let carried = carried(ground, key, prompt, &placed, registration, &mut log, Some(shown)).await;
 
   if let Err(why) = run_clock::close(&ground.db, &ground.events, run).await {
     eprintln!("{key}: the run's clock was not closed: {}", why.detail);
@@ -334,6 +342,7 @@ async fn carried(
   placed: &Placed,
   registration: Option<&str>,
   log: &mut RunLog,
+  shown: Option<OutputWatch<'_>>,
 ) -> Result<Reply, String> {
   if let Some(registration) = registration {
     let machine = ground.machine();
@@ -345,7 +354,7 @@ async fn carried(
 
   match walked(ground, key, prompt, placed, log).await? {
     Some(reply) => Ok(reply),
-    None => on_claude(ground, key, prompt, placed, log).await,
+    None => on_claude(ground, key, prompt, placed, log, shown).await,
   }
 }
 
@@ -367,6 +376,7 @@ async fn on_claude(
   prompt: &str,
   placed: &Placed,
   log: &mut RunLog,
+  shown: Option<OutputWatch<'_>>,
 ) -> Result<Reply, String> {
   if !provider_enabled(&ground.db, CLAUDE).await.map_err(|why| why.error)? {
     return Err(format!("Claude Code is turned off, so the {key} work had no road to run on"));
@@ -379,6 +389,7 @@ async fn on_claude(
     placed,
     prompt,
     log,
+    shown,
   };
 
   on_accounts(&Walking { ground }, key, None, &mut attempt)
@@ -753,7 +764,7 @@ impl Road<'_> {
       parent: placed.parent.clone(),
       root: Some(placed.root()),
     };
-    let reply = clocked_run(ground, placed, log, registry::PROVIDER, apart)
+    let reply = clocked_run(ground, placed, log, registry::PROVIDER, apart, None)
       .await
       .map_err(|failure| failure.message())?;
 

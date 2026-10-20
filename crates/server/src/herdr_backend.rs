@@ -18,7 +18,7 @@
 //! the run its turn carries, which its door takes at its next look at the working program.
 
 use std::collections::{BTreeMap, HashMap, HashSet};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicI64, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -57,7 +57,7 @@ use crate::places::locks::{pane_lock_path, try_hold};
 use crate::places::{AgentRow, Ground, Places};
 use crate::run_log::lines::Line;
 use crate::run_log::{RunLog, Target};
-use crate::session_output::Outputs;
+use crate::session_output::{OutputWatch, Outputs};
 use crate::session_questions::Questions;
 use crate::watches::machine::keep_worker_job;
 use crate::worker_session::fold::{Folded, fold};
@@ -78,12 +78,13 @@ const APART: &str = "apart";
 // What a conversation the caller opened is told apart by in its id, after its agent.
 const CONVERSATION: &str = "conversation";
 
-/// A turn put into a session began: the session and the run it goes out as.
+/// A turn put into a session began: the session, its id, and the run it goes out as.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TurnStarted {
   pub session: String,
   pub run: String,
+  pub turn_id: i64,
   pub at: i64,
 }
 
@@ -213,9 +214,10 @@ pub async fn keep_agent_session(
 /// The session contract over herdr, on the places the server stands.
 pub struct HerdrSessions {
   places: Places,
-  // The runs each session's turns go out as while they go, which the interrupt stops: one a session, a second
-  // turn refused while it goes, but an editor's session, which carries several at once.
-  going: Mutex<HashMap<SessionId, Vec<String>>>,
+  // The turns each session carries while they go, each with the run it goes out as, which the interrupt
+  // stops: one a session, a second turn refused while it goes, but an editor's session, which carries
+  // several at once.
+  going: Mutex<HashMap<SessionId, Vec<Running>>>,
   // What each session's turn going now shows of itself to a reading of its state: what it went out on,
   // once its line is settled.
   showing: Mutex<HashMap<SessionId, WentOut>>,
@@ -226,12 +228,21 @@ pub struct HerdrSessions {
   // and the number the next one is given.
   conversations: Mutex<BTreeMap<SessionId, (String, HeldConversation)>>,
   numbered: AtomicU64,
+  // The id the next turn begun is given, past every id given before.
+  turns: AtomicI64,
   // The questions the sessions' turns stand on, put to their callers.
   questions: Questions,
   // The sessions whose turn going now hears no words pushed into it.
   deaf: Mutex<HashSet<SessionId>>,
   // What each session's latest job turn wrote of its answer.
   outputs: Outputs,
+}
+
+/// One turn a session carries while it goes: its id, and the run it goes out as.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct Running {
+  turn: i64,
+  run: String,
 }
 
 /// A conversation the caller opened: what its turns go out on, and the session its last answered turn on
@@ -296,16 +307,17 @@ pub fn carried_of(tokens: Option<i64>, ratio: Option<f64>) -> Option<Context> {
 struct Showing<'s> {
   sessions: &'s HerdrSessions,
   session: &'s SessionId,
+  turn: i64,
 }
 
 impl Shows for Showing<'_> {
   fn went_out(&self, went_out: &WentOut) {
     self.sessions.showing().insert(self.session.clone(), went_out.clone());
-    self.sessions.outputs.attempted(self.session);
+    self.sessions.outputs.attempted(self.session, self.turn);
   }
 
   fn wrote(&self, texts: &[String]) {
-    self.sessions.outputs.wrote(self.session, texts);
+    self.sessions.outputs.wrote(self.session, self.turn, texts);
   }
 }
 
@@ -472,6 +484,7 @@ impl HerdrSessions {
       apart: Mutex::default(),
       conversations: Mutex::default(),
       numbered: AtomicU64::new(1),
+      turns: AtomicI64::new(0),
       questions: Questions::default(),
       deaf: Mutex::default(),
       outputs: Outputs::default(),
@@ -524,8 +537,19 @@ impl HerdrSessions {
     &self.places.ground
   }
 
-  fn going(&self) -> std::sync::MutexGuard<'_, HashMap<SessionId, Vec<String>>> {
+  fn going(&self) -> std::sync::MutexGuard<'_, HashMap<SessionId, Vec<Running>>> {
     self.going.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+  }
+
+  // The id the next turn begun is given: the time it began, past every id given before it.
+  fn next_turn(&self) -> i64 {
+    let at = now_ms();
+    let last = self
+      .turns
+      .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |last| Some(at.max(last + 1)))
+      .unwrap_or(0);
+
+    at.max(last + 1)
   }
 
   // Whether a session carries a turn now.
@@ -539,12 +563,15 @@ impl HerdrSessions {
     self.showing().remove(session);
     self.questions.clear(session);
     self.deaf().remove(session);
-    self.outputs.ended(session);
 
     let mut going = self.going();
 
     if let Some(runs) = going.get_mut(session) {
-      runs.retain(|going| going != run);
+      if let Some(at) = runs.iter().position(|going| going.run == run) {
+        let ended = runs.remove(at);
+
+        self.outputs.ended(session, ended.turn);
+      }
 
       if runs.is_empty() {
         going.remove(session);
@@ -674,15 +701,22 @@ impl HerdrSessions {
     }
   }
 
-  async fn worker_turn(&self, row: &AgentRow, run: &str, prompt: &str) -> Result<Came, Fault> {
+  async fn worker_turn(
+    &self,
+    row: &AgentRow,
+    run: &str,
+    prompt: &str,
+    session: &SessionId,
+    turn: i64,
+  ) -> Result<Came, Fault> {
     let ground = self.ground();
-    let (model, session) = self.worker_session(&row.name).await?;
+    let (model, kept) = self.worker_session(&row.name).await?;
     let turned = worker_session::turn(
       &Side { ground },
       worker_session::Asked {
         worker: row,
         model,
-        session,
+        session: kept,
         prompt: prompt.to_owned(),
         name: run.to_owned(),
         title: format!("{}: a turn", row.name),
@@ -693,6 +727,10 @@ impl HerdrSessions {
     )
     .await
     .map_err(|refusal| fault(FaultKind::Refused, refusal.detail))?;
+
+    if let Some(reply) = &turned.reply {
+      self.outputs.wrote(session, turn, std::slice::from_ref(&reply.text));
+    }
 
     Ok(match (turned.reached, turned.missed) {
       (_, Some(Missed::Person)) => Came::Blocked,
@@ -748,6 +786,7 @@ impl HerdrSessions {
     run: &str,
     prompt: &str,
     context: &TurnContext,
+    shown: OutputWatch<'_>,
   ) -> Result<Came, Fault> {
     let ground = self.ground();
     let db = ground.db.clone();
@@ -839,6 +878,7 @@ impl HerdrSessions {
         guarded,
         began,
         context,
+        shown,
       )
       .await;
 
@@ -860,6 +900,7 @@ impl HerdrSessions {
           guarded,
           began,
           context,
+          shown,
         )
         .await;
     }
@@ -982,6 +1023,7 @@ impl HerdrSessions {
     guarded: bool,
     began: i64,
     context: &TurnContext,
+    shown: OutputWatch<'_>,
   ) -> Result<(Reply, Option<String>), NoAnswer> {
     let ground = self.ground();
 
@@ -1032,6 +1074,7 @@ impl HerdrSessions {
       log,
       guarded,
       Some(&tally),
+      Some(shown),
     )
     .await?;
 
@@ -1047,6 +1090,7 @@ impl HerdrSessions {
     run: &str,
     prompt: &str,
     context: &TurnContext,
+    shown: OutputWatch<'_>,
   ) -> Result<Came, Fault> {
     let ground = self.ground();
     let db = ground.db.clone();
@@ -1074,6 +1118,7 @@ impl HerdrSessions {
       prompt,
       &context.answers,
       began,
+      Some(shown),
     )
     .await;
     let on_claude = matches!(stood_in, Ok(None));
@@ -1081,7 +1126,8 @@ impl HerdrSessions {
       Ok(Some(reply)) => Ok(reply),
       Err(no) => Err(no),
       Ok(None) => {
-        let mut asked = self.agent_run(&mut log, agent, room, context, prompt, held.clone(), began).await;
+        let mut asked =
+          self.agent_run(&mut log, agent, room, context, prompt, held.clone(), began, shown).await;
 
         if let Err(NoAnswer::Failed(said)) = &asked
           && held.is_some()
@@ -1089,7 +1135,7 @@ impl HerdrSessions {
         {
           keep_agent_session(&db, agent, None).await.map_err(store_fault)?;
           asked = self
-            .agent_run(&mut log, agent, room, context, &aside::carried(run, prompt), None, began)
+            .agent_run(&mut log, agent, room, context, &aside::carried(run, prompt), None, began, shown)
             .await;
         }
 
@@ -1177,6 +1223,7 @@ impl HerdrSessions {
     agent: &str,
     conversation: &Conversation,
     run: &str,
+    shown: OutputWatch<'_>,
   ) -> Result<Came, Fault> {
     let ground = self.ground();
     let began = turn.context.began.unwrap_or_else(now_ms);
@@ -1201,7 +1248,9 @@ impl HerdrSessions {
       job_id: None,
     });
     let started = Instant::now();
-    let mut asked = self.conversation_asked(&mut log, agent, &launch, conversation, turn, began).await;
+    let mut asked = self
+      .conversation_asked(&mut log, agent, &launch, conversation, turn, began, shown)
+      .await;
 
     if let Err(NoAnswer::Failed(said)) = &asked
       && held.is_some()
@@ -1209,7 +1258,7 @@ impl HerdrSessions {
     {
       let fresh =
         launch_on(agent, &room, &turn.context, None, Some(&conversation.model), Some(&conversation.cwd));
-      asked = self.conversation_asked(&mut log, agent, &fresh, conversation, turn, began).await;
+      asked = self.conversation_asked(&mut log, agent, &fresh, conversation, turn, began, shown).await;
     }
 
     let reply = match asked {
@@ -1273,6 +1322,7 @@ impl HerdrSessions {
 
   // One turn of a conversation on the road its launch names: Claude Code's chat line on the deployment's
   // own program, or the stand-in road the provider declares.
+  #[allow(clippy::too_many_arguments)]
   async fn conversation_asked(
     &self,
     log: &mut RunLog,
@@ -1281,10 +1331,11 @@ impl HerdrSessions {
     conversation: &Conversation,
     turn: &Turn,
     began: i64,
+    shown: OutputWatch<'_>,
   ) -> Result<Reply, NoAnswer> {
     if conversation.provider == CHAT_PROVIDER {
       return self
-        .agent_run_launched(log, agent, launch, &turn.prompt, &turn.context.answers, began)
+        .agent_run_launched(log, agent, launch, &turn.prompt, &turn.context.answers, began, shown)
         .await;
     }
 
@@ -1297,6 +1348,7 @@ impl HerdrSessions {
       &turn.prompt,
       &turn.context.answers,
       began,
+      Some(shown),
     )
     .await
   }
@@ -1332,12 +1384,16 @@ impl HerdrSessions {
     prompt: &str,
     resume: Option<String>,
     began: i64,
+    shown: OutputWatch<'_>,
   ) -> Result<Reply, NoAnswer> {
     let launch = launch_of(agent, room, context, resume);
-    self.agent_run_launched(log, agent, &launch, prompt, &context.answers, began).await
+    self
+      .agent_run_launched(log, agent, &launch, prompt, &context.answers, began, shown)
+      .await
   }
 
   // One chat-line turn on the launch as it stands, which names the road its run goes out on.
+  #[allow(clippy::too_many_arguments)]
   async fn agent_run_launched(
     &self,
     log: &mut RunLog,
@@ -1346,6 +1402,7 @@ impl HerdrSessions {
     prompt: &str,
     answers: &[i64],
     began: i64,
+    shown: OutputWatch<'_>,
   ) -> Result<Reply, NoAnswer> {
     let ground = self.ground();
     let run = log.run().to_owned();
@@ -1355,7 +1412,18 @@ impl HerdrSessions {
 
     log.launched(&ground.db, Some(&composed.system_path), prompt, &[]).await;
 
-    run_turn(ground, agent, CHAT_PROVIDER, &composed, launch.resume.as_deref(), log, false, None).await
+    run_turn(
+      ground,
+      agent,
+      CHAT_PROVIDER,
+      &composed,
+      launch.resume.as_deref(),
+      log,
+      false,
+      None,
+      Some(shown),
+    )
+    .await
   }
 
   // What a companion's run spent is its own: its last answer written and its usage published.
@@ -1390,7 +1458,7 @@ impl HerdrSessions {
   // A state given the turn its session carries now and what that turn went out on.
   fn going_shown(&self, session: &SessionId, state: &mut State) {
     state.run = match self.going().get(session).map(Vec::as_slice) {
-      Some([run]) => Some(run.clone()),
+      Some([run]) => Some(run.run.clone()),
       _ => None,
     };
     state.went_out = self.showing().get(session).cloned();
@@ -1405,6 +1473,7 @@ impl HerdrSessions {
     agent: &str,
     seat: WorkSeat<'_>,
     work: &WorkParts,
+    turn_id: i64,
   ) -> Result<Came, Fault> {
     let asked = WorkAsked {
       ground: self.ground(),
@@ -1419,9 +1488,9 @@ impl HerdrSessions {
     let shown = Showing {
       sessions: self,
       session: &turn.session,
+      turn: turn_id,
     };
 
-    self.outputs.begun(&turn.session, &work.name);
     carry(&asked, &shown).await.map(|end| Came::Ended(Box::new(end)))
   }
 
@@ -1567,21 +1636,27 @@ impl Sessions for HerdrSessions {
     }
   }
 
-  async fn push(&self, session: &SessionId, words: &str) -> Result<Aside, Fault> {
+  async fn push(&self, session: &SessionId, turn: i64, words: &str) -> Result<Aside, Fault> {
     let (agent, scope) = self.scope_held(session)?;
 
     self.admitted(&agent, &scope).await?;
+
+    // The turn the words name must be the one the session carries now; a session carrying several, an
+    // editor's, takes words into none.
+    let run = match self.going().get(session).map(Vec::as_slice) {
+      Some([run]) if run.turn == turn => run.run.clone(),
+      Some(_) => {
+        return Err(fault(FaultKind::UnknownTurn, format!("no turn {turn} is going in {session}")));
+      }
+      None => {
+        return Err(fault(FaultKind::UnknownTurn, format!("no turn {turn} is going in {session}")));
+      }
+    };
 
     // A job's turn that hears no words takes none.
     if self.deaf().contains(session) {
       return Ok(Aside::Refused);
     }
-
-    // The run the session's turn carries now; a session carrying several, an editor's, takes words into none.
-    let run = match self.going().get(session).map(Vec::as_slice) {
-      Some([run]) => run.clone(),
-      _ => return Ok(Aside::Refused),
-    };
     let Some(mut offer) = aside::offer(&run, words) else {
       return Ok(Aside::Refused);
     };
@@ -1660,17 +1735,25 @@ impl Sessions for HerdrSessions {
       (None, None, None) => format!("turn:{agent}:{at}"),
     };
 
+    let turn_id;
+
     {
       let mut going = self.going();
       let runs = going.entry(turn.session.clone()).or_default();
       let several = matches!(scope, Scope::Editor);
 
-      if runs.contains(&run) || (!several && !runs.is_empty()) {
+      if runs.iter().any(|running| running.run == run) || (!several && !runs.is_empty()) {
         return Err(fault(FaultKind::Busy, format!("{} is in a turn", turn.session)));
       }
 
-      runs.push(run.clone());
+      turn_id = self.next_turn();
+      runs.push(Running {
+        turn: turn_id,
+        run: run.clone(),
+      });
     }
+
+    self.outputs.begun(&turn.session, turn_id, &run);
 
     if !hears_words(work) {
       self.deaf().insert(turn.session.clone());
@@ -1679,9 +1762,15 @@ impl Sessions for HerdrSessions {
     self.ground().events.publish(TurnStarted {
       session: turn.session.0.clone(),
       run: run.clone(),
+      turn_id,
       at,
     });
 
+    let shown = OutputWatch {
+      outputs: &self.outputs,
+      session: &turn.session,
+      turn: turn_id,
+    };
     let came = match (&scope, &row) {
       (Scope::Worker, Some(row)) => {
         let db = &self.ground().db;
@@ -1689,19 +1778,19 @@ impl Sessions for HerdrSessions {
         keep_worker_job(db, &agent, turn.context.job).await;
 
         let came = match work {
-          Some(work) => self.carried(&turn, &agent, WorkSeat::Worker(row), work).await,
-          None => self.worker_turn(row, &run, &turn.prompt).await,
+          Some(work) => self.carried(&turn, &agent, WorkSeat::Worker(row), work, turn_id).await,
+          None => self.worker_turn(row, &run, &turn.prompt, &turn.session, turn_id).await,
         };
 
         keep_worker_job(db, &agent, None).await;
         came
       }
       (Scope::Apart(apart), _) => match work {
-        Some(work) => self.carried(&turn, &agent, WorkSeat::Apart(apart), work).await,
+        Some(work) => self.carried(&turn, &agent, WorkSeat::Apart(apart), work, turn_id).await,
         None => Err(apart_refused(&agent)),
       },
       (Scope::Conversation(conversation), _) => {
-        self.conversation_turn(&turn, &agent, conversation, &run).await
+        self.conversation_turn(&turn, &agent, conversation, &run, shown).await
       }
       (Scope::Worker, None) => Err(fault(FaultKind::Unknown, format!("no worker is named {agent}"))),
       (Scope::Editor, _) => {
@@ -1712,25 +1801,38 @@ impl Sessions for HerdrSessions {
           parts,
         };
 
-        Ok(match editor_turn(self.ground(), &asked).await {
-          Ok(answer) => Came::Answered(answer),
+        Ok(match editor_turn(self.ground(), &asked, shown).await {
+          Ok(answer) => {
+            self.outputs.wrote(&turn.session, turn_id, std::slice::from_ref(&answer));
+
+            Came::Answered(answer)
+          }
           Err(why) => Came::Failed(why, None),
         })
       }
       (Scope::Room(room), _) => match room_number(room) {
-        Ok(chat_id) => self.room_turn(&agent, chat_id, &run, &turn.prompt, &turn.context).await,
+        Ok(chat_id) => self.room_turn(&agent, chat_id, &run, &turn.prompt, &turn.context, shown).await,
         Err(refused) => Err(refused),
       },
-      (Scope::Agent, _) => self.agent_turn(&agent, &run, &turn.prompt, &turn.context).await,
+      (Scope::Agent, _) => self.agent_turn(&agent, &run, &turn.prompt, &turn.context, shown).await,
     };
 
     self.ended(&turn.session, &run);
 
     // A turn refused once its start was published still ends, failed with the refusal.
     match came {
-      Ok(came) => Ok(self.published(&turn.session, came.end(&run))),
+      Ok(came) => {
+        let mut end = came.end(&run);
+
+        end.turn = turn_id;
+
+        Ok(self.published(&turn.session, end))
+      }
       Err(refused) => {
-        self.published(&turn.session, TurnEnd::failed(&run, refused.message.clone(), None));
+        let mut end = TurnEnd::failed(&run, refused.message.clone(), None);
+
+        end.turn = turn_id;
+        self.published(&turn.session, end);
         Err(refused)
       }
     }
@@ -1800,9 +1902,24 @@ impl Sessions for HerdrSessions {
           return Err(fault(FaultKind::Unknown, format!("{session} has not been opened")));
         };
         let generation = records::generation(&ground.db, &agent, &held.model).await.map_err(store_fault)?;
+        // The road the worker stands on: the provider it is pinned to, else the one its held session last
+        // answered on, else Claude Code's own.
+        let provider = match crate::queue::routes::worker_pin(&ground.db, &agent).await {
+          Ok(Some((provider, _))) => provider,
+          Ok(None) => {
+            crate::worker_session::held::held(ground, &crate::worker_session::held::scope_of(&agent))
+              .await
+              .ok()
+              .flatten()
+              .map(|held| held.mode)
+              .filter(|mode| !mode.is_empty())
+              .unwrap_or_else(|| worker_session::PROVIDER.to_owned())
+          }
+          Err(why) => return Err(fault(FaultKind::Refused, why.0)),
+        };
         let mut state = State::standing(
           session.clone(),
-          worker_session::PROVIDER.to_owned(),
+          provider,
           held.answered_model.clone().unwrap_or_else(|| held.model.clone()),
           place,
           generation,
@@ -1863,30 +1980,27 @@ impl Sessions for HerdrSessions {
     }
   }
 
-  // A worker's and a thrown-away session's job turns keep what they write; every other scope's turn is
-  // read by its own events and keeps nothing here.
-  async fn output(&self, session: &SessionId) -> Result<Output, Fault> {
+  // Every scope's turns keep what they write while they go, and a turn that has ended keeps its words
+  // until the session's next turn begins.
+  async fn output(&self, session: &SessionId, turn: Option<i64>) -> Result<Output, Fault> {
     let (agent, scope) = self.scope_held(session)?;
 
     self.admitted(&agent, &scope).await?;
 
-    match scope {
-      Scope::Worker | Scope::Apart(_) => self
-        .outputs
-        .read(session)
-        .ok_or_else(|| fault(FaultKind::Unknown, format!("{session} has carried no job turn to read"))),
-      _ => Err(fault(FaultKind::Refused, format!("{session} keeps no record of a turn to read"))),
-    }
+    self.outputs.read(session, turn).ok_or_else(|| match turn {
+      Some(turn) => fault(FaultKind::UnknownTurn, format!("{session} has carried no turn {turn}")),
+      None => fault(FaultKind::Unknown, format!("{session} has carried no turn to read")),
+    })
   }
 
-  async fn interrupt(&self, session: &SessionId) -> Result<(), Fault> {
+  async fn interrupt(&self, session: &SessionId, turn: i64) -> Result<(), Fault> {
     let runs = self.going().get(session).cloned().unwrap_or_default();
+    let Some(running) = runs.into_iter().find(|running| running.turn == turn) else {
+      return Err(fault(FaultKind::UnknownTurn, format!("no turn {turn} is going in {session}")));
+    };
     let stops = crate::queue::stops::Stops::of(self.ground(), None);
 
-    for run in &runs {
-      stops.cancel(run).await.map_err(store_fault)?;
-    }
-
+    stops.cancel(&running.run).await.map_err(store_fault)?;
     Ok(())
   }
 
@@ -2122,7 +2236,13 @@ fn worker_session_id(worker: &str) -> Result<SessionId, Fault> {
 /// over the other.
 impl WordRoad for HerdrSessions {
   async fn push(&self, worker: &str, words: &str) -> Result<Aside, Fault> {
-    Sessions::push(self, &worker_session_id(worker)?, words).await
+    let session = worker_session_id(worker)?;
+    let turn = self.going().get(&session).and_then(|runs| (runs.len() == 1).then(|| runs[0].turn));
+
+    match turn {
+      Some(turn) => Sessions::push(self, &session, turn, words).await,
+      None => Ok(Aside::Refused),
+    }
   }
 
   async fn turn<W: Watch + Send + Sync>(
@@ -2137,6 +2257,9 @@ impl WordRoad for HerdrSessions {
       return Ok(None);
     };
 
+    let turn;
+    let run = asked.name.clone();
+
     {
       let mut going = self.going();
 
@@ -2144,8 +2267,13 @@ impl WordRoad for HerdrSessions {
         return Ok(None);
       }
 
-      going.entry(session.clone()).or_default().push(asked.name.clone());
+      turn = self.next_turn();
+      going.entry(session.clone()).or_default().push(Running {
+        turn,
+        run: run.clone(),
+      });
     }
+    self.outputs.begun(&session, turn, &run);
 
     let turned = match self.worker_session(&worker.name).await {
       Ok((model, resumed)) => {
@@ -2170,7 +2298,13 @@ impl WordRoad for HerdrSessions {
       Err(why) => Err(Refusal::failed(why.message)),
     };
 
-    self.ended(&session, &asked.name);
+    if let Ok(turned) = &turned
+      && let Some(reply) = &turned.reply
+    {
+      self.outputs.wrote(&session, turn, std::slice::from_ref(&reply.text));
+    }
+
+    self.ended(&session, &run);
 
     turned.map(Some)
   }

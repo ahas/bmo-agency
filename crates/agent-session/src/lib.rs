@@ -388,10 +388,12 @@ pub struct Span {
   pub cache_write_tokens: Option<i64>,
 }
 
-/// A turn's end, as its send answers it and its `turn-ended` carries it (docs/api.md, 「Sessions」, a
-/// turn's end): a part a scope's turn does not carry is none or empty.
+/// A turn's end, as its send answers it and its `turn.ended` carries it (docs/api.md, 「Sessions」, a
+/// turn's end): a part a scope's turn does not carry is none or empty, and its id is the one its start
+/// carried on `turn.created`.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct TurnEnd {
+  pub turn: i64,
   pub delivery: Delivery,
   pub run: String,
   pub outcome: Outcome,
@@ -412,6 +414,7 @@ impl TurnEnd {
   /// A turn's end with only its run and outcome told; the program took the words unless it is blocked.
   pub fn of(run: impl Into<String>, outcome: Outcome) -> Self {
     Self {
+      turn: 0,
       delivery: if outcome == Outcome::Blocked { Delivery::Blocked } else { Delivery::Taken },
       run: run.into(),
       outcome,
@@ -493,6 +496,7 @@ pub enum Answer {
 /// What a session's turn now going, or its last one, has written so far.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct Output {
+  pub turn: i64,
   pub run: String,
   pub running: bool,
   pub text: String,
@@ -558,6 +562,8 @@ impl State {
 pub enum FaultKind {
   /// No session is known by the id named.
   Unknown,
+  /// No turn is known by the id named in that session, or it is not the turn the operation acts on.
+  UnknownTurn,
   /// The session is in a turn and takes no other operation until it ends.
   Busy,
   /// The backend did not answer.
@@ -571,6 +577,7 @@ impl FaultKind {
   pub fn code(self) -> &'static str {
     match self {
       Self::Unknown => "unknown-session",
+      Self::UnknownTurn => "unknown-turn",
       Self::Busy => "session-busy",
       Self::Unreachable => "backend-unreachable",
       Self::Refused => "backend-refused",
@@ -620,9 +627,14 @@ pub trait Sessions: Send + Sync {
   /// One turn sent into a session and carried until it ends, answered with its end.
   fn send_turn(&self, turn: Turn) -> impl Future<Output = Result<TurnEnd, Fault>> + Send;
 
-  /// Words pushed into the turn a session is working. A backend that cannot put words into a working turn
-  /// refuses them, which changes nothing.
-  fn push(&self, _session: &SessionId, _words: &str) -> impl Future<Output = Result<Aside, Fault>> + Send {
+  /// Words pushed into the turn a session is working, named by its id. A backend that cannot put words
+  /// into a working turn refuses them, which changes nothing.
+  fn push(
+    &self,
+    _session: &SessionId,
+    _turn: i64,
+    _words: &str,
+  ) -> impl Future<Output = Result<Aside, Fault>> + Send {
     async { Ok(Aside::Refused) }
   }
 
@@ -645,14 +657,18 @@ pub trait Sessions: Send + Sync {
     async { Err(Fault::new(FaultKind::Refused, "this backend puts no question to a turn's caller")) }
   }
 
-  /// What a session's turn now going, or its last one, has written so far. A backend that keeps no
-  /// record of a turn refuses it.
-  fn output(&self, _session: &SessionId) -> impl Future<Output = Result<Output, Fault>> + Send {
+  /// What the turn named has written so far, or what the session's last turn wrote where it names none.
+  /// A backend that keeps no record of a turn refuses it.
+  fn output(
+    &self,
+    _session: &SessionId,
+    _turn: Option<i64>,
+  ) -> impl Future<Output = Result<Output, Fault>> + Send {
     async { Err(Fault::new(FaultKind::Refused, "this backend keeps no record of a turn to read")) }
   }
 
-  /// The turn a session is in cut short; the session stands.
-  fn interrupt(&self, session: &SessionId) -> impl Future<Output = Result<(), Fault>> + Send;
+  /// The turn a session is in, named by its id, cut short; the session stands.
+  fn interrupt(&self, session: &SessionId, turn: i64) -> impl Future<Output = Result<(), Fault>> + Send;
 
   /// A full session carried past its window, as its provider declares.
   fn fold(&self, session: &SessionId) -> impl Future<Output = Result<(), Fault>> + Send;

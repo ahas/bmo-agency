@@ -170,6 +170,7 @@ pub async fn hand_over(ground: &Ground, hold: &ResetHold, companion: &Companion,
     &mut log,
     true,
     None,
+    None,
   )
   .await;
   // What the handoff came to is kept under the hold its reset waits on, the point read again under it, as a turn's is.

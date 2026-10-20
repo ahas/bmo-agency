@@ -1,7 +1,8 @@
-//! What a session's job turn has written so far (docs/api.md, 「Sessions」, the output read): the text
-//! blocks its answers wrote in the record, in order; read while the turn goes and after it was stopped,
-//! begun again by an attempt that goes out again and by the session's next turn; nothing found for a
-//! session that carried no job turn, and refused for a scope whose turns keep none.
+//! What a session's turn has written so far (docs/api.md, 「Sessions」, the output read): the text blocks
+//! its answers wrote in the record, in order; read while the turn goes and after it was stopped, begun
+//! again by an attempt that goes out again and by the session's next turn; held under the turn's id, so a
+//! session carrying several, an editor's, keeps each; nothing found for a turn a session never carried,
+//! and every scope's turn kept, an editor's among them.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -50,26 +51,37 @@ fn session() -> SessionId {
 fn a_running_turns_words_are_read_as_they_are_written_and_stand_once_it_is_stopped() {
   let outputs = Outputs::default();
 
-  assert_eq!(outputs.read(&session()), None, "a session that carried no job turn has nothing to read");
+  assert_eq!(
+    outputs.read(&session(), Some(7)),
+    None,
+    "a turn the session never carried has nothing to read"
+  );
 
-  outputs.begun(&session(), "bmo-research-7");
-  outputs.wrote(&session(), &["TITLE: the angle".into()]);
-  outputs.wrote(&session(), &["first finding".into()]);
+  outputs.begun(&session(), 7, "bmo-research-7");
+  outputs.wrote(&session(), 7, &["TITLE: the angle".into()]);
+  outputs.wrote(&session(), 7, &["first finding".into()]);
 
   assert_eq!(
-    outputs.read(&session()),
+    outputs.read(&session(), Some(7)),
     Some(Output {
+      turn: 7,
       run: "bmo-research-7".into(),
       running: true,
       text: "TITLE: the angle\n\nfirst finding".into(),
     })
   );
+  assert_eq!(
+    outputs.read(&session(), None).unwrap().turn,
+    7,
+    "the session's latest turn is read where none is named"
+  );
 
-  outputs.ended(&session());
+  outputs.ended(&session(), 7);
 
   assert_eq!(
-    outputs.read(&session()),
+    outputs.read(&session(), Some(7)),
     Some(Output {
+      turn: 7,
       run: "bmo-research-7".into(),
       running: false,
       text: "TITLE: the angle\n\nfirst finding".into(),
@@ -79,37 +91,67 @@ fn a_running_turns_words_are_read_as_they_are_written_and_stand_once_it_is_stopp
 
   outputs.forget(&session());
 
-  assert_eq!(outputs.read(&session()), None, "an ended session takes its words with it");
+  assert_eq!(outputs.read(&session(), Some(7)), None, "an ended session takes its words with it");
 }
 
 #[test]
 fn an_attempt_that_goes_out_again_and_the_next_turn_begin_the_words_again() {
   let outputs = Outputs::default();
 
-  outputs.begun(&session(), "run-1");
-  outputs.wrote(&session(), &["on the first login".into()]);
-  outputs.attempted(&session());
-  outputs.wrote(&session(), &["on the next one".into()]);
+  outputs.begun(&session(), 7, "run-1");
+  outputs.wrote(&session(), 7, &["on the first login".into()]);
+  outputs.attempted(&session(), 7);
+  outputs.wrote(&session(), 7, &["on the next one".into()]);
 
-  assert_eq!(outputs.read(&session()).unwrap().text, "on the next one");
+  assert_eq!(outputs.read(&session(), Some(7)).unwrap().text, "on the next one");
 
-  outputs.ended(&session());
-  outputs.begun(&session(), "run-2");
+  outputs.ended(&session(), 7);
+  outputs.begun(&session(), 8, "run-2");
 
   assert_eq!(
-    outputs.read(&session()),
+    outputs.read(&session(), Some(8)),
     Some(Output {
+      turn: 8,
       run: "run-2".into(),
       running: true,
       text: String::new(),
     })
   );
-  outputs.wrote(&SessionId("branch-b@apart:2".into()), &["elsewhere".into()]);
-  assert_eq!(outputs.read(&session()).unwrap().text, "", "words are their own session's alone");
+  assert_eq!(
+    outputs.read(&session(), Some(7)),
+    None,
+    "the turn before stands only until the session's next turn begins"
+  );
+  outputs.wrote(&SessionId("branch-b@apart:2".into()), 8, &["elsewhere".into()]);
+  assert_eq!(
+    outputs.read(&session(), Some(8)).unwrap().text,
+    "",
+    "words are their own session's alone"
+  );
+}
+
+#[test]
+fn a_session_carrying_several_turns_keeps_each_under_its_id() {
+  let outputs = Outputs::default();
+  let session = SessionId("digest@editor".into());
+
+  outputs.begun(&session, 1, "run-a");
+  outputs.begun(&session, 2, "run-b");
+  outputs.wrote(&session, 1, &["a's words".into()]);
+  outputs.wrote(&session, 2, &["b's words".into()]);
+
+  assert_eq!(outputs.read(&session, Some(1)).unwrap().text, "a's words");
+  assert_eq!(outputs.read(&session, Some(2)).unwrap().text, "b's words");
+
+  outputs.ended(&session, 1);
+  outputs.begun(&session, 3, "run-c");
+
+  assert_eq!(outputs.read(&session, Some(1)), None, "an ended turn goes when another begins");
+  assert_eq!(outputs.read(&session, Some(2)).unwrap().text, "b's words", "a turn still going stays");
 }
 
 #[tokio::test]
-async fn a_session_that_carried_no_job_turn_is_nothing_found_and_an_editors_keeps_none() {
+async fn every_scope_answers_a_turn_it_never_carried_as_nothing_found() {
   let scratch = Scratch::new().await;
   let home = tempfile::tempdir().unwrap();
   let at = |path: std::path::PathBuf| path.to_string_lossy().into_owned();
@@ -141,15 +183,16 @@ async fn a_session_that_carried_no_job_turn_is_nothing_found_and_an_editors_keep
     .await
     .unwrap();
 
-  assert_eq!(sessions.output(&apart.id).await.unwrap_err().kind, FaultKind::Unknown);
+  assert_eq!(sessions.output(&apart.id, Some(7)).await.unwrap_err().kind, FaultKind::UnknownTurn);
+  assert_eq!(sessions.output(&apart.id, None).await.unwrap_err().kind, FaultKind::Unknown);
   assert_eq!(
-    sessions.output(&SessionId("branch-a@apart:99".into())).await.unwrap_err().kind,
+    sessions.output(&SessionId("branch-a@apart:99".into()), None).await.unwrap_err().kind,
     FaultKind::Unknown,
     "a session never started names nothing"
   );
   assert_eq!(
-    sessions.output(&SessionId("digest@editor".into())).await.unwrap_err().kind,
-    FaultKind::Refused,
-    "an editor's runs keep nothing here to read"
+    sessions.output(&SessionId("digest@editor".into()), Some(7)).await.unwrap_err().kind,
+    FaultKind::UnknownTurn,
+    "an editor's session answers a turn it never carried like every other scope's"
   );
 }

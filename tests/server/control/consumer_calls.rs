@@ -122,10 +122,10 @@ async fn a_running_server_answers_the_calls_a_room_holder_makes_beside_its_turns
   let (_, after) = get(port, token, "/agents/companion-a").await;
   assert_eq!(after["resetAt"], json!(2000));
 
-  // Words pushed into a session carrying no turn did not go in.
+  // Words name the turn they are pushed into, and a turn the session carries none of is not there.
   assert_eq!(
     post(port, token, "/sessions/companion-a@-7/turns/1/inputs", json!({ "words": "more" })).await,
-    (201, json!({ "words": "more", "said": "refused" }))
+    (404, json!({ "code": "unknown-turn", "error": "no turn 1 is going in companion-a@-7" }))
   );
   assert_eq!(
     post(port, token, "/sessions/nobody@-7/turns/1/inputs", json!({ "words": "more" }))

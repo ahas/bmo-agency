@@ -380,7 +380,7 @@ impl AgencyClient {
   }
 
   /// `PUT /hooks/{point}`: Register a downstream's URL at a hook point.
-  pub async fn put_hook(&self, point: &str, body: &Hook) -> Answer<Hook> {
+  pub async fn put_hook(&self, point: &str, body: &HookRegistration) -> Answer<Hook> {
     Self::answered(self.request(Method::PUT, &["hooks", point]).json(body)).await
   }
 
@@ -400,7 +400,7 @@ impl AgencyClient {
   }
 
   /// `PATCH /agents/{agentName}`: Change an agent's gates, reasoning, role or voice.
-  pub async fn change_agent(&self, agent_name: &str, body: &Agent) -> Answer<Agent> {
+  pub async fn change_agent(&self, agent_name: &str, body: &AgentChange) -> Answer<Agent> {
     Self::answered(self.request(Method::PATCH, &["agents", agent_name]).json(body)).await
   }
 
@@ -421,13 +421,13 @@ impl AgencyClient {
   pub async fn change_prompt_document(
     &self,
     document_name: &str,
-    body: &PromptDocument,
+    body: &PromptDocumentChange,
   ) -> Answer<PromptDocument> {
     Self::answered(self.request(Method::PATCH, &["prompt-documents", document_name]).json(body)).await
   }
 
   /// `POST /document-moves`: Word that session documents moved, so sessions read them again.
-  pub async fn create_document_moves(&self, body: &DocumentMove) -> Answer<DocumentMove> {
+  pub async fn create_document_moves(&self, body: &DocumentMoveAsk) -> Answer<DocumentMove> {
     Self::answered(self.request(Method::POST, &["document-moves"]).json(body)).await
   }
 
@@ -437,7 +437,7 @@ impl AgencyClient {
   }
 
   /// `POST /sessions`: Start a session for an agent at a scope; a throwaway one is scope apart with boundMs and its own options. A run with a fixed prompt (a digest, a research, a browse, a narration, the morning news) is such a session naming its prompt document; it calls the upstreams it needs through their own MCP servers.
-  pub async fn create_sessions(&self, body: &Session) -> Answer<Session> {
+  pub async fn create_sessions(&self, body: &SessionStart) -> Answer<Session> {
     Self::answered(self.request(Method::POST, &["sessions"]).json(body)).await
   }
 
@@ -447,7 +447,7 @@ impl AgencyClient {
   }
 
   /// `PATCH /sessions/{sessionId}`: Hand a session over to another holder.
-  pub async fn change_session(&self, session_id: &str, body: &Session) -> Answer<Session> {
+  pub async fn change_session(&self, session_id: &str, body: &SessionChange) -> Answer<Session> {
     Self::answered(self.request(Method::PATCH, &["sessions", session_id]).json(body)).await
   }
 
@@ -457,7 +457,7 @@ impl AgencyClient {
   }
 
   /// `POST /sessions/{sessionId}/turns`: Send a turn into a session; words to a worker are a turn into its session.
-  pub async fn create_sessions_turns(&self, session_id: &str, body: &Turn) -> Answer<Turn> {
+  pub async fn create_sessions_turns(&self, session_id: &str, body: &TurnSend) -> Answer<Turn> {
     Self::answered(self.request(Method::POST, &["sessions", session_id, "turns"]).json(body)).await
   }
 
@@ -468,7 +468,12 @@ impl AgencyClient {
   }
 
   /// `PATCH /sessions/{sessionId}/turns/{turnId}`: Interrupt a turn.
-  pub async fn change_sessions_turn(&self, session_id: &str, turn_id: i64, body: &Turn) -> Answer<Turn> {
+  pub async fn change_sessions_turn(
+    &self,
+    session_id: &str,
+    turn_id: i64,
+    body: &TurnInterrupt,
+  ) -> Answer<Turn> {
     Self::answered(
       self
         .request(Method::PATCH, &["sessions", session_id, "turns", &turn_id.to_string()])
@@ -482,7 +487,7 @@ impl AgencyClient {
     &self,
     session_id: &str,
     turn_id: i64,
-    body: &TurnInput,
+    body: &TurnWords,
   ) -> Answer<TurnInput> {
     Self::answered(
       self
@@ -493,12 +498,12 @@ impl AgencyClient {
   }
 
   /// `POST /sessions/{sessionId}/answers`: Answer a question a turn asked.
-  pub async fn create_sessions_answers(&self, session_id: &str, body: &TurnAnswer) -> Answer<TurnAnswer> {
+  pub async fn create_sessions_answers(&self, session_id: &str, body: &AnswerAsk) -> Answer<TurnAnswer> {
     Self::answered(self.request(Method::POST, &["sessions", session_id, "answers"]).json(body)).await
   }
 
   /// `POST /sessions/{sessionId}/folds`: Fold a session, compacting its context.
-  pub async fn create_sessions_folds(&self, session_id: &str, body: &Fold) -> Answer<Fold> {
+  pub async fn create_sessions_folds(&self, session_id: &str, body: &FoldAsk) -> Answer<Fold> {
     Self::answered(self.request(Method::POST, &["sessions", session_id, "folds"]).json(body)).await
   }
 
@@ -513,7 +518,7 @@ impl AgencyClient {
   }
 
   /// `POST /runs`: Open a run in the ledger.
-  pub async fn create_runs(&self, body: &Run) -> Answer<Run> {
+  pub async fn create_runs(&self, body: &RunOpen) -> Answer<Run> {
     Self::answered(self.request(Method::POST, &["runs"]).json(body)).await
   }
 
@@ -523,7 +528,7 @@ impl AgencyClient {
   }
 
   /// `PATCH /runs/{runId}`: Close a run, or stop it.
-  pub async fn change_run(&self, run_id: i64, body: &Run) -> Answer<Run> {
+  pub async fn change_run(&self, run_id: i64, body: &RunClose) -> Answer<Run> {
     Self::answered(self.request(Method::PATCH, &["runs", &run_id.to_string()]).json(body)).await
   }
 
@@ -533,7 +538,7 @@ impl AgencyClient {
   }
 
   /// `POST /log-lines`: Add a line to a run's log: a note, a turn record, a program's output.
-  pub async fn create_log_lines(&self, body: &LogLine) -> Answer<LogLine> {
+  pub async fn create_log_lines(&self, body: &LogLineAsk) -> Answer<LogLine> {
     Self::answered(self.request(Method::POST, &["log-lines"]).json(body)).await
   }
 
@@ -543,7 +548,7 @@ impl AgencyClient {
   }
 
   /// `POST /executions`: Launch a run's program in the agent host.
-  pub async fn create_executions(&self, body: &Execution) -> Answer<Execution> {
+  pub async fn create_executions(&self, body: &ExecutionLaunch) -> Answer<Execution> {
     Self::answered(self.request(Method::POST, &["executions"]).json(body)).await
   }
 
@@ -553,7 +558,7 @@ impl AgencyClient {
   }
 
   /// `PATCH /executions/{executionId}`: Cancel an execution or take the cancel back.
-  pub async fn change_execution(&self, execution_id: i64, body: &Execution) -> Answer<Execution> {
+  pub async fn change_execution(&self, execution_id: i64, body: &ExecutionChange) -> Answer<Execution> {
     Self::answered(self.request(Method::PATCH, &["executions", &execution_id.to_string()]).json(body)).await
   }
 
@@ -569,7 +574,7 @@ impl AgencyClient {
   pub async fn change_overtime_request(
     &self,
     request_id: i64,
-    body: &OvertimeRequest,
+    body: &OvertimeAnswer,
   ) -> Answer<OvertimeRequest> {
     Self::answered(self.request(Method::PATCH, &["overtime-requests", &request_id.to_string()]).json(body))
       .await
@@ -581,7 +586,7 @@ impl AgencyClient {
   }
 
   /// `PUT /stop-marks/{jobId}`: Mark a job to stop.
-  pub async fn put_stop_mark(&self, job_id: i64, body: &StopMark) -> Answer<StopMark> {
+  pub async fn put_stop_mark(&self, job_id: i64, body: &StopMarkAsk) -> Answer<StopMark> {
     Self::answered(self.request(Method::PUT, &["stop-marks", &job_id.to_string()]).json(body)).await
   }
 
@@ -601,7 +606,7 @@ impl AgencyClient {
   }
 
   /// `POST /seat-requests`: Ask for a co-worker seat; the tier is resolved from the work key.
-  pub async fn create_seat_requests(&self, body: &SeatRequest) -> Answer<SeatRequest> {
+  pub async fn create_seat_requests(&self, body: &SeatRequestAsk) -> Answer<SeatRequest> {
     Self::answered(self.request(Method::POST, &["seat-requests"]).json(body)).await
   }
 
@@ -611,7 +616,7 @@ impl AgencyClient {
   }
 
   /// `PATCH /seat-requests/{token}`: Move a seat request: admitted, bound to its launched unit, finished.
-  pub async fn change_seat_request(&self, token: &str, body: &SeatRequest) -> Answer<SeatRequest> {
+  pub async fn change_seat_request(&self, token: &str, body: &SeatRequestChange) -> Answer<SeatRequest> {
     Self::answered(self.request(Method::PATCH, &["seat-requests", token]).json(body)).await
   }
 
@@ -621,12 +626,12 @@ impl AgencyClient {
   }
 
   /// `POST /reservations`: Reserve seats for an owner.
-  pub async fn create_reservations(&self, body: &Reservation) -> Answer<Reservation> {
+  pub async fn create_reservations(&self, body: &ReservationAsk) -> Answer<Reservation> {
     Self::answered(self.request(Method::POST, &["reservations"]).json(body)).await
   }
 
   /// `PATCH /reservations/{token}`: Release a reservation with its outcome.
-  pub async fn change_reservation(&self, token: &str, body: &Reservation) -> Answer<Reservation> {
+  pub async fn change_reservation(&self, token: &str, body: &ReservationChange) -> Answer<Reservation> {
     Self::answered(self.request(Method::PATCH, &["reservations", token]).json(body)).await
   }
 
@@ -641,7 +646,7 @@ impl AgencyClient {
   }
 
   /// `POST /places`: Take a branch place and its folder.
-  pub async fn create_places(&self, body: &Place) -> Answer<Place> {
+  pub async fn create_places(&self, body: &PlaceAsk) -> Answer<Place> {
     Self::answered(self.request(Method::POST, &["places"]).json(body)).await
   }
 
@@ -651,7 +656,7 @@ impl AgencyClient {
   }
 
   /// `PATCH /places/{placeId}`: Prepare, remember or retire a place, or record its last write.
-  pub async fn change_place(&self, place_id: &str, body: &Place) -> Answer<Place> {
+  pub async fn change_place(&self, place_id: &str, body: &PlaceChange) -> Answer<Place> {
     Self::answered(self.request(Method::PATCH, &["places", place_id]).json(body)).await
   }
 
@@ -666,7 +671,7 @@ impl AgencyClient {
   }
 
   /// `PATCH /providers/{providerName}`: Change a provider.
-  pub async fn change_provider(&self, provider_name: &str, body: &Provider) -> Answer<Provider> {
+  pub async fn change_provider(&self, provider_name: &str, body: &ProviderChange) -> Answer<Provider> {
     Self::answered(self.request(Method::PATCH, &["providers", provider_name]).json(body)).await
   }
 
@@ -676,7 +681,7 @@ impl AgencyClient {
   }
 
   /// `POST /models`: Register a model.
-  pub async fn create_models(&self, body: &Model) -> Answer<Model> {
+  pub async fn create_models(&self, body: &ModelChange) -> Answer<Model> {
     Self::answered(self.request(Method::POST, &["models"]).json(body)).await
   }
 
@@ -686,7 +691,7 @@ impl AgencyClient {
   }
 
   /// `PATCH /models/{modelKey}`: Change a model's registration.
-  pub async fn change_model(&self, model_key: &str, body: &Model) -> Answer<Model> {
+  pub async fn change_model(&self, model_key: &str, body: &ModelChange) -> Answer<Model> {
     Self::answered(self.request(Method::PATCH, &["models", model_key]).json(body)).await
   }
 
@@ -717,7 +722,7 @@ impl AgencyClient {
   }
 
   /// `PATCH /tiers/{tierName}`: Change a tier's mapping for a role.
-  pub async fn change_tier(&self, tier_name: &str, body: &Tier) -> Answer<Tier> {
+  pub async fn change_tier(&self, tier_name: &str, body: &TierChange) -> Answer<Tier> {
     Self::answered(self.request(Method::PATCH, &["tiers", tier_name]).json(body)).await
   }
 
@@ -727,7 +732,7 @@ impl AgencyClient {
   }
 
   /// `PATCH /fallback`: Change the fallback roads.
-  pub async fn change_fallback(&self, body: &Fallback) -> Answer<Fallback> {
+  pub async fn change_fallback(&self, body: &FallbackChange) -> Answer<Fallback> {
     Self::answered(self.request(Method::PATCH, &["fallback"]).json(body)).await
   }
 
@@ -742,7 +747,7 @@ impl AgencyClient {
   }
 
   /// `POST /road-blocks`: Block a road until a time.
-  pub async fn create_road_blocks(&self, body: &RoadBlock) -> Answer<RoadBlock> {
+  pub async fn create_road_blocks(&self, body: &RoadBlockAsk) -> Answer<RoadBlock> {
     Self::answered(self.request(Method::POST, &["road-blocks"]).json(body)).await
   }
 
@@ -757,7 +762,7 @@ impl AgencyClient {
   }
 
   /// `PATCH /launch-room`: Record that launches are held, and why.
-  pub async fn change_launch_room(&self, body: &LaunchRoom) -> Answer<LaunchRoom> {
+  pub async fn change_launch_room(&self, body: &LaunchHeldAsk) -> Answer<LaunchRoom> {
     Self::answered(self.request(Method::PATCH, &["launch-room"]).json(body)).await
   }
 
@@ -767,7 +772,7 @@ impl AgencyClient {
   }
 
   /// `PATCH /accounts/{accountId}`: Record an account's usage and its rest.
-  pub async fn change_account(&self, account_id: &str, body: &Account) -> Answer<Account> {
+  pub async fn change_account(&self, account_id: &str, body: &AccountUsage) -> Answer<Account> {
     Self::answered(self.request(Method::PATCH, &["accounts", account_id]).json(body)).await
   }
 
@@ -777,7 +782,7 @@ impl AgencyClient {
   }
 
   /// `PATCH /rest`: Set the rest, or clear a rest that has passed.
-  pub async fn change_rest(&self, body: &Rest) -> Answer<Rest> {
+  pub async fn change_rest(&self, body: &RestAsk) -> Answer<Rest> {
     Self::answered(self.request(Method::PATCH, &["rest"]).json(body)).await
   }
 
@@ -792,7 +797,7 @@ impl AgencyClient {
   }
 
   /// `PATCH /settings`: Change the agency's switches.
-  pub async fn change_settings(&self, body: &Settings) -> Answer<Settings> {
+  pub async fn change_settings(&self, body: &SettingsAsk) -> Answer<Settings> {
     Self::answered(self.request(Method::PATCH, &["settings"]).json(body)).await
   }
 
@@ -802,12 +807,12 @@ impl AgencyClient {
   }
 
   /// `POST /companions`: Add a companion agent.
-  pub async fn create_companions(&self, body: &Companion) -> Answer<Companion> {
+  pub async fn create_companions(&self, body: &CompanionAsk) -> Answer<Companion> {
     Self::answered(self.request(Method::POST, &["companions"]).json(body)).await
   }
 
   /// `PATCH /companions/{companionName}`: Change a companion and the rooms it answers in.
-  pub async fn change_companion(&self, companion_name: &str, body: &Companion) -> Answer<Companion> {
+  pub async fn change_companion(&self, companion_name: &str, body: &CompanionChange) -> Answer<Companion> {
     Self::answered(self.request(Method::PATCH, &["companions", companion_name]).json(body)).await
   }
 
@@ -817,7 +822,7 @@ impl AgencyClient {
   }
 
   /// `POST /companion-resets`: Reset a companion's person ranges and rooms; dryRun counts it first.
-  pub async fn create_companion_resets(&self, body: &CompanionReset) -> Answer<CompanionReset> {
+  pub async fn create_companion_resets(&self, body: &CompanionResetAsk) -> Answer<CompanionReset> {
     Self::answered(self.request(Method::POST, &["companion-resets"]).json(body)).await
   }
 
@@ -827,7 +832,7 @@ impl AgencyClient {
   }
 
   /// `POST /workers`: Add a worker.
-  pub async fn create_workers(&self, body: &Worker) -> Answer<Worker> {
+  pub async fn create_workers(&self, body: &WorkerAdd) -> Answer<Worker> {
     Self::answered(self.request(Method::POST, &["workers"]).json(body)).await
   }
 
@@ -837,7 +842,7 @@ impl AgencyClient {
   }
 
   /// `PATCH /workers/{workerName}`: Change a worker: fields, node placement, sampling, stand it again, ready its bench.
-  pub async fn change_worker(&self, worker_name: &str, body: &Worker) -> Answer<Worker> {
+  pub async fn change_worker(&self, worker_name: &str, body: &WorkerChange) -> Answer<Worker> {
     Self::answered(self.request(Method::PATCH, &["workers", worker_name]).json(body)).await
   }
 
@@ -969,7 +974,7 @@ impl AgencyClient {
   pub async fn put_session_loads_by_session_id(
     &self,
     session_id: &str,
-    body: &SessionLoads,
+    body: &SessionLoadsAsk,
   ) -> Answer<SessionLoads> {
     Self::answered(self.request(Method::PUT, &["session-loads", session_id]).json(body)).await
   }

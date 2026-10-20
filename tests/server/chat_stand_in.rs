@@ -231,7 +231,7 @@ async fn a_walk_that_must_answer_and_meets_no_stand_in_fails_the_turn() {
     store_with(&[("claude-code", false), ("codex", true), ("openrouter", true), ("registered", true)])
       .await;
   let ground = ground_on(scratch.db().clone(), home.path(), &[]);
-  let walked = stand_in_turn(&ground, &mut log(), &launch(), "what is new", &[], 1).await;
+  let walked = stand_in_turn(&ground, &mut log(), &launch(), "what is new", &[], 1, None).await;
 
   assert!(matches!(walked, Err(NoAnswer::Failed(_))), "{walked:?}");
 }
@@ -242,7 +242,7 @@ async fn a_walk_that_meets_no_stand_in_before_an_open_claude_leaves_the_turn_to_
   let scratch =
     store_with(&[("claude-code", true), ("codex", true), ("openrouter", true), ("registered", true)]).await;
   let ground = ground_on(scratch.db().clone(), home.path(), &[]);
-  let walked = stand_in_turn(&ground, &mut log(), &launch(), "what is new", &[], 1).await;
+  let walked = stand_in_turn(&ground, &mut log(), &launch(), "what is new", &[], 1, None).await;
 
   assert!(matches!(walked, Ok(None)), "{walked:?}");
 }

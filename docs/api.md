@@ -28,7 +28,7 @@ a field's exact shape matters, the OpenAPI document is the one to read.
 ## Versioning
 
 - The contract carries the repository's one version, in semver; the workspace manifest is its source. Before
-  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.5`.
+  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.6`.
 - A change to this document and a change to the boundary go in one commit. A change to a route, an event, a
   hook or a shared table's contract repairs this document in the same commit.
 - The major moves on a removed or renamed route, field or event, the minor on an addition, the patch on
@@ -138,7 +138,21 @@ go out. A hand-over is a worker's alone: it closes the worker's held
 session on the model, leaves its note for the next turn and drops the record, and the holder the body
 names is kept for the session's state; a worker with nothing open keeps the holder alone. An agent's and
 a room's session go out on the provider and model their agent's row names, and that row is where those
-move. `holder` and `prefixChangeReason` are read back on the session wherever it is listed or read.
+move. `holder` and `prefixChangeReason` are read back on the session wherever it is listed or read. A
+worker's state answers the provider its session stands on: the provider the worker is pinned to, else the
+one its held session last answered on, else `claude-code`.
+
+A turn is named from its start: `turn.created` carries its `turnId`, and the send answers with that same
+id once the turn ends. The progress read answers the turn named, on every scope that carries turns, with
+its `id`, `sessionId`, `prompt`, `context`, `state` (`running` or `ended`), `delivery`, `outcome`,
+`answer` and `text`, the last holding every text block the turn has written so far. The progress read
+answers the turn named while it runs, and the session's last turn once it has ended; the interrupt and
+the words pushed into a turn act on the turn going now. Each answers `unknown-turn` where the session
+carries no turn of that id. A session's turn that has ended keeps what it wrote until the session's next
+turn begins.
+
+Every route that takes a body names the request type it reads, holding only the fields that route reads;
+`docs/openapi.json` names that type, and no route's request is a response type reused.
 
 ### turn-contexts
 

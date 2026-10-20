@@ -52,6 +52,7 @@ fn a_failed_turn_carries_its_engines_error_kind_and_null_for_any_other_failure()
     ended(errored(Some("rate_limit"))),
     json!({
       "session": "companion-a@-7",
+      "turn": 0,
       "delivery": "taken",
       "run": "run-1",
       "outcome": "failed",

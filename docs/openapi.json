@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "bmo-agency",
-    "version": "0.1.0-rev.5",
+    "version": "0.1.0-rev.6",
     "description": "The agency's agents, their sessions, turns and runs, the executions on the agent host, the co-worker pool and places, providers, models, tiers and roads, accounts and rest, companions and workers, worker assignments, and the jobs it runs. A job is an item run on a worker for the harness that holds the item: the harness asks for a worker with POST /assignments, then hands the item's content and its lease over with POST /jobs. The agency never calls the job service and keeps no client of it: the run's progress, questions and outcome are its own events and fields, which the harness reads and carries into the job service, where it reports and closes the item; words appended to the item reach the run as the harness sends them into the job's session. Everything it remembers or runs on is an upstream it reaches through what that upstream publishes. It serves only its own nouns: a run with a fixed prompt is an ordinary session started with POST /sessions and the run's prompt document, and that session calls the upstreams it needs through their own MCP servers; no route or tool of the agency forwards to them. It calls no downstream; gate and receiver register at its hook points. It stays one service."
   },
   "servers": [
@@ -395,7 +395,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Hook"
+                "$ref": "#/components/schemas/HookRegistration"
               }
             }
           }
@@ -596,7 +596,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Agent"
+                "$ref": "#/components/schemas/AgentChange"
               }
             }
           }
@@ -744,7 +744,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/PromptDocument"
+                "$ref": "#/components/schemas/PromptDocumentChange"
               }
             }
           }
@@ -781,7 +781,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/DocumentMove"
+                "$ref": "#/components/schemas/DocumentMoveAsk"
               }
             }
           }
@@ -872,7 +872,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Session"
+                "$ref": "#/components/schemas/SessionStart"
               }
             }
           }
@@ -964,7 +964,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Session"
+                "$ref": "#/components/schemas/SessionChange"
               }
             }
           }
@@ -1049,7 +1049,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Turn"
+                "$ref": "#/components/schemas/TurnSend"
               }
             }
           }
@@ -1159,7 +1159,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Turn"
+                "$ref": "#/components/schemas/TurnInterrupt"
               }
             }
           }
@@ -1220,7 +1220,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/TurnInput"
+                "$ref": "#/components/schemas/TurnWords"
               }
             }
           }
@@ -1272,7 +1272,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Answer"
+                "$ref": "#/components/schemas/AnswerAsk"
               }
             }
           }
@@ -1324,7 +1324,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Fold"
+                "$ref": "#/components/schemas/FoldAsk"
               }
             }
           }
@@ -1515,7 +1515,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Run"
+                "$ref": "#/components/schemas/RunOpen"
               }
             }
           }
@@ -1607,7 +1607,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Run"
+                "$ref": "#/components/schemas/RunClose"
               }
             }
           }
@@ -1734,7 +1734,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/LogLine"
+                "$ref": "#/components/schemas/LogLineAsk"
               }
             }
           }
@@ -1825,7 +1825,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Execution"
+                "$ref": "#/components/schemas/ExecutionLaunch"
               }
             }
           }
@@ -1917,7 +1917,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Execution"
+                "$ref": "#/components/schemas/ExecutionChange"
               }
             }
           }
@@ -2007,7 +2007,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/OvertimeRequest"
+                "$ref": "#/components/schemas/OvertimeAnswer"
               }
             }
           }
@@ -2109,7 +2109,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/StopMark"
+                "$ref": "#/components/schemas/StopMarkAsk"
               }
             }
           }
@@ -2251,7 +2251,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/SeatRequest"
+                "$ref": "#/components/schemas/SeatRequestAsk"
               }
             }
           }
@@ -2352,7 +2352,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/SeatRequest"
+                "$ref": "#/components/schemas/SeatRequestChange"
               }
             }
           }
@@ -2425,7 +2425,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Reservation"
+                "$ref": "#/components/schemas/ReservationAsk"
               }
             }
           }
@@ -2477,7 +2477,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Reservation"
+                "$ref": "#/components/schemas/ReservationChange"
               }
             }
           }
@@ -2586,7 +2586,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Place"
+                "$ref": "#/components/schemas/PlaceAsk"
               }
             }
           }
@@ -2678,7 +2678,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Place"
+                "$ref": "#/components/schemas/PlaceChange"
               }
             }
           }
@@ -2797,7 +2797,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Provider"
+                "$ref": "#/components/schemas/ProviderChange"
               }
             }
           }
@@ -2883,7 +2883,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Model"
+                "$ref": "#/components/schemas/ModelChange"
               }
             }
           }
@@ -2975,7 +2975,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Model"
+                "$ref": "#/components/schemas/ModelChange"
               }
             }
           }
@@ -3190,7 +3190,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Tier"
+                "$ref": "#/components/schemas/TierChange"
               }
             }
           }
@@ -3252,7 +3252,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Fallback"
+                "$ref": "#/components/schemas/FallbackChange"
               }
             }
           }
@@ -3403,7 +3403,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/RoadBlock"
+                "$ref": "#/components/schemas/RoadBlockAsk"
               }
             }
           }
@@ -3500,7 +3500,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/LaunchRoom"
+                "$ref": "#/components/schemas/LaunchHeldAsk"
               }
             }
           }
@@ -3599,7 +3599,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Account"
+                "$ref": "#/components/schemas/AccountUsage"
               }
             }
           }
@@ -3661,7 +3661,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Rest"
+                "$ref": "#/components/schemas/RestAsk"
               }
             }
           }
@@ -3779,7 +3779,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Settings"
+                "$ref": "#/components/schemas/SettingsAsk"
               }
             }
           }
@@ -3852,7 +3852,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Companion"
+                "$ref": "#/components/schemas/CompanionAsk"
               }
             }
           }
@@ -3904,7 +3904,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Companion"
+                "$ref": "#/components/schemas/CompanionChange"
               }
             }
           }
@@ -3974,7 +3974,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CompanionReset"
+                "$ref": "#/components/schemas/CompanionResetAsk"
               }
             }
           }
@@ -4036,7 +4036,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Worker"
+                "$ref": "#/components/schemas/WorkerAdd"
               }
             }
           }
@@ -4128,7 +4128,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Worker"
+                "$ref": "#/components/schemas/WorkerChange"
               }
             }
           }
@@ -5188,7 +5188,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/SessionLoads"
+                "$ref": "#/components/schemas/SessionLoadsAsk"
               }
             }
           }
@@ -5537,6 +5537,25 @@
         ],
         "description": "Hook:"
       },
+      "HookRegistration": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string"
+          },
+          "token": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "url",
+          "token"
+        ],
+        "description": "The body that registers a hook's address at a point."
+      },
       "AgentPage": {
         "type": "object",
         "properties": {
@@ -5600,6 +5619,27 @@
         ],
         "description": "Agent:"
       },
+      "AgentChange": {
+        "type": "object",
+        "properties": {
+          "gates": true,
+          "reasoning": true,
+          "role": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "voice": true
+        },
+        "required": [
+          "gates",
+          "reasoning",
+          "role",
+          "voice"
+        ],
+        "description": "The body that changes an agent's gates, reasoning, role or voice."
+      },
       "PromptDocumentPage": {
         "type": "object",
         "properties": {
@@ -5661,6 +5701,63 @@
         ],
         "description": "One of the values the API accepts."
       },
+      "PromptDocumentChange": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "text": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "agent": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "prompt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "action",
+          "name",
+          "label",
+          "text",
+          "agent",
+          "prompt",
+          "by"
+        ],
+        "description": "The body that creates, saves, removes or chooses a prompt document."
+      },
       "DocumentMove": {
         "type": "object",
         "properties": {
@@ -5691,6 +5788,57 @@
           "roomIds"
         ],
         "description": "DocumentMove:"
+      },
+      "DocumentMoveAsk": {
+        "type": "object",
+        "properties": {
+          "paths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "roomIds": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          "rooms": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          "now": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "agent": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "paths",
+          "roomIds",
+          "rooms",
+          "now",
+          "agent"
+        ],
+        "description": "The body that words which session documents moved."
       },
       "SessionPage": {
         "type": "object",
@@ -5803,6 +5951,241 @@
         ],
         "description": "One of the values the API accepts."
       },
+      "SessionStart": {
+        "type": "object",
+        "properties": {
+          "agentName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "agent": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "scope": true,
+          "roomId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "boundMs": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "promptDocumentName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "options": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SessionOptions"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provider": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cwd": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "todo": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "role": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "agentName",
+          "agent",
+          "scope",
+          "roomId",
+          "boundMs",
+          "promptDocumentName",
+          "options",
+          "provider",
+          "model",
+          "cwd",
+          "todo",
+          "role"
+        ],
+        "description": "The body that starts a session: the agent, the scope, the room and the options, with the older\ntop-level names read where the options name none."
+      },
+      "SessionOptions": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cwd": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "todo": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "role": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "provider",
+          "model",
+          "cwd",
+          "todo",
+          "role"
+        ],
+        "description": "What a session's start options name: the provider, the model and the folder a throwaway or a\nconversation's turns go out on, and the item and role a co-work branch's place labels its run with."
+      },
+      "SessionChange": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "options": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SessionChangeOptions"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "holder": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "prefixChangeReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "provider",
+          "model",
+          "options",
+          "holder",
+          "prefixChangeReason"
+        ],
+        "description": "The body that moves a conversation's or a throwaway session's provider and model, or hands a worker's\nsession over."
+      },
+      "SessionChangeOptions": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cwd": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "session": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "thread": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "provider",
+          "model",
+          "cwd",
+          "session",
+          "thread",
+          "note"
+        ],
+        "description": "What a session's change names besides its model and holder."
+      },
       "Turn": {
         "type": "object",
         "properties": {
@@ -5865,6 +6248,281 @@
         ],
         "description": "One of the values the API accepts."
       },
+      "TurnSend": {
+        "type": "object",
+        "properties": {
+          "prompt": {
+            "type": "string"
+          },
+          "context": {
+            "description": "The context as the answer echoes it; the parts below are what the turn reads."
+          },
+          "room": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RoomBlockAsk"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "via": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "basePersona": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "privileged": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "answers": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          "began": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "run": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "parent": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "agent": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "chatId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "step": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "steps": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "workdir": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "desk": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "registration": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "job": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "item": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "provider": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "mapping": true,
+          "resume": true,
+          "cwd": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "thread": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "chat": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "unit": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "user": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "workKey": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "hearsWords": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "variables": true
+        },
+        "required": [
+          "prompt",
+          "context",
+          "room",
+          "via",
+          "basePersona",
+          "privileged",
+          "answers",
+          "began",
+          "run",
+          "parent",
+          "agent",
+          "chatId",
+          "step",
+          "steps",
+          "workdir",
+          "desk",
+          "registration",
+          "job",
+          "item",
+          "provider",
+          "model",
+          "mapping",
+          "resume",
+          "cwd",
+          "name",
+          "title",
+          "thread",
+          "chat",
+          "unit",
+          "user",
+          "workKey",
+          "hearsWords",
+          "variables"
+        ],
+        "description": "The body that sends a turn: its prompt, the context around it, and a job turn's parts."
+      },
+      "RoomBlockAsk": {
+        "type": "object",
+        "properties": {
+          "chatId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "text": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "mark": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "chatId",
+          "text",
+          "mark"
+        ],
+        "description": "A room's block as a turn's body names it."
+      },
+      "TurnInterrupt": {
+        "type": "object",
+        "properties": {
+          "state": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "state"
+        ],
+        "description": "The body that interrupts a turn."
+      },
       "TurnInput": {
         "type": "object",
         "properties": {
@@ -5890,6 +6548,18 @@
         ],
         "description": "One of the values the API accepts."
       },
+      "TurnWords": {
+        "type": "object",
+        "properties": {
+          "words": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "words"
+        ],
+        "description": "The body that pushes words into a working turn."
+      },
       "Answer": {
         "type": "object",
         "properties": {
@@ -5903,6 +6573,30 @@
           "answer"
         ],
         "description": "Answer:"
+      },
+      "AnswerAsk": {
+        "type": "object",
+        "properties": {
+          "questionId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "question": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "answer": true
+        },
+        "required": [
+          "questionId",
+          "question",
+          "answer"
+        ],
+        "description": "The body that answers a question a turn stands on."
       },
       "Fold": {
         "type": "object",
@@ -5921,6 +6615,10 @@
           "at"
         ],
         "description": "Fold:"
+      },
+      "FoldAsk": {
+        "type": "object",
+        "description": "The body a fold takes, which reads nothing."
       },
       "TurnContext": {
         "type": "object",
@@ -6084,6 +6782,114 @@
         ],
         "description": "One of the values the API accepts."
       },
+      "RunOpen": {
+        "type": "object",
+        "properties": {
+          "agent": {
+            "type": "string"
+          },
+          "chatId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "unit": {
+            "type": "string"
+          },
+          "depth": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0
+          },
+          "capMs": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "startedAt": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "startedBy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "searchId": true
+        },
+        "required": [
+          "agent",
+          "chatId",
+          "unit",
+          "depth",
+          "capMs",
+          "startedAt",
+          "startedBy",
+          "searchId"
+        ],
+        "description": "The body that opens a run in the ledger."
+      },
+      "RunClose": {
+        "type": "object",
+        "properties": {
+          "finishedAt": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "outcome": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "contextTokens": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "state": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "finished_at": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The older name for `finishedAt`, read where that is absent."
+          },
+          "context_tokens": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The older name for `contextTokens`, read where that is absent."
+          }
+        },
+        "required": [
+          "finishedAt",
+          "outcome",
+          "contextTokens",
+          "state",
+          "finished_at",
+          "context_tokens"
+        ],
+        "description": "The body that closes a run."
+      },
       "LogLinePage": {
         "type": "object",
         "properties": {
@@ -6149,6 +6955,97 @@
         ],
         "description": "LogLine:"
       },
+      "LogLineAsk": {
+        "type": "object",
+        "properties": {
+          "agent": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "agentName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "run": true,
+          "runId": true,
+          "chat": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "chatId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "job": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "jobId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "text": {
+            "type": "string"
+          },
+          "kind": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "at": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "source": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "state": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "agent",
+          "agentName",
+          "run",
+          "runId",
+          "chat",
+          "chatId",
+          "job",
+          "jobId",
+          "text",
+          "kind",
+          "at",
+          "source",
+          "state"
+        ],
+        "description": "The body that writes a note into a run's log."
+      },
       "ExecutionPage": {
         "type": "object",
         "properties": {
@@ -6197,6 +7094,68 @@
           "cancelled"
         ],
         "description": "Execution:"
+      },
+      "ExecutionLaunch": {
+        "type": "object",
+        "properties": {
+          "runId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "title": {
+            "type": "string"
+          },
+          "agent": {
+            "type": "string"
+          },
+          "command": {
+            "$ref": "#/components/schemas/ProgramAsk"
+          }
+        },
+        "required": [
+          "runId",
+          "title",
+          "agent",
+          "command"
+        ],
+        "description": "The body that launches a run's runner."
+      },
+      "ProgramAsk": {
+        "type": "object",
+        "properties": {
+          "program": {
+            "type": "string"
+          },
+          "args": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "cwd": {
+            "type": "string"
+          },
+          "environment": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "program",
+          "args",
+          "cwd",
+          "environment"
+        ],
+        "description": "A run's runner as a launch names it."
+      },
+      "ExecutionChange": {
+        "type": "object",
+        "description": "The body that cancels an execution or takes the cancel back, which reads nothing."
       },
       "OvertimeRequestPage": {
         "type": "object",
@@ -6273,6 +7232,41 @@
         ],
         "description": "One of the values the API accepts."
       },
+      "OvertimeAnswer": {
+        "type": "object",
+        "properties": {
+          "ask": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "verdict": {
+            "type": "string"
+          },
+          "minutes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "why": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "ask",
+          "verdict",
+          "minutes",
+          "why"
+        ],
+        "description": "The body that answers an overtime request."
+      },
       "StopMark": {
         "type": "object",
         "properties": {
@@ -6295,6 +7289,18 @@
           "at"
         ],
         "description": "StopMark:"
+      },
+      "StopMarkAsk": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "description": "The body that marks a job to stop."
       },
       "Pool": {
         "type": "object",
@@ -6402,6 +7408,130 @@
         ],
         "description": "One of the values the API accepts."
       },
+      "SeatRequestAsk": {
+        "type": "object",
+        "properties": {
+          "requestKey": {
+            "type": "string"
+          },
+          "owner": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "selection": {
+            "type": "string"
+          },
+          "tier": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "provider": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "workKey": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "generation": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "yielding": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "token": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "placeKey": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "requestKey",
+          "owner",
+          "role",
+          "selection",
+          "tier",
+          "provider",
+          "workKey",
+          "generation",
+          "yielding",
+          "token",
+          "placeKey",
+          "source"
+        ],
+        "description": "The body that asks for a co-worker seat."
+      },
+      "SeatRequestChange": {
+        "type": "object",
+        "properties": {
+          "state": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "action": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "childId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "outcome": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cancel": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "state",
+          "action",
+          "childId",
+          "outcome",
+          "cancel"
+        ],
+        "description": "The body that moves a seat request."
+      },
       "ReservationPage": {
         "type": "object",
         "properties": {
@@ -6468,6 +7598,75 @@
           "released"
         ],
         "description": "One of the values the API accepts."
+      },
+      "ReservationAsk": {
+        "type": "object",
+        "properties": {
+          "reservationKey": {
+            "type": "string"
+          },
+          "owner": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "selection": {
+            "type": "string"
+          },
+          "tier": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "provider": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "workKey": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "count": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "required": [
+          "reservationKey",
+          "owner",
+          "source",
+          "role",
+          "selection",
+          "tier",
+          "provider",
+          "workKey",
+          "count"
+        ],
+        "description": "The body that reserves seats for an owner."
+      },
+      "ReservationChange": {
+        "type": "object",
+        "properties": {
+          "outcome": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "outcome"
+        ],
+        "description": "The body that releases a reservation."
       },
       "RolePage": {
         "type": "object",
@@ -6583,6 +7782,141 @@
         ],
         "description": "One of the values the API accepts."
       },
+      "PlaceAsk": {
+        "type": "object",
+        "properties": {
+          "cwd": {
+            "type": "string"
+          },
+          "selection": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "tier": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "held": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": true
+          }
+        },
+        "required": [
+          "cwd",
+          "selection",
+          "role",
+          "tier",
+          "held"
+        ],
+        "description": "The body that takes a branch place."
+      },
+      "PlaceChange": {
+        "type": "object",
+        "properties": {
+          "state": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cwd": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "slot": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "role": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "mode": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "effort": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "upstream": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "used": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          "held": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": true
+          },
+          "provider": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "lastWrite": true
+        },
+        "required": [
+          "state",
+          "source",
+          "cwd",
+          "slot",
+          "role",
+          "mode",
+          "model",
+          "effort",
+          "upstream",
+          "used",
+          "held",
+          "provider",
+          "lastWrite"
+        ],
+        "description": "The body that prepares, remembers or retires a place, or records its last write."
+      },
       "ProviderPage": {
         "type": "object",
         "properties": {
@@ -6625,6 +7959,21 @@
           "coworker"
         ],
         "description": "Provider:"
+      },
+      "ProviderChange": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "description": "The body that throws a provider's switch."
       },
       "ModelPage": {
         "type": "object",
@@ -6678,6 +8027,108 @@
           "healthy"
         ],
         "description": "Model:"
+      },
+      "ModelChange": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "contextTokens": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "answerTokens": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "waitSeconds": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "thinking": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "walked": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "keepsResearch": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "node": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "action",
+          "name",
+          "label",
+          "model",
+          "contextTokens",
+          "answerTokens",
+          "waitSeconds",
+          "thinking",
+          "walked",
+          "keepsResearch",
+          "node",
+          "url",
+          "key"
+        ],
+        "description": "The body that saves or removes a registration, or sets or removes one of its addresses."
       },
       "ModelCatalogueView": {
         "type": "object",
@@ -7067,6 +8518,68 @@
         ],
         "description": "Tier:"
       },
+      "TierChange": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "tier": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "acceptConflicts": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "provider": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "effort": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "answerTokens": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          }
+        },
+        "required": [
+          "action",
+          "tier",
+          "key",
+          "acceptConflicts",
+          "provider",
+          "model",
+          "effort",
+          "answerTokens"
+        ],
+        "description": "The body that assigns a tier to a work key or sets a tier's mapping on a provider."
+      },
       "Fallback": {
         "type": "object",
         "properties": {
@@ -7083,6 +8596,79 @@
           "answering"
         ],
         "description": "Fallback:"
+      },
+      "FallbackChange": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "order": true,
+          "provider": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "enabled": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "account": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "kind": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "path": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "mode": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "action",
+          "order",
+          "provider",
+          "enabled",
+          "account",
+          "name",
+          "kind",
+          "path",
+          "key",
+          "mode"
+        ],
+        "description": "The body that changes the fallback screen's routes, providers and accounts."
       },
       "WorkKey": {
         "type": "object",
@@ -7174,6 +8760,30 @@
         ],
         "description": "RoadBlock:"
       },
+      "RoadBlockAsk": {
+        "type": "object",
+        "properties": {
+          "selection": {
+            "type": "string"
+          },
+          "until": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "selection",
+          "until",
+          "reason"
+        ],
+        "description": "The body that blocks a selection's road."
+      },
       "LaunchRoom": {
         "type": "object",
         "properties": {
@@ -7200,6 +8810,28 @@
           "browserJobCount"
         ],
         "description": "LaunchRoom:"
+      },
+      "LaunchHeldAsk": {
+        "type": "object",
+        "properties": {
+          "held": {
+            "type": "boolean"
+          },
+          "reasons": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "held",
+          "reasons"
+        ],
+        "description": "The body that tells the launcher what holds launches."
       },
       "AccountPage": {
         "type": "object",
@@ -7265,6 +8897,18 @@
         ],
         "description": "Account:"
       },
+      "AccountUsage": {
+        "type": "object",
+        "properties": {
+          "usage": true,
+          "window": true
+        },
+        "required": [
+          "usage",
+          "window"
+        ],
+        "description": "The body that reports a login's session usage."
+      },
       "Rest": {
         "type": "object",
         "properties": {
@@ -7299,6 +8943,43 @@
           "accountId"
         ],
         "description": "Rest:"
+      },
+      "RestAsk": {
+        "type": "object",
+        "properties": {
+          "clearPassed": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "until": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "kind": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "account": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "clearPassed",
+          "until",
+          "kind",
+          "account"
+        ],
+        "description": "The body that writes a rest down."
       },
       "Usage": {
         "type": "object",
@@ -7338,6 +9019,28 @@
           "downgradeReturn"
         ],
         "description": "Settings:"
+      },
+      "SettingsAsk": {
+        "type": "object",
+        "properties": {
+          "keepaliveStopped": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "stopped": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "keepaliveStopped",
+          "stopped"
+        ],
+        "description": "The body that throws the warming switch."
       },
       "CompanionPage": {
         "type": "object",
@@ -7394,6 +9097,97 @@
         ],
         "description": "Companion:"
       },
+      "CompanionAsk": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "worker": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "label",
+          "provider",
+          "model",
+          "worker"
+        ],
+        "description": "The body that adds a companion."
+      },
+      "CompanionChange": {
+        "type": "object",
+        "properties": {
+          "agent": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "referenceOn": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "ownPieces": true,
+          "pieces": true,
+          "persona": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "registration": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "recollectorModel": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "generation": true,
+          "thinking": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "agent",
+          "by",
+          "referenceOn",
+          "ownPieces",
+          "pieces",
+          "persona",
+          "registration",
+          "recollectorModel",
+          "generation",
+          "thinking"
+        ],
+        "description": "The body that changes a companion."
+      },
       "CompanionReset": {
         "type": "object",
         "properties": {
@@ -7416,6 +9210,40 @@
           "stayed"
         ],
         "description": "CompanionReset:"
+      },
+      "CompanionResetAsk": {
+        "type": "object",
+        "properties": {
+          "agent": {
+            "type": "string"
+          },
+          "conversation": true,
+          "person": true,
+          "alone": true,
+          "shared": true,
+          "dryRun": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "agent",
+          "conversation",
+          "person",
+          "alone",
+          "shared",
+          "dryRun",
+          "by"
+        ],
+        "description": "The body that asks for a companion reset."
       },
       "WorkerPage": {
         "type": "object",
@@ -7516,6 +9344,119 @@
           "lastRunAt"
         ],
         "description": "Worker:"
+      },
+      "WorkerAdd": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cwd": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "icon": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "role": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "nodeName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "label",
+          "cwd",
+          "icon",
+          "role",
+          "nodeName"
+        ],
+        "description": "The body that adds a worker."
+      },
+      "WorkerChange": {
+        "type": "object",
+        "properties": {
+          "sampling": true,
+          "nodeName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "node": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cwd": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "icon": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "role": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "stand": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "bench": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "sampling",
+          "nodeName",
+          "node",
+          "label",
+          "cwd",
+          "icon",
+          "role",
+          "stand",
+          "bench"
+        ],
+        "description": "The body that changes a worker."
       },
       "WorkerDefinition": {
         "type": "object",
@@ -8046,6 +9987,19 @@
           "documents"
         ],
         "description": "SessionLoads:"
+      },
+      "SessionLoadsAsk": {
+        "type": "object",
+        "properties": {
+          "documents": {
+            "type": "array",
+            "items": true
+          }
+        },
+        "required": [
+          "documents"
+        ],
+        "description": "The body that keeps a session's loads."
       },
       "SessionSummary": {
         "type": "object",

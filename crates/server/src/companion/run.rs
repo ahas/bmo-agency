@@ -30,6 +30,7 @@ use crate::queue::running::EXECUTION_CANCEL_PREFIX;
 use crate::queue::settings;
 use crate::run_log::RunLog;
 use crate::run_log::lines::Line;
+use crate::session_output::OutputWatch;
 
 // The provider whose program is Claude Code's own, which puts its turns through its transcript itself.
 const CLAUDE_CODE: &str = "claude-code";
@@ -81,6 +82,8 @@ pub struct Watched<'a> {
   pub last_tally: Instant,
   /// Why its guard cut the run, once it has.
   pub cut: Option<String>,
+  /// Where the answer's text goes while the turn runs, for a reader of the session.
+  pub shown: Option<OutputWatch<'a>>,
 }
 
 impl<'a> Watched<'a> {
@@ -147,6 +150,19 @@ impl Watch for Watched<'_> {
 
   async fn record(&mut self, lines: &[String]) {
     let written = self.feed(lines).await;
+
+    if let Some(shown) = &self.shown {
+      let texts: Vec<String> = written
+        .iter()
+        .filter(|line| line.kind == "text")
+        .map(|line| line.text.clone())
+        .collect();
+
+      if !texts.is_empty() {
+        shown.wrote(&texts);
+      }
+    }
+
     let mut counted = false;
     let mut reason = None;
 
@@ -333,6 +349,7 @@ pub async fn run_turn(
   log: &mut RunLog,
   guarded: bool,
   tally: Option<&Tally<'_>>,
+  shown: Option<OutputWatch<'_>>,
 ) -> Result<Reply, NoAnswer> {
   let failure = |why: String| NoAnswer::Failed(why);
   let row = AgentRow::named(&ground.db, agent)
@@ -363,6 +380,7 @@ pub async fn run_turn(
     started: Instant::now(),
     last_tally: Instant::now(),
     cut: None,
+    shown,
   };
   let resident = harness_providers::provider(provider)
     .and_then(|declared| declared.declared().resident.as_ref())

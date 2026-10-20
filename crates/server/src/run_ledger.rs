@@ -35,18 +35,20 @@ impl SearchId {
 
 /// What a run is opened with.
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Opening {
   pub agent: String,
-  #[serde(default)]
+  #[serde(default, alias = "chat_id")]
   pub chat_id: Option<i64>,
   pub unit: String,
   pub depth: u32,
-  #[serde(default)]
+  #[serde(default, alias = "cap_ms")]
   pub cap_ms: Option<i64>,
+  #[serde(alias = "started_at")]
   pub started_at: i64,
-  #[serde(default)]
+  #[serde(default, alias = "started_by")]
   pub started_by: Option<String>,
-  #[serde(default)]
+  #[serde(default, alias = "search_id")]
   pub search_id: Option<SearchId>,
 }
 

@@ -1076,3 +1076,553 @@ pub struct SessionWorkChange {
 pub struct SessionSummaryWrite {
   pub text: String,
 }
+
+/// The body that registers a hook's address at a point.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct HookRegistration {
+  pub url: String,
+  pub token: Option<String>,
+}
+
+/// The body that changes an agent's gates, reasoning, role or voice.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentChange {
+  pub gates: Option<Value>,
+  pub reasoning: Option<Value>,
+  pub role: Option<String>,
+  pub voice: Option<Value>,
+}
+
+/// The body that creates, saves, removes or chooses a prompt document.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PromptDocumentChange {
+  pub action: Option<String>,
+  pub name: Option<String>,
+  pub label: Option<String>,
+  pub text: Option<String>,
+  pub agent: Option<String>,
+  pub prompt: Option<String>,
+  pub by: Option<String>,
+}
+
+/// The body that words which session documents moved.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct DocumentMoveAsk {
+  pub paths: Vec<String>,
+  pub room_ids: Option<Vec<i64>>,
+  pub rooms: Option<Vec<i64>>,
+  pub now: Option<bool>,
+  pub agent: Option<String>,
+}
+
+/// What a session's start options name: the provider, the model and the folder a throwaway or a
+/// conversation's turns go out on, and the item and role a co-work branch's place labels its run with.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionOptions {
+  pub provider: Option<String>,
+  pub model: Option<String>,
+  pub cwd: Option<String>,
+  pub todo: Option<i64>,
+  pub role: Option<String>,
+}
+
+/// The body that starts a session: the agent, the scope, the room and the options, with the older
+/// top-level names read where the options name none.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionStart {
+  pub agent_name: Option<String>,
+  pub agent: Option<String>,
+  pub scope: Value,
+  pub room_id: Option<i64>,
+  pub bound_ms: Option<i64>,
+  pub prompt_document_name: Option<String>,
+  pub options: Option<SessionOptions>,
+  pub provider: Option<String>,
+  pub model: Option<String>,
+  pub cwd: Option<String>,
+  pub todo: Option<i64>,
+  pub role: Option<String>,
+}
+
+/// What a session's change names besides its model and holder.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionChangeOptions {
+  pub provider: Option<String>,
+  pub model: Option<String>,
+  pub cwd: Option<String>,
+  pub session: Option<String>,
+  pub thread: Option<String>,
+  pub note: Option<String>,
+}
+
+/// The body that moves a conversation's or a throwaway session's provider and model, or hands a worker's
+/// session over.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionChange {
+  pub provider: Option<String>,
+  pub model: Option<String>,
+  pub options: Option<SessionChangeOptions>,
+  pub holder: Option<String>,
+  pub prefix_change_reason: Option<String>,
+}
+
+/// A room's block as a turn's body names it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RoomBlockAsk {
+  pub chat_id: i64,
+  pub text: Option<String>,
+  pub mark: Option<String>,
+}
+
+/// A job turn's parts as its runner names them.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkPartsAsk {
+  pub provider: Option<String>,
+  pub model: Option<String>,
+  pub mapping: Option<Value>,
+  pub resume: Option<Value>,
+  pub cwd: Option<String>,
+  pub name: Option<String>,
+  pub title: Option<String>,
+  pub thread: Option<String>,
+  pub chat: Option<i64>,
+  pub unit: Option<String>,
+  pub user: Option<String>,
+  pub work_key: Option<String>,
+  pub hears_words: Option<bool>,
+  pub variables: Option<Value>,
+}
+
+/// The body that sends a turn: its prompt, the context around it, and a job turn's parts.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct TurnSend {
+  pub prompt: String,
+  /// The context as the answer echoes it; the parts below are what the turn reads.
+  pub context: Option<Value>,
+  pub room: Option<RoomBlockAsk>,
+  pub via: Option<String>,
+  pub base_persona: Option<String>,
+  pub privileged: Option<bool>,
+  pub answers: Option<Vec<i64>>,
+  pub began: Option<i64>,
+  pub run: Option<String>,
+  pub parent: Option<String>,
+  pub agent: Option<String>,
+  pub chat_id: Option<i64>,
+  pub step: Option<i64>,
+  pub steps: Option<i64>,
+  pub workdir: Option<String>,
+  pub desk: Option<String>,
+  pub registration: Option<String>,
+  pub job: Option<i64>,
+  pub item: Option<i64>,
+  pub provider: Option<String>,
+  pub model: Option<String>,
+  pub mapping: Option<Value>,
+  pub resume: Option<Value>,
+  pub cwd: Option<String>,
+  pub name: Option<String>,
+  pub title: Option<String>,
+  pub thread: Option<String>,
+  pub chat: Option<i64>,
+  pub unit: Option<String>,
+  pub user: Option<String>,
+  pub work_key: Option<String>,
+  pub hears_words: Option<bool>,
+  pub variables: Option<Value>,
+}
+
+/// The body that interrupts a turn.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct TurnInterrupt {
+  pub state: Option<String>,
+}
+
+/// The body that pushes words into a working turn.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct TurnWords {
+  pub words: String,
+}
+
+/// The body that answers a question a turn stands on.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct AnswerAsk {
+  pub question_id: Option<String>,
+  pub question: Option<String>,
+  pub answer: Value,
+}
+
+/// The body a fold takes, which reads nothing.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct FoldAsk {}
+
+/// The body that opens a run in the ledger.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RunOpen {
+  pub agent: String,
+  pub chat_id: Option<i64>,
+  pub unit: String,
+  pub depth: u32,
+  pub cap_ms: Option<i64>,
+  pub started_at: i64,
+  pub started_by: Option<String>,
+  pub search_id: Option<Value>,
+}
+
+/// The body that closes a run.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RunClose {
+  pub finished_at: Option<i64>,
+  pub outcome: Option<String>,
+  pub context_tokens: Option<i64>,
+  pub state: Option<String>,
+  /// The older name for `finishedAt`, read where that is absent.
+  #[serde(rename = "finished_at")]
+  pub finished_at_legacy: Option<i64>,
+  /// The older name for `contextTokens`, read where that is absent.
+  #[serde(rename = "context_tokens")]
+  pub context_tokens_legacy: Option<i64>,
+}
+
+/// The body that writes a note into a run's log.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct LogLineAsk {
+  pub agent: Option<String>,
+  pub agent_name: Option<String>,
+  pub run: Option<Value>,
+  pub run_id: Option<Value>,
+  pub chat: Option<i64>,
+  pub chat_id: Option<i64>,
+  pub job: Option<i64>,
+  pub job_id: Option<i64>,
+  pub text: String,
+  pub kind: Option<String>,
+  pub at: Option<i64>,
+  pub source: Option<String>,
+  pub state: Option<String>,
+}
+
+/// A run's runner as a launch names it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ProgramAsk {
+  pub program: String,
+  pub args: Vec<String>,
+  pub cwd: String,
+  pub environment: std::collections::BTreeMap<String, String>,
+}
+
+/// The body that launches a run's runner.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ExecutionLaunch {
+  pub run_id: Option<i64>,
+  pub title: String,
+  pub agent: String,
+  pub command: ProgramAsk,
+}
+
+/// The body that cancels an execution or takes the cancel back, which reads nothing.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ExecutionChange {}
+
+/// The body that answers an overtime request.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct OvertimeAnswer {
+  pub ask: Option<i64>,
+  pub verdict: String,
+  pub minutes: Option<i64>,
+  pub why: Option<String>,
+}
+
+/// The body that marks a job to stop.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct StopMarkAsk {
+  pub reason: String,
+}
+
+/// What a seat request or a reservation asks of the pool.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PoolWanted {
+  pub role: String,
+  pub selection: String,
+  pub tier: Option<String>,
+  pub provider: Option<String>,
+  pub work_key: Option<String>,
+}
+
+/// The body that asks for a co-worker seat.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SeatRequestAsk {
+  pub request_key: String,
+  pub owner: String,
+  pub role: String,
+  pub selection: String,
+  pub tier: Option<String>,
+  pub provider: Option<String>,
+  pub work_key: Option<String>,
+  pub generation: Option<i64>,
+  pub yielding: Option<bool>,
+  pub token: Option<String>,
+  pub place_key: Option<String>,
+  pub source: Option<String>,
+}
+
+/// The body that moves a seat request.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SeatRequestChange {
+  pub state: Option<String>,
+  pub action: Option<String>,
+  pub child_id: Option<String>,
+  pub outcome: Option<String>,
+  pub cancel: Option<bool>,
+}
+
+/// The body that reserves seats for an owner.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ReservationAsk {
+  pub reservation_key: String,
+  pub owner: String,
+  pub source: String,
+  pub role: String,
+  pub selection: String,
+  pub tier: Option<String>,
+  pub provider: Option<String>,
+  pub work_key: Option<String>,
+  pub count: i64,
+}
+
+/// The body that releases a reservation.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ReservationChange {
+  pub outcome: Option<String>,
+}
+
+/// The body that takes a branch place.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PlaceAsk {
+  pub cwd: String,
+  pub selection: String,
+  pub role: String,
+  pub tier: Option<String>,
+  pub held: Option<Vec<Value>>,
+}
+
+/// The body that prepares, remembers or retires a place, or records its last write.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PlaceChange {
+  pub state: Option<String>,
+  pub source: Option<String>,
+  pub cwd: Option<String>,
+  pub slot: Option<i64>,
+  pub role: Option<String>,
+  pub mode: Option<String>,
+  pub model: Option<String>,
+  pub effort: Option<String>,
+  pub upstream: Option<String>,
+  pub used: Option<Vec<i64>>,
+  pub held: Option<Vec<Value>>,
+  pub provider: Option<String>,
+  pub last_write: Option<Value>,
+}
+
+/// The body that throws a provider's switch.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderChange {
+  pub enabled: Option<bool>,
+}
+
+/// The body that saves or removes a registration, or sets or removes one of its addresses.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelChange {
+  pub action: Option<String>,
+  pub name: Option<String>,
+  pub label: Option<String>,
+  pub model: Option<String>,
+  pub context_tokens: Option<i64>,
+  pub answer_tokens: Option<i64>,
+  pub wait_seconds: Option<i64>,
+  pub thinking: Option<bool>,
+  pub walked: Option<bool>,
+  pub keeps_research: Option<bool>,
+  pub node: Option<String>,
+  pub url: Option<String>,
+  pub key: Option<String>,
+}
+
+/// The body that assigns a tier to a work key or sets a tier's mapping on a provider.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct TierChange {
+  pub action: String,
+  pub tier: Option<String>,
+  pub key: Option<String>,
+  pub accept_conflicts: Option<bool>,
+  pub provider: Option<String>,
+  pub model: Option<String>,
+  pub effort: Option<String>,
+  pub answer_tokens: Option<i64>,
+}
+
+/// The body that changes the fallback screen's routes, providers and accounts.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct FallbackChange {
+  pub action: Option<String>,
+  pub order: Option<Value>,
+  pub provider: Option<String>,
+  pub enabled: Option<bool>,
+  pub account: Option<String>,
+  pub name: Option<String>,
+  pub kind: Option<String>,
+  pub path: Option<String>,
+  pub key: Option<String>,
+  pub mode: Option<String>,
+}
+
+/// The body that blocks a selection's road.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RoadBlockAsk {
+  pub selection: String,
+  pub until: i64,
+  pub reason: Option<String>,
+}
+
+/// The body that tells the launcher what holds launches.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct LaunchHeldAsk {
+  pub held: bool,
+  pub reasons: Option<Vec<String>>,
+}
+
+/// The body that reports a login's session usage.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountUsage {
+  pub usage: Option<Value>,
+  pub window: Option<Value>,
+}
+
+/// The body that writes a rest down.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RestAsk {
+  pub clear_passed: Option<bool>,
+  pub until: Option<f64>,
+  pub kind: Option<String>,
+  pub account: Option<String>,
+}
+
+/// The body that throws the warming switch.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SettingsAsk {
+  pub keepalive_stopped: Option<bool>,
+  pub stopped: Option<bool>,
+}
+
+/// The body that adds a companion.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CompanionAsk {
+  pub name: String,
+  pub label: String,
+  pub provider: String,
+  pub model: String,
+  pub worker: String,
+}
+
+/// The body that changes a companion.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CompanionChange {
+  pub agent: Option<String>,
+  pub by: Option<String>,
+  pub reference_on: Option<bool>,
+  pub own_pieces: Option<Value>,
+  pub pieces: Option<Value>,
+  pub persona: Option<String>,
+  pub registration: Option<String>,
+  pub recollector_model: Option<String>,
+  pub generation: Option<Value>,
+  pub thinking: Option<bool>,
+}
+
+/// The body that asks for a companion reset.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CompanionResetAsk {
+  pub agent: String,
+  pub conversation: Option<Value>,
+  pub person: Option<Value>,
+  pub alone: Option<Value>,
+  pub shared: Option<Value>,
+  pub dry_run: Option<bool>,
+  pub by: Option<String>,
+}
+
+/// The body that adds a worker.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkerAdd {
+  pub name: String,
+  pub label: Option<String>,
+  pub cwd: Option<String>,
+  pub icon: Option<String>,
+  pub role: Option<String>,
+  pub node_name: Option<String>,
+}
+
+/// The body that changes a worker.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkerChange {
+  pub sampling: Option<Value>,
+  pub node_name: Option<String>,
+  pub node: Option<String>,
+  pub label: Option<String>,
+  pub cwd: Option<String>,
+  pub icon: Option<String>,
+  pub role: Option<String>,
+  pub stand: Option<bool>,
+  pub bench: Option<bool>,
+}
+
+/// The body that keeps a session's loads.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionLoadsAsk {
+  pub documents: Vec<Value>,
+}

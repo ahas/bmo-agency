@@ -39,7 +39,7 @@ fn backend(call: &Call) -> Result<Shared, Refused> {
 // A fault as its route answers it: the status its kind stands for, its outcome code and why.
 fn faulted(fault: Fault) -> Response {
   let status = match fault.kind {
-    FaultKind::Unknown => StatusCode::NOT_FOUND,
+    FaultKind::Unknown | FaultKind::UnknownTurn => StatusCode::NOT_FOUND,
     FaultKind::Busy => StatusCode::CONFLICT,
     FaultKind::Unreachable => StatusCode::SERVICE_UNAVAILABLE,
     FaultKind::Refused => StatusCode::UNPROCESSABLE_ENTITY,
@@ -192,6 +192,14 @@ pub fn state_value(state: &State) -> Value {
 
 fn bad(error: impl Into<String>) -> Refused {
   Refused::new(StatusCode::BAD_REQUEST, error)
+}
+
+// The turn a path names, or why it names none.
+fn turn_asked(call: &Call) -> Result<i64, Refused> {
+  call
+    .param("turnId")
+    .and_then(|id| id.trim().parse::<i64>().ok())
+    .ok_or_else(|| bad("turnId (a whole number) is required"))
 }
 
 fn text<'a>(body: &'a Value, field: &str) -> Result<&'a str, Refused> {
@@ -425,7 +433,7 @@ impl Route for SessionTurn {
         answer(
           StatusCode::CREATED,
           json!({
-            "id": crate::now_ms(),
+            "id": end.turn,
             "sessionId": session,
             "prompt": text(&body, "prompt")?,
             "context": body.get("context").cloned().unwrap_or_else(|| json!({})),
@@ -454,9 +462,10 @@ impl Route for SessionPush {
   async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
     let body = call.body().await?;
     let session = SessionId(call.param("sessionId").unwrap_or_default().to_owned());
+    let turn = turn_asked(&call)?;
     let words = text(&body, "words")?.to_owned();
 
-    Ok(match backend(&call)?.push(&session, &words).await {
+    Ok(match backend(&call)?.push(&session, turn, &words).await {
       Ok(said) => answer(StatusCode::CREATED, json!({ "words": words, "said": said_word(said) })),
       Err(fault) => faulted(fault),
     })
@@ -778,13 +787,13 @@ impl Route for SessionOutput {
 
   async fn answer(&self, call: Call) -> Result<Response, Refused> {
     let session = SessionId(call.param("sessionId").unwrap_or_default().to_owned());
-    let turn: i64 = call.param("turnId").and_then(|id| id.parse().ok()).unwrap_or_else(crate::now_ms);
+    let turn = turn_asked(&call)?;
 
-    Ok(match backend(&call)?.output(&session).await {
+    Ok(match backend(&call)?.output(&session, Some(turn)).await {
       Ok(output) => answer(
         StatusCode::OK,
         json!({
-          "id": turn,
+          "id": output.turn,
           "sessionId": session.0,
           "prompt": "",
           "context": {},
@@ -812,13 +821,13 @@ impl Route for SessionInterrupt {
   async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
     let asked = call.body().await?;
     let session = SessionId(call.param("sessionId").unwrap_or_default().to_owned());
-    let turn: i64 = call.param("turnId").and_then(|id| id.parse().ok()).unwrap_or_else(crate::now_ms);
+    let turn = turn_asked(&call)?;
 
     if asked.get("state").and_then(Value::as_str).is_some_and(|state| state != "interrupted") {
       return Err(bad("a turn is interrupted, not moved to another state"));
     }
 
-    Ok(match backend(&call)?.interrupt(&session).await {
+    Ok(match backend(&call)?.interrupt(&session, turn).await {
       Ok(()) => answer(
         StatusCode::OK,
         json!({

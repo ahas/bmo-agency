@@ -25,7 +25,7 @@
     },
     "client": {
       "name": "@agency/client",
-      "version": "0.1.0-rev.5",
+      "version": "0.1.0-rev.6",
       "dependencies": {
         "openapi-fetch": "0.17.0",
       },
