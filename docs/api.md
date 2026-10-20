@@ -442,7 +442,7 @@ input, so `bmo` finds it from any directory.
 
 ## The harness plugin
 
-The service publishes `ahas-agency` beside its client: `bmo-agency mcp` serves the MCP server, and each
+The service publishes `bmo-agency` beside its client: `bmo-agency mcp` serves the MCP server, and each
 tool is a thin call of one route through the agency's own client.
 
 - `assign_worker` calls `POST /assignments`.

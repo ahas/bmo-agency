@@ -29,7 +29,7 @@
     "chat"
   ],
   "x-harness": {
-    "plugin": "ahas-agency",
+    "plugin": "bmo-agency",
     "mcp": "bmo-agency mcp",
     "entry": "A harness holding an item asks for a worker with agency_assign_worker, hands the item and its lease over with agency_run_job, and reads the job's progress and outcome from the job's events and fields."
   },

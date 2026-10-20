@@ -2553,7 +2553,7 @@ pub fn openapi() -> Value {
     "x-layer": "downstream",
     "x-stage": 5,
     "x-calls": CALLS,
-    "x-harness": { "plugin": "ahas-agency", "mcp": "bmo-agency mcp", "entry": ENTRY },
+    "x-harness": { "plugin": "bmo-agency", "mcp": "bmo-agency mcp", "entry": ENTRY },
     "x-events": EVENTS,
     "tags": tags.iter().map(|tag| json!({ "name": tag })).collect::<Vec<_>>(),
     "paths": paths,

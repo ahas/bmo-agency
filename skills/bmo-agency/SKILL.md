@@ -1,9 +1,9 @@
 ---
-name: ahas-agency
+name: bmo-agency
 description: Run an item on one of the agency's workers with the bmo-agency MCP server. Use when a harness holds an item and should have a worker run it: ask for a worker with assign_worker, hand the item and the lease over with run_job, and read the job's progress and outcome from its fields and events.
 ---
 
-# ahas-agency
+# bmo-agency
 
 The agency supplies, delivers and controls agents. For a harness holding an item, it assigns a worker to
 that item and runs it there. The harness keeps the item: it takes the lease, renews it while the run lasts,
