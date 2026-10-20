@@ -4,11 +4,10 @@ testbed = 0
 name = "agency"
 
 [test]
-# The Cargo workspace's crates, the root package's test groups among them. The TypeScript tests under
-# tests/ts are not a file language here: the testbed runs a bun file from the root, where the preload
-# tests/ts/bunfig.toml names is not read, and that preload is what moves every test file into a home of
-# its own before its first line. They run by `bun test` from tests/ts.
-languages = ["cargo"]
+# The Cargo workspace's crates, the root package's test groups among them, and the TypeScript test files
+# under tests/ts. Each TypeScript test file imports its setup first, so it runs from any folder; the
+# bunfig.toml in tests/ts preloads the same setup for a run started there.
+languages = ["cargo", "bun"]
 # A release runs the TypeScript half of agency, so its packages are installed in every fresh tree.
 setup = ["cd ts && bun install --frozen-lockfile"]
 

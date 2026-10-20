@@ -1,3 +1,5 @@
+import "@agency/test-support/setup";
+
 import { describe, expect, test } from "bun:test";
 import { mkdirSync, writeFileSync, utimesSync } from "node:fs";
 import { join } from "node:path";

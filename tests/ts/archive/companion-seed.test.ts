@@ -1,3 +1,5 @@
+import "@agency/test-support/setup";
+
 import { describe, expect, test } from "bun:test";
 
 import { scratchArchive } from "@agency/test-support/store";

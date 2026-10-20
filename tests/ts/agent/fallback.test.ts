@@ -1,3 +1,5 @@
+import "@agency/test-support/setup";
+
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from "bun:test";

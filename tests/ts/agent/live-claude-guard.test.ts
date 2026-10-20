@@ -1,3 +1,5 @@
+import "@agency/test-support/setup";
+
 import { installProviderSettings, setProviderEnabled } from "@agency/agent/provider-order";
 import { guardClaudeLaunch, guardHerdrCall, guardPanePrompt } from "@agency/agent/live-claude-guard";
 import { describe, expect, test } from "bun:test";

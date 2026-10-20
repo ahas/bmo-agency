@@ -1,3 +1,5 @@
+import "@agency/test-support/setup";
+
 import { join } from "node:path";
 import { describe, expect, test } from "bun:test";
 

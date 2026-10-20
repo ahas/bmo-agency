@@ -1,3 +1,5 @@
+import "@agency/test-support/setup";
+
 import { beforeAll, afterAll } from "bun:test";
 import { processPaneFixture } from "./pane-process-fixture";
 let processFixture: ReturnType<typeof processPaneFixture>;

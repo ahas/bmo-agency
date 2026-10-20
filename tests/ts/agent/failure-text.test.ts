@@ -1,3 +1,5 @@
+import "@agency/test-support/setup";
+
 import { describe, expect, test } from "bun:test";
 
 import { failureText, failureTextLimit } from "@agency/agent/failure-text";

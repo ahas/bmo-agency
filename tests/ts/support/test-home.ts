@@ -5,8 +5,8 @@ import { join } from "node:path";
 
 import { deployUnitMarker, PLACE_VARIABLE, REFUSED_LOG, rootVariables, TEST_HOME_VARIABLE } from "@agency/support/roots";
 
-// The home every test file runs in, set up before the file's first line (`tests/ts/bunfig.toml`
-// preloads it).
+// The home every test file runs in, set up before the file's first line: each test file imports
+// `./setup` first, and `tests/ts/bunfig.toml` preloads it for a run started in that folder.
 //
 // The cache siren reads what the Claude Code CLI writes under its own directory as real spending,
 // and a stand-in's record there looks exactly like a real one. So no test writes there, starts the

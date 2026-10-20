@@ -1,3 +1,5 @@
+import "@agency/test-support/setup";
+
 import { expect, test } from "bun:test";
 import { Archive } from "@agency/archive/archive";
 import { beginExecution } from "@agency/agent/execution-identity";

@@ -1,3 +1,5 @@
+import "@agency/test-support/setup";
+
 import { describe, expect, test } from "bun:test";
 
 import { choiceKeys, confirmationKey, confirmationOf } from "@agency/agent/pane-confirm";

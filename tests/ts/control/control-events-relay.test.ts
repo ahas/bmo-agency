@@ -1,3 +1,5 @@
+import "@agency/test-support/setup";
+
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { agencyEventsRelayed, controlServer, emitAgencyEvent } from "@agency/agent/events";

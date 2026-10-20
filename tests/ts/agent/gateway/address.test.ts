@@ -1,3 +1,5 @@
+import "@agency/test-support/setup";
+
 import { afterEach, describe, expect, test } from "bun:test";
 
 import { defaultGatewayUrl, gatewaySamplingHeaders, gatewayUrl } from "@agency/agent/gateway/address";

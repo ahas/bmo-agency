@@ -1,3 +1,5 @@
+import "@agency/test-support/setup";
+
 import { Archive } from "@agency/archive/archive";
 import { installProviderSettings, setProviderEnabled } from "@agency/agent/provider-order";
 import { beforeEach, afterAll, afterEach, describe, expect, test } from "bun:test";

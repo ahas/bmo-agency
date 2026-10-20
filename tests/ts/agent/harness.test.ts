@@ -1,3 +1,5 @@
+import "@agency/test-support/setup";
+
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { readClaudeOutput } from "@agency/agent/claude";

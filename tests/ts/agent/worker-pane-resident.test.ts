@@ -1,3 +1,5 @@
+import "@agency/test-support/setup";
+
 import { mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, describe, expect, test } from "bun:test";

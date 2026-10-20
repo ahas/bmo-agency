@@ -1,3 +1,5 @@
+import "@agency/test-support/setup";
+
 import { rmSync } from "node:fs";
 import { afterAll, describe, expect, test } from "bun:test";
 

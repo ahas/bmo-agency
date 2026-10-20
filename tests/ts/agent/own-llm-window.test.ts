@@ -1,3 +1,5 @@
+import "@agency/test-support/setup";
+
 import { afterEach, expect, test } from "bun:test";
 import { join } from "node:path";
 

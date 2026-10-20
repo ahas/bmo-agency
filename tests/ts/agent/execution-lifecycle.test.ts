@@ -1,3 +1,5 @@
+import "@agency/test-support/setup";
+
 import { test, expect } from "bun:test";
 import { paneTurnEnding } from "@agency/agent/worker-pane";
 

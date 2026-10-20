@@ -1,3 +1,5 @@
+import "@agency/test-support/setup";
+
 import { describe, expect, test } from "bun:test";
 
 import { instructionOf, maxBranchLines, WorkflowTrail } from "@agency/agent/workflow-log";
