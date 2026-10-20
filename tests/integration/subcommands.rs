@@ -10,6 +10,8 @@ use crate::binary;
 /// Every subcommand path the deployment, an agent's settings, a hook or a pane runs.
 const SUBCOMMANDS: &[&[&str]] = &[
   &["agent"],
+  &["agent", "status"],
+  &["agent-status"],
   &["node", "claude-token"],
   &["node", "pane"],
   &["node", "work"],

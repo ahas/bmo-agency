@@ -398,6 +398,36 @@ A kind agency keeps to its own processes does not cross the stream.
 - **`runs`, `agent_log`, `run_records`, `agent_executions`** carry a run's ledger, its log lines, its
   records and the executions agency recorded.
 
+## The command
+
+`bmo-agency` is agency's unit command (bmo-cli's `docs/api.md`, 「The unit command」). Asked `nouns`, it prints
+the nouns `bmo` dispatches to it, one a line, each marked `home` after a tab where its commands act on the
+operations machine. It answers with nothing of the machine read: no settings, no data root and no standard
+input, so `bmo` finds it from any directory.
+
+| Noun | Takes | Calls |
+|---|---|---|
+| `agent` (`agents`) | the agent flags `--help` prints: the provider and account orders, the accounts, the registered models, a route and its model, and a worker's rows and an agent's thinking, effort and gates | the store at the data root, and the service for what it must be told |
+| `agent status` (`agent-status`) | `status`, `stop`, `failure`, `submit`, `start` or `shell`, `--place <dir>`, `--hold-tasks`, `--hold-wording` or `--compose-typed` | the agent's place, and the service for a typed line |
+| `model` (`models`) | `add`, `set`, `remove`, `use` or `run-use`, with an entry's file, bytes, hash, engine, registration and settings; `--entry` and `--placed` for an installer; `--json` | the store's model catalogue |
+| `coworker pool` | `reserve --role <role> [--tier <tier>] --count <n>` or `release` | the store's pool |
+| `coworker hook` | the hook's input on standard input | the store's pool |
+| `worker fold` | `--worker <worker>`, `--model <model>`, `--all` or `--dry-run` | the workers' sessions, and the store |
+| `reload` | `--path <file>`, repeatable, and `--now` | the store, the checkouts and the deploy tree, and the service for the documents moved |
+| `node work` (`work-node`) | `setup <node> [--root <dir>] [--install]`, `check`, `sync`, `runs <node> on\|off` or `remove <node>`; no step lists the workplaces | the store, the node service and herdr |
+| `node claude-token` | `<account>`, and `--paste` to take a token from standard input | the store, and the account's program on this machine |
+| `node pane` (`node-pane`) | `<node>` | the node service, and the login its pane starts |
+| `dev-server` | `start`, `restart` or `stop <worker>`; `list [--sweep]`; `pane <worker>` | the worker's workbench and dev-server pane, and the store |
+| `dev-pane` | `<worker>` | the worker's dev-server pane, and the store |
+| `companion follow` | `<room> --agent <agent> [--version <version>]` | the store, as the room is kept and its turns are appended |
+| `claude batch` | `--model`, `--effort`, `--config-dir`, `--system-file`, `--title` and `--bound-seconds`, with the batch on standard input | the provider's program on this machine |
+| `live-claude` | `--purpose <what it measures and why>`, or `--list` | the store's run ledger |
+
+- **Every noun prints English** and ends with 0, with 1 where its work failed, and with 2 where its words
+  are wrong; `--help` prints a noun's whole usage.
+- **`agent status` and `agent-status` are one noun:** the two-word spelling is read as the command's own
+  `agent-status`, and both reach the same hooks and shell guard.
+
 ## The harness plugin
 
 The service publishes `ahas-agency` beside its client: `bmo-agency mcp` serves the MCP server, and each

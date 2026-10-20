@@ -6,6 +6,7 @@
 //! and ends with its own code; a refusal is said on the error stream.
 
 use std::collections::BTreeMap;
+use std::ffi::OsString;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
@@ -28,6 +29,32 @@ use harness_providers::Machine;
 use rmcp::ServiceExt;
 use rmcp::transport::stdio;
 
+/// The nouns `bmo` dispatches to this command, one a line as `nouns` prints them, each marked `home` after
+/// a tab where its commands act on the operations machine (bmo-cli's `docs/api.md`, 「The nouns a unit
+/// declares」; `docs/api.md`, 「The command」).
+pub const NOUNS: [&str; 20] = [
+  "agent\thome",
+  "agents\thome",
+  "agent status\thome",
+  "agent-status\thome",
+  "model",
+  "models",
+  "coworker pool",
+  "coworker hook\thome",
+  "worker fold",
+  "reload",
+  "node work\thome",
+  "work-node\thome",
+  "node claude-token\thome",
+  "node pane",
+  "node-pane",
+  "dev-server",
+  "dev-pane",
+  "companion follow",
+  "claude batch",
+  "live-claude",
+];
+
 #[derive(Parser)]
 #[command(
   name = "bmo-agency",
@@ -42,6 +69,9 @@ struct Cli {
 #[allow(clippy::large_enum_variant)]
 #[derive(Subcommand)]
 enum Verb {
+  /// Every noun this command carries, one a line, each marked `home` after a tab where its commands act on
+  /// the operations machine. It reads nothing of the machine, so `bmo` finds it from any directory.
+  Nouns,
   /// The agents and their settings: listed with no flag, or the provider and account orders, the accounts,
   /// the registered models, a key's road and login, a job worker's rows and an agent's own thinking, effort
   /// and gates read and changed.
@@ -49,7 +79,6 @@ enum Verb {
   Agent(AgentsArgs),
   /// An agent's resident program's status line and hooks, with what it has to say on standard input; and
   /// its shell guard, which refuses a shell command that starts Claude Code.
-  #[command(disable_help_flag = true)]
   AgentStatus {
     /// status, stop, failure, submit, start or shell.
     kind: Option<String>,
@@ -263,8 +292,30 @@ enum CompanionVerb {
   },
 }
 
+// The words this command is run with, the two-word noun `agent status` read as the `agent-status` it names:
+// `bmo` hands a declared noun's words through unchanged, and both spellings are nouns of this command.
+fn words() -> Vec<OsString> {
+  let mut words: Vec<OsString> = std::env::args_os().collect();
+
+  if words.get(1).is_some_and(|word| word == "agent") && words.get(2).is_some_and(|word| word == "status") {
+    words.remove(1);
+    words[1] = "agent-status".into();
+  }
+
+  words
+}
+
 fn main() -> ExitCode {
-  let cli = Cli::parse();
+  let cli = Cli::parse_from(words());
+
+  // The nouns are answered before the machine is read at all: `bmo` asks `nouns` from any directory, with
+  // no settings and no standard input.
+  if let Verb::Nouns = &cli.verb {
+    NOUNS.iter().for_each(|noun| println!("{noun}"));
+
+    return ExitCode::SUCCESS;
+  }
+
   let runtime = match tokio::runtime::Builder::new_multi_thread().enable_all().build() {
     Ok(runtime) => runtime,
     Err(why) => {
@@ -319,6 +370,7 @@ async fn run(verb: Verb) -> ExitCode {
   let data_root = agency_server::verbs::data_root();
 
   match verb {
+    Verb::Nouns => unreachable!("the nouns are printed before the machine is read"),
     Verb::Agent(args) => match agents::run(&data_root, args).await {
       Ok(said) => {
         if !said.out.is_empty() {

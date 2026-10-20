@@ -17,6 +17,7 @@ mod claude_logins;
 mod dev_model_verbs;
 mod door_guard;
 mod machine_verbs;
+mod nouns;
 mod places;
 mod pool_hook;
 mod standby;
