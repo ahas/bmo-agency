@@ -1,0 +1,27 @@
+[
+  {
+    "id": "service/server",
+    "title": "The server",
+    "what": "The service's process: its configuration and names, the store seeded and the ground stood on it, its clocks, readiness and health, and the text and banned wording every refusal shares.",
+    "files": [
+      "crates/server/src/bin/agency-server.rs",
+      "crates/server/src/clock.rs",
+      "crates/server/src/config.rs",
+      "crates/server/src/control/health.rs",
+      "crates/server/src/readiness.rs",
+      "crates/server/src/text.rs",
+      "crates/server/src/wording.rs",
+      "crates/policy/src/control_words.rs",
+      "crates/policy/src/deployment.rs",
+      "crates/policy/src/verb_words.rs"
+    ],
+    "symbols": [],
+    "aliases": [],
+    "needs": [
+      "store/database",
+      "api/http"
+    ],
+    "base": "6759a3bb1b9b06d1b315c3fc9c7c78058e10fa26",
+    "changed": 1792497922279
+  }
+]

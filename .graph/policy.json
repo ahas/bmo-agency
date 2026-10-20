@@ -1,0 +1,17 @@
+[
+  {
+    "id": "policy/declarations",
+    "title": "Agency policy",
+    "what": "The fixed numbers and words agency runs by, one TOML file to a part under policy/, read by the policy crate: clocks, tiers, launch flags, line words, limits and messages.",
+    "files": [
+      "docs/policy.md",
+      "policy/",
+      "crates/policy/"
+    ],
+    "symbols": [],
+    "aliases": [],
+    "needs": [],
+    "base": "6759a3bb1b9b06d1b315c3fc9c7c78058e10fa26",
+    "changed": 1792497922295
+  }
+]

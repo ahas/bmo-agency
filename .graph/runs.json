@@ -1,0 +1,77 @@
+[
+  {
+    "id": "runs/clocks",
+    "title": "Run clocks",
+    "what": "The clock a run of work is held to and the ask put past it: the run clock and its verdict, asked from the shell as an overtime request.",
+    "files": [
+      "crates/server/src/run_clock.rs",
+      "crates/server/src/control/run_clocks.rs",
+      "crates/policy/src/run_clock.rs",
+      "crates/server/src/verbs/overtime.rs",
+      "ts/agent/overtime-clock.ts"
+    ],
+    "symbols": [],
+    "aliases": [],
+    "needs": [
+      "runs/ledger"
+    ],
+    "base": "6759a3bb1b9b06d1b315c3fc9c7c78058e10fa26",
+    "changed": 1792497922207
+  },
+  {
+    "id": "runs/ledger",
+    "title": "Run ledger and log",
+    "what": "The record of every run: its ledger row, agent log, run records and spans, the doctor that says why one died, and the pruning and secrecy of what is kept.",
+    "files": [
+      "docs/run-records.md",
+      "crates/server/src/run_log/",
+      "crates/server/src/run_ledger.rs",
+      "crates/server/src/doctor.rs",
+      "crates/server/src/control/run_log.rs",
+      "crates/server/src/control/run_ledger.rs",
+      "crates/policy/src/span_words.rs",
+      "crates/store/src/migration/m20261019_000001_runs.rs",
+      "ts/agent/cli-transcripts.ts",
+      "ts/agent/codex-file-changes.ts",
+      "ts/agent/codex-request-usage.ts",
+      "ts/agent/doctor.ts",
+      "ts/agent/failure-text.ts",
+      "ts/agent/finished.ts",
+      "ts/agent/job-spans.ts",
+      "ts/agent/runlog.ts",
+      "ts/agent/spend.ts",
+      "ts/agent/transcript-spend.ts",
+      "ts/agent/transcript-tail.ts",
+      "ts/agent/usage.ts",
+      "ts/agent/workflow-log.ts",
+      "ts/archive/run-rows.ts",
+      "ts/archive/run-store.ts"
+    ],
+    "symbols": [],
+    "aliases": [],
+    "needs": [
+      "store/database"
+    ],
+    "base": "6759a3bb1b9b06d1b315c3fc9c7c78058e10fa26",
+    "changed": 1792497922199
+  },
+  {
+    "id": "runs/stop",
+    "title": "Stopping runs",
+    "what": "How a run is stopped from outside: the stop mark, the queue's stops, the shell's run stop and the words policy keeps for both.",
+    "files": [
+      "crates/server/src/queue/stops.rs",
+      "crates/server/src/verbs/run_stop.rs",
+      "crates/server/src/verbs/run_list.rs",
+      "crates/policy/src/run_stop.rs"
+    ],
+    "symbols": [],
+    "aliases": [],
+    "needs": [
+      "runs/ledger",
+      "places/herdr"
+    ],
+    "base": "6759a3bb1b9b06d1b315c3fc9c7c78058e10fa26",
+    "changed": 1792497922216
+  }
+]

@@ -1,0 +1,33 @@
+[
+  {
+    "id": "command/verbs",
+    "title": "The bmo-agency verbs",
+    "what": "The shell's road to agency: agents and their settings, models, the pool, worker folding, documents reloaded, node workplaces, dev servers, companions, Claude batch and tokens, runs and machine memory.",
+    "files": [
+      "docs/api.md",
+      "crates/server/src/verbs/",
+      "ts/agent/verbs.ts"
+    ],
+    "symbols": [],
+    "aliases": [],
+    "needs": [
+      "sessions/resets",
+      "sessions/worker",
+      "pool/dispatch",
+      "workers/bench",
+      "nodes/work-nodes",
+      "runs/ledger",
+      "runs/clocks",
+      "runs/stop",
+      "models/registry",
+      "models/catalogue",
+      "models/fallback",
+      "accounts/usage",
+      "companions/lifecycle",
+      "turns/live-claude",
+      "agents/ownership"
+    ],
+    "base": "6759a3bb1b9b06d1b315c3fc9c7c78058e10fa26",
+    "changed": 1792497922286
+  }
+]

@@ -1,0 +1,72 @@
+[
+  {
+    "id": "sessions/lifecycle",
+    "title": "A chat session's life",
+    "what": "How a chat session is kept, resumed, paced at a start, folded and replaced; the documents that moved under it; its output and questions across the boundary; and a room forgotten.",
+    "files": [
+      "docs/sessions.md",
+      "crates/server/src/rooms.rs",
+      "crates/server/src/control/rooms.rs",
+      "crates/server/src/editor_session.rs",
+      "crates/server/src/session_output.rs",
+      "crates/server/src/session_questions.rs",
+      "crates/server/src/control/sessions.rs",
+      "crates/server/src/control/session_ops.rs",
+      "ts/agent/freshstart.ts",
+      "ts/agent/runprogress.ts"
+    ],
+    "symbols": [],
+    "aliases": [],
+    "needs": [
+      "agents/model",
+      "turns/lines",
+      "store/database"
+    ],
+    "base": "6759a3bb1b9b06d1b315c3fc9c7c78058e10fa26",
+    "changed": 1792497922064
+  },
+  {
+    "id": "sessions/resets",
+    "title": "Session resets",
+    "what": "An agent's session started afresh on the owner's ask: the reset row, what it cuts off, the files and rows it takes, what it leaves on record, and the point a turn is overtaken at.",
+    "files": [
+      "docs/session-resets.md",
+      "crates/server/src/control/companion_reset/",
+      "crates/server/src/companion/reset.rs",
+      "crates/server/src/companion/overtaken.rs",
+      "crates/server/src/verbs/companion_reset.rs",
+      "crates/store/src/reset_point.rs"
+    ],
+    "symbols": [],
+    "aliases": [],
+    "needs": [
+      "sessions/lifecycle",
+      "store/database",
+      "calls/brain"
+    ],
+    "base": "6759a3bb1b9b06d1b315c3fc9c7c78058e10fa26",
+    "changed": 1792497922073
+  },
+  {
+    "id": "sessions/worker",
+    "title": "A worker's own session",
+    "what": "The session an agent holds on its line: the turn put into it, its records, warmth and summary, the prefix it opened on, and the folding a changed prefix asks for.",
+    "files": [
+      "crates/server/src/worker_session/",
+      "crates/server/src/verbs/fold_worker.rs",
+      "crates/cache-siren/src/lifetime.rs",
+      "ts/agent/agent-instance.ts",
+      "ts/agent/prefix.ts",
+      "ts/agent/worker-pane.ts"
+    ],
+    "symbols": [],
+    "aliases": [],
+    "needs": [
+      "turns/lines",
+      "store/database",
+      "accounts/usage"
+    ],
+    "base": "6759a3bb1b9b06d1b315c3fc9c7c78058e10fa26",
+    "changed": 1792497922081
+  }
+]

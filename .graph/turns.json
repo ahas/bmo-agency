@@ -1,0 +1,96 @@
+[
+  {
+    "id": "turns/door",
+    "title": "The resident door",
+    "what": "The channel that puts a turn into an agent's standing program and reads it back: Claude Code, Codex, agency's own loop and surfaces, with their questions, guards, looks and records.",
+    "files": [
+      "docs/agent-control.md",
+      "crates/server/src/door/",
+      "crates/server/src/host_run.rs",
+      "crates/policy/src/door_words.rs",
+      "crates/policy/src/resident_turn.rs",
+      "ts/agent/claude-endpoint-turn.ts",
+      "ts/agent/codex-resident.ts",
+      "ts/agent/pane-confirm.ts"
+    ],
+    "symbols": [],
+    "aliases": [],
+    "needs": [
+      "places/herdr",
+      "models/providers",
+      "sessions/lifecycle"
+    ],
+    "base": "6759a3bb1b9b06d1b315c3fc9c7c78058e10fa26",
+    "changed": 1792497922089
+  },
+  {
+    "id": "turns/keepalive",
+    "title": "Keepalive",
+    "what": "When a kept prompt-cache prefix is worth a ping: the owner's warming switch, the login watch, the pool's warm-up pass and the clocks agency runs them on.",
+    "files": [
+      "docs/keepalive-schedule.md",
+      "crates/server/src/keepalive/",
+      "crates/server/src/control/keepalive.rs",
+      "crates/policy/src/keepalive.rs",
+      "crates/policy/src/pool_warm.rs",
+      "ts/agent/keepalive-switch.ts"
+    ],
+    "symbols": [],
+    "aliases": [],
+    "needs": [
+      "pool/dispatch",
+      "calls/cache-warmer"
+    ],
+    "base": "6759a3bb1b9b06d1b315c3fc9c7c78058e10fa26",
+    "changed": 1792497922105
+  },
+  {
+    "id": "turns/lines",
+    "title": "Launch lines",
+    "what": "How each agent's program is started: the chat, companion, worker, editor and research lines, with their models, tools, permissions, system prompts and environment.",
+    "files": [
+      "docs/launch-lines.md",
+      "crates/server/src/lines/",
+      "crates/policy/src/chat_line.rs",
+      "crates/policy/src/run_lines.rs",
+      "crates/policy/src/research.rs",
+      "ts/agent/harness.ts",
+      "ts/agent/harnesses.ts",
+      "ts/agent/line-declarations.ts",
+      "ts/agent/run-lines.ts",
+      "ts/agent/loop-program.ts",
+      "ts/agent/loop-record.ts",
+      "ts/agent/loop-turn.ts",
+      "ts/agent/resident-loop.ts",
+      "ts/agent/resident-program.ts",
+      "ts/agent/resident.ts"
+    ],
+    "symbols": [],
+    "aliases": [],
+    "needs": [
+      "models/providers",
+      "policy/declarations"
+    ],
+    "base": "6759a3bb1b9b06d1b315c3fc9c7c78058e10fa26",
+    "changed": 1792497922097
+  },
+  {
+    "id": "turns/live-claude",
+    "title": "Live-Claude guard",
+    "what": "Who may open a real Claude session, how a shell command is read for what it writes and starts, and the guard a job opens for itself before its shell may run.",
+    "files": [
+      "docs/live-claude-guard.md",
+      "crates/server/src/command_reading/",
+      "crates/server/src/verbs/live_claude.rs",
+      "crates/policy/src/browser.rs",
+      "ts/agent/live-claude-guard.ts"
+    ],
+    "symbols": [],
+    "aliases": [],
+    "needs": [
+      "policy/declarations"
+    ],
+    "base": "6759a3bb1b9b06d1b315c3fc9c7c78058e10fa26",
+    "changed": 1792497922114
+  }
+]

@@ -1,0 +1,104 @@
+[
+  {
+    "id": "workers/assignments",
+    "title": "Assignments and jobs",
+    "what": "The work a harness hands agency: a worker held for an item, and the item's content and lease run as a job whose progress, questions and outcome are events the harness reads.",
+    "files": [
+      "docs/api.md",
+      "crates/server/src/control/work.rs",
+      "crates/store/src/migration/m20261023_000001_work.rs",
+      "crates/store/src/migration/m20261024_000001_job_model.rs"
+    ],
+    "symbols": [],
+    "aliases": [],
+    "needs": [
+      "workers/slots",
+      "sessions/worker",
+      "runs/ledger"
+    ],
+    "base": "6759a3bb1b9b06d1b315c3fc9c7c78058e10fa26",
+    "changed": 1792497922161
+  },
+  {
+    "id": "workers/bench",
+    "title": "The worker's workbench",
+    "what": "What a worker holds outside its jobs: its preamble, workbench folder, dev servers and the item's scratch, and the sweep that clears what finished items left behind.",
+    "files": [
+      "docs/worker-bench.md",
+      "crates/server/src/places/dev.rs",
+      "crates/server/src/places/servers.rs",
+      "crates/server/src/places/item_sweep.rs",
+      "crates/server/src/verbs/dev_servers.rs",
+      "crates/policy/src/job_prompt.rs"
+    ],
+    "symbols": [],
+    "aliases": [],
+    "needs": [
+      "places/herdr",
+      "store/database"
+    ],
+    "base": "6759a3bb1b9b06d1b315c3fc9c7c78058e10fa26",
+    "changed": 1792497922145
+  },
+  {
+    "id": "workers/slots",
+    "title": "Worker slots",
+    "what": "How one repository runs several jobs at once: the base worker and the support workers beside it, each worktree and branch, what a worker may be, and the queue and routes that hold it.",
+    "files": [
+      "docs/worker-slots.md",
+      "crates/server/src/queue/",
+      "crates/server/src/control/worker.rs",
+      "crates/server/src/control/worker_api.rs",
+      "crates/server/src/control/worker_runtime.rs",
+      "crates/server/src/control/workers_routes.rs",
+      "crates/policy/src/workers.rs",
+      "crates/policy/src/queue_words.rs",
+      "crates/policy/src/node_states.rs",
+      "ts/archive/worker-session-store.ts"
+    ],
+    "symbols": [],
+    "aliases": [],
+    "needs": [
+      "places/herdr",
+      "store/database",
+      "models/fallback"
+    ],
+    "base": "6759a3bb1b9b06d1b315c3fc9c7c78058e10fa26",
+    "changed": 1792497922137
+  },
+  {
+    "id": "workers/tools",
+    "title": "The worker's own tools",
+    "what": "The MCP tools a worker reaches in place of composing shell commands, and the tool host's session record that names them.",
+    "files": [
+      "docs/worker-mcp.md",
+      "ts/agent/mcp-names.ts",
+      "ts/agent/tool-host.ts"
+    ],
+    "symbols": [],
+    "aliases": [],
+    "needs": [
+      "api/mcp"
+    ],
+    "base": "6759a3bb1b9b06d1b315c3fc9c7c78058e10fa26",
+    "changed": 1792497922169
+  },
+  {
+    "id": "workers/words",
+    "title": "Words to workers",
+    "what": "The language between agency and its workers: what reaches a worker, how a word is kept until a turn takes it, and the English a worker reads and reports in.",
+    "files": [
+      "docs/worker-language.md",
+      "crates/server/src/worker_words/",
+      "crates/server/src/control/worker_words.rs",
+      "crates/policy/src/worker_words.rs"
+    ],
+    "symbols": [],
+    "aliases": [],
+    "needs": [
+      "sessions/worker"
+    ],
+    "base": "6759a3bb1b9b06d1b315c3fc9c7c78058e10fa26",
+    "changed": 1792497922153
+  }
+]

@@ -1,0 +1,21 @@
+[
+  {
+    "id": "store/database",
+    "title": "The store",
+    "what": "Agency's one PostgreSQL database: the store crate's pools, statements, migrations, registry and seeds, the TypeScript archive that reaches the same tables, and agency's own settings rows.",
+    "files": [
+      "docs/store.md",
+      "crates/store/",
+      "ts/archive/",
+      "crates/server/src/queue/settings.rs",
+      "crates/server/src/seeds.rs",
+      "crates/server/src/data_move.rs",
+      "crates/policy/src/seeds.rs"
+    ],
+    "symbols": [],
+    "aliases": [],
+    "needs": [],
+    "base": "6759a3bb1b9b06d1b315c3fc9c7c78058e10fa26",
+    "changed": 1792497922272
+  }
+]

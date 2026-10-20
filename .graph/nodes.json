@@ -1,0 +1,30 @@
+[
+  {
+    "id": "nodes/work-nodes",
+    "title": "Work nodes",
+    "what": "Another machine agency places agents on: its workplace, the link kept to it, each account's login, its panes and workplaces, the node service's reads, and what a dropped node does.",
+    "files": [
+      "docs/work-nodes.md",
+      "crates/node-link/",
+      "crates/server/src/places/nodes.rs",
+      "crates/server/src/control/machine.rs",
+      "crates/server/src/control/node_reads.rs",
+      "crates/server/src/watches/",
+      "crates/server/src/verbs/work_node.rs",
+      "crates/server/src/verbs/work_node_setup.rs",
+      "crates/server/src/verbs/claude_token.rs",
+      "crates/server/src/verbs/node_pane.rs",
+      "crates/policy/src/machine_room.rs",
+      "ts/agent/work-node.ts",
+      "ts/archive/work-node-store.ts"
+    ],
+    "symbols": [],
+    "aliases": [],
+    "needs": [
+      "calls/node",
+      "places/herdr"
+    ],
+    "base": "6759a3bb1b9b06d1b315c3fc9c7c78058e10fa26",
+    "changed": 1792497922190
+  }
+]

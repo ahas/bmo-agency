@@ -1,0 +1,23 @@
+[
+  {
+    "id": "accounts/usage",
+    "title": "Usage windows",
+    "what": "Every account's usage windows: the share of each limit used and when it resets, read from Claude and Codex, kept by cache-siren, and served to the account judgement and the quota source.",
+    "files": [
+      "docs/usage-windows.md",
+      "crates/cache-siren/",
+      "crates/server/src/control/account_routes.rs",
+      "crates/server/src/control/quota.rs",
+      "crates/server/src/usage_windows.rs",
+      "crates/store/src/migration/m20261022_000001_usage_windows.rs",
+      "ts/archive/usage-store.ts"
+    ],
+    "symbols": [],
+    "aliases": [],
+    "needs": [
+      "store/database"
+    ],
+    "base": "6759a3bb1b9b06d1b315c3fc9c7c78058e10fa26",
+    "changed": 1792497922266
+  }
+]

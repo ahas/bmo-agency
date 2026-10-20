@@ -1,0 +1,25 @@
+[
+  {
+    "id": "pool/dispatch",
+    "title": "The co-worker pool",
+    "what": "The common pool every co-worker takes a place in: requests, leases, reservations, tiers and priorities, the live board, the clocks, and the standing branch checkouts its reservations warm.",
+    "files": [
+      "docs/coworker-pool.md",
+      "crates/server/src/order_run/",
+      "crates/server/src/control/pool.rs",
+      "crates/server/src/control/pool_board.rs",
+      "crates/server/src/control/pool_routes.rs",
+      "crates/server/src/verbs/coworker_pool.rs",
+      "ts/archive/native-coworker-pool.ts"
+    ],
+    "symbols": [],
+    "aliases": [],
+    "needs": [
+      "calls/cache-warmer",
+      "places/herdr",
+      "store/database"
+    ],
+    "base": "6759a3bb1b9b06d1b315c3fc9c7c78058e10fa26",
+    "changed": 1792497922128
+  }
+]
