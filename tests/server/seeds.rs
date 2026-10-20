@@ -2,8 +2,9 @@
 //! the first seed's mapping of every tier on each provider the store begins with, and every work key at the
 //! tier it starts on; given once, so a second settling writes nothing more.
 
-use agency_server::seeds::deployment;
+use agency_server::seeds::{base_prompt_seeds, deployment};
 use harness_providers::Machine;
+use policy::base_prompts::BASE_PROMPTS;
 use store::seed::settle;
 
 use crate::scratch::Scratch;
@@ -77,4 +78,27 @@ async fn a_fresh_store_is_given_the_account_the_tiers_and_the_keys_once() {
       "{key} starts on {tier}"
     );
   }
+}
+
+#[test]
+fn every_declared_base_prompt_is_seeded_with_its_files_text() {
+  let code = std::env::current_dir().unwrap();
+  let seeds = base_prompt_seeds(&code);
+
+  assert_eq!(seeds.len(), BASE_PROMPTS.seed.len());
+  for (seed, declared) in seeds.iter().zip(&BASE_PROMPTS.seed) {
+    let file = std::fs::read_to_string(code.join("prompts").join("base").join(&declared.file)).unwrap();
+
+    assert_eq!(
+      (seed.name.as_str(), seed.label.as_str()),
+      (declared.name.as_str(), declared.label.as_str())
+    );
+    assert_eq!(seed.text, file);
+  }
+  assert!(seeds.iter().any(|seed| seed.name == "claude-code" && seed.label == "Claude Code based"));
+}
+
+#[test]
+fn a_seed_whose_file_cannot_be_read_is_left_out() {
+  assert!(base_prompt_seeds(std::path::Path::new("/nowhere")).is_empty());
 }

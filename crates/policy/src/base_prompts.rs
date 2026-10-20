@@ -15,6 +15,24 @@ pub struct BasePromptRules {
   pub text_most: usize,
   /// The names of the values a prompt may carry as `{{name}}`.
   pub values: Vec<String>,
+  /// The prompts a store is seeded with, each given once by its name.
+  #[serde(default)]
+  pub seed: Vec<BasePromptSeed>,
+}
+
+/// One prompt a store is seeded with (docs/base-prompts.md, 「The seeds」).
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct BasePromptSeed {
+  /// The name the prompt is kept and chosen under.
+  pub name: String,
+  /// The label a screen shows it under.
+  pub label: String,
+  /// Its seed file, under `prompts/base/`.
+  pub file: String,
+  /// The agents given the choice as the seed is first written.
+  #[serde(default)]
+  pub agents: Vec<String>,
 }
 
 crate::part!(pub BASE_PROMPTS: BasePromptRules = "base-prompts.toml");

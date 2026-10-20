@@ -1,6 +1,7 @@
 //! What a store is given beside its tables (docs/store.md, 「Its seeds」): the account, the tiers with
-//! their work keys, and the model catalogue. The values are the deployment's, handed in by whoever
-//! settles the store; this module knows none of them and supplies only when and how each is written.
+//! their work keys, the model catalogue and the base prompts. The values are the deployment's, handed in
+//! by whoever settles the store; this module knows none of them and supplies only when and how each is
+//! written.
 
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -18,6 +19,18 @@ pub struct Seeds {
   pub tiers: TierPlan,
   /// The entries the catalogue is given once, as its table is made.
   pub catalogue: Vec<CatalogueSeed>,
+  /// The base prompts each given once by its name.
+  pub base_prompts: Vec<BasePromptSeed>,
+}
+
+/// One base prompt a store is given once by its name (docs/base-prompts.md, 「The seeds」), with the
+/// agents given the choice of it where it is written.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BasePromptSeed {
+  pub name: String,
+  pub label: String,
+  pub text: String,
+  pub agents: Vec<String>,
 }
 
 /// The one account a store holding none is given: the login the machine already has.
@@ -119,6 +132,9 @@ pub async fn settle(db: &DatabaseConnection, seeds: &Seeds) -> Result<(), Fault>
   first_tiers(&writing, &seeds.tiers).await?;
   backfill_keys(&writing, &seeds.tiers).await?;
   later_tiers(&writing, &seeds.tiers).await?;
+  for prompt in &seeds.base_prompts {
+    base_prompt_seed(&writing, prompt, now).await?;
+  }
 
   writing.commit().await?;
 
@@ -191,6 +207,54 @@ async fn account_seed<C: ConnectionTrait>(db: &C, account: &AccountSeed, now: i6
     ],
   )
   .await?;
+
+  Ok(())
+}
+
+// A base prompt is given once by its name, recorded as given, so one the owner removes stays removed. A
+// prompt of that name already kept — the owner's own, or one an earlier store held — is left as it stands,
+// and only a prompt written now gives its agents the choice of it; a choice an agent already holds stands.
+async fn base_prompt_seed<C: ConnectionTrait>(
+  db: &C,
+  prompt: &BasePromptSeed,
+  now: i64,
+) -> Result<(), Fault> {
+  let given = run(
+    db,
+    r#"INSERT INTO "base_prompt_seeded" ("name") VALUES ($1) ON CONFLICT DO NOTHING"#,
+    vec![prompt.name.clone().into()],
+  )
+  .await?;
+
+  if given == 0 {
+    return Ok(());
+  }
+
+  let written = run(
+    db,
+    r#"INSERT INTO "base_prompts" ("name", "label", "text", "updated_at") VALUES ($1, $2, $3, $4)
+       ON CONFLICT DO NOTHING"#,
+    vec![
+      prompt.name.clone().into(),
+      prompt.label.clone().into(),
+      prompt.text.clone().into(),
+      now.into(),
+    ],
+  )
+  .await?;
+
+  if written == 0 {
+    return Ok(());
+  }
+
+  for agent in &prompt.agents {
+    run(
+      db,
+      r#"INSERT INTO "agent_base_prompts" ("agent", "prompt") VALUES ($1, $2) ON CONFLICT DO NOTHING"#,
+      vec![agent.clone().into(), prompt.name.clone().into()],
+    )
+    .await?;
+  }
 
   Ok(())
 }

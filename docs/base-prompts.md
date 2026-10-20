@@ -110,13 +110,17 @@ flowchart TD
 ### How a seed reaches the store
 
 - **The deployment declares each seed in agency's policy** (`policy/base-prompts.toml`): its name,
-  label and seed file, with no code naming any of them.
-- **A seed is inserted by its name wherever no prompt of that name is kept,** as the store is settled
-  on every start: a store made before a seed was declared gains it on its next start, and a prompt of
-  that name already kept — the owner's own edit of it included — is left as it stands. From then on the
-  archive's copy is the owner's, and the file is not read for it again.
-- **Who starts on it:** the agents the deployment's configuration names for a seed, each given the
-  choice once, as the seed is inserted; where it names none, no agent is given it.
+  label, seed file and the agents given it, with no code naming any of them. The repository's own
+  policy gives no agent either seed, since the agents are a deployment's.
+- **A seed is given once by its name,** as the store is settled on a start, and recorded as given
+  (`base_prompt_seeded`): a store made before a seed was declared gains it on its next start, a prompt
+  of that name already kept is left as it stands, and a seed the owner removed stays removed. From then
+  on the archive's copy is the owner's, and the file is not read for it again.
+- **A seed file that cannot be read** is said as the server starts and not given, so the first start
+  that can read it gives it.
+- **Who starts on it:** the agents the policy names for a seed, each given the choice as the seed's
+  prompt is written; a seed meeting a prompt of its name already kept gives no choice, and a choice an
+  agent already holds stands.
 
 ## Where it is kept
 

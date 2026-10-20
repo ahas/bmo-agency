@@ -1,7 +1,9 @@
 //! The seeds a store is given as it is settled (docs/store.md, 「Its seeds」): each written once, and a
 //! row the owner removed left removed.
 
-use store::seed::{AccountSeed, CatalogueSeed, LaterSeed, Seeds, TierMapping, TierPlan, WorkKey, settle};
+use store::seed::{
+  AccountSeed, BasePromptSeed, CatalogueSeed, LaterSeed, Seeds, TierMapping, TierPlan, WorkKey, settle,
+};
 
 use crate::scratch::Scratch;
 
@@ -62,6 +64,20 @@ fn seeds() -> Seeds {
       max_tokens: Some(512),
       note: None,
     }],
+    base_prompts: vec![
+      BasePromptSeed {
+        name: "harness".into(),
+        label: "Harness based".into(),
+        text: "You are a harness.".into(),
+        agents: vec!["worker".into()],
+      },
+      BasePromptSeed {
+        name: "other".into(),
+        label: "Other based".into(),
+        text: "You are another harness.".into(),
+        agents: vec![],
+      },
+    ],
   }
 }
 
@@ -258,4 +274,74 @@ async fn a_plan_naming_a_tier_off_its_ladder_is_refused_before_anything_is_writt
       .await,
     0
   );
+}
+
+async fn prompt_text(scratch: &Scratch, name: &str) -> Option<String> {
+  store::one(
+    scratch.db(),
+    r#"SELECT "text" FROM "base_prompts" WHERE "name" = $1"#,
+    vec![name.into()],
+  )
+  .await
+  .unwrap()
+  .map(|row| row.try_get::<String>("", "text").unwrap())
+}
+
+async fn choice(scratch: &Scratch, agent: &str) -> Option<String> {
+  store::one(
+    scratch.db(),
+    r#"SELECT "prompt" FROM "agent_base_prompts" WHERE "agent" = $1"#,
+    vec![agent.into()],
+  )
+  .await
+  .unwrap()
+  .map(|row| row.try_get::<String>("", "prompt").unwrap())
+}
+
+#[tokio::test]
+async fn a_base_prompt_declared_later_reaches_a_standing_store_once() {
+  let scratch = Scratch::blank().await;
+  let mut before = seeds();
+
+  before.base_prompts.clear();
+  settle(scratch.db(), &before).await.unwrap();
+  assert_eq!(prompt_text(&scratch, "harness").await, None);
+
+  settle(scratch.db(), &seeds()).await.unwrap();
+  assert_eq!(prompt_text(&scratch, "harness").await.as_deref(), Some("You are a harness."));
+  assert_eq!(prompt_text(&scratch, "other").await.as_deref(), Some("You are another harness."));
+  assert_eq!(choice(&scratch, "worker").await.as_deref(), Some("harness"));
+
+  scratch
+    .run(
+      r#"UPDATE "base_prompts" SET "text" = 'The owner''s own.' WHERE "name" = 'harness'"#,
+      vec![],
+    )
+    .await;
+  scratch.run(r#"DELETE FROM "base_prompts" WHERE "name" = 'other'"#, vec![]).await;
+  scratch.run(r#"DELETE FROM "agent_base_prompts""#, vec![]).await;
+  settle(scratch.db(), &seeds()).await.unwrap();
+
+  assert_eq!(prompt_text(&scratch, "harness").await.as_deref(), Some("The owner's own."));
+  assert_eq!(prompt_text(&scratch, "other").await, None);
+  assert_eq!(choice(&scratch, "worker").await, None);
+}
+
+#[tokio::test]
+async fn a_prompt_already_kept_under_a_seeds_name_is_left_and_gives_no_choice() {
+  let scratch = Scratch::blank().await;
+  let mut before = seeds();
+
+  before.base_prompts.clear();
+  settle(scratch.db(), &before).await.unwrap();
+  scratch
+    .run(
+      r#"INSERT INTO "base_prompts" ("name", "label", "text") VALUES ('harness', 'Mine', 'Kept before.')"#,
+      vec![],
+    )
+    .await;
+  settle(scratch.db(), &seeds()).await.unwrap();
+
+  assert_eq!(prompt_text(&scratch, "harness").await.as_deref(), Some("Kept before."));
+  assert_eq!(choice(&scratch, "worker").await, None);
 }

@@ -21,7 +21,8 @@ seeds. The other crates and the server reach the store only through it.
   - the agents and what they did: `agents`, `agent_log`, `agent_executions`, `execution_attempts`,
     `branch_agents`, `worker_sessions`, `session_resets`, and `worker_words`, the words said to a
     worker, each kept until a turn has taken it;
-  - the base prompts: `base_prompts`, `agent_base_prompts`;
+  - the base prompts: `base_prompts`, `agent_base_prompts`, and `base_prompt_seeded`, the name of
+    every seed the store has been given (`docs/base-prompts.md`, 「The seeds」);
   - the accounts: `claude_accounts`, one row an account of the Claude Code road — its id, name,
     place, on/off, when it was added and when its login was found gone; its `credential_kind`,
     `directory`, `token` or `endpoint`, and its `credential_path`, the configuration directory, the
@@ -122,8 +123,9 @@ seeds. The other crates and the server reach the store only through it.
   Codex and OpenRouter, and the work keys beyond the profiles with the tier each starts on, both in
   `policy/seeds.toml`; every profile's work key at the tier `policy/work-keys.toml` gives it; and the
   catalogue entries `policy/seeds.toml` declares, of which the repository's own declares none, since a
-  model file is a deployment's. No provider is declared after the first seed: the registry's provider is
-  given its mappings by the owner.
+  model file is a deployment's; and the base prompts `policy/base-prompts.toml` declares, each with the
+  text of its seed file under the code tree's `prompts/base/`. No provider is declared after the first
+  seed: the registry's provider is given its mappings by the owner.
 - **The settling** runs the migrations and then writes every seed in one transaction.
 - **The account:** a store holding no account is given the one the seed names, the login the machine
   already has; a list the owner has written to is left alone.
@@ -135,6 +137,10 @@ seeds. The other crates and the server reach the store only through it.
   plan naming a tier its ladder does not hold is refused before anything is written.
 - **The model catalogue:** its entries are written once, as its table is made (`docs/model-catalogue.md`,
   「Where it is kept」).
+- **The base prompts:** each is given once by its name and recorded as given, a prompt of its name
+  already kept left as it stands and one the owner removed left removed; the agents its declaration
+  names are given the choice of it only where its prompt is written (`docs/base-prompts.md`, 「The
+  seeds」).
 
 ## Connecting
 

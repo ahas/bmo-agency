@@ -6,6 +6,7 @@
 
 use std::path::{Path, PathBuf};
 
+use harness_providers::Machine;
 use policy::deployment::{DEPLOYMENT_NAMES, Deployment};
 
 use crate::peers::{PeerAddress, brain, node};
@@ -59,6 +60,11 @@ impl Trees {
       deploy: named(DEPLOY_DIR),
       source: named(SOURCE_DIR),
     }
+  }
+
+  /// The trees as a machine's environment names them.
+  pub fn of_machine(machine: &Machine) -> Self {
+    Self::read(&|name| machine.var(name).map(str::to_owned))
   }
 
   /// The deploy tree's link: the named one, else `deploy` under agency's own installation directory in

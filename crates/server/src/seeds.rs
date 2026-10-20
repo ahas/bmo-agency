@@ -1,14 +1,20 @@
 //! The seeds agency's server settles its store with (docs/store.md, 「Its seeds」): the values agency's
 //! policy declares — the account, the ladder, the first seed's mapping of every tier, every work key with
-//! the tier it starts on, and the catalogue's entries — with the account's credential the machine's own
-//! Claude Code login directory.
+//! the tier it starts on, the catalogue's entries and the base prompts — with the account's credential
+//! the machine's own Claude Code login directory and each base prompt's text its seed file in the code
+//! tree.
+
+use std::path::Path;
 
 use harness_providers::Machine;
 use harness_providers::claude_code::ClaudeCode;
+use policy::base_prompts::BASE_PROMPTS;
 use policy::seeds::SEEDS;
 use policy::tiers::TIERS;
 use policy::work_keys::WORK_KEYS;
-use store::seed::{AccountSeed, CatalogueSeed, Seeds, TierMapping, TierPlan, WorkKey};
+use store::seed::{AccountSeed, BasePromptSeed, CatalogueSeed, Seeds, TierMapping, TierPlan, WorkKey};
+
+use crate::places::machine_code_root;
 
 /// The kind of credential the seeded account's login is: a Claude Code login directory.
 const DIRECTORY: &str = "directory";
@@ -67,5 +73,32 @@ pub fn deployment(machine: &Machine) -> Seeds {
         note: entry.note.clone(),
       })
       .collect(),
+    base_prompts: base_prompt_seeds(&machine_code_root(machine)),
   }
+}
+
+/// The base prompts the policy declares, each with its seed file's text under the code tree. One whose
+/// file cannot be read is said and left out, so it is given by the first settling that can read it.
+pub fn base_prompt_seeds(code: &Path) -> Vec<BasePromptSeed> {
+  BASE_PROMPTS
+    .seed
+    .iter()
+    .filter_map(|seed| {
+      let file = code.join("prompts").join("base").join(&seed.file);
+
+      match std::fs::read_to_string(&file) {
+        Ok(text) => Some(BasePromptSeed {
+          name: seed.name.clone(),
+          label: seed.label.clone(),
+          text,
+          agents: seed.agents.clone(),
+        }),
+        Err(why) => {
+          eprintln!("agency: the base prompt seed {} is not given: {}: {why}", seed.name, file.display());
+
+          None
+        }
+      }
+    })
+    .collect()
 }

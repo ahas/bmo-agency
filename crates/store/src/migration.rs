@@ -10,6 +10,7 @@ mod m20261021_000001_worker_words;
 mod m20261022_000001_usage_windows;
 mod m20261023_000001_work;
 mod m20261024_000001_job_model;
+mod m20261025_000001_base_prompt_seeds;
 
 use sea_orm_migration::prelude::*;
 
@@ -21,13 +22,14 @@ pub const TABLES: &str = m20261016_000001_store::NAME;
 
 /// Every table the store's migrations make, beside the record of what ran: what reads every table of the
 /// store reads these and no other service's beside them (docs/store.md, 「Its tables」).
-pub const OWN_TABLES: [&str; 58] = [
+pub const OWN_TABLES: [&str; 59] = [
   "agents",
   "agent_log",
   "agent_executions",
   "execution_attempts",
   "agent_base_prompts",
   "base_prompts",
+  "base_prompt_seeded",
   "branch_agents",
   "worker_sessions",
   "worker_words",
@@ -96,6 +98,7 @@ impl MigratorTrait for Migrator {
       Box::new(m20261022_000001_usage_windows::Migration),
       Box::new(m20261023_000001_work::Migration),
       Box::new(m20261024_000001_job_model::Migration),
+      Box::new(m20261025_000001_base_prompt_seeds::Migration),
     ]
   }
 

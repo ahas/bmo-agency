@@ -131,6 +131,28 @@ fn holds_code(tree: &Path) -> bool {
   tree.join("bin").join("pane-head").exists() || tree.join("prompts").join("rules").is_dir()
 }
 
+/// The first of these trees that holds code — the one `BMO_DEPLOY_DIR` names, the one the configuration
+/// names, the deploy tree's link — and the working directory where none does: a test, or a machine with
+/// no deployment.
+fn first_code_tree(named: Option<PathBuf>, configured: Option<PathBuf>, deploy: &Path) -> PathBuf {
+  named
+    .into_iter()
+    .chain(configured)
+    .chain([deploy.to_path_buf()])
+    .find(|tree| holds_code(tree))
+    .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| deploy.to_path_buf()))
+}
+
+/// The tree the code is read from as a machine names it, before any ground stands on it: what the store's
+/// seeds read their files from as the server starts.
+pub fn machine_code_root(machine: &Machine) -> PathBuf {
+  let trees = crate::config::Trees::of_machine(machine);
+  let home = PathBuf::from(machine.var("HOME").unwrap_or("/"));
+  let deploy = trees.deploy_link(&home);
+
+  first_code_tree(machine.var(DEPLOY_VARIABLE).map(PathBuf::from), trees.code, &deploy)
+}
+
 impl Ground {
   /// The ground of the service on a machine: its trees on the deploy link and the source root the
   /// configuration names. A process whose launcher named no code tree hands its own on to everything it
@@ -191,12 +213,7 @@ impl Ground {
   pub fn code_root(&self) -> PathBuf {
     let named = self.env.get(DEPLOY_VARIABLE).filter(|named| !named.is_empty()).map(PathBuf::from);
 
-    named
-      .into_iter()
-      .chain(self.config.trees.code.clone())
-      .chain([self.roots.deploy.clone()])
-      .find(|tree| holds_code(tree))
-      .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| self.roots.deploy.clone()))
+    first_code_tree(named, self.config.trees.code.clone(), &self.roots.deploy)
   }
 
   /// The code tree as text a person or an agent reads names it: the deploy link wherever the link holds

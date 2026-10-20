@@ -26,7 +26,7 @@ use std::time::Duration;
 
 use self::claims::PaneClaims;
 use self::follow::FollowTurns;
-pub use self::ground::{AgentRow, DEPLOY_VARIABLE, Ground, VERBS_BINARY};
+pub use self::ground::{AgentRow, DEPLOY_VARIABLE, Ground, VERBS_BINARY, machine_code_root};
 use self::locks::{lock_path, try_hold};
 use self::nodes::NodeList;
 use crate::clock::every;
