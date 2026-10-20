@@ -63,6 +63,7 @@ pub struct AccountsWords {
   pub last_off: String,
   pub last_gone: String,
   pub chosen_off: String,
+  pub base_prompt: String,
 }
 
 /// A worker's own sampling.
@@ -112,6 +113,8 @@ pub struct BasePromptsWords {
   pub name_shape: String,
   pub taken: String,
   pub in_use: String,
+  pub in_use_accounts: String,
+  pub in_use_both: String,
   pub not_chooser: String,
   pub choice: String,
   pub reset_reason: String,

@@ -25,7 +25,9 @@ use super::work_node::{work_refusal, workplace};
 use crate::control::Refused;
 use crate::control::agent_switches::{agent_gates, set_reasoning, switch_gate};
 use crate::control::agents::{Agent, configured};
-use crate::control::claude_account_changes::{self as changes, CredentialGiven, account_named};
+use crate::control::claude_account_changes::{
+  self as changes, BasePromptGiven, CredentialGiven, account_named,
+};
 use crate::control::claude_accounts::{self, CredentialKind, Judging, accounts};
 use crate::control::harness::{OrderEntry, provider_order, set_provider_order};
 use crate::control::registry::{self, registrations};
@@ -605,7 +607,7 @@ async fn account_order(judging: Judging<'_>, args: &AgentsArgs) -> Result<Said, 
         return Ok(Err(no_account(named)));
       };
 
-      changes::update(db, &account.id, None, None, Some(enabled)).await?;
+      changes::update(db, &account.id, None, None, Some(enabled), BasePromptGiven::Keep).await?;
     }
 
     if let Some(asked) = &args.account_use {
@@ -699,7 +701,7 @@ async fn account_change(db: &DatabaseConnection, args: &AgentsArgs) -> Result<Sa
       ..CredentialGiven::default()
     };
 
-    if let Err(refused) = changes::add(db, name, &given).await {
+    if let Err(refused) = changes::add(db, name, &given, BasePromptGiven::Keep).await {
       return Ok(said.refused(refused.error));
     }
 
@@ -727,7 +729,9 @@ async fn account_change(db: &DatabaseConnection, args: &AgentsArgs) -> Result<Sa
       ..CredentialGiven::default()
     });
 
-    if let Err(refused) = changes::update(db, &held.id, args.name.as_deref(), given.as_ref(), None).await {
+    if let Err(refused) =
+      changes::update(db, &held.id, args.name.as_deref(), given.as_ref(), None, BasePromptGiven::Keep).await
+    {
       return Ok(said.refused(refused.error));
     }
 

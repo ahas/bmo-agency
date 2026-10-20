@@ -9,7 +9,7 @@ use std::sync::LazyLock;
 use policy::control_words::CONTROL_WORDS;
 use policy::fill_marks;
 use regex::Regex;
-use sea_orm::{DatabaseConnection, TransactionTrait};
+use sea_orm::{ConnectionTrait, DatabaseConnection, TransactionTrait};
 use serde_json::Value;
 
 use super::claude_accounts::{
@@ -90,6 +90,53 @@ impl CredentialGiven {
 
 fn no_such(id: &str) -> String {
   fill_marks(&CONTROL_WORDS.accounts.unknown, &[("id", id)])
+}
+
+/// What the owner gave of an account's base prompt: nothing at all, a prompt by name, or no prompt where
+/// one was held. A change that gives none keeps the base the account holds.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub enum BasePromptGiven {
+  #[default]
+  Keep,
+  None,
+  Named(String),
+}
+
+impl BasePromptGiven {
+  /// The prompt the change names, where it names one.
+  pub fn named_prompt(&self) -> Option<&str> {
+    match self {
+      Self::Named(name) => Some(name.trim()),
+      Self::Keep | Self::None => None,
+    }
+  }
+
+  /// What the change writes where the column holds it: the prompt's name, no prompt at all, or nothing
+  /// where the account keeps the one it holds.
+  fn to_write(&self) -> Option<Option<String>> {
+    match self {
+      Self::Keep => None,
+      Self::None => Some(None),
+      Self::Named(name) => Some(Some(name.trim().to_owned())),
+    }
+  }
+}
+
+/// Why an account cannot name this base prompt, or nothing: a prompt it names is one that is kept.
+async fn base_prompt_fault<C: ConnectionTrait>(
+  db: &C,
+  given: &BasePromptGiven,
+) -> Result<Option<String>, Refused> {
+  let Some(name) = given.named_prompt() else {
+    return Ok(None);
+  };
+
+  Ok(
+    one(db, "SELECT 1 FROM base_prompts WHERE name = $1", vec![name.into()])
+      .await?
+      .is_none()
+      .then(|| fill_marks(&CONTROL_WORDS.accounts.base_prompt, &[("name", name)])),
+  )
 }
 
 /// The id minted for a new account from the name the owner gave it: never the owner's to type, since every
@@ -226,9 +273,14 @@ pub async fn account_named(db: &DatabaseConnection, named: &str) -> Result<Optio
 }
 
 /// An account the owner named added at the end of the order, minted its own id, or the refusal. The
-/// name and the credential's parts are stored with their edges trimmed; a relative path is refused, never
-/// resolved.
-pub async fn add(db: &DatabaseConnection, name: &str, given: &CredentialGiven) -> Result<(), Refused> {
+/// name, the credential's parts and the base prompt it names are stored with their edges trimmed; a
+/// relative path is refused, never resolved.
+pub async fn add(
+  db: &DatabaseConnection,
+  name: &str,
+  given: &CredentialGiven,
+  base_prompt: BasePromptGiven,
+) -> Result<(), Refused> {
   let held = accounts(db).await?;
   let ids: Vec<&str> = held.iter().map(|one| one.id.as_str()).collect();
   let names: Vec<&str> = held.iter().map(|one| one.name.as_str()).collect();
@@ -236,6 +288,9 @@ pub async fn add(db: &DatabaseConnection, name: &str, given: &CredentialGiven) -
   let asked = given.over(None).map_err(Refused::failed)?;
 
   if let Some(fault) = name_fault(name, &names).or_else(|| credential_fault(&asked)) {
+    return Err(Refused::failed(fault));
+  }
+  if let Some(fault) = base_prompt_fault(db, &base_prompt).await? {
     return Err(Refused::failed(fault));
   }
 
@@ -254,11 +309,12 @@ pub async fn add(db: &DatabaseConnection, name: &str, given: &CredentialGiven) -
   ];
 
   values.extend(columns(&asked));
+  values.push(base_prompt.named_prompt().map(str::to_owned).into());
   run(
     &written,
     &format!(
-      "INSERT INTO claude_accounts (id, name, place, enabled, added_at, {})
-       VALUES ($1, $2, $3, 1, $4, $5, $6, $7, $8, $9)",
+      "INSERT INTO claude_accounts (id, name, place, enabled, added_at, {}, base_prompt)
+       VALUES ($1, $2, $3, 1, $4, $5, $6, $7, $8, $9, $10)",
       CREDENTIAL_COLUMNS.join(", ")
     ),
     values,
@@ -269,17 +325,19 @@ pub async fn add(db: &DatabaseConnection, name: &str, given: &CredentialGiven) -
   Ok(())
 }
 
-/// What the owner changed about one account by its id — its name, its credential, its switch — or the
-/// refusal: only what was named is judged, and the last account that is on stays on. A credential given
-/// in part keeps the rest of the one the account holds. Any change to an endpoint account lifts its mark
-/// of waiting for a person, since a balance topped up at the endpoint leaves nothing on this side to read
-/// (docs/cache-fallback.md, 「A login that is about to end」).
+/// What the owner changed about one account by its id — its name, its credential, its switch, the base
+/// prompt its runs open on — or the refusal: only what was named is judged, and the last account that is
+/// on stays on. A credential given in part keeps the rest of the one the account holds, a base prompt
+/// left out keeps the one it holds, and one given must be a prompt that is kept. Any change to an
+/// endpoint account lifts its mark of waiting for a person, since a balance topped up at the endpoint
+/// leaves nothing on this side to read (docs/cache-fallback.md, 「A login that is about to end」).
 pub async fn update(
   db: &DatabaseConnection,
   id: &str,
   name: Option<&str>,
   given: Option<&CredentialGiven>,
   enabled: Option<bool>,
+  base_prompt: BasePromptGiven,
 ) -> Result<(), Refused> {
   let held = accounts(db).await?;
   let Some(account) = held.iter().find(|one| one.id == id) else {
@@ -294,9 +352,10 @@ pub async fn update(
     .transpose()
     .map_err(Refused::failed)?;
   let endpoint = |credential: &Credential| credential.kind() == CredentialKind::Endpoint;
+  let base = base_prompt.to_write();
   let lift_mark = account.needs_login_at.is_some()
     && (endpoint(&account.credential) || credential.as_ref().is_some_and(endpoint))
-    && (name.is_some() || enabled.is_some() || credential.is_some());
+    && (name.is_some() || enabled.is_some() || credential.is_some() || base.is_some());
   let fault = name
     .and_then(|name| name_fault(name, &names))
     .or_else(|| credential.as_ref().and_then(credential_fault))
@@ -306,6 +365,9 @@ pub async fn update(
     });
 
   if let Some(fault) = fault {
+    return Err(Refused::failed(fault));
+  }
+  if let Some(fault) = base_prompt_fault(db, &base_prompt).await? {
     return Err(Refused::failed(fault));
   }
 
@@ -328,6 +390,10 @@ pub async fn update(
     for (column, value) in CREDENTIAL_COLUMNS.into_iter().zip(columns(credential)) {
       set(column, value);
     }
+  }
+
+  if let Some(base) = base {
+    set("base_prompt", base.into());
   }
 
   if lift_mark {

@@ -27,7 +27,7 @@ not_offered = "The {key} key cannot be put on {mode}."
 # The Claude accounts: what a change to one names wrongly, an {id} or a {name} not known or already
 # taken, a name longer than its {most} characters, a credential kind that is none of {kinds}, a credential
 # path that is not what it says, an endpoint account's base URL and key file missing or not what they
-# say, and the order and switches that would leave no account to run on.
+# say, a base prompt none that is kept, and the order and switches that would leave no account to run on.
 [accounts]
 switch = "An account and an on or off value are needed."
 run_on = "An account to run on is needed."
@@ -58,6 +58,7 @@ order = "The order must name each registered account once."
 last_off = "Not every account can be turned off: keep at least one on."
 last_gone = "The last account cannot be removed."
 chosen_off = "An account that is off cannot be chosen. Turn it on first."
+base_prompt = "There is no base prompt {name} for the account to name."
 
 # A worker brought back to this machine with no path of this machine, and a worker's own sampling: an
 # {agent} not known, one whose {label} is no worker's or a support worker's that follows its base, a save
@@ -89,8 +90,8 @@ effort = "Effort is one of {levels}, or the default."
 role = "A role is one of {roles}."
 
 # The base prompts: a {name} not known, already taken or out of its shape, a label or a text past its
-# {most} characters, a prompt the {agents} still choose, an {agent} that chooses none, and the reason the
-# resets a changed prompt reaches are kept under.
+# {most} characters, a prompt the {agents} still choose or the {accounts} still name, an {agent} that
+# chooses none, and the reason the resets a changed prompt reaches are kept under.
 [base_prompts]
 unknown = "There is no base prompt {name}."
 label = "A label is 1 to {most} characters."
@@ -98,6 +99,8 @@ text = "A text is 1 to {most} characters."
 name_shape = "A name starts with a lowercase letter and holds only lowercase letters, digits and hyphens, at most {most} characters."
 taken = "The name is already taken: {name}"
 in_use = "It cannot be removed while agents choose it: {agents}"
+in_use_accounts = "It cannot be removed while accounts name it: {accounts}."
+in_use_both = "It cannot be removed while agents choose it or accounts name it: agents {agents}; accounts {accounts}."
 not_chooser = "This agent does not choose a base prompt: {agent}"
 choice = "Choose a base prompt's name, or none."
 reset_reason = "base prompt changed"

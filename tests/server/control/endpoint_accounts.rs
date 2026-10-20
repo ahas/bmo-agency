@@ -8,7 +8,7 @@ use std::collections::HashMap;
 
 use agency_server::Service;
 use agency_server::config::Config;
-use agency_server::control::claude_account_changes::{CredentialGiven, add, update};
+use agency_server::control::claude_account_changes::{BasePromptGiven, CredentialGiven, add, update};
 use agency_server::control::claude_accounts::{
   Account, Credential, CredentialKind, EndpointModels, Judging, accounts, open_accounts,
 };
@@ -57,8 +57,8 @@ impl Logins {
       }),
     };
 
-    add(logins.scratch.db(), "main", &directory).await.unwrap();
-    add(logins.scratch.db(), "deep", &endpoint).await.unwrap();
+    add(logins.scratch.db(), "main", &directory, BasePromptGiven::Keep).await.unwrap();
+    add(logins.scratch.db(), "deep", &endpoint, BasePromptGiven::Keep).await.unwrap();
 
     logins
   }
@@ -184,7 +184,9 @@ async fn an_endpoint_accounts_mark_goes_with_its_key_written_after_it_or_with_th
 
   // The owner changing the account lifts the mark, since a balance topped up leaves nothing to read.
   mark(now + 60).await;
-  update(logins.scratch.db(), "deep", Some("deep two"), None, None).await.unwrap();
+  update(logins.scratch.db(), "deep", Some("deep two"), None, None, BasePromptGiven::Keep)
+    .await
+    .unwrap();
   assert_eq!(logins.deep().await.needs_login_at, None);
   assert_eq!(logins.open(&windows).await, ["main", "deep"]);
 }

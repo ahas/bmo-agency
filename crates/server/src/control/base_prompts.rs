@@ -1,6 +1,8 @@
 //! The base prompts as a caller reads and changes them (docs/base-prompts.md): every prompt with
-//! the agents choosing it, and a save checked against the policy's bounds, overwriting what it
-//! changes under who made it and starting afresh each agent it reaches (docs/session-resets.md).
+//! the agents choosing it and the accounts naming it, and a save checked against the policy's bounds,
+//! overwriting what it changes under who made it and starting afresh each agent it reaches
+//! (docs/session-resets.md). An account asks no reset: its worker's system-prompt file is named by its
+//! content, so a changed base opens a fresh session on its next turn.
 
 use std::sync::LazyLock;
 
@@ -71,6 +73,34 @@ async fn choosers<C: ConnectionTrait>(db: &C, prompt: &str) -> Result<Vec<String
   .collect()
 }
 
+/// The accounts that name a prompt, in the order the road takes them: each one's id and name.
+async fn namers<C: ConnectionTrait>(db: &C, prompt: &str) -> Result<Vec<(String, String)>, Refused> {
+  all(
+    db,
+    "SELECT id, name FROM claude_accounts WHERE base_prompt = $1 ORDER BY place, rowid",
+    vec![prompt.into()],
+  )
+  .await?
+  .iter()
+  .map(|row| Ok((row.try_get("", "id")?, row.try_get("", "name")?)))
+  .collect()
+}
+
+// Why a prompt cannot be removed, naming every agent that chooses it and every account that names it.
+fn in_use(choosing: &[String], naming: &[String]) -> String {
+  let words = &CONTROL_WORDS.base_prompts;
+  let listed = |names: &[String]| names.join(", ");
+
+  match (choosing.is_empty(), naming.is_empty()) {
+    (false, true) => fill_marks(&words.in_use, &[("agents", &listed(choosing))]),
+    (true, false) => fill_marks(&words.in_use_accounts, &[("accounts", &listed(naming))]),
+    (false, false) => {
+      fill_marks(&words.in_use_both, &[("agents", &listed(choosing)), ("accounts", &listed(naming))])
+    }
+    (true, true) => String::new(),
+  }
+}
+
 /// The prompt an agent chooses, or none.
 async fn chosen<C: ConnectionTrait>(db: &C, agent: &str) -> Result<Option<String>, Refused> {
   Ok(
@@ -106,6 +136,12 @@ async fn view<C: ConnectionTrait>(db: &C) -> Result<Value, Refused> {
       chosen_by.push(json!({ "agent": agent, "label": label }));
     }
 
+    let named_by: Vec<Value> = namers(db, &prompt.name)
+      .await?
+      .into_iter()
+      .map(|(id, name)| json!({ "id": id, "name": name }))
+      .collect();
+
     prompts.push(json!({
       "name": prompt.name,
       "label": prompt.label,
@@ -114,6 +150,7 @@ async fn view<C: ConnectionTrait>(db: &C) -> Result<Value, Refused> {
       "updatedAt": prompt.updated_at,
       "updatedBy": prompt.updated_by,
       "choosers": chosen_by,
+      "accounts": named_by,
     }));
   }
 
@@ -212,6 +249,8 @@ impl Change<'_> {
     )
     .await?;
 
+    // Only an agent's choice reaches sessions; an account naming the prompt asks none, since the next
+    // run on it is handed a file named by this text and opens a fresh session of its own.
     if text_changed {
       for agent in choosers(self.db, name).await? {
         self.reset_reached(&agent).await?;
@@ -225,12 +264,10 @@ impl Change<'_> {
     let name = named(body, "name");
     Prompt::required(self.db, name).await?;
     let choosing = choosers(self.db, name).await?;
+    let naming: Vec<String> = namers(self.db, name).await?.into_iter().map(|(_, named)| named).collect();
 
-    if !choosing.is_empty() {
-      return refused(
-        "name",
-        fill_marks(&CONTROL_WORDS.base_prompts.in_use, &[("agents", &choosing.join(", "))]),
-      );
+    if !choosing.is_empty() || !naming.is_empty() {
+      return refused("name", in_use(&choosing, &naming));
     }
 
     run(self.db, "DELETE FROM base_prompts WHERE name = $1", vec![name.into()]).await?;

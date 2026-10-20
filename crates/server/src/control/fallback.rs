@@ -16,7 +16,7 @@ use policy::work_keys::{Profile, WORK_KEYS};
 use sea_orm::DatabaseConnection;
 use serde_json::{Value, json};
 
-use super::claude_account_changes::{self as changes, CredentialGiven, account_named};
+use super::claude_account_changes::{self as changes, BasePromptGiven, CredentialGiven, account_named};
 use super::claude_accounts::{self, CredentialKind, Judging, accounts, leading_integer, walk_for};
 use super::harness::{
   OrderEntry, is_default_order, missing, named, order_shape_reason, order_to_save, provider_enabled,
@@ -404,7 +404,7 @@ async fn own_change(judging: Judging<'_>, action: &str, body: &Value) -> Result<
         return Err(bad(CONTROL_WORDS.accounts.switch.as_str()));
       };
 
-      changes::update(db, id, None, None, Some(enabled)).await?;
+      changes::update(db, id, None, None, Some(enabled), BasePromptGiven::Keep).await?;
 
       return accounts_answer(judging).await.map(Some);
     }
@@ -429,7 +429,7 @@ async fn own_change(judging: Judging<'_>, action: &str, body: &Value) -> Result<
         return Err(bad(CONTROL_WORDS.accounts.credential_path.as_str()));
       }
 
-      changes::add(db, name, &given).await?;
+      changes::add(db, name, &given, BasePromptGiven::Keep).await?;
 
       return accounts_answer(judging).await.map(Some);
     }
@@ -438,7 +438,7 @@ async fn own_change(judging: Judging<'_>, action: &str, body: &Value) -> Result<
       let id = text("account").ok_or_else(|| bad(CONTROL_WORDS.accounts.which_to_change.as_str()))?;
 
       // A change naming part of a credential keeps the rest of the one the account already holds.
-      changes::update(db, id, text("name"), Some(&given), None).await?;
+      changes::update(db, id, text("name"), Some(&given), None, BasePromptGiven::Keep).await?;
 
       return accounts_answer(judging).await.map(Some);
     }
