@@ -71,7 +71,11 @@ async fn the_columns_carried_beyond_a_tables_first_shape_stand_after_its_row_id(
     agents[agents.len() - 7..],
     ["rowid", "node", "role", "session_scope", "turn_shape", "default_answerer", "prompts"]
   );
-  assert_eq!(columns("claude_accounts").await.last().unwrap(), "user_id");
+  let accounts = columns("claude_accounts").await;
+  assert_eq!(
+    accounts[accounts.len() - 6..],
+    ["rowid", "user_id", "endpoint_url", "key_file", "endpoint_models", "base_prompt"]
+  );
   assert_eq!(columns("companion_settings").await.last().unwrap(), "saved_settings");
   let room_sessions = columns("room_sessions").await;
   assert_eq!(room_sessions[room_sessions.len() - 3..], ["rowid", "spent_calls", "spent_ms"]);
@@ -107,4 +111,37 @@ async fn a_row_written_with_only_its_required_columns_takes_the_defaults_the_sto
   assert_eq!(row.try_get::<i64>("", "runs").unwrap(), 0);
   assert!(row.try_get::<i64>("", "rowid").unwrap() > 0);
   assert_eq!(scratch.count(r#"SELECT COUNT(*) FROM "settings""#, vec![]).await, 1);
+}
+
+#[tokio::test]
+async fn a_base_prompt_an_account_names_cannot_be_removed_and_a_missing_one_cannot_be_named() {
+  let scratch = Scratch::new().await;
+  let account = |id: &'static str, prompt: &'static str| {
+    let db = scratch.db();
+    async move {
+      store::run(
+        db,
+        r#"INSERT INTO "claude_accounts" ("id", "name", "place", "credential_kind", "credential_path",
+             "added_at", "endpoint_url", "key_file", "endpoint_models", "base_prompt")
+           VALUES ($1, $1, 0, 'endpoint', '/home', 0, 'https://endpoint.test', '/key', '{"opus":"pro"}', $2)"#,
+        vec![id.into(), prompt.into()],
+      )
+      .await
+    }
+  };
+  let remove_kept =
+    || store::run(scratch.db(), r#"DELETE FROM "base_prompts" WHERE "name" = 'kept'"#, vec![]);
+  scratch
+    .run(
+      r#"INSERT INTO "base_prompts" ("name", "label", "text") VALUES ('kept', 'Kept', 'text')"#,
+      vec![],
+    )
+    .await;
+
+  account("endpoint", "kept").await.unwrap();
+  assert!(account("stray", "missing").await.is_err());
+  assert!(remove_kept().await.is_err());
+
+  scratch.run(r#"UPDATE "claude_accounts" SET "base_prompt" = NULL"#, vec![]).await;
+  remove_kept().await.unwrap();
 }
