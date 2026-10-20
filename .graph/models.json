@@ -57,8 +57,8 @@
       "accounts/usage",
       "calls/chat"
     ],
-    "base": "6759a3bb1b9b06d1b315c3fc9c7c78058e10fa26",
-    "changed": 1792497922259
+    "base": "0909f39dd4bfd4c60245b4f9f86b2c8a74705112",
+    "changed": 1792519312830
   },
   {
     "id": "models/providers",
@@ -90,8 +90,8 @@
     "needs": [
       "policy/declarations"
     ],
-    "base": "6759a3bb1b9b06d1b315c3fc9c7c78058e10fa26",
-    "changed": 1792497922226
+    "base": "0909f39dd4bfd4c60245b4f9f86b2c8a74705112",
+    "changed": 1792519312841
   },
   {
     "id": "models/registry",
