@@ -3,6 +3,7 @@ name = "procedures-tool"
 description = "Agency's procedures as resources: one document each, listed and read under the `bmo` namespace, to a session holding `room.tools`."
 version.workspace = true
 edition.workspace = true
+license.workspace = true
 publish = false
 
 [[bin]]

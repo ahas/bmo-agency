@@ -3,6 +3,7 @@ name = "tool-call"
 description = "Agency's side of the tool host's call protocol, which agency's placed tools share."
 version.workspace = true
 edition.workspace = true
+license.workspace = true
 publish = false
 
 [dependencies]

@@ -46,8 +46,8 @@ const content = ref({
     <UEditorMentionMenu
       :editor="editor"
       :items="[
-        { label: 'Alice', avatar: { src: 'https://github.com/example.png' } },
-        { label: 'Bob', avatar: { src: 'https://github.com/example.png' } }
+        { label: 'Alice', avatar: { src: 'https://example.com/avatar/alice.png' } },
+        { label: 'Bob', avatar: { src: 'https://example.com/avatar/bob.png' } }
       ]"
     />
     <UEditorEmojiMenu :editor="editor" />

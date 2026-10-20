@@ -60,4 +60,12 @@ cargo clippy --workspace --all-targets -- -D warnings
 (cd tests/packages && bun test)
 ```
 
+## Licence
+
+The repository's own code is MIT; its text stands in `LICENSE` at the root. The `cache-siren` crate is
+derived from an upstream project whose licence could not be confirmed, so it carries no licence
+declaration and is not covered by the repository's MIT licence.
+
+## Version
+
 The version is the workspace's, in semver.

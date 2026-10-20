@@ -3,6 +3,7 @@ name = "agency-server"
 description = "The agency service: sessions, places, lines, the co-worker pool, control routes and verbs."
 version.workspace = true
 edition.workspace = true
+license.workspace = true
 publish = false
 
 [dependencies]

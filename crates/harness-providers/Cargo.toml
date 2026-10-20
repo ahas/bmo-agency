@@ -3,6 +3,7 @@ name = "harness-providers"
 description = "The harness providers: what each provider answers about this machine and the models it offers."
 version.workspace = true
 edition.workspace = true
+license.workspace = true
 publish = false
 
 # Its binary holds no tests of its own, so `cargo test` links no test binary of it.

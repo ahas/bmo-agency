@@ -3,6 +3,7 @@ name = "node-link"
 description = "The node link: what the two ends of a link between machines say to each other, and the two ends."
 version.workspace = true
 edition.workspace = true
+license.workspace = true
 publish = false
 
 # Its binary holds no tests of its own, so `cargo test` links no test binary of it.
