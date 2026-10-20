@@ -13,11 +13,15 @@ use std::process::ExitCode;
 use agency_server::mcp::AgencyServer;
 use agency_server::verbs::agents::{self, AgentsArgs};
 use agency_server::verbs::claude_batch::{self, ClaudeBatch};
+use agency_server::verbs::companion_reset::{self, ResetArgs};
 use agency_server::verbs::dev_servers::{self, DevAction};
 use agency_server::verbs::fold_worker::{self, FoldAsked};
 use agency_server::verbs::models::{self, ModelsArgs};
 use agency_server::verbs::overtime::{self, OvertimeAsked};
+use agency_server::verbs::process_memory::{self, MemoryArgs};
 use agency_server::verbs::reload::{self, TreeRedeploy};
+use agency_server::verbs::run_list::{self, ListArgs};
+use agency_server::verbs::run_stop::{self, StopArgs};
 use agency_server::verbs::work_node::{self, WorkNodeVerb};
 use agency_server::verbs::{
   Answer, VerbError, agent_status, claude_token, code_tree, companion_follow, coworker_pool, deploy_link,
@@ -32,7 +36,7 @@ use rmcp::transport::stdio;
 /// The nouns `bmo` dispatches to this command, one a line as `nouns` prints them, each marked `home` after
 /// a tab where its commands act on the operations machine (bmo-cli's `docs/api.md`, 「The nouns a unit
 /// declares」; `docs/api.md`, 「The command」).
-pub const NOUNS: [&str; 20] = [
+pub const NOUNS: [&str; 24] = [
   "agent\thome",
   "agents\thome",
   "agent status\thome",
@@ -51,8 +55,12 @@ pub const NOUNS: [&str; 20] = [
   "dev-server",
   "dev-pane",
   "companion follow",
+  "companion reset\thome",
   "claude batch",
   "live-claude",
+  "run list\thome",
+  "run stop\thome",
+  "machine memory",
 ];
 
 #[derive(Parser)]
@@ -168,6 +176,16 @@ enum Verb {
   Companion {
     #[command(subcommand)]
     what: CompanionVerb,
+  },
+  /// The runs on this machine: what is running and what is waiting, and a run stopped by its target.
+  Run {
+    #[command(subcommand)]
+    what: RunVerb,
+  },
+  /// How much memory each program on this machine holds.
+  Machine {
+    #[command(subcommand)]
+    what: MachineVerb,
   },
   /// The agents' documents composed and written under the agents directory, with the caller's gate agents
   /// named in a JSON file.
@@ -290,6 +308,22 @@ enum CompanionVerb {
     #[arg(long)]
     version: Option<String>,
   },
+  /// A companion started afresh: what it said, what it remembers, or both.
+  Reset(ResetArgs),
+}
+
+#[derive(Subcommand)]
+enum RunVerb {
+  /// What is running and what is waiting on this machine now, with what each row is stopped by.
+  List(ListArgs),
+  /// A run stopped by its target, or what is running listed with every target first.
+  Stop(StopArgs),
+}
+
+#[derive(Subcommand)]
+enum MachineVerb {
+  /// How much memory each program on this machine holds.
+  Memory(MemoryArgs),
 }
 
 // The words this command is run with, the two-word noun `agent status` read as the `agent-status` it names:
@@ -470,9 +504,19 @@ async fn run(verb: Verb) -> ExitCode {
 
       ended(verdict(&data_root, &asked).await)
     }
-    Verb::Companion {
-      what: CompanionVerb::Follow { room, agent, .. },
-    } => ended(companion_follow::follow(&data_root, &agent, &room).await.map(|()| Answer::default())),
+    Verb::Companion { what } => ended(match what {
+      CompanionVerb::Follow { room, agent, .. } => {
+        companion_follow::follow(&data_root, &agent, &room).await.map(|()| Answer::default())
+      }
+      CompanionVerb::Reset(args) => companion_reset::reset(args).await,
+    }),
+    Verb::Run { what } => ended(match what {
+      RunVerb::List(asked) => run_list::run_list(&data_root, &asked).await,
+      RunVerb::Stop(asked) => run_stop::run_stop(&data_root, &asked).await,
+    }),
+    Verb::Machine { what } => ended(match what {
+      MachineVerb::Memory(asked) => Ok(process_memory::machine_memory(&asked)),
+    }),
     Verb::Prompts { gates } => ended(prompts(&data_root, gates).await),
     Verb::ResidentTurn {
       request,

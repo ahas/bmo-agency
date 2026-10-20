@@ -264,3 +264,83 @@ cut = "#{ask} {run}: cut; the run ends within seconds"
 # No ask has the number given, or it was settled already or its run ended.
 unknown = "overtime: no ask is numbered {ask}"
 closed = "overtime: ask {ask} is closed: its run was settled or ended, so there is nothing left to decide"
+
+# How much memory each program on this machine holds, as `bmo-agency machine memory` prints it
+# (docs/agent-control.md, 「What each program holds」): the machine's figures, the processes counted, and a
+# table for the runtimes and for each unit asked.
+[machine_memory]
+machine = "machine · {at} · total {total} MB · available {available} MB · swap {swap_total} MB ({swap_free} MB free)"
+counted = "{counted} processes counted, {unreadable} could not be read"
+runtimes = "runtimes"
+programs = "programs · {name}"
+none = "(no process holds any)"
+# The table's heading: the program, its process count, what it holds, the resident and swapped-out parts of
+# that, its resident size, and its median holding. Figures are MB.
+head = "  program                           n     held MB resident MB    swap MB     RSS MB   median MB"
+
+# A companion started afresh from the shell, as `bmo-agency companion reset` prints it
+# (docs/companions.md, 「Starting it afresh」).
+[companion_reset]
+# The variable {variable} is not set in this process, so the server whose route the reset is cannot be asked.
+no_token = "companion reset: {variable} is not set in this process, so the reset cannot be asked"
+# No server answered on the control port {port}, and why.
+unanswered = "companion reset: no agency server answered on port {port} ({why})"
+refused = "companion reset: {why}"
+# The companion {label} ({agent}), whether {mode} is a preview or a run, in the {ranges} asked.
+head = "{label} ({agent}) · {mode} · {ranges}"
+preview = "preview"
+run = "run"
+conversation = "conversation"
+person = "person"
+alone = "answers alone: {rooms}"
+shared = "shares with others: {rooms}"
+none = "none"
+# A room {title} by its number {room}, or a room the owner gave no title.
+room = "{title} ({room})"
+room_untitled = "room {room}"
+rows = "rows: {count}"
+# One table's {table}, its {range} and its {rows}.
+row = "  {table} · {range} · {rows}"
+files = "files: {count}"
+file = "  {path}"
+# What the brain takes, {took} rows, and how many it {could_not} reach.
+brain = "brain: {took} taken, {could_not} could not"
+# Something left behind, {failure}.
+failure = "left: {failure}"
+
+# What is running and what is waiting, as `bmo-agency run list` prints it
+# (docs/agent-control.md, 「Reading everything running at once」).
+[run_list]
+runs = "[runs]"
+# One open run: its stop {target}, its agent, its unit, when it {started}, and its {elapsed} time.
+run = "stop {target} · {agent} · {unit} · started {started} · {elapsed}"
+executions = "[executions]"
+# One open execution: its stop {target}, its {line}, what it runs {detail}, when it {started}, and its
+# {elapsed} time.
+execution = "stop {target} · {line} · {detail} · started {started} · {elapsed}"
+jobs = "[jobs]"
+# One open job: its stop {target}, its {worker}, its {item}, its {state}, when it {started} and its
+# {elapsed} time.
+job = "stop {target} · {worker} · item {item} · {state} · started {started} · {elapsed}"
+panes = "[herdr]"
+# One pane: the {run} it carries, its {label} and the agent {status}.
+pane = "{run} · {label} · {status}"
+panes_unreached = "herdr did not answer: {why}"
+panes_unnamed = "herdr is not named for this machine"
+machine = "[machine]"
+machine_line = "load {load} / {threads} threads · memory {available} of {total} MB available · swap {swap_free} of {swap_total} MB free"
+none = "(nothing)"
+
+# Stopping a run from the shell, as `bmo-agency run stop` prints it
+# (docs/agent-control.md, 「Stopping one from a shell」).
+[run_stop]
+bad_target = "run stop: '{target}' is no stop target; give unit:<id>, execution:<id> or item:<id>"
+unknown = "run stop: nothing running is named {target}"
+no_reason = "run stop: a work order's stop needs --why '<reason>'"
+nothing = "(nothing is running)"
+left_out = "{count} row(s) with nothing to aim at are left out"
+asked = "asked {target}"
+confirmed = "confirmed {target}"
+not_confirmed = "{target} was asked to end; it has not gone yet"
+all_done = "{asked} asked, {confirmed} confirmed"
+row = "{target}  {what}"

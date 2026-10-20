@@ -252,6 +252,85 @@ pub struct CompanionFollowWords {
   pub generation_opened: String,
 }
 
+/// How much memory each program on this machine holds, as `bmo-agency machine memory` prints it
+/// (docs/agent-control.md, 「What each program holds」): the machine's figures, the processes counted, the
+/// table of each runtime's programs and of each unit's, and an empty one.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MachineMemoryWords {
+  pub machine: String,
+  pub counted: String,
+  pub runtimes: String,
+  pub programs: String,
+  pub none: String,
+  pub head: String,
+}
+
+/// A companion started afresh from the shell, as `bmo-agency companion reset` prints it
+/// (docs/companions.md, 「Starting it afresh」): its heading, its rooms, its rows, its files, what the brain
+/// would take, and what was left.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CompanionResetWords {
+  pub no_token: String,
+  pub unanswered: String,
+  pub refused: String,
+  pub head: String,
+  pub preview: String,
+  pub run: String,
+  pub conversation: String,
+  pub person: String,
+  pub alone: String,
+  pub shared: String,
+  pub none: String,
+  pub room: String,
+  pub room_untitled: String,
+  pub rows: String,
+  pub row: String,
+  pub files: String,
+  pub file: String,
+  pub brain: String,
+  pub failure: String,
+}
+
+/// What is running and what is waiting, as `bmo-agency run list` prints it
+/// (docs/agent-control.md, 「Reading everything running at once」).
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RunListWords {
+  pub runs: String,
+  pub run: String,
+  pub executions: String,
+  pub execution: String,
+  pub jobs: String,
+  pub job: String,
+  pub panes: String,
+  pub pane: String,
+  pub panes_unreached: String,
+  pub panes_unnamed: String,
+  pub machine: String,
+  pub machine_line: String,
+  pub none: String,
+}
+
+/// Stopping a run from the shell, as `bmo-agency run stop` prints it
+/// (docs/agent-control.md, 「Stopping one from a shell」): what is listed with every target, and what a
+/// stop reached.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RunStopWords {
+  pub bad_target: String,
+  pub unknown: String,
+  pub no_reason: String,
+  pub nothing: String,
+  pub left_out: String,
+  pub asked: String,
+  pub confirmed: String,
+  pub not_confirmed: String,
+  pub all_done: String,
+  pub row: String,
+}
+
 /// Every verb's words.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -264,6 +343,10 @@ pub struct VerbWords {
   pub agents: AgentsWords,
   pub dev_servers: DevServersWords,
   pub companion_follow: CompanionFollowWords,
+  pub companion_reset: CompanionResetWords,
+  pub machine_memory: MachineMemoryWords,
+  pub run_list: RunListWords,
+  pub run_stop: RunStopWords,
 }
 
 /// The chat agent's verdict on a run past its clock (docs/agent-control.md, 「A clock asks before it cuts」).

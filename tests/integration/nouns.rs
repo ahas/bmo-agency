@@ -7,7 +7,7 @@ use std::process::{Command, Output, Stdio};
 use crate::binary;
 
 // The nouns the command declares, as `nouns` prints them, `home` marks included.
-const NOUNS: [&str; 20] = [
+const NOUNS: [&str; 24] = [
   "agent\thome",
   "agents\thome",
   "agent status\thome",
@@ -26,8 +26,12 @@ const NOUNS: [&str; 20] = [
   "dev-server",
   "dev-pane",
   "companion follow",
+  "companion reset\thome",
   "claude batch",
   "live-claude",
+  "run list\thome",
+  "run stop\thome",
+  "machine memory",
 ];
 
 // The binary run on `args` in a home and a working directory of the test's own, with nothing on its standard

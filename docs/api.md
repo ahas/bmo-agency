@@ -420,8 +420,12 @@ input, so `bmo` finds it from any directory.
 | `dev-server` | `start`, `restart` or `stop <worker>`; `list [--sweep]`; `pane <worker>` | the worker's workbench and dev-server pane, and the store |
 | `dev-pane` | `<worker>` | the worker's dev-server pane, and the store |
 | `companion follow` | `<room> --agent <agent> [--version <version>]` | the store, as the room is kept and its turns are appended |
+| `companion reset` | `<agent>`, `--conversation`, `--person`, `--dry-run`, `--alone <rooms>` and `--shared <rooms>` | the service's `/companion-resets` route |
 | `claude batch` | `--model`, `--effort`, `--config-dir`, `--system-file`, `--title` and `--bound-seconds`, with the batch on standard input | the provider's program on this machine |
 | `live-claude` | `--purpose <what it measures and why>`, or `--list` | the store's run ledger |
+| `run list` | `--json`, or `--full` for every row whole | the store, herdr, and the machine's proc files |
+| `run stop` | `<kind>:<id>` — `unit:`, `execution:` or `item:` — `--why <reason>` for an item, `--all`, or no target to list what is running | the store, herdr and systemd |
+| `machine memory` | `--runtime <runtime>` and `--unit <unit>`, each repeatable, and `--json` | the machine's proc root |
 
 - **Every noun prints English** and ends with 0, with 1 where its work failed, and with 2 where its words
   are wrong; `--help` prints a noun's whole usage.

@@ -2728,123 +2728,49 @@ them run a browser, and whose a place is.
 
 ## Reading everything running at once
 
-`bmo-agency run list` reads, in one call, what is running and what is waiting on this machine now.
-Human-readable text is the default, and `--json` gives the same as structure. It only reads and changes
-nothing. The text's headings, labels and fixed sentences are English; the console renders the
-structure in its own language.
+`bmo-agency run list` reads, in one call, what this service is running and what is waiting on this machine
+now. Human-readable text is the default, and `--json` gives the same as structure; `--full` carries every
+row whole. It only reads and changes nothing. The text's headings, labels and fixed sentences are English.
 
-- **The chat agent's state tool reads the same text off agency** (`chat-mcp.md`, 「How a call
-  runs」): agency answers its running route (`docs/api.md`, 「Health」) with this reading's text, its live picture read in its own
-  process rather than over the port; the tool's `full` stands for `--full`, and the tool cuts the
-  text to the ceiling of its own answers.
-- **`bmo-agency run list` opens the store's database with no version to refuse on,** and refuses with
-  the reason only where it cannot reach it.
-
-Nine places are gathered.
-
-- **The bot's live picture.** Exactly what the control API's live status answers: per gate, runner, editor
-  and job run, the kind, agent, item and its round, model, start time and elapsed time, and ceiling. A job
-  run's model is the provider and model its run went out on, with its fallback mark and, for a work order's
-  step, the step's changed mark — the same wording as the step's line, which never says the request. And a
-  room folding its context and a room answering a turn. Gates, folding and answering rooms are in the bot's
-  memory only, so there is nowhere but this picture to read them. Every run and every answering room also
-  prints what a stop of it is aimed at, written `stop <kind>:<id>` — `unit:` for a run standing apart,
-  `execution:` for a gate and for agency's own turn — so a person reading this can name one to the stop
-  verb without working it out (「Stopping」 above).
-- **The job unit's reading.** Per in-progress or stopped work order, the item, worker, phase, which stage and its title,
-  the current tasks' names, roles, states, the model each ran on (`work-orders.md`, 「The model a step
-  ran on」), rounds, elapsed times and units, the skipped-task count,
-  and if stopped the first line of its reason. If a stopped work order stands first in its worker line,
-  the queue order stands under that line — whether it is its turn to resume or yielding, the reason not yet
-  resumed, and the counted failure count (`work-orders.md`, 「A stopped work order's turn」). Per
-  answer-waiting job's question, the item, the question's first line and the deadline. Per standing watch,
-  its number, note, check or moment, check interval, give-up time, last check with its exit, and the memory
-  it serves or the mark `no memory` where it serves none; a watch run
-  carries the watch whose unit it is, and the watches no run holds — a timer, or a check between runs —
-  stand in a section of their own. The text shows each note's first line cut short, `--full` shows the whole
-  note and check, and `--json` always carries them whole. Four switches —
-  auto-progress paused by the owner, the deployment's hold (its commits, what it takes away, the jobs it waits for and the jobs at
-  work it does not, each with why, and how long it has left), the rest state (kind and end time), keepalive stopped. Per run, the last time written to the
-  agent log is attached as the last activity, and per job run its standing wait mark and whether a
-  backlog deployment is waiting on it (「A job's own mark on a long wait」 above).
-- **herdr.** With one snapshot, per pane the label (that is, the run's name), the recognised agent and the
-  agent status are read and matched by name to the runs above. blocked means a person must answer and is not
-  a failure, and it is printed as waiting on a confirmation (「A confirmation in the middle of a turn」 above).
-- **systemd.** Used only when the bot does not answer.
-- **The job locks.** `[workers]` is every worker with its checkout and what holds it, which is where a
-  job could start now. A checkout is held by a job the runs above show at work in it — named by its
-  worker, its job number, its item (or, for a job with no item, why it was launched) and its unit — by a
-  work order under way there or a stopped one that has not let go of it, and, where neither names
-  anything, by the directory's job lock when that is still taken with no row open, which is a runner on
-  its way out. A checkout nothing holds reads `free`. Two workers pointed at one directory read the
-  same holds, since the directory is what a job is taken on. `--json` carries it as `workers`.
-- **The deployment.** `[deployment]` stands first where there is anything to say: every `bmo-deploy-*` unit
-  active now, with the command that reads its journal, or — with none active — a deployment cut off in
-  the middle, read off the deployment record against the bot unit's last start (the deploy unit's
-  `deploy.md`, 「A deployment cut off in the middle」). `--json` carries it as `deployment`.
-- **The machine.** `[machine]` is one line read afresh: load against threads, memory pressure,
-  available memory, free swap, open jobs and those with a browser, and — where a launch limit is met
-  — that launches are held and by which (「Room on the machine」 above). Only the jobs whose
-  checkouts stand on this machine count. `--json` carries it as `machine`, its `reading` null where
-  the machine could not be read.
-- **The testbed.** `[testbed]` is the machine's one queue for heavy test and build commands read
-  afresh (the testbed unit's `testbed.md`): who holds the turn — the job's place and item, the checkout, the command
-  and since when — and every waiter behind it in order, a waiter put at the front for a deployment
-  and a place kept for a job that is coming back marked as such; or that nothing holds it. The
-  narrow lane (`testbed.md`, 「The lanes」) follows under a line of its own naming its width,
-  its holder and waiters indented beneath, only where anything holds or waits there. `--json`
-  carries them under `machine` as `testbed` and `narrow`.
-- **The node rotation.** `[nodes]` stands only where a machine besides this one takes work:
-  each machine of the rotation with the jobs and heavy runs it was given and its room — free, or the
-  limits holding it — then where the next heavy run goes (`docs/work-nodes.md`, 「The rotation」).
-  `--json` carries it as `nodes`.
-
-- **If the bot does not answer,** that fact is written first, what is only in the bot's memory is left blank
-  as unknown, and the store's open job and runner rows are asked of systemd and herdr and only the alive
-  ones shown. With no herdr, only that column is blank and the rest stand. That one place did not answer is
-  written not as a blank but by that place's name — "nothing running" and "could not ask" are different
-  answers.
-- **The same two answers are kept apart wherever the question is asked, not only in this report.** The
-  probe that says which units are alive answers three ways — these are alive, none is alive, and it
-  could not be asked — and the third is carried up to whoever decides on it rather than being flattened
-  into the second at the first step. The reader that matters most is the queue's: a machine nobody
-  could ask is not a machine with nothing running, so while the probe cannot be asked the chat agent is told of no
-  free worker, and the running report says the reading was not answered rather than showing a checkout free.
-  A job launched into a checkout nobody can see into puts a second job on the files a running one holds.
-- **What actually keeps a second job out of a directory is that directory's own lock**, one per
-  directory and asked where a job is launched rather than after it has started (`jobs.md`, 「There can be more than one
-  job worker」). The reading above stands in front of that lock and never in place of
-  it: the reading keeps the chat agent from choosing blind, and the lock keeps a race between the reading and the
-  launch from landing two jobs in one checkout anyway. A launch the lock or a running job refuses says
-  which job of which item holds the checkout.
+- **The runs.** Every run the ledger holds open: its agent, its unit, when it started and how long ago, and
+  what a stop of it is aimed at, written `stop <kind>:<id>`. A run in a unit of its own is named
+  `unit:<unit>`.
+- **The jobs.** Every job the harness handed over that is starting or running: its worker, its item, its
+  state, when it started, and its stop, `item:<item>`.
+- **The executions.** Every execution with no end recorded: its line — a gate, a chat turn, a runner — what
+  it runs under, when it started, and its stop, `execution:<id>`.
+- **herdr.** With one snapshot, per pane the run's name, its label and the agent's status. A pane whose
+  agent is blocked is waiting on a confirmation, which is not a failure (「A confirmation in the middle of
+  a turn」 above). A herdr that did not answer is named as unanswered, never shown as holding nothing.
+- **The machine.** One line read afresh: load against threads, available memory and free swap.
+- **It opens the store's database with no version to refuse on,** and refuses with the reason only where it
+  cannot reach it.
+- **Every row names its own stop,** so no person and no script works a target out of a row's shape; the word
+  a report prints is the word `bmo-agency run stop` takes (`docs/api.md`, 「The command」).
+- **"Nothing running" and "could not ask" are kept apart** wherever the reading shows a place: a herdr
+  nobody could ask is written by its failure, not flattened into an empty list.
 
 ## Stopping one from a shell
 
-`bmo-agency run stop` is the shell's road to the one stop verb. It reads only through the bot: the
-list comes from the live picture the control API answers with, and the stop goes to that same API,
-which hands it to the verb (「Stopping」 above). Nothing in it opens the store and nothing in it
-looks for a process.
+`bmo-agency run stop` is the shell's road to the stop verb. It reads the same picture `run list` reads —
+the store's open runs, jobs and executions, this machine's herdr and systemd — and reaches each target by
+what the target's kind is, the reach 「Stopping」 above holds.
 
 - **Called with nothing, it lists what is running** with each row's target first — the same
   `<kind>:<id>` the running report prints on every line, so the word read off one is the word handed
-  back to the other. A row the picture says has nothing to aim at is left out of the list and counted
-  in a line of its own, because a short list read as the whole of what is running is the one way this
-  can mislead.
-- **Called with a target, it stops that one run.** `unit:` for a runner, an editor or a job worker,
-  `execution:` for a chat turn or a gate, `item:` for a work order, which takes `--why '<reason>'`
-  because the item carries that reason until it is taken up again. A word that is not a target is
-  refused before the bot hears it.
-- **A chat turn names its target as soon as it has one.** The turn is drawn in the live picture as its
-  round begins, and the moment the door opens the execution row it runs under, the room's turn takes that
-  row as its `stop`. A turn stuck at any point after that is stopped by it, which ends the round and lets
-  the room's next turn open.
-- **`--all` stops everything running**, which is the owner's "stop every agent's running work" asked
-  in one call.
+  back to the other. A row with nothing to aim at is left out of the list and counted in a line of its
+  own, because a short list read as the whole of what is running is the one way this can mislead.
+- **Called with a target, it stops that one run.** `unit:` for a run in a unit of its own, its
+  cancellation written, a pane asked and closed after its grace, and the unit stopped by systemd where it
+  still stands; `execution:` for a chat turn or a gate, the cancellation walked from its record; `item:`
+  for a work order, its job marked stopped and its run stopped, and `--why '<reason>'` because the item
+  carries that reason until it is taken up again. A word that is not a target is refused before anything
+  is asked.
+- **`--all` stops every target the reading names**, which is the owner's "stop every agent's running
+  work" asked in one call, in the order the reading stands them.
 - **It says which of the two a stop got to.** Asked is the run told to end, confirmed is the run seen
-  gone, and the answer never says the second when it only reached the first; stopping everything says
-  how many were asked and how many of those were confirmed, with every refusal named beside them.
-- **It answers under the same ceiling as every other verb of ours** (`job-tools.md`), cutting to
-  whole rows and saying how many were left and where the rest are read.
+  gone, and the answer never says the second when it only reached the first; stopping everything says how
+  many were asked and how many of those were confirmed.
 - **It is not on the worker's MCP server** and is not to be put on it (`docs/worker-mcp.md`).
 
 ## What was not confirmed
