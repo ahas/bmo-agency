@@ -28,7 +28,7 @@ a field's exact shape matters, the OpenAPI document is the one to read.
 ## Versioning
 
 - The contract carries the repository's one version, in semver; the workspace manifest is its source. Before
-  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.4`.
+  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.5`.
 - A change to this document and a change to the boundary go in one commit. A change to a route, an event, a
   hook or a shared table's contract repairs this document in the same commit.
 - The major moves on a removed or renamed route, field or event, the minor on an addition, the patch on
@@ -109,7 +109,7 @@ receiver. `road-verbs` is what the procedures tool asks a room's road.
 | GET | `/sessions` | Every session, by agent or scope. |
 | POST | `/sessions` | Start a session for an agent at a scope. A run with a fixed prompt is such a session naming its prompt document. |
 | GET | `/sessions/{sessionId}` | A session's state: provider, model, place, holder, why the prefix changed. |
-| PATCH | `/sessions/{sessionId}` | Hand a session over to another holder. |
+| PATCH | `/sessions/{sessionId}` | Move a conversation's provider and model, or a thrown-away session's model, or hand a worker's session over to another holder. |
 | DELETE | `/sessions/{sessionId}` | End a session, or clear a room's session. |
 | POST | `/sessions/{sessionId}/turns` | Send a turn into a session; words to a worker are a turn into its session. |
 | GET | `/sessions/{sessionId}/turns/{turnId}` | A turn and what it has written so far. |
@@ -119,14 +119,26 @@ receiver. `road-verbs` is what the procedures tool asks a room's road.
 | POST | `/sessions/{sessionId}/folds` | Fold a session, compacting its context. |
 
 A job's run is a worker's session turn with the work parts in the turn's context. A session is started at
-one scope — `agent`, `room`, `worker`, `editor` or `apart` — and the scope says what is kept. Its id names
-the agent and the scope: the agent's name alone for an agent's session, and `<agent>@<room>`,
-`<agent>@worker` or `<agent>@editor` for a room's, a worker's or an editor's.
+one scope — `agent`, `room`, `worker`, `editor`, `apart` or `conversation` — and the scope says what is
+kept. Its id names the agent and the scope: the agent's name alone for an agent's session,
+`<agent>@<room>`, `<agent>@worker` or `<agent>@editor` for a room's, a worker's or an editor's, and a
+number the service gives it for a thrown-away session (`<agent>@apart:<n>`) and a conversation
+(`<agent>@conversation:<n>`), so every start of one of those is a session of its own.
 
-A hand-over is a worker's alone. It closes the worker's held session on the model, leaves its note for
-the next turn and drops the record, and the holder the body names is kept for the session's state; a
-worker with nothing open keeps the holder alone. `holder` and `prefixChangeReason` are read back on the
-session wherever it is listed or read.
+A conversation is the caller's: its start names the provider, the model and, where it names one, the
+folder its turns go out on, and its turns are ordinary prompts with the context around them and no work
+parts. A provider whose program keeps a session continues the one its last answered turn left; a provider
+that keeps none — OpenRouter through the dsh loop among them — carries each turn afresh. The session
+stands in the server's memory from its start to its end.
+
+A conversation moves its provider and model on the change route, each left as it stands where the body
+names only the other, and starts its next turn on a fresh session where the road keeps one. A
+thrown-away session's model moves the same way, while its provider stays Claude Code's, where its turns
+go out. A hand-over is a worker's alone: it closes the worker's held
+session on the model, leaves its note for the next turn and drops the record, and the holder the body
+names is kept for the session's state; a worker with nothing open keeps the holder alone. An agent's and
+a room's session go out on the provider and model their agent's row names, and that row is where those
+move. `holder` and `prefixChangeReason` are read back on the session wherever it is listed or read.
 
 ### turn-contexts
 

@@ -140,6 +140,115 @@ pub async fn stand_in_turn(
   Ok(None)
 }
 
+/// One conversational turn on the provider and model the caller named rather than on the agent's walk:
+/// the chat line's run on that provider's road, the session its last answered turn left resumed where the
+/// road keeps one. The reply's session id is the thread a Codex turn or the session a registered model's
+/// gateway turn continues, which the caller keeps for its next turn.
+#[allow(clippy::too_many_arguments)]
+pub async fn turn_on(
+  ground: &Ground,
+  log: &mut RunLog,
+  launch: &ChatLaunch<'_>,
+  provider: &str,
+  model: &str,
+  prompt: &str,
+  answers: &[i64],
+  began: i64,
+) -> Result<Reply, NoAnswer> {
+  let machine = ground.machine();
+  let run = chat_run(ground, &machine, launch, prompt, false).await.map_err(refusal)?;
+  let step = step_on(ground, launch.agent, provider, model, &run.reasoning).await?;
+
+  match provider {
+    CODEX => {
+      let kept = launch.resume.clone();
+      let on = |thread: Option<String>| Door::Codex { thread };
+      let mut outcome =
+        deliver(ground, &machine, &run, &step, &on(kept.clone()), log, answers, began).await?;
+
+      if let (Err(why), Some(_)) = (&outcome, &kept)
+        && lost_thread(why)
+      {
+        outcome = deliver(ground, &machine, &run, &step, &on(None), log, answers, began).await?;
+      }
+
+      outcome.map_err(NoAnswer::Failed)
+    }
+    OPENROUTER_NAME => {
+      let api = OPENROUTER.gateway.api_on(ground.vars()).to_owned();
+      let tap = match openrouter_tap::open(None, &api).await {
+        Ok(tap) => tap,
+        Err(why) => return Err(NoAnswer::Failed(format!("the OpenRouter tap: {why}"))),
+      };
+      let door = Door::Loop {
+        tap: tap.url.clone(),
+      };
+      let outcome = deliver(ground, &machine, &run, &step, &door, log, answers, began).await;
+      let seen = tap.observed();
+
+      tap.close();
+
+      let mut reply = match outcome? {
+        Ok(reply) => reply,
+        Err(why) => return Err(NoAnswer::Failed(why)),
+      };
+
+      if let Some(spent) = spent_of(&reply.mode, &step.model, &seen) {
+        reply.spend = vec![spent];
+      }
+
+      reply.effort = None;
+
+      Ok(reply)
+    }
+    _ => {
+      let Some(service) = registry::service_of(&ground.db, &step.model)
+        .await
+        .map_err(|why| NoAnswer::Failed(why.error))?
+      else {
+        return Err(NoAnswer::Failed(format!("{}: {}", REGISTERED.presence.not_registered, step.model)));
+      };
+
+      if let Err(why) = listed(ground, &service, &step.model).await {
+        return Err(NoAnswer::Failed(why));
+      }
+
+      let placement = place_registered(ground, &step.model).await.map_err(refusal)?;
+      let outcome =
+        deliver(ground, &machine, &run, &step, &Door::Gateway { placement }, log, answers, began).await?;
+      let mut reply = outcome.map_err(NoAnswer::Failed)?;
+
+      reply.effort = step.thinking.then(|| "thinking".to_owned());
+
+      Ok(reply)
+    }
+  }
+}
+
+// The step a conversation's turn goes out on: the registration's own settings on the registry's provider,
+// and the agent's own choice of thinking and effort on every other.
+async fn step_on(
+  ground: &Ground,
+  key: &str,
+  provider: &str,
+  model: &str,
+  reasoning: &crate::lines::worker::Reasoning,
+) -> Result<Step, NoAnswer> {
+  if provider != registry::PROVIDER {
+    return Ok(Step {
+      provider: provider.to_owned(),
+      model: model.to_owned(),
+      effort: reasoning.level.clone().unwrap_or_default(),
+      thinking: reasoning.thinking.unwrap_or(true),
+      answer_tokens: None,
+    });
+  }
+
+  crate::stand_in::registration_step(ground, key, model, reasoning)
+    .await
+    .map_err(NoAnswer::Failed)
+}
+
 /// The mark of a standing fallback cleared once Claude Code answers again, and its end published.
 pub async fn fallback_ended(ground: &Ground) {
   let db = &ground.db;

@@ -10,6 +10,7 @@ mod standing;
 mod apart_session;
 mod chat_stand_in;
 mod clock;
+mod conversation_session;
 mod command_reading {
   mod reading;
   mod records;
@@ -31,6 +32,7 @@ mod control {
   mod companion_reset;
   mod companions;
   mod consumer_calls;
+  mod conversation_routes;
   mod events_publish;
   mod executions;
   mod fallback;

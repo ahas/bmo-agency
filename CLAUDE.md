@@ -20,12 +20,12 @@ is the caller's decision; agency supplies it.
   exposes or calls. Read the document covering a change first. A change that would make it wrong
   repairs the document first, stating what is true now, and the code is then written to match. A change
   to the boundary API changes `docs/api.md` in the same commit and follows the version rule below.
-- **herdr is one backend.** `crates/agent-session` declares the session contract, ten operations:
-  start, send a turn, push words into a working turn, read state, answer the question a turn stands on,
-  read what the latest turn has written so far, interrupt, fold, end, list. Every
-  caller reaches agents through it. `crates/herdr` is only herdr's socket client; the herdr
-  implementation of the contract is the server's `herdr_backend` module, since it is built over the
-  server's door, places and lines.
+- **herdr is one backend.** `crates/agent-session` declares the session contract, eleven operations:
+  start, switch a session's provider and model, send a turn, push words into a working turn, read state,
+  answer the question a turn stands on, read what the latest turn has written so far, interrupt, fold,
+  end, list. Every caller reaches agents through it. `crates/herdr` is only herdr's socket client; the
+  herdr implementation of the contract is the server's `herdr_backend` module, since it is built over
+  the server's door, places and lines.
 - **The co-worker pool is a module of the server, not a crate.** Its dispatch shares the request, the
   tiers, the roads and the routes with the control routes, so a crate boundary between them would be a
   cycle.

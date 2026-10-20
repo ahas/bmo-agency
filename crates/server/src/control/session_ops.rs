@@ -12,8 +12,8 @@
 //! an English sentence saying why.
 
 use agent_session::{
-  Answer, Apart, Aside, Fault, FaultKind, JobMark, RoomBlock, RunParts, Scope, Session, SessionId,
-  Sessions, Start, State, Turn, TurnContext, WorkParts,
+  Answer, Apart, Aside, Conversation, Fault, FaultKind, JobMark, RoomBlock, RunParts, Scope, Session,
+  SessionId, Sessions, Start, State, Turn, TurnContext, WorkParts,
 };
 use axum::http::{Method, StatusCode};
 use axum::response::{IntoResponse, Response};
@@ -161,6 +161,12 @@ pub fn scope_value(scope: &Scope) -> Value {
       "todo": apart.todo,
       "role": apart.role,
     }),
+    Scope::Conversation(conversation) => json!({
+      "kind": "conversation",
+      "provider": conversation.provider,
+      "model": conversation.model,
+      "cwd": conversation.cwd,
+    }),
   }
 }
 
@@ -229,7 +235,16 @@ pub fn scope_read(body: &Value) -> Result<Scope, Refused> {
         role,
       }))
     }
-    _ => Err(bad("scope.kind is agent, room, worker, editor or apart")),
+    Some("conversation") => {
+      let named = |field: &str| text(scope, field).map(|value| value.trim().to_owned());
+
+      Ok(Scope::Conversation(Conversation {
+        provider: named("provider")?,
+        model: named("model")?,
+        cwd: scope.get("cwd").and_then(Value::as_str).map(str::trim).unwrap_or_default().to_owned(),
+      }))
+    }
+    _ => Err(bad("scope.kind is agent, room, worker, editor, apart or conversation")),
   }
 }
 
@@ -245,6 +260,7 @@ fn scope_word(scope: &Scope) -> &'static str {
     Scope::Worker => "worker",
     Scope::Editor => "editor",
     Scope::Apart(_) => "apart",
+    Scope::Conversation(_) => "conversation",
   }
 }
 
@@ -286,7 +302,26 @@ fn scope_asked(body: &Value) -> Result<Scope, Refused> {
           role: field("role").map(str::to_owned),
         }))
       }
-      other => Err(bad(format!("scope is agent, room, worker, editor or apart, not {other}"))),
+      "conversation" => {
+        let options = body.get("options").cloned().unwrap_or(Value::Null);
+        let field = |name: &str| {
+          options
+            .get(name)
+            .or_else(|| body.get(name))
+            .and_then(Value::as_str)
+            .filter(|value| !value.is_empty())
+        };
+        Ok(Scope::Conversation(Conversation {
+          provider: field("provider")
+            .ok_or_else(|| bad("a conversation's scope names its provider"))?
+            .to_owned(),
+          model: field("model").ok_or_else(|| bad("a conversation's scope names its model"))?.to_owned(),
+          cwd: field("cwd").map(str::to_owned).unwrap_or_default(),
+        }))
+      }
+      other => {
+        Err(bad(format!("scope is agent, room, worker, editor, apart or conversation, not {other}")))
+      }
     };
   }
 
@@ -338,10 +373,17 @@ impl Route for SessionStart {
 
   async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
     let body = call.body().await?;
-    let start = Start {
+    let mut start = Start {
       agent: agent_named(&body)?.to_owned(),
       scope: scope_asked(&body)?,
     };
+
+    if let Scope::Conversation(conversation) = &mut start.scope
+      && conversation.cwd.trim().is_empty()
+    {
+      conversation.cwd = call.ground().source.to_string_lossy().into_owned();
+    }
+
     let backend = backend(&call)?;
 
     match backend.start(start).await {
@@ -442,9 +484,13 @@ impl Route for SessionState {
     let id = call.param("sessionId").unwrap_or_default().to_owned();
     let session = SessionId(id.clone());
     let model = call.query("model").filter(|model| !model.trim().is_empty());
-    let (agent, scope) = crate::herdr_backend::scope_of(&session);
+    let backend = backend(&call)?;
+    let (agent, scope) = match backend.held_scope(&session).await {
+      Ok(held) => held,
+      Err(fault) => return Ok(faulted(fault)),
+    };
 
-    Ok(match backend(&call)?.read_state(&session, model.as_deref()).await {
+    Ok(match backend.read_state(&session, model.as_deref()).await {
       Ok(state) => {
         let started = agent_session::Session {
           id: SessionId(id.clone()),
@@ -511,8 +557,9 @@ async fn keep_holder(
   Ok((holder, reason))
 }
 
-/// A worker's session handed over to the holder the body names: the held session closed with its note
-/// for the next turn, its record dropped, and the new holder kept for the session's state.
+/// A session moved: a conversation's or a thrown-away session's provider and model switched where the body
+/// names them, or a worker's session handed over to the holder the body names, the held session closed
+/// with its note for the next turn, its record dropped, and the new holder kept for the session's state.
 pub struct SessionHandover;
 
 impl Route for SessionHandover {
@@ -523,18 +570,46 @@ impl Route for SessionHandover {
     let id = call.param("sessionId").unwrap_or_default().to_owned();
     let body = call.body().await?;
     let session = SessionId(id.clone());
-    let (agent, scope) = crate::herdr_backend::scope_of(&session);
+    let backend = backend(&call)?;
+    let (agent, scope) = match backend.held_scope(&session).await {
+      Ok(held) => held,
+      Err(fault) => return Ok(faulted(fault)),
+    };
 
+    // A conversation's and a thrown-away session's provider and model move on the change route; a
+    // worker's model moves by its hand-over below, and every other scope's stands on its agent's row.
     if !matches!(scope, Scope::Worker) {
-      return Err(Refused::new(
-        StatusCode::UNPROCESSABLE_ENTITY,
-        format!("{id} is not a worker's session, and only a worker's session is handed over"),
-      ));
+      let options = body.get("options").cloned().unwrap_or(Value::Null);
+      let given = |name: &str| {
+        options
+          .get(name)
+          .or_else(|| body.get(name))
+          .and_then(Value::as_str)
+          .map(str::trim)
+          .filter(|value| !value.is_empty())
+          .map(str::to_owned)
+      };
+      let (provider, model) = (given("provider"), given("model"));
+
+      if provider.is_none() && model.is_none() {
+        return Err(Refused::new(
+          StatusCode::UNPROCESSABLE_ENTITY,
+          format!("{id} is switched by naming the provider or the model it moves to"),
+        ));
+      }
+
+      return Ok(match backend.switch(&session, provider.as_deref(), model.as_deref()).await {
+        Ok(moved) => {
+          let state = backend.read_state(&moved.id, None).await.ok();
+
+          answer(StatusCode::OK, member(&moved, state.as_ref(), &body))
+        }
+        Err(fault) => faulted(fault),
+      });
     }
 
     let ground = call.ground();
     let db = &ground.db;
-    let backend = backend(&call)?;
     let model = body.get("model").and_then(Value::as_str).map(str::to_owned);
     let state = match backend.read_state(&session, model.as_deref()).await {
       Ok(state) => state,

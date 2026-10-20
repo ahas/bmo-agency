@@ -210,6 +210,8 @@ fn launch<'a>() -> ChatLaunch<'a> {
     privileged: false,
     ping: false,
     base_persona: None,
+    model: None,
+    cwd: None,
   }
 }
 

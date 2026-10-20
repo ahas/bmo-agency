@@ -10,6 +10,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
+use agent_session::Sessions as _;
 use axum::http::{Method, StatusCode};
 use axum::response::{IntoResponse, Json, Response};
 use sea_orm::{ConnectionTrait, DatabaseTransaction, QueryResult, TransactionTrait};
@@ -532,7 +533,7 @@ impl Route for Sessions {
     let agent = call.query("agentName").unwrap_or_default();
     let scope = call.query("scope").unwrap_or_default();
     let room = call.query("roomId").and_then(|room| room.parse::<i64>().ok());
-    let items: Vec<Value> = views
+    let mut items: Vec<Value> = views
       .iter()
       .filter(|view| agent.is_empty() || view.session.agent == agent)
       .filter(|view| {
@@ -565,6 +566,49 @@ impl Route for Sessions {
         })
       })
       .collect();
+
+    // The thrown-away sessions and conversations the backend holds, which no holder keeps.
+    if let Some(backend) = call.sessions()
+      && let Ok(held) = backend.list().await
+    {
+      for session in held {
+        let (kind, provider, model) = match &session.scope {
+          agent_session::Scope::Apart(apart) => ("apart", &apart.provider, &apart.model),
+          agent_session::Scope::Conversation(conversation) => {
+            ("conversation", &conversation.provider, &conversation.model)
+          }
+          _ => continue,
+        };
+
+        if !agent.is_empty() && session.agent != agent {
+          continue;
+        }
+
+        if !scope.is_empty() && scope != kind {
+          continue;
+        }
+
+        if room.is_some() {
+          continue;
+        }
+
+        items.push(json!({
+          "id": session.id.0,
+          "agentName": session.agent,
+          "scope": kind,
+          "roomId": Value::Null,
+          "provider": provider,
+          "model": model,
+          "place": Value::Null,
+          "generation": 1,
+          "holder": Value::Null,
+          "prefixChangeReason": Value::Null,
+          "boundMs": Value::Null,
+          "options": {},
+          "promptDocumentName": Value::Null,
+        }));
+      }
+    }
 
     Ok(answer(StatusCode::OK, json!({ "items": items, "more": false })))
   }

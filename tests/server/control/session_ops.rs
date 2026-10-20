@@ -9,9 +9,9 @@ use agency_server::control::session_ops::{
   answer_read, context_read, scope_read, scope_value, state_value,
 };
 use agent_session::{
-  AccountFailure, Answer, Apart, Asks, Context, Failure, JobMark, Mapping, Outcome, Question, Reply,
-  Resume, RoomBlock, RunEnding, RunParts, Scope, SessionId, Span, Spend, State, TurnContext, TurnEnd,
-  WentOut, WorkParts,
+  AccountFailure, Answer, Apart, Asks, Context, Conversation, Failure, JobMark, Mapping, Outcome, Question,
+  Reply, Resume, RoomBlock, RunEnding, RunParts, Scope, SessionId, Span, Spend, State, TurnContext,
+  TurnEnd, WentOut, WorkParts,
 };
 use serde_json::json;
 
@@ -232,6 +232,44 @@ fn a_thrown_away_scope_reads_its_provider_model_and_folder_and_answers_as_it_rea
     )
     .is_err()
   );
+}
+
+#[test]
+fn a_conversations_scope_reads_its_provider_and_model_and_answers_as_it_read() {
+  let conversation = Conversation {
+    provider: "openrouter".into(),
+    model: "deepseek/deepseek-chat".into(),
+    cwd: "/places/c/01".into(),
+  };
+  let scope = scope_read(&json!({
+    "scope": { "kind": "conversation", "provider": "openrouter",
+      "model": "deepseek/deepseek-chat", "cwd": "/places/c/01" }
+  }))
+  .unwrap();
+
+  assert_eq!(scope, Scope::Conversation(conversation.clone()));
+  assert_eq!(
+    scope_value(&scope),
+    json!({ "kind": "conversation", "provider": "openrouter",
+      "model": "deepseek/deepseek-chat", "cwd": "/places/c/01" })
+  );
+  assert_eq!(
+    scope_read(&json!({ "scope": { "kind": "conversation", "provider": "codex", "model": "gpt-5" } }))
+      .unwrap(),
+    Scope::Conversation(Conversation {
+      provider: "codex".into(),
+      model: "gpt-5".into(),
+      cwd: String::new(),
+    }),
+    "a conversation with no folder named takes the deployment's own"
+  );
+
+  for missing in ["provider", "model"] {
+    let mut body = json!({ "scope": { "kind": "conversation", "provider": "p", "model": "m" } });
+
+    body["scope"].as_object_mut().unwrap().remove(missing);
+    assert!(scope_read(&body).is_err(), "a conversation with no {missing} is refused");
+  }
 }
 
 #[test]

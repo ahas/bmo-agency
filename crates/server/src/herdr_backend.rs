@@ -6,9 +6,10 @@
 //! the road and the base persona the turn's caller hands in, or by a stand-in where the agent's key walks onto
 //! one; an editor work key's session carries one editor run a turn and keeps nothing; and a thrown-away
 //! session, held in memory from its start to its end, carries a co-work branch's or a research run's turns,
-//! each on a fresh harness session. A session is known by its agent and its scope — `<agent>@worker`,
-//! `<agent>@<room>`, `<agent>`, `<key>@editor`, `<agent>@apart:<n>` — and stands across the generations its
-//! harness opens.
+//! each on a fresh harness session; and a conversation the caller opened, held there too, carries ordinary
+//! turns on the provider and model it names, resuming the session its road keeps. A session is known by its
+//! agent and its scope — `<agent>@worker`, `<agent>@<room>`, `<agent>`, `<key>@editor`,
+//! `<agent>@apart:<n>`, `<agent>@conversation:<n>` — and stands across the generations its harness opens.
 //!
 //! A turn is carried whole before *send a turn* answers with its end: whether the program took the words,
 //! or refused them while it waits on a person, and how it ended. Its end is published as `turn-ended`, and
@@ -23,8 +24,8 @@ use std::time::{Duration, Instant};
 
 pub use agent_session::EngineError;
 use agent_session::{
-  Answer, Apart, Aside, Context, Fault, FaultKind, Outcome, Output, RoomBlock, Scope, Session, SessionId,
-  Sessions, Start, State, Turn, TurnContext, TurnEnd, WentOut, WorkParts,
+  Answer, Apart, Aside, Context, Conversation, Fault, FaultKind, Outcome, Output, RoomBlock, Scope,
+  Session, SessionId, Sessions, Start, State, Turn, TurnContext, TurnEnd, WentOut, WorkParts,
 };
 use indexmap::IndexMap;
 use policy::companion_runner::COMPANION_RUNNER;
@@ -73,6 +74,9 @@ const EDITOR: &str = "editor";
 
 // What a thrown-away session is told apart by in its id, after its agent.
 const APART: &str = "apart";
+
+// What a conversation the caller opened is told apart by in its id, after its agent.
+const CONVERSATION: &str = "conversation";
 
 /// A turn put into a session began: the session and the run it goes out as.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -218,6 +222,9 @@ pub struct HerdrSessions {
   // The thrown-away sessions started and not ended, each with its agent and its scope, and the number the
   // next one is given.
   apart: Mutex<BTreeMap<SessionId, (String, Apart)>>,
+  // The conversations the callers opened and have not ended, each with its agent and what it stands on,
+  // and the number the next one is given.
+  conversations: Mutex<BTreeMap<SessionId, (String, HeldConversation)>>,
   numbered: AtomicU64,
   // The questions the sessions' turns stand on, put to their callers.
   questions: Questions,
@@ -225,6 +232,14 @@ pub struct HerdrSessions {
   deaf: Mutex<HashSet<SessionId>>,
   // What each session's latest job turn wrote of its answer.
   outputs: Outputs,
+}
+
+/// A conversation the caller opened: what its turns go out on, and the session its last answered turn on
+/// a road that keeps one left for the next turn to resume.
+#[derive(Clone, Debug)]
+struct HeldConversation {
+  conversation: Conversation,
+  harness: Option<String>,
 }
 
 fn fault(kind: FaultKind, message: impl Into<String>) -> Fault {
@@ -243,7 +258,7 @@ pub fn id_of(agent: &str, scope: &Scope) -> Option<SessionId> {
     Scope::Room(room) => format!("{agent}@{room}"),
     Scope::Worker => format!("{agent}@{WORKER}"),
     Scope::Editor => format!("{agent}@{EDITOR}"),
-    Scope::Apart(_) => return None,
+    Scope::Apart(_) | Scope::Conversation(_) => return None,
   };
 
   Some(SessionId(id))
@@ -307,9 +322,25 @@ pub fn apart_id(agent: &str, number: u64) -> SessionId {
 
 /// Whether a session's id names a thrown-away session.
 pub fn is_apart(id: &SessionId) -> bool {
+  numbered_scope(id, APART)
+}
+
+/// The id a conversation the caller opened is started under: its agent and the number the backend gave
+/// it.
+pub fn conversation_id(agent: &str, number: u64) -> SessionId {
+  SessionId(format!("{agent}@{CONVERSATION}:{number}"))
+}
+
+/// Whether a session's id names a conversation the caller opened.
+pub fn is_conversation(id: &SessionId) -> bool {
+  numbered_scope(id, CONVERSATION)
+}
+
+// Whether a session's id names a numbered session of the scope word given.
+fn numbered_scope(id: &SessionId, word: &str) -> bool {
   id.0
     .split_once('@')
-    .and_then(|(_, scope)| scope.strip_prefix(APART))
+    .and_then(|(_, scope)| scope.strip_prefix(word))
     .is_some_and(|rest| rest.strip_prefix(':').is_some_and(|number| number.parse::<u64>().is_ok()))
 }
 
@@ -439,6 +470,7 @@ impl HerdrSessions {
       going: Mutex::default(),
       showing: Mutex::default(),
       apart: Mutex::default(),
+      conversations: Mutex::default(),
       numbered: AtomicU64::new(1),
       questions: Questions::default(),
       deaf: Mutex::default(),
@@ -458,17 +490,34 @@ impl HerdrSessions {
     self.apart.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
   }
 
-  // The agent and scope a session's id names: a thrown-away session's as it was started, which one that
+  // The agent and scope a session's id names: a numbered session's as it was started, which one that
   // has ended or was never started names none of.
   fn scope_held(&self, id: &SessionId) -> Result<(String, Scope), Fault> {
-    if !is_apart(id) {
-      return Ok(scope_of(id));
+    if is_apart(id) {
+      return match self.apart().get(id) {
+        Some((agent, apart)) => Ok((agent.clone(), Scope::Apart(apart.clone()))),
+        None => Err(fault(FaultKind::Unknown, format!("{id} is no thrown-away session standing now"))),
+      };
     }
 
-    match self.apart().get(id) {
-      Some((agent, apart)) => Ok((agent.clone(), Scope::Apart(apart.clone()))),
-      None => Err(fault(FaultKind::Unknown, format!("{id} is no thrown-away session standing now"))),
+    if is_conversation(id) {
+      return match self.conversations().get(id) {
+        Some((agent, held)) => Ok((agent.clone(), Scope::Conversation(held.conversation.clone()))),
+        None => Err(fault(FaultKind::Unknown, format!("{id} is no conversation standing now"))),
+      };
     }
+
+    Ok(scope_of(id))
+  }
+
+  fn conversations(&self) -> std::sync::MutexGuard<'_, BTreeMap<SessionId, (String, HeldConversation)>> {
+    self.conversations.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+  }
+
+  // The agent and scope the backend holds a session under, for a route that reads or moves a session
+  // whose id a numbered scope names.
+  pub async fn held_scope(&self, session: &SessionId) -> Result<(String, Scope), Fault> {
+    self.scope_held(session)
   }
 
   fn ground(&self) -> &Ground {
@@ -517,11 +566,17 @@ impl HerdrSessions {
       Scope::Room(room) if conversational.is_some() => room_number(room).map(|_| row),
       Scope::Room(_) => Err(fault(FaultKind::Refused, format!("{agent} is not a conversational agent"))),
       Scope::Agent
-        if conversational.is_some_and(|settings| settings.scope == crate::conversational::Scope::Agent) =>
+        if conversational
+          .as_ref()
+          .is_some_and(|settings| settings.scope == crate::conversational::Scope::Agent) =>
       {
         Ok(row)
       }
       Scope::Agent => Err(fault(FaultKind::Refused, format!("{agent} keeps no session across rooms"))),
+      Scope::Conversation(_) if conversational.as_ref().is_some() => Ok(row),
+      Scope::Conversation(_) => {
+        Err(fault(FaultKind::Refused, format!("{agent} is not a conversational agent")))
+      }
       Scope::Editor => {
         Err(fault(FaultKind::Refused, format!("{agent} is an editor's work key, not an agent")))
       }
@@ -545,8 +600,41 @@ impl HerdrSessions {
         ),
       )),
       Scope::Apart(_) => Ok(None),
+      Scope::Conversation(conversation) => {
+        self.provider_ready(&conversation.provider).await?;
+
+        let Some(row) = AgentRow::named(&self.ground().db, agent).await.map_err(store_fault)? else {
+          return Err(fault(FaultKind::Unknown, format!("no agent is named {agent}")));
+        };
+
+        if crate::conversational::settings(&self.ground().db, agent)
+          .await
+          .map_err(store_fault)?
+          .is_none()
+        {
+          return Err(fault(FaultKind::Refused, format!("{agent} is not a conversational agent")));
+        }
+
+        Ok(Some(row))
+      }
       _ => self.checked(agent, scope).await.map(Some),
     }
+  }
+
+  // Whether a provider is one this build carries and the owner has switched on.
+  async fn provider_ready(&self, provider: &str) -> Result<(), Fault> {
+    if harness_providers::provider(provider).is_none() {
+      return Err(fault(FaultKind::Refused, format!("no provider named {provider} in this build")));
+    }
+
+    if !crate::control::harness::provider_enabled(&self.ground().db, provider)
+      .await
+      .map_err(|why| fault(FaultKind::Refused, why.error))?
+    {
+      return Err(fault(FaultKind::Refused, format!("{provider} is switched off")));
+    }
+
+    Ok(())
   }
 
   // The worker's session a turn goes on: the model of the one it answered on last, under a login that
@@ -1079,6 +1167,161 @@ impl HerdrSessions {
     Ok(Came::Answered(reply.text))
   }
 
+  // One turn of a conversation the caller opened, on the provider and model its scope names: the chat
+  // line on Claude Code, with the agent's own documents and thinking, or the stand-in road the provider
+  // declares. The session the last answered turn left is resumed where the road keeps one, and one the
+  // program no longer holds is let go and the turn asked again on a fresh one.
+  async fn conversation_turn(
+    &self,
+    turn: &Turn,
+    agent: &str,
+    conversation: &Conversation,
+    run: &str,
+  ) -> Result<Came, Fault> {
+    let ground = self.ground();
+    let began = turn.context.began.unwrap_or_else(now_ms);
+    let room = turn.context.room.clone().unwrap_or(RoomBlock {
+      chat_id: 0,
+      text: String::new(),
+      mark: String::new(),
+    });
+    let held = self.held_harness(&turn.session);
+    let launch = launch_on(
+      agent,
+      &room,
+      &turn.context,
+      held.clone(),
+      Some(&conversation.model),
+      Some(&conversation.cwd),
+    );
+    let mut log = RunLog::new(Target {
+      agent: agent.to_owned(),
+      run: run.to_owned(),
+      chat_id: Some(room.chat_id),
+      job_id: None,
+    });
+    let started = Instant::now();
+    let mut asked = self.conversation_asked(&mut log, agent, &launch, conversation, turn, began).await;
+
+    if let Err(NoAnswer::Failed(said)) = &asked
+      && held.is_some()
+      && said.contains(LOST_SESSION)
+    {
+      let fresh =
+        launch_on(agent, &room, &turn.context, None, Some(&conversation.model), Some(&conversation.cwd));
+      asked = self.conversation_asked(&mut log, agent, &fresh, conversation, turn, began).await;
+    }
+
+    let reply = match asked {
+      Ok(reply) => reply,
+      Err(NoAnswer::Overtaken) => return Ok(Came::Stopped),
+      Err(no) => {
+        let (reason, engine) = failure_of(no);
+
+        ground.events.publish(RoadWalked::of(
+          room.chat_id,
+          run,
+          &conversation.provider,
+          &conversation.model,
+          false,
+          started,
+          &[],
+          None,
+        ));
+        log
+          .write(
+            &ground.db,
+            Line {
+              kind: "end",
+              text: reason.clone(),
+              state: Some("failed"),
+              ..Line::default()
+            },
+          )
+          .await;
+
+        return Ok(Came::Failed(reason, engine));
+      }
+    };
+
+    ground.events.publish(RoadWalked::of(
+      room.chat_id,
+      run,
+      &reply.mode,
+      &reply.model,
+      true,
+      started,
+      &reply.spend,
+      reply.context_ratio,
+    ));
+    self.record_usage(agent, &reply, run).await;
+    self.keep_conversation_harness(&turn.session, &conversation.provider, &reply);
+    log
+      .write(
+        &ground.db,
+        Line {
+          kind: "end",
+          text: COMPANION_RUNNER.log.answered.clone(),
+          state: Some("succeeded"),
+          ..Line::default()
+        },
+      )
+      .await;
+
+    Ok(Came::Answered(reply.text))
+  }
+
+  // One turn of a conversation on the road its launch names: Claude Code's chat line on the deployment's
+  // own program, or the stand-in road the provider declares.
+  async fn conversation_asked(
+    &self,
+    log: &mut RunLog,
+    agent: &str,
+    launch: &ChatLaunch<'_>,
+    conversation: &Conversation,
+    turn: &Turn,
+    began: i64,
+  ) -> Result<Reply, NoAnswer> {
+    if conversation.provider == CHAT_PROVIDER {
+      return self
+        .agent_run_launched(log, agent, launch, &turn.prompt, &turn.context.answers, began)
+        .await;
+    }
+
+    crate::chat_stand_in::turn_on(
+      self.ground(),
+      log,
+      launch,
+      &conversation.provider,
+      &conversation.model,
+      &turn.prompt,
+      &turn.context.answers,
+      began,
+    )
+    .await
+  }
+
+  // The session a conversation's next turn on the provider named would resume, none where its road keeps
+  // none.
+  fn held_harness(&self, session: &SessionId) -> Option<String> {
+    self.conversations().get(session).and_then(|(_, held)| held.harness.clone())
+  }
+
+  // The session a conversation's answered turn left, kept for its next turn where its road keeps one.
+  fn keep_conversation_harness(&self, session: &SessionId, provider: &str, reply: &Reply) {
+    let keeps = harness_providers::provider(provider)
+      .and_then(|declared| declared.declared().resident.as_ref())
+      .is_some_and(|resident| resident.turns != policy::providers::Turns::Loop);
+
+    if !keeps {
+      return;
+    }
+
+    if let Some((_, held)) = self.conversations().get_mut(session) {
+      held.harness = Some(reply.session_id.clone());
+    }
+  }
+
   #[allow(clippy::too_many_arguments)]
   async fn agent_run(
     &self,
@@ -1090,16 +1333,29 @@ impl HerdrSessions {
     resume: Option<String>,
     began: i64,
   ) -> Result<Reply, NoAnswer> {
+    let launch = launch_of(agent, room, context, resume);
+    self.agent_run_launched(log, agent, &launch, prompt, &context.answers, began).await
+  }
+
+  // One chat-line turn on the launch as it stands, which names the road its run goes out on.
+  async fn agent_run_launched(
+    &self,
+    log: &mut RunLog,
+    agent: &str,
+    launch: &ChatLaunch<'_>,
+    prompt: &str,
+    answers: &[i64],
+    began: i64,
+  ) -> Result<Reply, NoAnswer> {
     let ground = self.ground();
-    let launch = launch_of(agent, room, context, resume.clone());
     let run = log.run().to_owned();
-    let composed = compose_turn(ground, &ground.machine(), &launch, prompt, &run, &context.answers, began)
+    let composed = compose_turn(ground, &ground.machine(), launch, prompt, &run, answers, began)
       .await
       .map_err(|refused| NoAnswer::Failed(refused.detail))?;
 
     log.launched(&ground.db, Some(&composed.system_path), prompt, &[]).await;
 
-    run_turn(ground, agent, CHAT_PROVIDER, &composed, resume.as_deref(), log, false, None).await
+    run_turn(ground, agent, CHAT_PROVIDER, &composed, launch.resume.as_deref(), log, false, None).await
   }
 
   // What a companion's run spent is its own: its last answer written and its usage published.
@@ -1177,29 +1433,138 @@ impl HerdrSessions {
 
 impl Sessions for HerdrSessions {
   async fn start(&self, request: Start) -> Result<Session, Fault> {
+    if matches!(&request.scope, Scope::Apart(_) | Scope::Conversation(_))
+      && (request.agent.trim().is_empty() || request.agent.contains('@'))
+    {
+      return Err(fault(FaultKind::Refused, format!("{} is no name a turn runs under", request.agent)));
+    }
+
     self.admitted(&request.agent, &request.scope).await?;
 
-    let id = match &request.scope {
+    let (id, scope) = match &request.scope {
       Scope::Apart(apart) => {
-        if request.agent.trim().is_empty() || request.agent.contains('@') {
-          return Err(fault(FaultKind::Refused, format!("{} is no name a turn runs under", request.agent)));
-        }
-
         let id = apart_id(&request.agent, self.numbered.fetch_add(1, Ordering::Relaxed));
 
         self.apart().insert(id.clone(), (request.agent.clone(), apart.clone()));
-        id
+        (id, request.scope.clone())
       }
-      scope => id_of(&request.agent, scope).ok_or_else(|| {
-        fault(FaultKind::Refused, format!("{}: its scope names no session", request.agent))
-      })?,
+      Scope::Conversation(conversation) => {
+        let mut conversation = conversation.clone();
+
+        if conversation.cwd.trim().is_empty() {
+          conversation.cwd = self.ground().source.to_string_lossy().into_owned();
+        }
+
+        let id = conversation_id(&request.agent, self.numbered.fetch_add(1, Ordering::Relaxed));
+
+        self.conversations().insert(
+          id.clone(),
+          (
+            request.agent.clone(),
+            HeldConversation {
+              conversation: conversation.clone(),
+              harness: None,
+            },
+          ),
+        );
+        (id, Scope::Conversation(conversation))
+      }
+      scope => (
+        id_of(&request.agent, scope).ok_or_else(|| {
+          fault(FaultKind::Refused, format!("{}: its scope names no session", request.agent))
+        })?,
+        scope.clone(),
+      ),
     };
 
     Ok(Session {
       id,
       agent: request.agent,
-      scope: request.scope,
+      scope,
     })
+  }
+
+  async fn switch(
+    &self,
+    session: &SessionId,
+    provider: Option<&str>,
+    model: Option<&str>,
+  ) -> Result<Session, Fault> {
+    let (agent, scope) = self.scope_held(session)?;
+
+    if self.in_turn(session) {
+      return Err(fault(FaultKind::Busy, format!("{session} is in a turn")));
+    }
+
+    match scope {
+      Scope::Conversation(conversation) => {
+        let provider = provider.map(str::trim).filter(|provider| !provider.is_empty());
+        let model = model.map(str::trim).filter(|model| !model.is_empty());
+        let next = Conversation {
+          provider: provider.unwrap_or(&conversation.provider).to_owned(),
+          model: model.unwrap_or(&conversation.model).to_owned(),
+          cwd: conversation.cwd.clone(),
+        };
+
+        self.provider_ready(&next.provider).await?;
+
+        let moved = next.provider != conversation.provider || next.model != conversation.model;
+
+        if let Some((_, held)) = self.conversations().get_mut(session) {
+          held.conversation = next.clone();
+
+          if moved {
+            held.harness = None;
+          }
+        }
+
+        Ok(Session {
+          id: session.clone(),
+          agent,
+          scope: Scope::Conversation(next),
+        })
+      }
+      Scope::Apart(apart) => {
+        let provider = provider.map(str::trim).filter(|provider| !provider.is_empty());
+        let model = model.map(str::trim).filter(|model| !model.is_empty());
+        let next = Apart {
+          provider: provider.unwrap_or(&apart.provider).to_owned(),
+          model: model.unwrap_or(&apart.model).to_owned(),
+          ..apart.clone()
+        };
+
+        self.provider_ready(&next.provider).await?;
+
+        if next.provider != worker_session::PROVIDER {
+          return Err(fault(
+            FaultKind::Refused,
+            format!("{session} goes out on {}, not {}", worker_session::PROVIDER, next.provider),
+          ));
+        }
+
+        if let Some((_, held)) = self.apart().get_mut(session) {
+          *held = next.clone();
+        }
+
+        Ok(Session {
+          id: session.clone(),
+          agent,
+          scope: Scope::Apart(next),
+        })
+      }
+      Scope::Worker => Err(fault(
+        FaultKind::Refused,
+        format!("{session} is handed over on its change route, not switched"),
+      )),
+      Scope::Agent | Scope::Room(_) => Err(fault(
+        FaultKind::Refused,
+        format!("{session} goes out on the provider and model its agent's row names"),
+      )),
+      Scope::Editor => Err(fault(
+        FaultKind::Refused,
+        format!("{session} is an editor work key's, and switches nothing"),
+      )),
+    }
   }
 
   async fn push(&self, session: &SessionId, words: &str) -> Result<Aside, Fault> {
@@ -1241,7 +1606,7 @@ impl Sessions for HerdrSessions {
     let room = match &scope {
       Scope::Room(room) => Some(room.clone()),
       Scope::Agent => turn.context.room.as_ref().map(|room| room.chat_id.to_string()),
-      Scope::Worker | Scope::Editor | Scope::Apart(_) => None,
+      Scope::Worker | Scope::Editor | Scope::Apart(_) | Scope::Conversation(_) => None,
     };
     let parts = match scope {
       Scope::Editor => turn.context.run.as_ref(),
@@ -1263,6 +1628,13 @@ impl Sessions for HerdrSessions {
       return Err(fault(
         FaultKind::Refused,
         format!("{}: a thrown-away session's turn names its work parts", turn.session),
+      ));
+    }
+
+    if matches!(scope, Scope::Conversation(_)) && turn.context.work.is_some() {
+      return Err(fault(
+        FaultKind::Refused,
+        format!("{}: a conversation's turn carries no work parts", turn.session),
       ));
     }
 
@@ -1328,6 +1700,9 @@ impl Sessions for HerdrSessions {
         Some(work) => self.carried(&turn, &agent, WorkSeat::Apart(apart), work).await,
         None => Err(apart_refused(&agent)),
       },
+      (Scope::Conversation(conversation), _) => {
+        self.conversation_turn(&turn, &agent, conversation, &run).await
+      }
       (Scope::Worker, None) => Err(fault(FaultKind::Unknown, format!("no worker is named {agent}"))),
       (Scope::Editor, _) => {
         let asked = EditorTurn {
@@ -1455,6 +1830,20 @@ impl Sessions for HerdrSessions {
         self.going_shown(session, &mut state);
         Ok(state)
       }
+      Scope::Conversation(conversation) => {
+        let mut state = State::standing(
+          session.clone(),
+          conversation.provider.clone(),
+          conversation.model.clone(),
+          conversation.cwd.clone(),
+          1,
+          None,
+        );
+
+        self.going_shown(session, &mut state);
+        state.continues = self.held_harness(session);
+        Ok(state)
+      }
     }
   }
 
@@ -1559,6 +1948,10 @@ impl Sessions for HerdrSessions {
         FaultKind::Refused,
         format!("{session} is thrown away, every turn on a fresh session"),
       )),
+      Scope::Conversation(_) => Err(fault(
+        FaultKind::Refused,
+        format!("{session} is a conversation, whose road compacts it inside its own turns"),
+      )),
     }
   }
 
@@ -1603,6 +1996,13 @@ impl Sessions for HerdrSessions {
       }
       Scope::Apart(_) => {
         self.apart().remove(session);
+      }
+      Scope::Conversation(_) => {
+        let harness = self.conversations().remove(session).and_then(|(_, held)| held.harness);
+
+        if let Some(harness) = harness {
+          let_go(ground, &agent, &[harness]).await;
+        }
       }
     }
 
@@ -1657,6 +2057,14 @@ impl Sessions for HerdrSessions {
       });
     }
 
+    for (id, (agent, held)) in self.conversations().iter() {
+      sessions.push(Session {
+        id: id.clone(),
+        agent: agent.clone(),
+        scope: Scope::Conversation(held.conversation.clone()),
+      });
+    }
+
     Ok(sessions)
   }
 }
@@ -1668,6 +2076,19 @@ fn launch_of<'a>(
   room: &RoomBlock,
   context: &'a TurnContext,
   resume: Option<String>,
+) -> ChatLaunch<'a> {
+  launch_on(agent, room, context, resume, None, None)
+}
+
+// A turn as a launch that names the model and folder where the caller chose them rather than the agent's
+// own.
+fn launch_on<'a>(
+  agent: &'a str,
+  room: &RoomBlock,
+  context: &'a TurnContext,
+  resume: Option<String>,
+  model: Option<&'a str>,
+  cwd: Option<&'a str>,
 ) -> ChatLaunch<'a> {
   ChatLaunch {
     agent,
@@ -1682,6 +2103,8 @@ fn launch_of<'a>(
     privileged: context.privileged,
     ping: false,
     base_persona: context.base_persona.as_deref(),
+    model,
+    cwd,
   }
 }
 

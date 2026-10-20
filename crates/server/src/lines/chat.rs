@@ -67,6 +67,10 @@ pub struct ChatLaunch<'a> {
   pub privileged: bool,
   pub ping: bool,
   pub base_persona: Option<&'a str>,
+  /// The model the turn goes out on where the caller names one rather than the agent's key.
+  pub model: Option<&'a str>,
+  /// The folder the turn works in where the caller names one.
+  pub cwd: Option<&'a str>,
 }
 
 /// The run composed.
@@ -141,12 +145,22 @@ pub async fn chat_run(
 ) -> Result<ChatRun, Refusal> {
   let trees = Trees::of(ground);
   let agent = launch.agent;
-  let mapping = tiers::resolve(&ground.db, agent, CLAUDE).await.map_err(fault)?;
   let reasoning = reasoning_of(ground, agent).await?;
-  let effort =
-    effort_of(ground, machine, CLAUDE, &mapping.model, mapping.effort.as_deref(), Some(&reasoning))
-      .await?
-      .unwrap_or_default();
+  let named = launch.model.map(str::trim).filter(|model| !model.is_empty());
+  let (model, effort, tier) = match named {
+    // A model the caller named belongs to the provider it named beside it, which this line does not
+    // know; its agent's own level is the whole of what the chat line hands it.
+    Some(model) => (model.to_owned(), reasoning.level.clone().unwrap_or_default(), None),
+    None => {
+      let mapping = tiers::resolve(&ground.db, agent, CLAUDE).await.map_err(fault)?;
+      let effort =
+        effort_of(ground, machine, CLAUDE, &mapping.model, mapping.effort.as_deref(), Some(&reasoning))
+          .await?
+          .unwrap_or_default();
+
+      (mapping.model, effort, Some(mapping.tier))
+    }
+  };
   let thinking = reasoning.thinking.unwrap_or(true);
   let system_path = system_prompt_file(&trees, agent, &chat_system(&trees, launch.base_persona)?)?;
   let mcp = mcp_config(ground, &trees)?;
@@ -173,9 +187,9 @@ pub async fn chat_run(
 
   Ok(ChatRun {
     agent: agent.to_owned(),
-    model: mapping.model,
+    model,
     effort,
-    tier: Some(mapping.tier),
+    tier,
     reasoning,
     thinking,
     system_path,
@@ -188,7 +202,10 @@ pub async fn chat_run(
     fold,
     ping: launch.ping,
     resume: launch.resume.clone(),
-    cwd: trees.source.to_string_lossy().into_owned(),
+    cwd: launch
+      .cwd
+      .map(str::to_owned)
+      .unwrap_or_else(|| trees.source.to_string_lossy().into_owned()),
     env,
   })
 }
@@ -635,7 +652,6 @@ pub async fn compose_stand_in(
             model: name.to_owned(),
             effort: effort.to_owned(),
             thinking,
-            resume: None,
             ..run.clone()
           };
 

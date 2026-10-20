@@ -1,4 +1,4 @@
-//! The agent-session contract: the ten operations every backend answers, and their request and answer
+//! The agent-session contract: the eleven operations every backend answers, and their request and answer
 //! types (docs/api.md, 「Sessions」). A caller reaches an agent's session through this contract alone and
 //! names no backend; herdr is one backend of it, implemented by the server over its door, places and
 //! lines.
@@ -39,6 +39,8 @@ pub enum Scope {
   Editor,
   /// A session thrown away: a co-work branch's or a research run's, every turn on it a fresh one.
   Apart(Apart),
+  /// A conversation the caller opened on a provider and model of its own, kept for it until it ends.
+  Conversation(Conversation),
 }
 
 /// What a thrown-away session is started on: the provider, the model and the folder its turns go out on,
@@ -50,6 +52,16 @@ pub struct Apart {
   pub cwd: String,
   pub todo: Option<i64>,
   pub role: Option<String>,
+}
+
+/// What a conversation the caller opened stands on: the provider, the model and the folder its turns go
+/// out on. A turn on a provider's road that keeps a session resumes what its last answered turn left;
+/// one on a road that keeps none carries each turn afresh.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct Conversation {
+  pub provider: String,
+  pub model: String,
+  pub cwd: String,
 }
 
 /// A session asked for: the agent, by its stable name, and the scope it is kept for.
@@ -511,8 +523,8 @@ pub struct State {
   pub went_out: Option<WentOut>,
   /// The question the turn going now stands on, put to its caller.
   pub question: Option<Question>,
-  /// The harness session a worker's next turn on the model the read names would continue, none for a
-  /// fresh one or where the read names no model.
+  /// The harness session a conversation's next turn, or a worker's on the model the read names, would
+  /// continue, none for a fresh one or where the read names none.
   pub continues: Option<String>,
 }
 
@@ -590,10 +602,20 @@ impl fmt::Display for Fault {
 
 impl std::error::Error for Fault {}
 
-/// The ten operations every backend answers.
+/// The eleven operations every backend answers.
 pub trait Sessions: Send + Sync {
   /// A session started for an agent at a scope, or the one already kept for that scope.
   fn start(&self, request: Start) -> impl Future<Output = Result<Session, Fault>> + Send;
+
+  /// A session moved to another provider and model, each left as it stands where the caller names only
+  /// the other. A scope whose provider and model are its agent's refuses; a session in a turn refuses
+  /// until it ends.
+  fn switch(
+    &self,
+    session: &SessionId,
+    provider: Option<&str>,
+    model: Option<&str>,
+  ) -> impl Future<Output = Result<Session, Fault>> + Send;
 
   /// One turn sent into a session and carried until it ends, answered with its end.
   fn send_turn(&self, turn: Turn) -> impl Future<Output = Result<TurnEnd, Fault>> + Send;
@@ -605,7 +627,7 @@ pub trait Sessions: Send + Sync {
   }
 
   /// A session's state as it stands; a worker's names the session its next turn on the model named would
-  /// continue.
+  /// continue, and a conversation's the one its next turn would.
   fn read_state(
     &self,
     session: &SessionId,

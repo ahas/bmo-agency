@@ -37,6 +37,8 @@ pub enum SessionScope {
   Editor,
   #[serde(rename = "apart")]
   Apart,
+  #[serde(rename = "conversation")]
+  Conversation,
 }
 
 /// One of the values the API accepts.
