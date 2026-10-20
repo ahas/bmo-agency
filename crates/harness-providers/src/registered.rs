@@ -31,6 +31,22 @@ impl Registered {
   }
 }
 
+/// Whether an environment stands a program on a registration's road: its records home is a registration's,
+/// or its base URL is agency's gateway (docs/agent-control.md, 「The registered models through Claude Code
+/// on the gateway」). Any other endpoint of its own — a Claude account's, such as a DeepSeek one — leaves the
+/// program on the Claude Code road.
+pub fn registered_road(machine: &Machine, env: &BTreeMap<String, String>) -> bool {
+  let homes = format!("{}/", Registered::homes(machine).display());
+  let under_home = env.get("CLAUDE_CONFIG_DIR").is_some_and(|dir| dir.starts_with(&homes));
+  let at_gateway = env.get("ANTHROPIC_BASE_URL").is_some_and(|url| {
+    let url = url.trim_end_matches('/');
+
+    !url.is_empty() && url == harness_machine::gateway::url(machine.var("BMO_LLM_GATEWAY_URL"))
+  });
+
+  under_home || at_gateway
+}
+
 /// Whether a secret file may be used: a file of its own, private to its owner, not empty.
 fn usable_secret(path: &std::path::Path) -> bool {
   use std::os::unix::fs::PermissionsExt;
@@ -67,12 +83,10 @@ impl Provider for Registered {
     Some(&REGISTERED.presence.not_registered)
   }
 
-  // Claude Code pointed at the gateway, its configuration under one of the road's homes.
+  // Claude Code on a registration's road: its configuration under one of the road's homes, or its base URL
+  // at the gateway.
   fn owns_program(&self, machine: &Machine, args: &[String], env: &BTreeMap<String, String>) -> bool {
-    let homes = format!("{}/", Self::homes(machine).display());
-
-    args.first().is_some_and(|program| program == ClaudeCode::PROGRAM)
-      && env.get("CLAUDE_CONFIG_DIR").is_some_and(|dir| dir.starts_with(&homes))
+    args.first().is_some_and(|program| program == ClaudeCode::PROGRAM) && registered_road(machine, env)
   }
 
   // A registration takes no level; whether it thinks is the agent's switch, where it names one.

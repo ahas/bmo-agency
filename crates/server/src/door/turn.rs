@@ -446,7 +446,7 @@ impl<W: Watch> Door<'_, W> {
       return Err("execution cancelled".to_owned());
     }
 
-    match turn_refusal(&self.ground.db, "pane", &self.turn.env).await {
+    match turn_refusal(&self.ground.db, &self.ground.machine(), "pane", &self.turn.env).await {
       Some(why) => Err(why),
       None => Ok(()),
     }
@@ -1335,7 +1335,9 @@ async fn watch_turn<W: Watch>(
         stop_asked_at = Some(now_ms());
 
         if asks_first {
-          if let Some(why) = turn_refusal(&door.ground.db, JOB_WORK_KEY, &turn.env).await {
+          if let Some(why) =
+            turn_refusal(&door.ground.db, &door.ground.machine(), JOB_WORK_KEY, &turn.env).await
+          {
             return Err(why);
           }
 
@@ -1535,7 +1537,9 @@ async fn watch_turn<W: Watch>(
       };
 
       if let Some(words) = words {
-        if let Some(why) = turn_refusal(&door.ground.db, JOB_WORK_KEY, &BTreeMap::new()).await {
+        if let Some(why) =
+          turn_refusal(&door.ground.db, &door.ground.machine(), JOB_WORK_KEY, &BTreeMap::new()).await
+        {
           if let (Some(listening), Some(offered)) = (&listening, offered) {
             listening.said(offered, AsideOutcome::Refused);
           }

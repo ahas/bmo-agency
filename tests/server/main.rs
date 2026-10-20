@@ -69,6 +69,7 @@ mod door {
   mod confirm;
   mod endpoint;
   mod execution;
+  mod guard;
   mod inbox;
   mod looks;
   mod place_run;

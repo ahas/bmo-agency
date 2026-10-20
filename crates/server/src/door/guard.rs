@@ -4,11 +4,13 @@
 //! or the temporary directory; and a job's own process is refused, since the opening a job makes for
 //! itself is read by the TypeScript guard (the agent package's `live-claude-guard.ts`) alone, but for a run
 //! a procedure requires, which its verb declares first. Claude Code switched off closes every turn on a
-//! Claude Code program the door would put in, and none on a program pointed at another's endpoint.
+//! Claude Code program the door would put in, and none on a program standing on a registration's road.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
+use harness_providers::Machine;
+use harness_providers::registered::registered_road;
 use policy::door_words::DOOR_WORDS;
 use sea_orm::DatabaseConnection;
 
@@ -133,19 +135,14 @@ pub fn launch_refusal(line: &str, args: &[String], env: &BTreeMap<String, String
   ))
 }
 
-/// Whether a program's environment points it at another's endpoint, whose road Claude Code being off
-/// does not close.
-pub fn pointed_elsewhere(env: &BTreeMap<String, String>) -> bool {
-  env.get("ANTHROPIC_BASE_URL").is_some_and(|named| !named.is_empty())
-}
-
 /// Why a turn on a program of this environment may not go in now, or nothing.
 pub async fn turn_refusal(
   db: &DatabaseConnection,
+  machine: &Machine,
   work_key: &str,
   env: &BTreeMap<String, String>,
 ) -> Option<String> {
-  if !pointed_elsewhere(env) && !provider_enabled(db, "claude-code").await.unwrap_or(false) {
+  if !registered_road(machine, env) && !provider_enabled(db, "claude-code").await.unwrap_or(false) {
     return Some(format!(
       "{work_key}: selected claude-code route did not answer: {}",
       DOOR_WORDS.provider_off

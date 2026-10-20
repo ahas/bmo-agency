@@ -162,10 +162,11 @@ impl Provider for ClaudeCode {
     true
   }
 
-  // The login's own program only: one pointed at another's endpoint stands for that road.
-  fn owns_program(&self, _machine: &Machine, args: &[String], env: &BTreeMap<String, String>) -> bool {
+  // A login's own program only: one standing on a registration's road — its home, or the gateway's address —
+  // stands for that road, while an account's own endpoint does not take a program off this one.
+  fn owns_program(&self, machine: &Machine, args: &[String], env: &BTreeMap<String, String>) -> bool {
     args.first().is_some_and(|program| program == Self::PROGRAM)
-      && env.get("ANTHROPIC_BASE_URL").is_none_or(|url| url.is_empty())
+      && !crate::registered::registered_road(machine, env)
   }
 
   // The account's own five-hour and seven-day windows.
