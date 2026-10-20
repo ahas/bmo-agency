@@ -680,7 +680,7 @@ impl Route for SessionHandover {
         (session, Some(kept.account))
       }
     };
-    let line = worker_run(ground, &Trees::of(ground), Some(&agent), &model, &cwd)
+    let line = worker_run(ground, &Trees::of(ground), Some(&agent), None, &model, &cwd)
       .await
       .map_err(|why| Refused::failed(why.detail))?;
     let run = SessionRun {

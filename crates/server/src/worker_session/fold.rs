@@ -131,21 +131,24 @@ async fn folded(
   // the login it was opened under.
   let cwd = ground.checkout_of(row);
   let trees = Trees::of(ground);
-  let mut line = worker_run(ground, &trees, Some(worker), model, &cwd).await?;
-  let mut login = named;
+  let kept = held::held(ground, &scope_of(worker)).await?;
 
-  if let Some(kept) = held::held(ground, &scope_of(worker)).await? {
-    if kept.id.as_deref() != Some(session) || kept.mode != MODE {
-      return Err(fault("Compaction session identity changed"));
-    }
+  if let Some(kept) = &kept
+    && (kept.id.as_deref() != Some(session) || kept.mode != MODE)
+  {
+    return Err(fault("Compaction session identity changed"));
+  }
 
-    line.model = kept.model;
-    line.effort = kept.effort;
-    line.tier = kept.tier.and_then(|tier| tier.as_str().map(str::to_owned));
+  let login = match kept.as_ref().and_then(|kept| kept.account.clone()).filter(|id| !id.is_empty()) {
+    Some(id) => account_named(ground, &id).await?,
+    None => named,
+  };
+  let mut line = worker_run(ground, &trees, Some(worker), login.as_ref(), model, &cwd).await?;
 
-    if let Some(id) = kept.account.filter(|id| !id.is_empty()) {
-      login = account_named(ground, &id).await?;
-    }
+  if let Some(kept) = &kept {
+    line.model.clone_from(&kept.model);
+    line.effort.clone_from(&kept.effort);
+    line.tier = kept.tier.clone().and_then(|tier| tier.as_str().map(str::to_owned));
   }
 
   // A login that is off, at its limit or waiting for a person would only fail the fold, which waits for it.

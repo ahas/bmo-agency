@@ -135,7 +135,14 @@ pub async fn worker_prefix_digest(
   effort: Option<&str>,
 ) -> Result<String, Refusal> {
   let source = trees.source.to_string_lossy().into_owned();
-  let mut line = worker_run(ground, trees, None, model, &source).await?;
+  // The run this stands for goes out on the login the walk offers now, so its base prompt is that
+  // login's.
+  let account = claude_accounts::walk_for(claude_accounts::Judging::of(ground), JOB_WORK_KEY)
+    .await
+    .map_err(|refused| fault(refused.error))?
+    .into_iter()
+    .next();
+  let mut line = worker_run(ground, trees, None, account.as_ref(), model, &source).await?;
 
   if let Some(effort) = effort {
     line.effort = effort.to_owned();
@@ -198,7 +205,7 @@ pub async fn claude_program(
   let mut line = configured(
     ground,
     machine,
-    worker_run(ground, &trees, Some(worker), &model, cwd).await?,
+    worker_run(ground, &trees, Some(worker), account.as_ref(), &model, cwd).await?,
     "claude-code",
   )
   .await?;
@@ -282,7 +289,7 @@ async fn pinned_run(
   provider: &str,
   model: Option<&str>,
 ) -> Result<(WorkerRun, Option<i64>), Refusal> {
-  let base = worker_run(ground, trees, Some(worker), WORKER_MODEL, cwd).await?;
+  let base = worker_run(ground, trees, Some(worker), None, WORKER_MODEL, cwd).await?;
   let Some(model) = model else {
     return Ok((configured(ground, machine, base, provider).await?, None));
   };

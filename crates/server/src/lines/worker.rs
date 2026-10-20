@@ -1,8 +1,8 @@
 //! The job worker's line (docs/launch-lines.md; docs/agent-control.md, 「A worker standing with nothing
 //! to do」): its model and effort as the job key's tier maps them, the worker's own thinking and level,
-//! its system prompt where it chooses a base prompt, the standing rules appended to the program's own
-//! prompt otherwise, the MCP configuration, the settings, the plugin and the co-worker definitions it
-//! is handed.
+//! its system prompt where the account it runs on names a base prompt or it chooses one, the standing
+//! rules appended to the program's own prompt otherwise, the MCP configuration, the settings, the plugin
+//! and the co-worker definitions it is handed.
 
 use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
@@ -18,6 +18,7 @@ use sha2::{Digest, Sha256};
 
 use super::{Trees, fault, publish_text, read_required};
 use crate::Refusal;
+use crate::control::claude_accounts::Account;
 use crate::control::harness::{levels, named};
 use crate::control::tiers;
 use crate::places::Ground;
@@ -176,17 +177,16 @@ fn os_version() -> String {
   format!("{} {}", field(&name.sysname), field(&name.release))
 }
 
-/// The prompt the agent chooses, filled in for the run, or none where it chooses none
+/// A base prompt by name, filled in for the run, or none where the store keeps no prompt of that name
 /// (docs/base-prompts.md).
-pub async fn chosen_base_prompt(
+pub async fn base_prompt_text(
   ground: &Ground,
-  agent: &str,
+  prompt: &str,
   cwd: &str,
   model: &str,
 ) -> Result<Option<String>, Refusal> {
-  let sql = r#"SELECT p."text" FROM "agent_base_prompts" c JOIN "base_prompts" p ON p."name" = c."prompt"
-               WHERE c."agent" = $1"#;
-  let Some(row) = one(&ground.db, sql, vec![agent.into()]).await? else {
+  let sql = r#"SELECT "text" FROM "base_prompts" WHERE "name" = $1"#;
+  let Some(row) = one(&ground.db, sql, vec![prompt.into()]).await? else {
     return Ok(None);
   };
   let text: String = row.try_get("", "text")?;
@@ -205,26 +205,60 @@ pub async fn chosen_base_prompt(
   Ok(Some(filled.trim().to_owned()))
 }
 
-/// The worker's whole system prompt where it chooses a base prompt: that prompt filled in for the run,
-/// then the worker's rules, as one file named by what it holds.
+/// The prompt the agent chooses, filled in for the run, or none where it chooses none
+/// (docs/base-prompts.md).
+pub async fn chosen_base_prompt(
+  ground: &Ground,
+  agent: &str,
+  cwd: &str,
+  model: &str,
+) -> Result<Option<String>, Refusal> {
+  let sql = r#"SELECT "prompt" FROM "agent_base_prompts" WHERE "agent" = $1"#;
+  let Some(row) = one(&ground.db, sql, vec![agent.into()]).await? else {
+    return Ok(None);
+  };
+  let prompt: String = row.try_get("", "prompt")?;
+
+  base_prompt_text(ground, &prompt, cwd, model).await
+}
+
+/// The worker's whole system prompt where one stands where the program's own would: the base prompt the
+/// account names, which wins over the agent's own choice, or the prompt the agent chooses, filled in for
+/// the run, then the worker's rules, as one file named by what it holds (docs/base-prompts.md).
 pub async fn worker_system_prompt(
   ground: &Ground,
   trees: &Trees,
   named: Option<&str>,
+  account: Option<&Account>,
   rules: &str,
   cwd: &str,
   model: &str,
 ) -> Result<Option<PathBuf>, Refusal> {
-  let Some(named) = named else { return Ok(None) };
-  let Some(base) = chosen_base_prompt(ground, named, cwd, model).await? else {
-    return Ok(None);
-  };
+  let (base, holder) =
+    match account.and_then(|account| account.base_prompt.as_deref().map(|prompt| (account, prompt))) {
+      Some((account, prompt)) => {
+        let model = account.base_model(model);
+        let Some(base) = base_prompt_text(ground, prompt, cwd, &model).await? else {
+          return Ok(None);
+        };
+
+        (base, format!("account-{}", account.id))
+      }
+      None => {
+        let Some(named) = named else { return Ok(None) };
+        let Some(base) = chosen_base_prompt(ground, named, cwd, model).await? else {
+          return Ok(None);
+        };
+
+        (base, named.to_owned())
+      }
+    };
   let text = format!("{base}\n\n{rules}");
   let digest = format!("{:x}", Sha256::digest(text.as_bytes()));
 
   Ok(Some(system_prompt_file(
     trees,
-    &format!("worker-system-{named}-{}", &digest[..12]),
+    &format!("worker-system-{holder}-{}", &digest[..12]),
     &text,
   )?))
 }
@@ -327,11 +361,13 @@ pub fn mcp_config(ground: &Ground, trees: &Trees) -> Result<PathBuf, Refusal> {
 }
 
 /// The worker's run on its line: `worker` names the worker whose own documents, thinking, level and
-/// base prompt it carries, none for a run that is no worker's in particular.
+/// base prompt it carries, none for a run that is no worker's in particular, and `account` the login it
+/// goes out on, whose base prompt stands where the line's own choice would.
 pub async fn worker_run(
   ground: &Ground,
   trees: &Trees,
   worker: Option<&str>,
+  account: Option<&Account>,
   model: &str,
   cwd: &str,
 ) -> Result<WorkerRun, Refusal> {
@@ -341,7 +377,7 @@ pub async fn worker_run(
   };
   let (rules_text, rules) = standing_rules(trees, named.as_deref())?;
   let system_prompt =
-    worker_system_prompt(ground, trees, named.as_deref(), &rules_text, cwd, model).await?;
+    worker_system_prompt(ground, trees, named.as_deref(), account, &rules_text, cwd, model).await?;
   let worker_dir = trees.agent_dir(LINE);
   let plugin_dir = worker_dir.join("plugin");
   let reasoning = match worker {

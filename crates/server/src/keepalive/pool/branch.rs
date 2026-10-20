@@ -14,6 +14,7 @@ use policy::pool_warm::POOL_WARM;
 
 use super::{Boxed, Place, PlaceKind, PlaceRun, WarmPlace};
 use crate::Refusal;
+use crate::control::claude_accounts;
 use crate::control::pool::Reservation;
 use crate::hooks::HookPoint;
 use crate::lines::standing::worker_prefix_digest;
@@ -75,7 +76,17 @@ async fn branch_place(
   held: &Arc<Vec<Held>>,
 ) -> Result<BranchPlace, Refusal> {
   let cwd = slot_dir(&ground.roots.data, pool, row.slot).to_string_lossy().into_owned();
-  let line = worker_run(ground, trees, None, &row.model, &cwd).await?;
+  // A Claude Code place is warmed on the login the walk offers now, so its prefix is that login's base.
+  let account = if row.mode == DIGESTED {
+    claude_accounts::walk_for(claude_accounts::Judging::of(ground), JOB_WORK_KEY)
+      .await
+      .map_err(|refused| fault(refused.error))?
+      .into_iter()
+      .next()
+  } else {
+    None
+  };
+  let line = worker_run(ground, trees, None, account.as_ref(), &row.model, &cwd).await?;
   let line = configured_for(ground, &ground.machine(), line, work_key, &row.mode).await?;
   let upstream = (!row.upstream.is_empty()).then(|| row.upstream.clone());
   let key = format!(

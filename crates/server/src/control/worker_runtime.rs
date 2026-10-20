@@ -87,7 +87,8 @@ impl Route for HandOver {
         (held, Some(kept.account))
       }
     };
-    let line = worker_run(ground, &Trees::of(ground), Some(&worker), &asked.model, &asked.cwd).await?;
+    let line =
+      worker_run(ground, &Trees::of(ground), Some(&worker), None, &asked.model, &asked.cwd).await?;
     let run = SessionRun {
       mode: PROVIDER,
       line,

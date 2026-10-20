@@ -368,9 +368,13 @@ pub async fn turn<W: Watch>(side: &Side<'_>, asked: Asked<'_>, watch: &mut W) ->
   }
 
   let machine = ground.machine();
-  let line =
-    configured(ground, &machine, worker_run(ground, &trees, Some(worker), model, &cwd).await?, PROVIDER)
-      .await?;
+  let line = configured(
+    ground,
+    &machine,
+    worker_run(ground, &trees, Some(worker), account.as_ref(), model, &cwd).await?,
+    PROVIDER,
+  )
+  .await?;
   let configured_model = line.model.clone();
   let mut launched = line;
 

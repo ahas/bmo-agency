@@ -446,7 +446,7 @@ async fn work_parts(
     .ok_or_else(|| format!("no worker is named {worker_name}"))?;
   let cwd = row.cwd.unwrap_or_else(|| ground.source.to_string_lossy().into_owned());
   let trees = Trees::of(ground);
-  let mut line = worker::worker_run(ground, &trees, Some(worker_name), &mapping.model, &cwd)
+  let mut line = worker::worker_run(ground, &trees, Some(worker_name), None, &mapping.model, &cwd)
     .await
     .map_err(|why| why.detail)?;
   line.effort = mapping.effort.clone().unwrap_or(line.effort);

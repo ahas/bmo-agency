@@ -3,10 +3,8 @@
 //! and the agent's last answer, in the store; the windows the turn read, kept (docs/usage-windows.md); and
 //! what it spent, published for the reader that keeps usage (docs/api.md, 「Events」).
 
-use std::sync::LazyLock;
-
 use cache_siren::Keeping;
-use regex::Regex;
+use harness_providers::claude_code::ClaudeCode;
 use sea_orm::ConnectionTrait;
 use store::{all, one, run};
 
@@ -233,13 +231,8 @@ async fn heals(db: &impl ConnectionTrait, worker: &str) -> Result<bool, Refusal>
   )
 }
 
-static FAMILY: LazyLock<Regex> = LazyLock::new(|| Regex::new("^claude-([a-z]+)").expect("a pattern"));
-
 fn family(model: &str) -> &str {
-  FAMILY
-    .captures(model)
-    .and_then(|found| found.get(1))
-    .map_or(model, |found| found.as_str())
+  ClaudeCode::family(model)
 }
 
 /// The models a run answered on other than the one it was launched on, within its family: the account's

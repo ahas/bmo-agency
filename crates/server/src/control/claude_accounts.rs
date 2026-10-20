@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 use cache_siren::claude::{Credential as WindowCredential, MODE as CLAUDE_CODE_MODE};
 use cache_siren::{Keeping, Slot};
 use harness_providers::Machine;
+use harness_providers::claude_code::ClaudeCode;
 use policy::providers::claude_code::CLAUDE_CODE;
 use policy::rest::REST;
 use sea_orm::DatabaseConnection;
@@ -275,6 +276,17 @@ pub struct Account {
 }
 
 impl Account {
+  /// The model a base prompt's `{{model}}` names for a run of this account: the endpoint's own id for the
+  /// run's family where its map holds one, and the run's model otherwise (docs/base-prompts.md).
+  pub fn base_model(&self, model: &str) -> String {
+    match &self.credential {
+      Credential::Endpoint { models, .. } => models
+        .of_family(ClaudeCode::family(model))
+        .map_or_else(|| model.to_owned(), str::to_owned),
+      Credential::Directory { .. } | Credential::Token { .. } => model.to_owned(),
+    }
+  }
+
   /// The directory the CLI keeps this account's records under: its configuration home where it has
   /// one, and the machine's for a token account, which has none.
   pub fn records_dir(&self, machine: &Machine) -> PathBuf {

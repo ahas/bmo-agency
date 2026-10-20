@@ -4,9 +4,11 @@
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
+use std::sync::LazyLock;
 
 use policy::providers::Declared;
 use policy::providers::claude_code::CLAUDE_CODE;
+use regex::Regex;
 use serde::Serialize;
 use serde_json::{Value, json};
 
@@ -17,9 +19,21 @@ use crate::{
 
 pub struct ClaudeCode;
 
+// The word a model's name follows `claude-` with.
+static FAMILY: LazyLock<Regex> = LazyLock::new(|| Regex::new("^claude-([a-z]+)").expect("a pattern"));
+
 impl ClaudeCode {
   /// The program's executable, as every line of it starts it.
   pub const PROGRAM: &'static str = "claude";
+
+  /// The family a model's name places it in: the word the short names and an account's model map go by,
+  /// and the name itself where it states no family.
+  pub fn family(model: &str) -> &str {
+    FAMILY
+      .captures(model)
+      .and_then(|found| found.get(1))
+      .map_or(model, |found| found.as_str())
+  }
 
   /// The machine's own configuration directory of the program: the one the environment names, or the
   /// home's.

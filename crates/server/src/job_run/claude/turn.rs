@@ -628,7 +628,9 @@ impl Attempting<'_, '_> {
       WorkSeat::Worker(_) => (&work.model, &work.mapping.model, &work.cwd),
       WorkSeat::Apart(apart) => (&apart.model, &apart.model, &apart.cwd),
     };
-    let mut line = worker_run(ground, &trees, Some(worker), kept_on, cwd).await.map_err(refused)?;
+    let mut line = worker_run(ground, &trees, Some(worker), account.as_ref(), kept_on, cwd)
+      .await
+      .map_err(refused)?;
 
     line.effort = effort_of(
       ground,
