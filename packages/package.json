@@ -9,6 +9,7 @@
     "client"
   ],
   "scripts": {
+    "check": "bunx tsc --noEmit",
     "check:types": "bunx tsc --noEmit"
   },
   "devDependencies": {

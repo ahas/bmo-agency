@@ -32,6 +32,7 @@ pub fn stand_server(home: &Path, data: &Path, store: &str, token: &str) -> Stand
     .current_dir(home)
     .env("HOME", home)
     .env("XDG_CONFIG_HOME", home.join(".config"))
+    .env("BMO_DEPLOY_DIR", env!("CARGO_MANIFEST_DIR"))
     .env_remove("CLAUDE_CONFIG_DIR")
     .env("BMO_ARCHIVE_URL", store)
     .env("AGENCY_CONTROL_PORT", "0")
