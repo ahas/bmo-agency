@@ -9,6 +9,7 @@
 // store would be dropped before the first test reads it.
 
 import { afterAll } from "bun:test";
+import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -28,6 +29,10 @@ const STORE_SQL = join(import.meta.dir, "..", "..", "..", "crates", "store", "sr
 
 let made: Promise<string> | null = null;
 let copies = 0;
+
+// The run this file's stores belong to. A test file run beside another in one process has the same
+// process id, so the pid alone would name one template twice and the second creation would fail.
+const run = randomUUID().slice(0, 8);
 
 /** The suite's PostgreSQL server, as the run names it, and the machine's own socket where nothing does. */
 export function testServer(): string {
@@ -57,7 +62,7 @@ function alive(pid: string): boolean {
 // The template this process's copies are made from, migrated the first time a test asks.
 function template(): Promise<string> {
   made ??= (async () => {
-    const name = `${TEMPLATE}${process.pid}`;
+    const name = `${TEMPLATE}${process.pid}_${run}`;
 
     await onServer(async (sql) => {
       const left = await sql.unsafe("SELECT datname::text AS name FROM pg_database WHERE datname LIKE $1 OR datname LIKE $2", [
@@ -132,7 +137,7 @@ async function dropped(sql: PostgresClient, name: string): Promise<void> {
 async function copyOf(from: string): Promise<string> {
   copies += 1;
 
-  const name = `${COPY}${process.pid}_${copies}`;
+  const name = `${COPY}${process.pid}_${run}_${copies}`;
 
   await onServer((sql) => sql.unsafe(`CREATE DATABASE "${name}" TEMPLATE "${from}" ENCODING 'UTF8' LC_COLLATE 'C' LC_CTYPE 'C'`));
   afterAll(() => onServer((sql) => dropped(sql, name)));
