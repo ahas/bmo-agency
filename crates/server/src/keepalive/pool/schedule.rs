@@ -3,7 +3,7 @@
 //! inside its usable lifetime. The lifetime and the idle stretch are its provider's declaration; the
 //! margin is the pool's policy.
 
-use bmo_cache_warmer::schedule::{Clocks, Record};
+use bmo_cache_warmer_schedule::{Clocks, Record};
 use policy::pool_warm::POOL_WARM;
 
 const MINUTE_MS: i64 = 60_000;
@@ -11,7 +11,7 @@ const MINUTE_MS: i64 = 60_000;
 /// The usable part of a published lifetime, in milliseconds: the pool's margin taken off, and none where
 /// nothing is left of it.
 pub fn usable(published_ms: i64) -> Option<i64> {
-  bmo_cache_warmer::schedule::usable(published_ms, POOL_WARM.margin_minutes * MINUTE_MS)
+  bmo_cache_warmer_schedule::usable(published_ms, POOL_WARM.margin_minutes * MINUTE_MS)
 }
 
 /// A kept prefix as the pool judges it, every moment and span in milliseconds: when it was last written,

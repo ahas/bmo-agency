@@ -1,7 +1,7 @@
 # The keepalive schedule
 
 When a kept prompt-cache prefix is worth a ping, and whether agency's keepalive pings go. The general
-rule is the schedule library the `bmo-cache-warmer` package publishes, plain values that use nothing
+rule is the schedule library `bmo-cache-warmer-schedule` publishes, plain values that use nothing
 outside themselves, which agency and any other repository that keeps prefixes warm build on
 (`docs/api.md`, 「Calls agency makes」). Agency's own schedule stands in the server's keepalive module
 and calls it: the owner's warming switch and the co-worker pool's rule for its places. The pool asks it

@@ -8278,7 +8278,7 @@
     },
     {
       "what": "the cache-warmer crate carried here",
-      "why": "moved into bmo-cache-warmer and imported from there"
+      "why": "moved into bmo-cache-warmer-schedule and imported from there"
     }
   ],
   "x-moved-out": [
@@ -8296,7 +8296,7 @@
     },
     {
       "what": "the cache-warmer crate",
-      "to": "bmo-cache-warmer"
+      "to": "bmo-cache-warmer-schedule"
     }
   ]
 }

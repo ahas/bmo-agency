@@ -32,7 +32,7 @@ bmo-agency-client = { path = "crates/client" }
 axum = "0.8.4"
 base64 = "0.22.1"
 bmo-brain-client = { path = "../brain/crates/client", version = "=0.1.0-rev.1" }
-bmo-cache-warmer = { path = "../cache-warmer", version = "=0.1.0-rev.3" }
+bmo-cache-warmer-schedule = { path = "../cache-warmer/schedule", version = "=0.1.0-rev.4" }
 bmo-chat = { path = "../../base/chat/provider" }
 bmo-node-client = { path = "../node/crates/client", version = "=0.1.0-rev.1" }
 brush-parser = "0.4.0"

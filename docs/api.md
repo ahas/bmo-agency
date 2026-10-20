@@ -388,8 +388,8 @@ generated from `docs/openapi.json`: every body as a type and a typed call for ev
 ## Calls agency makes
 
 Agency reaches upstreams only, through what their repositories publish: brain, graph, node, arbiter,
-pocket, testbed and chat through their clients, and cache-warmer through the schedule library its
-package publishes.
+pocket, testbed and chat through their clients, and cache-warmer through the schedule library
+`bmo-cache-warmer-schedule`.
 
 Each surface is a crate of its own repository, declared in the workspace manifest and allowed by
 `tests/dependencies.rs`; every other crate of another repository, a downstream's client among them,

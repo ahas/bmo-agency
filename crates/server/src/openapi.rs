@@ -2598,7 +2598,7 @@ const REMOVED: &[(&str, &str)] = &[
   ("word-chain mention among the agent documents", "the word chain is retired"),
   (
     "the cache-warmer crate carried here",
-    "moved into bmo-cache-warmer and imported from there",
+    "moved into bmo-cache-warmer-schedule and imported from there",
   ),
 ];
 
@@ -2613,5 +2613,5 @@ const MOVED_OUT: &[(&str, &str)] = &[
     "the tools of the upstreams the session calls, or a seat of the co-worker pool",
   ),
   ("word-chain procedure", "retired with the word chain"),
-  ("the cache-warmer crate", "bmo-cache-warmer"),
+  ("the cache-warmer crate", "bmo-cache-warmer-schedule"),
 ];

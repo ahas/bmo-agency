@@ -16,7 +16,7 @@ const UPSTREAM_CLIENTS: &[&str] = &["bmo-brain-client", "bmo-node-client"];
 
 /// An upstream's published library, which agency builds on as its repository publishes it rather than
 /// calling its service (docs/api.md, 「Calls agency makes」).
-const UPSTREAM_LIBRARIES: &[&str] = &["bmo-cache-warmer"];
+const UPSTREAM_LIBRARIES: &[&str] = &["bmo-cache-warmer-schedule"];
 
 fn root() -> PathBuf {
   PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -134,8 +134,7 @@ fn a_crossing_is_named() {
   let base = serde_json::json!({ "name": "bmo-chat", "source": null, "path": "/elsewhere/bmo-chat" });
   let upstream =
     serde_json::json!({ "name": "bmo-node-client", "source": null, "path": "/elsewhere/node/client" });
-  let library =
-    serde_json::json!({ "name": "bmo-cache-warmer", "source": null, "path": "/elsewhere/cache-warmer" });
+  let library = serde_json::json!({ "name": "bmo-cache-warmer-schedule", "source": null, "path": "/elsewhere/cache-warmer/schedule" });
   let downstream =
     serde_json::json!({ "name": "bmo-job-client", "source": null, "path": "/elsewhere/job/client" });
   let registry = serde_json::json!({ "name": "serde", "source": "registry+https://github.com/rust-lang/crates.io-index", "path": null });
