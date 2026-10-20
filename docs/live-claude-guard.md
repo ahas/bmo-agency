@@ -58,8 +58,9 @@
      or from `${HOME}`.
    - Which configuration directories there are is agency's store's: the accounts the owner registers
      through agency's account routes (`docs/api.md`, 「Accounts」). The hook reads them off the store's database
-     before it judges a command, and hands the list to the guard; a token account keeps its
-     records in the machine's directory, and the machine's own directory in the hook's environment
+     before it judges a command, and hands the list to the guard; an endpoint account keeps its
+     records in its own configuration home, which is listed like a directory account's; a token
+     account keeps its records in the machine's directory, and the machine's own directory in the hook's environment
      is added beside them. A store with no account, or one the hook cannot read, leaves the
      guard with the machine's spellings alone, which it refuses exactly as before.
    - Among commands that mention the records anywhere: those that copy, move, link, delete or

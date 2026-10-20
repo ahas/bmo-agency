@@ -1,7 +1,9 @@
 # Usage windows
 
-How agency keeps every account's usage windows: the share of each limit an account has used and when
-that limit resets. The account judgement, the stand-ins' walk, the fallback's view and the quota source
+How agency keeps the usage windows of every account that has them: the share of each limit an
+account has used and when that limit resets. Directory and token accounts have them; an endpoint
+account is paid by the request and has none, so it holds no slot and no reader asks it
+(`docs/cache-fallback.md`, 「The Claude Code road is a list of accounts」). The account judgement, the stand-ins' walk, the fallback's view and the quota source
 all read them from here (`docs/cache-fallback.md`, 「The account judgement」, `docs/api.md`,
 「Accounts」). The keeping is the `cache-siren` crate, whose cache-lifetime judgement is
 `docs/sessions.md`'s.
@@ -34,7 +36,8 @@ all read them from here (`docs/cache-fallback.md`, 「The account judgement」, 
 
 ## The Claude account reader
 
-- **Every registered account is asked on each pass,** on or off, with its own login: a GET of the
+- **Every registered directory and token account is asked on each pass,** on or off, with its own
+  login, and an endpoint account never is: a GET of the
   provider's account-usage endpoint (`https://api.anthropic.com/oauth/usage`) carrying that account's
   access token as a bearer token. A request that has not answered in 15 seconds is a failure.
 - **The token is read out of the account's own credential file and dropped:** a directory account's
@@ -76,7 +79,8 @@ all read them from here (`docs/cache-fallback.md`, 「The account judgement」, 
 
 - **The account judgement** closes a login whose own window stands at its ceiling, not reset, by a
   reading that stands: younger than its reader's span and later than the account's unread mark
-  (`docs/cache-fallback.md`, 「The account judgement」).
+  (`docs/cache-fallback.md`, 「The account judgement」). An endpoint account has no window for it to
+  read, and the judgement asks it nothing here.
 - **The stand-ins' walk** reads each login's week, the window its provider counts as its week
   (`docs/cache-fallback.md`, 「While a fallback stands, the room is not silent」).
 - **The fallback's view and the quota source** read each slot's two headline windows (`docs/api.md`,

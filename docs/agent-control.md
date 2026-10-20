@@ -551,8 +551,11 @@ in the provider's own terms:
     its node, where the registration has several — with the gateway's key read by the program from
     its file on each request and its records under a configuration home of the registration's own
     that holds no login (`docs/own-llm.md`, 「How requests go」). So a program standing in a pane is
-    the registration's where its records home is that registration's, and the Claude login's only
-    where it is pointed at no other endpoint.
+    the registration's where its records home is that registration's or it is pointed at agency's
+    gateway, and the Claude Code road's otherwise — a program on an endpoint account, pointed at
+    another provider's endpoint under that account's own home, included (`docs/cache-fallback.md`,
+    「The Claude Code road is a list of accounts」). An endpoint of its own does not take a program off
+    the Claude Code road: it is closed when Claude Code is off, like any of that road's.
   - It is read the way Claude Code's program is: the turn goes in with `agent.prompt` and its answer
     is read out of the transcript. The words said to a worker go on in the session the program
     stands on, where the worker holds it on the same road, so the program stays standing between
@@ -1871,7 +1874,7 @@ with no recorded trust, and the transcript did not even appear. On screen:
 - This check is once per directory and per login. The CLI reads it off, and an answer writes it to, that
   directory's entry under `projects` in its global configuration file, as `hasTrustDialogAccepted`: the
   file `.claude.json` inside the configuration directory the run is handed (`CLAUDE_CONFIG_DIR`, which a
-  directory account sets to its own folder), or `.claude.json` in the home where the run is handed none.
+  directory account sets to its own folder and an endpoint account to its own home), or `.claude.json` in the home where the run is handed none.
   A directory trusted under one login still asks under another. What hits the check is a **directory
   with no recorded trust in the file of the login the run goes out on**: a new worker, a new support
   worktree or branch place, or a known checkout on a login it has not run under before.

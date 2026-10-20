@@ -81,6 +81,9 @@ The pool judges each place by the general rule with clocks and a record of its o
 - **Whether a provider is on and lends co-workers,** read again before each ping.
 - **Whether a rest holds the pings:** none goes during a rest on a provider whose pings rest with the
   account (`docs/cache-fallback.md`).
+- **Which accounts a ping may go out on:** the Claude Code road's accounts in their walk, less every
+  endpoint account, which is never pinged, since its endpoint keeps its own cache and a ping would only
+  be a paid request (`docs/cache-fallback.md`, 「Warming only enabled providers」).
 - **The ping and its record:** the run a ping becomes and the row the pool's ping table keeps of each.
 - **The clock:** the pool's warming runs on agency's own clock at the keepalive pass's period, after the
   same start wait, never beside itself (`policy/keepalive.toml`).

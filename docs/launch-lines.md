@@ -216,7 +216,13 @@
   (`docs/base-prompts.md`) is handed the default prompt's place instead: the chosen prompt with the
   same rules after it, as one file named by what it holds, given as the whole system prompt; on
   Codex as its instructions file, with the checkout's `AGENTS.md` still read, and on OpenRouter as
-  dsh's persona section. Every co-worker
+  dsh's persona section. A run that goes out on a Claude account naming a base prompt of its own
+  (`docs/cache-fallback.md`, 「The Claude Code road is a list of accounts」) takes the account's base in
+  that place, over the worker's own choice and in place of the default prompt alike, with the same
+  rules after it, as one file named by what it holds and given with `--system-prompt-file`; so a run
+  on an endpoint account opens on the base its endpoint's harness runs on rather than on a prompt
+  written for Anthropic's models. The base is composed with the account the run goes out on, so the
+  line's prefix is the account's as well as the worker's. Every co-worker
   definition's prompt closes on the same file's text. A job carried by another provider is handed
   the same file in the place that program keeps beside its own default prompt, never in place of
   it: on Codex as the run's developer instructions (`developer_instructions`), with Codex's own
@@ -400,8 +406,9 @@
 - **Environment**: every one of these processes is started with the repository's git status
   left out of its prompt; every Claude line also carries the configuration directory of the
   account its run was put on, and that account's token where the account is a token account,
-  so what a run goes out under is a login agency chose rather than whatever the machine happens
-  to hold; a reference gate's run also carries `MAX_THINKING_TOKENS=0`; no line sets the share of
+  or its endpoint's base URL, key and model ids where it is an endpoint account
+  (`docs/cache-fallback.md`, 「The Claude Code road is a list of accounts」), so what a run goes out
+  under is a login agency chose rather than whatever the machine happens to hold; a reference gate's run also carries `MAX_THINKING_TOKENS=0`; no line sets the share of
   its model's window a session compacts at, so every program, the job worker's included, compacts
   at its own default (`docs/sessions.md`, 「Session compaction」), and only a run on a registered
   model's road carries `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`, at the share its registration leaves for

@@ -22,7 +22,15 @@ seeds. The other crates and the server reach the store only through it.
     `branch_agents`, `worker_sessions`, `session_resets`, and `worker_words`, the words said to a
     worker, each kept until a turn has taken it;
   - the base prompts: `base_prompts`, `agent_base_prompts`;
-  - the accounts: `claude_accounts`;
+  - the accounts: `claude_accounts`, one row an account of the Claude Code road — its id, name,
+    place, on/off, when it was added and when its login was found gone; its `credential_kind`,
+    `directory`, `token` or `endpoint`, and its `credential_path`, the configuration directory, the
+    token file or the endpoint account's own configuration home; for an endpoint account its
+    `endpoint_url`, its `key_file` and its `endpoint_models`, a JSON object from the family words
+    `opus`, `sonnet` and `haiku` to the endpoint's model ids, empty on the other kinds; and its
+    `base_prompt`, the name of a kept base prompt or none, which a kept prompt cannot be removed
+    from under (`docs/cache-fallback.md`, 「The Claude Code road is a list of accounts」,
+    `docs/base-prompts.md`);
   - the accounts' usage windows: `usage_windows`, one row a window of a slot — its `mode`, its
     `account` (empty on a provider that holds no logins of agency's) and its `name` together naming it,
     the fraction used, when it resets in epoch seconds or none, when it was seen, its length in minutes

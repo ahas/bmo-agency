@@ -58,7 +58,10 @@ side of a remote agent, the rotation, and what a dropped node does.
     run (「The logins on a node」 below); an account with no such token here needs a login made on the
     node in the node's directory for that account, and the setup names the command that makes the
     token;
-  - pushing to the repository's remote is the node's own credential, and the setup tries it.
+  - pushing to the repository's remote is the node's own credential, and the setup tries it;
+  - an endpoint account (`docs/cache-fallback.md`, 「The Claude Code road is a list of accounts」) is
+    not offered on a node at all: its key file is a credential file, it has no token for the nodes,
+    and its runs stand on this machine alone.
 - **The row says what is missing,** one thing per line, and a node with anything missing is not ready:
   nothing is launched or run on it.
 - **The node's copy follows the deployment.** The setup writes down the deployed commit it copied.
@@ -112,8 +115,9 @@ side of a remote agent, the rotation, and what a dropped node does.
 
 ## The logins on a node
 
-- **Each account has one token for the work nodes:** the long-lived token the CLI's setup command
-  issues for it. This machine keeps it outside the repository, in the data root's own token directory,
+- **Each directory and token account has one token for the work nodes:** the long-lived token the
+  CLI's setup command issues for it. An endpoint account has none and is neither counted nor warned
+  about here. This machine keeps it outside the repository, in the data root's own token directory,
   one file named by the account's id and readable by the bot's user alone; a token account's own token
   file is its token for the nodes as well. Where the files stand is Claude Code's declaration in
   agency's policy (`policy/`), read by every process that needs it. No token is written into the

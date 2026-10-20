@@ -289,23 +289,40 @@ When a demotion first catches — when a healthy session first drops — two thi
   account all name; the name is the owner's to rewrite at will, and rewriting it changes nothing the
   account already holds. Two accounts share neither, so a list never holds two that cannot be told
   apart.
-- **A credential is reached one of two ways.** An account either names an absolute configuration
-  directory, whose login the CLI keeps in that directory's own credentials file, or names a file
-  holding the long-lived token the CLI issues, which is handed to a run in the environment. That token
-  lasts a year, carries no refresh of its own, and is inference-only.
-- **What is kept is where a credential is, never a credential.** No token and no file body enters the
-  store, a log line, a document or a report; the reader that opens a credential file keeps only the
-  moment it expires.
-- **The account is handed over in the environment, never in a flag.** Every line's flags, its system
-  prompt and the tools it is shown are what they were, so a run moved to another account stands on the
-  line it always stood on and only the cache it is warm in changes. A directory account is handed its
-  configuration home, and any token the launching process carried goes with it, since a token left in
-  place would answer for the run instead of the login the owner chose; a token account is handed its
-  token alone.
-- **An account carries its own everything.** Its sessions, transcripts, usage windows, spend and rest
-  belong to it, because a login is what they belong to: a session opened under one account cannot be
-  resumed under another, one account's windows say nothing about another's, and each account's cache is
-  warmed on its own.
+- **A credential is reached one of three ways, each a kind of account that answers for itself:**
+  - **A directory account** names an absolute configuration directory, whose login the CLI keeps in
+    that directory's own credentials file.
+  - **A token account** names a file holding the long-lived token the CLI issues, which is handed to a
+    run in the environment. That token lasts a year, carries no refresh of its own, and is
+    inference-only.
+  - **An endpoint account** is Claude Code run against another provider's Anthropic-compatible
+    endpoint: it names a configuration home of its own, which holds no login and keeps its sessions and
+    transcripts, the endpoint's base URL, and a file holding the endpoint's API key. It may also map the
+    family words `opus`, `sonnet` and `haiku` to the endpoint's own model ids. An endpoint account is
+    paid by the request rather than by a subscription window, so it has no usage windows, and its key
+    neither expires nor renews.
+- **What is kept is where a credential is, never a credential.** No token, no key and no file body
+  enters the store, a log line, a document or a report; the reader that opens a credential file keeps
+  only the moment it expires, and an endpoint account's key file is read only as a run is launched.
+- **The account is handed over in the environment, with one exception in a flag.** Every line's flags,
+  its system prompt and the tools it is shown are what they were, so a run moved to another account
+  stands on the line it always stood on and only the cache it is warm in changes.
+  - A directory account is handed its configuration home, and any token the launching process carried
+    goes with it, since a token left in place would answer for the run instead of the login the owner
+    chose.
+  - A token account is handed its token alone.
+  - An endpoint account is handed its configuration home, its base URL, its key as the run's
+    authorisation token, and the model ids its map names for each family; every other credential the
+    launching process carried goes with it.
+  - **The exception:** an account may name a base prompt (`docs/base-prompts.md`), and a worker's run on
+    that account opens its system prompt on that base in place of the program's own, so on the worker
+    line the system-prompt flag is the account's (`docs/launch-lines.md`). An endpoint account names
+    the base its endpoint's own harness runs on, since the program's own prompt is written for
+    Anthropic's models.
+- **An account carries its own everything.** Its sessions, transcripts, usage windows where it has
+  them, spend and rest belong to it, because a login is what they belong to: a session opened under one
+  account cannot be resumed under another, one account's windows say nothing about another's, and each
+  account's cache is warmed on its own.
 - **The order holds the providers; the Claude Code slot holds the accounts.** The account order is its
   own list beside the provider order, and it is what the Claude Code entry walks when its turn comes.
 - **The account order is each account's own place and on/off, held together,** so the two cannot
@@ -317,6 +334,12 @@ When a demotion first catches — when a healthy session first drops — two thi
 - **A fresh installation has one account,** standing for the login the machine already holds, so
   nothing answers differently until a second is added.
 - **Outside the console,** an account named by its id or its given name:
+  - `bmo-agency agent --account-add <name> --path <dir|file> [--kind directory|token|endpoint]` adds an
+    account at the end of the order, on; an endpoint account also takes `--endpoint <url>`,
+    `--key-file <path>`, `--models opus=<id>,sonnet=<id>,haiku=<id>` and `--base-prompt <name>`, its
+    path being its configuration home
+  - `bmo-agency agent --account-set <account>` changes the same fields, `--base-prompt none` letting
+    the account's base go, and `--account-remove <account>` removes an account that is not the last
   - `bmo-agency agent --account-order <account,…>` sets the order
   - `bmo-agency agent --account-on <account>` and `--account-off <account>` change on/off
   - `bmo-agency agent --account-reset` puts the order back to the default
@@ -394,6 +417,9 @@ When a demotion first catches — when a healthy session first drops — two thi
   the run go out rather than losing the work.
 - **A long-lived token removes the renewal:** an account pointed at one needs no browser for a year, so
   none of the above happens for it; it is warned about before that year is out like any other account.
+- **An endpoint account has no login to end.** Its key states no ending and is renewed by nobody, so it
+  takes no renewal lock, is never warned about, and is marked as waiting for a person only when the
+  endpoint refuses its key or its balance (「Automatic walks only on providers, in order」).
 - **An account's token for the work nodes is a login of its own** (`docs/work-nodes.md`, 「The logins on
   a node」), counted and warned about separately; a node login found gone is marked for the nodes alone,
   and the account's login here is neither marked nor passed over for it.
@@ -402,7 +428,9 @@ When a demotion first catches — when a healthy session first drops — two thi
   next provider.
 - **The mark is lifted by the credential, not by anybody's word.** Signing in again writes a moment in
   the future, and the walk's own reading of that credential takes the mark off, so no console action is
-  needed to put the account back in the order.
+  needed to put the account back in the order. An endpoint account's mark is lifted by its key file
+  being written after the mark, or by the owner changing the account, since a balance topped up at the
+  endpoint leaves nothing on this side to read.
 - **The owner is told before it ends, once — and never about a login that renews itself.** Agency
   publishes `account-login-notice` (`docs/api.md`, 「Events」), carrying the account, how long is left,
   and the one command the owner runs to be done with it, with that account's own configuration
@@ -416,7 +444,8 @@ When a demotion first catches — when a healthy session first drops — two thi
   through the program's own failure reading, and the credential's moment — asked together in one place,
   with a credential plainly past its end enough on its own.
 - **The watch runs on the pass that keeps accounts warm,** so the marking, lifting and warning happen
-  without anything being launched for them. Its wording, how long before the end it speaks and the year
+  without anything being launched for them. It watches directory and token accounts; an endpoint
+  account has nothing for it to read. Its wording, how long before the end it speaks and the year
   a token stands for are read from agency's policy (`policy/`).
 
 ### Availability
@@ -438,6 +467,9 @@ When a demotion first catches — when a healthy session first drops — two thi
 - **A login is open while all three hold:** it is on; no window of its own is full (neither a limit rest
   standing under it, nor a fresh reading of its own windows showing one at its ceiling that has not
   reset — `docs/usage-windows.md`); and its login has not gone (「A login that is about to end」).
+- **An endpoint account is open while it is on, its key file is present and not empty, and no rest
+  stands under it.** It has no windows to read, so only a rest written from a refusal closes it, and
+  only a refusal of its key or its balance marks it as waiting for a person.
 - **A fresh window read full closes its login** whether or not any run has met the refusal yet. The
   windows are read on a clock from the account's own login, so a login spent elsewhere is closed by the
   reading, and a rest removed by hand does not reopen a login whose window is still full.
@@ -471,6 +503,13 @@ When a demotion first catches — when a healthy session first drops — two thi
   is put to rest as it is passed, under that login, so nothing that reads the failure afterwards writes a
   rest under another. Where that rest closes the last open login, agency publishes it once as
   `deployment-resting` (`docs/api.md`, 「Events」), and the consumer holding the owner's chat says it.
+- **An endpoint account is walked like any other, and its refusals are read as account failures.** The
+  endpoint answers in HTTP status codes rather than in a subscription's words:
+  - a 401, the key refused, is its login gone, so the account is marked as waiting for a person;
+  - a 402, the balance spent, is marked the same way, since only the owner topping the balance up
+    opens it again;
+  - a 429, too many requests at once, is a limit, so the account rests for a short while;
+  - in each case the work moves to the next open account, as from any login.
 - **A login gone, or its token for the work nodes, is told the way the login watch tells it:** marked as
   waiting for a person and published once as `account-login-notice`. Agency says nothing in a room
   itself.
@@ -580,8 +619,11 @@ When a demotion first catches — when a healthy session first drops — two thi
   not a switch, and the persistent switches still win while they are off.
 - **Claude off:** while Claude Code is off, no Claude keepalive goes out. **One account off or resting:**
   its own sessions are not warmed and its prefixes are left to cool, while every other account's are
-  warmed, since a prefix belongs to the account it was built under. **Codex off / OpenRouter off:** that
-  provider's sessions are not warmed. An unwarmed session's record is left in place, and re-enabling a
+  warmed, since a prefix belongs to the account it was built under. **An endpoint account:** its
+  sessions are never warmed, whether it is on or off. The endpoint ignores the cache markers a ping
+  would renew and keeps its own cache by itself, so a ping would only be a paid request. **Codex off /
+  OpenRouter off:** that provider's sessions are not warmed. An unwarmed session's record is left in
+  place, and re-enabling a
   provider judges the next warming from the time that record names.
 
 ### The Codex substitute is the Codex CLI
