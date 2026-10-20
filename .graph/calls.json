@@ -12,12 +12,13 @@
     "symbols": [],
     "aliases": [],
     "needs": [],
-    "base": "2a5dcd3d956836ab5daedc7022738ca83ccf9e48",
-    "changed": 1792530534737,
+    "base": "c876ae91c90c8ffd5492dcd4e49610323e8e266c",
+    "changed": 1792533769515,
     "boundary": {
       "side": "calls",
       "repository": "bmo-brain",
-      "api": "api/http"
+      "api": "api/http",
+      "build": true
     }
   },
   {
@@ -33,12 +34,13 @@
     "symbols": [],
     "aliases": [],
     "needs": [],
-    "base": "32b6e4deb02c88980e009dcada01e287a91a9c9a",
-    "changed": 1792519312779,
+    "base": "c876ae91c90c8ffd5492dcd4e49610323e8e266c",
+    "changed": 1792533769518,
     "boundary": {
       "side": "calls",
       "repository": "bmo-cache-warmer",
-      "api": "api/schedule"
+      "api": "api/schedule",
+      "build": true
     }
   },
   {
@@ -57,12 +59,13 @@
     "symbols": [],
     "aliases": [],
     "needs": [],
-    "base": "2a5dcd3d956836ab5daedc7022738ca83ccf9e48",
-    "changed": 1792530534755,
+    "base": "c876ae91c90c8ffd5492dcd4e49610323e8e266c",
+    "changed": 1792533769522,
     "boundary": {
       "side": "calls",
       "repository": "bmo-chat",
-      "api": "api/provider"
+      "api": "api/provider",
+      "build": true
     }
   },
   {
@@ -77,12 +80,13 @@
     "symbols": [],
     "aliases": [],
     "needs": [],
-    "base": "2a5dcd3d956836ab5daedc7022738ca83ccf9e48",
-    "changed": 1792530534775,
+    "base": "c876ae91c90c8ffd5492dcd4e49610323e8e266c",
+    "changed": 1792533769525,
     "boundary": {
       "side": "calls",
       "repository": "bmo-node",
-      "api": "api/http"
+      "api": "api/http",
+      "build": true
     }
   }
 ]
