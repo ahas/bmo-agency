@@ -98,11 +98,6 @@ impl Asked {
   fn takes(&self, range: Range) -> bool {
     self.ranges.contains(&range)
   }
-
-  // Every room the companion answers.
-  fn rooms(&self) -> impl Iterator<Item = &i64> {
-    self.alone.iter().chain(&self.shared)
-  }
 }
 
 /// The companion as its row says, refused where it is none.
@@ -378,18 +373,12 @@ async fn carry_out(standing: &Standing, asked: &Asked, by: &str) -> Result<Value
   let rows = rows::delete(db, &picks).await?;
   let at = now_ms() / 1000;
 
-  // What it remembers is the brain's to take, and its book of every room it answers reads from now on, so
-  // nothing said before comes back.
+  // What it remembers is the brain's to take: everything it holds under the companion's scope, so nothing
+  // said before comes back.
   let brain = if asked.takes(Range::Person) {
     let took = ground.peers.brain.reset(&asked.agent, false).await.map_err(Refused::failed)?;
 
     kept.extend(took.could_not.iter().map(|said| format!("brain: {said}")));
-
-    for chat_id in asked.rooms() {
-      if let Err(fault) = ground.peers.brain.book_since(&asked.agent, *chat_id, at).await {
-        kept.push(format!("brain book of room {chat_id}: {fault}"));
-      }
-    }
 
     json!({ "took": took.took, "couldNot": took.could_not })
   } else {

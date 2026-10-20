@@ -6,7 +6,7 @@ use std::path::Path;
 
 use agency_server::events::Bus;
 use agency_server::peers::Asking;
-use agency_server::peers::node::{NodeKind, NodeRow, NodeService, Room};
+use agency_server::peers::node::{NodeKind, NodeRow, NodeService};
 use agency_server::queue::workers::{BUILTIN_WORKER, WorkerRemoved, settle_support, support_name, workers};
 
 use crate::scratch::Scratch;
@@ -15,10 +15,6 @@ use crate::scratch::Scratch;
 struct OneNode;
 
 impl NodeService for OneNode {
-  fn machine_room(&self) -> Asking<'_, Room> {
-    Box::pin(async { Ok(Room::default()) })
-  }
-
   fn link_up<'a>(&'a self, _node: &'a str) -> Asking<'a, bool> {
     Box::pin(async { Ok(true) })
   }

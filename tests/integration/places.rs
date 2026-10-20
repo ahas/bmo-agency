@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use agency_server::peers::Asking;
-use agency_server::peers::node::{NodeKind, NodeRow, NodeService, Room};
+use agency_server::peers::node::{NodeKind, NodeRow, NodeService};
 use agency_server::places::follow::FollowTurns;
 use agency_server::places::nodes::{NodeList, NodesMoved};
 use agency_server::places::{Ground, Places, checkouts, dev, follow, heads, locks, nodes};
@@ -23,10 +23,6 @@ use sha2::{Digest, Sha256};
 struct Listed(Mutex<Vec<NodeRow>>);
 
 impl NodeService for Listed {
-  fn machine_room(&self) -> Asking<'_, Room> {
-    Box::pin(async { Ok(Room::default()) })
-  }
-
   fn link_up<'a>(&'a self, _node: &'a str) -> Asking<'a, bool> {
     Box::pin(async { Ok(false) })
   }

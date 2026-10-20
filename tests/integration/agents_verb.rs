@@ -9,7 +9,7 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use agency_server::peers::Asking;
-use agency_server::peers::node::{NodeKind, NodeRow, NodeService, Room};
+use agency_server::peers::node::{NodeKind, NodeRow, NodeService};
 use agency_server::places::Ground;
 use agency_server::verbs::agents::{AgentsArgs, AgentsHands, Said, Stand, agents};
 use common::Scratch;
@@ -74,10 +74,6 @@ impl Listed {
 }
 
 impl NodeService for Listed {
-  fn machine_room(&self) -> Asking<'_, Room> {
-    Box::pin(async { Ok(Room::default()) })
-  }
-
   fn link_up<'a>(&'a self, _node: &'a str) -> Asking<'a, bool> {
     Box::pin(async { Ok(false) })
   }

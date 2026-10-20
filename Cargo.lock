@@ -52,7 +52,9 @@ dependencies = [
  "agent-session",
  "axum",
  "bmo-agency-client",
+ "bmo-brain-client",
  "bmo-chat",
+ "bmo-node-client",
  "brush-parser",
  "cache-siren",
  "cache-warmer",
@@ -392,6 +394,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "bmo-brain-client"
+version = "0.1.0-rev.1"
+dependencies = [
+ "reqwest",
+ "schemars",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "bmo-chat"
 version = "0.1.0-rev.5"
 dependencies = [
@@ -405,6 +417,18 @@ dependencies = [
  "serde_json",
  "strum 0.28.0",
  "tokio",
+]
+
+[[package]]
+name = "bmo-node-client"
+version = "0.1.0-rev.1"
+dependencies = [
+ "futures-util",
+ "reqwest",
+ "schemars",
+ "serde",
+ "serde_json",
+ "sse-stream",
 ]
 
 [[package]]

@@ -1,7 +1,6 @@
 //! The services agency calls (docs/api.md, 「Calls agency makes」): the node service and the brain. Each is
-//! a client trait of its own, answered over HTTP where the deployment names the service's address and by a
-//! default that calls nothing where it names none. Every call is one POST of a JSON body, read by the chat
-//! wire protocol's conventions, but a route a service answers as a GET, a stream among them.
+//! reached through the client its repository publishes, `bmo-node-client` and `bmo-brain-client`, and by a
+//! default that calls nothing where the deployment names no address.
 
 pub mod brain;
 pub mod node;
@@ -9,10 +8,7 @@ pub mod node;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
 
-use serde::de::DeserializeOwned;
-use serde_json::Value;
 use url::Url;
 
 use self::brain::Brain;
@@ -22,7 +18,7 @@ use crate::config::PeerAddresses;
 /// A call's answer as a client hands it back.
 pub type Asking<'a, T> = Pin<Box<dyn Future<Output = Result<T, PeerFault>> + Send + 'a>>;
 
-/// The variables a service's address and its token are named in.
+/// The variable a service's address and its token are named in.
 #[derive(Clone, Copy, Debug)]
 pub struct Variables {
   pub url: &'static str,
@@ -60,21 +56,6 @@ impl PeerAddress {
       token: set(variables.token),
     }))
   }
-}
-
-/// How long a call is offered again while the service refuses the connection, and how often.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Patience {
-  pub within: Duration,
-  pub every: Duration,
-}
-
-impl Patience {
-  /// A refused connection is a fault at once.
-  pub const NONE: Self = Self {
-    within: Duration::ZERO,
-    every: Duration::ZERO,
-  };
 }
 
 /// Why a call came back without its answer.
@@ -120,171 +101,6 @@ impl std::fmt::Display for PeerFault {
 }
 
 impl std::error::Error for PeerFault {}
-
-// An error with every cause under it, since the transport's own words name only the outermost.
-fn said(error: &dyn std::error::Error) -> String {
-  let mut words = error.to_string();
-  let mut cause = error.source();
-
-  while let Some(under) = cause {
-    words.push_str(": ");
-    words.push_str(&under.to_string());
-    cause = under.source();
-  }
-
-  words
-}
-
-fn text_of(value: &Value, field: &str) -> Option<String> {
-  value.get(field).and_then(Value::as_str).map(str::to_owned)
-}
-
-/// One service's caller: its address, its token, how long an answer is waited for, and its patience. A
-/// stream it opens is waited on only to connect.
-#[derive(Clone, Debug)]
-pub struct Caller {
-  peer: &'static str,
-  address: PeerAddress,
-  client: reqwest::Client,
-  streaming: reqwest::Client,
-  patience: Patience,
-}
-
-impl Caller {
-  pub fn new(
-    peer: &'static str,
-    address: PeerAddress,
-    answer_within: Duration,
-    patience: Patience,
-  ) -> Self {
-    let client = reqwest::Client::builder().timeout(answer_within).build().unwrap_or_default();
-    let streaming = reqwest::Client::builder().connect_timeout(answer_within).build().unwrap_or_default();
-
-    Self {
-      peer,
-      address,
-      client,
-      streaming,
-      patience,
-    }
-  }
-
-  /// The address of one of the service's paths, under its base address's own path.
-  pub fn url(&self, path: &str) -> Url {
-    let mut url = self.address.url.clone();
-    let joined = format!("{}/{}", url.path().trim_end_matches('/'), path.trim_start_matches('/'));
-
-    url.set_path(&joined);
-    url
-  }
-
-  fn unreachable(&self, detail: String) -> PeerFault {
-    PeerFault::Unreachable {
-      peer: self.peer,
-      detail,
-    }
-  }
-
-  // The request `make` builds, sent under the token. A refused connection is offered again within the
-  // service's patience; a call that reached a listener never is.
-  async fn sent(&self, make: impl Fn() -> reqwest::RequestBuilder) -> Result<reqwest::Response, PeerFault> {
-    let began = Instant::now();
-
-    loop {
-      let mut request = make();
-
-      if let Some(token) = &self.address.token {
-        request = request.bearer_auth(token);
-      }
-
-      match request.send().await {
-        Ok(response) => return Ok(response),
-        Err(error)
-          if error.is_connect() && began.elapsed() + self.patience.every < self.patience.within =>
-        {
-          tokio::time::sleep(self.patience.every).await;
-        }
-        Err(error) => return Err(self.unreachable(said(&error))),
-      }
-    }
-  }
-
-  fn failed(&self, status: reqwest::StatusCode, text: &str) -> PeerFault {
-    let answer = serde_json::from_str::<Value>(text).unwrap_or(Value::Null);
-
-    PeerFault::Failed {
-      peer: self.peer,
-      status: status.as_u16(),
-      code: text_of(&answer, "code").unwrap_or_default(),
-      error: text_of(&answer, "error").unwrap_or_else(|| text.trim().to_owned()),
-    }
-  }
-
-  /// The service asked at `path` with `body`, its answer read as `T`.
-  pub async fn post<T: DeserializeOwned>(&self, path: &str, body: Value) -> Result<T, PeerFault> {
-    let url = self.url(path);
-    let response = self.sent(|| self.client.post(url.clone()).json(&body)).await?;
-
-    self.read(response).await
-  }
-
-  /// The service asked at `path` by a GET, for a route the service answers that way, its answer read as
-  /// `T`.
-  pub async fn get<T: DeserializeOwned>(&self, path: &str) -> Result<T, PeerFault> {
-    let url = self.url(path);
-    let response = self.sent(|| self.client.get(url.clone())).await?;
-
-    self.read(response).await
-  }
-
-  /// A stream the service answers at `path` with `query`, opened with no wait on its whole: the response
-  /// once its status says the stream stands.
-  pub async fn open(&self, path: &str, query: &[(&str, &str)]) -> Result<reqwest::Response, PeerFault> {
-    let mut url = self.url(path);
-
-    url.query_pairs_mut().extend_pairs(query);
-
-    let response = self.sent(|| self.streaming.get(url.clone())).await?;
-    let status = response.status();
-
-    if status.is_success() {
-      return Ok(response);
-    }
-
-    let text = response.text().await.unwrap_or_default();
-
-    Err(self.failed(status, &text))
-  }
-
-  async fn read<T: DeserializeOwned>(&self, response: reqwest::Response) -> Result<T, PeerFault> {
-    let status = response.status();
-    let text = response.text().await.map_err(|error| self.unreachable(said(&error)))?;
-
-    if !status.is_success() {
-      return Err(self.failed(status, &text));
-    }
-
-    let answer = serde_json::from_str::<Value>(&text).map_err(|error| PeerFault::Malformed {
-      peer: self.peer,
-      detail: error.to_string(),
-    })?;
-
-    if answer.get("answered") == Some(&Value::Bool(false)) {
-      let refusal = answer.get("refusal").cloned().unwrap_or(Value::Null);
-
-      return Err(PeerFault::Refused {
-        peer: self.peer,
-        code: text_of(&refusal, "code").unwrap_or_default(),
-        message: text_of(&refusal, "message").unwrap_or_default(),
-      });
-    }
-
-    serde_json::from_value(answer).map_err(|error| PeerFault::Malformed {
-      peer: self.peer,
-      detail: error.to_string(),
-    })
-  }
-}
 
 /// The services agency calls, each by the client its address chose.
 #[derive(Clone)]

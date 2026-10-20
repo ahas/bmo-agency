@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex};
 use agency_server::Service;
 use agency_server::config::Config;
 use agency_server::peers::Asking;
-use agency_server::peers::node::{NodeKind, NodeRow, NodeService, Room};
+use agency_server::peers::node::{NodeKind, NodeRow, NodeService};
 use agency_server::places::Ground;
 use agency_server::places::nodes::{NodeList, NodesMoved, label, settle};
 use harness_providers::Machine;
@@ -28,10 +28,6 @@ fn row(node: &str, label: Option<&str>, state: &str) -> NodeRow {
 struct Listed(Mutex<Vec<NodeRow>>);
 
 impl NodeService for Listed {
-  fn machine_room(&self) -> Asking<'_, Room> {
-    Box::pin(async { Ok(Room::default()) })
-  }
-
   fn link_up<'a>(&'a self, _node: &'a str) -> Asking<'a, bool> {
     Box::pin(async { Ok(false) })
   }

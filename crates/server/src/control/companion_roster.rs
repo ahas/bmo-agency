@@ -242,9 +242,8 @@ impl Left {
   /// What stands for a removed companion and what is left under its name, taken once its row is gone: its
   /// program killed, so it writes no record of what the removal took as it goes, its workspace closed where
   /// herdr stands here, its place and home folder, its execution rows with their envelopes, the agent
-  /// host's view and head records of it, its agent lock, and its brain folder's editing lock with its queue
-  /// and fence. Nothing here refuses the removal, which has already been written; what could not go is
-  /// logged.
+  /// host's view and head records of it, its agent lock, and everything the brain holds under its scope.
+  /// Nothing here refuses the removal, which has already been written; what could not go is logged.
   async fn taken(&self, agent: &str) {
     let place = Place::of(&self.data_root, agent);
     let mut left = vec![];
@@ -273,7 +272,7 @@ impl Left {
     }
 
     if let Err(fault) = self.brain.forget(agent).await {
-      left.push(format!("its brain folder's lock: {fault}"));
+      left.push(format!("its brain scope: {fault}"));
     }
 
     for what in left {

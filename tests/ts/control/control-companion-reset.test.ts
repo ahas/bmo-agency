@@ -13,26 +13,24 @@ import type { ControlBase } from "./control-contract-base";
 // agency's own server on a store of the test's. Each test stands a companion of its own: a room it
 // answers alone and a room it shares, its room sessions with their kept turns and windows, its run log
 // lines and their run records, and the records the registered harness keeps of the sessions run in its
-// home and in its brain folder. What it remembers is the brain's, so the brain is a stand-in that writes
-// down what it was asked.
+// home and in its brain folder. What it remembers is the brain's, held under the companion's scope, so
+// the brain is a stand-in that writes down what it was asked.
 
 const token = "secret";
 // The binary is built as the file loads, so no hook spends its own time on a build.
 const binary = frontBinary();
 const brainRoot = join(dataRoot(), "brain");
-// What the stand-in brain says it could not do, where a test gives it something to say.
-let brainCouldNot: string[] = [];
-const brainAsked: { path: string; body: Record<string, unknown> }[] = [];
+const brainAsked: { method: string; path: string; query: string }[] = [];
+const counts = { memories: 3, memoryMatches: 0, notes: 0, watches: 0, reminders: 0, fragments: 0, fragmentHits: 0 };
 const brain = Bun.serve({
   hostname: "127.0.0.1",
   port: 0,
-  async fetch(request) {
-    const path = new URL(request.url).pathname;
-    const body = (await request.json()) as Record<string, unknown>;
+  fetch(request) {
+    const url = new URL(request.url);
 
-    brainAsked.push({ path, body });
+    brainAsked.push({ method: request.method, path: url.pathname, query: url.search });
 
-    return Response.json(path === "/agents/reset" ? { took: { memories: 3, folder: true }, couldNot: brainCouldNot } : { ok: true });
+    return Response.json({ scope: decodeURIComponent(url.pathname.split("/").at(-1) ?? ""), counts, state: "remembered" });
   },
 });
 
@@ -168,8 +166,8 @@ describe("POST /companion-resets", () => {
     expect([both.alone, both.shared]).toEqual([[{ chatId: stood.alone, title: null }], [{ chatId: stood.shared, title: null }]]);
     expect(rowsOf(both)).toEqual({ run_records: 2, agent_log: 2, runs: 3, room_session_turns: 4, room_sessions: 2 });
     expect(both.files.toSorted()).toEqual([...stood.home, ...stood.recollector].toSorted());
-    expect(both.brain).toEqual({ took: { memories: 3, folder: true }, couldNot: [] });
-    expect(brainAsked).toEqual([{ path: "/agents/reset", body: { agent: stood.agent, preview: true } }]);
+    expect(both.brain).toEqual({ took: counts, couldNot: [] });
+    expect(brainAsked).toEqual([{ method: "DELETE", path: `/scopes/${stood.agent}`, query: "?dryRun=true" }]);
 
     const conversation = await answered(ask({ agent: stood.agent, conversation: "1", alone: String(stood.alone) }));
 
@@ -202,25 +200,17 @@ describe("POST /companion-resets", () => {
     ]);
   });
 
-  test("of what it remembers has the brain take it and read its books from now on, takes its recollectors' records, and keeps the conversation", async () => {
+  test("of what it remembers has the brain let its scope go, takes its recollectors' records, and keeps the conversation", async () => {
     const stood = await stand("tester-mind", 730);
-    const before = Math.floor(Date.now() / 1000);
 
     brainAsked.length = 0;
-    brainCouldNot = ["the folder is locked"];
 
     const done = await answered(reset({ agent: stood.agent, person: true, alone: String(stood.alone), shared: String(stood.shared) }));
 
-    brainCouldNot = [];
     expect([done.rows, done.files.toSorted()]).toEqual([[], stood.recollector.toSorted()]);
-    expect(done.brain).toEqual({ took: { memories: 3, folder: true }, couldNot: ["the folder is locked"] });
-    expect(done.failures).toEqual(["brain: the folder is locked"]);
-    expect(brainAsked.map((one) => [one.path, one.body.agent, one.body.chatId ?? null, one.body.preview ?? null])).toEqual([
-      ["/agents/reset", stood.agent, null, false],
-      ["/agents/book-since", stood.agent, stood.alone, null],
-      ["/agents/book-since", stood.agent, stood.shared, null],
-    ]);
-    expect(brainAsked.slice(1).every((one) => Number(one.body.at) >= before)).toBe(true);
+    expect(done.brain).toEqual({ took: counts, couldNot: [] });
+    expect(done.failures).toEqual([]);
+    expect(brainAsked).toEqual([{ method: "DELETE", path: `/scopes/${stood.agent}`, query: "" }]);
     expect([stood.home.every((path) => existsSync(path)), stood.recollector.some((path) => existsSync(path))]).toEqual([true, false]);
     expect([await count("room_sessions WHERE agent = ?", stood.agent), await count("session_resets WHERE agent = ?", stood.agent), await count("runs WHERE agent = ?", stood.agent)]).toEqual([2, 0, 2]);
   });

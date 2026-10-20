@@ -1,10 +1,10 @@
 //! This machine's room for the launcher (docs/agent-control.md, 「Room on the machine」): the node service
-//! reads the machine and judges its own limits, and agency counts the jobs at work, judges their limits,
-//! keeps the launcher's notice of a held launch and says when the room has returned.
+//! reports the machine's standing, agency judges the machine's four limits over it and its own two over the
+//! jobs at work, keeps the launcher's notice of a held launch and says when the room has returned.
 
 use agent_session::JobMark;
 use policy::fill_marks;
-use policy::machine_room::{CountLimit, MACHINE_ROOM};
+use policy::machine_room::{CountLimit, MACHINE_ROOM, MachineLimit};
 use sea_orm::DatabaseConnection;
 use serde::{Deserialize, Serialize};
 use store::all;
@@ -115,8 +115,9 @@ pub async fn at_work(db: &DatabaseConnection) -> Result<Vec<AtWork>, Refusal> {
     .collect()
 }
 
-// A limit as the settings table holds it, its default where the row is missing or no positive number.
-async fn limit(db: &DatabaseConnection, name: &str, of: &CountLimit) -> Result<u64, Refusal> {
+// A job-count limit as the settings table holds it, its default where the row is missing or no positive
+// number.
+async fn count_limit(db: &DatabaseConnection, name: &str, of: &CountLimit) -> Result<u64, Refusal> {
   let held = settings::get(db, &format!("{LIMIT_PREFIX}{name}")).await?;
 
   Ok(
@@ -127,36 +128,105 @@ async fn limit(db: &DatabaseConnection, name: &str, of: &CountLimit) -> Result<u
   )
 }
 
+// A machine limit as the settings table holds it, its default where the row is missing or no positive
+// number.
+async fn machine_limit(db: &DatabaseConnection, name: &str, of: &MachineLimit) -> Result<f64, Refusal> {
+  let held = settings::get(db, &format!("{LIMIT_PREFIX}{name}")).await?;
+
+  Ok(
+    held
+      .and_then(|value| value.trim().parse::<f64>().ok())
+      .filter(|value| value.is_finite() && *value > 0.0)
+      .unwrap_or(of.default),
+  )
+}
+
+// A figure to a tenth, as the machine's own reasons write it.
+fn tenth(value: f64) -> String {
+  format!("{}", (value * 10.0).round() / 10.0)
+}
+
+// A limit as written in a reason, without a point where it is whole.
+fn shown(value: f64) -> String {
+  format!("{value}")
+}
+
 /// The jobs at work, and of them those whose place runs a browser in the standing.
 pub fn counted(at_work: &[AtWork], standing: &Standing) -> (u64, u64) {
   let browsing = at_work
     .iter()
-    .filter(|worker| standing.places.iter().any(|place| place.place == worker.worker && place.browsers > 0))
+    .filter(|worker| standing.scopes.iter().any(|place| place.scope == worker.worker && place.browsers > 0))
     .count();
 
   (at_work.len() as u64, browsing as u64)
 }
 
-/// This machine's room: what the node service holds, then agency's own job-count limits met. A node
-/// service that cannot be asked holds nothing of its part, and a standing that cannot be read counts no
-/// browser.
+/// This machine's room: the machine's four limits over the standing the node service reports, then
+/// agency's own job-count limits met. A standing that cannot be read holds nothing of the machine's part
+/// and counts no browser.
 pub async fn room(db: &DatabaseConnection, nodes: &dyn NodeService) -> Result<Room, Refusal> {
-  let (asked, standing) = tokio::join!(nodes.machine_room(), nodes.machine_standing());
-  let mut held = asked.map(|room| room.held).unwrap_or_else(|fault| {
-    eprintln!("agency: the machine's room: {fault}");
-    vec![]
-  });
-  let standing = standing.unwrap_or_else(|fault| {
+  let standing = nodes.machine_standing().await.unwrap_or_else(|fault| {
     eprintln!("agency: the machine's standing: {fault}");
-    Standing::default()
+    Standing::unread()
   });
+  let mut held = vec![];
+
+  if let Some(reading) = &standing.reading {
+    let full = reading.memory.as_ref().and_then(|memory| memory.full.as_ref()).map(|full| full.avg60);
+
+    if let Some(full) = full {
+      let limit = machine_limit(db, "launch_memory_full_pct", &MACHINE_ROOM.launch_memory_full_pct).await?;
+
+      if full >= limit {
+        held.push(fill_marks(
+          &MACHINE_ROOM.launch_memory_full_pct.held,
+          &[("value", &tenth(full)), ("limit", &shown(limit))],
+        ));
+      }
+    }
+
+    let limit =
+      machine_limit(db, "launch_memory_available_gb", &MACHINE_ROOM.launch_memory_available_gb).await?;
+
+    if reading.mem_available_gb < limit {
+      held.push(fill_marks(
+        &MACHINE_ROOM.launch_memory_available_gb.held,
+        &[("value", &tenth(reading.mem_available_gb)), ("limit", &shown(limit))],
+      ));
+    }
+
+    let limit = machine_limit(db, "launch_load_per_thread", &MACHINE_ROOM.launch_load_per_thread).await?;
+
+    if reading.threads > 0 && reading.load1 / reading.threads as f64 >= limit {
+      held.push(fill_marks(
+        &MACHINE_ROOM.launch_load_per_thread.held,
+        &[
+          ("value", &tenth(reading.load1)),
+          ("threads", &reading.threads.to_string()),
+          ("limit", &shown(limit)),
+        ],
+      ));
+    }
+
+    let limit = machine_limit(db, "launch_disk_free_gb", &MACHINE_ROOM.launch_disk_free_gb).await?;
+
+    if let Some(free) = reading.disk_free_gb
+      && free < limit
+    {
+      held.push(fill_marks(
+        &MACHINE_ROOM.launch_disk_free_gb.held,
+        &[("value", &tenth(free)), ("limit", &shown(limit))],
+      ));
+    }
+  }
+
   let (jobs, browser_jobs) = counted(&at_work(db).await?, &standing);
 
   for (name, of, count) in [
     ("launch_jobs", &MACHINE_ROOM.launch_jobs, jobs),
     ("launch_browser_jobs", &MACHINE_ROOM.launch_browser_jobs, browser_jobs),
   ] {
-    let limit = limit(db, name, of).await?;
+    let limit = count_limit(db, name, of).await?;
 
     if count >= limit {
       held.push(fill_marks(&of.held, &[("jobs", &count.to_string()), ("limit", &limit.to_string())]));
@@ -167,7 +237,7 @@ pub async fn room(db: &DatabaseConnection, nodes: &dyn NodeService) -> Result<Ro
     held,
     jobs,
     browser_jobs,
-    browsers: standing.browsers,
+    browsers: u64::try_from(standing.browsers).unwrap_or(0),
   })
 }
 

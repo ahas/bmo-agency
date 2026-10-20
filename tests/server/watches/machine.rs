@@ -1,9 +1,11 @@
-//! This machine's room for the launcher: the node service's reasons and agency's job-count limits over the
-//! workers at work here, the launcher's notice of a held launch kept, and the room's return told once
-//! nothing holds a launch.
+//! This machine's room for the launcher: the machine's four limits over the standing the node service
+//! reports, agency's job-count limits over the workers at work here, the launcher's notice of a held
+//! launch kept, and the room's return told once nothing holds a launch.
 
 use agency_server::events::Bus;
-use agency_server::peers::node::{NodeRow, NodeService, PlaceHolding, Room as NodeRoom, Standing};
+use agency_server::peers::node::{
+  KernelReading, NodeRow, NodeService, Pressure as MemoryPressure, PressureLine, ScopeUse, Standing,
+};
 use agency_server::peers::{Asking, PeerFault};
 use agency_server::watches::machine::{
   AtWork, LaunchHeld, MachineRoomReturned, at_work, keep_worker_job, launch_held, room, tell_launch_held,
@@ -14,20 +16,10 @@ use serde_json::json;
 
 use crate::scratch::Scratch;
 
-/// A node service whose room holds what the test names, whose standing has the worker `w1` running a
-/// browser, and which cannot be asked at all where it is `down`.
+/// A node service reporting the standing the test names, which cannot be asked at all where it is `down`.
 struct Machine {
-  held: Vec<String>,
+  standing: Standing,
   down: bool,
-}
-
-impl Machine {
-  fn holding(held: &[&str]) -> Self {
-    Self {
-      held: held.iter().map(|reason| (*reason).to_owned()).collect(),
-      down: false,
-    }
-  }
 }
 
 fn unreachable() -> PeerFault {
@@ -37,44 +29,66 @@ fn unreachable() -> PeerFault {
   }
 }
 
-impl NodeService for Machine {
-  fn machine_room(&self) -> Asking<'_, NodeRoom> {
-    let answer = if self.down {
-      Err(unreachable())
-    } else {
-      Ok(NodeRoom {
-        held: self.held.clone(),
-      })
-    };
+// A reading with every figure the four limits are judged on.
+fn reading(
+  memory_full: Option<f64>,
+  mem_available_gb: f64,
+  load1: f64,
+  disk_free_gb: f64,
+) -> KernelReading {
+  let line = |avg60: f64| PressureLine {
+    avg10: avg60,
+    avg60,
+    avg300: avg60,
+  };
 
-    Box::pin(async move { answer })
+  KernelReading {
+    at: 1_700_000_000_000,
+    load1,
+    threads: 24,
+    mem_total_gb: 32.0,
+    mem_available_gb,
+    swap_total_gb: 16.0,
+    swap_free_gb: 8.0,
+    disk_free_gb: Some(disk_free_gb),
+    memory: memory_full.map(|full| MemoryPressure {
+      some: line(full),
+      full: Some(line(full)),
+    }),
+    cpu: None,
   }
+}
 
+// The standing agency reads: a roomy reading, and the worker w1 running two browsers in its place.
+fn standing(reading: KernelReading) -> Standing {
+  Standing {
+    reading: Some(reading),
+    alerts: vec![],
+    browsers: 3,
+    scopes: vec![
+      ScopeUse {
+        scope: "w1".into(),
+        megabytes: 800,
+        browsers: 2,
+      },
+      ScopeUse {
+        scope: "w2".into(),
+        megabytes: 300,
+        browsers: 0,
+      },
+      ScopeUse {
+        scope: "chat".into(),
+        megabytes: 200,
+        browsers: 1,
+      },
+    ],
+    largest: vec![],
+  }
+}
+
+impl NodeService for Machine {
   fn machine_standing(&self) -> Asking<'_, Standing> {
-    let answer = if self.down {
-      Err(unreachable())
-    } else {
-      Ok(Standing {
-        browsers: 3,
-        places: vec![
-          PlaceHolding {
-            place: "w1".into(),
-            megabytes: 800.0,
-            browsers: 2,
-          },
-          PlaceHolding {
-            place: "w2".into(),
-            megabytes: 300.0,
-            browsers: 0,
-          },
-          PlaceHolding {
-            place: "chat".into(),
-            megabytes: 200.0,
-            browsers: 1,
-          },
-        ],
-      })
-    };
+    let answer = if self.down { Err(unreachable()) } else { Ok(self.standing.clone()) };
 
     Box::pin(async move { answer })
   }
@@ -164,37 +178,70 @@ async fn the_jobs_at_work_are_the_workers_here_with_a_run_open_each_with_the_job
 }
 
 #[tokio::test]
-async fn the_room_holds_on_the_node_service_s_reasons_and_then_on_agency_s_job_counts() {
+async fn the_room_holds_on_the_machines_limits_and_then_on_agency_s_job_counts() {
   let scratch = Scratch::new().await;
   let db = scratch.db();
 
   workers(&scratch).await;
 
-  let roomy = room(db, &Machine::holding(&[])).await.unwrap();
+  let roomy = Machine {
+    standing: standing(reading(Some(1.0), 8.0, 10.0, 100.0)),
+    down: false,
+  };
 
-  assert_eq!((roomy.jobs, roomy.browser_jobs, roomy.browsers), (2, 1, 3));
-  assert!(roomy.held.is_empty(), "two jobs and one with a browser are under the defaults");
+  assert_eq!(
+    room(db, &roomy).await.unwrap().held,
+    Vec::<String>::new(),
+    "a roomy machine holds nothing"
+  );
+
+  let (jobs, browser_jobs, browsers) = {
+    let room = room(db, &roomy).await.unwrap();
+
+    (room.jobs, room.browser_jobs, room.browsers)
+  };
+
+  assert_eq!((jobs, browser_jobs, browsers), (2, 1, 3));
+
+  let short = Machine {
+    standing: standing(reading(Some(5.04), 3.5, 50.0, 12.0)),
+    down: false,
+  };
+
+  assert_eq!(
+    room(db, &short).await.unwrap().held,
+    vec![
+      "memory pressure 5% >= 5%".to_owned(),
+      "available memory 3.5GB < 4GB".to_owned(),
+      "load 50 >= 24 threads x 2".to_owned(),
+      "disk free 12GB < 20GB".to_owned(),
+    ]
+  );
 
   scratch
     .run(
       r#"INSERT INTO "settings" ("key", "value") VALUES
-         ('machine_limit:launch_jobs', '2'), ('machine_limit:launch_browser_jobs', 'none')"#,
+         ('machine_limit:launch_jobs', '2'), ('machine_limit:launch_browser_jobs', 'none'),
+         ('machine_limit:launch_disk_free_gb', '10')"#,
       vec![],
     )
     .await;
 
-  let held = room(db, &Machine::holding(&["disk free 12GB < 20GB"])).await.unwrap();
-
-  assert_eq!(held.held, vec!["disk free 12GB < 20GB".to_owned(), "jobs 2 >= 2".to_owned()]);
   assert_eq!(
-    json!(held),
-    json!({ "held": ["disk free 12GB < 20GB", "jobs 2 >= 2"], "jobs": 2, "browserJobs": 1, "browsers": 3 })
+    room(db, &short).await.unwrap().held,
+    vec![
+      "memory pressure 5% >= 5%".to_owned(),
+      "available memory 3.5GB < 4GB".to_owned(),
+      "load 50 >= 24 threads x 2".to_owned(),
+      "jobs 2 >= 2".to_owned(),
+    ],
+    "a settings row replaces a limit, and a machine that is only short of room within it holds nothing"
   );
 
   let unread = room(
     db,
     &Machine {
-      held: vec!["load 80 >= 24 threads x 2".into()],
+      standing: Standing::unread(),
       down: true,
     },
   )
@@ -204,7 +251,7 @@ async fn the_room_holds_on_the_node_service_s_reasons_and_then_on_agency_s_job_c
   assert_eq!(
     unread.held,
     vec!["jobs 2 >= 2".to_owned()],
-    "a node service not asked holds nothing of its part"
+    "a standing that cannot be read holds nothing of the machine's part"
   );
   assert_eq!((unread.browser_jobs, unread.browsers), (0, 0));
 }
@@ -219,19 +266,24 @@ async fn a_held_launch_is_let_go_and_its_return_told_once_nothing_holds_and_a_wi
     at: 1_000,
     held: vec!["memory pressure 6% >= 5%".into()],
   };
+  let roomy = || Machine {
+    standing: standing(reading(Some(1.0), 8.0, 10.0, 100.0)),
+    down: false,
+  };
+  let held_by_memory = Machine {
+    standing: standing(reading(Some(6.0), 8.0, 10.0, 100.0)),
+    down: false,
+  };
 
-  assert!(
-    !watch_held(db, &Machine::holding(&[]), &bus).await.unwrap(),
-    "no notice, nothing to tell"
-  );
+  assert!(!watch_held(db, &roomy(), &bus).await.unwrap(), "no notice, nothing to tell");
 
   tell_launch_held(db, &notice).await.unwrap();
   assert_eq!(launch_held(db).await.unwrap(), Some(notice.clone()));
-  assert!(!watch_held(db, &Machine::holding(&["memory pressure 6% >= 5%"]), &bus).await.unwrap());
+  assert!(!watch_held(db, &held_by_memory, &bus).await.unwrap());
   assert_eq!(launch_held(db).await.unwrap(), Some(notice.clone()), "still held, the notice stands");
   assert!(returned.ready().is_none());
 
-  assert!(watch_held(db, &Machine::holding(&[]), &bus).await.unwrap());
+  assert!(watch_held(db, &roomy(), &bus).await.unwrap());
   assert_eq!(
     returned.ready(),
     Some(MachineRoomReturned {
@@ -252,6 +304,6 @@ async fn a_held_launch_is_let_go_and_its_return_told_once_nothing_holds_and_a_wi
   .await
   .unwrap();
   assert_eq!(launch_held(db).await.unwrap(), None);
-  assert!(!watch_held(db, &Machine::holding(&[]), &bus).await.unwrap());
+  assert!(!watch_held(db, &roomy(), &bus).await.unwrap());
   assert!(returned.ready().is_none(), "a withdrawn notice is let go without a word");
 }

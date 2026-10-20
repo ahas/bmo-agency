@@ -89,11 +89,9 @@ seeds. The other crates and the server reach the store only through it.
     `dev_server_max_age_minutes`;
   - the logins watch's notes: `claude_node_token_gone:*` and its notice keys;
   - a job's road and its stop: `job_route_block:*`, `job_stop:*`;
-  - the machine's room: the job-count limits, `machine_limit:launch_jobs` and
-    `machine_limit:launch_browser_jobs`, beside the memory limits the dev servers read; the launcher's
-    notice of launches held, `machine_launch_held`, its `at` and `held` as JSON; and the job and item a
-    worker's turn named while it goes, `worker_job:*` by the worker, as JSON (`docs/agent-control.md`,
-    「Room on the machine」);
+  - the machine's room: its six limits, `machine_limit:<name>`, the launcher's notice of launches held,
+    `machine_launch_held`, its `at` and `held` as JSON; and the job and item a worker's turn named while
+    it goes, `worker_job:*` by the worker, as JSON (`docs/agent-control.md`, 「Room on the machine」);
   - the fallback and the rest: `fallback_since`, `fallback_provider`, `rest_until`, `rest_until:*`,
     `rest_kind`;
   - an account's unread mark, `usage_windows_unread:*` by the account, the moment its reader first found

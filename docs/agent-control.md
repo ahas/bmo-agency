@@ -2606,17 +2606,17 @@ and what the person launched.
 
 Jobs, their closes, their browsers and model training share one machine, and nothing about a free
 checkout says the machine has room for another job. So the machine itself is read before a job is
-launched, and watched while jobs run. The node service reads the machine and judges its own four
-limits (the node service's `docs/machine.md`); which jobs are open, which of them run a browser, the
-limits on their counts and whose a place is stay agency's.
+launched, and watched while jobs run. The node service reads the machine and reports its standing (the
+node service's `docs/machine.md`); agency judges the six limits below, which jobs are open, which of
+them run a browser, and whose a place is.
 
 ### What is read
 
 - **The machine, by the node service:** the kernel's pressure, load, memory, swap and the data root's
   disk, every browser main process and every process worth naming, each with the agent place its
   environment names (the place variable every agent's pane carries and every process under it
-  inherits). Agency asks it for the room (`/machine/room`) and for what each place holds
-  (`/machine/standing`) (`docs/api.md`, 「The node service」).
+  inherits). Agency asks it for this machine through its published client and reads the standing: the
+  reading, what each place holds, how many browsers run and the largest processes.
 - **The jobs, by agency:** every worker standing on this machine, its row naming no work node, with a
   run open in the executions, each one job at work. A worker placed on a work node is that node's and
   is not counted here.
@@ -2629,24 +2629,26 @@ limits on their counts and whose a place is stay agency's.
 
 ### The limits
 
-- **The job-count limits are rows of agency's settings table**, keyed `machine_limit:<name>`; a missing
-  row, or one that is not a positive number, reads as the default. The other four are the node
-  service's settings, under the same names in its own store.
+- **The six limits are rows of agency's settings table**, keyed `machine_limit:<name>`; a missing row,
+  or one that is not a positive number, reads as the default. The four judged over the machine's
+  reading are agency's: the node service reports the standing and judges only the alerts it tells.
 - **What holds a launch,** any one of them met:
 
-  | Name | Default | Whose | Met when |
-  |---|---|---|---|
-  | `launch_memory_full_pct` | 5 | node | memory `full` over the last minute is at or above it, in percent |
-  | `launch_memory_available_gb` | 4 | node | `MemAvailable` is under it |
-  | `launch_load_per_thread` | 2 | node | the one-minute load divided by the thread count is at or above it |
-  | `launch_disk_free_gb` | 20 | node | the free space of the data root's disk is under it, in gigabytes |
-  | `launch_jobs` | 5 | agency | the jobs at work number at least this many |
-  | `launch_browser_jobs` | 3 | agency | the jobs with a browser running number at least this many |
+  | Name | Default | Met when |
+  |---|---|---|
+  | `launch_memory_full_pct` | 5 | memory `full` over the last minute is at or above it, in percent |
+  | `launch_memory_available_gb` | 4 | `MemAvailable` is under it |
+  | `launch_load_per_thread` | 2 | the one-minute load divided by the thread count is at or above it |
+  | `launch_disk_free_gb` | 20 | the free space of the data root's disk is under it, in gigabytes |
+  | `launch_jobs` | 5 | the jobs at work number at least this many |
+  | `launch_browser_jobs` | 3 | the jobs with a browser running number at least this many |
 
-- **The reasons agency adds** are written as the node service writes its own, each figure whole:
-  `jobs <jobs> >= <limit>` and `browser jobs <jobs> >= <limit>`.
+- **The reasons are written with each figure whole:** `memory pressure <value>% >= <limit>%`,
+  `available memory <value>GB < <limit>GB`, `load <value> >= <threads> threads x <limit>`,
+  `disk free <value>GB < <limit>GB`, `jobs <jobs> >= <limit>` and
+  `browser jobs <jobs> >= <limit>`.
 - **What is told as pressure** is the node service's to judge, by its `alert_memory_full_pct` (10)
-  standing for `alert_minutes` (2).
+  standing for `alert_minutes` (2) and its `alert_disk_free_gb` (20).
 - **Measured basis,** on the 24-thread, 32 GB machine the jobs run on:
   - seven jobs at once, six of them opening browsers and then closing with a whole run of the suite
     each, beside a model's training: load 74, memory `full` 25% over a minute, about 30 GB of 32 in use,
@@ -2660,8 +2662,9 @@ limits on their counts and whose a place is stay agency's.
 
 - **The launcher is the job unit.** Before it launches a job on this machine, after every refusal an
   item is owed and before any row is opened, it asks agency for the room (`docs/api.md`, 「Workers」,
-  the machine's room), and agency asks the node service and adds its own job-count limits. Where
-  anything is held nothing is launched, and the launcher's answer names each reason with its figure.
+  the machine's room), and agency asks the node service for the standing and judges the six limits.
+  Where anything is held nothing is launched, and the launcher's answer names each reason with its
+  figure.
 - **A held launch is no refusal of the item:** it keeps its place, its approval and its launch wait
   untouched, and no run is counted against it.
 - **The hold is told to agency, and the queue moves on by itself.** The launcher tells agency the
@@ -2677,18 +2680,19 @@ limits on their counts and whose a place is stay agency's.
 
 ### Pressure told as a fact
 
-- **The node service tells each pressure once,** and agency's server listens on its event stream from
-  its start (`docs/api.md`, 「The node service」). Memory `full` at or above the alert line, standing for
-  the alert minutes, comes as cause `memory`, told again only after the pressure has fallen below the
-  line and risen again; the data root's disk under `launch_disk_free_gb` comes as cause `disk`, the
-  first minute it is read there and again only after it has risen to the line and fallen again.
+- **The node service tells when this machine's standing changes,** as a `machine.changed` event
+  carrying the machine, on its one stream; agency's server listens from its start. Memory `full` at
+  or above the alert line, standing for the alert minutes, is its `memory` alert; the data root's
+  disk under `alert_disk_free_gb` is its `disk` alert.
+- **Agency publishes an alert it has not published yet,** and publishes it again only after it has
+  ended and risen again. An alert that ends is not published.
 - **Agency names the job behind each place** and publishes the pressure as its own `machine-pressure`
   (`docs/api.md`, 「Events」): the reading, the memory each place holds with the worker at work in it
   and the job and item its turn named, the largest processes with whose each is, and the jobs and the
   jobs with a browser as the room counts them. The consumer that holds the owner's chat tells it to the
   chat agent as a fact.
-- **No job is launched while the disk is under the line,** since the room holds it; what to free is the
-  chat agent's to find.
+- **No job is launched while the disk is under its launch line,** since the room holds it; what to free
+  is the chat agent's to find.
 - **herdr not answering is the same fact.** Every call herdr leaves unanswered within its wait is
   written to the machine's own record of them, a line per call in the temporary directory
   (`BMO_HERDR_SILENCES` names another file). Agency's watch tells new ones as `machine-pressure` (cause

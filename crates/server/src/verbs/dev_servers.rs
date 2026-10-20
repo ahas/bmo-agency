@@ -14,6 +14,7 @@ use std::process::Stdio;
 use std::time::Duration;
 
 use policy::fill_marks;
+use policy::machine_room::MACHINE_ROOM;
 use policy::verb_words::VERB_WORDS;
 use serde_json::json;
 use tokio::io::AsyncReadExt;
@@ -57,10 +58,9 @@ const IDLE_KEY: &str = "dev_server_idle_minutes";
 const IDLE_MINUTES: f64 = 20.0;
 
 // The machine's launch limits a dev server's idle stretch is shortened under, each a settings row under
-// this prefix, with what stands where no row does (docs/agent-control.md, 「The limits」).
+// this prefix, with the default policy/machine-room.toml holds where no row does (docs/agent-control.md,
+// 「The limits」).
 const MACHINE_LIMIT: &str = "machine_limit:";
-const LAUNCH_MEMORY_AVAILABLE_GB: f64 = 4.0;
-const LAUNCH_MEMORY_FULL_PCT: f64 = 5.0;
 const GIGABYTE: f64 = 1024.0 * 1024.0 * 1024.0;
 
 // How long the pane gives a server between its TERM and its KILL.
@@ -844,8 +844,9 @@ impl Pane {
         })
         .map_err(|refusal| VerbError::Refused(refusal.detail))
     };
-    let available_gb = limit("launch_memory_available_gb", LAUNCH_MEMORY_AVAILABLE_GB).await?;
-    let full_pct = limit("launch_memory_full_pct", LAUNCH_MEMORY_FULL_PCT).await?;
+    let available_gb =
+      limit("launch_memory_available_gb", MACHINE_ROOM.launch_memory_available_gb.default).await?;
+    let full_pct = limit("launch_memory_full_pct", MACHINE_ROOM.launch_memory_full_pct.default).await?;
 
     Ok(memory_reading().is_some_and(|(available, full)| {
       available < available_gb || full.is_some_and(|full| full >= full_pct)

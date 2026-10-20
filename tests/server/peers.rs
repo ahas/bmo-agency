@@ -1,112 +1,171 @@
-//! The services agency calls, asked through each client as the server asks them: over HTTP of a
+//! The services agency calls, asked through the clients their repositories publish: over HTTP of a
 //! stand-in of the test's own, which writes down each call and answers by its path, and by the defaults
 //! where the deployment names no address.
 
 use std::sync::{Arc, Mutex};
 
 use agency_server::config::{Config, PeerAddresses};
-use agency_server::peers::brain::{BrainReset, holds_watch};
-use agency_server::peers::node::{
-  LargeProcess, NodeKind, NodeRead, NodeRow, PlaceHolding, Pressure, Room, SshReach, Standing,
-};
+use agency_server::peers::brain::BrainReset;
+use agency_server::peers::node::NodeKind;
 use agency_server::peers::{PeerFault, Peers};
 use axum::Json;
 use axum::extract::State;
-use axum::http::{HeaderMap, StatusCode, Uri};
+use axum::http::{HeaderMap, Method, StatusCode, Uri};
 use axum::response::{IntoResponse, Response};
 use futures_util::StreamExt;
 use serde_json::{Value, json};
 use tokio::net::TcpListener;
 
-/// One call as the stand-in took it: its path, its authorization, and its body.
+/// One call as the stand-in took it: its method, its path and query, its authorization, and its body.
 #[derive(Clone, Debug, PartialEq)]
 struct Call {
+  method: String,
   path: String,
+  query: Option<String>,
   authorization: Option<String>,
   body: Value,
 }
 
 type Calls = Arc<Mutex<Vec<Call>>>;
 
-// The node service's pressures as its stream tells them: an event of another kind, one whose data does not
-// read, and one pressure of each cause.
-const PRESSURES: &str = "event: nodes-changed\ndata: {}\n\n\
-event: machine-pressure\ndata: {\"cause\":\"heat\"}\n\n\
-event: machine-pressure\ndata: {\"cause\":\"memory\",\"fullPct\":12.5,\"alertPct\":10,\"minutes\":2,\"reading\":{\"load1\":30},\"places\":[{\"place\":\"worker\",\"megabytes\":900.5,\"browsers\":1}],\"largest\":[{\"pid\":7,\"name\":\"chrome\",\"megabytes\":400,\"place\":\"worker\"}]}\n\n\
-event: machine-pressure\ndata: {\"cause\":\"disk\",\"freeGb\":12,\"limitGb\":20}\n\n";
+fn node(name: &str, label: &str, kind: &str, role: Option<&str>, state: &str, up: bool) -> Value {
+  json!({
+    "name": name,
+    "label": label,
+    "kind": kind,
+    "role": role,
+    "address": format!("worker@{name}.lan"),
+    "state": state,
+    "tone": if up { "good" } else { "bad" },
+    "checkedAt": 1_700_000_000_000_i64,
+    "up": up,
+    "thisMachine": false
+  })
+}
+
+fn machine() -> Value {
+  json!({
+    "name": "local",
+    "label": "This machine",
+    "kind": "local",
+    "tracking": true,
+    "readAt": 1_700_000_000_000_i64,
+    "standing": {
+      "reading": {
+        "at": 1_700_000_000_000_i64,
+        "load1": 3.0,
+        "threads": 24,
+        "memTotalGb": 32.0,
+        "memAvailableGb": 8.0,
+        "swapTotalGb": 16.0,
+        "swapFreeGb": 8.0,
+        "diskFreeGb": 100.0,
+        "memory": null,
+        "cpu": null
+      },
+      "alerts": [],
+      "browsers": 2,
+      "scopes": [{ "scope": "worker", "megabytes": 900, "browsers": 2 }],
+      "largest": []
+    }
+  })
+}
+
+const CHANGES: &str = "event: machine.changed\ndata: not-json\n\n\
+event: machine.changed\ndata: {\"id\":2,\"kind\":\"machine.changed\",\"at\":1700000000000,\"data\":{\"name\":\"local\",\"label\":\"This machine\",\"kind\":\"local\",\"tracking\":true,\"standing\":{\"reading\":null,\"alerts\":[{\"cause\":\"memory\",\"fullPct\":12.5,\"alertPct\":10,\"minutes\":2}],\"browsers\":2,\"scopes\":[],\"largest\":[]}}}\n\n";
+
+fn count(scope: &str, memories: i64) -> Value {
+  json!({
+    "scope": scope,
+    "counts": {
+      "memories": memories,
+      "memoryMatches": 0,
+      "notes": 0,
+      "watches": 0,
+      "reminders": 0,
+      "fragments": 0,
+      "fragmentHits": 0
+    },
+    "state": "remembered"
+  })
+}
 
 async fn answer(
   State(calls): State<Calls>,
+  method: Method,
   uri: Uri,
   headers: HeaderMap,
   body: axum::body::Bytes,
 ) -> Response {
   let body: Value = serde_json::from_slice(&body).unwrap_or(Value::Null);
   let path = uri.path().to_owned();
+  let query = uri.query().map(str::to_owned);
   let authorization = headers.get("authorization").map(|value| value.to_str().unwrap().to_owned());
 
   calls.lock().unwrap().push(Call {
+    method: method.to_string(),
     path: path.clone(),
+    query: query.clone(),
     authorization,
     body: body.clone(),
   });
 
-  let answer = match path.strip_prefix("/base/").unwrap_or(&path) {
-    "machine/room" => json!({ "held": ["memory"] }),
-    "machine/standing" => json!({
-      "reading": { "load1": 3 },
-      "held": [],
-      "browsers": 2,
-      "places": [{ "place": "worker", "megabytes": 900.5, "browsers": 2 }],
-      "largest": []
+  let answer = match (method.as_str(), path.strip_prefix("/base/").unwrap_or(&path)) {
+    ("GET", "nodes") => json!({
+      "items": [
+        node("near", "Near", "ssh", Some("jobs"), "connected", true),
+        node("far", "Far", "hub", None, "unreachable", false)
+      ],
+      "more": false
     }),
-    "events" if uri.query() == Some("kinds=machine-pressure") => {
-      return ([("content-type", "text/event-stream")], PRESSURES).into_response();
-    }
-    "links/state" => json!({ "up": body["node"] == "near" }),
-    "nodes/list" => {
-      json!({ "nodes": [
-        { "node": "near", "label": "Near", "kind": "ssh", "state": "up" },
-        { "node": "far", "kind": "jake", "state": "down", "detail": "unheard" }
-      ] })
-    }
-    "nodes/login" if body["node"] == "near" => json!({ "ssh": ["-o", "BatchMode=yes", "worker@near"] }),
-    "nodes/login" => json!({ "ssh": null }),
-    "nodes" => json!({ "nodes": [
-      { "name": "near", "label": "Near", "kind": "ssh", "role": "jobs", "state": "up", "checkedAt": 1_700_000_000 },
-      { "name": "far", "label": "Far", "kind": "jake", "state": "down" }
-    ] }),
-    "nodes/near/reach" => {
-      json!({ "host": "near.lan", "port": 2222, "user": "worker", "keyPath": "/keys/near" })
-    }
-    "nodes/far/reach" => json!({
-      "answered": false,
-      "refusal": { "code": "not-ssh", "message": "The node is reached through a hub." }
+    ("GET", "nodes/near") => node("near", "Near", "ssh", Some("jobs"), "connected", true),
+    ("GET", "nodes/far") => node("far", "Far", "hub", None, "unreachable", false),
+    ("GET", "nodes/near/target") => json!({
+      "nodeName": "near",
+      "kind": "ssh",
+      "role": "jobs",
+      "host": "near.lan",
+      "port": 2222,
+      "user": "worker",
+      "keyPath": "/keys/near",
+      "shell": "posix",
+      "sshOptions": ["-o", "BatchMode=yes"],
+      "sshArgs": ["-o", "BatchMode=yes", "worker@near.lan"]
     }),
-    "nodes/gone/reach" => json!({
-      "answered": false,
-      "refusal": { "code": "no-node", "message": "No node of that name is listed." }
+    ("GET", "nodes/far/target") => json!({
+      "nodeName": "far",
+      "kind": "hub",
+      "sshOptions": [],
+      "sshArgs": []
     }),
-    "nodes/odd/reach" => json!({
-      "answered": false,
-      "refusal": { "code": "incomplete", "message": "The node lacks a field." }
-    }),
-    "agents/fence" | "agents/put-back" => json!({ "ok": true }),
-    "watches/stopped" => json!({ "ended": body["unit"] == "bmo-watch-12-1700000000000" }),
-    "agents/lock" if body["agent"] == "kept" => json!({ "path": "brains/kept/.lock" }),
-    "agents/lock" => json!({ "path": null }),
-    "agents/reset" => json!({
-      "took": { "memories": if body["preview"] == true { 3 } else { 0 }, "folder": true },
-      "couldNot": ["brain commit: nothing to push"]
-    }),
-    "agents/removed" => json!({
-      "answered": false,
-      "refusal": { "code": "folder-busy", "message": "The folder is being written." }
-    }),
-    "agents/book-since" => {
+    ("GET", "nodes/gone/target") => {
       return (
-        StatusCode::UNPROCESSABLE_ENTITY,
-        Json(json!({ "code": "bad-room", "error": "No such room." })),
+        StatusCode::NOT_FOUND,
+        Json(json!({ "code": "not-found", "error": "No node of that name." })),
+      )
+        .into_response();
+    }
+    ("GET", "nodes/odd/target") => {
+      return (
+        StatusCode::INTERNAL_SERVER_ERROR,
+        Json(json!({ "code": "failed", "error": "The check failed." })),
+      )
+        .into_response();
+    }
+    ("GET", "machines/local") => machine(),
+    ("GET", "events") if query.as_deref().is_some_and(|query| query.contains("kinds=machine.changed")) => {
+      return ([("content-type", "text/event-stream")], CHANGES).into_response();
+    }
+    ("DELETE", "scopes/kept") if query.as_deref() == Some("dryRun=true") => count("kept", 3),
+    ("DELETE", "scopes/kept") => count("kept", 0),
+    ("DELETE", "scopes/gone") => {
+      return (StatusCode::NOT_FOUND, Json(json!({ "code": "not-found", "error": "Nothing is held." })))
+        .into_response();
+    }
+    ("DELETE", "scopes/busy") => {
+      return (
+        StatusCode::CONFLICT,
+        Json(json!({ "code": "conflict", "error": "The scope is being written." })),
       )
         .into_response();
     }
@@ -144,42 +203,33 @@ fn taken(calls: &Calls) -> Vec<Call> {
 }
 
 #[tokio::test]
-async fn the_node_service_is_asked_for_room_links_nodes_and_logins() {
+async fn the_node_service_is_asked_for_its_links_nodes_and_logins() {
   let (address, calls) = stand_in().await;
-  let peers = peers_at(&address, None);
+  let peers = peers_at(&address, Some("node-token"));
 
-  assert_eq!(
-    peers.node.machine_room().await.unwrap(),
-    Room {
-      held: vec!["memory".into()]
-    }
-  );
   assert!(peers.node.link_up("near").await.unwrap());
   assert!(!peers.node.link_up("far").await.unwrap());
-  assert_eq!(
-    peers.node.node_rows().await.unwrap(),
-    vec![
-      NodeRow {
-        node: "near".into(),
-        label: Some("Near".into()),
-        kind: NodeKind::Ssh,
-        state: "up".into(),
-        detail: None,
-      },
-      NodeRow {
-        node: "far".into(),
-        label: None,
-        kind: NodeKind::Jake,
-        state: "down".into(),
-        detail: Some("unheard".into()),
-      },
-    ]
-  );
+
+  let rows = peers.node.node_rows().await.unwrap();
+
+  assert_eq!(rows.len(), 2);
+  assert_eq!(rows[0].node, "near");
+  assert_eq!(rows[0].label.as_deref(), Some("Near"));
+  assert_eq!(rows[0].kind, NodeKind::Ssh);
+  assert_eq!(rows[0].state, "connected");
+  assert_eq!(rows[1].node, "far");
+  assert_eq!(rows[1].kind, NodeKind::Jake);
+
   assert_eq!(
     peers.node.ssh_login("near").await.unwrap(),
-    Some(vec!["-o".into(), "BatchMode=yes".into(), "worker@near".into()])
+    Some(vec!["-o".to_owned(), "BatchMode=yes".to_owned(), "worker@near.lan".to_owned()])
   );
   assert_eq!(peers.node.ssh_login("far").await.unwrap(), None);
+  assert_eq!(
+    peers.node.ssh_login("gone").await.unwrap(),
+    None,
+    "a node that is not listed has no route"
+  );
 
   let calls = taken(&calls);
   let paths: Vec<&str> = calls.iter().map(|call| call.path.as_str()).collect();
@@ -187,74 +237,50 @@ async fn the_node_service_is_asked_for_room_links_nodes_and_logins() {
   assert_eq!(
     paths,
     [
-      "/base/machine/room",
-      "/base/links/state",
-      "/base/links/state",
-      "/base/nodes/list",
-      "/base/nodes/login",
-      "/base/nodes/login"
+      "/base/nodes/near",
+      "/base/nodes/far",
+      "/base/nodes",
+      "/base/nodes/near/target",
+      "/base/nodes/far/target",
+      "/base/nodes/gone/target"
     ]
   );
-  assert_eq!(calls[4].body, json!({ "node": "near" }));
-  assert!(calls.iter().all(|call| call.authorization.is_none()), "no token named, none sent");
-  assert_eq!(calls[1].body, json!({ "node": "near" }));
+  assert!(calls.iter().all(|call| call.authorization.as_deref() == Some("Bearer node-token")));
 }
 
 #[tokio::test]
-async fn the_node_service_is_asked_for_its_standing_and_heard_telling_pressures() {
+async fn the_node_service_is_asked_for_its_standing_and_heard_telling_changes() {
   let (address, calls) = stand_in().await;
   let peers = peers_at(&address, Some("node-token"));
 
-  assert_eq!(
-    peers.node.machine_standing().await.unwrap(),
-    Standing {
-      browsers: 2,
-      places: vec![PlaceHolding {
-        place: "worker".into(),
-        megabytes: 900.5,
-        browsers: 2
-      }],
-    }
-  );
+  let standing = peers.node.machine_standing().await.unwrap();
+
+  assert_eq!(standing.browsers, 2);
+  assert_eq!(standing.scopes.len(), 1);
+  assert_eq!(standing.scopes[0].scope, "worker");
+  assert_eq!(standing.scopes[0].megabytes, 900);
 
   let told: Vec<_> = peers.node.pressures().await.unwrap().collect().await;
 
-  assert_eq!(told.len(), 3, "the event of another kind is passed over: {told:?}");
+  assert_eq!(told.len(), 2, "the event of another shape is not passed over: {told:?}");
   assert!(matches!(told[0], Err(PeerFault::Malformed { .. })), "{:?}", told[0]);
-  assert_eq!(
-    told[1].as_ref().unwrap(),
-    &Pressure::Memory {
-      full_pct: 12.5,
-      alert_pct: 10.0,
-      minutes: 2.0,
-      reading: Some(json!({ "load1": 30 })),
-      places: vec![PlaceHolding {
-        place: "worker".into(),
-        megabytes: 900.5,
-        browsers: 1
-      }],
-      largest: vec![LargeProcess {
-        pid: 7,
-        name: "chrome".into(),
-        megabytes: 400.0,
-        place: Some("worker".into())
-      }],
-    }
-  );
-  assert_eq!(
-    told[2].as_ref().unwrap(),
-    &Pressure::Disk {
-      free_gb: 12.0,
-      limit_gb: 20.0,
-      reading: None
-    }
-  );
+
+  let machine = told[1].as_ref().unwrap();
+  let alerts = &machine.standing.as_ref().unwrap().alerts;
+
+  assert_eq!(alerts.len(), 1);
+  assert!(matches!(alerts[0], agency_server::peers::node::Alert::Memory { full_pct: 12.5, .. }));
 
   let calls = taken(&calls);
 
   assert_eq!(
     calls.iter().map(|call| call.path.as_str()).collect::<Vec<_>>(),
-    ["/base/machine/standing", "/base/events"]
+    ["/base/machines/local", "/base/events"]
+  );
+  assert_eq!(
+    calls[1].query.as_deref(),
+    Some("kinds=machine.changed&machineName=local"),
+    "only this machine's changes are read"
   );
   assert!(calls.iter().all(|call| call.authorization.as_deref() == Some("Bearer node-token")));
 }
@@ -264,49 +290,48 @@ async fn the_brain_is_asked_by_the_agent_and_its_refusals_come_back_as_faults() 
   let (address, calls) = stand_in().await;
   let peers = peers_at(&address, Some("brain-token"));
 
-  peers.brain.fence("kept").await.unwrap();
-  peers.brain.put_back("kept").await.unwrap();
-  assert_eq!(peers.brain.lock_path("kept").await.unwrap(), Some("brains/kept/.lock".into()));
-  assert_eq!(peers.brain.lock_path("gone").await.unwrap(), None);
+  let preview = peers.brain.reset("kept", true).await.unwrap();
 
-  let refused = peers.brain.forget("kept").await.unwrap_err();
+  assert_eq!(preview.took["memories"], json!(3));
+  assert_eq!(preview.could_not, Vec::<String>::new());
+
+  let took = peers.brain.reset("kept", false).await.unwrap();
+
+  assert_eq!(took.took["memories"], json!(0));
+
+  peers.brain.forget("kept").await.unwrap();
+  peers.brain.forget("gone").await.unwrap();
+  assert_eq!(peers.brain.reset("gone", false).await.unwrap(), BrainReset::default());
+
+  let refused = peers.brain.forget("busy").await.unwrap_err();
 
   assert_eq!(
     refused,
-    PeerFault::Refused {
-      peer: "brain",
-      code: "folder-busy".into(),
-      message: "The folder is being written.".into(),
-    }
-  );
-
-  let failed = peers.brain.book_since("kept", -100, 1_700_000_000).await.unwrap_err();
-
-  assert_eq!(
-    failed,
     PeerFault::Failed {
       peer: "brain",
-      status: 422,
-      code: "bad-room".into(),
-      error: "No such room.".into(),
+      status: 409,
+      code: "conflict".into(),
+      error: "The scope is being written.".into(),
     }
   );
 
   let calls = taken(&calls);
 
+  assert_eq!(
+    calls
+      .iter()
+      .map(|call| (call.method.as_str(), call.path.as_str(), call.query.as_deref()))
+      .collect::<Vec<_>>(),
+    [
+      ("DELETE", "/base/scopes/kept", Some("dryRun=true")),
+      ("DELETE", "/base/scopes/kept", None),
+      ("DELETE", "/base/scopes/kept", None),
+      ("DELETE", "/base/scopes/gone", None),
+      ("DELETE", "/base/scopes/gone", None),
+      ("DELETE", "/base/scopes/busy", None)
+    ]
+  );
   assert!(calls.iter().all(|call| call.authorization.as_deref() == Some("Bearer brain-token")));
-  assert_eq!(
-    calls[0],
-    Call {
-      path: "/base/agents/fence".into(),
-      authorization: Some("Bearer brain-token".into()),
-      body: json!({ "agent": "kept" }),
-    }
-  );
-  assert_eq!(
-    calls.last().unwrap().body,
-    json!({ "agent": "kept", "chatId": -100, "at": 1_700_000_000 })
-  );
 }
 
 #[tokio::test]
@@ -316,7 +341,7 @@ async fn a_service_with_no_listener_is_unreachable() {
 
   drop(listener);
 
-  let fault = peers_at(&address, None).node.machine_room().await.unwrap_err();
+  let fault = peers_at(&address, None).node.machine_standing().await.unwrap_err();
 
   assert!(
     matches!(
@@ -328,6 +353,10 @@ async fn a_service_with_no_listener_is_unreachable() {
     ),
     "{fault:?}"
   );
+
+  let fault = peers_at(&address, None).brain.forget("kept").await.unwrap_err();
+
+  assert!(matches!(fault, PeerFault::Unreachable { peer: "brain", .. }), "{fault:?}");
 }
 
 #[tokio::test]
@@ -335,40 +364,26 @@ async fn the_node_service_s_reads_are_asked_and_a_node_with_no_reach_is_none() {
   let (address, calls) = stand_in().await;
   let peers = peers_at(&address, None);
 
-  assert_eq!(
-    peers.node.node_reads().await.unwrap(),
-    vec![
-      NodeRead {
-        name: "near".into(),
-        label: "Near".into(),
-        kind: NodeKind::Ssh,
-        role: Some("jobs".into()),
-        state: "up".into(),
-        checked_at: Some(1_700_000_000),
-      },
-      NodeRead {
-        name: "far".into(),
-        label: "Far".into(),
-        kind: NodeKind::Jake,
-        role: None,
-        state: "down".into(),
-        checked_at: None,
-      },
-    ]
-  );
-  assert_eq!(
-    peers.node.ssh_reach("near").await.unwrap(),
-    Some(SshReach {
-      host: "near.lan".into(),
-      port: 2222,
-      user: "worker".into(),
-      key_path: Some("/keys/near".into()),
-      shell: None,
-    })
-  );
+  let reads = peers.node.node_reads().await.unwrap();
+
+  assert_eq!(reads.len(), 2);
+  assert_eq!(reads[0].name, "near");
+  assert_eq!(reads[0].kind, NodeKind::Ssh);
+  assert_eq!(reads[0].role.as_deref(), Some("jobs"));
+  assert_eq!(reads[0].checked_at, Some(1_700_000_000_000));
+  assert_eq!(reads[1].name, "far");
+  assert_eq!(reads[1].kind, NodeKind::Jake);
+
+  let near = peers.node.ssh_reach("near").await.unwrap().unwrap();
+
+  assert_eq!(near.host, "near.lan");
+  assert_eq!(near.port, 2222);
+  assert_eq!(near.user, "worker");
+  assert_eq!(near.key_path.as_deref(), Some("/keys/near"));
+  assert_eq!(near.shell.as_deref(), Some("posix"));
   assert_eq!(peers.node.ssh_reach("far").await.unwrap(), None, "reached through a hub");
   assert_eq!(peers.node.ssh_reach("gone").await.unwrap(), None, "not listed");
-  assert!(matches!(peers.node.ssh_reach("odd").await, Err(PeerFault::Refused { .. })));
+  assert!(matches!(peers.node.ssh_reach("odd").await, Err(PeerFault::Failed { status: 500, .. })));
 
   let paths: Vec<String> = taken(&calls).into_iter().map(|call| call.path).collect();
 
@@ -376,67 +391,23 @@ async fn the_node_service_s_reads_are_asked_and_a_node_with_no_reach_is_none() {
     paths,
     [
       "/base/nodes",
-      "/base/nodes/near/reach",
-      "/base/nodes/far/reach",
-      "/base/nodes/gone/reach",
-      "/base/nodes/odd/reach"
+      "/base/nodes/near/target",
+      "/base/nodes/far/target",
+      "/base/nodes/gone/target",
+      "/base/nodes/odd/target"
     ]
   );
-
-  let none = Peers::of(&PeerAddresses::default());
-
-  assert!(none.node.node_reads().await.unwrap().is_empty());
-  assert_eq!(none.node.ssh_reach("near").await.unwrap(), None);
 }
 
 #[tokio::test]
 async fn a_service_with_no_address_answers_its_default() {
   let peers = Peers::of(&PeerAddresses::default());
 
-  assert_eq!(peers.node.machine_room().await.unwrap(), Room::default());
-  assert_eq!(peers.node.machine_standing().await.unwrap(), Standing::default());
   assert!(!peers.node.link_up("near").await.unwrap());
   assert!(peers.node.node_rows().await.unwrap().is_empty());
   assert_eq!(peers.node.ssh_login("near").await.unwrap(), None);
-  peers.brain.fence("kept").await.unwrap();
+  assert_eq!(peers.node.machine_standing().await.unwrap().browsers, 0);
+  assert!(peers.node.pressures().await.is_ok(), "a stream that tells none is opened");
   peers.brain.forget("kept").await.unwrap();
-  peers.brain.book_since("kept", 1, 2).await.unwrap();
-  peers.brain.put_back("kept").await.unwrap();
-  assert_eq!(peers.brain.lock_path("kept").await.unwrap(), None);
   assert_eq!(peers.brain.reset("kept", false).await.unwrap(), BrainReset::default());
-  assert!(!peers.brain.watch_stopped("bmo-watch-12-1700000000000").await.unwrap());
-}
-
-#[tokio::test]
-async fn the_brain_is_told_a_watchs_unit_stopped_and_answers_whether_it_held_one() {
-  let (address, calls) = stand_in().await;
-  let peers = peers_at(&address, None);
-
-  assert!(holds_watch("bmo-watch-12-1700000000000"));
-  assert!(!holds_watch("bmo-watch-12"));
-  assert!(!holds_watch("bmo-digest"));
-  assert!(peers.brain.watch_stopped("bmo-watch-12-1700000000000").await.unwrap());
-  assert!(!peers.brain.watch_stopped("bmo-watch-13-1700000000000").await.unwrap());
-  let told = taken(&calls);
-
-  assert_eq!(told[0].path, "/base/watches/stopped");
-  assert_eq!(told[0].body, json!({ "unit": "bmo-watch-12-1700000000000" }));
-}
-
-#[tokio::test]
-async fn the_brain_is_asked_to_reset_an_agent_or_to_preview_it() {
-  let (address, calls) = stand_in().await;
-  let peers = peers_at(&address, None);
-  let preview = peers.brain.reset("kept", true).await.unwrap();
-
-  assert_eq!(preview.took, json!({ "memories": 3, "folder": true }));
-  assert_eq!(preview.could_not, ["brain commit: nothing to push"]);
-  assert_eq!(
-    taken(&calls)[0],
-    Call {
-      path: "/base/agents/reset".into(),
-      authorization: None,
-      body: json!({ "agent": "kept", "preview": true }),
-    }
-  );
 }

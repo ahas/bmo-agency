@@ -11,7 +11,6 @@
 use std::collections::HashSet;
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 use std::time::Duration;
 
 use herdr::Herdr;
@@ -25,7 +24,6 @@ use store::one;
 use super::running::{EXECUTION_CANCEL_PREFIX, Running};
 use super::{cancels, settings};
 use crate::control::pool;
-use crate::peers::brain::{Brain, holds_watch};
 use crate::places::Ground;
 use crate::{Refusal, now_ms};
 
@@ -86,7 +84,6 @@ pub struct Stops {
   executions: PathBuf,
   running: Running,
   systemctl: PathBuf,
-  brain: Arc<dyn Brain>,
 }
 
 fn text<'a>(row: &'a Value, key: &str) -> Option<&'a str> {
@@ -121,7 +118,6 @@ impl Stops {
       executions: ground.roots.data.join("executions"),
       running: Running::new(ground.db.clone(), &machine, held),
       systemctl: machine.program("systemctl").unwrap_or_else(|| PathBuf::from("systemctl")),
-      brain: ground.peers.brain.clone(),
     }
   }
 
@@ -354,17 +350,11 @@ impl Stops {
     self.running.systemd(&[unit.to_owned()]).await.is_some_and(|alive| alive.contains(unit))
   }
 
-  /// One run asked to stop by its name, a unit's or an execution's: the brain told first where the unit holds
-  /// one of its watches, its execution cancelled, a resident turn left to its collector, a run in a pane
-  /// asked and closed after its grace, and anything still standing stopped by systemd.
+  /// One run asked to stop by its name, a unit's or an execution's: its execution cancelled, a resident
+  /// turn left to its collector, a run in a pane asked and closed after its grace, and anything still
+  /// standing stopped by systemd.
   pub async fn stop(&self, unit: &str) {
     let mut signalled = false;
-
-    if holds_watch(unit)
-      && let Err(fault) = self.brain.watch_stopped(unit).await
-    {
-      eprintln!("agency: the brain was not told {unit}'s watch stopped: {fault}");
-    }
 
     match self.cancel(unit).await {
       Ok((asked, resident)) => {

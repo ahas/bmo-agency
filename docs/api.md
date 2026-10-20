@@ -340,6 +340,10 @@ Agency calls upstreams only, through their published clients:
 
 brain, graph, node, arbiter, pocket, testbed, cache-warmer and chat.
 
+Each client is a crate of its own repository, declared in the workspace manifest and allowed by
+`tests/dependencies.rs`; every other crate of another repository, a downstream's client among them,
+stays outside the boundary.
+
 It calls no downstream. It calls no job service. The gate and the receiver reach it through the two hook
 points above.
 

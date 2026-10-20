@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use agency_server::peers::Asking;
-use agency_server::peers::node::{NodeRow, NodeService, Room};
+use agency_server::peers::node::{NodeRow, NodeService};
 use agency_server::watches::links::{
   LinkUnits, Roots, Skipped, link_unit, mark_place_node, node_path, place_node, project_dir, settle,
 };
@@ -45,10 +45,6 @@ struct LogsInToOne;
 const LOGIN: [&str; 4] = ["ssh", "-o", "BatchMode=yes", "tester@n1.example"];
 
 impl NodeService for LogsInToOne {
-  fn machine_room(&self) -> Asking<'_, Room> {
-    Box::pin(async { Ok(Room::default()) })
-  }
-
   fn link_up<'a>(&'a self, _node: &'a str) -> Asking<'a, bool> {
     Box::pin(async { Ok(false) })
   }

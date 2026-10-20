@@ -188,10 +188,10 @@ are the companion unit's, not agency's. This document covers only what agency ho
     and those of the rooms it answers alone, the records its harnesses keep of the sessions run in its
     home and the prompts their histories kept of them; the rooms' own records — their messages,
     judgements, usage and the windows they hold open for it — are their owners';
-  - the person range is the brain's: agency asks the brain to reset the companion, which takes what it
-    remembers, its folder among it (`docs/api.md`, 「Calls agency makes」, the brain), and starts the
-    person book of every room it answers from now; agency takes the records its harnesses keep of the
-    recollectors' sessions run in its folder;
+  - the person range is the brain's: agency asks the brain to let go of everything it holds under the
+    companion's scope — its memories, notes, watches, reminders and fragments — so nothing it
+    remembered comes back (`docs/api.md`, 「Calls agency makes」, the brain); agency takes the records
+    its harnesses keep of the recollectors' sessions run in its folder;
   - what it keeps, whichever range — its agent row and pin, its settings, its base prompt choice, its
     gate switches, the rooms themselves, the registry and the engine's placement, and whatever range
     was not named.

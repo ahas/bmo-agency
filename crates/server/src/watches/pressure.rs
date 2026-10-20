@@ -1,4 +1,4 @@
-//! The pressure the node service tells on this machine, published again with the job behind each place,
+//! The pressures the node service tells on this machine, published again with the job behind each place,
 //! which only agency knows (docs/agent-control.md, 「Pressure told as a fact」; docs/api.md, 「Events」).
 
 use std::sync::Arc;
@@ -13,7 +13,7 @@ use super::machine::{AtWork, at_work, counted};
 use crate::Refusal;
 use crate::events::Event;
 use crate::peers::PeerFault;
-use crate::peers::node::{PlaceHolding, Pressure, Standing};
+use crate::peers::node::{Alert, Machine, Standing};
 use crate::places::Ground;
 
 /// A pressure on this machine, as agency publishes it for the consumer that tells the chat agent.
@@ -74,72 +74,54 @@ fn worker_in<'a>(at_work: &'a [AtWork], place: Option<&str>) -> Option<&'a AtWor
   place.and_then(|place| at_work.iter().find(|worker| worker.worker == place))
 }
 
-/// The pressure told, each place named by the worker at work in it and its job; `standing` is what the
-/// jobs with a browser are counted from where the pressure carries no places of its own.
-pub fn named(pressure: Pressure, at_work: &[AtWork], standing: &Standing) -> MachinePressure {
-  let (told, reading, places, largest) = match pressure {
-    Pressure::Memory {
+/// One alert the machine tells, as agency publishes it with each place named by the worker at work in it
+/// and its job.
+pub fn named(machine: &Machine, alert: &Alert, at_work: &[AtWork]) -> MachinePressure {
+  let standing = machine.standing.clone().unwrap_or_else(Standing::unread);
+  let told = match alert {
+    Alert::Memory {
       full_pct,
       alert_pct,
       minutes,
-      reading,
-      places,
-      largest,
-    } => (
-      Told::Memory {
-        full_pct,
-        alert_pct,
-        minutes,
-      },
-      reading,
-      places,
-      largest,
-    ),
-    Pressure::Disk {
-      free_gb,
-      limit_gb,
-      reading,
-    } => (Told::Disk { free_gb, limit_gb }, reading, vec![], vec![]),
-  };
-  let counted_on = if places.is_empty() { standing.places.clone() } else { places.clone() };
-  let (jobs, browser_jobs) = counted(
-    at_work,
-    &Standing {
-      browsers: standing.browsers,
-      places: counted_on,
+    } => Told::Memory {
+      full_pct: *full_pct,
+      alert_pct: *alert_pct,
+      minutes: *minutes as f64,
     },
-  );
-  let holders = places
-    .into_iter()
-    .map(
-      |PlaceHolding {
-         place,
-         megabytes,
-         browsers,
-       }| {
-        let worker = worker_in(at_work, Some(&place));
+    Alert::Disk { free_gb, limit_gb } => Told::Disk {
+      free_gb: *free_gb,
+      limit_gb: *limit_gb,
+    },
+  };
+  let reading = standing.reading.as_ref().and_then(|reading| serde_json::to_value(reading).ok());
+  let (jobs, browser_jobs) = counted(at_work, &standing);
+  let holders = standing
+    .scopes
+    .iter()
+    .map(|place| {
+      let worker = worker_in(at_work, Some(&place.scope));
 
-        Holder {
-          worker: worker.map(|worker| worker.worker.clone()),
-          job_id: worker.and_then(|worker| worker.job).map(|job| job.job),
-          todo_id: worker.and_then(|worker| worker.job).and_then(|job| job.item),
-          place,
-          megabytes,
-          browsers,
-        }
-      },
-    )
+      Holder {
+        worker: worker.map(|worker| worker.worker.clone()),
+        job_id: worker.and_then(|worker| worker.job).map(|job| job.job),
+        todo_id: worker.and_then(|worker| worker.job).and_then(|job| job.item),
+        place: place.scope.clone(),
+        megabytes: place.megabytes as f64,
+        browsers: u64::try_from(place.browsers).unwrap_or(0),
+      }
+    })
     .collect();
-  let largest = largest
-    .into_iter()
+  let largest = standing
+    .largest
+    .iter()
     .map(|process| Largest {
-      job_id: worker_in(at_work, process.place.as_deref())
+      job_id: worker_in(at_work, process.scope.as_deref())
         .and_then(|worker| worker.job)
         .map(|job| job.job),
       pid: process.pid,
-      name: process.name,
-      megabytes: process.megabytes,
-      place: process.place,
+      name: process.name.clone(),
+      megabytes: process.megabytes as f64,
+      place: process.scope.clone(),
     })
     .collect();
 
@@ -153,40 +135,44 @@ pub fn named(pressure: Pressure, at_work: &[AtWork], standing: &Standing) -> Mac
   }
 }
 
-// One pressure published with its jobs named; the standing is asked only where the pressure carries no
-// places.
-async fn tell(ground: &Ground, pressure: Pressure) -> Result<(), Refusal> {
-  let standing = match &pressure {
-    Pressure::Memory { .. } => Standing::default(),
-    Pressure::Disk { .. } => ground.peers.node.machine_standing().await.unwrap_or_default(),
-  };
-
-  ground.events.publish(named(pressure, &at_work(&ground.db).await?, &standing));
+// One alert published with its jobs named.
+async fn tell(ground: &Ground, machine: &Machine, alert: &Alert) -> Result<(), Refusal> {
+  ground.events.publish(named(machine, alert, &at_work(&ground.db).await?));
 
   Ok(())
 }
 
-/// The node service's pressures listened to for as long as the server runs, the stream opened again a
-/// while after it drops or cannot be opened; a stream that cannot be opened is said once until it opens.
+/// The node service's changes listened to for as long as the server runs, the stream opened again a while
+/// after it drops or cannot be opened; a stream that cannot be opened is said once until it opens. An
+/// alert already published is not published again until it has ended and risen again.
 pub async fn relay(ground: Arc<Ground>) {
   let reopen = Duration::from_secs(MACHINE_ROOM.clocks.pressure_reopen_seconds);
   let mut said_closed = false;
+  let mut told: Vec<&'static str> = vec![];
 
   loop {
     match ground.peers.node.pressures().await {
-      Ok(mut told) => {
+      Ok(mut changed) => {
         said_closed = false;
 
-        while let Some(pressure) = told.next().await {
-          match pressure {
-            Ok(pressure) => {
-              if let Err(refusal) = tell(&ground, pressure).await {
-                eprintln!("agency: a pressure on the machine could not be told: {}", refusal.detail);
+        while let Some(machine) = changed.next().await {
+          match machine {
+            Ok(machine) => {
+              let standing = machine.standing.clone().unwrap_or_else(Standing::unread);
+              let fresh: Vec<Alert> =
+                standing.alerts.iter().filter(|alert| !told.contains(&alert.cause())).cloned().collect();
+
+              for alert in &fresh {
+                if let Err(refusal) = tell(&ground, &machine, alert).await {
+                  eprintln!("agency: a pressure on the machine could not be told: {}", refusal.detail);
+                }
               }
+
+              told = standing.alerts.iter().map(Alert::cause).collect();
             }
             Err(fault @ PeerFault::Malformed { .. }) => eprintln!("agency: {fault}"),
             Err(fault) => {
-              eprintln!("agency: the node service's pressures dropped: {fault}");
+              eprintln!("agency: the node service's changes dropped: {fault}");
               break;
             }
           }
@@ -194,7 +180,7 @@ pub async fn relay(ground: Arc<Ground>) {
       }
       Err(fault) if !said_closed => {
         said_closed = true;
-        eprintln!("agency: the node service's pressures could not be opened: {fault}");
+        eprintln!("agency: the node service's changes could not be opened: {fault}");
       }
       Err(_) => {}
     }
