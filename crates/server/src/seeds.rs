@@ -14,13 +14,15 @@ use policy::tiers::TIERS;
 use policy::work_keys::WORK_KEYS;
 use store::seed::{AccountSeed, BasePromptSeed, CatalogueSeed, Seeds, TierMapping, TierPlan, WorkKey};
 
+use crate::control::claude_accounts::Credential;
 use crate::places::machine_code_root;
-
-/// The kind of credential the seeded account's login is: a Claude Code login directory.
-const DIRECTORY: &str = "directory";
 
 /// The seeds the deployment's store is settled with on this machine.
 pub fn deployment(machine: &Machine) -> Seeds {
+  // The seeded account's login is the machine's own Claude Code login directory.
+  let login = Credential::Directory {
+    home: ClaudeCode::machine_config_dir(machine),
+  };
   let profiles = WORK_KEYS.profile.iter().map(|profile| WorkKey {
     key: profile.key.clone(),
     tier: profile.tier.clone(),
@@ -34,8 +36,8 @@ pub fn deployment(machine: &Machine) -> Seeds {
     account: Some(AccountSeed {
       id: SEEDS.account.id.clone(),
       name: SEEDS.account.name.clone(),
-      credential_kind: DIRECTORY.to_owned(),
-      credential_path: ClaudeCode::machine_config_dir(machine).to_string_lossy().into_owned(),
+      credential_kind: login.kind().word().to_owned(),
+      credential_path: login.path().to_string_lossy().into_owned(),
     }),
     tiers: TierPlan {
       ladder: TIERS.ladder.clone(),

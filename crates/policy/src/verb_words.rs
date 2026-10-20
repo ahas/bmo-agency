@@ -9,6 +9,7 @@ use serde::Deserialize;
 #[serde(deny_unknown_fields)]
 pub struct ClaudeTokenWords {
   pub unknown_account: String,
+  pub endpoint_account: String,
   pub making: String,
   pub approve: String,
   pub approve_as: String,

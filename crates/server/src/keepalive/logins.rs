@@ -13,7 +13,7 @@ use store::run;
 
 use crate::Refusal;
 use crate::control::claude_accounts::{
-  Account, Judging, account_open, accounts, credential_expiry, login_end, login_standing,
+  Account, Judging, account_open, accounts, login_end, login_standing,
 };
 use crate::door::place_run::read_run;
 use crate::door::turn::{account_of_login, program_login};
@@ -67,7 +67,8 @@ async fn named(db: &sea_orm::DatabaseConnection, id: &str) -> Result<Option<Acco
 pub async fn watch(judging: Judging<'_>, events: &Bus, roots: &Roots, now: i64) -> Result<(), Refusal> {
   let db = judging.db;
 
-  for account in every(db).await? {
+  // An endpoint account holds no login for the watch to read: the judgement lifts its mark off its key.
+  for account in every(db).await?.into_iter().filter(|account| account.credential_file().is_some()) {
     clear_if_back(db, &account.id, now).await?;
 
     let held = named(db, &account.id).await?.unwrap_or(account);
@@ -81,7 +82,7 @@ pub async fn watch(judging: Judging<'_>, events: &Bus, roots: &Roots, now: i64) 
     tell(db, events, &held, now).await?;
 
     // A token account's own file is its login here too, whose year the watch above already reads.
-    if held.credential_kind != "token"
+    if held.credential.node_token_apart()
       && held.node_token_end(&roots.data).is_some_and(|end| end <= now as f64)
     {
       mark_node_token_gone(db, &held, &roots.data).await?;
@@ -136,11 +137,12 @@ pub async fn retire_closed(judging: Judging<'_>, data_root: &Path, now: i64) -> 
 }
 
 // A login standing again, read off the credential rather than anybody's word: a moment in the future is
-// a login somebody has signed in to since, and the mark goes.
+// a login somebody has signed in to since, as a key written after the mark is an endpoint account's, and
+// the mark goes.
 async fn clear_if_back(db: &sea_orm::DatabaseConnection, id: &str, now: i64) -> Result<(), Refusal> {
   let Some(held) = named(db, id).await? else { return Ok(()) };
 
-  if held.needs_login_at.is_none() || credential_expiry(&held).is_none_or(|expiry| expiry <= now as f64) {
+  if held.needs_login_at.is_none() || !held.login_back(now) {
     return Ok(());
   }
 
@@ -205,13 +207,13 @@ pub fn notice(account: &Account, gone: bool, left_ms: Option<f64>) -> String {
     (false, None) => wording.ending.clone(),
     (false, Some(span)) => wording.ending_in.replace("{left}", &span),
   };
-  let token = account.credential_kind == "token";
+  let token = account.credential.token_file().is_some();
   let command = if token { &wording.token_command } else { &wording.directory_command };
 
   [
     wording.head.replace("{name}", &account.name).replace("{when}", &when),
     wording.run.clone(),
-    command.replace("{path}", &account.credential_path),
+    command.replace("{path}", &account.credential.path().to_string_lossy()),
     if token { wording.token_after.clone() } else { wording.directory_after.clone() },
     if gone { wording.gone_after.clone() } else { wording.ending_after.clone() },
   ]
@@ -219,7 +221,8 @@ pub fn notice(account: &Account, gone: bool, left_ms: Option<f64>) -> String {
 }
 
 /// The ending published once: recorded under the moment it is about as it is published, so a later pass
-/// over the same ending publishes nothing. Delivering it is the consumer's.
+/// over the same ending publishes nothing. Delivering it is the consumer's. An endpoint account has no
+/// login to end and is never told about.
 pub async fn tell(
   db: &sea_orm::DatabaseConnection,
   events: &Bus,
@@ -228,7 +231,7 @@ pub async fn tell(
 ) -> Result<(), Refusal> {
   let standing = login_standing(account, now);
 
-  if standing == "standing" {
+  if standing == "standing" || account.credential_file().is_none() {
     return Ok(());
   }
 
@@ -283,13 +286,13 @@ pub async fn node_token_gone(
 }
 
 /// The account's token for the work nodes found gone, as it is held now, which a run on a node passes
-/// over until a person makes another.
+/// over until a person makes another; nothing for an endpoint account, which has none.
 pub async fn mark_node_token_gone(
   db: &sea_orm::DatabaseConnection,
   account: &Account,
   data_root: &Path,
 ) -> Result<(), Refusal> {
-  if node_token_gone(db, account, data_root).await? {
+  if account.node_token_file(data_root).is_none() || node_token_gone(db, account, data_root).await? {
     return Ok(());
   }
 
@@ -345,8 +348,12 @@ pub async fn tell_node_token(
   roots: &Roots,
   now: i64,
 ) -> Result<(), Refusal> {
+  if account.node_token_file(&roots.data).is_none() {
+    return Ok(());
+  }
+
   let stamp = node_stamp(account, &roots.data);
-  let end = account.node_token_end(&roots.data).filter(|_| account.credential_kind != "token");
+  let end = account.node_token_end(&roots.data).filter(|_| account.credential.node_token_apart());
   let (standing, about) = if node_token_gone(db, account, &roots.data).await? {
     let standing = if stamp == "none" { NodeToken::Missing } else { NodeToken::Gone };
 

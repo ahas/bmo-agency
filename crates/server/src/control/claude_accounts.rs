@@ -6,12 +6,13 @@
 
 use std::path::{Path, PathBuf};
 
-use cache_siren::claude::MODE as CLAUDE_CODE_MODE;
+use cache_siren::claude::{Credential as WindowCredential, MODE as CLAUDE_CODE_MODE};
 use cache_siren::{Keeping, Slot};
 use harness_providers::Machine;
 use policy::providers::claude_code::CLAUDE_CODE;
 use policy::rest::REST;
 use sea_orm::DatabaseConnection;
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use store::{all, one, run};
 
@@ -54,6 +55,210 @@ fn token_life_ms() -> f64 {
   CLAUDE_CODE.login.token_life_days as f64 * 24.0 * 60.0 * 60_000.0
 }
 
+/// The ways a credential is reached, by the word the store and the owner name each by.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CredentialKind {
+  Directory,
+  Token,
+  Endpoint,
+}
+
+impl CredentialKind {
+  pub const ALL: [Self; 3] = [Self::Directory, Self::Token, Self::Endpoint];
+
+  /// The word the kind is stored and named by.
+  pub fn word(self) -> &'static str {
+    match self {
+      Self::Directory => "directory",
+      Self::Token => "token",
+      Self::Endpoint => "endpoint",
+    }
+  }
+
+  /// The kind a word names, none where it names no kind.
+  pub fn named(word: &str) -> Option<Self> {
+    Self::ALL.into_iter().find(|kind| kind.word() == word.trim())
+  }
+
+  /// Every kind's word, as a refusal lists them.
+  pub fn words() -> String {
+    Self::ALL.map(Self::word).join(", ")
+  }
+}
+
+/// The endpoint's own model id for each family word Claude Code picks a model by, where the account maps
+/// one; a family it does not map goes out as Claude Code names it.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct EndpointModels {
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub opus: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub sonnet: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub haiku: Option<String>,
+}
+
+impl EndpointModels {
+  /// Each family word with the endpoint's model id where the map names one.
+  pub fn families(&self) -> [(&'static str, Option<&str>); 3] {
+    [
+      ("opus", self.opus.as_deref()),
+      ("sonnet", self.sonnet.as_deref()),
+      ("haiku", self.haiku.as_deref()),
+    ]
+  }
+
+  /// The endpoint's model id for one family word, where the map names one.
+  pub fn of_family(&self, family: &str) -> Option<&str> {
+    self.families().into_iter().find(|(word, _)| *word == family).and_then(|(_, id)| id)
+  }
+}
+
+/// How a run reaches an account's login, read once from its row (docs/cache-fallback.md, 「The Claude Code
+/// road is a list of accounts」): a configuration directory holding the login, a file holding a long-lived
+/// token, or another provider's Anthropic-compatible endpoint, reached under a configuration home of the
+/// account's own with the key its file holds.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Credential {
+  Directory {
+    home: PathBuf,
+  },
+  Token {
+    file: PathBuf,
+  },
+  Endpoint {
+    home: PathBuf,
+    url: String,
+    key_file: PathBuf,
+    models: EndpointModels,
+  },
+}
+
+impl Credential {
+  /// The credential a row's columns name, or why they name none.
+  pub fn of_columns(
+    kind: &str,
+    path: &str,
+    url: Option<String>,
+    key_file: Option<String>,
+    models: Option<String>,
+  ) -> Result<Self, String> {
+    let path = PathBuf::from(path);
+
+    match CredentialKind::named(kind) {
+      Some(CredentialKind::Directory) => Ok(Self::Directory { home: path }),
+      Some(CredentialKind::Token) => Ok(Self::Token { file: path }),
+      Some(CredentialKind::Endpoint) => Ok(Self::Endpoint {
+        home: path,
+        url: url.filter(|url| !url.is_empty()).ok_or("an endpoint account names no base URL")?,
+        key_file: key_file
+          .filter(|file| !file.is_empty())
+          .map(PathBuf::from)
+          .ok_or("an endpoint account names no key file")?,
+        models: match models.filter(|models| !models.trim().is_empty()) {
+          Some(models) => serde_json::from_str(&models).map_err(|why| format!("its model map: {why}"))?,
+          None => EndpointModels::default(),
+        },
+      }),
+      None => Err(format!("its credential kind {kind} is none of {}", CredentialKind::words())),
+    }
+  }
+
+  pub fn kind(&self) -> CredentialKind {
+    match self {
+      Self::Directory { .. } => CredentialKind::Directory,
+      Self::Token { .. } => CredentialKind::Token,
+      Self::Endpoint { .. } => CredentialKind::Endpoint,
+    }
+  }
+
+  /// The path the row keeps as the credential's: the configuration directory, the token's file, or the
+  /// endpoint account's own configuration home.
+  pub fn path(&self) -> &Path {
+    match self {
+      Self::Directory { home } | Self::Endpoint { home, .. } => home,
+      Self::Token { file } => file,
+    }
+  }
+
+  /// The configuration home of the account's own the CLI keeps its records under, none for a token
+  /// account, which goes out under the machine's.
+  pub fn own_home(&self) -> Option<&Path> {
+    match self {
+      Self::Directory { home } | Self::Endpoint { home, .. } => Some(home),
+      Self::Token { .. } => None,
+    }
+  }
+
+  /// The file its login sits in, none for an endpoint account, which holds no login.
+  pub fn login_file(&self) -> Option<PathBuf> {
+    match self {
+      Self::Directory { home } => Some(home.join(CREDENTIAL_FILE)),
+      Self::Token { file } => Some(file.clone()),
+      Self::Endpoint { .. } => None,
+    }
+  }
+
+  /// The file a token account's token sits in, none for any other.
+  pub fn token_file(&self) -> Option<&Path> {
+    match self {
+      Self::Token { file } => Some(file),
+      Self::Directory { .. } | Self::Endpoint { .. } => None,
+    }
+  }
+
+  /// The credential the Claude account reader asks the provider's usage of, none for an endpoint
+  /// account, which is paid by the request and has no windows (docs/usage-windows.md).
+  pub fn window_credential(&self) -> Option<WindowCredential> {
+    match self {
+      Self::Directory { home } => Some(WindowCredential::Directory(home.join(CREDENTIAL_FILE))),
+      Self::Token { file } => Some(WindowCredential::Token(file.clone())),
+      Self::Endpoint { .. } => None,
+    }
+  }
+
+  /// Whether its login may renew itself, which only a directory's OAuth pair does.
+  fn may_renew(&self) -> bool {
+    matches!(self, Self::Directory { .. })
+  }
+
+  /// Whether its login stands for the year a long-lived token is issued for where it states no end.
+  fn stands_a_year(&self) -> bool {
+    matches!(self, Self::Token { .. })
+  }
+
+  /// Whether a run may go out on it from a work node (docs/work-nodes.md): a directory or token account
+  /// by its token for the nodes, never an endpoint account, whose key file stays on this machine.
+  pub fn runs_on_nodes(&self) -> bool {
+    !matches!(self, Self::Endpoint { .. })
+  }
+
+  /// Whether its token for the work nodes is a login apart from its login here: a directory account's,
+  /// whereas a token account's own file is both, and an endpoint account has none.
+  pub fn node_token_apart(&self) -> bool {
+    matches!(self, Self::Directory { .. })
+  }
+
+  /// Whether a run is ever sent on it only to keep its cache warm: never on an endpoint account, which
+  /// keeps its own cache and is paid by the request (docs/cache-fallback.md, 「Warming only enabled
+  /// providers」).
+  pub fn warmed(&self) -> bool {
+    !matches!(self, Self::Endpoint { .. })
+  }
+
+  /// Whether its key is there to be handed to a run: an endpoint account's key file present and not
+  /// empty, never opened; every other kind holds no key to judge.
+  pub fn key_held(&self) -> bool {
+    match self {
+      Self::Endpoint { key_file, .. } => {
+        std::fs::metadata(key_file).is_ok_and(|held| held.is_file() && held.len() > 0)
+      }
+      Self::Directory { .. } | Self::Token { .. } => true,
+    }
+  }
+}
+
 /// One account as the store holds it.
 #[derive(Clone, Debug)]
 pub struct Account {
@@ -61,47 +266,45 @@ pub struct Account {
   pub name: String,
   pub place: i64,
   pub enabled: bool,
-  pub credential_kind: String,
-  pub credential_path: String,
+  pub credential: Credential,
   pub needs_login_at: Option<i64>,
   /// The user whose account it is, where the multi-user model names one.
   pub user_id: Option<i64>,
+  /// The base prompt a worker's run on it opens on, where it names one (docs/base-prompts.md).
+  pub base_prompt: Option<String>,
 }
 
 impl Account {
   /// The directory the CLI keeps this account's records under: its configuration home where it has
   /// one, and the machine's for a token account, which has none.
   pub fn records_dir(&self, machine: &Machine) -> PathBuf {
-    if self.credential_kind == "directory" {
-      PathBuf::from(&self.credential_path)
-    } else {
-      machine_config_dir(machine)
-    }
+    self
+      .credential
+      .own_home()
+      .map_or_else(|| machine_config_dir(machine), Path::to_path_buf)
   }
 
-  /// Where its login sits.
-  pub fn credential_file(&self) -> PathBuf {
-    if self.credential_kind == "token" {
-      PathBuf::from(&self.credential_path)
-    } else {
-      Path::new(&self.credential_path).join(CREDENTIAL_FILE)
-    }
+  /// Where its login sits, none for an endpoint account.
+  pub fn credential_file(&self) -> Option<PathBuf> {
+    self.credential.login_file()
   }
 
   /// Where this machine keeps its token for the work nodes (docs/work-nodes.md, 「The logins on a
-  /// node」): a token account's own file, and a file named by its id under the data root's env
-  /// directory for any other.
-  pub fn node_token_file(&self, data_root: &Path) -> PathBuf {
-    if self.credential_kind == "token" {
-      PathBuf::from(&self.credential_path)
-    } else {
-      data_root.join("env").join(&CLAUDE_CODE.node_login.token_dir).join(&self.id)
+  /// node」): a token account's own file, a file named by its id under the data root's env directory for
+  /// a directory account, and none for an endpoint account.
+  pub fn node_token_file(&self, data_root: &Path) -> Option<PathBuf> {
+    match &self.credential {
+      Credential::Token { file } => Some(file.clone()),
+      Credential::Directory { .. } => {
+        Some(data_root.join("env").join(&CLAUDE_CODE.node_login.token_dir).join(&self.id))
+      }
+      Credential::Endpoint { .. } => None,
     }
   }
 
   /// Its token for the work nodes, none where this machine holds none.
   pub fn node_token(&self, data_root: &Path) -> Option<String> {
-    std::fs::read_to_string(self.node_token_file(data_root))
+    std::fs::read_to_string(self.node_token_file(data_root)?)
       .ok()
       .map(|token| token.trim().to_owned())
       .filter(|token| !token.is_empty())
@@ -112,12 +315,29 @@ impl Account {
   pub fn node_token_written(&self, data_root: &Path) -> Option<f64> {
     self.node_token(data_root)?;
 
-    written_ms(&self.node_token_file(data_root))
+    written_ms(&self.node_token_file(data_root)?)
   }
 
   /// When its token for the work nodes ends: the year it was issued for, from the day it was written.
   pub fn node_token_end(&self, data_root: &Path) -> Option<f64> {
     self.node_token_written(data_root).map(|written| written + token_life_ms())
+  }
+
+  /// Whether a login marked as waiting for a person stands again, read off its credential rather than
+  /// anybody's word: a login whose credential states a moment after `now`, which somebody signed in to
+  /// since, or an endpoint account whose key file was written after the mark and is not empty.
+  pub fn login_back(&self, now: i64) -> bool {
+    match &self.credential {
+      Credential::Endpoint { key_file, .. } => {
+        self.credential.key_held()
+          && self.needs_login_at.is_some_and(|marked| {
+            written_ms(key_file).is_some_and(|written| written > marked as f64 * 1000.0)
+          })
+      }
+      Credential::Directory { .. } | Credential::Token { .. } => {
+        credential_expiry(self).is_some_and(|expiry| expiry > now as f64)
+      }
+    }
   }
 }
 
@@ -139,29 +359,45 @@ pub fn machine_config_dir(machine: &Machine) -> PathBuf {
     .unwrap_or_else(|| PathBuf::from(machine.var("HOME").unwrap_or_default()).join(".claude"))
 }
 
-/// Every account in the order the owner set, on or off.
+/// Every account in the order the owner set, on or off. A row whose credential cannot be read is said
+/// with its cause and left out, so no run goes out on a credential read as another kind.
 pub async fn accounts(db: &DatabaseConnection) -> Result<Vec<Account>, Refused> {
-  all(
+  let rows = all(
     db,
-    "SELECT id, name, place, enabled, credential_kind, credential_path, needs_login_at, user_id
+    "SELECT id, name, place, enabled, credential_kind, credential_path, endpoint_url, key_file,
+       endpoint_models, needs_login_at, user_id, base_prompt
      FROM claude_accounts ORDER BY place, rowid",
     vec![],
   )
-  .await?
-  .iter()
-  .map(|row| {
-    Ok(Account {
-      id: row.try_get("", "id")?,
-      name: row.try_get("", "name")?,
-      place: row.try_get("", "place")?,
-      enabled: row.try_get::<i64>("", "enabled")? == 1,
-      credential_kind: row.try_get("", "credential_kind")?,
-      credential_path: row.try_get("", "credential_path")?,
-      needs_login_at: row.try_get("", "needs_login_at")?,
-      user_id: row.try_get("", "user_id")?,
-    })
-  })
-  .collect()
+  .await?;
+  let mut held = Vec::new();
+
+  for row in &rows {
+    let id: String = row.try_get("", "id")?;
+    let credential = Credential::of_columns(
+      &row.try_get::<String>("", "credential_kind")?,
+      &row.try_get::<String>("", "credential_path")?,
+      row.try_get("", "endpoint_url")?,
+      row.try_get("", "key_file")?,
+      row.try_get("", "endpoint_models")?,
+    );
+
+    match credential {
+      Ok(credential) => held.push(Account {
+        id,
+        name: row.try_get("", "name")?,
+        place: row.try_get("", "place")?,
+        enabled: row.try_get::<i64>("", "enabled")? == 1,
+        credential,
+        needs_login_at: row.try_get("", "needs_login_at")?,
+        user_id: row.try_get("", "user_id")?,
+        base_prompt: row.try_get("", "base_prompt")?,
+      }),
+      Err(why) => eprintln!("claude account {id}: left out, {why}"),
+    }
+  }
+
+  Ok(held)
 }
 
 /// A moment a setting holds, read as the whole number it was written as.
@@ -267,9 +503,10 @@ fn expiries(value: &Value, found: &mut Vec<f64>) {
 }
 
 /// The moment a credential states: the earliest expiry in its file, or for a token that states none,
-/// a year from when its file was written. Nothing where the file cannot be read or states nothing.
+/// a year from when its file was written. Nothing where the file cannot be read or states nothing, and
+/// nothing for an endpoint account, whose key states no ending.
 pub fn credential_expiry(account: &Account) -> Option<f64> {
-  let path = account.credential_file();
+  let path = account.credential_file()?;
   let text = std::fs::read_to_string(&path).ok()?;
   let said = serde_json::from_str::<Value>(&text).ok().and_then(|held| {
     let mut found = Vec::new();
@@ -278,7 +515,7 @@ pub fn credential_expiry(account: &Account) -> Option<f64> {
     found.into_iter().reduce(f64::min)
   });
 
-  if account.credential_kind != "token" || said.is_some() {
+  if !account.credential.stands_a_year() || said.is_some() {
     return said;
   }
 
@@ -286,13 +523,14 @@ pub fn credential_expiry(account: &Account) -> Option<f64> {
 }
 
 /// Whether a login is waiting for a person. One marked so is asked once more of its own credential:
-/// signing in again writes a new moment there, and the mark goes.
+/// signing in again writes a new moment there, or a new key is written into an endpoint account's file,
+/// and the mark goes.
 async fn needs_login(db: &DatabaseConnection, account: &Account, now: i64) -> Result<bool, Refused> {
   if account.needs_login_at.is_none() {
     return Ok(false);
   }
 
-  if credential_expiry(account).is_none_or(|expiry| expiry <= now as f64) {
+  if !account.login_back(now) {
     return Ok(true);
   }
 
@@ -330,11 +568,13 @@ async fn road_order(db: &DatabaseConnection) -> Result<Vec<Account>, Refused> {
   Ok(first.into_iter().chain(rest).collect())
 }
 
-/// Whether a login answers now: it is on, no window of its own is full, and its login has not gone. This is
-/// the one judgement every run of every line is offered a login by.
+/// Whether a login answers now: it is on, no window of its own is full, and its login has not gone; an
+/// endpoint account's key file is there and not empty besides, and having no windows, only a rest closes
+/// it. This is the one judgement every run of every line is offered a login by.
 async fn open_now(judging: Judging<'_>, account: &Account, now: i64) -> Result<bool, Refused> {
   Ok(
     account.enabled
+      && account.credential.key_held()
       && !resting(judging, &account.id, now).await?
       && !needs_login(judging.db, account, now).await?,
   )
@@ -489,11 +729,13 @@ fn renews(value: &Value) -> bool {
 }
 
 /// When a login ends in the only sense worth telling the owner: nothing where its file holds a refresh,
-/// since the CLI renews that login for itself; the moment its credential states otherwise.
+/// since the CLI renews that login for itself; the moment its credential states otherwise; nothing for an
+/// endpoint account, which has no login to end.
 pub fn login_end(account: &Account) -> Option<f64> {
-  let renewing = account.credential_kind != "token"
-    && std::fs::read_to_string(account.credential_file())
-      .ok()
+  let renewing = account.credential.may_renew()
+    && account
+      .credential_file()
+      .and_then(|file| std::fs::read_to_string(file).ok())
       .and_then(|text| serde_json::from_str::<Value>(&text).ok())
       .is_some_and(|held| renews(&held));
 
@@ -537,8 +779,8 @@ pub async fn views(judging: Judging<'_>) -> Result<Vec<Value>, Refused> {
       "name": account.name,
       "place": account.place,
       "enabled": account.enabled,
-      "credentialKind": account.credential_kind,
-      "credentialPath": account.credential_path,
+      "credentialKind": account.credential.kind().word(),
+      "credentialPath": account.credential.path().to_string_lossy(),
       "login": login_standing(&account, now),
       "loginEndsAt": login_end(&account).map(|end| (end / 1000.0).floor() as i64),
       "chosen": chosen.as_deref() == Some(account.id.as_str()),

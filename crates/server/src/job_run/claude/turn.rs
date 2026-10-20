@@ -494,7 +494,7 @@ impl Attempt<Settled> for Attempting<'_, '_> {
   async fn attempt(&mut self, account: Option<Account>) -> Result<Settled, Failure> {
     let ground = self.asked.ground;
     let data = &ground.roots.data;
-    let on_node = self.standing_agent().is_some_and(|agent| Place::of(data, &agent).node().is_some());
+    let on_node = self.on_node();
 
     if on_node
       && let Some(held) = &account
@@ -516,9 +516,22 @@ impl Attempt<Settled> for Attempting<'_, '_> {
       tried => tried,
     }
   }
+
+  // A turn into a program on a work node never goes out on an endpoint account, whose key stays on this
+  // machine (docs/work-nodes.md).
+  fn takes(&self, account: &Account) -> bool {
+    account.credential.runs_on_nodes() || !self.on_node()
+  }
 }
 
 impl Attempting<'_, '_> {
+  // Whether the turn goes into a standing program on a work node.
+  fn on_node(&self) -> bool {
+    let data = &self.asked.ground.roots.data;
+
+    self.standing_agent().is_some_and(|agent| Place::of(data, &agent).node().is_some())
+  }
+
   // The agent whose standing program the turn goes into: the worker, or the standing branch checkout a
   // thrown-away session's folder is; none for a pane of the turn's own.
   fn standing_agent(&self) -> Option<String> {

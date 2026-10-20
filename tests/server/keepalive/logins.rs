@@ -3,21 +3,26 @@
 
 use std::path::Path;
 
-use agency_server::control::claude_accounts::Account;
+use agency_server::control::claude_accounts::{Account, Credential};
 use agency_server::keepalive::logins::{NodeToken, moment_text, node_notice, notice};
 use policy::fill_marks;
 use policy::providers::claude_code::CLAUDE_CODE;
 
 fn account(kind: &str) -> Account {
+  let path = "/logins/spare".into();
+
   Account {
     id: "spare".into(),
     name: "spare login".into(),
     place: 1,
     enabled: true,
-    credential_kind: kind.into(),
-    credential_path: "/logins/spare".into(),
+    credential: match kind {
+      "token" => Credential::Token { file: path },
+      _ => Credential::Directory { home: path },
+    },
     needs_login_at: None,
     user_id: None,
+    base_prompt: None,
   }
 }
 

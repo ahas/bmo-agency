@@ -98,6 +98,12 @@ impl Attempt<Pinged> for ClaudePing<'_> {
 
     Ok(pinged)
   }
+
+  // An endpoint account is never pinged: its endpoint keeps its own cache, and a ping would only be a
+  // paid request (docs/keepalive-schedule.md).
+  fn takes(&self, account: &Account) -> bool {
+    account.credential.warmed()
+  }
 }
 
 // A standing checkout's ping: a turn of the place's own program, where its branches run.

@@ -466,7 +466,8 @@ fn to_node_path(path: &str, data_root: &Path, node_home: &str, node_root: &str) 
   path.to_owned()
 }
 
-// The logins a run on the node may go out on, each account as this machine keeps it.
+// The logins a run on the node may go out on, each account as this machine keeps it; an endpoint account
+// is not offered on a node, since its key file stays on this machine (docs/work-nodes.md).
 async fn logins(db: &DatabaseConnection, data_root: &Path) -> Result<Vec<SetupLogin>, VerbError> {
   let held = accounts(db).await.map_err(|refused| VerbError::Refused(refused.error))?;
   let config_dir = std::env::var_os("CLAUDE_CONFIG_DIR")
@@ -477,14 +478,16 @@ async fn logins(db: &DatabaseConnection, data_root: &Path) -> Result<Vec<SetupLo
   Ok(
     held
       .iter()
+      .filter(|account| account.credential.runs_on_nodes())
       .map(|account| SetupLogin {
         account: account.name.clone(),
-        kind: account.credential_kind.clone(),
-        path: if account.credential_kind == "directory" {
-          account.credential_path.clone()
-        } else {
-          config_dir.to_string_lossy().into_owned()
-        },
+        own_directory: account.credential.own_home().is_some(),
+        path: account
+          .credential
+          .own_home()
+          .unwrap_or(config_dir.as_path())
+          .to_string_lossy()
+          .into_owned(),
         node_token: account.node_token(data_root).is_some(),
         token_command: CLAUDE_CODE
           .node_login

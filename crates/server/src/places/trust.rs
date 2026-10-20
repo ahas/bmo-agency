@@ -5,33 +5,21 @@
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
-pub use agent_host::trust::{Trust, config_file, mark_onboarded, trust_folder};
-use store::all;
-
 use super::Ground;
+use crate::control::claude_accounts::accounts;
+pub use agent_host::trust::{Trust, config_file, mark_onboarded, trust_folder};
 
-// The configuration directory of every login kept as a directory of its own.
-async fn login_dirs(ground: &Ground) -> Result<Vec<String>, store::Fault> {
-  all(
-    &ground.db,
-    r#"SELECT "credential_path" FROM "claude_accounts" WHERE "credential_kind" = 'directory'
-       ORDER BY "place", "rowid""#,
-    vec![],
-  )
-  .await?
-  .iter()
-  .map(|row| row.try_get("", "credential_path").map_err(store::Fault::from))
-  .collect()
-}
-
-/// Every configuration file a run of this machine may read its folder trust from: each directory
-/// login's, and the machine's own, which a login handed as a token goes out on.
+/// Every configuration file a run of this machine may read its folder trust from: each login's own
+/// configuration home's, a directory account's or an endpoint account's, and the machine's own, which a
+/// login handed as a token goes out on.
 async fn config_files(ground: &Ground) -> Vec<PathBuf> {
   let mut files = BTreeSet::new();
 
-  match login_dirs(ground).await {
-    Ok(dirs) => files.extend(dirs.iter().map(|dir| config_file(Path::new(dir)))),
-    Err(fault) => eprintln!("trust: the logins could not be read: {fault}"),
+  match accounts(&ground.db).await {
+    Ok(held) => {
+      files.extend(held.iter().filter_map(|account| account.credential.own_home()).map(config_file))
+    }
+    Err(refused) => eprintln!("trust: the logins could not be read: {}", refused.error),
   }
 
   files.insert(match ground.vars().get("CLAUDE_CONFIG_DIR").filter(|dir| !dir.is_empty()) {

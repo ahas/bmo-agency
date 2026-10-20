@@ -307,7 +307,10 @@ async fn an_account_is_registered_renamed_pointed_elsewhere_and_removed() {
         .run(&["--account-add", "bad kind", "--kind", "keychain", "--path", first.as_str()])
         .await
     ),
-    (2, VERB_WORDS.agents.credential_kind.as_str())
+    (
+      2,
+      fill_marks(&VERB_WORDS.agents.credential_kind, &[("kinds", "directory, token, endpoint")]).as_str()
+    )
   );
 
   let removed = bench.run(&["--account-remove", "renamed"]).await;

@@ -11,7 +11,7 @@ use policy::providers::claude_code::CLAUDE_CODE;
 use super::fault;
 use super::worker::{LINE, WorkerRun};
 use crate::Refusal;
-use crate::control::claude_accounts::Account;
+use crate::control::claude_accounts::{Account, Credential};
 use crate::watches::links::place_node;
 
 // The variable a run is told its own name in, and the job runner's marker.
@@ -187,29 +187,67 @@ impl Runs {
 
 /// The login as the program is handed it: a directory account names its configuration home and clears
 /// any token, or on a node hands its token for the nodes beside it where this machine holds one; a token
-/// account hands the token read from its file.
+/// account hands the token read from its file; an endpoint account names its configuration home, its
+/// base URL, the key read from its file as the run's authorisation token and the model id its map names
+/// for each family, clearing every other credential the launching process carried, and never goes out
+/// from a work node, since its key stays on this machine.
 pub fn account_env(
   account: Option<&Account>,
   runs: &Runs,
 ) -> Result<BTreeMap<String, Option<String>>, Refusal> {
   let Some(account) = account else { return Ok(BTreeMap::new()) };
 
-  if account.credential_kind == "token" {
-    let token = std::fs::read_to_string(&account.credential_path)
-      .map_err(|_| fault(format!("The token file of account {} cannot be read.", account.id)))?;
+  match &account.credential {
+    Credential::Token { file } => {
+      let token = std::fs::read_to_string(file)
+        .map_err(|_| fault(format!("The token file of account {} cannot be read.", account.id)))?;
 
-    return Ok(BTreeMap::from([("CLAUDE_CODE_OAUTH_TOKEN".to_owned(), Some(token.trim().to_owned()))]));
+      Ok(BTreeMap::from([("CLAUDE_CODE_OAUTH_TOKEN".to_owned(), Some(token.trim().to_owned()))]))
+    }
+    Credential::Directory { home } => {
+      let token = match runs {
+        Runs::Here => None,
+        Runs::OnNode { data_root } => account.node_token(data_root),
+      };
+
+      Ok(BTreeMap::from([
+        ("CLAUDE_CONFIG_DIR".to_owned(), Some(home.to_string_lossy().into_owned())),
+        ("CLAUDE_CODE_OAUTH_TOKEN".to_owned(), token),
+      ]))
+    }
+    Credential::Endpoint {
+      home,
+      url,
+      key_file,
+      models,
+    } => {
+      if matches!(runs, Runs::OnNode { .. }) {
+        return Err(fault(format!(
+          "Account {} is an endpoint account, which does not run on a work node.",
+          account.id
+        )));
+      }
+
+      let key = std::fs::read_to_string(key_file)
+        .ok()
+        .map(|key| key.trim().to_owned())
+        .filter(|key| !key.is_empty())
+        .ok_or_else(|| fault(format!("The key file of account {} cannot be read.", account.id)))?;
+      let mut env = BTreeMap::from([
+        ("CLAUDE_CONFIG_DIR".to_owned(), Some(home.to_string_lossy().into_owned())),
+        ("ANTHROPIC_BASE_URL".to_owned(), Some(url.clone())),
+        ("ANTHROPIC_AUTH_TOKEN".to_owned(), Some(key)),
+        ("ANTHROPIC_API_KEY".to_owned(), None),
+        ("CLAUDE_CODE_OAUTH_TOKEN".to_owned(), None),
+      ]);
+
+      for (family, model) in models.families() {
+        env.insert(format!("ANTHROPIC_DEFAULT_{}_MODEL", family.to_uppercase()), model.map(str::to_owned));
+      }
+
+      Ok(env)
+    }
   }
-
-  let token = match runs {
-    Runs::Here => None,
-    Runs::OnNode { data_root } => account.node_token(data_root),
-  };
-
-  Ok(BTreeMap::from([
-    ("CLAUDE_CONFIG_DIR".to_owned(), Some(account.credential_path.clone())),
-    ("CLAUDE_CODE_OAUTH_TOKEN".to_owned(), token),
-  ]))
 }
 
 /// The program's environment: the launching process's with the line's own variables, the login's over

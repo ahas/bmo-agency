@@ -25,13 +25,18 @@ laya_unset = "Laya cannot be asked: BMO_LAYA_URL is not set."
 not_offered = "The {key} key cannot be put on {mode}."
 
 # The Claude accounts: what a change to one names wrongly, an {id} or a {name} not known or already
-# taken, a name longer than its {most} characters, a credential path that is not what it says, and the
-# order and switches that would leave no account to run on.
+# taken, a name longer than its {most} characters, a credential kind that is none of {kinds}, a credential
+# path that is not what it says, an endpoint account's base URL and key file missing or not what they
+# say, and the order and switches that would leave no account to run on.
 [accounts]
 switch = "An account and an on or off value are needed."
 run_on = "An account to run on is needed."
-credential_kind = "A credential is a configuration directory or a token file."
+credential_kind = "A credential's kind is one of: {kinds}."
 credential_path = "Give the credential's path."
+endpoint_needed = "An endpoint account needs its endpoint's base URL."
+endpoint_url = "An endpoint's base URL is an absolute http or https address."
+key_file_needed = "An endpoint account needs the file its key sits in."
+key_not_file = "A key's path must be a file."
 name_needed = "Give the account a name."
 which_to_change = "Which account to change is needed."
 which_to_remove = "Which account to remove is needed."

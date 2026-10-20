@@ -16,8 +16,8 @@ use policy::work_keys::{Profile, WORK_KEYS};
 use sea_orm::DatabaseConnection;
 use serde_json::{Value, json};
 
-use super::claude_account_changes::{self as changes, Credential, account_named};
-use super::claude_accounts::{self, Judging, accounts, leading_integer, walk_for};
+use super::claude_account_changes::{self as changes, CredentialGiven, account_named};
+use super::claude_accounts::{self, CredentialKind, Judging, accounts, leading_integer, walk_for};
 use super::harness::{
   OrderEntry, is_default_order, missing, named, order_shape_reason, order_to_save, provider_enabled,
   provider_order, set_provider_order,
@@ -322,17 +322,29 @@ async fn accounts_answer(judging: Judging<'_>) -> Result<Response, Refused> {
   ))
 }
 
-// What an account's credential may be sent as, whether the account is added or changed.
-pub fn credential_refusal(body: &Value) -> Result<(), Refused> {
-  if body.get("kind").is_some_and(|kind| kind != "directory" && kind != "token") {
-    return Err(bad(CONTROL_WORDS.accounts.credential_kind.as_str()));
-  }
+/// What of an account's credential a change sends, whether the account is added or changed, or the
+/// refusal: a kind is one the credential kinds name, and a path is text.
+pub fn credential_given(body: &Value) -> Result<CredentialGiven, Refused> {
+  let kind = match body.get("kind") {
+    None => None,
+    Some(kind) => Some(kind.as_str().and_then(CredentialKind::named).ok_or_else(|| {
+      bad(fill_marks(
+        &CONTROL_WORDS.accounts.credential_kind,
+        &[("kinds", &CredentialKind::words())],
+      ))
+    })?),
+  };
+  let path = match body.get("path") {
+    None => None,
+    Some(Value::String(path)) => Some(path.clone()),
+    Some(_) => return Err(bad(CONTROL_WORDS.accounts.credential_path.as_str())),
+  };
 
-  if body.get("path").is_some_and(|path| !path.is_string()) {
-    return Err(bad(CONTROL_WORDS.accounts.credential_path.as_str()));
-  }
-
-  Ok(())
+  Ok(CredentialGiven {
+    kind,
+    path,
+    ..CredentialGiven::default()
+  })
 }
 
 /// A change that stands on its own — the provider order or the Claude accounts — answered, or nothing
@@ -411,36 +423,22 @@ async fn own_change(judging: Judging<'_>, action: &str, body: &Value) -> Result<
     "add-account" => {
       let name = text("name").ok_or_else(|| bad(CONTROL_WORDS.accounts.name_needed.as_str()))?;
 
-      credential_refusal(body)?;
+      let given = credential_given(body)?;
 
-      let path = text("path")
-        .filter(|path| !path.trim().is_empty())
-        .ok_or_else(|| bad(CONTROL_WORDS.accounts.credential_path.as_str()))?;
-      let credential = Credential {
-        kind: text("kind").unwrap_or("directory").to_owned(),
-        path: path.to_owned(),
-      };
+      if given.path.as_deref().is_none_or(|path| path.trim().is_empty()) {
+        return Err(bad(CONTROL_WORDS.accounts.credential_path.as_str()));
+      }
 
-      changes::add(db, name, &credential).await?;
+      changes::add(db, name, &given).await?;
 
       return accounts_answer(judging).await.map(Some);
     }
     "update-account" => {
-      credential_refusal(body)?;
-
+      let given = credential_given(body)?;
       let id = text("account").ok_or_else(|| bad(CONTROL_WORDS.accounts.which_to_change.as_str()))?;
-      // A change naming a path but not how it is reached keeps the way the account already holds.
-      let held = account_named(db, id).await?;
-      let kind = text("kind")
-        .map(str::to_owned)
-        .or(held.map(|one| one.credential_kind))
-        .unwrap_or_else(|| "directory".to_owned());
-      let credential = text("path").map(|path| Credential {
-        kind,
-        path: path.to_owned(),
-      });
 
-      changes::update(db, id, text("name"), credential.as_ref(), None).await?;
+      // A change naming part of a credential keeps the rest of the one the account already holds.
+      changes::update(db, id, text("name"), Some(&given), None).await?;
 
       return accounts_answer(judging).await.map(Some);
     }

@@ -234,10 +234,10 @@ pub async fn compose(
   // is refused in the program's own words, which the turn reads as a session gone and opens a new one
   // for. The record stands under the home the program keeps its records in: the registration's, the
   // login's directory, or the machine's own.
-  let home = match (&held, &login) {
+  let home = match (&held, login.as_ref().and_then(|login| login.credential.own_home())) {
     (Some(held), _) => Registered::home(machine, &held.name),
-    (None, Some(login)) if login.credential_kind != "token" => PathBuf::from(&login.credential_path),
-    _ => ClaudeCode::machine_config_dir(machine),
+    (None, Some(home)) => home.to_path_buf(),
+    (None, None) => ClaudeCode::machine_config_dir(machine),
   };
 
   if let Some((id, _)) = turn.resume

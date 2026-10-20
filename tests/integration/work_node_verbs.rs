@@ -112,7 +112,7 @@ fn place(node_token: bool) -> SetupPlace<'static> {
     }],
     logins: vec![SetupLogin {
       account: ACCOUNT.into(),
-      kind: "directory".into(),
+      own_directory: true,
       path: "/h/.claude".into(),
       node_token,
       token_command: format!("/h/deploy/bin/bmo node claude-token '{ACCOUNT}'"),

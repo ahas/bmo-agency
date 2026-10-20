@@ -7,44 +7,38 @@ use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::Arc;
 
-use cache_siren::claude::{ClaudeAccounts, Credential, Login, Logins};
+use cache_siren::claude::{ClaudeAccounts, Login, Logins};
 use cache_siren::codex::CodexReader;
 use cache_siren::{Keeping, Reader, Slot, Window};
 use harness_providers::Machine;
 use sea_orm::DatabaseConnection;
 
-use crate::control::claude_accounts::{SEED_ACCOUNT, accounts};
+use crate::control::claude_accounts::{Account, SEED_ACCOUNT, accounts};
 use crate::door::record::Reply;
 
 const CODEX: &str = "codex";
 
-/// Every registered Claude account, on or off, as the store holds it now.
+/// Every registered Claude account with usage windows, on or off, as the store holds it now: an endpoint
+/// account is paid by the request and is never asked of the reader.
 struct StoreLogins(DatabaseConnection);
 
 impl Logins for StoreLogins {
   fn logins(&self) -> Pin<Box<dyn Future<Output = Result<Vec<Login>, String>> + Send + '_>> {
-    Box::pin(async move {
-      let held = accounts(&self.0).await.map_err(|refused| refused.error)?;
-
-      Ok(
-        held
-          .into_iter()
-          .map(|account| {
-            let file = account.credential_file();
-
-            Login {
-              account: if account.id.is_empty() { SEED_ACCOUNT.to_owned() } else { account.id },
-              credential: if account.credential_kind == "token" {
-                Credential::Token(file)
-              } else {
-                Credential::Directory(file)
-              },
-            }
-          })
-          .collect(),
-      )
-    })
+    Box::pin(async move { Ok(window_logins(accounts(&self.0).await.map_err(|refused| refused.error)?)) })
   }
+}
+
+/// The logins the Claude account reader asks of, one each account that has usage windows.
+pub fn window_logins(held: Vec<Account>) -> Vec<Login> {
+  held
+    .into_iter()
+    .filter_map(|account| {
+      Some(Login {
+        credential: account.credential.window_credential()?,
+        account: if account.id.is_empty() { SEED_ACCOUNT.to_owned() } else { account.id },
+      })
+    })
+    .collect()
 }
 
 /// The readers this machine runs: every Claude account's, and Codex's where Codex is installed.

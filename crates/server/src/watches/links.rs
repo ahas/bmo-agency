@@ -20,6 +20,7 @@ use serde_json::Value;
 use store::all;
 
 use crate::Refusal;
+use crate::control::claude_accounts::accounts;
 use crate::peers::node::NodeService;
 
 /// The place files that go to the node: what the launcher writes and the program on the node reads.
@@ -334,20 +335,15 @@ async fn placed_agents(
 /// The directories every account keeps its records under, as this machine reads them, each once.
 async fn record_dirs(db: &DatabaseConnection, roots: &Roots) -> Result<Vec<String>, Refusal> {
   let mut dirs: Vec<String> = Vec::new();
+  let held = accounts(db).await.map_err(|refused| crate::lines::fault(refused.error))?;
 
-  for row in all(
-    db,
-    r#"SELECT "credential_kind", "credential_path" FROM "claude_accounts" ORDER BY "place", "rowid""#,
-    vec![],
-  )
-  .await?
-  {
-    let kind: Option<String> = row.try_get("", "credential_kind")?;
-    let path: Option<String> = row.try_get("", "credential_path")?;
-    let dir = match (kind.as_deref(), path) {
-      (Some("directory"), Some(path)) => path,
-      _ => roots.config_dir.display().to_string(),
-    };
+  for account in &held {
+    let dir = account
+      .credential
+      .own_home()
+      .unwrap_or(roots.config_dir.as_path())
+      .display()
+      .to_string();
 
     if !dirs.contains(&dir) {
       dirs.push(dir);

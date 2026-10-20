@@ -33,6 +33,7 @@ mod control {
   mod companions;
   mod consumer_calls;
   mod conversation_routes;
+  mod endpoint_accounts;
   mod events_publish;
   mod executions;
   mod fallback;

@@ -228,9 +228,9 @@ pub async fn compose_turn(
   let run = chat_run(ground, machine, launch, prompt, false).await?;
   let trees = Trees::of(ground);
   let login = walked_login(ground, launch.agent).await?;
-  let home = match &login {
-    Some(login) if login.credential_kind != "token" => PathBuf::from(&login.credential_path),
-    _ => ClaudeCode::machine_config_dir(machine),
+  let home = match login.as_ref().and_then(|login| login.credential.own_home()) {
+    Some(home) => home.to_path_buf(),
+    None => ClaudeCode::machine_config_dir(machine),
   };
 
   if let Some(id) = &run.resume

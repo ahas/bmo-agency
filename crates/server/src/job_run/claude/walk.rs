@@ -48,12 +48,19 @@ fn refused(why: crate::control::Refused) -> Failure {
 pub trait Attempt<T> {
   /// The turn on this login, or on the run as it stands where none is named.
   fn attempt(&mut self, account: Option<Account>) -> impl Future<Output = Result<T, Failure>>;
+
+  /// Whether this turn may go out on a login at all: one it may not is passed over without a run and
+  /// without anything written under it. Every login, unless the turn says otherwise.
+  fn takes(&self, _account: &Account) -> bool {
+    true
+  }
 }
 
 /// One turn carried by the logins its key is offered. The attempt is handed the login it goes out on,
 /// or none where no login is registered for a run made for nobody, which is made once as it stands. A
 /// run whose every login is closed goes out on none of them: it ends as the limit the first of them
-/// reopens from, or as the login a person has to sign in again.
+/// reopens from, or as the login a person has to sign in again. A login the turn does not take is no
+/// login of this walk; where the turn takes none of the logins carrying it, it goes out on none.
 pub async fn on_accounts<T, A: Attempt<T>>(
   walking: &Walking<'_>,
   key: &str,
@@ -61,14 +68,27 @@ pub async fn on_accounts<T, A: Attempt<T>>(
   attempt: &mut A,
 ) -> Result<T, Failure> {
   let db = &walking.ground.db;
-  let walk = walk_for_user(walking.judging(), key, user).await.map_err(refused)?;
+  let mut walk = walk_for_user(walking.judging(), key, user).await.map_err(refused)?;
   let pinned = pinned_account(db, key).await.map_err(refused)?.is_some();
+
+  walk.retain(|account| attempt.takes(account));
 
   if walk.is_empty() {
     let carried = carried_for_user(db, key, user).await.map_err(refused)?;
+    let (taken, passed): (Vec<Account>, Vec<Account>) =
+      carried.into_iter().partition(|account| attempt.takes(account));
 
-    if !carried.is_empty() {
-      return Err(closed(walking, key, &carried).await?);
+    if !taken.is_empty() {
+      return Err(closed(walking, key, &taken).await?);
+    }
+
+    if !passed.is_empty() {
+      let names = passed.iter().map(|account| account.id.as_str()).collect::<Vec<_>>().join(", ");
+
+      return Err(Failure::Account {
+        failure: AccountFailure::Login,
+        detail: format!("claude {key}: no login that carries this run can carry this turn ({names})"),
+      });
     }
 
     if let Some(user) = user {

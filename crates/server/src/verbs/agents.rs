@@ -25,8 +25,8 @@ use super::work_node::{work_refusal, workplace};
 use crate::control::Refused;
 use crate::control::agent_switches::{agent_gates, set_reasoning, switch_gate};
 use crate::control::agents::{Agent, configured};
-use crate::control::claude_account_changes::{self as changes, Credential, account_named};
-use crate::control::claude_accounts::{self, Judging, accounts};
+use crate::control::claude_account_changes::{self as changes, CredentialGiven, account_named};
+use crate::control::claude_accounts::{self, CredentialKind, Judging, accounts};
 use crate::control::harness::{OrderEntry, provider_order, set_provider_order};
 use crate::control::registry::{self, registrations};
 use crate::control::roads::{self, LAYA};
@@ -656,7 +656,10 @@ const ACCOUNT_SET_USAGE: &str = "usage: bmo-agency agent --account-set <account>
 fn account_line(account: &claude_accounts::Account) -> String {
   format!(
     "account {} ({}) {} at {}",
-    account.id, account.name, account.credential_kind, account.credential_path
+    account.id,
+    account.name,
+    account.credential.kind().word(),
+    account.credential.path().display()
   )
 }
 
@@ -664,11 +667,17 @@ fn account_line(account: &claude_accounts::Account) -> String {
 // things the console's own panel does, for a hand that has a shell and no browser.
 async fn account_change(db: &DatabaseConnection, args: &AgentsArgs) -> Result<Said, VerbError> {
   let mut said = Said::default();
-  let kind = args.kind.as_deref();
+  let kind = match args.kind.as_deref() {
+    None => None,
+    Some(word) => match CredentialKind::named(word) {
+      Some(kind) => Some(kind),
+      None => {
+        let words = fill_marks(&VERB_WORDS.agents.credential_kind, &[("kinds", &CredentialKind::words())]);
 
-  if kind.is_some_and(|kind| kind != "directory" && kind != "token") {
-    return Ok(said.misread(VERB_WORDS.agents.credential_kind.as_str()));
-  }
+        return Ok(said.misread(words));
+      }
+    },
+  };
 
   let no_account = |named: &str| fill_marks(&VERB_WORDS.agents.no_account, &[("named", named)]);
   let by_id = async |id: &str| -> Result<claude_accounts::Account, VerbError> {
@@ -684,12 +693,13 @@ async fn account_change(db: &DatabaseConnection, args: &AgentsArgs) -> Result<Sa
     let Some(path) = &args.path else {
       return Ok(said.misread(ACCOUNT_ADD_USAGE));
     };
-    let credential = Credential {
-      kind: kind.unwrap_or("directory").to_owned(),
-      path: path.clone(),
+    let given = CredentialGiven {
+      kind,
+      path: Some(path.clone()),
+      ..CredentialGiven::default()
     };
 
-    if let Err(refused) = changes::add(db, name, &credential).await {
+    if let Err(refused) = changes::add(db, name, &given).await {
       return Ok(said.refused(refused.error));
     }
 
@@ -711,14 +721,13 @@ async fn account_change(db: &DatabaseConnection, args: &AgentsArgs) -> Result<Sa
     }
 
     // A path with no --kind keeps the way the account already holds; the id never moves.
-    let credential = args.path.as_ref().map(|path| Credential {
-      kind: kind.map_or_else(|| held.credential_kind.clone(), str::to_owned),
-      path: path.clone(),
+    let given = args.path.as_ref().map(|path| CredentialGiven {
+      kind,
+      path: Some(path.clone()),
+      ..CredentialGiven::default()
     });
 
-    if let Err(refused) =
-      changes::update(db, &held.id, args.name.as_deref(), credential.as_ref(), None).await
-    {
+    if let Err(refused) = changes::update(db, &held.id, args.name.as_deref(), given.as_ref(), None).await {
       return Ok(said.refused(refused.error));
     }
 

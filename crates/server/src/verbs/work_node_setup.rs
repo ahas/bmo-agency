@@ -28,12 +28,14 @@ pub trait SetupShell: Sync {
   fn run<'a>(&'a self, command: &'a str) -> BoxFuture<'a, ShellRun>;
 }
 
-/// One account's login as this machine keeps it — its directory, or its token's file — whether this
-/// machine holds its token for the work nodes, and the command that makes one.
+/// One account's login as this machine keeps it — its own configuration directory, or the machine's for
+/// a token account — whether this machine holds its token for the work nodes, and the command that
+/// makes one.
 #[derive(Clone, Debug)]
 pub struct SetupLogin {
   pub account: String,
-  pub kind: String,
+  /// Whether the path is the account's own configuration directory rather than the machine's.
+  pub own_directory: bool,
   pub path: String,
   pub node_token: bool,
   pub token_command: String,
@@ -552,7 +554,7 @@ pub async fn set_up_workplace(
     }
 
     for login in &place.logins {
-      let file = if login.kind == "directory" {
+      let file = if login.own_directory {
         join(&(place.to_node)(&login.path, &home, &root), ".claude.json")
       } else {
         join(&home, ".claude.json")
@@ -592,7 +594,7 @@ pub async fn set_up_workplace(
 
     let path = (place.to_node)(&login.path, &home, &root);
 
-    if login.kind == "directory"
+    if login.own_directory
       && shell
         .run(&format!("test -s {}", shell_word(&join(&path, ".credentials.json"))))
         .await

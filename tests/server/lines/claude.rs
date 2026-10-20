@@ -1,8 +1,21 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 
-use agency_server::control::claude_accounts::Account;
+use agency_server::control::claude_accounts::{Account, Credential, EndpointModels};
 use agency_server::lines::claude::*;
+
+fn account(id: &str, credential: Credential) -> Account {
+  Account {
+    id: id.into(),
+    name: id.into(),
+    place: 0,
+    enabled: true,
+    credential,
+    needs_login_at: None,
+    user_id: None,
+    base_prompt: None,
+  }
+}
 
 #[test]
 fn a_directory_login_clears_any_token_and_a_token_login_hands_its_token() {
@@ -11,39 +24,84 @@ fn a_directory_login_clears_any_token_and_a_token_login_hands_its_token() {
 
   std::fs::write(&token, "sk-test\n").unwrap();
 
-  let account = |kind: &str, path: &Path| Account {
-    id: "a".into(),
-    name: "a".into(),
-    place: 0,
-    enabled: true,
-    credential_kind: kind.into(),
-    credential_path: path.to_string_lossy().into_owned(),
-    needs_login_at: None,
-    user_id: None,
-  };
-  let directory = account_env(Some(&account("directory", dir.path())), &Runs::Here).unwrap();
-  let tokened = account_env(Some(&account("token", &token)), &Runs::Here).unwrap();
+  let directory = |home: &Path| account("a", Credential::Directory { home: home.into() });
+  let tokened = |file: &Path| account("a", Credential::Token { file: file.into() });
+  let directory = account_env(Some(&directory(dir.path())), &Runs::Here).unwrap();
+  let handed = account_env(Some(&tokened(&token)), &Runs::Here).unwrap();
 
   assert_eq!(directory["CLAUDE_CODE_OAUTH_TOKEN"], None);
   assert_eq!(directory["CLAUDE_CONFIG_DIR"].as_deref(), dir.path().to_str());
-  assert_eq!(tokened["CLAUDE_CODE_OAUTH_TOKEN"].as_deref(), Some("sk-test"));
-  assert!(account_env(Some(&account("token", &dir.path().join("gone"))), &Runs::Here).is_err());
+  assert_eq!(handed["CLAUDE_CODE_OAUTH_TOKEN"].as_deref(), Some("sk-test"));
+  assert_eq!(handed.len(), 1);
+  assert!(account_env(Some(&tokened(&dir.path().join("gone"))), &Runs::Here).is_err());
+}
+
+#[test]
+fn an_endpoint_login_hands_its_home_its_url_its_key_and_its_models_and_clears_every_other_credential() {
+  let dir = tempfile::tempdir().unwrap();
+  let key = dir.path().join("endpoint.key");
+  let endpoint = |key_file: &Path| {
+    account(
+      "endpoint",
+      Credential::Endpoint {
+        home: dir.path().join("home"),
+        url: "https://endpoint.test/anthropic".into(),
+        key_file: key_file.into(),
+        models: EndpointModels {
+          opus: Some("big-model".into()),
+          sonnet: Some("small-model".into()),
+          haiku: None,
+        },
+      },
+    )
+  };
+
+  std::fs::write(&key, "sk-endpoint\n").unwrap();
+
+  let env = account_env(Some(&endpoint(&key)), &Runs::Here).unwrap();
+
+  assert_eq!(env["CLAUDE_CONFIG_DIR"].as_deref(), dir.path().join("home").to_str());
+  assert_eq!(env["ANTHROPIC_BASE_URL"].as_deref(), Some("https://endpoint.test/anthropic"));
+  assert_eq!(env["ANTHROPIC_AUTH_TOKEN"].as_deref(), Some("sk-endpoint"));
+  assert_eq!(env["ANTHROPIC_DEFAULT_OPUS_MODEL"].as_deref(), Some("big-model"));
+  assert_eq!(env["ANTHROPIC_DEFAULT_SONNET_MODEL"].as_deref(), Some("small-model"));
+  assert_eq!(env["ANTHROPIC_DEFAULT_HAIKU_MODEL"], None);
+  assert_eq!(env["ANTHROPIC_API_KEY"], None);
+  assert_eq!(env["CLAUDE_CODE_OAUTH_TOKEN"], None);
+
+  // A key that cannot be read is refused, and so is a run from a work node.
+  std::fs::write(dir.path().join("empty.key"), "\n").unwrap();
+  assert!(account_env(Some(&endpoint(&dir.path().join("empty.key"))), &Runs::Here).is_err());
+  assert!(account_env(Some(&endpoint(&dir.path().join("gone.key"))), &Runs::Here).is_err());
+
+  let node = Runs::OnNode {
+    data_root: dir.path().into(),
+  };
+
+  assert!(account_env(Some(&endpoint(&key)), &node).is_err());
+
+  // Over the launching process's own, the endpoint's credentials are what the program is handed.
+  let process = BTreeMap::from([
+    ("ANTHROPIC_API_KEY".to_owned(), "sk-process".to_owned()),
+    ("CLAUDE_CODE_OAUTH_TOKEN".to_owned(), "sk-ant-oat01-process".to_owned()),
+  ]);
+  let program = command_env(&process, Some(&endpoint(&key)), &Runs::Here, true).unwrap();
+
+  assert_eq!(program["ANTHROPIC_API_KEY"], None);
+  assert_eq!(program["CLAUDE_CODE_OAUTH_TOKEN"], None);
+  assert_eq!(program["ANTHROPIC_AUTH_TOKEN"].as_deref(), Some("sk-endpoint"));
 }
 
 #[test]
 fn a_directory_login_on_a_node_is_handed_its_token_for_the_nodes_beside_its_directory() {
   let data = tempfile::tempdir().unwrap();
   let login = tempfile::tempdir().unwrap();
-  let account = Account {
-    id: "spare".into(),
-    name: "spare login".into(),
-    place: 0,
-    enabled: true,
-    credential_kind: "directory".into(),
-    credential_path: login.path().to_string_lossy().into_owned(),
-    needs_login_at: None,
-    user_id: None,
-  };
+  let account = account(
+    "spare",
+    Credential::Directory {
+      home: login.path().into(),
+    },
+  );
   let place = data.path().join("agent-places").join("worker");
   let runs = || Runs::of_place(data.path(), &place);
 
@@ -56,7 +114,7 @@ fn a_directory_login_on_a_node_is_handed_its_token_for_the_nodes_beside_its_dire
 
   assert_eq!(bare["CLAUDE_CODE_OAUTH_TOKEN"], None);
 
-  let file = account.node_token_file(data.path());
+  let file = account.node_token_file(data.path()).unwrap();
 
   std::fs::create_dir_all(file.parent().unwrap()).unwrap();
   std::fs::write(&file, "sk-ant-oat01-node\n").unwrap();

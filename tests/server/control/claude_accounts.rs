@@ -93,10 +93,12 @@ fn the_earliest_moment_under_an_expiring_name_answers_in_milliseconds() {
     name: "a".into(),
     place: 1,
     enabled: true,
-    credential_kind: "directory".into(),
-    credential_path: dir.path().display().to_string(),
+    credential: Credential::Directory {
+      home: dir.path().into(),
+    },
     needs_login_at: Some(1),
     user_id: None,
+    base_prompt: None,
   };
 
   std::fs::write(

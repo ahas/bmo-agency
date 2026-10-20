@@ -6,6 +6,8 @@
 [claude_token]
 # No account is registered under the name or id given, {named}.
 unknown_account = 'claude-token: no registered Claude account is named "{named}". List the accounts with bmo-agency agent.'
+# The account {name} is an endpoint account, which runs on this machine alone and has no token for the nodes.
+endpoint_account = 'claude-token: "{name}" is an endpoint account, which runs on this machine alone and has no token for the work nodes. Nothing was kept.'
 # The verb starts on the account {name}.
 making = "Making the work nodes' token of the Claude account \"{name}\"."
 # The browser's sign-in is to be approved as the account, its address {email} where its directory names one.
@@ -137,7 +139,8 @@ on_off = "{flag} is on or off."
 heal_on_off = "--downgrade-heal is on or off."
 # An account named by an id or a name {named} that no account has.
 no_account = "There is no account named {named}."
-credential_kind = "A credential is a configuration directory (directory) or a token file (token)."
+# A --kind that is none of the credential kinds, each listed in {kinds}.
+credential_kind = "--kind is one of: {kinds}."
 # A worker {worker} the owner did not add, set to rest or woken.
 not_restable = "{worker} is not a worker that can rest or wake: only a worker the owner added rests, and neither the built-in worker nor a support worker does."
 no_worker = "There is no worker named {worker}."

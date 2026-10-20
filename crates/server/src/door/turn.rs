@@ -375,9 +375,10 @@ fn fingerprint(token: &str) -> String {
   format!("{:x}", Sha256::digest(token.trim().as_bytes()))[..16].to_owned()
 }
 
-/// The registered account a program's login belongs to: a token account by its token alone, any other
-/// by the configuration home it holds, and where it was handed a token beside it — a program on a work
-/// node — only where that token is the account's token for the nodes, kept under the data root named.
+/// The registered account a program's login belongs to: a token account by its token alone, a directory
+/// or endpoint account by the configuration home of its own it holds, and where it was handed a token
+/// beside it — a program on a work node — only where that token is the account's token for the nodes,
+/// kept under the data root named, which an endpoint account has none of.
 pub fn account_of_login(
   accounts: &[claude_accounts::Account],
   login: &ProgramLogin,
@@ -387,26 +388,24 @@ pub fn account_of_login(
 
   if let Some(token) = &login.token
     && let Some(account) = accounts.iter().find(|account| {
-      account.credential_kind == "token"
-        && held(Path::new(&account.credential_path)).as_ref() == Some(token)
+      account.credential.token_file().is_some_and(|file| held(file).as_ref() == Some(token))
     })
   {
     return Some(account.id.clone());
   }
 
-  let home = std::path::absolute(&login.config_dir).unwrap_or_else(|_| PathBuf::from(&login.config_dir));
+  let absolute = |path: &Path| std::path::absolute(path).unwrap_or_else(|_| path.to_path_buf());
+  let home = absolute(Path::new(&login.config_dir));
 
   accounts
     .iter()
     .find(|account| {
-      account.credential_kind == "directory"
-        && std::path::absolute(&account.credential_path)
-          .unwrap_or_else(|_| PathBuf::from(&account.credential_path))
-          == home
-        && login
-          .token
-          .as_ref()
-          .is_none_or(|token| held(&account.node_token_file(data_root)).as_ref() == Some(token))
+      account.credential.own_home().is_some_and(|own| absolute(own) == home)
+        && login.token.as_ref().is_none_or(|token| {
+          account
+            .node_token_file(data_root)
+            .is_some_and(|file| held(&file).as_ref() == Some(token))
+        })
     })
     .map(|account| account.id.clone())
 }

@@ -14,7 +14,7 @@ use policy::verb_words::VERB_WORDS;
 use sea_orm::DatabaseConnection;
 
 use super::{Answer, VerbError};
-use crate::control::claude_accounts::{Account, accounts};
+use crate::control::claude_accounts::{Account, Credential, accounts};
 
 /// Why a pasted text is not a token `claude setup-token` prints, or none: the CLI's long-lived tokens open
 /// with `sk-ant-oat` and hold no space, and a short one is a paste cut off.
@@ -50,11 +50,8 @@ pub fn write_node_token(file: &Path, token: &str) -> std::io::Result<()> {
 // The address the account's directory says it is signed in as, so the browser's sign-in is checked
 // against it; none where the directory names none.
 fn signed_in_as(account: &Account) -> Option<String> {
-  if account.credential_kind != "directory" {
-    return None;
-  }
-
-  let held = std::fs::read_to_string(Path::new(&account.credential_path).join(".claude.json")).ok()?;
+  let Credential::Directory { home } = &account.credential else { return None };
+  let held = std::fs::read_to_string(home.join(".claude.json")).ok()?;
   let held: serde_json::Value = serde_json::from_str(&held).ok()?;
 
   held
@@ -140,6 +137,9 @@ pub async fn claude_token(
     .find(|one| one.id == named)
     .or_else(|| held.iter().find(|one| one.name == named.trim()))
     .ok_or_else(|| VerbError::Refused(fill_marks(&words.unknown_account, &[("named", named)])))?;
+  let Some(file) = account.node_token_file(data_root) else {
+    return Err(VerbError::Refused(fill_marks(&words.endpoint_account, &[("name", &account.name)])));
+  };
 
   println!("{}", fill_marks(&words.making, &[("name", &account.name)]));
 
@@ -156,8 +156,8 @@ pub async fn claude_token(
 
     sign_in.arg("setup-token").env_remove("CLAUDE_CODE_OAUTH_TOKEN");
 
-    if account.credential_kind == "directory" {
-      sign_in.env("CLAUDE_CONFIG_DIR", &account.credential_path);
+    if let Credential::Directory { home } = &account.credential {
+      sign_in.env("CLAUDE_CONFIG_DIR", home);
     }
 
     if !sign_in.status().is_ok_and(|status| status.success()) {
@@ -170,8 +170,6 @@ pub async fn claude_token(
   if let Some(fault) = node_token_fault(&token) {
     return Err(VerbError::Refused(fill_marks(&words.refused, &[("fault", &fault)])));
   }
-
-  let file = account.node_token_file(data_root);
 
   write_node_token(&file, &token).map_err(|why| VerbError::Refused(format!("claude-token: {why}")))?;
 

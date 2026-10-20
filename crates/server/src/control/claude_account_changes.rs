@@ -12,7 +12,9 @@ use regex::Regex;
 use sea_orm::{DatabaseConnection, TransactionTrait};
 use serde_json::Value;
 
-use super::claude_accounts::{Account, CHOSEN_KEY, IN_USE_KEY, accounts, chosen_account};
+use super::claude_accounts::{
+  Account, CHOSEN_KEY, Credential, CredentialKind, EndpointModels, IN_USE_KEY, accounts, chosen_account,
+};
 use super::{Refused, set_setting, setting};
 use crate::now_ms;
 use crate::text::length;
@@ -25,11 +27,65 @@ static ID: LazyLock<Regex> =
 
 const NAME_MAX: usize = 40;
 
-/// How a run reaches an account's login, and the absolute path it is reached by.
-#[derive(Clone, Debug)]
-pub struct Credential {
-  pub kind: String,
-  pub path: String,
+/// What the owner gave of an account's credential, each part only where it was given.
+#[derive(Clone, Debug, Default)]
+pub struct CredentialGiven {
+  pub kind: Option<CredentialKind>,
+  pub path: Option<String>,
+  pub endpoint: Option<String>,
+  pub key_file: Option<String>,
+  pub models: Option<EndpointModels>,
+}
+
+impl CredentialGiven {
+  /// Whether nothing of a credential was given.
+  pub fn is_empty(&self) -> bool {
+    self.kind.is_none()
+      && self.path.is_none()
+      && self.endpoint.is_none()
+      && self.key_file.is_none()
+      && self.models.is_none()
+  }
+
+  /// The credential it makes over the one the account holds: a part not given keeps the held one's, the
+  /// kind a directory where neither names one, each given text with its edges trimmed; or the refusal
+  /// naming the part still missing.
+  pub fn over(&self, held: Option<&Credential>) -> Result<Credential, String> {
+    let words = &CONTROL_WORDS.accounts;
+    let trimmed = |given: &Option<String>| given.as_deref().map(|text| text.trim().to_owned());
+    let kind = self.kind.or(held.map(Credential::kind)).unwrap_or(CredentialKind::Directory);
+    let path = trimmed(&self.path)
+      .or_else(|| held.map(|held| held.path().to_string_lossy().into_owned()))
+      .filter(|path| !path.is_empty())
+      .ok_or_else(|| words.credential_path.clone())?;
+    let (held_url, held_key, held_models) = match held {
+      Some(Credential::Endpoint {
+        url,
+        key_file,
+        models,
+        ..
+      }) => (Some(url.clone()), Some(key_file.to_string_lossy().into_owned()), models.clone()),
+      _ => (None, None, EndpointModels::default()),
+    };
+
+    Ok(match kind {
+      CredentialKind::Directory => Credential::Directory { home: path.into() },
+      CredentialKind::Token => Credential::Token { file: path.into() },
+      CredentialKind::Endpoint => Credential::Endpoint {
+        home: path.into(),
+        url: trimmed(&self.endpoint)
+          .or(held_url)
+          .filter(|url| !url.is_empty())
+          .ok_or_else(|| words.endpoint_needed.clone())?,
+        key_file: trimmed(&self.key_file)
+          .or(held_key)
+          .filter(|file| !file.is_empty())
+          .ok_or_else(|| words.key_file_needed.clone())?
+          .into(),
+        models: self.models.clone().unwrap_or(held_models),
+      },
+    })
+  }
 }
 
 fn no_such(id: &str) -> String {
@@ -85,31 +141,80 @@ pub fn name_fault(name: &str, taken: &[&str]) -> Option<String> {
     .then(|| fill_marks(&CONTROL_WORDS.accounts.name_taken, &[("name", given)]))
 }
 
-/// Why a credential cannot be reached, or nothing: a directory account needs a directory that is
-/// there, a token account the file its token sits in. Neither is opened.
-pub fn credential_fault(credential: &Credential) -> Option<String> {
-  let path = credential.path.trim();
+// Why a path cannot be reached, or nothing: it must be absolute and there, a directory where one is
+// asked and a file otherwise, with the words a path that is not one says.
+fn path_fault(path: &Path, directory: bool, not_it: &str) -> Option<String> {
+  let words = &CONTROL_WORDS.accounts;
 
-  if path.is_empty() {
-    return Some(CONTROL_WORDS.accounts.path_empty.clone());
+  if path.as_os_str().is_empty() {
+    return Some(words.path_empty.clone());
   }
 
-  let path = Path::new(path);
-
   if !path.is_absolute() {
-    return Some(CONTROL_WORDS.accounts.path_relative.clone());
+    return Some(words.path_relative.clone());
   }
 
   if !path.exists() {
-    return Some(CONTROL_WORDS.accounts.path_missing.clone());
+    return Some(words.path_missing.clone());
   }
 
-  match (credential.kind == "directory", path.is_dir()) {
-    (true, false) => Some(CONTROL_WORDS.accounts.path_not_directory.clone()),
-    (false, true) => Some(CONTROL_WORDS.accounts.path_not_file.clone()),
-    _ => None,
+  (path.is_dir() != directory).then(|| not_it.to_owned())
+}
+
+/// Why a credential cannot be reached, or nothing: a directory account needs a directory that is
+/// there, a token account the file its token sits in, and an endpoint account a configuration home
+/// that is there, an http or https base URL and the file its key sits in. No file is opened.
+pub fn credential_fault(credential: &Credential) -> Option<String> {
+  let words = &CONTROL_WORDS.accounts;
+
+  match credential {
+    Credential::Directory { home } => path_fault(home, true, &words.path_not_directory),
+    Credential::Token { file } => path_fault(file, false, &words.path_not_file),
+    Credential::Endpoint {
+      home,
+      url,
+      key_file,
+      ..
+    } => path_fault(home, true, &words.path_not_directory)
+      .or_else(|| {
+        url::Url::parse(url)
+          .ok()
+          .filter(|url| matches!(url.scheme(), "http" | "https") && url.host().is_some())
+          .is_none()
+          .then(|| words.endpoint_url.clone())
+      })
+      .or_else(|| path_fault(key_file, false, &words.key_not_file)),
   }
 }
+
+// The columns a credential is kept in, each in the order the statements name them: its kind, its path,
+// and an endpoint account's base URL, key file and model map, none on the other kinds.
+fn columns(credential: &Credential) -> [sea_orm::Value; 5] {
+  let (url, key_file, models) = match credential {
+    Credential::Endpoint {
+      url,
+      key_file,
+      models,
+      ..
+    } => (
+      Some(url.clone()),
+      Some(key_file.to_string_lossy().into_owned()),
+      Some(serde_json::to_string(models).unwrap_or_default()),
+    ),
+    Credential::Directory { .. } | Credential::Token { .. } => (None, None, None),
+  };
+
+  [
+    credential.kind().word().into(),
+    credential.path().to_string_lossy().into_owned().into(),
+    url.into(),
+    key_file.into(),
+    models.into(),
+  ]
+}
+
+const CREDENTIAL_COLUMNS: [&str; 5] =
+  ["credential_kind", "credential_path", "endpoint_url", "key_file", "endpoint_models"];
 
 /// One account by its id, or by the name the owner calls it.
 pub async fn account_named(db: &DatabaseConnection, named: &str) -> Result<Option<Account>, Refused> {
@@ -121,16 +226,14 @@ pub async fn account_named(db: &DatabaseConnection, named: &str) -> Result<Optio
 }
 
 /// An account the owner named added at the end of the order, minted its own id, or the refusal. The
-/// name and the path are stored with their edges trimmed; a relative path is refused, never resolved.
-pub async fn add(db: &DatabaseConnection, name: &str, credential: &Credential) -> Result<(), Refused> {
+/// name and the credential's parts are stored with their edges trimmed; a relative path is refused, never
+/// resolved.
+pub async fn add(db: &DatabaseConnection, name: &str, given: &CredentialGiven) -> Result<(), Refused> {
   let held = accounts(db).await?;
   let ids: Vec<&str> = held.iter().map(|one| one.id.as_str()).collect();
   let names: Vec<&str> = held.iter().map(|one| one.name.as_str()).collect();
   let id = minted_id(name, &ids).map_err(Refused::failed)?;
-  let asked = Credential {
-    kind: credential.kind.clone(),
-    path: credential.path.trim().to_owned(),
-  };
+  let asked = given.over(None).map_err(Refused::failed)?;
 
   if let Some(fault) = name_fault(name, &names).or_else(|| credential_fault(&asked)) {
     return Err(Refused::failed(fault));
@@ -143,18 +246,22 @@ pub async fn add(db: &DatabaseConnection, name: &str, credential: &Credential) -
     .transpose()?
     .flatten();
 
+  let mut values: Vec<sea_orm::Value> = vec![
+    id.into(),
+    name.trim().into(),
+    (last.unwrap_or(0) + 1).into(),
+    now_ms().div_euclid(1000).into(),
+  ];
+
+  values.extend(columns(&asked));
   run(
     &written,
-    "INSERT INTO claude_accounts (id, name, place, enabled, credential_kind, credential_path, added_at)
-     VALUES ($1, $2, $3, 1, $4, $5, $6)",
-    vec![
-      id.into(),
-      name.trim().into(),
-      (last.unwrap_or(0) + 1).into(),
-      asked.kind.into(),
-      asked.path.into(),
-      now_ms().div_euclid(1000).into(),
-    ],
+    &format!(
+      "INSERT INTO claude_accounts (id, name, place, enabled, added_at, {})
+       VALUES ($1, $2, $3, 1, $4, $5, $6, $7, $8, $9)",
+      CREDENTIAL_COLUMNS.join(", ")
+    ),
+    values,
   )
   .await?;
   written.commit().await?;
@@ -163,26 +270,33 @@ pub async fn add(db: &DatabaseConnection, name: &str, credential: &Credential) -
 }
 
 /// What the owner changed about one account by its id — its name, its credential, its switch — or the
-/// refusal: only what was named is judged, and the last account that is on stays on.
+/// refusal: only what was named is judged, and the last account that is on stays on. A credential given
+/// in part keeps the rest of the one the account holds. Any change to an endpoint account lifts its mark
+/// of waiting for a person, since a balance topped up at the endpoint leaves nothing on this side to read
+/// (docs/cache-fallback.md, 「A login that is about to end」).
 pub async fn update(
   db: &DatabaseConnection,
   id: &str,
   name: Option<&str>,
-  credential: Option<&Credential>,
+  given: Option<&CredentialGiven>,
   enabled: Option<bool>,
 ) -> Result<(), Refused> {
   let held = accounts(db).await?;
-
-  if !held.iter().any(|one| one.id == id) {
+  let Some(account) = held.iter().find(|one| one.id == id) else {
     return Err(Refused::failed(no_such(id)));
-  }
+  };
 
   let others: Vec<&Account> = held.iter().filter(|one| one.id != id).collect();
   let names: Vec<&str> = others.iter().map(|one| one.name.as_str()).collect();
-  let credential = credential.map(|given| Credential {
-    kind: given.kind.clone(),
-    path: given.path.trim().to_owned(),
-  });
+  let credential = given
+    .filter(|given| !given.is_empty())
+    .map(|given| given.over(Some(&account.credential)))
+    .transpose()
+    .map_err(Refused::failed)?;
+  let endpoint = |credential: &Credential| credential.kind() == CredentialKind::Endpoint;
+  let lift_mark = account.needs_login_at.is_some()
+    && (endpoint(&account.credential) || credential.as_ref().is_some_and(endpoint))
+    && (name.is_some() || enabled.is_some() || credential.is_some());
   let fault = name
     .and_then(|name| name_fault(name, &names))
     .or_else(|| credential.as_ref().and_then(credential_fault))
@@ -210,9 +324,14 @@ pub async fn update(
     set("enabled", i64::from(enabled).into());
   }
 
-  if let Some(credential) = credential {
-    set("credential_kind", credential.kind.into());
-    set("credential_path", credential.path.into());
+  if let Some(credential) = &credential {
+    for (column, value) in CREDENTIAL_COLUMNS.into_iter().zip(columns(credential)) {
+      set(column, value);
+    }
+  }
+
+  if lift_mark {
+    set("needs_login_at", Option::<i64>::None.into());
   }
 
   if !sets.is_empty() {
