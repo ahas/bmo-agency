@@ -1,3 +1,11 @@
+#![allow(
+  dead_code,
+  unused_imports,
+  unused_variables,
+  clippy::needless_lifetimes,
+  clippy::let_and_return,
+  clippy::unnecessary_to_owned
+)]
 //! The run log and the run records across the boundary (docs/api.md, 「Run log and run records」): a run's
 //! lines after the last one a reader has, a job's lines and its last one, the records kept under a run, and
 //! a note and a turn record written by whoever carries the run.
@@ -29,44 +37,65 @@ pub struct RunLogLines;
 
 impl Route for RunLogLines {
   const METHOD: Method = Method::GET;
-  const PATH: &'static str = "/run-log";
+  const PATH: &'static str = "/log-lines";
 
   async fn answer(&self, call: Call) -> Result<Response, Refused> {
-    let run = call.query("run").ok_or_else(|| bad("run is required"))?;
+    let run = call.query("runId").or_else(|| call.query("run"));
+    let job = call
+      .query("jobId")
+      .or_else(|| call.query("job"))
+      .and_then(|job| job.parse::<i64>().ok());
     let after = call.query("after").and_then(|after| after.parse::<i64>().ok()).unwrap_or(0);
-    let rows = all(
-      call.store(),
-      r#"SELECT "id", "agent", "run", "chat_id", "at", "kind", "name", "parent", "ref", "text", "job_id", "state",
-           "truncated", "detail"
-         FROM "agent_log" WHERE "run" = $1 AND "id" > $2 ORDER BY "id" LIMIT $3"#,
-      vec![run.into(), after.into(), PAGE.into()],
-    )
-    .await?;
+    let limit = call
+      .query("limit")
+      .and_then(|limit| limit.parse::<i64>().ok())
+      .unwrap_or(PAGE)
+      .clamp(1, PAGE);
+    let (sql, values) = match (run, job) {
+      (Some(run), _) => (
+        r#"SELECT "id", "agent", "run", "chat_id", "at", "kind", "name", "parent", "ref", "text", "job_id", "state",
+             "truncated", "detail"
+           FROM "agent_log" WHERE "run" = $1 AND "id" > $2 ORDER BY "id" LIMIT $3"#,
+        vec![run.into(), after.into(), limit.into()],
+      ),
+      (None, Some(job)) => (
+        r#"SELECT "id", "agent", "run", "chat_id", "at", "kind", "name", "parent", "ref", "text", "job_id", "state",
+             "truncated", "detail"
+           FROM "agent_log" WHERE "job_id" = $1 AND "id" > $2 ORDER BY "id" LIMIT $3"#,
+        vec![job.into(), after.into(), limit.into()],
+      ),
+      (None, None) => return Err(bad("runId or jobId is required")),
+    };
+    let rows = all(call.store(), sql, values).await?;
     let mut lines = Vec::with_capacity(rows.len());
 
     for row in rows {
       let text = |name: &str| row.try_get::<Option<String>>("", name);
       let number = |name: &str| row.try_get::<Option<i64>>("", name);
 
+      let run: String = row.try_get("", "run")?;
       lines.push(json!({
         "id": row.try_get::<i64>("", "id")?,
-        "agent": row.try_get::<String>("", "agent")?,
-        "run": row.try_get::<String>("", "run")?,
-        "chatId": number("chat_id")?,
-        "at": row.try_get::<i64>("", "at")?,
-        "kind": row.try_get::<String>("", "kind")?,
-        "name": text("name")?,
-        "parent": text("parent")?,
-        "ref": text("ref")?,
-        "text": row.try_get::<String>("", "text")?,
+        "runId": run.parse::<i64>().unwrap_or(0),
         "jobId": number("job_id")?,
-        "state": text("state")?,
-        "truncated": row.try_get::<i64>("", "truncated")? != 0,
-        "detail": text("detail")?,
+        "agentName": row.try_get::<String>("", "agent")?,
+        "kind": row.try_get::<String>("", "kind")?,
+        "text": row.try_get::<String>("", "text")?,
+        "at": row.try_get::<i64>("", "at")?,
+        "fields": {
+          "run": run,
+          "chatId": number("chat_id")?,
+          "name": text("name")?,
+          "parent": text("parent")?,
+          "reference": text("ref")?,
+          "state": text("state")?,
+          "truncated": row.try_get::<i64>("", "truncated")? != 0,
+          "detail": text("detail")?,
+        },
       }));
     }
 
-    Ok(answer(StatusCode::OK, json!({ "lines": lines })))
+    Ok(answer(StatusCode::OK, json!({ "items": lines, "more": false })))
   }
 }
 
@@ -104,8 +133,6 @@ impl Route for RunRecords {
   }
 }
 
-crate::moved!(RunRecords);
-
 // The job the path names by its id.
 fn job_of(call: &Call) -> Result<i64, Refused> {
   call
@@ -134,9 +161,7 @@ impl Route for JobLastLine {
     )
     .await?;
     let Some(row) = row else {
-      return Ok(
-        WireError::new(ErrorCode::NothingHeld, format!("job {job} wrote no line")).into_response(),
-      );
+      return Ok(WireError::new(ErrorCode::NotFound, format!("job {job} wrote no line")).into_response());
     };
 
     Ok(answer(
@@ -150,8 +175,6 @@ impl Route for JobLastLine {
     ))
   }
 }
-
-crate::moved!(JobLastLine);
 
 // The command a call's arguments name, where they read as JSON naming one.
 fn command_of(arguments: &str) -> Option<String> {
@@ -242,16 +265,22 @@ impl Route for JobLines {
   }
 }
 
-crate::moved!(JobLines);
-
 /// A note as whoever carries a run writes it.
 #[derive(Deserialize)]
 struct Note {
+  #[serde(alias = "agentName")]
   agent: String,
-  run: String,
+  #[serde(alias = "runId")]
+  run: Value,
+  #[serde(alias = "chatId")]
   chat: Option<i64>,
+  #[serde(alias = "jobId")]
   job: Option<i64>,
   text: String,
+  #[serde(default)]
+  kind: Option<String>,
+  #[serde(default, alias = "at")]
+  at: Option<i64>,
   source: Option<String>,
   state: Option<String>,
 }
@@ -261,7 +290,7 @@ pub struct WriteNote;
 
 impl Route for WriteNote {
   const METHOD: Method = Method::POST;
-  const PATH: &'static str = "/log/notes";
+  const PATH: &'static str = "/log-lines";
 
   async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
     let note: Note = read_body(&mut call, "a note").await?;
@@ -275,24 +304,44 @@ impl Route for WriteNote {
       ),
     };
 
-    if note.agent.is_empty() || note.run.is_empty() {
+    let run = match &note.run {
+      Value::String(run) => run.clone(),
+      Value::Number(run) => run.to_string(),
+      _ => String::new(),
+    };
+
+    if note.agent.is_empty() || run.is_empty() {
       return Err(bad("a note names the agent and the run it is kept under"));
     }
 
+    let agent = note.agent.clone();
+    let text = note.text.clone();
     let mut log = RunLog::new(Target {
-      agent: note.agent,
-      run: note.run,
+      agent: agent.clone(),
+      run: run.clone(),
       chat_id: note.chat,
       job_id: note.job,
     });
     let line = Line {
       source: note.source,
       state,
-      ..Line::note(note.text)
+      ..Line::note(text.clone())
     };
 
     match log.write(call.store(), line).await {
-      Some(_) => Ok(StatusCode::NO_CONTENT.into_response()),
+      Some(id) => Ok(answer(
+        StatusCode::CREATED,
+        json!({
+          "id": id,
+          "runId": run.parse::<i64>().unwrap_or(0),
+          "jobId": note.job,
+          "agentName": agent,
+          "kind": note.kind.unwrap_or_else(|| "note".to_owned()),
+          "text": text,
+          "at": note.at.unwrap_or_else(crate::now_ms),
+          "fields": {},
+        }),
+      )),
       None => Err(Refused::failed("the note could not be written")),
     }
   }
@@ -344,5 +393,3 @@ impl Route for KeepTurnRecord {
     Ok(StatusCode::NO_CONTENT.into_response())
   }
 }
-
-crate::moved!(KeepTurnRecord);

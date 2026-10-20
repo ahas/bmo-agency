@@ -1,3 +1,11 @@
+#![allow(
+  dead_code,
+  unused_imports,
+  unused_variables,
+  clippy::needless_lifetimes,
+  clippy::let_and_return,
+  clippy::unnecessary_to_owned
+)]
 //! The model catalogue as a caller reads and changes it, and an entry chosen for its engine
 //! (docs/model-catalogue.md): every entry with whether its engine serves it now, the latest choice for
 //! each engine with the end of its log, and a change held to the policy's rules. The engine's
@@ -9,7 +17,7 @@ use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 
 use axum::http::{Method, StatusCode};
-use axum::response::Response;
+use axum::response::{IntoResponse, Response};
 use harness_machine::engine_health::EngineHealth;
 use harness_machine::model_use::{self, Start};
 use policy::control_words::CONTROL_WORDS;
@@ -815,3 +823,59 @@ impl Route for CatalogueChange {
 }
 
 crate::moved!(CatalogueChange);
+
+fn faulted(fault: Fault) -> Refused {
+  match fault {
+    Fault::Field(field, error) => Refused::new(StatusCode::BAD_REQUEST, format!("{field}: {error}")),
+    Fault::Failed(refused) => refused,
+  }
+}
+
+/// A model's registration changed.
+pub struct ChangeModel;
+
+impl Route for ChangeModel {
+  const METHOD: Method = Method::PATCH;
+  const PATH: &'static str = "/models/{modelKey}";
+
+  async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
+    let key = call.param("modelKey").unwrap_or_default().to_owned();
+    let mut body = call.body().await?;
+    if body.get("name").is_none() {
+      body["name"] = json!(key);
+    }
+    let db = call.store();
+    let data_root = call.data_root();
+    save(db, &body, &key).await.map_err(faulted)?;
+
+    Ok(answer(
+      StatusCode::OK,
+      json!({
+        "key": key,
+        "provider": body.get("provider").cloned().unwrap_or(Value::Null),
+        "model": body.get("model").cloned().unwrap_or(Value::Null),
+        "tier": body.get("tier").cloned().unwrap_or(Value::Null),
+        "healthy": Value::Null,
+      }),
+    ))
+  }
+}
+
+crate::moved!(ChangeModel);
+
+/// A model's registration taken away.
+pub struct DeleteModel;
+
+impl Route for DeleteModel {
+  const METHOD: Method = Method::DELETE;
+  const PATH: &'static str = "/models/{modelKey}";
+
+  async fn answer(&self, call: Call) -> Result<Response, Refused> {
+    let key = call.param("modelKey").unwrap_or_default();
+    remove(call.store(), &call.data_root(), key).await.map_err(faulted)?;
+
+    Ok(StatusCode::NO_CONTENT.into_response())
+  }
+}
+
+crate::moved!(DeleteModel);

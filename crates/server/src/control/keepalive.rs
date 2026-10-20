@@ -13,12 +13,15 @@ pub struct KeepaliveRead;
 
 impl Route for KeepaliveRead {
   const METHOD: Method = Method::GET;
-  const PATH: &'static str = "/keepalive";
+  const PATH: &'static str = "/settings";
 
   async fn answer(&self, call: Call) -> Result<Response, Refused> {
     let stopped = switch::stopped(call.store()).await?;
 
-    Ok(answer(StatusCode::OK, json!({ "stopped": stopped })))
+    Ok(answer(
+      StatusCode::OK,
+      json!({ "keepaliveStopped": stopped, "downgradeReturn": Value::Null }),
+    ))
   }
 }
 
@@ -28,20 +31,25 @@ crate::moved!(KeepaliveRead);
 pub struct KeepaliveWrite;
 
 impl Route for KeepaliveWrite {
-  const METHOD: Method = Method::POST;
-  const PATH: &'static str = "/keepalive";
+  const METHOD: Method = Method::PATCH;
+  const PATH: &'static str = "/settings";
 
   async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
     let body = call.body().await?;
-    let Some(stopped) = body.get("stopped").and_then(Value::as_bool) else {
-      return Err(Refused::new(StatusCode::BAD_REQUEST, "stopped (a boolean) is required"));
-    };
+    let stopped = body
+      .get("keepaliveStopped")
+      .or_else(|| body.get("stopped"))
+      .and_then(Value::as_bool)
+      .ok_or_else(|| Refused::new(StatusCode::BAD_REQUEST, "keepaliveStopped (a boolean) is required"))?;
 
     switch::set_stopped(call.store(), stopped).await?;
 
     let stopped = switch::stopped(call.store()).await?;
 
-    Ok(answer(StatusCode::OK, json!({ "stopped": stopped })))
+    Ok(answer(
+      StatusCode::OK,
+      json!({ "keepaliveStopped": stopped, "downgradeReturn": Value::Null }),
+    ))
   }
 }
 

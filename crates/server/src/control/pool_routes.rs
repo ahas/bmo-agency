@@ -1,3 +1,11 @@
+#![allow(
+  dead_code,
+  unused_imports,
+  unused_variables,
+  clippy::needless_lifetimes,
+  clippy::let_and_return,
+  clippy::unnecessary_to_owned
+)]
 //! The co-worker pool's routes (docs/api.md, 「Co-worker pool」; docs/coworker-pool.md): a branch's seat or a
 //! builder turn's place asked of the pool, let in at the head of its line, bound to the unit it launched
 //! and given back with what it came to; the seats an owner reserves and gives back; and the standing
@@ -73,7 +81,7 @@ pub struct PoolEnqueue;
 
 impl Route for PoolEnqueue {
   const METHOD: Method = Method::POST;
-  const PATH: &'static str = "/pool/enqueue";
+  const PATH: &'static str = "/seat-requests";
 
   async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
     let body = call.body().await?;
@@ -93,7 +101,7 @@ impl Route for PoolEnqueue {
     }
     .map_err(refused)?;
 
-    Ok(answer(StatusCode::OK, shown(request)?))
+    Ok(answer(StatusCode::CREATED, shown(request)?))
   }
 }
 
@@ -115,15 +123,34 @@ async fn request_named(
 pub struct PoolAcquire;
 
 impl Route for PoolAcquire {
-  const METHOD: Method = Method::POST;
-  const PATH: &'static str = "/pool/acquire";
+  const METHOD: Method = Method::PATCH;
+  const PATH: &'static str = "/seat-requests/{token}";
 
   async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
     let body = call.body().await?;
-    let held = request_named(call.store(), &body).await?;
-    let admitted = acquire(call.store(), &held).await.map_err(refused)?;
+    let token = call.param("token").unwrap_or_default().to_owned();
+    let held = dispatch::request(call.store(), &token).await.map_err(refused)?.ok_or_else(|| {
+      Refused::new(StatusCode::NOT_FOUND, format!("no pool request holds the token {token}"))
+    })?;
+    let move_to = body.get("state").or_else(|| body.get("action")).and_then(Value::as_str);
 
-    Ok(answer(StatusCode::OK, json!({ "request": shown(admitted)? })))
+    match move_to {
+      Some("bound") => {
+        let child = text(&body, "childId")?;
+        let bound = bind(call.store(), &held, child).await.map_err(refused)?;
+        Ok(answer(StatusCode::OK, shown(bound)?))
+      }
+      Some("finished") | Some("finish") => {
+        let outcome = body.get("outcome").and_then(Value::as_str).unwrap_or_default();
+        let cancel = body.get("cancel").and_then(Value::as_bool).unwrap_or(false);
+        let held = finish(call.store(), &token, outcome, cancel).await.map_err(refused)?;
+        Ok(answer(StatusCode::OK, json!({ "held": held })))
+      }
+      _ => {
+        let admitted = acquire(call.store(), &held).await.map_err(refused)?;
+        Ok(answer(StatusCode::OK, json!({ "request": shown(admitted)? })))
+      }
+    }
   }
 }
 
@@ -145,8 +172,6 @@ impl Route for PoolBind {
   }
 }
 
-crate::moved!(PoolBind);
-
 /// A lease ended with what it came to, released or cancelled where it never ran.
 pub struct PoolFinish;
 
@@ -165,14 +190,12 @@ impl Route for PoolFinish {
   }
 }
 
-crate::moved!(PoolFinish);
-
 /// Seats of one tier on one provider held for an owner.
 pub struct PoolReserve;
 
 impl Route for PoolReserve {
   const METHOD: Method = Method::POST;
-  const PATH: &'static str = "/pool/reserve";
+  const PATH: &'static str = "/reservations";
 
   async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
     let body = call.body().await?;
@@ -188,7 +211,7 @@ impl Route for PoolReserve {
     };
     let reservation = dispatch::reserve(call.store(), &seats).await.map_err(refused)?;
 
-    Ok(answer(StatusCode::OK, shown(reservation)?))
+    Ok(answer(StatusCode::CREATED, shown(reservation)?))
   }
 }
 
@@ -198,14 +221,19 @@ crate::moved!(PoolReserve);
 pub struct PoolReservationRelease;
 
 impl Route for PoolReservationRelease {
-  const METHOD: Method = Method::POST;
-  const PATH: &'static str = "/pool/reservations/release";
+  const METHOD: Method = Method::PATCH;
+  const PATH: &'static str = "/reservations/{token}";
 
   async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
     let body = call.body().await?;
-    let held = release_reservation(call.store(), text(&body, "token")?, text(&body, "outcome")?)
-      .await
-      .map_err(refused)?;
+    let token = call.param("token").unwrap_or_default().to_owned();
+    let held = release_reservation(
+      call.store(),
+      &token,
+      body.get("outcome").and_then(Value::as_str).unwrap_or_default(),
+    )
+    .await
+    .map_err(refused)?;
 
     Ok(answer(StatusCode::OK, json!({ "held": held })))
   }
@@ -218,13 +246,13 @@ pub struct PoolReservations;
 
 impl Route for PoolReservations {
   const METHOD: Method = Method::GET;
-  const PATH: &'static str = "/pool/reservations";
+  const PATH: &'static str = "/reservations";
 
   async fn answer(&self, call: Call) -> Result<Response, Refused> {
     let owner = call.query("owner");
     let held = held_reservations(call.store(), owner.as_deref()).await.map_err(refused)?;
 
-    Ok(answer(StatusCode::OK, json!({ "reservations": shown(held)? })))
+    Ok(answer(StatusCode::OK, json!({ "items": shown(held)?, "more": false })))
   }
 }
 
@@ -238,14 +266,14 @@ pub struct PoolRequestRead;
 
 impl Route for PoolRequestRead {
   const METHOD: Method = Method::GET;
-  const PATH: &'static str = "/pool/requests/{token}";
+  const PATH: &'static str = "/seat-requests/{token}";
 
   async fn answer(&self, call: Call) -> Result<Response, Refused> {
     let token = call.param("token").unwrap_or_default();
 
     Ok(match dispatch::request(call.store(), token).await.map_err(refused)? {
       Some(request) => answer(StatusCode::OK, shown(request)?),
-      None => WireError::new(ErrorCode::NothingHeld, format!("no pool request holds the token {token}"))
+      None => WireError::new(ErrorCode::NotFound, format!("no pool request holds the token {token}"))
         .into_response(),
     })
   }
@@ -258,7 +286,7 @@ pub struct PoolOpenRequests;
 
 impl Route for PoolOpenRequests {
   const METHOD: Method = Method::GET;
-  const PATH: &'static str = "/pool/requests";
+  const PATH: &'static str = "/seat-requests";
 
   async fn answer(&self, call: Call) -> Result<Response, Refused> {
     let owner = call.query("owner");
@@ -269,7 +297,7 @@ impl Route for PoolOpenRequests {
       .filter(|request| owner.as_ref().is_none_or(|owner| &request.owner == owner))
       .collect();
 
-    Ok(answer(StatusCode::OK, shown(open)?))
+    Ok(answer(StatusCode::OK, json!({ "items": shown(open)?, "more": false })))
   }
 }
 
@@ -280,7 +308,7 @@ pub struct PoolRoles;
 
 impl Route for PoolRoles {
   const METHOD: Method = Method::GET;
-  const PATH: &'static str = "/pool/roles";
+  const PATH: &'static str = "/roles";
 
   async fn answer(&self, call: Call) -> Result<Response, Refused> {
     let db = call.store();
@@ -298,7 +326,7 @@ impl Route for PoolRoles {
       }));
     }
 
-    Ok(answer(StatusCode::OK, json!(listed)))
+    Ok(answer(StatusCode::OK, json!({ "items": listed, "more": false })))
   }
 }
 
@@ -341,14 +369,12 @@ impl Route for PlaceWrite {
   }
 }
 
-crate::moved!(PlaceWrite);
-
 /// A branch's place in its order's pool of standing checkouts, taken.
 pub struct PlaceTake;
 
 impl Route for PlaceTake {
   const METHOD: Method = Method::POST;
-  const PATH: &'static str = "/places/take";
+  const PATH: &'static str = "/places";
 
   async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
     let body = call.body().await?;
@@ -362,8 +388,12 @@ impl Route for PlaceTake {
       .await
       .map_err(refused)?;
     let cwd = places::slot_cwd(call.ground(), asked.cwd, slot).await;
+    let path = cwd.to_string_lossy().into_owned();
 
-    Ok(answer(StatusCode::OK, json!({ "slot": slot, "cwd": cwd.to_string_lossy() })))
+    Ok(answer(
+      StatusCode::CREATED,
+      json!({ "id": path, "path": path, "nodeName": Value::Null, "slot": slot, "role": body.get("role").cloned(), "state": "taken", "lastWrite": Value::Null }),
+    ))
   }
 }
 
@@ -386,8 +416,6 @@ impl Route for PlacePrepare {
     Ok(answer(StatusCode::OK, json!({ "ok": true })))
   }
 }
-
-crate::moved!(PlacePrepare);
 
 /// What a finished branch left in its place, recorded.
 pub struct PlaceRemember;
@@ -420,8 +448,6 @@ impl Route for PlaceRemember {
   }
 }
 
-crate::moved!(PlaceRemember);
-
 /// What stands in herdr for the places an ended order worked in that no task still sits in, taken down.
 pub struct PlacesRetire;
 
@@ -443,18 +469,178 @@ impl Route for PlacesRetire {
   }
 }
 
-crate::moved!(PlacesRetire);
+/// The places taken, by node and checkout.
+pub struct PlaceList;
+
+impl Route for PlaceList {
+  const METHOD: Method = Method::GET;
+  const PATH: &'static str = "/places";
+
+  async fn answer(&self, call: Call) -> Result<Response, Refused> {
+    let rows = store::all(
+      call.store(),
+      r#"SELECT "place", "provider", "model", "effort", "upstream", "written_at"
+         FROM "coworker_pool_place_writes" ORDER BY "place""#,
+      vec![],
+    )
+    .await?;
+    let items: Vec<Value> = rows
+      .iter()
+      .map(|row| {
+        let place: String = row.try_get("", "place")?;
+        Ok::<_, sea_orm::DbErr>(json!({
+          "id": place,
+          "path": place,
+          "nodeName": Value::Null,
+          "slot": Value::Null,
+          "role": Value::Null,
+          "state": "remembered",
+          "lastWrite": {
+            "provider": row.try_get::<String>("", "provider")?,
+            "model": row.try_get::<String>("", "model")?,
+            "effort": row.try_get::<Option<String>>("", "effort")?,
+            "upstream": row.try_get::<Option<String>>("", "upstream")?,
+            "writtenAt": row.try_get::<i64>("", "written_at")?,
+          },
+        }))
+      })
+      .collect::<Result<Vec<_>, _>>()?;
+
+    Ok(answer(StatusCode::OK, json!({ "items": items, "more": false })))
+  }
+}
+
+crate::moved!(PlaceList);
+
+/// One place by its key.
+pub struct ReadPlace;
+
+impl Route for ReadPlace {
+  const METHOD: Method = Method::GET;
+  const PATH: &'static str = "/places/{placeId}";
+
+  async fn answer(&self, call: Call) -> Result<Response, Refused> {
+    let place = call.param("placeId").unwrap_or_default();
+    let row = store::one(
+      call.store(),
+      r#"SELECT "place", "provider", "model", "effort", "upstream", "written_at"
+         FROM "coworker_pool_place_writes" WHERE "place" = $1"#,
+      vec![place.into()],
+    )
+    .await?;
+
+    let Some(row) = row else {
+      return Err(Refused::new(StatusCode::NOT_FOUND, format!("no place is named {place}")));
+    };
+
+    Ok(answer(
+      StatusCode::OK,
+      json!({
+        "id": place,
+        "path": place,
+        "nodeName": Value::Null,
+        "slot": Value::Null,
+        "role": Value::Null,
+        "state": "remembered",
+        "lastWrite": {
+          "provider": row.try_get::<String>("", "provider")?,
+          "model": row.try_get::<String>("", "model")?,
+          "effort": row.try_get::<Option<String>>("", "effort")?,
+          "upstream": row.try_get::<Option<String>>("", "upstream")?,
+          "writtenAt": row.try_get::<i64>("", "written_at")?,
+        },
+      }),
+    ))
+  }
+}
+
+crate::moved!(ReadPlace);
+
+/// A place laid, remembered or retired, or its last write recorded.
+pub struct ChangePlace;
+
+impl Route for ChangePlace {
+  const METHOD: Method = Method::PATCH;
+  const PATH: &'static str = "/places/{placeId}";
+
+  async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
+    let place = call.param("placeId").unwrap_or_default().to_owned();
+    let body = call.body().await?;
+
+    match body.get("state").and_then(Value::as_str) {
+      Some("prepared") => {
+        places::prepare_slot(text(&body, "source")?, Path::new(text(&body, "cwd")?))
+          .await
+          .map_err(refused)?;
+      }
+      Some("remembered") => {
+        let slot = body
+          .get("slot")
+          .and_then(whole)
+          .ok_or_else(|| bad("slot (a whole number) is required"))?;
+        places::remember_slot(
+          call.ground(),
+          text(&body, "cwd")?,
+          slot,
+          text(&body, "role")?,
+          optional(&body, "mode"),
+          optional(&body, "model"),
+          optional(&body, "effort"),
+          optional(&body, "upstream"),
+        )
+        .await
+        .map_err(refused)?;
+      }
+      Some("retired") => {
+        let used: Vec<i64> = body
+          .get("used")
+          .and_then(Value::as_array)
+          .map(|used| used.iter().filter_map(whole).collect())
+          .unwrap_or_default();
+        places::retire_places(call.ground(), text(&body, "cwd")?, &used, &held(&body)).await;
+      }
+      _ => {
+        run(
+          call.store(),
+          r#"INSERT INTO "coworker_pool_place_writes" ("place", "provider", "model", "effort", "upstream", "written_at")
+             VALUES ($1, $2, $3, $4, $5, $6)
+             ON CONFLICT ("place") DO UPDATE SET "provider" = excluded."provider", "model" = excluded."model",
+               "effort" = excluded."effort", "upstream" = excluded."upstream",
+               "written_at" = GREATEST("coworker_pool_place_writes"."written_at", excluded."written_at")"#,
+          vec![
+            place.clone().into(),
+            text(&body, "provider")?.into(),
+            text(&body, "model")?.into(),
+            optional(&body, "effort").unwrap_or_default().into(),
+            optional(&body, "upstream").into(),
+            now_ms().into(),
+          ],
+        )
+        .await?;
+      }
+    }
+
+    let state = body.get("state").and_then(Value::as_str).unwrap_or("taken");
+
+    Ok(answer(
+      StatusCode::OK,
+      json!({ "id": place, "path": place, "nodeName": Value::Null, "slot": Value::Null, "role": Value::Null, "state": state, "lastWrite": body.get("lastWrite").cloned().unwrap_or(Value::Null) }),
+    ))
+  }
+}
+
+crate::moved!(ChangePlace);
 
 /// A worker's workbench folder, with every item's scratch folder standing under it now, in item order.
 pub struct Workbench;
 
 impl Route for Workbench {
   const METHOD: Method = Method::GET;
-  const PATH: &'static str = "/places/workbench/{worker}";
+  const PATH: &'static str = "/workers/{workerName}/workbench";
 
   async fn answer(&self, call: Call) -> Result<Response, Refused> {
     let worker = call
-      .param("worker")
+      .param("workerName")
       .filter(|worker| !worker.is_empty())
       .ok_or_else(|| bad("a worker is required"))?;
     let root = dev::workbench(call.ground(), worker);

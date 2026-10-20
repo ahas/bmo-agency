@@ -25,7 +25,7 @@ async fn a_worker_the_verb_removed_is_read_off_the_servers_event_stream() {
 
   let server = standing::stand_server(home.path(), &data, &scratch.address(), token);
   let mut stream = reqwest::Client::new()
-    .get(format!("http://127.0.0.1:{}/events?kinds=worker-removed", server.port))
+    .get(format!("http://127.0.0.1:{}/events?kinds=worker.deleted", server.port))
     .bearer_auth(token)
     .send()
     .await
@@ -70,6 +70,6 @@ async fn a_worker_the_verb_removed_is_read_off_the_servers_event_stream() {
   .await;
 
   assert!(found.is_ok(), "the stream said: {read}");
-  assert!(read.contains("event: worker-removed"), "{read}");
+  assert!(read.contains("event: worker.deleted"), "{read}");
   assert!(read.contains(r#""worker":"removable""#), "{read}");
 }

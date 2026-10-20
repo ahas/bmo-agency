@@ -22,7 +22,7 @@ pub struct WorkerRemoved {
 }
 
 impl Event for WorkerRemoved {
-  const NAME: &'static str = "worker-removed";
+  const NAME: &'static str = "worker.deleted";
 }
 
 /// The worker every agent built on the job base has; the store's rows default to it.

@@ -132,9 +132,13 @@ async fn a_run_s_runner_is_left_under_its_unit_and_one_the_host_refused_closes_i
   });
   let started = format!("/runs/{}", ids[0]);
   let refused = format!("/runs/{}", ids[1]);
+  let mut first = launch.clone();
+  first["runId"] = json!(ids[0]);
+  let mut second = launch.clone();
+  second["runId"] = json!(ids[1]);
 
   // A runner the host started leaves its run open for the runner to close, its execution rooted on the unit.
-  assert_eq!(post(port, token, &format!("{started}/launch"), launch.clone()).await.0, 204);
+  assert_eq!(post(port, token, "/executions", first.clone()).await.0, 201);
   assert_eq!(get(port, token, &started).await.1["outcome"], Value::Null);
   assert_eq!(
     scratch
@@ -148,7 +152,7 @@ async fn a_run_s_runner_is_left_under_its_unit_and_one_the_host_refused_closes_i
   );
 
   // A runner the host did not start closes its run as an error and says why.
-  let (status, said) = post(port, token, &format!("{refused}/launch"), launch.clone()).await;
+  let (status, said) = post(port, token, "/executions", second.clone()).await;
 
   assert_eq!(status, 503, "{said}");
   assert!(said["error"].as_str().unwrap().contains("launch-error"), "{said}");
@@ -156,7 +160,7 @@ async fn a_run_s_runner_is_left_under_its_unit_and_one_the_host_refused_closes_i
   let (_, closed) = get(port, token, &refused).await;
 
   assert_eq!(closed["outcome"], "error");
-  assert!(closed["finished_at"].as_i64().is_some(), "{closed}");
+  assert!(closed["endedAt"].as_i64().is_some(), "{closed}");
 
   let asked = host.await.unwrap();
 
@@ -174,15 +178,14 @@ async fn a_run_s_runner_is_left_under_its_unit_and_one_the_host_refused_closes_i
   );
 
   // A closed run starts nothing, a run with no row is nothing held, and a launch with no program is refused.
-  assert_eq!(post(port, token, &format!("{refused}/launch"), launch.clone()).await.0, 409);
-  assert_eq!(
-    post(port, token, &format!("/runs/{}/launch", ids[1] + 1_000), launch.clone()).await.1["code"],
-    "nothing-held"
-  );
+  assert_eq!(post(port, token, "/executions", second).await.0, 409);
+  let mut missing = launch.clone();
+  missing["runId"] = json!(ids[1] + 1_000);
+  assert_eq!(post(port, token, "/executions", missing).await.1["code"], "not-found");
 
-  let mut nameless = launch.clone();
+  let mut nameless = first.clone();
 
   nameless["command"]["program"] = json!(" ");
-  assert_eq!(post(port, token, &format!("{started}/launch"), nameless).await.0, 400);
-  assert_eq!(post(port, token, &format!("{started}/launch"), json!({ "title": "t" })).await.0, 400);
+  assert_eq!(post(port, token, "/executions", nameless).await.0, 400);
+  assert_eq!(post(port, token, "/executions", json!({ "title": "t" })).await.0, 400);
 }

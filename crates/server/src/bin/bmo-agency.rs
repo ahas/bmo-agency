@@ -9,6 +9,7 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
+use agency_server::mcp::AgencyServer;
 use agency_server::verbs::agents::{self, AgentsArgs};
 use agency_server::verbs::claude_batch::{self, ClaudeBatch};
 use agency_server::verbs::dev_servers::{self, DevAction};
@@ -21,8 +22,11 @@ use agency_server::verbs::{
   Answer, VerbError, agent_status, claude_token, code_tree, companion_follow, coworker_pool, deploy_link,
   live_claude, node_pane, turns,
 };
+use bmo_agency_client::AgencyClient;
 use clap::{Parser, Subcommand};
 use harness_providers::Machine;
+use rmcp::ServiceExt;
+use rmcp::transport::stdio;
 
 #[derive(Parser)]
 #[command(
@@ -153,6 +157,17 @@ enum Verb {
     #[arg(long, env = "BMO_DATA_DIR")]
     data_root: Option<PathBuf>,
   },
+  /// The harness plugin's MCP server on standard input and output, calling the agency at one address.
+  Mcp {
+    /// The base address the agency's routes stand at; the control port where none is named.
+    #[arg(long, env = "AGENCY_URL")]
+    url: Option<String>,
+    /// The agency's bearer token.
+    #[arg(long, env = "AGENCY_CONTROL_TOKEN", hide_env_values = true)]
+    token: Option<String>,
+  },
+  /// Prints the OpenAPI document.
+  Openapi,
 }
 
 #[derive(Subcommand)]
@@ -415,6 +430,38 @@ async fn run(verb: Verb) -> ExitCode {
       request,
       data_root: named,
     } => ended(turns::host_run(&named.unwrap_or(data_root), &request).await),
+    Verb::Mcp { url, token } => mcp(url, token).await,
+    Verb::Openapi => {
+      print!("{}", agency_server::openapi::openapi_json());
+      ExitCode::SUCCESS
+    }
+  }
+}
+
+async fn mcp(url: Option<String>, token: Option<String>) -> ExitCode {
+  let port = std::env::var("AGENCY_CONTROL_PORT")
+    .ok()
+    .and_then(|port| port.trim().parse::<u16>().ok())
+    .unwrap_or(agency_server::verbs::DEFAULT_CONTROL_PORT);
+  let url = url.unwrap_or_else(|| format!("http://127.0.0.1:{port}"));
+  let token = token.unwrap_or_default();
+  let client = match AgencyClient::new(&url, token) {
+    Ok(client) => client,
+    Err(why) => {
+      eprintln!("bmo-agency mcp: {why}");
+      return ExitCode::FAILURE;
+    }
+  };
+  let server = AgencyServer::new(client);
+  match server.serve(stdio()).await {
+    Ok(service) => {
+      let _ = service.waiting().await;
+      ExitCode::SUCCESS
+    }
+    Err(why) => {
+      eprintln!("bmo-agency mcp: {why}");
+      ExitCode::FAILURE
+    }
   }
 }
 

@@ -79,9 +79,9 @@ async fn a_seat_is_kept_under_its_caller_s_own_source_and_work_key() {
 
   // A research line's seat: kept under its own label and key, and the same one asked again by its token.
   let (status, research) =
-    post(port, token, "/pool/enqueue", seat(Some("search"), "research:1:0", Some("search"))).await;
+    post(port, token, "/seat-requests", seat(Some("search"), "research:1:0", Some("search"))).await;
 
-  assert_eq!(status, 200, "{research}");
+  assert_eq!(status, 201, "{research}");
   assert_eq!(
     (&research["source"], &research["workKey"], &research["tier"], &research["turn"]),
     (&json!("search"), &json!("search"), &json!("Light"), &json!(false))
@@ -91,12 +91,12 @@ async fn a_seat_is_kept_under_its_caller_s_own_source_and_work_key() {
 
   again["token"] = research["token"].clone();
 
-  let (status, kept) = post(port, token, "/pool/enqueue", again).await;
+  let (status, kept) = post(port, token, "/seat-requests", again).await;
 
-  assert_eq!((status, &kept["token"]), (200, &research["token"]), "{kept}");
+  assert_eq!((status, &kept["token"]), (201, &research["token"]), "{kept}");
 
   // A co-work branch's seat with no source or key named, and a builder turn's place, as before.
-  let (_, cowork) = post(port, token, "/pool/enqueue", seat(None, "order:1:0", None)).await;
+  let (_, cowork) = post(port, token, "/seat-requests", seat(None, "order:1:0", None)).await;
 
   assert_eq!(
     (&cowork["source"], &cowork["workKey"]),
@@ -108,9 +108,9 @@ async fn a_seat_is_kept_under_its_caller_s_own_source_and_work_key() {
 
   turn["placeKey"] = json!("checkout:1");
 
-  let (status, place) = post(port, token, "/pool/enqueue", turn).await;
+  let (status, place) = post(port, token, "/seat-requests", turn).await;
 
-  assert_eq!(status, 200, "{place}");
+  assert_eq!(status, 201, "{place}");
   assert_eq!(
     (&place["source"], &place["workKey"], &place["turn"]),
     (&json!("worker"), &json!("role:tracer"), &json!(true))
@@ -118,7 +118,7 @@ async fn a_seat_is_kept_under_its_caller_s_own_source_and_work_key() {
 
   // A label that is no label is refused.
   assert_eq!(
-    post(port, token, "/pool/enqueue", seat(Some("Not A Label"), "research:1:1", None))
+    post(port, token, "/seat-requests", seat(Some("Not A Label"), "research:1:1", None))
       .await
       .0,
     422
@@ -138,15 +138,15 @@ async fn a_seat_is_kept_under_its_caller_s_own_source_and_work_key() {
     asked
   };
   let (status, held) =
-    post(port, token, "/pool/reserve", reserve("research:1:seats", Some("search"))).await;
+    post(port, token, "/reservations", reserve("research:1:seats", Some("search"))).await;
 
   assert_eq!(
     (status, &held["workKey"], &held["source"]),
-    (200, &json!("search"), &json!("search")),
+    (201, &json!("search"), &json!("search")),
     "{held}"
   );
 
-  let (_, plain) = post(port, token, "/pool/reserve", reserve("research:2:seats", None)).await;
+  let (_, plain) = post(port, token, "/reservations", reserve("research:2:seats", None)).await;
 
   assert_eq!(plain["workKey"], json!("role:tracer"), "{plain}");
 }

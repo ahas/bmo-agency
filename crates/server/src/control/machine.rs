@@ -14,7 +14,7 @@ pub struct MachineRoom;
 
 impl Route for MachineRoom {
   const METHOD: Method = Method::GET;
-  const PATH: &'static str = "/machine/room";
+  const PATH: &'static str = "/launch-room";
 
   async fn answer(&self, call: Call) -> Result<Response, Refused> {
     let ground = call.ground();
@@ -30,8 +30,8 @@ crate::moved!(MachineRoom);
 pub struct LaunchHeldTold;
 
 impl Route for LaunchHeldTold {
-  const METHOD: Method = Method::POST;
-  const PATH: &'static str = "/machine/launch-held";
+  const METHOD: Method = Method::PATCH;
+  const PATH: &'static str = "/launch-room";
 
   async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
     let body = call.body().await?;

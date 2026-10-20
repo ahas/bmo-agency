@@ -796,8 +796,6 @@ impl Route for RegistryView {
   }
 }
 
-crate::moved!(RegistryView);
-
 /// One change: a registration made or saved, an address set or removed, or a registration removed,
 /// answered with the registry as it then stands.
 pub struct RegistryChange;
@@ -867,5 +865,3 @@ pub async fn change(
     Err(Fault::Failed(failed)) => Err(failed),
   }
 }
-
-crate::moved!(RegistryChange);

@@ -97,7 +97,7 @@ composed into a system prompt, and what the chat agent's own prompt is made of.
   works at all, and it says when to act.
 - **The procedure documents:** how to run a command that is needed only at the moment it is run —
   deploying, folding and reloading, the send scripts and their media, watches, running a web search,
-  filing and managing TODO items, changing a work order, opening and stopping a word-chain game, a
+  filing and managing TODO items, changing a work order, a
   fair draw — is in `prompts/agents/chat/procedures/`, one document each, which the session reads
   right before running the command.
   - It reads one as a resource, `bmo://procedure/<name>`, which agency's procedures tool serves

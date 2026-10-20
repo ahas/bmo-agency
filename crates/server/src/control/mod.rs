@@ -44,7 +44,9 @@ pub mod stand_ins;
 pub mod tiers;
 pub mod typed_line;
 mod walk_reads;
+pub mod work;
 mod worker;
+pub mod worker_api;
 mod worker_runtime;
 mod worker_words;
 mod workers_routes;
@@ -147,6 +149,9 @@ pub fn route_faults() -> Vec<String> {
 pub struct Refused {
   pub status: StatusCode,
   pub error: String,
+  /// The code the route answers with where it is not the status's own: a rule of its own, as
+  /// `no-worker-free`.
+  pub code: Option<String>,
 }
 
 impl Refused {
@@ -155,7 +160,14 @@ impl Refused {
     Self {
       status,
       error: error.into(),
+      code: None,
     }
+  }
+
+  /// The same refusal under a code of the route's own.
+  pub fn with_code(mut self, code: impl Into<String>) -> Self {
+    self.code = Some(code.into());
+    self
   }
 
   /// What a route answers for a failure it did not expect: 400, with the failure's own words.
@@ -163,17 +175,21 @@ impl Refused {
     Self {
       status: StatusCode::BAD_REQUEST,
       error: error.to_string(),
+      code: None,
     }
   }
 
-  /// The status as a kebab-case code: `bad-request`, `not-found`.
+  /// The code it is answered with: the route's own where it named one, the status's kebab-case reason
+  /// otherwise.
   pub fn code(&self) -> String {
-    self
-      .status
-      .canonical_reason()
-      .unwrap_or("failed")
-      .to_lowercase()
-      .replace([' ', '\''], "-")
+    self.code.clone().unwrap_or_else(|| {
+      self
+        .status
+        .canonical_reason()
+        .unwrap_or("failed")
+        .to_lowercase()
+        .replace([' ', '\''], "-")
+    })
   }
 }
 

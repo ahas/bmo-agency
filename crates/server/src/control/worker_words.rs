@@ -1,3 +1,11 @@
+#![allow(
+  dead_code,
+  unused_imports,
+  unused_variables,
+  clippy::needless_lifetimes,
+  clippy::let_and_return,
+  clippy::unnecessary_to_owned
+)]
 //! Words said to a worker across the boundary (docs/api.md, 「Workers」): written down with their line in the
 //! worker's log and offered to the worker's session at once, whether or not a turn of its own is working.
 
@@ -38,5 +46,3 @@ impl Route for SayWords {
     Ok(StatusCode::NO_CONTENT.into_response())
   }
 }
-
-crate::moved!(SayWords);

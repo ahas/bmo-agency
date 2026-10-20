@@ -186,7 +186,7 @@ pub struct DeploymentResting {
 }
 
 impl Event for DeploymentResting {
-  const NAME: &'static str = "deployment-resting";
+  const NAME: &'static str = "rest.changed";
 }
 
 impl DeploymentResting {

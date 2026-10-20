@@ -46,40 +46,29 @@ async fn a_running_server_answers_whether_a_stand_in_answers_and_carries_an_edit
   let port = server.port;
 
   // Claude Code stands open and no stand-in is pinned, so none answers for the agent.
-  assert_eq!(get(port, token, "/stand-in?agent=chat-agent").await, (200, json!({ "answers": false })));
-  assert_eq!(get(port, token, "/stand-in").await.0, 400);
+  assert_eq!(get(port, token, "/agents/chat-agent").await.1["standInAvailable"], json!(false));
 
-  let (status, started) = post(
-    port,
-    token,
-    "/session/start",
-    json!({ "agent": "digest", "scope": { "kind": "editor" } }),
-  )
-  .await;
+  let (status, started) =
+    post(port, token, "/sessions", json!({ "agentName": "digest", "scope": "editor" })).await;
 
-  assert_eq!(status, 200, "{started}");
+  assert_eq!(status, 201, "{started}");
   assert_eq!(started["id"], "digest@editor");
-  assert_eq!(started["scope"], json!({ "kind": "editor" }));
+  assert_eq!(started["scope"], json!("editor"));
 
-  let (status, refused) = post(
-    port,
-    token,
-    "/session/start",
-    json!({ "agent": "worker", "scope": { "kind": "editor" } }),
-  )
-  .await;
+  let (status, refused) =
+    post(port, token, "/sessions", json!({ "agentName": "worker", "scope": "editor" })).await;
 
   assert_eq!((status, refused["code"].as_str()), (422, Some("backend-refused")));
 
   // The brain under the server's data root is no repository, so the session's state says why.
-  let (status, state) = get(port, token, "/session/state?session=digest@editor").await;
+  let (status, state) = get(port, token, "/sessions/digest@editor").await;
 
   assert_eq!(status, 422, "{state}");
   assert!(state["error"].as_str().unwrap().contains("no repository"), "{state}");
 
   std::fs::create_dir_all(data.join("brain").join(".git")).unwrap();
 
-  let (status, state) = get(port, token, "/session/state?session=digest@editor").await;
+  let (status, state) = get(port, token, "/sessions/digest@editor").await;
 
   assert_eq!(status, 200, "{state}");
   assert_eq!(state["provider"], "claude-code");

@@ -72,14 +72,18 @@ async fn a_running_server_lists_reads_and_takes_back_the_cancels_of_a_run_tree()
   // Listed the latest first, open only where asked; the tree under the cancelled top reads as cancelled.
   let (status, open) = ask(port, token, Method::GET, "/executions?open=true").await;
 
-  assert_eq!((status, ids(&open)), (200, vec!["exec-other", "exec-child", "exec-top"]), "{open}");
+  assert_eq!(
+    (status, ids(&open["items"])),
+    (200, vec!["exec-other", "exec-child", "exec-top"]),
+    "{open}"
+  );
 
   let (status, every) = ask(port, token, Method::GET, "/executions?open=false").await;
 
   assert_eq!(status, 200, "{every}");
-  assert_eq!(ids(&every), ["exec-other", "exec-done", "exec-child", "exec-top"]);
+  assert_eq!(ids(&every["items"]), ["exec-other", "exec-done", "exec-child", "exec-top"]);
   assert_eq!(
-    every[1],
+    every["items"][1],
     json!({
       "id": "exec-done", "parent": "exec-child", "root": "place-a", "line": "native-child",
       "sharedPane": false, "startedAt": 1000, "endedAt": 2000, "outcome": { "state": "done" },
@@ -87,7 +91,7 @@ async fn a_running_server_lists_reads_and_takes_back_the_cancels_of_a_run_tree()
     })
   );
   assert_eq!(
-    every[0],
+    every["items"][0],
     json!({
       "id": "exec-other", "parent": "unit-b", "root": "place-b", "line": null, "sharedPane": false,
       "startedAt": null, "endedAt": null, "outcome": null, "cancelled": false,
@@ -106,19 +110,15 @@ async fn a_running_server_lists_reads_and_takes_back_the_cancels_of_a_run_tree()
 
   let (status, absent) = ask(port, token, Method::GET, "/executions/nobody").await;
 
-  assert_eq!((status, absent["code"].as_str()), (404, Some("nothing-held")), "{absent}");
+  assert_eq!((status, absent["code"].as_str()), (404, Some("not-found")), "{absent}");
 
   // The top's cancellations taken back with those of everything it owns, and none left to take again.
-  assert_eq!(
-    ask(port, token, Method::DELETE, "/executions/exec-top/cancel").await,
-    (200, json!({ "dropped": ["exec-child", "exec-top"] }))
-  );
+  let (status, taken) = ask(port, token, Method::PATCH, "/executions/exec-top").await;
+  assert_eq!((status, &taken["dropped"]), (200, &json!(["exec-child", "exec-top"])));
   assert_eq!(
     ask(port, token, Method::GET, "/executions/exec-done").await.1["cancelled"],
     json!(false)
   );
-  assert_eq!(
-    ask(port, token, Method::DELETE, "/executions/exec-top/cancel").await,
-    (200, json!({ "dropped": [] }))
-  );
+  let (status, taken) = ask(port, token, Method::PATCH, "/executions/exec-top").await;
+  assert_eq!((status, &taken["dropped"]), (200, &json!([])));
 }

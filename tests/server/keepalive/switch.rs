@@ -65,9 +65,9 @@ async fn front(scratch: &Scratch, home: &std::path::Path) -> u16 {
 
 async fn ask(port: u16, body: Option<Value>) -> (u16, Value) {
   let client = reqwest::Client::new();
-  let url = format!("http://127.0.0.1:{port}/keepalive");
+  let url = format!("http://127.0.0.1:{port}/settings");
   let request = match body {
-    Some(body) => client.post(url).json(&body),
+    Some(body) => client.patch(url).json(&body),
     None => client.get(url),
   };
   let answer = request.bearer_auth(TOKEN).send().await.unwrap();
@@ -81,22 +81,19 @@ async fn the_control_route_reads_and_throws_the_switch() {
   let home = tempfile::tempdir().unwrap();
   let port = front(&scratch, home.path()).await;
 
-  assert_eq!(ask(port, None).await, (200, json!({ "stopped": false })));
-  assert_eq!(ask(port, Some(json!({ "stopped": true }))).await, (200, json!({ "stopped": true })));
-  assert_eq!(ask(port, None).await, (200, json!({ "stopped": true })));
+  let settings = |stopped: bool| json!({ "keepaliveStopped": stopped, "downgradeReturn": null });
+  assert_eq!(ask(port, None).await, (200, settings(false)));
+  assert_eq!(ask(port, Some(json!({ "keepaliveStopped": true }))).await, (200, settings(true)));
+  assert_eq!(ask(port, None).await, (200, settings(true)));
   assert!(
     !switch::pings_go(scratch.db()).await.unwrap(),
     "the route throws the switch the pool reads"
   );
 
-  let (status, refused) = ask(port, Some(json!({ "stopped": "yes" }))).await;
+  let (status, refused) = ask(port, Some(json!({ "keepaliveStopped": "yes" }))).await;
 
   assert_eq!(status, 400);
   assert_eq!(refused["code"], "bad-request");
-  assert_eq!(
-    ask(port, None).await,
-    (200, json!({ "stopped": true })),
-    "a refused body changes nothing"
-  );
-  assert_eq!(ask(port, Some(json!({ "stopped": false }))).await, (200, json!({ "stopped": false })));
+  assert_eq!(ask(port, None).await, (200, settings(true)), "a refused body changes nothing");
+  assert_eq!(ask(port, Some(json!({ "keepaliveStopped": false }))).await, (200, settings(false)));
 }

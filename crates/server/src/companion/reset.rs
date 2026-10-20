@@ -16,7 +16,7 @@ pub struct CompanionCutOff {
 }
 
 impl Event for CompanionCutOff {
-  const NAME: &'static str = "companion-cut-off";
+  const NAME: &'static str = "companion-reset.created";
 }
 
 /// A companion's reset with agency's part taken: the ranges taken, the rooms it answers alone and those it
@@ -33,5 +33,5 @@ pub struct CompanionReset {
 }
 
 impl Event for CompanionReset {
-  const NAME: &'static str = "companion-reset";
+  const NAME: &'static str = "companion-reset.created";
 }

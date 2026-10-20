@@ -23,6 +23,12 @@
       "@agency/support/*": [
         "./support/*"
       ],
+      "@agency/client": [
+        "./client/src/index.ts"
+      ],
+      "@agency/client/schema": [
+        "./client/src/schema.ts"
+      ],
       "@agency/policy/*": [
         "../policy/*"
       ],
@@ -35,6 +41,7 @@
     "agent",
     "archive",
     "support",
+    "client",
     "../tests/ts"
   ]
 }

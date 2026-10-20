@@ -77,10 +77,10 @@ export function controlServer(): { port: number; token: string } | null {
 // once on the error stream.
 async function relayed(server: { port: number; token: string }, name: string, body: unknown): Promise<void> {
   try {
-    const answered = await fetch(`http://127.0.0.1:${server.port}/events/publish`, {
+    const answered = await fetch(`http://127.0.0.1:${server.port}/events`, {
       method: "POST",
       headers: { authorization: `Bearer ${server.token}`, "content-type": "application/json" },
-      body: JSON.stringify({ kind: name, body }),
+      body: JSON.stringify({ kind: name, data: body }),
       signal: AbortSignal.timeout(relayWaitMs),
     });
 

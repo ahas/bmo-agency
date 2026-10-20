@@ -7,7 +7,7 @@ use serde_json::json;
 
 #[test]
 fn a_limit_names_its_login_and_an_outage_none() {
-  assert_eq!(DeploymentResting::NAME, "deployment-resting");
+  assert_eq!(DeploymentResting::NAME, "rest.changed");
   assert_eq!(
     serde_json::to_value(DeploymentResting::of(RestKind::Limit, "spare", 1_790_000_000)).unwrap(),
     json!({ "account": "spare", "kind": "limit", "until": 1_790_000_000, "notice": REST.resting })

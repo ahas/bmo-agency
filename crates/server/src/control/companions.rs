@@ -837,7 +837,7 @@ impl Route for Companions {
 
   async fn answer(&self, call: Call) -> Result<Response, Refused> {
     match companions(call.store(), &call.ground().hooks, &roots(&call)).await {
-      Ok(shown) => Ok(answer(StatusCode::OK, Value::Array(shown))),
+      Ok(shown) => Ok(answer(StatusCode::OK, json!({ "items": shown, "more": false }))),
       Err(fault) => fault.answer(),
     }
   }
@@ -849,11 +849,11 @@ crate::moved!(Companions);
 pub struct CompanionChange;
 
 impl Route for CompanionChange {
-  const METHOD: Method = Method::POST;
-  const PATH: &'static str = "/companions";
+  const METHOD: Method = Method::PATCH;
+  const PATH: &'static str = "/companions/{companionName}";
 
   async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
-    let body = call.body().await?;
+    let mut body = call.body().await?;
 
     if !body.is_object() && !body.is_array() {
       return Err(Refused::new(StatusCode::BAD_REQUEST, CONTROL_WORDS.request.action.as_str()));
@@ -861,6 +861,9 @@ impl Route for CompanionChange {
 
     let roots = roots(&call);
     let db = call.store();
+    if body.get("agent").is_none() {
+      body["agent"] = json!(call.param("companionName").unwrap_or_default());
+    }
     let agent = body.get("agent").and_then(Value::as_str).unwrap_or_default().to_owned();
     let by = asked_by(&body);
     let written = db.begin().await?;

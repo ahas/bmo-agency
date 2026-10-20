@@ -1,3 +1,11 @@
+#![allow(
+  dead_code,
+  unused_imports,
+  unused_variables,
+  clippy::needless_lifetimes,
+  clippy::let_and_return,
+  clippy::unnecessary_to_owned
+)]
 //! A worker's own sampling (docs/own-llm.md, 「A worker pinned to a provider」): the settings it takes with
 //! their bounds, the values it holds, and a save of them, kept in the store's settings under its name. A
 //! support worker runs on its base's, so only a worker of its own holds any. A save stands the pinned
@@ -24,7 +32,7 @@ const ANSWER_CEILING: &str = "max_tokens";
 // bounds.
 const WHOLE: &str = "sampling";
 
-fn key(agent: &str) -> String {
+pub fn key(agent: &str) -> String {
   format!("agent_sampling:{agent}")
 }
 
@@ -38,7 +46,7 @@ fn sampling_settings() -> Vec<Value> {
 }
 
 // What a stored sampling holds: every entry whose value is a finite number or a switch.
-fn held_values(text: Option<String>) -> Map<String, Value> {
+pub fn held_values(text: Option<String>) -> Map<String, Value> {
   let Some(Value::Object(read)) = text.and_then(|text| serde_json::from_str(&text).ok()) else {
     return Map::new();
   };
@@ -50,7 +58,7 @@ fn held_values(text: Option<String>) -> Map<String, Value> {
 }
 
 // The worker a name stands for, where it holds sampling of its own: its name as the store keeps it.
-async fn sampling_owner(db: &DatabaseConnection, name: &str) -> Result<String, Fault> {
+pub async fn sampling_owner(db: &DatabaseConnection, name: &str) -> Result<String, Fault> {
   let words = &CONTROL_WORDS.workers.sampling;
   let Some(row) = one(
     db,
@@ -74,7 +82,7 @@ async fn sampling_owner(db: &DatabaseConnection, name: &str) -> Result<String, F
   Ok(row.try_get("", "name")?)
 }
 
-async fn view(db: &DatabaseConnection, agent: &str) -> Result<Value, Fault> {
+pub async fn view(db: &DatabaseConnection, agent: &str) -> Result<Value, Fault> {
   let values = held_values(settings::get(db, &key(agent)).await?);
 
   Ok(json!({ "agent": agent, "settings": sampling_settings(), "values": values }))
@@ -82,7 +90,7 @@ async fn view(db: &DatabaseConnection, agent: &str) -> Result<Value, Fault> {
 
 // The settings a save names laid over the held ones: each a value its setting takes, or null to leave it to
 // the engine. One out of its bounds refuses the whole save.
-fn changed(asked: &Value, mut held: Map<String, Value>) -> Result<Map<String, Value>, Fault> {
+pub fn changed(asked: &Value, mut held: Map<String, Value>) -> Result<Map<String, Value>, Fault> {
   let words = &CONTROL_WORDS.workers.sampling;
   let Value::Object(asked) = asked else {
     return refused(WHOLE, words.shape.clone());
@@ -127,8 +135,6 @@ impl Route for AgentSampling {
   }
 }
 
-crate::moved!(AgentSampling);
-
 /// A worker's own sampling saved, answered as it then stands.
 pub struct AgentSamplingSave;
 
@@ -162,5 +168,3 @@ impl Route for AgentSamplingSave {
     }
   }
 }
-
-crate::moved!(AgentSamplingSave);

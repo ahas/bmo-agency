@@ -1,3 +1,11 @@
+#![allow(
+  dead_code,
+  unused_imports,
+  unused_variables,
+  clippy::needless_lifetimes,
+  clippy::let_and_return,
+  clippy::unnecessary_to_owned
+)]
 //! A job worker added, changed or removed (docs/worker-slots.md; docs/api.md, 「Workers」). The store is
 //! the catalogue, so the rows and the checks of the request are answered here, a pin judged against what
 //! the providers that would run it declare among them, and the pinned workers' programs stood again after
@@ -72,8 +80,6 @@ impl Route for WorkerChange {
   }
 }
 
-crate::moved!(WorkerChange);
-
 /// The pinned workers' programs stood again (docs/agent-control.md, 「A worker standing with nothing to
 /// do」): what is asked where a change — a worker's own sampling saved, a `workers` word — asks for the
 /// pass. Refused where the server stands no places; answered at once, the pass not waited on, a lock still
@@ -99,8 +105,6 @@ impl Route for WorkersStand {
     Ok(ok())
   }
 }
-
-crate::moved!(WorkersStand);
 
 /// Where a worker's checkouts stand on the nodes (docs/work-nodes.md; docs/worker-slots.md): a base's
 /// checkout on a node added or removed, or a worker of its own stood on a node with its path there, or
@@ -149,8 +153,6 @@ impl Route for WorkerNode {
     }
   }
 }
-
-crate::moved!(WorkerNode);
 
 // A worker of its own stood on a node, or brought back to this machine at the path given here.
 async fn place(

@@ -1,3 +1,11 @@
+#![allow(
+  dead_code,
+  unused_imports,
+  unused_variables,
+  clippy::needless_lifetimes,
+  clippy::let_and_return,
+  clippy::unnecessary_to_owned
+)]
 //! The two catalogues a fallback stand-in is picked from (docs/provider-presence.md): the one bundled with
 //! the installed Codex executable, and OpenRouter's public listing. Neither reads the store.
 
@@ -24,8 +32,6 @@ impl Route for CodexModels {
   }
 }
 
-crate::moved!(CodexModels);
-
 /// Every model OpenRouter lists; the listing needs no key.
 pub struct OpenRouterModels;
 
@@ -40,5 +46,3 @@ impl Route for OpenRouterModels {
     }
   }
 }
-
-crate::moved!(OpenRouterModels);

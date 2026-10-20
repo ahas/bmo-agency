@@ -20,7 +20,7 @@ async fn get(port: u16, token: &str, path: &str) -> (u16, Value) {
 
 async fn put(port: u16, token: &str, path: &str, body: Value) -> u16 {
   reqwest::Client::new()
-    .put(format!("http://127.0.0.1:{port}{path}"))
+    .patch(format!("http://127.0.0.1:{port}{path}"))
     .bearer_auth(token)
     .json(&body)
     .send()
@@ -75,7 +75,7 @@ async fn a_running_server_reads_the_pool_s_requests_and_roles_and_keeps_a_place_
     .await;
 
   // One request by its token, ended or not, and nothing held for a token no request holds.
-  let (status, request) = get(port, token, "/pool/requests/t-2").await;
+  let (status, request) = get(port, token, "/seat-requests/t-2").await;
 
   assert_eq!(status, 200, "{request}");
   assert_eq!(
@@ -88,20 +88,24 @@ async fn a_running_server_reads_the_pool_s_requests_and_roles_and_keeps_a_place_
     ),
     (&json!("k-2"), &json!("active"), &json!("role:tracer"), &json!("unit-2"), &json!(false))
   );
-  assert_eq!(get(port, token, "/pool/requests/t-4").await.1["state"], json!("released"));
+  assert_eq!(get(port, token, "/seat-requests/t-4").await.1["state"], json!("released"));
 
-  let (status, absent) = get(port, token, "/pool/requests/nobody").await;
+  let (status, absent) = get(port, token, "/seat-requests/nobody").await;
 
-  assert_eq!((status, absent["code"].as_str()), (404, Some("nothing-held")), "{absent}");
+  assert_eq!((status, absent["code"].as_str()), (404, Some("not-found")), "{absent}");
 
   // The open requests in the order they came, an owner's alone where one is named.
-  let (_, open) = get(port, token, "/pool/requests").await;
+  let (_, open) = get(port, token, "/seat-requests").await;
 
-  assert_eq!(tokens(&open), ["t-1", "t-2", "t-3"]);
-  assert_eq!(tokens(&get(port, token, "/pool/requests?owner=order:1").await.1), ["t-1", "t-2"]);
+  assert_eq!(tokens(&open["items"]), ["t-1", "t-2", "t-3"]);
+  assert_eq!(
+    tokens(&get(port, token, "/seat-requests?owner=order:1").await.1["items"]),
+    ["t-1", "t-2"]
+  );
 
   // The roles with the tier their assignment names, empty where none does.
-  let (_, roles) = get(port, token, "/pool/roles").await;
+  let (_, roles) = get(port, token, "/roles").await;
+  let roles = &roles["items"];
   let role = |name: &str| roles.as_array().unwrap().iter().find(|one| one["name"] == name).cloned();
 
   assert_eq!(
@@ -113,11 +117,11 @@ async fn a_running_server_reads_the_pool_s_requests_and_roles_and_keeps_a_place_
   assert_eq!(role("drafter").map(|one| one["tier"].clone()), Some(json!("")));
 
   // A place's write kept, a later one replacing what it was written with.
-  let place = "/pool/places/branch-line:codex:m:low/write";
+  let place = "/places/branch-line:codex:m:low";
 
   assert_eq!(
     put(port, token, place, json!({ "provider": "codex", "model": "m", "effort": "low" })).await,
-    204
+    200
   );
   assert_eq!(
     put(
@@ -127,7 +131,7 @@ async fn a_running_server_reads_the_pool_s_requests_and_roles_and_keeps_a_place_
       json!({ "provider": "codex", "model": "m", "effort": null, "upstream": "up-1" })
     )
     .await,
-    204
+    200
   );
   assert_eq!(
     scratch

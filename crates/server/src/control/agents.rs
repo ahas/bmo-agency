@@ -46,11 +46,55 @@ impl Route for Agents {
       agents.push(agent_view(judging, call.machine(), &Agent::of(row)?).await?);
     }
 
-    Ok(answer(StatusCode::OK, json!({ "agents": agents, "roles": roles_view() })))
+    Ok(answer(StatusCode::OK, json!({ "items": agents, "roles": roles_view(), "more": false })))
   }
 }
 
 crate::moved!(Agents);
+
+/// One agent's row as the boundary answers it, reset point and stand-in included.
+pub async fn view_named(
+  db: &DatabaseConnection,
+  ground: &crate::places::Ground,
+  machine: &Machine,
+  name: &str,
+) -> Result<Value, Refused> {
+  let row = store::one(db, r#"SELECT * FROM "agents" WHERE "name" = $1"#, vec![name.into()])
+    .await?
+    .ok_or_else(|| Refused::new(StatusCode::NOT_FOUND, format!("no agent is named {name}")))?;
+  let agent = Agent::of(&row)?;
+  let judging = Judging::of(ground);
+  let mut view = agent_view(judging, machine, &agent).await?;
+
+  if let Some(view) = view.as_object_mut() {
+    view.insert("resetAt".into(), json!(crate::companion::overtaken::point(db, &agent.name).await));
+    view.insert(
+      "standInAvailable".into(),
+      json!(crate::stand_in::answers(ground, machine, &agent.name).await),
+    );
+  }
+
+  Ok(view)
+}
+
+/// One agent: role, gates, reasoning, voice, reset point, stand-in.
+pub struct AgentRoute;
+
+impl Route for AgentRoute {
+  const METHOD: Method = Method::GET;
+  const PATH: &'static str = "/agents/{agentName}";
+
+  async fn answer(&self, call: Call) -> Result<Response, Refused> {
+    let name = call.param("agentName").unwrap_or_default().to_owned();
+    let db = call.store().clone();
+    let ground = call.shared_ground();
+    let machine = call.machine().clone();
+
+    Ok(answer(StatusCode::OK, view_named(&db, &ground, &machine, &name).await?))
+  }
+}
+
+crate::moved!(AgentRoute);
 
 /// Every role an agent may hold, with the bundles each gives by name and label, as the screen offers
 /// them (docs/agent-roles.md).
@@ -99,6 +143,7 @@ pub struct Agent {
   pub support_slot: Option<i64>,
   pinned_provider: Option<String>,
   pinned_model: Option<String>,
+  voice: Option<String>,
   thinking: Option<bool>,
   effort: Option<String>,
   /// Whether it is awake: no rest stands on it.
@@ -146,6 +191,7 @@ impl Agent {
       support_slot: number("support_slot")?,
       pinned_model: if pinned_provider.is_some() { text("pinned_model")? } else { None },
       pinned_provider,
+      voice: text("voice")?,
       thinking: number("thinking")?.map(|thinking| thinking != 0),
       effort: text("effort")?,
       awake: number("resting_since")?.is_none(),
@@ -241,6 +287,7 @@ async fn agent_view(judging: Judging<'_>, machine: &Machine, agent: &Agent) -> R
 
   put("reasoning", reasoning_view(judging, machine, agent, configured.as_ref()).await);
   put("gates", gates_view(db, agent).await?);
+  put("voice", json!(agent.voice));
 
   let sessions = room_sessions(db, agent).await?;
 

@@ -18,7 +18,7 @@ const NAMED: [&str; 7] = ["id", "parent", "root", "line", "sharedPane", "started
 // The id the path names.
 fn id_of(call: &Call) -> Result<&str, Refused> {
   call
-    .param("id")
+    .param("executionId")
     .filter(|id| !id.is_empty())
     .ok_or_else(|| Refused::new(StatusCode::BAD_REQUEST, "an execution's id is required"))
 }
@@ -72,7 +72,7 @@ impl Route for ListExecutions {
       .map(|body| shown(body, &cancelled))
       .collect();
 
-    Ok(answer(StatusCode::OK, json!(listed)))
+    Ok(answer(StatusCode::OK, json!({ "items": listed, "more": false })))
   }
 }
 
@@ -83,14 +83,14 @@ pub struct ReadExecution;
 
 impl Route for ReadExecution {
   const METHOD: Method = Method::GET;
-  const PATH: &'static str = "/executions/{id}";
+  const PATH: &'static str = "/executions/{executionId}";
 
   async fn answer(&self, call: Call) -> Result<Response, Refused> {
     let id = id_of(&call)?;
     let rows = cancels::executions(call.store()).await?;
     let Some(body) = rows.iter().find(|body| body.get("id").and_then(Value::as_str) == Some(id)) else {
       return Ok(
-        WireError::new(ErrorCode::NothingHeld, format!("no execution {id} is recorded")).into_response(),
+        WireError::new(ErrorCode::NotFound, format!("no execution {id} is recorded")).into_response(),
       );
     };
     let cancelled = cancels::standing(call.store(), &rows).await?;
@@ -105,13 +105,17 @@ crate::moved!(ReadExecution);
 pub struct DropCancels;
 
 impl Route for DropCancels {
-  const METHOD: Method = Method::DELETE;
-  const PATH: &'static str = "/executions/{id}/cancel";
+  const METHOD: Method = Method::PATCH;
+  const PATH: &'static str = "/executions/{executionId}";
 
   async fn answer(&self, call: Call) -> Result<Response, Refused> {
-    let dropped = cancels::take_back(call.store(), id_of(&call)?).await?;
+    let id = id_of(&call)?;
+    let dropped = cancels::take_back(call.store(), id).await?;
 
-    Ok(answer(StatusCode::OK, json!({ "dropped": dropped })))
+    Ok(answer(
+      StatusCode::OK,
+      json!({ "id": id, "runId": Value::Null, "command": "", "state": "cancelled", "cancelled": false, "dropped": dropped }),
+    ))
   }
 }
 

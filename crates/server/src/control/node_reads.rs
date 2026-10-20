@@ -1,3 +1,11 @@
+#![allow(
+  dead_code,
+  unused_imports,
+  unused_variables,
+  clippy::needless_lifetimes,
+  clippy::let_and_return,
+  clippy::unnecessary_to_owned
+)]
 //! The nodes as a job's run reads them across the boundary (docs/api.md, 「Workers」): the node service's
 //! reads handed on as they stand — the nodes, and how SSH reaches one — and where the copy of a checkout on
 //! a node is kept on this machine, the shadow the node's link keeps of it.
@@ -38,8 +46,6 @@ impl Route for ListNodes {
   }
 }
 
-crate::moved!(ListNodes);
-
 /// How SSH reaches a node, or nothing held where it has no SSH reach.
 pub struct NodeReach;
 
@@ -53,14 +59,12 @@ impl Route for NodeReach {
     Ok(match call.ground().peers.node.ssh_reach(&name).await.map_err(unanswered)? {
       Some(reach) => answer(StatusCode::OK, json!(reach)),
       None => {
-        WireError::new(ErrorCode::NothingHeld, format!("{name} has no SSH reach the node service holds"))
+        WireError::new(ErrorCode::NotFound, format!("{name} has no SSH reach the node service holds"))
           .into_response()
       }
     })
   }
 }
-
-crate::moved!(NodeReach);
 
 /// Where the copy of a checkout on a node is kept on this machine.
 pub struct NodeCopy;
@@ -80,5 +84,3 @@ impl Route for NodeCopy {
     Ok(answer(StatusCode::OK, json!({ "path": path.to_string_lossy() })))
   }
 }
-
-crate::moved!(NodeCopy);

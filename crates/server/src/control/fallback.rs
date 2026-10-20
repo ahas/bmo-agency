@@ -285,14 +285,17 @@ impl Route for FallbackView {
       profiles.push(profile_view(db, machine, profile).await?);
     }
 
+    let active = active_agent_usage(judging).await?;
     Ok(answer(
       StatusCode::OK,
       json!({
+        "routes": order_view(db, machine).await?,
+        "answering": !active.is_null(),
         "codexPresent": missing(db, machine, named("codex")?).await?.is_none(),
         "keyPresent": missing(db, machine, named("openrouter")?).await?.is_none(),
         "services": services,
         "since": fallback_since(db).await?,
-        "active": active_agent_usage(judging).await?,
+        "active": active,
         "order": order_view(db, machine).await?,
         "orderIsDefault": is_default_order(&provider_order(db).await?),
         "accounts": claude_accounts::views(judging).await?,
@@ -524,7 +527,7 @@ const RETIRED: [&str; 6] = [
 pub struct FallbackChange;
 
 impl Route for FallbackChange {
-  const METHOD: Method = Method::POST;
+  const METHOD: Method = Method::PATCH;
   const PATH: &'static str = "/fallback";
 
   async fn answer(&self, mut call: Call) -> Result<Response, Refused> {

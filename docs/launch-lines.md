@@ -324,7 +324,7 @@
   no Chrome, run in the brain repository — the folder `AGENCY_BRAIN_ROOT` names, else `brain` under the
   data root, or the agent's folder under it the turn names; an editor key whose brain holds no
   repository yet is not run. Its task is the caller's whole prompt: the brain composes it, the
-  rulebooks every document writer shares among it, which it reads through `GET /rulebooks`, and agency
+  rulebooks every document writer shares among it, which it reads through `GET /prompt-documents`, and agency
   adds no rulebook of its own. Its MCP servers are the
   tool host's `fragments` namespace and the toolbook (`fragments.md`, `mcp-host.md`): every run and the
   keepalive are handed the standing `editor.mcp.json`, and a run's session record names the desk its

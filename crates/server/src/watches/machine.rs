@@ -51,7 +51,7 @@ pub struct MachineRoomReturned {
 }
 
 impl Event for MachineRoomReturned {
-  const NAME: &'static str = "machine-room-returned";
+  const NAME: &'static str = "launch-room.changed";
 }
 
 #[derive(Serialize, Deserialize)]

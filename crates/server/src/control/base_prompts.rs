@@ -318,10 +318,27 @@ pub struct BasePrompts;
 
 impl Route for BasePrompts {
   const METHOD: Method = Method::GET;
-  const PATH: &'static str = "/base-prompts";
+  const PATH: &'static str = "/prompt-documents";
 
   async fn answer(&self, call: Call) -> Result<Response, Refused> {
-    Ok(answer(StatusCode::OK, view(call.store()).await?))
+    let view = view(call.store()).await?;
+    let items: Vec<Value> = view
+      .get("prompts")
+      .and_then(Value::as_array)
+      .map(|prompts| {
+        prompts
+          .iter()
+          .map(|prompt| {
+            let mut document = prompt.clone();
+            document["kind"] = json!("base");
+            document["version"] = prompt.get("updatedAt").cloned().unwrap_or(json!(""));
+            document
+          })
+          .collect()
+      })
+      .unwrap_or_default();
+
+    Ok(answer(StatusCode::OK, json!({ "items": items, "more": false })))
   }
 }
 
@@ -332,14 +349,21 @@ crate::moved!(BasePrompts);
 pub struct BasePromptChange;
 
 impl Route for BasePromptChange {
-  const METHOD: Method = Method::POST;
-  const PATH: &'static str = "/base-prompts";
+  const METHOD: Method = Method::PATCH;
+  const PATH: &'static str = "/prompt-documents/{documentName}";
 
   async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
-    let body = call.body().await?;
+    let mut body = call.body().await?;
+    let name = call.param("documentName").unwrap_or_default().to_owned();
 
     if !body.is_object() && !body.is_array() {
       return Err(Refused::new(StatusCode::BAD_REQUEST, CONTROL_WORDS.request.action.as_str()));
+    }
+    if body.get("name").is_none() {
+      body["name"] = json!(name);
+    }
+    if body.get("action").is_none() {
+      body["action"] = json!("save");
     }
 
     let db = call.store();
@@ -373,3 +397,42 @@ impl Route for BasePromptChange {
 }
 
 crate::moved!(BasePromptChange);
+
+/// One prompt document, by its name.
+pub struct PromptDocument;
+
+impl Route for PromptDocument {
+  const METHOD: Method = Method::GET;
+  const PATH: &'static str = "/prompt-documents/{documentName}";
+
+  async fn answer(&self, call: Call) -> Result<Response, Refused> {
+    let name = call.param("documentName").unwrap_or_default();
+    let row = one(call.store(), "SELECT * FROM base_prompts WHERE name = $1", vec![name.into()]).await?;
+
+    if let Some(row) = row {
+      let prompt = Prompt::of(&row)?;
+
+      return Ok(answer(
+        StatusCode::OK,
+        json!({
+          "name": prompt.name,
+          "kind": "base",
+          "agentName": Value::Null,
+          "version": prompt.updated_at,
+          "text": prompt.text,
+        }),
+      ));
+    }
+
+    let trees = crate::lines::Trees::of(call.ground());
+    let text = std::fs::read_to_string(trees.rulebook_path(name))
+      .map_err(|_| Refused::new(StatusCode::NOT_FOUND, format!("agency keeps no document named {name}")))?;
+
+    Ok(answer(
+      StatusCode::OK,
+      json!({ "name": name, "kind": "rulebook", "agentName": Value::Null, "version": Value::Null, "text": text.trim() }),
+    ))
+  }
+}
+
+crate::moved!(PromptDocument);

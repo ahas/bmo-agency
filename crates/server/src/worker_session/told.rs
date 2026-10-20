@@ -19,7 +19,7 @@ pub struct WorkerDowngraded {
 }
 
 impl Event for WorkerDowngraded {
-  const NAME: &'static str = "worker-downgraded";
+  const NAME: &'static str = "worker.changed";
 }
 
 /// A fold reached, or may have reached, a worker's session: whatever a consumer sent that session to hold
@@ -31,5 +31,5 @@ pub struct SessionFolded {
 }
 
 impl Event for SessionFolded {
-  const NAME: &'static str = "session-folded";
+  const NAME: &'static str = "session.folded";
 }

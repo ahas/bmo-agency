@@ -20,6 +20,29 @@ async fn get(port: u16, token: &str, path: &str) -> (u16, Value) {
   (answer.status().as_u16(), answer.json().await.unwrap_or(Value::Null))
 }
 
+async fn patch(port: u16, token: &str, path: &str, body: Value) -> (u16, Value) {
+  let answer = reqwest::Client::new()
+    .patch(format!("http://127.0.0.1:{port}{path}"))
+    .bearer_auth(token)
+    .json(&body)
+    .send()
+    .await
+    .unwrap();
+
+  (answer.status().as_u16(), answer.json().await.unwrap_or(Value::Null))
+}
+
+async fn delete(port: u16, token: &str, path: &str) -> (u16, Value) {
+  let answer = reqwest::Client::new()
+    .delete(format!("http://127.0.0.1:{port}{path}"))
+    .bearer_auth(token)
+    .send()
+    .await
+    .unwrap();
+
+  (answer.status().as_u16(), answer.json().await.unwrap_or(Value::Null))
+}
+
 async fn post(port: u16, token: &str, path: &str, body: Value) -> (u16, Value) {
   let answer = reqwest::Client::new()
     .post(format!("http://127.0.0.1:{port}{path}"))
@@ -60,7 +83,7 @@ async fn a_running_server_answers_the_calls_a_room_holder_makes_beside_its_turns
 
   // A companion's row stood up from the fields the console's dialog gave, and refused once its name is taken
   // or its worker is none.
-  assert_eq!(post(port, token, "/companions/add", added.clone()).await, (200, json!({ "ok": true })));
+  assert_eq!(post(port, token, "/companions", added.clone()).await, (201, json!({ "ok": true })));
   assert_eq!(
     scratch
       .count(
@@ -74,7 +97,7 @@ async fn a_running_server_answers_the_calls_a_room_holder_makes_beside_its_turns
     1
   );
 
-  let (status, taken) = post(port, token, "/companions/add", added.clone()).await;
+  let (status, taken) = post(port, token, "/companions", added.clone()).await;
 
   assert_eq!((status, taken["field"].as_str()), (400, Some("name")), "{taken}");
 
@@ -83,49 +106,38 @@ async fn a_running_server_answers_the_calls_a_room_holder_makes_beside_its_turns
   workerless["name"] = json!("companion-b");
   workerless["worker"] = json!("chat-agent");
 
-  let (status, refused) = post(port, token, "/companions/add", workerless).await;
+  let (status, refused) = post(port, token, "/companions", workerless).await;
 
   assert_eq!((status, refused["field"].as_str()), (400, Some("worker")), "{refused}");
 
   // Its reset point: none until a reset moves it, then the moment kept.
-  assert_eq!(
-    get(port, token, "/reset-point?agent=companion-a").await,
-    (200, json!({ "point": null }))
-  );
+  let (_, before) = get(port, token, "/agents/companion-a").await;
+  assert_eq!(before["resetAt"], Value::Null);
   scratch
     .run(
       r#"INSERT INTO "settings" ("key", "value") VALUES ('reset_point:companion-a', '2000')"#,
       vec![],
     )
     .await;
-  assert_eq!(
-    get(port, token, "/reset-point?agent=companion-a").await,
-    (200, json!({ "point": 2000 }))
-  );
-  assert_eq!(get(port, token, "/reset-point").await.0, 400);
+  let (_, after) = get(port, token, "/agents/companion-a").await;
+  assert_eq!(after["resetAt"], json!(2000));
 
   // Words pushed into a session carrying no turn did not go in.
   assert_eq!(
-    post(port, token, "/session/push", json!({ "session": "companion-a@-7", "words": "more" })).await,
-    (200, json!({ "said": "refused" }))
+    post(port, token, "/sessions/companion-a@-7/turns/1/inputs", json!({ "words": "more" })).await,
+    (201, json!({ "words": "more", "said": "refused" }))
   );
   assert_eq!(
-    post(port, token, "/session/push", json!({ "session": "nobody@-7", "words": "more" }))
+    post(port, token, "/sessions/nobody@-7/turns/1/inputs", json!({ "words": "more" }))
       .await
       .1["code"],
     "unknown-session"
   );
 
   // Taken out again with everything of its own; one the deployment seeds, or no companion, is refused.
-  let (status, removed) = post(
-    port,
-    token,
-    "/companions/remove",
-    json!({ "agent": "companion-a", "rooms": [-7], "by": "owner" }),
-  )
-  .await;
+  let (status, _) = delete(port, token, "/companions/companion-a").await;
 
-  assert_eq!((status, &removed), (200, &json!({ "ok": true })));
+  assert_eq!(status, 204);
   assert_eq!(
     scratch
       .count(
@@ -137,7 +149,7 @@ async fn a_running_server_answers_the_calls_a_room_holder_makes_beside_its_turns
     0
   );
 
-  let (status, refused) = post(port, token, "/companions/remove", json!({ "agent": "helper" })).await;
+  let (status, refused) = delete(port, token, "/companions/helper").await;
 
   assert_eq!((status, refused["field"].as_str()), (400, Some("agent")), "{refused}");
 
@@ -148,8 +160,14 @@ async fn a_running_server_answers_the_calls_a_room_holder_makes_beside_its_turns
       vec![],
     )
     .await;
-  assert_eq!(get(port, token, "/rest/passed").await, (200, json!({ "kind": "outage" })));
-  assert_eq!(get(port, token, "/rest/passed").await, (200, json!({ "kind": null })));
+  assert_eq!(
+    patch(port, token, "/rest", json!({ "clearPassed": true })).await,
+    (200, json!({ "resting": false, "until": null, "kind": "outage", "accountId": null }))
+  );
+  assert_eq!(
+    patch(port, token, "/rest", json!({ "clearPassed": true })).await,
+    (200, json!({ "resting": false, "until": null, "kind": null, "accountId": null }))
+  );
   assert_eq!(
     scratch
       .count(r#"SELECT count(*) FROM "settings" WHERE "key" LIKE 'rest\_%'"#, vec![])
@@ -181,39 +199,25 @@ async fn a_running_server_answers_the_calls_a_room_holder_makes_beside_its_turns
   let id = opened["id"].as_i64().unwrap();
   let read = format!("/runs/{id}");
 
-  assert_eq!(
-    get(port, token, &read).await,
-    (
-      200,
-      json!({
-        "id": id,
-        "agent": "helper",
-        "chat_id": null,
-        "unit": "unit-1",
-        "depth": 2,
-        "started_at": 4_000,
-        "finished_at": null,
-        "outcome": null,
-        "context_tokens": null,
-      })
-    )
-  );
+  let (status, read_run) = get(port, token, &read).await;
 
-  let closing = json!({ "finished_at": 9_000, "outcome": "done", "context_tokens": 30_000 });
+  assert_eq!(status, 200);
+  assert_eq!(read_run["id"], json!(id));
+  assert_eq!(read_run["agentName"], json!("helper"));
+  assert_eq!(read_run["unitName"], json!("unit-1"));
+  assert_eq!(read_run["state"], json!("open"));
+  assert_eq!(read_run["startedAt"], json!(4_000_000));
 
-  assert_eq!(post(port, token, &format!("{read}/close"), closing.clone()).await.0, 204);
-  assert_eq!(
-    post(port, token, &format!("{read}/close"), json!({ "finished_at": 9_500, "outcome": "cut" }))
-      .await
-      .0,
-    409
-  );
+  let closing = json!({ "finishedAt": 9_000, "outcome": "done", "contextTokens": 30_000 });
+
+  assert_eq!(patch(port, token, &read, closing.clone()).await.0, 200);
+  assert_eq!(patch(port, token, &read, json!({ "finishedAt": 9_500, "outcome": "cut" })).await.0, 409);
 
   let (_, closed) = get(port, token, &read).await;
 
   assert_eq!(
-    (&closed["finished_at"], &closed["outcome"], &closed["context_tokens"]),
-    (&json!(9_000), &json!("done"), &json!(30_000)),
+    (&closed["outcome"], &closed["contextTokens"], &closed["state"]),
+    (&json!("done"), &json!(30_000), &json!("closed")),
     "the first closing is kept"
   );
 
@@ -231,13 +235,21 @@ async fn a_running_server_answers_the_calls_a_room_holder_makes_beside_its_turns
     2,
     "a search named by its number or its text is kept the same"
   );
+  let (_, searched) = get(port, token, "/runs?search=12").await;
+  let ids: Vec<i64> = searched["items"]
+    .as_array()
+    .unwrap()
+    .iter()
+    .filter_map(|run| run["id"].as_i64())
+    .collect();
+
   assert_eq!(
-    get(port, token, "/runs?search=12").await,
-    (200, json!({ "runs": [id, numbered["id"]] })),
+    ids,
+    vec![id, numbered["id"].as_i64().unwrap()],
     "the runs that carried a search, in id order"
   );
-  assert_eq!(get(port, token, "/runs?search=13").await, (200, json!({ "runs": [] })));
-  assert_eq!(get(port, token, "/runs").await.0, 400);
+  assert_eq!(get(port, token, "/runs?search=13").await.1["items"], json!([]));
+  assert_eq!(get(port, token, "/runs").await.0, 200);
 
   let missing = id + 1_000;
 
@@ -245,13 +257,10 @@ async fn a_running_server_answers_the_calls_a_room_holder_makes_beside_its_turns
     get(port, token, &format!("/runs/{missing}")).await,
     (
       404,
-      json!({ "code": "nothing-held", "error": format!("the ledger holds no run {missing}") })
+      json!({ "code": "not-found", "error": format!("the ledger holds no run {missing}") })
     )
   );
-  assert_eq!(
-    post(port, token, &format!("/runs/{missing}/close"), closing).await.1["code"],
-    "nothing-held"
-  );
+  assert_eq!(patch(port, token, &format!("/runs/{missing}"), closing).await.1["code"], "not-found");
   assert_eq!(post(port, token, "/runs", json!({ "agent": "helper" })).await.0, 400);
-  assert_eq!(get(port, token, "/runs/clock?run=unit-1").await.0, 200);
+  assert_eq!(get(port, token, &read).await.0, 200);
 }

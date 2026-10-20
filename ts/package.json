@@ -5,7 +5,8 @@
   "workspaces": [
     "agent",
     "archive",
-    "support"
+    "support",
+    "client"
   ],
   "scripts": {
     "check:types": "bunx tsc --noEmit"

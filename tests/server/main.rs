@@ -37,9 +37,9 @@ mod control {
   mod front;
   mod harness;
   mod job_log;
+  mod mcp;
   mod model_tiers;
   mod models;
-  mod node_reads;
   mod own_llm;
   mod pool_board;
   mod pool_reads;
@@ -181,4 +181,3 @@ mod worker_session {
   mod told;
   mod warmth;
 }
-mod worker_words;

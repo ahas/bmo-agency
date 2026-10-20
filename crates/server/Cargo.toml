@@ -9,6 +9,7 @@ publish = false
 agent-host = { path = "../agent-host" }
 agent-session = { path = "../agent-session" }
 axum.workspace = true
+bmo-agency-client.workspace = true
 bmo-chat.workspace = true
 brush-parser.workspace = true
 cache-siren = { path = "../cache-siren" }
@@ -35,6 +36,8 @@ procfs.workspace = true
 regex.workspace = true
 reqwest = { workspace = true, features = ["stream"] }
 rev_lines.workspace = true
+rmcp.workspace = true
+schemars.workspace = true
 sea-orm.workspace = true
 serde.workspace = true
 serde_json.workspace = true

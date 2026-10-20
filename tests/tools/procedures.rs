@@ -356,9 +356,9 @@ async fn the_executable_reads_a_procedure_in_a_room_through_agencys_server_and_t
   tokio::spawn(async move { axum::serve(listener, consumer).await });
 
   let registered = reqwest::Client::new()
-    .post(format!("http://127.0.0.1:{}/hooks", server.port))
+    .put(format!("http://127.0.0.1:{}/hooks/road-verbs", server.port))
     .bearer_auth(token)
-    .json(&json!({ "point": "road-verbs", "url": format!("http://127.0.0.1:{consumer_port}/") }))
+    .json(&json!({ "url": format!("http://127.0.0.1:{consumer_port}/") }))
     .send()
     .await
     .unwrap();

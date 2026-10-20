@@ -18,16 +18,16 @@ async fn get(port: u16, token: &str, path: &str) -> (u16, Value) {
   (answer.status().as_u16(), answer.json().await.unwrap_or(Value::Null))
 }
 
-async fn post(port: u16, token: &str, path: &str, body: Value) -> u16 {
-  reqwest::Client::new()
-    .post(format!("http://127.0.0.1:{port}{path}"))
+async fn patch(port: u16, token: &str, path: &str, body: Value) -> (u16, Value) {
+  let answer = reqwest::Client::new()
+    .patch(format!("http://127.0.0.1:{port}{path}"))
     .bearer_auth(token)
     .json(&body)
     .send()
     .await
-    .unwrap()
-    .status()
-    .as_u16()
+    .unwrap();
+
+  (answer.status().as_u16(), answer.json().await.unwrap_or(Value::Null))
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -53,31 +53,51 @@ async fn a_running_server_answers_a_user_s_login_the_record_homes_and_a_job_s_us
   let port = server.port;
 
   // A user holds a login only where one of their own is on.
-  assert_eq!(get(port, token, "/accounts/claude/held?user=7").await, (200, json!({ "held": true })));
-  assert_eq!(get(port, token, "/accounts/claude/held?user=8").await, (200, json!({ "held": false })));
-  assert_eq!(get(port, token, "/accounts/claude/held?user=9").await, (200, json!({ "held": false })));
-  assert_eq!(
-    get(port, token, "/accounts/claude/held?user=someone").await,
-    (200, json!({ "held": false }))
+  let held = |accounts: &serde_json::Value, id: &str| {
+    accounts["items"]
+      .as_array()
+      .unwrap()
+      .iter()
+      .find(|account| account["id"] == id)
+      .map(|account| account["held"].as_bool().unwrap())
+      .unwrap_or(false)
+  };
+  let (status, seven) = get(port, token, "/accounts?userName=7").await;
+  assert_eq!(status, 200);
+  assert!(held(&seven, "login-a"));
+  let (_, eight) = get(port, token, "/accounts?userName=8").await;
+  assert!(!held(&eight, "login-b"));
+  let (_, nine) = get(port, token, "/accounts?userName=9").await;
+  assert!(
+    nine["items"]
+      .as_array()
+      .unwrap()
+      .iter()
+      .all(|account| !account["held"].as_bool().unwrap())
   );
-  assert_eq!(get(port, token, "/accounts/claude/held").await.0, 400);
+  let (_, someone) = get(port, token, "/accounts?userName=someone").await;
+  assert!(someone["items"].as_array().unwrap().is_empty());
 
-  // The machine's own home first, then each login's, each once.
-  let (status, homes) = get(port, token, "/accounts/claude/homes").await;
-  let homes: Vec<&str> =
-    homes["homes"].as_array().unwrap().iter().map(|one| one.as_str().unwrap()).collect();
+  // Every login, each with the home its records are kept under.
+  let (status, accounts) = get(port, token, "/accounts").await;
+  let homes: Vec<&str> = accounts["items"]
+    .as_array()
+    .unwrap()
+    .iter()
+    .map(|one| one["home"].as_str().unwrap())
+    .collect();
 
   assert_eq!(status, 200);
   assert_eq!(homes.len(), 3, "{homes:?}");
-  assert_eq!(&homes[1..], ["/logins/one", "/logins/two"]);
+  assert_eq!(&homes[1..], ["/logins/two", "/logins/one"]);
 
   // A session window at its threshold rests its login until it resets; one below rests nothing.
   let until = 4_102_444_800_i64;
   let full = json!({ "usage": { "utilization": 1.0, "resetsAt": until, "weeklyUtilization": 0.2, "weeklyResetsAt": null } });
   let light = json!({ "usage": { "utilization": 0.4, "resetsAt": until, "weeklyUtilization": null, "weeklyResetsAt": null } });
 
-  assert_eq!(post(port, token, "/accounts/claude/login-a/usage-rest", full).await, 204);
-  assert_eq!(post(port, token, "/accounts/claude/login-c/usage-rest", light).await, 204);
+  assert_eq!(patch(port, token, "/accounts/login-a", full).await.0, 200);
+  assert_eq!(patch(port, token, "/accounts/login-c", light).await.0, 200);
   assert_eq!(
     scratch
       .count(
@@ -93,8 +113,5 @@ async fn a_running_server_answers_a_user_s_login_the_record_homes_and_a_job_s_us
       .await,
     0
   );
-  assert_eq!(
-    post(port, token, "/accounts/claude/login-a/usage-rest", json!({ "usage": {} })).await,
-    400
-  );
+  assert_eq!(patch(port, token, "/accounts/login-a", json!({ "usage": {} })).await.0, 400);
 }

@@ -180,8 +180,6 @@ pub async fn agent_gates(
   Ok(Ok(switches))
 }
 
-crate::moved!(AgentGate);
-
 /// An agent's own thinking and effort set, each null to leave it to the tier and the line. A worker's
 /// standing program is stood again on it, as on a new pin.
 pub struct AgentReasoning;
@@ -213,8 +211,6 @@ impl Route for AgentReasoning {
     ))
   }
 }
-
-crate::moved!(AgentReasoning);
 
 /// An agent's own thinking and effort written, each null to leave it to the tier and the line: the kind
 /// of the agent it was set on, or the sentence refusing it.
@@ -294,4 +290,65 @@ impl Route for AgentRole {
   }
 }
 
-crate::moved!(AgentRole);
+/// An agent's gates, reasoning, role or voice changed, answered as the agent then stands.
+pub struct ChangeAgent;
+
+impl Route for ChangeAgent {
+  const METHOD: Method = Method::PATCH;
+  const PATH: &'static str = "/agents/{agentName}";
+
+  async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
+    let name = call.param("agentName").unwrap_or_default().to_owned();
+    let body = call.body().await?;
+    let db = call.store();
+
+    if let Some(gates) = body.get("gates").and_then(Value::as_object) {
+      for (gate, on) in gates {
+        if let Err(fault) = switch_gate(db, &name, &json!(gate), on).await? {
+          return Err(Refused::new(StatusCode::BAD_REQUEST, fault));
+        }
+      }
+    }
+
+    if let Some(reasoning) = body.get("reasoning").filter(|reasoning| reasoning.is_object()) {
+      let thinking = reasoning.get("thinking").cloned().unwrap_or(Value::Null);
+      let effort = reasoning.get("effort").cloned().unwrap_or(Value::Null);
+
+      if let Err(fault) = set_reasoning(db, &name, &thinking, &effort).await? {
+        return Err(Refused::new(StatusCode::BAD_REQUEST, fault));
+      }
+    }
+
+    if let Some(role) = body.get("role").and_then(Value::as_str) {
+      if !ROLES.holds(role) {
+        return Err(Refused::new(
+          StatusCode::BAD_REQUEST,
+          fill_marks(&CONTROL_WORDS.agents.role, &[("roles", &ROLES.labels().join(", "))]),
+        ));
+      }
+      run(
+        db,
+        r#"UPDATE "agents" SET "role" = $1 WHERE "name" = $2"#,
+        vec![role.to_owned().into(), name.clone().into()],
+      )
+      .await?;
+    }
+
+    if let Some(voice) = body.get("voice") {
+      run(
+        db,
+        r#"UPDATE "agents" SET "voice" = $1 WHERE "name" = $2"#,
+        vec![voice.as_str().map(str::to_owned).into(), name.clone().into()],
+      )
+      .await?;
+    }
+
+    let db = call.store().clone();
+    let ground = call.shared_ground();
+    let machine = call.machine().clone();
+
+    Ok(answer(StatusCode::OK, super::agents::view_named(&db, &ground, &machine, &name).await?))
+  }
+}
+
+crate::moved!(ChangeAgent);

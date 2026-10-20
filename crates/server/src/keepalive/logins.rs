@@ -43,7 +43,7 @@ pub struct AccountLoginNotice {
 }
 
 impl Event for AccountLoginNotice {
-  const NAME: &'static str = "account-login-notice";
+  const NAME: &'static str = "account.changed";
 }
 
 // The variables a program is handed its login by.

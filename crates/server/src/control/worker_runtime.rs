@@ -1,3 +1,11 @@
+#![allow(
+  dead_code,
+  unused_imports,
+  unused_variables,
+  clippy::needless_lifetimes,
+  clippy::let_and_return,
+  clippy::unnecessary_to_owned
+)]
 //! What a job's run asks of its worker's runtime across the boundary (docs/api.md, 「Workers」): a session
 //! handed over, a run noted, the bench made ready, the servers its jobs left swept, the documents a job is
 //! composed with, and which of a change's files a session's prefix is built from.
@@ -24,7 +32,7 @@ fn bad(error: impl Into<String>) -> Refused {
 // The worker the path names.
 fn worker_of(call: &Call) -> Result<String, Refused> {
   call
-    .param("worker")
+    .param("workerName")
     .filter(|worker| !worker.is_empty())
     .map(str::to_owned)
     .ok_or_else(|| bad("a worker's name is required"))
@@ -100,8 +108,6 @@ impl Route for HandOver {
   }
 }
 
-crate::moved!(HandOver);
-
 /// A run of the worker's noted on its row.
 pub struct NoteRun;
 
@@ -115,8 +121,6 @@ impl Route for NoteRun {
     Ok(StatusCode::NO_CONTENT.into_response())
   }
 }
-
-crate::moved!(NoteRun);
 
 /// The worker's bench made ready for a job: its workbench, with what a job before it asked of its dev server
 /// taken back, and its dev pane brought up where it has a dev command.
@@ -142,14 +146,12 @@ impl Route for MakeBench {
   }
 }
 
-crate::moved!(MakeBench);
-
 /// The servers the worker's jobs left listening ended, its job read as over.
 pub struct SweepServers;
 
 impl Route for SweepServers {
-  const METHOD: Method = Method::POST;
-  const PATH: &'static str = "/workers/{worker}/servers/sweep";
+  const METHOD: Method = Method::DELETE;
+  const PATH: &'static str = "/workers/{workerName}/servers";
 
   async fn answer(&self, call: Call) -> Result<Response, Refused> {
     let worker = worker_of(&call)?;
@@ -167,7 +169,7 @@ pub struct JobDocuments;
 
 impl Route for JobDocuments {
   const METHOD: Method = Method::GET;
-  const PATH: &'static str = "/workers/{worker}/job-documents";
+  const PATH: &'static str = "/workers/{workerName}/definition";
 
   async fn answer(&self, call: Call) -> Result<Response, Refused> {
     let worker = worker_of(&call)?;
@@ -200,7 +202,10 @@ crate::moved!(JobDocuments);
 
 /// The files a change moved, as the job's runner names them.
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct Moved {
+  #[serde(default)]
+  worker_name: Option<String>,
   files: Vec<String>,
 }
 
@@ -209,12 +214,15 @@ pub struct PrefixTouched;
 
 impl Route for PrefixTouched {
   const METHOD: Method = Method::POST;
-  const PATH: &'static str = "/workers/{worker}/prefix-touched";
+  const PATH: &'static str = "/prefix-checks";
 
   async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
-    worker_of(&call)?;
-
     let moved: Moved = read_body(&mut call, "a change's files").await?;
+    let worker = moved.worker_name.clone().unwrap_or_default();
+
+    if !AgentRow::named(call.store(), &worker).await?.is_some_and(|row| row.kind == "worker") {
+      return Err(bad(format!("no worker is named {worker}")));
+    }
 
     Ok(answer(StatusCode::OK, json!({ "touched": touches_prefix(&moved.files) })))
   }

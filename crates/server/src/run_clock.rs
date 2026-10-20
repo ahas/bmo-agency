@@ -45,7 +45,7 @@ pub struct ClockAsked {
 }
 
 impl Event for ClockAsked {
-  const NAME: &'static str = "clock-asked";
+  const NAME: &'static str = "overtime-request.created";
 }
 
 /// An ask settled: by a verdict, by agency for want of one, or by its run ending while asked.
@@ -59,7 +59,7 @@ pub struct ClockAskClosed {
 }
 
 impl Event for ClockAskClosed {
-  const NAME: &'static str = "clock-ask-closed";
+  const NAME: &'static str = "overtime-request.changed";
 }
 
 const KEEP: &str = "keep";

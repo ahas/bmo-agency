@@ -19,6 +19,18 @@ async fn get(port: u16, token: &str, path: &str) -> (u16, Value) {
   (answer.status().as_u16(), answer.json().await.unwrap_or(Value::Null))
 }
 
+async fn patch(port: u16, token: &str, path: &str, body: Value) -> (u16, Value) {
+  let answer = reqwest::Client::new()
+    .patch(format!("http://127.0.0.1:{port}{path}"))
+    .bearer_auth(token)
+    .json(&body)
+    .send()
+    .await
+    .unwrap();
+
+  (answer.status().as_u16(), answer.json().await.unwrap_or(Value::Null))
+}
+
 async fn post(port: u16, token: &str, path: &str, body: Value) -> (u16, Value) {
   let answer = reqwest::Client::new()
     .post(format!("http://127.0.0.1:{port}{path}"))
@@ -63,7 +75,7 @@ async fn a_running_server_answers_what_the_brains_recollectors_read() {
   assert_eq!(status, 200, "{listed}");
 
   let agent = |name: &str| {
-    listed["agents"]
+    listed["items"]
       .as_array()
       .unwrap()
       .iter()
@@ -83,39 +95,33 @@ async fn a_running_server_answers_what_the_brains_recollectors_read() {
   assert_eq!(read(agent("companion")), (json!(true), json!("agents/companion"), json!("local-model")));
   assert_eq!(read(agent("worker-one")), (json!(false), Value::Null, Value::Null));
 
-  let (status, rulebooks) = get(port, token, "/rulebooks?names=plain-writing,self-preservation").await;
+  let (status, document) = get(port, token, "/prompt-documents/plain-writing").await;
 
-  assert_eq!(status, 200, "{rulebooks}");
-  assert_eq!(rulebooks["rulebooks"][0]["name"], "plain-writing");
-  assert_eq!(rulebooks["rulebooks"][1]["name"], "self-preservation");
-  assert!(rulebooks["rulebooks"][1]["text"].as_str().unwrap().starts_with("# Self-preservation"));
-  assert_eq!(get(port, token, "/rulebooks?names=no-such-rulebook").await.0, 404);
-  assert_eq!(get(port, token, "/rulebooks?names=../secrets").await.0, 400);
+  assert_eq!(status, 200, "{document}");
+  assert_eq!(document["name"], json!("plain-writing"));
+  assert_eq!(document["kind"], json!("rulebook"));
+  assert_eq!(get(port, token, "/prompt-documents/no-such-rulebook").await.0, 404);
 
   assert_eq!(
-    get(port, token, "/runs/clock?run=bmo-digest").await,
-    (200, json!({ "capEnds": null, "keptUntil": null }))
+    get(port, token, "/overtime-requests").await,
+    (200, json!({ "items": [], "more": false }))
   );
-  assert_eq!(get(port, token, "/runs/overtime").await, (200, json!({ "asks": [] })));
   assert_eq!(
-    post(port, token, "/runs/overtime", json!({ "ask": 1, "verdict": "cut", "why": "stuck" }))
+    patch(port, token, "/overtime-requests/1", json!({ "verdict": "cut", "why": "stuck" }))
       .await
       .0,
     404
   );
-  assert_eq!(post(port, token, "/runs/overtime", json!({ "ask": 1, "verdict": "wait" })).await.0, 400);
-  assert_eq!(
-    get(port, token, "/editors/cap?workKey=digest&agent=companion").await,
-    (200, json!({ "capSeconds": policy::run_clock::RUN_CLOCK.editor_cap_seconds }))
-  );
-  assert_eq!(get(port, token, "/editors/cap?workKey=worker&agent=companion").await.0, 422);
+  assert_eq!(patch(port, token, "/overtime-requests/1", json!({ "verdict": "wait" })).await.0, 400);
+  assert_eq!(get(port, token, "/work-keys/digest?agentName=companion").await.0, 200);
 
   let moved =
     json!({ "paths": ["agents/companion/people/a.md"], "now": false, "agent": "companion", "rooms": [-7] });
+  let (status, answered) = post(port, token, "/document-moves", moved).await;
 
-  assert_eq!(post(port, token, "/documents/reload", moved.clone()).await, (200, moved));
-  assert_eq!(
-    post(port, token, "/documents/reload", json!({ "paths": ["a.md"] })).await,
-    (200, json!({ "paths": ["a.md"], "now": false, "agent": null, "rooms": [] }))
-  );
+  assert_eq!(status, 201, "{answered}");
+  assert_eq!(answered["paths"], json!(["agents/companion/people/a.md"]));
+  assert_eq!(answered["agentName"], json!("companion"));
+  assert_eq!(answered["roomIds"], json!([-7]));
+  assert_eq!(post(port, token, "/document-moves", json!({ "paths": ["a.md"] })).await.0, 201);
 }

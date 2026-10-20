@@ -73,7 +73,7 @@ pub struct PoolBoard;
 
 impl Route for PoolBoard {
   const METHOD: Method = Method::GET;
-  const PATH: &'static str = "/coworker-pool";
+  const PATH: &'static str = "/pool";
 
   async fn answer(&self, call: Call) -> Result<Response, Refused> {
     let db = call.store();

@@ -61,11 +61,15 @@ interface ResetAnswer {
 }
 
 function ask(query: Record<string, string>, authorization = `Bearer ${token}`): Promise<Response> {
-  return fetch(`http://127.0.0.1:${front!.port}/companions/reset?${new URLSearchParams(query)}`, { headers: { authorization } });
+  return fetch(`http://127.0.0.1:${front!.port}/companion-resets`, {
+    method: "POST",
+    headers: { authorization, "content-type": "application/json" },
+    body: JSON.stringify({ ...query, dryRun: true }),
+  });
 }
 
 function reset(body: Record<string, unknown>): Promise<Response> {
-  return fetch(`http://127.0.0.1:${front!.port}/companions/reset`, {
+  return fetch(`http://127.0.0.1:${front!.port}/companion-resets`, {
     method: "POST",
     headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
     body: JSON.stringify({ by: "tester", ...body }),
@@ -152,7 +156,7 @@ afterAll(async () => {
   await brain.stop(true);
 });
 
-describe("GET /companions/reset, POST /companions/reset", () => {
+describe("POST /companion-resets", () => {
   test("shows ahead of time every row and record a range would take and the brain's preview, and changes nothing", async () => {
     const stood = await stand("tester-show", 710);
 

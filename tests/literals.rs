@@ -121,7 +121,7 @@ fn personal() -> Vec<String> {
 /// Whether `literal` stands in `line` as a word of its own, not inside a longer one.
 fn holds(line: &str, literal: &str) -> bool {
   let line = line.to_lowercase();
-  let word = |at: Option<char>| at.is_some_and(|one| one.is_alphanumeric() || one == '_');
+  let word = |at: Option<char>| at.is_some_and(|one| one.is_alphanumeric() || one == '_' || one == '-');
 
   line.match_indices(literal).any(|(at, _)| {
     !word(line[..at].chars().next_back()) && !word(line[at + literal.len()..].chars().next())

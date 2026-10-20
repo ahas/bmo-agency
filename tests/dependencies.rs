@@ -43,13 +43,18 @@ fn crossing(dependency: &Value) -> Option<String> {
     return None;
   }
 
+  // A crate of this repository's own, the client it publishes among them, stays inside the boundary.
+  if let Some(path) = dependency["path"].as_str()
+    && Path::new(path).starts_with(root())
+  {
+    return None;
+  }
+
   if name.starts_with("bmo-") || name.starts_with("bmo_") {
     return Some(format!("{name} is another repository's crate"));
   }
 
-  if let Some(path) = dependency["path"].as_str()
-    && !Path::new(path).starts_with(root())
-  {
+  if let Some(path) = dependency["path"].as_str() {
     return Some(format!("{name} stands outside the repository, at {path}"));
   }
 

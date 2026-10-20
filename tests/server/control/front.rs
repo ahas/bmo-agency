@@ -9,58 +9,38 @@ fn every_route_is_answered_once() {
 
 #[test]
 fn the_boundary_s_routes_are_linked_in() {
-  let names: Vec<String> = moved_routes().map(|route| route_name(&route.method(), route.path())).collect();
+  let mut linked: Vec<String> =
+    moved_routes().map(|route| route_name(&route.method(), route.path())).collect();
+  let mut stated: Vec<String> = agency_server::openapi::OPERATIONS
+    .iter()
+    .map(|operation| format!("{} {}", operation.method, operation.path))
+    .collect();
 
-  for wanted in [
-    "POST /session/start",
-    "POST /session/turn",
-    "POST /session/push",
-    "GET /session/state",
-    "POST /session/interrupt",
-    "POST /session/fold",
-    "POST /session/end",
-    "GET /session/list",
-    "POST /session/answer",
-    "GET /session/output",
-    "GET /events",
-    "POST /events/publish",
-    "POST /hooks",
-    "POST /hooks/remove",
-    "GET /hooks",
-    "POST /typed-line",
-    "GET /road-verbs",
-    "GET /stand-in",
-    "POST /documents/reload",
-    "GET /health",
-    "POST /rooms/forget",
-    "GET /run-log",
-    "GET /run-records",
-    "POST /jobs/stop-mark",
-    "GET /roads/open",
-    "POST /runs/stop",
-    "POST /runs/alive",
-    "GET /runs/clock",
-    "POST /runs",
-    "GET /runs/{id}",
-    "POST /runs/{id}/close",
-    "GET /runs",
-    "POST /runs/{id}/launch",
-    "GET /runs/overtime",
-    "POST /runs/overtime",
-    "GET /editors/cap",
-    "GET /rulebooks",
-    "GET /rest",
-    "POST /rest",
-    "GET /rest/passed",
-    "GET /reset-point",
-    "POST /companions/add",
-    "POST /companions/remove",
-    "POST /pool/enqueue",
-    "POST /pool/acquire",
-    "POST /pool/reserve",
-    "POST /places/take",
-    "POST /workers/stand",
-  ] {
-    assert!(names.iter().any(|name| name == wanted), "{wanted} is not linked in");
-  }
+  linked.sort();
+  stated.sort();
+
+  assert_eq!(linked, stated);
+}
+
+#[test]
+fn the_committed_document_is_what_the_code_generates() {
+  let committed = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/docs/openapi.json"))
+    .expect("the document is committed");
+
+  assert_eq!(committed, agency_server::openapi::openapi_json());
+}
+
+#[test]
+fn the_harness_plugin_lists_exactly_the_document_s_tools() {
+  let listed: Vec<&str> = agency_server::mcp::tools().iter().map(|tool| tool.name).collect();
+  let document = agency_server::openapi::openapi();
+  let stated: Vec<&str> = document["x-tools"]
+    .as_array()
+    .expect("the document states its tools")
+    .iter()
+    .map(|tool| tool["name"].as_str().expect("a tool has a name"))
+    .collect();
+
+  assert_eq!(listed, ["assign_worker", "run_job"]);
+  assert_eq!(listed, stated);
 }

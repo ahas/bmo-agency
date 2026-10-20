@@ -84,7 +84,7 @@ pub struct TurnStarted {
 }
 
 impl Event for TurnStarted {
-  const NAME: &'static str = "turn-started";
+  const NAME: &'static str = "turn.created";
 }
 
 /// What a turn came to, as its send answers it (docs/api.md, 「Sessions」, a turn's end), and the session
@@ -97,7 +97,7 @@ pub struct TurnEnded {
 }
 
 impl Event for TurnEnded {
-  const NAME: &'static str = "turn-ended";
+  const NAME: &'static str = "turn.ended";
 }
 
 /// A session's system prompt changed, as the turn that sent the changed prompt records it.

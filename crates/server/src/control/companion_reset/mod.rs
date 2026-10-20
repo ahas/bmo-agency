@@ -282,14 +282,12 @@ impl Route for CompanionResetShown {
   }
 }
 
-crate::moved!(CompanionResetShown);
-
 /// A reset of the ranges asked, answered with what it took.
 pub struct CompanionReset;
 
 impl Route for CompanionReset {
   const METHOD: Method = Method::POST;
-  const PATH: &'static str = "/companions/reset";
+  const PATH: &'static str = "/companion-resets";
 
   async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
     let body = call.body().await?;
@@ -300,6 +298,24 @@ impl Route for CompanionReset {
       (body.get("alone"), body.get("shared")),
     )?;
     let standing = Standing::of(&call);
+
+    if body.get("dryRun").and_then(Value::as_bool) == Some(true) {
+      let db = &standing.ground.db;
+      let companion = companion(db, &asked.agent).await?;
+      let rows = rows::count(db, &rows::picks(&scope(&asked), &asked.ranges)).await?;
+      let files = harness_records(&standing, &asked, &companion);
+      let brain = if asked.takes(Range::Person) {
+        let preview =
+          standing.ground.peers.brain.reset(&asked.agent, true).await.map_err(Refused::failed)?;
+
+        json!({ "took": preview.took, "couldNot": preview.could_not })
+      } else {
+        Value::Null
+      };
+
+      return Ok(answer(StatusCode::OK, view(&standing, &asked, &companion, &rows, &files, &brain).await));
+    }
+
     let by = asked_by(&body);
     let shown = to_its_end(async move { carry_out(&standing, &asked, &by).await }).await?;
 
@@ -476,5 +492,3 @@ impl Route for ResetPoint {
     Ok(answer(StatusCode::OK, json!({ "point": point })))
   }
 }
-
-crate::moved!(ResetPoint);

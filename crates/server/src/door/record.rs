@@ -311,7 +311,7 @@ pub struct UsageSpent {
 }
 
 impl Event for UsageSpent {
-  const NAME: &'static str = "usage-spent";
+  const NAME: &'static str = "usage.changed";
 }
 
 impl UsageSpent {

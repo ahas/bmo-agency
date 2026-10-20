@@ -346,7 +346,7 @@ pub struct FallbackAnswering {
 }
 
 impl Event for FallbackAnswering {
-  const NAME: &'static str = "fallback-answering";
+  const NAME: &'static str = "fallback.changed";
 }
 
 /// The stand-in that now answers marked and published, once for each move: the mark of the road answering

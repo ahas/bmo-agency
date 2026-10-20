@@ -7,8 +7,8 @@ use serde_json::json;
 
 #[test]
 fn a_cut_off_and_a_reset_are_told_in_their_boundary_shapes() {
-  assert_eq!(CompanionCutOff::NAME, "companion-cut-off");
-  assert_eq!(CompanionReset::NAME, "companion-reset");
+  assert_eq!(CompanionCutOff::NAME, "companion-reset.created");
+  assert_eq!(CompanionReset::NAME, "companion-reset.created");
   assert_eq!(
     serde_json::to_value(CompanionCutOff {
       agent: "pal".into(),

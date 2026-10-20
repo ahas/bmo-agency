@@ -10,7 +10,7 @@ use policy::tiers::TIERS;
 use serde::Deserialize;
 use serde_json::{Value, json};
 
-use super::harness::{enabled_providers, named, provider_order};
+use super::harness::{enabled_providers, named, provider_order, set_provider_order};
 use super::tiers::resolve_execution;
 use super::{Call, Refused, Route, answer, registry};
 use crate::queue::pins::pin_choice;
@@ -42,11 +42,75 @@ impl Route for ListProviders {
       }));
     }
 
-    Ok(answer(StatusCode::OK, json!(listed)))
+    Ok(answer(StatusCode::OK, json!({ "items": listed, "more": false })))
   }
 }
 
 crate::moved!(ListProviders);
+
+/// One provider, and the owner's switch on it.
+pub struct ProviderRoute;
+
+impl Route for ProviderRoute {
+  const METHOD: Method = Method::GET;
+  const PATH: &'static str = "/providers/{providerName}";
+
+  async fn answer(&self, call: Call) -> Result<Response, Refused> {
+    let name = call.param("providerName").unwrap_or_default();
+    let provider = named(name)?;
+    let enabled = provider_order(call.store()).await?.iter().any(|one| one.name == name && one.enabled);
+
+    Ok(answer(
+      StatusCode::OK,
+      json!({
+        "name": name,
+        "enabled": enabled,
+        "registered": provider.unregistered().is_some(),
+        "coworker": provider.declared().lends_coworkers,
+      }),
+    ))
+  }
+}
+
+crate::moved!(ProviderRoute);
+
+/// The owner's switch on a provider thrown.
+pub struct ChangeProvider;
+
+impl Route for ChangeProvider {
+  const METHOD: Method = Method::PATCH;
+  const PATH: &'static str = "/providers/{providerName}";
+
+  async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
+    let name = call.param("providerName").unwrap_or_default().to_owned();
+    let asked = call.body().await?;
+    let mut order = provider_order(call.store()).await?;
+
+    if let Some(enabled) = asked.get("enabled").and_then(Value::as_bool) {
+      for entry in &mut order {
+        if entry.name == name {
+          entry.enabled = enabled;
+        }
+      }
+      set_provider_order(call.store(), &order).await?;
+    }
+
+    let provider = named(&name)?;
+    let enabled = provider_order(call.store()).await?.iter().any(|one| one.name == name && one.enabled);
+
+    Ok(answer(
+      StatusCode::OK,
+      json!({
+        "name": name,
+        "enabled": enabled,
+        "registered": provider.unregistered().is_some(),
+        "coworker": provider.declared().lends_coworkers,
+      }),
+    ))
+  }
+}
+
+crate::moved!(ChangeProvider);
 
 /// The tier ladder, in its order, with the tiers a co-worker may be borrowed at.
 pub struct ListTiers;
@@ -59,60 +123,62 @@ impl Route for ListTiers {
     let listed: Vec<Value> = TIERS
       .ladder
       .iter()
-      .map(|tier| json!({ "name": tier, "coworker": TIERS.lends(tier) }))
+      .map(|tier| json!({ "name": tier, "coworker": TIERS.lends(tier), "mapping": {} }))
       .collect();
 
-    Ok(answer(StatusCode::OK, json!(listed)))
+    Ok(answer(StatusCode::OK, json!({ "items": listed, "more": false })))
   }
 }
 
 crate::moved!(ListTiers);
 
-/// A route asked: a work key at a tier, on one provider or none named.
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct RouteAsk {
-  work_key: String,
-  provider: Option<String>,
-  tier: String,
-}
-
-/// The mapping a work key goes out on at a tier: the named provider's, or the first that serves it in the
-/// provider order.
+/// Where a work key goes: the named provider's, or the first that serves it in the provider order.
 pub struct ResolveRoute;
 
 impl Route for ResolveRoute {
-  const METHOD: Method = Method::POST;
-  const PATH: &'static str = "/routes/resolve";
+  const METHOD: Method = Method::GET;
+  const PATH: &'static str = "/work-keys/{workKey}";
 
-  async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
-    let asked: RouteAsk =
-      serde_json::from_value(call.body().await?).map_err(|error| bad(format!("a route asked: {error}")))?;
+  async fn answer(&self, call: Call) -> Result<Response, Refused> {
+    let key = call.param("workKey").unwrap_or_default().to_owned();
+    let tier = call.query("tier").unwrap_or_default();
+    let asked_provider = call.query("provider").filter(|provider| !provider.trim().is_empty());
 
-    if !TIERS.holds(&asked.tier) {
-      return Err(bad(format!("Unknown model tier: {}", asked.tier)));
+    if !tier.is_empty() && !TIERS.holds(&tier) {
+      return Err(bad(format!("Unknown model tier: {tier}")));
     }
 
     let db = call.store();
-    let providers = match asked.provider {
+    let providers = match asked_provider {
       Some(provider) => vec![provider],
       None => enabled_providers(db).await?,
     };
     let mut reasons = vec![];
 
     for provider in &providers {
-      match resolve_execution(db, &asked.work_key, provider, Some(&asked.tier)).await {
-        Ok(mapping) => return Ok(answer(StatusCode::OK, json!(mapping))),
+      let asked = if tier.is_empty() { None } else { Some(tier.as_str()) };
+      match resolve_execution(db, &key, provider, asked).await {
+        Ok(mapping) => {
+          return Ok(answer(
+            StatusCode::OK,
+            json!({
+              "key": key,
+              "provider": mapping.provider,
+              "model": mapping.model,
+              "effort": mapping.effort,
+              "answerTokens": mapping.answer_tokens,
+              "capMs": 0,
+              "runMode": "run",
+            }),
+          ));
+        }
         Err(reason) => reasons.push(reason),
       }
     }
 
     let reason = if reasons.is_empty() { "no provider is on".to_owned() } else { reasons.join("; ") };
 
-    Ok(
-      WireError::new(ErrorCode::NothingHeld, format!("no route serves {}: {reason}", asked.work_key))
-        .into_response(),
-    )
+    Ok(WireError::new(ErrorCode::NotFound, format!("no route serves {key}: {reason}")).into_response())
   }
 }
 
@@ -129,7 +195,7 @@ pub struct CheckPin;
 
 impl Route for CheckPin {
   const METHOD: Method = Method::POST;
-  const PATH: &'static str = "/pins/check";
+  const PATH: &'static str = "/pin-checks";
 
   async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
     let asked: PinValue =
@@ -139,8 +205,12 @@ impl Route for CheckPin {
     Ok(answer(
       StatusCode::OK,
       match pin.provider {
-        None => json!({ "kind": "auto" }),
-        Some(provider) => json!({ "kind": "pinned", "provider": provider, "model": pin.model }),
+        None => json!({ "kind": "auto", "provider": Value::Null, "model": Value::Null }),
+        Some(provider) => json!({
+          "kind": if pin.model.is_some() { "model" } else { "provider" },
+          "provider": provider,
+          "model": pin.model,
+        }),
       },
     ))
   }
@@ -153,19 +223,29 @@ pub struct ModelHealth;
 
 impl Route for ModelHealth {
   const METHOD: Method = Method::GET;
-  const PATH: &'static str = "/providers/{provider}/models/{model}/health";
+  const PATH: &'static str = "/models/{modelKey}";
 
   async fn answer(&self, call: Call) -> Result<Response, Refused> {
-    let provider = named(call.param("provider").unwrap_or_default())?;
-    let model = call.param("model").unwrap_or_default();
+    let key = call.param("modelKey").unwrap_or_default();
+    let (provider, model) = match call.query("provider") {
+      Some(provider) => (provider, key.to_owned()),
+      None => {
+        let (provider, model) = key.split_once('/').unwrap_or((key, key));
+        (provider.to_owned(), model.to_owned())
+      }
+    };
+    let provider = named(&provider)?;
     let answers = match provider.unregistered() {
       None => false,
-      Some(_) => registry::registration_health(call.store(), &call.data_root(), model)
+      Some(_) => registry::registration_health(call.store(), &call.data_root(), &model)
         .await?
         .is_some_and(|health| health.aside.is_none()),
     };
 
-    Ok(answer(StatusCode::OK, json!({ "answers": answers })))
+    Ok(answer(
+      StatusCode::OK,
+      json!({ "key": key, "provider": provider.name(), "model": model, "tier": Value::Null, "healthy": answers }),
+    ))
   }
 }
 

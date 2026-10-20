@@ -6,23 +6,56 @@
 
 use std::any::{Any, TypeId};
 use std::borrow::Cow;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
+use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 
-/// One kind of event, with the kebab-case name a consumer knows it by.
+/// One kind of event, with the name a consumer knows it by.
 pub trait Event: Clone + Send + serde::Serialize + 'static {
   const NAME: &'static str;
 }
 
 type Senders = Vec<Box<dyn Any + Send>>;
 
-/// One event as a consumer across the boundary reads it: its kind's name and its JSON.
+// How many events the bus keeps for a reader that asks for a page of them.
+const KEPT: usize = 1000;
+
+// The kinds agency keeps to its own processes, which the boundary does not publish.
+const INTERNAL: &[&str] = &[
+  "companion-run-going",
+  "cowork-places",
+  "herdr-leftovers",
+  "machine-pressure",
+  "nodes-moved",
+  "open-items",
+  "pane-claims",
+  "road-verbs",
+  "road-walked",
+  "room-title",
+  "run-recovered",
+  "session-summariser",
+  "system-prompt-changed",
+  "typed-line",
+  "worker-words",
+];
+
+/// One event as a consumer across the boundary reads it: its number, its kind's name, when it happened and
+/// its JSON.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Named {
+  pub id: i64,
+  pub at: i64,
   pub name: Cow<'static, str>,
   pub body: serde_json::Value,
+}
+
+impl Named {
+  /// The event as the stream and the page carry it: the envelope around the member.
+  pub fn envelope(&self) -> serde_json::Value {
+    serde_json::json!({ "id": self.id, "kind": self.name, "at": self.at, "data": self.body })
+  }
 }
 
 // One stream of named events, and the kinds it reads; none reads every kind.
@@ -42,6 +75,9 @@ impl Wire {
 pub struct Bus {
   subscribers: Arc<Mutex<HashMap<TypeId, Senders>>>,
   wires: Arc<Mutex<Vec<Wire>>>,
+  // The number the next event takes, and the events kept for a page.
+  next: Arc<AtomicI64>,
+  history: Arc<Mutex<VecDeque<Named>>>,
 }
 
 /// One consumer's stream of one kind of event, from the moment it subscribed. Dropping it ends the
@@ -130,35 +166,58 @@ impl Bus {
 
   // The event handed, as its JSON, to every stream reading its kind; serialised only where one does.
   fn publish_wire<E: Event>(&self, event: &E) {
-    if !self.read(E::NAME) {
+    if INTERNAL.contains(&E::NAME) {
       return;
     }
 
     if let Ok(body) = serde_json::to_value(event) {
       self.publish_named(Named {
+        id: 0,
+        at: 0,
         name: Cow::Borrowed(E::NAME),
         body,
       });
     }
   }
 
-  // Whether a stream standing reads a kind; the streams let go since are dropped here.
-  fn read(&self, name: &str) -> bool {
-    let mut wires = self.wires.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
-
-    wires.retain(|wire| !wire.sender.is_closed());
-    wires.iter().any(|wire| wire.reads(name))
-  }
-
   /// An event known by its name and its JSON handed to every stream reading its kind, as an event another
   /// process of agency's published reaches this one's streams (docs/api.md, 「Events」). Only the streams
   /// read it: no subscriber of a kind's own type does.
   pub fn publish_named(&self, event: Named) {
+    let event = Named {
+      id: self.next.fetch_add(1, Ordering::SeqCst) + 1,
+      at: crate::now_ms(),
+      ..event
+    };
+
+    {
+      let mut history = self.history.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+      history.push_back(event.clone());
+      while history.len() > KEPT {
+        history.pop_front();
+      }
+    }
+
     let wires = self.wires.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
 
     for wire in wires.iter().filter(|wire| wire.reads(&event.name)) {
       let _ = wire.sender.send(event.clone());
     }
+  }
+
+  /// The events kept, after the number given, of the kinds asked, at most `limit` of them.
+  pub fn page(&self, after: Option<i64>, kinds: Option<&[String]>, limit: usize) -> (Vec<Named>, bool) {
+    let history = self.history.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let reads = |name: &str| kinds.is_none_or(|kinds| kinds.iter().any(|kind| kind == name));
+    let matching: Vec<Named> = history
+      .iter()
+      .filter(|event| after.is_none_or(|after| event.id > after))
+      .filter(|event| reads(&event.name))
+      .cloned()
+      .collect();
+    let more = matching.len() > limit;
+
+    (matching.into_iter().take(limit).collect(), more)
   }
 
   /// How many subscriptions to one kind of event stand.

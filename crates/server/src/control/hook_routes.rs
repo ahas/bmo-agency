@@ -3,7 +3,7 @@
 //! default. The points a consumer may register at are listed with whether one is registered.
 
 use axum::http::{Method, StatusCode};
-use axum::response::Response;
+use axum::response::{IntoResponse, Response};
 use serde_json::{Value, json};
 
 use super::{Call, Refused, Route, answer};
@@ -13,12 +13,7 @@ fn bad(error: impl Into<String>) -> Refused {
   Refused::new(StatusCode::BAD_REQUEST, error)
 }
 
-fn point_named(body: &Value) -> Result<&'static crate::hooks::Wired, Refused> {
-  let name = body
-    .get("point")
-    .and_then(Value::as_str)
-    .ok_or_else(|| bad("point (string) is required"))?;
-
+fn point_named(name: &str) -> Result<&'static crate::hooks::Wired, Refused> {
   wired_named(name)
     .ok_or_else(|| Refused::new(StatusCode::NOT_FOUND, format!("no hook point is named {name}")))
 }
@@ -27,12 +22,13 @@ fn point_named(body: &Value) -> Result<&'static crate::hooks::Wired, Refused> {
 pub struct HookRegister;
 
 impl Route for HookRegister {
-  const METHOD: Method = Method::POST;
-  const PATH: &'static str = "/hooks";
+  const METHOD: Method = Method::PUT;
+  const PATH: &'static str = "/hooks/{point}";
 
   async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
     let body = call.body().await?;
-    let point = point_named(&body)?;
+    let name = call.param("point").unwrap_or_default().to_owned();
+    let point = point_named(&name)?;
     let url = body.get("url").and_then(Value::as_str).ok_or_else(|| bad("url (string) is required"))?;
 
     reqwest::Url::parse(url).map_err(|why| bad(format!("{url} is not an address: {why}")))?;
@@ -47,7 +43,7 @@ impl Route for HookRegister {
       },
     );
 
-    Ok(answer(StatusCode::OK, json!({ "ok": true })))
+    Ok(answer(StatusCode::OK, json!({ "point": point.name, "url": url, "token": token })))
   }
 }
 
@@ -57,15 +53,14 @@ crate::moved!(HookRegister);
 pub struct HookRemove;
 
 impl Route for HookRemove {
-  const METHOD: Method = Method::POST;
-  const PATH: &'static str = "/hooks/remove";
+  const METHOD: Method = Method::DELETE;
+  const PATH: &'static str = "/hooks/{point}";
 
-  async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
-    let body = call.body().await?;
+  async fn answer(&self, call: Call) -> Result<Response, Refused> {
+    let name = call.param("point").unwrap_or_default();
+    (point_named(name)?.unregister)(&call.ground().hooks);
 
-    (point_named(&body)?.unregister)(&call.ground().hooks);
-
-    Ok(answer(StatusCode::OK, json!({ "ok": true })))
+    Ok(StatusCode::NO_CONTENT.into_response())
   }
 }
 
@@ -80,12 +75,18 @@ impl Route for HookPoints {
 
   async fn answer(&self, call: Call) -> Result<Response, Refused> {
     let mut points: Vec<Value> = wired()
-      .map(|point| json!({ "point": point.name, "registered": (point.registered)(&call.ground().hooks) }))
+      .map(|point| {
+        json!({
+          "point": point.name,
+          "url": if (point.registered)(&call.ground().hooks) { "registered" } else { "" },
+          "token": Value::Null,
+        })
+      })
       .collect();
 
     points.sort_by(|a, b| a["point"].as_str().cmp(&b["point"].as_str()));
 
-    Ok(answer(StatusCode::OK, json!({ "points": points })))
+    Ok(answer(StatusCode::OK, json!({ "items": points, "more": false })))
   }
 }
 

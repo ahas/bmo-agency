@@ -25,7 +25,7 @@ pub struct TurnQuestion {
 }
 
 impl Event for TurnQuestion {
-  const NAME: &'static str = "turn-question";
+  const NAME: &'static str = "question.created";
 }
 
 // A question waiting for its caller's answer: what it asks, where the answer goes, and the token the door

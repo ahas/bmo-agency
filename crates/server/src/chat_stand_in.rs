@@ -43,7 +43,7 @@ pub struct FallbackEnded {
 }
 
 impl Event for FallbackEnded {
-  const NAME: &'static str = "fallback-ended";
+  const NAME: &'static str = "fallback.changed";
 }
 
 /// The owner the fallback's events are told to, as the deployment names them; none is nought.

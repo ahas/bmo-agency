@@ -1,0 +1,12 @@
+[package]
+name = "bmo-agency-client"
+description = "The agency service's client: every body and member of its API as a Rust type, and one method for each route."
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+reqwest = { workspace = true, features = ["json", "query"] }
+schemars.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+url.workspace = true

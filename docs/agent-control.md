@@ -983,7 +983,7 @@ flowchart TD
      consumer holding the owner's chat queues the order, since agency sends nothing to a room. A word's
      turn is asked by the job unit, which holds it.
   2. The chat agent decides alone — keep or cut — and never asks the owner. It answers an ask of agency's
-     with `bmo-agency overtime`, which the event names, or `POST /runs/overtime`; a keep names how long,
+     with `bmo-agency overtime`, which the event names, or `PATCH /overtime-requests/{requestId}`; a keep names how long,
      the clock's own length where it names none and two hours at most, and the run is asked about again
      when that runs out. The run's door looks for the verdict every five seconds while the ask stands.
   3. A fault the chat agent sees in the run is filed as a TODO item and fixed by a job, as every change to the
@@ -998,7 +998,7 @@ flowchart TD
   the name it runs under, its bound and when it started and ended — and each ask on it a row of
   `clock_asks`: the facts the order carried, when its answer is due, the verdict, who gave it — the chat
   agent, or agency for want of an answer — why, and when (`docs/store.md`). A consumer whose waits are
-  sized on the run reads its clock through `GET /runs/clock`: when its bound runs out, and until when a
+  sized on the run reads its clock through `GET /runs/{runId}`: when its bound runs out, and until when a
   keep or an open ask on it stands. A word cut on its clock also says so in the worker's own log under the word, with
   whose call it was; any other run cut on its clock gives the clock and whose call it was as its
   failure's cause, which is what its room or the owner hears.

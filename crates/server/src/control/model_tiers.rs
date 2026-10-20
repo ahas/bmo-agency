@@ -154,8 +154,6 @@ impl Route for TierSettings {
   }
 }
 
-crate::moved!(TierSettings);
-
 /// One provider's catalogue, for a new mapping to be chosen from.
 pub struct TierModels;
 
@@ -175,8 +173,6 @@ impl Route for TierModels {
     }
   }
 }
-
-crate::moved!(TierModels);
 
 /// What a listing that did not arrive is said as.
 pub fn listing_refusal(provider: &str, error: &str) -> String {
@@ -284,17 +280,28 @@ async fn change(judging: Judging<'_>, machine: &Machine, body: &Value) -> Result
 pub struct TierChange;
 
 impl Route for TierChange {
-  const METHOD: Method = Method::POST;
-  const PATH: &'static str = "/model-tiers";
+  const METHOD: Method = Method::PATCH;
+  const PATH: &'static str = "/tiers/{tierName}";
 
   async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
-    let body = call.body().await?;
+    let mut body = call.body().await?;
+    let tier = call.param("tierName").unwrap_or_default();
+    if body.get("tier").is_none() {
+      body["tier"] = json!(tier);
+    }
 
     change(Judging::of(call.ground()), call.machine(), &body)
       .await
       .map_err(Refused::failed)?;
 
-    Ok(answer(StatusCode::OK, json!({ "ok": true })))
+    Ok(answer(
+      StatusCode::OK,
+      json!({
+        "name": tier,
+        "coworker": policy::tiers::TIERS.lends(tier),
+        "mapping": body,
+      }),
+    ))
   }
 }
 

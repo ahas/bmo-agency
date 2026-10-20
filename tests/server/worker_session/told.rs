@@ -6,8 +6,8 @@ use serde_json::json;
 
 #[test]
 fn a_downgrade_and_a_fold_travel_under_their_names_in_their_shapes() {
-  assert_eq!(WorkerDowngraded::NAME, "worker-downgraded");
-  assert_eq!(SessionFolded::NAME, "session-folded");
+  assert_eq!(WorkerDowngraded::NAME, "worker.changed");
+  assert_eq!(SessionFolded::NAME, "session.folded");
   assert_eq!(
     serde_json::to_value(WorkerDowngraded {
       worker: "worker".into(),

@@ -36,19 +36,17 @@ impl Route for RunClock {
   }
 }
 
-crate::moved!(RunClock);
-
 /// The asks open on runs past their clock, and the chat agent's verdict on one.
 pub struct RunOvertime;
 
 impl Route for RunOvertime {
   const METHOD: Method = Method::GET;
-  const PATH: &'static str = "/runs/overtime";
+  const PATH: &'static str = "/overtime-requests";
 
   async fn answer(&self, call: Call) -> Result<Response, Refused> {
     let asks = run_clock::open_asks(call.store()).await?;
 
-    Ok(answer(StatusCode::OK, json!({ "asks": asks })))
+    Ok(answer(StatusCode::OK, json!({ "items": asks, "more": false })))
   }
 }
 
@@ -79,12 +77,22 @@ pub fn verdict_read(body: &Value) -> Result<(i64, Verdict, String), Refused> {
 }
 
 impl Route for RunOvertimeVerdict {
-  const METHOD: Method = Method::POST;
-  const PATH: &'static str = "/runs/overtime";
+  const METHOD: Method = Method::PATCH;
+  const PATH: &'static str = "/overtime-requests/{requestId}";
 
   async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
     let body = call.body().await?;
-    let (ask, verdict, why) = verdict_read(&body)?;
+    let ask: i64 = call
+      .param("requestId")
+      .and_then(|id| id.parse().ok())
+      .or_else(|| body.get("ask").and_then(Value::as_i64))
+      .ok_or_else(|| bad("requestId is a number"))?;
+    let (_, verdict, why) = verdict_read(&json!({
+      "ask": ask,
+      "verdict": body.get("verdict"),
+      "minutes": body.get("minutes"),
+      "why": body.get("why"),
+    }))?;
 
     match run_clock::settle(call.store(), call.events(), ask, &verdict, &why).await {
       Ok(settled) => Ok(answer(StatusCode::OK, json!(settled))),
@@ -125,5 +133,3 @@ impl Route for EditorCap {
     Ok(answer(StatusCode::OK, json!({ "capSeconds": cap.as_secs() })))
   }
 }
-
-crate::moved!(EditorCap);

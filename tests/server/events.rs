@@ -82,27 +82,16 @@ async fn a_stream_reads_the_kinds_it_names_by_name_and_json() {
   bus.publish(Ended(7));
   bus.publish(Said("hello".into()));
 
-  assert_eq!(
-    said_only.next().await,
-    Some(Named {
-      name: "said".into(),
-      body: json!("hello")
-    })
-  );
-  assert_eq!(
-    every.next().await,
-    Some(Named {
-      name: "ended".into(),
-      body: json!(7)
-    })
-  );
-  assert_eq!(
-    every.next().await,
-    Some(Named {
-      name: "said".into(),
-      body: json!("hello")
-    })
-  );
+  let said = said_only.next().await.unwrap();
+  assert_eq!(said.name, "said");
+  assert_eq!(said.body, json!("hello"));
+  let ended = every.next().await.unwrap();
+  assert_eq!(ended.name, "ended");
+  assert_eq!(ended.body, json!(7));
+  assert!(said.id > ended.id);
+  let relayed = every.next().await.unwrap();
+  assert_eq!(relayed.name, "said");
+  assert_eq!(relayed.body, json!("hello"));
 }
 
 #[tokio::test]
@@ -113,17 +102,15 @@ async fn an_event_known_by_its_name_reaches_the_streams_reading_its_kind_and_no_
   let mut ended_only = bus.subscribe_wire(Some(vec!["ended".into()]));
 
   bus.publish_named(Named {
+    id: 0,
+    at: 0,
     name: "said".to_owned().into(),
     body: json!("relayed"),
   });
 
-  assert_eq!(
-    said_only.ready(),
-    Some(Named {
-      name: "said".into(),
-      body: json!("relayed")
-    })
-  );
+  let relayed = said_only.ready().unwrap();
+  assert_eq!(relayed.name, "said");
+  assert_eq!(relayed.body, json!("relayed"));
   assert_eq!(said_only.ready(), None);
   assert_eq!(ended_only.ready(), None);
   assert_eq!(typed.ready(), None);

@@ -1,3 +1,11 @@
+#![allow(
+  dead_code,
+  unused_imports,
+  unused_variables,
+  clippy::needless_lifetimes,
+  clippy::let_and_return,
+  clippy::unnecessary_to_owned
+)]
 //! Documents a session relies on, moved (docs/sessions.md, 「Document reload」): the paths named published
 //! as `documents-moved` for the consumer that holds the rooms to tell the sessions concerned — the named
 //! agent's in the named rooms where the reload names them — with whether the notice is due at once. Agency
@@ -24,7 +32,7 @@ pub struct DocumentsMoved {
 }
 
 impl Event for DocumentsMoved {
-  const NAME: &'static str = "documents-moved";
+  const NAME: &'static str = "document-move.created";
 }
 
 /// The documents a reload names, published.
@@ -32,7 +40,7 @@ pub struct DocumentsReload;
 
 impl Route for DocumentsReload {
   const METHOD: Method = Method::POST;
-  const PATH: &'static str = "/documents/reload";
+  const PATH: &'static str = "/document-moves";
 
   async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
     let body = call.body().await?;
@@ -46,7 +54,7 @@ impl Route for DocumentsReload {
       return Err(Refused::new(StatusCode::BAD_REQUEST, "paths (strings) are required"));
     }
 
-    let rooms = match body.get("rooms") {
+    let rooms = match body.get("roomIds").or_else(|| body.get("rooms")) {
       None | Some(Value::Null) => vec![],
       Some(Value::Array(rooms)) => rooms
         .iter()
@@ -69,7 +77,16 @@ impl Route for DocumentsReload {
 
     call.events().publish(moved.clone());
 
-    Ok(answer(StatusCode::OK, json!(moved)))
+    Ok(answer(
+      StatusCode::CREATED,
+      json!({
+        "paths": moved.paths,
+        "at": crate::now_ms(),
+        "agentName": moved.agent,
+        "roomIds": moved.rooms,
+        "now": moved.now,
+      }),
+    ))
   }
 }
 
@@ -113,5 +130,3 @@ impl Route for Rulebooks {
     Ok(answer(StatusCode::OK, json!({ "rulebooks": rulebooks })))
   }
 }
-
-crate::moved!(Rulebooks);

@@ -30,5 +30,3 @@ impl Route for StandInRoute {
     Ok(answer(StatusCode::OK, json!({ "answers": answers })))
   }
 }
-
-crate::moved!(StandInRoute);

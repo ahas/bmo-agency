@@ -38,7 +38,7 @@ pub struct TypedLineRoute;
 
 impl Route for TypedLineRoute {
   const METHOD: Method = Method::POST;
-  const PATH: &'static str = "/typed-line";
+  const PATH: &'static str = "/turn-contexts";
 
   async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
     let body = call.body().await?;

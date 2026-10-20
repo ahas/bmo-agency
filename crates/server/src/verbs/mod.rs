@@ -248,13 +248,13 @@ pub async fn relay_events() {
   };
 
   for (at, event) in published.iter().enumerate() {
-    let body = serde_json::json!({ "kind": event.name, "body": event.body });
-    let missed =
-      match control_call(&token, reqwest::Method::POST, "/events/publish", Some(&body), TELL_WAIT).await {
-        Ok((status, _)) if (200..300).contains(&status) => None,
-        Ok((status, _)) => Some(format!("the server answered {status}")),
-        Err(why) => Some(format!("no server answered on port {} ({why})", control_port())),
-      };
+    let body = serde_json::json!({ "kind": event.name, "data": event.body });
+    let missed = match control_call(&token, reqwest::Method::POST, "/events", Some(&body), TELL_WAIT).await
+    {
+      Ok((status, _)) if (200..300).contains(&status) => None,
+      Ok((status, _)) => Some(format!("the server answered {status}")),
+      Err(why) => Some(format!("no server answered on port {} ({why})", control_port())),
+    };
 
     if let Some(missed) = missed {
       eprintln!(

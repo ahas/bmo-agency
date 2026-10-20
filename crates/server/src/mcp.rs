@@ -1,0 +1,223 @@
+//! The harness plugin's MCP server (`docs/openapi.json`, `x-tools`): the agency's two tools, each a thin call
+//! of one route through the agency's own client.
+
+use std::future::Future;
+use std::pin::Pin;
+use std::sync::Arc;
+
+use bmo_agency_client::{AgencyClient, Answer, AssignWorker, Assignment, ClientFailure, Job, RunJob};
+use rmcp::model::{
+  CallToolRequestParams, CallToolResponse, CallToolResult, ContentBlock, Implementation, InitializeResult,
+  JsonObject, ListToolsResult, PaginatedRequestParams, ServerCapabilities, Tool,
+};
+use rmcp::service::RequestContext;
+use rmcp::{ErrorData, RoleServer, ServerHandler};
+use schemars::generate::{SchemaGenerator, SchemaSettings};
+use schemars::{JsonSchema, Schema};
+use serde::Serialize;
+use serde::de::DeserializeOwned;
+use serde_json::{Map, Value, json};
+
+/// What the server tells a harness of itself when it starts.
+const INSTRUCTIONS: &str = "Runs items on the agency's workers. A harness holding an item asks for a worker \
+  with assign_worker, hands the item and its lease over with run_job, and reads the job's progress, questions \
+  and outcome from the job's events and fields; the harness renews its lease and reports and closes the item \
+  in the job service. A failure comes back as a tool error carrying the route's status, code and sentence.";
+
+/// What a tool's call came to short of the route's answer.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ToolFailure {
+  /// The arguments are not the shape the tool takes.
+  Arguments(String),
+  /// The call reached no answer of the route's shape.
+  Client(ClientFailure),
+}
+
+impl ToolFailure {
+  /// The failure as the tool error's content.
+  pub fn content(&self) -> Value {
+    match self {
+      Self::Arguments(why) => json!({ "code": "bad-request", "error": why }),
+      Self::Client(ClientFailure::Answered {
+        status,
+        answer: Some(answer),
+      }) => {
+        json!({ "status": status, "code": answer.code, "error": answer.error })
+      }
+      Self::Client(failure @ ClientFailure::Answered { status, .. }) => {
+        json!({ "status": status, "error": failure.to_string() })
+      }
+      Self::Client(failure) => json!({ "error": failure.to_string() }),
+    }
+  }
+}
+
+type Answered = Pin<Box<dyn Future<Output = Result<Value, ToolFailure>> + Send>>;
+type Call = Box<dyn Fn(AgencyClient, Value) -> Answered + Send + Sync>;
+
+/// One tool: its name, what it does, the route it calls, its input and output, and the call itself.
+pub struct AgencyTool {
+  pub name: &'static str,
+  pub description: &'static str,
+  pub route: &'static str,
+  input: fn(&mut SchemaGenerator) -> Schema,
+  output: fn(&mut SchemaGenerator) -> Schema,
+  call: Call,
+}
+
+impl AgencyTool {
+  /// The tool's input, its nested types referred to where `generator` keeps its definitions.
+  pub fn input(&self, generator: &mut SchemaGenerator) -> Schema {
+    (self.input)(generator)
+  }
+
+  /// The tool's output, referred to where `generator` keeps its definitions.
+  pub fn output(&self, generator: &mut SchemaGenerator) -> Schema {
+    (self.output)(generator)
+  }
+
+  /// Calls the tool's route on the agency `client` reaches, with the tool's arguments.
+  pub fn call(&self, client: AgencyClient, arguments: Value) -> Answered {
+    (self.call)(client, arguments)
+  }
+}
+
+fn tool<I, O, F, Fut>(
+  name: &'static str,
+  description: &'static str,
+  route: &'static str,
+  call: F,
+) -> AgencyTool
+where
+  I: DeserializeOwned + JsonSchema,
+  O: Serialize + JsonSchema,
+  F: Fn(AgencyClient, I) -> Fut + Send + Sync + 'static,
+  Fut: Future<Output = Answer<O>> + Send + 'static,
+{
+  AgencyTool {
+    name,
+    description,
+    route,
+    input: I::json_schema,
+    output: SchemaGenerator::subschema_for::<O>,
+    call: Box::new(move |client, arguments| {
+      let input = match serde_json::from_value::<I>(arguments) {
+        Ok(input) => input,
+        Err(error) => {
+          let why = format!("The arguments are not the shape this tool takes: {error}.");
+          return Box::pin(std::future::ready(Err(ToolFailure::Arguments(why))));
+        }
+      };
+      let answer = call(client, input);
+      Box::pin(async move {
+        let answer = answer.await.map_err(ToolFailure::Client)?;
+        Ok(serde_json::to_value(answer).expect("a route's answer always renders as JSON"))
+      })
+    }),
+  }
+}
+
+/// The tools the server lists, and the document states under `x-tools`.
+pub fn tools() -> Vec<AgencyTool> {
+  vec![
+    tool::<AssignWorker, Assignment, _, _>(
+      "assign_worker",
+      "Assign a worker to an item for the harness holding it: the agency picks the worker from the item's content and the assignee it names, and holds it until the job starts or the hold runs out.",
+      "POST /assignments",
+      |client, body| async move { client.create_assignments(&body).await },
+    ),
+    tool::<RunJob, Job, _, _>(
+      "run_job",
+      "Run an item on its assigned worker: the harness hands over the item's content and the lease it holds, and the agency launches the worker's session on it. The agency calls nothing of the job service.",
+      "POST /jobs",
+      |client, body| async move { client.create_jobs(&body).await },
+    ),
+  ]
+}
+
+/// The server over the agency the client reaches.
+pub struct AgencyServer {
+  client: AgencyClient,
+  tools: Vec<AgencyTool>,
+}
+
+impl AgencyServer {
+  pub fn new(client: AgencyClient) -> Self {
+    Self {
+      client,
+      tools: tools(),
+    }
+  }
+
+  /// The tools as MCP lists them, each input and output a schema of its own with its definitions inside.
+  pub fn listed(&self) -> Vec<Tool> {
+    self.tools.iter().map(listed).collect()
+  }
+}
+
+fn listed(tool: &AgencyTool) -> Tool {
+  let mut generator = SchemaSettings::draft2020_12()
+    .for_serialize()
+    .with(|settings| settings.meta_schema = None)
+    .into_generator();
+  let input = tool.input(&mut generator);
+  let output = tool.output(&mut generator);
+  let definitions = generator.take_definitions(true);
+  let mut listed = Tool::new(tool.name, tool.description, standing_alone(input, &definitions));
+  listed.output_schema = Some(Arc::new(standing_alone(output, &definitions)));
+  listed
+}
+
+/// A schema made to stand on its own: an object at its root, with every definition it refers to beside it.
+fn standing_alone(schema: Schema, definitions: &Map<String, Value>) -> JsonObject {
+  let mut object = match schema.to_value() {
+    Value::Object(object) if object.contains_key("$ref") => {
+      let mut wrapped = Map::new();
+      wrapped.insert("allOf".into(), Value::Array(vec![Value::Object(object)]));
+      wrapped.insert("type".into(), "object".into());
+      wrapped
+    }
+    Value::Object(object) => object,
+    _ => unreachable!("every tool's input and output is an object"),
+  };
+  if !definitions.is_empty() {
+    object.insert("$defs".into(), Value::Object(definitions.clone()));
+  }
+  object
+}
+
+impl ServerHandler for AgencyServer {
+  fn get_info(&self) -> InitializeResult {
+    let mut info = InitializeResult::new(ServerCapabilities::builder().enable_tools().build());
+    let mut server = Implementation::default();
+    server.name = "bmo-agency".to_owned();
+    server.version = env!("CARGO_PKG_VERSION").to_owned();
+    info.server_info = server;
+    info.instructions = Some(INSTRUCTIONS.to_owned());
+    info
+  }
+
+  async fn list_tools(
+    &self,
+    _: Option<PaginatedRequestParams>,
+    _: RequestContext<RoleServer>,
+  ) -> Result<ListToolsResult, ErrorData> {
+    Ok(ListToolsResult::with_all_items(self.listed()))
+  }
+
+  async fn call_tool(
+    &self,
+    request: CallToolRequestParams,
+    _: RequestContext<RoleServer>,
+  ) -> Result<CallToolResponse, ErrorData> {
+    let Some(tool) = self.tools.iter().find(|tool| tool.name == request.name) else {
+      return Err(ErrorData::invalid_params(format!("There is no tool {}.", request.name), None));
+    };
+    let arguments = Value::Object(request.arguments.unwrap_or_default());
+    let result = match tool.call(self.client.clone(), arguments).await {
+      Ok(answer) => CallToolResult::structured(answer),
+      Err(failure) => CallToolResult::error(vec![ContentBlock::text(failure.content().to_string())]),
+    };
+    Ok(CallToolResponse::Complete(result))
+  }
+}

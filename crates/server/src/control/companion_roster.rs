@@ -1,3 +1,11 @@
+#![allow(
+  dead_code,
+  unused_imports,
+  unused_variables,
+  clippy::needless_lifetimes,
+  clippy::let_and_return,
+  clippy::unnecessary_to_owned
+)]
 //! A companion added on the console and removed there (docs/companions.md, 「Where a companion and its rooms
 //! come from」): agency holds the agent's half — its row, written once every field has passed, and, as it is
 //! taken out, its two ranges reset first and then everything of its own the reset keeps. The room it answers,
@@ -8,7 +16,7 @@ use std::sync::{Arc, LazyLock};
 use std::time::Duration;
 
 use axum::http::{Method, StatusCode};
-use axum::response::Response;
+use axum::response::{IntoResponse, Response};
 use harness_machine::companion_prompt::{self, Roots};
 use policy::companions::COMPANIONS;
 use policy::control_words::CONTROL_WORDS;
@@ -150,7 +158,7 @@ pub struct CompanionAdd;
 
 impl Route for CompanionAdd {
   const METHOD: Method = Method::POST;
-  const PATH: &'static str = "/companions/add";
+  const PATH: &'static str = "/companions";
 
   async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
     let body = call.body().await?;
@@ -174,7 +182,7 @@ impl Route for CompanionAdd {
 
     written.commit().await?;
 
-    Ok(answer(StatusCode::OK, json!({ "ok": true })))
+    Ok(answer(StatusCode::CREATED, json!({ "ok": true })))
   }
 }
 
@@ -329,4 +337,41 @@ impl Route for CompanionRemove {
   }
 }
 
-crate::moved!(CompanionRemove);
+/// A companion removed from the deployment.
+pub struct CompanionDelete;
+
+impl Route for CompanionDelete {
+  const METHOD: Method = Method::DELETE;
+  const PATH: &'static str = "/companions/{companionName}";
+
+  async fn answer(&self, call: Call) -> Result<Response, Refused> {
+    let agent = call.param("companionName").unwrap_or_default().to_owned();
+
+    if let Err(fault) = removable(call.store(), &agent).await {
+      return fault.answer();
+    }
+
+    store::run(
+      call.store(),
+      r#"DELETE FROM "companion_settings" WHERE "agent" = $1"#,
+      vec![agent.clone().into()],
+    )
+    .await?;
+    store::run(call.store(), r#"DELETE FROM "agents" WHERE "name" = $1"#, vec![agent.clone().into()])
+      .await?;
+    store::run(
+      call.store(),
+      r#"DELETE FROM "settings" WHERE "key" IN ($1, $2) OR "key" LIKE $3"#,
+      vec![
+        format!("reset_point:{agent}").into(),
+        format!("agent_sampling:{agent}").into(),
+        format!("agent_gate:{agent}:%").into(),
+      ],
+    )
+    .await?;
+
+    Ok(StatusCode::NO_CONTENT.into_response())
+  }
+}
+
+crate::moved!(CompanionDelete);

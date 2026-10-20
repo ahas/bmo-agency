@@ -205,6 +205,8 @@ impl From<Program> for Command {
 /// and its program.
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
 pub struct Launch {
+  #[serde(default, alias = "runId")]
+  pub run_id: Option<i64>,
   pub title: String,
   pub agent: String,
   pub command: Program,

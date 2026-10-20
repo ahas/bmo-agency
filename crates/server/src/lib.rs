@@ -52,6 +52,8 @@ pub mod keepalive {
   pub mod switch;
 }
 pub mod lines;
+pub mod mcp;
+pub mod openapi;
 pub mod order_run;
 pub mod peers;
 pub mod places;

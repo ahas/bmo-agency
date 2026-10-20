@@ -518,7 +518,43 @@ impl Route for Sessions {
       unequal => unequal,
     });
 
-    Ok(Json(views).into_response())
+    let agent = call.query("agentName").unwrap_or_default();
+    let scope = call.query("scope").unwrap_or_default();
+    let room = call.query("roomId").and_then(|room| room.parse::<i64>().ok());
+    let items: Vec<Value> = views
+      .iter()
+      .filter(|view| agent.is_empty() || view.session.agent == agent)
+      .filter(|view| {
+        let word = if view.session.chat_id.is_some() { "room" } else { "agent" };
+        scope.is_empty() || scope == word
+      })
+      .filter(|view| room.is_none_or(|room| view.session.chat_id == Some(room)))
+      .map(|view| {
+        let session = &view.session;
+        let id = match session.chat_id {
+          Some(room) => format!("{}@{}", session.agent, room),
+          None => session.agent.clone(),
+        };
+        let model = session.models.first().cloned().unwrap_or(Value::Null);
+        json!({
+          "id": id,
+          "agentName": session.agent,
+          "scope": if session.chat_id.is_some() { "room" } else { "agent" },
+          "roomId": session.chat_id,
+          "provider": model.get("provider").cloned().unwrap_or(Value::Null),
+          "model": model.get("model").cloned().unwrap_or(Value::Null),
+          "place": Value::Null,
+          "generation": session.generation.unwrap_or(0),
+          "holder": Value::Null,
+          "prefixChangeReason": Value::Null,
+          "boundMs": Value::Null,
+          "options": {},
+          "promptDocumentName": Value::Null,
+        })
+      })
+      .collect();
+
+    Ok(answer(StatusCode::OK, json!({ "items": items, "more": false })))
   }
 }
 
@@ -631,5 +667,3 @@ impl Route for SessionResetAsk {
     Ok(Json(view_of(db, &call.ground().hooks, session).await?).into_response())
   }
 }
-
-crate::moved!(SessionResetAsk);
