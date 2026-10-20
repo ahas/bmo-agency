@@ -533,10 +533,17 @@ async fn launched(
     .await
     .map_err(|fault| fault.message)?;
   let session_id = session.id.0;
+  let parts = work_parts(ground, &worker_name, room, &name, &title).await?;
   run(
     &ground.db,
-    r#"UPDATE "jobs" SET "state" = 'running', "session_id" = $1, "run_name" = $2 WHERE "id" = $3"#,
-    vec![session_id.clone().into(), name.clone().into(), id.into()],
+    r#"UPDATE "jobs" SET "state" = 'running', "session_id" = $1, "run_name" = $2, "model" = $3
+       WHERE "id" = $4"#,
+    vec![
+      session_id.clone().into(),
+      name.clone().into(),
+      parts.mapping.model.clone().into(),
+      id.into(),
+    ],
   )
   .await
   .map_err(|why| why.detail)?;
@@ -544,7 +551,6 @@ async fn launched(
     publish(ground, "job.changed", member);
   }
 
-  let parts = work_parts(ground, &worker_name, room, &name, &title).await?;
   let end = sessions
     .send_turn(Turn {
       session: SessionId(session_id),

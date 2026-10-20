@@ -168,6 +168,35 @@ impl Route for ChangeWorker {
 
     let field =
       |key: &str| body.get(key).and_then(Value::as_str).map(str::trim).filter(|value| !value.is_empty());
+
+    // A worker's node is its placement, not a column: the node the node service keeps, the path the
+    // worker's checkout stands at there, and the checkout this machine reads it through are judged and
+    // written as one change. A body that names the node the worker already stands on leaves it alone,
+    // since a PATCH carries the whole resource.
+    let asked_node = body
+      .get("nodeName")
+      .and_then(Value::as_str)
+      .map(str::trim)
+      .filter(|node| !node.is_empty());
+    let held_node = one(
+      db,
+      r#"SELECT "node" FROM "agents" WHERE "name" = $1 AND "kind" = 'worker'"#,
+      vec![name.clone().into()],
+    )
+    .await?
+    .and_then(|row| row.try_get::<Option<String>>("", "node").ok().flatten())
+    .filter(|node| !node.is_empty());
+    let placed =
+      body.get("nodeName").is_some() && asked_node.filter(|node| *node != "none") != held_node.as_deref();
+
+    if placed {
+      let node = asked_node.filter(|node| *node != "none");
+      let (ground, machine, places) =
+        (call.shared_ground(), call.machine().clone(), call.places().cloned());
+
+      crate::control::worker::place_worker(ground, machine, places, &name, node, field("cwd")).await?;
+    }
+
     let mut sets = Vec::new();
     let mut values: Vec<sea_orm::Value> = Vec::new();
     let mut push = |column: &str, value: Option<&str>| {
@@ -177,10 +206,10 @@ impl Route for ChangeWorker {
       }
     };
     push("label", field("label"));
-    push("cwd", field("cwd"));
+    push("cwd", if placed { None } else { field("cwd") });
     push("icon", field("icon"));
     push("role", field("role"));
-    push("node", field("nodeName").or_else(|| field("node")));
+    push("node", if placed { None } else { field("nodeName").or_else(|| field("node")) });
 
     if !sets.is_empty() {
       values.push(name.clone().into());
@@ -188,7 +217,8 @@ impl Route for ChangeWorker {
       run(db, &sql, values).await?;
     }
 
-    if body.get("stand").and_then(Value::as_bool) == Some(true)
+    if !placed
+      && body.get("stand").and_then(Value::as_bool) == Some(true)
       && let Some(places) = call.places().cloned()
     {
       tokio::spawn(async move { crate::places::standby::restand_all(&places.ground, None).await });

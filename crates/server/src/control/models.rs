@@ -831,7 +831,7 @@ fn faulted(fault: Fault) -> Refused {
   }
 }
 
-/// A model's registration changed.
+/// A model's registration changed: the model name it is registered under.
 pub struct ChangeModel;
 
 impl Route for ChangeModel {
@@ -840,24 +840,36 @@ impl Route for ChangeModel {
 
   async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
     let key = call.param("modelKey").unwrap_or_default().to_owned();
-    let mut body = call.body().await?;
-    if body.get("name").is_none() {
-      body["name"] = json!(key);
+    let (provider, name) = super::walk_reads::model_key(&key, call.query("provider").as_deref());
+
+    if provider != super::registry::PROVIDER {
+      return Err(Refused::new(
+        StatusCode::NOT_FOUND,
+        format!("{provider}'s models are its own catalogue, and none of them is a registration"),
+      ));
     }
+
+    let body = call.body().await?;
+    let model = body
+      .get("model")
+      .and_then(Value::as_str)
+      .map(str::trim)
+      .filter(|model| !model.is_empty())
+      .ok_or_else(|| Refused::new(StatusCode::BAD_REQUEST, "model (a string) is required"))?
+      .to_owned();
     let db = call.store();
     let data_root = call.data_root();
-    save(db, &body, &key).await.map_err(faulted)?;
 
-    Ok(answer(
-      StatusCode::OK,
-      json!({
-        "key": key,
-        "provider": body.get("provider").cloned().unwrap_or(Value::Null),
-        "model": body.get("model").cloned().unwrap_or(Value::Null),
-        "tier": body.get("tier").cloned().unwrap_or(Value::Null),
-        "healthy": Value::Null,
-      }),
-    ))
+    if super::registry::registered_model(db, &data_root, &name).await?.is_none() {
+      return Err(Refused::new(StatusCode::NOT_FOUND, format!("no model is registered as {name}")));
+    }
+
+    super::registry::change_model(db, &name, &model).await.map_err(faulted)?;
+
+    match super::registry::registered_model(db, &data_root, &name).await? {
+      Some(view) => Ok(answer(StatusCode::OK, view)),
+      None => Err(Refused::failed("the model was changed but not read")),
+    }
   }
 }
 
@@ -872,9 +884,26 @@ impl Route for DeleteModel {
 
   async fn answer(&self, call: Call) -> Result<Response, Refused> {
     let key = call.param("modelKey").unwrap_or_default();
-    remove(call.store(), &call.data_root(), key).await.map_err(faulted)?;
+    let (provider, name) = super::walk_reads::model_key(key, call.query("provider").as_deref());
 
-    Ok(StatusCode::NO_CONTENT.into_response())
+    if provider != super::registry::PROVIDER {
+      return Err(Refused::new(
+        StatusCode::NOT_FOUND,
+        format!("{provider}'s models are its own catalogue, and none of them is a registration"),
+      ));
+    }
+
+    let db = call.store();
+    let data_root = call.data_root();
+
+    if super::registry::registered_model(db, &data_root, &name).await?.is_none() {
+      return Err(Refused::new(StatusCode::NOT_FOUND, format!("no model is registered as {name}")));
+    }
+
+    match super::registry::change(db, &data_root, &json!({ "action": "remove", "name": name })).await? {
+      Ok(()) => Ok(StatusCode::NO_CONTENT.into_response()),
+      Err(sentence) => Err(Refused::new(StatusCode::BAD_REQUEST, sentence)),
+    }
   }
 }
 

@@ -17,7 +17,9 @@ use serde_json::{Value, json};
 use super::claude_accounts::Judging;
 use super::{Call, Refused, Route, answer, whole};
 use crate::now_ms;
-use crate::queue::routes::{block_route, clear_route_block, item_route_open, route_blocked};
+use crate::queue::routes::{
+  block_id, block_route, clear_block_by_id, kept_blocks, route_blocked, walked_keys,
+};
 use crate::queue::stops::{StoppedRun, clear_job_stop, job_stop_reason, mark_job_stopped};
 use crate::rest::{RestKind, clear_passed_rests, rest_kind, rest_until, write_rest};
 
@@ -116,7 +118,7 @@ impl Route for JobStopClear {
 
 crate::moved!(JobStopClear);
 
-/// A selection's road blocked until a moment, in epoch milliseconds, or opened again where none is given.
+/// A selection's road blocked until a moment, in epoch milliseconds.
 pub struct RoadBlock;
 
 impl Route for RoadBlock {
@@ -126,29 +128,30 @@ impl Route for RoadBlock {
   async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
     let body = call.body().await?;
     let selection = text(&body, "selection")?;
+    let until = body
+      .get("until")
+      .and_then(whole)
+      .ok_or_else(|| bad("until (a whole number of epoch milliseconds) is required"))?;
+    let reason = body.get("reason").and_then(Value::as_str).unwrap_or_default();
 
-    match body.get("until").and_then(whole) {
-      Some(until) => {
-        let reason = body.get("reason").and_then(Value::as_str).unwrap_or_default();
-        let blocked = block_route(call.store(), selection, until, reason).await?;
-
-        Ok(answer(
-          StatusCode::CREATED,
-          json!({ "id": blocked, "selection": selection, "until": until, "reason": reason, "blocked": true }),
-        ))
-      }
-      None => {
-        clear_route_block(call.store(), selection).await?;
-
-        Ok(answer(StatusCode::OK, json!({ "blocked": false })))
-      }
+    if !block_route(call.store(), selection, until, reason).await? {
+      return Err(bad(format!("{selection} names no provider's model this build carries")));
     }
+
+    let id = block_id(call.store(), selection)
+      .await?
+      .ok_or_else(|| Refused::failed("the block was written but not read"))?;
+
+    Ok(answer(
+      StatusCode::CREATED,
+      json!({ "id": id, "selection": selection, "until": until, "reason": reason }),
+    ))
   }
 }
 
 crate::moved!(RoadBlock);
 
-/// Whether a selection's road is shut now, and whether an item's job has a road open now.
+/// Every road blocked now, by the model or the worker that would walk it; none means open.
 pub struct RoadOpen;
 
 impl Route for RoadOpen {
@@ -156,12 +159,36 @@ impl Route for RoadOpen {
   const PATH: &'static str = "/road-blocks";
 
   async fn answer(&self, call: Call) -> Result<Response, Refused> {
-    let judging = Judging::of(call.ground());
     let now = now_ms();
-    let (model, worker) = (call.query("model"), call.query("workerName").or_else(|| call.query("worker")));
-    let open = item_route_open(judging, call.machine(), model.as_deref(), worker.as_deref(), now).await;
+    let (model, worker) = (
+      call.query("model").filter(|model| !model.trim().is_empty()),
+      call
+        .query("workerName")
+        .or_else(|| call.query("worker"))
+        .filter(|worker| !worker.trim().is_empty()),
+    );
+    let asked = model.is_some() || worker.is_some();
+    let walked = if asked {
+      Some(walked_keys(call.store(), call.machine(), model.as_deref(), worker.as_deref()).await?)
+    } else {
+      None
+    };
+    let items: Vec<Value> = kept_blocks(call.store())
+      .await?
+      .into_iter()
+      .filter(|block| block.until > now)
+      .filter(|block| walked.as_ref().is_none_or(|walked| walked.contains(&block.key)))
+      .map(|block| {
+        json!({
+          "id": block.id,
+          "selection": block.selection,
+          "until": block.until,
+          "reason": block.reason,
+        })
+      })
+      .collect();
 
-    Ok(answer(StatusCode::OK, json!({ "items": [], "more": false, "open": open })))
+    Ok(answer(StatusCode::OK, json!({ "items": items, "more": false })))
   }
 }
 
@@ -175,11 +202,15 @@ impl Route for RoadUnblock {
   const PATH: &'static str = "/road-blocks/{blockId}";
 
   async fn answer(&self, call: Call) -> Result<Response, Refused> {
-    let block = call.param("blockId").unwrap_or_default();
+    let id = call
+      .param("blockId")
+      .and_then(|id| id.parse::<i64>().ok())
+      .ok_or_else(|| bad("blockId (a whole number) is required"))?;
 
-    clear_route_block(call.store(), block).await?;
-
-    Ok(StatusCode::NO_CONTENT.into_response())
+    match clear_block_by_id(call.store(), id).await? {
+      Some(_) => Ok(StatusCode::NO_CONTENT.into_response()),
+      None => Err(Refused::new(StatusCode::NOT_FOUND, format!("no road block has the id {id}"))),
+    }
   }
 }
 
@@ -324,6 +355,17 @@ crate::moved!(RestWrite);
 /// Usage by model, agent, user or room over a span, with session contexts.
 pub struct UsageRoute;
 
+// The column a job is grouped by, and the column a worker's session is grouped by for the same key.
+fn grouped_by(word: &str) -> Option<(&'static str, Option<&'static str>)> {
+  match word {
+    "model" => Some(("model", Some("model"))),
+    "agent" => Some(("worker_name", Some("worker"))),
+    "user" => Some(("holder_name", Some("account"))),
+    "room" => Some(("room_id", None)),
+    _ => None,
+  }
+}
+
 impl Route for UsageRoute {
   const METHOD: Method = Method::GET;
   const PATH: &'static str = "/usage";
@@ -335,12 +377,57 @@ impl Route for UsageRoute {
       .and_then(|after| after.parse::<i64>().ok())
       .unwrap_or(now - 86_400_000);
     let before = call.query("before").and_then(|before| before.parse::<i64>().ok()).unwrap_or(now);
-    let group_by = call.query("groupBy").unwrap_or_else(|| "model".to_owned());
+    let word = call.query("groupBy").unwrap_or_else(|| "model".to_owned());
+    let (jobs_by, sessions_by) =
+      grouped_by(&word).ok_or_else(|| bad(format!("groupBy is model, agent, user or room, not {word}")))?;
+    let mut contexts: std::collections::HashMap<String, i64> = std::collections::HashMap::new();
 
-    Ok(answer(
-      StatusCode::OK,
-      json!({ "groups": [], "after": after, "before": before, "groupBy": group_by }),
-    ))
+    if let Some(column) = sessions_by {
+      let rows = store::all(
+        call.store(),
+        &format!(
+          r#"SELECT COALESCE(CAST("{column}" AS text), '') AS "key", COALESCE(SUM("context_tokens"), 0)::bigint AS "tokens"
+             FROM "worker_sessions" WHERE "last_reply_at" * 1000 >= $1 AND "last_reply_at" * 1000 <= $2
+             GROUP BY 1"#
+        ),
+        vec![after.into(), before.into()],
+      )
+      .await?;
+
+      for row in rows {
+        contexts.insert(row.try_get("", "key")?, row.try_get("", "tokens")?);
+      }
+    }
+
+    let rows = store::all(
+      call.store(),
+      &format!(
+        r#"SELECT COALESCE(CAST("{jobs_by}" AS text), '') AS "key", SUM("token_count")::bigint AS "tokens",
+                  COUNT(*) AS "jobs", MIN("started_at") AS "first", MAX(COALESCE("ended_at", "started_at")) AS "last"
+           FROM "jobs" WHERE "started_at" >= $1 AND "started_at" <= $2
+           GROUP BY 1 ORDER BY "tokens" DESC, "key""#
+      ),
+      vec![after.into(), before.into()],
+    )
+    .await?;
+    let groups: Vec<Value> = rows
+      .iter()
+      .map(|row| {
+        let key: String = row.try_get("", "key")?;
+        let context = contexts.get(&key);
+
+        Ok::<_, sea_orm::DbErr>(json!({
+          "key": key,
+          "tokens": row.try_get::<i64>("", "tokens")?,
+          "jobs": row.try_get::<i64>("", "jobs")?,
+          "firstAt": row.try_get::<i64>("", "first")?,
+          "lastAt": row.try_get::<i64>("", "last")?,
+          "contextTokens": context,
+        }))
+      })
+      .collect::<Result<_, _>>()?;
+
+    Ok(answer(StatusCode::OK, json!({ "groups": groups, "after": after, "before": before })))
   }
 }
 

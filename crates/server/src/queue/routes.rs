@@ -25,6 +25,9 @@ use crate::rest::resting;
 /// The work key every job of a worker goes out on.
 pub const JOB_WORK_KEY: &str = "job-worker";
 
+// The settings key a blocked road stands under, the road's provider or its one model following it.
+const BLOCK_PREFIX: &str = "job_route_block:";
+
 // `<provider>::<model>`, where the provider is any this build carries.
 static CHOICE: LazyLock<Regex> =
   LazyLock::new(|| Regex::new(r"^([a-z0-9-]+)::([a-zA-Z0-9][a-zA-Z0-9._:/-]{0,200})$").unwrap());
@@ -250,11 +253,104 @@ pub async fn block_route(
   reason: &str,
 ) -> Result<bool, Refusal> {
   let Some(asked) = choice(selection) else { return Ok(false) };
+  let kept = json!({ "until": until_ms, "reason": reason, "selection": selection });
 
-  settings::set(db, &health_key(&asked), &json!({ "until": until_ms, "reason": reason }).to_string())
-    .await?;
+  settings::set(db, &health_key(&asked), &kept.to_string()).await?;
 
   Ok(true)
+}
+
+/// One road block as the boundary lists it: the settings row's id, the selection it closes and the
+/// moment it opens again, in epoch milliseconds.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Block {
+  pub id: i64,
+  pub selection: String,
+  pub until: i64,
+  pub reason: String,
+  /// The settings key the block stands under, which names the road it closes.
+  pub key: String,
+}
+
+/// Every block the store keeps, in the order they were written.
+pub async fn kept_blocks(db: &DatabaseConnection) -> Result<Vec<Block>, Refusal> {
+  let rows = store::all(
+    db,
+    r#"SELECT "rowid" AS "id", "key", "value" FROM "settings" WHERE "key" LIKE $1 ORDER BY "rowid""#,
+    vec![format!("{BLOCK_PREFIX}%").into()],
+  )
+  .await?;
+  let mut blocks = vec![];
+
+  for row in rows {
+    let key: String = row.try_get("", "key")?;
+    let value: Value = row
+      .try_get::<String>("", "value")
+      .ok()
+      .and_then(|text| serde_json::from_str(&text).ok())
+      .unwrap_or(Value::Null);
+    let named = value.get("selection").and_then(Value::as_str).map(str::to_owned);
+    let selection = named.or_else(|| key.strip_prefix(BLOCK_PREFIX).map(str::to_owned));
+
+    blocks.push(Block {
+      id: row.try_get("", "id")?,
+      until: value
+        .get("until")
+        .and_then(|at| at.as_i64().or_else(|| at.as_f64().map(|at| at as i64)))
+        .unwrap_or(0),
+      reason: value.get("reason").and_then(Value::as_str).unwrap_or_default().to_owned(),
+      selection: selection.unwrap_or_default(),
+      key,
+    });
+  }
+
+  Ok(blocks)
+}
+
+/// The id the store gave a selection's block, where it keeps one.
+pub async fn block_id(db: &DatabaseConnection, selection: &str) -> Result<Option<i64>, Refusal> {
+  let Some(asked) = choice(selection) else { return Ok(None) };
+  let row = store::one(
+    db,
+    r#"SELECT "rowid" AS "id" FROM "settings" WHERE "key" = $1"#,
+    vec![health_key(&asked).into()],
+  )
+  .await?;
+
+  row.map(|row| row.try_get("", "id")).transpose().map_err(Into::into)
+}
+
+/// A block opened again by the id the boundary named: the selection it closed, or none where the store
+/// keeps no such block.
+pub async fn clear_block_by_id(db: &DatabaseConnection, id: i64) -> Result<Option<String>, Refusal> {
+  let row = store::one(
+    db,
+    r#"DELETE FROM "settings" WHERE "rowid" = $1 AND "key" LIKE $2 RETURNING "key""#,
+    vec![id.into(), format!("{BLOCK_PREFIX}%").into()],
+  )
+  .await?;
+
+  Ok(row.map(|row| row.try_get::<String>("", "key")).transpose()?)
+}
+
+/// The roads a model or a worker would walk now, as the keys a block stands under.
+pub async fn walked_keys(
+  db: &DatabaseConnection,
+  machine: &Machine,
+  model: Option<&str>,
+  worker: Option<&str>,
+) -> Result<std::collections::HashSet<String>, Refusal> {
+  let candidates = job_route_candidates(db, machine, model, worker, None)
+    .await
+    .map_err(|unrouted| Refusal::bad("no-route", unrouted.0))?;
+
+  Ok(
+    candidates
+      .iter()
+      .filter_map(|selection| choice(selection))
+      .map(|asked| health_key(&asked))
+      .collect(),
+  )
 }
 
 /// A selection's road opened again before its block ran out.

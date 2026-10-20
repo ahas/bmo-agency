@@ -22,6 +22,13 @@ use serde_json::{Value, json};
 
 use super::{Call, Refused, Route, answer};
 use crate::herdr_backend::Shared;
+use crate::lines::Trees;
+use crate::lines::standing::session_ttl_ms;
+use crate::lines::worker::worker_run;
+use crate::places::AgentRow;
+use crate::worker_session::held as held_session;
+use crate::worker_session::held::SessionRun;
+use crate::worker_session::records;
 
 fn backend(call: &Call) -> Result<Shared, Refused> {
   call.sessions().ok_or_else(|| {
@@ -440,11 +447,13 @@ impl Route for SessionState {
     Ok(match backend(&call)?.read_state(&session, model.as_deref()).await {
       Ok(state) => {
         let started = agent_session::Session {
-          id: SessionId(id),
+          id: SessionId(id.clone()),
           agent,
           scope,
         };
-        answer(StatusCode::OK, member(&started, Some(&state), &json!({})))
+        let (holder, reason) = holder_of(call.store(), &id).await?;
+
+        answer(StatusCode::OK, with_holder(member(&started, Some(&state), &json!({})), holder, reason))
       }
       Err(fault) => faulted(fault),
     })
@@ -453,7 +462,57 @@ impl Route for SessionState {
 
 crate::moved!(SessionState);
 
-/// A session handed over to another holder.
+// Where a session's holder and the reason its prefix last changed are kept, by the session's id.
+const HOLDER: &str = "session_holder:";
+
+/// The holder a session's row names, and why its prefix last changed.
+pub(crate) async fn holder_of(
+  db: &impl sea_orm::ConnectionTrait,
+  session: &str,
+) -> Result<(Option<String>, Option<String>), Refused> {
+  let Some(text) = crate::queue::settings::get(db, &format!("{HOLDER}{session}")).await? else {
+    return Ok((None, None));
+  };
+  let read: Value = serde_json::from_str(&text).unwrap_or(Value::Null);
+
+  Ok((
+    read.get("holder").and_then(Value::as_str).map(str::to_owned),
+    read.get("prefixChangeReason").and_then(Value::as_str).map(str::to_owned),
+  ))
+}
+
+// The holder kept as the body gives it: a name written, a name cleared where null, and the field left
+// alone where the body does not name it.
+async fn keep_holder(
+  db: &impl sea_orm::ConnectionTrait,
+  session: &str,
+  body: &Value,
+) -> Result<(Option<String>, Option<String>), Refused> {
+  let (mut holder, mut reason) = holder_of(db, session).await?;
+
+  if let Some(given) = body.get("holder") {
+    holder = given.as_str().map(str::trim).filter(|name| !name.is_empty()).map(str::to_owned);
+  }
+
+  if let Some(given) = body.get("prefixChangeReason") {
+    reason = given.as_str().map(str::trim).filter(|why| !why.is_empty()).map(str::to_owned);
+  }
+
+  let key = format!("{HOLDER}{session}");
+
+  if holder.is_none() && reason.is_none() {
+    crate::queue::settings::forget(db, &key).await?;
+  } else {
+    let kept = json!({ "holder": holder, "prefixChangeReason": reason });
+
+    crate::queue::settings::set(db, &key, &kept.to_string()).await?;
+  }
+
+  Ok((holder, reason))
+}
+
+/// A worker's session handed over to the holder the body names: the held session closed with its note
+/// for the next turn, its record dropped, and the new holder kept for the session's state.
 pub struct SessionHandover;
 
 impl Route for SessionHandover {
@@ -465,19 +524,125 @@ impl Route for SessionHandover {
     let body = call.body().await?;
     let session = SessionId(id.clone());
     let (agent, scope) = crate::herdr_backend::scope_of(&session);
-    let started = agent_session::Session {
-      id: SessionId(id),
-      agent,
-      scope,
-    };
-    let mut member = member(&started, None, &body);
 
-    if let Some(holder) = body.get("holder").cloned() {
-      member["holder"] = holder;
+    if !matches!(scope, Scope::Worker) {
+      return Err(Refused::new(
+        StatusCode::UNPROCESSABLE_ENTITY,
+        format!("{id} is not a worker's session, and only a worker's session is handed over"),
+      ));
     }
 
-    Ok(answer(StatusCode::OK, member))
+    let ground = call.ground();
+    let db = &ground.db;
+    let backend = backend(&call)?;
+    let model = body.get("model").and_then(Value::as_str).map(str::to_owned);
+    let state = match backend.read_state(&session, model.as_deref()).await {
+      Ok(state) => state,
+      // Nothing of the worker's is open to hand over: the holder is kept all the same, since the
+      // session is the worker's whether or not its record still stands.
+      Err(fault) if fault.kind == FaultKind::Unknown => {
+        if !AgentRow::named(db, &agent).await?.is_some_and(|row| row.kind == "worker") {
+          return Err(Refused::new(StatusCode::NOT_FOUND, format!("no worker is named {agent}")));
+        }
+
+        let (holder, reason) = keep_holder(db, &id, &body).await?;
+
+        return Ok(answer(
+          StatusCode::OK,
+          with_holder(member(&session_with(&id, &agent), None, &body), holder, reason),
+        ));
+      }
+      Err(fault) => return Ok(faulted(fault)),
+    };
+    let model = model.filter(|model| !model.trim().is_empty()).unwrap_or(state.model.clone());
+    let options = body.get("options").cloned().unwrap_or_else(|| json!({}));
+    let given = |key: &str| options.get(key).and_then(Value::as_str).map(str::to_owned);
+    let cwd = match given("cwd") {
+      Some(cwd) => cwd,
+      None => AgentRow::named(db, &agent)
+        .await
+        .ok()
+        .flatten()
+        .and_then(|row| row.cwd)
+        .unwrap_or_else(|| state.place.clone()),
+    };
+
+    // The session named, or with none named the kept session on the model under the login its newest
+    // record names.
+    let (held, kept_under) = match given("session") {
+      Some(session) => (session, None),
+      None => {
+        let kept = records::sessions(db, &agent)
+          .await?
+          .into_iter()
+          .filter(|held| held.model == model)
+          .max_by_key(|held| held.last_reply_at);
+        let Some(kept) = kept else {
+          let (holder, reason) = keep_holder(db, &id, &body).await?;
+          return Ok(answer(
+            StatusCode::OK,
+            with_holder(member(&session_with(&id, &agent), Some(&state), &body), holder, reason),
+          ));
+        };
+        let ttl = session_ttl_ms(ground, &model).await;
+        let Some(session) = records::resumable(db, &agent, &model, &kept.account, ttl).await? else {
+          let (holder, reason) = keep_holder(db, &id, &body).await?;
+          return Ok(answer(
+            StatusCode::OK,
+            with_holder(member(&session_with(&id, &agent), Some(&state), &body), holder, reason),
+          ));
+        };
+
+        (session, Some(kept.account))
+      }
+    };
+    let line = worker_run(ground, &Trees::of(ground), Some(&agent), &model, &cwd)
+      .await
+      .map_err(|why| Refused::failed(why.detail))?;
+    let run = SessionRun {
+      mode: crate::worker_session::PROVIDER,
+      line,
+      prompt: String::new(),
+      resume: Some(held),
+      account: None,
+      placement: None,
+      thread: given("thread"),
+    };
+
+    held_session::hand_over(ground, &agent, &run, given("note").as_deref())
+      .await
+      .map_err(|why| Refused::failed(why.detail))?;
+
+    if let Some(account) = kept_under {
+      records::forget(db, &agent, &model, Some(&account)).await?;
+    }
+
+    let (holder, reason) = keep_holder(db, &id, &body).await?;
+
+    Ok(answer(
+      StatusCode::OK,
+      with_holder(member(&session_with(&id, &agent), Some(&state), &body), holder, reason),
+    ))
   }
+}
+
+// The session a route read its state for, as the member builder takes it.
+fn session_with(id: &str, agent: &str) -> Session {
+  Session {
+    id: SessionId(id.to_owned()),
+    agent: agent.to_owned(),
+    scope: Scope::Worker,
+  }
+}
+
+// A session's member with the holder its row keeps.
+fn with_holder(member: Value, holder: Option<String>, reason: Option<String>) -> Value {
+  let mut member = member;
+
+  member["holder"] = json!(holder);
+  member["prefixChangeReason"] = json!(reason);
+
+  member
 }
 
 crate::moved!(SessionHandover);

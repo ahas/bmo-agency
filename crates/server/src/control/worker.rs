@@ -148,10 +148,36 @@ impl Route for WorkerNode {
 
         Ok(answer(StatusCode::OK, json!({ "ok": true, "worker": worker, "cwd": cwd })))
       }
-      Some("place") => place(&stand, &hands, name, node, path).await,
+      Some("place") => place(&stand, &hands, name, node, path).await.map(|()| ok()),
       _ => Err(bad("action must be one of add-checkout, remove-checkout, place")),
     }
   }
+}
+
+/// A worker placed on a node, or brought back to this machine at the path given here, as the worker
+/// resource's change asks it.
+pub(crate) async fn place_worker(
+  ground: Arc<Ground>,
+  machine: Machine,
+  places: Option<Places>,
+  name: &str,
+  node: Option<&str>,
+  path: Option<&str>,
+) -> Result<(), Refused> {
+  let hands = Hands {
+    ground,
+    machine,
+    places,
+  };
+  let home = crate::verbs::home();
+  let stand = Stand {
+    ground: &hands.ground,
+    machine: &hands.machine,
+    hands: &hands,
+    home: &home,
+  };
+
+  place(&stand, &hands, name, node, path).await
 }
 
 // A worker of its own stood on a node, or brought back to this machine at the path given here.
@@ -161,7 +187,7 @@ async fn place(
   name: &str,
   node: Option<&str>,
   path: Option<&str>,
-) -> Result<Response, Refused> {
+) -> Result<(), Refused> {
   let fault = match (node, path) {
     (None, None) => Some(CONTROL_WORDS.workers.back_here_path.clone()),
     _ => agents::worker_node_fault(stand, name, node, path).await.map_err(Refused::failed)?,
@@ -202,7 +228,7 @@ async fn place(
 
   hands.restand();
 
-  Ok(ok())
+  Ok(())
 }
 
 /// What a worker's change stands on, taken off the call before anything is awaited: agency's ground, the

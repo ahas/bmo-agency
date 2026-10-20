@@ -241,6 +241,34 @@ pub async fn room(db: &DatabaseConnection, nodes: &dyn NodeService) -> Result<Ro
   })
 }
 
+/// This machine's room as the launch-room resource answers it: whether a launch may start, every reason
+/// it may not, and the jobs and browser jobs running.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LaunchRoom {
+  pub held: bool,
+  pub reasons: Vec<String>,
+  pub job_count: u64,
+  pub browser_job_count: u64,
+}
+
+/// The room the launcher reads: the machine's own reasons, and the reasons the launcher itself left.
+pub async fn launch_room(db: &DatabaseConnection, nodes: &dyn NodeService) -> Result<LaunchRoom, Refusal> {
+  let room = room(db, nodes).await?;
+  let mut reasons = room.held;
+
+  if let Some(notice) = launch_held(db).await? {
+    reasons.extend(notice.held);
+  }
+
+  Ok(LaunchRoom {
+    held: !reasons.is_empty(),
+    reasons,
+    job_count: room.jobs,
+    browser_job_count: room.browser_jobs,
+  })
+}
+
 /// The launcher's notice kept, or withdrawn where it holds nothing.
 pub async fn tell_launch_held(db: &DatabaseConnection, notice: &LaunchHeld) -> Result<(), Refusal> {
   if notice.held.is_empty() {

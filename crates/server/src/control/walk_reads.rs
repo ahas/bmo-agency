@@ -6,6 +6,7 @@
 use axum::http::{Method, StatusCode};
 use axum::response::{IntoResponse, Response};
 use bmo_chat::{ErrorCode, WireError};
+use harness_providers::ARCHIVE_PROVIDERS;
 use policy::tiers::TIERS;
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -84,9 +85,23 @@ impl Route for ChangeProvider {
   async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
     let name = call.param("providerName").unwrap_or_default().to_owned();
     let asked = call.body().await?;
+
+    if !ARCHIVE_PROVIDERS.contains(&name.as_str()) {
+      return Err(Refused::new(StatusCode::NOT_FOUND, format!("no provider named {name} in this build")));
+    }
+
     let mut order = provider_order(call.store()).await?;
 
     if let Some(enabled) = asked.get("enabled").and_then(Value::as_bool) {
+      let others_on = order.iter().any(|entry| entry.name != name && entry.enabled);
+
+      if !enabled && !others_on {
+        return Err(Refused::new(
+          StatusCode::CONFLICT,
+          format!("{name} is the last provider on, and no provider left on would answer anything"),
+        ));
+      }
+
       for entry in &mut order {
         if entry.name == name {
           entry.enabled = enabled;
@@ -218,7 +233,20 @@ impl Route for CheckPin {
 
 crate::moved!(CheckPin);
 
-/// Whether the engine behind a registered model answers its health and stands aside for nothing.
+/// A model of a provider, by the name the path and the query give it: the provider and the model apart.
+pub fn model_key(key: &str, provider: Option<&str>) -> (String, String) {
+  if let Some(provider) = provider.filter(|provider| !provider.trim().is_empty()) {
+    return (provider.to_owned(), key.to_owned());
+  }
+
+  key.split_once("::").or_else(|| key.split_once('/')).map_or_else(
+    || (registry::PROVIDER.to_owned(), key.to_owned()),
+    |(provider, model)| (provider.to_owned(), model.to_owned()),
+  )
+}
+
+/// One model and its health: a registration of the registry's provider, or a model of a provider whose
+/// catalogue is its own.
 pub struct ModelHealth;
 
 impl Route for ModelHealth {
@@ -227,24 +255,27 @@ impl Route for ModelHealth {
 
   async fn answer(&self, call: Call) -> Result<Response, Refused> {
     let key = call.param("modelKey").unwrap_or_default();
-    let (provider, model) = match call.query("provider") {
-      Some(provider) => (provider, key.to_owned()),
-      None => {
-        let (provider, model) = key.split_once('/').unwrap_or((key, key));
-        (provider.to_owned(), model.to_owned())
-      }
-    };
-    let provider = named(&provider)?;
-    let answers = match provider.unregistered() {
-      None => false,
-      Some(_) => registry::registration_health(call.store(), &call.data_root(), &model)
-        .await?
-        .is_some_and(|health| health.aside.is_none()),
-    };
+    let (provider, model) = model_key(key, call.query("provider").as_deref());
+    let asked = named(&provider).map_err(|_| {
+      Refused::new(StatusCode::NOT_FOUND, format!("no provider named {provider} in this build"))
+    })?;
+
+    if asked.unregistered().is_some() {
+      return match registry::registered_model(call.store(), &call.data_root(), &model).await? {
+        Some(view) => Ok(answer(StatusCode::OK, view)),
+        None => Err(Refused::new(StatusCode::NOT_FOUND, format!("no model is registered as {model}"))),
+      };
+    }
 
     Ok(answer(
       StatusCode::OK,
-      json!({ "key": key, "provider": provider.name(), "model": model, "tier": Value::Null, "healthy": answers }),
+      json!({
+        "key": key,
+        "provider": asked.name(),
+        "model": model,
+        "tier": Value::Null,
+        "healthy": false,
+      }),
     ))
   }
 }

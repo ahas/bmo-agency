@@ -9,6 +9,7 @@ mod m20261020_000001_worker_context;
 mod m20261021_000001_worker_words;
 mod m20261022_000001_usage_windows;
 mod m20261023_000001_work;
+mod m20261024_000001_job_model;
 
 use sea_orm_migration::prelude::*;
 
@@ -94,6 +95,7 @@ impl MigratorTrait for Migrator {
       Box::new(m20261021_000001_worker_words::Migration),
       Box::new(m20261022_000001_usage_windows::Migration),
       Box::new(m20261023_000001_work::Migration),
+      Box::new(m20261024_000001_job_model::Migration),
     ]
   }
 

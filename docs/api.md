@@ -28,7 +28,7 @@ a field's exact shape matters, the OpenAPI document is the one to read.
 ## Versioning
 
 - The contract carries the repository's one version, in semver; the workspace manifest is its source. Before
-  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.1`.
+  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.2`.
 - A change to this document and a change to the boundary go in one commit. A change to a route, an event, a
   hook or a shared table's contract repairs this document in the same commit.
 - The major moves on a removed or renamed route, field or event, the minor on an addition, the patch on
@@ -119,7 +119,14 @@ receiver. `road-verbs` is what the procedures tool asks a room's road.
 | POST | `/sessions/{sessionId}/folds` | Fold a session, compacting its context. |
 
 A job's run is a worker's session turn with the work parts in the turn's context. A session is started at
-one scope — `agent`, `room`, `worker`, `editor` or `apart` — and the scope says what is kept.
+one scope — `agent`, `room`, `worker`, `editor` or `apart` — and the scope says what is kept. Its id names
+the agent and the scope: the agent's name alone for an agent's session, and `<agent>@<room>`,
+`<agent>@worker` or `<agent>@editor` for a room's, a worker's or an editor's.
+
+A hand-over is a worker's alone. It closes the worker's held session on the model, leaves its note for
+the next turn and drops the record, and the holder the body names is kept for the session's state; a
+worker with nothing open keeps the holder alone. `holder` and `prefixChangeReason` are read back on the
+session wherever it is listed or read.
 
 ### turn-contexts
 
@@ -190,6 +197,12 @@ one scope — `agent`, `room`, `worker`, `editor` or `apart` — and the scope s
 | GET | `/places/{placeId}` | One place. |
 | PATCH | `/places/{placeId}` | Prepare, remember or retire a place, or record its last write. |
 
+A place's id is its path, percent-encoded in the path segment. A list without a node names the standing
+branch checkouts under the data root — one for each slot of each pool, its slot, the role that last ran in
+it, whether a pool request holds it now (`taken`) or a branch last answered in it (`remembered`), and the
+write it last took. `checkout` narrows the list to that checkout's pool; `nodeName` with `checkout` names
+the shadow the node's link keeps of that checkout instead.
+
 ### providers, models, pin-checks, tiers and fallback
 
 | Method | Path | Does |
@@ -208,6 +221,12 @@ one scope — `agent`, `room`, `worker`, `editor` or `apart` — and the scope s
 | GET | `/fallback` | The fallback roads and whether the fallback is answering. |
 | PATCH | `/fallback` | Change the fallback roads. |
 
+A provider's change throws the owner's switch on it; the last provider left on is not thrown off, since
+nothing would answer. A model's key names its provider and the model apart — `provider::model`, or the
+provider as a query and the model in the path. A model of the registry's provider is one registration,
+whose model name is what a change edits; the models of every other provider are that provider's own
+catalogue, and no route changes them.
+
 ### work-keys, road-blocks and launch-room
 
 | Method | Path | Does |
@@ -219,6 +238,14 @@ one scope — `agent`, `room`, `worker`, `editor` or `apart` — and the scope s
 | GET | `/launch-room` | Whether a launch may start, why not, and the jobs and browsers running. |
 | PATCH | `/launch-room` | Record that launches are held, and why. |
 
+A block is a resource with an id: its selection — `provider::model` — the moment it opens again in epoch
+milliseconds and the reason it was closed. A list returns the blocks whose moment is still ahead, narrowed
+to the roads a named model or worker would walk, and a deletion by that id opens the road again.
+
+The launch room answers `held`, every reason it is held, the jobs at work and, of those, the ones whose
+place runs a browser. The launcher's own notice is kept beside the machine's reasons and read back with
+them; a notice that holds nothing is withdrawn.
+
 ### accounts, rest and usage
 
 | Method | Path | Does |
@@ -228,6 +255,12 @@ one scope — `agent`, `room`, `worker`, `editor` or `apart` — and the scope s
 | GET | `/rest` | Whether the deployment rests, until when, of what kind. |
 | PATCH | `/rest` | Set the rest, or clear a rest that has passed. |
 | GET | `/usage` | Usage by model, agent, user or room over a span, with session contexts. |
+
+Usage groups the jobs whose turns started in the span by the key the query names — the model the job's
+turn went out on, the worker (`agent`), the job's holder (`user`) or its room — summing the tokens each
+job's model spent, the jobs behind the figure and the span they cover, and the tokens the workers'
+sessions on that key currently carry (`contextTokens`). The span is two moments in epoch milliseconds,
+yesterday to now where none is given.
 
 ### settings
 
@@ -256,6 +289,12 @@ one scope — `agent`, `room`, `worker`, `editor` or `apart` — and the scope s
 | PATCH | `/workers/{workerName}` | Change a worker: fields, node placement, sampling, stand it again, ready its bench. |
 | DELETE | `/workers/{workerName}` | Remove a worker. |
 | GET | `/workers/{workerName}/definition` | The worker's agent definition: graph, trailer, handoff. |
+
+A change that names a node other than the one the worker stands on places it there, and one that names
+none brings it back: the node must be one the node service keeps and that takes jobs, the worker must
+stand for itself, and the path is written as the node reads it. The checkout this machine reads the
+worker through follows the placement. A body that names the node the worker already stands on changes
+nothing of its placement.
 | GET | `/workers/{workerName}/workbench` | The worker's workbench and scratch folders. |
 | DELETE | `/workers/{workerName}/servers` | End the job servers a worker left running. |
 | POST | `/prefix-checks` | Which of these files are in a worker's session prefix. |

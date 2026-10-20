@@ -509,6 +509,17 @@ impl Route for Sessions {
       }
     }
 
+    let mut kept = HashMap::new();
+
+    for view in &views {
+      let id = match view.session.chat_id {
+        Some(room) => format!("{}@{}", view.session.agent, room),
+        None => view.session.agent.clone(),
+      };
+
+      kept.insert(id.clone(), super::session_ops::holder_of(&db, &id).await?);
+    }
+
     db.commit().await?;
 
     let place = |view: &SessionView| order.get(&view.session.agent).copied().unwrap_or(usize::MAX);
@@ -536,6 +547,7 @@ impl Route for Sessions {
           None => session.agent.clone(),
         };
         let model = session.models.first().cloned().unwrap_or(Value::Null);
+        let (holder, reason) = kept.get(&id).cloned().unwrap_or_default();
         json!({
           "id": id,
           "agentName": session.agent,
@@ -545,8 +557,8 @@ impl Route for Sessions {
           "model": model.get("model").cloned().unwrap_or(Value::Null),
           "place": Value::Null,
           "generation": session.generation.unwrap_or(0),
-          "holder": Value::Null,
-          "prefixChangeReason": Value::Null,
+          "holder": holder,
+          "prefixChangeReason": reason,
           "boundMs": Value::Null,
           "options": {},
           "promptDocumentName": Value::Null,

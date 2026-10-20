@@ -112,8 +112,9 @@ async fn a_running_server_answers_the_walk_s_providers_tiers_routes_and_pins() {
   assert_eq!(post(port, token, "/pin-checks", json!({ "value": "nobody" })).await.0, 400);
   assert_eq!(post(port, token, "/pin-checks", json!({ "value": "registered::none" })).await.0, 400);
 
-  // A model's engine health: none on a provider whose models are not registrations, nor on one not held.
+  // A model's engine health: none on a provider whose models are not registrations, and not-found for a
+  // registration the registry does not hold or a provider this build does not carry.
   assert_eq!(get(port, token, "/models/any?provider=claude-code").await.1["healthy"], json!(false));
-  assert_eq!(get(port, token, "/models/none?provider=registered").await.1["healthy"], json!(false));
-  assert_eq!(get(port, token, "/models/any?provider=nobody").await.0, 400);
+  assert_eq!(get(port, token, "/models/none?provider=registered").await.0, 404);
+  assert_eq!(get(port, token, "/models/any?provider=nobody").await.0, 404);
 }

@@ -28,12 +28,20 @@ use crate::order_run::dispatch::{
 };
 use crate::order_run::places::{self, Held};
 use crate::places::dev;
+use crate::watches::links::checkout_shadow;
 
 // The source a builder turn's place is asked under.
 const TURN: &str = "turn";
 
 fn bad(error: impl Into<String>) -> Refused {
   Refused::new(StatusCode::BAD_REQUEST, error)
+}
+
+// A place named in a path: a checkout path is one segment of it, percent-encoded.
+fn place_named(call: &Call) -> String {
+  percent_encoding::percent_decode_str(call.param("placeId").unwrap_or_default())
+    .decode_utf8_lossy()
+    .into_owned()
 }
 
 // A pool step that did not go through, in the dispatch's own words.
@@ -469,7 +477,7 @@ impl Route for PlacesRetire {
   }
 }
 
-/// The places taken, by node and checkout.
+/// The places the agency holds, by node and checkout.
 pub struct PlaceList;
 
 impl Route for PlaceList {
@@ -477,34 +485,29 @@ impl Route for PlaceList {
   const PATH: &'static str = "/places";
 
   async fn answer(&self, call: Call) -> Result<Response, Refused> {
-    let rows = store::all(
-      call.store(),
-      r#"SELECT "place", "provider", "model", "effort", "upstream", "written_at"
-         FROM "coworker_pool_place_writes" ORDER BY "place""#,
-      vec![],
-    )
-    .await?;
-    let items: Vec<Value> = rows
-      .iter()
-      .map(|row| {
-        let place: String = row.try_get("", "place")?;
-        Ok::<_, sea_orm::DbErr>(json!({
-          "id": place,
-          "path": place,
-          "nodeName": Value::Null,
-          "slot": Value::Null,
-          "role": Value::Null,
-          "state": "remembered",
-          "lastWrite": {
-            "provider": row.try_get::<String>("", "provider")?,
-            "model": row.try_get::<String>("", "model")?,
-            "effort": row.try_get::<Option<String>>("", "effort")?,
-            "upstream": row.try_get::<Option<String>>("", "upstream")?,
-            "writtenAt": row.try_get::<i64>("", "written_at")?,
-          },
-        }))
-      })
-      .collect::<Result<Vec<_>, _>>()?;
+    let node = call.query("nodeName").filter(|node| !node.trim().is_empty());
+    let checkout = call.query("checkout").filter(|checkout| !checkout.trim().is_empty());
+
+    // A checkout on a node is held here as the shadow the node's link keeps of it.
+    if let Some(node) = node.as_deref() {
+      let Some(checkout) = checkout.as_deref() else {
+        return Err(bad("checkout is required with nodeName"));
+      };
+      let path = checkout_shadow(&call.ground().roots.data, node, checkout)
+        .to_string_lossy()
+        .into_owned();
+
+      return Ok(answer(
+        StatusCode::OK,
+        json!({ "items": [place_at(&path, Some(node), None, None, Value::Null)], "more": false }),
+      ));
+    }
+
+    let pool = match checkout.as_deref() {
+      Some(checkout) => Some(crate::places::branch::pool_of(checkout).await),
+      None => None,
+    };
+    let items = held_places(call.ground(), pool.as_deref()).await?;
 
     Ok(answer(StatusCode::OK, json!({ "items": items, "more": false })))
   }
@@ -520,12 +523,17 @@ impl Route for ReadPlace {
   const PATH: &'static str = "/places/{placeId}";
 
   async fn answer(&self, call: Call) -> Result<Response, Refused> {
-    let place = call.param("placeId").unwrap_or_default();
+    let place = place_named(&call);
+
+    if let Some(one) = held_place(call.ground(), &place).await? {
+      return Ok(answer(StatusCode::OK, one));
+    }
+
     let row = store::one(
       call.store(),
       r#"SELECT "place", "provider", "model", "effort", "upstream", "written_at"
          FROM "coworker_pool_place_writes" WHERE "place" = $1"#,
-      vec![place.into()],
+      vec![place.clone().into()],
     )
     .await?;
 
@@ -536,7 +544,7 @@ impl Route for ReadPlace {
     Ok(answer(
       StatusCode::OK,
       json!({
-        "id": place,
+        "id": place.clone(),
         "path": place,
         "nodeName": Value::Null,
         "slot": Value::Null,
@@ -556,6 +564,191 @@ impl Route for ReadPlace {
 
 crate::moved!(ReadPlace);
 
+/// One place as the boundary answers it.
+fn place_at(
+  path: &str,
+  node: Option<&str>,
+  slot: Option<i64>,
+  role: Option<&str>,
+  last_write: Value,
+) -> Value {
+  json!({
+    "id": path,
+    "path": path,
+    "nodeName": node,
+    "slot": slot,
+    "role": role,
+    "state": if last_write.is_null() { "prepared" } else { "remembered" },
+    "lastWrite": last_write,
+  })
+}
+
+// A standing place as its row and its write leave it: taken where a pool request holds it, remembered
+// where a branch last answered in it, prepared where only its folder stands.
+fn standing_place(
+  path: &str,
+  slot: i64,
+  role: Option<&str>,
+  row: Option<&(String, String, String, i64)>,
+  taken: bool,
+  write: Option<&Value>,
+) -> Value {
+  let last_write = write.cloned().or_else(|| {
+    row.map(|(mode, model, upstream, at)| {
+      json!({
+        "provider": mode,
+        "model": model,
+        "effort": Value::Null,
+        "upstream": if upstream.is_empty() { Value::Null } else { json!(upstream) },
+        "writtenAt": at * 1000,
+      })
+    })
+  });
+  let mut place = place_at(path, None, Some(slot), role, last_write.unwrap_or(Value::Null));
+
+  place["state"] = json!(if taken {
+    "taken"
+  } else if row.is_some() {
+    "remembered"
+  } else {
+    "prepared"
+  });
+
+  place
+}
+
+// Every place the agency holds under the data root, by pool and slot, with the row that last answered
+// in it and the write it last took.
+async fn held_places(ground: &crate::places::Ground, only: Option<&str>) -> Result<Vec<Value>, Refused> {
+  let data = &ground.roots.data;
+  let rows = store::all(
+    &ground.db,
+    r#"SELECT "pool", "slot", "mode", "model", "role", "upstream", "last_reply_at"
+       FROM "branch_agents" ORDER BY "last_reply_at" DESC"#,
+    vec![],
+  )
+  .await?;
+  let mut written: std::collections::HashMap<String, Value> = std::collections::HashMap::new();
+
+  for row in store::all(
+    &ground.db,
+    r#"SELECT "place", "provider", "model", "effort", "upstream", "written_at"
+       FROM "coworker_pool_place_writes""#,
+    vec![],
+  )
+  .await?
+  {
+    written.insert(
+      row.try_get("", "place")?,
+      json!({
+        "provider": row.try_get::<String>("", "provider")?,
+        "model": row.try_get::<String>("", "model")?,
+        "effort": row.try_get::<Option<String>>("", "effort")?,
+        "upstream": row.try_get::<Option<String>>("", "upstream")?,
+        "writtenAt": row.try_get::<i64>("", "written_at")?,
+      }),
+    );
+  }
+
+  let mut taken = std::collections::HashSet::new();
+
+  for row in store::all(
+    &ground.db,
+    r#"SELECT DISTINCT "place_key" FROM "coworker_pool_requests"
+       WHERE "state" = 'active' AND "place_key" IS NOT NULL"#,
+    vec![],
+  )
+  .await?
+  {
+    taken.insert(row.try_get::<String>("", "place_key")?);
+  }
+
+  let mut newest: std::collections::HashMap<(String, i64), (String, String, String, i64)> =
+    std::collections::HashMap::new();
+  let mut roles: std::collections::HashMap<(String, i64), String> = std::collections::HashMap::new();
+
+  for row in &rows {
+    let pool: String = row.try_get("", "pool")?;
+    let slot: i64 = row.try_get("", "slot")?;
+    let entry = (
+      row.try_get::<String>("", "mode")?,
+      row.try_get::<String>("", "model")?,
+      row.try_get::<String>("", "upstream")?,
+      row.try_get::<i64>("", "last_reply_at")?,
+    );
+
+    roles
+      .entry((pool.clone(), slot))
+      .or_insert_with(|| row.try_get("", "role").unwrap_or_default());
+    newest.entry((pool, slot)).or_insert(entry);
+  }
+
+  let mut pools: Vec<String> = std::fs::read_dir(crate::places::branch::slot_root(data))
+    .into_iter()
+    .flatten()
+    .flatten()
+    .filter(|entry| entry.file_type().is_ok_and(|kind| kind.is_dir()))
+    .filter_map(|entry| entry.file_name().into_string().ok())
+    .collect();
+
+  for (pool, _) in roles.keys() {
+    if !pools.contains(pool) {
+      pools.push(pool.clone());
+    }
+  }
+
+  pools.sort();
+  pools.retain(|pool| only.is_none_or(|only| only == pool));
+
+  let mut items = vec![];
+
+  for pool in pools {
+    let mut slots = crate::places::branch::pool_slots(data, &pool);
+
+    for (_, slot) in roles.keys().filter(|(held, _)| *held == pool) {
+      if !slots.contains(slot) {
+        slots.push(*slot);
+      }
+    }
+
+    slots.sort_unstable();
+
+    for slot in slots {
+      let path = crate::places::branch::slot_dir(data, &pool, slot).to_string_lossy().into_owned();
+      let row = newest.get(&(pool.clone(), slot));
+      let role = roles.get(&(pool.clone(), slot)).map(String::as_str);
+
+      items.push(standing_place(&path, slot, role, row, taken.contains(&path), written.get(&path)));
+    }
+  }
+
+  Ok(items)
+}
+
+// One place by its path, where the path is one under the data root.
+async fn held_place(ground: &crate::places::Ground, place: &str) -> Result<Option<Value>, Refused> {
+  if let Some((pool, slot)) = crate::places::branch::place_of(&ground.roots.data, place) {
+    let found = held_places(ground, Some(&pool))
+      .await?
+      .into_iter()
+      .find(|one| one["slot"].as_i64() == Some(slot));
+
+    return Ok(found);
+  }
+
+  // A checkout on a node is held as the shadow under the node's own directory.
+  let shadow = std::path::Path::new(&ground.roots.data).join("nodes");
+  let within = std::path::Path::new(place).strip_prefix(&shadow).ok();
+  let mut parts = within.into_iter().flat_map(|rest| rest.components());
+  let node = parts.next().and_then(|node| node.as_os_str().to_str()).map(str::to_owned);
+  let kind = parts.next().and_then(|kind| kind.as_os_str().to_str()).map(str::to_owned);
+
+  Ok(match (node, kind.as_deref()) {
+    (Some(node), Some("shadow")) => Some(place_at(place, Some(&node), None, None, Value::Null)),
+    _ => None,
+  })
+}
+
 /// A place laid, remembered or retired, or its last write recorded.
 pub struct ChangePlace;
 
@@ -564,7 +757,7 @@ impl Route for ChangePlace {
   const PATH: &'static str = "/places/{placeId}";
 
   async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
-    let place = call.param("placeId").unwrap_or_default().to_owned();
+    let place = place_named(&call);
     let body = call.body().await?;
 
     match body.get("state").and_then(Value::as_str) {

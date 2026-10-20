@@ -46,6 +46,7 @@ mod control {
   mod pool_sources;
   mod recollector_routes;
   mod registry;
+  mod resources;
   mod roads;
   mod run_launch;
   mod session_ops;

@@ -136,6 +136,57 @@ pub async fn registration_health<C: ConnectionTrait>(
   Ok(engine_health::health(data_root, &addresses).await)
 }
 
+/// One registration as the boundary's model resource answers it: its name as the key, its model, the
+/// tier that model is mapped at and whether its addresses answer, or none where the registry holds no
+/// registration by that name.
+pub async fn registered_model<C: ConnectionTrait>(
+  db: &C,
+  data_root: &Path,
+  name: &str,
+) -> Result<Option<Value>, Refused> {
+  let Some(row) =
+    one(db, r#"SELECT "model" FROM "registered_models" WHERE "name" = $1"#, vec![name.into()]).await?
+  else {
+    return Ok(None);
+  };
+  let model: String = row.try_get("", "model")?;
+  let tier = one(
+    db,
+    r#"SELECT "tier" FROM "model_tier_mappings" WHERE "provider" = $1 AND "model" = $2
+       ORDER BY "tier" LIMIT 1"#,
+    vec![PROVIDER.into(), model.clone().into()],
+  )
+  .await?
+  .and_then(|row| row.try_get::<String>("", "tier").ok());
+  let healthy = registration_health(db, data_root, name)
+    .await?
+    .is_some_and(|health| health.aside.is_none());
+
+  Ok(Some(json!({
+    "key": format!("{PROVIDER}::{name}"),
+    "provider": PROVIDER,
+    "model": model,
+    "tier": tier,
+    "healthy": healthy,
+  })))
+}
+
+/// A registration's model changed to the name given, the name held to the registry's own rule.
+pub async fn change_model<C: ConnectionTrait>(db: &C, name: &str, model: &str) -> Result<(), Fault> {
+  if !MODEL.is_match(model) {
+    return refused("model", CONTROL_WORDS.registry.model.as_str());
+  }
+
+  run(
+    db,
+    r#"UPDATE "registered_models" SET "model" = $1 WHERE "name" = $2"#,
+    vec![model.into(), name.into()],
+  )
+  .await?;
+
+  Ok(())
+}
+
 /// A registration as the service a chat with no tool asks directly: the gateway, under the
 /// registration's name, sized to its window. None where the registry holds no such registration with
 /// an address.

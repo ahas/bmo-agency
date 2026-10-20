@@ -6,8 +6,9 @@ use axum::http::{Method, StatusCode};
 use axum::response::Response;
 use serde_json::{Value, json};
 
-use super::{Call, Refused, Route, answer, whole};
-use crate::watches::machine::{LaunchHeld, room, tell_launch_held};
+use super::{Call, Refused, Route, answer};
+use crate::now_ms;
+use crate::watches::machine::{LaunchHeld, launch_room, tell_launch_held};
 
 /// What holds a job's launch on this machine now, with the counts the job-count limits are judged on.
 pub struct MachineRoom;
@@ -18,7 +19,7 @@ impl Route for MachineRoom {
 
   async fn answer(&self, call: Call) -> Result<Response, Refused> {
     let ground = call.ground();
-    let room = room(&ground.db, ground.peers.node.as_ref()).await?;
+    let room = launch_room(&ground.db, ground.peers.node.as_ref()).await?;
 
     Ok(answer(StatusCode::OK, json!(room)))
   }
@@ -36,19 +37,34 @@ impl Route for LaunchHeldTold {
   async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
     let body = call.body().await?;
     let bad = |error: &str| Refused::new(StatusCode::BAD_REQUEST, error);
-    let at = body.get("at").and_then(whole).ok_or_else(|| bad("at (a whole number) is required"))?;
     let held = body
       .get("held")
+      .and_then(Value::as_bool)
+      .ok_or_else(|| bad("held (a boolean) is required"))?;
+    let reasons: Vec<String> = body
+      .get("reasons")
+      .filter(|_| held)
       .and_then(Value::as_array)
-      .ok_or_else(|| bad("held (a list of strings) is required"))?
-      .iter()
-      .map(|reason| reason.as_str().map(str::to_owned))
-      .collect::<Option<Vec<_>>>()
-      .ok_or_else(|| bad("held (a list of strings) is required"))?;
+      .map(|reasons| reasons.iter().filter_map(Value::as_str).map(str::to_owned).collect())
+      .unwrap_or_default();
 
-    tell_launch_held(call.store(), &LaunchHeld { at, held }).await?;
+    if held && reasons.is_empty() {
+      return Err(bad("reasons (a list of strings) is required while launches are held"));
+    }
 
-    Ok(answer(StatusCode::OK, json!({ "ok": true })))
+    tell_launch_held(
+      call.store(),
+      &LaunchHeld {
+        at: now_ms(),
+        held: reasons,
+      },
+    )
+    .await?;
+
+    let ground = call.ground();
+    let room = launch_room(&ground.db, ground.peers.node.as_ref()).await?;
+
+    Ok(answer(StatusCode::OK, json!(room)))
   }
 }
 
