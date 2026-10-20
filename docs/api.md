@@ -28,7 +28,7 @@ a field's exact shape matters, the OpenAPI document is the one to read.
 ## Versioning
 
 - The contract carries the repository's one version, in semver; the workspace manifest is its source. Before
-  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.2`.
+  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.3`.
 - A change to this document and a change to the boundary go in one commit. A change to a route, an event, a
   hook or a shared table's contract repairs this document in the same commit.
 - The major moves on a removed or renamed route, field or event, the minor on an addition, the patch on
@@ -210,11 +210,13 @@ the shadow the node's link keeps of that checkout instead.
 | GET | `/providers` | Providers in walk order. |
 | GET | `/providers/{providerName}` | One provider. |
 | PATCH | `/providers/{providerName}` | Change a provider. |
-| GET | `/models` | Registered models, by provider or tier. |
+| GET | `/models` | The registry's models, narrowed by provider or tier. |
 | POST | `/models` | Register a model. |
 | GET | `/models/{modelKey}` | One model and its health. |
 | PATCH | `/models/{modelKey}` | Change a model's registration. |
 | DELETE | `/models/{modelKey}` | Take a model's registration away. |
+| GET | `/model-catalogue` | The model files the deployment's engines serve, and each engine's latest choice. |
+| POST | `/model-catalogue` | Save or remove a catalogue entry, or choose one for its engine. |
 | POST | `/pin-checks` | Read a worker pin value: auto, a provider, or a provider's model. |
 | GET | `/tiers` | Tiers in ladder order, each with its mapping. |
 | PATCH | `/tiers/{tierName}` | Change a tier's mapping for a role. |
@@ -222,10 +224,20 @@ the shadow the node's link keeps of that checkout instead.
 | PATCH | `/fallback` | Change the fallback roads. |
 
 A provider's change throws the owner's switch on it; the last provider left on is not thrown off, since
-nothing would answer. A model's key names its provider and the model apart — `provider::model`, or the
-provider as a query and the model in the path. A model of the registry's provider is one registration,
-whose model name is what a change edits; the models of every other provider are that provider's own
-catalogue, and no route changes them.
+nothing would answer.
+
+A model is one registration of the registry's provider: the list, the create, the read, the change and the
+take-away all read or write the registrations, so the list holds exactly what can be changed and removed. A
+model's key names its provider and the model apart — `provider::model`, or the provider as a query and the
+model in the path. `provider` names the registry's provider alone, since every other provider's models are
+its own catalogue and no route changes them; `tier` narrows the list to the registrations that tier maps to.
+A create starts a registration under its own name as its label, at the registry's smallest window, answer
+and wait and with no address, and is refused where the name already stands. `tier` and `healthy` are read
+back; the model behind a registration is what the change edits.
+
+The model catalogue is a resource of its own, never of `/models`: the files the deployment's own engines
+serve, each with its sizes, its source, its nodes and the registration it stands behind, and the latest
+choice for each engine. Its entries are not models, and `/models` neither lists nor changes them.
 
 ### work-keys, road-blocks and launch-room
 

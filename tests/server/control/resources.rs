@@ -428,3 +428,142 @@ async fn a_provider_s_switch_and_a_registered_model_s_name_are_changed_as_their_
   );
   assert_eq!(get(port, token, "/models/registered::mine").await.0, 404);
 }
+
+// The model resource is one record: what the list shows is what a create makes and what an edit and a
+// delete act on. The catalogue of model files is a resource of its own and never appears in that list.
+#[tokio::test(flavor = "multi_thread")]
+async fn the_model_resource_is_one_record() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let data = home.path().join("data");
+  let token = "secret";
+
+  std::fs::create_dir_all(&data).unwrap();
+  scratch
+    .run(
+      r#"INSERT INTO "registered_models" ("name", "label", "model", "context_tokens", "answer_tokens",
+            "wait_seconds", "thinking", "walked", "added_at", "keeps_research")
+         VALUES ('mine', 'Mine', 'old-model', 100000, 4000, 60, 0, 1, 1, 0)"#,
+      vec![],
+    )
+    .await;
+
+  let server = standing::stand_server(home.path(), &data, &scratch.address(), token);
+  let port = server.port;
+
+  // The list is the registrations the store holds.
+  let (status, page) = get(port, token, "/models").await;
+
+  assert_eq!(status, 200, "{page}");
+  assert_eq!(page["more"], json!(false));
+  assert_eq!(
+    page["items"],
+    json!([{
+      "key": "registered::mine",
+      "provider": "registered",
+      "model": "old-model",
+      "tier": Value::Null,
+      "healthy": false,
+    }])
+  );
+
+  // The list narrows by the tier a registration is mapped at, and a provider that is not the registry's
+  // has no models here.
+  scratch
+    .run(
+      r#"INSERT INTO "model_tier_mappings" ("provider", "tier", "model") VALUES ('registered', 'Reliable', 'mine')"#,
+      vec![],
+    )
+    .await;
+
+  let (_, by_tier) = get(port, token, "/models?tier=Reliable").await;
+
+  assert_eq!(by_tier["items"][0]["tier"], json!("Reliable"));
+  assert_eq!(get(port, token, "/models?tier=Light").await.1["items"], json!([]));
+  assert_eq!(get(port, token, "/models?tier=Nope").await.0, 400);
+  assert_eq!(get(port, token, "/models?provider=registered").await.0, 200);
+  assert_eq!(get(port, token, "/models?provider=claude-code").await.0, 404);
+
+  // A create makes a registration, and the list then shows the same record.
+  let (status, made) = send(
+    port,
+    token,
+    reqwest::Method::POST,
+    "/models",
+    json!({ "key": "registered::made", "provider": "registered", "model": "a-model" }),
+  )
+  .await;
+
+  assert_eq!(status, 201, "{made}");
+  assert_eq!(made["key"], json!("registered::made"));
+  assert_eq!(made["model"], json!("a-model"));
+
+  let (_, page) = get(port, token, "/models").await;
+  let keys: Vec<&str> =
+    page["items"].as_array().unwrap().iter().filter_map(|one| one["key"].as_str()).collect();
+
+  assert_eq!(keys, ["registered::mine", "registered::made"], "{page}");
+
+  // The edit and the delete act on that record.
+  let (status, changed) = send(
+    port,
+    token,
+    reqwest::Method::PATCH,
+    "/models/registered::made",
+    json!({ "model": "changed-model" }),
+  )
+  .await;
+
+  assert_eq!(status, 200, "{changed}");
+  assert_eq!(changed["model"], json!("changed-model"));
+  assert_eq!(get(port, token, "/models").await.1["items"][1]["model"], json!("changed-model"));
+
+  assert_eq!(
+    send(port, token, reqwest::Method::DELETE, "/models/registered::made", Value::Null)
+      .await
+      .0,
+    204
+  );
+  assert_eq!(get(port, token, "/models/registered::made").await.0, 404);
+  assert_eq!(get(port, token, "/models").await.1["items"].as_array().unwrap().len(), 1);
+
+  // The catalogue is a resource of its own: an entry is made and read there, and the model route neither
+  // lists it nor edits or deletes it.
+  let (status, catalogue) = send(
+    port,
+    token,
+    reqwest::Method::POST,
+    "/model-catalogue",
+    json!({
+      "action": "save",
+      "name": "rvn",
+      "label": "RVN",
+      "file": "RVN-Q4_K_M.gguf",
+      "bytes": 1234,
+      "sha256": "ab".repeat(32),
+    }),
+  )
+  .await;
+
+  assert_eq!(status, 200, "{catalogue}");
+  assert_eq!(catalogue["entries"][0]["name"], json!("rvn"));
+  assert_eq!(get(port, token, "/model-catalogue").await.1["entries"][0]["name"], json!("rvn"));
+
+  let (_, page) = get(port, token, "/models").await;
+  let keys: Vec<&str> =
+    page["items"].as_array().unwrap().iter().filter_map(|one| one["key"].as_str()).collect();
+
+  assert_eq!(keys, ["registered::mine"], "{page}");
+  assert_eq!(
+    send(port, token, reqwest::Method::PATCH, "/models/registered::rvn", json!({ "model": "x" }))
+      .await
+      .0,
+    404
+  );
+  assert_eq!(
+    send(port, token, reqwest::Method::DELETE, "/models/registered::rvn", Value::Null)
+      .await
+      .0,
+    404
+  );
+}

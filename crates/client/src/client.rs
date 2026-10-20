@@ -695,6 +695,17 @@ impl AgencyClient {
     Self::nothing(self.request(Method::DELETE, &["models", model_key])).await
   }
 
+  /// `GET /model-catalogue`: The model files the deployment's engines serve, and each engine's latest
+  /// choice.
+  pub async fn list_model_catalogue(&self) -> Answer<ModelCatalogueView> {
+    Self::answered(self.request(Method::GET, &["model-catalogue"])).await
+  }
+
+  /// `POST /model-catalogue`: Save or remove an entry, or choose one for its engine.
+  pub async fn change_model_catalogue(&self, body: &ModelCatalogueChange) -> Answer<ModelCatalogueView> {
+    Self::answered(self.request(Method::POST, &["model-catalogue"]).json(body)).await
+  }
+
   /// `POST /pin-checks`: Read a worker pin value: auto, a provider, or a provider's model.
   pub async fn make_pin_checks(&self, body: &PinCheckAsk) -> Answer<PinCheck> {
     Self::answered(self.request(Method::POST, &["pin-checks"]).json(body)).await

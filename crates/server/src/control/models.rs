@@ -6,11 +6,13 @@
   clippy::let_and_return,
   clippy::unnecessary_to_owned
 )]
-//! The model catalogue as a caller reads and changes it, and an entry chosen for its engine
-//! (docs/model-catalogue.md): every entry with whether its engine serves it now, the latest choice for
-//! each engine with the end of its log, and a change held to the policy's rules. The engine's
-//! health, the choice's unit and its log are the harness-machine crate's
-//! (docs/harness-machine.md, 「A model's use on its engine」).
+//! Two records a caller meets as two resources. The model resource is the registry's registrations
+//! (docs/own-llm.md, 「Registered models」): a model is listed, made, edited and removed there, and every
+//! one of those verbs reads or writes the one registration table. The model catalogue is the files the
+//! deployment's own engines serve (docs/model-catalogue.md), served at `/model-catalogue`: every entry
+//! with whether its engine serves it now, the latest choice for each engine with the end of its log, and a
+//! change held to the policy's rules. The engine's health, the choice's unit and its log are the
+//! harness-machine crate's (docs/harness-machine.md, 「A model's use on its engine」).
 
 use std::collections::{BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
@@ -23,6 +25,8 @@ use harness_machine::model_use::{self, Start};
 use policy::control_words::CONTROL_WORDS;
 use policy::fill_marks;
 use policy::model_catalogue::{MODEL_CATALOGUE, NumberBounds};
+use policy::registry::REGISTRY;
+use policy::tiers::TIERS;
 use regex::Regex;
 use sea_orm::{ConnectionTrait, QueryResult, TransactionTrait};
 use serde_json::{Map, Value, json};
@@ -776,7 +780,7 @@ pub struct Catalogue;
 
 impl Route for Catalogue {
   const METHOD: Method = Method::GET;
-  const PATH: &'static str = "/models";
+  const PATH: &'static str = "/model-catalogue";
 
   async fn answer(&self, call: Call) -> Result<Response, Refused> {
     Ok(answer(StatusCode::OK, view(call.store(), &call.data_root()).await?))
@@ -791,7 +795,7 @@ pub struct CatalogueChange;
 
 impl Route for CatalogueChange {
   const METHOD: Method = Method::POST;
-  const PATH: &'static str = "/models";
+  const PATH: &'static str = "/model-catalogue";
 
   async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
     let body = call.body().await?;
@@ -830,6 +834,114 @@ fn faulted(fault: Fault) -> Refused {
     Fault::Failed(refused) => refused,
   }
 }
+
+/// Every model the boundary holds: the registry's registrations, narrowed by the tier the query names.
+/// A provider the query names is the registry's alone, since every other provider's models are its own
+/// catalogue.
+pub struct ListModels;
+
+impl Route for ListModels {
+  const METHOD: Method = Method::GET;
+  const PATH: &'static str = "/models";
+
+  async fn answer(&self, call: Call) -> Result<Response, Refused> {
+    let asked = call
+      .query("provider")
+      .filter(|provider| !provider.trim().is_empty() && provider.as_str() != super::registry::PROVIDER);
+
+    if let Some(provider) = asked {
+      return Err(Refused::new(
+        StatusCode::NOT_FOUND,
+        format!("{provider}'s models are its own catalogue, and none of them is a registration"),
+      ));
+    }
+
+    let tier = call.query("tier").filter(|tier| !tier.trim().is_empty());
+
+    if let Some(tier) = tier.as_deref().filter(|tier| !TIERS.holds(tier)) {
+      return Err(Refused::new(StatusCode::BAD_REQUEST, format!("Unknown model tier: {tier}")));
+    }
+
+    let listed = super::registry::listed_models(call.store(), &call.data_root(), tier.as_deref()).await?;
+
+    Ok(answer(StatusCode::OK, json!({ "items": listed, "more": false })))
+  }
+}
+
+crate::moved!(ListModels);
+
+/// A model registered: its name from the key, the model behind it, and the registry's smallest window,
+/// answer and wait until the owner sizes it.
+pub struct CreateModel;
+
+impl Route for CreateModel {
+  const METHOD: Method = Method::POST;
+  const PATH: &'static str = "/models";
+
+  async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
+    let body = call.body().await?;
+    let key = body
+      .get("key")
+      .and_then(Value::as_str)
+      .map(str::trim)
+      .filter(|key| !key.is_empty())
+      .ok_or_else(|| Refused::new(StatusCode::BAD_REQUEST, "key (a string) is required"))?;
+    let (provider, name) = super::walk_reads::model_key(key, None);
+
+    let disagreed = body.get("provider").and_then(Value::as_str).filter(|declared| *declared != provider);
+
+    if let Some(declared) = disagreed {
+      return Err(Refused::new(
+        StatusCode::BAD_REQUEST,
+        format!("the key names {provider}, not {declared}"),
+      ));
+    }
+
+    let model = body
+      .get("model")
+      .and_then(Value::as_str)
+      .map(str::trim)
+      .filter(|model| !model.is_empty())
+      .ok_or_else(|| Refused::new(StatusCode::BAD_REQUEST, "model (a string) is required"))?
+      .to_owned();
+
+    if provider != super::registry::PROVIDER {
+      return Err(Refused::new(
+        StatusCode::NOT_FOUND,
+        format!("{provider}'s models are its own catalogue, and none of them is a registration"),
+      ));
+    }
+
+    let db = call.store();
+    let data_root = call.data_root();
+
+    if super::registry::registered_model(db, &data_root, &name).await?.is_some() {
+      return Err(Refused::new(StatusCode::CONFLICT, format!("a model is already registered as {name}")));
+    }
+
+    let change = json!({
+      "action": "save",
+      "name": name,
+      "label": name,
+      "model": model,
+      "contextTokens": REGISTRY.context_tokens.min,
+      "answerTokens": REGISTRY.answer_tokens.min,
+      "waitSeconds": REGISTRY.wait_seconds.min,
+    });
+
+    match super::registry::change(db, &data_root, &change).await? {
+      Ok(()) => {}
+      Err(sentence) => return Err(Refused::new(StatusCode::BAD_REQUEST, sentence)),
+    }
+
+    match super::registry::registered_model(db, &data_root, &name).await? {
+      Some(view) => Ok(answer(StatusCode::CREATED, view)),
+      None => Err(Refused::failed("the model was made but not read")),
+    }
+  }
+}
+
+crate::moved!(CreateModel);
 
 /// A model's registration changed: the model name it is registered under.
 pub struct ChangeModel;

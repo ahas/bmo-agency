@@ -148,6 +148,9 @@ never the model's name.
 
 - **In the store:** one table of registrations and one of their addresses, each address row belonging
   to its registration and removed with it.
+- **At the boundary:** `/models` is the model resource — the list, the create, the read, the change and
+  the take-away all read or write these rows, so what is listed is what can be changed and removed. The
+  model catalogue is another resource, `/model-catalogue` (`docs/model-catalogue.md`).
 - **Read afresh by every run and every screen,** so a saved change reaches the next run with no
   deployment and no restart of the bot. What the gateway carries — the addresses, the keys, the model
   and the wait behind — reaches it as 「The gateway」 below says.

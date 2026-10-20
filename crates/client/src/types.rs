@@ -463,6 +463,89 @@ pub struct Model {
   pub healthy: Option<bool>,
 }
 
+/// ModelCatalogueEntry:
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelCatalogueEntry {
+  pub name: String,
+  pub label: String,
+  pub file: String,
+  pub bytes: i64,
+  pub sha256: String,
+  pub source: Option<String>,
+  pub engine: Option<String>,
+  pub registration: Option<String>,
+  pub nodes: Vec<String>,
+  pub thinking: Option<bool>,
+  pub temperature: Option<f64>,
+  pub top_p: Option<f64>,
+  pub presence_penalty: Option<f64>,
+  pub max_tokens: Option<i64>,
+  pub note: Option<String>,
+  pub serving: bool,
+}
+
+/// ModelCatalogueUse:
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelCatalogueUse {
+  pub id: i64,
+  pub entry: String,
+  pub engine: String,
+  pub chosen_by: String,
+  pub started_at: i64,
+  pub ended_at: Option<i64>,
+  pub state: String,
+  pub step: Option<String>,
+  pub reason: Option<String>,
+  pub log_tail: Vec<String>,
+  pub log: Option<String>,
+}
+
+/// ModelCatalogueView:
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelCatalogueView {
+  pub entries: Vec<ModelCatalogueEntry>,
+  pub uses: Vec<ModelCatalogueUse>,
+}
+
+/// ModelCatalogueChange: the action and the fields a change of the catalogue names.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelCatalogueChange {
+  pub action: String,
+  pub name: String,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub label: Option<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub file: Option<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub bytes: Option<i64>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub sha256: Option<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub source: Option<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub engine: Option<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub registration: Option<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub note: Option<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub thinking: Option<bool>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub temperature: Option<f64>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub top_p: Option<f64>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub presence_penalty: Option<f64>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub max_tokens: Option<i64>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub by: Option<String>,
+}
+
 /// PinCheckAsk:
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]

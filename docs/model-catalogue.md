@@ -86,8 +86,10 @@ entry is the file behind it, where the file is the system's own to serve.
 
 - **The console:** the model files section of the agent management screen's general tab lists every
   entry with the file each engine serves now, and adds, changes and removes one; the latest choice for
-  each engine stands above the list with how it is going. It reads and writes them through agency's
-  catalogue routes (`docs/api.md`, 「Models, registry, tiers, roads and fallback」).
+  each engine stands above the list with how it is going.
+- **At the boundary:** the catalogue is the `/model-catalogue` resource (`docs/api.md`, 「Models, registry,
+  tiers, roads and fallback」), never `/models`: a catalogue entry is the file behind a model, never the
+  model.
 - **The command:**
   - `bmo-agency model` lists every entry and the latest choice for each engine.
   - `bmo-agency model add <name> --file <file> --bytes <n> --sha256 <hash> [--label <label>]

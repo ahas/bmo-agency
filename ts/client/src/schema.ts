@@ -392,6 +392,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/model-catalogue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The model files the deployment's engines serve, and each engine's latest choice. */
+        get: operations["listModelCatalogue"];
+        put?: never;
+        /** Save or remove an entry, or choose one for its engine. */
+        post: operations["changeModelCatalogue"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/models": {
         parameters: {
             query?: never;
@@ -703,6 +721,23 @@ export interface paths {
         post?: never;
         /** Open a road again. */
         delete: operations["deleteRoadBlock"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/road-verbs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The verbs a room's road performs, as the consumer answers them. */
+        get: operations["readRoadVerbs"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -1637,6 +1672,76 @@ export interface components {
             model: string;
             provider: string;
             tier: string | null;
+        };
+        /** @description ModelCatalogueChange: the action and the fields a change of the catalogue names. */
+        ModelCatalogueChange: {
+            action: string;
+            by?: string | null;
+            /** Format: int64 */
+            bytes?: number | null;
+            engine?: string | null;
+            file?: string | null;
+            label?: string | null;
+            /** Format: int64 */
+            maxTokens?: number | null;
+            name: string;
+            note?: string | null;
+            /** Format: double */
+            presencePenalty?: number | null;
+            registration?: string | null;
+            sha256?: string | null;
+            source?: string | null;
+            /** Format: double */
+            temperature?: number | null;
+            thinking?: boolean | null;
+            /** Format: double */
+            topP?: number | null;
+        };
+        /** @description ModelCatalogueEntry: */
+        ModelCatalogueEntry: {
+            /** Format: int64 */
+            bytes: number;
+            engine: string | null;
+            file: string;
+            label: string;
+            /** Format: int64 */
+            maxTokens: number | null;
+            name: string;
+            nodes: string[];
+            note: string | null;
+            /** Format: double */
+            presencePenalty: number | null;
+            registration: string | null;
+            serving: boolean;
+            sha256: string;
+            source: string | null;
+            /** Format: double */
+            temperature: number | null;
+            thinking: boolean | null;
+            /** Format: double */
+            topP: number | null;
+        };
+        /** @description ModelCatalogueUse: */
+        ModelCatalogueUse: {
+            chosenBy: string;
+            /** Format: int64 */
+            endedAt: number | null;
+            engine: string;
+            entry: string;
+            /** Format: int64 */
+            id: number;
+            log: string | null;
+            logTail: string[];
+            reason: string | null;
+            /** Format: int64 */
+            startedAt: number;
+            state: string;
+            step: string | null;
+        };
+        /** @description ModelCatalogueView: */
+        ModelCatalogueView: {
+            entries: components["schemas"]["ModelCatalogueEntry"][];
+            uses: components["schemas"]["ModelCatalogueUse"][];
         };
         /** @description ModelPage: */
         ModelPage: {
@@ -3086,6 +3191,53 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
         };
     };
+    listModelCatalogue: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelCatalogueView"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    changeModelCatalogue: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModelCatalogueChange"];
+            };
+        };
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelCatalogueView"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+        };
+    };
     listModels: {
         parameters: {
             query?: {
@@ -3133,6 +3285,7 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
+            409: components["responses"]["Conflict"];
         };
     };
     getModel: {
@@ -3773,6 +3926,31 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
+        };
+    };
+    readRoadVerbs: {
+        parameters: {
+            query: {
+                chat: number;
+                via?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
         };
     };
     listRoles: {

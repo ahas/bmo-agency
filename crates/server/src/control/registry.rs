@@ -136,9 +136,25 @@ pub async fn registration_health<C: ConnectionTrait>(
   Ok(engine_health::health(data_root, &addresses).await)
 }
 
+/// The tiers the registry's provider maps a registration at, in the ladder's order: a tier mapping
+/// names the registration, not the model behind it.
+pub async fn mapped_tiers<C: ConnectionTrait>(db: &C, name: &str) -> Result<Vec<String>, Refused> {
+  let held: Vec<String> = all(
+    db,
+    "SELECT tier FROM model_tier_mappings WHERE provider = $1 AND model = $2",
+    vec![PROVIDER.into(), name.into()],
+  )
+  .await?
+  .iter()
+  .map(|row| row.try_get::<String>("", "tier"))
+  .collect::<Result<_, sea_orm::DbErr>>()?;
+
+  Ok(TIERS.ladder.iter().filter(|tier| held.contains(tier)).cloned().collect())
+}
+
 /// One registration as the boundary's model resource answers it: its name as the key, its model, the
-/// tier that model is mapped at and whether its addresses answer, or none where the registry holds no
-/// registration by that name.
+/// first tier it is mapped at in the ladder's order and whether its addresses answer, or none where the
+/// registry holds no registration by that name.
 pub async fn registered_model<C: ConnectionTrait>(
   db: &C,
   data_root: &Path,
@@ -150,14 +166,7 @@ pub async fn registered_model<C: ConnectionTrait>(
     return Ok(None);
   };
   let model: String = row.try_get("", "model")?;
-  let tier = one(
-    db,
-    r#"SELECT "tier" FROM "model_tier_mappings" WHERE "provider" = $1 AND "model" = $2
-       ORDER BY "tier" LIMIT 1"#,
-    vec![PROVIDER.into(), model.clone().into()],
-  )
-  .await?
-  .and_then(|row| row.try_get::<String>("", "tier").ok());
+  let tier = mapped_tiers(db, name).await?.into_iter().next();
   let healthy = registration_health(db, data_root, name)
     .await?
     .is_some_and(|health| health.aside.is_none());
@@ -169,6 +178,29 @@ pub async fn registered_model<C: ConnectionTrait>(
     "tier": tier,
     "healthy": healthy,
   })))
+}
+
+/// Every registration as the model resource lists it, narrowed to the tier the query names where it
+/// names one.
+pub async fn listed_models<C: ConnectionTrait>(
+  db: &C,
+  data_root: &Path,
+  tier: Option<&str>,
+) -> Result<Vec<Value>, Refused> {
+  let mut listed = vec![];
+
+  for held in registrations(db).await? {
+    let mapped = mapped_tiers(db, &held.name).await?;
+
+    if tier.is_some_and(|wanted| !mapped.iter().any(|one| one == wanted)) {
+      continue;
+    }
+    if let Some(model) = registered_model(db, data_root, &held.name).await? {
+      listed.push(model);
+    }
+  }
+
+  Ok(listed)
 }
 
 /// A registration's model changed to the name given, the name held to the registry's own rule.
