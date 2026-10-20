@@ -26,3 +26,9 @@ name = "claude-code"
 label = "Claude Code based"
 file = "claude-code.md"
 agents = []
+
+[[seed]]
+name = "dsh"
+label = "DeepSeek Harness based"
+file = "dsh.md"
+agents = []

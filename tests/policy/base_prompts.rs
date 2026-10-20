@@ -1,4 +1,6 @@
 use policy::base_prompts::*;
+use regex::Regex;
+use std::path::Path;
 
 #[test]
 fn the_rules_read_and_every_value_is_named_once() {
@@ -20,11 +22,31 @@ fn every_seed_is_named_once_and_its_file_stands() {
   names.dedup();
   assert_eq!(names.len(), BASE_PROMPTS.seed.len());
   for seed in &BASE_PROMPTS.seed {
-    let file = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("prompts/base").join(&seed.file);
+    let file = Path::new(env!("CARGO_MANIFEST_DIR")).join("prompts/base").join(&seed.file);
 
     assert!(file.is_file(), "{} names {}", seed.name, file.display());
     assert!(
       seed.name.len() <= BASE_PROMPTS.name_most && seed.label.chars().count() <= BASE_PROMPTS.label_most
     );
+  }
+}
+
+#[test]
+fn every_value_a_seed_names_is_one_the_policy_declares() {
+  let value = Regex::new(r"\{\{([A-Za-z0-9_]+)\}\}").expect("the value mark");
+
+  for seed in &BASE_PROMPTS.seed {
+    let file = Path::new(env!("CARGO_MANIFEST_DIR")).join("prompts/base").join(&seed.file);
+    let text = std::fs::read_to_string(&file).expect("a seed's file");
+
+    for found in value.captures_iter(&text) {
+      let name = &found[1];
+
+      assert!(
+        BASE_PROMPTS.values.iter().any(|value| value == name),
+        "{} names {{{{{name}}}}}",
+        seed.name
+      );
+    }
   }
 }
