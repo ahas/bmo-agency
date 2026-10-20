@@ -8,7 +8,7 @@
       "crates/server/src/control/run_clocks.rs",
       "crates/policy/src/run_clock.rs",
       "crates/server/src/verbs/overtime.rs",
-      "ts/agent/overtime-clock.ts"
+      "packages/agent/overtime-clock.ts"
     ],
     "symbols": [],
     "aliases": [],
@@ -16,7 +16,7 @@
       "runs/ledger"
     ],
     "base": "6759a3bb1b9b06d1b315c3fc9c7c78058e10fa26",
-    "changed": 1792497922207
+    "changed": 1792520006700
   },
   {
     "id": "runs/ledger",
@@ -31,21 +31,21 @@
       "crates/server/src/control/run_ledger.rs",
       "crates/policy/src/span_words.rs",
       "crates/store/src/migration/m20261019_000001_runs.rs",
-      "ts/agent/cli-transcripts.ts",
-      "ts/agent/codex-file-changes.ts",
-      "ts/agent/codex-request-usage.ts",
-      "ts/agent/doctor.ts",
-      "ts/agent/failure-text.ts",
-      "ts/agent/finished.ts",
-      "ts/agent/job-spans.ts",
-      "ts/agent/runlog.ts",
-      "ts/agent/spend.ts",
-      "ts/agent/transcript-spend.ts",
-      "ts/agent/transcript-tail.ts",
-      "ts/agent/usage.ts",
-      "ts/agent/workflow-log.ts",
-      "ts/archive/run-rows.ts",
-      "ts/archive/run-store.ts"
+      "packages/agent/cli-transcripts.ts",
+      "packages/agent/codex-file-changes.ts",
+      "packages/agent/codex-request-usage.ts",
+      "packages/agent/doctor.ts",
+      "packages/agent/failure-text.ts",
+      "packages/agent/finished.ts",
+      "packages/agent/job-spans.ts",
+      "packages/agent/runlog.ts",
+      "packages/agent/spend.ts",
+      "packages/agent/transcript-spend.ts",
+      "packages/agent/transcript-tail.ts",
+      "packages/agent/usage.ts",
+      "packages/agent/workflow-log.ts",
+      "packages/archive/run-rows.ts",
+      "packages/archive/run-store.ts"
     ],
     "symbols": [],
     "aliases": [],
@@ -53,7 +53,7 @@
       "store/database"
     ],
     "base": "6759a3bb1b9b06d1b315c3fc9c7c78058e10fa26",
-    "changed": 1792497922199
+    "changed": 1792520006700
   },
   {
     "id": "runs/stop",

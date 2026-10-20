@@ -54,7 +54,7 @@
       "crates/policy/src/workers.rs",
       "crates/policy/src/queue_words.rs",
       "crates/policy/src/node_states.rs",
-      "ts/archive/worker-session-store.ts"
+      "packages/archive/worker-session-store.ts"
     ],
     "symbols": [],
     "aliases": [],
@@ -64,7 +64,7 @@
       "models/fallback"
     ],
     "base": "0909f39dd4bfd4c60245b4f9f86b2c8a74705112",
-    "changed": 1792519312987
+    "changed": 1792520006700
   },
   {
     "id": "workers/tools",
@@ -72,8 +72,8 @@
     "what": "The MCP tools a worker reaches in place of composing shell commands, and the tool host's session record that names them.",
     "files": [
       "docs/worker-mcp.md",
-      "ts/agent/mcp-names.ts",
-      "ts/agent/tool-host.ts"
+      "packages/agent/mcp-names.ts",
+      "packages/agent/tool-host.ts"
     ],
     "symbols": [],
     "aliases": [],
@@ -81,7 +81,7 @@
       "api/mcp"
     ],
     "base": "6759a3bb1b9b06d1b315c3fc9c7c78058e10fa26",
-    "changed": 1792497922169
+    "changed": 1792520006700
   },
   {
     "id": "workers/words",

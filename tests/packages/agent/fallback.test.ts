@@ -64,7 +64,7 @@ describe("no Claude launch line moved", () => {
   const source = (path: string): string => readFileSync(join(root, path), "utf8");
 
   test("the chat flags remain in their fixed order", () => {
-    const text = source("ts/agent/claude-code.ts");
+    const text = source("packages/agent/claude-code.ts");
     const chat = text.slice(text.indexOf("function chatLine"), text.indexOf("function withPrompt"));
 
     expect([...chat.matchAll(/"(--[a-zA-Z-]+)"/g)].map((match) => match[1])).toEqual([

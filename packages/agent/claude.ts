@@ -245,7 +245,7 @@ export function readClaudeOutput(stdout: string, stderr: string, exitCode: numbe
 
     // What the reader of a run knows about how it died, carried with the sentence rather than
     // only inside it: whoever tells the owner why the run broke reads these rather than taking the
-    // message back apart (`ts/agent/doctor.ts`).
+    // message back apart (`packages/agent/doctor.ts`).
     // A run that wrote its result before it exited says why in that result, where its standard error
     // may hold no more than the CLI's own warnings.
     if (exitCode !== 0) {

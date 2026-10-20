@@ -8,8 +8,8 @@
 //
 // Where the pane goes is decided by whose run it is. Every agent has a workspace of its own under
 // the name the owner calls it, whose head pane keeps the workspace standing and holds the agent's
-// resident program or follows its view (`ts/agent/resident-pane.ts`,
-// `ts/agent/root-host.ts`); a run apart from both opens in a tab of its own there. A run with
+// resident program or follows its view (`packages/agent/resident-pane.ts`,
+// `packages/agent/root-host.ts`); a run apart from both opens in a tab of its own there. A run with
 // no agent opens in a workspace of its own, labelled with what the run is.
 // Either way the run's name is a token on its pane, never a label: labels are what a person reads,
 // and a person reads a title, not a unit name.

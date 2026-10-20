@@ -4,12 +4,12 @@
     "title": "TypeScript support",
     "what": "The shared TypeScript support every side uses: environment numbers, file locks, ordered promises, the paths a line hands the CLI, policy marks, names, roots, secrets and the user service manager.",
     "files": [
-      "ts/support/"
+      "packages/support/"
     ],
     "symbols": [],
     "aliases": [],
     "needs": [],
     "base": "6759a3bb1b9b06d1b315c3fc9c7c78058e10fa26",
-    "changed": 1792497922304
+    "changed": 1792520006700
   }
 ]

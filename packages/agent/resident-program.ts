@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { cliProjectsRoot, transcriptPath } from "./cli-transcripts";
 
 // The program an agent's place holds for its resident pane, as the launcher writes it and the head
-// reads it (`ts/agent/resident-pane.ts`, docs/agent-control.md, 「One standing pane per agent」). It stands
+// reads it (`packages/agent/resident-pane.ts`, docs/agent-control.md, 「One standing pane per agent」). It stands
 // apart so a reader that only needs the record loads nothing of the pane machinery to read it.
 
 export interface ResidentCommand {

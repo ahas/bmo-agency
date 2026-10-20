@@ -6,7 +6,7 @@ about a message is not agency's: the judgement records belong to the units that 
 ## Agent log
 
 - Every agent's own internal log, one line per thing it did, written to agency's store as it happens
-  (`ts/agent/runlog.ts`).
+  (`packages/agent/runlog.ts`).
 - Whoever reads a run's stream writes it — the bot for a chat session and a gate, the runner or the
   worker for itself — so a chat session's turn, a gate's question and answer, and a runner's or the
   worker's whole stream all land in one table under the agent's name.
@@ -66,7 +66,7 @@ about a message is not agency's: the judgement records belong to the units that 
 - A run that died says why on its last lines, and everything above them is the program starting up —
   a welcome banner, an ASCII drawing, a rule across the terminal, a warning about the mode it was
   launched in. So what is written down of it is its **tail and never its head**
-  (`ts/agent/failure-text.ts`): escape sequences go, then every line carrying no letter and no
+  (`packages/agent/failure-text.ts`): escape sequences go, then every line carrying no letter and no
   digit, so a drawing and a row of dots take no room from the cause; what is left is cut to two
   thousand characters from the end, on a line boundary, with a `…` where the head went, and output
   that was decoration and nothing else keeps its own tail rather than leaving the record empty.

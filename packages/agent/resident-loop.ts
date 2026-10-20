@@ -18,7 +18,7 @@ const line = flag("--line") as RunLine | undefined;
 const model = flag("--model");
 
 if (named === undefined || !agentProviderNames.includes(named as AgentProviderName) || place === undefined || line === undefined || model === undefined) {
-  console.error("usage: bun ts/agent/resident-loop.ts --provider <provider> --place <dir> --line <line> --model <model>");
+  console.error("usage: bun packages/agent/resident-loop.ts --provider <provider> --place <dir> --line <line> --model <model>");
   process.exit(2);
 }
 

@@ -6,7 +6,7 @@
     "files": [
       "docs/store.md",
       "crates/store/",
-      "ts/archive/",
+      "packages/archive/",
       "crates/server/src/queue/settings.rs",
       "crates/server/src/seeds.rs",
       "crates/server/src/data_move.rs",
@@ -16,6 +16,6 @@
     "aliases": [],
     "needs": [],
     "base": "0909f39dd4bfd4c60245b4f9f86b2c8a74705112",
-    "changed": 1792519312913
+    "changed": 1792520006700
   }
 ]

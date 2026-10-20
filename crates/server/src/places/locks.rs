@@ -1,4 +1,4 @@
-//! The file locks agency's server holds, as the TypeScript side's file lock in `ts/support` does
+//! The file locks agency's server holds, as the TypeScript side's file lock in `packages/support` does
 //! (docs/worker-bench.md, 「It stands only while a job of the worker runs」): one file per checkout, per job
 //! hold, per agent's program and per worker's dev pane under the data root's `locks/`, held by `flock`, so
 //! a lock of a process that died is no lock at all.

@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
 
 // The dependency boundary on the TypeScript side: among other repositories only the base libraries are
-// depended on or imported. Every import of every file under ts/ and tests/ts is read by Bun's own
+// depended on or imported. Every import of every file under packages/ and tests/packages is read by Bun's own
 // transpiler, and every dependency each package's manifest names is held to the same boundary.
 
 const root = resolve(import.meta.dir, "..", "..");
@@ -61,7 +61,7 @@ function dependencyCrossing(manifest: string, name: string, version: string): st
 }
 
 function sources(): string[] {
-  return ["ts", join("tests", "ts")].flatMap((folder) =>
+  return ["packages", join("tests", "packages")].flatMap((folder) =>
     [...sourceGlob.scanSync({ cwd: join(root, folder) })].filter(written).map((path) => join(root, folder, path)));
 }
 
@@ -87,7 +87,7 @@ describe("the dependency boundary", () => {
 
   test("no package depends on another repository but the base libraries", () => {
     const crossings: string[] = [];
-    const manifests = [...manifestGlob.scanSync({ cwd: join(root, "ts") })].filter(written).map((path) => join(root, "ts", path));
+    const manifests = [...manifestGlob.scanSync({ cwd: join(root, "packages") })].filter(written).map((path) => join(root, "packages", path));
 
     for (const manifest of manifests) {
       const read = JSON.parse(readFileSync(manifest, "utf8")) as Record<string, unknown>;
@@ -108,8 +108,8 @@ describe("the dependency boundary", () => {
   });
 
   test("a crossing is named", () => {
-    const file = join(root, "ts", "agent", "one.ts");
-    const manifest = join(root, "ts", "agent", "package.json");
+    const file = join(root, "packages", "agent", "one.ts");
+    const manifest = join(root, "packages", "agent", "package.json");
 
     expect(importCrossing(file, "bmo-job/client")).not.toBeNull();
     expect(importCrossing(file, "@bmo/brain")).not.toBeNull();

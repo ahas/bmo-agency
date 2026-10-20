@@ -1,7 +1,7 @@
 //! An agent's home in herdr (docs/agent-control.md, 「One standing pane per agent」, 「What goes where」):
 //! its workspace under the label the owner has herdr show it by, whose head pane keeps the workspace
 //! standing and stands the agent's program or follows its view. This is how a home is found, made,
-//! renamed, tidied and closed, the twin of the TypeScript side's own (`ts/agent`'s herdr run).
+//! renamed, tidied and closed, the twin of the TypeScript side's own (`packages/agent`'s herdr run).
 //!
 //! A home is found by the token it was reported under first, and by its label after: the token is live
 //! state a herdr that comes back does not rebuild, while the label is. Of two homes for one agent the

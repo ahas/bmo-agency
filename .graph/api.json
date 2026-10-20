@@ -9,7 +9,7 @@
       "crates/client/src/lib.rs",
       "crates/client/src/tools.rs",
       "crates/client/src/types.rs",
-      "ts/client/src/index.ts"
+      "packages/client/src/index.ts"
     ],
     "symbols": [],
     "aliases": [],
@@ -17,7 +17,7 @@
       "api/http"
     ],
     "base": "0909f39dd4bfd4c60245b4f9f86b2c8a74705112",
-    "changed": 1792519312244,
+    "changed": 1792520006700,
     "boundary": {
       "side": "exposes"
     }
@@ -50,13 +50,13 @@
       "docs/api.md",
       "crates/server/src/events.rs",
       "crates/server/src/control/events_stream.rs",
-      "ts/agent/events.ts"
+      "packages/agent/events.ts"
     ],
     "symbols": [],
     "aliases": [],
     "needs": [],
     "base": "0909f39dd4bfd4c60245b4f9f86b2c8a74705112",
-    "changed": 1792519312387,
+    "changed": 1792520006700,
     "boundary": {
       "side": "exposes"
     }

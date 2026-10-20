@@ -177,7 +177,7 @@ pub async fn mark_gone(db: &sea_orm::DatabaseConnection, id: &str, now: i64) -> 
 }
 
 /// A moment as JavaScript writes a number into text, so a warning recorded here or by the TypeScript side
-/// (`ts/agent/claude-login.ts`) is read as the same ending by the other.
+/// (`packages/agent/claude-login.ts`) is read as the same ending by the other.
 pub fn moment_text(moment: f64) -> String {
   if moment.fract() == 0.0 && moment.abs() < 1e15 {
     format!("{}", moment as i64)

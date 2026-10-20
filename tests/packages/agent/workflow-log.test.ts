@@ -75,7 +75,7 @@ function transcript(agentId: string, entries: unknown[] = []): BranchTranscript 
       },
       {
         type: "user",
-        message: { content: [{ type: "tool_result", tool_use_id: "toolu_b1", content: "M ts/agent/runlog.ts" }] },
+        message: { content: [{ type: "tool_result", tool_use_id: "toolu_b1", content: "M packages/agent/runlog.ts" }] },
       },
       { type: "assistant", message: { content: [{ type: "text", text: "There were no bugs." }] } },
       ...entries,
@@ -249,7 +249,7 @@ describe("what a branch actually did", () => {
     expect(lines[1]?.text).toContain("find the bugs in this change");
     expect(lines[2]).toMatchObject({ kind: "tool", name: "Bash", ref: "toolu_b1" });
     expect(lines[2]?.text).toContain("git diff");
-    expect(lines[3]).toMatchObject({ kind: "tool-result", ref: "toolu_b1", text: "M ts/agent/runlog.ts" });
+    expect(lines[3]).toMatchObject({ kind: "tool-result", ref: "toolu_b1", text: "M packages/agent/runlog.ts" });
     expect(lines[4]).toMatchObject({ kind: "text", text: "There were no bugs." });
   });
 

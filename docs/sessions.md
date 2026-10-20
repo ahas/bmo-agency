@@ -196,7 +196,7 @@ session on the owner's ask is `docs/session-resets.md`.
   tokens.
 - At the head of a turn, and only there, agency checks whether a prompt document was written after this
   session last answered. If one was, this turn is paying for the whole context whatever happens, so
-  the two prices are compared (`ts/agent/freshstart.ts`): resuming costs what the session's last run
+  the two prices are compared (`packages/agent/freshstart.ts`): resuming costs what the session's last run
   reported it was carrying, which the archive keeps on the chat's `agents` row and which every round
   that got an answer writes, an unfinished `<<WAIT>>` round included; starting fresh costs the
   system prompt plus the carried summary, since the round's own messages are sent either way. A size

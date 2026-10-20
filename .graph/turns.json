@@ -9,9 +9,9 @@
       "crates/server/src/host_run.rs",
       "crates/policy/src/door_words.rs",
       "crates/policy/src/resident_turn.rs",
-      "ts/agent/claude-endpoint-turn.ts",
-      "ts/agent/codex-resident.ts",
-      "ts/agent/pane-confirm.ts"
+      "packages/agent/claude-endpoint-turn.ts",
+      "packages/agent/codex-resident.ts",
+      "packages/agent/pane-confirm.ts"
     ],
     "symbols": [],
     "aliases": [],
@@ -21,7 +21,7 @@
       "sessions/lifecycle"
     ],
     "base": "0909f39dd4bfd4c60245b4f9f86b2c8a74705112",
-    "changed": 1792519312925
+    "changed": 1792520006700
   },
   {
     "id": "turns/keepalive",
@@ -33,7 +33,7 @@
       "crates/server/src/control/keepalive.rs",
       "crates/policy/src/keepalive.rs",
       "crates/policy/src/pool_warm.rs",
-      "ts/agent/keepalive-switch.ts"
+      "packages/agent/keepalive-switch.ts"
     ],
     "symbols": [],
     "aliases": [],
@@ -42,7 +42,7 @@
       "calls/cache-warmer"
     ],
     "base": "0909f39dd4bfd4c60245b4f9f86b2c8a74705112",
-    "changed": 1792519312938
+    "changed": 1792520006700
   },
   {
     "id": "turns/lines",
@@ -54,16 +54,16 @@
       "crates/policy/src/chat_line.rs",
       "crates/policy/src/run_lines.rs",
       "crates/policy/src/research.rs",
-      "ts/agent/harness.ts",
-      "ts/agent/harnesses.ts",
-      "ts/agent/line-declarations.ts",
-      "ts/agent/run-lines.ts",
-      "ts/agent/loop-program.ts",
-      "ts/agent/loop-record.ts",
-      "ts/agent/loop-turn.ts",
-      "ts/agent/resident-loop.ts",
-      "ts/agent/resident-program.ts",
-      "ts/agent/resident.ts"
+      "packages/agent/harness.ts",
+      "packages/agent/harnesses.ts",
+      "packages/agent/line-declarations.ts",
+      "packages/agent/run-lines.ts",
+      "packages/agent/loop-program.ts",
+      "packages/agent/loop-record.ts",
+      "packages/agent/loop-turn.ts",
+      "packages/agent/resident-loop.ts",
+      "packages/agent/resident-program.ts",
+      "packages/agent/resident.ts"
     ],
     "symbols": [],
     "aliases": [],
@@ -72,7 +72,7 @@
       "policy/declarations"
     ],
     "base": "0909f39dd4bfd4c60245b4f9f86b2c8a74705112",
-    "changed": 1792519312952
+    "changed": 1792520006700
   },
   {
     "id": "turns/live-claude",
@@ -83,7 +83,7 @@
       "crates/server/src/command_reading/",
       "crates/server/src/verbs/live_claude.rs",
       "crates/policy/src/browser.rs",
-      "ts/agent/live-claude-guard.ts"
+      "packages/agent/live-claude-guard.ts"
     ],
     "symbols": [],
     "aliases": [],
@@ -91,6 +91,6 @@
       "policy/declarations"
     ],
     "base": "0909f39dd4bfd4c60245b4f9f86b2c8a74705112",
-    "changed": 1792519312963
+    "changed": 1792520006700
   }
 ]

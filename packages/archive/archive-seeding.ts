@@ -1,6 +1,6 @@
 // What agency's store is seeded with as its rows are written: its work keys and where each starts, its
 // gates, and the role each kind of agent holds. Agency's own processes register them from its policy as
-// their composition loads (`ts/agent/registrations.ts`), and the few members that read them ask here.
+// their composition loads (`packages/agent/registrations.ts`), and the few members that read them ask here.
 
 // A work key's profile, as far as the store reads one.
 export interface SeededWorkProfile {

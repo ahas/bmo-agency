@@ -36,17 +36,17 @@
       "crates/server/src/stand_in.rs",
       "crates/policy/src/rest.rs",
       "crates/policy/src/work_keys.rs",
-      "ts/agent/claude-account.ts",
-      "ts/agent/claude-dispatch.ts",
-      "ts/agent/claude-failure.ts",
-      "ts/agent/claude-login.ts",
-      "ts/agent/claude-road.ts",
-      "ts/agent/fallback-runner.ts",
-      "ts/agent/fallback.ts",
-      "ts/agent/program-login.ts",
-      "ts/agent/rest-state.ts",
-      "ts/agent/route-error.ts",
-      "ts/agent/work-keys.ts"
+      "packages/agent/claude-account.ts",
+      "packages/agent/claude-dispatch.ts",
+      "packages/agent/claude-failure.ts",
+      "packages/agent/claude-login.ts",
+      "packages/agent/claude-road.ts",
+      "packages/agent/fallback-runner.ts",
+      "packages/agent/fallback.ts",
+      "packages/agent/program-login.ts",
+      "packages/agent/rest-state.ts",
+      "packages/agent/route-error.ts",
+      "packages/agent/work-keys.ts"
     ],
     "symbols": [],
     "aliases": [],
@@ -58,7 +58,7 @@
       "calls/chat"
     ],
     "base": "0909f39dd4bfd4c60245b4f9f86b2c8a74705112",
-    "changed": 1792519312830
+    "changed": 1792520006700
   },
   {
     "id": "models/providers",
@@ -69,21 +69,21 @@
       "crates/harness-providers/",
       "crates/policy/src/providers/",
       "crates/server/src/control/harness.rs",
-      "ts/agent/agent-providers.ts",
-      "ts/agent/agent-reply.ts",
-      "ts/agent/claude-code.ts",
-      "ts/agent/claude.ts",
-      "ts/agent/codex-local.ts",
-      "ts/agent/codex.ts",
-      "ts/agent/dsh.ts",
-      "ts/agent/harness.ts",
-      "ts/agent/harnesses.ts",
-      "ts/agent/model-face.ts",
-      "ts/agent/openrouter.ts",
-      "ts/agent/provider-declaration.ts",
-      "ts/agent/provider-facts.ts",
-      "ts/agent/provider-order.ts",
-      "ts/agent/registrations.ts"
+      "packages/agent/agent-providers.ts",
+      "packages/agent/agent-reply.ts",
+      "packages/agent/claude-code.ts",
+      "packages/agent/claude.ts",
+      "packages/agent/codex-local.ts",
+      "packages/agent/codex.ts",
+      "packages/agent/dsh.ts",
+      "packages/agent/harness.ts",
+      "packages/agent/harnesses.ts",
+      "packages/agent/model-face.ts",
+      "packages/agent/openrouter.ts",
+      "packages/agent/provider-declaration.ts",
+      "packages/agent/provider-facts.ts",
+      "packages/agent/provider-order.ts",
+      "packages/agent/registrations.ts"
     ],
     "symbols": [],
     "aliases": [],
@@ -91,7 +91,7 @@
       "policy/declarations"
     ],
     "base": "0909f39dd4bfd4c60245b4f9f86b2c8a74705112",
-    "changed": 1792519312841
+    "changed": 1792520006700
   },
   {
     "id": "models/registry",
@@ -107,11 +107,11 @@
       "crates/server/src/control/own_llm.rs",
       "crates/server/src/control/registry.rs",
       "crates/store/src/registry.rs",
-      "ts/agent/gateway/address.ts",
-      "ts/agent/own-llm.ts",
-      "ts/agent/registered-provider.ts",
-      "ts/agent/registry-keys.ts",
-      "ts/archive/model-registry.ts"
+      "packages/agent/gateway/address.ts",
+      "packages/agent/own-llm.ts",
+      "packages/agent/registered-provider.ts",
+      "packages/agent/registry-keys.ts",
+      "packages/archive/model-registry.ts"
     ],
     "symbols": [],
     "aliases": [],
@@ -120,7 +120,7 @@
       "store/database"
     ],
     "base": "6759a3bb1b9b06d1b315c3fc9c7c78058e10fa26",
-    "changed": 1792497922252
+    "changed": 1792520006700
   },
   {
     "id": "models/tiers",
@@ -135,11 +135,11 @@
       "crates/server/src/control/agent_switches.rs",
       "crates/server/src/control/model_tiers.rs",
       "crates/server/src/control/tiers.rs",
-      "ts/archive/model-tiers.ts",
-      "ts/agent/generation-settings.ts",
-      "ts/agent/model-settings.ts",
-      "ts/agent/reasoning.ts",
-      "ts/agent/work-profile.ts"
+      "packages/archive/model-tiers.ts",
+      "packages/agent/generation-settings.ts",
+      "packages/agent/model-settings.ts",
+      "packages/agent/reasoning.ts",
+      "packages/agent/work-profile.ts"
     ],
     "symbols": [],
     "aliases": [],
@@ -148,6 +148,6 @@
       "policy/declarations"
     ],
     "base": "6759a3bb1b9b06d1b315c3fc9c7c78058e10fa26",
-    "changed": 1792497922243
+    "changed": 1792520006700
   }
 ]

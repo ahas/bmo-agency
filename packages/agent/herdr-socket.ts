@@ -6,7 +6,7 @@ import { homeDir } from "@agency/support/roots";
 // the socket path alone, and `HERDR_CONFIG_PATH` moves the configuration file while leaving the
 // socket where it was, which is a trap worth naming since it looks like it should work.
 //
-// It stands apart from `ts/agent/herdr.ts` so a process that only needs the path loads none of the
+// It stands apart from `packages/agent/herdr.ts` so a process that only needs the path loads none of the
 // guards a call to herdr goes through.
 export function herdrSocketPath(env: Record<string, string | undefined> = process.env): string {
   const configured = env.XDG_CONFIG_HOME;

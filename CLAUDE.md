@@ -32,7 +32,7 @@ is the caller's decision; agency supplies it.
 - **No other service's code.** Among other repositories only the base libraries `bmo-chat`,
   `bmo-chat-client` and `bmo-ui` may be depended on or imported, and the Rust side may also build on the
   published clients and libraries of the upstreams it reaches (`docs/api.md`, 「Calls agency makes」);
-  `tests/dependencies.rs` and `tests/ts/dependencies.test.ts` fail on any other. Another service is
+  `tests/dependencies.rs` and `tests/packages/dependencies.test.ts` fail on any other. Another service is
   reached through its API; a call upward is an event agency publishes or a hook the consumer registers,
   with a default that does nothing; data a higher service holds is handed in by the caller.
 - **A variation belongs to its member.** A value that differs per provider, model or consumer is
@@ -40,7 +40,7 @@ is the caller's decision; agency supplies it.
 - **No hand-written parser for a general format.** TOML, JSON, YAML, markdown, shell lines and command
   lines are read by a maintained library; where none fits, the reason is written beside the code.
 - **Tests live in `tests/`.** The root package holds them: a group of tests is a directory under
-  `tests/` with its own `main.rs`, the TypeScript tests stand under `tests/ts/`, and the checks that
+  `tests/` with its own `main.rs`, the TypeScript tests stand under `tests/packages/`, and the checks that
   span the repository are files at the top of `tests/`. No test module sits in a source file.
 - **English only** in code, comments, strings, tests and documents, and in commit messages. Korean stands
   in `prompts/` alone, where it is what the agents are told and answer in; `tests/literals.rs` fails on
@@ -53,7 +53,7 @@ is the caller's decision; agency supplies it.
 - **No directory named after its parent.** `tests/layout.rs` fails on one.
 - **Only Cargo manifests at the root,** beside `testbed.toml`, the testbed's declaration. The root
   `Cargo.toml` is the workspace and the root package, which is never published and exists to hold
-  `tests/`. The TypeScript packages are a Bun workspace of their own under `ts/`. `tests/layout.rs` fails
+  `tests/`. The TypeScript packages are a Bun workspace of their own under `packages/`. `tests/layout.rs` fails
   on another build tool's manifest at the root.
 - **Documents state what is true now**: no change history, no quoted source and no file-and-line pins.
 
@@ -64,7 +64,7 @@ is the caller's decision; agency supplies it.
   accounts' usage windows and the cache-lifetime judgement, `docs/usage-windows.md`) and `server`.
 - `tools/`: the tools agency provides to the tool host, `procedures` and `read_rulebook`, each a folder
   with its `tool.toml` and the crate of its executable (`docs/tools.md`).
-- `ts/`: the TypeScript packages, `agent`, `archive` and `support`, one Bun workspace.
+- `packages/`: the TypeScript packages, `agent`, `archive` and `support`, one Bun workspace.
 - `policy/`: the TOML files agency's fixed numbers and words stand in, read by `crates/policy`.
 - `prompts/`: the prompts agency composes an agent's launch from.
 - `docs/`: the canonical documents.
@@ -76,9 +76,9 @@ is the caller's decision; agency supplies it.
 
 ## Checks
 
-- Static: `cargo check --workspace --all-targets` and, in `ts/`, `bunx tsc --noEmit`.
+- Static: `cargo check --workspace --all-targets` and, in `packages/`, `bunx tsc --noEmit`.
 - Review: `cargo fmt --all --check` (108 columns, 2-space indentation, as `rustfmt.toml` sets) and
   `cargo clippy --workspace --all-targets -- -D warnings`.
-- Tests: `cargo test --workspace`, and `bun test` for `tests/ts/`.
+- Tests: `cargo test --workspace`, and `bun test` for `tests/packages/`.
 - The version is the workspace's, in semver. The major moves on a change to the boundary API or to a
   table's contract, the minor on an addition to either, the patch on anything else.

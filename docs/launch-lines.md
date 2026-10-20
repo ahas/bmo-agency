@@ -9,7 +9,7 @@
   worker, the editors and the runners. A gate's judgement is the gate unit's to run, on the gate line
   described below; agency's TypeScript side runs none. The interactive program an agent keeps
   standing in its pane is built from those same lines by the Claude Code surface in
-  `ts/agent/claude-code.ts` (`docs/agent-control.md`, 「The interactive surface a
+  `packages/agent/claude-code.ts` (`docs/agent-control.md`, 「The interactive surface a
   provider declares」).
 - **Two shapes of one line.** Where an agent's line keeps a session — every conversational agent on
   the chat line and the job worker —
@@ -42,7 +42,7 @@
 ## Harnesses
 
 - A launch line is one harness's answer to a description of a run. What a run is gets said once, in
-  agency's own words and no program's (`ts/agent/harness.ts`): the model and the effort, the
+  agency's own words and no program's (`packages/agent/harness.ts`): the model and the effort, the
   system prompt as a path to a file (both the CLI and any second harness take it that way, and a
   chat's prompt is tens of kilobytes no command line would hold), the tools shown, the tools allowed
   and the tools kept back, the MCP configuration, the prompt and whether it is written to the run's
@@ -73,11 +73,11 @@
 
 ### The harnesses this build carries
 
-- **Claude Code is one implementation of it** (`ts/agent/claude-code.ts`), and every flag the
+- **Claude Code is one implementation of it** (`packages/agent/claude-code.ts`), and every flag the
   CLI is spoken to with is written in that one file — the six lines (a chat round, a gate's
   judgement, a job, a search, a browse, a digest's editor) and the two folds are its answers, each
   in its fixed order.
-- **dsh — the DeepSeek Harness — is the second** (`ts/agent/dsh.ts`): it takes no flags to
+- **dsh — the DeepSeek Harness — is the second** (`packages/agent/dsh.ts`): it takes no flags to
   speak of, so a run becomes a patch overlay written fresh for it, naming rows of dsh's own
   composition — the system prompt as a persona, the model and the gateway it runs on as a route, the
   tools it may have — and the command is the pinned `@deepseek-ai/dsh` at its headless profile with
@@ -94,7 +94,7 @@
 - An editor run is given dsh's filesystem rows and no shell, and may write in its checkout and in
   the machine's temporary directories, which dsh's workspace-write mode leaves open, and nowhere
   else.
-- **Codex is the third** (`ts/agent/codex.ts`): `codex exec` on the machine's own login, its
+- **Codex is the third** (`packages/agent/codex.ts`): `codex exec` on the machine's own login, its
   JSON events read back into the same reply, a thread id kept per scope, model and effort.
 - **A harness after those three is one more file.** What it has to write is the whole of the
   interface: a name to be registered under, the lines it can really carry, the word its own program
@@ -120,8 +120,8 @@
   it carries a ceiling on the answer's tokens, whether agency chooses the login it goes out under, and
   how its own reply reports what one turn cost — so whoever wants one of those facts asks the
   provider, and no file outside those programs writes the four names out to answer it.
-- `ts/agent/harnesses.ts` is the one file that names the providers this build carries: it composes
-  them into the agent base's provider registry (`ts/agent/agent-providers.ts`), and every
+- `packages/agent/harnesses.ts` is the one file that names the providers this build carries: it composes
+  them into the agent base's provider registry (`packages/agent/agent-providers.ts`), and every
   other file reaches a provider through that registry.
 - Claude Code is carried by Claude Code, Codex by Codex, OpenRouter by dsh, and the registry's by
   Claude Code pointed at agency's gateway, with a request that needs no tools asked of the gateway

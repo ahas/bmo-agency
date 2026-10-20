@@ -1420,9 +1420,9 @@ legitimate non-agent services. Do not remove systemd infrastructure indiscrimina
 
 ### Structured transport implementation boundary
 
-`ts/agent/pane-process.ts` supplies `runPaneProcess`, the detached launch, and the collector's
+`packages/agent/pane-process.ts` supplies `runPaneProcess`, the detached launch, and the collector's
 side of every envelope. The `agent-host` crate is the host and the supervisor it starts for each
-execution, and the `pane-head` crate is the head; `ts/agent/root-host.ts` is the launcher's
+execution, and the `pane-head` crate is the head; `packages/agent/root-host.ts` is the launcher's
 side that reads the claim and places a pointer in the inbox.
 The caller provides the private storage root, unique execution name, the agent it
 belongs to and the `beforeGrant` eligibility check. Directory creation claims the name
@@ -1430,7 +1430,7 @@ exclusively. Placement in the host precedes the grant. Raw output files and an a
 carry results; an AbortSignal or timeout terminates the child process group. Uncollected attempts
 retain private evidence for reconciliation rather than discarding it.
 
-`ts/agent/agent-process.ts` is the one launch for every harness command — chat, gates, workers,
+`packages/agent/agent-process.ts` is the one launch for every harness command — chat, gates, workers,
 editors, search and browse, including fallback, warming and compaction. Each caller names the agent whose host runs it. Incremental raw-file collection feeds
 the existing stream readers while the command is running. The adapter checks eligibility before
 placement and before granting execution. A gate's request to a registered model with no tools is run through the same launch as a
@@ -1443,7 +1443,7 @@ outcome: the server binary's `bmo-agency host-run <request.json>` carries one ru
 and prints how its program ended, what it wrote and its row as it was left, and `bmo-agency
 resident-turn <request.json>` puts one turn into an agent's standing program through the door its
 provider declares and prints what it came to and what was said into it. Each reads the store and the
-data root as the server does; the TypeScript tests put the same request through `ts/agent/` and
+data root as the server does; the TypeScript tests put the same request through `packages/agent/` and
 compare.
 
 Structured and interactive attempts save archive execution records. Interactive records precede

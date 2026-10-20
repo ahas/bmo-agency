@@ -10,7 +10,7 @@ import type { ArchiveSql } from "./archive-sql";
 export type ClaudeCredentialKind = "directory" | "token" | "endpoint";
 
 // One Claude account agency holds. The row says where its credential is reached and nothing about
-// what is in there; `ts/agent/claude-account.ts` is what says which ids, names and paths may be
+// what is in there; `packages/agent/claude-account.ts` is what says which ids, names and paths may be
 // written into one.
 export interface ClaudeAccountRow {
   id: string;

@@ -15,8 +15,8 @@
       "crates/server/src/verbs/claude_token.rs",
       "crates/server/src/verbs/node_pane.rs",
       "crates/policy/src/machine_room.rs",
-      "ts/agent/work-node.ts",
-      "ts/archive/work-node-store.ts"
+      "packages/agent/work-node.ts",
+      "packages/archive/work-node-store.ts"
     ],
     "symbols": [],
     "aliases": [],
@@ -25,6 +25,6 @@
       "places/herdr"
     ],
     "base": "0909f39dd4bfd4c60245b4f9f86b2c8a74705112",
-    "changed": 1792519312853
+    "changed": 1792520006700
   }
 ]

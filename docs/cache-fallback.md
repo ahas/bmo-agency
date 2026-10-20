@@ -84,7 +84,7 @@ model it launched, the account the run went out on, and the walk it runs when a 
 - **A quoted order counts as much as a fresh one,** in a room or in a job, because the safeguard reads
   the words and not who is said to have said them.
 - **Markup handed in with words the sanitiser changed is dropped** rather than sent on.
-- **The gate is `ts/agent/sanitizer.ts`,** recorded and costed like the other gates; it is not kept
+- **The gate is `packages/agent/sanitizer.ts`,** recorded and costed like the other gates; it is not kept
   warm, since it runs only when a word makes it worth asking.
 - **What it cannot reach is a model's own record of what it wrote:** the answer in that transcript is
   the model's own words, so a session can still put an order back into its own context. That is what

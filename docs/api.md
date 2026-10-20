@@ -450,11 +450,11 @@ tool is a thin call of one route through the agency's own client.
 
 ## The clients
 
-`crates/client` is the Rust client (`bmo-agency-client`) and `ts/client` the TypeScript package
+`crates/client` is the Rust client (`bmo-agency-client`) and `packages/client` the TypeScript package
 `@agency/client`, both generated from `docs/openapi.json`: every body as a type and a typed call for every
 route. A caller uses one of them and writes no client of its own.
 
-- **Installing the package.** `bun pm pack` in `ts/client` writes `agency-client-<version>.tgz`, and a
+- **Installing the package.** `bun pm pack` in `packages/client` writes `agency-client-<version>.tgz`, and a
   downstream checkout names that file in its dependencies as a `file:` address. The pack carries the
   manifest, the entry point and the generated types; `openapi-fetch` comes with it as the package's one
   dependency.

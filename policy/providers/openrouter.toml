@@ -59,7 +59,7 @@ seconds = 15
 interrupt = ["escape"]
 # The script that is the loop, by its path under the code root: a standing program started on a script of
 # its file name for this provider is this provider's.
-loop_script = "ts/agent/resident-loop.ts"
+loop_script = "packages/agent/resident-loop.ts"
 # Its surface carries its own turns: put into the loop's inbox and read back out of the loop's record.
 turns = "loop"
 # The loop runs one dsh child a turn and takes nothing while it works.

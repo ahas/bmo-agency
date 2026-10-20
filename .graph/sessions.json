@@ -12,8 +12,8 @@
       "crates/server/src/session_questions.rs",
       "crates/server/src/control/sessions.rs",
       "crates/server/src/control/session_ops.rs",
-      "ts/agent/freshstart.ts",
-      "ts/agent/runprogress.ts"
+      "packages/agent/freshstart.ts",
+      "packages/agent/runprogress.ts"
     ],
     "symbols": [],
     "aliases": [],
@@ -23,7 +23,7 @@
       "store/database"
     ],
     "base": "0909f39dd4bfd4c60245b4f9f86b2c8a74705112",
-    "changed": 1792519312890
+    "changed": 1792520006700
   },
   {
     "id": "sessions/resets",
@@ -55,9 +55,9 @@
       "crates/server/src/worker_session/",
       "crates/server/src/verbs/fold_worker.rs",
       "crates/cache-siren/src/lifetime.rs",
-      "ts/agent/agent-instance.ts",
-      "ts/agent/prefix.ts",
-      "ts/agent/worker-pane.ts"
+      "packages/agent/agent-instance.ts",
+      "packages/agent/prefix.ts",
+      "packages/agent/worker-pane.ts"
     ],
     "symbols": [],
     "aliases": [],
@@ -67,6 +67,6 @@
       "accounts/usage"
     ],
     "base": "0909f39dd4bfd4c60245b4f9f86b2c8a74705112",
-    "changed": 1792519312901
+    "changed": 1792520006700
   }
 ]

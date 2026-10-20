@@ -12,9 +12,9 @@
       "crates/policy/src/base_prompts.rs",
       "crates/policy/src/gates.rs",
       "crates/policy/src/gate_prompts.rs",
-      "ts/agent/agents.ts",
-      "ts/agent/deploy-agents.ts",
-      "ts/agent/prompt-files.ts"
+      "packages/agent/agents.ts",
+      "packages/agent/deploy-agents.ts",
+      "packages/agent/prompt-files.ts"
     ],
     "symbols": [],
     "aliases": [],
@@ -22,7 +22,7 @@
       "policy/declarations"
     ],
     "base": "0909f39dd4bfd4c60245b4f9f86b2c8a74705112",
-    "changed": 1792519312165
+    "changed": 1792520006700
   },
   {
     "id": "agents/executions",
@@ -32,8 +32,8 @@
       "crates/server/src/control/executions.rs",
       "crates/server/src/queue/reconcile.rs",
       "crates/server/src/queue/cancels.rs",
-      "ts/agent/execution-identity.ts",
-      "ts/archive/execution-store.ts"
+      "packages/agent/execution-identity.ts",
+      "packages/archive/execution-store.ts"
     ],
     "symbols": [],
     "aliases": [],
@@ -42,7 +42,7 @@
       "store/database"
     ],
     "base": "6759a3bb1b9b06d1b315c3fc9c7c78058e10fa26",
-    "changed": 1792497922055
+    "changed": 1792520006700
   },
   {
     "id": "agents/model",
@@ -52,7 +52,7 @@
       "docs/agents.md",
       "crates/agent-session/",
       "crates/server/src/conversational.rs",
-      "ts/archive/conversational.ts"
+      "packages/archive/conversational.ts"
     ],
     "symbols": [],
     "aliases": [],
@@ -61,7 +61,7 @@
       "turns/lines"
     ],
     "base": "6759a3bb1b9b06d1b315c3fc9c7c78058e10fa26",
-    "changed": 1792497922024
+    "changed": 1792520006700
   },
   {
     "id": "agents/ownership",
@@ -70,7 +70,7 @@
     "files": [
       "docs/agent-ownership.md",
       "crates/server/src/control/agents.rs",
-      "ts/archive/agent-store.ts"
+      "packages/archive/agent-store.ts"
     ],
     "symbols": [],
     "aliases": [],
@@ -78,7 +78,7 @@
       "store/database"
     ],
     "base": "6759a3bb1b9b06d1b315c3fc9c7c78058e10fa26",
-    "changed": 1792497922048
+    "changed": 1792520006700
   },
   {
     "id": "agents/roles",

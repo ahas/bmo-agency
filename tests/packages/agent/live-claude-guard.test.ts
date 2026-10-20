@@ -118,7 +118,7 @@ describe("a job opening a Claude Code session", () => {
     writeFileSync(
       script,
       [
-        `import { guardClaudeLaunch } from ${JSON.stringify(join(root, "ts", "agent", "live-claude-guard.ts"))};`,
+        `import { guardClaudeLaunch } from ${JSON.stringify(join(root, "packages", "agent", "live-claude-guard.ts"))};`,
         `const command = ${JSON.stringify(cli)};`,
         `await guardClaudeLaunch("worker", command);`,
         `await guardClaudeLaunch("worker", command);`,
@@ -177,8 +177,8 @@ describe("a job driving herdr through the bot's own client", () => {
     writeFileSync(
       script,
       [
-        `import { openPane } from ${JSON.stringify(join(root, "ts", "agent", "herdr-run.ts"))};`,
-        `import { herdrCall } from ${JSON.stringify(join(root, "ts", "agent", "herdr.ts"))};`,
+        `import { openPane } from ${JSON.stringify(join(root, "packages", "agent", "herdr-run.ts"))};`,
+        `import { herdrCall } from ${JSON.stringify(join(root, "packages", "agent", "herdr.ts"))};`,
         "let connections = 0;",
         `const server = Bun.listen({ unix: ${JSON.stringify(socket)}, socket: { open(s) { connections += 1; s.end(); }, data() {} } });`,
         "const outcome = async (call) => { try { await call(); return 'returned'; } catch (error) { return error.name; } };",

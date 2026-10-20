@@ -36,7 +36,7 @@
         "../policy/*"
       ],
       "@agency/test-support/*": [
-        "../tests/ts/support/*"
+        "../tests/packages/support/*"
       ]
     }
   },
@@ -45,6 +45,6 @@
     "archive",
     "support",
     "client",
-    "../tests/ts"
+    "../tests/packages"
   ]
 }

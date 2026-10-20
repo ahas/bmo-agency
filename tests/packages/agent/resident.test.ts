@@ -69,7 +69,7 @@ describe("resident or host", () => {
   });
 
   test("the resolution names no provider", () => {
-    const source = readFileSync(join(codeRoot, "ts", "agent", "resident.ts"), "utf8");
+    const source = readFileSync(join(codeRoot, "packages", "agent", "resident.ts"), "utf8");
 
     for (const name of agentProviderNames) {
       expect(source.includes(`"${name}"`)).toBe(false);
@@ -500,7 +500,7 @@ describe("OpenRouter's resident loop", () => {
 
     const args = (await surface.command(loopRun())).args;
 
-    expect(args[1]).toEndWith(join("ts", "agent", "resident-loop.ts"));
+    expect(args[1]).toEndWith(join("packages", "agent", "resident-loop.ts"));
     // It names the provider whose program runs each turn, which it takes from the registry.
     expect(args.slice(2)).toEqual(["--provider", "openrouter", "--place", join(root, "place"), "--line", "chat", "--model", "qwen/qwen3.8-27b:free"]);
   });

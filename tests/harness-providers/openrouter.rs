@@ -135,12 +135,12 @@ fn a_loop_is_its_own_by_the_scripts_file_name_from_whichever_folder_it_was_start
     .as_ref()
     .and_then(|resident| resident.loop_script.as_deref());
 
-  assert_eq!(declared, Some("ts/agent/resident-loop.ts"));
+  assert_eq!(declared, Some("packages/agent/resident-loop.ts"));
 
-  for script in ["/deploy/ts/agent/resident-loop.ts", "/checkout/ts/agent/resident-loop.ts"] {
+  for script in ["/deploy/packages/agent/resident-loop.ts", "/checkout/packages/agent/resident-loop.ts"] {
     assert!(owns(script, "openrouter"), "{script}");
   }
 
-  assert!(!owns("/deploy/ts/agent/resident-loop.ts", "codex"));
-  assert!(!owns("/deploy/ts/agent/other-loop.ts", "openrouter"));
+  assert!(!owns("/deploy/packages/agent/resident-loop.ts", "codex"));
+  assert!(!owns("/deploy/packages/agent/other-loop.ts", "openrouter"));
 }

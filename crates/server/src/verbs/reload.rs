@@ -287,7 +287,7 @@ pub async fn reload(
 }
 
 /// Agency's prompt-composing entry, from the code tree's root (docs/agent-documents.md).
-pub const DEPLOY_AGENTS: &str = "ts/agent/deploy-agents.ts";
+pub const DEPLOY_AGENTS: &str = "packages/agent/deploy-agents.ts";
 
 /// The agents' documents written again by agency's own composition, its faults said on the error stream.
 pub struct TreeRedeploy {

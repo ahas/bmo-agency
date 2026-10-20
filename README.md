@@ -11,6 +11,21 @@ provider and tier is given.
 - The rest of `docs/`: sessions, places, launch lines, the co-worker pool, workers, accounts, the
   model registry and the links to other machines.
 
+## Folders
+
+| Folder | Holds |
+|---|---|
+| `.graph/` | the code dependency graph |
+| `crates/` | the Rust crates |
+| `deploy/` | the service units |
+| `docs/` | the canonical documents |
+| `packages/` | the TypeScript packages, one Bun workspace |
+| `policy/` | the fixed values agency runs by |
+| `prompts/` | the prompts agency composes an agent's launch from |
+| `skills/` | the worker skills the repository carries |
+| `tests/` | every test |
+| `tools/` | the tools agency provides to the tool host |
+
 ## Layout
 
 | Path | Holds |
@@ -28,7 +43,7 @@ provider and tier is given.
 | `crates/tool-call` | agency's side of the tool host's call protocol, which its tools share |
 | `crates/server` | the service: sessions, places, lines, the co-worker pool, control routes, verbs; its binaries `agency-server` and `bmo-agency` |
 | `tools/` | the tools agency provides to the tool host: the procedures and the rulebook reader |
-| `ts/` | the TypeScript packages, one Bun workspace |
+| `packages/` | the TypeScript packages, one Bun workspace |
 | `policy/`, `prompts/` | the fixed values and the prompts agency runs by |
 | `deploy/` | the service units: agency's server, the agent host and the model gateway, which every deployment restarts, and herdr's, which no deployment of agency keeps |
 | `testbed.toml` | the testbed's declaration: how the repository is tested, checked, built and deployed, into agency's own deploy tree under `~/.local/share/bmo-agency` beside the data root it shares, `~/.local/share/bmo/data` |
@@ -41,8 +56,8 @@ cargo check --workspace --all-targets
 cargo test --workspace
 cargo fmt --all --check
 cargo clippy --workspace --all-targets -- -D warnings
-(cd ts && bun install && bunx tsc --noEmit)
-(cd tests/ts && bun test)
+(cd packages && bun install && bunx tsc --noEmit)
+(cd tests/packages && bun test)
 ```
 
 The version is the workspace's, in semver.

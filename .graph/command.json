@@ -6,7 +6,7 @@
     "files": [
       "docs/api.md",
       "crates/server/src/verbs/",
-      "ts/agent/verbs.ts"
+      "packages/agent/verbs.ts"
     ],
     "symbols": [],
     "aliases": [],
@@ -28,6 +28,6 @@
       "agents/ownership"
     ],
     "base": "0909f39dd4bfd4c60245b4f9f86b2c8a74705112",
-    "changed": 1792519312818
+    "changed": 1792520006700
   }
 ]

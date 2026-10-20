@@ -10,7 +10,7 @@
       "crates/server/src/control/quota.rs",
       "crates/server/src/usage_windows.rs",
       "crates/store/src/migration/m20261022_000001_usage_windows.rs",
-      "ts/archive/usage-store.ts"
+      "packages/archive/usage-store.ts"
     ],
     "symbols": [],
     "aliases": [],
@@ -18,6 +18,6 @@
       "store/database"
     ],
     "base": "0909f39dd4bfd4c60245b4f9f86b2c8a74705112",
-    "changed": 1792519293761
+    "changed": 1792520006700
   }
 ]

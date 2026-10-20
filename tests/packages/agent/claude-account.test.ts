@@ -376,7 +376,7 @@ describe("an endpoint account", () => {
 // touches a credential's own bytes belongs in this module. A reader that has to know when a login
 // ends opens the file for that one moment and keeps the moment, which is its own work elsewhere.
 test("nothing here opens a credential file", () => {
-  const source = readFileSync(join(codeRoot, "ts", "agent", "claude-account.ts"), "utf8");
+  const source = readFileSync(join(codeRoot, "packages", "agent", "claude-account.ts"), "utf8");
 
   for (const forbidden of ["readFileSync", "readFile(", "Bun.file", "createReadStream", "readdirSync"]) {
     expect(source).not.toInclude(forbidden);

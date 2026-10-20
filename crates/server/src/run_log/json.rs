@@ -1,7 +1,7 @@
 //! A JSON value that keeps the order its object keys were written in, and writes itself back the way
 //! JavaScript's `JSON.stringify` does. A run log line carries a tool's arguments and what it handed back
 //! as the program wrote them, so a reader comparing a line written here with one the TypeScript run log
-//! (`ts/agent/runlog.ts`) wrote reads the same text.
+//! (`packages/agent/runlog.ts`) wrote reads the same text.
 
 use std::fmt;
 

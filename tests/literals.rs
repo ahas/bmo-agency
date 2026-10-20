@@ -12,7 +12,7 @@ use std::process::{Command, Stdio};
 const NOT_WRITTEN: &[&str] = &[".git", "target", "node_modules"];
 
 /// The folders of code, tests and documents, which hold no Hangul.
-const ENGLISH: &[&str] = &["crates", "tools", "ts", "tests", "policy", "deploy", "docs"];
+const ENGLISH: &[&str] = &["crates", "tools", "packages", "tests", "policy", "deploy", "docs"];
 
 /// The folder of prompts, read for personal literals alone.
 const PROMPTS: &str = "prompts";

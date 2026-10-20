@@ -5,17 +5,17 @@ name = "agency"
 
 [test]
 # The Cargo workspace's crates, the root package's test groups among them, and the TypeScript test files
-# under tests/ts. Each TypeScript test file imports its setup first, so it runs from any folder; the
-# bunfig.toml in tests/ts preloads the same setup for a run started there.
+# under tests/packages. Each TypeScript test file imports its setup first, so it runs from any folder; the
+# bunfig.toml in tests/packages preloads the same setup for a run started there.
 languages = ["cargo", "bun"]
 # A release runs the TypeScript half of agency, so its packages are installed in every fresh tree.
-setup = ["cd ts && bun install --frozen-lockfile"]
+setup = ["cd packages && bun install --frozen-lockfile"]
 
 # The tests make their own scratch databases on the server, so no template is named.
 [test.database]
 
 [projects]
-# ts/ is the Bun workspace; its type check covers the tests under tests/ts as well.
+# packages/ is the Bun workspace; its type check covers the tests under tests/packages as well.
 check_script = "check:types"
 
 [tools]
@@ -24,7 +24,14 @@ dir = "tools"
 
 [check]
 quick = ["layout", "dependencies"]
-base_libraries = ["bmo-chat", "bmo-chat-client", "bmo-ui"]
+base_libraries = [
+  "bmo-chat",
+  "bmo-chat-client",
+  "bmo-ui",
+  "bmo-brain-client",
+  "bmo-cache-warmer-schedule",
+  "bmo-node-client",
+]
 
 [[check.step]]
 id = "check"

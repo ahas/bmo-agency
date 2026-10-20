@@ -6,13 +6,13 @@
     "files": [
       "crates/agent-host/",
       "crates/pane-head/",
-      "ts/agent/agent-host.ts",
-      "ts/agent/agent-process.ts",
-      "ts/agent/claude-trust.ts",
-      "ts/agent/native-execution.ts",
-      "ts/agent/pane-guardian.ts",
-      "ts/agent/pane-process.ts",
-      "ts/agent/root-host.ts"
+      "packages/agent/agent-host.ts",
+      "packages/agent/agent-process.ts",
+      "packages/agent/claude-trust.ts",
+      "packages/agent/native-execution.ts",
+      "packages/agent/pane-guardian.ts",
+      "packages/agent/pane-process.ts",
+      "packages/agent/root-host.ts"
     ],
     "symbols": [],
     "aliases": [],
@@ -21,7 +21,7 @@
       "agents/model"
     ],
     "base": "6759a3bb1b9b06d1b315c3fc9c7c78058e10fa26",
-    "changed": 1792497922183
+    "changed": 1792520006700
   },
   {
     "id": "places/herdr",
@@ -33,20 +33,20 @@
       "crates/server/src/herdr_backend.rs",
       "crates/policy/src/place_words.rs",
       "crates/herdr/",
-      "ts/agent/herdr-model.ts",
-      "ts/agent/herdr-run.ts",
-      "ts/agent/herdr-silences.ts",
-      "ts/agent/herdr-socket.ts",
-      "ts/agent/herdr.ts",
-      "ts/agent/agent-pane.ts",
-      "ts/agent/agent-place.ts",
-      "ts/agent/resident-pane.ts",
-      "ts/agent/units.ts"
+      "packages/agent/herdr-model.ts",
+      "packages/agent/herdr-run.ts",
+      "packages/agent/herdr-silences.ts",
+      "packages/agent/herdr-socket.ts",
+      "packages/agent/herdr.ts",
+      "packages/agent/agent-pane.ts",
+      "packages/agent/agent-place.ts",
+      "packages/agent/resident-pane.ts",
+      "packages/agent/units.ts"
     ],
     "symbols": [],
     "aliases": [],
     "needs": [],
     "base": "0909f39dd4bfd4c60245b4f9f86b2c8a74705112",
-    "changed": 1792519312865
+    "changed": 1792520006700
   }
 ]
