@@ -263,7 +263,7 @@ pub async fn compose_turn(
     cwd: run.cwd.clone(),
     env,
   };
-  let env = line_environment(&command, run_name);
+  let env = line_environment(&command, run_name, login.as_ref());
 
   Ok(ComposedTurn {
     system_path: run.system_path.clone(),

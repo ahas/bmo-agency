@@ -79,7 +79,7 @@ pub fn pane_environment(
   command: &Command,
   name: &str,
 ) -> BTreeMap<String, String> {
-  let mut env = line_environment(command, name);
+  let mut env = line_environment(command, name, None);
 
   for (variable, value) in &command.env {
     if let Some(value) = value

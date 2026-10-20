@@ -30,7 +30,7 @@ fn no_line_sets_the_compact_share() {
     env: command_env(&process, None, &Runs::Here, true).unwrap(),
   };
 
-  assert!(!line_environment(&command, "bmo-any-line").contains_key(COMPACT_SHARE));
+  assert!(!line_environment(&command, "bmo-any-line", None).contains_key(COMPACT_SHARE));
 }
 
 // A ground with a store of its own, its home and data root under one directory the test drops.

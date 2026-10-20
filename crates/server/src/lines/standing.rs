@@ -243,7 +243,7 @@ pub async fn claude_program(
       line.thinking,
     )?,
   };
-  let env = claude::line_environment(&command, &format!("bmo-standby-{worker}"));
+  let env = claude::line_environment(&command, &format!("bmo-standby-{worker}"), account.as_ref());
   let program = resident_of(machine, &place.path, &command.cwd, &command.args, &env, session.id());
   let standby = match (&session, program.opened.clone().flatten()) {
     (Session::Open(id), Some(record)) => Some(Standby {

@@ -93,6 +93,44 @@ fn an_endpoint_login_hands_its_home_its_url_its_key_and_its_models_and_clears_ev
 }
 
 #[test]
+fn a_pane_on_an_endpoint_account_is_handed_its_url_its_key_and_its_models_by_name() {
+  let dir = tempfile::tempdir().unwrap();
+  let key = dir.path().join("endpoint.key");
+
+  std::fs::write(&key, "sk-endpoint\n").unwrap();
+
+  let endpoint = account(
+    "endpoint",
+    Credential::Endpoint {
+      home: dir.path().join("home"),
+      url: "https://endpoint.test/anthropic".into(),
+      key_file: key.clone(),
+      models: EndpointModels {
+        opus: Some("big-model".into()),
+        sonnet: None,
+        haiku: Some("tiny-model".into()),
+      },
+    },
+  );
+  let process = BTreeMap::from([("PATH".to_owned(), "/bin".to_owned())]);
+  let command = Command {
+    args: vec![],
+    cwd: "/w".into(),
+    env: command_env(&process, Some(&endpoint), &Runs::Here, true).unwrap(),
+  };
+  let env = line_environment(&command, "bmo-standby-worker", Some(&endpoint));
+
+  assert_eq!(env["CLAUDE_CONFIG_DIR"], dir.path().join("home").to_string_lossy());
+  assert_eq!(env["ANTHROPIC_BASE_URL"], "https://endpoint.test/anthropic");
+  assert_eq!(env["ANTHROPIC_AUTH_TOKEN"], "sk-endpoint");
+  assert_eq!(env["ANTHROPIC_DEFAULT_OPUS_MODEL"], "big-model");
+  assert_eq!(env["ANTHROPIC_DEFAULT_HAIKU_MODEL"], "tiny-model");
+  assert!(!env.contains_key("ANTHROPIC_DEFAULT_SONNET_MODEL"));
+  assert!(!env.contains_key("ANTHROPIC_API_KEY"));
+  assert!(!env.contains_key("CLAUDE_CODE_OAUTH_TOKEN"));
+}
+
+#[test]
 fn a_directory_login_on_a_node_is_handed_its_token_for_the_nodes_beside_its_directory() {
   let data = tempfile::tempdir().unwrap();
   let login = tempfile::tempdir().unwrap();
@@ -142,7 +180,7 @@ fn the_pane_is_handed_the_lines_variables_by_name_and_never_the_launchers_whole_
     cwd: "/w".into(),
     env: command_env(&process, None, &Runs::Here, false).unwrap(),
   };
-  let env = line_environment(&command, "bmo-standby-worker");
+  let env = line_environment(&command, "bmo-standby-worker", None);
 
   assert_eq!(env["PATH"], "/bin");
   assert_eq!(env["BMO_DATA_DIR"], "/data");

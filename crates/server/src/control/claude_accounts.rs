@@ -205,6 +205,24 @@ impl Credential {
     }
   }
 
+  /// Every variable a run is handed this credential in, which a pane is given by name: the login's own
+  /// for a directory or token account, and an endpoint account's configuration home, base URL, key and
+  /// model ids (docs/cache-fallback.md, 「The Claude Code road is a list of accounts」).
+  pub fn variables(&self) -> &'static [&'static str] {
+    match self {
+      Self::Directory { .. } => &["CLAUDE_CONFIG_DIR", "CLAUDE_CODE_OAUTH_TOKEN"],
+      Self::Token { .. } => &["CLAUDE_CODE_OAUTH_TOKEN"],
+      Self::Endpoint { .. } => &[
+        "CLAUDE_CONFIG_DIR",
+        "ANTHROPIC_BASE_URL",
+        "ANTHROPIC_AUTH_TOKEN",
+        "ANTHROPIC_DEFAULT_OPUS_MODEL",
+        "ANTHROPIC_DEFAULT_SONNET_MODEL",
+        "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+      ],
+    }
+  }
+
   /// The path the row keeps as the credential's: the configuration directory, the token's file, or the
   /// endpoint account's own configuration home.
   pub fn path(&self) -> &Path {

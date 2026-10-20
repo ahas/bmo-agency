@@ -232,7 +232,7 @@ fn turn_on(
     cwd: line.cwd.clone(),
     env: claude::command_env(ground.env(), account, &runs, line.thinking)?,
   };
-  let env: BTreeMap<String, String> = claude::line_environment(&command, &turn.name);
+  let env: BTreeMap<String, String> = claude::line_environment(&command, &turn.name, account);
   let resident = harness_providers::provider(PROVIDER)
     .and_then(|declared| declared.declared().resident.as_ref())
     .ok_or_else(|| fault("Claude Code stands no resident program"))?;

@@ -279,8 +279,13 @@ pub const COMPACT_SHARE: &str = "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE";
 
 /// What a pane running the line's own command is handed, by name: the search path, every `BMO_`
 /// variable but the job runner's marker, the marker where the launcher holds it, the line's own
-/// variables and the login's, and the run's name last.
-pub fn line_environment(command: &Command, name: &str) -> BTreeMap<String, String> {
+/// variables and the login's, and the run's name last. The login is the account's own where the run
+/// stands on one, and the machine's where it stands on none.
+pub fn line_environment(
+  command: &Command,
+  name: &str,
+  account: Option<&Account>,
+) -> BTreeMap<String, String> {
   let set = |variable: &str| command.env.get(variable).cloned().flatten().filter(|value| !value.is_empty());
   let mut env =
     BTreeMap::from([("PATH".to_owned(), command.env.get("PATH").cloned().flatten().unwrap_or_default())]);
@@ -300,9 +305,14 @@ pub fn line_environment(command: &Command, name: &str) -> BTreeMap<String, Strin
 
   env.extend(CLAUDE_CODE.launch.variables.clone());
 
-  for variable in &CLAUDE_CODE.launch.login_variables {
+  let login: Vec<&str> = match account {
+    Some(account) => account.credential.variables().to_vec(),
+    None => CLAUDE_CODE.launch.login_variables.iter().map(String::as_str).collect(),
+  };
+
+  for variable in login {
     if let Some(value) = set(variable) {
-      env.insert(variable.clone(), value);
+      env.insert(variable.to_owned(), value);
     }
   }
 
