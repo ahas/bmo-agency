@@ -1,6 +1,6 @@
 # Recording into the 아카이브
 
-Read this before running `bmo archive doc`. When to record is in the manual; this is how.
+Read this before filing a document with `artifact_file`. When to record is in the manual; this is how.
 
 ## When
 
@@ -17,8 +17,9 @@ Read this before running `bmo archive doc`. When to record is in the manual; thi
 - The words, the title and the body alike, follow `plain-writing.md`, which your system prompt
   carries: no dash between words, no bold scattered through sentences, no bold-label bullets.
 - The kind: `record` for data put in order, almost always. `learning` only where he asks for
-  study material laid out as a book, its headings `#` 부, `##` 장, `###` 절. `import` only for a text
-  he hands over whole to be kept as it is. An HTML page takes no kind and no body.
+  study material laid out as a book, its headings `#` 부, `##` 장, `###` 절. An HTML page is a
+  `page`, with its HTML and no body. An `import` is a web page brought in whole, which
+  `artifact_import` makes from its address; it is never filed by hand.
 - The body, in markdown: headings for its parts (`#` and `##` make its contents list), the facts as
   he gave them, tables for what compares, and nothing not from him or the room. A value you could
   not confirm is written `미확인`, never filled in.
@@ -35,11 +36,10 @@ Read this before running `bmo archive doc`. When to record is in the manual; thi
 
 - A page is the document: kept exactly as it is and opened as that page, on the console and under
   its link. Write nothing in its place and never rewrite it as markdown.
-- His: an HTML file he hands over is filed with `--html <the path its note gave>`, never attached to
-  a record.
+- His: an HTML file he hands over is filed as a `page` with its `html`, never attached to a record.
 - Yours: the 아카이브 is your canvas too. When something is better seen than told (options side by
   side, a layout, a chart, a table too wide for a message, a small tool) write one HTML page in
-  your scratch folder and file it with `--html`, unasked.
+  your scratch folder and file it as a `page`, unasked.
   - One file with everything in it: styles and scripts inline, pictures as data addresses or over
     https. It cannot reach the network or submit a form, so it computes what it shows itself.
   - Give it a `<title>` (its title in the list) and a `<meta name="description">` saying in a line
@@ -59,44 +59,48 @@ Read this before running `bmo archive doc`. When to record is in the manual; thi
   - Every page and document goes here, never to a page hosted elsewhere: no claude.ai artifact, no
     gist, no paste.
 - To learn what a page says without opening it (a page is often megabytes of inline
-  pictures), read it with `~/.local/share/bmo/deploy/bin/bmo archive html-read <file>
+  pictures), read it with `~/.local/share/bmo/deploy/bin/bmo html-read <file>
   --pictures <a folder of your own>`: its words, a block to a line; a long one ends by naming the
   `--from` to carry on with.
 
-## The command
+## The tools
 
-- Write the body to a file first, then run:
-  `~/.local/share/bmo/deploy/bin/bmo archive doc --chat <chatId> --by <his user id> --title '<제목>' [--kind record|learning|import] --body <the file> [--attach <path>]… [--narration <file>] [--share-days <n> | --share-forever] [--replace <id>]`
-- A page: `~/.local/share/bmo/deploy/bin/bmo archive doc --chat <chatId> --by <his user id> --html <the file> [--title '<제목>'] [--share-days <n> | --share-forever] [--replace <id>]`.
-  The title is the page's own unless you give one; `--by` is whoever the page is for.
-- Each file he sent that belongs with it, a picture included, is one `--attach` with the path its
-  note gave ([attached file <name> saved at <path>]). The file is copied; his message keeps its own.
-- `--chat` is always the room you are answering, never left out: it decides which address the
-  room is given.
-- In any room but the owner's private chat the tool makes the share link, which opens the document
-  without a login, unasked: the console address is behind his login and nobody else there can open
-  it. The link lives a week; `--share-days <n>` where he names another length, and `--share-forever`
-  where he wants it never to end (영구, 무기한), which also takes the end off a link that stands. His
-  private chat never gets one: there the tool makes none, and the console address is the one to give.
+- Write the body in markdown, then file it with `artifact_file`, which takes `body`, the document:
+  `kind` `record` or `learning`, the Korean `title`, `actorName` the name you file under, `labels`
+  `{}`, `scope` the room's chat id, and the markdown in the document's `body`. It answers the
+  document, whose `id` is the address below.
+- A page: `artifact_file` with `kind` `page`, the same title, actor, labels and scope, and the HTML
+  in the document's `html`, with no body. Leave `title` empty where the page's own `<title>` is the
+  one to use.
+- Each file he sent that belongs with it, a picture included, is one `artifact_attach` with the
+  document's `documentId`, its `name`, the `mediaType` it is read as, and `content`, the file in
+  base64. His message keeps its own. File the body first where it draws a kept picture by name
+  (`![a caption](name.png)`).
+- `scope` is always the room you are answering, its chat id, so the room's documents stand together.
+- In any room but the owner's private chat, call `artifact_share` with the `documentId`: the link
+  opens the document without a login, and the console address is behind his login and nobody else
+  there can open it. Give `expiresAt` a week from now in epoch milliseconds; where he names another
+  length, that moment; where he wants it never to end (영구, 무기한), give no `expiresAt`. His
+  private chat gets no link: the console address is the one to give.
 - A document already in the archive (yours, a search's, a page) handed to a room of other people:
-  `~/.local/share/bmo/deploy/bin/bmo archive share <id> --chat <chatId> [--days <n> | --forever]`
-  gives the link that stands or makes one, and answers the same lines; `--forever` makes a link that
-  never ends, or takes the end off the one that stands. Never write a share row by hand.
-- A spoken briefing of a markdown document is its recording given as one `--attach`: a sound file
-  stands at the document's head as its 듣기 band. Never write a page only to carry a player.
-- A document meant to be listened along to, as a deep dive is, takes `--narration <file>`: a
-  script for the ear by the rules of a deep dive's (deep-dives.md, 「The narration」), which the
-  tool has spoken in your voice and keeps at the document's head. A document already written takes
-  one through `~/.local/share/bmo/deploy/bin/bmo voice brief --chat <its room> --by <who> --document
-  <id>`, the script on standing input. A refused narration leaves the document written; the tool says why.
-- `--replace <id>` rewrites one of your own documents under its number where he asks for it redone:
-  the new body and files take its place, and its link stays the same.
-- A refusal says what was wrong (no title, an empty body, an unreadable file) and nothing was
-  written. Fix that one thing and run it again.
+  `artifact_share` with its `documentId` gives the link that stands or makes one. A link that stands
+  keeps the end it was made with; end one with `artifact_unshare` and the `token` `artifact_shares`
+  gives, where it must be replaced. Never write a share row by hand.
+- A spoken briefing of a markdown document is its recording attached with `role` `head`: a sound
+  file stands at the document's head as its 듣기 band. Never write a page only to carry a player.
+- A document meant to be listened along to, as a deep dive is, takes a narration: a script for the
+  ear by the rules of a deep dive's (deep-dives.md, 「The narration」), spoken in your voice by the
+  voice engine and attached with `artifact_attach` at `role` `head`. A refused narration leaves the
+  document written; the tool says why.
+- `artifact_rewrite` rewrites one of your own documents under its number where he asks for it
+  redone: give `documentId`, the `labels` (they replace the labels whole), and the `title`, `body`
+  or `html` that changed. Its attachments and share links stay, and a file of a name it already
+  keeps is not attached again.
+- A refusal comes back as a tool error saying what was wrong (no title, an empty body, an
+  unreadable file, a wrong number) and nothing was written. Fix that one thing and call it again.
 
 ## What you answer
 
-- The address on its `give:` line, as it stands, and the title under it: the share link in a room
-  of other people, the console address in his private chat. Never hand a room of other people a
-  `/archive/` address. Never paste the body back into the room; the document is the
-  answer.
+- The document's address and the title under it: the share link `artifact_share` answered in a room
+  of other people, `/archive/<id>` in his private chat. Never hand a room of other people a
+  `/archive/` address. Never paste the body back into the room; the document is the answer.

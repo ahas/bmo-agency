@@ -40,17 +40,20 @@ description: "How a job puts something in front of the owner: a decision that is
 ## A document for him to read
 
 - **It goes into the deployment's own 아카이브 and nowhere else.** Write it as markdown in your scratch folder
-  and file it with `~/.local/share/bmo/deploy/bin/bmo archive doc --title '<제목>' --body <file>`,
-  or an HTML page with `--html <file>`.
-  - With no `--chat` and no `--by` it is his own.
-  - `--replace <id>` rewrites it under its number as the design moves.
-  - A long reading he studies — how something is built, a deep investigation — also takes
-    `--narration <file>`: a script for the ear by the rules of a deep dive's, in
-    `~/.local/share/bmo-agency/deploy/prompts/rules/deep-dives.md` 「The narration」, spoken in the chat agent's
-    voice and kept at the document's head as its 들으며 보세요 band.
-  - A document with a narration is handed over only once its sound is kept: `archive-doc` returns
-    before the narration is spoken, and the `researching-and-benching` skill says how to wait for it.
-  - The console address it prints goes into your question, or opens your report as the
+  and file it with `artifact_file`, which takes `body`, the document: `kind` `record`, the Korean
+  `title`, `actorName` the worker name you file as, and `labels` `{}`; or file an HTML page as
+  `kind` `page` with its `html`.
+  - `artifact_rewrite` rewrites it under its number as the design moves; its attachments and share
+    links stay.
+  - A long reading he studies — how something is built, a deep investigation — also takes a
+    narration: a script for the ear by the rules of a deep dive's, in
+    `~/.local/share/bmo-agency/deploy/prompts/rules/deep-dives.md` 「The narration」, spoken in the chat
+    agent's voice by the voice engine and attached with `artifact_attach` at `role` `head` as its
+    들으며 보세요 band.
+  - A document with a narration is handed over only once its sound is kept: `artifact_attach`
+    answers once the file is kept, and the `researching-and-benching` skill says how to wait for the
+    voice.
+  - The console address `/archive/<id>` goes into your question, or opens your report as the
     `closing-a-job` skill sets.
 - **A page hosted elsewhere is out of his reach** once this session is gone, kept on somebody
   else's terms — a claude.ai artifact, a Claude Docs document, a gist, a paste. The tools that

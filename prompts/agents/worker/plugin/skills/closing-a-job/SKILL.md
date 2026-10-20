@@ -55,7 +55,7 @@ goes behind an expandable quote.
    who asked would understand, and leave those to a sentence of their own after it. Name the item
    by its number and its title with no quotation marks around the title. Where the job filed a
    document in the 아카이브 for him, its link comes first: the summary's first line, above its
-   sentences, is `[<the document's Korean title>](<the address archive-doc printed>)`, a line to
+   sentences, is `[<the document's Korean title>](/archive/<id>)`, a line to
    each document.
 2. The detail, one paragraph per part of it, two paragraphs at least. Each begins with a short
    name alone on its line — Fixed, Checked, Left, Blocked — and the explanation under it;

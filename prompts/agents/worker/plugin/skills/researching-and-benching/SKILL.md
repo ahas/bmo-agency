@@ -64,19 +64,18 @@ flowchart TD
 
 ## The final document
 
-- **A deep dive in the deployment's 아카이브,** filed with `archive-doc` and `--narration` as the
-  `asking-the-owner` skill says: what the maker states first, then the method, the raw material,
-  the tables and figures, the reasoning behind the verdict, the configuration adopted, and the
-  options for later.
+- **A deep dive in the deployment's 아카이브,** filed with `artifact_file` and its narration
+  attached as the `asking-the-owner` skill says: what the maker states first, then the method, the raw
+  material, the tables and figures, the reasoning behind the verdict, the configuration adopted, and
+  the options for later.
 - **What is still open is only what no job can reach now,** each with what puts it there. A value a
   job could have measured is measured, never marked `추정` or `확인 필요`.
 - **The narration** is written by the rules of a deep dive's, `deep-dives.md` 「The narration」.
-- **It is reported only once its voice is ready.** `archive-doc` launches the narration and returns
-  before it is spoken. Wait, marked as the `marking-a-wait` skill says, until the document keeps its
-  sound: an attachment of media `audio` on the document, read with
-  `~/.local/share/bmo/deploy/bin/bmo query`. Where the narration's run failed, launch it again
-  with `bmo voice brief --chat <the room> --by <your item> --document <id>`, the narration on its
-  standard input from its file. Only then does the document's address go into the report.
+- **It is reported only once its voice is ready.** Speak the narration through the voice engine and,
+  marked as the `marking-a-wait` skill says, wait until its synthesis is done. Then attach the sound
+  to the document with `artifact_attach` at `role` `head`; the call answers once the file is kept.
+  Where the synthesis failed, start it again. Only then does the document's address go into the
+  report.
 
 ## The bench lock
 
