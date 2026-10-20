@@ -3,9 +3,12 @@
 
 import createClient, { type Client } from "openapi-fetch";
 
-import type { components, paths } from "./schema.ts";
+import type { components, paths } from "./schema";
 
-export type { components, operations, paths } from "./schema.ts";
+export type { components, operations, paths } from "./schema";
+
+/** The fetch a client asks: one request, one answer. `globalThis.fetch` is one. */
+export type AgencyFetch = (input: Request) => Promise<Response>;
 
 type Schemas = components["schemas"];
 
@@ -40,10 +43,10 @@ export type AgencyClient = Client<paths>;
  * The agency at `baseUrl`, sending `token` as its bearer token. Each call is a route of the OpenAPI
  * document, typed by it: `client.GET("/sessions/{sessionId}", { params: { path: { sessionId } } })`.
  */
-export function agencyClient(baseUrl: string, token: string, fetcher?: typeof globalThis.fetch): AgencyClient {
+export function agencyClient(baseUrl: string, token: string, fetch?: AgencyFetch): AgencyClient {
   return createClient<paths>({
     baseUrl,
     headers: { Authorization: `Bearer ${token}` },
-    ...(fetcher ? { fetch: fetcher } : {}),
+    ...(fetch ? { fetch } : {}),
   });
 }

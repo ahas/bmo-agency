@@ -13,6 +13,7 @@
       "name": "@agency/agent",
       "dependencies": {
         "@agency/archive": "workspace:*",
+        "@agency/client": "workspace:*",
         "@agency/support": "workspace:*",
         "eventsource-parser": "^4.1.1",
       },
@@ -25,7 +26,7 @@
     },
     "client": {
       "name": "@agency/client",
-      "version": "0.1.0-rev.6",
+      "version": "0.1.0-rev.7",
       "dependencies": {
         "openapi-fetch": "0.17.0",
       },

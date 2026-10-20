@@ -7,6 +7,7 @@
 import { readFileSync } from "node:fs";
 import { parseEnv } from "node:util";
 
+import { agencyClient } from "@agency/client";
 import { dataPath } from "@agency/support/roots";
 
 /** A login's end told (docs/cache-fallback.md, 「A login that is about to end」). */
@@ -75,16 +76,15 @@ export function controlServer(): { port: number; token: string } | null {
 
 // One event posted to agency's server, which publishes it on its streams; a word that did not land is said
 // once on the error stream.
-async function relayed(server: { port: number; token: string }, name: string, body: unknown): Promise<void> {
+async function relayed(server: { port: number; token: string }, name: AgencyEventName, body: AgencyEvent["body"]): Promise<void> {
   try {
-    const answered = await fetch(`http://127.0.0.1:${server.port}/events`, {
-      method: "POST",
-      headers: { authorization: `Bearer ${server.token}`, "content-type": "application/json" },
-      body: JSON.stringify({ kind: name, data: body }),
+    const client = agencyClient(`http://127.0.0.1:${server.port}`, server.token);
+    const { response } = await client.POST("/events", {
+      body: { kind: name, data: body },
       signal: AbortSignal.timeout(relayWaitMs),
     });
 
-    if (!answered.ok) throw new Error(`the server answered ${answered.status}`);
+    if (!response.ok) throw new Error(`the server answered ${response.status}`);
   } catch (error) {
     if (!missedSaid) {
       missedSaid = true;

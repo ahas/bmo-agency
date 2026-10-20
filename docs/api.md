@@ -28,7 +28,7 @@ a field's exact shape matters, the OpenAPI document is the one to read.
 ## Versioning
 
 - The contract carries the repository's one version, in semver; the workspace manifest is its source. Before
-  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.6`.
+  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.7`.
 - A change to this document and a change to the boundary go in one commit. A change to a route, an event, a
   hook or a shared table's contract repairs this document in the same commit.
 - The major moves on a removed or renamed route, field or event, the minor on an addition, the patch on
@@ -442,8 +442,16 @@ tool is a thin call of one route through the agency's own client.
 
 ## The clients
 
-`crates/client` is the Rust client (`bmo-agency-client`) and `ts/client` the TypeScript package, both
-generated from `docs/openapi.json`: every body as a type and a typed call for every route.
+`crates/client` is the Rust client (`bmo-agency-client`) and `ts/client` the TypeScript package
+`@agency/client`, both generated from `docs/openapi.json`: every body as a type and a typed call for every
+route. A caller uses one of them and writes no client of its own.
+
+- **Installing the package.** `bun pm pack` in `ts/client` writes `agency-client-<version>.tgz`, and a
+  downstream checkout names that file in its dependencies as a `file:` address. The pack carries the
+  manifest, the entry point and the generated types; `openapi-fetch` comes with it as the package's one
+  dependency.
+- **Version and types.** The package carries the repository's version, and a test fails where the
+  committed types differ from what `docs/openapi.json` generates.
 
 ## Calls agency makes
 

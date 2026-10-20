@@ -29,6 +29,9 @@
       "@agency/client/schema": [
         "./client/src/schema.ts"
       ],
+      "openapi-typescript": [
+        "./client/node_modules/openapi-typescript"
+      ],
       "@agency/policy/*": [
         "../policy/*"
       ],
