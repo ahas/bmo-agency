@@ -750,14 +750,14 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The fallback roads and whether the fallback is answering. */
+        /** The fallback roads, the Claude accounts and whether the fallback is answering. */
         get: operations["getFallback"];
         put?: never;
         post?: never;
         delete?: never;
         options?: never;
         head?: never;
-        /** Change the fallback roads. */
+        /** Change the fallback roads and the Claude accounts. */
         patch: operations["changeFallback"];
         trace?: never;
     };
@@ -838,7 +838,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Accounts: held, home, usage window, rest. */
+        /** Accounts: held, kind, home, usage window, rest. */
         get: operations["listAccounts"];
         put?: never;
         post?: never;
@@ -2228,8 +2228,22 @@ export interface components {
             name: string | null;
             kind: string | null;
             path: string | null;
+            /** @description An endpoint account's base URL. */
+            endpoint: string | null;
+            /** @description An endpoint account's key file. */
+            keyFile: string | null;
+            /** @description An endpoint account's model ids by family word. */
+            models: components["schemas"]["EndpointModels"] | null;
+            /** @description The base prompt the account names, `none` or null to let it go. */
+            basePrompt: string | null;
             key: string | null;
             mode: string | null;
+        };
+        /** @description An endpoint's model ids by the family word Claude Code picks a model by: */
+        EndpointModels: {
+            opus?: string | null;
+            sonnet?: string | null;
+            haiku?: string | null;
         };
         /** @description WorkKey: */
         WorkKey: {
@@ -2299,6 +2313,16 @@ export interface components {
              * @description epoch milliseconds
              */
             restUntil: number | null;
+            /** @description One of `directory`, `token` or `endpoint`. */
+            credentialKind: string | null;
+            /** @description An endpoint account's base URL. */
+            endpointUrl: string | null;
+            /** @description An endpoint account's key file. Its content is never reported. */
+            keyFile: string | null;
+            /** @description An endpoint account's model ids by family word. */
+            models: components["schemas"]["EndpointModels"] | null;
+            /** @description The base prompt a worker's run on it opens with. */
+            basePrompt: string | null;
         };
         /** @description The body that reports a login's session usage. */
         AccountUsage: {

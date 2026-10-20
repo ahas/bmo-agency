@@ -322,6 +322,98 @@ async fn an_account_is_registered_renamed_pointed_elsewhere_and_removed() {
   assert_eq!(ended(&last), (1, CONTROL_WORDS.accounts.last_gone.as_str()));
 }
 
+// "adds an endpoint account with its endpoint, key file, model map and base prompt, and changes them"
+#[tokio::test]
+async fn an_endpoint_account_carries_its_endpoint_key_models_and_base_prompt() {
+  let bench = Bench::new().await;
+  let home = bench.root().join("deepseek");
+  let key = bench.root().join("deepseek.key");
+
+  std::fs::create_dir_all(&home).unwrap();
+  std::fs::write(&key, "a key the test never reads\n").unwrap();
+  bench
+    .scratch
+    .run(
+      r#"INSERT INTO "base_prompts" ("name", "label", "text", "updated_at", "updated_by")
+         VALUES ('dsh', 'DeepSeek Harness based', 'You are {{model}}.', 0, 'test')"#,
+      vec![],
+    )
+    .await;
+
+  let home = home.display().to_string();
+  let key = key.display().to_string();
+  let added = bench
+    .run(&[
+      "--account-add",
+      "deepseek",
+      "--kind",
+      "endpoint",
+      "--path",
+      &home,
+      "--endpoint",
+      "https://api.deepseek.com/anthropic",
+      "--key-file",
+      &key,
+      "--models",
+      "opus=deepseek-v4-pro,sonnet=deepseek-flash,haiku=deepseek-flash",
+      "--base-prompt",
+      "dsh",
+    ])
+    .await;
+
+  assert_eq!(ended(&added), (0, ""));
+  assert_eq!(added.out, [format!("account deepseek (deepseek) endpoint at {home}")]);
+  assert_eq!(
+    bench
+      .scratch
+      .count(
+        r#"SELECT COUNT(*) FROM "claude_accounts" WHERE "id" = 'deepseek'
+           AND "endpoint_url" = 'https://api.deepseek.com/anthropic'
+           AND "key_file" = $1
+           AND "endpoint_models" = '{"opus":"deepseek-v4-pro","sonnet":"deepseek-flash","haiku":"deepseek-flash"}'
+           AND "base_prompt" = 'dsh'"#,
+        vec![key.into()],
+      )
+      .await,
+    1
+  );
+
+  let changed = bench
+    .run(&[
+      "--account-set",
+      "deepseek",
+      "--base-prompt",
+      "none",
+      "--models",
+      "sonnet=deepseek-flash",
+    ])
+    .await;
+
+  assert_eq!(ended(&changed), (0, ""));
+  assert_eq!(
+    bench
+      .scratch
+      .count(
+        r#"SELECT COUNT(*) FROM "claude_accounts" WHERE "id" = 'deepseek'
+           AND "endpoint_models" = '{"sonnet":"deepseek-flash"}' AND "base_prompt" IS NULL"#,
+        vec![],
+      )
+      .await,
+    1
+  );
+
+  let bad = bench.run(&["--account-set", "deepseek", "--models", "opus"]).await;
+
+  assert_eq!(ended(&bad), (2, VERB_WORDS.agents.models_shape.as_str()));
+
+  let unknown = bench.run(&["--account-set", "deepseek", "--base-prompt", "missing"]).await;
+
+  assert_eq!(
+    ended(&unknown),
+    (1, fill_marks(&CONTROL_WORDS.accounts.base_prompt, &[("name", "missing")]).as_str())
+  );
+}
+
 // "pins by the name the owner gave, prints it in the listing, and gives it back to the order"
 // "chooses the account runs go out on now, says so in the listing, and lets it go"
 // "the shell that pins a key to a login"

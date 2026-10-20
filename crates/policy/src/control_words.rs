@@ -42,6 +42,8 @@ pub struct AccountsWords {
   pub endpoint_url: String,
   pub key_file_needed: String,
   pub key_not_file: String,
+  pub models_shape: String,
+  pub base_prompt_shape: String,
   pub name_needed: String,
   pub which_to_change: String,
   pub which_to_remove: String,

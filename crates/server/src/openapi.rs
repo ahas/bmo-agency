@@ -1294,7 +1294,7 @@ pub const OPERATIONS: &[Operation] = &[
     path: "/fallback",
     id: "getFallback",
     tag: "fallback",
-    summary: "The fallback roads and whether the fallback is answering.",
+    summary: "The fallback roads, the Claude accounts and whether the fallback is answering.",
     params: &[],
     body: None,
     answers: &[(200, Some("Fallback"), false)],
@@ -1305,7 +1305,7 @@ pub const OPERATIONS: &[Operation] = &[
     path: "/fallback",
     id: "changeFallback",
     tag: "fallback",
-    summary: "Change the fallback roads.",
+    summary: "Change the fallback roads and the Claude accounts.",
     params: &[],
     body: Some("FallbackChange"),
     answers: &[(200, Some("Fallback"), false)],
@@ -1432,7 +1432,7 @@ pub const OPERATIONS: &[Operation] = &[
     path: "/accounts",
     id: "listAccounts",
     tag: "accounts",
-    summary: "Accounts: held, home, usage window, rest.",
+    summary: "Accounts: held, kind, home, usage window, rest.",
     params: &[
       Param {
         name: "provider",

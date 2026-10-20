@@ -114,6 +114,37 @@ impl EndpointModels {
   pub fn of_family(&self, family: &str) -> Option<&str> {
     self.families().into_iter().find(|(word, _)| *word == family).and_then(|(_, id)| id)
   }
+
+  /// The map a text names: family words paired with model ids, separated by commas, as
+  /// `opus=<id>,sonnet=<id>,haiku=<id>`, or none where a pair names no family or no id, a family twice,
+  /// or no family at all.
+  pub fn of_words(text: &str) -> Option<Self> {
+    let mut models = Self::default();
+
+    for pair in text.split(',').map(str::trim).filter(|pair| !pair.is_empty()) {
+      let (word, id) = pair.split_once('=')?;
+      let id = id.trim();
+
+      if id.is_empty() {
+        return None;
+      }
+
+      let slot = match word.trim() {
+        "opus" => &mut models.opus,
+        "sonnet" => &mut models.sonnet,
+        "haiku" => &mut models.haiku,
+        _ => return None,
+      };
+
+      if slot.is_some() {
+        return None;
+      }
+
+      *slot = Some(id.to_owned());
+    }
+
+    models.families().iter().any(|(_, id)| id.is_some()).then_some(models)
+  }
 }
 
 /// How a run reaches an account's login, read once from its row (docs/cache-fallback.md, 「The Claude Code
@@ -180,6 +211,20 @@ impl Credential {
     match self {
       Self::Directory { home } | Self::Endpoint { home, .. } => home,
       Self::Token { file } => file,
+    }
+  }
+
+  /// What of an endpoint account a view reports beside its kind: its base URL, the file its key sits in
+  /// and its model map, each none on another kind. The key's content is never read.
+  pub fn endpoint_parts(&self) -> (Option<&str>, Option<&Path>, Option<&EndpointModels>) {
+    match self {
+      Self::Endpoint {
+        url,
+        key_file,
+        models,
+        ..
+      } => (Some(url), Some(key_file), Some(models)),
+      Self::Directory { .. } | Self::Token { .. } => (None, None, None),
     }
   }
 
@@ -785,6 +830,7 @@ pub async fn views(judging: Judging<'_>) -> Result<Vec<Value>, Refused> {
 
   for account in accounts(judging.db).await? {
     let rest = rest_until(judging, &account.id).await?.filter(|until| until * 1000 > now);
+    let (endpoint, key_file, models) = account.credential.endpoint_parts();
 
     views.push(json!({
       "id": account.id,
@@ -793,6 +839,10 @@ pub async fn views(judging: Judging<'_>) -> Result<Vec<Value>, Refused> {
       "enabled": account.enabled,
       "credentialKind": account.credential.kind().word(),
       "credentialPath": account.credential.path().to_string_lossy(),
+      "endpointUrl": endpoint,
+      "keyFile": key_file.map(|file| file.to_string_lossy()),
+      "models": models,
+      "basePrompt": account.base_prompt,
       "login": login_standing(&account, now),
       "loginEndsAt": login_end(&account).map(|end| (end / 1000.0).floor() as i64),
       "chosen": chosen.as_deref() == Some(account.id.as_str()),

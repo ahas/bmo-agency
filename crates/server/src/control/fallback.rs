@@ -17,7 +17,9 @@ use sea_orm::DatabaseConnection;
 use serde_json::{Value, json};
 
 use super::claude_account_changes::{self as changes, BasePromptGiven, CredentialGiven, account_named};
-use super::claude_accounts::{self, CredentialKind, Judging, accounts, leading_integer, walk_for};
+use super::claude_accounts::{
+  self, CredentialKind, EndpointModels, Judging, accounts, leading_integer, walk_for,
+};
 use super::harness::{
   OrderEntry, is_default_order, missing, named, order_shape_reason, order_to_save, provider_enabled,
   provider_order, set_provider_order,
@@ -323,7 +325,8 @@ async fn accounts_answer(judging: Judging<'_>) -> Result<Response, Refused> {
 }
 
 /// What of an account's credential a change sends, whether the account is added or changed, or the
-/// refusal: a kind is one the credential kinds name, and a path is text.
+/// refusal: a kind is one the credential kinds name, and a path, an endpoint and a key file are text. The
+/// model map is an object from a family word to the endpoint's model id, read as the row keeps it.
 pub fn credential_given(body: &Value) -> Result<CredentialGiven, Refused> {
   let kind = match body.get("kind") {
     None => None,
@@ -334,17 +337,43 @@ pub fn credential_given(body: &Value) -> Result<CredentialGiven, Refused> {
       ))
     })?),
   };
-  let path = match body.get("path") {
-    None => None,
-    Some(Value::String(path)) => Some(path.clone()),
-    Some(_) => return Err(bad(CONTROL_WORDS.accounts.credential_path.as_str())),
+  let text = |field: &str, shape: &str| -> Result<Option<String>, Refused> {
+    match body.get(field) {
+      None | Some(Value::Null) => Ok(None),
+      Some(Value::String(text)) => Ok(Some(text.clone())),
+      Some(_) => Err(bad(shape)),
+    }
+  };
+  let path = text("path", &CONTROL_WORDS.accounts.credential_path)?;
+  let endpoint = text("endpoint", &CONTROL_WORDS.accounts.endpoint_url)?;
+  let key_file = text("keyFile", &CONTROL_WORDS.accounts.key_file_needed)?;
+  let models = match body.get("models") {
+    None | Some(Value::Null) => None,
+    Some(models) => Some(
+      serde_json::from_value::<EndpointModels>(models.clone())
+        .map_err(|_| bad(CONTROL_WORDS.accounts.models_shape.as_str()))?,
+    ),
   };
 
   Ok(CredentialGiven {
     kind,
     path,
-    ..CredentialGiven::default()
+    endpoint,
+    key_file,
+    models,
   })
+}
+
+/// The base prompt a change sends, whether the account is added or changed: a prompt's name names it,
+/// null or `none` lets the account's base go, and a body naming none keeps the base the account holds.
+pub fn base_prompt_given(body: &Value) -> Result<BasePromptGiven, Refused> {
+  match body.get("basePrompt") {
+    None => Ok(BasePromptGiven::Keep),
+    Some(Value::Null) => Ok(BasePromptGiven::None),
+    Some(Value::String(name)) if name.trim() == "none" => Ok(BasePromptGiven::None),
+    Some(Value::String(name)) => Ok(BasePromptGiven::Named(name.clone())),
+    Some(_) => Err(bad(CONTROL_WORDS.accounts.base_prompt_shape.as_str())),
+  }
 }
 
 /// A change that stands on its own — the provider order or the Claude accounts — answered, or nothing
@@ -429,7 +458,7 @@ async fn own_change(judging: Judging<'_>, action: &str, body: &Value) -> Result<
         return Err(bad(CONTROL_WORDS.accounts.credential_path.as_str()));
       }
 
-      changes::add(db, name, &given, BasePromptGiven::Keep).await?;
+      changes::add(db, name, &given, base_prompt_given(body)?).await?;
 
       return accounts_answer(judging).await.map(Some);
     }
@@ -437,8 +466,9 @@ async fn own_change(judging: Judging<'_>, action: &str, body: &Value) -> Result<
       let given = credential_given(body)?;
       let id = text("account").ok_or_else(|| bad(CONTROL_WORDS.accounts.which_to_change.as_str()))?;
 
-      // A change naming part of a credential keeps the rest of the one the account already holds.
-      changes::update(db, id, text("name"), Some(&given), None, BasePromptGiven::Keep).await?;
+      // A change naming part of a credential keeps the rest of the one the account already holds, and
+      // one naming no base prompt keeps the base it holds.
+      changes::update(db, id, text("name"), Some(&given), None, base_prompt_given(body)?).await?;
 
       return accounts_answer(judging).await.map(Some);
     }

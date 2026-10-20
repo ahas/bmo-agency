@@ -28,7 +28,7 @@ a field's exact shape matters, the OpenAPI document is the one to read.
 ## Versioning
 
 - The contract carries the repository's one version, in semver; the workspace manifest is its source. Before
-  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.7`.
+  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.8`.
 - A change to this document and a change to the boundary go in one commit. A change to a route, an event, a
   hook or a shared table's contract repairs this document in the same commit.
 - The major moves on a removed or renamed route, field or event, the minor on an addition, the patch on
@@ -246,8 +246,8 @@ the shadow the node's link keeps of that checkout instead.
 | POST | `/pin-checks` | Read a worker pin value: auto, a provider, or a provider's model. |
 | GET | `/tiers` | Tiers in ladder order, each with its mapping. |
 | PATCH | `/tiers/{tierName}` | Change a tier's mapping for a role. |
-| GET | `/fallback` | The fallback roads and whether the fallback is answering. |
-| PATCH | `/fallback` | Change the fallback roads. |
+| GET | `/fallback` | The fallback roads, the Claude accounts and whether the fallback is answering. |
+| PATCH | `/fallback` | Change the fallback roads and the Claude accounts. |
 
 A provider's change throws the owner's switch on it; the last provider left on is not thrown off, since
 nothing would answer.
@@ -288,11 +288,19 @@ them; a notice that holds nothing is withdrawn.
 
 | Method | Path | Does |
 |---|---|---|
-| GET | `/accounts` | Accounts: held, home, usage window, rest. |
+| GET | `/accounts` | Accounts: held, kind, home, usage window, rest. |
 | PATCH | `/accounts/{accountId}` | Record an account's usage and its rest. |
 | GET | `/rest` | Whether the deployment rests, until when, of what kind. |
 | PATCH | `/rest` | Set the rest, or clear a rest that has passed. |
 | GET | `/usage` | Usage by model, agent, user or room over a span, with session contexts. |
+
+An account is reached one of three ways: a directory holding a login, a token file, or an endpoint — an
+Anthropic-compatible base URL with a key file and an optional map from the `opus`, `sonnet` and `haiku`
+family words to the endpoint's model ids. It may also name a base prompt that a worker's run on it opens
+with. The list reports each account's kind, its home and, for an endpoint account, its base URL, key-file
+path and model map; a key's content is never reported. Accounts are added and changed through
+`PATCH /fallback`'s `add-account` and `update-account` actions, and with `bmo-agency agent --account-add`
+and `--account-set`.
 
 Usage groups the jobs whose turns started in the span by the key the query names — the model the job's
 turn went out on, the worker (`agent`), the job's holder (`user`) or its room — summing the tokens each
@@ -407,7 +415,7 @@ input, so `bmo` finds it from any directory.
 
 | Noun | Takes | Calls |
 |---|---|---|
-| `agent` (`agents`) | the agent flags `--help` prints: the provider and account orders, the accounts, the registered models, a route and its model, and a worker's rows and an agent's thinking, effort and gates | the store at the data root, and the service for what it must be told |
+| `agent` (`agents`) | the agent flags `--help` prints: the provider and account orders, the accounts and their kinds, an account's endpoint, key file, model map and base prompt, the registered models, a route and its model, and a worker's rows and an agent's thinking, effort and gates | the store at the data root, and the service for what it must be told |
 | `agent status` (`agent-status`) | `status`, `stop`, `failure`, `submit`, `start` or `shell`, `--place <dir>`, `--hold-tasks`, `--hold-wording` or `--compose-typed` | the agent's place, and the service for a typed line |
 | `model` (`models`) | `add`, `set`, `remove`, `use` or `run-use`, with an entry's file, bytes, hash, engine, registration and settings; `--entry` and `--placed` for an installer; `--json` | the store's model catalogue |
 | `coworker pool` | `reserve --role <role> [--tier <tier>] --count <n>` or `release` | the store's pool |

@@ -107,6 +107,7 @@ impl Route for AccountHeld {
         Some(user) => account.user_id == Some(user) && account.enabled,
         None => account.enabled,
       };
+      let (endpoint, key_file, models) = account.credential.endpoint_parts();
 
       items.push(json!({
         "id": account.id,
@@ -116,6 +117,11 @@ impl Route for AccountHeld {
         "home": account.records_dir(machine).to_string_lossy(),
         "window": Value::Null,
         "restUntil": Value::Null,
+        "credentialKind": account.credential.kind().word(),
+        "endpointUrl": endpoint,
+        "keyFile": key_file.map(|file| file.to_string_lossy()),
+        "models": models,
+        "basePrompt": account.base_prompt,
       }));
     }
 

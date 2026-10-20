@@ -28,7 +28,7 @@ use crate::control::agents::{Agent, configured};
 use crate::control::claude_account_changes::{
   self as changes, BasePromptGiven, CredentialGiven, account_named,
 };
-use crate::control::claude_accounts::{self, CredentialKind, Judging, accounts};
+use crate::control::claude_accounts::{self, CredentialKind, EndpointModels, Judging, accounts};
 use crate::control::harness::{OrderEntry, provider_order, set_provider_order};
 use crate::control::registry::{self, registrations};
 use crate::control::roads::{self, LAYA};
@@ -92,6 +92,18 @@ pub struct AgentsArgs {
   pub account_remove: Option<String>,
   #[arg(long)]
   pub kind: Option<String>,
+  /// An endpoint account's base URL.
+  #[arg(long, allow_hyphen_values = true)]
+  pub endpoint: Option<String>,
+  /// An endpoint account's key file.
+  #[arg(long, allow_hyphen_values = true)]
+  pub key_file: Option<String>,
+  /// An endpoint account's model ids by family word, as opus=<id>,sonnet=<id>,haiku=<id>.
+  #[arg(long, allow_hyphen_values = true)]
+  pub models: Option<String>,
+  /// The base prompt a run on the account opens with, or none.
+  #[arg(long, allow_hyphen_values = true)]
+  pub base_prompt: Option<String>,
   #[arg(long)]
   pub name: Option<String>,
   #[arg(long)]
@@ -649,10 +661,6 @@ async fn account_order(judging: Judging<'_>, args: &AgentsArgs) -> Result<Said, 
   Ok(said)
 }
 
-const ACCOUNT_ADD_USAGE: &str =
-  "usage: bmo-agency agent --account-add <name> --path <dir|file> [--kind directory|token]";
-const ACCOUNT_SET_USAGE: &str = "usage: bmo-agency agent --account-set <account> [--name <name>] [--path <dir|file>] [--kind directory|token]";
-
 // The line an account is printed in after a change: where its credential is reached, never the
 // credential.
 fn account_line(account: &claude_accounts::Account) -> String {
@@ -690,18 +698,35 @@ async fn account_change(db: &DatabaseConnection, args: &AgentsArgs) -> Result<Sa
       .find(|one| one.id == id)
       .ok_or_else(|| VerbError::Refused(no_account(id)))
   };
+  let models = match args.models.as_deref() {
+    None => None,
+    Some(words) => match EndpointModels::of_words(words) {
+      Some(models) => Some(models),
+      None => return Ok(said.misread(VERB_WORDS.agents.models_shape.clone())),
+    },
+  };
+  let base = match args.base_prompt.as_deref() {
+    None => BasePromptGiven::Keep,
+    Some("none") => BasePromptGiven::None,
+    Some(name) => BasePromptGiven::Named(name.to_owned()),
+  };
+  // A credential is given where any of its parts is. Each part not given keeps the one the account
+  // holds, and an account added starts from the kind it names or a directory.
+  let credential = || CredentialGiven {
+    kind,
+    path: args.path.clone(),
+    endpoint: args.endpoint.clone(),
+    key_file: args.key_file.clone(),
+    models: models.clone(),
+  };
+  let credential_given = !credential().is_empty();
 
   if let Some(name) = &args.account_add {
-    let Some(path) = &args.path else {
-      return Ok(said.misread(ACCOUNT_ADD_USAGE));
-    };
-    let given = CredentialGiven {
-      kind,
-      path: Some(path.clone()),
-      ..CredentialGiven::default()
-    };
+    if args.path.is_none() {
+      return Ok(said.misread(VERB_WORDS.agents.account_add.clone()));
+    }
 
-    if let Err(refused) = changes::add(db, name, &given, BasePromptGiven::Keep).await {
+    if let Err(refused) = changes::add(db, name, &credential(), base.clone()).await {
       return Ok(said.refused(refused.error));
     }
 
@@ -718,19 +743,15 @@ async fn account_change(db: &DatabaseConnection, args: &AgentsArgs) -> Result<Sa
       return Ok(said.refused(no_account(named)));
     };
 
-    if args.name.is_none() && args.path.is_none() {
-      return Ok(said.misread(ACCOUNT_SET_USAGE));
+    if args.name.is_none() && !credential_given && base == BasePromptGiven::Keep {
+      return Ok(said.misread(VERB_WORDS.agents.account_set.clone()));
     }
 
-    // A path with no --kind keeps the way the account already holds; the id never moves.
-    let given = args.path.as_ref().map(|path| CredentialGiven {
-      kind,
-      path: Some(path.clone()),
-      ..CredentialGiven::default()
-    });
+    // A credential given in part keeps the parts the account already holds; the id never moves.
+    let given = credential_given.then(credential);
 
     if let Err(refused) =
-      changes::update(db, &held.id, args.name.as_deref(), given.as_ref(), None, BasePromptGiven::Keep).await
+      changes::update(db, &held.id, args.name.as_deref(), given.as_ref(), None, base).await
     {
       return Ok(said.refused(refused.error));
     }

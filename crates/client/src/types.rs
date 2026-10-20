@@ -615,6 +615,18 @@ pub struct LaunchRoom {
   pub browser_job_count: i64,
 }
 
+/// An endpoint's model ids by the family word Claude Code picks a model by:
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct EndpointModels {
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub opus: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub sonnet: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub haiku: Option<String>,
+}
+
 /// Account:
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -627,6 +639,16 @@ pub struct Account {
   pub window: Value,
   /// epoch milliseconds
   pub rest_until: Option<i64>,
+  /// One of `directory`, `token` or `endpoint`.
+  pub credential_kind: Option<String>,
+  /// An endpoint account's base URL.
+  pub endpoint_url: Option<String>,
+  /// An endpoint account's key file. Its content is never reported.
+  pub key_file: Option<String>,
+  /// An endpoint account's model ids by family word.
+  pub models: Option<EndpointModels>,
+  /// The base prompt a worker's run on it opens with.
+  pub base_prompt: Option<String>,
 }
 
 /// Rest:
@@ -1506,6 +1528,14 @@ pub struct FallbackChange {
   pub name: Option<String>,
   pub kind: Option<String>,
   pub path: Option<String>,
+  /// An endpoint account's base URL.
+  pub endpoint: Option<String>,
+  /// An endpoint account's key file.
+  pub key_file: Option<String>,
+  /// An endpoint account's model ids by family word.
+  pub models: Option<EndpointModels>,
+  /// The base prompt the account names, `none` or null to let it go.
+  pub base_prompt: Option<String>,
   pub key: Option<String>,
   pub mode: Option<String>,
 }

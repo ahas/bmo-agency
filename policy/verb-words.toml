@@ -141,6 +141,11 @@ heal_on_off = "--downgrade-heal is on or off."
 no_account = "There is no account named {named}."
 # A --kind that is none of the credential kinds, each listed in {kinds}.
 credential_kind = "--kind is one of: {kinds}."
+# The usage a misread --account-add or --account-set is answered with, and a --models text that is not
+# family words paired with model ids.
+account_add = "usage: bmo-agency agent --account-add <name> --path <dir|file> [--kind directory|token|endpoint] [--endpoint <url>] [--key-file <path>] [--models opus=<id>,sonnet=<id>,haiku=<id>] [--base-prompt <name|none>]"
+account_set = "usage: bmo-agency agent --account-set <account> [--name <name>] [--path <dir|file>] [--kind directory|token|endpoint] [--endpoint <url>] [--key-file <path>] [--models opus=<id>,sonnet=<id>,haiku=<id>] [--base-prompt <name|none>]"
+models_shape = "--models is opus, sonnet or haiku each paired with the endpoint's model id, as --models opus=<id>,sonnet=<id>,haiku=<id>."
 # A worker {worker} the owner did not add, set to rest or woken.
 not_restable = "{worker} is not a worker that can rest or wake: only a worker the owner added rests, and neither the built-in worker nor a support worker does."
 no_worker = "There is no worker named {worker}."
