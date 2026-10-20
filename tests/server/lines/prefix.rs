@@ -33,7 +33,7 @@ fn a_memory_file_that_only_points_brings_in_what_it_points_at() {
 
   std::fs::create_dir_all(&cwd).unwrap();
   std::fs::write(cwd.join("CLAUDE.md"), "@AGENTS.md\n").unwrap();
-  std::fs::write(cwd.join("AGENTS.md"), "the rules\n@gone.md\n").unwrap();
+  std::fs::write(cwd.join("AGENTS.md"), "@gone.md\nthe rules\n").unwrap();
 
   let settings = home.path().join("settings.json");
 

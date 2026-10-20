@@ -118,7 +118,7 @@ fn place(node_token: bool) -> SetupPlace<'static> {
       token_command: format!("/h/deploy/bin/bmo node claude-token '{ACCOUNT}'"),
     }],
     to_node: &to_node,
-    destination: "tester@n1.lan".into(),
+    destination: "tester@n1.example".into(),
     herdr: None,
     rust: None,
     bun: None,
@@ -203,14 +203,14 @@ async fn a_check_copies_nothing_clones_nothing_and_says_what_the_setup_would_hav
 #[tokio::test]
 async fn a_node_whose_login_fails_names_that_alone() {
   let shell =
-    StandIn::new(&[("printf", 255, "", "ssh: connect to host n1.lan port 22: No route to host\n")]);
+    StandIn::new(&[("printf", 255, "", "ssh: connect to host n1.example port 22: No route to host\n")]);
 
   assert_eq!(
     set_up_workplace(&shell, &place(false), &hands(true)).await,
     SetupOutcome {
       home: None,
       root: None,
-      missing: vec!["login: ssh: connect to host n1.lan port 22: No route to host".into()],
+      missing: vec!["login: ssh: connect to host n1.example port 22: No route to host".into()],
       herdr_socket: None,
     }
   );

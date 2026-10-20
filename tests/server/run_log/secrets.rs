@@ -42,8 +42,8 @@ fn arguments_are_masked_as_the_json_they_are_in_their_own_order() {
 
 #[test]
 fn a_call_that_opens_a_credential_file_is_known_by_its_path() {
-  assert!(reads_secret_file(r#"{"file_path":"/home/x/.env"}"#));
+  assert!(reads_secret_file(r#"{"file_path":"/home/tester/.env"}"#));
   assert!(reads_secret_file("cat ~/data/env/bot.env"));
-  assert!(!reads_secret_file(r#"{"file_path":"/home/x/.env.example"}"#));
-  assert!(!reads_secret_file(r#"{"file_path":"/home/x/README.md"}"#));
+  assert!(!reads_secret_file(r#"{"file_path":"/home/tester/.env.example"}"#));
+  assert!(!reads_secret_file(r#"{"file_path":"/home/tester/README.md"}"#));
 }

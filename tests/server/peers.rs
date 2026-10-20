@@ -124,13 +124,13 @@ async fn answer(
       "nodeName": "near",
       "kind": "ssh",
       "role": "jobs",
-      "host": "near.lan",
+      "host": "near.example",
       "port": 2222,
       "user": "worker",
       "keyPath": "/keys/near",
       "shell": "posix",
       "sshOptions": ["-o", "BatchMode=yes"],
-      "sshArgs": ["-o", "BatchMode=yes", "worker@near.lan"]
+      "sshArgs": ["-o", "BatchMode=yes", "worker@near.example"]
     }),
     ("GET", "nodes/far/target") => json!({
       "nodeName": "far",
@@ -222,7 +222,7 @@ async fn the_node_service_is_asked_for_its_links_nodes_and_logins() {
 
   assert_eq!(
     peers.node.ssh_login("near").await.unwrap(),
-    Some(vec!["-o".to_owned(), "BatchMode=yes".to_owned(), "worker@near.lan".to_owned()])
+    Some(vec!["-o".to_owned(), "BatchMode=yes".to_owned(), "worker@near.example".to_owned()])
   );
   assert_eq!(peers.node.ssh_login("far").await.unwrap(), None);
   assert_eq!(
@@ -376,7 +376,7 @@ async fn the_node_service_s_reads_are_asked_and_a_node_with_no_reach_is_none() {
 
   let near = peers.node.ssh_reach("near").await.unwrap().unwrap();
 
-  assert_eq!(near.host, "near.lan");
+  assert_eq!(near.host, "near.example");
   assert_eq!(near.port, 2222);
   assert_eq!(near.user, "worker");
   assert_eq!(near.key_path.as_deref(), Some("/keys/near"));

@@ -1,0 +1,26 @@
+[
+  {
+    "id": "checks/repository",
+    "title": "Repository checks",
+    "what": "The tests that hold the repository to its rules: no personal data in a tracked file, no Hangul outside the prompts, no name, path or address of this machine, the layout, and no other service code. They live under tests/ and testbed.toml declares how they run.",
+    "files": [
+      "tests/personal_data.rs",
+      "tests/literals.rs",
+      "tests/layout.rs",
+      "tests/dependencies.rs",
+      "tests/packages/dependencies.test.ts",
+      "docs/PERSONAL-DATA.md",
+      "testbed.toml",
+      "Cargo.toml",
+      "rustfmt.toml"
+    ],
+    "symbols": [],
+    "aliases": [
+      "개인정보",
+      "personal data"
+    ],
+    "needs": [],
+    "base": "9639e948b58cc59f057346f247304f1f9b260b6d",
+    "changed": 1792531926413
+  }
+]

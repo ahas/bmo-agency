@@ -8,6 +8,7 @@ provider and tier is given.
 ## Documents
 
 - `docs/api.md`: the boundary contract, every route and event agency exposes or calls.
+- `docs/PERSONAL-DATA.md`: the personal data the repository keeps out, and the check that holds it.
 - The rest of `docs/`: sessions, places, launch lines, the co-worker pool, workers, accounts, the
   model registry and the links to other machines.
 

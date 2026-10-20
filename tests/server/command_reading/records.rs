@@ -2,7 +2,7 @@ use agency_server::command_reading::records::*;
 
 #[test]
 fn names_the_piece_of_the_command_it_was_read_in() {
-  let records = CliRecords::of(&[], "/home/h");
+  let records = CliRecords::of(&[], "/home/tester");
 
   assert_eq!(
     command_refusal("~/.local/bin/claude -p x", &records).as_deref(),

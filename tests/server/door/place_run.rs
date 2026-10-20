@@ -284,7 +284,7 @@ async fn the_reading_before_a_turn_is_found_however_far_back_and_the_one_after_a
     let path = path.clone();
     let mut after = reading(ended_at + 900, "s", 3);
 
-    after["login"] = serde_json::json!({ "configDir": "/home/a/.claude", "token": null });
+    after["login"] = serde_json::json!({ "configDir": "/home/tester/.claude", "token": null });
 
     tokio::spawn(async move {
       tokio::time::sleep(Duration::from_secs(2)).await;
@@ -305,7 +305,7 @@ async fn the_reading_before_a_turn_is_found_however_far_back_and_the_one_after_a
 
   assert_eq!(around.before.map(|before| before["cost"]["total_cost_usd"].clone()), Some(1.into()));
   assert_eq!(around.after.map(|after| after["cost"]["total_cost_usd"].clone()), Some(3.into()));
-  assert_eq!(around.login.map(|login| login.config_dir), Some("/home/a/.claude".to_owned()));
+  assert_eq!(around.login.map(|login| login.config_dir), Some("/home/tester/.claude".to_owned()));
 }
 
 #[test]

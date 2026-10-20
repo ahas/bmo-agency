@@ -130,7 +130,7 @@ fn the_dev_server_s_environment() {
   };
   let env = pairs(&[
     ("PATH", "/bin"),
-    ("HOME", "/home/a"),
+    ("HOME", "/home/tester"),
     ("BMO_BOT_TOKEN", "secret"),
     ("BMO_CONTROL_TOKEN", "secret"),
     ("BMO_RUN_NAME", "bmo-dev-trainer"),
@@ -140,7 +140,7 @@ fn the_dev_server_s_environment() {
     dev_environment(env, Path::new("/data/workbench/trainer"), None),
     pairs(&[
       ("PATH", "/bin"),
-      ("HOME", "/home/a"),
+      ("HOME", "/home/tester"),
       ("BMO_WORKBENCH_DIR", "/data/workbench/trainer"),
       ("BMO_DEV_USED_FILE", "/data/workbench/trainer/dev-server.used"),
     ])
