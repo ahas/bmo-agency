@@ -12,8 +12,8 @@
     "symbols": [],
     "aliases": [],
     "needs": [],
-    "base": "37e88183b0a361f4ad5fc734562f412a04513f76",
-    "changed": 1792521491406,
+    "base": "2a5dcd3d956836ab5daedc7022738ca83ccf9e48",
+    "changed": 1792530534737,
     "boundary": {
       "side": "calls",
       "repository": "bmo-brain",
@@ -57,8 +57,8 @@
     "symbols": [],
     "aliases": [],
     "needs": [],
-    "base": "37e88183b0a361f4ad5fc734562f412a04513f76",
-    "changed": 1792521491417,
+    "base": "2a5dcd3d956836ab5daedc7022738ca83ccf9e48",
+    "changed": 1792530534755,
     "boundary": {
       "side": "calls",
       "repository": "bmo-chat",
@@ -77,8 +77,8 @@
     "symbols": [],
     "aliases": [],
     "needs": [],
-    "base": "37e88183b0a361f4ad5fc734562f412a04513f76",
-    "changed": 1792521491427,
+    "base": "2a5dcd3d956836ab5daedc7022738ca83ccf9e48",
+    "changed": 1792530534775,
     "boundary": {
       "side": "calls",
       "repository": "bmo-node",
