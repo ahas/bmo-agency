@@ -3,6 +3,7 @@ import "@agency/test-support/setup";
 import { expect, test } from "bun:test";
 
 import { deepSeekEndpoint, deepSeekProvider } from "@agency/agent/deepseek";
+import { scratchArchive } from "@agency/test-support/store";
 
 // DeepSeek's road (docs/cache-fallback.md, 「The DeepSeek road」): its two models, its endpoint, and the
 // words a run's thinking and effort go out with.
@@ -44,6 +45,8 @@ test("an agent's thinking off is DeepSeek's own none, and a level the run takes 
 });
 
 test("a pin naming one of its models is taken and another is refused", async () => {
-  expect(await deepSeekProvider.namedModelFault?.("deepseek-v4-pro")).toBeNull();
-  expect(await deepSeekProvider.namedModelFault?.("someone-else")).toContain("Not a DeepSeek model");
+  const archive = await scratchArchive();
+
+  expect(await deepSeekProvider.namedModelFault?.("deepseek-v4-pro", archive)).toBeNull();
+  expect(await deepSeekProvider.namedModelFault?.("someone-else", archive)).toContain("Not a DeepSeek model");
 });
