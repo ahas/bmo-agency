@@ -80,6 +80,18 @@ enum Verb {
   /// Every noun this command carries, one a line, each marked `home` after a tab where its commands act on
   /// the operations machine. It reads nothing of the machine, so `bmo` finds it from any directory.
   Nouns,
+  /// Moves the old archive's exported rows into the store (docs/store.md, TODO #1923).
+  Import {
+    /// The export directory the item's export hand wrote.
+    #[arg(long, value_name = "dir")]
+    export: PathBuf,
+    /// The PostgreSQL database written.
+    #[arg(long, value_name = "url")]
+    database: String,
+    /// Reads, checks and counts everything, and writes nothing.
+    #[arg(long)]
+    dry_run: bool,
+  },
   /// The agents and their settings: listed with no flag, or the provider and account orders, the accounts,
   /// the registered models, a key's road and login, a job worker's rows and an agent's own thinking, effort
   /// and gates read and changed.
@@ -358,6 +370,43 @@ fn main() -> ExitCode {
     }
   };
 
+  // The import reads its own arguments and never the deployment's store address.
+  if let Verb::Import {
+    export,
+    database,
+    dry_run,
+  } = &cli.verb
+  {
+    return runtime.block_on(async {
+      match store::import::run(database, export, *dry_run).await {
+        Ok(report) => {
+          for moved in &report.tables {
+            println!(
+              "{} -> {}: {} exported, {} written",
+              moved.source, moved.target, moved.exported, moved.written
+            );
+          }
+          println!(
+            "{} at snapshot {} read {}: {} rows sampled, {} failures",
+            if report.dry_run { "dry run" } else { "import" },
+            report.snapshot,
+            report.read_at,
+            report.sample.checked,
+            report.sample.failures.len()
+          );
+          for failure in &report.sample.failures {
+            eprintln!("  {failure}");
+          }
+          if report.sample.failures.is_empty() { ExitCode::SUCCESS } else { ExitCode::FAILURE }
+        }
+        Err(why) => {
+          eprintln!("bmo-agency: {why}");
+          ExitCode::FAILURE
+        }
+      }
+    });
+  }
+
   runtime.block_on(async {
     let ended = run(cli.verb).await;
 
@@ -405,6 +454,7 @@ async fn run(verb: Verb) -> ExitCode {
 
   match verb {
     Verb::Nouns => unreachable!("the nouns are printed before the machine is read"),
+    Verb::Import { .. } => unreachable!("the import is answered before the machine is read"),
     Verb::Agent(args) => match agents::run(&data_root, args).await {
       Ok(said) => {
         if !said.out.is_empty() {

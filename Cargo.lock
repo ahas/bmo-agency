@@ -3425,6 +3425,8 @@ version = "0.1.0-rev.11"
 dependencies = [
  "sea-orm",
  "sea-orm-migration",
+ "serde_json",
+ "sha2",
  "sqlx",
  "tokio",
 ]

@@ -4,6 +4,7 @@
 //! given.
 
 pub mod connection;
+pub mod import;
 pub mod migration;
 pub mod registry;
 pub mod reset_point;
