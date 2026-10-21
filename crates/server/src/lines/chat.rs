@@ -23,6 +23,7 @@ use policy::run_lines::RUN_LINES;
 use super::claude::{Command, Runs, Session, command_env, handed, line_environment};
 use super::codex::{Shape, resident_command_of};
 use super::companion::{ComposedTurn, LOST_SESSION, Window, registration_named, walked_login};
+use super::deepseek::{self, OnEndpoint, endpoint_command};
 use super::openrouter::{LOCAL_URL, PROVIDER as OPENROUTER, loop_command};
 use super::place::{Holds, Place, write_place_settings};
 use super::runner::{handed_config, line_servers};
@@ -534,6 +535,8 @@ pub enum Door {
   Loop { tap: String },
   /// Claude Code on the gateway, its session placed where the registration places it.
   Gateway { placement: Option<String> },
+  /// Claude Code on DeepSeek's endpoint, at the model's own home.
+  Deepseek,
 }
 
 /// The chat's turn composed for one stand-in step: the agent's own program on the step's road, on the chat
@@ -667,6 +670,43 @@ pub async fn compose_stand_in(
         window: Some(Window {
           context_tokens: held.context_tokens,
           home: Registered::home(machine, &name),
+        }),
+        ..composed(command, opened.clone(), effort)
+      })
+    }
+    Door::Deepseek => {
+      let on = OnEndpoint {
+        agent: &run.agent,
+        model: &step.model,
+        effort: &step.effort,
+        thinking: step.thinking,
+        cwd: &run.cwd,
+        settings: serde_json::Map::new(),
+        compose_typed: RUN_LINES.composes_typed_lines(LINE),
+        shell_guard: true,
+      };
+      let (mut command, name) =
+        endpoint_command(ground, machine, on, step.answer_tokens, |name, effort, thinking, settings| {
+          let sent = ChatRun {
+            model: name.to_owned(),
+            effort: effort.to_owned(),
+            thinking,
+            ..run.clone()
+          };
+
+          resident_args(&sent, settings, &opened)
+        })
+        .await?;
+
+      command.env.extend(env.into_iter().filter(|(name, _)| name.starts_with("BMO_TURN_")));
+
+      let held = deepseek::model(&step.model)?;
+
+      Ok(ComposedTurn {
+        placement: None,
+        window: Some(Window {
+          context_tokens: held.context_tokens,
+          home: deepseek::home(machine, &name),
         }),
         ..composed(command, opened.clone(), effort)
       })

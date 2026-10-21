@@ -42,6 +42,7 @@ use crate::job_run::openrouter_tap;
 use crate::lines::Trees;
 use crate::lines::claude::{Command, Runs, command_env};
 use crate::lines::codex::{self, Shape};
+use crate::lines::deepseek::{self, OnEndpoint, endpoint_command};
 use crate::lines::dsh;
 use crate::lines::editor::{
   ALLOWED_TOOLS, DESK_VARIABLE, EditorRun, FILE_TOOLS, LINE, PROVIDER, editor_run, mcp_config,
@@ -496,6 +497,7 @@ async fn stand_in(
   let answered = match step.provider.as_str() {
     codex::PROVIDER => road.on_codex(log).await,
     openrouter::PROVIDER => road.on_openrouter(log).await,
+    deepseek::PROVIDER => road.on_deepseek(log).await,
     _ => road.on_registration(log).await,
   };
   let (said, state) = match &answered {
@@ -780,6 +782,90 @@ impl Road<'_> {
         .map(|row| ModelSpend {
           mode: registry::PROVIDER.to_owned(),
           cost: 0.0,
+          ..row
+        })
+        .collect(),
+      ..reply
+    })
+  }
+
+  // On a DeepSeek model, the editor line as Claude Code on the endpoint, run apart in a pane of its own.
+  async fn on_deepseek(&self, log: &mut RunLog) -> Result<Reply, String> {
+    let (ground, step) = (self.ground, self.step);
+    let cwd = self.cwd();
+    let mcp = self.mcp()?;
+    let session = new_session();
+    let placed = self.placed;
+    let on = OnEndpoint {
+      agent: self.key,
+      model: &step.model,
+      effort: &step.effort,
+      thinking: step.thinking,
+      cwd: &cwd,
+      settings: serde_json::Map::new(),
+      compose_typed: false,
+      shell_guard: false,
+    };
+    let (command, _) =
+      endpoint_command(ground, self.machine, on, step.answer_tokens, |name, effort, thinking, settings| {
+        let run = EditorRun {
+          key: self.key.to_owned(),
+          model: name.to_owned(),
+          effort: effort.to_owned(),
+          tier: String::new(),
+          mcp_config: mcp.clone(),
+          thinking,
+          cwd: placed.cwd.clone(),
+        };
+        let mut args = run.args(&session)?;
+
+        args.splice(1..1, ["--settings".to_owned(), settings.to_string_lossy().into_owned()]);
+
+        Ok(args)
+      })
+      .await
+      .map_err(|why| why.detail)?;
+    let mut env: BTreeMap<String, Option<String>> =
+      command.env.into_iter().map(|(name, value)| (name, Some(value))).collect();
+
+    for (name, value) in &placed.variables {
+      env.insert(name.clone(), Some(value.clone()));
+    }
+
+    let apart = Apart {
+      agent: self.key,
+      line: LINE,
+      provider: deepseek::PROVIDER,
+      title: format!("{} run", self.key),
+      command: Command {
+        args: command.args,
+        cwd,
+        env,
+      },
+      session,
+      prompt: self.prompt.to_owned(),
+      work_key: self.key.to_owned(),
+      model: step.model.clone(),
+      effort: step.effort.clone(),
+      tier: None,
+      bound: Some(placed.clocked.bound),
+      parent: placed.parent.clone(),
+      root: Some(placed.root()),
+    };
+    let reply = clocked_run(ground, placed, log, deepseek::PROVIDER, apart, None)
+      .await
+      .map_err(|failure| failure.message())?;
+
+    Ok(Reply {
+      mode: deepseek::PROVIDER.to_owned(),
+      model: Some(step.model.clone()),
+      effort: (!step.effort.is_empty()).then(|| step.effort.clone()),
+      spend: reply
+        .spend
+        .iter()
+        .cloned()
+        .map(|row| ModelSpend {
+          mode: deepseek::PROVIDER.to_owned(),
           ..row
         })
         .collect(),

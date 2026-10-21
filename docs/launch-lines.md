@@ -126,7 +126,8 @@
 - Claude Code is carried by Claude Code, Codex by Codex, OpenRouter by dsh, and the registry's by
   Claude Code pointed at agency's gateway, with a request that needs no tools asked of the gateway
   directly; the models it offers are the registrations, which the owner adds and changes with no
-  commit (`docs/own-llm.md`).
+  commit (`docs/own-llm.md`). DeepSeek's is carried by Claude Code pointed at DeepSeek's
+  Anthropic-compatible endpoint, the same program on a road of its own.
 - Which provider runs a piece of work is that work key's row in the route table (`docs/own-llm.md`),
   so a program is picked in exactly one place.
 - **What a route may promise is what the program really carries.** Each harness says what its
@@ -314,6 +315,12 @@
   under a home of the registration's own, and the gateway's key is read from its file by the
   settings' key helper. Each job is a turn of that program in the worker's pane on a session of its
   own (`docs/own-llm.md`, 「A worker on a registered model is composed as on Claude」).
+- **A job worker on a DeepSeek model**: the same worker line on Claude Code pointed at DeepSeek's
+  Anthropic-compatible endpoint, under a home of the model's own. What differs is the model's id in
+  every model slot, its window and answer ceiling, the request wait, and the effort word: the run's
+  own where it thinks, and the lowest the program takes where it does not, with thinking shut off
+  beside it. The endpoint account's key file is read by the settings' key helper, and no login of the
+  Claude road goes with it.
 - **A companion's turn** (agency's server's companion turn): a turn of the companion's resident program,
   which stands on the chat line above as the chat agent's does (`docs/agents.md`, 「Conversational agents」) —
   the same tools shown and allowed, the same configuration, the same mode and the same shell guard —

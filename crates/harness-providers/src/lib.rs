@@ -13,6 +13,7 @@ use serde_json::Value;
 
 pub mod claude_code;
 pub mod codex;
+pub mod deepseek;
 pub mod openrouter;
 pub mod registered;
 pub mod toolbook;
@@ -159,11 +160,19 @@ pub trait Provider: Sync {
     None
   }
 
-  /// Where a run, or a worker's pin, may name one of its models — the registry's registrations — the
-  /// sentence it says of a name the registry holds no address for, the name following it. Nothing
-  /// for a provider that takes no model of its own.
+  /// Where a run, or a worker's pin, may name one of its models — the registry's registrations, or a
+  /// model its own policy declares — the sentence it says of a name it holds no address for, the name
+  /// following it. Nothing for a provider that takes no model of its own.
   fn not_registered(&self) -> Option<&'static str> {
     None
+  }
+
+  /// Whether one of its models is held by that name, where its models are its own rather than the
+  /// registry's: a pin or a job naming one of them is taken.
+  fn holds_model(&self, model: &str) -> bool {
+    let _ = model;
+
+    false
   }
 
   /// Where its models differ in the efforts they take, the efforts this one takes; nothing where every
@@ -327,16 +336,17 @@ pub fn standing_provider(
 
 /// The providers the archive stores rows under, in the order its lists name them: the tier store's
 /// providers, the default provider order.
-pub const ARCHIVE_PROVIDERS: [&str; 4] = ["claude-code", "codex", "openrouter", "registered"];
+pub const ARCHIVE_PROVIDERS: [&str; 5] = ["claude-code", "codex", "openrouter", "registered", "deepseek"];
 
 /// The providers this build carries, in the order a screen offers them, Claude Code first as the
 /// program a line's own code spawns on.
-pub fn providers() -> [&'static dyn Provider; 4] {
+pub fn providers() -> [&'static dyn Provider; 5] {
   [
     &claude_code::ClaudeCode,
     &registered::Registered,
     &codex::Codex,
     &openrouter::OpenRouter,
+    &deepseek::DeepSeek,
   ]
 }
 

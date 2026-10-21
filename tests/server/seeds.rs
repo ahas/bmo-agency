@@ -50,7 +50,7 @@ async fn a_fresh_store_is_given_the_account_the_tiers_and_the_keys_once() {
     1
   );
   assert_eq!(scratch.count(r#"SELECT count(*) FROM "claude_accounts""#, vec![]).await, 1);
-  assert_eq!(scratch.count(r#"SELECT count(*) FROM "model_tier_mappings""#, vec![]).await, 18);
+  assert_eq!(scratch.count(r#"SELECT count(*) FROM "model_tier_mappings""#, vec![]).await, 24);
   assert_eq!(
     scratch
       .count(

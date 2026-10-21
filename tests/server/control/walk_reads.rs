@@ -57,7 +57,7 @@ async fn a_running_server_answers_the_walk_s_providers_tiers_routes_and_pins() {
     providers.as_array().unwrap().iter().map(|one| one["name"].as_str().unwrap()).collect();
 
   assert_eq!(status, 200, "{providers}");
-  assert_eq!(names, ["codex", "claude-code", "openrouter", "registered"]);
+  assert_eq!(names, ["codex", "claude-code", "openrouter", "registered", "deepseek"]);
   assert_eq!((&providers[0]["enabled"], &providers[1]["enabled"]), (&json!(false), &json!(true)));
   assert_eq!(
     (&providers[1]["registered"], &providers[1]["coworker"], &providers[3]["registered"]),

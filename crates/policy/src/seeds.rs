@@ -34,6 +34,27 @@ pub struct Key {
   pub tier: String,
 }
 
+/// A provider a store is given its mappings of on the first settling that declares it, each tier with
+/// the model and effort its work goes out on there.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Later {
+  pub provider: String,
+  pub mapping: Vec<LaterMapping>,
+}
+
+/// What one tier maps to on a provider declared after the first seed.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LaterMapping {
+  pub tier: String,
+  pub model: String,
+  #[serde(default)]
+  pub effort: Option<String>,
+  #[serde(default)]
+  pub answer_tokens: Option<i64>,
+}
+
 /// One model file of the catalogue, in the catalogue's own fields (docs/model-catalogue.md, 「An entry」).
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -70,6 +91,8 @@ pub struct Seeds {
   pub mapping: Vec<Mapping>,
   pub key: Vec<Key>,
   pub catalogue: Vec<CatalogueEntry>,
+  #[serde(default)]
+  pub later: Vec<Later>,
 }
 
 crate::part!(pub SEEDS: Seeds = "seeds.toml");

@@ -125,18 +125,18 @@ seeds. The other crates and the server reach the store only through it.
   Codex and OpenRouter, and the work keys beyond the profiles with the tier each starts on, both in
   `policy/seeds.toml`; every profile's work key at the tier `policy/work-keys.toml` gives it; and the
   catalogue entries `policy/seeds.toml` declares, of which the repository's own declares none, since a
-  model file is a deployment's; and the base prompts `policy/base-prompts.toml` declares, each with the
-  text of its seed file under the code tree's `prompts/base/`. No provider is declared after the first
-  seed: the registry's provider is given its mappings by the owner.
+  model file is a deployment's; the base prompts `policy/base-prompts.toml` declares, each with the
+  text of its seed file under the code tree's `prompts/base/`; and the tiers DeepSeek maps to, declared
+  after the first seed in the same file. The registry's provider is given its mappings by the owner.
 - **The settling** runs the migrations and then writes every seed in one transaction.
 - **The account:** a store holding no account is given the one the seed names, the login the machine
   already has; a list the owner has written to is left alone.
 - **The tiers:** the plan's mappings are written once, with the tier store's versions; every work key
   the plan declares is given the tier it starts on once, the first time the store is settled with it,
-  and recorded as given; every provider the plan declares after the first seed gains a mapping in every
-  tier once, carrying the effort and the answer ceiling of the provider it names where it names one.
-  A mapping or an assignment the owner removed stays removed, and one that stands is never touched. A
-  plan naming a tier its ladder does not hold is refused before anything is written.
+  and recorded as given; every provider the plan declares after the first seed gains the mappings it
+  names, and the co-worker pool's starting places at the tiers a co-worker is borrowed at, once. A
+  mapping, an assignment or a place the owner removed stays removed, and one that stands is never
+  touched. A plan naming a tier its ladder does not hold is refused before anything is written.
 - **The model catalogue:** its entries are written once, as its table is made (`docs/model-catalogue.md`,
   「Where it is kept」).
 - **The base prompts:** each is given once by its name and recorded as given, a prompt of its name

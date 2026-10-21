@@ -30,6 +30,7 @@ use store::{one, run as written};
 
 const CODEX: &str = "codex";
 const OPENROUTER_NAME: &str = "openrouter";
+const DEEPSEEK_NAME: &str = "deepseek";
 
 // The variable the owner's id stands in, which the fallback's events carry.
 const OWNER_VARIABLE: &str = "BMO_OWNER_ID";
@@ -116,6 +117,7 @@ pub async fn stand_in_turn(
     let outcome = match provider.as_str() {
       CODEX => codex_road(ground, &machine, &run, &step, log, answers, began, shown).await?,
       OPENROUTER_NAME => openrouter_road(ground, &machine, &run, &step, log, answers, began, shown).await?,
+      DEEPSEEK_NAME => deepseek_road(ground, &machine, &run, &step, log, answers, began, shown).await?,
       _ => registered_road(ground, &machine, &run, &step, log, answers, began, shown).await?,
     };
 
@@ -205,6 +207,15 @@ pub async fn turn_on(
 
       Ok(reply)
     }
+    DEEPSEEK_NAME => {
+      let outcome =
+        deliver(ground, &machine, &run, &step, &Door::Deepseek, log, answers, began, shown).await?;
+      let mut reply = outcome.map_err(NoAnswer::Failed)?;
+
+      reply.effort = (!step.effort.is_empty()).then(|| step.effort.clone());
+
+      Ok(reply)
+    }
     _ => {
       let Some(service) = registry::service_of(&ground.db, &step.model)
         .await
@@ -240,11 +251,18 @@ async fn step_on(
   reasoning: &crate::lines::worker::Reasoning,
 ) -> Result<Step, NoAnswer> {
   if provider != registry::PROVIDER {
+    let thinking = reasoning.thinking.unwrap_or(true);
+    let effort = if provider == DEEPSEEK_NAME && !thinking {
+      "none".to_owned()
+    } else {
+      reasoning.level.clone().unwrap_or_default()
+    };
+
     return Ok(Step {
       provider: provider.to_owned(),
       model: model.to_owned(),
-      effort: reasoning.level.clone().unwrap_or_default(),
-      thinking: reasoning.thinking.unwrap_or(true),
+      effort,
+      thinking,
       answer_tokens: None,
     });
   }
@@ -461,6 +479,26 @@ async fn registered_road(
   let Ok(mut reply) = outcome else { return Ok(outcome) };
 
   reply.effort = step.thinking.then(|| "thinking".to_owned());
+
+  Ok(Ok(reply))
+}
+
+// One turn on DeepSeek's road: Claude Code on the endpoint in the agent's pane, at the model's own home.
+#[allow(clippy::too_many_arguments)]
+async fn deepseek_road(
+  ground: &Ground,
+  machine: &Machine,
+  run: &ChatRun,
+  step: &Step,
+  log: &mut RunLog,
+  answers: &[i64],
+  began: i64,
+  shown: Option<OutputWatch<'_>>,
+) -> Result<Result<Reply, String>, NoAnswer> {
+  let outcome = deliver(ground, machine, run, step, &Door::Deepseek, log, answers, began, shown).await?;
+  let Ok(mut reply) = outcome else { return Ok(outcome) };
+
+  reply.effort = (!step.effort.is_empty()).then(|| step.effort.clone());
 
   Ok(Ok(reply))
 }

@@ -22,7 +22,13 @@ fn a_saved_order_reads_with_the_providers_it_lacks_appended_on() {
 
   assert_eq!(
     names(&read),
-    [("codex", false), ("claude-code", true), ("openrouter", true), ("registered", true)]
+    [
+      ("codex", false),
+      ("claude-code", true),
+      ("openrouter", true),
+      ("registered", true),
+      ("deepseek", true)
+    ]
   );
   assert_eq!(names(&stored_order(Some(r#"["registered","codex"]"#)))[0], ("registered", true));
 }
@@ -32,14 +38,14 @@ fn an_order_of_any_other_shape_reads_as_the_default() {
   let standing = stored_order(None);
   let default = names(&standing);
 
-  assert_eq!(default.len(), 4);
+  assert_eq!(default.len(), 5);
   for stored in [
     "not json",
     r#"{"name":"codex"}"#,
     r#"["codex","codex"]"#,
     r#"["codex",{"name":"registered","enabled":true}]"#,
     r#"["elsewhere"]"#,
-    r#"[{"name":"codex","enabled":false},{"name":"claude-code","enabled":false},{"name":"openrouter","enabled":false},{"name":"registered","enabled":false}]"#,
+    r#"[{"name":"codex","enabled":false},{"name":"claude-code","enabled":false},{"name":"openrouter","enabled":false},{"name":"registered","enabled":false},{"name":"deepseek","enabled":false}]"#,
   ] {
     assert_eq!(names(&stored_order(Some(stored))), default, "{stored}");
   }

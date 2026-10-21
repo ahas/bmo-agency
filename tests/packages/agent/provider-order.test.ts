@@ -6,16 +6,16 @@ import { Archive } from "@agency/archive/archive";
 import { defaultProviderOrder, isDefaultProviderOrder, isProviderOrder, providerOrder, readProviderOrder, setProviderOrder, setProviderEnabled, enabledProviders } from "@agency/agent/provider-order";
 import { scratchArchive, scratchDatabase } from "@agency/test-support/store";
 
-test("the default order is Claude Code, Codex, OpenRouter, the registry, and reading it writes nothing", async () => {
+test("the default order is Claude Code, Codex, OpenRouter, the registry and DeepSeek, and reading it writes nothing", async () => {
   const archive = await scratchArchive();
 
-  expect(await enabledProviders(archive)).toEqual(["claude-code", "codex", "openrouter", "registered"]);
-  expect(defaultProviderOrder).toEqual(["claude-code", "codex", "openrouter", "registered"]);
+  expect(await enabledProviders(archive)).toEqual(["claude-code", "codex", "openrouter", "registered", "deepseek"]);
+  expect(defaultProviderOrder).toEqual(["claude-code", "codex", "openrouter", "registered", "deepseek"]);
   expect(await archive.settings().getSetting("provider_order")).toBeNull();
 });
 
 test("an order is every provider exactly once", () => {
-  expect(isProviderOrder(["registered", "openrouter", "codex", "claude-code"])).toBe(true);
+  expect(isProviderOrder(["registered", "openrouter", "codex", "claude-code", "deepseek"])).toBe(true);
   expect(isProviderOrder(["claude-code", "codex", "openrouter"])).toBe(false);
   expect(isProviderOrder(["claude-code", "codex", "codex", "registered"])).toBe(false);
   expect(isProviderOrder(["claude-code", "codex", "openrouter", "gemini"])).toBe(false);
@@ -28,11 +28,11 @@ test("an order is every provider exactly once", () => {
 test("a changed order is kept, and setting the default back removes the row", async () => {
   const archive = await scratchArchive();
 
-  await setProviderOrder(archive, ["codex", "claude-code", "openrouter", "registered"]);
-  expect(await enabledProviders(archive)).toEqual(["codex", "claude-code", "openrouter", "registered"]);
+  await setProviderOrder(archive, ["codex", "claude-code", "openrouter", "registered", "deepseek"]);
+  expect(await enabledProviders(archive)).toEqual(["codex", "claude-code", "openrouter", "registered", "deepseek"]);
   expect(isDefaultProviderOrder(await providerOrder(archive))).toBe(false);
 
-  await setProviderOrder(archive, ["claude-code", "codex", "openrouter", "registered"]);
+  await setProviderOrder(archive, ["claude-code", "codex", "openrouter", "registered", "deepseek"]);
   expect(await archive.settings().getSetting("provider_order")).toBeNull();
   expect(isDefaultProviderOrder(await providerOrder(archive))).toBe(true);
 });
@@ -97,7 +97,7 @@ test("a stored order naming only some of the providers is kept, and the rest fol
   await setProviderOrder(archive, defaultProviderOrder);
   expect((await providerOrder(archive))[0]).toEqual({ name: "claude-code", enabled: false });
   expect(await archive.settings().getSetting("provider_order")).not.toBeNull();
-  for (const name of ["codex", "openrouter"] as const) await setProviderEnabled(archive, name, false);
+  for (const name of ["codex", "openrouter", "deepseek"] as const) await setProviderEnabled(archive, name, false);
   expect(() => setProviderEnabled(archive, "registered", false)).toThrow("Not every provider can be turned off");
   expect(await enabledProviders(archive)).toEqual(["registered"]);
   expect(() => setProviderOrder(archive, defaultProviderOrder.map(name => ({ name, enabled: false })))).toThrow();

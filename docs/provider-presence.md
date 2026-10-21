@@ -43,6 +43,9 @@ flowchart TD
   `env` directory: a file of its own, mode 0600, not empty.
   - Past that, each side asks agency's store for a registration with an address, and says the policy
     file's sentence for the store it lacks or the address none has.
+- **DeepSeek** can where the endpoint account's key file stands private under the data root's `env`
+  directory, as the registered models' does. The endpoint itself is not asked: the key's presence is
+  the machine's fact.
 - **A provider that cannot answer** says the English sentence and status its policy file gives,
   and the screen shows it beside the provider in its own language.
 
@@ -67,6 +70,9 @@ flowchart TD
   - Each model carries its id, whether the CLI serves it or has superseded it, and the efforts its
     entry names; the catalogue carries when it was fetched and when the CLI holds it stale.
 - **The registered models:** the registrations with an address, out of the archive.
+- **DeepSeek:** the two models its policy declares, `deepseek-flash` and `deepseek-v4-pro`, with the
+  name a screen shows each and its window. The listing is the deployment's, so it needs no key and no
+  request; each model names the efforts it takes, `none`, `low`, `medium`, `high` and `max`.
 
 ## The binary
 

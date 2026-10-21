@@ -381,6 +381,12 @@ async fn a_provider_s_switch_and_a_registered_model_s_name_are_changed_as_their_
 
   // The last provider on is not turned off, since nothing would answer.
   assert_eq!(
+    send(port, token, reqwest::Method::PATCH, "/providers/deepseek", json!({ "enabled": false }))
+      .await
+      .0,
+    200
+  );
+  assert_eq!(
     send(
       port,
       token,

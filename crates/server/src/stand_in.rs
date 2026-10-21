@@ -28,6 +28,7 @@ use store::{all, one};
 /// The provider the walk stands in for.
 pub const CLAUDE: &str = "claude-code";
 const CODEX: &str = "codex";
+const DEEPSEEK: &str = "deepseek";
 const OPENROUTER_NAME: &str = "openrouter";
 
 /// One provider whose models are the registry's, as the walk sees it.
@@ -124,8 +125,11 @@ async fn standing(ground: &Ground, machine: &Machine, key: &str) -> Option<Stand
   let codex = harness_providers::provider(CODEX);
   let mut services = Vec::new();
 
-  for provider in harness_providers::providers().into_iter().filter(|one| one.unregistered().is_some()) {
-    if line.as_deref().is_some_and(|line| !provider.declared().carries(line)) {
+  for provider in harness_providers::providers() {
+    // A road whose runs are a service of its own: the registry's, whose models are the archive's, and
+    // DeepSeek's, whose models its policy declares.
+    let service = provider.unregistered().is_some() || provider.name() == DEEPSEEK;
+    if !service || line.as_deref().is_some_and(|line| !provider.declared().carries(line)) {
       continue;
     }
 
@@ -135,10 +139,12 @@ async fn standing(ground: &Ground, machine: &Machine, key: &str) -> Option<Stand
       .ok()
       .flatten()
       .is_some();
+    let present =
+      chosen && provider.missing(machine).is_none() && (provider.unregistered().is_none() || addressed);
 
     services.push(Service {
       provider: provider.name().to_owned(),
-      present: chosen && provider.missing(machine).is_none() && addressed,
+      present,
       walked: match &line {
         None => true,
         Some(line) => walked(db, provider, key, line).await.ok()?,
@@ -259,10 +265,12 @@ pub async fn step_of(
       .unwrap_or_default();
 
   if provider != registry::PROVIDER {
+    let thinking = if provider == "deepseek" { effort != "none" } else { effort == "thinking" };
+
     return Ok(Step {
       provider: provider.to_owned(),
       model: mapping.model,
-      thinking: effort == "thinking",
+      thinking,
       effort,
       answer_tokens: None,
     });

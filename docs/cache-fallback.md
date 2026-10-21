@@ -661,6 +661,26 @@ When a demotion first catches — when a healthy session first drops — two thi
   (`docs/own-llm.md`). Whether thinking is on and the ceiling of answer tokens are saved on the registry's
   mapping of the key's tier.
 
+### The DeepSeek road
+
+- **A provider of its own.** DeepSeek's two models, `deepseek-flash` and `deepseek-v4-pro`, are served
+  by the `deepseek` provider rather than by the registry, and so take their own tier mappings, their own
+  place in the provider order and their own co-worker limits. The endpoint account's key file is the
+  road's key, and it is read by the program itself on every request.
+- **How a run goes out.** Claude Code is pointed at DeepSeek's Anthropic-compatible endpoint under a
+  home of the model's own, so a chat, a worker, a companion or an editor keeps its session and reports
+  what it spent as it does on any Claude Code road. A gate is not carried: a gate is the gate service's
+  own run, and a road on this provider is not offered one.
+- **Thinking and effort.** The provider's words are `none`, `low`, `medium`, `high` and `max`. A
+  mapping's word is the program's `--effort`, which DeepSeek reads as the request's effort; `none` is a
+  run without thinking, and so is an agent's own thinking switch turned off. An agent's level reaches
+  the run where it is one of the scale's levels, and the mapping's word stands otherwise.
+- **The split.** A fresh store maps the heavy tiers, BMO and Frontier, to the pro model and the rest to
+  the flash model, the Light and Simple tiers with the low effort. The mapping is the owner's to change
+  in the tier settings, and the co-worker limits are the pool's as on every provider that lends them.
+- **What the provider is not.** Its models are not registrations, and the gateway does not serve them;
+  nothing on this road is placed on a work node.
+
 ### The default substitute models
 
 - **Not a fixed launch line:** the console reads the installed CLI's model list and each model's
@@ -676,8 +696,8 @@ When a demotion first catches — when a healthy session first drops — two thi
 ### Keeping the mode across cache, session and usage
 
 - **The roads answer differently and do not pretend to be the same.** Every common answer carries the
-  mode that actually answered (`claude-code`, `codex`, `openrouter`, `registered`) with its model and
-  effort, and a measured usage row keeps mode and model as a pair, so models of the same name on
+  mode that actually answered (`claude-code`, `codex`, `openrouter`, `registered`, `deepseek`) with its
+  model and effort, and a measured usage row keeps mode and model as a pair, so models of the same name on
   different roads are not merged. Agency reads those figures off each road — Codex's JSON events,
   OpenRouter's stream usage read through a loopback tab opened only during the run, Claude's own answer —
   and hands them to the usage collector, which splits and shows them (`usage.md`). A run whose stream

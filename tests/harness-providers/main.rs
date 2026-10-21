@@ -2,6 +2,7 @@
 
 mod claude_code;
 mod codex;
+mod deepseek;
 mod openrouter;
 mod providers;
 mod registered;

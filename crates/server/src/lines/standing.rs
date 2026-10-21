@@ -280,7 +280,7 @@ pub fn status_root(ground: &Ground) -> PathBuf {
 
 /// The worker's line on a pinned provider: the job key's mapping there, or, for a pin naming one of the
 /// provider's own models, that model on its own defaults unless the key's tier maps to it.
-async fn pinned_run(
+pub(crate) async fn pinned_run(
   ground: &Ground,
   machine: &Machine,
   trees: &Trees,
@@ -568,12 +568,21 @@ pub(crate) fn keyed_settings(
   home: &Path,
   given: Option<&str>,
 ) -> Result<PathBuf, Refusal> {
+  keyed_settings_at(home, given, &Registered::key_file(machine))
+}
+
+/// The same, for a road whose key file is its own.
+pub(crate) fn keyed_settings_at(
+  home: &Path,
+  given: Option<&str>,
+  key_file: &Path,
+) -> Result<PathBuf, Refusal> {
   let mut base = given
     .and_then(|given| std::fs::read_to_string(given).ok())
     .and_then(|text| serde_json::from_str::<Map<String, Value>>(&text).ok())
     .unwrap_or_default();
   let given = given.unwrap_or_default();
-  let key = Registered::key_file(machine).to_string_lossy().replace('\'', r"'\''");
+  let key = key_file.to_string_lossy().replace('\'', r"'\''");
 
   base.insert("apiKeyHelper".to_owned(), Value::String(format!("cat '{key}'")));
   base.insert("skipDangerousModePermissionPrompt".to_owned(), Value::Bool(true));

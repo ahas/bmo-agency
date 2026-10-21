@@ -12,7 +12,10 @@ use policy::base_prompts::BASE_PROMPTS;
 use policy::seeds::SEEDS;
 use policy::tiers::TIERS;
 use policy::work_keys::WORK_KEYS;
-use store::seed::{AccountSeed, BasePromptSeed, CatalogueSeed, Seeds, TierMapping, TierPlan, WorkKey};
+use store::seed::{
+  AccountSeed, BasePromptSeed, CatalogueSeed, CoworkerTier, LaterSeed, Seeds, TierMapping, TierPlan,
+  WorkKey,
+};
 
 use crate::control::claude_accounts::Credential;
 use crate::places::machine_code_root;
@@ -53,7 +56,32 @@ pub fn deployment(machine: &Machine) -> Seeds {
         })
         .collect(),
       keys: profiles.chain(beyond).collect(),
-      later: vec![],
+      later: SEEDS
+        .later
+        .iter()
+        .map(|later| LaterSeed {
+          provider: later.provider.clone(),
+          mappings: later
+            .mapping
+            .iter()
+            .map(|mapping| TierMapping {
+              provider: later.provider.clone(),
+              tier: mapping.tier.clone(),
+              model: mapping.model.clone(),
+              effort: mapping.effort.clone(),
+              answer_tokens: mapping.answer_tokens,
+            })
+            .collect(),
+        })
+        .collect(),
+      coworker: TIERS
+        .coworker
+        .iter()
+        .map(|tier| CoworkerTier {
+          tier: tier.tier.clone(),
+          capacity: tier.capacity,
+        })
+        .collect(),
     },
     catalogue: SEEDS
       .catalogue

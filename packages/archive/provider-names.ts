@@ -4,7 +4,7 @@
 // `auto`, which is a policy over these and never a program — reads it rather than writing them out
 // again. The archive stores these names in its rows, so the list stands with the archive; each
 // provider's implementation is the agent base's (`harness.ts`).
-export const agentProviderNames = ["claude-code", "codex", "openrouter", "registered"] as const;
+export const agentProviderNames = ["claude-code", "codex", "openrouter", "registered", "deepseek"] as const;
 
 export type AgentProviderName = (typeof agentProviderNames)[number];
 

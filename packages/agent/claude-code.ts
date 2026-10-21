@@ -779,9 +779,10 @@ export interface ClaudeEndpoint {
   // What the road holds for the model one run names, read as the run is started. A model the road
   // does not hold is refused here, with a line naming it, before anything is launched. The tools of
   // the program whose calls wait long are handed in by a run started on it, for the road to name.
-  model(run: Pick<HarnessRun, "model" | "effort" | "placement" | "sampling">, longTools?: readonly string[]): Promise<EndpointModel>;
-  // The effort word a run is sent, thinking or not: the words the endpoint takes are its own.
-  effort(thinking: boolean): string;
+  model(run: Pick<HarnessRun, "model" | "effort" | "thinking" | "placement" | "sampling">, longTools?: readonly string[]): Promise<EndpointModel>;
+  // The effort word a run is sent, given whether it thinks and the word its tier mapping and agent chose:
+  // the words the endpoint takes are its own.
+  effort(run: { thinking: boolean; effort: string }): string;
   // Where a run handed over with no place of its own stands, on a road whose model is served in
   // several places, or null where it has one. Absent on a road that places nothing.
   place?(run: Pick<HarnessRun, "model">): Promise<string | null>;
@@ -854,7 +855,7 @@ async function endpointRun(endpoint: ClaudeEndpoint, run: HarnessRun): Promise<H
   return {
     ...run,
     model,
-    effort: endpoint.effort(held.thinking),
+    effort: endpoint.effort({ thinking: held.thinking, effort: run.effort }),
     thinking: held.thinking,
     account: null,
     env: {

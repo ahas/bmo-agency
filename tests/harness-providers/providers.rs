@@ -6,7 +6,7 @@ use harness_providers::*;
 fn every_provider_this_build_carries_is_one_the_archive_stores() {
   let names: Vec<&str> = providers().iter().map(|one| one.name()).collect();
 
-  assert_eq!(names, ["claude-code", "registered", "codex", "openrouter"]);
+  assert_eq!(names, ["claude-code", "registered", "codex", "openrouter", "deepseek"]);
 }
 
 #[test]

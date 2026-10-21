@@ -157,3 +157,39 @@ tier = "Frontier"
 [[key]]
 key = "browse"
 tier = "Frontier"
+
+# The first mappings of a provider declared after the store was first seeded: the models its tiers start
+# on. DeepSeek's heavy tiers start on the pro model, the rest on the flash model, and the gates' tiers
+# (Light and Simple) ask the flash model for the low effort.
+[[later]]
+provider = "deepseek"
+
+[[later.mapping]]
+tier = "BMO"
+model = "deepseek-v4-pro"
+effort = "high"
+
+[[later.mapping]]
+tier = "Frontier"
+model = "deepseek-v4-pro"
+effort = "high"
+
+[[later.mapping]]
+tier = "Reliable"
+model = "deepseek-flash"
+effort = "high"
+
+[[later.mapping]]
+tier = "Fine"
+model = "deepseek-flash"
+effort = "high"
+
+[[later.mapping]]
+tier = "Light"
+model = "deepseek-flash"
+effort = "low"
+
+[[later.mapping]]
+tier = "Simple"
+model = "deepseek-flash"
+effort = "low"

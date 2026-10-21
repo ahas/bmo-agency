@@ -5,6 +5,7 @@ use serde::Deserialize;
 
 pub mod claude_code;
 pub mod codex;
+pub mod deepseek;
 pub mod openrouter;
 pub mod registered;
 

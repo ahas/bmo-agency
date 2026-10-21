@@ -4,6 +4,7 @@
 #[path = "../support/scratch.rs"]
 mod scratch;
 
+mod deepseek;
 mod migration;
 mod read;
 mod registry;

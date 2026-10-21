@@ -151,6 +151,9 @@ async fn pinned_program(
 ) -> Result<Option<Standing>, Refusal> {
   match pin {
     "registered" => Ok(Some(registered_program(ground, machine, worker, cwd, model).await?)),
+    "deepseek" => Ok(Some(
+      crate::lines::deepseek::deepseek_program(ground, machine, worker, cwd, model).await?,
+    )),
     _ => {
       let script = provider(pin)
         .and_then(|provider| provider.declared().resident.as_ref())

@@ -2,7 +2,8 @@
 //! row the owner removed left removed.
 
 use store::seed::{
-  AccountSeed, BasePromptSeed, CatalogueSeed, LaterSeed, Seeds, TierMapping, TierPlan, WorkKey, settle,
+  AccountSeed, BasePromptSeed, CatalogueSeed, CoworkerTier, LaterSeed, Seeds, TierMapping, TierPlan,
+  WorkKey, settle,
 };
 
 use crate::scratch::Scratch;
@@ -47,6 +48,10 @@ fn seeds() -> Seeds {
       ],
       keys: vec![key("chat", "Top"), key("gate", "Low")],
       later: vec![],
+      coworker: vec![CoworkerTier {
+        tier: "Low".into(),
+        capacity: 12,
+      }],
     },
     catalogue: vec![CatalogueSeed {
       name: "entry".into(),
@@ -223,7 +228,7 @@ async fn a_key_declared_later_is_given_its_tier_once() {
 }
 
 #[tokio::test]
-async fn a_provider_declared_later_maps_every_tier_once_carrying_what_it_names() {
+async fn a_provider_declared_later_maps_the_tiers_it_names_once() {
   let scratch = Scratch::blank().await;
 
   settle(scratch.db(), &seeds()).await.unwrap();
@@ -231,9 +236,10 @@ async fn a_provider_declared_later_maps_every_tier_once_carrying_what_it_names()
   let mut later = seeds();
   later.tiers.later.push(LaterSeed {
     provider: "registry".into(),
-    model: "registered".into(),
-    effort: Some("no-thinking".into()),
-    carried_from: Some("engine".into()),
+    mappings: vec![
+      mapping("registry", "Top", "registered", Some("thinking"), Some(4096)),
+      mapping("registry", "Low", "registered", Some("no-thinking"), None),
+    ],
   });
   settle(scratch.db(), &later).await.unwrap();
 
@@ -244,6 +250,16 @@ async fn a_provider_declared_later_maps_every_tier_once_carrying_what_it_names()
   assert_eq!(
     mapped(&scratch, "registry", "Low").await,
     Some(("registered".into(), Some("no-thinking".into()), None))
+  );
+  // The co-worker pool's starting place at the tiers a co-worker is borrowed at.
+  assert_eq!(
+    scratch
+      .count(
+        r#"SELECT "capacity" FROM "coworker_pool_tier_limits" WHERE "provider" = 'registry' AND "tier" = 'Low'"#,
+        vec![]
+      )
+      .await,
+    12
   );
 
   scratch

@@ -99,7 +99,8 @@ pub async fn worker_pin(
     return Ok(None);
   }
 
-  let names_models = named(&provider).map_err(|refused| Unrouted(refused.error))?.unregistered().is_some();
+  let names_models =
+    named(&provider).map_err(|refused| Unrouted(refused.error))?.not_registered().is_some();
   let model = if names_models { row.try_get::<Option<String>>("", "model")? } else { None };
 
   Ok(Some((provider, model)))

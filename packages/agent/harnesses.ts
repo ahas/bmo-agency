@@ -3,6 +3,7 @@ import declaredRegistered from "@agency/policy/providers/registered.toml";
 import { installProviderSettings } from "./provider-order";
 import { claudeCodeProvider } from "./claude-code";
 import { codexProvider } from "./codex";
+import { deepSeekProvider } from "./deepseek";
 import { openRouterProvider } from "./dsh";
 import { registeredProvider } from "./registered-provider";
 
@@ -29,7 +30,7 @@ import type { RunLine } from "./run-lines";
 export const agencyRegisteredProvider = registeredProvider({ lines: declaredRegistered.lines as RunLine[] });
 
 export function agencyAgentProviders(): AgentProvider[] {
-  return [claudeCodeProvider, agencyRegisteredProvider, codexProvider, openRouterProvider];
+  return [claudeCodeProvider, agencyRegisteredProvider, codexProvider, openRouterProvider, deepSeekProvider];
 }
 
 composeAgentProviders(agencyAgentProviders);

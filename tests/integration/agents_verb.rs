@@ -484,7 +484,7 @@ async fn a_key_s_road_is_set_as_the_console_sets_it_and_a_model_of_its_own_is_re
     ended(&unread),
     (
       2,
-      "usage: bmo-agency agent --route <key> --provider <auto|claude-code|registered|codex|openrouter|laya>"
+      "usage: bmo-agency agent --route <key> --provider <auto|claude-code|registered|codex|openrouter|deepseek|laya>"
     )
   );
 
@@ -586,6 +586,12 @@ async fn a_registration_is_made_given_an_address_and_a_key_listed_without_it_and
 async fn a_worker_is_pinned_to_a_provider_and_let_go_and_a_pin_nothing_could_run_is_refused() {
   let bench = Bench::new().await;
   let pin = || bench.text(r#"SELECT "pinned_provider" FROM "agents" WHERE "name" = 'tryout'"#, vec![]);
+  let pinned = || {
+    bench.text(
+      r#"SELECT "pinned_provider" || '::' || COALESCE("pinned_model", '') FROM "agents" WHERE "name" = 'tryout'"#,
+      vec![],
+    )
+  };
 
   bench.worker("tryout").await;
 
@@ -593,10 +599,22 @@ async fn a_worker_is_pinned_to_a_provider_and_let_go_and_a_pin_nothing_could_run
   assert_eq!(pin().await.as_deref(), Some("codex"));
   assert_eq!(bench.hands.asked(), ["tell workers"]);
 
+  // A provider whose models its own policy declares takes a pin naming one of them, and refuses another.
+  assert_eq!(
+    ended(&bench.run(&["--set", "tryout", "--provider", "deepseek::deepseek-flash"]).await),
+    (0, "")
+  );
+  assert_eq!(pinned().await.as_deref(), Some("deepseek::deepseek-flash"));
+  assert_eq!(
+    ended(&bench.run(&["--set", "tryout", "--provider", "deepseek::not-a-model"]).await).0,
+    1
+  );
+  assert_eq!(pinned().await.as_deref(), Some("deepseek::deepseek-flash"));
+
   let refused = bench.run(&["--set", "tryout", "--provider", "elsewhere"]).await;
 
   assert_eq!(ended(&refused).0, 1);
-  assert_eq!(pin().await.as_deref(), Some("codex"));
+  assert_eq!(pin().await.as_deref(), Some("deepseek"));
   assert_eq!(ended(&bench.run(&["--set", "tryout", "--provider", "auto"]).await), (0, ""));
   assert_eq!(pin().await, None);
 }

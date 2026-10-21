@@ -108,15 +108,23 @@ describe("the commands are the commands they were", () => {
 });
 
 describe("the providers there are, and the programs that carry them", () => {
-  test("four providers, each on the program that carries it, offered in the order a screen lists them", () => {
+  test("five providers, each on the program that carries it, offered in the order a screen lists them", () => {
     expect(providerImplementations().map((one) => [one.name, one.label, one.adapter.name])).toEqual([
       ["claude-code", "Claude Code", "claude-code"],
       ["registered", "Registered models", "claude-code:registered"],
       ["codex", "Codex", "codex"],
       ["openrouter", "OpenRouter", "dsh"],
+      ["deepseek", "DeepSeek", "claude-code:deepseek"],
     ]);
-    // Claude Code carries the registry on the gateway, whose requests with no tools are its own.
-    expect(harnessImplementations()).toEqual([claudeCode, provider("registered").adapter, codex, dsh]);
+    // Claude Code carries the registry on the gateway and DeepSeek on its endpoint, each as a program
+    // of its own.
+    expect(harnessImplementations()).toEqual([
+      claudeCode,
+      provider("registered").adapter,
+      codex,
+      dsh,
+      provider("deepseek").adapter,
+    ]);
     expect(provider("codex")).toBe(providerImplementations()[2]!);
   });
 
@@ -146,9 +154,11 @@ describe("the providers there are, and the programs that carry them", () => {
       ["registered", true, false],
       ["codex", false, false],
       ["openrouter", false, false],
+      ["deepseek", false, false],
     ]);
     expect(provider("registered").efforts).toEqual([null, "thinking", "no-thinking"]);
     expect(provider("claude-code").efforts).toEqual([null, "low", "medium", "high", "xhigh", "max"]);
+    expect(provider("deepseek").efforts).toEqual([null, "none", "low", "medium", "high", "max"]);
 
     // What one Claude model takes comes from the CLI's own catalogue, so a catalogue of the test's
     // own stands while these are read. What a model's entry names is what it takes; a model whose

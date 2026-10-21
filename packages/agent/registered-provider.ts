@@ -121,7 +121,7 @@ export const registeredEndpoint: ClaudeEndpoint = {
   },
   // Thinking is `medium`, which Claude Code sends as adaptive thinking, and not thinking is `low` with
   // no thinking tokens; the gateway carries either to the address (docs/own-llm.md, 「The gateway」).
-  effort: (thinking) => (thinking ? "medium" : "low"),
+  effort: ({ thinking }) => (thinking ? "medium" : "low"),
   place: (run) => placeRegistered(run),
   get homes() {
     return homes();

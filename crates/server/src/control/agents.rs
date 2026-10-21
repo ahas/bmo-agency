@@ -422,7 +422,7 @@ async fn worker_pin(
     return Ok(None);
   }
 
-  let model = if named(&provider)?.unregistered().is_some() {
+  let model = if named(&provider)?.not_registered().is_some() {
     owner.try_get::<Option<String>>("", "pinned_model")?
   } else {
     None

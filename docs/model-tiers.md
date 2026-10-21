@@ -119,8 +119,8 @@ Branch prefix digests include effective effort. A co-work reservation for a task
   workers rather than by a count. Both keep their model mappings like every other tier.
 - **Only a provider that lends co-workers.** Each provider declares beside its harness whether
   co-workers are borrowed on it; no list of providers is kept for the pool.
-  - A provider offering several models — Claude Code, Codex, OpenRouter — lends them, each at its
-    own tier.
+  - A provider offering several models — Claude Code, Codex, OpenRouter, DeepSeek — lends them, each
+    at its own tier.
   - A provider that is a single model on its own engine lends none, since nothing on it is a
     co-worker apart from the run itself: the registry's provider, every registration of which is one
     such model (the deployment's own engine among them).
@@ -205,6 +205,7 @@ Branch prefix digests include effective effort. A co-work reservation for a task
   | Claude Code | those the model's catalogue entry names, every level where it names none | `MAX_THINKING_TOKENS=0` | the line's own |
   | Codex | `low` to `max`, as `model_reasoning_effort` | effort `low` | the line's own |
   | OpenRouter | `low` to `xhigh`, as the request's `reasoning.effort` | reasoning off | the line's own |
+  | DeepSeek | `low` to `max`, as the program's `--effort` and the request's effort | effort `none` | the line's own |
   | Registered models (the deployment's own engine among them) | none | effort `no-thinking` | effort `thinking` |
 - **A level the run's model does not take leaves the tier's effort** for that run, since an agent's
   level is one word across providers whose models differ. The console names, for the provider the

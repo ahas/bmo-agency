@@ -60,9 +60,16 @@ pub async fn pin_choice<C: ConnectionTrait>(
   let Some(not_registered) = provider.not_registered() else {
     return Ok(Err(fill_marks(&QUEUE_WORDS.pins.no_model, &[("label", label)])));
   };
-  let held = registry::registration(archive, model).await?;
 
-  if held.is_none_or(|held| held.addresses.is_empty()) {
+  // The registry's models are read from the store; a provider whose models its policy declares answers
+  // for itself.
+  if provider.unregistered().is_some() {
+    let held = registry::registration(archive, model).await?;
+
+    if held.is_none_or(|held| held.addresses.is_empty()) {
+      return Ok(Err(format!("{not_registered}: {model}")));
+    }
+  } else if !provider.holds_model(model) {
     return Ok(Err(format!("{not_registered}: {model}")));
   }
 

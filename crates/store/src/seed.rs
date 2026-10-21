@@ -55,6 +55,16 @@ pub struct TierPlan {
   /// Each provider declared after the first seed, written once the first time the store is settled
   /// with it.
   pub later: Vec<LaterSeed>,
+  /// The tiers a co-worker is borrowed at, with the places each starts with, which a provider declared
+  /// later is given once.
+  pub coworker: Vec<CoworkerTier>,
+}
+
+/// One tier a co-worker is borrowed at and where its pool starts.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CoworkerTier {
+  pub tier: String,
+  pub capacity: i64,
 }
 
 /// What a tier maps to on one provider.
@@ -74,15 +84,12 @@ pub struct WorkKey {
   pub tier: String,
 }
 
-/// A provider declared after the first seed: the model every tier maps to on it, and its effort, or the
-/// provider whose mapping of each tier it carries the effort and the answer ceiling from, with its own
-/// effort where that one maps the tier to none.
+/// A provider declared after the first seed: what each tier maps to on it, written once the first time
+/// the store is settled with the provider.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LaterSeed {
   pub provider: String,
-  pub model: String,
-  pub effort: Option<String>,
-  pub carried_from: Option<String>,
+  pub mappings: Vec<TierMapping>,
 }
 
 /// One model file of the catalogue (docs/model-catalogue.md); it names no node, since where a file lies
@@ -131,7 +138,7 @@ pub async fn settle(db: &DatabaseConnection, seeds: &Seeds) -> Result<(), Fault>
   }
   first_tiers(&writing, &seeds.tiers).await?;
   backfill_keys(&writing, &seeds.tiers).await?;
-  later_tiers(&writing, &seeds.tiers).await?;
+  later_tiers(&writing, &seeds.tiers, now).await?;
   for prompt in &seeds.base_prompts {
     base_prompt_seed(&writing, prompt, now).await?;
   }
@@ -147,6 +154,7 @@ fn check(plan: &TierPlan) -> Result<(), Fault> {
     .mappings
     .iter()
     .map(|mapping| &mapping.tier)
+    .chain(plan.later.iter().flat_map(|later| later.mappings.iter().map(|mapping| &mapping.tier)))
     .chain(plan.keys.iter().map(|key| &key.tier));
 
   for tier in named {
@@ -319,9 +327,10 @@ async fn backfill_keys<C: ConnectionTrait>(db: &C, plan: &TierPlan) -> Result<()
   Ok(())
 }
 
-// A provider declared after the first seed gains a mapping in every tier once, recorded as given, so a
-// mapping the owner removes stays removed and one already standing is never touched.
-async fn later_tiers<C: ConnectionTrait>(db: &C, plan: &TierPlan) -> Result<(), Fault> {
+// A provider declared after the first seed gains its tiers' mappings and its co-worker pool's starting
+// places once, recorded as given, so a mapping or a place the owner removes stays removed and one
+// already standing is never touched.
+async fn later_tiers<C: ConnectionTrait>(db: &C, plan: &TierPlan, now: i64) -> Result<(), Fault> {
   for later in &plan.later {
     let given = run(
       db,
@@ -334,36 +343,32 @@ async fn later_tiers<C: ConnectionTrait>(db: &C, plan: &TierPlan) -> Result<(), 
       continue;
     }
 
-    for tier in &plan.ladder {
-      let carried = match &later.carried_from {
-        Some(provider) => {
-          one(
-            db,
-            r#"SELECT "effort", "answer_tokens" FROM "model_tier_mappings" WHERE "provider" = $1 AND "tier" = $2"#,
-            vec![provider.clone().into(), tier.clone().into()],
-          )
-          .await?
-        }
-        None => None,
-      };
-      let (effort, answer_tokens) = match carried {
-        Some(row) => (
-          row.try_get::<Option<String>>("", "effort").map_err(Fault::from)?,
-          row.try_get::<Option<i64>>("", "answer_tokens").map_err(Fault::from)?,
-        ),
-        None => (None, None),
-      };
-
+    for mapping in &later.mappings {
       run(
         db,
         r#"INSERT INTO "model_tier_mappings" ("provider", "tier", "model", "effort", "answer_tokens")
            VALUES ($1, $2, $3, $4, $5) ON CONFLICT DO NOTHING"#,
         vec![
           later.provider.clone().into(),
-          tier.clone().into(),
-          later.model.clone().into(),
-          text(&effort.or_else(|| later.effort.clone())),
-          answer_tokens.into(),
+          mapping.tier.clone().into(),
+          mapping.model.clone().into(),
+          text(&mapping.effort),
+          mapping.answer_tokens.into(),
+        ],
+      )
+      .await?;
+    }
+
+    for tier in &plan.coworker {
+      run(
+        db,
+        r#"INSERT INTO "coworker_pool_tier_limits" ("provider", "tier", "capacity", "set_at")
+           VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING"#,
+        vec![
+          later.provider.clone().into(),
+          tier.tier.clone().into(),
+          tier.capacity.into(),
+          now.into(),
         ],
       )
       .await?;

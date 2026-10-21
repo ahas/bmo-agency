@@ -49,7 +49,7 @@ describe("a program's long tools", () => {
           home,
         };
       },
-      effort: (thinking) => (thinking ? "medium" : "low"),
+      effort: ({ thinking }) => (thinking ? "medium" : "low"),
       homes: home,
       offers: [],
     };
