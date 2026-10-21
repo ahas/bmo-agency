@@ -1,4 +1,4 @@
-//! The run ledger (docs/api.md, 「Run log and run records」): one row of `runs` a run of an agent's unit,
+//! The run ledger (docs/api.md, 「runs」): one row of `runs` a run of an agent's unit,
 //! opened as the job unit starts the unit and closed as it ends, its times in epoch seconds. A run keeps the
 //! first closing it was given. A run's runner is left in its agent's host under the run's unit, and a
 //! runner the host did not start closes its run as an error.

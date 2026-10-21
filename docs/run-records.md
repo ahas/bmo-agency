@@ -34,7 +34,7 @@ about a message is not agency's: the judgement records belong to the units that 
   words — a job's report, a failure reason, a gate's verdict — is kept whole, since those are the
   lines a person reads and they are a small share of what fills the table.
 - The console reads the log through agency's run-log route, by agent and from an id onward
-  (`docs/api.md`, 「Run log and run records」), so a finished run is scrolled back page by page.
+  (`docs/api.md`, 「log-lines」), so a finished run is scrolled back page by page.
 - **A job's lines are read by the job,** across every run its turns were logged under: its last line,
   and its top-level tool calls and their results with how many model requests it made and how often
   its context was compacted, which is what the job unit's figures and its watch on a running job are
