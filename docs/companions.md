@@ -187,7 +187,9 @@ are the companion unit's, not agency's. This document covers only what agency ho
     the run log lines of the rooms it answers alone, its runs in the run ledger and those of the rooms
     it answers alone, the records its harnesses keep of the sessions run in its home and the prompts
     their histories kept of them; the rooms' own records — their messages, judgements, usage and the
-    windows they hold open for it — are their owners';
+    windows they hold open for it — are their owners', and so are the records a turn wrote down under
+    its run; the event carries the run names, since a chat run's name says its room but not the agent
+    that ran it;
   - the person range is the brain's: agency asks the brain to let go of everything it holds under the
     companion's scope — its memories, notes, watches, reminders and fragments — so nothing it
     remembered comes back (`docs/api.md`, 「Calls agency makes」, the brain); agency takes the records

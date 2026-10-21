@@ -20,7 +20,8 @@ impl Event for CompanionCutOff {
 }
 
 /// A companion's reset with agency's part taken: the ranges taken, the rooms it answers alone and those it
-/// answered with others, who asked and when, in epoch seconds.
+/// answered with others, the runs its own log named before its lines went, who asked and when, in epoch
+/// seconds.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CompanionReset {
@@ -28,6 +29,9 @@ pub struct CompanionReset {
   pub ranges: Vec<String>,
   pub alone: Vec<i64>,
   pub shared: Vec<i64>,
+  /// The runs the companion's own log lines went under, so the rooms' owner can take the records written
+  /// under them: a chat run's name says its room but not the agent that ran it.
+  pub runs: Vec<String>,
   pub by: String,
   pub at: i64,
 }

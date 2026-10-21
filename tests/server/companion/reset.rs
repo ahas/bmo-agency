@@ -23,6 +23,7 @@ fn a_cut_off_and_a_reset_are_told_in_their_boundary_shapes() {
       ranges: vec!["conversation".into()],
       alone: vec![-7],
       shared: vec![12],
+      runs: vec!["chat:12:1790000000".into()],
       by: "console".into(),
       at: 1_790_000_000,
     })
@@ -32,6 +33,7 @@ fn a_cut_off_and_a_reset_are_told_in_their_boundary_shapes() {
       "ranges": ["conversation"],
       "alone": [-7],
       "shared": [12],
+      "runs": ["chat:12:1790000000"],
       "by": "console",
       "at": 1_790_000_000,
     })

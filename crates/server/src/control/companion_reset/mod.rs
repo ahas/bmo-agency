@@ -364,9 +364,15 @@ async fn carry_out(standing: &Standing, asked: &Asked, by: &str) -> Result<Value
   // taken, so nothing it takes is written again behind it.
   cut_off().await?;
 
-  // The room sessions the conversation range ends, read before their rows go.
+  // The room sessions the conversation range ends, and the runs its log lines went under, read before their
+  // rows go: the rooms' owner takes the records written under those runs by name.
   let ended = if asked.takes(Range::Conversation) {
     record::sessions(db, &asked.agent).await?
+  } else {
+    vec![]
+  };
+  let runs = if asked.takes(Range::Conversation) {
+    rows::runs_of(db, &asked.agent).await?
   } else {
     vec![]
   };
@@ -449,6 +455,7 @@ async fn carry_out(standing: &Standing, asked: &Asked, by: &str) -> Result<Value
     ranges: asked.ranges.iter().map(|range| range.name().to_owned()).collect(),
     alone: asked.alone.clone(),
     shared: asked.shared.clone(),
+    runs,
     by: by.to_owned(),
     at,
   });

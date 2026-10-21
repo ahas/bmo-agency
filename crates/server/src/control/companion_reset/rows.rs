@@ -4,7 +4,7 @@
 //! person range holds no row of agency's: what a companion remembers is the brain's.
 
 use sea_orm::{DatabaseConnection, TransactionTrait};
-use store::{one, run};
+use store::{all, one, run};
 
 use super::super::Refused;
 
@@ -122,6 +122,19 @@ pub fn picks(scope: &Scope, ranges: &[Range]) -> Vec<Pick> {
 
   all.retain(|one| ranges.contains(&one.range));
   all
+}
+
+/// The runs the companion's own log lines went under, read before those lines go: the rooms' owner keeps what
+/// each run wrote down under the run's name, and a chat run's name says its room but not the agent that ran it.
+pub async fn runs_of(db: &DatabaseConnection, agent: &str) -> Result<Vec<String>, Refused> {
+  let rows = all(
+    db,
+    r#"SELECT DISTINCT "run" FROM "agent_log" WHERE "agent" = $1 ORDER BY "run""#,
+    vec![agent.into()],
+  )
+  .await?;
+
+  rows.iter().map(|row| row.try_get::<String>("", "run").map_err(Refused::from)).collect()
 }
 
 /// How many rows each pick would take, nothing written.
