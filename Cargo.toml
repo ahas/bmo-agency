@@ -117,3 +117,13 @@ tempfile.workspace = true
 tokio = { workspace = true, features = ["test-util"] }
 tool-call = { path = "crates/tool-call" }
 toml.workspace = true
+
+# Build output kept small: line tables alone for a backtrace, split out, and no incremental cache.
+[profile.dev]
+debug = "line-tables-only"
+split-debuginfo = "unpacked"
+incremental = false
+
+[profile.release]
+debug = false
+strip = "debuginfo"
