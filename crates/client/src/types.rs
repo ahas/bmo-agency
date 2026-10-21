@@ -662,6 +662,13 @@ pub struct Rest {
   pub account_id: Option<String>,
 }
 
+/// StandIn: whether a stand-in answers the agent named now.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct StandIn {
+  pub answers: bool,
+}
+
 /// Usage:
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]

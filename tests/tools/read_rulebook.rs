@@ -13,11 +13,16 @@ use crate::binary;
 
 fn reader() -> Session {
   serde_json::from_value(json!({
-    "line": "search",
+    "holderName": "search",
+    "namespaces": ["web"],
     "capabilities": ["web.rulebooks"],
-    "dataRoot": "/nowhere",
-    "archive": "",
-    "research": { "closesAt": 1, "rulebooks": ["restaurant-search"] },
+    "grants": [],
+    "variables": { "BMO_DATA_DIR": "/nowhere" },
+    "labels": {
+      "line": "search",
+      "archive": "",
+      "research": { "closesAt": 1, "rulebooks": ["restaurant-search"] },
+    },
   }))
   .unwrap()
 }
@@ -86,11 +91,16 @@ fn asked(tree: &std::path::Path, request: &Value) -> (bool, Value) {
 fn the_executable_answers_a_call_out_of_the_tree_it_is_placed_in() {
   let tree = tree();
   let session = serde_json::to_value(json!({
-    "line": "search",
+    "holderName": "search",
+    "namespaces": ["web"],
     "capabilities": ["web.rulebooks"],
-    "dataRoot": "/nowhere",
-    "archive": "",
-    "research": { "rulebooks": ["restaurant-search"] },
+    "grants": [],
+    "variables": { "BMO_DATA_DIR": "/nowhere" },
+    "labels": {
+      "line": "search",
+      "archive": "",
+      "research": { "rulebooks": ["restaurant-search"] },
+    },
   }))
   .unwrap();
   let call = |entry: &str, arguments: Value| json!({ "protocol": 1, "kind": "call", "entry": entry, "arguments": arguments, "session": session, "callback": "/run/c.sock" });

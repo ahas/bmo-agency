@@ -883,6 +883,23 @@ export interface paths {
         patch: operations["changeRest"];
         trace?: never;
     };
+    "/stand-in": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Whether a stand-in answers the agent named while the rest closes Claude Code's road. */
+        get: operations["getStandIn"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/usage": {
         parameters: {
             query?: never;
@@ -2347,6 +2364,10 @@ export interface components {
             until: number | null;
             kind: string | null;
             account: string | null;
+        };
+        /** @description StandIn: whether a stand-in answers the agent named now. */
+        StandIn: {
+            answers: boolean;
         };
         /** @description Usage: */
         Usage: {
@@ -4725,6 +4746,29 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Rest"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    getStandIn: {
+        parameters: {
+            query: {
+                agent: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StandIn"];
                 };
             };
             401: components["responses"]["Unauthorized"];

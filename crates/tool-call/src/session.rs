@@ -1,12 +1,16 @@
 //! The parts of a request's session record agency's tools read, and the turn the request is made in, read
-//! afresh from it (docs/tools.md, 「A tool's folder」). The record is the launcher's; a field it holds that no
-//! tool of agency's reads is passed over.
+//! afresh from it (docs/tools.md, 「A tool's folder」). The record is the tool host's; the issuer's own
+//! values stand under `labels`, and the data root under `variables`, which every call's environment reads.
+//! A field it holds that no tool of agency's reads is passed over.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
 use serde::Deserialize;
 use serde_json::Value;
+
+/// The variable naming the data root the record's tools read.
+pub const DATA_ROOT_VARIABLE: &str = "BMO_DATA_DIR";
 
 /// The turn variable naming the agent the turn is.
 pub const AGENT_VARIABLE: &str = "BMO_TURN_AGENT";
@@ -28,35 +32,64 @@ pub struct Research {
   pub rulebooks: Vec<String>,
 }
 
-/// One session's record, its field names camel case as the launcher writes them.
+/// The issuer's own values, which the host hands on and never reads, as agency's tools read them.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct Session {
+pub struct Labels {
+  /// The line the run goes out on.
   #[serde(default)]
   pub line: String,
-  #[serde(default)]
-  pub capabilities: BTreeSet<String>,
-  /// The data root the run reads.
-  #[serde(default)]
-  pub data_root: PathBuf,
   /// The store's address.
   #[serde(default)]
   pub archive: String,
   /// A resident program's place, where each request reads which run is going.
   #[serde(default)]
   pub place: Option<PathBuf>,
-  /// The run's own variables, for a run spawned for itself.
-  #[serde(default)]
-  pub run_variables: BTreeMap<String, String>,
+  /// A research run's settings.
   #[serde(default)]
   pub research: Option<Research>,
 }
 
+/// One session's record, its field names camel case as the tool host writes them.
+#[derive(Clone, Debug, Default, PartialEq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Session {
+  /// Who holds the session.
+  #[serde(default)]
+  pub holder_name: String,
+  /// The namespaces the session may use.
+  #[serde(default)]
+  pub namespaces: BTreeSet<String>,
+  #[serde(default)]
+  pub capabilities: BTreeSet<String>,
+  /// The variables handed to every call's environment.
+  #[serde(default)]
+  pub variables: BTreeMap<String, String>,
+  /// The issuer's own values.
+  #[serde(default)]
+  pub labels: Labels,
+}
+
 impl Session {
+  /// The line the run goes out on.
+  pub fn line(&self) -> &str {
+    &self.labels.line
+  }
+
+  /// The data root the run reads, as its variables name it.
+  pub fn data_root(&self) -> PathBuf {
+    self.variables.get(DATA_ROOT_VARIABLE).map_or_else(PathBuf::new, PathBuf::from)
+  }
+
+  /// The store's address.
+  pub fn archive(&self) -> &str {
+    &self.labels.archive
+  }
+
   /// One variable of the turn the request is made in: the run the resident program's place names — none for a
   /// person's turn — standing over the run's own variables.
   pub fn turn_variable(&self, name: &str) -> Option<String> {
-    let from_place = self.place.as_ref().and_then(|place| {
+    let from_place = self.labels.place.as_ref().and_then(|place| {
       let run: Value = serde_json::from_str(&std::fs::read_to_string(place.join("run.json")).ok()?).ok()?;
 
       if run.get("person").and_then(Value::as_bool) == Some(true) {
@@ -66,12 +99,12 @@ impl Session {
       run.get("env")?.get(name)?.as_str().map(str::to_owned)
     });
 
-    from_place.or_else(|| self.run_variables.get(name).cloned())
+    from_place.or_else(|| self.variables.get(name).cloned())
   }
 
   /// The rulebooks a research run was handed; none for a session that is no research run's.
   pub fn rulebooks(&self) -> &[String] {
-    self.research.as_ref().map_or(&[], |research| &research.rulebooks)
+    self.labels.research.as_ref().map_or(&[], |research| &research.rulebooks)
   }
 }
 

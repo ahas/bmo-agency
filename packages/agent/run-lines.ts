@@ -18,6 +18,8 @@ interface DeclaredLine {
   keeps_session: boolean;
   composes_typed_lines?: boolean;
   capabilities?: string[];
+  namespaces?: string[];
+  shown?: string[];
 }
 
 const declaredLines = declaredRunLines as Record<RunLine, DeclaredLine>;
@@ -31,6 +33,8 @@ function declarationOf(line: RunLine): RunLineDeclaration {
     keepsSession: declared.keeps_session,
     ...(declared.composes_typed_lines === undefined ? {} : { composesTypedLines: declared.composes_typed_lines }),
     ...(declared.capabilities === undefined ? {} : { capabilities: declared.capabilities }),
+    ...(declared.namespaces === undefined ? {} : { namespaces: declared.namespaces }),
+    ...(declared.shown === undefined ? {} : { shown: declared.shown }),
   };
 }
 

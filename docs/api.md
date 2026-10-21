@@ -28,7 +28,7 @@ a field's exact shape matters, the OpenAPI document is the one to read.
 ## Versioning
 
 - The contract carries the repository's one version, in semver; the workspace manifest is its source. Before
-  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.8`.
+  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.9`.
 - A change to this document and a change to the boundary go in one commit. A change to a route, an event, a
   hook or a shared table's contract repairs this document in the same commit.
 - The major moves on a removed or renamed route, field or event, the minor on an addition, the patch on
@@ -292,7 +292,12 @@ them; a notice that holds nothing is withdrawn.
 | PATCH | `/accounts/{accountId}` | Record an account's usage and its rest. |
 | GET | `/rest` | Whether the deployment rests, until when, of what kind. |
 | PATCH | `/rest` | Set the rest, or clear a rest that has passed. |
+| GET | `/stand-in?agent=` | Whether a stand-in answers the agent named while Claude Code's road is closed. |
 | GET | `/usage` | Usage by model, agent, user or room over a span, with session contexts. |
+
+The stand-in is asked for an agent, and says whether a stand-in would answer that agent now, which a
+consumer gating a room's turn on the rest reads before it lets that turn wait for Claude Code
+(`docs/cache-fallback.md`).
 
 An account is reached one of three ways: a directory holding a login, a token file, or an endpoint — an
 Anthropic-compatible base URL with a key file and an optional map from the `opus`, `sonnet` and `haiku`

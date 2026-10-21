@@ -30,9 +30,12 @@ belongs to no one service is a repository of its own, not a folder here.
     on its error stream, which the tool host takes as a failed call.
 - **`crates/tool-call`** is agency's side of that protocol, which every tool here shares: the request,
   the parts of the session record agency's tools read, the answer, and the tree they read from.
-- **The session record** names the data root, the store's address, the agent's place where it is a
-  resident program, the run's own variables and a research run's settings. A tool reads only the parts
-  it needs and passes over the rest.
+- **The session record** is the tool host's: the holder's name, the session's namespaces,
+  capabilities, grants and shown entries, and the variables handed to every call's environment. The
+  data root stands in those variables as `BMO_DATA_DIR`. Agency's own values stand under the issuer's
+  `labels`: the line, the store's address, the agent's place where it is a resident program, and a
+  research run's settings under `research`. The turn's own variables stand in `variables`. A tool
+  reads only the parts it needs and passes over the rest.
 - **The turn a request is made in** is read afresh from the record: the run the agent's place names
   in its `run.json` — none for a person's turn — or else the run's own variables. Its variables are
   `BMO_TURN_AGENT`, the agent the turn is; `BMO_TURN_BEGAN`, when it took its words, in epoch

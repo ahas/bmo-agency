@@ -293,6 +293,12 @@ pub struct ListAccountsQuery {
 
 #[derive(Debug, Clone, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct GetStandInQuery {
+  pub agent: String,
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct GetUsageQuery {
   #[serde(skip_serializing_if = "Option::is_none")]
   pub group_by: Option<String>,
@@ -784,6 +790,11 @@ impl AgencyClient {
   /// `PATCH /rest`: Set the rest, or clear a rest that has passed.
   pub async fn change_rest(&self, body: &RestAsk) -> Answer<Rest> {
     Self::answered(self.request(Method::PATCH, &["rest"]).json(body)).await
+  }
+
+  /// `GET /stand-in`: Whether a stand-in answers the agent named while the rest closes Claude Code's road.
+  pub async fn get_stand_in(&self, query: &GetStandInQuery) -> Answer<StandIn> {
+    Self::answered(self.request(Method::GET, &["stand-in"]).query(query)).await
   }
 
   /// `GET /usage`: Usage by model, agent, user or room over a span, with session contexts.

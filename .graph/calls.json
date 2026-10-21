@@ -88,5 +88,26 @@
       "api": "api/http",
       "build": true
     }
+  },
+  {
+    "id": "calls/pocket",
+    "title": "bmo-pocket tool host API",
+    "what": "The tool host's published client as agency reaches it: the control socket's session record a launch issues, and the namespaces and tools a line reads for its facts and its listing.",
+    "files": [
+      "docs/api.md",
+      "Cargo.toml",
+      "crates/server/src/lines/token.rs"
+    ],
+    "symbols": [],
+    "aliases": [],
+    "needs": [],
+    "base": "5607a6505a88a2553f9792fefc3436db37c45fb9",
+    "changed": 1792549727216,
+    "boundary": {
+      "side": "calls",
+      "repository": "bmo-pocket",
+      "api": "api/http",
+      "build": true
+    }
   }
 ]

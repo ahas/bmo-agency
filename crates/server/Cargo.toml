@@ -15,6 +15,7 @@ bmo-brain-client.workspace = true
 bmo-cache-warmer-schedule.workspace = true
 bmo-chat.workspace = true
 bmo-node-client.workspace = true
+bmo-pocket-client.workspace = true
 brush-parser.workspace = true
 cache-siren = { path = "../cache-siren" }
 chrono = { workspace = true, features = ["clock"] }

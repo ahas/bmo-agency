@@ -1,29 +1,41 @@
 // The launcher's side of the tool host: a run's session record built out of its line and its command, a
-// token issued for it over the host's local socket before anything starts, and revoked when the run ends. A
-// host that does not answer refuses the launch, naming itself and its socket.
+// token issued for it over the host's control socket before anything starts, and revoked when the run
+// ends. A host that does not answer refuses the launch, naming itself and its socket.
+
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 import { storeAddress } from "@agency/archive/archive-place";
-import { lineCapabilities } from "./line-declarations";
+import { lineCapabilities, lineNamespaces, lineShown } from "./line-declarations";
 import { PLACE_VARIABLE, dataRoot, mcpHostPort, mcpHostSocket } from "@agency/support/roots";
 import { isTurnVariable } from "./agent-place";
 
 /** The variable a run's program reads its session token from, which its configuration names. */
 export const MCP_TOKEN_VARIABLE = "BMO_MCP_TOKEN";
 
+/** The variable a launcher may name the issuer token in, where a deployment keeps it elsewhere. */
+export const ISSUER_TOKEN_VARIABLE = "BMO_MCP_HOST_ISSUER_TOKEN";
+
 /** A session record, in the fields the tool host reads. */
 export interface ToolSessionRecord {
-  line: string;
-  // The role of the agent the run is issued for, where it holds one.
-  role?: string;
+  /** Who holds the session, a name a tool may read. */
+  holderName: string;
+  /** The namespaces the session may use. */
+  namespaces: string[];
+  /** What the session may be shown, by the names its manifests declare. */
   capabilities: string[];
-  checkout?: string;
-  dataRoot: string;
-  archive: string;
-  place?: string;
-  runVariables?: Record<string, string>;
-  fragmentDesk?: string;
-  research?: Record<string, unknown>;
-  deadline?: number;
+  /** The resources the session may act on. */
+  grants: { resource: string }[];
+  /** The full names of the entries its namespaces list by name. */
+  shown?: string[];
+  /** The variables handed to every call's environment. */
+  variables?: Record<string, string>;
+  /** A file of variables the host reads afresh at every call and lays over `variables`. */
+  variablesFile?: string;
+  /** The issuer's own metadata, which the host never reads. */
+  labels?: Record<string, unknown>;
+  /** How long the session stands, in milliseconds. */
+  ttlMs?: number;
 }
 
 /** A run a record is issued for: the directory it works in, its environment and the agent it runs for. */
@@ -39,7 +51,13 @@ export interface ToolRecordRun {
  */
 export type ToolRecordReader = (run: ToolRecordRun) => ToolRecordReading | Promise<ToolRecordReading>;
 
-export type ToolRecordReading = Pick<ToolSessionRecord, "research" | "role"> & {
+export type ToolRecordReading = {
+  // The role of the agent the run is issued for, where it holds one.
+  role?: string;
+  // The run's research settings.
+  research?: Record<string, unknown>;
+  // The issuer's own values the deployment adds.
+  labels?: Record<string, unknown>;
   // The capabilities the run's settings leave out, for a run holding less than it is given.
   withheld?: readonly string[];
   // The capabilities the run holds beside its line's: the bundles its agent's role gives.
@@ -109,34 +127,65 @@ function present(value: string | undefined): string | undefined {
 }
 
 /**
- * A run's record: its line, its agent's role and the capabilities its line declares with what that role
- * grants, less what its own settings withhold; the directory it works in, which is the checkout the graph
- * is read from; the data root and archive it reads; the place and the run's own variables its calls read
- * their turn from; its desk and its research settings; and how long it may stand.
+ * The issuer token a launcher asks the host with: the one the environment names, else the host's own under
+ * the data root, which it makes at its first start.
+ */
+export function issuerToken(): string | null {
+  const named = present(process.env[ISSUER_TOKEN_VARIABLE])?.trim();
+
+  if (named !== undefined && named !== "") return named;
+
+  try {
+    const kept = readFileSync(join(dataRoot(), "tool-host", "issuer-token"), "utf8").trim();
+
+    return kept === "" ? null : kept;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * A run's record: its line's namespaces, shown entries and capabilities, with what its agent's role grants
+ * less what the run's own settings withhold; the agent it runs for; the data root and the run's own
+ * variables every call reads; and its agent's own values under the issuer's labels. How long it stands is
+ * the deadline's distance from now.
  */
 export async function toolSessionRecord(line: string, command: ToolRecordRun, deadline?: number): Promise<ToolSessionRecord> {
   const env = command.env;
   const own = await reader(command);
   const withheld = new Set(own.withheld ?? []);
   const capabilities = [...new Set([...lineCapabilities(line), ...(own.granted ?? [])])].filter((one) => !withheld.has(one));
-  const runVariables = Object.fromEntries(
+  const variables: Record<string, string> = Object.fromEntries(
     Object.entries(env).filter((entry): entry is [string, string] => isTurnVariable(entry[0]) && entry[1] !== undefined),
   );
+  const root = present(env.BMO_DATA_DIR) ?? dataRoot();
   const place = present(env[PLACE_VARIABLE]);
   const desk = present(env.BMO_FRAGMENT_DESK);
+  const labels: Record<string, unknown> = {
+    line,
+    checkout: command.cwd,
+    archive: storeAddress(env, root) ?? "",
+  };
+
+  if (own.labels !== undefined) Object.assign(labels, own.labels);
+  if (own.role !== undefined) labels.role = own.role;
+  if (place !== undefined) labels.place = place;
+  if (desk !== undefined) labels.fragmentDesk = desk;
+  if (own.research !== undefined) labels.research = own.research;
+
+  variables.BMO_DATA_DIR = root;
+
+  const shown = lineShown(line);
 
   return {
-    line,
-    ...(own.role === undefined ? {} : { role: own.role }),
+    holderName: command.agent ?? line,
+    namespaces: [...lineNamespaces(line)],
     capabilities,
-    checkout: command.cwd,
-    dataRoot: present(env.BMO_DATA_DIR) ?? dataRoot(),
-    archive: storeAddress(env, present(env.BMO_DATA_DIR) ?? dataRoot()) ?? "",
-    ...(place === undefined ? {} : { place }),
-    ...(Object.keys(runVariables).length === 0 ? {} : { runVariables }),
-    ...(desk === undefined ? {} : { fragmentDesk: desk }),
-    ...(own.research === undefined ? {} : { research: own.research }),
-    ...(deadline === undefined ? {} : { deadline }),
+    grants: [],
+    ...(shown.length === 0 ? {} : { shown: [...shown] }),
+    variables,
+    labels,
+    ...(deadline === undefined ? {} : { ttlMs: Math.max(0, deadline - Date.now()) }),
   };
 }
 
@@ -148,23 +197,26 @@ const retryEveryMs = 200;
 export async function issueToolToken(record: ToolSessionRecord, options: { socket?: string; waitMs?: number } = {}): Promise<string> {
   const socket = options.socket ?? mcpHostSocket();
   const deadline = Date.now() + (options.waitMs ?? issueWaitMs);
+  const issuer = issuerToken();
+
+  if (issuer === null) throw new ToolHostDown(socket, "the issuer token is not there");
 
   for (;;) {
     let why: string;
 
     try {
-      const answer = await fetch("http://localhost/sessions", {
+      const answer = await fetch("http://localhost/tool-sessions", {
         unix: socket,
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", Authorization: `Bearer ${issuer}` },
         body: JSON.stringify(record),
       });
-      const said = (await answer.json().catch(async () => null)) as { token?: unknown; detail?: unknown } | null;
+      const said = (await answer.json().catch(async () => null)) as { token?: unknown; error?: unknown } | null;
 
       if (answer.ok && typeof said?.token === "string") return said.token;
 
       // A host that answered and refused the record is no host restarting: it is said at once.
-      throw new ToolHostDown(socket, `${answer.status} ${typeof said?.detail === "string" ? said.detail : ""}`.trim());
+      throw new ToolHostDown(socket, `${answer.status} ${typeof said?.error === "string" ? said.error : ""}`.trim());
     } catch (error) {
       if (error instanceof ToolHostDown) throw error;
       why = error instanceof Error ? error.message : String(error);
@@ -181,11 +233,19 @@ export async function issueToolToken(record: ToolSessionRecord, options: { socke
  * does not answer or the namespace says nothing.
  */
 export async function namespaceFacts(namespace: string, options: { socket?: string } = {}): Promise<Record<string, unknown> | null> {
-  try {
-    const answer = await fetch(`http://localhost/facts/${encodeURIComponent(namespace)}`, { unix: options.socket ?? mcpHostSocket() });
-    const said: unknown = answer.ok ? await answer.json() : null;
+  const issuer = issuerToken();
 
-    return typeof said === "object" && said !== null && !Array.isArray(said) ? (said as Record<string, unknown>) : null;
+  if (issuer === null) return null;
+
+  try {
+    const answer = await fetch(`http://localhost/namespaces/${encodeURIComponent(namespace)}`, {
+      unix: options.socket ?? mcpHostSocket(),
+      headers: { Authorization: `Bearer ${issuer}` },
+    });
+    const said: unknown = answer.ok ? await answer.json() : null;
+    const facts = (said as { facts?: unknown } | null)?.facts;
+
+    return typeof facts === "object" && facts !== null && !Array.isArray(facts) ? (facts as Record<string, unknown>) : null;
   } catch {
     return null;
   }
@@ -193,8 +253,16 @@ export async function namespaceFacts(namespace: string, options: { socket?: stri
 
 /** A token taken back; a host that does not answer has lost it already, so this never throws. */
 export async function revokeToolToken(token: string, options: { socket?: string } = {}): Promise<void> {
+  const issuer = issuerToken();
+
+  if (issuer === null) return;
+
   try {
-    await fetch(`http://localhost/sessions/${encodeURIComponent(token)}`, { unix: options.socket ?? mcpHostSocket(), method: "DELETE" });
+    await fetch(`http://localhost/tool-sessions/${encodeURIComponent(token)}`, {
+      unix: options.socket ?? mcpHostSocket(),
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${issuer}` },
+    });
   } catch {
     // The record lapses with its deadline, or stands until the host is next told.
   }
@@ -224,11 +292,10 @@ export function toolAnswerText(answer: ToolAnswer): string {
 }
 
 /**
- * A tool's entry called for the system on the host's control socket, under the record `bmo tool call`
- * writes: a shell's line holding the entry's own capabilities, privileged, over this process's data root
- * and archive. An entry the host does not serve, or a host that does not answer, throws; a refusal or a
- * failure of the entry is its answer, marked as an error. A call aborted before it answers hangs up on the
- * host, which ends every process the call started.
+ * A tool's entry called for the system on the host's control socket, under a session of its own: the
+ * entry's capabilities, a shell's line, over this process's data root. An entry the host does not serve,
+ * or a host that does not answer, throws; a refusal or a failure of the entry is its answer, marked as an
+ * error. A call aborted before it answers hangs up on the host, which ends every process the call started.
  */
 export async function callToolEntry(
   tool: string,
@@ -236,12 +303,20 @@ export async function callToolEntry(
   options: { socket?: string; signal?: AbortSignal } = {},
 ): Promise<ToolAnswer> {
   const socket = options.socket ?? mcpHostSocket();
-  const asked = async (path: string, body?: unknown): Promise<Response> => {
+  const issuer = issuerToken();
+
+  if (issuer === null) throw new Error(`the tool host at ${socket} has no issuer token`);
+  const asked = async (path: string, token: string, body?: unknown, method?: string): Promise<Response> => {
     try {
       return await fetch(`http://localhost${path}`, {
         unix: socket,
         signal: options.signal,
-        ...(body === undefined ? {} : { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }),
+        method: method ?? (body === undefined ? "GET" : "POST"),
+        headers: {
+          Authorization: `Bearer ${token}`,
+          ...(body === undefined ? {} : { "content-type": "application/json" }),
+        },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       });
     } catch (error) {
       if (options.signal?.aborted === true) throw error;
@@ -249,18 +324,36 @@ export async function callToolEntry(
       throw new Error(`the tool host at ${socket} did not answer: ${error instanceof Error ? error.message : String(error)}`);
     }
   };
-  const entry = await asked(`/catalogue/${tool}`);
+  const split = tool.indexOf("/");
+  const namespace = split === -1 ? "" : tool.slice(0, split);
+  const name = split === -1 ? tool : tool.slice(split + 1);
+  const entry = await asked(`/namespaces/${encodeURIComponent(namespace)}/tools/${encodeURIComponent(name)}`, issuer);
 
   if (!entry.ok) throw new Error(`the tool host serves no ${tool}`);
 
-  const { capabilities } = (await entry.json()) as { capabilities?: string[] };
-  const session: ToolSessionRecord = {
-    line: "shell",
+  const { capabilities, grant } = (await entry.json()) as { capabilities?: string[]; grant?: string | null };
+  const issued = await asked("/tool-sessions", issuer, {
+    holderName: "shell",
+    namespaces: [namespace],
     capabilities: capabilities ?? [],
-    dataRoot: dataRoot(),
-    archive: storeAddress() ?? "",
-    runVariables: { BMO_TURN_PRIVILEGED: "1" },
-  };
+    grants: grant === null || grant === undefined ? [] : [{ resource: grant }],
+    variables: { BMO_DATA_DIR: dataRoot(), BMO_TURN_PRIVILEGED: "1" },
+    labels: { line: "shell" },
+  });
 
-  return (await (await asked("/calls", { session, tool, arguments: args })).json()) as ToolAnswer;
+  if (!issued.ok) throw new Error(`the tool host refused the session for ${tool}`);
+
+  const { token } = (await issued.json()) as { token: string };
+
+  try {
+    const answer = await asked("/tool-calls", token, { namespace, name, input: args });
+
+    if (!answer.ok) throw new Error(`the tool host refused the call of ${tool}`);
+
+    const said = (await answer.json()) as { result?: ToolAnswer };
+
+    return said.result ?? {};
+  } finally {
+    await asked(`/tool-sessions/${encodeURIComponent(token)}`, issuer, undefined, "DELETE").catch(() => undefined);
+  }
 }

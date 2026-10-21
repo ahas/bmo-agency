@@ -11,6 +11,8 @@
 # capabilities: what every run of the line may reach of the tool host, whoever it runs for;
 #   absent on a line whose runs hold only what their
 #   agent's role gives (docs/agent-roles.md), or that is handed no tools.
+# namespaces: the tool host namespaces a run of the line is issued; absent on a line that is handed no
+#   tools.
 # shown: the placed tool entries, by full name, every run of the line is shown by name in their namespace
 #   whatever its agent's role, where it holds them; every other entry it holds stands in its toolbook.
 
@@ -19,6 +21,7 @@ needs = []
 keeps_session = true
 composes_typed_lines = true
 capabilities = ["room.tools"]
+namespaces = ["bmo"]
 shown = [
   "bmo/memory_add", "bmo/memory_candidate", "bmo/memory_done", "bmo/memory_list", "bmo/memory_retire",
   "bmo/memory_revive", "bmo/memory_update", "bmo/running", "bmo/say", "bmo/task", "bmo/todo_add",
@@ -36,6 +39,7 @@ keeps_session = false
 [worker]
 needs = []
 keeps_session = true
+namespaces = ["web", "worker"]
 shown = [
   "web/web_fetch", "web/web_search", "worker/graph_get", "worker/graph_impact", "worker/graph_search",
   "worker/todo_show",
@@ -49,16 +53,19 @@ tools_denied = [
 [search]
 needs = ["tool-gate", "mcp-only-tools"]
 keeps_session = false
+namespaces = ["web"]
 shown = ["web/danawa_search", "web/exchange_rate", "web/github_issue", "web/huggingface_model", "web/iwedding_product", "web/naver_blog", "web/read_rulebook", "web/reddit", "web/research_branch", "web/view_image", "web/web_fetch", "web/web_search"]
 
 [browse]
 needs = ["tool-gate", "mcp-only-tools"]
 keeps_session = false
+namespaces = ["web"]
 shown = ["web/danawa_search", "web/exchange_rate", "web/github_issue", "web/huggingface_model", "web/iwedding_product", "web/naver_blog", "web/read_rulebook", "web/reddit", "web/research_branch", "web/view_image", "web/web_fetch", "web/web_search"]
 
 [editor]
 needs = []
 keeps_session = false
 capabilities = ["fragments.desk"]
+namespaces = ["fragments"]
 shown = ["fragments/fragment_owed", "fragments/fragment_search", "fragments/fragment_write"]
 

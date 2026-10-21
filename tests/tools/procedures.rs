@@ -5,7 +5,7 @@
 
 use std::collections::BTreeMap;
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::{Command, Stdio};
 
 use axum::Json;
@@ -50,10 +50,14 @@ fn session(archive: &str, chat: Option<i64>, agent: Option<(&str, i64)>) -> Sess
     variables.insert("BMO_TURN_BEGAN".to_owned(), began.to_string());
   }
 
+  variables.insert("BMO_DATA_DIR".to_owned(), "/nowhere".to_owned());
+
   Session {
-    data_root: PathBuf::from("/nowhere"),
-    archive: archive.to_owned(),
-    run_variables: variables,
+    variables,
+    labels: tool_call::Labels {
+      archive: archive.to_owned(),
+      ..tool_call::Labels::default()
+    },
     ..Session::default()
   }
 }
@@ -227,7 +231,7 @@ async fn a_rooms_read_is_held_to_the_verbs_the_server_answers_for_its_road() {
   };
   let mut room = session("", Some(-5), None);
 
-  room.run_variables.insert("BMO_TURN_VIA".into(), "console".into());
+  room.variables.insert("BMO_TURN_VIA".into(), "console".into());
 
   assert_eq!(
     read_in(tree.path(), &room, &server, "bmo://procedure/sending").await.unwrap()["contents"][0]["text"],
@@ -320,11 +324,12 @@ async fn the_executable_reads_a_procedure_in_a_room_through_agencys_server_and_t
     "kind": "resources_read",
     "uri": "bmo://procedure/sending",
     "session": {
-      "line": "chat",
+      "holderName": "chat",
+      "namespaces": ["bmo"],
       "capabilities": ["room.tools"],
-      "dataRoot": data,
-      "archive": scratch.address(),
-      "runVariables": { "BMO_TURN_CHAT": "-5", "BMO_TURN_VIA": "console" },
+      "grants": [],
+      "variables": { "BMO_DATA_DIR": data, "BMO_TURN_CHAT": "-5", "BMO_TURN_VIA": "console" },
+      "labels": { "line": "chat", "archive": scratch.address() },
     },
     "callback": "/run/c.sock",
   });
@@ -373,7 +378,11 @@ async fn the_executable_reads_a_procedure_in_a_room_through_agencys_server_and_t
     "# Sending\n\nEvery room reads this.\n\n## Stickers\n\n- send one\n\n## Lines\n\n- a line\n- plain"
   );
 
-  let listing = json!({ "protocol": 1, "kind": "resources_list", "session": { "dataRoot": data, "archive": scratch.address() } });
+  let listing = json!({
+    "protocol": 1,
+    "kind": "resources_list",
+    "session": { "variables": { "BMO_DATA_DIR": data }, "labels": { "archive": scratch.address() } },
+  });
 
   assert_eq!(
     ask_executable(tree.path(), &listing),

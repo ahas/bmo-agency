@@ -9,7 +9,14 @@ use tool_call::{Answer, Asked, Session, Turn, prompts_tree, read_handed};
 fn request(asked: serde_json::Value) -> String {
   let mut said = json!({
     "protocol": 1,
-    "session": { "line": "chat", "capabilities": ["room.tools"], "dataRoot": "/d", "archive": "postgres:///s", "deadline": 5 },
+    "session": {
+      "holderName": "chat",
+      "namespaces": ["bmo"],
+      "capabilities": ["room.tools"],
+      "grants": [],
+      "variables": { "BMO_DATA_DIR": "/d" },
+      "labels": { "line": "chat", "archive": "postgres:///s" }
+    },
     "callback": "/run/c.sock",
   });
 
@@ -32,8 +39,9 @@ fn a_request_reads_as_the_host_writes_it_and_a_field_no_tool_reads_is_passed_ove
       arguments: json!({ "name": "a" })
     }
   );
-  assert_eq!(call.session.line, "chat");
-  assert_eq!(call.session.archive, "postgres:///s");
+  assert_eq!(call.session.line(), "chat");
+  assert_eq!(call.session.archive(), "postgres:///s");
+  assert_eq!(call.session.data_root(), std::path::PathBuf::from("/d"));
   assert!(call.session.capabilities.contains("room.tools"));
 
   let read =
@@ -86,12 +94,15 @@ fn an_answer_is_written_as_the_protocol_writes_a_tool_result() {
 fn the_turn_is_the_run_its_place_names_over_the_records_own_and_none_for_a_persons() {
   let place = tempfile::tempdir().unwrap();
   let session = Session {
-    place: Some(place.path().to_path_buf()),
-    run_variables: BTreeMap::from([
+    variables: BTreeMap::from([
       ("BMO_TURN_AGENT".to_owned(), "companion".to_owned()),
       ("BMO_TURN_BEGAN".to_owned(), "1000".to_owned()),
       ("BMO_TURN_CHAT".to_owned(), "-5".to_owned()),
     ]),
+    labels: tool_call::Labels {
+      place: Some(place.path().to_path_buf()),
+      ..tool_call::Labels::default()
+    },
     ..Session::default()
   };
 

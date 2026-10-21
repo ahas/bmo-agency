@@ -42,6 +42,10 @@ export interface RunLineDeclaration {
   // What its runs may reach of the tool host, as capabilities. A run is issued a session record holding
   // these, narrowed where it holds less. Absent on a line that is handed no tools.
   capabilities?: readonly string[];
+  // The tool host namespaces a run of the line is issued. Absent on a line that is handed no tools.
+  namespaces?: readonly string[];
+  // The entries a run of the line is shown by full name in their namespaces.
+  shown?: readonly string[];
 }
 
 // Whether a program carries a line: it offers everything the line needs.

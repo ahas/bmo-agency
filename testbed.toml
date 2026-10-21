@@ -31,6 +31,7 @@ base_libraries = [
   "bmo-brain-client",
   "bmo-cache-warmer-schedule",
   "bmo-node-client",
+  "bmo-pocket-client",
 ]
 
 [[check.step]]

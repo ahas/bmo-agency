@@ -41,6 +41,7 @@ impl Bench {
         ("BMO_DEPLOY_DIR".to_owned(), at(tree)),
         ("BMO_AGENTS_DIR".to_owned(), at(home.path().join("agents"))),
         ("BMO_MCP_HOST_SOCKET".to_owned(), at(host)),
+        ("BMO_MCP_HOST_ISSUER_TOKEN".to_owned(), "standby-issuer".to_owned()),
         ("CLAUDE_CONFIG_DIR".to_owned(), at(home.path().join(".claude"))),
       ],
       home.path().join(".local/share/bmo/data"),
@@ -154,8 +155,10 @@ fn tool_host(socket: &Path) {
   let listener = tokio::net::UnixListener::bind(socket).unwrap();
   let app = axum::Router::new()
     .route(
-      "/sessions",
-      axum::routing::post(|| async { axum::Json(json!({ "token": "standby-token" })) }),
+      "/tool-sessions",
+      axum::routing::post(|| async {
+        (axum::http::StatusCode::CREATED, axum::Json(json!({ "token": "standby-token" })))
+      }),
     )
     .fallback(|| async { axum::http::StatusCode::NO_CONTENT });
 

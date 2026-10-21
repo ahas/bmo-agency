@@ -28,7 +28,7 @@ const root = codeRoot;
 const data = join(scratchDir("bmo-root-host-"), "data");
 const sockets = scratchDir("bmo-root-host-sockets-");
 const told: { issued: Record<string, unknown>[]; revoked: string[] } = { issued: [], revoked: [] };
-const previous = { data: process.env.BMO_DATA_DIR, socket: process.env.BMO_MCP_HOST_SOCKET };
+const previous = { data: process.env.BMO_DATA_DIR, socket: process.env.BMO_MCP_HOST_SOCKET, issuer: process.env.BMO_MCP_HOST_ISSUER_TOKEN };
 const archive = await scratchArchive();
 
 // The bundles a role gives, as the roles' policy names them.
@@ -42,18 +42,37 @@ beforeAll(async () => {
   mkdirSync(join(data, "executions"), { recursive: true });
   process.env.BMO_DATA_DIR = data;
   process.env.BMO_MCP_HOST_SOCKET = join(sockets, "mcp-host.sock");
+  process.env.BMO_MCP_HOST_ISSUER_TOKEN = "stand-in-issuer";
   toolHost = Bun.serve({
     unix: process.env.BMO_MCP_HOST_SOCKET,
     async fetch(request) {
       const path = new URL(request.url).pathname;
 
-      if (request.method === "POST" && path === "/sessions") {
-        told.issued.push((await request.json()) as Record<string, unknown>);
-        return Response.json({ token: `token-${told.issued.length}` });
+      if (request.method === "POST" && path === "/tool-sessions") {
+        const record = (await request.json()) as Record<string, unknown>;
+        const token = `token-${told.issued.length + 1}`;
+
+        told.issued.push(record);
+        return Response.json(
+          {
+            token,
+            holderName: record.holderName ?? "",
+            namespaces: record.namespaces ?? [],
+            capabilities: record.capabilities ?? [],
+            grants: record.grants ?? [],
+            shown: record.shown ?? [],
+            variables: record.variables ?? {},
+            variablesFile: record.variablesFile ?? null,
+            labels: record.labels ?? {},
+            expiresAt: null,
+            createdAt: Date.now(),
+          },
+          { status: 201 },
+        );
       }
 
-      if (request.method === "DELETE") {
-        told.revoked.push(decodeURIComponent(path.slice("/sessions/".length)));
+      if (request.method === "DELETE" && path.startsWith("/tool-sessions/")) {
+        told.revoked.push(decodeURIComponent(path.slice("/tool-sessions/".length)));
         return new Response(null, { status: 204 });
       }
 
@@ -76,6 +95,7 @@ afterAll(async () => {
   composeToolRecord(() => ({}));
   process.env.BMO_DATA_DIR = previous.data;
   if (previous.socket === undefined) delete process.env.BMO_MCP_HOST_SOCKET; else process.env.BMO_MCP_HOST_SOCKET = previous.socket;
+  if (previous.issuer === undefined) delete process.env.BMO_MCP_HOST_ISSUER_TOKEN; else process.env.BMO_MCP_HOST_ISSUER_TOKEN = previous.issuer;
 });
 
 describe("a structured run on a line standing on the hosts", () => {
@@ -92,7 +112,13 @@ describe("a structured run on a line standing on the hosts", () => {
 
     expect(exit).toBe(0);
     expect(token).toStartWith("token-");
-    expect(told.issued.at(-1)).toMatchObject({ line: "worker", capabilities: ["graph.read", "queue.read", "web.read"], checkout: cwd, runVariables: { BMO_TURN_CHAT: "-100" } });
+    expect(told.issued.at(-1)).toMatchObject({
+      holderName: "worker",
+      namespaces: ["web", "worker"],
+      capabilities: ["graph.read", "queue.read", "web.read"],
+      variables: { BMO_DATA_DIR: data, BMO_TURN_CHAT: "-100" },
+      labels: { line: "worker", checkout: cwd },
+    });
 
     for (let i = 0; i < 100 && !told.revoked.includes(token); i++) await Bun.sleep(20);
     expect(told.revoked).toContain(token);
@@ -159,13 +185,14 @@ describe("a resident program on a line standing on the hosts", () => {
 });
 
 test("a host that answers and refuses the record is said at once, not waited for", async () => {
-  const refusing = Bun.serve({ unix: join(sockets, "refusing.sock"), fetch: () => Response.json({ detail: "unknown field" }, { status: 400 }) });
+  const refusing = Bun.serve({ unix: join(sockets, "refusing.sock"), fetch: () => Response.json({ code: "bad-request", error: "unknown field" }, { status: 400 }) });
+  const record = { holderName: "worker", namespaces: ["web", "worker"], capabilities: [], grants: [] };
 
   try {
     const began = Date.now();
 
-    expect(issueToolToken({ line: "worker", capabilities: [], dataRoot: data, archive: join(data, "bmo.db") }, { socket: join(sockets, "refusing.sock") })).rejects.toBeInstanceOf(ToolHostDown);
-    await issueToolToken({ line: "worker", capabilities: [], dataRoot: data, archive: join(data, "bmo.db") }, { socket: join(sockets, "refusing.sock") }).catch(() => {});
+    expect(issueToolToken(record, { socket: join(sockets, "refusing.sock") })).rejects.toBeInstanceOf(ToolHostDown);
+    await issueToolToken(record, { socket: join(sockets, "refusing.sock") }).catch(() => {});
     expect(Date.now() - began).toBeLessThan(2_000);
   } finally {
     refusing.stop(true);

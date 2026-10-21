@@ -36,10 +36,26 @@ export function lineKeepsSession(line: string): boolean {
 // What a line's runs may reach of the tool host. A line the deployment never declared, or a
 // process that composed no lines, reaches nothing.
 export function lineCapabilities(line: string): readonly string[] {
+  return declared(line)?.capabilities ?? [];
+}
+
+// The tool host namespaces a line's runs are issued. A line the deployment never declared, or a
+// process that composed no lines, is issued none.
+export function lineNamespaces(line: string): readonly string[] {
+  return declared(line)?.namespaces ?? [];
+}
+
+// The entries a line's runs are shown by full name. A line the deployment never declared, or a
+// process that composed no lines, is shown none by name.
+export function lineShown(line: string): readonly string[] {
+  return declared(line)?.shown ?? [];
+}
+
+function declared(line: string): RunLineDeclaration | undefined {
   try {
-    return runLineDeclarations().find((one) => one.name === line)?.capabilities ?? [];
+    return runLineDeclarations().find((one) => one.name === line);
   } catch (error) {
-    if (error instanceof RunLinesUncomposed) return [];
+    if (error instanceof RunLinesUncomposed) return undefined;
     throw error;
   }
 }

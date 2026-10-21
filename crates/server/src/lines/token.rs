@@ -1,21 +1,21 @@
 //! A resident program's session token: issued by the tool
 //! host for a record naming the line, the role of the agent it is issued for, the capabilities the line
-//! declares with the bundles that role gives, the checkout whose graph is read, the data root and archive,
-//! and the place each call reads its run from; carried in the program's own environment and taken back
-//! once no written program carries it.
+//! declares with the bundles that role gives, the namespaces it may use and the entries it shows by name,
+//! the checkout whose graph is read, the data root and archive, and the place each call reads its run
+//! from; carried in the program's own environment and taken back once no written program carries it.
+//!
+//! The records and the reads of a namespace go through the tool host's published client
+//! (`bmo-pocket-client`), with the issuer token the host keeps under the data root.
 
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
-use axum::http::{Method, Request, header};
-use http_body_util::{BodyExt, Full};
-use hyper::body::Bytes;
-use hyper_util::rt::TokioIo;
+use bmo_pocket_client::{Failure, NameQuery, Pocket, SessionRequest};
 use policy::research::RESEARCH;
 use policy::roles::ROLES;
 use policy::run_lines::RUN_LINES;
-use serde_json::{Value, json};
-use tokio::net::UnixStream;
+use serde_json::{Map, Value, json};
 
 use super::fault;
 use crate::Refusal;
@@ -24,6 +24,9 @@ use store::one;
 
 /// The variable a program carries its token in, which every configuration's bearer header reads.
 pub const TOKEN_VARIABLE: &str = "BMO_MCP_TOKEN";
+
+/// The variable a launcher may name the issuer token file in, where a deployment keeps it elsewhere.
+pub const ISSUER_TOKEN_VARIABLE: &str = "BMO_MCP_HOST_ISSUER_TOKEN";
 
 // How long a launch waits for a host restarting under a deployment before it refuses, and how often it
 // asks again meanwhile.
@@ -37,7 +40,7 @@ pub fn host_socket(ground: &Ground) -> PathBuf {
 }
 
 /// The tool host's control socket as these variables name it.
-pub fn host_socket_in(vars: &std::collections::BTreeMap<String, String>) -> PathBuf {
+pub fn host_socket_in(vars: &BTreeMap<String, String>) -> PathBuf {
   if let Some(named) = vars.get("BMO_MCP_HOST_SOCKET") {
     return PathBuf::from(named);
   }
@@ -51,45 +54,93 @@ pub fn host_socket_in(vars: &std::collections::BTreeMap<String, String>) -> Path
   runtime.join("bmo").join("mcp-host.sock")
 }
 
-// One request to the host's control socket: its status and its body as JSON. Failing to reach the
-// socket at all is an error of its own, which a caller waiting for a restarting host tells apart.
-async fn ask(
-  socket: &Path,
-  method: Method,
-  path: &str,
-  body: Option<&Value>,
-) -> std::io::Result<(u16, Value)> {
-  let (status, body) = asked(socket, method, path, body).await?;
-
-  Ok((status, serde_json::from_slice(&body).unwrap_or(Value::Null)))
+/// The issuer token a launcher asks the host with: the one the environment names, else the host's own
+/// under the data root, which it makes at its first start.
+fn issuer_token(ground: &Ground) -> Option<String> {
+  ground
+    .vars()
+    .get(ISSUER_TOKEN_VARIABLE)
+    .filter(|token| !token.is_empty())
+    .cloned()
+    .or_else(|| std::fs::read_to_string(ground.roots.data.join("tool-host").join("issuer-token")).ok())
+    .map(|token| token.trim().to_owned())
+    .filter(|token| !token.is_empty())
 }
 
-/// What a namespace of the tool host lists for a line's instructions:
-/// its listing, or none where the namespace writes none or the host does not answer.
+// The client the issuer's token reaches the host with, where the token stands.
+fn pocket(ground: &Ground, token: String) -> Pocket {
+  Pocket::at(host_socket(ground), token)
+}
+
+/// What a namespace of the tool host lists for a line's instructions: the listing lines its entries
+/// declare, in their order, or none where the namespace writes none or the host does not answer.
 pub async fn listing(ground: &Ground, namespace: &str) -> Option<String> {
   let socket = host_socket(ground);
+  let Some(token) = issuer_token(ground) else {
+    eprintln!(
+      "mcp-host at {}: no {namespace} listing: the issuer token is not there",
+      socket.display()
+    );
+    return None;
+  };
+  let client = pocket(ground, token);
+  let mut after: Option<String> = None;
+  let mut listed: Vec<(i64, String)> = Vec::new();
 
-  match asked(&socket, Method::GET, &format!("/listings/{namespace}"), None).await {
-    Ok((200, body)) => Some(String::from_utf8_lossy(&body).into_owned()),
-    Ok((status, _)) => {
-      eprintln!("mcp-host at {}: no {namespace} listing ({status})", socket.display());
-      None
+  loop {
+    let page = match client
+      .tools(
+        namespace,
+        &NameQuery {
+          after: after.clone(),
+          limit: None,
+        },
+      )
+      .await
+    {
+      Ok(page) => page,
+      Err(Failure::Refused { status, .. }) => {
+        eprintln!("mcp-host at {}: no {namespace} listing ({status})", socket.display());
+        return None;
+      }
+      Err(why) => {
+        eprintln!("mcp-host at {}: no {namespace} listing: {why}", socket.display());
+        return None;
+      }
+    };
+    let mut last = None;
+
+    for tool in page.items {
+      last = Some(tool.name.clone());
+
+      if let Some(listing) = tool.listing {
+        listed.push((listing.order, listing.line));
+      }
     }
-    Err(why) => {
-      eprintln!("mcp-host at {}: no {namespace} listing: {why}", socket.display());
-      None
+
+    match (page.more, last) {
+      (true, Some(name)) => after = Some(name),
+      _ => break,
     }
   }
+
+  listed.sort_by_key(|(order, _)| *order);
+
+  Some(listed.into_iter().map(|(_, line)| line).collect::<Vec<_>>().join("\n"))
 }
 
 /// What a namespace's owner says of it beside its tools, as the tool host keeps it, or none where it says
 /// nothing or the host does not answer.
 pub async fn facts(ground: &Ground, namespace: &str) -> Option<Value> {
   let socket = host_socket(ground);
+  let Some(token) = issuer_token(ground) else {
+    eprintln!("mcp-host at {}: no {namespace} facts: the issuer token is not there", socket.display());
+    return None;
+  };
 
-  match ask(&socket, Method::GET, &format!("/facts/{namespace}"), None).await {
-    Ok((200, body)) => Some(body),
-    Ok((status, _)) => {
+  match pocket(ground, token).namespace(namespace).await {
+    Ok(namespace) => Some(Value::Object(namespace.facts)),
+    Err(Failure::Refused { status, .. }) => {
       eprintln!("mcp-host at {}: no {namespace} facts ({status})", socket.display());
       None
     }
@@ -98,38 +149,6 @@ pub async fn facts(ground: &Ground, namespace: &str) -> Option<Value> {
       None
     }
   }
-}
-
-/// One request to the host's control socket: its status and its body as it came.
-pub(crate) async fn asked(
-  socket: &Path,
-  method: Method,
-  path: &str,
-  body: Option<&Value>,
-) -> std::io::Result<(u16, Bytes)> {
-  let stream = UnixStream::connect(socket).await?;
-  let (mut sender, connection) = hyper::client::conn::http1::handshake(TokioIo::new(stream))
-    .await
-    .map_err(std::io::Error::other)?;
-
-  tokio::spawn(connection);
-
-  let mut asked = Request::builder().method(method).uri(path).header(header::HOST, "localhost");
-  let bytes = match body {
-    Some(body) => {
-      asked = asked.header(header::CONTENT_TYPE, "application/json");
-      Bytes::from(serde_json::to_vec(body)?)
-    }
-    None => Bytes::new(),
-  };
-  let response = sender
-    .send_request(asked.body(Full::new(bytes)).map_err(std::io::Error::other)?)
-    .await
-    .map_err(std::io::Error::other)?;
-  let status = response.status().as_u16();
-  let body = response.into_body().collect().await.map_err(std::io::Error::other)?.to_bytes();
-
-  Ok((status, body))
 }
 
 /// The role and the capabilities of a record issued for `agent` on `line` (docs/agent-roles.md, 「Where the
@@ -160,6 +179,29 @@ async fn capabilities(
   Ok((role, held))
 }
 
+// A record for a run of `line`, held by `holder`, with the namespaces and shown entries its line
+// declares, an empty grant list, the data root every call reads, and the labels agency's tools read.
+fn record(
+  line: &str,
+  holder: &str,
+  capabilities: Vec<String>,
+  variables: BTreeMap<String, String>,
+  labels: Map<String, Value>,
+  ttl_ms: Option<u64>,
+) -> SessionRequest {
+  SessionRequest {
+    holder_name: holder.to_owned(),
+    namespaces: RUN_LINES.namespaces(line).iter().cloned().collect::<BTreeSet<_>>(),
+    capabilities: capabilities.into_iter().collect(),
+    grants: Vec::new(),
+    shown: RUN_LINES.shown(line).iter().cloned().collect(),
+    variables,
+    variables_file: None,
+    labels,
+    ttl_ms,
+  }
+}
+
 /// A token for a resident program of `line` standing in `place` for `agent` and working in `checkout`, or
 /// none where the line needs none: one whose record holds no capability. A host that does not answer
 /// within its wait, or one that refuses the record, refuses the program.
@@ -176,20 +218,22 @@ pub async fn issue(
     return Ok(None);
   }
 
-  let mut record = json!({
-    "line": line,
-    "capabilities": capabilities,
-    "checkout": checkout,
-    "dataRoot": ground.roots.data,
-    "archive": crate::archive_place(&ground.roots.data),
-    "place": place,
-  });
+  let data_root = ground.roots.data.to_string_lossy().into_owned();
+  let variables = BTreeMap::from([("BMO_DATA_DIR".to_owned(), data_root)]);
+  let mut labels = Map::new();
+
+  labels.insert("line".to_owned(), json!(line));
+  labels.insert("checkout".to_owned(), json!(checkout));
+  labels.insert("archive".to_owned(), json!(crate::archive_place(&ground.roots.data)));
+  labels.insert("place".to_owned(), json!(place));
 
   if let Some(role) = role {
-    record["role"] = json!(role);
+    labels.insert("role".to_owned(), json!(role));
   }
 
-  issue_record(ground, &record).await.map(Some)
+  let request = record(line, agent, capabilities, variables, labels, None);
+
+  issue_record(ground, &request).await.map(Some)
 }
 
 // The variables of a run's own, which its calls read their turn from.
@@ -222,9 +266,7 @@ fn leading_number(value: Option<&String>) -> i64 {
 /// read out of the run's environment where its runner put them, and the capabilities the policy ties to
 /// those settings that they do not open; no settings and
 /// every such capability left out for a run carrying none.
-pub fn research_record(
-  env: &std::collections::BTreeMap<String, String>,
-) -> (Option<Value>, Vec<&'static str>) {
+pub fn research_record(env: &BTreeMap<String, String>) -> (Option<Value>, Vec<&'static str>) {
   let set = |name: &str| env.get(name).filter(|value| !value.is_empty());
 
   if !env.iter().any(|(name, value)| {
@@ -287,7 +329,7 @@ pub async fn issue_for_run(
   line: &str,
   agent: &str,
   cwd: &str,
-  env: &std::collections::BTreeMap<String, String>,
+  env: &BTreeMap<String, String>,
   deadline: u64,
 ) -> Result<Option<String>, Refusal> {
   let given = |name: &str| env.get(name).filter(|value| !value.is_empty()).cloned();
@@ -299,83 +341,85 @@ pub async fn issue_for_run(
     return Ok(None);
   }
 
-  let mut record = json!({
-    "line": line,
-    "capabilities": capabilities,
-    "checkout": cwd,
-    "dataRoot": given("BMO_DATA_DIR").unwrap_or_else(|| ground.roots.data.to_string_lossy().into_owned()),
-    "archive": crate::archive_place(&ground.roots.data),
-  });
-  let run_variables: serde_json::Map<String, Value> = env
+  let data_root = given("BMO_DATA_DIR").unwrap_or_else(|| ground.roots.data.to_string_lossy().into_owned());
+  let mut variables: BTreeMap<String, String> = env
     .iter()
     .filter(|(name, _)| turn_variable(name))
-    .map(|(name, value)| (name.clone(), json!(value)))
+    .map(|(name, value)| (name.clone(), value.clone()))
     .collect();
 
+  variables.insert("BMO_DATA_DIR".to_owned(), data_root);
+
+  let mut labels = Map::new();
+  labels.insert("line".to_owned(), json!(line));
+  labels.insert("checkout".to_owned(), json!(cwd));
+  labels.insert("archive".to_owned(), json!(crate::archive_place(&ground.roots.data)));
+
   if let Some(role) = role {
-    record["role"] = json!(role);
+    labels.insert("role".to_owned(), json!(role));
   }
 
   if let Some(place) = given("BMO_AGENT_PLACE") {
-    record["place"] = json!(place);
-  }
-
-  if !run_variables.is_empty() {
-    record["runVariables"] = Value::Object(run_variables);
+    labels.insert("place".to_owned(), json!(place));
   }
 
   if let Some(desk) = given("BMO_FRAGMENT_DESK") {
-    record["fragmentDesk"] = json!(desk);
+    labels.insert("fragmentDesk".to_owned(), json!(desk));
   }
 
   if let Some(research) = research {
-    record["research"] = research;
+    labels.insert("research".to_owned(), research);
   }
 
-  record["deadline"] = json!(deadline);
+  let now = u64::try_from(crate::now_ms()).unwrap_or_default();
+  let request = record(line, &agent, capabilities, variables, labels, Some(deadline.saturating_sub(now)));
 
-  issue_record(ground, &record).await.map(Some)
+  issue_record(ground, &request).await.map(Some)
 }
 
 // A token asked of the host for a record.
-async fn issue_record(ground: &Ground, record: &Value) -> Result<String, Refusal> {
+async fn issue_record(ground: &Ground, request: &SessionRequest) -> Result<String, Refusal> {
   let socket = host_socket(ground);
   let deadline = Instant::now() + ISSUE_WAIT;
 
   loop {
-    let why = match ask(&socket, Method::POST, "/sessions", Some(record)).await {
-      Ok((status, said)) => {
-        if let (200..=299, Some(token)) = (status, said.get("token").and_then(Value::as_str)) {
-          return Ok(token.to_owned());
+    let why = match issuer_token(ground) {
+      None => "the issuer token is not there".to_owned(),
+      Some(token) => match pocket(ground, token).issue(request).await {
+        Ok(session) => return Ok(session.token),
+        Err(Failure::Refused { status, error }) => {
+          return Err(host_down(&socket, format!("{status} {} ({})", error.error, error.code.as_str())));
         }
-
-        let detail = said.get("detail").and_then(Value::as_str).unwrap_or_default();
-
-        return Err(host_down(&socket, format!("{status} {detail}").trim()));
-      }
-      Err(why) => why.to_string(),
+        Err(Failure::Unreadable { status, why }) => {
+          return Err(host_down(&socket, format!("{status} {why}")));
+        }
+        Err(Failure::Unreachable(why)) => why.to_string(),
+      },
     };
 
     if Instant::now() >= deadline {
-      return Err(host_down(&socket, &why));
+      return Err(host_down(&socket, why));
     }
 
     tokio::time::sleep(RETRY_EVERY).await;
   }
 }
 
-fn host_down(socket: &Path, why: &str) -> Refusal {
-  fault(format!("The tool host did not answer at {}, so nothing ran: {why}", socket.display()))
+fn host_down(socket: &Path, why: impl Into<String>) -> Refusal {
+  fault(format!(
+    "The tool host did not answer at {}, so nothing ran: {}",
+    socket.display(),
+    why.into()
+  ))
 }
 
 /// A token taken back; a host that does not answer has lost it already.
 pub async fn revoke(ground: &Ground, token: &str) {
-  let path = format!(
-    "/sessions/{}",
-    percent_encoding::utf8_percent_encode(token, percent_encoding::NON_ALPHANUMERIC)
-  );
+  let Some(issuer) = issuer_token(ground) else {
+    return;
+  };
 
-  let _ = ask(&host_socket(ground), Method::DELETE, &path, None).await;
+  let _ = pocket(ground, issuer).revoke(token).await;
 }
 
 /// The checkout a program's tool session reads its graph from: its own, or for a program on a work

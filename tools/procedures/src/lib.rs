@@ -251,11 +251,11 @@ pub async fn overtaken(session: &Session) -> Option<String> {
     return None;
   };
 
-  if session.archive.trim().is_empty() {
+  if session.archive().trim().is_empty() {
     return None;
   }
 
-  let mut read = store::open_read(&session.archive).await.ok()?;
+  let mut read = store::open_read(session.archive()).await.ok()?;
   let row = sqlx::query(r#"SELECT "value" FROM "settings" WHERE "key" = $1"#)
     .bind(store::reset_point::key(&agent))
     .fetch_optional(&mut read)
@@ -315,7 +315,7 @@ pub async fn answer(handed: Handed) -> Result<Value, String> {
   match handed.asked {
     Asked::ResourcesList => Ok(json!({ "resources": listed(&tree, &session).await })),
     Asked::ResourcesRead { uri } => Ok(
-      read_in(&tree, &session, &Server::of(&session.data_root), &uri)
+      read_in(&tree, &session, &Server::of(&session.data_root()), &uri)
         .await
         .unwrap_or_else(|why| json!({ "error": why })),
     ),

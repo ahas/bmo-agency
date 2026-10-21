@@ -19,6 +19,9 @@ pub struct RunLine {
   /// What its runs may reach of the tool host; none for a line handed no tools.
   #[serde(default)]
   pub capabilities: Vec<String>,
+  /// The tool host namespaces a run of it is issued; none for a line handed no tools.
+  #[serde(default)]
+  pub namespaces: Vec<String>,
   /// The tools of its program's own it is never shown.
   #[serde(default)]
   pub tools_denied: Vec<String>,
@@ -40,6 +43,16 @@ impl RunLines {
   /// The capabilities a run of the line is issued; none for a line the policy does not name.
   pub fn capabilities(&self, name: &str) -> &[String] {
     self.line(name).map_or(&[], |line| &line.capabilities)
+  }
+
+  /// The tool host namespaces a run of the line is issued; none for a line the policy does not name.
+  pub fn namespaces(&self, name: &str) -> &[String] {
+    self.line(name).map_or(&[], |line| &line.namespaces)
+  }
+
+  /// The entries a run of the line is shown by full name; none for a line the policy does not name.
+  pub fn shown(&self, name: &str) -> &[String] {
+    self.line(name).map_or(&[], |line| &line.shown)
   }
 
   /// Whether the line's namespaces list this placed entry, by its full name, for every run of it; none
