@@ -188,7 +188,7 @@ export interface paths {
         /** Every session, by agent or scope. */
         get: operations["listSessions"];
         put?: never;
-        /** Start a session for an agent at a scope; a throwaway one is scope apart with boundMs and its own options. A run with a fixed prompt (a digest, a research, a browse, a narration, the morning news) is such a session naming its prompt document; it calls the upstreams it needs through their own MCP servers. */
+        /** Start a session for an agent at a scope, readable at once before its first turn; a throwaway one is scope apart with boundMs and its own options. A run with a fixed prompt (a digest, a research, a browse, a narration, the morning news) is such a session naming its prompt document; it calls the upstreams it needs through their own MCP servers. */
         post: operations["createSessions"];
         delete?: never;
         options?: never;
@@ -203,7 +203,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** A session's state: provider, model, place, holder, why the prefix changed. */
+        /** A session's state: provider, model, place, holder, why the prefix changed. A room's answers from its start, before its first turn, at generation 0. */
         get: operations["getSession"];
         put?: never;
         post?: never;
