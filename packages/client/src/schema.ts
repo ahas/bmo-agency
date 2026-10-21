@@ -364,7 +364,7 @@ export interface paths {
         /** Log lines across runs: by run, job or agent, kinds, latest, before or after. */
         get: operations["listLogLines"];
         put?: never;
-        /** Add a line to a run's log: a note, a turn record, a program's output. */
+        /** Add a note in the bot's own words to a run's log, beside the run's own lines. */
         post: operations["createLogLines"];
         delete?: never;
         options?: never;
