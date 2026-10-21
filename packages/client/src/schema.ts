@@ -1948,6 +1948,8 @@ export interface components {
             state: components["schemas"]["SeatRequestState"];
             childId: string | null;
             outcome: string | null;
+            /** @description The session a worker's own turn continues, or none where it opens a fresh one. */
+            session: string | null;
         };
         /**
          * @description One of the values the API accepts.

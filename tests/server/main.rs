@@ -47,6 +47,7 @@ mod control {
   mod own_llm;
   mod pool_board;
   mod pool_reads;
+  mod pool_sessions;
   mod pool_sources;
   mod recollector_routes;
   mod registry;

@@ -406,6 +406,8 @@ pub struct SeatRequest {
   pub state: SeatRequestState,
   pub child_id: Option<String>,
   pub outcome: Option<String>,
+  /// The session a worker's own turn continues, or none where it opens a fresh one.
+  pub session: Option<String>,
 }
 
 /// Reservation:

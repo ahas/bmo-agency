@@ -92,6 +92,9 @@ pub struct Held {
   pub transcript: Option<String>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub thread: Option<String>,
+  /// The share of its model's window the session's last answered turn filled.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub context_ratio: Option<f64>,
 }
 
 /// One run on a worker's session as it is judged: the provider and the line it goes out on, the words it is
@@ -192,6 +195,12 @@ async fn must_replace(ground: &Ground, held: Option<&Held>, run: &SessionRun) ->
   let Some(held) = held else { return Ok(run.resume.is_some()) };
 
   if !same_road(held, run) {
+    return Ok(true);
+  }
+
+  // A session whose last answered turn filled its model's context is replaced by one carrying its note,
+  // as a session past its cache lifetime is.
+  if held.context_ratio.is_some_and(|ratio| ratio >= 1.0) {
     return Ok(true);
   }
 
@@ -562,6 +571,7 @@ pub async fn remember(
     cwd: Some(run.line.cwd.clone()),
     transcript,
     thread: run.thread.clone(),
+    context_ratio: reply.context_ratio,
   };
   let text =
     serde_json::to_string(&kept).map_err(|why| Refusal::bad("session-unwritten", why.to_string()))?;

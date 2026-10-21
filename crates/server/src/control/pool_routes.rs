@@ -104,7 +104,7 @@ impl Route for PoolEnqueue {
     };
     // A builder turn's place is the one source of its own; any other label is a branch's seat, kept as sent.
     let request = match body.get("source").and_then(Value::as_str).unwrap_or(COWORK) {
-      TURN => enqueue_turn(call.store(), &asked, async |_, _| Ok(())).await,
+      TURN => enqueue_turn(call.ground(), &asked, async |_, _| Ok(())).await,
       source => enqueue_seat(call.store(), &asked, source, async |_, _| Ok(())).await,
     }
     .map_err(refused)?;

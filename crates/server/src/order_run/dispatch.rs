@@ -17,6 +17,7 @@ use sea_orm::{ConnectionTrait, DatabaseConnection, TransactionTrait};
 use store::{all, one, run};
 
 use crate::control::Refused;
+use crate::control::claude_accounts::{self, Judging};
 use crate::control::harness::{enabled_providers, named, provider_enabled};
 use crate::control::pool::{
   Request, Reservation, coworker_providers, foreground_head, promote_bucket, request_of, reservation_of,
@@ -24,7 +25,9 @@ use crate::control::pool::{
 };
 use crate::control::roads::{profile, walked};
 use crate::control::tiers::{self, Mapping};
+use crate::places::Ground;
 use crate::queue::routes::{self, JOB_WORK_KEY};
+use crate::worker_session::{PROVIDER as WORKER_PROVIDER, records, warmth};
 
 /// What a branch of a work order asks the pool as; a builder turn asks as the worker itself.
 pub const COWORK: &str = "cowork";
@@ -270,7 +273,7 @@ pub async fn enqueue_seat(
   source: &str,
   retain: impl AsyncFnOnce(&sea_orm::DatabaseTransaction, &Request) -> Result<(), Fault>,
 ) -> Result<Request, Fault> {
-  enqueue_request(db, asked, source, true, retain).await
+  enqueue_request(db, asked, source, true, None, retain).await
 }
 
 /// A native `Agent` call's place asked of the pool, on the mapping its role resolves to on Claude Code, the
@@ -284,16 +287,28 @@ pub async fn enqueue_native(
 ) -> Result<Request, Fault> {
   let work_key = asked.wanted.work_key();
 
-  enqueue(db, asked, NATIVE, &work_key, mapping, true, retain).await
+  enqueue(
+    db,
+    asked,
+    NATIVE,
+    &work_key,
+    mapping,
+    Standing {
+      child: true,
+      session: None,
+    },
+    retain,
+  )
+  .await
 }
 
 /// A builder turn's place asked of the pool, as the worker itself, on its checkout.
 pub async fn enqueue_turn(
-  db: &DatabaseConnection,
+  ground: &Ground,
   asked: &Asked<'_>,
   retain: impl AsyncFnOnce(&sea_orm::DatabaseTransaction, &Request) -> Result<(), Fault>,
 ) -> Result<Request, Fault> {
-  enqueue_request(db, asked, WORKER, false, retain).await
+  enqueue_request(&ground.db, asked, WORKER, false, Some(ground), retain).await
 }
 
 async fn enqueue_request(
@@ -301,6 +316,7 @@ async fn enqueue_request(
   asked: &Asked<'_>,
   source: &str,
   child: bool,
+  ground: Option<&Ground>,
   retain: impl AsyncFnOnce(&sea_orm::DatabaseTransaction, &Request) -> Result<(), Fault>,
 ) -> Result<Request, Fault> {
   let place_key = if child { None } else { asked.place_key };
@@ -331,8 +347,15 @@ async fn enqueue_request(
       } else {
         turn_mapping(db, &asked.wanted).await?
       };
+      // A project's own turn continues the session its worker still holds warm and within the model's
+      // context; a child's seat opens its own, and native calls keep their parent's (「A project's own
+      // session」).
+      let session = match ground.filter(|_| !child) {
+        Some(ground) => project_session(ground, asked.place_key, &mapping).await?,
+        None => None,
+      };
 
-      enqueue(db, asked, source, &work_key, &mapping, child, retain).await?
+      enqueue(db, asked, source, &work_key, &mapping, Standing { child, session }, retain).await?
     }
   };
 
@@ -341,6 +364,81 @@ async fn enqueue_request(
   }
 
   Ok(held)
+}
+
+/// The session the project a turn stands for was working in (docs/coworker-pool.md, 「A project's own
+/// session」): the one its worker holds on the model the turn goes out on and the login the job line is
+/// walked on first, while the provider's declared cache lifetime for that model has not passed since the
+/// session last answered and its last answered turn stayed under the model's context limit.
+///
+/// The worker is the one standing in the place the turn is keyed by, which is the project's checkout. A
+/// session past either condition is dropped with its record by the rules the worker's sessions already
+/// stand on, and the turn opens a new one as any replacement does.
+async fn project_session(
+  ground: &Ground,
+  place_key: Option<&str>,
+  mapping: &Mapping,
+) -> Result<Option<String>, Fault> {
+  let Some(place) = place_key else { return Ok(None) };
+
+  // A worker's held session is Claude Code's; a turn on another road replaces the held session and keeps
+  // none of it (docs/sessions.md, 「A worker's session per model」).
+  if mapping.provider != WORKER_PROVIDER {
+    return Ok(None);
+  }
+
+  let worker = one(
+    &ground.db,
+    r#"SELECT "name" FROM "agents"
+       WHERE "kind" = 'worker' AND "cwd" = $1 AND "resting_since" IS NULL
+       ORDER BY "name" LIMIT 1"#,
+    vec![place.into()],
+  )
+  .await
+  .map_err(faulted)?;
+  let Some(worker) = worker else { return Ok(None) };
+  let worker: String = worker.try_get("", "name").map_err(|why| why.to_string())?;
+
+  let account = claude_accounts::walk_for(Judging::of(ground), JOB_WORK_KEY)
+    .await
+    .map_err(refused)?
+    .into_iter()
+    .next();
+  let Some(account) = account else { return Ok(None) };
+
+  let held = one(
+    &ground.db,
+    r#"SELECT "claude_session_id", "last_reply_at", "context_ratio" FROM "worker_sessions"
+       WHERE "worker" = $1 AND "model" = $2 AND "account" = $3"#,
+    vec![worker.clone().into(), mapping.model.clone().into(), account.id.clone().into()],
+  )
+  .await
+  .map_err(faulted)?;
+  let Some(held) = held else { return Ok(None) };
+
+  let id: String = held.try_get("", "claude_session_id").map_err(|why| why.to_string())?;
+  let last: i64 = held.try_get("", "last_reply_at").map_err(|why| why.to_string())?;
+  let filled: Option<f64> = held.try_get("", "context_ratio").map_err(|why| why.to_string())?;
+  let warm = warmth::lifetime_ms(WORKER_PROVIDER, &mapping.model)
+    .is_none_or(|lifetime| warmth::warm(last.saturating_mul(1000), crate::now_ms(), lifetime));
+  let within = filled.is_none_or(|ratio| ratio < 1.0);
+
+  if !warm || !within {
+    records::forget(&ground.db, &worker, &mapping.model, Some(&account.id))
+      .await
+      .map_err(|why| refused(why.into()))?;
+
+    return Ok(None);
+  }
+
+  Ok(Some(id))
+}
+
+/// What a request stands for beside its mapping: a borrowed child's seat or a worker's own turn on its
+/// place, and the session a project's own turn continues where the pool judged one still usable.
+struct Standing {
+  child: bool,
+  session: Option<String>,
 }
 
 // The pool's own enqueue: the request written once under its key, its identity held to what was asked,
@@ -352,9 +450,10 @@ async fn enqueue(
   source: &str,
   work_key: &str,
   mapping: &Mapping,
-  child: bool,
+  standing: Standing,
   retain: impl AsyncFnOnce(&sea_orm::DatabaseTransaction, &Request) -> Result<(), Fault>,
 ) -> Result<Request, Fault> {
+  let Standing { child, session } = standing;
   if !KEY.is_match(&asked.request_key) || !KEY.is_match(&asked.owner) || !KEY.is_match(work_key) {
     return Err("Invalid pool request identity".to_owned());
   }
@@ -428,8 +527,8 @@ async fn enqueue(
   run(
     &written,
     r#"INSERT INTO coworker_pool_requests
-       (token,request_key,owner,source,role,work_key,provider,model,effort,tier,capacity,generation,state,enqueued_at,class,place_key,turn)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'waiting',$13,$14,$15,$16)
+       (token,request_key,owner,source,role,work_key,provider,model,effort,tier,capacity,generation,state,enqueued_at,class,place_key,turn,session)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'waiting',$13,$14,$15,$16,$17)
        ON CONFLICT (request_key) DO NOTHING"#,
     vec![
       uuid::Uuid::new_v4().to_string().into(),
@@ -448,6 +547,7 @@ async fn enqueue(
       (if asked.yielding { "yielding" } else { "foreground" }).into(),
       place_key.clone().into(),
       i64::from(!child).into(),
+      session.into(),
     ],
   )
   .await

@@ -12,6 +12,7 @@ mod m20261023_000001_work;
 mod m20261024_000001_job_model;
 mod m20261025_000001_base_prompt_seeds;
 mod m20261025_000002_endpoint_accounts;
+mod m20261026_000001_pool_session;
 
 use sea_orm_migration::prelude::*;
 
@@ -101,6 +102,7 @@ impl MigratorTrait for Migrator {
       Box::new(m20261024_000001_job_model::Migration),
       Box::new(m20261025_000001_base_prompt_seeds::Migration),
       Box::new(m20261025_000002_endpoint_accounts::Migration),
+      Box::new(m20261026_000001_pool_session::Migration),
     ]
   }
 

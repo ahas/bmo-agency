@@ -106,6 +106,25 @@ warming and standing checkouts, is agency's.
   - The checkout's job lock stands as is: the key sets what launches first, and the lock keeps what
     launched from overlapping in one checkout. An ordinary job does not go through the pool.
 
+## A project's own session
+
+- **A project's own turn asks for its earlier session through its place.** The request that stands for a
+  project's own work is the builder turn, whose place key is the project's checkout. The worker standing
+  in that checkout is the project's, and the session it holds on the model the turn resolves to and the
+  login the job line is walked on first is the project's session.
+- **The pool carries it on the request** where both of these hold, and only these:
+  - the provider's declared cache lifetime for that model has not passed since the session last answered;
+  - the session's last answered turn stayed under the model's context limit.
+  A provider that declares no cache lifetime leaves a held session no clock to outlive, so it is warm.
+- **Where either fails,** the request carries no session and the turn opens a new one as it does today,
+  carrying the note the replacement rules already leave (`docs/sessions.md`, 「Session replacement」). The
+  session that failed is dropped with its record by the rules those sessions already stand on.
+- **A borrowed child's seat carries no session of its own.** A co-work or research branch keeps no session,
+  and a native call keeps its parent's, so their seats are unchanged.
+- **Reuse changes which session a seat runs in, never how many run.** A request's session is no part of
+  admission: the tier's limit, the line, the place and the yielding rule count exactly as they did, and a
+  builder turn still stands in no tier's line.
+
 ## Reserving places and keepalive
 
 - **Reserving:** whoever will soon launch co-workers reserves in the pool. A reservation is one line,

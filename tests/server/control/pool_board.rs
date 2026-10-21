@@ -29,6 +29,7 @@ fn request(source: &str, turn: bool, state: &str) -> Request {
     yielding: false,
     place_key: None,
     turn,
+    session: None,
   }
 }
 

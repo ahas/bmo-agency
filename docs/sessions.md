@@ -156,6 +156,10 @@ session on the owner's ask is `docs/session-resets.md`.
     the `cache-siren` crate's, which is handed the declared lifetime and knows no provider;
   - a provider that declares none reads one hour for a session set aside; a held session on such a
     provider has no lifetime to outlive.
+- **The pool asks this rule before a project's own turn launches** (`docs/coworker-pool.md`, 「A
+  project's own session」): the session the worker holds on the turn's model and login is carried on the
+  request while it is warm and its last answered turn stayed under the model's context limit; one past
+  either is dropped with its record, and the turn opens a new one with the note a replacement leaves.
 - **A kept session's record goes cold with its cache.** A record whose last answer is past the
   lifetime is retired as it is read, so neither the standing program nor a turn resumes a session whose
   cache has gone; the held session it stood for is replaced with its note. `BMO_WORKER_SESSION_TTL_MINUTES`,

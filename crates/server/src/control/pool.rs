@@ -56,6 +56,8 @@ pub struct Request {
   pub yielding: bool,
   pub place_key: Option<String>,
   pub turn: bool,
+  /// The session a worker's own turn continues, or none where it opens a fresh one.
+  pub session: Option<String>,
 }
 
 /// One owner's reservation.
@@ -137,6 +139,7 @@ pub(crate) fn request_of(row: &QueryResult) -> Result<Request, Refused> {
     yielding: row.try_get::<String>("", "class")? == "yielding",
     place_key: row.try_get("", "place_key")?,
     turn: row.try_get::<i64>("", "turn")? == 1,
+    session: row.try_get("", "session")?,
   })
 }
 

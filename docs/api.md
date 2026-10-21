@@ -28,7 +28,7 @@ a field's exact shape matters, the OpenAPI document is the one to read.
 ## Versioning
 
 - The contract carries the repository's one version, in semver; the workspace manifest is its source. Before
-  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.10`.
+  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.11`.
 - A change to this document and a change to the boundary go in one commit. A change to a route, an event, a
   hook or a shared table's contract repairs this document in the same commit.
 - The major moves on a removed or renamed route, field or event, the minor on an addition, the patch on
@@ -218,6 +218,10 @@ Every route that takes a body names the request type it reads, holding only the 
 | POST | `/reservations` | Reserve seats for an owner. |
 | PATCH | `/reservations/{token}` | Release a reservation with its outcome. |
 | GET | `/roles` | The roles the pool can lend. |
+
+A seat request carries its `session` where it stands for a project's own turn: the session that turn
+continues, or null where the worker's earlier session was cold or past its model's context
+(`docs/coworker-pool.md`, 「A project's own session」). A borrowed child's seat names no session.
 
 ### places
 
