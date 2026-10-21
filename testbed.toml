@@ -68,7 +68,7 @@ binaries = [
 # of another service's, and the data root agency shares with the services that read its files
 # (docs/agent-control.md, 「The job's release」). The server, the agent host and the gateway carry the
 # restart mark; herdr's unit carries none, since herdr is a runtime agency stands on rather than one of
-# its programs.
+# its programs: it is hand-installed, and no deployment links or restarts it.
 [deploy]
 root = "~/.local/share/bmo-agency"
 link = "deploy"

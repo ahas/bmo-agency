@@ -416,9 +416,10 @@ A kind agency keeps to its own processes does not cross the stream.
 
 ## Tables a consumer shares
 
-- **`room_windows`** is the agency's and the receiver's table alike: the rooms' listening windows.
-- **`runs`, `agent_log`, `run_records`, `agent_executions`** carry a run's ledger, its log lines, its
-  records and the executions agency recorded.
+- **`room_windows`** is the receiver's: the rooms' listening windows, and agency keeps none.
+- **`run_records`** is the receiver's too: what a turn wrote down beside its run.
+- **`runs`, `agent_log`, `agent_executions`** carry a run's ledger, its log lines and the executions
+  agency recorded.
 
 ## The command
 

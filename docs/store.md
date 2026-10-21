@@ -50,7 +50,6 @@ seeds. The other crates and the server reach the store only through it.
     it was opened for, `run`, and carries its job and item only where a caller names them, since a
     job's rows are the job unit's (`docs/live-claude-guard.md`);
   - the moves of the cache prefix: `prefix_moves`;
-  - the run records: `run_records`;
   - the work a harness hands over: `assignments`, one row a worker held for an item — the item, the
     holder, the worker, its state and when the hold runs out — and `jobs`, one row the item's run on that
     worker — the item and lease the harness named, the assignment, the worker, the session and run it
@@ -73,6 +72,8 @@ seeds. The other crates and the server reach the store only through it.
   - the companions' sessions and settings: `room_sessions`, `room_session_turns`, `companion_settings`;
     the window a room holds open for an agent is the room's owner's, and agency keeps none;
   - the settings, below.
+- **The run records are the receiver's,** not this store's: what a turn wrote down beside its run is kept
+  by whoever carries the turn (`docs/api.md`, 「Tables a consumer shares」).
 - **An account's `user_id`** names the user it belongs to, or none for the owner's; agency reads it and
   never fills it in itself, since who the users are is the caller's.
 - **An agent's `prompts`** names the folder under `prompts/agents/` that holds what that agent alone is
