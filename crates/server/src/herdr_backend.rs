@@ -1859,24 +1859,27 @@ impl Sessions for HerdrSessions {
           None,
         ))
       }
+      // A room's session is readable from its start, before its first turn opens a generation: it stands
+      // then on the provider and model its agent's row names, at generation 0.
       Scope::Room(room) => {
         let held = sessions::session(&ground.db, &agent, room_number(room)?).await.map_err(store_fault)?;
-        let Some(held) = held else {
-          return Err(fault(FaultKind::Unknown, format!("{session} has not been opened")));
+        let road = held.as_ref().and_then(|held| held.harness.as_ref()).map(|harness| &harness.road);
+        let (provider, model) = match road.and_then(|road| road.split_once("::")) {
+          Some((provider, model)) => (provider.to_owned(), model.to_owned()),
+          None => match pinned(ground, &agent).await? {
+            Some(pinned) => {
+              (pinned.provider.unwrap_or_default(), pinned.companion.pinned_model.unwrap_or_default())
+            }
+            None => Default::default(),
+          },
         };
-        let (provider, model) = held
-          .harness
-          .as_ref()
-          .and_then(|harness| harness.road.split_once("::"))
-          .map(|(provider, model)| (provider.to_owned(), model.to_owned()))
-          .unwrap_or_default();
 
         Ok(State::standing(
           session.clone(),
           provider,
           model,
           place,
-          u64::try_from(held.generation).unwrap_or_default(),
+          u64::try_from(held.as_ref().map_or(0, |held| held.generation)).unwrap_or_default(),
           None,
         ))
       }

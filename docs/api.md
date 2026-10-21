@@ -28,7 +28,7 @@ a field's exact shape matters, the OpenAPI document is the one to read.
 ## Versioning
 
 - The contract carries the repository's one version, in semver; the workspace manifest is its source. Before
-  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.9`.
+  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.10`.
 - A change to this document and a change to the boundary go in one commit. A change to a route, an event, a
   hook or a shared table's contract repairs this document in the same commit.
 - The major moves on a removed or renamed route, field or event, the minor on an addition, the patch on
@@ -130,6 +130,11 @@ folder its turns go out on, and its turns are ordinary prompts with the context 
 parts. A provider whose program keeps a session continues the one its last answered turn left; a provider
 that keeps none — OpenRouter through the dsh loop among them — carries each turn afresh. The session
 stands in the server's memory from its start to its end.
+
+A room's session is readable by its id from its start, before its first turn has opened a generation:
+the read answers the provider, model and place its agent's row names, at generation 0, and its first
+turn opens the first generation on that road. A start writes nothing of the session, so the list of
+sessions names a room's once its first turn has opened one.
 
 A conversation moves its provider and model on the change route, each left as it stands where the body
 names only the other, and starts its next turn on a fresh session where the road keeps one. A

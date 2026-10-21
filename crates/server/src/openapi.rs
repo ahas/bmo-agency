@@ -318,7 +318,7 @@ pub const OPERATIONS: &[Operation] = &[
     path: "/sessions",
     id: "createSessions",
     tag: "sessions",
-    summary: "Start a session for an agent at a scope; a throwaway one is scope apart with boundMs and its own options. A run with a fixed prompt (a digest, a research, a browse, a narration, the morning news) is such a session naming its prompt document; it calls the upstreams it needs through their own MCP servers.",
+    summary: "Start a session for an agent at a scope, readable at once before its first turn; a throwaway one is scope apart with boundMs and its own options. A run with a fixed prompt (a digest, a research, a browse, a narration, the morning news) is such a session naming its prompt document; it calls the upstreams it needs through their own MCP servers.",
     params: &[],
     body: Some("SessionStart"),
     answers: &[(201, Some("Session"), false)],
@@ -329,7 +329,7 @@ pub const OPERATIONS: &[Operation] = &[
     path: "/sessions/{sessionId}",
     id: "getSession",
     tag: "sessions",
-    summary: "A session's state: provider, model, place, holder, why the prefix changed.",
+    summary: "A session's state: provider, model, place, holder, why the prefix changed. A room's answers from its start, before its first turn, at generation 0.",
     params: &[Param {
       name: "sessionId",
       place: "path",
