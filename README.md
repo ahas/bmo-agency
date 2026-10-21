@@ -16,7 +16,7 @@ provider and tier is given.
 
 | Folder | Holds |
 |---|---|
-| `.graph/` | the code dependency graph |
+| `.graph/` | the code dependency graph: its area files are generated in the checkout and untracked, so a fresh checkout builds them again, while `settings.toml` is the repository's configuration and stays tracked |
 | `crates/` | the Rust crates |
 | `deploy/` | the service units |
 | `docs/` | the canonical documents |
