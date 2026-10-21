@@ -72,8 +72,9 @@ seeds. The other crates and the server reach the store only through it.
   - the companions' sessions and settings: `room_sessions`, `room_session_turns`, `companion_settings`;
     the window a room holds open for an agent is the room's owner's, and agency keeps none;
   - the settings, below.
-- **The run records are the receiver's,** not this store's: what a turn wrote down beside its run is kept
-  by whoever carries the turn (`docs/api.md`, 「Tables a consumer shares」).
+- **The run records are the receiver's,** not this store's: what a turn wrote down beside its run is
+  kept by the receiver, beside the run it was written under (`docs/api.md`, 「Tables a consumer
+  shares」).
 - **An account's `user_id`** names the user it belongs to, or none for the owner's; agency reads it and
   never fills it in itself, since who the users are is the caller's.
 - **An agent's `prompts`** names the folder under `prompts/agents/` that holds what that agent alone is

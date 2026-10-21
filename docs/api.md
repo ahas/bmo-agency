@@ -28,7 +28,7 @@ a field's exact shape matters, the OpenAPI document is the one to read.
 ## Versioning
 
 - The contract carries the repository's one version, in semver; the workspace manifest is its source. Before
-  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.11`.
+  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.12`.
 - A change to this document and a change to the boundary go in one commit. A change to a route, an event, a
   hook or a shared table's contract repairs this document in the same commit.
 - The major moves on a removed or renamed route, field or event, the minor on an addition, the patch on
@@ -179,7 +179,7 @@ Every route that takes a body names the request type it reads, holding only the 
 | Method | Path | Does |
 |---|---|---|
 | GET | `/log-lines` | Log lines across runs: by run, job or agent, kinds, latest, before or after. |
-| POST | `/log-lines` | Add a line to a run's log: a note, a turn record, a program's output. |
+| POST | `/log-lines` | Add a note in the bot's own words to a run's log, beside the run's own lines. |
 
 ### executions
 
@@ -417,7 +417,8 @@ A kind agency keeps to its own processes does not cross the stream.
 ## Tables a consumer shares
 
 - **`room_windows`** is the receiver's: the rooms' listening windows, and agency keeps none.
-- **`run_records`** is the receiver's too: what a turn wrote down beside its run.
+- **`run_records`** is the receiver's too: what a turn wrote down beside its run, and agency keeps
+  none.
 - **`runs`, `agent_log`, `agent_executions`** carry a run's ledger, its log lines and the executions
   agency recorded.
 

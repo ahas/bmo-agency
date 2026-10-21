@@ -183,11 +183,11 @@ are the companion unit's, not agency's. This document covers only what agency ho
   answerers, and judges only its own rows by the rooms it is handed.
 - **What each range takes of agency's is agency's; the rest is its owners',** told by the reset's
   event as it ends (`docs/api.md`, 「Events」, `companion-reset`), so each unit takes its own rows:
-  - the conversation range takes the companion's room sessions and their kept turns, its run log lines
-    and their run records, the run log lines of the rooms it answers alone, its runs in the run ledger
-    and those of the rooms it answers alone, the records its harnesses keep of the sessions run in its
-    home and the prompts their histories kept of them; the rooms' own records — their messages,
-    judgements, usage and the windows they hold open for it — are their owners';
+  - the conversation range takes the companion's room sessions and their kept turns, its run log lines,
+    the run log lines of the rooms it answers alone, its runs in the run ledger and those of the rooms
+    it answers alone, the records its harnesses keep of the sessions run in its home and the prompts
+    their histories kept of them; the rooms' own records — their messages, judgements, usage and the
+    windows they hold open for it — are their owners';
   - the person range is the brain's: agency asks the brain to let go of everything it holds under the
     companion's scope — its memories, notes, watches, reminders and fragments — so nothing it
     remembered comes back (`docs/api.md`, 「Calls agency makes」, the brain); agency takes the records

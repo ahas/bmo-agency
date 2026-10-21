@@ -42,9 +42,6 @@ about a message is not agency's: the judgement records belong to the units that 
 - **A note in the bot's own words** is written into a run's log across the boundary by whoever carries
   the run, such as the job unit telling which road a turn went out on or why the run ended. It stands
   beside the run's own lines, under the run's agent, room and job, and is kept whole.
-- **A turn record** is one thing a run wrote down for its turn, a row filed or words appended to one,
-  kept under the name the run worked under so the checks on that turn's answer can ask whether a
-  promise in it stands on a record. Whoever carries out the writing keeps it across the boundary.
 - **A room forgotten takes its lines with it,** but a job's: a job's turns are logged under its room
   and belong to the job, which outlives the room (`docs/api.md`, 「Sessions」, forgetting a room).
 

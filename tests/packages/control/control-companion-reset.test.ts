@@ -13,10 +13,10 @@ import type { ControlBase } from "./control-contract-base";
 
 // A companion's reset by range (docs/companions.md, 「Starting it afresh」; docs/api.md, 「Agents」), through
 // agency's own server on a store of the test's. Each test stands a companion of its own: a room it
-// answers alone and a room it shares, its room sessions with their kept turns and windows, its run log
-// lines and their run records, and the records the registered harness keeps of the sessions run in its
-// home and in its brain folder. What it remembers is the brain's, held under the companion's scope, so
-// the brain is a stand-in that writes down what it was asked.
+// answers alone and a room it shares, its room sessions with their kept turns, its run log lines, and
+// the records the registered harness keeps of the sessions run in its home and in its brain folder. What
+// it remembers is the brain's, held under the companion's scope, so the brain is a stand-in that writes
+// down what it was asked.
 
 const token = "secret";
 // The binary is built as the file loads, so no hook spends its own time on a build.
@@ -120,10 +120,9 @@ async function stand(agent: string, rooms: number): Promise<Stood> {
   }
 
   // Its own line in the lone room, another agent's line there, whose room's whole log goes with it, and
-  // another agent's line in the shared room, which stays; each with a run record of its own.
+  // another agent's line in the shared room, which stays.
   for (const [who, chatId, runName] of [[agent, alone, `chat:${alone}:1`], ["other", alone, `chat:${alone}:2`], ["other", shared, `chat:${shared}:1`]] as const) {
     await run("INSERT INTO agent_log (agent, run, chat_id, at, kind, text) VALUES (?, ?, ?, 1, 'prompt', 'x')", who, runName, chatId);
-    await run("INSERT INTO run_records (run, kind, text, at) VALUES (?, 'answer', 'x', 1)", runName);
   }
 
   // Runs of the ledger: the companion's in either room and another agent's in the lone room go with it, and
@@ -166,7 +165,7 @@ describe("POST /companion-resets", () => {
 
     expect([both.agent, both.label, both.ranges]).toEqual([stood.agent, "Tester", ["conversation", "person"]]);
     expect([both.alone, both.shared]).toEqual([[{ chatId: stood.alone, title: null }], [{ chatId: stood.shared, title: null }]]);
-    expect(rowsOf(both)).toEqual({ run_records: 2, agent_log: 2, runs: 3, room_session_turns: 4, room_sessions: 2 });
+    expect(rowsOf(both)).toEqual({ agent_log: 2, runs: 3, room_session_turns: 4, room_sessions: 2 });
     expect(both.files.toSorted()).toEqual([...stood.home, ...stood.recollector].toSorted());
     expect(both.brain).toEqual({ took: counts, couldNot: [] });
     expect(brainAsked).toEqual([{ method: "DELETE", path: `/scopes/${stood.agent}`, query: "?dryRun=true" }]);
@@ -187,11 +186,10 @@ describe("POST /companion-resets", () => {
 
     const done = await answered(reset({ agent: stood.agent, conversation: true, alone: [stood.alone], shared: [stood.shared] }));
 
-    expect(rowsOf(done)).toEqual({ run_records: 2, agent_log: 2, runs: 3, room_session_turns: 4, room_sessions: 2 });
+    expect(rowsOf(done)).toEqual({ agent_log: 2, runs: 3, room_session_turns: 4, room_sessions: 2 });
     expect(done.failures).toEqual([]);
     expect([await count("room_sessions WHERE agent = ?", stood.agent), await count("room_session_turns WHERE agent = ?", stood.agent)]).toEqual([0, 0]);
     expect([await count("agent_log WHERE chat_id = ?", stood.alone), await count("agent_log WHERE chat_id = ?", stood.shared)]).toEqual([0, 1]);
-    expect(await count("run_records WHERE run = ?", `chat:${stood.shared}:1`)).toBe(1);
     expect(await archive!.sql.all("SELECT agent, chat_id AS room FROM runs WHERE chat_id IN (?, ?)", stood.alone, stood.shared)).toEqual([{ agent: "other", room: stood.shared }]);
     expect([stood.home.some((path) => existsSync(path)), stood.recollector.every((path) => existsSync(path))]).toEqual([false, true]);
     expect([done.brain, brainAsked]).toEqual([null, []]);

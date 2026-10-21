@@ -1,10 +1,10 @@
-// The archive's `runs`, `agent_log` and `run_records` tables, read and written here and nowhere
-// else in the archive (docs/store.md).
+// The archive's `runs` and `agent_log` tables, read and written here and nowhere else in the
+// archive (docs/store.md).
 
 import { deploymentNames } from "@agency/support/names";
 import type { AgentStore } from "./agent-store";
 import type { RunIdRow } from "./query-rows";
-import type { RunCall, TurnRecord, KeptRecord, TurnRecordKind } from "./run-rows";
+import type { RunCall } from "./run-rows";
 import type { ArchiveSql } from "./archive-sql";
 
 // What a launcher opens a run's row with. Nothing of the query or the task is in it: this is a
@@ -220,27 +220,6 @@ export class RunStore {
            ON answer.agent = call.agent AND answer.run = call.run AND answer.kind = 'tool-result' AND answer.ref = call.ref
          WHERE call.agent = ? AND call.run IN (${placeholders}) AND call.kind = 'tool'
          ORDER BY call.id`, await this.agents.canonicalAgent(agent), ...runs) as RunCall[];
-  }
-
-  // What a writing script kept under the run it was working for. A script working for no run —
-  // one a person ran in a shell — keeps nothing, since no turn will ever ask for it.
-  async keepRunRecord(run: string | null, record: TurnRecord): Promise<void> {
-    if (run === null) {
-      return;
-    }
-
-    await this.sql.run("INSERT INTO run_records (run, kind, text, record_id, wakes, at) VALUES (?, ?, ?, ?, ?, ?)", run, record.kind, record.text, record.id, record.wakes ? 1 : 0, Math.floor(Date.now() / 1000));
-  }
-
-  // Every record the named runs' scripts kept, oldest first.
-  async runRecords(runs: readonly string[]): Promise<KeptRecord[]> {
-    if (runs.length === 0) {
-      return [];
-    }
-
-    const rows = await this.sql.all(`SELECT run, kind, text, record_id, wakes FROM run_records WHERE run IN (${runs.map(() => "?").join(", ")}) ORDER BY id`, ...runs) as { run: string; kind: TurnRecordKind; text: string; record_id: number | null; wakes: number }[];
-
-    return rows.map((row) => ({ run: row.run, kind: row.kind, text: row.text, id: row.record_id, wakes: row.wakes === 1 }));
   }
 
   // How many times one run has been started. A process that keeps re-invoking its own turn writes

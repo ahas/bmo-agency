@@ -6,9 +6,8 @@
   clippy::let_and_return,
   clippy::unnecessary_to_owned
 )]
-//! The run log and the run records across the boundary (docs/api.md, 「Run log and run records」): a run's
-//! lines after the last one a reader has, a job's lines and its last one, the records kept under a run, and
-//! a note and a turn record written by whoever carries the run.
+//! The run log across the boundary (docs/api.md, 「log-lines」): a run's lines after the last one a reader
+//! has, a job's lines and its last one, and a note written by whoever carries the run.
 
 use axum::http::{Method, StatusCode};
 use axum::response::{IntoResponse, Response};
@@ -16,7 +15,7 @@ use bmo_chat::{ErrorCode, WireError};
 use serde::Deserialize;
 use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
-use store::{all, one, run};
+use store::{all, one};
 
 use super::{Call, Refused, Route, answer};
 use crate::run_log::lines::{LINE_STATES, Line};
@@ -100,38 +99,6 @@ impl Route for RunLogLines {
 }
 
 crate::moved!(RunLogLines);
-
-/// The records kept under a run.
-pub struct RunRecords;
-
-impl Route for RunRecords {
-  const METHOD: Method = Method::GET;
-  const PATH: &'static str = "/run-records";
-
-  async fn answer(&self, call: Call) -> Result<Response, Refused> {
-    let run = call.query("run").ok_or_else(|| bad("run is required"))?;
-    let rows = all(
-      call.store(),
-      r#"SELECT "id", "kind", "text", "record_id", "wakes", "at" FROM "run_records" WHERE "run" = $1 ORDER BY "id""#,
-      vec![run.into()],
-    )
-    .await?;
-    let mut records: Vec<Value> = Vec::with_capacity(rows.len());
-
-    for row in rows {
-      records.push(json!({
-        "id": row.try_get::<i64>("", "id")?,
-        "kind": row.try_get::<String>("", "kind")?,
-        "text": row.try_get::<String>("", "text")?,
-        "recordId": row.try_get::<Option<i64>>("", "record_id")?,
-        "wakes": row.try_get::<i64>("", "wakes")?,
-        "at": row.try_get::<i64>("", "at")?,
-      }));
-    }
-
-    Ok(answer(StatusCode::OK, json!({ "records": records })))
-  }
-}
 
 // The job the path names by its id.
 fn job_of(call: &Call) -> Result<i64, Refused> {
@@ -348,48 +315,3 @@ impl Route for WriteNote {
 }
 
 crate::moved!(WriteNote);
-
-/// A turn record as the run that wrote it down hands it.
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct TurnRecord {
-  run: String,
-  kind: String,
-  text: String,
-  record_id: Option<i64>,
-  wakes: bool,
-  at: i64,
-}
-
-/// A turn record kept under the name its run worked under.
-pub struct KeepTurnRecord;
-
-impl Route for KeepTurnRecord {
-  const METHOD: Method = Method::POST;
-  const PATH: &'static str = "/turn-records";
-
-  async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
-    let record: TurnRecord = read_body(&mut call, "a turn record").await?;
-
-    if record.run.is_empty() || record.kind.is_empty() {
-      return Err(bad("a turn record names its run and its kind"));
-    }
-
-    run(
-      call.store(),
-      r#"INSERT INTO "run_records" ("run", "kind", "text", "record_id", "wakes", "at")
-         VALUES ($1, $2, $3, $4, $5, $6)"#,
-      vec![
-        record.run.into(),
-        record.kind.into(),
-        record.text.into(),
-        record.record_id.into(),
-        i64::from(record.wakes).into(),
-        record.at.into(),
-      ],
-    )
-    .await?;
-
-    Ok(StatusCode::NO_CONTENT.into_response())
-  }
-}

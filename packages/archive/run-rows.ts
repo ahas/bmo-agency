@@ -1,9 +1,8 @@
 import type { AgentProviderName } from "./provider-names";
 
 // What the archive keeps of the runs agents make: a job's spans, a run's spend, what an agent
-// decided and the stage it decided at, what a chat turn wrote down, and how an item's runs ended.
-// The archive stores these rows, so their shape stands with it; the modules that write them are the
-// agent and job bases'.
+// decided and the stage it decided at, and how an item's runs ended. The archive stores these rows,
+// so their shape stands with it; the modules that write them are the agent and job bases'.
 
 // Which level of a job a span belongs to. The phases are the runner's own clock over the whole
 // job and they sum to it; the tools and the co-workers all happened inside one of those phases,
@@ -86,33 +85,12 @@ export interface JudgementRow extends Judgement {
   createdAt: number;
 }
 
-// Where a turn wrote something down: a note, an errand of its memories, a situation rule, a new
-// TODO row, or words appended to one that already stands.
-export type TurnRecordKind = "note" | "memory" | "rule" | "todo-add" | "todo-append" | "watch";
-
-export interface TurnRecord {
-  kind: TurnRecordKind;
-  // What was written, as the call handed it over. Empty where the call carried it some way the
-  // reading does not follow.
-  text: string;
-  // The note, the memory or the TODO row the record landed in, where the call's own answer named
-  // it.
-  id: number | null;
-  // Whether the call set something that wakes the agent: a watch, or a memory written with an event
-  // (`--on`) or with a check of its own (`--until`).
-  wakes: boolean;
-}
-
 export interface RunCall {
   name: string | null;
   text: string;
   // What the call answered, and how it ended; null while nothing came back.
   result: string | null;
   state: string | null;
-}
-
-export interface KeptRecord extends TurnRecord {
-  run: string;
 }
 
 /** How one run of an item reads back: when it ended, in seconds, and how. */

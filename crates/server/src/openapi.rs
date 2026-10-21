@@ -708,7 +708,7 @@ pub const OPERATIONS: &[Operation] = &[
     path: "/log-lines",
     id: "createLogLines",
     tag: "log-lines",
-    summary: "Add a line to a run's log: a note, a turn record, a program's output.",
+    summary: "Add a note in the bot's own words to a run's log, beside the run's own lines.",
     params: &[],
     body: Some("LogLineAsk"),
     answers: &[(201, Some("LogLine"), false)],
