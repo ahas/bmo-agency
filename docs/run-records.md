@@ -24,6 +24,12 @@ about a message is not agency's: the judgement records belong to the units that 
 - That last part arrives when the Claude Workflow ends rather than as it goes, since nothing of it
   is in the stream before then, and one branch is held to a few hundred lines so a fanned-out job
   cannot crowd out its own log.
+- **A pane program's record is filed as its lines are.** A provider whose turns go through its own
+  pane program (「The pane the bot drives」 in `docs/agent-control.md`) reports what the turn is
+  doing in the record it writes: a `progress` line carries the phase, the tool being called and how
+  full the session stands, and the `answer` line carries the turn's usage beside its words. Each is
+  filed as the line it is, so a room reading the run as it goes sees the turn's progress and its
+  spend without waiting for the end.
 - A line is committed the moment it arrives, so a run killed from outside leaves everything up to
   the kill, and the ids run forward, so a finished run is scrolled back rather than only tailed.
 - It is bounded three ways — a per-line cut, the last few thousand lines per agent, and an age —

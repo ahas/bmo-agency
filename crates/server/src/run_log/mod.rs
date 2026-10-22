@@ -244,13 +244,27 @@ impl RunLog {
 
       let Some(event) = Json::parse(trimmed) else { continue };
 
-      // Only what the run said and did is a stream's event; the program's own bookkeeping is not.
+      // Only what the run said and did is a stream's event; the program's own bookkeeping is not. A pane
+      // program's record is its own shape: its turn's progress and the answer it ended on are filed as the
+      // lines they are, for the room that reads the run as it goes.
       let lines = match event.get("type").and_then(Json::as_str) {
         Some("assistant" | "user") => {
           self.tally.see(&event);
           record_lines(&event)
         }
         Some("response_item") => rollout_lines(&event),
+        None => match event.get("kind").and_then(Json::as_str) {
+          Some(kind @ ("progress" | "answer")) => {
+            let kind: &'static str = if kind == "progress" { "progress" } else { "answer" };
+
+            vec![Line {
+              kind,
+              text: trimmed.to_owned(),
+              ..Line::default()
+            }]
+          }
+          _ => continue,
+        },
         _ => continue,
       };
 

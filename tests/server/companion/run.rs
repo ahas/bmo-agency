@@ -94,3 +94,37 @@ async fn the_text_a_turn_writes_is_read_from_its_session_while_it_runs() {
   assert!(read.running);
   assert_eq!(read.text, "first\n\nsecond");
 }
+
+// A pane program's record is its own shape: what the turn is doing as it goes and the answer it ended on
+// are filed as the lines they are, so the room reading the run sees its progress and its spend.
+#[tokio::test]
+async fn a_pane_program_s_progress_and_answer_are_filed_as_their_lines() {
+  let service = Service::new(DatabaseConnection::Disconnected, Config::read(|_| None).unwrap());
+  let machine = Machine::with_env([("HOME".to_owned(), "/home/tester".to_owned())], "/data");
+  let ground = Ground::new(&service, &machine, None);
+  let mut log = RunLog::new(Target {
+    agent: "sample-agent".to_owned(),
+    run: "chat:1:1".to_owned(),
+    chat_id: Some(1),
+    job_id: None,
+  });
+  let mut watched = Watched {
+    ground: &ground,
+    log: &mut log,
+    source: "residential",
+    run: "chat:1:1".to_owned(),
+    guard: None,
+    tally: None,
+    started: Instant::now(),
+    last_tally: Instant::now(),
+    cut: None,
+    shown: None,
+  };
+  let progress = json!({ "kind": "progress", "id": "turn-1", "at": 1, "phase": "tool", "tool": "bash" });
+  let answer = json!({ "kind": "answer", "id": "turn-1", "at": 2, "text": "done", "usage": { "inputTokens": 10 } });
+  let written = watched.feed(&[progress.to_string(), answer.to_string()]).await;
+
+  assert_eq!(written.iter().map(|line| line.kind).collect::<Vec<_>>(), vec!["progress", "answer"]);
+  assert!(written[0].text.contains("\"phase\":\"tool\""));
+  assert!(written[1].text.contains("\"inputTokens\":10"));
+}
