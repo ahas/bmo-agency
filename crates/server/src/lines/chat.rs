@@ -789,6 +789,7 @@ pub async fn compose_stand_in(
     Door::Inbox { provider } => {
       let laid = Composed {
         line: LINE,
+        provider,
         system: Some(&run.system_path),
         rules: None,
         shown: Some(&run.tools_shown),

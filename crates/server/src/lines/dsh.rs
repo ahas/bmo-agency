@@ -191,12 +191,13 @@ fn read(path: &Path) -> Result<String, Refusal> {
   std::fs::read_to_string(path).map_err(|why| fault(format!("{}: {why}", path.display())))
 }
 
-/// What dsh's overlay for a run of any line is composed out of: the line, its whole system file or the
-/// worker's rules, what it shows and allows of its tools — none for the worker, which takes the whole
-/// working set — where it works, the model, the effort and whether its agent chose one, whether it thinks,
-/// and its MCP servers.
+/// What dsh's overlay for a run of any line is composed out of: the line, its provider, which dsh knows the
+/// route by, its whole system file or the worker's rules, what it shows and allows of its tools — none for
+/// the worker, which takes the whole working set — where it works, the model, the effort and whether its
+/// agent chose one, whether it thinks, and its MCP servers.
 pub struct Composed<'a> {
   pub line: &'a str,
+  pub provider: &'a str,
   pub system: Option<&'a Path>,
   pub rules: Option<&'a Path>,
   pub shown: Option<&'a str>,
@@ -343,7 +344,7 @@ fn overlay_of_with(
     Some(run.effort)
   };
 
-  rows.extend(route_rows(run.model, level, env, route));
+  rows.extend(route_rows(run.provider, run.model, level, env, route));
 
   if mcp {
     rows.extend(mcp_rows(run.mcp, run.cwd)?);
@@ -361,6 +362,7 @@ fn overlay(run: &StandInRun, env: &BTreeMap<String, String>) -> Result<Ordered, 
 fn worker_composed(run: &StandInRun) -> Composed<'_> {
   Composed {
     line: LINE,
+    provider: PROVIDER,
     system: run.system_prompt_path.as_deref(),
     rules: Some(&run.extensions.rules_path),
     shown: None,
@@ -374,9 +376,10 @@ fn worker_composed(run: &StandInRun) -> Composed<'_> {
   }
 }
 
-// The gateway as dsh's one route, with the model on it at the level the run asks where it asks one, and the
-// model as the run's own.
+// The provider as dsh's one route, known by the provider's own name, with the model on it at the level the
+// run asks where it asks one, and the model as the run's own.
 fn route_rows(
+  provider: &str,
   model_id: &str,
   level: Option<&str>,
   env: &BTreeMap<String, String>,
@@ -422,11 +425,11 @@ fn route_rows(
   [
     map(vec![
       ("id", text("llm-pi-ai")),
-      ("config", map(vec![("providers", map(vec![(PROVIDER, map(route))]))])),
+      ("config", map(vec![("providers", map(vec![(provider, map(route))]))])),
     ]),
     map(vec![
       ("id", text("agent-default-model")),
-      ("config", map(vec![("provider", text(PROVIDER)), ("model", text(model_id))])),
+      ("config", map(vec![("provider", text(provider)), ("model", text(model_id))])),
     ]),
   ]
 }
@@ -475,7 +478,7 @@ fn gate_overlay(
     rows.push(map(vec![("id", text(id)), ("disabled", Ordered::Flag(true))]));
   }
 
-  rows.extend(route_rows(model, (!thinking).then_some("off"), env, openrouter_route()?));
+  rows.extend(route_rows(PROVIDER, model, (!thinking).then_some("off"), env, openrouter_route()?));
 
   Ok(Ordered::List(rows))
 }

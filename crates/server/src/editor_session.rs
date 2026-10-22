@@ -651,6 +651,7 @@ impl Road<'_> {
       Ok(mcp) => {
         let composed = dsh::Composed {
           line: LINE,
+          provider: openrouter::PROVIDER,
           system: None,
           rules: None,
           shown: Some(FILE_TOOLS),

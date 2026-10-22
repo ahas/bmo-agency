@@ -743,6 +743,7 @@ pub async fn inbox_program(
 
   let laid = super::dsh::Composed {
     line: LINE,
+    provider,
     system: run.system_prompt.as_deref(),
     rules: Some(&run.rules),
     shown: None,

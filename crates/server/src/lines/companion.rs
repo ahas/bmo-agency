@@ -248,6 +248,7 @@ pub async fn compose(
 
     let laid = super::dsh::Composed {
       line: LINE,
+      provider: turn.provider,
       system: Some(&system),
       rules: None,
       shown: Some(&CHAT_LINE.tools.shown),

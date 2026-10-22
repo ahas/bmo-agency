@@ -37,6 +37,7 @@ fn session_overlay(shown: &'static str) -> Vec<Value> {
 
   let run = Composed {
     line: "chat",
+    provider: "openrouter",
     system: Some(&system),
     rules: None,
     shown: Some(shown),
