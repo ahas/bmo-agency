@@ -607,9 +607,9 @@ in the provider's own terms:
     headless run on the road takes: the prompt, the tool rows and sandbox above, and the OpenRouter
     gateway as dsh's one route with the model and, where the agent chose one, its reasoning level. The
     key is named in the overlay as the environment variable it is read from and travels in the
-    program's environment; the overlay holds no secret. It is written under dsh's home and named by its
-    own text, so the program's command — and its identity — stays the same while nothing it reads has
-    changed.
+    program's environment; the overlay holds no secret. It is written under dsh's home — the data
+    root's `dsh`, which a deployment lays nothing over — and named by its own text, so the program's
+    command — and its identity — stays the same while nothing it reads has changed.
   - **What the bot puts in.** A turn in the inbox is one file: the turn's id, the run's name and what
     it is, the turn's own wait, and the run with its prompt and only the variables that belong to that
     turn. No key, no token and none of the rest of the bot's environment go into it. The program's own

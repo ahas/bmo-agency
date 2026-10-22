@@ -500,10 +500,10 @@ pub fn gate_command(
   cwd: &str,
   prompt: &str,
   env: &BTreeMap<String, String>,
-  agents: &Path,
+  data: &Path,
 ) -> Result<Command, Refusal> {
   let overlay = overlay_text(&gate_overlay(model, thinking, system_path, env)?)?;
-  launched(GATE_LINE, prompt, &overlay, cwd, env, agents, None)
+  launched(GATE_LINE, prompt, &overlay, cwd, env, data, None)
 }
 
 /// The overlay a standing session reads, written under dsh's home and named by its own text: the same run
@@ -514,12 +514,12 @@ pub fn gate_command(
 pub fn session_patch(
   run: &Composed,
   env: &BTreeMap<String, String>,
-  agents: &Path,
+  data: &Path,
   route: &Dsh,
 ) -> Result<PathBuf, Refusal> {
   let text = overlay_text(&overlay_of_with(run, env, false, Tools::Session, route)?)?;
   let digest = format!("{:x}", Sha256::digest(text.as_bytes()));
-  let dir = dsh_home(agents).join("overlays");
+  let dir = dsh_home(data).join("overlays");
   let path = dir.join(format!("{}-{digest}.yml", run.line));
 
   agent_host::disk::private_dir(&dir).map_err(|why| fault(format!("{}: {why}", dir.display())))?;
@@ -604,9 +604,10 @@ fn shell_word(word: &str) -> String {
   format!("'{}'", word.replace('\'', r"'\''"))
 }
 
-/// Where dsh keeps everything it writes, under the agents root rather than anybody's home.
-pub fn dsh_home(agents: &Path) -> PathBuf {
-  agents.join("dsh")
+/// Where dsh keeps everything it writes — its sessions, its overlays and its task files: the data root's
+/// `dsh`, which a deployment lays nothing over, rather than anybody's home or a tree a deployment rebuilds.
+pub fn dsh_home(data: &Path) -> PathBuf {
+  data.join("dsh")
 }
 
 /// The command a worker's run on dsh is: the pinned package by npx, the task's words and the overlay each
@@ -616,7 +617,7 @@ pub fn command(
   run: &StandInRun,
   prompt: &str,
   env: &BTreeMap<String, String>,
-  agents: &Path,
+  data: &Path,
 ) -> Result<Command, Refusal> {
   launched(
     LINE,
@@ -624,7 +625,7 @@ pub fn command(
     &overlay_text(&overlay(run, env)?)?,
     &run.cwd,
     env,
-    agents,
+    data,
     Some(PERMISSION_MODE),
   )
 }
@@ -635,11 +636,11 @@ pub fn line_command(
   run: &Composed,
   prompt: &str,
   env: &BTreeMap<String, String>,
-  agents: &Path,
+  data: &Path,
 ) -> Result<Command, Refusal> {
   let overlay = overlay_text(&overlay_of(run, env, openrouter_route()?)?)?;
 
-  launched(run.line, prompt, &overlay, run.cwd, env, agents, run.permission_mode())
+  launched(run.line, prompt, &overlay, run.cwd, env, data, run.permission_mode())
 }
 
 // The line a gate's run goes out on, which its files under dsh's home are named by.
@@ -653,10 +654,10 @@ fn launched(
   overlay: &str,
   cwd: &str,
   env: &BTreeMap<String, String>,
-  agents: &Path,
+  data: &Path,
   mode: Option<&str>,
 ) -> Result<Command, Refusal> {
-  let home = dsh_home(agents);
+  let home = dsh_home(data);
   let words: String = task_words(prompt).iter().map(|word| format!("{word}\0")).collect();
   let task = own_file(&home, line, "tasks", "words", &words)?;
   let patch = own_file(&home, line, "overlays", "yml", overlay)?;

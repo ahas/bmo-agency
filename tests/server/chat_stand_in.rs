@@ -201,9 +201,11 @@ async fn an_openrouter_step_stands_bmo_tui_on_a_dsh_session_over_its_inbox() {
   assert!(disabled("agent-instructions"));
   assert!(disabled("session-title-llm"));
 
-  // dsh's own tools stand on a line that grants tools; its web is the one the deployment replaces with the
-  // servers its MCP configuration hands the session.
-  assert!(disabled("tool-web"));
+  // dsh's own tools stand on a line that grants tools; the web the deployment replaces with the servers its
+  // MCP configuration hands the session, and the goal and ralph rows stand off so no turn outlives its answer.
+  for id in ["tool-web", "tool-goal", "tool-ralph"] {
+    assert!(disabled(id), "{id}");
+  }
 
   for id in [
     "tool-bash",
@@ -218,8 +220,6 @@ async fn an_openrouter_step_stands_bmo_tui_on_a_dsh_session_over_its_inbox() {
     "tool-subagent-fork",
     "tool-workflow",
     "tool-todo",
-    "tool-goal",
-    "tool-ralph",
     "tool-str-replace-editor",
     "plan-mode",
     "user-questions",
@@ -235,7 +235,7 @@ async fn an_openrouter_step_stands_bmo_tui_on_a_dsh_session_over_its_inbox() {
   assert_eq!(route["baseURL"], "https://openrouter.ai/api/v1");
   assert_eq!(route["models"][0]["id"], "vendor/model");
 
-  let dsh_home = ground.roots.agents.join("dsh").to_string_lossy().into_owned();
+  let dsh_home = ground.roots.data.join("dsh").to_string_lossy().into_owned();
 
   assert_eq!(composed.command.env.get("DSH_HOME"), Some(&dsh_home));
   assert!(!composed.command.env.contains_key("BMO_DSH_LOCAL_URL"));

@@ -664,7 +664,7 @@ impl Road<'_> {
           mcp: Some(&mcp),
         };
 
-        match dsh::line_command(&composed, self.prompt, &env, &Trees::of(self.ground).agents) {
+        match dsh::line_command(&composed, self.prompt, &env, &Trees::of(self.ground).data) {
           Ok(command) => self.hosted(log, openrouter::PROVIDER, command, None).await,
           Err(why) => Err(why.detail),
         }

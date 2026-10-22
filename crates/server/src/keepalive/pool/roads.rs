@@ -192,7 +192,7 @@ impl StandIn for OpenRouterPing<'_> {
 
     env.insert(OPENROUTER.presence.key_env.clone(), self.key.to_owned());
     env.insert(openrouter::LOCAL_URL.to_owned(), self.tap.to_owned());
-    dsh::command(run, &KEEPALIVE.prompt, &env, &Trees::of(ground).agents)
+    dsh::command(run, &KEEPALIVE.prompt, &env, &Trees::of(ground).data)
   }
 
   fn answer(&self, _ground: &Ground, run: &StandInRun, ran: &host_run::Ran) -> Reply {

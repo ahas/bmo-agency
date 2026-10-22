@@ -61,17 +61,14 @@ pub fn resident_command(
     .map(|(name, value)| (name.clone(), value.clone()))
     .collect::<BTreeMap<_, _>>();
 
-  // dsh keeps its profiles and sessions under the agents root rather than in anybody's home, as every
-  // headless run of it does.
-  env.insert(
-    "DSH_HOME".to_owned(),
-    dsh::dsh_home(&ground.roots.agents).to_string_lossy().into_owned(),
-  );
+  // dsh keeps its profiles and sessions under the data root, which a deployment lays nothing over,
+  // rather than in anybody's home or a tree a deployment rebuilds.
+  env.insert("DSH_HOME".to_owned(), dsh::dsh_home(&ground.roots.data).to_string_lossy().into_owned());
 
   let route = harness_providers::provider(provider)
     .and_then(|declared| declared.declared().dsh.as_ref())
     .ok_or_else(|| super::fault(format!("{provider} names no dsh route")))?;
-  let patch = dsh::session_patch(run, &env, &ground.roots.agents, route)?;
+  let patch = dsh::session_patch(run, &env, &ground.roots.data, route)?;
   let mut args = vec![
     program_word(machine, program),
     "dsh".to_owned(),
