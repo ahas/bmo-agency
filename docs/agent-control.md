@@ -584,18 +584,21 @@ in the provider's own terms:
   - **One session across turns.** A turn the bot puts in and a line a person types go into the same
     ACP session, so the conversation carries across them. The model and effort are chosen on the
     session as it opens, from the command's model choice `[provider, model]` and its `--effort` where
-    the run names one.
+    the run names one. A program started again on the same place and folder takes up the session it
+    stood in before and then sets the model and effort the new command names, so a changed model
+    carries the conversation over rather than opening an empty session beside it.
   - **The system prompt is agency's.** The overlay sets dsh's `system-prompt` persona to the run's
     composed system prompt, the same file the Claude Code line is handed, and switches off dsh's
     instruction-file reader and its title call, as the retired loop's overlay did. A worker keeps the
     instruction-file reader, since the checkout's documents are its work's, and its rules follow dsh's
     opening line rather than replacing it.
   - **The web is agency's, and the rest of the tools are dsh's.** A line that grants tools keeps the
-    rows dsh ships — the shell, the files, the search, jobs, sub-agents, workflows, todo, goal, ralph,
-    the editor, plan mode and the user question — and only the web row is switched off, since the web
-    the model reaches is the deployment's own, handed in through its MCP configuration. A line shown no
-    tools, a gate's among them, has every tool row off. A worker takes the whole working set but the
-    web, as a job always has.
+    rows dsh ships — the shell, the files, the search, jobs, sub-agents, workflows, todo, the editor,
+    plan mode and the user question — and switches off the web row, since the web the model reaches is
+    the deployment's own, handed in through its MCP configuration. A standing session goes without the
+    goal and ralph rows too: both keep a session working past the turn that was put in, and a chat's
+    turn ends with its answer. A line shown no tools, a gate's among them, has every tool row off. A
+    worker takes the whole working set but the web, as a job always has.
   - **The MCP servers are agency's.** They are read from the same configuration file the Claude Code
     line is handed, given to bmo-tui as `--mcp-config`, and passed into the session as its
     `mcpServers`. None is mounted in the overlay, so no server stands twice and no dsh default stands

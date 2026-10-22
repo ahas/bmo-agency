@@ -42,6 +42,10 @@ const HEADLESS_OPENER: &str =
 // through the deployment's own server.
 const WEB_ROW: &str = "tool-web";
 
+// The rows a standing session goes without beside the web: a goal and the ralph loop keep the session
+// working past the turn that was put in, and a chat's turn ends with its answer.
+const LOOP_ROWS: [&str; 2] = ["tool-goal", "tool-ralph"];
+
 // The row that spends a second model call titling a session nothing opens again; a worker keeps the
 // instruction-file reader, since the checkout's documents are its work's.
 const TITLE_ROW: &str = "session-title-llm";
@@ -314,7 +318,10 @@ fn overlay_of_with(
     // A standing session keeps dsh's own tools; the web is the one the deployment replaces, with the
     // servers its MCP configuration hands the session.
     (Tools::Session, Some(mode)) => {
-      rows.push(map(vec![("id", text(WEB_ROW)), ("disabled", Ordered::Flag(true))]));
+      for id in [WEB_ROW].into_iter().chain(LOOP_ROWS) {
+        rows.push(map(vec![("id", text(id)), ("disabled", Ordered::Flag(true))]));
+      }
+
       rows.push(map(vec![
         ("id", text("sandbox-policy")),
         ("config", map(vec![("mode", text(mode)), ("workspaceRoot", text(run.cwd))])),

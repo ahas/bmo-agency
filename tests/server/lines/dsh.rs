@@ -56,11 +56,13 @@ fn session_overlay(shown: &'static str) -> Vec<Value> {
 }
 
 #[test]
-fn a_session_granting_tools_keeps_dsh_s_defaults_and_only_replaces_the_web() {
+fn a_session_granting_tools_keeps_dsh_s_defaults_but_the_web_and_the_loops() {
   let overlay = session_overlay("Bash,Read");
   let disabled = |id: &str| overlay.iter().any(|row| row["id"] == id && row["disabled"] == true);
 
-  assert!(disabled("tool-web"));
+  for id in ["tool-web", "tool-goal", "tool-ralph"] {
+    assert!(disabled(id), "{id}");
+  }
 
   for id in ["tool-bash", "tool-fs", "tool-fs-search", "plan-mode", "user-questions"] {
     assert!(!disabled(id), "{id}");
