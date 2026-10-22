@@ -634,6 +634,11 @@ in the provider's own terms:
     the provider a worker is pinned to, is a turn of this program in the agent's pane. A gate's turn on
     an OpenRouter conversation is one too, with no tools and no MCP server; a summary's and an ephemeral
     turn's stay in the host, on dsh's headless profile.
+  - **A gate's turn is the gate road wherever its session stands.** A turn carrying the gate's own ask —
+    its instructions as the program's whole system prompt, the model and effort its mapping names, the
+    thinking it asks for, no tools and no MCP server — goes out on that road in a conversation and in a
+    session apart alike; the ask is never left to the chat line, which would answer with the chat
+    agent's own persona.
 
 ### Runs and sessions in one pane
 

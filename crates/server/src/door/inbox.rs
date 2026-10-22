@@ -157,6 +157,10 @@ pub fn read_turn(records: &[Value], run: &Run, provider: &str) -> (State, Option
   } else {
     String::new()
   };
+  // How full the session stood when the turn ended, where the program's answer says.
+  let context = answer.and_then(|answer| answer.get("context"));
+  let used = context.and_then(|context| context.get("used")).and_then(Value::as_i64);
+  let size = context.and_then(|context| context.get("size")).and_then(Value::as_i64);
 
   (
     state,
@@ -167,8 +171,11 @@ pub fn read_turn(records: &[Value], run: &Run, provider: &str) -> (State, Option
       effort: None,
       text,
       session_id: None,
-      context_ratio: None,
-      context_tokens: None,
+      context_ratio: used
+        .zip(size)
+        .filter(|(_, size)| *size > 0)
+        .map(|(used, size)| used as f64 / size as f64),
+      context_tokens: used,
       session_usage: None,
       windows: vec![],
       spend: if input + output + cache_read == 0 {

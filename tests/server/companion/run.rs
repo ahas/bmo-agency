@@ -121,7 +121,8 @@ async fn a_pane_program_s_progress_and_answer_are_filed_as_their_lines() {
     shown: None,
   };
   let progress = json!({ "kind": "progress", "id": "turn-1", "at": 1, "phase": "tool", "tool": "bash" });
-  let answer = json!({ "kind": "answer", "id": "turn-1", "at": 2, "text": "done", "usage": { "inputTokens": 10 } });
+  let answer =
+    json!({ "kind": "answer", "id": "turn-1", "at": 2, "text": "done", "usage": { "inputTokens": 10 } });
   let written = watched.feed(&[progress.to_string(), answer.to_string()]).await;
 
   assert_eq!(written.iter().map(|line| line.kind).collect::<Vec<_>>(), vec!["progress", "answer"]);

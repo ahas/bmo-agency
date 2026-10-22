@@ -1360,11 +1360,13 @@ impl HerdrSessions {
 
   // One gate's turn of a conversation: the gate's instructions as the program's whole system prompt, on the
   // model and effort its mapping names, with no tools, no MCP server and the thinking the gate asks for.
+  #[allow(clippy::too_many_arguments)]
   async fn gate_turn(
     &self,
     turn: &Turn,
     agent: &str,
-    conversation: &Conversation,
+    provider: &str,
+    cwd: &str,
     gate: &GateAsk,
     run: &str,
     shown: OutputWatch<'_>,
@@ -1379,10 +1381,10 @@ impl HerdrSessions {
       chat_id: turn.context.room.as_ref().map(|room| room.chat_id),
       job_id: None,
     });
-    let prepared = gate_run(ground, agent, gate, &turn.prompt, &conversation.cwd)
+    let prepared = gate_run(ground, agent, gate, &turn.prompt, cwd)
       .map_err(|refused| fault(FaultKind::Refused, refused.detail))?;
     let started = Instant::now();
-    let asked = if conversation.provider == CHAT_PROVIDER {
+    let asked = if provider == CHAT_PROVIDER {
       let composed =
         compose_prepared(ground, &machine, &prepared, &turn.prompt, run, &turn.context.answers, began)
           .await;
@@ -1400,7 +1402,7 @@ impl HerdrSessions {
         ground,
         &mut log,
         &prepared,
-        &conversation.provider,
+        provider,
         &turn.context.answers,
         began,
         gate,
@@ -1418,7 +1420,7 @@ impl HerdrSessions {
         ground.events.publish(RoadWalked::of(
           chat_id,
           run,
-          &conversation.provider,
+          provider,
           &prepared.model,
           false,
           started,
@@ -1847,7 +1849,8 @@ impl Sessions for HerdrSessions {
       _ => None,
     };
 
-    if matches!(scope, Scope::Apart(_)) && work.is_none() {
+    // A gate's turn carries the gate's ask instead of work, and goes out on the gate road.
+    if matches!(scope, Scope::Apart(_)) && work.is_none() && turn.context.gate.is_none() {
       return Err(fault(
         FaultKind::Refused,
         format!("{}: a thrown-away session's turn names its work parts", turn.session),
@@ -1933,12 +1936,19 @@ impl Sessions for HerdrSessions {
         keep_worker_job(db, &agent, None).await;
         came
       }
-      (Scope::Apart(apart), _) => match work {
-        Some(work) => self.carried(&turn, &agent, WorkSeat::Apart(apart), work, turn_id).await,
-        None => Err(apart_refused(&agent)),
+      (Scope::Apart(apart), _) => match (&turn.context.gate, work) {
+        (Some(gate), _) => {
+          self.gate_turn(&turn, &agent, &apart.provider, &apart.cwd, gate, &run, shown).await
+        }
+        (None, Some(work)) => self.carried(&turn, &agent, WorkSeat::Apart(apart), work, turn_id).await,
+        (None, None) => Err(apart_refused(&agent)),
       },
       (Scope::Conversation(conversation), _) => match &turn.context.gate {
-        Some(gate) => self.gate_turn(&turn, &agent, conversation, gate, &run, shown).await,
+        Some(gate) => {
+          self
+            .gate_turn(&turn, &agent, &conversation.provider, &conversation.cwd, gate, &run, shown)
+            .await
+        }
         None => self.conversation_turn(&turn, &agent, conversation, &run, shown).await,
       },
       (Scope::Worker, None) => Err(fault(FaultKind::Unknown, format!("no worker is named {agent}"))),

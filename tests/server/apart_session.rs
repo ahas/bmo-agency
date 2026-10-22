@@ -15,7 +15,7 @@ use agency_server::order_run::places::slot_cwd;
 use agency_server::places::branch::{place_agent, pool_of, slot_dir};
 use agency_server::places::{Ground, Places};
 use agency_server::seeds::deployment;
-use agent_session::{Apart, FaultKind, Scope, SessionId, Sessions, Start, Turn, TurnContext};
+use agent_session::{Apart, FaultKind, GateAsk, Scope, SessionId, Sessions, Start, Turn, TurnContext};
 use harness_providers::Machine;
 
 use crate::scratch::Scratch;
@@ -105,6 +105,25 @@ async fn a_thrown_away_session_stands_from_its_start_to_its_end_and_keeps_nothin
 
   assert_eq!(sessions.send_turn(bare).await.unwrap_err().kind, FaultKind::Refused);
   assert!(ended.ready().is_none(), "a turn refused before it starts publishes no end");
+
+  // A turn carrying a gate's ask goes out on the gate road even in a session apart: its refusal is the
+  // gate's own, that a gate's turn names its system prompt, not the apart turn's that names no work.
+  let gate = Turn {
+    session: first.id.clone(),
+    prompt: "classify".into(),
+    context: TurnContext {
+      gate: Some(GateAsk::default()),
+      ..TurnContext::default()
+    },
+  };
+  let refused = sessions.send_turn(gate).await.unwrap_err();
+
+  assert_eq!(refused.kind, FaultKind::Refused);
+  assert!(
+    refused.message.contains("a gate's turn names its system prompt"),
+    "an apart turn carrying a gate's ask takes the gate road: {}",
+    refused.message
+  );
 
   sessions.end(&first.id).await.unwrap();
 
