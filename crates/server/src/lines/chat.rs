@@ -186,7 +186,14 @@ fn harness_servers(ground: &Ground) -> Ordered {
     ));
   }
 
-  if let (Ok(program), Some(url)) = (std::env::current_exe(), env.get("BMO_AGENCY_URL")) {
+  if let (Ok(server), Some(url)) = (std::env::current_exe(), env.get("BMO_AGENCY_URL")) {
+    // The MCP server is the repository's CLI, which stands beside the server in the release's bin.
+    let program = server
+      .parent()
+      .map(|bin| bin.join("bmo-agency"))
+      .filter(|cli| cli.exists())
+      .unwrap_or(server);
+
     servers.push((
       "agency",
       Ordered::map([
