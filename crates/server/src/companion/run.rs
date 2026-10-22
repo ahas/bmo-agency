@@ -12,6 +12,7 @@ use std::time::{Duration, Instant};
 use harness_providers::claude_code::ClaudeCode;
 use policy::companion_runner::COMPANION_RUNNER;
 use policy::fill_marks;
+use policy::providers::Turns;
 use serde_json::{Value, json};
 use store::all;
 
@@ -31,9 +32,6 @@ use crate::queue::settings;
 use crate::run_log::RunLog;
 use crate::run_log::lines::Line;
 use crate::session_output::OutputWatch;
-
-// The provider whose program is Claude Code's own, which puts its turns through its transcript itself.
-const CLAUDE_CODE: &str = "claude-code";
 
 /// What a run answered.
 #[derive(Clone, Debug)]
@@ -385,7 +383,7 @@ pub async fn run_turn(
   let resident = harness_providers::provider(provider)
     .and_then(|declared| declared.declared().resident.as_ref())
     .ok_or_else(|| failure(format!("{provider} stands no resident program")))?;
-  let ended: Result<Result<Recorded, NoAnswer>, String> = if provider == CLAUDE_CODE {
+  let ended: Result<Result<Recorded, NoAnswer>, String> = if resident.turns == Turns::Transcript {
     let turn = Turn {
       name: run.clone(),
       title: title.clone(),
