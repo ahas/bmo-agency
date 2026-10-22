@@ -27,8 +27,8 @@ use super::companion::{ComposedTurn, LOST_SESSION, Window, registration_named, w
 use super::deepseek::{self, OnEndpoint, endpoint_command};
 use super::dsh::Composed;
 use super::openrouter::{PROVIDER as OPENROUTER, resident_command};
+use super::ordered::Ordered;
 use super::place::{Holds, Place, write_place_settings};
-use super::runner::{handed_config, line_servers};
 use super::standing::{OnGateway, Placing, gateway_command, status_root};
 use super::token::facts;
 use super::worker::{Reasoning, effort_of, reasoning_of, rulebook, system_prompt_file};
@@ -44,8 +44,12 @@ pub const LINE: &str = "chat";
 // The provider the chat's own line is mapped on.
 const CLAUDE: &str = "claude-code";
 
-// The tool host's namespace the deployment's own server is shown under.
+// The tool host's namespace the deployment's own digest is read under.
 const SERVER: &str = "bmo";
+
+// The holder the harness plugins report and subscribe under. It is the line's own role, the same in
+// every chat agent that stands on it, and never an agent's name.
+const HARNESS: &str = "harness";
 
 /// The room's block as the caller composed it for the turn: the room it is, its text, and the mark the
 /// turn's answer carries.
@@ -132,10 +136,71 @@ pub async fn server_digest(ground: &Ground) -> Option<String> {
   facts(ground, SERVER).await?.get("digest")?.as_str().map(str::to_owned)
 }
 
-/// The chat line's MCP configuration: the deployment's own server and the toolbook, on the tool host,
-/// written where the line reads it when nothing has written it and left as it stands otherwise.
+/// The chat line's MCP configuration: the job service's harness plugin, which leases an item from a
+/// queue, and the agency's own, which assigns a worker and launches the item's job. Both start as
+/// programs beside the chat and take their bearers from the environment the chat inherits; a
+/// deployment that names neither leaves that server out. Written on every composition, since this line
+/// is the one writer.
 pub fn mcp_config(ground: &Ground, trees: &Trees) -> Result<PathBuf, Refusal> {
-  handed_config(trees.agents.join("chat.mcp.json"), || Ok(line_servers(ground, &[SERVER])))
+  let path = trees.agents.join("chat.mcp.json");
+
+  publish_text(&path, &Ordered::map([("mcpServers", harness_servers(ground))]).pretty())?;
+
+  Ok(path)
+}
+
+// The two servers the chat starts, each a program of its own: the job plugin on its `mcp` verb, told
+// the queues it subscribes to and the holder it takes them under, and the agency's own binary on the
+// same verb. A value that differs by installation is read from the environment.
+fn harness_servers(ground: &Ground) -> Ordered {
+  let env = ground.env();
+  let mut servers: Vec<(&str, Ordered)> = vec![];
+
+  if let (Some(plugin), Some(url)) = (env.get("BMO_JOB_PLUGIN"), env.get("BMO_JOB_URL")) {
+    let mut args = vec![
+      Ordered::text("mcp"),
+      Ordered::text("--service"),
+      Ordered::text(url),
+      Ordered::text("--holder"),
+      Ordered::text(HARNESS),
+    ];
+
+    for queue in env
+      .get("BMO_JOB_QUEUES")
+      .into_iter()
+      .flat_map(|queues| queues.split(','))
+      .map(str::trim)
+      .filter(|queue| !queue.is_empty())
+    {
+      args.push(Ordered::text("--queue"));
+      args.push(Ordered::text(queue));
+    }
+
+    servers.push((
+      "job",
+      Ordered::map([
+        ("type", Ordered::text("stdio")),
+        ("command", Ordered::text(plugin)),
+        ("args", Ordered::List(args)),
+      ]),
+    ));
+  }
+
+  if let (Ok(program), Some(url)) = (std::env::current_exe(), env.get("BMO_AGENCY_URL")) {
+    servers.push((
+      "agency",
+      Ordered::map([
+        ("type", Ordered::text("stdio")),
+        ("command", Ordered::text(program.to_string_lossy().into_owned())),
+        (
+          "args",
+          Ordered::List(vec![Ordered::text("mcp"), Ordered::text("--url"), Ordered::text(url)]),
+        ),
+      ]),
+    ));
+  }
+
+  Ordered::map(servers)
 }
 
 /// The run a turn of the chat goes out on, its prompt as it is handed in.
