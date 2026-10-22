@@ -10,6 +10,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use indexmap::IndexMap;
+use policy::providers::Dsh;
 use policy::providers::openrouter::OPENROUTER;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
@@ -271,8 +272,8 @@ enum Tools {
 // The overlay for one run: its prompt, the rows it goes without, the sandbox where it is shown tools, the
 // gateway as dsh's one route with the model and its thinking, and — where dsh is not handed them through
 // the session instead — its MCP servers.
-fn overlay_of(run: &Composed, env: &BTreeMap<String, String>) -> Result<Ordered, Refusal> {
-  overlay_of_with(run, env, true, Tools::Line)
+fn overlay_of(run: &Composed, env: &BTreeMap<String, String>, route: &Dsh) -> Result<Ordered, Refusal> {
+  overlay_of_with(run, env, true, Tools::Line, route)
 }
 
 fn overlay_of_with(
@@ -280,6 +281,7 @@ fn overlay_of_with(
   env: &BTreeMap<String, String>,
   mcp: bool,
   tools: Tools,
+  route: &Dsh,
 ) -> Result<Ordered, Refusal> {
   let mut rows = vec![];
   let persona = match (run.system, run.rules) {
@@ -341,7 +343,7 @@ fn overlay_of_with(
     Some(run.effort)
   };
 
-  rows.extend(route_rows(run.model, level, env));
+  rows.extend(route_rows(run.model, level, env, route));
 
   if mcp {
     rows.extend(mcp_rows(run.mcp, run.cwd)?);
@@ -352,7 +354,7 @@ fn overlay_of_with(
 
 // The overlay for one worker's run.
 fn overlay(run: &StandInRun, env: &BTreeMap<String, String>) -> Result<Ordered, Refusal> {
-  overlay_of(&worker_composed(run), env)
+  overlay_of(&worker_composed(run), env, openrouter_route()?)
 }
 
 // A worker's run as its overlay is composed out of.
@@ -374,12 +376,17 @@ fn worker_composed(run: &StandInRun) -> Composed<'_> {
 
 // The gateway as dsh's one route, with the model on it at the level the run asks where it asks one, and the
 // model as the run's own.
-fn route_rows(model_id: &str, level: Option<&str>, env: &BTreeMap<String, String>) -> [Ordered; 2] {
+fn route_rows(
+  model_id: &str,
+  level: Option<&str>,
+  env: &BTreeMap<String, String>,
+  route: &Dsh,
+) -> [Ordered; 2] {
   let anthropic = model_id.starts_with("anthropic/");
   let declared = level.filter(|level| *level != "off");
-  let base = env.get(LOCAL_URL).cloned().unwrap_or_else(|| OPENROUTER.gateway.api_on(env).to_owned());
+  let base = env.get(LOCAL_URL).cloned().unwrap_or_else(|| route.api_on(env).to_owned());
   let mut route = vec![
-    ("apiKeyEnv", text(&OPENROUTER.presence.key_env)),
+    ("apiKeyEnv", text(&route.key_env)),
     ("baseURL", Ordered::Text(base)),
     ("api", text("openai-completions")),
   ];
@@ -449,6 +456,10 @@ const TOOL_ROWS: [&str; 18] = [
 
 // The overlay for a gate's run: its instructions as dsh's persona, the instruction-file reader and the
 // title call off, every tool row off and no sandbox to set, and the gateway as its one route.
+fn openrouter_route() -> Result<&'static Dsh, Refusal> {
+  OPENROUTER.declared.dsh.as_ref().ok_or_else(|| fault("openrouter names no dsh route"))
+}
+
 fn gate_overlay(
   model: &str,
   thinking: bool,
@@ -464,7 +475,7 @@ fn gate_overlay(
     rows.push(map(vec![("id", text(id)), ("disabled", Ordered::Flag(true))]));
   }
 
-  rows.extend(route_rows(model, (!thinking).then_some("off"), env));
+  rows.extend(route_rows(model, (!thinking).then_some("off"), env, openrouter_route()?));
 
   Ok(Ordered::List(rows))
 }
@@ -494,8 +505,9 @@ pub fn session_patch(
   run: &Composed,
   env: &BTreeMap<String, String>,
   agents: &Path,
+  route: &Dsh,
 ) -> Result<PathBuf, Refusal> {
-  let text = overlay_text(&overlay_of_with(run, env, false, Tools::Session)?)?;
+  let text = overlay_text(&overlay_of_with(run, env, false, Tools::Session, route)?)?;
   let digest = format!("{:x}", Sha256::digest(text.as_bytes()));
   let dir = dsh_home(agents).join("overlays");
   let path = dir.join(format!("{}-{digest}.yml", run.line));
@@ -615,7 +627,7 @@ pub fn line_command(
   env: &BTreeMap<String, String>,
   agents: &Path,
 ) -> Result<Command, Refusal> {
-  let overlay = overlay_text(&overlay_of(run, env)?)?;
+  let overlay = overlay_text(&overlay_of(run, env, openrouter_route()?)?)?;
 
   launched(run.line, prompt, &overlay, run.cwd, env, agents, run.permission_mode())
 }

@@ -161,7 +161,9 @@ async fn an_openrouter_step_stands_bmo_tui_on_a_dsh_session_over_its_inbox() {
     &ground.machine(),
     &chat_run(home.path()),
     &step("openrouter", "vendor/model"),
-    &Door::Inbox,
+    &Door::Inbox {
+      provider: "openrouter".to_owned(),
+    },
     &[3],
     1,
   )

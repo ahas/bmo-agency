@@ -26,7 +26,7 @@ use super::codex::{Shape, resident_command_of};
 use super::companion::{ComposedTurn, LOST_SESSION, Window, registration_named, walked_login};
 use super::deepseek::{self, OnEndpoint, endpoint_command};
 use super::dsh::Composed;
-use super::openrouter::{PROVIDER as OPENROUTER, resident_command};
+use super::openrouter::resident_command;
 use super::ordered::Ordered;
 use super::place::{Holds, Place, write_place_settings};
 use super::standing::{OnGateway, Placing, gateway_command, status_root};
@@ -690,8 +690,8 @@ pub fn prefix(run: &ChatRun, mode: &str) -> String {
 pub enum Door {
   /// Codex, on the agent's kept thread for the step's model and effort where it keeps one.
   Codex { thread: Option<String> },
-  /// OpenRouter through the pane program's inbox, on the dsh session it keeps.
-  Inbox,
+  /// A provider whose turns go through the pane program's inbox, on the dsh session it keeps.
+  Inbox { provider: String },
   /// Claude Code on the gateway, its session placed where the registration places it.
   Gateway { placement: Option<String> },
   /// Claude Code on DeepSeek's endpoint, at the model's own home.
@@ -774,18 +774,31 @@ pub async fn compose_stand_in(
         ..composed(command, thread.clone().unwrap_or(opened), effort)
       })
     }
-    Door::Inbox => {
-      let resident = harness_providers::provider(OPENROUTER)
-        .and_then(|declared| declared.declared().resident.as_ref())
-        .ok_or_else(|| fault(format!("{OPENROUTER} stands no pane program")))?;
+    Door::Inbox { provider } => {
+      let declared = harness_providers::provider(provider)
+        .ok_or_else(|| fault(format!("{provider} is not a provider this build carries")))?;
+      let resident = declared
+        .declared()
+        .resident
+        .as_ref()
+        .ok_or_else(|| fault(format!("{provider} stands no pane program")))?;
       let program = resident
         .program
         .clone()
-        .ok_or_else(|| fault(format!("{OPENROUTER} names no pane program")))?;
+        .ok_or_else(|| fault(format!("{provider} names no pane program")))?;
       let dsh = resident
         .dsh
         .clone()
-        .ok_or_else(|| fault(format!("{OPENROUTER} names no harness program")))?;
+        .ok_or_else(|| fault(format!("{provider} names no harness program")))?;
+      if let Some(route) = declared.declared().dsh.as_ref()
+        && let Some(file) = route.key_file.as_deref()
+      {
+        let path = ground.roots.data.join("env").join(file);
+
+        if let Ok(key) = std::fs::read_to_string(&path) {
+          env.insert(route.key_env.clone(), key.trim().to_owned());
+        }
+      }
       let place = Place::of(&ground.roots.data, &run.agent);
       let laid = Composed {
         line: LINE,
@@ -800,17 +813,8 @@ pub async fn compose_stand_in(
         thinking: run.thinking,
         mcp: Some(&run.mcp_config),
       };
-      let command = resident_command(
-        ground,
-        machine,
-        OPENROUTER,
-        &program,
-        &dsh,
-        &place.path,
-        &run.agent,
-        &laid,
-        &env,
-      )?;
+      let command =
+        resident_command(ground, machine, provider, &program, &dsh, &place.path, &run.agent, &laid, &env)?;
 
       Ok(ComposedTurn {
         given: Some(serde_json::json!({ "prompt": run.prompt })),

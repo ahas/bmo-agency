@@ -68,7 +68,10 @@ pub fn resident_command(
     dsh::dsh_home(&ground.roots.agents).to_string_lossy().into_owned(),
   );
 
-  let patch = dsh::session_patch(run, &env, &ground.roots.agents)?;
+  let route = harness_providers::provider(provider)
+    .and_then(|declared| declared.declared().dsh.as_ref())
+    .ok_or_else(|| super::fault(format!("{provider} names no dsh route")))?;
+  let patch = dsh::session_patch(run, &env, &ground.roots.agents, route)?;
   let mut args = vec![
     program_word(machine, program),
     "dsh".to_owned(),

@@ -67,3 +67,9 @@ dsh = "dsh"
 turns = "inbox"
 # A turn holds the session until dsh has ended it; words typed mid-turn are not taken into that turn.
 words_mid_turn = false
+
+# How its turns go through dsh: the gateway as dsh's one route and the variable its key is read from.
+[dsh]
+api = "https://openrouter.ai/api/v1"
+api_env = "BMO_OPENROUTER_API_URL"
+key_env = "BMO_OPENROUTER_KEY"

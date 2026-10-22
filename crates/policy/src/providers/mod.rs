@@ -23,6 +23,35 @@ pub struct Declared {
   pub effort: Effort,
   /// Its standing program, where it stands one in an agent's pane.
   pub resident: Option<Resident>,
+  /// The route its turns take through dsh, where it has one.
+  #[serde(default)]
+  pub dsh: Option<Dsh>,
+}
+
+/// Where a provider's dsh route answers, and the variable its key is read from.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Dsh {
+  pub api: String,
+  #[serde(default)]
+  pub api_env: Option<String>,
+  pub key_env: String,
+  /// A key file under the data root's env directory, where the key is not in the environment.
+  #[serde(default)]
+  pub key_file: Option<String>,
+}
+
+impl Dsh {
+  /// The API's address on a machine: the stand-in's its environment names, or the route's own.
+  pub fn api_on<'a>(&'a self, vars: &'a std::collections::BTreeMap<String, String>) -> &'a str {
+    self
+      .api_env
+      .as_ref()
+      .and_then(|name| vars.get(name))
+      .map(String::as_str)
+      .filter(|named| !named.is_empty())
+      .unwrap_or(&self.api)
+  }
 }
 
 /// What a provider's standing program takes from outside its turns.

@@ -3,6 +3,7 @@ use std::collections::BTreeMap;
 use agency_server::lines::dsh::*;
 use agency_server::lines::ordered::Ordered;
 use agency_server::lines::token::TOKEN_VARIABLE;
+use policy::providers::openrouter::OPENROUTER;
 use serde_json::Value;
 
 #[test]
@@ -47,7 +48,8 @@ fn session_overlay(shown: &'static str) -> Vec<Value> {
     thinking: true,
     mcp: None,
   };
-  let patch = session_patch(&run, &BTreeMap::new(), dir.path()).unwrap();
+  let patch =
+    session_patch(&run, &BTreeMap::new(), dir.path(), OPENROUTER.declared.dsh.as_ref().unwrap()).unwrap();
 
   serde_json::from_str(&std::fs::read_to_string(&patch).unwrap()).unwrap()
 }

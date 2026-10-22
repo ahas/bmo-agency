@@ -7,6 +7,7 @@
 
 use agent_session::GateAsk;
 use harness_providers::Machine;
+use policy::providers::Turns;
 use policy::providers::registered::REGISTERED;
 use serde::Serialize;
 
@@ -27,8 +28,14 @@ use crate::{Refusal, now_ms};
 use store::{one, run as written};
 
 const CODEX: &str = "codex";
-const OPENROUTER_NAME: &str = "openrouter";
 const DEEPSEEK_NAME: &str = "deepseek";
+
+// Whether a provider's turns go through its pane program's inbox, as its declaration says.
+fn inbox_declared(provider: &str) -> bool {
+  harness_providers::provider(provider)
+    .and_then(|declared| declared.declared().resident.as_ref())
+    .is_some_and(|resident| resident.turns == Turns::Inbox)
+}
 
 // The variable the owner's id stands in, which the fallback's events carry.
 const OWNER_VARIABLE: &str = "BMO_OWNER_ID";
@@ -114,8 +121,9 @@ pub async fn stand_in_turn(
     };
     let outcome = match provider.as_str() {
       CODEX => codex_road(ground, &machine, &run, &step, log, answers, began, shown).await?,
-      OPENROUTER_NAME => openrouter_road(ground, &machine, &run, &step, log, answers, began, shown).await?,
-      DEEPSEEK_NAME => deepseek_road(ground, &machine, &run, &step, log, answers, began, shown).await?,
+      name if inbox_declared(name) => {
+        inbox_road(ground, &machine, &run, &step, log, answers, began, shown).await?
+      }
       _ => registered_road(ground, &machine, &run, &step, log, answers, began, shown).await?,
     };
 
@@ -219,20 +227,24 @@ async fn carried_on(
 
       outcome.map_err(NoAnswer::Failed)
     }
-    OPENROUTER_NAME => {
-      let outcome = deliver(ground, &machine, run, step, &Door::Inbox, log, answers, began, shown).await?;
+    name if inbox_declared(name) => {
+      let outcome = deliver(
+        ground,
+        &machine,
+        run,
+        step,
+        &Door::Inbox {
+          provider: name.to_owned(),
+        },
+        log,
+        answers,
+        began,
+        shown,
+      )
+      .await?;
       let mut reply = outcome.map_err(NoAnswer::Failed)?;
 
       reply.effort = None;
-
-      Ok(reply)
-    }
-    DEEPSEEK_NAME => {
-      let outcome =
-        deliver(ground, &machine, run, step, &Door::Deepseek, log, answers, began, shown).await?;
-      let mut reply = outcome.map_err(NoAnswer::Failed)?;
-
-      reply.effort = (!step.effort.is_empty()).then(|| step.effort.clone());
 
       Ok(reply)
     }
@@ -431,9 +443,9 @@ async fn codex_road(
   Ok(Ok(reply))
 }
 
-// One turn on the OpenRouter road, through the pane program's inbox on the dsh session it keeps.
+// One turn on a provider's inbox road, through the pane program on the dsh session it keeps.
 #[allow(clippy::too_many_arguments)]
-async fn openrouter_road(
+async fn inbox_road(
   ground: &Ground,
   machine: &Machine,
   run: &ChatRun,
@@ -443,7 +455,20 @@ async fn openrouter_road(
   began: i64,
   shown: Option<OutputWatch<'_>>,
 ) -> Result<Result<Reply, String>, NoAnswer> {
-  let outcome = deliver(ground, machine, run, step, &Door::Inbox, log, answers, began, shown).await?;
+  let outcome = deliver(
+    ground,
+    machine,
+    run,
+    step,
+    &Door::Inbox {
+      provider: step.provider.clone(),
+    },
+    log,
+    answers,
+    began,
+    shown,
+  )
+  .await?;
   let mut reply = match outcome {
     Ok(reply) => reply,
     Err(why) => return Ok(Err(why)),
@@ -483,26 +508,6 @@ async fn registered_road(
   let Ok(mut reply) = outcome else { return Ok(outcome) };
 
   reply.effort = step.thinking.then(|| "thinking".to_owned());
-
-  Ok(Ok(reply))
-}
-
-// One turn on DeepSeek's road: Claude Code on the endpoint in the agent's pane, at the model's own home.
-#[allow(clippy::too_many_arguments)]
-async fn deepseek_road(
-  ground: &Ground,
-  machine: &Machine,
-  run: &ChatRun,
-  step: &Step,
-  log: &mut RunLog,
-  answers: &[i64],
-  began: i64,
-  shown: Option<OutputWatch<'_>>,
-) -> Result<Result<Reply, String>, NoAnswer> {
-  let outcome = deliver(ground, machine, run, step, &Door::Deepseek, log, answers, began, shown).await?;
-  let Ok(mut reply) = outcome else { return Ok(outcome) };
-
-  reply.effort = (!step.effort.is_empty()).then(|| step.effort.clone());
 
   Ok(Ok(reply))
 }
