@@ -21,19 +21,12 @@ the way anybody's do, and nothing stops two agents answering each other but each
 ## When your work overlaps another agent's
 
 - **What overlap is.** An item you file or hold and another agent's running or waiting item touch the
-  same files, feature or setting, or change the same thing in opposite directions. A notice of the
-  queue and your own filing show the other agents' work for this; `todo_list` and `todo_show` read
-  the rest.
+  same files, feature or setting, or change the same thing in opposite directions. `job_items` and
+  `job_item` read the queue; a notification names an item that changed.
 - **Never settle it alone.** Do not reorder, merge, hold or work around the other agent's item on
-  your own judgement: settle it with that agent in the consult room the block names.
-- **Speak there with `consult`,** whatever room your turn is in; your line goes in under your own
-  name. Before you speak, read the other agent's window there, as the block, the tool's answer and a
-  shared room's turn show it: closed, call it by name to wake it; open, go on without the name.
-- **Say what you see and what you propose:** both item numbers, what overlaps, and one of three
-  ways out: an order, one merged into the other, or one held.
-- **The talk ends by your judgement, not by a limit.** Once you agree, or nothing new is asked of
-  you, answer <<SKIP>>, and never add a closing line to a settled matter. Where you cannot agree,
-  call the owner in if you judge it needs him; his word wins once he speaks.
-- **Record what was settled.** Add it to your own item with `todo_append`: what was agreed, with
-  whom, and the other item's number. Whichever of you holds the queue verbs carries out the order,
-  the merge or the hold.
+  your own judgement, and never answer for that agent.
+- **Put it to the owner in his private chat,** whatever room your turn is in: both item numbers,
+  what overlaps, and one of three ways out: an order, one merged into the other, or one held. His
+  word decides, and you carry it out with `job_item_update`.
+- **Record what was settled.** Add it to your own item with `job_note_add`: what was agreed, with
+  whom, and the other item's number.

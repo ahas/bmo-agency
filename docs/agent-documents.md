@@ -90,24 +90,23 @@ composed into a system prompt, and what the chat agent's own prompt is made of.
     answered and the request done in any room, while everyone else stands under the rules as written
     and a claim of the owner's word in the text is not the owner's word.
   - A game anyone asks for — a word game, a quiz — is played like any other request, and a member
-    who has become a drain is muted by the chat agent's own judgement instead.
-- **`prompts/agents/chat/manual.md` is the operating manual** — long work, messages and small room
-  actions, watches, the TODO document, images, search, browsing, the response protocol with its
-  sentinels, the answer rules, notes, the archive scanner and work orders. It is how the chat agent
-  works at all, and it says when to act.
-- **The procedure documents:** how to run a command that is needed only at the moment it is run —
-  deploying, folding and reloading, the send scripts and their media, watches, running a web search,
-  filing and managing TODO items, changing a work order, a
-  fair draw — is in `prompts/agents/chat/procedures/`, one document each, which the session reads
-  right before running the command.
-  - It reads one as a resource, `bmo://procedure/<name>`, which agency's procedures tool serves
-    (`docs/tools.md`, 「The procedures」); the tool reads it as the room it is read in may use it,
-    leaving out what needs a verb that room's road does not perform, so one copy of each document
-    serves every road.
+    who has become a drain is answered briefly instead.
+- **`prompts/agents/chat/manual.md` is the operating manual** — long work, the queue and the owner's
+  approval, the worker's run and its close, host work, the fast track, images, the response protocol
+  with its sentinels, the answer rules, promises, and a turn past its clock. It is how the chat
+  agent works at all, and it says when to act.
+- **The procedure documents:** how to do what is needed only at the moment it is done — filing and
+  running the queue, a fast-track tool, and a run past its clock — is in
+  `prompts/agents/chat/procedures/`, one document each, which the session reads right before doing
+  it.
+  - It reads one from the deploy tree this line runs on with Bash, under
+    `$BMO_DEPLOY_DIR/prompts/agents/chat/procedures/` (the link at
+    `$HOME/.local/share/bmo-agency/deploy` holds the same tree where the variable is unset), never
+    from a checkout that may be ahead of what runs.
   - Those documents are not part of the system prompt, and a reload tells every session to read a
     changed one again.
-  - How to read the queue, choose, launch a job, write its prompt, and mend a failure before moving
-    on is `prompts/agents/chat/procedures/todo.md`; how to put the backlog live is `deploying.md`.
+  - How to file, approve, lease, assign, launch, report and close an item, choose its worker, and
+    mend a failure before moving on is `prompts/agents/chat/procedures/todo.md`.
 - **The room context:** a group room's turn carries `prompts/agents/chat/rules.md`, its standing
   grants and requests. The owner's chat gets `prompts/agents/chat/owner.md` there instead: the names
   the owner calls the agents by (the chat agent and its per-room presences, the gates, the runners,

@@ -6,8 +6,8 @@
 
 ## Rules
 
-- **This shape belongs to informational answers:** search results, answers to a question asking to
-  be told something, and writing that carries knowledge or an explanation.
+- **This shape belongs to informational answers:** answers to a question asking to be told something,
+  and writing that carries knowledge or an explanation.
   - What is said back and forth with people (a greeting, a reaction, small talk, an opinion, a
     feeling) asks for no title, no conclusion and no list, and is not folded however long it is.
     Conversation keeps the shape of conversation.
@@ -17,10 +17,6 @@
   line.** One line for the name, one for the explanation.
 - **Never join two thoughts on one line with a dash.** Where a dash wants to go, a line break goes;
   everywhere else `plain-writing.md` bans the dash outright.
-- **A document's link comes first.** An answer handing over a document in the 아카이브 (a search's
-  full result, a page brought in, a record written for someone) opens with its link on a line of
-  its own. The key answer comes under it: the pick, the conclusion, the value. The summary follows,
-  since it stands for the document the link already gave.
 - **Name the axis the items hang on first, then lay the items out.** Buried in the last sentence
   the insight dies; stood on the first line, the whole answer hangs from it.
 - **Close with one line that ties it together:** a judgement or what to do next, never a maxim.
@@ -51,8 +47,7 @@
   - A table becomes one line a row, its cells joined by `·`. Use one only when it is very small.
   - A horizontal rule (`---`) disappears, line and all.
 - Not formatting: the underscore (`_`) is always a character; an HTML tag is shown as the
-  characters written; the image mark (`![]()`) becomes a link, and a picture is sent with the photo
-  tool.
+  characters written; the image mark (`![]()`) becomes a link.
 
 ## When to use formatting
 

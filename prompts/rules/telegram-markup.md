@@ -37,7 +37,7 @@
   5.6 (30 December 2021). MarkdownV2 `||가림||`.
   - The content shows only when the recipient taps it.
   - Hiding a photo or video itself is a separate send parameter (`has_spoiler`), not formatting.
-- **Inline code:** `<code>~/.local/share/bmo/deploy/bin/bmo room say</code>`; inside, too, escape
+- **Inline code:** `<code>cargo test --workspace</code>`; inside, too, escape
   only `< > &` (escaping backticks and backslashes is MarkdownV2's alone).
   - No other formatting goes inside code or a code block, and code cannot go inside formatting
     such as bold or italic.
