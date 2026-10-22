@@ -323,6 +323,10 @@ async fn put<W: Watch>(
   };
   // How many of the turn's own lines the watch has been handed.
   let mut fed = 0;
+  // The program this turn was put under, as the place first showed it: a program seen after it, or none
+  // at all once one stood, is the turn's own gone and the turn ended rather than waited on forever.
+  let mut known = started.as_ref().map(|running| (running.pid, running.birth.clone()));
+  let mut unseen = 0u32;
 
   loop {
     let cut = if execution.cancelled(ground, turn).await {
@@ -353,12 +357,22 @@ async fn put<W: Watch>(
     }
 
     let alive = place.program_alive();
+    let same = match (&known, &alive) {
+      (Some((pid, birth)), Some(alive)) => alive.pid == *pid && alive.birth == *birth,
+      (None, Some(alive)) => {
+        known = Some((alive.pid, alive.birth.clone()));
 
-    if alive.is_none()
-      || started
-        .as_ref()
-        .is_some_and(|started| alive.as_ref().is_some_and(|alive| alive.pid != started.pid))
-    {
+        true
+      }
+      (None, None) => {
+        unseen += 1;
+
+        unseen < 40
+      }
+      (Some(_), None) => false,
+    };
+
+    if !same {
       return Err("the pane program went away during the turn".to_owned());
     }
 
