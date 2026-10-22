@@ -18,6 +18,7 @@ use indexmap::IndexMap;
 use policy::chat_line::CHAT_LINE;
 use policy::companion_runner::COMPANION_RUNNER;
 use policy::fill_marks;
+use policy::providers::Turns;
 use policy::providers::registered::REGISTERED;
 use serde_json::Value;
 
@@ -221,6 +222,61 @@ pub async fn compose(
   std::fs::create_dir_all(&folder).map_err(|why| fault(format!("{}: {why}", folder.display())))?;
 
   let cwd = folder.to_string_lossy().into_owned();
+  let mcp = super::chat::mcp_config(ground, &trees)?;
+  // The turn's own variables, which the place holds for the run while the program keeps none of them.
+  let variables = [
+    ("BMO_TURN_CHAT", turn.chat_id.to_string()),
+    ("BMO_TURN_AGENT", turn.agent.to_owned()),
+    (
+      "BMO_TURN_MESSAGES",
+      turn.answers.iter().map(i64::to_string).collect::<Vec<_>>().join(","),
+    ),
+    ("BMO_TURN_PRIVILEGED", if turn.privileged { "1" } else { "0" }.to_owned()),
+    ("BMO_TURN_BEGAN", turn.began.to_string()),
+  ];
+
+  // A provider whose surface carries its own turns stands its pane program rather than a program that reads
+  // the turn's transcript: the program and harness it declares, on the overlay the chat line's words compose,
+  // with the harness's key in the program's environment alone.
+  if harness_providers::provider(turn.provider)
+    .and_then(|declared| declared.declared().resident.as_ref())
+    .is_some_and(|resident| resident.turns == Turns::Inbox)
+  {
+    let mut env = ground.env().clone();
+
+    env.extend(variables.iter().map(|(name, value)| ((*name).to_owned(), value.clone())));
+
+    let laid = super::dsh::Composed {
+      line: LINE,
+      system: Some(&system),
+      rules: None,
+      shown: Some(&CHAT_LINE.tools.shown),
+      allowed: Some(&CHAT_LINE.tools.allowed),
+      cwd: &cwd,
+      model: turn.model,
+      effort: &effort,
+      chosen: reasoning.level.is_some(),
+      thinking,
+      mcp: Some(&mcp),
+    };
+    let command = super::chat::inbox_command(ground, machine, turn.provider, turn.agent, &laid, &env)?;
+
+    return Ok(ComposedTurn {
+      system_path: system,
+      command,
+      session: uuid::Uuid::new_v4().to_string(),
+      prompt: turn.prompt.to_owned(),
+      model: turn.model.to_owned(),
+      effort: (!effort.is_empty()).then(|| effort.clone()),
+      placement: None,
+      window: None,
+      account: None,
+      began: turn.began,
+      run_env: Some(env),
+      given: Some(serde_json::json!({ "prompt": turn.prompt })),
+    });
+  }
+
   let held = match turn.provider {
     REGISTERED_PROVIDER => Some(registration_named(ground, turn.model).await?),
     _ => None,
@@ -251,7 +307,6 @@ pub async fn compose(
     return Err(fault(format!("{LOST_SESSION}: {id}")));
   }
 
-  let mcp = super::chat::mcp_config(ground, &trees)?;
   let (ceiling, sampling) = generation_run(turn.generation);
   let session = match turn.resume {
     Some((id, _)) => Session::Resume(id.to_owned()),
@@ -272,18 +327,6 @@ pub async fn compose(
       &session,
     )
   };
-  // The turn's own variables, which the place holds for the run while the program keeps none of them.
-  let variables = [
-    ("BMO_TURN_CHAT", turn.chat_id.to_string()),
-    ("BMO_TURN_AGENT", turn.agent.to_owned()),
-    (
-      "BMO_TURN_MESSAGES",
-      turn.answers.iter().map(i64::to_string).collect::<Vec<_>>().join(","),
-    ),
-    ("BMO_TURN_PRIVILEGED", if turn.privileged { "1" } else { "0" }.to_owned()),
-    ("BMO_TURN_BEGAN", turn.began.to_string()),
-  ];
-
   if let Some(held) = deepseek {
     let on = OnEndpoint {
       agent: turn.agent,

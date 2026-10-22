@@ -775,31 +775,6 @@ pub async fn compose_stand_in(
       })
     }
     Door::Inbox { provider } => {
-      let declared = harness_providers::provider(provider)
-        .ok_or_else(|| fault(format!("{provider} is not a provider this build carries")))?;
-      let resident = declared
-        .declared()
-        .resident
-        .as_ref()
-        .ok_or_else(|| fault(format!("{provider} stands no pane program")))?;
-      let program = resident
-        .program
-        .clone()
-        .ok_or_else(|| fault(format!("{provider} names no pane program")))?;
-      let dsh = resident
-        .dsh
-        .clone()
-        .ok_or_else(|| fault(format!("{provider} names no harness program")))?;
-      if let Some(route) = declared.declared().dsh.as_ref()
-        && let Some(file) = route.key_file.as_deref()
-      {
-        let path = ground.roots.data.join("env").join(file);
-
-        if let Ok(key) = std::fs::read_to_string(&path) {
-          env.insert(route.key_env.clone(), key.trim().to_owned());
-        }
-      }
-      let place = Place::of(&ground.roots.data, &run.agent);
       let laid = Composed {
         line: LINE,
         system: Some(&run.system_path),
@@ -813,8 +788,7 @@ pub async fn compose_stand_in(
         thinking: run.thinking,
         mcp: Some(&run.mcp_config),
       };
-      let command =
-        resident_command(ground, machine, provider, &program, &dsh, &place.path, &run.agent, &laid, &env)?;
+      let command = inbox_command(ground, machine, provider, &run.agent, &laid, &env)?;
 
       Ok(ComposedTurn {
         given: Some(serde_json::json!({ "prompt": run.prompt })),
@@ -902,4 +876,48 @@ pub async fn compose_stand_in(
       })
     }
   }
+}
+
+/// The command a provider's pane program stands on for a turn: the program and the harness its declaration
+/// names, the key its dsh route reads from the data root's env directory put into the program's environment
+/// alone, and the overlay the run's own words compose. The turn's environment is left as it was handed in, so
+/// no key a program reads reaches the run the turn is written down as.
+pub fn inbox_command(
+  ground: &Ground,
+  machine: &Machine,
+  provider: &str,
+  agent: &str,
+  run: &Composed<'_>,
+  env: &BTreeMap<String, String>,
+) -> Result<ResidentCommand, Refusal> {
+  let declared = harness_providers::provider(provider)
+    .ok_or_else(|| fault(format!("{provider} is not a provider this build carries")))?;
+  let resident = declared
+    .declared()
+    .resident
+    .as_ref()
+    .ok_or_else(|| fault(format!("{provider} stands no pane program")))?;
+  let program = resident
+    .program
+    .clone()
+    .ok_or_else(|| fault(format!("{provider} names no pane program")))?;
+  let dsh = resident
+    .dsh
+    .clone()
+    .ok_or_else(|| fault(format!("{provider} names no harness program")))?;
+  let mut program_env = env.clone();
+
+  if let Some(route) = declared.declared().dsh.as_ref()
+    && let Some(file) = route.key_file.as_deref()
+  {
+    let path = ground.roots.data.join("env").join(file);
+
+    if let Ok(key) = std::fs::read_to_string(&path) {
+      program_env.insert(route.key_env.clone(), key.trim().to_owned());
+    }
+  }
+
+  let place = Place::of(&ground.roots.data, agent);
+
+  resident_command(ground, machine, provider, &program, &dsh, &place.path, agent, run, &program_env)
 }
