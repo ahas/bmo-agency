@@ -68,7 +68,13 @@ async fn a_running_server_answers_the_walk_s_providers_tiers_routes_and_pins() {
   let (_, tiers) = get(port, token, "/tiers").await;
   let tiers = &tiers["items"];
 
-  assert_eq!((&tiers[0]["name"], &tiers[0]["coworker"]), (&json!("BMO"), &json!(false)));
+  assert_eq!((&tiers[0]["name"], &tiers[0]["coworker"]), (&json!("Supervisor"), &json!(false)));
+  assert!(
+    tiers[0]["mapping"]["claude-code"]["model"]
+      .as_str()
+      .is_some_and(|model| !model.is_empty()),
+    "{tiers}"
+  );
   assert!(
     tiers
       .as_array()

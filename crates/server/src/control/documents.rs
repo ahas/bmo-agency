@@ -130,3 +130,5 @@ impl Route for Rulebooks {
     Ok(answer(StatusCode::OK, json!({ "rulebooks": rulebooks })))
   }
 }
+
+crate::moved!(Rulebooks);

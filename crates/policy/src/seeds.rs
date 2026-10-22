@@ -21,6 +21,8 @@ pub struct Mapping {
   pub provider: String,
   pub model: String,
   #[serde(default)]
+  pub thinking: Option<bool>,
+  #[serde(default)]
   pub effort: Option<String>,
   #[serde(default)]
   pub answer_tokens: Option<i64>,
@@ -49,6 +51,8 @@ pub struct Later {
 pub struct LaterMapping {
   pub tier: String,
   pub model: String,
+  #[serde(default)]
+  pub thinking: Option<bool>,
   #[serde(default)]
   pub effort: Option<String>,
   #[serde(default)]

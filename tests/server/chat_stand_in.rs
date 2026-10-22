@@ -12,7 +12,6 @@ use agency_server::companion::run::NoAnswer;
 use agency_server::config::Config;
 use agency_server::control::harness::{OrderEntry, set_provider_order};
 use agency_server::lines::chat::{ChatLaunch, ChatRun, Door, RoomContext, compose_stand_in};
-use agency_server::lines::openrouter::LOCAL_URL;
 use agency_server::lines::worker::Reasoning;
 use agency_server::places::Ground;
 use agency_server::run_log::{RunLog, Target};
@@ -41,12 +40,14 @@ fn ground_on(db: DatabaseConnection, home: &std::path::Path, set: &[(&str, &str)
 fn chat_run(home: &std::path::Path) -> ChatRun {
   let launch = CLAUDE_CODE.launch.variables.keys().next().cloned().unwrap_or_default();
 
-  // The chat line's one MCP configuration, which Codex's command reads its servers out of.
+  // The chat line's one MCP configuration, which Codex's command reads its servers out of, and the
+  // system prompt dsh's overlay carries as its persona.
   std::fs::write(
     home.join("chat.mcp.json"),
     r#"{"mcpServers":{"bmo":{"type":"http","url":"http://127.0.0.1:3290/mcp/bmo","headers":{"Authorization":"Bearer ${BMO_MCP_TOKEN}"}}}}"#,
   )
   .unwrap();
+  std::fs::write(home.join("system.md"), "You are the chat agent.\n").unwrap();
 
   ChatRun {
     agent: "chat-agent".into(),
@@ -152,30 +153,92 @@ async fn a_codex_step_with_no_kept_thread_opens_one() {
 }
 
 #[tokio::test]
-async fn an_openrouter_step_goes_out_on_the_loop_through_its_tap() {
+async fn an_openrouter_step_stands_bmo_tui_on_a_dsh_session_over_its_inbox() {
   let home = tempfile::tempdir().unwrap();
   let ground = ground_on(DatabaseConnection::Disconnected, home.path(), &[]);
-  let tap = "http://127.0.0.1:9/tap";
   let composed = compose_stand_in(
     &ground,
     &ground.machine(),
     &chat_run(home.path()),
     &step("openrouter", "vendor/model"),
-    &Door::Loop { tap: tap.into() },
+    &Door::Inbox,
     &[3],
     1,
   )
   .await
   .unwrap();
   let args = &composed.command.args;
+  let choice = r#"["openrouter","vendor/model"]"#;
 
-  assert!(args.windows(2).any(|pair| pair == ["--provider", "openrouter"]), "{args:?}");
-  assert!(args.windows(2).any(|pair| pair == ["--model", "vendor/model"]), "{args:?}");
-  assert!(args.windows(2).any(|pair| pair == ["--line", "chat"]), "{args:?}");
-  assert_eq!(composed.run_env.unwrap().get(LOCAL_URL).map(String::as_str), Some(tap));
-  assert!(!composed.command.env.contains_key(LOCAL_URL));
+  assert_eq!(&args[..2], ["bmo-tui", "dsh"], "{args:?}");
+  assert!(args.windows(2).any(|pair| pair == ["--program", "dsh"]), "{args:?}");
+  assert!(args.windows(2).any(|pair| pair == ["--model", choice]), "{args:?}");
+  assert!(args.windows(2).any(|pair| pair == ["--effort", "medium"]), "{args:?}");
+  assert!(args.windows(2).any(|pair| pair == ["--agent", "chat-agent"]), "{args:?}");
+  let place = ground.roots.place("chat-agent");
+  let place = place.to_string_lossy().into_owned();
+
+  assert!(args.windows(2).any(|pair| pair[0] == "--place" && pair[1] == place), "{args:?}");
+
+  let mcp = home.path().join("chat.mcp.json").to_string_lossy().into_owned();
+
+  assert!(args.windows(2).any(|pair| pair[0] == "--mcp-config" && pair[1] == mcp), "{args:?}");
+
+  let patch = args
+    .windows(2)
+    .find(|pair| pair[0] == "--patch")
+    .map(|pair| pair[1].clone())
+    .unwrap_or_else(|| panic!("no overlay in {args:?}"));
+  let overlay: Vec<serde_json::Value> =
+    serde_json::from_str(&std::fs::read_to_string(&patch).unwrap()).unwrap();
+  let row = |id: &str| overlay.iter().find(|row| row["id"] == id);
+  let disabled = |id: &str| row(id).is_some_and(|row| row["disabled"] == true);
+
+  // dsh's own prompt rows are off, and the whole system prompt is the one the chat line composed.
+  assert_eq!(row("system-prompt").unwrap()["config"]["persona"], "You are the chat agent.\n");
+  assert!(disabled("agent-instructions"));
+  assert!(disabled("session-title-llm"));
+
+  // dsh's own tools stand on a line that grants tools; its web is the one the deployment replaces with the
+  // servers its MCP configuration hands the session.
+  assert!(disabled("tool-web"));
+
+  for id in [
+    "tool-bash",
+    "tool-pwsh",
+    "tool-jobs",
+    "tool-fs",
+    "tool-fs-search",
+    "tool-skill",
+    "tool-subagent-control",
+    "tool-subagent-list-agents",
+    "tool-subagent",
+    "tool-subagent-fork",
+    "tool-workflow",
+    "tool-todo",
+    "tool-goal",
+    "tool-ralph",
+    "tool-str-replace-editor",
+    "plan-mode",
+    "user-questions",
+  ] {
+    assert!(!disabled(id), "{id}");
+  }
+
+  // The MCP servers go to the session through its configuration, never mounted beside the route.
+  assert!(row("mcp-bmo").is_none(), "{overlay:?}");
+  let route = &row("llm-pi-ai").unwrap()["config"]["providers"]["openrouter"];
+
+  assert_eq!(route["apiKeyEnv"], "BMO_OPENROUTER_KEY");
+  assert_eq!(route["baseURL"], "https://openrouter.ai/api/v1");
+  assert_eq!(route["models"][0]["id"], "vendor/model");
+
+  let dsh_home = ground.roots.agents.join("dsh").to_string_lossy().into_owned();
+
+  assert_eq!(composed.command.env.get("DSH_HOME"), Some(&dsh_home));
+  assert!(!composed.command.env.contains_key("BMO_DSH_LOCAL_URL"));
   assert_eq!(composed.effort, None);
-  assert_eq!(composed.given.unwrap()["promptDelivery"], "argument");
+  assert_eq!(composed.given.unwrap()["prompt"], "what is new");
 }
 
 // A store whose provider order holds the stand-ins alone, or Claude Code beside them, for the chat agent.

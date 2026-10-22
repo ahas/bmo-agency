@@ -34,8 +34,8 @@ warming and standing checkouts, is agency's.
 
 ## Concurrency limits
 
-- **Co-workers are borrowed at Reliable, Fine, Light or Simple.** `BMO`, the name a stored key of the
-  tier tables, is the chat agent's own tier, and Frontier the job worker's. The builder stage is the
+- **Co-workers are borrowed at Reliable, Fine, Light or Simple.** Supervisor, the name a stored key of the
+  tier tables, is the chat agents' tier, and Frontier the job worker's. The builder stage is the
   worker itself, so neither is a tier a co-worker is borrowed at: the pool refuses a child request or a
   reservation at either one, and a plan's side task naming either one falls back to its role's tier.
 - **The limit** is the `(provider, tier)` row of the co-worker pool tier-limit table, one row for

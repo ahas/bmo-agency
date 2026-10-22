@@ -44,6 +44,7 @@ fn a_registration_is_a_service_on_the_gateway_and_a_mapping_its_settings() {
   };
   let thinking = Mapping {
     model: "local-a".into(),
+    thinking: None,
     effort: Some("thinking".into()),
     answer_tokens: Some(2_048),
   };

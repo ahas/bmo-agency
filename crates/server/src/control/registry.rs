@@ -291,6 +291,7 @@ impl OwnLlmSettings {
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Mapping {
   pub model: String,
+  pub thinking: Option<bool>,
   pub effort: Option<String>,
   pub answer_tokens: Option<i64>,
 }
@@ -299,6 +300,7 @@ impl From<&super::tiers::Mapping> for Mapping {
   fn from(held: &super::tiers::Mapping) -> Self {
     Self {
       model: held.model.clone(),
+      thinking: held.thinking,
       effort: held.effort.clone(),
       answer_tokens: held.answer_tokens,
     }
@@ -346,10 +348,10 @@ pub async fn run_settings<C: ConnectionTrait>(
   Ok(OwnLlmSettings {
     provider: PROVIDER,
     model: mapping.map(|one| one.model.clone()).unwrap_or_default(),
-    thinking: match &held {
+    thinking: mapping.and_then(|one| one.thinking).unwrap_or_else(|| match &held {
       Some(held) => thinks(held, effort.as_deref()),
       None => effort.as_deref() == Some("thinking"),
-    },
+    }),
     effort,
     answer_tokens: mapping
       .and_then(|one| one.answer_tokens)

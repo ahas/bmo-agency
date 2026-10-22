@@ -12,6 +12,7 @@ use std::path::{Path, PathBuf};
 use indexmap::IndexMap;
 use policy::providers::openrouter::OPENROUTER;
 use serde::Deserialize;
+use sha2::{Digest, Sha256};
 
 use super::fault;
 use super::openrouter::{LOCAL_URL, PROVIDER};
@@ -26,7 +27,7 @@ use crate::host_run::Command;
 // The version the deployment runs dsh at. A harness is its whole composition — the rows its profile mounts,
 // the ids they are addressed by — and the overlay below addresses rows by id, so the version moves only
 // with a reading of what moved with it.
-const VERSION: &str = "0.1.2-rc.1";
+const VERSION: &str = "0.2.0-rc.2";
 
 // The profile that runs one task and prints the answer.
 const PROFILE: &str = "headless";
@@ -258,9 +259,28 @@ impl Composed<'_> {
   }
 }
 
+// How the overlay treats dsh's own tool rows: a headless run takes the rows the line's declared tools stand
+// for, while a standing session keeps what dsh ships and only the web is replaced by the deployment's own
+// servers.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Tools {
+  Line,
+  Session,
+}
+
 // The overlay for one run: its prompt, the rows it goes without, the sandbox where it is shown tools, the
-// gateway as dsh's one route with the model and its thinking, and its MCP servers.
+// gateway as dsh's one route with the model and its thinking, and — where dsh is not handed them through
+// the session instead — its MCP servers.
 fn overlay_of(run: &Composed, env: &BTreeMap<String, String>) -> Result<Ordered, Refusal> {
+  overlay_of_with(run, env, true, Tools::Line)
+}
+
+fn overlay_of_with(
+  run: &Composed,
+  env: &BTreeMap<String, String>,
+  mcp: bool,
+  tools: Tools,
+) -> Result<Ordered, Refusal> {
   let mut rows = vec![];
   let persona = match (run.system, run.rules) {
     (Some(system), _) => Some(read(system)?),
@@ -282,13 +302,22 @@ fn overlay_of(run: &Composed, env: &BTreeMap<String, String>) -> Result<Ordered,
     }
   }
 
-  match run.permission_mode() {
-    None => {
+  match (tools, run.permission_mode()) {
+    (_, None) => {
       for id in TOOL_ROWS {
         rows.push(map(vec![("id", text(id)), ("disabled", Ordered::Flag(true))]));
       }
     }
-    Some(mode) => {
+    // A standing session keeps dsh's own tools; the web is the one the deployment replaces, with the
+    // servers its MCP configuration hands the session.
+    (Tools::Session, Some(mode)) => {
+      rows.push(map(vec![("id", text(WEB_ROW)), ("disabled", Ordered::Flag(true))]));
+      rows.push(map(vec![
+        ("id", text("sandbox-policy")),
+        ("config", map(vec![("mode", text(mode)), ("workspaceRoot", text(run.cwd))])),
+      ]));
+    }
+    (Tools::Line, Some(mode)) => {
       let working = run.working_rows();
 
       for id in TOOL_ROWS.into_iter().filter(|row| !working.contains(row)) {
@@ -313,7 +342,10 @@ fn overlay_of(run: &Composed, env: &BTreeMap<String, String>) -> Result<Ordered,
   };
 
   rows.extend(route_rows(run.model, level, env));
-  rows.extend(mcp_rows(run.mcp, run.cwd)?);
+
+  if mcp {
+    rows.extend(mcp_rows(run.mcp, run.cwd)?);
+  }
 
   Ok(Ordered::List(rows))
 }
@@ -392,9 +424,9 @@ fn route_rows(model_id: &str, level: Option<&str>, env: &BTreeMap<String, String
   ]
 }
 
-// Every row of the pinned profile that puts a tool in front of the model, and the plan mode that puts one
-// more there: a gate is shown nothing, which dsh takes as every one of them off.
-const TOOL_ROWS: [&str; 17] = [
+// Every row of the pinned profile that puts a tool in front of the model, the user question beside them and
+// the plan mode that puts one more there: a gate is shown nothing, which dsh takes as every one of them off.
+const TOOL_ROWS: [&str; 18] = [
   "tool-bash",
   "tool-pwsh",
   "tool-jobs",
@@ -412,6 +444,7 @@ const TOOL_ROWS: [&str; 17] = [
   "tool-str-replace-editor",
   "tool-web",
   "plan-mode",
+  "user-questions",
 ];
 
 // The overlay for a gate's run: its instructions as dsh's persona, the instruction-file reader and the
@@ -450,6 +483,28 @@ pub fn gate_command(
 ) -> Result<Command, Refusal> {
   let overlay = overlay_text(&gate_overlay(model, thinking, system_path, env)?)?;
   launched(GATE_LINE, prompt, &overlay, cwd, env, agents, None)
+}
+
+/// The overlay a standing session reads, written under dsh's home and named by its own text: the same run
+/// composes the same path, so the pane's command — and its identity — stands while nothing it reads has
+/// changed, and a changed prompt or route is a new path the pane is stood again on. Its MCP servers are
+/// handed to the session rather than mounted here, so no server stands twice, and dsh's own tools stand
+/// except the web, which those servers replace.
+pub fn session_patch(
+  run: &Composed,
+  env: &BTreeMap<String, String>,
+  agents: &Path,
+) -> Result<PathBuf, Refusal> {
+  let text = overlay_text(&overlay_of_with(run, env, false, Tools::Session)?)?;
+  let digest = format!("{:x}", Sha256::digest(text.as_bytes()));
+  let dir = dsh_home(agents).join("overlays");
+  let path = dir.join(format!("{}-{digest}.yml", run.line));
+
+  agent_host::disk::private_dir(&dir).map_err(|why| fault(format!("{}: {why}", dir.display())))?;
+  agent_host::disk::publish_bytes(&path, text.as_bytes())
+    .map_err(|why| fault(format!("{}: {why}", path.display())))?;
+
+  Ok(path)
 }
 
 /// The overlay as dsh reads it: JSON, which YAML reads too, with the tool host's bearer placeholder replaced

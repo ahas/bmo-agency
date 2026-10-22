@@ -293,7 +293,7 @@ describe("the command a run is carried on", () => {
       "--package",
       // Pinned rather than floating: a release that renamed a row the overlay addresses would be
       // a different harness answering the same command.
-      "@deepseek-ai/dsh@0.1.2-rc.1",
+      "@deepseek-ai/dsh@0.2.0-rc.2",
       "--call",
     ]);
 
@@ -303,6 +303,13 @@ describe("the command a run is carried on", () => {
     expect(dshArgs.at(-1)).toBe("something to judge");
     // headless reads its task from the command line and nothing from its input.
     expect(command.stdin).toBeNull();
+  });
+
+  test("continues the session a turn resumes, named on dsh's line", async () => {
+    const command = await dsh.command({ ...runFor(), resumeSessionId: "session-a" });
+    const { dshArgs } = launched(command);
+
+    expect(dshArgs[dshArgs.indexOf("--session-id") + 1]).toBe("session-a");
   });
 
   test("writes the overlay where the line points, under agency's own root and not the user's home", async () => {

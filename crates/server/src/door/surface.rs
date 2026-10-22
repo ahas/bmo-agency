@@ -136,7 +136,7 @@ pub async fn turn<W: Watch>(
     )),
     Turns::Endpoint => endpoint::turn(ground, provider, resident, turn, watch).await,
     Turns::Rollout => rollout::turn(ground, provider, resident, turn, watch).await,
-    Turns::Loop => inbox::turn(ground, provider, resident, turn, watch).await,
+    Turns::Inbox => inbox::turn(ground, provider, resident, turn, watch).await,
   }
 }
 

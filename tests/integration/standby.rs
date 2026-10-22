@@ -291,7 +291,8 @@ async fn a_worker_pinned_to_claude_code_has_a_members_program_replaced_by_claude
 }
 
 #[tokio::test]
-async fn the_pins_own_program_on_another_model_and_a_loop_at_work_on_a_persons_line_are_left_alone() {
+async fn the_pins_own_program_on_another_model_and_a_pane_program_at_work_on_a_persons_line_are_left_alone()
+{
   let bench = Bench::new().await;
   let own = bench.worker("own-worker", Some(("registered", Some("member")))).await;
   let typing = bench.worker("typing-worker", Some(("claude-code", None))).await;
@@ -305,14 +306,14 @@ async fn the_pins_own_program_on_another_model_and_a_loop_at_work_on_a_persons_l
   let (busy, mut busy_child) = bench.standing(
     "typing-worker",
     &[
-      "bun",
-      "/deploy/bot/bot/resident-loop.ts",
-      "--provider",
-      "openrouter",
+      "bmo-tui",
+      "dsh",
+      "--program",
+      "dsh",
       "--place",
       &typing_place,
-      "--line",
-      "worker",
+      "--model",
+      r#"["openrouter","vendor/model"]"#,
     ],
     &[],
   );

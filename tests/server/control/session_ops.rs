@@ -9,11 +9,35 @@ use agency_server::control::session_ops::{
   answer_read, context_read, scope_read, scope_value, state_value,
 };
 use agent_session::{
-  AccountFailure, Answer, Apart, Asks, Context, Conversation, Failure, JobMark, Mapping, Outcome, Question,
-  Reply, Resume, RoomBlock, RunEnding, RunParts, Scope, SessionId, Span, Spend, State, TurnContext,
-  TurnEnd, WentOut, WorkParts,
+  AccountFailure, Answer, Apart, Asks, Context, Conversation, Failure, GateAsk, JobMark, Mapping, Outcome,
+  Question, Reply, Resume, RoomBlock, RunEnding, RunParts, Scope, SessionId, Span, Spend, State,
+  TurnContext, TurnEnd, WentOut, WorkParts,
 };
 use serde_json::json;
+
+#[test]
+fn a_gates_one_turn_reads_its_system_prompt_thinking_and_mapping() {
+  assert_eq!(
+    context_read(&json!({
+      "gate": {
+        "system": "  the gate's instructions  ",
+        "thinking": false,
+        "model": "a-model",
+        "effort": " low ",
+        "answerTokens": 2048,
+      }
+    }))
+    .unwrap()
+    .gate,
+    Some(GateAsk {
+      system: Some("the gate's instructions".into()),
+      thinking: Some(false),
+      model: Some("a-model".into()),
+      effort: Some("low".into()),
+      answer_tokens: Some(2048),
+    })
+  );
+}
 
 #[test]
 fn a_turns_context_reads_every_part_it_names_and_none_of_what_it_does_not() {
@@ -42,6 +66,7 @@ fn a_turns_context_reads_every_part_it_names_and_none_of_what_it_does_not() {
       run: None,
       job: None,
       work: None,
+      gate: None,
     }
   );
   assert!(context_read(&json!({ "room": { "text": "no room" } })).is_err());

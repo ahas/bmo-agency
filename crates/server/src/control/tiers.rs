@@ -22,6 +22,7 @@ pub struct Mapping {
   pub provider: String,
   pub tier: String,
   pub model: String,
+  pub thinking: Option<bool>,
   pub effort: Option<String>,
   pub answer_tokens: Option<i64>,
 }
@@ -47,6 +48,7 @@ fn mapping_of(row: &QueryResult) -> Result<Mapping, Refused> {
     provider: row.try_get("", "provider")?,
     tier: row.try_get("", "tier")?,
     model: row.try_get("", "model")?,
+    thinking: row.try_get("", "thinking")?,
     effort: row.try_get("", "effort")?,
     answer_tokens: row.try_get("", "answer_tokens")?,
   })
@@ -55,7 +57,7 @@ fn mapping_of(row: &QueryResult) -> Result<Mapping, Refused> {
 pub async fn mappings(db: &DatabaseConnection) -> Result<Vec<Mapping>, Refused> {
   all(
     db,
-    "SELECT provider, tier, model, effort, answer_tokens FROM model_tier_mappings ORDER BY provider, tier",
+    "SELECT provider, tier, model, thinking, effort, answer_tokens FROM model_tier_mappings ORDER BY provider, tier",
     vec![],
   )
   .await?
@@ -142,7 +144,7 @@ pub async fn resolve_tier(db: &DatabaseConnection, tier: &str, provider: &str) -
 
   let row = one(
     db,
-    "SELECT provider, tier, model, effort, answer_tokens FROM model_tier_mappings WHERE provider = $1 AND tier = $2",
+    "SELECT provider, tier, model, thinking, effort, answer_tokens FROM model_tier_mappings WHERE provider = $1 AND tier = $2",
     vec![provider.into(), tier.into()],
   )
   .await
@@ -234,12 +236,13 @@ pub async fn set_mapping(
 
   run(
     db,
-    r#"INSERT INTO model_tier_mappings (provider, tier, model, effort, answer_tokens) VALUES ($1, $2, $3, $4, $5)
-       ON CONFLICT (provider, tier) DO UPDATE SET model = excluded.model, effort = excluded.effort, answer_tokens = excluded.answer_tokens"#,
+    r#"INSERT INTO model_tier_mappings (provider, tier, model, thinking, effort, answer_tokens) VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (provider, tier) DO UPDATE SET model = excluded.model, thinking = excluded.thinking, effort = excluded.effort, answer_tokens = excluded.answer_tokens"#,
     vec![
       mapping.provider.clone().into(),
       mapping.tier.clone().into(),
       mapping.model.clone().into(),
+      mapping.thinking.into(),
       mapping.effort.clone().into(),
       mapping.answer_tokens.into(),
     ],

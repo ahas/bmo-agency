@@ -6,5 +6,5 @@ fn the_coworker_tiers_stand_on_the_ladder_in_its_order() {
     TIERS.ladder.iter().map(String::as_str).filter(|tier| TIERS.lends(tier)).collect();
 
   assert_eq!(on_ladder, TIERS.coworker_tiers());
-  assert!(!TIERS.lends("BMO") && !TIERS.lends("Frontier"));
+  assert!(!TIERS.lends("Supervisor") && !TIERS.lends("Frontier"));
 }

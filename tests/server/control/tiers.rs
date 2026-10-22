@@ -5,6 +5,7 @@ fn mapping(tier: &str, provider: &str, model: &str, answer_tokens: Option<i64>) 
     provider: provider.into(),
     tier: tier.into(),
     model: model.into(),
+    thinking: None,
     effort: None,
     answer_tokens,
   }

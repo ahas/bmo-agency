@@ -25,7 +25,7 @@ use crate::control::fallback::fallback_provider;
 use crate::control::harness::provider_enabled;
 use crate::control::roads::pinned_provider;
 use crate::lines::place::{Place, Program, token_of};
-use crate::lines::standing::{Standing, claim_standby, claude_program, loop_program, registered_program};
+use crate::lines::standing::{Standing, claim_standby, claude_program, inbox_program, registered_program};
 use crate::lines::token;
 use crate::queue::routes::{JOB_WORK_KEY, worker_pin};
 use crate::{Refusal, now_ms};
@@ -54,8 +54,8 @@ async fn worker_pane(
   Some((job, pane))
 }
 
-// Whether the loop's record holds a turn begun since the loop started and not ended.
-fn loop_turn_open(place: &Path, since: u64) -> bool {
+// Whether the pane program's record holds a turn begun since the program started and not ended.
+fn record_turn_open(place: &Path, since: u64) -> bool {
   let records: Vec<Value> = std::fs::read_to_string(place.join("loop.jsonl"))
     .unwrap_or_default()
     .lines()
@@ -104,12 +104,12 @@ async fn pane_status(ground: &Ground, pane: &str) -> Option<String> {
 }
 
 // Whether the program standing in a place is at work on a turn a person put in: herdr reads its pane
-// working or asking, or does not answer about it, or the loop's record holds a turn begun since the
-// loop started and not ended.
+// working or asking, or does not answer about it, or the pane program's record holds a turn begun since
+// the program started and not ended.
 async fn pane_at_work(ground: &Ground, place: &Place) -> bool {
   let Some(running) = place.program_alive() else { return false };
 
-  if loop_turn_open(&place.path, running.started_at) {
+  if record_turn_open(&place.path, running.started_at) {
     return true;
   }
 
@@ -140,7 +140,7 @@ async fn note(ground: &Ground, worker: &str, text: &str) -> Result<(), Refusal> 
 }
 
 // The program a pin stands with nothing put in, where its provider's surface stands one: the
-// registry's Claude Code on the gateway, or agency's loop.
+// registry's Claude Code on the gateway, or the provider's own pane program.
 async fn pinned_program(
   ground: &Ground,
   machine: &Machine,
@@ -155,13 +155,15 @@ async fn pinned_program(
       crate::lines::deepseek::deepseek_program(ground, machine, worker, cwd, model).await?,
     )),
     _ => {
-      let script = provider(pin)
-        .and_then(|provider| provider.declared().resident.as_ref())
-        .and_then(|resident| resident.loop_script.clone());
+      let resident = provider(pin).and_then(|provider| provider.declared().resident.as_ref());
+      let program = resident.and_then(|resident| resident.program.clone());
+      let dsh = resident.and_then(|resident| resident.dsh.clone());
 
-      match script {
-        Some(script) => Ok(Some(loop_program(ground, machine, worker, cwd, pin, &script).await?)),
-        None => Ok(None),
+      match (program, dsh) {
+        (Some(program), Some(dsh)) => {
+          Ok(Some(inbox_program(ground, machine, worker, cwd, pin, &program, &dsh).await?))
+        }
+        _ => Ok(None),
       }
     }
   }

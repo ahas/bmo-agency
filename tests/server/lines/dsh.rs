@@ -1,6 +1,9 @@
+use std::collections::BTreeMap;
+
 use agency_server::lines::dsh::*;
 use agency_server::lines::ordered::Ordered;
 use agency_server::lines::token::TOKEN_VARIABLE;
+use serde_json::Value;
 
 #[test]
 fn a_long_task_is_cut_at_spaces_that_join_it_again() {
@@ -22,6 +25,76 @@ fn a_failure_is_dsh_s_own_word_before_the_last_line() {
   );
   assert_eq!(failure("dsh: reasoning\nnpm ERR! fetch failed\n", 2), "exit 2: npm ERR! fetch failed");
   assert_eq!(failure("", 3), "exit 3");
+}
+
+// The overlay a standing session reads, as a line that grants tools and as one shown none.
+fn session_overlay(shown: &'static str) -> Vec<Value> {
+  let dir = tempfile::tempdir().unwrap();
+  let system = dir.path().join("system.md");
+
+  std::fs::write(&system, "You are the agent.\n").unwrap();
+
+  let run = Composed {
+    line: "chat",
+    system: Some(&system),
+    rules: None,
+    shown: Some(shown),
+    allowed: Some(shown),
+    cwd: "/work",
+    model: "vendor/model",
+    effort: "",
+    chosen: false,
+    thinking: true,
+    mcp: None,
+  };
+  let patch = session_patch(&run, &BTreeMap::new(), dir.path()).unwrap();
+
+  serde_json::from_str(&std::fs::read_to_string(&patch).unwrap()).unwrap()
+}
+
+#[test]
+fn a_session_granting_tools_keeps_dsh_s_defaults_and_only_replaces_the_web() {
+  let overlay = session_overlay("Bash,Read");
+  let disabled = |id: &str| overlay.iter().any(|row| row["id"] == id && row["disabled"] == true);
+
+  assert!(disabled("tool-web"));
+
+  for id in ["tool-bash", "tool-fs", "tool-fs-search", "plan-mode", "user-questions"] {
+    assert!(!disabled(id), "{id}");
+  }
+
+  assert_eq!(overlay[0]["id"], "system-prompt");
+  assert!(disabled("agent-instructions"));
+  assert!(disabled("session-title-llm"));
+}
+
+#[test]
+fn a_session_shown_no_tools_switches_every_tool_row_off() {
+  let overlay = session_overlay("");
+  let disabled = |id: &str| overlay.iter().any(|row| row["id"] == id && row["disabled"] == true);
+
+  for id in [
+    "tool-bash",
+    "tool-pwsh",
+    "tool-jobs",
+    "tool-fs",
+    "tool-fs-search",
+    "tool-skill",
+    "tool-subagent-control",
+    "tool-subagent-list-agents",
+    "tool-subagent",
+    "tool-subagent-fork",
+    "tool-workflow",
+    "tool-todo",
+    "tool-goal",
+    "tool-ralph",
+    "tool-str-replace-editor",
+    "tool-web",
+    "plan-mode",
+    "user-questions",
+  ] {
+    assert!(disabled(id), "{id}");
+  }
 }
 
 #[test]

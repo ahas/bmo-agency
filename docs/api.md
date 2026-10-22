@@ -95,6 +95,7 @@ receiver. `road-verbs` is what the procedures tool asks a room's road.
 | GET | `/prompt-documents` | Deployed prompt documents: base prompts, rulebooks, personas, agent definitions, system prompts. |
 | GET | `/prompt-documents/{documentName}` | One prompt document with its version. |
 | PATCH | `/prompt-documents/{documentName}` | Change a base prompt or its chooser. |
+| GET | `/rulebooks` | The shared rulebooks named, as the deploy tree holds them. |
 
 ### document-moves
 
@@ -127,9 +128,14 @@ number the service gives it for a thrown-away session (`<agent>@apart:<n>`) and 
 
 A conversation is the caller's: its start names the provider, the model and, where it names one, the
 folder its turns go out on, and its turns are ordinary prompts with the context around them and no work
-parts. A provider whose program keeps a session continues the one its last answered turn left; a provider
-that keeps none — OpenRouter through the dsh loop among them — carries each turn afresh. The session
-stands in the server's memory from its start to its end.
+parts. A provider whose program keeps a session continues the one its last answered turn left; OpenRouter
+keeps its dsh session inside bmo-tui's pane, which carries the next turn although agency stores no id for
+it. The session stands in the server's memory from its start to its end.
+
+A conversation whose agent is a gate work key carries a gate's one turn: the turn's `gate` part holds the
+gate's instructions as the program's whole system prompt, whether it thinks, and the model, effort and
+answer room its mapping resolved to. The turn goes out with no tools, no MCP server and no session kept,
+and its answer is the gate's verdict.
 
 A room's session is readable by its id from its start, before its first turn has opened a generation:
 the read answers the provider, model and place its agent's row names, at generation 0, and its first

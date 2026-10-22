@@ -38,6 +38,12 @@ made of is `docs/companions.md`.
 
 - **A role with no bundle of its own still names what the agent is for.** A gate's and a
   recollector's runs hold what their lines declare (`docs/launch-lines.md`) and nothing of a role.
+- **A role may name a prompt its agents are given before their own,** `prompt`, a file under
+  `prompts/roles/`: the role's instruction stands for every agent holding it, and the agent's own
+  documents follow it. A role naming none gives none.
+- **A role may bound how many of its agents run at once,** `max_concurrent`: a turn beyond the bound
+  waits for a place and none is refused. A role naming none runs unbounded. The bound is on turns
+  running at that moment, never on how many sessions stand.
 - **A role the policy does not declare gives nothing,** and the control port refuses to set one.
 - **A co-worker holds the role the policy names for co-workers,** the worker role: a co-worker is a
   sub-agent for a worker's use alone, and the place it works in, a standing branch checkout, has no row

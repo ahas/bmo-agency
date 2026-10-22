@@ -54,7 +54,7 @@ async fn a_fresh_store_is_given_the_account_the_tiers_and_the_keys_once() {
   assert_eq!(
     scratch
       .count(
-        r#"SELECT count(*) FROM "model_tier_mappings" WHERE "tier" = 'BMO' AND "provider" = 'claude-code' AND "model" = 'claude-opus-5'"#,
+        r#"SELECT count(*) FROM "model_tier_mappings" WHERE "tier" = 'Supervisor' AND "provider" = 'claude-code' AND "model" = 'claude-opus-5'"#,
         vec![]
       )
       .await,
@@ -62,7 +62,7 @@ async fn a_fresh_store_is_given_the_account_the_tiers_and_the_keys_once() {
   );
 
   for (key, tier) in [
-    ("bmo", "BMO"),
+    ("bmo", "Supervisor"),
     ("job-worker", "Frontier"),
     ("output-format", "Simple"),
     ("role:scout", "Light"),
@@ -78,6 +78,57 @@ async fn a_fresh_store_is_given_the_account_the_tiers_and_the_keys_once() {
       "{key} starts on {tier}"
     );
   }
+}
+
+#[tokio::test]
+async fn a_ladder_that_gained_a_tier_maps_it_and_moves_the_keys_an_older_ladder_placed() {
+  let scratch = Scratch::blank().await;
+  let seeds = deployment(&machine(&[("HOME", "/home/someone")]));
+
+  settle(scratch.db(), &seeds).await.unwrap();
+
+  // A tier an earlier ladder held, with the mapping and the assignment that stood on it, before the
+  // ladder that replaced it is settled.
+  scratch.run(r#"DELETE FROM "model_tier_meta" WHERE "version" = 4"#, vec![]).await;
+  scratch
+    .run(r#"DELETE FROM "model_tier_mappings" WHERE "tier" = 'Supervisor'"#, vec![])
+    .await;
+  scratch
+    .run(
+      r#"INSERT INTO "model_tier_mappings" ("provider", "tier", "model", "effort") VALUES ('claude-code', 'BMO', 'an-old-model', 'medium')"#,
+      vec![],
+    )
+    .await;
+  scratch
+    .run(r#"UPDATE "model_tier_assignments" SET "tier" = 'BMO' WHERE "key" = 'bmo'"#, vec![])
+    .await;
+
+  settle(scratch.db(), &seeds).await.unwrap();
+
+  assert_eq!(
+    scratch
+      .count(r#"SELECT count(*) FROM "model_tier_mappings" WHERE "tier" = 'BMO'"#, vec![])
+      .await,
+    0
+  );
+  assert_eq!(
+    scratch
+      .count(
+        r#"SELECT count(*) FROM "model_tier_assignments" WHERE "key" = 'bmo' AND "tier" = 'Supervisor'"#,
+        vec![]
+      )
+      .await,
+    1
+  );
+  assert_eq!(
+    scratch
+      .count(
+        r#"SELECT count(*) FROM "model_tier_mappings" WHERE "tier" = 'Supervisor' AND "provider" = 'claude-code'"#,
+        vec![]
+      )
+      .await,
+    1
+  );
 }
 
 #[test]

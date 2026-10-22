@@ -225,12 +225,14 @@ pub async fn chosen_base_prompt(
 /// The worker's whole system prompt where one stands where the program's own would: the base prompt the
 /// account names, which wins over the agent's own choice, or the prompt the agent chooses, filled in for
 /// the run, then the worker's rules, as one file named by what it holds (docs/base-prompts.md).
+#[allow(clippy::too_many_arguments)]
 pub async fn worker_system_prompt(
   ground: &Ground,
   trees: &Trees,
   named: Option<&str>,
   account: Option<&Account>,
   rules: &str,
+  above: Option<&str>,
   cwd: &str,
   model: &str,
 ) -> Result<Option<PathBuf>, Refusal> {
@@ -253,7 +255,10 @@ pub async fn worker_system_prompt(
         (base, named.to_owned())
       }
     };
-  let text = format!("{base}\n\n{rules}");
+  let text = match above {
+    Some(above) => format!("{above}\n\n{base}\n\n{rules}"),
+    None => format!("{base}\n\n{rules}"),
+  };
   let digest = format!("{:x}", Sha256::digest(text.as_bytes()));
 
   Ok(Some(system_prompt_file(
@@ -376,8 +381,25 @@ pub async fn worker_run(
     None => None,
   };
   let (rules_text, rules) = standing_rules(trees, named.as_deref())?;
-  let system_prompt =
-    worker_system_prompt(ground, trees, named.as_deref(), account, &rules_text, cwd, model).await?;
+  let above = match worker {
+    Some(worker) => crate::conversational::role_of(&ground.db, worker)
+      .await
+      .ok()
+      .flatten()
+      .and_then(|role| super::role_prompt(trees, &role)),
+    None => None,
+  };
+  let system_prompt = worker_system_prompt(
+    ground,
+    trees,
+    named.as_deref(),
+    account,
+    &rules_text,
+    above.as_deref(),
+    cwd,
+    model,
+  )
+  .await?;
   let worker_dir = trees.agent_dir(LINE);
   let plugin_dir = worker_dir.join("plugin");
   let reasoning = match worker {

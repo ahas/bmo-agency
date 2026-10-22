@@ -7,11 +7,9 @@ import { afterAll, describe, expect, test } from "bun:test";
 import { codeRoot } from "@agency/support/roots";
 import { claudeCodeProvider, readClaudeResidentTurn, residentTurnsOwed } from "@agency/agent/claude-code";
 import { codexProvider, readCodexRollout } from "@agency/agent/codex";
-import { openRouterProvider } from "@agency/agent/dsh";
 import { agentProviderNames } from "@agency/agent/harness";
 import { providerImplementations } from "@agency/agent/harnesses";
 import { commandDigest } from "@agency/agent/resident";
-import { isLoopSurface } from "@agency/agent/loop-record";
 import { scratchDir } from "@agency/test-support/scratch";
 
 import type { HarnessRun, AgentProvider, ResidentSurface } from "@agency/agent/harness";
@@ -63,9 +61,8 @@ const surfaceOf = (provider: AgentProvider): ResidentSurface => {
 describe("resident or host", () => {
   const surface = surfaceOf(claudeCodeProvider);
 
-  test("every provider declares one, and OpenRouter alone stands agency's loop", () => {
-    expect(providerImplementations().filter((provider) => provider.resident === null).map((provider) => provider.name)).toEqual([]);
-    expect(providerImplementations().filter((provider) => isLoopSurface(provider.resident)).map((provider) => provider.name)).toEqual(["openrouter"]);
+  test("every provider declares its surface, and OpenRouter's resident pane is the server's", () => {
+    expect(providerImplementations().filter((provider) => provider.resident === null).map((provider) => provider.name)).toEqual(["openrouter"]);
   });
 
   test("the resolution names no provider", () => {
@@ -410,11 +407,10 @@ describe("Codex's resident program", () => {
     expect(args.slice(1, 3)).toEqual(["resume", "019-thread"]);
   });
 
-  // Codex's and the loop's turns are carried by their own surfaces, so whoever hands one of them a
-  // turn asks the surface rather than naming the program; Claude Code's lines run their own turns.
-  test("carries its own turns, as the loop does, where Claude Code's lines run theirs", () => {
+  // Codex's turns are carried by its own surface, so whoever hands one a turn asks the surface rather
+  // than naming the program; Claude Code's lines run their own turns.
+  test("carries its own turns, where Claude Code's lines run theirs", () => {
     expect(surface.turn).toBeFunction();
-    expect(surfaceOf(openRouterProvider).turn).toBeFunction();
     expect(surfaceOf(claudeCodeProvider).turn).toBeUndefined();
   });
 
@@ -489,34 +485,3 @@ describe("Codex's resident program", () => {
   });
 });
 
-describe("OpenRouter's resident loop", () => {
-  const surface = surfaceOf(openRouterProvider);
-  const loopRun = () => run({ model: "qwen/qwen3.8-27b:free", effort: "" });
-
-  test("is agency's own loop, fed through its inbox, taking no words mid-turn", async () => {
-    expect(surface.door).toBe("inbox");
-    expect(surface.takesWordsMidTurn).toBe(false);
-    expect(surface.fold).toBeNull();
-
-    const args = (await surface.command(loopRun())).args;
-
-    expect(args[1]).toEndWith(join("packages", "agent", "resident-loop.ts"));
-    // It names the provider whose program runs each turn, which it takes from the registry.
-    expect(args.slice(2)).toEqual(["--provider", "openrouter", "--place", join(root, "place"), "--line", "chat", "--model", "qwen/qwen3.8-27b:free"]);
-  });
-
-  test("needs its agent's place", () => {
-    expect(() => surface.command(run({ resident: null }))).toThrow("place");
-  });
-
-  // The share read from the cache counts toward the turn's tokens, and is none where the upstream reported none.
-  test("an ended turn's tokens count what the cache gave, where the loop wrote any", () => {
-    const spendOf = (usage: Record<string, number>) =>
-      surface.readTurn({ lines: [{ kind: "start", id: "a" }, { kind: "answer", text: "done", usage }, { kind: "end", id: "a" }] }, loopRun()).reply.spend;
-
-    expect(spendOf({ inputTokens: 30, outputTokens: 4, cacheReadTokens: 70 })).toEqual([
-      { mode: "openrouter", model: "qwen/qwen3.8-27b:free", tokens: 104, inputTokens: 30, outputTokens: 4, cacheReadTokens: 70, cacheWriteTokens: 0, cost: 0 },
-    ]);
-    expect(spendOf({ inputTokens: 30, outputTokens: 4 })[0]).toMatchObject({ tokens: 34, cacheReadTokens: 0 });
-  });
-});

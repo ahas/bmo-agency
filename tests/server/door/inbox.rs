@@ -76,6 +76,21 @@ fn an_answer_carries_dsh_tokens_and_a_failure_carries_no_answer() {
 }
 
 #[test]
+fn a_models_choice_in_the_record_is_read_back_as_the_models_id() {
+  let (_, _, reply) = read_turn(
+    &[
+      json!({ "kind": "start", "id": "a" }),
+      json!({ "kind": "answer", "text": "done", "model": r#"["openrouter","vendor/model"]"# }),
+      json!({ "kind": "end" }),
+    ],
+    &run(),
+    "openrouter",
+  );
+
+  assert_eq!(reply.model.as_deref(), Some("vendor/model"));
+}
+
+#[test]
 fn a_turn_cut_short_reads_interrupted_and_one_with_no_end_still_works() {
   let interrupted =
     read_turn(&[json!({ "kind": "start" }), json!({ "kind": "interrupted" })], &run(), "openrouter");
@@ -118,8 +133,8 @@ fn a_turns_lines_are_handed_as_written_while_it_works_and_whole_once_it_ends() {
 
 #[test]
 fn only_a_turns_own_variables_travel_with_it() {
-  assert!(is_loop_turn_variable(LOCAL_URL));
-  assert!(is_loop_turn_variable("BMO_TURN_CHAT"));
-  assert!(!is_loop_turn_variable("OPENROUTER_API_KEY"));
-  assert!(!is_loop_turn_variable("PATH"));
+  assert!(is_inbox_turn_variable(LOCAL_URL));
+  assert!(is_inbox_turn_variable("BMO_TURN_CHAT"));
+  assert!(!is_inbox_turn_variable("OPENROUTER_API_KEY"));
+  assert!(!is_inbox_turn_variable("PATH"));
 }

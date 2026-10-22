@@ -590,6 +590,7 @@ pub struct WorkKey {
   pub key: String,
   pub provider: String,
   pub model: String,
+  pub thinking: Option<bool>,
   pub effort: Option<String>,
   pub answer_tokens: Option<i64>,
   pub cap_ms: i64,
@@ -813,6 +814,21 @@ pub struct AgentPage {
 pub struct PromptDocumentPage {
   pub items: Vec<PromptDocument>,
   pub more: bool,
+}
+
+/// Rulebook:
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct Rulebook {
+  pub name: String,
+  pub text: String,
+}
+
+/// Rulebooks:
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct Rulebooks {
+  pub rulebooks: Vec<Rulebook>,
 }
 
 /// SessionPage:
@@ -1521,6 +1537,7 @@ pub struct TierChange {
   pub accept_conflicts: Option<bool>,
   pub provider: Option<String>,
   pub model: Option<String>,
+  pub thinking: Option<bool>,
   pub effort: Option<String>,
   pub answer_tokens: Option<i64>,
 }

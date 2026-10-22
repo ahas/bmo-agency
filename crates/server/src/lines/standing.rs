@@ -20,7 +20,7 @@ use super::place::{
   Holds, Place, Program, Standby, command_digest, read_settings, resident_of, write_place_settings,
 };
 use super::prefix::{PrefixReading, prefix_digest};
-use super::worker::{self, LINE, Reasoning, WorkerRun, configured, effort_of, worker_run};
+use super::worker::{self, LINE, WorkerRun, configured, effort_of, worker_run};
 use super::{Trees, fault};
 use crate::control::claude_accounts::{self, Account, SEED_ACCOUNT};
 use crate::control::registry;
@@ -722,130 +722,49 @@ pub(crate) async fn worker_sampling(
   Ok((!sampling.is_empty()).then_some(sampling))
 }
 
-/// The run the deployment's loop is laid down on for a line typed at it, as the loop reads it: the worker's
-/// run with no prompt, no variable and no place.
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct LoopRun<'a> {
-  line: &'a str,
-  model: &'a str,
-  effort: &'a str,
-  system_prompt_path: Option<&'a Path>,
-  tools_shown: Option<()>,
-  tools_allowed: Option<()>,
-  tools_denied: &'a str,
-  mcp_config_path: &'a Path,
-  prompt: &'a str,
-  prompt_delivery: &'a str,
-  resume_session_id: Option<()>,
-  keep_session: bool,
-  host_commands: bool,
-  #[serde(skip_serializing_if = "Option::is_none")]
-  reasoning: Option<LoopReasoning<'a>>,
-  thinking: bool,
-  #[serde(skip_serializing_if = "Option::is_none")]
-  sampling: Option<indexmap::IndexMap<String, Value>>,
-  answer_shape: &'a str,
-  open_session_id: Option<()>,
-  cwd: &'a str,
-  env: Map<String, Value>,
-  account: Option<()>,
-  extensions: LoopExtensions<'a>,
-  #[serde(skip_serializing_if = "Option::is_none")]
-  tier: Option<&'a str>,
-  resident: Option<()>,
-}
-
-#[derive(Serialize)]
-struct LoopReasoning<'a> {
-  thinking: Option<bool>,
-  effort: Option<&'a str>,
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct LoopExtensions<'a> {
-  settings_path: &'a Path,
-  plugin_dir: &'a Path,
-  agents_json: &'a str,
-  rules_path: &'a Path,
-}
-
-/// The deployment's loop for a worker pinned to OpenRouter: the loop script started for the provider on the
-/// worker's place, line and model, and the worker's run laid down as the one a line typed at it goes
-/// out on, where no run of the bot's is laid down yet.
-pub async fn loop_program(
+/// The pane program for a worker pinned to a provider that stands one with nothing put in: bmo-tui on the
+/// worker's place and dsh session, its screen kept open across turns and a line typed at it sent into the
+/// same session.
+pub async fn inbox_program(
   ground: &Ground,
   machine: &Machine,
   worker: &str,
   cwd: &str,
   provider: &str,
-  script: &str,
+  program: &str,
+  dsh: &str,
 ) -> Result<Standing, Refusal> {
   let trees = Trees::of(ground);
   let (run, _) = pinned_run(ground, machine, &trees, worker, cwd, provider, None).await?;
   let place = Place::of(&trees.data, worker);
-  let laid = place.path.join("loop-run.json");
-
-  if !laid.exists() {
-    let reasoning = run.reasoning.as_ref().map(|Reasoning { thinking, level }| LoopReasoning {
-      thinking: *thinking,
-      effort: level.as_deref(),
-    });
-    let laid_run = LoopRun {
-      line: LINE,
-      model: &run.model,
-      effort: &run.effort,
-      system_prompt_path: run.system_prompt.as_deref(),
-      tools_shown: None,
-      tools_allowed: None,
-      tools_denied: &run.tools_denied,
-      mcp_config_path: &run.mcp_config,
-      prompt: "",
-      prompt_delivery: "channel",
-      resume_session_id: None,
-      keep_session: true,
-      host_commands: true,
-      reasoning,
-      thinking: run.thinking,
-      sampling: worker_sampling(ground, worker).await?,
-      answer_shape: "unread",
-      open_session_id: None,
-      cwd: &run.cwd,
-      env: Map::new(),
-      account: None,
-      extensions: LoopExtensions {
-        settings_path: &run.settings,
-        plugin_dir: &run.plugin_dir,
-        agents_json: &run.agents_json,
-        rules_path: &run.rules,
-      },
-      tier: run.tier.as_deref(),
-      resident: None,
-    };
-    let mut bytes = serde_json::to_vec(&laid_run).map_err(|why| fault(why.to_string()))?;
-
-    bytes.push(b'\n');
-    agent_host::disk::private_dir(&place.path)
-      .map_err(|why| fault(format!("{}: {why}", place.path.display())))?;
-    agent_host::disk::publish_bytes(&laid, &bytes)
-      .map_err(|why| fault(format!("{}: {why}", laid.display())))?;
-  }
-
   let mut env: BTreeMap<String, String> = ground.env().clone();
 
   env.extend(policy::providers::claude_code::CLAUDE_CODE.launch.variables.clone());
 
-  let command = super::openrouter::loop_command(
+  let laid = super::dsh::Composed {
+    line: LINE,
+    system: run.system_prompt.as_deref(),
+    rules: Some(&run.rules),
+    shown: None,
+    allowed: None,
+    cwd: &run.cwd,
+    model: &run.model,
+    effort: &run.effort,
+    chosen: run.reasoning.as_ref().is_some_and(|reasoning| reasoning.level.is_some()),
+    thinking: run.thinking,
+    mcp: Some(&run.mcp_config),
+  };
+  let command = super::openrouter::resident_command(
     ground,
-    script,
+    machine,
     provider,
+    program,
+    dsh,
     &place.path,
-    LINE,
-    &run.model,
-    &run.cwd,
+    worker,
+    &laid,
     &env,
-  );
+  )?;
 
   Ok(Standing {
     program: Program {

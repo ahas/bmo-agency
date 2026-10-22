@@ -22,6 +22,7 @@ pub mod worker;
 use std::path::{Path, PathBuf};
 
 use axum::http::StatusCode;
+use policy::roles::ROLES;
 
 use crate::Refusal;
 use crate::places::Ground;
@@ -91,6 +92,14 @@ pub fn render(template: &str, values: &[(&str, &str)]) -> String {
         .map_or_else(|| found[0].to_owned(), |(_, value)| (*value).to_owned())
     })
     .into_owned()
+}
+
+/// The prompt a role's agents are given before their own (docs/agent-roles.md): the file the policy's
+/// role names under `prompts/roles/`, where it names one and the file stands.
+pub fn role_prompt(trees: &Trees, role: &str) -> Option<String> {
+  let named = ROLES.role(role)?.prompt.as_deref()?;
+
+  std::fs::read_to_string(trees.code.join("prompts").join("roles").join(named)).ok()
 }
 
 /// A text written where a line hands it over, published whole by a rename, ending with a newline.

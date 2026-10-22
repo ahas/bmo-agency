@@ -265,7 +265,9 @@ pub async fn step_of(
       .unwrap_or_default();
 
   if provider != registry::PROVIDER {
-    let thinking = if provider == "deepseek" { effort != "none" } else { effort == "thinking" };
+    let thinking = mapping
+      .thinking
+      .unwrap_or_else(|| if provider == "deepseek" { effort != "none" } else { effort == "thinking" });
 
     return Ok(Step {
       provider: provider.to_owned(),
@@ -278,6 +280,7 @@ pub async fn step_of(
 
   let asked = Mapping {
     model: mapping.model.clone(),
+    thinking: mapping.thinking,
     effort: Some(effort).filter(|effort| !effort.is_empty()),
     answer_tokens: mapping.answer_tokens,
   };
@@ -300,6 +303,7 @@ pub async fn registration_step(
       .map_err(|why| why.detail)?;
   let asked = Mapping {
     model: registration.to_owned(),
+    thinking: None,
     effort: effort.filter(|effort| !effort.is_empty()),
     answer_tokens: None,
   };

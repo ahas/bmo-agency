@@ -51,6 +51,7 @@ pub fn deployment(machine: &Machine) -> Seeds {
           provider: mapping.provider.clone(),
           tier: mapping.tier.clone(),
           model: mapping.model.clone(),
+          thinking: mapping.thinking,
           effort: mapping.effort.clone(),
           answer_tokens: mapping.answer_tokens,
         })
@@ -68,6 +69,7 @@ pub fn deployment(machine: &Machine) -> Seeds {
               provider: later.provider.clone(),
               tier: mapping.tier.clone(),
               model: mapping.model.clone(),
+              thinking: mapping.thinking,
               effort: mapping.effort.clone(),
               answer_tokens: mapping.answer_tokens,
             })

@@ -67,18 +67,10 @@ quiet_ms = 30000
 herdr_patience_seconds = 120
 node_patience_seconds = 600
 
-# The resident loop comes up in a second and writes its record line by line, so it is given less time to
-# stand and looked at more often (「The interactive surface a provider declares」).
-loop_ready_seconds = 60
-loop_poll_ms = 250
-
-# How often the loop reads dsh's session log for the steps its turn has taken while the dsh child works:
-# each reading decompresses the whole log, so it comes as often as a watching room needs and no more.
-loop_relay_ms = 1000
-
-# How much of what one tool call handed back the loop's record keeps: the record is read whole on every
-# look at a turn, and a watching room needs only how the call ended.
-loop_relay_chars = 2000
+# The pane program that carries its own turn comes up in a second and writes its record line by line, so it
+# is given less time to stand and looked at more often (「The interactive surface a provider declares」).
+inbox_ready_seconds = 60
+inbox_poll_ms = 250
 
 # How a pane found missing is confirmed gone: looks in a row, each herdr answering without it, this far
 # apart.

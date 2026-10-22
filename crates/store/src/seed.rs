@@ -3,13 +3,14 @@
 //! by whoever settles the store; this module knows none of them and supplies only when and how each is
 //! written.
 
+use std::collections::BTreeSet;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use sea_orm::{ConnectionTrait, DatabaseConnection, TransactionTrait, Value};
 use sea_orm_migration::MigratorTrait;
 
 use crate::migration::{Migrator, TABLES};
-use crate::statements::{Fault, one, run};
+use crate::statements::{Fault, all, one, run};
 
 /// Everything a store is seeded with.
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -68,11 +69,12 @@ pub struct CoworkerTier {
 }
 
 /// What a tier maps to on one provider.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct TierMapping {
   pub provider: String,
   pub tier: String,
   pub model: String,
+  pub thinking: Option<bool>,
   pub effort: Option<String>,
   pub answer_tokens: Option<i64>,
 }
@@ -138,6 +140,7 @@ pub async fn settle(db: &DatabaseConnection, seeds: &Seeds) -> Result<(), Fault>
   }
   first_tiers(&writing, &seeds.tiers).await?;
   backfill_keys(&writing, &seeds.tiers).await?;
+  settle_ladder(&writing, &seeds.tiers).await?;
   later_tiers(&writing, &seeds.tiers, now).await?;
   for prompt in &seeds.base_prompts {
     base_prompt_seed(&writing, prompt, now).await?;
@@ -280,12 +283,13 @@ async fn first_tiers<C: ConnectionTrait>(db: &C, plan: &TierPlan) -> Result<(), 
   for mapping in &plan.mappings {
     run(
       db,
-      r#"INSERT INTO "model_tier_mappings" ("provider", "tier", "model", "effort", "answer_tokens")
-         VALUES ($1, $2, $3, $4, $5) ON CONFLICT DO NOTHING"#,
+      r#"INSERT INTO "model_tier_mappings" ("provider", "tier", "model", "thinking", "effort", "answer_tokens")
+         VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING"#,
       vec![
         mapping.provider.clone().into(),
         mapping.tier.clone().into(),
         mapping.model.clone().into(),
+        mapping.thinking.into(),
         text(&mapping.effort),
         mapping.answer_tokens.into(),
       ],
@@ -327,6 +331,109 @@ async fn backfill_keys<C: ConnectionTrait>(db: &C, plan: &TierPlan) -> Result<()
   Ok(())
 }
 
+// The ladder is the policy's: a tier it has gained is mapped on every provider the store already carries,
+// and a store settled under an earlier ladder keeps no mapping or assignment on a tier the ladder no
+// longer holds. An assignment moves to the tier its key starts on, and the mappings of a tier left behind
+// are dropped. Recorded once, so a row the owner writes later stands.
+async fn settle_ladder<C: ConnectionTrait>(db: &C, plan: &TierPlan) -> Result<(), Fault> {
+  let given = run(
+    db,
+    r#"INSERT INTO "model_tier_meta" ("version") VALUES (4) ON CONFLICT DO NOTHING"#,
+    vec![],
+  )
+  .await?;
+
+  if given == 0 {
+    return Ok(());
+  }
+
+  let mapped = all(db, r#"SELECT DISTINCT "provider", "tier" FROM "model_tier_mappings""#, vec![]).await?;
+  let mut providers: BTreeSet<String> = BTreeSet::new();
+  let mut held: BTreeSet<String> = BTreeSet::new();
+
+  for row in &mapped {
+    providers.insert(row.try_get("", "provider")?);
+    held.insert(row.try_get("", "tier")?);
+  }
+
+  for tier in &plan.ladder {
+    if held.contains(tier) {
+      continue;
+    }
+
+    for provider in &providers {
+      let Some(mapping) = planned(plan, provider, tier) else { continue };
+
+      run(
+        db,
+        r#"INSERT INTO "model_tier_mappings" ("provider", "tier", "model", "thinking", "effort", "answer_tokens")
+           VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING"#,
+        vec![
+          mapping.provider.clone().into(),
+          mapping.tier.clone().into(),
+          mapping.model.clone().into(),
+          mapping.thinking.into(),
+          text(&mapping.effort),
+          mapping.answer_tokens.into(),
+        ],
+      )
+      .await?;
+    }
+  }
+
+  for row in mapped {
+    let tier: String = row.try_get("", "tier")?;
+
+    if plan.ladder.contains(&tier) {
+      continue;
+    }
+
+    run(db, r#"DELETE FROM "model_tier_mappings" WHERE "tier" = $1"#, vec![tier.into()]).await?;
+  }
+
+  let assigned = all(db, r#"SELECT "key", "tier" FROM "model_tier_assignments""#, vec![]).await?;
+
+  for row in assigned {
+    let key: String = row.try_get("", "key")?;
+    let tier: String = row.try_get("", "tier")?;
+
+    if plan.ladder.contains(&tier) {
+      continue;
+    }
+
+    match plan.keys.iter().find(|one| one.key == key) {
+      Some(start) => {
+        run(
+          db,
+          r#"UPDATE "model_tier_assignments" SET "tier" = $2 WHERE "key" = $1"#,
+          vec![key.into(), start.tier.clone().into()],
+        )
+        .await?;
+      }
+      None => {
+        run(db, r#"DELETE FROM "model_tier_assignments" WHERE "key" = $1"#, vec![key.into()]).await?;
+      }
+    }
+  }
+
+  Ok(())
+}
+
+// What a provider's tier starts on: its first-seed mapping, or the mapping a later seed gives it.
+fn planned<'a>(plan: &'a TierPlan, provider: &str, tier: &str) -> Option<&'a TierMapping> {
+  plan
+    .mappings
+    .iter()
+    .find(|mapping| mapping.provider == provider && mapping.tier == tier)
+    .or_else(|| {
+      plan
+        .later
+        .iter()
+        .find(|later| later.provider == provider)
+        .and_then(|later| later.mappings.iter().find(|mapping| mapping.tier == tier))
+    })
+}
+
 // A provider declared after the first seed gains its tiers' mappings and its co-worker pool's starting
 // places once, recorded as given, so a mapping or a place the owner removes stays removed and one
 // already standing is never touched.
@@ -346,12 +453,13 @@ async fn later_tiers<C: ConnectionTrait>(db: &C, plan: &TierPlan, now: i64) -> R
     for mapping in &later.mappings {
       run(
         db,
-        r#"INSERT INTO "model_tier_mappings" ("provider", "tier", "model", "effort", "answer_tokens")
-           VALUES ($1, $2, $3, $4, $5) ON CONFLICT DO NOTHING"#,
+        r#"INSERT INTO "model_tier_mappings" ("provider", "tier", "model", "thinking", "effort", "answer_tokens")
+           VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING"#,
         vec![
           later.provider.clone().into(),
           mapping.tier.clone().into(),
           mapping.model.clone().into(),
+          mapping.thinking.into(),
           text(&mapping.effort),
           mapping.answer_tokens.into(),
         ],

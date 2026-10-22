@@ -1,6 +1,6 @@
 import "@agency/test-support/setup";
 
-import { appendFileSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, describe, expect, setDefaultTimeout, test } from "bun:test";
 
@@ -11,12 +11,9 @@ import { endpointTurn } from "@agency/agent/claude-endpoint-turn";
 import { cliProjectsRoot } from "@agency/agent/cli-transcripts";
 import { codexResident } from "@agency/agent/codex";
 import { residentCodexTurn } from "@agency/agent/codex-resident";
-import { openRouterProvider } from "@agency/agent/dsh";
 import { executionCancelKey } from "@agency/agent/execution-identity";
-import { residentLoopTurn } from "@agency/agent/loop-turn";
 import { ExecutionStopped } from "@agency/agent/pane-process";
 import { installProviderSettings } from "@agency/agent/provider-order";
-import { takeLoopTurn } from "@agency/agent/loop-program";
 import { readProgram, readRunning, residentCommand } from "@agency/agent/resident-pane";
 import { headCommand } from "@agency/agent/units";
 import { Archive } from "@agency/archive/archive";
@@ -31,10 +28,10 @@ import type { HarnessCommand, HarnessRun, ResidentSurface, ResidentTurnRequest }
 import type { AgentHome } from "@agency/agent/herdr-run";
 import { scratchArchive, scratchDatabase } from "@agency/test-support/store";
 
-// One turn of a surface that carries its own turns — Codex's program read out of its rollout, agency's
-// loop over its inbox and its record, and the registry's Claude Code on the gateway — by the TypeScript
-// surface turn kept as the parity reference and by agency's Rust door (`bmo-agency resident-turn`) for the same provider (docs/agent-control.md, 「The interactive
-// surface a provider declares」). Each scenario stages the
+// One turn of a surface that carries its own turns — Codex's program read out of its rollout and the
+// registry's Claude Code on the gateway — by the TypeScript surface turn kept as the parity reference and
+// by agency's Rust door (`bmo-agency resident-turn`) for the same provider (docs/agent-control.md, 「The
+// interactive surface a provider declares」). Each scenario stages the
 // same program on a stand-in herdr of its own for each side, in a place and a checkout of that side's
 // own, and what each side came to — the ending, the run the place names, the program it stood, the
 // execution row, what it put into the pane or the inbox and how often the program was started — must be
@@ -347,88 +344,6 @@ describe("a turn of Codex's program, by either side", () => {
     expect(overran.turns[0]?.came).toEqual({ error: "the turn ran past its time" });
     expect(overran.turns[0]?.row?.state).toBe("timeout");
     expect(overran.put.some((one) => one.method === "pane.send_keys")).toBe(true);
-  }, 60_000);
-});
-
-describe("a turn of agency's loop, by either side", () => {
-  const loop: Surface = {
-    provider: "openrouter",
-    bun: (request) => residentLoopTurn({ ...request, surface: openRouterProvider.resident as ResidentSurface, provider: "openrouter", pollMs: 5, readyMs: 5_000, settleMs: 50 }),
-    command: (run, place) => (openRouterProvider.resident as ResidentSurface).command({ ...run, resident: { place, settingsPath: null } }),
-    clocks: { pollMs: 5, readyMs: 5_000, settleMs: 50 },
-  };
-  const run = (staged: Staged) =>
-    harnessRun({
-      model: "qwen/qwen3.8-27b:free",
-      cwd: staged.cwd,
-      env: { PATH: "/usr/bin:/bin", BMO_OPENROUTER_KEY: "sk-or-bot", BMO_DSH_LOCAL_URL: "http://127.0.0.1:1/tap", BMO_TURN_CHAT: "-1" },
-    });
-
-  // The loop the pane's program would be: it takes each turn out of the inbox and writes what the
-  // scenario says the turn came to into its record, and keeps what it was handed.
-  function loopBeside(answer: (staged: Staged, turn: { id: string; name: string }) => unknown[] | Promise<unknown[]>) {
-    return (staged: Staged) => {
-      const place = agentPlace(staged.agent);
-      const taken: unknown[] = [];
-      const tending = setInterval(async () => {
-        const turn = takeLoopTurn(place);
-
-        if (turn === null) return;
-
-        taken.push({ ...turn, id: "<id>" });
-
-        const lines = [{ kind: "start", id: turn.id, name: turn.name, title: turn.title, at: Date.now(), typed: false }, ...(await answer(staged, turn))];
-
-        appendFileSync(join(place, "loop.jsonl"), `${lines.map((line) => JSON.stringify(line)).join("\n")}\n`);
-      }, 5);
-
-      return () => {
-        clearInterval(tending);
-        return taken;
-      };
-    };
-  }
-
-  test("goes in through the inbox with only its own variables and is read back out of the loop's record", async () => {
-    const seen = await twin(
-      "loop-answer",
-      loop,
-      () => ({ answer: async () => null }),
-      (staged) => [{ name: "chat:9", run: run(staged) }],
-      { beside: loopBeside(() => [{ kind: "answer", text: " the loop's answer ", model: "qwen/qwen3.8-27b:free", usage: { inputTokens: 30, outputTokens: 4 } }, { kind: "end" }]) },
-    );
-
-    expect((seen.turns[0]?.came as { reply: { text: string } }).reply.text).toBe("the loop's answer");
-    expect(JSON.stringify(seen.beside)).not.toContain("sk-or-bot");
-  }, 60_000);
-
-  test("a failed turn, and one with no answer, carry no reply", async () => {
-    const failed = await twin("loop-failed", loop, () => ({ answer: async () => null }), (staged) => [{ name: "chat:10", run: run(staged) }], {
-      beside: loopBeside(() => [{ kind: "failed", text: "429 Too Many Requests" }]),
-    });
-    const empty = await twin("loop-empty", loop, () => ({ answer: async () => null }), (staged) => [{ name: "chat:11", run: run(staged) }], {
-      beside: loopBeside(() => [{ kind: "end" }]),
-    });
-
-    expect(failed.turns[0]?.came).toEqual({ error: "429 Too Many Requests" });
-    expect(empty.turns[0]?.came).toEqual({ error: "the loop wrote no answer" });
-  }, 60_000);
-
-  test("told to stop or past its bound, is cut short with the surface's interrupt", async () => {
-    const stopped = await twin("loop-stop", loop, () => ({ answer: async () => null }), (staged) => [{ name: "chat:12", run: run(staged) }], {
-      beside: loopBeside(async (staged) => {
-        await staged.archive.settings().setSetting(executionCancelKey("chat:12"), "1");
-        return [];
-      }),
-    });
-    const overran = await twin("loop-bound", loop, () => ({ answer: async () => null }), (staged) => [{ name: "chat:13", run: run(staged), timeoutMs: 300 }], {
-      beside: loopBeside(() => []),
-    });
-
-    expect(stopped.turns[0]?.came).toEqual({ error: "the turn was stopped" });
-    expect(stopped.turns[0]?.row?.state).toBe("cancelled");
-    expect(overran.turns[0]?.came).toEqual({ error: "the turn ran past its time" });
-    expect(overran.turns[0]?.row?.state).toBe("timeout");
   }, 60_000);
 });
 

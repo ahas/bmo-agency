@@ -5,8 +5,8 @@
 //! program standing in the agent's pane. A stand-in answering where the key walks is published as the
 //! fallback it is; Claude Code answering again while a fallback stands clears it and publishes its end.
 
+use agent_session::GateAsk;
 use harness_providers::Machine;
-use policy::providers::openrouter::OPENROUTER;
 use policy::providers::registered::REGISTERED;
 use serde::Serialize;
 
@@ -14,8 +14,6 @@ use crate::companion::run::{NoAnswer, Reply, run_turn};
 use crate::control::harness::provider_enabled;
 use crate::control::registry;
 use crate::events::Event;
-use crate::job_run::openrouter::spent_of;
-use crate::job_run::openrouter_tap;
 use crate::lines::chat::{ChatLaunch, ChatRun, Door, chat_run, compose_stand_in};
 use crate::lines::codex::lost_thread;
 use crate::lines::standing::place_registered;
@@ -165,43 +163,65 @@ pub async fn turn_on(
   let run = chat_run(ground, &machine, launch, prompt, false).await.map_err(refusal)?;
   let step = step_on(ground, launch.agent, provider, model, &run.reasoning).await?;
 
-  match provider {
+  carried_on(ground, log, &run, &step, answers, began, shown).await
+}
+
+/// One gate's turn on the provider its conversation names, on the run the gate composed rather than the chat
+/// line's: its instructions as the whole system prompt, no tools, no MCP server, and the gate's mapping.
+#[allow(clippy::too_many_arguments)]
+pub async fn gate_turn_on(
+  ground: &Ground,
+  log: &mut RunLog,
+  run: &ChatRun,
+  provider: &str,
+  answers: &[i64],
+  began: i64,
+  gate: &GateAsk,
+  shown: Option<OutputWatch<'_>>,
+) -> Result<Reply, NoAnswer> {
+  let step = Step {
+    provider: provider.to_owned(),
+    model: run.model.clone(),
+    effort: run.effort.clone(),
+    thinking: run.thinking,
+    answer_tokens: gate.answer_tokens,
+  };
+
+  carried_on(ground, log, run, &step, answers, began, shown).await
+}
+
+/// One turn carried on the road its step names: the program stood in the agent's pane on the step's model,
+/// the session the run resumes where its provider keeps one.
+#[allow(clippy::too_many_arguments)]
+async fn carried_on(
+  ground: &Ground,
+  log: &mut RunLog,
+  run: &ChatRun,
+  step: &Step,
+  answers: &[i64],
+  began: i64,
+  shown: Option<OutputWatch<'_>>,
+) -> Result<Reply, NoAnswer> {
+  let machine = ground.machine();
+
+  match step.provider.as_str() {
     CODEX => {
-      let kept = launch.resume.clone();
+      let kept = run.resume.clone();
       let on = |thread: Option<String>| Door::Codex { thread };
       let mut outcome =
-        deliver(ground, &machine, &run, &step, &on(kept.clone()), log, answers, began, shown).await?;
+        deliver(ground, &machine, run, step, &on(kept.clone()), log, answers, began, shown).await?;
 
       if let (Err(why), Some(_)) = (&outcome, &kept)
         && lost_thread(why)
       {
-        outcome = deliver(ground, &machine, &run, &step, &on(None), log, answers, began, shown).await?;
+        outcome = deliver(ground, &machine, run, step, &on(None), log, answers, began, shown).await?;
       }
 
       outcome.map_err(NoAnswer::Failed)
     }
     OPENROUTER_NAME => {
-      let api = OPENROUTER.gateway.api_on(ground.vars()).to_owned();
-      let tap = match openrouter_tap::open(None, &api).await {
-        Ok(tap) => tap,
-        Err(why) => return Err(NoAnswer::Failed(format!("the OpenRouter tap: {why}"))),
-      };
-      let door = Door::Loop {
-        tap: tap.url.clone(),
-      };
-      let outcome = deliver(ground, &machine, &run, &step, &door, log, answers, began, shown).await;
-      let seen = tap.observed();
-
-      tap.close();
-
-      let mut reply = match outcome? {
-        Ok(reply) => reply,
-        Err(why) => return Err(NoAnswer::Failed(why)),
-      };
-
-      if let Some(spent) = spent_of(&reply.mode, &step.model, &seen) {
-        reply.spend = vec![spent];
-      }
+      let outcome = deliver(ground, &machine, run, step, &Door::Inbox, log, answers, began, shown).await?;
+      let mut reply = outcome.map_err(NoAnswer::Failed)?;
 
       reply.effort = None;
 
@@ -209,7 +229,7 @@ pub async fn turn_on(
     }
     DEEPSEEK_NAME => {
       let outcome =
-        deliver(ground, &machine, &run, &step, &Door::Deepseek, log, answers, began, shown).await?;
+        deliver(ground, &machine, run, step, &Door::Deepseek, log, answers, began, shown).await?;
       let mut reply = outcome.map_err(NoAnswer::Failed)?;
 
       reply.effort = (!step.effort.is_empty()).then(|| step.effort.clone());
@@ -230,7 +250,7 @@ pub async fn turn_on(
 
       let placement = place_registered(ground, &step.model).await.map_err(refusal)?;
       let outcome =
-        deliver(ground, &machine, &run, &step, &Door::Gateway { placement }, log, answers, began, shown)
+        deliver(ground, &machine, run, step, &Door::Gateway { placement }, log, answers, began, shown)
           .await?;
       let mut reply = outcome.map_err(NoAnswer::Failed)?;
 
@@ -411,7 +431,7 @@ async fn codex_road(
   Ok(Ok(reply))
 }
 
-// One turn on the OpenRouter road through a tap of its own, which reads what the turn spent off the stream.
+// One turn on the OpenRouter road, through the pane program's inbox on the dsh session it keeps.
 #[allow(clippy::too_many_arguments)]
 async fn openrouter_road(
   ground: &Ground,
@@ -423,27 +443,11 @@ async fn openrouter_road(
   began: i64,
   shown: Option<OutputWatch<'_>>,
 ) -> Result<Result<Reply, String>, NoAnswer> {
-  let api = OPENROUTER.gateway.api_on(ground.vars()).to_owned();
-  let tap = match openrouter_tap::open(None, &api).await {
-    Ok(tap) => tap,
-    Err(why) => return Ok(Err(format!("the OpenRouter tap: {why}"))),
-  };
-  let door = Door::Loop {
-    tap: tap.url.clone(),
-  };
-  let outcome = deliver(ground, machine, run, step, &door, log, answers, began, shown).await;
-  let seen = tap.observed();
-
-  tap.close();
-
-  let mut reply = match outcome? {
+  let outcome = deliver(ground, machine, run, step, &Door::Inbox, log, answers, began, shown).await?;
+  let mut reply = match outcome {
     Ok(reply) => reply,
     Err(why) => return Ok(Err(why)),
   };
-
-  if let Some(spent) = spent_of(&reply.mode, &step.model, &seen) {
-    reply.spend = vec![spent];
-  }
 
   reply.effort = None;
 

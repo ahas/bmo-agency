@@ -161,6 +161,23 @@ export interface paths {
         patch: operations["changePromptDocument"];
         trace?: never;
     };
+    "/rulebooks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The shared rulebooks named, as the deploy tree holds them. */
+        get: operations["getRulebooks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/document-moves": {
         parameters: {
             query?: never;
@@ -1492,6 +1509,15 @@ export interface components {
             prompt: string | null;
             by: string | null;
         };
+        /** @description Rulebooks: */
+        Rulebooks: {
+            rulebooks: components["schemas"]["Rulebook"][];
+        };
+        /** @description Rulebook: */
+        Rulebook: {
+            name: string;
+            text: string;
+        };
         /** @description DocumentMove: */
         DocumentMove: {
             paths: unknown[];
@@ -2228,6 +2254,7 @@ export interface components {
             acceptConflicts: boolean | null;
             provider: string | null;
             model: string | null;
+            thinking: boolean | null;
             effort: string | null;
             /** Format: int64 */
             answerTokens: number | null;
@@ -2269,6 +2296,7 @@ export interface components {
             key: string;
             provider: string;
             model: string;
+            thinking: boolean | null;
             effort: string | null;
             /** Format: int64 */
             answerTokens: number | null;
@@ -3080,6 +3108,31 @@ export interface operations {
                     "application/json": components["schemas"]["PromptDocument"];
                 };
             };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getRulebooks: {
+        parameters: {
+            query: {
+                names: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Rulebooks"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
         };

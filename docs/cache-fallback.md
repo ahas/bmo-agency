@@ -699,9 +699,10 @@ When a demotion first catches — when a healthy session first drops — two thi
   mode that actually answered (`claude-code`, `codex`, `openrouter`, `registered`, `deepseek`) with its
   model and effort, and a measured usage row keeps mode and model as a pair, so models of the same name on
   different roads are not merged. Agency reads those figures off each road — Codex's JSON events,
-  OpenRouter's stream usage read through a loopback tab opened only during the run, Claude's own answer —
-  and hands them to the usage collector, which splits and shows them (`usage.md`). A run whose stream
-  carried no usage gets no invented figures.
+  OpenRouter's stream usage read through a loopback tab on a headless run, Claude's own answer — and
+  hands them to the usage collector, which splits and shows them (`usage.md`). A run whose stream
+  carried no usage gets no invented figures, and a turn in bmo-tui's dsh session reports none: its record
+  carries the answer's words and model alone.
 - **Each window and run belongs to a slot:** the provider that reported it, and the account too where
   that provider holds logins, built by one constructor so no writer decides for itself whether an account
   belongs on a row. Two accounts report windows of the same names, so neither can overwrite the other.
@@ -711,8 +712,9 @@ When a demotion first catches — when a healthy session first drops — two thi
   only together with the moment its fallback began, so a key answering on the provider it is set to never
   moves what every other reader takes for the agent serving now.
 - **Sessions follow the same principle:** Claude Code sessions and Codex threads are shown with their own
-  mode and model, a Claude session with the account it was opened under; only OpenRouter answers are
-  stateless with no session id. A session is offered back only to a run on the account that opened it.
+  mode and model, a Claude session with the account it was opened under. A dsh session stands in
+  bmo-tui's pane across its turns, but agency records no id for it, so an OpenRouter answer offers no
+  session back. A session is offered back only to a run on the account that opened it.
 - **Cache lifetime and keepalive follow the run mode's policy.**
   - Claude Code reads a one-hour cache regardless of model and pings at forty minutes idle.
   - Codex reads a thirty-minute cache for models that announce one and resumes its thread after twenty
@@ -757,8 +759,10 @@ When a demotion first catches — when a healthy session first drops — two thi
   line's system prompt, tools and MCP configuration:
   - **Codex** on the agent's kept thread for that model and effort, opened afresh where Codex no longer
     holds it, and the thread that answered kept for the next turn;
-  - **OpenRouter** through dsh's loop and a tap of the turn's own, which reads the turn's figures off the
-    stream; no upstream is pinned, since agency keeps no record of a warmed one;
+  - **OpenRouter** through bmo-tui, which keeps one dsh session on the Agent Client Protocol, the turn put
+    into its inbox and its answer read out of its record; the overlay composes the gateway route, the key
+    rides in the program's environment, and the agency's MCP configuration is handed to the session as
+    its servers; no upstream is pinned, since agency keeps no record of a warmed one;
   - **a registered model** as Claude Code on the gateway, the registration first held to the gateway's
     list, on a session of its own placed where the registration places it.
 
@@ -778,9 +782,9 @@ the same. "None" means that program has no such concept, with the reason.
 | Cache lifetime · ping interval | 1 hour · 40 minutes | 30 minutes · 20 minutes for models that announce it, else none | Follows the answering upstream, none if not listed | None. No announced lifetime |
 | Ping time limit | Chat 90 seconds, a gate that gate's limit, worker 2 minutes | Same | Same | No ping |
 | Keepalive stop · rest | Obeys global and per-agent stops, pauses during its own account's rest | Obeys stops but warms during a rest, since a rest is one Claude account's affair | As Codex | Not applicable |
-| Session continuation | Resumes chat and worker sessions | Resumes a thread per run scope, model and effort | None. Headless has no resume interface | None for a tool-less request; a run with tools is Claude Code's |
-| Context folding | The caller folds with the CLI's compaction | The Codex CLI compacts its own thread | Not applicable. A fresh context per run | Not applicable |
-| effort · thinking | The effort set per line | Passes effort, thinking-off is low | Passes no effort; only thinking-off passes off | Thinking on or off; a run with tools sends medium or low |
+| Session continuation | Resumes chat and worker sessions | Resumes a thread per run scope, model and effort | The session stands in bmo-tui's pane and carries the next turn; agency stores no id and resumes none | None for a tool-less request; a run with tools is Claude Code's |
+| Context folding | The caller folds with the CLI's compaction | The Codex CLI compacts its own thread | dsh compacts its own session; agency folds nothing | Not applicable |
+| effort · thinking | The effort set per line | Passes effort, thinking-off is low | An agent's own level is the session's reasoning effort; a tier mapping names none, and thinking off passes off | Thinking on or off; a run with tools sends medium or low |
 | System prompt | Replaces the CLI instruction with a file; worker the CLI default with the worker's rules appended | Replaces via `model_instructions_file`; worker the Codex default and `AGENTS.md`, rules as `developer_instructions` | Goes in as one part of the dsh prompt, no replacement | Carries the gate system prompt in the request; a run with tools as on Claude Code |
 | Tool · permission isolation | Tools shown per line and an allow list, settings sources blocked | Moves to a shell and sandbox, loads no user settings | Moves to filesystem/shell rows and the dsh sandbox, no per-command allow list | A run with tools is Claude Code's line |
 | Output schema | None. A structured answer is asked in the prompt and validated by the caller | None, for the same reason: a schema option moves the cached prefix | None | None |

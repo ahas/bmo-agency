@@ -9,6 +9,7 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
+use agent_session::GateAsk;
 use harness_providers::Machine;
 use policy::chat_line::CHAT_LINE;
 use policy::providers::claude_code::CLAUDE_CODE;
@@ -24,13 +25,14 @@ use super::claude::{Command, Runs, Session, command_env, handed, line_environmen
 use super::codex::{Shape, resident_command_of};
 use super::companion::{ComposedTurn, LOST_SESSION, Window, registration_named, walked_login};
 use super::deepseek::{self, OnEndpoint, endpoint_command};
-use super::openrouter::{LOCAL_URL, PROVIDER as OPENROUTER, loop_command};
+use super::dsh::Composed;
+use super::openrouter::{PROVIDER as OPENROUTER, resident_command};
 use super::place::{Holds, Place, write_place_settings};
 use super::runner::{handed_config, line_servers};
 use super::standing::{OnGateway, Placing, gateway_command, status_root};
 use super::token::facts;
 use super::worker::{Reasoning, effort_of, reasoning_of, rulebook, system_prompt_file};
-use super::{Trees, fault, read_required};
+use super::{Trees, fault, publish_text, read_required};
 use crate::Refusal;
 use crate::control::tiers;
 use crate::places::Ground;
@@ -148,6 +150,7 @@ pub async fn chat_run(
   let agent = launch.agent;
   let reasoning = reasoning_of(ground, agent).await?;
   let named = launch.model.map(str::trim).filter(|model| !model.is_empty());
+  let mut held_thinking = None;
   let (model, effort, tier) = match named {
     // A model the caller named belongs to the provider it named beside it, which this line does not
     // know; its agent's own level is the whole of what the chat line hands it.
@@ -159,11 +162,20 @@ pub async fn chat_run(
           .await?
           .unwrap_or_default();
 
+      held_thinking = mapping.thinking;
+
       (mapping.model, effort, Some(mapping.tier))
     }
   };
-  let thinking = reasoning.thinking.unwrap_or(true);
-  let system_path = system_prompt_file(&trees, agent, &chat_system(&trees, launch.base_persona)?)?;
+  let thinking = held_thinking.or(reasoning.thinking).unwrap_or(true);
+  let mut system = chat_system(&trees, launch.base_persona)?;
+  let role = crate::conversational::role_of(&ground.db, agent).await.ok().flatten();
+
+  if let Some(above) = role.as_deref().and_then(|role| super::role_prompt(&trees, role)) {
+    system = format!("{above}\n\n{system}");
+  }
+
+  let system_path = system_prompt_file(&trees, agent, &system)?;
   let mcp = mcp_config(ground, &trees)?;
   let mut env: BTreeMap<String, String> = ground.env().clone();
 
@@ -227,8 +239,23 @@ pub async fn compose_turn(
   began: i64,
 ) -> Result<ComposedTurn, Refusal> {
   let run = chat_run(ground, machine, launch, prompt, false).await?;
+
+  compose_prepared(ground, machine, &run, prompt, run_name, answers, began).await
+}
+
+/// A run already composed, its turn on Claude Code's chat line: the login the walk offers its agent, the
+/// place its program stands in, the turn's variables and its run's name.
+pub async fn compose_prepared(
+  ground: &Ground,
+  machine: &Machine,
+  run: &ChatRun,
+  prompt: &str,
+  run_name: &str,
+  answers: &[i64],
+  began: i64,
+) -> Result<ComposedTurn, Refusal> {
   let trees = Trees::of(ground);
-  let login = walked_login(ground, launch.agent).await?;
+  let login = walked_login(ground, &run.agent).await?;
   let home = match login.as_ref().and_then(|login| login.credential.own_home()) {
     Some(home) => home.to_path_buf(),
     None => ClaudeCode::machine_config_dir(machine),
@@ -243,7 +270,7 @@ pub async fn compose_turn(
   }
 
   let opened = uuid::Uuid::new_v4().to_string();
-  let place = Place::of(&trees.data, launch.agent);
+  let place = Place::of(&trees.data, &run.agent);
   let holds = Holds {
     shell_guard: true,
     compose_typed: true,
@@ -260,7 +287,7 @@ pub async fn compose_turn(
   env.insert("BMO_TURN_BEGAN".to_owned(), Some(began.to_string()));
 
   let command = Command {
-    args: resident_args(&run, &settings, &opened)?,
+    args: resident_args(run, &settings, &opened)?,
     cwd: run.cwd.clone(),
     env,
   };
@@ -283,6 +310,66 @@ pub async fn compose_turn(
     began,
     run_env: None,
     given: None,
+  })
+}
+
+/// The run a gate's turn goes out on: the gate's instructions as the program's whole system prompt, no tools
+/// and no MCP server, the model and effort its mapping names, and the thinking the gate asks for.
+pub fn gate_run(
+  ground: &Ground,
+  agent: &str,
+  gate: &GateAsk,
+  prompt: &str,
+  cwd: &str,
+) -> Result<ChatRun, Refusal> {
+  let trees = Trees::of(ground);
+  let system = gate
+    .system
+    .as_deref()
+    .filter(|text| !text.trim().is_empty())
+    .ok_or_else(|| fault(format!("{agent}: a gate's turn names its system prompt")))?;
+  let digest = format!("{:x}", Sha256::digest(system.as_bytes()));
+  let system_path = system_prompt_file(&trees, &format!("{agent}-{}", &digest[..16]), system)?;
+  let mcp_config = trees.agents.join("gate.mcp.json");
+
+  if !mcp_config.exists() {
+    publish_text(&mcp_config, "{\"mcpServers\":{}}")?;
+  }
+
+  let effort = gate.effort.clone().unwrap_or_default();
+  let thinking = gate.thinking.unwrap_or(true);
+  let mut env: BTreeMap<String, String> = ground.env().clone();
+
+  for (name, value) in &CLAUDE_CODE.launch.variables {
+    env.insert(name.clone(), value.clone());
+  }
+
+  Ok(ChatRun {
+    agent: agent.to_owned(),
+    model: gate.model.clone().unwrap_or_default(),
+    effort: effort.clone(),
+    tier: None,
+    reasoning: Reasoning {
+      thinking: gate.thinking,
+      level: Some(effort),
+    },
+    thinking,
+    system_path,
+    room: RoomContext {
+      chat_id: 0,
+      text: String::new(),
+      mark: String::new(),
+    },
+    tools_shown: String::new(),
+    tools_allowed: String::new(),
+    mcp_config,
+    mcp_tools: None,
+    prompt: prompt.to_owned(),
+    fold: false,
+    ping: false,
+    resume: None,
+    cwd: cwd.to_owned(),
+    env,
   })
 }
 
@@ -531,8 +618,8 @@ pub fn prefix(run: &ChatRun, mode: &str) -> String {
 pub enum Door {
   /// Codex, on the agent's kept thread for the step's model and effort where it keeps one.
   Codex { thread: Option<String> },
-  /// OpenRouter through dsh's loop, its requests sent through the tap at the address named.
-  Loop { tap: String },
+  /// OpenRouter through the pane program's inbox, on the dsh session it keeps.
+  Inbox,
   /// Claude Code on the gateway, its session placed where the registration places it.
   Gateway { placement: Option<String> },
   /// Claude Code on DeepSeek's endpoint, at the model's own home.
@@ -615,19 +702,46 @@ pub async fn compose_stand_in(
         ..composed(command, thread.clone().unwrap_or(opened), effort)
       })
     }
-    Door::Loop { tap } => {
-      env.insert(LOCAL_URL.to_owned(), tap.clone());
-
-      let script = harness_providers::provider(OPENROUTER)
+    Door::Inbox => {
+      let resident = harness_providers::provider(OPENROUTER)
         .and_then(|declared| declared.declared().resident.as_ref())
-        .and_then(|resident| resident.loop_script.clone())
-        .ok_or_else(|| fault(format!("{OPENROUTER} stands no loop")))?;
+        .ok_or_else(|| fault(format!("{OPENROUTER} stands no pane program")))?;
+      let program = resident
+        .program
+        .clone()
+        .ok_or_else(|| fault(format!("{OPENROUTER} names no pane program")))?;
+      let dsh = resident
+        .dsh
+        .clone()
+        .ok_or_else(|| fault(format!("{OPENROUTER} names no harness program")))?;
       let place = Place::of(&ground.roots.data, &run.agent);
-      let command =
-        loop_command(ground, &script, OPENROUTER, &place.path, LINE, &step.model, &run.cwd, &env);
+      let laid = Composed {
+        line: LINE,
+        system: Some(&run.system_path),
+        rules: None,
+        shown: Some(&run.tools_shown),
+        allowed: Some(&run.tools_allowed),
+        cwd: &run.cwd,
+        model: &step.model,
+        effort: &step.effort,
+        chosen: run.reasoning.level.is_some(),
+        thinking: run.thinking,
+        mcp: Some(&run.mcp_config),
+      };
+      let command = resident_command(
+        ground,
+        machine,
+        OPENROUTER,
+        &program,
+        &dsh,
+        &place.path,
+        &run.agent,
+        &laid,
+        &env,
+      )?;
 
       Ok(ComposedTurn {
-        given: Some(described("argument", false, None, &env)),
+        given: Some(serde_json::json!({ "prompt": run.prompt })),
         run_env: Some(env),
         ..composed(command, opened, None)
       })

@@ -13,16 +13,21 @@ pub struct Bundle {
   pub label: String,
 }
 
-/// One role: its name, its label as a screen writes it, the bundles it gives and the tool entries its
-/// agents are shown by name.
+/// One role: its name, its label as a screen writes it, the prompt its agents are given before their own,
+/// the bundles it gives and the tool entries its agents are shown by name.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Role {
   pub name: String,
   pub label: String,
+  #[serde(default)]
+  pub prompt: Option<String>,
   pub bundles: Vec<String>,
   #[serde(default)]
   pub shown: Vec<String>,
+  /// The most agents of this role that run at once, where the deployment bounds them.
+  #[serde(default)]
+  pub max_concurrent: Option<usize>,
 }
 
 /// Every bundle and every role, each in the order a screen lists them, and the role a co-worker holds.

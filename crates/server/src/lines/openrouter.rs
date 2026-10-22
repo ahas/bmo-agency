@@ -1,63 +1,108 @@
 //! The worker's run on OpenRouter, as a job's walk sends it there (docs/cache-fallback.md, 「The OpenRouter
-//! substitute is the dsh road」): how dsh takes the run, and the deployment's own loop that stands in the
-//! worker's pane for a road whose program keeps no conversation of its own, running one dsh child a turn.
+//! substitute is the dsh road」): how dsh takes the run, and the resident pane program that keeps a dsh
+//! session on the Agent Client Protocol, its turns put in through its inbox and read back out of its record.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use agent_host::place::ResidentCommand;
+use harness_providers::Machine;
 
+use super::dsh::{self, Composed};
 use super::place::is_turn_variable;
 use super::stand_in::Taking;
+use crate::Refusal;
 use crate::places::Ground;
 
 /// The provider the run goes out on.
 pub const PROVIDER: &str = "openrouter";
 
-/// How dsh takes a worker's run: the prompt as its argument, and no session kept.
+/// How dsh takes a worker's run on its headless profile: the prompt as its argument, and no session kept.
 pub const TAKING: Taking = Taking {
   prompt_delivery: "argument",
   keep_session: false,
 };
 
-/// The variable the address a turn's tap stands at is handed to dsh in, which travels with the turn rather
-/// than the loop.
+/// The variable the address a turn's tap stands at is handed to a headless dsh in, which travels with the
+/// turn rather than the loop.
 pub const LOCAL_URL: &str = "BMO_DSH_LOCAL_URL";
 
-/// The command the deployment's loop stands on for a provider in an agent's place: the loop script under
-/// the code root, on the agent's place, the line its runs go out on and the model, under the process's own
-/// variables less any one turn's.
+/// The program a provider declares for its pane, as this machine stands it: the path its PATH finds, or
+/// the name itself where it finds none.
+fn program_word(machine: &Machine, program: &str) -> String {
+  machine
+    .program(program)
+    .map_or_else(|| program.to_owned(), |path| path.to_string_lossy().into_owned())
+}
+
+/// The model as dsh's session lists it: the route it stands on, `[provider, model]`.
+pub fn choice(provider: &str, model: &str) -> String {
+  serde_json::json!([provider, model]).to_string()
+}
+
+/// The command a provider's pane program stands on in an agent's place: bmo-tui on its `dsh` subcommand,
+/// the harness at `--profile acp`, the agent's place, the line's model choice and the overlay dsh reads,
+/// under the process's own variables less any one turn's.
 #[allow(clippy::too_many_arguments)]
-pub fn loop_command(
+pub fn resident_command(
   ground: &Ground,
-  script: &str,
+  machine: &Machine,
   provider: &str,
+  program: &str,
+  dsh_program: &str,
   place: &Path,
-  line: &str,
-  model: &str,
-  cwd: &str,
+  agent: &str,
+  run: &Composed<'_>,
   env: &BTreeMap<String, String>,
-) -> ResidentCommand {
-  let env = env
+) -> Result<ResidentCommand, Refusal> {
+  let mut env = env
     .iter()
     .filter(|(name, _)| name.as_str() != LOCAL_URL && !is_turn_variable(name))
     .map(|(name, value)| (name.clone(), value.clone()))
-    .collect();
+    .collect::<BTreeMap<_, _>>();
 
-  ResidentCommand {
-    args: vec![
-      ground.roots.bun.to_string_lossy().into_owned(),
-      ground.code_root().join(script).to_string_lossy().into_owned(),
-      "--provider".to_owned(),
-      provider.to_owned(),
-      "--place".to_owned(),
-      place.to_string_lossy().into_owned(),
-      "--line".to_owned(),
-      line.to_owned(),
-      "--model".to_owned(),
-      model.to_owned(),
-    ],
-    cwd: PathBuf::from(cwd),
-    env,
+  // dsh keeps its profiles and sessions under the agents root rather than in anybody's home, as every
+  // headless run of it does.
+  env.insert(
+    "DSH_HOME".to_owned(),
+    dsh::dsh_home(&ground.roots.agents).to_string_lossy().into_owned(),
+  );
+
+  let patch = dsh::session_patch(run, &env, &ground.roots.agents)?;
+  let mut args = vec![
+    program_word(machine, program),
+    "dsh".to_owned(),
+    "--program".to_owned(),
+    program_word(machine, dsh_program),
+    "--cwd".to_owned(),
+    run.cwd.to_owned(),
+    "--place".to_owned(),
+    place.to_string_lossy().into_owned(),
+    "--agent".to_owned(),
+    agent.to_owned(),
+    "--model".to_owned(),
+    choice(provider, run.model),
+  ];
+
+  if !run.effort.is_empty() {
+    args.push("--effort".to_owned());
+    args.push(run.effort.to_owned());
   }
+
+  // The agency's own MCP servers, read from the same configuration the Claude Code line is handed: the
+  // session opens with them, and dsh's own tools stand beside them, its web tools off in the overlay so the
+  // deployment's web and site tools are the web the model reaches.
+  if let Some(mcp) = run.mcp {
+    args.push("--mcp-config".to_owned());
+    args.push(mcp.to_string_lossy().into_owned());
+  }
+
+  args.push("--patch".to_owned());
+  args.push(patch.to_string_lossy().into_owned());
+
+  Ok(ResidentCommand {
+    args,
+    cwd: PathBuf::from(run.cwd),
+    env,
+  })
 }

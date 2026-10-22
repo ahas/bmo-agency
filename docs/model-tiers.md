@@ -5,10 +5,9 @@ Co-work schemas and execution resolve configured tiers. The agents console edits
 `Archive.modelTiers()` explicitly opens/migrates the new configuration; merely opening an
 archive does not change live model settings.
 
-The six tiers are `BMO` (the chat agent's tier; the name is a stored key of the tier tables and the
-policy), Frontier, Reliable, Fine, Light and Simple. Provider routing and
-provider enablement remain independent. A tier mapping contains one provider, model and
-nullable effort. Work keys (including `role:<name>` and runner depth keys) select a tier.
+The six tiers are Supervisor (the chat agents' tier), Frontier, Reliable, Fine, Light and Simple.
+Provider routing and provider enablement remain independent. A tier mapping contains one provider,
+model, thinking and nullable effort. Work keys (including `role:<name>` and runner depth keys) select a tier.
 Workers share `job-worker`; runtime agent observations are never configuration seeds.
 An agent's row in the `agents` table carries no model. What an agent is configured to run on is
 read as the tier store's answer — by agency's agent routes — for the agent's work key on
@@ -19,14 +18,15 @@ screens built on it and the `bmo-agency agent` listing all show that answer, and
 work key, or one the settings refuse, shows none rather than a remembered value. The model a held
 chat session runs on is that session's own road record, not the row either.
 
-The initial representatives are bmo, job-worker, digest, role:digest, role:scout and
-output-format respectively. `BMO` and Frontier inherit complete stored provider overrides.
+The initial representatives are bmo at Supervisor, job-worker at Frontier, digest at Reliable, role:scout
+at Light and output-format at Simple. Supervisor and Frontier inherit complete stored provider overrides.
 Reliable uses editor high effort; Fine uses the co-work digest's Sonnet low effort; Light
 uses the scout's Haiku low effort. Simple uses the small gate baseline. Codex Fine uses
 Terra low, following the co-work digest effort, below Reliable high.
-A tier's mapping for the registry's provider carries an answer-token ceiling beside its model and
-its effort, and both are read by every key assigned to the tier (`docs/own-llm.md`, 「Settings per
-tier」). Its effort is null, `thinking` or `no-thinking`, read by the gates, the chat, the workers and
+A tier's mapping holds the thinking it runs with, the answer-token ceiling a registry's provider
+carries, its model and its effort, and each is read by every key assigned to the tier (`docs/own-llm.md`,
+「Settings per tier」). On a registration the effort is null, `thinking` or `no-thinking`, read by the
+gates, the chat, the workers and
 the editors, where null and a null ceiling leave thinking and the ceiling to the registration the
 mapping names; a gate's null ceiling is the gate's own default. Only those mappings carry a ceiling;
 every other provider's is null. The registry's provider lists the registrations as its models, read
@@ -114,9 +114,9 @@ Branch prefix digests include effective effort. A co-work reservation for a task
 ## Common co-worker capacity
 
 - **Co-worker tiers.** A co-worker is borrowed from the pool only at Reliable, Fine, Light or Simple.
-  `BMO` is the chat agent's own tier and Frontier the job worker's: the builder stage is the worker itself, never a
-  borrowed co-worker, so neither tier has a pool limit, and a builder turn is bounded by the number of
-  workers rather than by a count. Both keep their model mappings like every other tier.
+  Supervisor is the chat agents' tier and Frontier the job worker's: the builder stage is the worker
+  itself, never a borrowed co-worker, so neither tier has a pool limit, and a builder turn is bounded by
+  the number of workers rather than by a count. Both keep their model mappings like every other tier.
 - **Only a provider that lends co-workers.** Each provider declares beside its harness whether
   co-workers are borrowed on it; no list of providers is kept for the pool.
   - A provider offering several models — Claude Code, Codex, OpenRouter, DeepSeek — lends them, each
@@ -139,7 +139,7 @@ Branch prefix digests include effective effort. A co-work reservation for a task
   resolves to, so editing a mapping or a role's assignment never leaves a request without a limit, and
   two tiers that resolve to the same model each keep their own count. Every provider and co-worker tier
   has a row, a turned-off provider's included, and no action removes one; capacity 0 closes that tier
-  on that provider. The store holds no row for `BMO` or Frontier.
+  on that provider. The store holds no row for Supervisor or Frontier.
 - **Limits start** at 12 for Light and Simple, the Haiku class, and 6 for Reliable and Fine, the same
   on every provider.
 - **The request snapshot.** The queue copies the resolved provider, model, effort, the tier and the
@@ -164,7 +164,7 @@ Branch prefix digests include effective effort. A co-work reservation for a task
   place in the pool keyed by the worker's checkout and are never counted against a tier limit
   (`docs/coworker-pool.md`, 「Prior requests and yielding requests」).
 - **Every other role is a co-worker.** Its assignment names a co-worker tier; the tier settings refuse
-  `BMO` or Frontier for it, and the pool refuses a child request or a reservation at either tier
+  Supervisor or Frontier for it, and the pool refuses a child request or a reservation at either tier
   whatever asked for it. Removing a side role removes its live `role:<name>` assignment in the same
   transaction; queued and completed requests retain their snapshots.
 - **The console** edits the limits and the reset through agency's pool routes (`docs/api.md`,

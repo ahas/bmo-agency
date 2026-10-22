@@ -31,9 +31,14 @@ pub struct Declared {
 pub struct Resident {
   /// The keys typed into the program's pane that cut a working turn short.
   pub interrupt: Vec<String>,
-  /// The script its program is, by its path under the code root, where its program is the resident loop.
+  /// The program that stands in the agent's pane, by the name this machine's PATH resolves or a path of
+  /// its own, where its surface stands one.
   #[serde(default)]
-  pub loop_script: Option<String>,
+  pub program: Option<String>,
+  /// The harness program the pane program starts on its `dsh` subcommand, which speaks the Agent Client
+  /// Protocol; a name on the machine's PATH or a path of its own.
+  #[serde(default)]
+  pub dsh: Option<String>,
   /// The door one turn of its standing program goes through.
   pub turns: Turns,
   /// Whether words put in while a turn works are taken into that turn.
@@ -66,14 +71,14 @@ pub enum Handover {
 
 /// How a turn of a standing program goes in and is read back: by its line's own turn through Claude
 /// Code's transcript, which the surface carries none of; or by the surface's own turn — Claude Code's
-/// transcript door on another's endpoint, Codex's rollout, or the resident loop over its inbox.
+/// transcript door on another's endpoint, Codex's rollout, or the pane program's inbox.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum Turns {
   Transcript,
   Endpoint,
   Rollout,
-  Loop,
+  Inbox,
 }
 
 impl Declared {

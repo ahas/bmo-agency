@@ -61,24 +61,29 @@ label = "Rulebooks"
 [[roles]]
 name = "chat"
 label = "Chat"
+max_concurrent = 8
 bundles = ["room.chat", "room.send"]
 
 [[roles]]
 name = "worker"
 label = "Worker"
+max_concurrent = 8
 bundles = ["graph.read", "queue.read", "web.read"]
 
 [[roles]]
 name = "searcher"
 label = "Searcher"
+max_concurrent = 4
 bundles = ["web.read", "web.sites", "web.images", "web.branches", "web.rulebooks"]
 
 [[roles]]
 name = "gate"
 label = "Gate"
+max_concurrent = 8
 bundles = []
 
 [[roles]]
 name = "recollector"
 label = "Recollector"
+max_concurrent = 4
 bundles = []

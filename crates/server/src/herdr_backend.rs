@@ -24,8 +24,8 @@ use std::time::{Duration, Instant};
 
 pub use agent_session::EngineError;
 use agent_session::{
-  Answer, Apart, Aside, Context, Conversation, Fault, FaultKind, Outcome, Output, RoomBlock, Scope,
-  Session, SessionId, Sessions, Start, State, Turn, TurnContext, TurnEnd, WentOut, WorkParts,
+  Answer, Apart, Aside, Context, Conversation, Fault, FaultKind, GateAsk, Outcome, Output, RoomBlock,
+  Scope, Session, SessionId, Sessions, Start, State, Turn, TurnContext, TurnEnd, WentOut, WorkParts,
 };
 use indexmap::IndexMap;
 use policy::companion_runner::COMPANION_RUNNER;
@@ -50,7 +50,7 @@ use crate::door::turn::{AsideOutcome, Quiet, Watch};
 use crate::editor_session::{EditorTurn, composed as editor_composed, editor_turn, is_editor, workdir_of};
 use crate::events::Event;
 use crate::job_run::claude::turn::{Shows, WorkAsked, WorkSeat, carry, continues};
-use crate::lines::chat::{ChatLaunch, RoomContext, compose_turn};
+use crate::lines::chat::{ChatLaunch, RoomContext, compose_prepared, compose_turn, gate_run};
 use crate::lines::companion::{CompanionTurn, LOST_SESSION, compose, pinned_provider, registration_named};
 use crate::lines::editor::PROVIDER as EDITOR_PROVIDER;
 use crate::places::locks::{pane_lock_path, try_hold};
@@ -236,6 +236,8 @@ pub struct HerdrSessions {
   deaf: Mutex<HashSet<SessionId>>,
   // What each session's latest job turn wrote of its answer.
   outputs: Outputs,
+  // The places each bounded role holds for its running turns, by the role's name.
+  role_places: Mutex<BTreeMap<String, Arc<tokio::sync::Semaphore>>>,
 }
 
 /// One turn a session carries while it goes: its id, and the run it goes out as.
@@ -475,6 +477,13 @@ pub fn failure_of(no: NoAnswer) -> (String, Option<EngineError>) {
   }
 }
 
+// Whether an agent's name is a gate work key: a gate's conversation carries the caller's whole system prompt.
+fn gate_work_key(agent: &str) -> bool {
+  policy::work_keys::WORK_KEYS
+    .profile(agent)
+    .is_some_and(|profile| profile.kind == "gate")
+}
+
 impl HerdrSessions {
   pub fn new(places: Places) -> Self {
     Self {
@@ -488,11 +497,39 @@ impl HerdrSessions {
       questions: Questions::default(),
       deaf: Mutex::default(),
       outputs: Outputs::default(),
+      role_places: Mutex::default(),
     }
   }
 
   fn deaf(&self) -> std::sync::MutexGuard<'_, HashSet<SessionId>> {
     self.deaf.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+  }
+
+  // The role's places: a role the policy bounds holds one for the turn's length, so its agents run at
+  // most that many at once. A turn beyond the bound waits; none is refused.
+  async fn role_turn(&self, agent: &str) -> Result<Option<tokio::sync::OwnedSemaphorePermit>, Fault> {
+    let role = crate::conversational::role_of(&self.ground().db, agent).await.map_err(store_fault)?;
+    let Some(limit) = role
+      .as_deref()
+      .and_then(|role| policy::roles::ROLES.role(role))
+      .and_then(|role| role.max_concurrent)
+    else {
+      return Ok(None);
+    };
+    let place = {
+      let mut held = self.role_places.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+
+      held
+        .entry(role.unwrap_or_default())
+        .or_insert_with(|| Arc::new(tokio::sync::Semaphore::new(limit)))
+        .clone()
+    };
+
+    place
+      .acquire_owned()
+      .await
+      .map(Some)
+      .map_err(|_| fault(FaultKind::Unknown, format!("{agent}: its role's places closed")))
   }
 
   fn showing(&self) -> std::sync::MutexGuard<'_, HashMap<SessionId, WentOut>> {
@@ -601,6 +638,7 @@ impl HerdrSessions {
       }
       Scope::Agent => Err(fault(FaultKind::Refused, format!("{agent} keeps no session across rooms"))),
       Scope::Conversation(_) if conversational.as_ref().is_some() => Ok(row),
+      Scope::Conversation(_) if gate_work_key(agent) => Ok(row),
       Scope::Conversation(_) => {
         Err(fault(FaultKind::Refused, format!("{agent} is not a conversational agent")))
       }
@@ -1320,6 +1358,115 @@ impl HerdrSessions {
     Ok(Came::Answered(reply.text))
   }
 
+  // One gate's turn of a conversation: the gate's instructions as the program's whole system prompt, on the
+  // model and effort its mapping names, with no tools, no MCP server and the thinking the gate asks for.
+  async fn gate_turn(
+    &self,
+    turn: &Turn,
+    agent: &str,
+    conversation: &Conversation,
+    gate: &GateAsk,
+    run: &str,
+    shown: OutputWatch<'_>,
+  ) -> Result<Came, Fault> {
+    let ground = self.ground();
+    let machine = ground.machine();
+    let began = turn.context.began.unwrap_or_else(now_ms);
+    let chat_id = turn.context.room.as_ref().map_or(0, |room| room.chat_id);
+    let mut log = RunLog::new(Target {
+      agent: agent.to_owned(),
+      run: run.to_owned(),
+      chat_id: turn.context.room.as_ref().map(|room| room.chat_id),
+      job_id: None,
+    });
+    let prepared = gate_run(ground, agent, gate, &turn.prompt, &conversation.cwd)
+      .map_err(|refused| fault(FaultKind::Refused, refused.detail))?;
+    let started = Instant::now();
+    let asked = if conversation.provider == CHAT_PROVIDER {
+      let composed =
+        compose_prepared(ground, &machine, &prepared, &turn.prompt, run, &turn.context.answers, began)
+          .await;
+
+      match composed {
+        Ok(composed) => {
+          log.launched(&ground.db, Some(&composed.system_path), &turn.prompt, &[]).await;
+
+          run_turn(ground, agent, CHAT_PROVIDER, &composed, None, &mut log, false, None, Some(shown)).await
+        }
+        Err(refused) => Err(NoAnswer::Failed(refused.detail)),
+      }
+    } else {
+      crate::chat_stand_in::gate_turn_on(
+        ground,
+        &mut log,
+        &prepared,
+        &conversation.provider,
+        &turn.context.answers,
+        began,
+        gate,
+        Some(shown),
+      )
+      .await
+    };
+
+    let reply = match asked {
+      Ok(reply) => reply,
+      Err(NoAnswer::Overtaken) => return Ok(Came::Stopped),
+      Err(no) => {
+        let (reason, engine) = failure_of(no);
+
+        ground.events.publish(RoadWalked::of(
+          chat_id,
+          run,
+          &conversation.provider,
+          &prepared.model,
+          false,
+          started,
+          &[],
+          None,
+        ));
+        log
+          .write(
+            &ground.db,
+            Line {
+              kind: "end",
+              text: reason.clone(),
+              state: Some("failed"),
+              ..Line::default()
+            },
+          )
+          .await;
+
+        return Ok(Came::Failed(reason, engine));
+      }
+    };
+
+    ground.events.publish(RoadWalked::of(
+      chat_id,
+      run,
+      &reply.mode,
+      &reply.model,
+      true,
+      started,
+      &reply.spend,
+      reply.context_ratio,
+    ));
+    self.record_usage(agent, &reply, run).await;
+    log
+      .write(
+        &ground.db,
+        Line {
+          kind: "end",
+          text: COMPANION_RUNNER.log.answered.clone(),
+          state: Some("succeeded"),
+          ..Line::default()
+        },
+      )
+      .await;
+
+    Ok(Came::Answered(reply.text))
+  }
+
   // One turn of a conversation on the road its launch names: Claude Code's chat line on the deployment's
   // own program, or the stand-in road the provider declares.
   #[allow(clippy::too_many_arguments)]
@@ -1363,7 +1510,7 @@ impl HerdrSessions {
   fn keep_conversation_harness(&self, session: &SessionId, provider: &str, reply: &Reply) {
     let keeps = harness_providers::provider(provider)
       .and_then(|declared| declared.declared().resident.as_ref())
-      .is_some_and(|resident| resident.turns != policy::providers::Turns::Loop);
+      .is_some_and(|resident| resident.turns != policy::providers::Turns::Inbox);
 
     if !keeps {
       return;
@@ -1677,6 +1824,7 @@ impl Sessions for HerdrSessions {
   async fn send_turn(&self, turn: Turn) -> Result<TurnEnd, Fault> {
     let (agent, scope) = self.scope_held(&turn.session)?;
     let row = self.admitted(&agent, &scope).await?;
+    let _role_place = self.role_turn(&agent).await?;
     let at = now_ms();
     let room = match &scope {
       Scope::Room(room) => Some(room.clone()),
@@ -1789,9 +1937,10 @@ impl Sessions for HerdrSessions {
         Some(work) => self.carried(&turn, &agent, WorkSeat::Apart(apart), work, turn_id).await,
         None => Err(apart_refused(&agent)),
       },
-      (Scope::Conversation(conversation), _) => {
-        self.conversation_turn(&turn, &agent, conversation, &run, shown).await
-      }
+      (Scope::Conversation(conversation), _) => match &turn.context.gate {
+        Some(gate) => self.gate_turn(&turn, &agent, conversation, gate, &run, shown).await,
+        None => self.conversation_turn(&turn, &agent, conversation, &run, shown).await,
+      },
       (Scope::Worker, None) => Err(fault(FaultKind::Unknown, format!("no worker is named {agent}"))),
       (Scope::Editor, _) => {
         let asked = EditorTurn {

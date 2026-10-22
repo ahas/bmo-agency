@@ -129,6 +129,15 @@ fn unsettled(kind: &str) -> Option<Settings> {
   }
 }
 
+/// The role an agent's row holds, where it holds one.
+pub async fn role_of(db: &impl ConnectionTrait, agent: &str) -> Result<Option<String>, Refusal> {
+  Ok(
+    one(db, r#"SELECT "role" FROM "agents" WHERE "name" = $1"#, vec![agent.into()])
+      .await?
+      .and_then(|row| row.try_get::<Option<String>>("", "role").ok().flatten()),
+  )
+}
+
 /// A conversational agent's settings by its name, or none where it has no row or its row is no
 /// conversational agent's.
 pub async fn settings(db: &impl ConnectionTrait, agent: &str) -> Result<Option<Settings>, Refusal> {

@@ -102,8 +102,8 @@ pub struct RoomBlock {
 /// follows the line's system prompt; whether every new message it answers is the owner's or no person's
 /// message opened it; the messages it answers; the moment it took its words, in epoch milliseconds,
 /// which is the moment it is sent where none is named; an editor run's parts; the job a worker's turn
-/// is of; and a work turn's parts. A backend carries each part as the line declares and judges none of
-/// it.
+/// is of; a work turn's parts; and a gate's one turn. A backend carries each part as the line declares and
+/// judges none of it.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct TurnContext {
   pub room: Option<RoomBlock>,
@@ -115,6 +115,18 @@ pub struct TurnContext {
   pub run: Option<RunParts>,
   pub job: Option<JobMark>,
   pub work: Option<WorkParts>,
+  pub gate: Option<GateAsk>,
+}
+
+/// A gate's one turn as its caller names it: the gate's instructions as the program's whole system prompt,
+/// whether the run thinks, and the model, effort and answer room the gate's mapping resolved to.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct GateAsk {
+  pub system: Option<String>,
+  pub thinking: Option<bool>,
+  pub model: Option<String>,
+  pub effort: Option<String>,
+  pub answer_tokens: Option<i64>,
 }
 
 /// The job a worker's turn is of, as its caller names it, and the item that job works, where it names one.

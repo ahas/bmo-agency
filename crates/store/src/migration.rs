@@ -14,6 +14,7 @@ mod m20261025_000001_base_prompt_seeds;
 mod m20261025_000002_endpoint_accounts;
 mod m20261026_000001_pool_session;
 mod m20261027_000001_deepseek_provider;
+mod m20261028_000001_mapping_thinking;
 
 use sea_orm_migration::prelude::*;
 
@@ -104,6 +105,7 @@ impl MigratorTrait for Migrator {
       Box::new(m20261025_000002_endpoint_accounts::Migration),
       Box::new(m20261026_000001_pool_session::Migration),
       Box::new(m20261027_000001_deepseek_provider::Migration),
+      Box::new(m20261028_000001_mapping_thinking::Migration),
     ]
   }
 

@@ -12,8 +12,8 @@
 //! an English sentence saying why.
 
 use agent_session::{
-  Answer, Apart, Aside, Conversation, Fault, FaultKind, JobMark, RoomBlock, RunParts, Scope, Session,
-  SessionId, Sessions, Start, State, Turn, TurnContext, WorkParts,
+  Answer, Apart, Aside, Conversation, Fault, FaultKind, GateAsk, JobMark, RoomBlock, RunParts, Scope,
+  Session, SessionId, Sessions, Start, State, Turn, TurnContext, WorkParts,
 };
 use axum::http::{Method, StatusCode};
 use axum::response::{IntoResponse, Response};
@@ -87,6 +87,23 @@ struct ContextRead {
   job: Option<i64>,
   #[serde(default)]
   item: Option<i64>,
+  #[serde(default)]
+  gate: Option<GateRead>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GateRead {
+  #[serde(default)]
+  system: Option<String>,
+  #[serde(default)]
+  thinking: Option<bool>,
+  #[serde(default)]
+  model: Option<String>,
+  #[serde(default)]
+  effort: Option<String>,
+  #[serde(default)]
+  answer_tokens: Option<i64>,
 }
 
 #[derive(Deserialize)]
@@ -143,6 +160,13 @@ pub fn context_read(body: &Value) -> Result<TurnContext, Refused> {
       item: read.item,
     }),
     work,
+    gate: read.gate.map(|gate| GateAsk {
+      system: named(gate.system),
+      thinking: gate.thinking,
+      model: named(gate.model),
+      effort: named(gate.effort),
+      answer_tokens: gate.answer_tokens,
+    }),
   })
 }
 

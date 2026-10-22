@@ -1,7 +1,8 @@
-//! One turn of agency's own loop standing in its agent's pane (docs/agent-control.md, 「What a resident
-//! turn reads」): the loop stood on its command, the turn put into its inbox, and the loop's record read
-//! until that turn has ended. The turn carries only its own variables; the key is the loop's, read from its
-//! own environment, and nothing else of the caller's goes into the inbox.
+//! One turn of a pane program that carries its own turns (docs/agent-control.md, 「What a resident turn
+//! reads」): bmo-tui stood on its command, the turn put into its inbox, and its record read until that turn
+//! has ended. The pane program keeps one dsh session across turns; the turn carries only its own variables,
+//! the key is the program's, read from its own environment, and nothing else of the caller's goes into the
+//! inbox.
 
 use std::collections::BTreeMap;
 use std::ops::Range;
@@ -22,10 +23,10 @@ use crate::now_ms;
 use crate::places::Ground;
 
 const RUN_NAME: &str = "BMO_RUN_NAME";
-/// The gateway address a turn's tap stands at, which travels with the turn rather than the loop.
+/// The gateway address a turn's tap stands at, which travels with the turn rather than the pane program.
 pub const LOCAL_URL: &str = "BMO_DSH_LOCAL_URL";
 
-/// The record the loop keeps in its agent's place.
+/// The record the pane program keeps in its agent's place.
 pub fn record_path(place: &Path) -> PathBuf {
   place.join("loop.jsonl")
 }
@@ -34,19 +35,19 @@ fn inbox_dir(place: &Path) -> PathBuf {
   place.join("inbox")
 }
 
-/// Whether a variable belongs to one turn rather than to the loop: the gateway address its tap stands
-/// at, and the run's own variables. They travel with the turn through the inbox, so the loop's own
-/// command — and so its identity — stays the same from one turn to the next.
-pub fn is_loop_turn_variable(name: &str) -> bool {
+/// Whether a variable belongs to one turn rather than to the pane program: the gateway address its tap
+/// stands at, and the run's own variables. They travel with the turn through the inbox, so the program's
+/// own command — and so its identity — stays the same from one turn to the next.
+pub fn is_inbox_turn_variable(name: &str) -> bool {
   name == LOCAL_URL || is_turn_variable(name)
 }
 
-/// The lines of the loop's record.
+/// The lines of the pane program's record.
 pub fn read_record(place: &Path) -> Vec<Value> {
   record_of(place).1
 }
 
-/// The lines of the loop's record as it wrote them and as they read, each one it has ended: what follows
+/// The lines of the pane program's record as it wrote them and as they read, each one it has ended: what follows
 /// the last newline is a line still being written, left for the next look.
 pub fn record_of(place: &Path) -> (Vec<String>, Vec<Value>) {
   let text = std::fs::read_to_string(record_path(place)).unwrap_or_default();
@@ -92,7 +93,7 @@ fn put_turn(place: &Path, turn: &Value, id: &str) -> std::io::Result<()> {
   agent_host::disk::publish_bytes(&inbox.join(format!("{:015}-{id}.json", now_ms())), &bytes)
 }
 
-/// Where a turn read out of the loop's record stands.
+/// Where a turn read out of the pane program's record stands.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum State {
   Working,
@@ -100,10 +101,10 @@ pub enum State {
   Interrupted,
 }
 
-/// A turn of the loop out of the lines its record holds of it, as the provider the loop stands for
-/// carried it. The loop runs one headless dsh per turn and takes nothing while it works, so nothing is
-/// ever left queued; its tokens are what dsh's session log said, and no money or window, which nothing
-/// on these roads reports.
+/// A turn of the pane program out of the lines its record holds of it, as the provider the program
+/// stands for carried it. The program keeps one dsh session across turns and takes nothing while a turn
+/// works, so nothing is ever left queued; the record carries the answer's words and model and no figures,
+/// so a turn read from it reports no tokens, money or window.
 pub fn read_turn(records: &[Value], run: &Run, provider: &str) -> (State, Option<String>, Reply) {
   let turn = records
     .iter()
@@ -111,10 +112,21 @@ pub fn read_turn(records: &[Value], run: &Run, provider: &str) -> (State, Option
     .map_or(records, |start| &records[start..]);
   let failed = turn.iter().rev().find(|record| kind(record) == Some("failed"));
   let answer = turn.iter().rev().find(|record| kind(record) == Some("answer"));
+  // The record names the model as the session's choice, `[provider, model]`, where the program was started
+  // on one; the model's own id is what a reply and a spend row carry.
   let model = answer
     .and_then(|answer| answer.get("model").and_then(Value::as_str))
-    .map_or_else(|| run.model.clone(), str::to_owned);
-  // Any finite number the loop wrote counts, cut to its whole part, since a spend holds whole tokens.
+    .filter(|choice| !choice.is_empty())
+    .map_or_else(
+      || run.model.clone(),
+      |choice| {
+        serde_json::from_str::<Vec<String>>(choice)
+          .ok()
+          .and_then(|parts| parts.get(1).cloned())
+          .unwrap_or_else(|| choice.to_owned())
+      },
+    );
+  // Any finite number the record wrote counts, cut to its whole part, since a spend holds whole tokens.
   let tokens = |name: &str| {
     answer
       .and_then(|answer| answer.get("usage"))
@@ -182,8 +194,8 @@ pub fn read_turn(records: &[Value], run: &Run, provider: &str) -> (State, Option
   )
 }
 
-/// One turn of the provider's loop, from standing it to its answer, the turn's lines of the loop's record
-/// handed to the watch as they are written.
+/// One turn of the provider's pane program, from standing it to its answer, the turn's lines of the
+/// record handed to the watch as they are written.
 pub async fn turn<W: Watch>(
   ground: &Ground,
   provider: &str,
@@ -198,7 +210,7 @@ pub async fn turn<W: Watch>(
     restart: None,
     opened: None,
   };
-  // A loop's run names no effort of its own.
+  // A pane program's run names no effort of its own in the row: the session holds it.
   let mut execution = {
     let mut asked = turn.clone();
 
@@ -227,8 +239,8 @@ async fn put<W: Watch>(
   execution: &mut Execution,
   watch: &mut W,
 ) -> Result<SurfaceEnding, String> {
-  let every = turn.clocks.poll.unwrap_or(Duration::from_millis(RESIDENT_TURN.loop_poll_ms));
-  let ready = turn.clocks.ready.unwrap_or(Duration::from_secs(RESIDENT_TURN.loop_ready_seconds));
+  let every = turn.clocks.poll.unwrap_or(Duration::from_millis(RESIDENT_TURN.inbox_poll_ms));
+  let ready = turn.clocks.ready.unwrap_or(Duration::from_secs(RESIDENT_TURN.inbox_ready_seconds));
   let settle = turn.clocks.settle.unwrap_or(Duration::from_millis(RESIDENT_TURN.settle_ms));
   let stood = match stand_resident(
     ground,
@@ -244,7 +256,7 @@ async fn put<W: Watch>(
     Ok(stood) => stood,
     Err(fault) => {
       return Ok(SurfaceEnding::Error(format!(
-        "the loop did not stand: {}: {}",
+        "the pane program did not stand: {}: {}",
         fault.code, fault.message
       )));
     }
@@ -258,7 +270,7 @@ async fn put<W: Watch>(
     .run
     .env
     .iter()
-    .filter(|(name, _)| is_loop_turn_variable(name) && *name != RUN_NAME)
+    .filter(|(name, _)| is_inbox_turn_variable(name) && *name != RUN_NAME)
     .map(|(name, value)| (name.clone(), value.clone()))
     .collect();
 
@@ -300,7 +312,7 @@ async fn put<W: Watch>(
     }),
     &id,
   )
-  .map_err(|why| format!("the loop's inbox: {why}"))?;
+  .map_err(|why| format!("the pane program's inbox: {why}"))?;
   execution.set("state", json!("running"));
   execution.save(ground, turn).await;
 
@@ -347,7 +359,7 @@ async fn put<W: Watch>(
         .as_ref()
         .is_some_and(|started| alive.as_ref().is_some_and(|alive| alive.pid != started.pid))
     {
-      return Err("the loop went away during the turn".to_owned());
+      return Err("the pane program went away during the turn".to_owned());
     }
 
     let (written, records) = record_of(&place.path);
@@ -377,7 +389,7 @@ async fn put<W: Watch>(
       } else if let Some(error) = error {
         SurfaceEnding::Error(error)
       } else if reply.text.is_empty() {
-        SurfaceEnding::Error("the loop wrote no answer".to_owned())
+        SurfaceEnding::Error("the pane program wrote no answer".to_owned())
       } else {
         SurfaceEnding::Reply(Box::new(reply))
       });

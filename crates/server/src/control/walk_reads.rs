@@ -127,18 +127,36 @@ impl Route for ChangeProvider {
 
 crate::moved!(ChangeProvider);
 
-/// The tier ladder, in its order, with the tiers a co-worker may be borrowed at.
+/// The tier ladder, in its order, with its mapping on every provider and the tiers a co-worker may be
+/// borrowed at.
 pub struct ListTiers;
 
 impl Route for ListTiers {
   const METHOD: Method = Method::GET;
   const PATH: &'static str = "/tiers";
 
-  async fn answer(&self, _call: Call) -> Result<Response, Refused> {
+  async fn answer(&self, call: Call) -> Result<Response, Refused> {
+    let held = super::tiers::mappings(call.store()).await?;
     let listed: Vec<Value> = TIERS
       .ladder
       .iter()
-      .map(|tier| json!({ "name": tier, "coworker": TIERS.lends(tier), "mapping": {} }))
+      .map(|tier| {
+        let mut mapping = serde_json::Map::new();
+
+        for one in held.iter().filter(|one| &one.tier == tier) {
+          mapping.insert(
+            one.provider.clone(),
+            json!({
+              "model": one.model,
+              "thinking": one.thinking,
+              "effort": one.effort,
+              "answerTokens": one.answer_tokens,
+            }),
+          );
+        }
+
+        json!({ "name": tier, "coworker": TIERS.lends(tier), "mapping": mapping })
+      })
       .collect();
 
     Ok(answer(StatusCode::OK, json!({ "items": listed, "more": false })))
@@ -180,6 +198,7 @@ impl Route for ResolveRoute {
               "key": key,
               "provider": mapping.provider,
               "model": mapping.model,
+              "thinking": mapping.thinking,
               "effort": mapping.effort,
               "answerTokens": mapping.answer_tokens,
               "capMs": 0,

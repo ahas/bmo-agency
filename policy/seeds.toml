@@ -13,24 +13,25 @@ id = "default"
 name = "Default account"
 
 # The first seed's mapping of every tier on each provider the store begins with: the model and the effort each
-# tier's work goes out on until the owner maps it otherwise. The chat agent's tier, the job worker's, the
-# editors' at Reliable, Fine a Reliable mapping told to think less, and the gates' at Light and Simple.
+# tier's work goes out on until the owner maps it otherwise. The chat agents' at Supervisor, the job
+# worker's at Frontier, the editors' at Reliable, Fine a Reliable mapping told to think less, and the gates'
+# at Light and Simple.
 [[mapping]]
-tier = "BMO"
+tier = "Supervisor"
 provider = "claude-code"
 model = "claude-opus-5"
 effort = "medium"
 
 [[mapping]]
-tier = "BMO"
+tier = "Supervisor"
 provider = "codex"
 model = "gpt-5.6-sol"
 effort = "xhigh"
 
 [[mapping]]
-tier = "BMO"
+tier = "Supervisor"
 provider = "openrouter"
-model = "google/gemma-4-31b-it:free"
+model = "nvidia/nemotron-3-ultra-550b-a55b:free"
 
 [[mapping]]
 tier = "Frontier"
@@ -165,7 +166,7 @@ tier = "Frontier"
 provider = "deepseek"
 
 [[later.mapping]]
-tier = "BMO"
+tier = "Supervisor"
 model = "deepseek-v4-pro"
 effort = "high"
 

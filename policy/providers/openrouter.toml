@@ -54,13 +54,16 @@ url_env = "BMO_OPENROUTER_LISTING_URL"
 seconds = 15
 
 [resident]
-# The keys typed into the pane of its standing program, the resident loop running one dsh child a turn, which
-# reads them at its own screen as the order to end that child (docs/agent-control.md, 「Stopping」).
+# The keys typed into the pane of its standing program, bmo-tui, which cuts the dsh session's working turn
+# short (docs/agent-control.md, 「Stopping」).
 interrupt = ["escape"]
-# The script that is the loop, by its path under the code root: a standing program started on a script of
-# its file name for this provider is this provider's.
-loop_script = "packages/agent/resident-loop.ts"
-# Its surface carries its own turns: put into the loop's inbox and read back out of the loop's record.
-turns = "loop"
-# The loop runs one dsh child a turn and takes nothing while it works.
+# The program that stands in the agent's pane: bmo-tui, which starts the harness below and keeps its screen
+# open on the session (docs/agent-control.md, 「OpenRouter through dsh」).
+program = "bmo-tui"
+# The harness program bmo-tui starts on its dsh subcommand, at `--profile acp`, which owns the agent loop
+# and the session.
+dsh = "dsh"
+# Its surface carries its own turns: put into bmo-tui's inbox and read back out of its record.
+turns = "inbox"
+# A turn holds the session until dsh has ended it; words typed mid-turn are not taken into that turn.
 words_mid_turn = false

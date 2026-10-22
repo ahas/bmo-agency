@@ -266,6 +266,7 @@ async fn change(judging: Judging<'_>, machine: &Machine, body: &Value) -> Result
         provider: provider.into(),
         tier: tier.into(),
         model: model.into(),
+        thinking: field("thinking").as_bool(),
         effort,
         answer_tokens,
       };

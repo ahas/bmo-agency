@@ -1,11 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { basename, join } from "node:path";
+import { join } from "node:path";
 
-import { isLoopTurnVariable, type LoopRecord, type LoopSurface } from "./loop-record";
-import { commandDigest } from "./resident";
 import { allowsWhatItShows, handedRules } from "./harness";
-import { agentsRoot, codeRoot } from "@agency/support/roots";
+import { agentsRoot } from "@agency/support/roots";
 import { openRouterApiBase, openRouterKeyEnv, openRouterModels } from "./openrouter";
 import { levelReasoning, levelsIn } from "./reasoning";
 import { MCP_TOKEN_VARIABLE, TOOL_HOST_WAIT_SECONDS, bearerVariable, httpServerEntry } from "./tool-host";
@@ -14,7 +12,7 @@ import { providerDeclaration } from "./provider-declaration";
 import declaredOpenRouter from "@agency/policy/providers/openrouter.toml";
 
 import type { AgentReply } from "./agent-reply";
-import type { AgentAdapter, AgentProviderName, HarnessCommand, HarnessOutput, HarnessRun, AgentProvider, ResidentSurface, ResidentTurnInput, ResidentTurnReading } from "./harness";
+import type { AgentAdapter, HarnessCommand, HarnessOutput, HarnessRun, AgentProvider } from "./harness";
 
 // dsh — the DeepSeek Harness — as the second program agency runs a line on. It answers the same
 // description of a run the Claude Code implementation answers, and it answers it in dsh's own
@@ -43,7 +41,7 @@ import type { AgentAdapter, AgentProviderName, HarnessCommand, HarnessOutput, Ha
 // holding tools it was told not to have, or with no route to a model at all: the same command
 // standing for a different program on a different day. It moves when somebody reads what moved
 // with it.
-const version = "0.1.2-rc.1";
+const version = "0.2.0-rc.2";
 
 // The profile that runs one task and prints the answer. dsh's other profiles open a server or a
 // browser UI, and neither is a thing a bot spawns.
@@ -480,7 +478,7 @@ export const dsh: AgentAdapter = {
         "--package",
         `@deepseek-ai/dsh@${version}`,
         "--call",
-        [launch, taskFile(run), "--profile", profile, "--patch", overlayFile(run)].map((word, at) => (at === 0 ? word : shellWord(word))).join(" "),
+        [launch, taskFile(run), "--profile", profile, "--patch", overlayFile(run), ...(run.resumeSessionId === null ? [] : ["--session-id", run.resumeSessionId])].map((word, at) => (at === 0 ? word : shellWord(word))).join(" "),
       ],
       cwd: run.cwd,
       // dsh keeps everything it writes under one directory named here, so a run of agency's leaves
@@ -519,113 +517,6 @@ export const dsh: AgentAdapter = {
   },
 };
 
-// A turn of the resident loop out of the record it wrote since the turn went in, as the provider the
-// loop stands for carried it. The loop runs one headless dsh per turn and takes nothing while it
-// works, so nothing is ever left queued; its tokens are what dsh's session log said and no money or
-// window, which nothing on these roads reports.
-function loopTurnReader(mode: AgentProviderName): ResidentSurface["readTurn"] {
-  return (input, run) => readLoopTurnAs(mode, input, run);
-}
-
-function readLoopTurnAs(mode: AgentProviderName, input: ResidentTurnInput, run: HarnessRun): ResidentTurnReading {
-  const records = input.lines as LoopRecord[];
-  const lastStart = records.findLastIndex((record) => record.kind === "start");
-  const turn = lastStart === -1 ? records : records.slice(lastStart);
-  const failed = turn.findLast((record) => record.kind === "failed");
-  const answer = turn.findLast((record) => record.kind === "answer");
-  const model = answer?.model ?? run.model;
-  const inputTokens = answer?.usage?.inputTokens ?? 0;
-  const outputTokens = answer?.usage?.outputTokens ?? 0;
-  // The share read from the cache counts toward the turn's tokens as the progress line shows it, and is
-  // none where the upstream reported none.
-  const cacheReadTokens = answer?.usage?.cacheReadTokens ?? 0;
-  const tokens = inputTokens + outputTokens + cacheReadTokens;
-  const state = turn.some((record) => record.kind === "interrupted")
-    ? "interrupted"
-    : turn.some((record) => record.kind === "end" || record.kind === "failed")
-      ? "ended"
-      : "working";
-
-  return {
-    state,
-    queued: 0,
-    error: failed === undefined ? null : (failed.text ?? "dsh failed"),
-    money: null,
-    reply: {
-      mode,
-      model,
-      effort: null,
-      text: failed === undefined ? (answer?.text ?? "").trim() : "",
-      sessionId: null,
-      contextRatio: null,
-      contextTokens: null,
-      sessionUsage: null,
-      windows: [],
-      spend: tokens === 0 ? [] : [{ mode, model, tokens, inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens: 0, cost: 0 }],
-      liveTasks: [],
-      workflows: [],
-    },
-  };
-}
-
-// The script agency's loop is run from, by its path under the tree the bot runs out of.
-const loopScript = (declaredOpenRouter as { resident: { loop_script: string } }).resident.loop_script;
-
-// dsh has no terminal conversation of its own, so what stands in the pane of an agent on a road this
-// program reaches is agency's own loop: it takes a turn from its inbox or a line typed at its screen, runs
-// one headless dsh for it and shows what dsh streams (docs/agent-control.md, 「What a resident turn
-// reads」). What differs from one road to the next is the road each turn goes out on, which the loop
-// opens before its dsh child starts, and which variables of the bot's the loop is started on.
-function dshLoop(options: {
-  provider: AgentProviderName;
-  identity: ResidentSurface["identity"];
-  road: LoopSurface["road"];
-}): LoopSurface {
-  const surface: LoopSurface = {
-    async command(run: HarnessRun): Promise<HarnessCommand> {
-      if (run.resident === undefined || run.resident === null) {
-        throw new Error("a resident loop needs its agent's place");
-      }
-
-      const env = Object.fromEntries(Object.entries(run.env).filter(([name]) => !isLoopTurnVariable(name)));
-
-      return {
-        args: [process.execPath, join(codeRoot, loopScript), "--provider", options.provider, "--place", run.resident.place, "--line", run.line, "--model", run.model],
-        cwd: run.cwd,
-        env,
-        stdin: null,
-      };
-    },
-    door: "inbox",
-    takesWordsMidTurn: declaredOpenRouter.resident.words_mid_turn as boolean,
-    readTurn: loopTurnReader(options.provider),
-    // The loop reads the keys at its own screen as the order to end the dsh child it is running.
-    interrupt: { keys: declaredOpenRouter.resident.interrupt as string[] },
-    fold: null,
-    clear: null,
-    identity: options.identity,
-    // The loop is this road's where it runs the loop script for this provider, from whichever tree.
-    owns: (command) => basename(command.args[1] ?? "") === basename(loopScript) && command.args[command.args.indexOf("--provider") + 1] === options.provider,
-    // Its turns go in through the inbox and are read back out of the loop's record.
-    turn: (request) => import("./loop-turn").then(({ residentLoopTurn }) => residentLoopTurn({ ...request, surface, provider: options.provider })),
-    road: options.road,
-  };
-
-  return surface;
-}
-
-// OpenRouter's key is in the loop's environment, which is where it reads it from; it is never put in
-// through the pane. The gateway tap a turn stands at travels with the turn.
-export const dshLoopResident = dshLoop({
-  provider: "openrouter",
-  identity: commandDigest,
-  road: (_run, loopEnv) => {
-    const key = loopEnv[openRouterKeyEnv];
-
-    return key === undefined || key === "" ? { error: `the loop's environment carries no ${openRouterKeyEnv}` } : { env: { [openRouterKeyEnv]: key }, close: () => undefined };
-  },
-});
-
 // What OpenRouter declares of itself, its own file of the shared policy: among it its own effort
 // words, which its gateway carries to whichever model a request is routed to.
 const declared = providerDeclaration(declaredOpenRouter);
@@ -650,5 +541,7 @@ export const openRouterProvider: AgentProvider = {
   capsAnswerTokens: declared.capsAnswerTokens,
   lendsCoworkers: declared.lendsCoworkers,
   logins: null,
-  resident: dshLoopResident,
+  // Its resident pane is the deployment's bmo-tui on a dsh session, which the server composes; this
+  // program carries its headless runs alone.
+  resident: null,
 };

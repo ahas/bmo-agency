@@ -43,8 +43,9 @@ records that program writes — transcript, hooks, status line, rollout — neve
 harness as its owned child, shows the execution on its terminal, and captures exact stdout/stderr
 separately for the harness reader; its headless commands keep their argv, tools, permissions,
 effort, prompt construction and session policy. A pane that only tails an unrelated systemd
-process is not execution through herdr. Codex retains its thread ids; dsh remains stateless. Do
-not parse terminal rendering as the answer or infer success from the disappearance of a pane.
+process is not execution through herdr. Codex retains its thread ids; a dsh session stands inside
+the pane program that keeps it. Do not parse terminal rendering as the answer or infer success from
+the disappearance of a pane.
 
 Use a private per-attempt directory (0700, files 0600) for the command envelope, input, raw
 outputs and atomically published outcome. Only its opaque path travels to the agent's pane. Do not
@@ -332,8 +333,8 @@ in the provider's own terms:
   Claude Code, a settings file naming agency's status-line command and its `Stop`, `StopFailure`,
   `UserPromptSubmit` and `SessionStart` hooks, and on a conversational agent's program the shell guard, a `PreToolUse` hook on the shell
   that refuses a command starting Claude Code (`docs/agents.md`, 「No print mode」).
-- **How one turn goes in:** `agent.prompt` for a program herdr recognises as an agent, the loop's
-  own inbox for one it does not.
+- **How one turn goes in:** `agent.prompt` for a program herdr recognises as an agent, the pane
+  program's own inbox for one it does not.
 - **Whether words go into a turn that is working.** A surface that takes them says so; one that
   does not keeps them until the turn has ended.
 - **How a turn's end, its answer, its tokens, its money and the account's windows are read** while
@@ -342,26 +343,27 @@ in the provider's own terms:
 - **How the session is folded, and how it is cleared.**
 - **Which session a standing program is on,** read off its command where the command names one, so
   a ping that warms a session goes into the program only where the program stands on it.
-- **Whether it carries its own turns.** Codex's surface and the loop's run one of their turns from
-  start to end themselves — the program stood up, the turn put in through the door, the record read
-  until it ends — so whatever hands them a turn, the fallback walk above all, asks the surface for
-  the turn rather than naming the program. Claude Code's lines run their own turns and its surface
-  carries none.
+- **Whether it carries its own turns.** Codex's surface and the inbox surface's run one of their
+  turns from start to end themselves — the program stood up, the turn put in through the door, the
+  record read until it ends — so whatever hands them a turn, the fallback walk above all, asks the
+  surface for the turn rather than naming the program. Claude Code's lines run their own turns and
+  its surface carries none.
   - Which door a provider's turns go through, and whether it takes words while a turn works, is its
     own file of agency's policy (`policy/providers/`), which agency's server's resident door and
     the TypeScript surfaces both read: the server puts a turn through the door the provider
     names there and never through one chosen by the provider's name.
 - **Whether it stands with nothing put in.** A surface whose program can be stood from the agent's
   own line alone, before any turn has asked for it, says how: the command, with whatever a person's
-  first turn at the program needs laid down beside it in the place. The loop's surface does — it
-  lays the line's run down as the one a typed line goes out on — and the standing pass stands it for
-  a worker pinned to its provider (「A worker standing with nothing to do」). Claude Code's standing
-  program is its worker line's own; Codex's surface stands only with a turn.
+  first turn at the program needs laid down beside it in the place. The inbox surface does —
+  bmo-tui takes a typed line into the same dsh session it keeps, so no run need be laid down — and
+  the standing pass stands it for a worker pinned to its provider (「A worker standing with nothing to
+  do」). Claude Code's standing program is its worker line's own; Codex's surface stands only with a
+  turn.
 - **Whether a standing program is its own,** read off the command the program was started on: Claude
-  Code's and Codex's by the executable, the loop's by the loop script's file name and the provider it
-  names, so a loop started from another tree, wherever that tree keeps the script, is still its own. A
-  place holding a program no surface of the pinned provider owns is one the standing pass replaces
-  (「A worker standing with nothing to do」).
+  Code's and Codex's by the executable, bmo-tui's by the program's file name and the provider its
+  model choice names, `[provider, model]`, so a program started from another tree, wherever that tree
+  keeps the binary, is still its own. A place holding a program no surface of the pinned provider owns
+  is one the standing pass replaces (「A worker standing with nothing to do」).
 
 - **The command is the program's identity.** Before every turn the launcher compares the command the
   surface would build now with the one the standing program was started on.
@@ -386,7 +388,7 @@ in the provider's own terms:
 |---|---|---|---|---|---|---|---|
 | claude-code | Claude Code's interactive screen | `agent.prompt` | Taken, measured | Transcript, and the `Stop` or `StopFailure` hook | Status line | Escape, measured | `/compact` and `/clear`, measured |
 | codex | Codex's interactive screen, resumed by its thread id | `agent.prompt` | Taken, measured | Rollout file | Rollout file: tokens and windows, no money | Escape, measured | A new thread from the handover summary |
-| openrouter | agency's resident loop over dsh | The loop's inbox, or a line typed at its screen | Not taken | The loop's own record, tokens from dsh's session log | None | The loop ends its dsh child | No session to fold |
+| openrouter | bmo-tui on a dsh session over the Agent Client Protocol | The pane program's inbox, or a line typed at its screen | Not taken | bmo-tui's `loop.jsonl`: the answer's words and model, no tokens | None | Escape cancels the session's working turn | dsh's own session; agency folds nothing |
 | registered | Claude Code's interactive screen on the gateway under the registration's name, its records under a home of the registration's own | `agent.prompt`; words said to a worker on the session the program stands on, a conversational agent's turn on its scope's session, every other turn on a session of its own | Not taken: they wait for the next turn | Transcript | None | Escape | `/compact` and `/clear`; a conversation is handed over by a turn asking for its note rather than folded, the program folds itself before the registration's window, and a turn at the limit fails |
 
 ### What a resident turn reads
@@ -570,70 +572,64 @@ in the provider's own terms:
     endpoint aside (`docs/own-llm.md`, 「A worker on a registered model is composed as on Claude」).
 - **OpenRouter through dsh.**
   - dsh has no terminal conversation of its own. Its `headless` profile answers one task and exits,
-    its `web` profile keeps sessions but serves a browser, and herdr does not recognise it as an
-    agent (measured). The `tui` profile its help names in an example ships in no release: booting it
-    ends with `dsh: profile "tui" does not exist` on the pinned version and on the newest (measured).
-  - So the resident program is agency's own loop. It stands in the pane, takes a turn from the bot
-    through its inbox or a line typed at its screen, runs one dsh headless process for it, shows the
-    reasoning dsh streams and then the answer, and writes the turn's start, each step dsh takes, its
-    answer and its end to a record of its own.
-  - dsh keeps no session agency resumes, so each turn carries its context as the chat's OpenRouter
-    turns do.
-  - A headless run streams its reasoning to stderr and prints the answer (measured). It writes a
-    session log of its own in any case, zstd-compressed lines under its home's sessions directory,
-    and that log carries each request's `usage` — input, output and total tokens, and the share read
-    from the cache where the upstream reports one, outside the input — and every retry dsh made
-    (measured, keyed runs on OpenRouter). So the loop records the turn's
-    tokens from that log, and no money or windows, which nothing on this road reports.
-    - The turn's answer carries the share read from the cache beside its input and output, and the
-      turn's tokens count it, as the steps the progress line reads do. Where the upstream reports no
-      such share, it is none.
-    - A line of the log is `{ type, seq, time, data }`. A streamed chunk of type `usage` carries a
-      request's figures, and a request the gateway refused writes a chunk of zeros (measured, three
-      runs refused with 429 on the free models); a whole response carries its figures on its message.
-      So each request is counted once — from the responses where the log has any, from the chunks
-      otherwise — and a turn whose every request was refused has no usage.
-    - The logs are filed by the directory the run worked in, under a home every dsh run of agency's
-      shares, so a turn reads only its own directory's logs written since it started.
-  - **The turn's steps go into the record as dsh takes them.** The session log is written as whole
-    zstd frames, one for each batch of lines (measured on this machine's logs), so it reads while the
-    child works. The loop reads the turn's logs at the resident turn policy's `loop_relay_ms` while
-    the child runs, and once more after it ends, before the answer line.
-    - Each response the model gave goes into the record as an `assistant` line in the shape Claude
-      Code's record has — its reasoning, its words, each tool call and the request's tokens — and
-      what each tool handed back as a `user` line, cut to `loop_relay_chars`, since the record is
-      read whole on every look at a turn and a watching room needs only how the call ended.
-    - So the door hands the turn's lines to whoever follows the turn as they are written, and the
-      turn's log and its picture read them as they read Claude Code's record.
-    - A reading that meets a frame still being written is dropped, and the next look reads it whole.
-  - **The road each turn goes out on is the provider's own.** The loop asks its surface to open the
-    turn's road before the dsh child starts and closes it when the child has ended. OpenRouter's key
-    reaches the loop through its environment and never through the pane's input, and a turn with no
-    key there is recorded as failed and nothing is asked of the screen.
+    its `web` profile serves a browser, and its `acp` profile speaks the Agent Client Protocol. The
+    `tui` profile its help names in an example ships in no release: booting it ends with
+    `dsh: profile "tui" does not exist` on the pinned version and on the newest (measured).
+  - **The resident program is bmo-tui.** It stands in the pane, starts the harness the provider
+    declares at `--profile acp` with an overlay agency composed, opens one persistent session and
+    keeps its screen open for the session's life. dsh owns the agent loop, the tools, the model
+    calls, compaction and the session; bmo-tui sends prompts and shows what comes back, and keeps no
+    agent loop of its own.
+  - **One session across turns.** A turn the bot puts in and a line a person types go into the same
+    ACP session, so the conversation carries across them. The model and effort are chosen on the
+    session as it opens, from the command's model choice `[provider, model]` and its `--effort` where
+    the run names one.
+  - **The system prompt is agency's.** The overlay sets dsh's `system-prompt` persona to the run's
+    composed system prompt, the same file the Claude Code line is handed, and switches off dsh's
+    instruction-file reader and its title call, as the retired loop's overlay did. A worker keeps the
+    instruction-file reader, since the checkout's documents are its work's, and its rules follow dsh's
+    opening line rather than replacing it.
+  - **The web is agency's, and the rest of the tools are dsh's.** A line that grants tools keeps the
+    rows dsh ships — the shell, the files, the search, jobs, sub-agents, workflows, todo, goal, ralph,
+    the editor, plan mode and the user question — and only the web row is switched off, since the web
+    the model reaches is the deployment's own, handed in through its MCP configuration. A line shown no
+    tools, a gate's among them, has every tool row off. A worker takes the whole working set but the
+    web, as a job always has.
+  - **The MCP servers are agency's.** They are read from the same configuration file the Claude Code
+    line is handed, given to bmo-tui as `--mcp-config`, and passed into the session as its
+    `mcpServers`. None is mounted in the overlay, so no server stands twice and no dsh default stands
+    beside them.
+  - **The overlay is the route.** Before the program is stood, agency composes the same dsh overlay a
+    headless run on the road takes: the prompt, the tool rows and sandbox above, and the OpenRouter
+    gateway as dsh's one route with the model and, where the agent chose one, its reasoning level. The
+    key is named in the overlay as the environment variable it is read from and travels in the
+    program's environment; the overlay holds no secret. It is written under dsh's home and named by its
+    own text, so the program's command — and its identity — stays the same while nothing it reads has
+    changed.
   - **What the bot puts in.** A turn in the inbox is one file: the turn's id, the run's name and what
-    it is, the turn's own wait, and the run with only the variables that belong to that turn — the
-    address of the gateway tap the turn stands at, and the run's own variables. No key, no token and
-    none of the rest of the bot's environment go into it. The loop's own command carries none of
-    those turn variables, so its identity is the same from one turn to the next and it is started
-    again only when the agent's command really changes.
-  - **What a person types.** A line typed at the loop's screen and ended with Enter is a person's
-    turn. It goes out on the run the bot last put in, which is the agent's own, kept beside the
-    inbox with no secret in it, or on the worker's own line the standing pass laid down there before
-    any turn came. A loop with neither says so and runs nothing. The record marks the turn as typed,
-    under the name of direct input.
-  - **One turn at a time.** A line typed while a turn works waits for it to end and then goes before
-    the bot's next inbox turn; the bot's next turn waits in the inbox. So the bot reads its own turn
-    out of the record by the id it put it in under, from its start line to the next turn's.
-  - **The interrupt.** Escape, or Ctrl-C, at the loop's screen ends the dsh child the working turn
-    runs, with its whole process group, since npx stands between the loop and dsh. The turn is
+    it is, the turn's own wait, and the run with its prompt and only the variables that belong to that
+    turn. No key, no token and none of the rest of the bot's environment go into it. The program's own
+    command carries none of those turn variables, so its identity is the same from one turn to the
+    next and it is started again only when the agent's command really changes.
+  - **What a person types.** A line typed at bmo-tui's screen and ended with Enter is a prompt into
+    the same session. The record marks it as typed, under the name bmo-tui gives a typed line.
+  - **The record.** bmo-tui appends to `loop.jsonl` in the agent's place as a turn starts and ends:
+    the start with the turn's id, name and title, its moment and whether a person typed it, then the
+    answer with its model, or an interruption, or a failure with its sentence, and the end. The bot
+    reads its turn out of the record by the id it put it in under, from its start line to the next
+    turn's. The record carries no tokens, and nothing on this road reports them into it.
+  - **One turn at a time.** One prompt stands in the session at a time, and a line typed while a turn
+    works is not taken into that turn; the bot's next turn waits in the inbox until the working turn
+    ends.
+  - **The interrupt.** Escape at bmo-tui's screen cancels the session's working turn; the turn is
     recorded as interrupted. A key's own escape sequence — an arrow, a function key — is no
     interrupt.
-  - **On the screen** a turn opens with a line naming it, what it is and when it started, dsh's
-    reasoning follows dimmed as it streams, then the answer, and the loop ends each turn with a
-    resting line saying since when.
+  - **On the screen** a turn opens with a line naming it and when it started, dsh's words and
+    thoughts follow as it streams them, then the answer.
   - An agent's own turn that the fallback walk gives to OpenRouter, or that goes out on OpenRouter as
-    the provider a worker is pinned to, is a turn of this loop in the agent's pane. A gate's, an
-    ephemeral turn's and a summary's stay in the host.
+    the provider a worker is pinned to, is a turn of this program in the agent's pane. A gate's turn on
+    an OpenRouter conversation is one too, with no tools and no MCP server; a summary's and an ephemeral
+    turn's stay in the host, on dsh's headless profile.
 
 ### Runs and sessions in one pane
 
@@ -718,12 +714,12 @@ The owner's words:
   - It is not written while the worker's job lock or pane lock is held, while Claude Code is switched off or the
     worker's road is another provider's — its pin where it has one, the job key's road otherwise —
     for a checkout that is not there, or in a copy of the data root.
-  - **A worker pinned to a provider whose surface stands with nothing put in** — agency's loop for
+  - **A worker pinned to a provider whose surface stands with nothing put in** — bmo-tui for
     OpenRouter, Claude Code on the gateway for a registered model — has that program written
     instead, on the job line's run for that provider: the registration the worker is pinned to, or
-    the model its tier maps the job key to there, and the worker's checkout; the loop also has that
-    run laid down as the one a line typed at it goes out on, and the registration's program stands on
-    a session it opens itself, placed on a node, its home's first-run
+    the model its tier maps the job key to there, and the worker's checkout; bmo-tui's session opens
+    on that run and a line typed at it goes into the same session, and the registration's program
+    stands on a session it opens itself, placed on a node, its home's first-run
     questions answered. The same conditions hold, but for Claude Code's switch, which is not asked. A
     worker pinned to a provider whose surface stands only with a turn has nothing written, and its
     pane stands as a host until one comes.
@@ -735,7 +731,7 @@ The owner's words:
     that job's program between jobs, as it always has.
 - **A pinned worker's pane holding another provider's program has it replaced at once,** without
   waiting for a turn on the pin.
-  - What replaces it: the program the pin stands with nothing put in — the loop for OpenRouter,
+  - What replaces it: the program the pin stands with nothing put in — bmo-tui for OpenRouter,
     Claude Code on the gateway for a registered model, and Claude Code's standing program
     above for Claude Code. A pin whose
     surface stands only with a turn, Codex's, has the other program ended and the place handed back
@@ -751,8 +747,8 @@ The owner's words:
     held — a job or a ping at work there, whichever worker it is of — or whose own pane lock is held —
     a word being answered in it — and a pane at work on
     a person's turn, which herdr reads as working or blocked, or does not answer about, or where the
-    loop's record holds a turn begun since the loop started and not ended. After a job's end the
-    pass waits up to a minute for the ending runner to let the lock go.
+    pane program's record holds a turn begun since the program started and not ended. After a job's
+    end the pass waits up to a minute for the ending runner to let the lock go.
   - A pin that cannot build its program — no tier mapping for the job key on that provider — leaves
     the place as it is.
   - A worker with no pin keeps whatever stands in its place, and a place with no program is stood as
@@ -1345,7 +1341,7 @@ going on says the turn is going on. The turn has ended when the program's own re
 end line, the `Stop` or `StopFailure` hook, the interrupted marker, the program's error in the answer's place — and
 its collector closes the row on that ending and leaves the pane and the program standing. The
 program going away in the middle of a turn ends the turn as a lost transport: once herdr answers
-that the pane is no longer there, or the loop reports the program gone, the turn has ended with no
+that the pane is no longer there, or the program is gone from its place, the turn has ended with no
 answer. Herdr not answering at all is no evidence of anything, and the row stays open on that. The
 three are kept apart wherever the question is asked: a record that ended the turn, a program that
 is gone, and a question nobody could answer.
@@ -1375,7 +1371,7 @@ is gone, and a question nobody could answer.
   nobody has seen.
 - **Every place that asks whether a pane is there asks it this way**: the turn in a pane, the wait
   for a program to come to rest, the wait on a person's turn, and the Codex resident turn. The
-  resident loop's turn asks the process itself rather than herdr, so a stall of herdr never
+  inbox turn asks the process itself rather than herdr, so a stall of herdr never
   reaches it.
 
 The collector cannot write anything at the moment it is killed, so what a killed collector leaves
@@ -1474,8 +1470,8 @@ four-provider byte test does not establish provider support for an otherwise uns
 | Execution family | Claude Code | Codex | OpenRouter | Registry, no tools |
 | --- | --- | --- | --- | --- |
 | Gates | Host fixture | Host fixture | Host fixture; tap stays in the bot | Host fixture; direct request as a host command |
-| Resident turns: chat, worker, keepalive, fold, co-work places | Transcript, hook and status-line fixture | Rollout fixture; words mid-turn and interrupt unmeasured | Resident-loop fixture; stateless | Claude Code's transcript on a registered model; words on the standing session, every other turn on one of its own |
-| Structured worker and co-work task | Pane fixture | Pane fixture; thread semantics retained | Pane fixture; stateless | Pane fixture; stateless |
+| Resident turns: chat, worker, keepalive, fold, co-work places | Transcript, hook and status-line fixture | Rollout fixture; words mid-turn and interrupt unmeasured | bmo-tui fixture over a dsh ACP session; the session stands, no tokens recorded | Claude Code's transcript on a registered model; words on the standing session, every other turn on one of its own |
+| Structured worker and co-work task | Pane fixture | Pane fixture; thread semantics retained | Pane fixture; the session stands in bmo-tui's pane | Pane fixture; stateless |
 | Editors | Pane fixture; ephemeral | Pane fixture; ephemeral | Pane fixture; ephemeral | Pane fixture; ephemeral |
 | Search/browse | Pane fixture | Unsupported by harness | Unsupported by harness | Unsupported by harness |
 | Worker warming/compaction | Pane fixture | Existing provider-specific warming only | Existing provider-specific warming only | Existing provider-specific warming only |
@@ -2410,7 +2406,7 @@ pane. So the earlier investigation's conclusion holds under herdr too.
 |---|---|
 | claude-code | **Works** — the resident program takes them with `agent.prompt` at the next tool result (measured) |
 | codex | **Works** — the resident program takes them with `agent.prompt` inside the working task, after its next tool call or once its response ends (measured); `codex exec` reads input once to EOF and not after |
-| OpenRouter | **No** — dsh's headless run takes the prompt once and reads nothing after; the resident loop keeps the words for the next turn |
+| OpenRouter | **No** — the pane program declares that it takes none mid-turn; the words wait for the next turn |
 | registered | **No** — the program on the gateway could take them, but this road's surface declares that it takes none mid-turn, so the words wait for the next turn |
 
 - **Headless (`-p`) cannot use this channel.** Two things both block it. herdr does not see it as an agent,
@@ -2519,8 +2515,10 @@ enters the prefix.
   starts, so what belongs to one run is not in it — the run's name, the job runner's marker, whether
   the run is a middle step of a work order, and every variable under the turn prefix `BMO_TURN_`, where
   a launch names what else its run is about (the chat names its room and road there,
-  `chat-mcp.md`). Every resident surface — Claude's, Codex's and agency's own loop — writes those
-  into the agent's place as it puts the turn in, the loop handing them on with the turn as well, and everything the program runs — its hooks, its status line, the guards in front of a job's
+  `chat-mcp.md`). Every resident surface — Claude's, Codex's and bmo-tui's — writes those into the
+  agent's place as it puts the turn in; a surface that runs a fresh program a turn hands them on with
+  the turn as well, while the program that keeps one dsh session across turns reads them from the
+  place. Everything the program runs — its hooks, its status line, the guards in front of a job's
   shell, the scripts a job calls — reads them there; a person's turn carries none of them. A program
   started for one run is therefore the same program every run after it finds. The
   launcher's whole environment is not passed, because if the launcher is inside a Claude session, that

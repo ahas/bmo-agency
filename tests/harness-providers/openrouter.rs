@@ -1,4 +1,4 @@
-//! OpenRouter: its listing, its presence by the key, and its resident loop told by the script's name.
+//! OpenRouter: its listing, its presence by the key, and its pane program told by its name and model choice.
 
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -121,26 +121,24 @@ fn the_key_in_the_environment_is_the_whole_of_its_presence() {
 }
 
 #[test]
-fn a_loop_is_its_own_by_the_scripts_file_name_from_whichever_folder_it_was_started() {
+fn a_pane_program_is_its_own_by_its_file_name_and_the_model_choice_it_carries() {
   let dir = tempfile::tempdir().unwrap();
   let machine = Machine::with_env([], dir.path());
-  let owns = |script: &str, provider: &str| {
-    let args = ["bun", script, "--provider", provider, "--place", "/place"].map(str::to_owned);
+  let owns = |program: &str, choice: &str| {
+    let args =
+      [program, "dsh", "--program", "dsh", "--place", "/place", "--model", choice].map(str::to_owned);
 
     OpenRouter.owns_program(&machine, &args, &BTreeMap::new())
   };
-  let declared = OPENROUTER
-    .declared
-    .resident
-    .as_ref()
-    .and_then(|resident| resident.loop_script.as_deref());
+  let declared = OPENROUTER.declared.resident.as_ref().and_then(|resident| resident.program.as_deref());
 
-  assert_eq!(declared, Some("packages/agent/resident-loop.ts"));
+  assert_eq!(declared, Some("bmo-tui"));
 
-  for script in ["/deploy/packages/agent/resident-loop.ts", "/checkout/packages/agent/resident-loop.ts"] {
-    assert!(owns(script, "openrouter"), "{script}");
+  for program in ["/deploy/bin/bmo-tui", "/checkout/bin/bmo-tui"] {
+    assert!(owns(program, r#"["openrouter","vendor/model"]"#), "{program}");
   }
 
-  assert!(!owns("/deploy/packages/agent/resident-loop.ts", "codex"));
-  assert!(!owns("/deploy/packages/agent/other-loop.ts", "openrouter"));
+  assert!(!owns("/deploy/bin/bmo-tui", r#"["codex","gpt-x"]"#));
+  assert!(!owns("/deploy/bin/other-tui", r#"["openrouter","vendor/model"]"#));
+  assert!(!owns("/deploy/bin/bmo-tui", "vendor/model"));
 }

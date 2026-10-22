@@ -40,24 +40,24 @@ impl Provider for OpenRouter {
       .ok_or_else(|| format!("{upstream} publishes no cache lifetime for {model}."))
   }
 
-  // Its program is agency's resident loop started for this provider.
+  // Its program is bmo-tui standing this provider's dsh session.
   fn owns_program(&self, _machine: &Machine, args: &[String], _env: &BTreeMap<String, String>) -> bool {
-    let Some(script) = OPENROUTER
-      .declared
-      .resident
-      .as_ref()
-      .and_then(|resident| resident.loop_script.as_deref())
+    let Some(program) =
+      OPENROUTER.declared.resident.as_ref().and_then(|resident| resident.program.as_deref())
     else {
       return false;
     };
-    let named = args.iter().position(|arg| arg == "--provider").map_or(0, |at| at + 1);
-    let script = Path::new(script).file_name();
+    let named = args.iter().position(|arg| arg == "--model").map(|at| at + 1);
+    let choice = named
+      .and_then(|at| args.get(at))
+      .and_then(|choice| serde_json::from_str::<Vec<String>>(choice).ok());
 
     args
-      .get(1)
+      .first()
       .and_then(|path| Path::new(path).file_name())
-      .is_some_and(|name| Some(name) == script)
-      && args.get(named).is_some_and(|provider| provider == self.name())
+      .is_some_and(|name| Some(name) == Path::new(program).file_name())
+      && args.get(1).is_some_and(|arg| arg == "dsh")
+      && choice.and_then(|choice| choice.first().cloned()).as_deref() == Some(self.name())
   }
 
   fn missing(&self, machine: &Machine) -> Option<String> {

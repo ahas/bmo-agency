@@ -26,12 +26,10 @@ pub struct ResidentTurn {
   pub quiet_ms: u64,
   pub herdr_patience_seconds: u64,
   pub node_patience_seconds: u64,
-  pub loop_ready_seconds: u64,
-  pub loop_poll_ms: u64,
-  /// How often the resident loop relays the steps dsh took into its record, and how much of a tool's
-  /// answer it keeps.
-  pub loop_relay_ms: u64,
-  pub loop_relay_chars: usize,
+  /// The time the pane program that carries its own turn is given to stand, and how often its record is
+  /// looked at.
+  pub inbox_ready_seconds: u64,
+  pub inbox_poll_ms: u64,
   pub gone_looks: u32,
   pub gone_gap_ms: u64,
   pub end_wait_ms: u64,

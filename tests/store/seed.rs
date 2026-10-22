@@ -19,6 +19,7 @@ fn mapping(
     provider: provider.into(),
     tier: tier.into(),
     model: model.into(),
+    thinking: None,
     effort: effort.map(Into::into),
     answer_tokens,
   }
@@ -142,7 +143,7 @@ async fn a_fresh_store_is_given_every_seed() {
       .await,
     1
   );
-  assert_eq!(scratch.count(r#"SELECT COUNT(*) FROM "model_tier_meta""#, vec![]).await, 3);
+  assert_eq!(scratch.count(r#"SELECT COUNT(*) FROM "model_tier_meta""#, vec![]).await, 4);
   assert_eq!(
     mapped(&scratch, "first", "Top").await,
     Some(("first-large".into(), Some("high".into()), None))
