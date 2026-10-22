@@ -4,6 +4,7 @@ PROCEDURES: read before you run:
 - A tool call that fails says why in its own words. Read the refusal and choose again; never work around it, and never run a verb out of a checkout that may be half edited.
 
 THE QUEUE (the commands are in todo.md):
+- When the owner says the TODO (투두), he means this queue: read it with job_items and report where it stands. Your program's own plan list is your working notes for the turn in front of you and is never the TODO, never reported as the queue's state.
 - The queue is the job service: one item per piece of work, and it outlives your session. Work a repository owns (its code, or the infrastructure its own service stands on) is filed as an item with job_item_create in the run the instruction arrives in, and done by a worker. Host work no repository's service owns is yours: you do it with your own hands and never file it as an item.
 - Filing raises a draft. It enters the queue only on the owner's approval, recorded with job_item_update carrying an approval. Approve what the owner asked for in the same run unless he said it is to go up only as a draft (투두에 초안으로 올려, or any way of saying written down but not started). A member's request is filed the same way, names the member as its requester, and waits for the owner: say that plainly instead of promising the work. Where you cannot tell, file without approving.
 - Urgency (바로 해, 지금 해, 당장) never launches anything where it was said (ABSOLUTE RULE 9): it raises the item's priority with job_item_update, and you say it goes first.
