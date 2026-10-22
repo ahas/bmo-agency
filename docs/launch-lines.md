@@ -152,12 +152,13 @@
   a runtime downgrade all read that one answer. The system prompt is the chat agent's
   documents, the three answer rulebooks, the rulebook against destroying the system
   (`prompts/rules/self-preservation.md`) and the persona, handed over as a file and replacing the
-  CLI's own. No settings sources, no skills, no Chrome, and two MCP servers: agency's own, `bmo`, the
-  tool host's namespace, and the toolbook beside it, named in `chat.mcp.json` beside the strict flag that keeps every other
-  server out (`chat-mcp.md`, `mcp-host.md`). The tools shown are exactly Bash, Read, Write, Edit and the CLI's two MCP
+  CLI's own. No settings sources, no skills, no Chrome, and two MCP servers: the job service's
+  harness plugin, `job`, which leases an item from a queue, and the agency's own, `agency`, which
+  assigns a worker and launches the item's job, named in `chat.mcp.json` beside the strict flag that
+  keeps every other server out (`chat-mcp.md`, `mcp-host.md`). The tools shown are exactly Bash, Read, Write, Edit and the CLI's two MCP
   resource tools, the list and the read, in every run of every chat (none when the owner has
-  turned tools off in that chat), with the `bmo` server's tools beside them; the permission mode is
-  don't-ask, and the allow list is those same six and the whole `bmo` and `toolbook` servers by their
+  turned tools off in that chat), with the two servers' tools beside them; the permission mode is
+  don't-ask, and the allow list is those same six and the whole `job` and `agency` servers by their
   prefixes in every run, whoever wrote the turn's messages. What is the owner's alone —
   approving, launching or finishing work, deploying, reading another room — is held by the
   session's own judgement under its rules, not by the allow list. The chat stands as the chat agent's
