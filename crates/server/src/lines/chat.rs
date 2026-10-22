@@ -143,15 +143,21 @@ pub async fn server_digest(ground: &Ground) -> Option<String> {
 /// is the one writer.
 pub fn mcp_config(ground: &Ground, trees: &Trees) -> Result<PathBuf, Refusal> {
   let path = trees.agents.join("chat.mcp.json");
+  let text = format!("{}\n", Ordered::map([("mcpServers", harness_servers(ground))]).pretty());
 
-  publish_text(&path, &Ordered::map([("mcpServers", harness_servers(ground))]).pretty())?;
+  agent_host::disk::private_dir(&trees.agents)
+    .map_err(|why| fault(format!("{}: {why}", trees.agents.display())))?;
+  agent_host::disk::publish_bytes(&path, text.as_bytes())
+    .map_err(|why| fault(format!("{}: {why}", path.display())))?;
 
   Ok(path)
 }
 
 // The two servers the chat starts, each a program of its own: the job plugin on its `mcp` verb, told
 // the queues it subscribes to and the holder it takes them under, and the agency's own binary on the
-// same verb. A value that differs by installation is read from the environment.
+// same verb. A value that differs by installation is read from the environment, and each server's
+// bearer is handed to it in the configuration's own environment: a harness starts its children on an
+// environment scrubbed of everything but the entries written there.
 fn harness_servers(ground: &Ground) -> Ordered {
   let env = ground.env();
   let mut servers: Vec<(&str, Ordered)> = vec![];
@@ -176,14 +182,17 @@ fn harness_servers(ground: &Ground) -> Ordered {
       args.push(Ordered::text(queue));
     }
 
-    servers.push((
-      "job",
-      Ordered::map([
-        ("type", Ordered::text("stdio")),
-        ("command", Ordered::text(plugin)),
-        ("args", Ordered::List(args)),
-      ]),
-    ));
+    let mut fields = vec![
+      ("type", Ordered::text("stdio")),
+      ("command", Ordered::text(plugin)),
+      ("args", Ordered::List(args)),
+    ];
+
+    if let Some(token) = env.get("BMO_JOB_TOKEN").filter(|token| !token.is_empty()) {
+      fields.push(("env", Ordered::map([("BMO_JOB_TOKEN", Ordered::text(token.as_str()))])));
+    }
+
+    servers.push(("job", Ordered::map(fields)));
   }
 
   if let (Ok(server), Some(url)) = (std::env::current_exe(), env.get("BMO_AGENCY_URL")) {
@@ -194,17 +203,20 @@ fn harness_servers(ground: &Ground) -> Ordered {
       .filter(|cli| cli.exists())
       .unwrap_or(server);
 
-    servers.push((
-      "agency",
-      Ordered::map([
-        ("type", Ordered::text("stdio")),
-        ("command", Ordered::text(program.to_string_lossy().into_owned())),
-        (
-          "args",
-          Ordered::List(vec![Ordered::text("mcp"), Ordered::text("--url"), Ordered::text(url)]),
-        ),
-      ]),
-    ));
+    let mut fields = vec![
+      ("type", Ordered::text("stdio")),
+      ("command", Ordered::text(program.to_string_lossy().into_owned())),
+      (
+        "args",
+        Ordered::List(vec![Ordered::text("mcp"), Ordered::text("--url"), Ordered::text(url)]),
+      ),
+    ];
+
+    if let Some(token) = env.get("AGENCY_CONTROL_TOKEN").filter(|token| !token.is_empty()) {
+      fields.push(("env", Ordered::map([("AGENCY_CONTROL_TOKEN", Ordered::text(token.as_str()))])));
+    }
+
+    servers.push(("agency", Ordered::map(fields)));
   }
 
   Ordered::map(servers)
