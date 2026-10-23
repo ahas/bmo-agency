@@ -99,11 +99,11 @@ pub struct RoomBlock {
 
 /// What the caller composed around a turn's prompt, every part of it optional: the room it answers, which a
 /// session across rooms needs; the road it answers on where that is not the room's own; the persona that
-/// follows the line's system prompt; whether every new message it answers is the owner's or no person's
-/// message opened it; the messages it answers; the moment it took its words, in epoch milliseconds,
-/// which is the moment it is sent where none is named; an editor run's parts; the job a worker's turn
-/// is of; a work turn's parts; and a gate's one turn. A backend carries each part as the line declares and
-/// judges none of it.
+/// follows the line's system prompt where the agent's brain gives none; whether every new message it
+/// answers is the owner's or no person's message opened it; the messages it answers; the moment it took its
+/// words, in epoch milliseconds, which is the moment it is sent where none is named; an editor run's parts;
+/// the job a worker's turn is of; a work turn's parts; and a gate's one turn. A backend carries each part as
+/// the line declares and judges none of it.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct TurnContext {
   pub room: Option<RoomBlock>,

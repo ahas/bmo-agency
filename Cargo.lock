@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "agency-checks"
-version = "0.1.0-rev.20"
+version = "0.1.0-rev.21"
 dependencies = [
  "agency-server",
  "agent-host",
@@ -45,7 +45,7 @@ dependencies = [
 
 [[package]]
 name = "agency-server"
-version = "0.1.0-rev.20"
+version = "0.1.0-rev.21"
 dependencies = [
  "agent-host",
  "agent-session",
@@ -97,7 +97,7 @@ dependencies = [
 
 [[package]]
 name = "agent-host"
-version = "0.1.0-rev.20"
+version = "0.1.0-rev.21"
 dependencies = [
  "chrono",
  "clap",
@@ -113,7 +113,7 @@ dependencies = [
 
 [[package]]
 name = "agent-session"
-version = "0.1.0-rev.20"
+version = "0.1.0-rev.21"
 dependencies = [
  "serde",
  "serde_json",
@@ -384,7 +384,7 @@ dependencies = [
 
 [[package]]
 name = "bmo-agency-client"
-version = "0.1.0-rev.20"
+version = "0.1.0-rev.21"
 dependencies = [
  "reqwest",
  "schemars",
@@ -395,7 +395,7 @@ dependencies = [
 
 [[package]]
 name = "bmo-brain-client"
-version = "0.1.0-rev.15"
+version = "0.1.0-rev.16"
 dependencies = [
  "reqwest",
  "schemars",
@@ -527,7 +527,7 @@ checksum = "fc652a48c352aef3ea3aed32080501cf3ef6ed5da78602a020c991775b0aff04"
 
 [[package]]
 name = "cache-siren"
-version = "0.1.0-rev.20"
+version = "0.1.0-rev.21"
 dependencies = [
  "chrono",
  "policy",
@@ -1271,7 +1271,7 @@ dependencies = [
 
 [[package]]
 name = "harness-machine"
-version = "0.1.0-rev.20"
+version = "0.1.0-rev.21"
 dependencies = [
  "clap",
  "libc",
@@ -1286,7 +1286,7 @@ dependencies = [
 
 [[package]]
 name = "harness-providers"
-version = "0.1.0-rev.20"
+version = "0.1.0-rev.21"
 dependencies = [
  "clap",
  "harness-machine",
@@ -1376,7 +1376,7 @@ checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
 
 [[package]]
 name = "herdr"
-version = "0.1.0-rev.20"
+version = "0.1.0-rev.21"
 dependencies = [
  "serde",
  "serde_json",
@@ -1856,7 +1856,7 @@ checksum = "47d9d19d1d6efa0109d2f65ff4c85cddd50bd572e5a00127ab10987290bcefae"
 
 [[package]]
 name = "llm-gateway"
-version = "0.1.0-rev.20"
+version = "0.1.0-rev.21"
 dependencies = [
  "axum",
  "futures-util",
@@ -1950,7 +1950,7 @@ checksum = "743fb55ba31b18fb1ecef6bdc9aa2743314978ac084044301a7eee33fb99a20d"
 
 [[package]]
 name = "node-link"
-version = "0.1.0-rev.20"
+version = "0.1.0-rev.21"
 dependencies = [
  "base64 0.22.1",
  "clap",
@@ -2058,7 +2058,7 @@ dependencies = [
 
 [[package]]
 name = "pane-head"
-version = "0.1.0-rev.20"
+version = "0.1.0-rev.21"
 dependencies = [
  "agent-host",
 ]
@@ -2225,7 +2225,7 @@ checksum = "b4596b6d070b27117e987119b4dac604f3c58cfb0b191112e24771b2faeac1a6"
 
 [[package]]
 name = "policy"
-version = "0.1.0-rev.20"
+version = "0.1.0-rev.21"
 dependencies = [
  "serde",
  "toml",
@@ -2283,7 +2283,7 @@ dependencies = [
 
 [[package]]
 name = "procedures-tool"
-version = "0.1.0-rev.20"
+version = "0.1.0-rev.21"
 dependencies = [
  "dotenvy",
  "regex",
@@ -2466,7 +2466,7 @@ dependencies = [
 
 [[package]]
 name = "read-rulebook-tool"
-version = "0.1.0-rev.20"
+version = "0.1.0-rev.21"
 dependencies = [
  "serde",
  "serde_json",
@@ -3421,7 +3421,7 @@ checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 
 [[package]]
 name = "store"
-version = "0.1.0-rev.20"
+version = "0.1.0-rev.21"
 dependencies = [
  "sea-orm",
  "sea-orm-migration",
@@ -3741,7 +3741,7 @@ dependencies = [
 
 [[package]]
 name = "tool-call"
-version = "0.1.0-rev.20"
+version = "0.1.0-rev.21"
 dependencies = [
  "serde",
  "serde_json",

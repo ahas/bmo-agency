@@ -105,6 +105,9 @@ pub async fn stand_in_turn(
   };
   let db = &ground.db;
   let run = chat_run(ground, &machine, launch, prompt, false).await.map_err(refusal)?;
+
+  run.note_persona(ground, log).await;
+
   let mut last: Option<String> = None;
 
   for provider in &steps {
@@ -169,6 +172,9 @@ pub async fn turn_on(
 ) -> Result<Reply, NoAnswer> {
   let machine = ground.machine();
   let run = chat_run(ground, &machine, launch, prompt, false).await.map_err(refusal)?;
+
+  run.note_persona(ground, log).await;
+
   let step = step_on(ground, launch.agent, provider, model, &run.reasoning).await?;
 
   carried_on(ground, log, &run, &step, answers, began, shown).await

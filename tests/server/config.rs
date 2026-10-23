@@ -54,6 +54,16 @@ fn the_brain_s_account_key_is_read_trimmed_and_a_blank_one_names_none() {
 }
 
 #[test]
+fn the_persona_values_file_is_the_named_one_and_none_where_unnamed() {
+  assert_eq!(read(&[]).unwrap().persona_values, None);
+  assert_eq!(read(&[("AGENCY_PERSONA_VALUES", "  ")]).unwrap().persona_values, None);
+  assert_eq!(
+    read(&[("AGENCY_PERSONA_VALUES", " /srv/persona-values.toml ")]).unwrap().persona_values,
+    Some(PathBuf::from("/srv/persona-values.toml"))
+  );
+}
+
+#[test]
 fn an_address_that_is_not_a_url_is_a_fault_naming_its_variable() {
   let fault = read(&[("AGENCY_NODE_URL", "nodes over there")]).unwrap_err();
 

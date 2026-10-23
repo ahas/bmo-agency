@@ -117,6 +117,7 @@ mod lines {
   mod codex;
   mod dsh;
   mod ordered;
+  mod persona;
   mod place;
   mod prefix;
   mod runner;

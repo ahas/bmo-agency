@@ -8,7 +8,8 @@
 //! tree, so it is named relative to the tree and told only by the deploy tree's own binary, which reads the
 //! deployed text; run from a checkout, those are refused rather than told as text the service does not read.
 //! A document in the brain keeps its absolute path and is told from wherever this runs. Agency holds no
-//! persona: the base persona is handed in with each turn, so no persona file is a document of its own.
+//! persona: the base persona is read from the agent's brain at each launch, or handed in with the turn
+//! where the brain gives none, so no persona file is a document of its own.
 
 use std::path::{Component, Path, PathBuf};
 

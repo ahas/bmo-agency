@@ -64,9 +64,16 @@ session on the owner's ask is `docs/session-resets.md`.
   `prompts/agents/` — is read out of the deploy tree, so it is told by the deployment that puts it
   live, through the deploy tree's own reload; the same command run from a checkout refuses such a
   document (`deploy.md`, 「What goes live with the documents」).
-- Agency holds no persona and no lore. The base persona a chat session runs on is handed in with each
-  turn as part of its context (`docs/api.md`, 「Sessions」), so a change to it is carried by the next
-  turn that hands it in and is no document of agency's to reload.
+- Agency holds no lore and keeps no persona of its own. The base persona a chat session's system prompt
+  ends with is the base layer of the agent's own brain, the layer named `persona`, rendered by the brain
+  and read through its client once at each launch, with its placeholders filled from the deployment's
+  values file (`docs/api.md`, 「Calls agency makes」). The brain renders the same bytes until a piece
+  changes, so the prompt's prefix holds across launches, and a changed piece is carried by the next
+  launch and is no document of agency's to reload.
+- Where the brain gives no base persona — the agent has no brain, no brain is named, the brain does not
+  answer, its rendering is empty, or a placeholder stays unfilled — the base persona the turn hands in
+  as part of its context (`docs/api.md`, 「Sessions」) stands in its place, and the launch's run log says
+  in one sentence why the brain's was not used. Neither case fails the launch.
 
 ## Launch pacing
 

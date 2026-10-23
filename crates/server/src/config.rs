@@ -1,8 +1,9 @@
 //! The deployment's configuration: the names its agent and its owner go by (docs/policy.md, 「The
 //! deployment's names」), where each service agency calls is reached (docs/api.md, 「Calls agency
-//! makes」), the brain repository the editor line runs in (docs/launch-lines.md, 「What is fixed」), and the
-//! trees its release is read from (docs/agent-control.md, 「The job's release」). Each is read through the
-//! variables the deployment names it in.
+//! makes」), the brain repository the editor line runs in (docs/launch-lines.md, 「What is fixed」), the file
+//! the persona's placeholder values are kept in (docs/api.md, 「Calls agency makes」), and the trees its
+//! release is read from (docs/agent-control.md, 「The job's release」). Each is read through the variables
+//! the deployment names it in.
 
 use std::path::{Path, PathBuf};
 
@@ -18,11 +19,16 @@ pub struct Config {
   pub peers: PeerAddresses,
   /// The brain repository where the deployment names one; `brain_root` reads it with its default.
   pub brain: Option<PathBuf>,
+  /// The file the persona's placeholder values are kept in, none where the deployment names none.
+  pub persona_values: Option<PathBuf>,
   pub trees: Trees,
 }
 
 /// The variable naming the brain repository.
 pub const BRAIN_ROOT: &str = "AGENCY_BRAIN_ROOT";
+
+/// The variable naming the file the persona's placeholder values are kept in.
+pub const PERSONA_VALUES: &str = "AGENCY_PERSONA_VALUES";
 
 // The brain repository under the data root where the deployment names none.
 const BRAIN_UNDER_DATA: &str = "brain";
@@ -102,6 +108,10 @@ impl Config {
           .filter(|value| !value.is_empty()),
       },
       brain: variable(BRAIN_ROOT)
+        .map(|value| value.trim().to_owned())
+        .filter(|value| !value.is_empty())
+        .map(PathBuf::from),
+      persona_values: variable(PERSONA_VALUES)
         .map(|value| value.trim().to_owned())
         .filter(|value| !value.is_empty())
         .map(PathBuf::from),

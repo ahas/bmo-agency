@@ -28,7 +28,7 @@ a field's exact shape matters, the OpenAPI document is the one to read.
 ## Versioning
 
 - The contract carries the repository's one version, in semver; the workspace manifest is its source. Before
-  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.20`.
+  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.21`.
 - A change to this document and a change to the boundary go in one commit. A change to a route, an event, a
   hook or a shared table's contract repairs this document in the same commit.
 - The major moves on a removed or renamed route, field or event, the minor on an addition, the patch on
@@ -139,6 +139,10 @@ A conversation whose agent is a gate work key carries a gate's one turn: the tur
 gate's instructions as the program's whole system prompt, whether it thinks, and the model, effort and
 answer room its mapping resolved to. The turn goes out with no tools, no MCP server and no session kept,
 and its answer is the gate's verdict.
+
+A turn on the chat line ends its system prompt with the base persona: the base layer of the agent's own
+brain, read at the turn's launch (「Calls agency makes」). The turn context's `basePersona` is the fallback,
+standing in that place only where the brain gives none (`docs/sessions.md`, 「Document reload」).
 
 A room's session is readable by its id from its start, before its first turn has opened a generation:
 the read answers the provider, model and place its agent's row names, at generation 0, and its first
@@ -509,7 +513,8 @@ Agency reaches upstreams only, through what their repositories publish: brain, g
 pocket, testbed and chat through their clients, and cache-warmer through the schedule library
 `bmo-cache-warmer-schedule`.
 Of the brain it asks a companion's own brain made as the companion is added, found by the companion's key,
-let go whole or only found for a preview, and the discipline a chat launch's system prompt carries.
+let go whole or only found for a preview, the discipline a chat launch's system prompt carries, and the
+base layer of the agent's persona that prompt ends with.
 
 - **Where the brain is.** `AGENCY_BRAIN_URL` names its address and `AGENCY_BRAIN_TOKEN` the token it is
   called with. With no address, no agent has a brain: nothing is made, counted or let go.
@@ -518,6 +523,16 @@ let go whole or only found for a preview, and the discipline a chat launch's sys
   `AGENCY_BRAIN_ACCOUNT` names and, as the agent's key, the agent's registered name — the key the brain
   tool and the gate look a brain up by. The brain reads no meaning into the account key. With no account
   named, agency makes no brain and logs that it made none.
+- **The base persona.** At a chat launch the agent's brain, found by its key, is asked for its persona
+  rendered of the layer named `persona` alone; a brain that holds no such layer gives none. The tone and
+  room layers are no part of it: they stay in the room's block the caller composes.
+- **The persona's values.** A persona piece keeps placeholders: two opening braces, a key of lowercase ASCII
+  letters, digits and hyphens joined by dots, and two closing braces, such as `{{owner.name}}`. The
+  deployment keeps their values outside every repository, in a TOML file whose path
+  `AGENCY_PERSONA_VALUES` names; a key's dots walk the file's tables to a string, so `owner.name` is the
+  `name` of its `[owner]` table, and nothing else of the file is read. With no file named, a file that does
+  not read, or a key it holds no string for, the placeholder stays unfilled and the brain's persona is not
+  used.
 - **Making a companion's brain.** As a companion is added, the brain is asked for the agent's key first;
   where it answers one, nothing is made. A brain that cannot be reached, or refuses, leaves the companion
   added and the failure logged.

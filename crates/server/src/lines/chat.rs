@@ -3,8 +3,10 @@
 //! effort, the system prompt of the chat's documents and rulebooks with the base persona after them, the
 //! room's block and its mark, the same tools in every room with the whole of the deployment's own server
 //! allowed, the one MCP configuration, the digest of what that server shows, and the room, the road and
-//! the standing of the turn in the run's own variables. The room's block, the road that answers and the
-//! base persona are the caller's: agency composes the line around them and judges none of them.
+//! the standing of the turn in the run's own variables. The base persona is the agent's brain's base layer,
+//! read once at the launch (`super::persona`), else the caller's. The room's block, the road that answers
+//! and the persona the caller hands in are the caller's: agency composes the line around them and judges
+//! none of them.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -36,6 +38,8 @@ use super::{Trees, fault, publish_text, read_required};
 use crate::Refusal;
 use crate::control::tiers;
 use crate::places::Ground;
+use crate::run_log::RunLog;
+use crate::run_log::lines::Line;
 use crate::stand_in::Step;
 
 /// The line the deployment's chat goes out on.
@@ -62,8 +66,8 @@ pub struct RoomContext {
 
 /// One turn's launch as the round asks for it: the agent whose turn it is, the room and its block, the road
 /// answering it where that is not the room's own, the session it continues, whether every new message of it
-/// is the owner's, whether it is the keepalive's touch, and the base persona that follows the system
-/// prompt, where the caller keeps one.
+/// is the owner's, whether it is the keepalive's touch, and the base persona the caller keeps, which follows
+/// the system prompt where the agent's brain gives none.
 #[derive(Clone)]
 pub struct ChatLaunch<'a> {
   pub agent: &'a str,
@@ -100,6 +104,8 @@ pub struct ChatRun {
   /// The digest of what the deployment's own server shows, where the tool host says it.
   pub mcp_tools: Option<String>,
   pub prompt: String,
+  /// Why the system prompt does not end with the brain's base persona, where it does not.
+  pub persona_unused: Option<String>,
   /// A fold: the fold word put into the program as its turn.
   pub fold: bool,
   pub ping: bool,
@@ -274,7 +280,14 @@ pub async fn chat_run(
       None
     }
   };
-  let mut system = chat_system(&trees, launch.base_persona, discipline.as_deref())?;
+  let persona = super::persona::base_persona(
+    ground.peers.brain.as_ref(),
+    agent,
+    ground.config.persona_values.as_deref(),
+    launch.base_persona,
+  )
+  .await;
+  let mut system = chat_system(&trees, persona.text.as_deref(), discipline.as_deref())?;
   let role = crate::conversational::role_of(&ground.db, agent).await.ok().flatten();
 
   if let Some(above) = role.as_deref().and_then(|role| super::role_prompt(&trees, role)) {
@@ -318,6 +331,7 @@ pub async fn chat_run(
     mcp_config: mcp,
     mcp_tools: server_digest(ground).await,
     prompt: prompt.to_owned(),
+    persona_unused: persona.unused,
     fold,
     ping: launch.ping,
     resume: launch.resume.clone(),
@@ -329,24 +343,36 @@ pub async fn chat_run(
   })
 }
 
+impl ChatRun {
+  /// The run's log told why its system prompt does not end with the brain's base persona, where it does not.
+  pub async fn note_persona(&self, ground: &Ground, log: &mut RunLog) {
+    if let Some(why) = &self.persona_unused {
+      log.write(&ground.db, Line::note(why.clone())).await;
+    }
+  }
+}
+
 /// One turn of the chat line's agent across rooms, composed for the resident program standing in its place
 /// (docs/api.md, 「Sessions」): the chat's run around the caller's room block, road and base persona, on
 /// the login the walk offers the agent now, on the session the launch resumes or a new one. A session it
 /// resumes that its program keeps no record of is refused as lost, which the turn reads as a session gone.
-/// The messages the turn answers and the moment it took its words go among its own variables, and its run's
-/// name last.
+/// The messages the turn answers and the moment it took its words go among its own variables, and the name
+/// of the run its log stands under last; that log is told why the brain's persona was not used where it was
+/// not.
 pub async fn compose_turn(
   ground: &Ground,
   machine: &Machine,
   launch: &ChatLaunch<'_>,
   prompt: &str,
-  run_name: &str,
+  log: &mut RunLog,
   answers: &[i64],
   began: i64,
 ) -> Result<ComposedTurn, Refusal> {
   let run = chat_run(ground, machine, launch, prompt, false).await?;
 
-  compose_prepared(ground, machine, &run, prompt, run_name, answers, began).await
+  run.note_persona(ground, log).await;
+
+  compose_prepared(ground, machine, &run, prompt, log.run(), answers, began).await
 }
 
 /// A run already composed, its turn on Claude Code's chat line: the login the walk offers its agent, the
@@ -471,6 +497,7 @@ pub fn gate_run(
     mcp_config,
     mcp_tools: None,
     prompt: prompt.to_owned(),
+    persona_unused: None,
     fold: false,
     ping: false,
     resume: None,

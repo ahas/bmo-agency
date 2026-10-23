@@ -3,10 +3,10 @@
 //! worker's session turn on the line a job runs on; a companion's session is one per room, carried by its
 //! resident program on the chat line with the system prompt its settings compose; a session across rooms is
 //! the one its agent's row keeps, carried by its resident program on the chat line around the room block,
-//! the road and the base persona the turn's caller hands in, or by a stand-in where the agent's key walks onto
-//! one; an editor work key's session carries one editor run a turn and keeps nothing; and a thrown-away
-//! session, held in memory from its start to its end, carries a co-work branch's or a research run's turns,
-//! each on a fresh harness session; and a conversation the caller opened, held there too, carries ordinary
+//! the road and the base persona, its brain's or else the one the turn's caller hands in, or by a stand-in
+//! where the agent's key walks onto one; an editor work key's session carries one editor run a turn and
+//! keeps nothing; and a thrown-away session, held in memory from its start to its end, carries a co-work
+//! branch's or a research run's turns, each on a fresh harness session; and a conversation the caller opened, held there too, carries ordinary
 //! turns on the provider and model it names, resuming the session its road keeps. A session is known by its
 //! agent and its scope — `<agent>@worker`, `<agent>@<room>`, `<agent>`, `<key>@editor`,
 //! `<agent>@apart:<n>`, `<agent>@conversation:<n>` — and stands across the generations its harness opens.
@@ -1129,7 +1129,7 @@ impl HerdrSessions {
   }
 
   // One turn of an agent across rooms, carried by its resident program on the chat line around the room
-  // block, the road and the base persona its caller handed in, on the one session its row keeps; a session
+  // block, the road and the base persona, on the one session its row keeps; a session
   // its harness no longer holds is let go, and the turn asked again once on a fresh one.
   async fn agent_turn(
     &self,
@@ -1563,8 +1563,7 @@ impl HerdrSessions {
     shown: OutputWatch<'_>,
   ) -> Result<Reply, NoAnswer> {
     let ground = self.ground();
-    let run = log.run().to_owned();
-    let composed = compose_turn(ground, &ground.machine(), launch, prompt, &run, answers, began)
+    let composed = compose_turn(ground, &ground.machine(), launch, prompt, log, answers, began)
       .await
       .map_err(|refused| NoAnswer::Failed(refused.detail))?;
 
@@ -2355,7 +2354,7 @@ impl Sessions for HerdrSessions {
 }
 
 // A turn across rooms as the chat line launches it: the room's block, the road and the base persona its
-// caller handed in, on the session named.
+// caller handed in for where the agent's brain gives none, on the session named.
 fn launch_of<'a>(
   agent: &'a str,
   room: &RoomBlock,

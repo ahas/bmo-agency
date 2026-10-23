@@ -11,6 +11,7 @@ pub mod dsh;
 pub mod editor;
 pub mod openrouter;
 pub mod ordered;
+pub mod persona;
 pub mod place;
 pub mod prefix;
 pub mod runner;

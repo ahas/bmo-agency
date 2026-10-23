@@ -1,12 +1,14 @@
 //! The brain (docs/api.md, 「Calls agency makes」) through the client it publishes: the brain a companion is
 //! given as it is added, and what its reset and removal take of what it remembers. Everything an agent
 //! remembers is its own brain, found by the agent's key, so agency lets that brain go whole; a preview only
-//! finds it.
+//! finds it. A chat launch reads the persona that brain renders of the layers it names.
 
 use std::sync::Arc;
 use std::time::Duration;
 
-use bmo_brain_client::{Brain as BrainMember, BrainClient, BrainsQuery, ClientFailure, NewBrain};
+use bmo_brain_client::{
+  Brain as BrainMember, BrainClient, BrainsQuery, ClientFailure, NewBrain, PersonaQuery,
+};
 use serde::Deserialize;
 use serde_json::Value;
 
@@ -48,6 +50,17 @@ pub enum Made {
   Undeployed,
 }
 
+/// What the agent's brain rendered of its persona.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Rendered {
+  /// The rendering, empty where no layer named stands in the brain.
+  Text(String),
+  /// The agent has no brain.
+  NoBrain,
+  /// No brain is deployed, so none was asked.
+  Undeployed,
+}
+
 /// What agency asks the brain.
 pub trait Brain: Send + Sync {
   /// The agent's own brain made under its key, named as given, where the brain keeps none yet.
@@ -58,6 +71,8 @@ pub trait Brain: Send + Sync {
   fn reset<'a>(&'a self, agent: &'a str, preview: bool) -> Asking<'a, BrainReset>;
   /// The discipline a chat agent's system prompt carries: how it reads and writes its brain every turn.
   fn discipline(&self) -> Asking<'_, String>;
+  /// The persona the agent's brain renders of the layers named, comma-separated.
+  fn persona<'a>(&'a self, agent: &'a str, layers: &'a str) -> Asking<'a, Rendered>;
 }
 
 /// No brain deployed: no agent has a brain, so nothing is counted or taken.
@@ -78,6 +93,10 @@ impl Brain for NoBrain {
 
   fn discipline(&self) -> Asking<'_, String> {
     Box::pin(async { Ok(String::new()) })
+  }
+
+  fn persona<'a>(&'a self, _agent: &'a str, _layers: &'a str) -> Asking<'a, Rendered> {
+    Box::pin(async { Ok(Rendered::Undeployed) })
   }
 }
 
@@ -151,6 +170,23 @@ impl PublishedBrain {
       could_not: vec![],
     })
   }
+
+  /// The persona the agent's brain renders of the layers named, where the agent has a brain; a layer that
+  /// does not stand in it is read as an empty rendering.
+  async fn rendered(&self, agent: &str, layers: &str) -> Result<Rendered, PeerFault> {
+    let Some(brain) = self.find(agent).await? else {
+      return Ok(Rendered::NoBrain);
+    };
+    let query = PersonaQuery {
+      layers: Some(layers.to_owned()),
+    };
+
+    match self.client.persona(brain.id, &query).await.map_err(fault) {
+      Ok(text) => Ok(Rendered::Text(text)),
+      Err(PeerFault::Failed { status: 404, .. }) => Ok(Rendered::Text(String::new())),
+      Err(why) => Err(why),
+    }
+  }
 }
 
 fn fault(why: ClientFailure) -> PeerFault {
@@ -193,6 +229,10 @@ impl Brain for PublishedBrain {
 
   fn discipline(&self) -> Asking<'_, String> {
     Box::pin(async move { self.client.discipline().await.map_err(fault) })
+  }
+
+  fn persona<'a>(&'a self, agent: &'a str, layers: &'a str) -> Asking<'a, Rendered> {
+    Box::pin(async move { self.rendered(agent, layers).await })
   }
 }
 

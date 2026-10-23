@@ -67,6 +67,7 @@ fn chat_run(home: &std::path::Path) -> ChatRun {
     mcp_config: home.join("chat.mcp.json"),
     mcp_tools: None,
     prompt: "what is new".into(),
+    persona_unused: None,
     fold: false,
     ping: false,
     resume: Some("claude-session".into()),
