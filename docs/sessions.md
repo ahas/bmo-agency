@@ -105,7 +105,10 @@ session on the owner's ask is `docs/session-resets.md`.
     DeepSeek and OpenRouter — and a provider declaring none reads 0.85; a session whose agent's work
     key is assigned no tier reads its provider's default the same way;
   - the receiver compares the context ratio a turn ends on against the session's `foldRatio`, and the
-    harness compacts after the turn that crosses it.
+    harness compacts after the turn that crosses it;
+  - the session's state names that tier as `tier`, none where the key is assigned none, so a consumer
+    whose own table is keyed by tier, the receiver's draft process table among them, reads the same tier
+    the fold ratio was read at.
 - Both lines are the session's own words: the full session is asked for its going-to-nap line and
   the compacted one for its waking line, each by a quiet instruction, and the fixed lines, which agency
   names by status code and the caller's language pack words, are only the fallback when the session cannot be asked. Each line is a full

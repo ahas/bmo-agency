@@ -397,7 +397,7 @@ pub const OPERATIONS: &[Operation] = &[
     path: "/sessions/{sessionId}",
     id: "getSession",
     tag: "sessions",
-    summary: "A session's state: provider, model, place, holder, why the prefix changed, and the fold ratio for its provider and its agent's tier. A room's answers from its start, before its first turn, at generation 0.",
+    summary: "A session's state: provider, model, place, holder, why the prefix changed, its agent's tier and the fold ratio for its provider at that tier. A room's answers from its start, before its first turn, at generation 0.",
     params: &[Param {
       name: "sessionId",
       place: "path",
@@ -1626,7 +1626,7 @@ pub const OPERATIONS: &[Operation] = &[
     path: "/usage",
     id: "getUsage",
     tag: "usage",
-    summary: "Usage by model, agent, user or room over a span, with session contexts.",
+    summary: "Usage by model, agent, user, room or round over a span, with session contexts.",
     params: &[
       Param {
         name: "groupBy",

@@ -22,6 +22,7 @@ mod m20261031_000001_recollectors_retired;
 mod m20261101_000001_usage_balances;
 mod m20261101_000002_run_rounds;
 mod m20261102_000001_route_registration;
+mod m20261103_000001_run_usage;
 
 use sea_orm_migration::prelude::*;
 
@@ -122,6 +123,7 @@ impl MigratorTrait for Migrator {
       Box::new(m20261101_000001_usage_balances::Migration),
       Box::new(m20261101_000002_run_rounds::Migration),
       Box::new(m20261102_000001_route_registration::Migration),
+      Box::new(m20261103_000001_run_usage::Migration),
     ]
   }
 

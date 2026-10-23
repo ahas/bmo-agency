@@ -59,13 +59,31 @@ pub struct Opening {
   pub message_id: Option<i64>,
 }
 
-/// What a run is closed with.
+/// What a run is closed with: when, how it ended, the tokens its context carried and what its turn spent.
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
 pub struct Closing {
   pub finished_at: i64,
   pub outcome: String,
   #[serde(default)]
   pub context_tokens: Option<i64>,
+  #[serde(default)]
+  pub spent: Option<Spent>,
+}
+
+/// What a run's turn spent, each figure summed over the models that answered it.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
+pub struct Spent {
+  pub input_tokens: i64,
+  pub output_tokens: i64,
+  pub cache_read_tokens: i64,
+  pub cache_write_tokens: i64,
+}
+
+impl Spent {
+  /// The four figures together.
+  pub fn total(&self) -> i64 {
+    self.input_tokens + self.output_tokens + self.cache_read_tokens + self.cache_write_tokens
+  }
 }
 
 /// One run of the ledger, as a caller reads it.
@@ -80,6 +98,7 @@ pub struct Run {
   pub finished_at: Option<i64>,
   pub outcome: Option<String>,
   pub context_tokens: Option<i64>,
+  pub spent: Option<Spent>,
   pub round: Option<String>,
   pub message_id: Option<i64>,
 }
@@ -96,9 +115,30 @@ impl Run {
       finished_at: row.try_get("", "finished_at")?,
       outcome: row.try_get("", "outcome")?,
       context_tokens: row.try_get("", "context_tokens")?,
+      spent: Self::spent_of(row)?,
       round: row.try_get("", "round")?,
       message_id: row.try_get("", "message_id")?,
     })
+  }
+
+  // What the run's turn spent, none where its closing named nothing.
+  fn spent_of(row: &QueryResult) -> Result<Option<Spent>, Refusal> {
+    let figure = |column: &str| row.try_get::<Option<i64>>("", column);
+    let (Some(input_tokens), Some(output_tokens), Some(cache_read_tokens), Some(cache_write_tokens)) = (
+      figure("input_tokens")?,
+      figure("output_tokens")?,
+      figure("cache_read_tokens")?,
+      figure("cache_write_tokens")?,
+    ) else {
+      return Ok(None);
+    };
+
+    Ok(Some(Spent {
+      input_tokens,
+      output_tokens,
+      cache_read_tokens,
+      cache_write_tokens,
+    }))
   }
 }
 
@@ -148,13 +188,18 @@ pub async fn open<C: ConnectionTrait>(db: &C, opening: &Opening) -> Result<i64, 
 pub async fn close<C: ConnectionTrait>(db: &C, id: i64, closing: &Closing) -> Result<(), NotClosed> {
   let closed = run(
     db,
-    r#"UPDATE "runs" SET "finished_at" = $2, "outcome" = $3, "context_tokens" = $4
+    r#"UPDATE "runs" SET "finished_at" = $2, "outcome" = $3, "context_tokens" = $4,
+         "input_tokens" = $5, "output_tokens" = $6, "cache_read_tokens" = $7, "cache_write_tokens" = $8
        WHERE "id" = $1 AND "finished_at" IS NULL"#,
     vec![
       id.into(),
       closing.finished_at.into(),
       closing.outcome.clone().into(),
       closing.context_tokens.into(),
+      closing.spent.map(|spent| spent.input_tokens).into(),
+      closing.spent.map(|spent| spent.output_tokens).into(),
+      closing.spent.map(|spent| spent.cache_read_tokens).into(),
+      closing.spent.map(|spent| spent.cache_write_tokens).into(),
     ],
   )
   .await
@@ -172,7 +217,8 @@ pub async fn close<C: ConnectionTrait>(db: &C, id: i64, closing: &Closing) -> Re
 
 // What a run is read with.
 const RUN_FIELDS: &str = r#""id", "agent", "chat_id", "unit", "depth", "started_at", "finished_at", "outcome",
-  "context_tokens", "round", "message_id""#;
+  "context_tokens", "input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens", "round",
+  "message_id""#;
 
 /// A run by its id, or none where the ledger holds no row of it.
 pub async fn read<C: ConnectionTrait>(db: &C, id: i64) -> Result<Option<Run>, Refusal> {
@@ -240,6 +286,56 @@ pub async fn search<C: ConnectionTrait>(db: &C, search: &Search) -> Result<Vec<R
   .await?
   .iter()
   .map(Run::of)
+  .collect()
+}
+
+/// What the chat turns' runs started in a span spent, by the round each names: the round, how many turns, what
+/// they spent and the first and last start in epoch seconds. A run that names no round, or reported no
+/// figures, is no part of it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RoundSpend {
+  pub round: String,
+  pub turns: i64,
+  pub spent: Spent,
+  pub first_at: i64,
+  pub last_at: i64,
+}
+
+/// The spend of the rounds whose runs started between two moments in epoch seconds, the costliest first.
+pub async fn spent_by_round<C: ConnectionTrait>(
+  db: &C,
+  after: i64,
+  before: i64,
+) -> Result<Vec<RoundSpend>, Refusal> {
+  all(
+    db,
+    r#"SELECT "round", COUNT(*) AS "turns",
+              SUM("input_tokens")::bigint AS "input_tokens", SUM("output_tokens")::bigint AS "output_tokens",
+              SUM("cache_read_tokens")::bigint AS "cache_read_tokens",
+              SUM("cache_write_tokens")::bigint AS "cache_write_tokens",
+              MIN("started_at") AS "first_at", MAX("started_at") AS "last_at"
+       FROM "runs"
+       WHERE "round" IS NOT NULL AND "input_tokens" IS NOT NULL AND "started_at" >= $1 AND "started_at" <= $2
+       GROUP BY "round"
+       ORDER BY SUM("input_tokens" + "output_tokens" + "cache_read_tokens" + "cache_write_tokens") DESC, "round""#,
+    vec![after.into(), before.into()],
+  )
+  .await?
+  .iter()
+  .map(|row| {
+    Ok(RoundSpend {
+      round: row.try_get("", "round")?,
+      turns: row.try_get("", "turns")?,
+      spent: Spent {
+        input_tokens: row.try_get("", "input_tokens")?,
+        output_tokens: row.try_get("", "output_tokens")?,
+        cache_read_tokens: row.try_get("", "cache_read_tokens")?,
+        cache_write_tokens: row.try_get("", "cache_write_tokens")?,
+      },
+      first_at: row.try_get("", "first_at")?,
+      last_at: row.try_get("", "last_at")?,
+    })
+  })
   .collect()
 }
 
@@ -343,6 +439,7 @@ pub async fn launch(ground: &Ground, id: i64, launch: Launch) -> Result<(), NotL
     finished_at: crate::now_ms() / 1000,
     outcome: LAUNCH_ERROR.to_owned(),
     context_tokens: None,
+    spent: None,
   };
 
   if let Err(NotClosed::Store(why)) = close(&ground.db, id, &closing).await {

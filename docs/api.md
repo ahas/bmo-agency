@@ -226,7 +226,9 @@ one its held session last answered on, else `claude-code`.
 A session's state carries `foldRatio`: the share of its model's window its context may fill before the
 session is folded once the turn that crossed it is over. It is the fold-ratio table's value for the
 provider the state names and the tier its agent's work key is assigned (「fold-ratios」 below), read
-afresh with each read, so a change on the console reaches the next read of every session.
+afresh with each read, so a change on the console reaches the next read of every session. It carries
+`tier` beside it: that tier, by its name, or null where the key is assigned none, so a consumer keyed by
+tier matches the session by the tier the agency reads it at.
 
 A turn sent is carried to its end whether or not its sender still waits on the send: a sender that lets
 go of the request, or goes down while the turn works, leaves the turn running, and the turn ends as it
@@ -263,7 +265,11 @@ A run is a row of the ledger (`docs/run-records.md`, 「The run ledger」): a un
 closes, and a chat turn's run, which agency opens as the turn starts and closes as it ends. Each answers
 `roomId`, the room it ran for; `round`, the round the receiver named in the turn's context; and
 `messageId`, the message its answer went out as once the receiver attaches it, the latest message the
-turn answers until then, or null where the turn named neither. The list narrows by `agentName`, by
+turn answers until then, or null where the turn named neither. A chat turn's run answers what the turn
+spent once it is closed: `usage`, its `inputTokens`, `outputTokens`, `cacheReadTokens` and
+`cacheWriteTokens` summed over the models that answered, and `spentTokens`, the four together; both are
+null on a run whose road reported no figures, and on an open run. Every turn of a round, each question,
+item and check of the draft process among them, is a run of its own under the round. The list narrows by `agentName`, by
 `roomId`, by `round`, and by `names`, a comma-separated list each matched against a run's unit and its
 round. A change naming `messageId` alone attaches the message, on an open or a closed run alike, and
 leaves the run's closing as it stands.
@@ -446,7 +452,7 @@ them; a notice that holds nothing is withdrawn.
 | GET | `/rest` | Whether the deployment rests, until when, of what kind. |
 | PATCH | `/rest` | Set the rest, or clear a rest that has passed. |
 | GET | `/stand-in?agent=` | Whether a stand-in answers the agent named while Claude Code's road is closed. |
-| GET | `/usage` | Usage by model, agent, user or room over a span, with session contexts. |
+| GET | `/usage` | Usage by model, agent, user, room or round over a span, with session contexts. |
 
 The stand-in is asked for an agent, and says whether a stand-in would answer that agent now, which a
 consumer gating a room's turn on the rest reads before it lets that turn wait for Claude Code
@@ -471,7 +477,10 @@ and `--account-set`.
 Usage groups the jobs whose turns started in the span by the key the query names — the model the job's
 turn went out on, the worker (`agent`), the job's holder (`user`) or its room — summing the tokens each
 job's model spent, the jobs behind the figure and the span they cover, and the tokens the workers'
-sessions on that key currently carry (`contextTokens`). The span is two moments in epoch milliseconds,
+sessions on that key currently carry (`contextTokens`). `round` groups the chat turns' runs instead, those
+started in the span that name a round, by that round: each group's `tokens` is what its turns spent,
+`turns` how many there were, `inputTokens`, `outputTokens`, `cacheReadTokens` and `cacheWriteTokens` the
+spend apart, and `firstAt` and `lastAt` the span they cover; its `jobs` is 0 and its `contextTokens` null. The span is two moments in epoch milliseconds,
 yesterday to now where none is given.
 
 ### settings

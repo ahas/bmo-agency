@@ -67,12 +67,19 @@ about a message is not agency's: the judgement records belong to the units that 
 - **A chat turn's run is opened by agency** as a turn into a room's or an agent's session starts, the
   turn naming its room and carrying no work parts: its unit is the name the turn's log lines are written
   under, its room the room the turn answers, its round the round the turn's context names, and its message
-  the latest message the turn answers. It is closed as the turn ends, with how the turn ended and the
-  tokens its context carried.
+  the latest message the turn answers. It is closed as the turn ends, with how the turn ended, the
+  tokens its context carried and what the turn spent: its input, output, cache-read and cache-write
+  tokens, each summed over the models that answered it, and none where its road reported no figures.
+- **Every turn of a round is a run of its own:** the round's own turn and each question, item and
+  check of the receiver's draft process go out as turns naming the same round, so each opens its run
+  under that round and keeps its own spend. A round's usage is the sum of its runs', and how it divides
+  among the questions is read run by run.
 - **The message its answer went out as** is attached by the receiver once it files the answer, which
   replaces the message the turn answered; an attach leaves the closing as it stands.
-- **What reads it:** the console's chip line under a message finds the round's run by the round and
-  reads the run's log lines by the run's id: what the turn spent, the tools it called and what it wrote.
+- **What reads it:** the console's chip line under a message finds the round's runs by the round and
+  reads each run's log lines by the run's id: what the turn spent, the tools it called and what it wrote.
+  The usage records group the chat turns' spend by round (`docs/api.md`, 「accounts, rest and usage」),
+  beside the jobs' grouping by model, worker, holder and room.
 
 ## The roads a turn walked
 

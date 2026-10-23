@@ -42,7 +42,13 @@ fn member(run: &run_ledger::Run) -> Value {
     "capEndsAt": Value::Null,
     "keptUntil": Value::Null,
     "contextTokens": run.context_tokens,
-    "spentTokens": Value::Null,
+    "spentTokens": run.spent.as_ref().map(run_ledger::Spent::total),
+    "usage": run.spent.as_ref().map(|spent| json!({
+      "inputTokens": spent.input_tokens,
+      "outputTokens": spent.output_tokens,
+      "cacheReadTokens": spent.cache_read_tokens,
+      "cacheWriteTokens": spent.cache_write_tokens,
+    })),
     "counts": {},
     "roomId": run.chat_id,
     "round": run.round.clone(),
@@ -217,6 +223,7 @@ impl Route for CloseRun {
         .get("contextTokens")
         .or_else(|| asked.get("context_tokens"))
         .and_then(Value::as_i64),
+      spent: None,
     };
 
     match run_ledger::close(call.store(), id, &closing).await {

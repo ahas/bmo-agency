@@ -352,7 +352,7 @@ impl Route for RestWrite {
 
 crate::moved!(RestWrite);
 
-/// Usage by model, agent, user or room over a span, with session contexts.
+/// Usage by model, agent, user, room or round over a span, with session contexts.
 pub struct UsageRoute;
 
 // The column a job is grouped by, and the column a worker's session is grouped by for the same key.
@@ -378,8 +378,16 @@ impl Route for UsageRoute {
       .unwrap_or(now - 86_400_000);
     let before = call.query("before").and_then(|before| before.parse::<i64>().ok()).unwrap_or(now);
     let word = call.query("groupBy").unwrap_or_else(|| "model".to_owned());
-    let (jobs_by, sessions_by) =
-      grouped_by(&word).ok_or_else(|| bad(format!("groupBy is model, agent, user or room, not {word}")))?;
+
+    if word == "round" {
+      return Ok(answer(
+        StatusCode::OK,
+        json!({ "groups": by_round(call.store(), after, before).await?, "after": after, "before": before }),
+      ));
+    }
+
+    let (jobs_by, sessions_by) = grouped_by(&word)
+      .ok_or_else(|| bad(format!("groupBy is model, agent, user, room or round, not {word}")))?;
     let mut contexts: std::collections::HashMap<String, i64> = std::collections::HashMap::new();
 
     if let Some(column) = sessions_by {
@@ -432,6 +440,38 @@ impl Route for UsageRoute {
 }
 
 crate::moved!(UsageRoute);
+
+// What the chat turns' runs started in a span spent, a group to a round (docs/run-records.md, 「The run
+// ledger」), the span in epoch milliseconds as the route's.
+async fn by_round(
+  db: &sea_orm::DatabaseConnection,
+  after: i64,
+  before: i64,
+) -> Result<Vec<Value>, Refused> {
+  let rounds =
+    crate::run_ledger::spent_by_round(db, after.div_euclid(1000), before.div_euclid(1000)).await?;
+
+  Ok(
+    rounds
+      .iter()
+      .map(|round| {
+        json!({
+          "key": round.round,
+          "tokens": round.spent.total(),
+          "jobs": 0,
+          "turns": round.turns,
+          "inputTokens": round.spent.input_tokens,
+          "outputTokens": round.spent.output_tokens,
+          "cacheReadTokens": round.spent.cache_read_tokens,
+          "cacheWriteTokens": round.spent.cache_write_tokens,
+          "firstAt": round.first_at * 1000,
+          "lastAt": round.last_at * 1000,
+          "contextTokens": Value::Null,
+        })
+      })
+      .collect(),
+  )
+}
 
 /// Why the rest that has just passed silenced the deployment, the passed rests cleared as they are read.
 pub struct RestPassed;

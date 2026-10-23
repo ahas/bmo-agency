@@ -231,3 +231,117 @@ async fn the_routes_answer_a_chat_run_by_its_room_and_round_and_its_lines_by_its
     404
   );
 }
+
+// A run of a round opened at a second and closed with what its turn spent, where it reported anything.
+async fn spent_turn(
+  scratch: &Scratch,
+  unit: &str,
+  round: &str,
+  at: i64,
+  spent: Option<run_ledger::Spent>,
+) -> i64 {
+  let id = run_ledger::open(
+    scratch.db(),
+    &run_ledger::Opening {
+      agent: "chat-agent".into(),
+      chat_id: Some(-5),
+      unit: unit.into(),
+      depth: 0,
+      cap_ms: None,
+      started_at: at,
+      started_by: None,
+      search_id: None,
+      round: Some(round.into()),
+      message_id: None,
+    },
+  )
+  .await
+  .unwrap();
+
+  run_ledger::close(
+    scratch.db(),
+    id,
+    &run_ledger::Closing {
+      finished_at: at + 1,
+      outcome: "answered".into(),
+      context_tokens: None,
+      spent,
+    },
+  )
+  .await
+  .unwrap();
+
+  id
+}
+
+fn spent(input_tokens: i64, output_tokens: i64) -> Option<run_ledger::Spent> {
+  Some(run_ledger::Spent {
+    input_tokens,
+    output_tokens,
+    cache_read_tokens: 100,
+    cache_write_tokens: 10,
+  })
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn every_turn_of_a_round_keeps_what_it_spent_and_the_usage_groups_it_by_round() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let data = home.path().join("data");
+  let token = "secret";
+  let now = agency_server::now_ms() / 1000;
+
+  std::fs::create_dir_all(&data).unwrap();
+
+  // The round's own turn and two questions of its draft process, one of them on a road that reported nothing,
+  // and another round's turn.
+  let first = spent_turn(&scratch, "chat:-5:1", "round:-5:1", now - 30, spent(1000, 50)).await;
+  spent_turn(&scratch, "chat:-5:2", "round:-5:1", now - 20, spent(200, 20)).await;
+  let silent = spent_turn(&scratch, "chat:-5:3", "round:-5:1", now - 10, None).await;
+  spent_turn(&scratch, "chat:-5:4", "round:-5:2", now - 5, spent(10, 1)).await;
+
+  let read = run_ledger::read(scratch.db(), first).await.unwrap().unwrap();
+
+  assert_eq!(read.spent, spent(1000, 50));
+  assert_eq!(run_ledger::read(scratch.db(), silent).await.unwrap().unwrap().spent, None);
+
+  let rounds = run_ledger::spent_by_round(scratch.db(), now - 60, now).await.unwrap();
+
+  assert_eq!(rounds.len(), 2, "{rounds:?}");
+  assert_eq!(
+    (rounds[0].round.as_str(), rounds[0].turns),
+    ("round:-5:1", 2),
+    "a silent turn is no part"
+  );
+  assert_eq!(rounds[0].spent.input_tokens, 1200);
+  assert_eq!(rounds[0].spent.total(), 1200 + 70 + 200 + 20);
+  assert_eq!((rounds[0].first_at, rounds[0].last_at), (now - 30, now - 20));
+
+  let server = standing::stand_server(home.path(), &data, &scratch.address(), token);
+  let port = server.port;
+  let (status, runs) = ask(port, token, reqwest::Method::GET, "/runs?round=round:-5:1", None).await;
+
+  assert_eq!(status, 200, "{runs}");
+  assert_eq!(runs["items"].as_array().unwrap().len(), 3);
+  assert_eq!(
+    runs["items"][0]["usage"],
+    json!({ "inputTokens": 1000, "outputTokens": 50, "cacheReadTokens": 100, "cacheWriteTokens": 10 })
+  );
+  assert_eq!(runs["items"][0]["spentTokens"], 1160);
+  assert_eq!(
+    (&runs["items"][2]["usage"], &runs["items"][2]["spentTokens"]),
+    (&Value::Null, &Value::Null)
+  );
+
+  let path = format!("/usage?groupBy=round&after={}&before={}", (now - 60) * 1000, (now + 1) * 1000);
+  let (status, usage) = ask(port, token, reqwest::Method::GET, &path, None).await;
+  let groups = usage["groups"].as_array().unwrap();
+
+  assert_eq!(status, 200, "{usage}");
+  assert_eq!(groups.len(), 2, "{usage}");
+  assert_eq!((&groups[0]["key"], &groups[0]["turns"]), (&json!("round:-5:1"), &json!(2)));
+  assert_eq!(groups[0]["tokens"], 1200 + 70 + 200 + 20);
+  assert_eq!(groups[0]["outputTokens"], 70);
+  assert_eq!(groups[0]["firstAt"], (now - 30) * 1000);
+  assert_eq!(groups[1]["key"], "round:-5:2");
+}

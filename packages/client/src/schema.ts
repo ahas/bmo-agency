@@ -222,7 +222,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** A session's state: provider, model, place, holder, why the prefix changed, and the fold ratio for its provider and its agent's tier. A room's answers from its start, before its first turn, at generation 0. */
+        /** A session's state: provider, model, place, holder, why the prefix changed, its agent's tier and the fold ratio for its provider at that tier. A room's answers from its start, before its first turn, at generation 0. */
         get: operations["getSession"];
         put?: never;
         post?: never;
@@ -960,7 +960,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Usage by model, agent, user or room over a span, with session contexts. */
+        /** Usage by model, agent, user, room or round over a span, with session contexts. */
         get: operations["getUsage"];
         put?: never;
         post?: never;
@@ -1571,6 +1571,12 @@ export interface components {
              * @description The share of its model's window the session may fill before it is folded once the turn that crossed it is over: the fold-ratio table's value for the provider it stands on and the tier its agent's work key is assigned, read with the session's state; none in a list, or where the state names no provider.
              */
             foldRatio?: number | null;
+            /**
+             * @description The tier the session's agent's work key is assigned, which its fold ratio is read at; none where the key
+             *     is assigned none.
+             * @default null
+             */
+            tier: string | null;
         };
         /**
          * @description One of the values the API accepts.
@@ -1774,8 +1780,17 @@ export interface components {
             keptUntil: number | null;
             /** Format: int64 */
             contextTokens: number | null;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description What the run's turn spent, the four figures of `usage` together; none on an open run or where its road
+             *     reported no figures.
+             */
             spentTokens: number | null;
+            /**
+             * @description What the run's turn spent, apart.
+             * @default null
+             */
+            usage: components["schemas"]["RunUsage"] | null;
             counts: unknown;
             /**
              * Format: int64
@@ -1800,6 +1815,17 @@ export interface components {
          * @enum {string}
          */
         RunState: "open" | "launched" | "stopping" | "closed";
+        /** @description RunUsage: what a chat turn's run spent, each figure summed over the models that answered it. */
+        RunUsage: {
+            /** Format: int64 */
+            inputTokens: number;
+            /** Format: int64 */
+            outputTokens: number;
+            /** Format: int64 */
+            cacheReadTokens: number;
+            /** Format: int64 */
+            cacheWriteTokens: number;
+        };
         /** @description The body that opens a run in the ledger. */
         RunOpen: {
             agent: string;

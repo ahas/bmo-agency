@@ -362,16 +362,18 @@ fn member(session: &Session, state: Option<&State>, body: &Value) -> Value {
   })
 }
 
-// The member with the share of its model's window its session is folded at, read for the provider the
-// state names and the tier its agent stands at now (docs/sessions.md, 「Session compaction」); a member
-// naming no provider carries none.
+// The member with the tier its agent stands at now and the share of its model's window its session is folded
+// at, read for the provider the state names at that tier (docs/sessions.md, 「Session compaction」); a member
+// naming no provider carries no share.
 async fn folded(db: &sea_orm::DatabaseConnection, mut member: Value) -> Result<Value, Refused> {
   let provider = member["provider"].as_str().unwrap_or_default().to_owned();
   let agent = member["agentName"].as_str().unwrap_or_default().to_owned();
+  let tier = fold_ratios::agent_tier(db, &agent).await?;
 
   if !provider.is_empty() {
-    member["foldRatio"] = json!(fold_ratios::of_agent(db, &provider, &agent).await?);
+    member["foldRatio"] = json!(fold_ratios::ratio(db, &provider, tier.as_deref()).await?);
   }
+  member["tier"] = json!(tier);
 
   Ok(member)
 }

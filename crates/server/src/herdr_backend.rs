@@ -442,7 +442,8 @@ fn generation_of(settings: &Settings) -> IndexMap<String, Value> {
 // What a turn on a session came to, before it is published: a failure carries why, and the engine's error
 // where its engine ended the turn with one.
 enum Came {
-  Answered(String),
+  /// The answer, with what the turn spent where its road reported it.
+  Answered(String, Option<run_ledger::Spent>),
   Blocked,
   Stopped,
   Failed(String, Option<EngineError>),
@@ -454,13 +455,34 @@ impl Came {
   // The turn's end under the run it went out as.
   fn end(self, run: &str) -> TurnEnd {
     match self {
-      Self::Answered(text) => TurnEnd::answered(run, text),
+      Self::Answered(text, _) => TurnEnd::answered(run, text),
       Self::Blocked => TurnEnd::of(run, Outcome::Blocked),
       Self::Stopped => TurnEnd::of(run, Outcome::Stopped),
       Self::Failed(why, engine) => TurnEnd::failed(run, why, engine),
       Self::Ended(end) => *end,
     }
   }
+
+  // What the turn spent, read off the answer where it carried it and off a job's end where that did.
+  fn spent(&self) -> Option<run_ledger::Spent> {
+    match self {
+      Self::Answered(_, spent) => *spent,
+      Self::Ended(end) => turn_spent(end),
+      _ => None,
+    }
+  }
+}
+
+// What a turn's models spent, each figure summed over them; none where they reported nothing.
+fn spent_of(spend: &[ModelSpend]) -> Option<run_ledger::Spent> {
+  (!spend.is_empty()).then(|| {
+    spend.iter().fold(run_ledger::Spent::default(), |sum, one| run_ledger::Spent {
+      input_tokens: sum.input_tokens + one.input_tokens,
+      output_tokens: sum.output_tokens + one.output_tokens,
+      cache_read_tokens: sum.cache_read_tokens + one.cache_read_tokens,
+      cache_write_tokens: sum.cache_write_tokens + one.cache_write_tokens,
+    })
+  })
 }
 
 /// Why a run came to no answer, and the engine's error where its engine ended it with one.
@@ -763,7 +785,7 @@ impl HerdrSessions {
       (_, Some(Missed::Person)) => Came::Blocked,
       (_, Some(Missed::Stopped)) => Came::Stopped,
       (false, missed) => Came::Failed(format!("the words did not reach the session ({missed:?})"), None),
-      (true, _) => Came::Answered(turned.reply.map(|reply| reply.text).unwrap_or_default()),
+      (true, _) => Came::Answered(turned.reply.map(|reply| reply.text).unwrap_or_default(), None),
     })
   }
 
@@ -1043,7 +1065,7 @@ impl HerdrSessions {
       tokio::spawn(async move { hand_over(&ground, &hold, &companion, chat_id, due).await });
     }
 
-    Ok(Came::Answered(reply.text))
+    Ok(Came::Answered(reply.text, spent_of(&reply.spend)))
   }
 
   #[allow(clippy::too_many_arguments)]
@@ -1246,7 +1268,7 @@ impl HerdrSessions {
       )
       .await;
 
-    Ok(Came::Answered(reply.text))
+    Ok(Came::Answered(reply.text, spent_of(&reply.spend)))
   }
 
   // One turn of a conversation the caller opened, on the provider and model its scope names: the chat
@@ -1353,7 +1375,7 @@ impl HerdrSessions {
       )
       .await;
 
-    Ok(Came::Answered(reply.text))
+    Ok(Came::Answered(reply.text, spent_of(&reply.spend)))
   }
 
   // One gate's turn of a conversation: the gate's instructions as the program's whole system prompt, on the
@@ -1497,7 +1519,7 @@ impl HerdrSessions {
       tokio::spawn(seat.start_afresh());
     }
 
-    Ok(Came::Answered(reply.text))
+    Ok(Came::Answered(reply.text, spent_of(&reply.spend)))
   }
 
   // One turn of a conversation on the road its launch names: Claude Code's chat line on the deployment's
@@ -1988,10 +2010,11 @@ impl Sessions for HerdrSessions {
     // A turn refused once its start was published still ends, failed with the refusal.
     match came {
       Ok(came) => {
+        let spent = came.spent();
         let mut end = came.end(&run);
 
         end.turn = turn_id;
-        close_chat_run(&self.ground().db, ledger, &end).await;
+        close_chat_run(&self.ground().db, ledger, &end, spent).await;
 
         Ok(self.published(&turn.session, end))
       }
@@ -1999,7 +2022,7 @@ impl Sessions for HerdrSessions {
         let mut end = TurnEnd::failed(&run, refused.message.clone(), None);
 
         end.turn = turn_id;
-        close_chat_run(&self.ground().db, ledger, &end).await;
+        close_chat_run(&self.ground().db, ledger, &end, None).await;
         self.published(&turn.session, end);
         Err(refused)
       }
@@ -2500,8 +2523,27 @@ async fn open_chat_run(
   }
 }
 
-// A chat turn's run closed as its turn ended: how it ended and the tokens its context carried.
-async fn close_chat_run(db: &sea_orm::DatabaseConnection, ledger: Option<i64>, end: &TurnEnd) {
+// What a job's turn spent, each figure summed over the models that answered it; none where it reported none.
+fn turn_spent(end: &TurnEnd) -> Option<run_ledger::Spent> {
+  let spend = &end.reply.as_ref()?.spend;
+
+  (!spend.is_empty()).then(|| {
+    spend.iter().fold(run_ledger::Spent::default(), |sum, one| run_ledger::Spent {
+      input_tokens: sum.input_tokens + one.input_tokens,
+      output_tokens: sum.output_tokens + one.output_tokens,
+      cache_read_tokens: sum.cache_read_tokens + one.cache_read_tokens,
+      cache_write_tokens: sum.cache_write_tokens + one.cache_write_tokens,
+    })
+  })
+}
+
+// A chat turn's run closed as its turn ended: how it ended, the tokens its context carried and what it spent.
+async fn close_chat_run(
+  db: &sea_orm::DatabaseConnection,
+  ledger: Option<i64>,
+  end: &TurnEnd,
+  spent: Option<run_ledger::Spent>,
+) {
   let Some(id) = ledger else {
     return;
   };
@@ -2512,6 +2554,7 @@ async fn close_chat_run(db: &sea_orm::DatabaseConnection, ledger: Option<i64>, e
       .and_then(|outcome| outcome.as_str().map(str::to_owned))
       .unwrap_or_else(|| "failed".to_owned()),
     context_tokens: end.reply.as_ref().and_then(|reply| reply.context_tokens),
+    spent,
   };
 
   if let Err(run_ledger::NotClosed::Store(why)) = run_ledger::close(db, id, &closing).await {

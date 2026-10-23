@@ -254,6 +254,10 @@ pub struct Session {
   /// The share of its model's window the session may fill before it is folded once the turn that crossed it is over: the fold-ratio table's value for the provider it stands on and the tier its agent's work key is assigned, read with the session's state; none in a list, or where the state names no provider.
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub fold_ratio: Option<f64>,
+  /// The tier the session's agent's work key is assigned, which its fold ratio is read at; none where the key
+  /// is assigned none.
+  #[serde(default)]
+  pub tier: Option<String>,
 }
 
 /// Turn:
@@ -333,7 +337,12 @@ pub struct Run {
   /// epoch milliseconds
   pub kept_until: Option<i64>,
   pub context_tokens: Option<i64>,
+  /// What the run's turn spent, the four figures of `usage` together; none on an open run or where its road
+  /// reported no figures.
   pub spent_tokens: Option<i64>,
+  /// What the run's turn spent, apart.
+  #[serde(default)]
+  pub usage: Option<RunUsage>,
   pub counts: Value,
   /// The room the run ran for.
   #[serde(default)]
@@ -344,6 +353,16 @@ pub struct Run {
   /// The message the run's answer went out as once attached, the message the turn answered until then.
   #[serde(default)]
   pub message_id: Option<i64>,
+}
+
+/// RunUsage: what a chat turn's run spent, each figure summed over the models that answered it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RunUsage {
+  pub input_tokens: i64,
+  pub output_tokens: i64,
+  pub cache_read_tokens: i64,
+  pub cache_write_tokens: i64,
 }
 
 /// LogLine:
