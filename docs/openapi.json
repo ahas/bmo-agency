@@ -1528,7 +1528,7 @@
         "tags": [
           "runs"
         ],
-        "summary": "Runs by search: live, recent, by agent, room, model, job, worker, names; with the tokens spent so far.",
+        "summary": "Runs by search: live, recent, by agent, room, round, model, job, worker, names; with the tokens spent so far.",
         "responses": {
           "200": {
             "description": "Answered.",
@@ -1582,6 +1582,15 @@
             "schema": {
               "type": "integer",
               "description": ""
+            }
+          },
+          {
+            "name": "round",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "the round a chat turn's context named"
             }
           },
           {
@@ -1722,7 +1731,7 @@
         "tags": [
           "runs"
         ],
-        "summary": "Close a run, or stop it.",
+        "summary": "Close a run, or stop it, or attach the message its answer went out as.",
         "responses": {
           "200": {
             "description": "Answered.",
@@ -6575,6 +6584,13 @@
             ],
             "format": "int64"
           },
+          "round": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The round of the room the turn belongs to, which the turn's run keeps."
+          },
           "job": {
             "type": [
               "integer",
@@ -6663,6 +6679,7 @@
           "privileged",
           "answers",
           "began",
+          "round",
           "job",
           "item",
           "provider",
@@ -6951,7 +6968,33 @@
             ],
             "format": "int64"
           },
-          "counts": true
+          "counts": true,
+          "roomId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The room the run ran for.",
+            "default": null
+          },
+          "round": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The round of the room the run belongs to, as the turn named it.",
+            "default": null
+          },
+          "messageId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The message the run's answer went out as once attached, the message the turn answered until then.",
+            "default": null
+          }
         },
         "required": [
           "id",
@@ -6968,7 +7011,10 @@
           "keptUntil",
           "contextTokens",
           "spentTokens",
-          "counts"
+          "counts",
+          "roomId",
+          "round",
+          "messageId"
         ],
         "description": "Run:"
       },
@@ -7037,6 +7083,14 @@
       "RunClose": {
         "type": "object",
         "properties": {
+          "messageId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The message the run's answer went out as; named alone, it is attached and the closing left as it\nstands."
+          },
           "finishedAt": {
             "type": [
               "integer",
@@ -7081,6 +7135,7 @@
           }
         },
         "required": [
+          "messageId",
           "finishedAt",
           "outcome",
           "contextTokens",
@@ -7141,7 +7196,33 @@
             "format": "int64",
             "description": "epoch milliseconds"
           },
-          "fields": true
+          "fields": true,
+          "roomId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The room of the ledger's run the line was written under, where the ledger holds it.",
+            "default": null
+          },
+          "round": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "That run's round.",
+            "default": null
+          },
+          "messageId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "That run's message.",
+            "default": null
+          }
         },
         "required": [
           "id",
@@ -7151,7 +7232,10 @@
           "kind",
           "text",
           "at",
-          "fields"
+          "fields",
+          "roomId",
+          "round",
+          "messageId"
         ],
         "description": "LogLine:"
       },

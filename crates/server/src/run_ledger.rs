@@ -1,7 +1,8 @@
-//! The run ledger (docs/api.md, 「runs」): one row of `runs` a run of an agent's unit,
-//! opened as the job unit starts the unit and closed as it ends, its times in epoch seconds. A run keeps the
-//! first closing it was given. A run's runner is left in its agent's host under the run's unit, and a
-//! runner the host did not start closes its run as an error.
+//! The run ledger (docs/api.md, 「runs」, docs/run-records.md, 「The run ledger」): one row of `runs` a run
+//! of an agent's unit, opened as the job unit starts the unit and closed as it ends, or as a chat turn starts
+//! and ends, its times in epoch seconds. A run keeps the first closing it was given; the message its answer
+//! went out as is attached apart from the closing. A run's runner is left in its agent's host under the
+//! run's unit, and a runner the host did not start closes its run as an error.
 
 use std::collections::BTreeMap;
 
@@ -50,6 +51,12 @@ pub struct Opening {
   pub started_by: Option<String>,
   #[serde(default, alias = "search_id")]
   pub search_id: Option<SearchId>,
+  /// The round of the room the run belongs to, where the turn named one.
+  #[serde(default)]
+  pub round: Option<String>,
+  /// The message the run is about until its answer's is attached.
+  #[serde(default, alias = "message_id")]
+  pub message_id: Option<i64>,
 }
 
 /// What a run is closed with.
@@ -73,6 +80,8 @@ pub struct Run {
   pub finished_at: Option<i64>,
   pub outcome: Option<String>,
   pub context_tokens: Option<i64>,
+  pub round: Option<String>,
+  pub message_id: Option<i64>,
 }
 
 impl Run {
@@ -87,6 +96,8 @@ impl Run {
       finished_at: row.try_get("", "finished_at")?,
       outcome: row.try_get("", "outcome")?,
       context_tokens: row.try_get("", "context_tokens")?,
+      round: row.try_get("", "round")?,
+      message_id: row.try_get("", "message_id")?,
     })
   }
 }
@@ -111,8 +122,9 @@ impl From<Refusal> for NotClosed {
 pub async fn open<C: ConnectionTrait>(db: &C, opening: &Opening) -> Result<i64, Refusal> {
   let row = one(
     db,
-    r#"INSERT INTO "runs" ("agent", "chat_id", "unit", "depth", "cap_ms", "started_at", "started_by", "search_id")
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING "id""#,
+    r#"INSERT INTO "runs"
+         ("agent", "chat_id", "unit", "depth", "cap_ms", "started_at", "started_by", "search_id", "round", "message_id")
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING "id""#,
     vec![
       opening.agent.clone().into(),
       opening.chat_id.into(),
@@ -122,6 +134,8 @@ pub async fn open<C: ConnectionTrait>(db: &C, opening: &Opening) -> Result<i64, 
       opening.started_at.into(),
       opening.started_by.clone().into(),
       opening.search_id.as_ref().map(SearchId::text).into(),
+      opening.round.clone().into(),
+      opening.message_id.into(),
     ],
   )
   .await?
@@ -156,18 +170,91 @@ pub async fn close<C: ConnectionTrait>(db: &C, id: i64, closing: &Closing) -> Re
   })
 }
 
+// What a run is read with.
+const RUN_FIELDS: &str = r#""id", "agent", "chat_id", "unit", "depth", "started_at", "finished_at", "outcome",
+  "context_tokens", "round", "message_id""#;
+
 /// A run by its id, or none where the ledger holds no row of it.
 pub async fn read<C: ConnectionTrait>(db: &C, id: i64) -> Result<Option<Run>, Refusal> {
+  one(db, &format!(r#"SELECT {RUN_FIELDS} FROM "runs" WHERE "id" = $1"#), vec![id.into()])
+    .await?
+    .as_ref()
+    .map(Run::of)
+    .transpose()
+}
+
+/// The latest run of an agent kept under a unit, the name its log lines are written under, or none.
+pub async fn of_unit<C: ConnectionTrait>(db: &C, agent: &str, unit: &str) -> Result<Option<Run>, Refusal> {
   one(
     db,
-    r#"SELECT "id", "agent", "chat_id", "unit", "depth", "started_at", "finished_at", "outcome", "context_tokens"
-       FROM "runs" WHERE "id" = $1"#,
-    vec![id.into()],
+    &format!(
+      r#"SELECT {RUN_FIELDS} FROM "runs" WHERE "unit" = $1 AND ($2 = '' OR "agent" = $2)
+         ORDER BY "id" DESC LIMIT 1"#
+    ),
+    vec![unit.into(), agent.into()],
   )
   .await?
   .as_ref()
   .map(Run::of)
   .transpose()
+}
+
+/// What a list of runs is narrowed by: after an id, an agent, a room, a round, and names each matched
+/// against a run's unit and its round; none narrows nothing.
+#[derive(Clone, Debug, Default)]
+pub struct Search {
+  pub after: i64,
+  pub limit: i64,
+  pub agent: Option<String>,
+  pub room: Option<i64>,
+  pub round: Option<String>,
+  pub names: Vec<String>,
+}
+
+/// The runs a search names, in id order.
+pub async fn search<C: ConnectionTrait>(db: &C, search: &Search) -> Result<Vec<Run>, Refusal> {
+  let names = serde_json::to_string(&search.names).unwrap_or_else(|_| "[]".to_owned());
+
+  all(
+    db,
+    &format!(
+      r#"SELECT {RUN_FIELDS} FROM "runs"
+         WHERE "id" > $1
+           AND ($2::text IS NULL OR "agent" = $2)
+           AND ($3::bigint IS NULL OR "chat_id" = $3)
+           AND ($4::text IS NULL OR "round" = $4)
+           AND ($5::jsonb = '[]'::jsonb
+                OR "unit" IN (SELECT jsonb_array_elements_text($5::jsonb))
+                OR "round" IN (SELECT jsonb_array_elements_text($5::jsonb)))
+         ORDER BY "id" LIMIT $6"#
+    ),
+    vec![
+      search.after.into(),
+      search.agent.clone().into(),
+      search.room.into(),
+      search.round.clone().into(),
+      names.into(),
+      search.limit.into(),
+    ],
+  )
+  .await?
+  .iter()
+  .map(Run::of)
+  .collect()
+}
+
+/// The message a run's answer went out as, attached on an open or a closed run alike; whether the ledger
+/// holds the run.
+pub async fn attach_message<C: ConnectionTrait>(db: &C, id: i64, message: i64) -> Result<bool, Refusal> {
+  Ok(
+    run(
+      db,
+      r#"UPDATE "runs" SET "message_id" = $2 WHERE "id" = $1"#,
+      vec![id.into(), message.into()],
+    )
+    .await?
+      > 0,
+  )
 }
 
 /// The ids of the runs that carried a search, in id order; the search is matched as the text it is kept as.

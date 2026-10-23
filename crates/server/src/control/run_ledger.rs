@@ -7,7 +7,8 @@
   clippy::unnecessary_to_owned
 )]
 //! The run ledger across the boundary (docs/api.md, 「Runs and log lines」): a run opened, read by its id,
-//! listed by the search it carried, closed, and its runner launched. A run the ledger holds no row of is
+//! listed by the search it carried or by agent, room, round and names, closed or given the message its
+//! answer went out as, and its runner launched. A run the ledger holds no row of is
 //! answered in the base chat library's code for nothing kept at the address a path names.
 
 use axum::http::{Method, StatusCode};
@@ -43,6 +44,9 @@ fn member(run: &run_ledger::Run) -> Value {
     "contextTokens": run.context_tokens,
     "spentTokens": Value::Null,
     "counts": {},
+    "roomId": run.chat_id,
+    "round": run.round.clone(),
+    "messageId": run.message_id,
   })
 }
 
@@ -82,7 +86,7 @@ impl Route for OpenRun {
 
 crate::moved!(OpenRun);
 
-/// The runs that carried a search, by their ids.
+/// The runs that carried a search, or the runs a list narrows to by agent, room, round and names.
 pub struct SearchRuns;
 
 impl Route for SearchRuns {
@@ -90,33 +94,55 @@ impl Route for SearchRuns {
   const PATH: &'static str = "/runs";
 
   async fn answer(&self, call: Call) -> Result<Response, Refused> {
-    let ids = match call.query("search").filter(|search| !search.trim().is_empty()) {
-      Some(search) => run_ledger::of_search(call.store(), &SearchId::Text(search)).await?,
+    let runs = match call.query("search").filter(|search| !search.trim().is_empty()) {
+      Some(search) => {
+        let mut runs = Vec::new();
+
+        for id in run_ledger::of_search(call.store(), &SearchId::Text(search)).await? {
+          runs.extend(run_ledger::read(call.store(), id).await?);
+        }
+
+        runs
+      }
       None => {
-        let after = call.query("after").and_then(|after| after.parse::<i64>().ok()).unwrap_or(0);
-        let limit = call.query("limit").and_then(|limit| limit.parse::<i64>().ok()).unwrap_or(50);
-        let agent = call.query("agentName").unwrap_or_default();
-        let rows = all(
-          call.store(),
-          r#"SELECT "id" FROM "runs" WHERE "id" > $1 AND ($2 = '' OR "agent" = $2) ORDER BY "id" LIMIT $3"#,
-          vec![after.into(), agent.into(), limit.into()],
-        )
-        .await?
-        .iter()
-        .map(|row| row.try_get::<i64>("", "id").map_err(Refused::from))
-        .collect::<Result<Vec<_>, _>>()?;
-        rows
+        let search = list_search(&call)?;
+
+        run_ledger::search(call.store(), &search).await?
       }
     };
-    let mut items = Vec::new();
-    for id in ids {
-      if let Some(run) = run_ledger::read(call.store(), id).await? {
-        items.push(member(&run));
-      }
-    }
+    let items: Vec<Value> = runs.iter().map(member).collect();
 
     Ok(answer(StatusCode::OK, json!({ "items": items, "more": false })))
   }
+}
+
+// What a list of runs is narrowed by, as the query names it.
+fn list_search(call: &Call) -> Result<run_ledger::Search, Refused> {
+  let named =
+    |name: &str| call.query(name).map(|value| value.trim().to_owned()).filter(|value| !value.is_empty());
+  let number = |name: &str| {
+    named(name)
+      .map(|value| value.parse::<i64>().map_err(|_| bad(format!("{name} is a whole number"))))
+      .transpose()
+  };
+
+  Ok(run_ledger::Search {
+    after: number("after")?.unwrap_or(0),
+    limit: number("limit")?.unwrap_or(50).clamp(1, 500),
+    agent: named("agentName"),
+    room: number("roomId")?,
+    round: named("round"),
+    names: named("names")
+      .map(|names| {
+        names
+          .split(',')
+          .map(str::trim)
+          .filter(|name| !name.is_empty())
+          .map(str::to_owned)
+          .collect()
+      })
+      .unwrap_or_default(),
+  })
 }
 
 crate::moved!(SearchRuns);
@@ -150,6 +176,26 @@ impl Route for CloseRun {
   async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
     let id = id_of(&call)?;
     let asked = call.body().await?;
+    let closes = ["finishedAt", "finished_at", "outcome", "state", "contextTokens", "context_tokens"]
+      .iter()
+      .any(|field| asked.get(field).is_some_and(|value| !value.is_null()));
+
+    // The message the run's answer went out as, attached apart from the closing.
+    if let Some(message) = asked.get("messageId").filter(|value| !value.is_null()) {
+      let message = message.as_i64().ok_or_else(|| bad("messageId is a whole number"))?;
+
+      if !run_ledger::attach_message(call.store(), id, message).await? {
+        return Ok(nothing_held(id));
+      }
+
+      if !closes {
+        return Ok(match run_ledger::read(call.store(), id).await? {
+          Some(run) => answer(StatusCode::OK, member(&run)),
+          None => nothing_held(id),
+        });
+      }
+    }
+
     let closing = Closing {
       finished_at: asked
         .get("finishedAt")

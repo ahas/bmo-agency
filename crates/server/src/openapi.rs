@@ -588,7 +588,7 @@ pub const OPERATIONS: &[Operation] = &[
     path: "/runs",
     id: "listRuns",
     tag: "runs",
-    summary: "Runs by search: live, recent, by agent, room, model, job, worker, names; with the tokens spent so far.",
+    summary: "Runs by search: live, recent, by agent, room, round, model, job, worker, names; with the tokens spent so far.",
     params: &[
       Param {
         name: "live",
@@ -617,6 +617,13 @@ pub const OPERATIONS: &[Operation] = &[
         required: false,
         kind: "integer",
         description: "",
+      },
+      Param {
+        name: "round",
+        place: "query",
+        required: false,
+        kind: "string",
+        description: "the round a chat turn's context named",
       },
       Param {
         name: "model",
@@ -698,7 +705,7 @@ pub const OPERATIONS: &[Operation] = &[
     path: "/runs/{runId}",
     id: "changeRun",
     tag: "runs",
-    summary: "Close a run, or stop it.",
+    summary: "Close a run, or stop it, or attach the message its answer went out as.",
     params: &[Param {
       name: "runId",
       place: "path",

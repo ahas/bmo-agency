@@ -20,6 +20,7 @@ mod m20261029_000002_fold_ratios;
 mod m20261030_000001_agent_owner;
 mod m20261031_000001_recollectors_retired;
 mod m20261101_000001_usage_balances;
+mod m20261101_000002_run_rounds;
 
 use sea_orm_migration::prelude::*;
 
@@ -118,6 +119,7 @@ impl MigratorTrait for Migrator {
       Box::new(m20261030_000001_agent_owner::Migration),
       Box::new(m20261031_000001_recollectors_retired::Migration),
       Box::new(m20261101_000001_usage_balances::Migration),
+      Box::new(m20261101_000002_run_rounds::Migration),
     ]
   }
 

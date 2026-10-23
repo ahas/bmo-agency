@@ -50,6 +50,7 @@ fn a_turns_context_reads_every_part_it_names_and_none_of_what_it_does_not() {
       "privileged": true,
       "answers": [7, 8],
       "began": 1_000,
+      "round": " round:-5:1000:1 ",
     }))
     .unwrap(),
     TurnContext {
@@ -63,6 +64,7 @@ fn a_turns_context_reads_every_part_it_names_and_none_of_what_it_does_not() {
       privileged: true,
       answers: vec![7, 8],
       began: Some(1_000),
+      round: Some("round:-5:1000:1".into()),
       job: None,
       work: None,
       gate: None,

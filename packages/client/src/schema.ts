@@ -344,7 +344,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Runs by search: live, recent, by agent, room, model, job, worker, names; with the tokens spent so far. */
+        /** Runs by search: live, recent, by agent, room, round, model, job, worker, names; with the tokens spent so far. */
         get: operations["listRuns"];
         put?: never;
         /** Open a run in the ledger. */
@@ -369,7 +369,7 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Close a run, or stop it. */
+        /** Close a run, or stop it, or attach the message its answer went out as. */
         patch: operations["changeRun"];
         trace?: never;
     };
@@ -1658,6 +1658,8 @@ export interface components {
             answers: number[] | null;
             /** Format: int64 */
             began: number | null;
+            /** @description The round of the room the turn belongs to, which the turn's run keeps. */
+            round: string | null;
             /** Format: int64 */
             job: number | null;
             /** Format: int64 */
@@ -1775,6 +1777,23 @@ export interface components {
             /** Format: int64 */
             spentTokens: number | null;
             counts: unknown;
+            /**
+             * Format: int64
+             * @description The room the run ran for.
+             * @default null
+             */
+            roomId: number | null;
+            /**
+             * @description The round of the room the run belongs to, as the turn named it.
+             * @default null
+             */
+            round: string | null;
+            /**
+             * Format: int64
+             * @description The message the run's answer went out as once attached, the message the turn answered until then.
+             * @default null
+             */
+            messageId: number | null;
         };
         /**
          * @description One of the values the API accepts.
@@ -1798,6 +1817,12 @@ export interface components {
         };
         /** @description The body that closes a run. */
         RunClose: {
+            /**
+             * Format: int64
+             * @description The message the run's answer went out as; named alone, it is attached and the closing left as it
+             *     stands.
+             */
+            messageId: number | null;
             /** Format: int64 */
             finishedAt: number | null;
             outcome: string | null;
@@ -1837,6 +1862,23 @@ export interface components {
              */
             at: number;
             fields: unknown;
+            /**
+             * Format: int64
+             * @description The room of the ledger's run the line was written under, where the ledger holds it.
+             * @default null
+             */
+            roomId: number | null;
+            /**
+             * @description That run's round.
+             * @default null
+             */
+            round: string | null;
+            /**
+             * Format: int64
+             * @description That run's message.
+             * @default null
+             */
+            messageId: number | null;
         };
         /** @description The body that writes a note into a run's log. */
         LogLineAsk: {
@@ -3679,6 +3721,7 @@ export interface operations {
                 names?: string;
                 agentName?: string;
                 roomId?: number;
+                round?: string;
                 model?: string;
                 jobId?: number;
                 workerName?: string;

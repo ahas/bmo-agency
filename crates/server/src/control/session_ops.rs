@@ -66,6 +66,8 @@ struct ContextRead {
   #[serde(default)]
   began: Option<i64>,
   #[serde(default)]
+  round: Option<String>,
+  #[serde(default)]
   job: Option<i64>,
   #[serde(default)]
   item: Option<i64>,
@@ -124,6 +126,7 @@ pub fn context_read(body: &Value) -> Result<TurnContext, Refused> {
     privileged: read.privileged,
     answers: read.answers,
     began: read.began,
+    round: named(read.round),
     job: read.job.map(|job| JobMark {
       job,
       item: read.item,

@@ -195,6 +195,9 @@ gate's instructions as the program's whole system prompt, whether it thinks, and
 answer room its mapping resolved to. The turn goes out with no tools, no MCP server and no session kept,
 and its answer is the gate's verdict.
 
+A turn's context may name `round`, the receiver's name for the round of the room the turn belongs to,
+which the turn's run keeps (「runs」 below).
+
 A turn on the chat line ends its system prompt with the base persona: the base layer of the agent's own
 brain, read at the turn's launch (「Calls agency makes」). The turn context's `basePersona` is the fallback,
 standing in that place only where the brain gives none (`docs/sessions.md`, 「Document reload」).
@@ -242,10 +245,19 @@ Every route that takes a body names the request type it reads, holding only the 
 
 | Method | Path | Does |
 |---|---|---|
-| GET | `/runs` | Runs by search: live, recent, by agent, room, model, job, worker, names; with the tokens spent so far. |
+| GET | `/runs` | Runs by search: live, recent, by agent, room, round, model, job, worker, names; with the tokens spent so far. |
 | POST | `/runs` | Open a run in the ledger. |
 | GET | `/runs/{runId}` | One run, its clock bound among its fields. |
-| PATCH | `/runs/{runId}` | Close a run, or stop it. |
+| PATCH | `/runs/{runId}` | Close a run, or stop it, or attach the message its answer went out as. |
+
+A run is a row of the ledger (`docs/run-records.md`, 「The run ledger」): a unit the job unit opens and
+closes, and a chat turn's run, which agency opens as the turn starts and closes as it ends. Each answers
+`roomId`, the room it ran for; `round`, the round the receiver named in the turn's context; and
+`messageId`, the message its answer went out as once the receiver attaches it, the latest message the
+turn answers until then, or null where the turn named neither. The list narrows by `agentName`, by
+`roomId`, by `round`, and by `names`, a comma-separated list each matched against a run's unit and its
+round. A change naming `messageId` alone attaches the message, on an open or a closed run alike, and
+leaves the run's closing as it stands.
 
 ### log-lines
 
@@ -253,6 +265,10 @@ Every route that takes a body names the request type it reads, holding only the 
 |---|---|---|
 | GET | `/log-lines` | Log lines across runs: by run, job or agent, kinds, latest, before or after. |
 | POST | `/log-lines` | Add a note in the bot's own words to a run's log, beside the run's own lines. |
+
+`runId` names a run as its lines were written under it, or a run of the ledger by its id, whose lines
+are the ones written under its unit. Each line answers the ledger's `runId` where the ledger holds its run, and
+that run's `roomId`, `round` and `messageId`, null where it holds none.
 
 ### executions
 

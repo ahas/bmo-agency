@@ -335,6 +335,15 @@ pub struct Run {
   pub context_tokens: Option<i64>,
   pub spent_tokens: Option<i64>,
   pub counts: Value,
+  /// The room the run ran for.
+  #[serde(default)]
+  pub room_id: Option<i64>,
+  /// The round of the room the run belongs to, as the turn named it.
+  #[serde(default)]
+  pub round: Option<String>,
+  /// The message the run's answer went out as once attached, the message the turn answered until then.
+  #[serde(default)]
+  pub message_id: Option<i64>,
 }
 
 /// LogLine:
@@ -350,6 +359,15 @@ pub struct LogLine {
   /// epoch milliseconds
   pub at: i64,
   pub fields: Value,
+  /// The room of the ledger's run the line was written under, where the ledger holds it.
+  #[serde(default)]
+  pub room_id: Option<i64>,
+  /// That run's round.
+  #[serde(default)]
+  pub round: Option<String>,
+  /// That run's message.
+  #[serde(default)]
+  pub message_id: Option<i64>,
 }
 
 /// Execution:
@@ -1409,6 +1427,8 @@ pub struct TurnSend {
   pub privileged: Option<bool>,
   pub answers: Option<Vec<i64>>,
   pub began: Option<i64>,
+  /// The round of the room the turn belongs to, which the turn's run keeps.
+  pub round: Option<String>,
   pub job: Option<i64>,
   pub item: Option<i64>,
   pub provider: Option<String>,
@@ -1472,6 +1492,9 @@ pub struct RunOpen {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct RunClose {
+  /// The message the run's answer went out as; named alone, it is attached and the closing left as it
+  /// stands.
+  pub message_id: Option<i64>,
   pub finished_at: Option<i64>,
   pub outcome: Option<String>,
   pub context_tokens: Option<i64>,

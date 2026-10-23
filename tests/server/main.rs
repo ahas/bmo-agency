@@ -8,6 +8,7 @@ mod scratch;
 mod standing;
 
 mod apart_session;
+mod chat_runs;
 mod chat_stand_in;
 mod clock;
 mod conversation_session;

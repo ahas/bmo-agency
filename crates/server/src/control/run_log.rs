@@ -7,7 +7,10 @@
   clippy::unnecessary_to_owned
 )]
 //! The run log across the boundary (docs/api.md, 「log-lines」): a run's lines after the last one a reader
-//! has, a job's lines and its last one, and a note written by whoever carries the run.
+//! has, each with the ledger's run it was written under, a job's lines and its last one, and a note written
+//! by whoever carries the run.
+
+use std::collections::HashMap;
 
 use axum::http::{Method, StatusCode};
 use axum::response::{IntoResponse, Response};
@@ -18,6 +21,7 @@ use serde_json::{Value, json};
 use store::{all, one};
 
 use super::{Call, Refused, Route, answer};
+use crate::run_ledger;
 use crate::run_log::lines::{LINE_STATES, Line};
 use crate::run_log::{MAX_TOOL_CHARS, RunLog, Target, preview};
 
@@ -50,12 +54,18 @@ impl Route for RunLogLines {
       .and_then(|limit| limit.parse::<i64>().ok())
       .unwrap_or(PAGE)
       .clamp(1, PAGE);
+    // A run of the ledger named by its id reads the lines written under its unit, beside the lines written
+    // under that name itself.
+    let unit = match run.as_deref().map(str::parse::<i64>) {
+      Some(Ok(id)) => run_ledger::read(call.store(), id).await?.map(|held| held.unit),
+      _ => None,
+    };
     let (sql, values) = match (run, job) {
       (Some(run), _) => (
         r#"SELECT "id", "agent", "run", "chat_id", "at", "kind", "name", "parent", "ref", "text", "job_id", "state",
              "truncated", "detail"
-           FROM "agent_log" WHERE "run" = $1 AND "id" > $2 ORDER BY "id" LIMIT $3"#,
-        vec![run.into(), after.into(), limit.into()],
+           FROM "agent_log" WHERE "run" IN ($1, $4) AND "id" > $2 ORDER BY "id" LIMIT $3"#,
+        vec![run.clone().into(), after.into(), limit.into(), unit.unwrap_or(run).into()],
       ),
       (None, Some(job)) => (
         r#"SELECT "id", "agent", "run", "chat_id", "at", "kind", "name", "parent", "ref", "text", "job_id", "state",
@@ -67,15 +77,29 @@ impl Route for RunLogLines {
     };
     let rows = all(call.store(), sql, values).await?;
     let mut lines = Vec::with_capacity(rows.len());
+    let mut held = HashMap::new();
 
     for row in rows {
       let text = |name: &str| row.try_get::<Option<String>>("", name);
       let number = |name: &str| row.try_get::<Option<i64>>("", name);
 
       let run: String = row.try_get("", "run")?;
+      let agent: String = row.try_get("", "agent")?;
+      // The ledger's run the line was written under, where it holds one: its id, room, round and message.
+      let ledger = match held.get(&(agent.clone(), run.clone())) {
+        Some(ledger) => ledger,
+        None => {
+          let read = run_ledger::of_unit(call.store(), &agent, &run).await?;
+
+          held.entry((agent.clone(), run.clone())).or_insert(read)
+        }
+      };
       lines.push(json!({
         "id": row.try_get::<i64>("", "id")?,
-        "runId": run.parse::<i64>().unwrap_or(0),
+        "runId": ledger.as_ref().map_or_else(|| run.parse::<i64>().unwrap_or(0), |ledger| ledger.id),
+        "roomId": ledger.as_ref().and_then(|ledger| ledger.chat_id),
+        "round": ledger.as_ref().and_then(|ledger| ledger.round.clone()),
+        "messageId": ledger.as_ref().and_then(|ledger| ledger.message_id),
         "jobId": number("job_id")?,
         "agentName": row.try_get::<String>("", "agent")?,
         "kind": row.try_get::<String>("", "kind")?,

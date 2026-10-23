@@ -51,6 +51,22 @@ about a message is not agency's: the judgement records belong to the units that 
 - **A room forgotten takes its lines with it,** but a job's: a job's turns are logged under its room
   and belong to the job, which outlives the room (`docs/api.md`, 「Sessions」, forgetting a room).
 
+## The run ledger
+
+- **A run of the ledger is one row of `runs`:** its agent, its unit, its room, its depth, when it
+  started and finished in epoch seconds, its outcome and the tokens its context carried as it ended. A
+  run keeps the first closing it was given (`docs/api.md`, 「runs」).
+- **The job unit's runs** are opened and closed by the job unit across the boundary.
+- **A chat turn's run is opened by agency** as a turn into a room's or an agent's session starts, the
+  turn naming its room and carrying no work parts: its unit is the name the turn's log lines are written
+  under, its room the room the turn answers, its round the round the turn's context names, and its message
+  the latest message the turn answers. It is closed as the turn ends, with how the turn ended and the
+  tokens its context carried.
+- **The message its answer went out as** is attached by the receiver once it files the answer, which
+  replaces the message the turn answered; an attach leaves the closing as it stands.
+- **What reads it:** the console's chip line under a message finds the round's run by the round and
+  reads the run's log lines by the run's id: what the turn spent, the tools it called and what it wrote.
+
 ## The roads a turn walked
 
 - **Each turn the session contract carries on a conversational agent's line walked one road:** the
