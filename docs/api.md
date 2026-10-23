@@ -28,7 +28,7 @@ a field's exact shape matters, the OpenAPI document is the one to read.
 ## Versioning
 
 - The contract carries the repository's one version, in semver; the workspace manifest is its source. Before
-  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.24`.
+  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.25`.
 - A change to this document and a change to the boundary go in one commit. A change to a route, an event, a
   hook or a shared table's contract repairs this document in the same commit.
 - The major moves on a removed or renamed route, field or event, the minor on an addition, the patch on
@@ -602,7 +602,10 @@ pocket, testbed and chat through their clients, and cache-warmer through the sch
 `bmo-cache-warmer-schedule`.
 Of the brain it asks an agent's own brain made as the agent is registered, found by the agent's key,
 let go whole or only found for a preview, the discipline a chat launch's system prompt carries, and the
-base layer of the agent's persona that prompt ends with.
+base layer of the agent's persona that prompt ends with. Of the tool host it asks, on its control socket
+with the issuer token, a session token for each program and run that holds a capability, which it takes
+back, a namespace's listing and facts, and the paragraph on finding and using tools that a chat launch's
+system prompt carries.
 
 - **Where the brain is.** `AGENCY_BRAIN_URL` names its address and `AGENCY_BRAIN_TOKEN` the token it is
   called with. With no address, no agent has a brain: nothing is made, counted or let go.
@@ -625,6 +628,11 @@ base layer of the agent's persona that prompt ends with.
 - **Making an agent's brain.** As a companion is added, or an agent given a brain is registered
   (「agents」), the brain is asked for the agent's key first; where it answers one, nothing is made. A brain
   that cannot be reached, or refuses, leaves the agent registered and the failure logged.
+- **The tool discipline.** At a chat launch whose session is handed the toolbook, the tool host's
+  `GET /discipline` is read through its client and its text is put into the system prompt whole; agency
+  writes nothing of its own about the toolbook. The control socket is the one `BMO_MCP_HOST_SOCKET` names,
+  else `bmo/mcp-host.sock` under the user's runtime directory. A host that cannot be reached, or refuses,
+  leaves the paragraph out and the launch logs one sentence saying so.
 
 Each surface is a crate of its own repository, declared in the workspace manifest and allowed by
 `tests/dependencies.rs`; every other crate of another repository, a downstream's client among them,

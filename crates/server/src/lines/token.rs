@@ -4,8 +4,8 @@
 //! the checkout whose graph is read, the data root and archive, and the place each call reads its run
 //! from; carried in the program's own environment and taken back once no written program carries it.
 //!
-//! The records and the reads of a namespace go through the tool host's published client
-//! (`bmo-pocket-client`), with the issuer token the host keeps under the data root.
+//! The records, the reads of a namespace and the paragraph on finding and using tools go through the tool
+//! host's published client (`bmo-pocket-client`), with the issuer token the host keeps under the data root.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
@@ -149,6 +149,20 @@ pub async fn facts(ground: &Ground, namespace: &str) -> Option<Value> {
       None
     }
   }
+}
+
+/// The tool host's paragraph on finding and using tools, as it words it, or why the host gave none: the
+/// issuer token is not there, the socket does not answer, or the host refused.
+pub async fn discipline(ground: &Ground) -> Result<String, String> {
+  let socket = host_socket(ground);
+  let Some(token) = issuer_token(ground) else {
+    return Err(format!("mcp-host at {}: the issuer token is not there", socket.display()));
+  };
+
+  pocket(ground, token)
+    .discipline()
+    .await
+    .map_err(|why| format!("mcp-host at {}: {why}", socket.display()))
 }
 
 /// The role and the capabilities of a record issued for `agent` on `line` (docs/agent-roles.md, 「Where the

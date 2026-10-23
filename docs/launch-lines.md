@@ -152,8 +152,9 @@
   chosen, and the line, the record of the session, the keepalive's cache policy and the check for
   a runtime downgrade all read that one answer. The system prompt is the chat agent's
   documents, the three answer rulebooks, the rulebook against destroying the system
-  (`prompts/rules/self-preservation.md`) and the persona — the base layer of the agent's brain, or the
-  one the turn hands in where the brain gives none (`docs/sessions.md`, 「Document reload」) — handed
+  (`prompts/rules/self-preservation.md`), the brain's discipline, the tool host's paragraph on finding
+  and using tools (`docs/api.md`, 「Calls agency makes」) and the persona — the base layer of the
+  agent's brain, or the one the turn hands in where the brain gives none (`docs/sessions.md`, 「Document reload」) — handed
   over as a file and replacing the CLI's own. No settings sources, no skills, no Chrome, and four MCP servers, named in `chat.mcp.json`
   beside the strict flag that keeps every other server out: the tool host's `bmo` namespace and its
   toolbook, each a streamable HTTP server behind the run's session token (the tool host's

@@ -24,7 +24,7 @@ members = [
 resolver = "3"
 
 [workspace.package]
-version = "0.1.0-rev.24"
+version = "0.1.0-rev.25"
 edition = "2024"
 license = "MIT"
 
@@ -36,7 +36,7 @@ bmo-brain-client = { path = "../brain/crates/client", version = "=0.1.0-rev.17" 
 bmo-cache-warmer-schedule = { path = "../cache-warmer/schedule", version = "=0.1.0-rev.5" }
 bmo-chat = { path = "../../base/chat/provider" }
 bmo-node-client = { path = "../node/crates/client", version = "=0.1.0-rev.2" }
-bmo-pocket-client = { path = "../pocket/client", version = "=0.1.0-rev.2" }
+bmo-pocket-client = { path = "../pocket/client", version = "=0.1.0-rev.4" }
 brush-parser = "0.4.0"
 chrono = { version = "0.4.41", default-features = false, features = ["std"] }
 clap = { version = "4.5.40", features = ["derive", "env", "string"] }

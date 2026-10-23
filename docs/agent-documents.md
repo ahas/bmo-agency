@@ -116,9 +116,11 @@ composed into a system prompt, and what the chat agent's own prompt is made of.
   reads, so the session and its gate hold one document) and `prompts/rules/plain-writing.md`; then
   the rule against destroying the system, `prompts/rules/self-preservation.md`; then the brain's
   discipline, how the agent reads and writes its long-term memory every turn, read from the brain at
-  the launch through its client and left out where no brain answers; and then the persona, the base
-  layer of the agent's own brain, or the one the turn hands in where the brain gives none
-  (`docs/sessions.md`, 「Document reload」).
+  the launch through its client and left out where no brain answers; then the tool host's paragraph on
+  finding and using tools, read from the tool host at the launch through its client, whole and as the
+  host words it, for a session handed the toolbook, and left out where the host does not answer; and
+  then the persona, the base layer of the agent's own brain, or the one the turn hands in where the
+  brain gives none (`docs/sessions.md`, 「Document reload」).
 - **That whole composition is the system prompt,** replacing the CLI's own: nothing of Claude Code's
   coding conventions, memory rules or instruction files reaches a chat session, and neither do this
   machine's settings, MCP servers or skills.

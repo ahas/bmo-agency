@@ -115,12 +115,14 @@ pub struct ChatRun {
 }
 
 /// The chat's system prompt: its opening document, the absolute rules bare, its manual and the rulebooks it
-/// reads, each named, the brain's discipline where the brain answered one, with the base persona after them
-/// all under its header where one is handed.
+/// reads, each named, the brain's discipline where the brain answered one, the tool host's paragraph on
+/// finding and using tools where the host answered one, with the base persona after them all under its
+/// header where one is handed.
 pub fn chat_system(
   trees: &Trees,
   base_persona: Option<&str>,
   discipline: Option<&str>,
+  tool_discipline: Option<&str>,
 ) -> Result<String, Refusal> {
   let system = &CHAT_LINE.system;
   let chat = trees.agent_dir("chat");
@@ -133,8 +135,10 @@ pub fn chat_system(
   for name in &system.rulebooks {
     parts.push(rulebook(trees, name)?);
   }
-  if let Some(discipline) = discipline.map(str::trim).filter(|text| !text.is_empty()) {
-    parts.push(discipline.to_owned());
+  for discipline in [discipline, tool_discipline] {
+    if let Some(discipline) = discipline.map(str::trim).filter(|text| !text.is_empty()) {
+      parts.push(discipline.to_owned());
+    }
   }
 
   let system = parts.join("\n\n");
@@ -166,6 +170,13 @@ pub fn mcp_config(ground: &Ground, trees: &Trees) -> Result<PathBuf, Refusal> {
     .map_err(|why| fault(format!("{}: {why}", path.display())))?;
 
   Ok(path)
+}
+
+// Whether the chat's session is handed the tool host's toolbook among its servers.
+fn hands_toolbook(ground: &Ground) -> bool {
+  harness_servers(ground)
+    .entries()
+    .is_some_and(|servers| servers.contains_key(harness_providers::toolbook::SERVER))
 }
 
 // The chat's servers: the tool host's namespace and toolbook as every line reaches them, then the two the
@@ -280,6 +291,19 @@ pub async fn chat_run(
       None
     }
   };
+  let tool_discipline = if hands_toolbook(ground) {
+    match super::token::discipline(ground).await {
+      Ok(text) => Some(text),
+      Err(why) => {
+        eprintln!(
+          "agency: the tool host's discipline could not be read; the chat launches without it: {why}"
+        );
+        None
+      }
+    }
+  } else {
+    None
+  };
   let persona = super::persona::base_persona(
     ground.peers.brain.as_ref(),
     agent,
@@ -287,7 +311,8 @@ pub async fn chat_run(
     launch.base_persona,
   )
   .await;
-  let mut system = chat_system(&trees, persona.text.as_deref(), discipline.as_deref())?;
+  let mut system =
+    chat_system(&trees, persona.text.as_deref(), discipline.as_deref(), tool_discipline.as_deref())?;
   let role = crate::conversational::role_of(&ground.db, agent).await.ok().flatten();
 
   if let Some(above) = role.as_deref().and_then(|role| super::role_prompt(&trees, role)) {

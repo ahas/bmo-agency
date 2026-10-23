@@ -1,7 +1,17 @@
+use std::collections::HashMap;
 use std::path::Path;
 
+use agency_server::Service;
+use agency_server::config::Config;
+use agency_server::lines::Trees;
 use agency_server::lines::chat::*;
 use agency_server::lines::claude::Session;
+use agency_server::places::Ground;
+use harness_providers::Machine;
+use policy::chat_line::CHAT_LINE;
+
+use super::token::{PARAGRAPH, tool_host};
+use crate::scratch::Scratch;
 
 // The line's words for a program whose files stand where it is handed them.
 fn line<'a>(dir: &'a Path, system: &'a Path) -> Words<'a> {
@@ -41,4 +51,96 @@ fn every_conversational_agent_stands_on_the_chat_line_with_its_own_prompt_and_se
   assert_eq!(opened[opened.len() - 2..], ["--session-id".to_owned(), "s-1".to_owned()]);
   assert_eq!(resumed[resumed.len() - 2..], ["--resume".to_owned(), "s-1".to_owned()]);
   assert_eq!(opened[..opened.len() - 2], resumed[..resumed.len() - 2]);
+}
+
+// The tree this checkout is, which the chat's documents and rulebooks are read out of.
+fn tree() -> std::path::PathBuf {
+  Path::new(env!("CARGO_MANIFEST_DIR")).canonicalize().unwrap()
+}
+
+#[test]
+fn the_tool_hosts_paragraph_stands_right_after_the_brains_discipline_and_before_the_persona() {
+  let home = tempfile::tempdir().unwrap();
+  let trees = Trees {
+    code: tree(),
+    agents: home.path().join("agents"),
+    source: home.path().to_path_buf(),
+    data: home.path().join("data"),
+    home: home.path().to_path_buf(),
+  };
+  let header = &CHAT_LINE.persona.header;
+  let carried =
+    chat_system(&trees, Some("the persona"), Some("the brain's discipline"), Some(PARAGRAPH)).unwrap();
+  let without = chat_system(&trees, Some("the persona"), Some("the brain's discipline"), None).unwrap();
+
+  assert!(
+    carried.ends_with(&format!("the brain's discipline\n\n{PARAGRAPH}\n\n{header}\nthe persona")),
+    "{carried}"
+  );
+  assert!(without.ends_with(&format!("the brain's discipline\n\n{header}\nthe persona")));
+  assert!(!without.contains(PARAGRAPH));
+}
+
+// A chat launch's system prompt as the chat line composes it on a machine whose tool host is the socket
+// named.
+async fn launched_system(scratch: &Scratch, home: &Path, socket: &Path) -> String {
+  let at = |path: &Path| path.to_string_lossy().into_owned();
+  let machine = Machine::with_env(
+    [
+      ("HOME".to_owned(), at(home)),
+      ("PATH".to_owned(), "/usr/bin:/bin".to_owned()),
+      ("BMO_DEPLOY_DIR".to_owned(), at(&tree())),
+      ("BMO_AGENTS_DIR".to_owned(), at(&home.join("agents"))),
+      ("BMO_MCP_HOST_SOCKET".to_owned(), at(socket)),
+      ("BMO_MCP_HOST_ISSUER_TOKEN".to_owned(), "issuer".to_owned()),
+    ],
+    home.join("data"),
+  );
+  let variables: HashMap<String, String> = HashMap::new();
+  let service =
+    Service::new(scratch.db().clone(), Config::read(|name| variables.get(name).cloned()).unwrap());
+  let ground = Ground::new(&service, &machine, None);
+  let launch = ChatLaunch {
+    agent: "chat-agent",
+    chat_id: -5,
+    room: RoomContext {
+      chat_id: -5,
+      text: "the room's block".into(),
+      mark: "[a]".into(),
+    },
+    via: None,
+    resume: None,
+    privileged: false,
+    ping: false,
+    base_persona: Some("the persona"),
+    model: Some("claude-model"),
+    cwd: Some(&at(home)),
+  };
+  let run = chat_run(&ground, &machine, &launch, "hello", false).await.unwrap();
+
+  std::fs::read_to_string(&run.system_path).unwrap().trim_end().to_owned()
+}
+
+#[tokio::test]
+async fn a_chat_launch_handed_the_toolbook_carries_the_tool_hosts_paragraph_where_the_host_answers() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let socket = home.path().join("mcp-host.sock");
+  let header = &CHAT_LINE.persona.header;
+
+  tool_host(&socket, "issuer");
+  scratch
+    .run(
+      r#"INSERT INTO "agents" ("name", "kind", "session_scope", "turn_shape", "default_answerer")
+         VALUES ('chat-agent', 'chat', 'room', 'window', 1)"#,
+      vec![],
+    )
+    .await;
+
+  let answered = launched_system(&scratch, home.path(), &socket).await;
+  let unanswered = launched_system(&scratch, home.path(), &home.path().join("nobody.sock")).await;
+
+  assert!(answered.ends_with(&format!("{PARAGRAPH}\n\n{header}\nthe persona")), "{answered}");
+  assert!(!unanswered.contains(PARAGRAPH));
+  assert!(unanswered.ends_with(&format!("\n\n{header}\nthe persona")));
 }
