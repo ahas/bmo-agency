@@ -14,12 +14,12 @@ manual = "manual.md"
 rulebooks = ["answer-content", "answer-shape", "plain-writing", "agent-words", "self-preservation"]
 
 # The tools every run of the chat is shown, the same in every room since their definitions open the cached
-# prefix, and what it is allowed beyond them: the tool host's own namespace, its web namespace and its
-# toolbook, where the chat agent's sending, filing, memory and web tools stand, and the job service's harness
-# plugin and the agency's own, which lease an item and launch its worker.
+# prefix, and what it is allowed beyond them: the tool host's namespaces the chat line names and its
+# toolbook, where the chat agent's sending, filing, memory, web and translation tools stand, and the job
+# service's harness plugin and the agency's own, which lease an item and launch its worker.
 [tools]
 shown = "Bash,Read,Write,Edit,ListMcpResourcesTool,ReadMcpResourceTool"
-allowed = "Bash,Read,Write,Edit,ListMcpResourcesTool,ReadMcpResourceTool,mcp__bmo,mcp__web,mcp__toolbook,mcp__job,mcp__agency"
+allowed = "Bash,Read,Write,Edit,ListMcpResourcesTool,ReadMcpResourceTool,mcp__bmo,mcp__web,mcp__gate,mcp__toolbook,mcp__job,mcp__agency"
 
 # The persona's layers. The base persona after the system prompt is the agent's brain's layer named here, or
 # the caller's where the brain gives none; the room's tone layer and its own persona in the room's block are

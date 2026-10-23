@@ -233,7 +233,10 @@ pub async fn issue(
   }
 
   let data_root = ground.roots.data.to_string_lossy().into_owned();
-  let variables = BTreeMap::from([("BMO_DATA_DIR".to_owned(), data_root)]);
+  let mut variables = BTreeMap::from([("BMO_DATA_DIR".to_owned(), data_root)]);
+
+  variables.extend(line_variables(ground, line));
+
   let mut labels = Map::new();
 
   labels.insert("line".to_owned(), json!(line));
@@ -248,6 +251,19 @@ pub async fn issue(
   let request = record(line, agent, capabilities, variables, labels, None);
 
   issue_record(ground, &request).await.map(Some)
+}
+
+/// The deployment's variables the line hands every record of its runs, each the deployment sets.
+pub fn line_variables(ground: &Ground, line: &str) -> Vec<(String, String)> {
+  RUN_LINES
+    .variables(line)
+    .iter()
+    .filter_map(|name| {
+      let value = ground.vars().get(name).map(|value| value.trim()).filter(|value| !value.is_empty())?;
+
+      Some((name.clone(), value.to_owned()))
+    })
+    .collect()
 }
 
 // The variables of a run's own, which its calls read their turn from.
@@ -363,6 +379,7 @@ pub async fn issue_for_run(
     .collect();
 
   variables.insert("BMO_DATA_DIR".to_owned(), data_root);
+  variables.extend(line_variables(ground, line));
 
   let mut labels = Map::new();
   labels.insert("line".to_owned(), json!(line));

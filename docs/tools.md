@@ -34,8 +34,12 @@ belongs to no one service is a repository of its own, not a folder here.
   capabilities, grants and shown entries, and the variables handed to every call's environment. The
   data root stands in those variables as `BMO_DATA_DIR`. Agency's own values stand under the issuer's
   `labels`: the line, the store's address, the agent's place where it is a resident program, and a
-  research run's settings under `research`. The turn's own variables stand in `variables`. A tool
-  reads only the parts it needs and passes over the rest.
+  research run's settings under `research`. The turn's own variables stand in `variables`, beside the
+  deployment's variables the run's line names in `policy/run-lines.toml` for the placed tools that read
+  them, each where the deployment sets it in agency's environment — the chat line's `BMO_GATE_URL` and
+  `BMO_GATE_TOKEN_FILE`, the gate's address and the path of its token file, which the gate's translate
+  tool calls it with, so no token enters the record. A tool reads only the parts it needs and passes over
+  the rest.
 - **The turn a request is made in** is read afresh from the record: the run the agent's place names
   in its `run.json` — none for a person's turn — or else the run's own variables. Its variables are
   `BMO_TURN_AGENT`, the agent the turn is; `BMO_TURN_BEGAN`, when it took its words, in epoch

@@ -123,3 +123,30 @@ async fn a_tool_host_that_does_not_answer_gives_no_discipline_and_says_where_it_
 
   assert!(why.contains(&socket.to_string_lossy().into_owned()), "{why}");
 }
+
+// The chat line names the gate's address and token file for the translate tool's record; a variable the
+// deployment leaves unset or empty is handed nothing, and a line that names none hands none.
+#[test]
+fn a_line_hands_its_record_the_deployment_variables_it_names_where_they_are_set() {
+  let home = tempfile::tempdir().unwrap();
+  let variables: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+  let service = Service::new(
+    sea_orm::DatabaseConnection::Disconnected,
+    Config::read(|name| variables.get(name).cloned()).unwrap(),
+  );
+  let machine = Machine::with_env(
+    [
+      ("BMO_GATE_URL".to_owned(), " http://127.0.0.1:9 ".to_owned()),
+      ("BMO_GATE_TOKEN_FILE".to_owned(), String::new()),
+      ("BMO_OTHER".to_owned(), "x".to_owned()),
+    ],
+    home.path().join("data"),
+  );
+  let ground = Ground::new(&service, &machine, None);
+
+  assert_eq!(
+    line_variables(&ground, "chat"),
+    [("BMO_GATE_URL".to_owned(), "http://127.0.0.1:9".to_owned())]
+  );
+  assert!(line_variables(&ground, "worker").is_empty());
+}

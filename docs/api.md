@@ -28,7 +28,7 @@ a field's exact shape matters, the OpenAPI document is the one to read.
 ## Versioning
 
 - The contract carries the repository's one version, in semver; the workspace manifest is its source. Before
-  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.33`.
+  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.34`.
 - A change to this document and a change to the boundary go in one commit. A change to a route, an event, a
   hook or a shared table's contract repairs this document in the same commit.
 - The major moves on a removed or renamed route, field or event, the minor on an addition, the patch on
@@ -41,6 +41,9 @@ a field's exact shape matters, the OpenAPI document is the one to read.
   token `AGENCY_CONTROL_TOKEN` holds. A request without the token is answered 401.
 - Both variables stand in the data root's `env/agency.env`. A process of agency's whose environment holds
   neither reads them there.
+- The same file names the variables a line hands the session records of its runs
+  (`docs/tools.md`, 「The session record」): for the chat line, `BMO_GATE_URL`, the gate's address, and
+  `BMO_GATE_TOKEN_FILE`, the path of the gate's token file under the data root's `env/`.
 - The same file names the tool host's port, `BMO_MCP_HOST_PORT`, with the value the tool host's own
   `env/pocket.env` gives it (3290 where neither names one): every MCP configuration agency writes points
   its tool host servers at that port, and a line whose port is not the host's has no tool of the host's,

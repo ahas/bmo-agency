@@ -28,6 +28,9 @@ pub struct RunLine {
   /// The placed tool entries, by full name, its namespaces list by name for every run of it.
   #[serde(default)]
   pub shown: Vec<String>,
+  /// The deployment's variables every run of it hands its record, each where the deployment sets it.
+  #[serde(default)]
+  pub variables: Vec<String>,
 }
 
 /// Every line, by its name.
@@ -53,6 +56,12 @@ impl RunLines {
   /// The entries a run of the line is shown by full name; none for a line the policy does not name.
   pub fn shown(&self, name: &str) -> &[String] {
     self.line(name).map_or(&[], |line| &line.shown)
+  }
+
+  /// The deployment's variables a run of the line hands its record; none for a line the policy does not
+  /// name.
+  pub fn variables(&self, name: &str) -> &[String] {
+    self.line(name).map_or(&[], |line| &line.variables)
   }
 
   /// Whether the line's namespaces list this placed entry, by its full name, for every run of it; none

@@ -72,6 +72,9 @@ made of is `docs/companions.md`.
 - **`web.read` — web search and page fetch** of the web namespace, the same two tools the worker reads the
   web with, shown to the chat line by name. What they find comes back to the session that called them;
   the agent answers the room with it.
+- **The chat line itself holds `gate.translate`,** whatever its agent's role: the gate's translator,
+  `gate/translate`, shown to the line by name. An agent asked to translate does it through that tool unless
+  the asker says otherwise, and answers with the readings it returned.
 
 ## The worker role's bundles
 
