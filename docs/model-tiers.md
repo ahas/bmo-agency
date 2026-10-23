@@ -9,7 +9,10 @@ The six tiers are Supervisor (the chat agents' tier), Frontier, Reliable, Fine, 
 Provider routing and provider enablement remain independent. A tier mapping contains one provider,
 model, thinking and nullable effort. Work keys (including `role:<name>` and runner depth keys) select a tier.
 Workers share `job-worker`; runtime agent observations are never configuration seeds.
-An agent's row in the `agents` table carries no model. What an agent is configured to run on is
+An agent's row in the `agents` table carries no model. One choice of a model stands outside the tiers,
+and the route listing shows it: a work key may name a registration of its own on the registry's provider
+in place of its tier's cell there (`docs/own-llm.md`, 「A key's own registration」). What an agent is
+configured to run on is
 read as the tier store's answer — by agency's agent routes — for the agent's work key on
 the provider its road begins on: the chat agent and each gate on its own key's road, every
 worker on `job-worker` on the provider it is pinned to or else first in the provider order, and the searcher and the browser on their own

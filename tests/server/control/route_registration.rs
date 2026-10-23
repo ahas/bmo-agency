@@ -86,12 +86,12 @@ async fn a_key_s_own_registration_stands_for_that_key_alone_on_its_own_settings(
     Ok("own-pick".into())
   );
 
-  // A tier asked for by name reads that tier's cell.
+  // A caller naming the tier itself — a gate names its own — is answered the key's registration as well.
   let named = tiers::resolve_execution(db, "translator", registry::PROVIDER, Some("Simple"))
     .await
     .unwrap();
 
-  assert_eq!(named.model, "tier-cell");
+  assert_eq!((named.model.as_str(), named.answer_tokens), ("own-pick", None));
 
   // Naming the cell's own registration keeps the cell's settings; taking the pin away reads the cell again
   // and leaves no row behind.
@@ -114,6 +114,15 @@ async fn a_registration_with_no_address_is_refused_and_one_a_key_names_is_not_re
   assert!(roads::registration_refusal(db, "own-pick").await.unwrap().is_none());
   assert!(roads::registration_refusal(db, "unplaced").await.unwrap().is_some());
   assert!(roads::registration_refusal(db, "nobody").await.unwrap().is_some());
+
+  // A registration that lost its address after the key named it is refused, never given back to the tier.
+  roads::set_registration(db, "voice-polish", Some("unplaced"), 1).await.unwrap();
+  assert!(
+    tiers::resolve(db, "voice-polish", registry::PROVIDER)
+      .await
+      .unwrap_err()
+      .contains("unplaced")
+  );
 
   roads::set_registration(db, "translator", Some("own-pick"), 1).await.unwrap();
 

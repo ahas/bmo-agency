@@ -164,21 +164,43 @@ pub async fn resolve_tier(db: &DatabaseConnection, tier: &str, provider: &str) -
 pub async fn resolve(db: &DatabaseConnection, key: &str, provider: &str) -> Result<Mapping, String> {
   let mapping = resolve_assigned(db, key, provider).await?;
 
+  key_pinned(db, key, provider, mapping).await
+}
+
+// A key's mapping on a provider with the registration the key names of its own laid over it on the
+// registry's provider, whichever tier the mapping is: on the registration's own answer size and thinking
+// unless the mapping already names it. A registration that has left the registry, or holds no address, is
+// refused rather than given back to the tier.
+async fn key_pinned(
+  db: &DatabaseConnection,
+  key: &str,
+  provider: &str,
+  mapping: Mapping,
+) -> Result<Mapping, String> {
   if provider != super::registry::PROVIDER {
     return Ok(mapping);
   }
 
   let pinned = super::roads::key_registration(db, key).await.map_err(|refused| refused.error)?;
+  let Some(registration) = pinned else { return Ok(mapping) };
 
-  Ok(match pinned {
-    Some(registration) if registration != mapping.model => Mapping {
+  if let Some(refusal) = super::roads::registration_refusal(db, &registration)
+    .await
+    .map_err(|refused| refused.error)?
+  {
+    return Err(refusal);
+  }
+
+  Ok(if registration == mapping.model {
+    mapping
+  } else {
+    Mapping {
       model: registration,
       thinking: None,
       effort: None,
       answer_tokens: None,
       ..mapping
-    },
-    _ => mapping,
+    }
   })
 }
 
@@ -217,7 +239,7 @@ pub async fn resolve_execution(
   }
 
   let mapping = match requested_tier {
-    Some(tier) => resolve_tier(db, tier, provider).await?,
+    Some(tier) => key_pinned(db, key, provider, resolve_tier(db, tier, provider).await?).await?,
     None => resolve(db, key, provider).await?,
   };
   let declared = named(provider).map_err(|refused| refused.error)?.declared();

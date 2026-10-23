@@ -424,8 +424,10 @@ never the model's name.
   the pin away, and the key reads its tier's cell again.
 - **Where it stands:** wherever the key is resolved on the registry's provider — its own runs on that
   provider, the model a gate's request names to the gateway, whether the automatic walk asks the
-  registry for the key, and the route `GET /work-keys/{workKey}` answers. A resolution that names a tier
-  of its own reads that tier's cell. The registration's answer size and thinking default are its own,
+  registry for the key, and the route `GET /work-keys/{workKey}` answers, whichever tier its caller names
+  there — a gate names its own. A registration that has left the registry or holds no address is refused
+  where the key is resolved, never given back to the tier. The registration's answer size and thinking
+  default are its own,
   unless the key's tier cell maps to that same registration, whose answer size and thinking then stand,
   as a worker pinned to a registration takes them (「A worker pinned to a provider」 below).
 - **It is no run mode:** the pin chooses the registration and nothing else, so a key on automatic
@@ -522,7 +524,9 @@ bmo-agency agent --route <work key> --provider <auto|claude-code|codex|openroute
 ### A gate runs on its one provider
 
 - **Which provider:** if the gate's run mode is a provider and that provider is enabled, the gate's road
-  is that provider; otherwise it is the first enabled provider in the provider order.
+  is that provider; otherwise it is the first enabled provider in the provider order. On the registry's
+  provider its model is its tier's cell, unless its key names a registration of its own (「A key's own
+  registration」).
 - **One ask, and that is all.** It never moves to another provider or model — not on timeout, busy,
   refusal or error.
 - **A gate whose provider is a classifier has one LLM behind it, and only that.** Where the classifier
