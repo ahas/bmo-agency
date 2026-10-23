@@ -144,11 +144,12 @@ pub async fn server_digest(ground: &Ground) -> Option<String> {
   facts(ground, SERVER).await?.get("digest")?.as_str().map(str::to_owned)
 }
 
-/// The chat line's MCP configuration: the job service's harness plugin, which leases an item from a
-/// queue, and the agency's own, which assigns a worker and launches the item's job. Both start as
-/// programs beside the chat and take their bearers from the environment the chat inherits; a
-/// deployment that names neither leaves that server out. Written on every composition, since this line
-/// is the one writer.
+/// The chat line's MCP configuration: the tool host's own namespace and its toolbook, each behind the
+/// run's session token, where the chat agent's sending, filing and memory tools stand; then the job
+/// service's harness plugin, which leases an item from a queue, and the agency's own, which assigns a
+/// worker and launches the item's job. The two plugins start as programs beside the chat and take their
+/// bearers from the environment the chat inherits; a deployment that names neither leaves that server
+/// out. Written on every composition, since this line is the one writer.
 pub fn mcp_config(ground: &Ground, trees: &Trees) -> Result<PathBuf, Refusal> {
   let path = trees.agents.join("chat.mcp.json");
   let text = format!("{}\n", Ordered::map([("mcpServers", harness_servers(ground))]).pretty());
@@ -161,14 +162,20 @@ pub fn mcp_config(ground: &Ground, trees: &Trees) -> Result<PathBuf, Refusal> {
   Ok(path)
 }
 
-// The two servers the chat starts, each a program of its own: the job plugin on its `mcp` verb, told
-// the queues it subscribes to and the holder it takes them under, and the agency's own binary on the
-// same verb. A value that differs by installation is read from the environment, and each server's
-// bearer is handed to it in the configuration's own environment: a harness starts its children on an
-// environment scrubbed of everything but the entries written there.
+// The chat's servers: the tool host's namespace and toolbook as every line reaches them, then the two the
+// chat starts as programs of its own — the job plugin on its `mcp` verb, told the queues it subscribes to
+// and the holder it takes them under, and the agency's own binary on the same verb. A value that differs
+// by installation is read from the environment, and each program's bearer is handed to it in the
+// configuration's own environment: a harness starts its children on an environment scrubbed of
+// everything but the entries written there.
 fn harness_servers(ground: &Ground) -> Ordered {
   let env = ground.env();
-  let mut servers: Vec<(&str, Ordered)> = vec![];
+  let mut servers: Vec<(String, Ordered)> = super::runner::line_servers(ground, &[SERVER])
+    .entries()
+    .into_iter()
+    .flatten()
+    .map(|(name, server)| (name.clone(), server.clone()))
+    .collect();
 
   if let (Some(plugin), Some(url)) = (env.get("BMO_JOB_PLUGIN"), env.get("BMO_JOB_URL")) {
     let mut args = vec![
@@ -200,7 +207,7 @@ fn harness_servers(ground: &Ground) -> Ordered {
       fields.push(("env", Ordered::map([("BMO_JOB_TOKEN", Ordered::text(token.as_str()))])));
     }
 
-    servers.push(("job", Ordered::map(fields)));
+    servers.push(("job".to_owned(), Ordered::map(fields)));
   }
 
   if let (Ok(server), Some(url)) = (std::env::current_exe(), env.get("BMO_AGENCY_URL")) {
@@ -224,7 +231,7 @@ fn harness_servers(ground: &Ground) -> Ordered {
       fields.push(("env", Ordered::map([("AGENCY_CONTROL_TOKEN", Ordered::text(token.as_str()))])));
     }
 
-    servers.push(("agency", Ordered::map(fields)));
+    servers.push(("agency".to_owned(), Ordered::map(fields)));
   }
 
   Ordered::map(servers)

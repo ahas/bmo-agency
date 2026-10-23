@@ -127,7 +127,11 @@
   Claude Code pointed at agency's gateway, with a request that needs no tools asked of the gateway
   directly; the models it offers are the registrations, which the owner adds and changes with no
   commit (`docs/own-llm.md`). DeepSeek's is carried by Claude Code pointed at DeepSeek's
-  Anthropic-compatible endpoint, the same program on a road of its own.
+  Anthropic-compatible endpoint, the same program on a road of its own — on every line but a resident
+  one. Where a line stands a program in the agent's pane, as the chat line does for a chat agent whose
+  key maps to this provider, DeepSeek's resident program is bmo-tui on dsh, like OpenRouter's, with
+  dsh's own route to DeepSeek's API and the account's key in the program's environment; its provider
+  declaration names that resident program.
 - Which provider runs a piece of work is that work key's row in the route table (`docs/own-llm.md`),
   so a program is picked in exactly one place.
 - **What a route may promise is what the program really carries.** Each harness says what its
@@ -152,14 +156,18 @@
   a runtime downgrade all read that one answer. The system prompt is the chat agent's
   documents, the three answer rulebooks, the rulebook against destroying the system
   (`prompts/rules/self-preservation.md`) and the persona, handed over as a file and replacing the
-  CLI's own. No settings sources, no skills, no Chrome, and two MCP servers: the job service's
-  harness plugin, `job`, which leases an item from a queue, and the agency's own, `agency`, which
-  assigns a worker and launches the item's job, named in `chat.mcp.json` beside the strict flag that
-  keeps every other server out (`chat-mcp.md`, `mcp-host.md`). The tools shown are exactly Bash, Read, Write, Edit and the CLI's two MCP
-  resource tools, the list and the read, in every run of every chat (none when the owner has
-  turned tools off in that chat), with the two servers' tools beside them; the permission mode is
-  don't-ask, and the allow list is those same six and the whole `job` and `agency` servers by their
-  prefixes in every run, whoever wrote the turn's messages. What is the owner's alone —
+  CLI's own. No settings sources, no skills, no Chrome, and four MCP servers, named in `chat.mcp.json`
+  beside the strict flag that keeps every other server out: the tool host's `bmo` namespace and its
+  toolbook, each a streamable HTTP server behind the run's session token (the tool host's
+  `mcp-host.md`), which is where the chat agent's own tools stand — sending, filing a TODO item and
+  its brain's memory tools among them; the job service's harness plugin, `job`, which leases an item
+  from a queue; and the agency's own, `agency`, which assigns a worker and launches the item's job.
+  The tools shown are exactly Bash, Read, Write, Edit and the CLI's two MCP resource tools, the list
+  and the read, in every run of every chat (none when the owner has turned tools off in that chat),
+  with the four servers' tools beside them; the permission mode is don't-ask, and the allow list is
+  those same six and the whole of the four servers by their prefixes in every run, whoever wrote the
+  turn's messages. A line that names fewer servers than these leaves the chat agent with no tool of
+  its own: a configuration that drops the tool host drops sending and memory with it. What is the owner's alone —
   approving, launching or finishing work, deploying, reading another room — is held by the
   session's own judgement under its rules, not by the allow list. The chat stands as the chat agent's
   resident program, whose line keeps its slash commands — `/compact` is one, typed into the program

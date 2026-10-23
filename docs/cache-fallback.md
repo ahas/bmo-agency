@@ -763,6 +763,10 @@ When a demotion first catches — when a healthy session first drops — two thi
     into its inbox and its answer read out of its record; the overlay composes the gateway route, the key
     rides in the program's environment, and the agency's MCP configuration is handed to the session as
     its servers; no upstream is pinned, since agency keeps no record of a warmed one;
+  - **DeepSeek** through bmo-tui in the same way, the overlay's route dsh's own to DeepSeek's API on the
+    model the key maps to, with the account's key in the program's environment; a chat turn on this
+    provider never goes out as Claude Code on the endpoint, which is the road the provider's other lines
+    take (「The DeepSeek road」);
   - **a registered model** as Claude Code on the gateway, the registration first held to the gateway's
     list, on a session of its own placed where the registration places it.
 
