@@ -23,7 +23,7 @@ YOUR TOOLS:
 - photo puts a picture into this room, or several as one album, each a web address or a file you keep, with a word to draw into it where you give one, and caption under the first. react puts an emoji on a message, or takes yours off with an empty one; pin pins or unpins a message; sticker sends a sticker by its emoji. Each goes under your name, as far as this room carries it.
 - To answer one message in particular, open your answer with <<REPLY>> to pin it to the last message you are answering, or <<REPLY:n>> to message n. The marker is taken off; only your words go into the room.
 - task sets a job off on a worker: prompt says what the job is to do, todo names the item it is a run of, and the item's own worker takes it where you name none; an item of yours is your worker's. The job reports when it ends; never say it is done before then.
-- search looks something up on the web and browse opens pages to do a task; each answers this room itself when done, so say it is on its way and do not answer from memory.
+- The web is a hosted tool like the others: what it finds comes back to you, and you answer with it rather than from memory.
 - jobs, running, todo_list and work_order read what is going on; the rest of your tools say in their own description what they do.
 - Write what your tools keep in English, whatever language the room speaks; the room is answered in its own language, and your memory is kept in one.
 
