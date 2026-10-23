@@ -1225,7 +1225,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** One job and the tokens its model has spent. */
+        /** One job and what its turn spent. */
         get: operations["readJobsByJobId"];
         put?: never;
         post?: never;
@@ -1815,7 +1815,7 @@ export interface components {
          * @enum {string}
          */
         RunState: "open" | "launched" | "stopping" | "closed";
-        /** @description RunUsage: what a chat turn's run spent, each figure summed over the models that answered it. */
+        /** @description RunUsage: what a chat turn or a job's turn spent, each figure summed over the models that answered. */
         RunUsage: {
             /** Format: int64 */
             inputTokens: number;
@@ -2844,8 +2844,17 @@ export interface components {
             state: components["schemas"]["JobState"];
             outcome: string | null;
             report: string | null;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description What the job's turn spent, the four figures of `usage` together; 0 until it ends or where its road
+             *     reported no figures.
+             */
             tokenCount: number;
+            /**
+             * @description What the job's turn spent, apart; none until it ends or where its road reported no figures.
+             * @default null
+             */
+            usage: components["schemas"]["RunUsage"] | null;
             /**
              * Format: int64
              * @description epoch milliseconds

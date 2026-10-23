@@ -70,6 +70,10 @@ about a message is not agency's: the judgement records belong to the units that 
   the latest message the turn answers. It is closed as the turn ends, with how the turn ended, the
   tokens its context carried and what the turn spent: its input, output, cache-read and cache-write
   tokens, each summed over the models that answered it, and none where its road reported no figures.
+- **A job's turn is a run opened by agency's job runner** (`docs/api.md`, 「assignments and jobs」) as the
+  turn goes out: its agent the worker, its unit the job's run name, the one its log lines are written
+  under, and its room the job's. It is closed as the turn ends, with how it ended, the tokens its context
+  carried and what it spent, as a chat turn's is, and the job keeps the run and the same four figures.
 - **Every turn of a round is a run of its own:** the round's own turn and each question, item and
   check of the receiver's draft process go out as turns naming the same round, so each opens its run
   under that round and keeps its own spend. A round's usage is the sum of its runs', and how it divides

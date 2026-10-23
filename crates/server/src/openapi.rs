@@ -2089,7 +2089,7 @@ pub const OPERATIONS: &[Operation] = &[
     path: "/jobs/{jobId}",
     id: "readJobsByJobId",
     tag: "jobs",
-    summary: "One job and the tokens its model has spent.",
+    summary: "One job and what its turn spent.",
     params: &[Param {
       name: "jobId",
       place: "path",

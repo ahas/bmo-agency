@@ -2524,7 +2524,7 @@ async fn open_chat_run(
 }
 
 // What a job's turn spent, each figure summed over the models that answered it; none where it reported none.
-fn turn_spent(end: &TurnEnd) -> Option<run_ledger::Spent> {
+pub fn turn_spent(end: &TurnEnd) -> Option<run_ledger::Spent> {
   let spend = &end.reply.as_ref()?.spend;
 
   (!spend.is_empty()).then(|| {

@@ -17,10 +17,12 @@ use serde_json::{Value, json};
 use super::{Call, Refused, Route, answer};
 use crate::control::claude_accounts::{Judging, carried_for_user, reopens_at, walk_for_user};
 use crate::events::Named;
+use crate::herdr_backend::turn_spent;
 use crate::lines::{Trees, worker};
 use crate::now_ms;
 use crate::places::{AgentRow, Ground};
 use crate::queue::routes::JOB_WORK_KEY;
+use crate::run_ledger::{self, Closing, NotClosed, Opening, Spent};
 use crate::run_log::lines::Line;
 use crate::run_log::{RunLog, Target};
 use crate::worker_session::PROVIDER;
@@ -352,7 +354,30 @@ crate::moved!(ChangeAssignment);
 
 const JOB_COLUMNS: &str = r#""id", "item_id", "lease_id", "holder_name", "assignment_id", "worker_name",
   "session_id", "run_id", "run_name", "room_id", "state", "outcome", "report", "token_count",
+  "input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens",
   "started_at", "ended_at", "prompt", "prompt_english""#;
+
+/// What a job's turn spent, apart; none until the turn ends and where its road reported no figures.
+fn usage_of(row: &QueryResult) -> Result<Value, sea_orm::DbErr> {
+  let figure = |column: &str| row.try_get::<Option<i64>>("", column);
+
+  Ok(
+    match (
+      figure("input_tokens")?,
+      figure("output_tokens")?,
+      figure("cache_read_tokens")?,
+      figure("cache_write_tokens")?,
+    ) {
+      (Some(input), Some(output), Some(read), Some(write)) => json!({
+        "inputTokens": input,
+        "outputTokens": output,
+        "cacheReadTokens": read,
+        "cacheWriteTokens": write,
+      }),
+      _ => Value::Null,
+    },
+  )
+}
 
 /// One job as its routes answer it.
 fn job_value(row: &QueryResult) -> Result<Value, sea_orm::DbErr> {
@@ -371,6 +396,7 @@ fn job_value(row: &QueryResult) -> Result<Value, sea_orm::DbErr> {
     "outcome": row.try_get::<Option<String>>("", "outcome")?,
     "report": row.try_get::<Option<String>>("", "report")?,
     "tokenCount": row.try_get::<i64>("", "token_count")?,
+    "usage": usage_of(row)?,
     "startedAt": row.try_get::<i64>("", "started_at")?,
     "endedAt": row.try_get::<Option<i64>>("", "ended_at")?,
   }))
@@ -535,9 +561,9 @@ async fn work_parts(
 // its assignment released, and an end that is no answer noted in the job's log.
 async fn launch(ground: Arc<Ground>, sessions: Option<crate::herdr_backend::Shared>, id: i64) {
   let ended = launched(&ground, sessions, id).await;
-  let (state, outcome, report, tokens) = match ended {
+  let (state, outcome, report, spent) = match ended {
     Ok(end) => end,
-    Err(why) => ("stopped".to_owned(), Some("failed".to_owned()), Some(why), 0),
+    Err(why) => ("stopped".to_owned(), Some("failed".to_owned()), Some(why), None),
   };
   let now = now_ms();
 
@@ -547,15 +573,20 @@ async fn launch(ground: Arc<Ground>, sessions: Option<crate::herdr_backend::Shar
 
   if let Err(why) = run(
     &ground.db,
-    r#"UPDATE "jobs" SET "state" = $1, "outcome" = $2, "report" = $3, "token_count" = $4, "ended_at" = $5
+    r#"UPDATE "jobs" SET "state" = $1, "outcome" = $2, "report" = $3, "token_count" = $4, "ended_at" = $5,
+         "input_tokens" = $7, "output_tokens" = $8, "cache_read_tokens" = $9, "cache_write_tokens" = $10
        WHERE "id" = $6"#,
     vec![
       state.clone().into(),
       outcome.clone().into(),
       report.clone().into(),
-      tokens.into(),
+      spent.as_ref().map_or(0, Spent::total).into(),
       now.into(),
       id.into(),
+      spent.map(|spent| spent.input_tokens).into(),
+      spent.map(|spent| spent.output_tokens).into(),
+      spent.map(|spent| spent.cache_read_tokens).into(),
+      spent.map(|spent| spent.cache_write_tokens).into(),
     ],
   )
   .await
@@ -593,7 +624,7 @@ async fn noted(ground: &Ground, id: i64, outcome: &str, why: Option<&str>) {
   log.write(&ground.db, Line::note(text)).await;
 }
 
-type Ended = (String, Option<String>, Option<String>, i64);
+type Ended = (String, Option<String>, Option<String>, Option<Spent>);
 
 async fn launched(
   ground: &Ground,
@@ -618,15 +649,33 @@ async fn launched(
     .map_err(|fault| fault.message)?;
   let session_id = session.id.0;
   let parts = work_parts(ground, &worker_name, room, &name, &title).await?;
+  let ledger = run_ledger::open(
+    &ground.db,
+    &Opening {
+      agent: worker_name.clone(),
+      chat_id: member["roomId"].as_i64(),
+      unit: name.clone(),
+      depth: 0,
+      cap_ms: None,
+      started_at: now_ms().div_euclid(1000),
+      started_by: Some(member["holderName"].as_str().unwrap_or_default().to_owned()),
+      search_id: None,
+      round: None,
+      message_id: None,
+    },
+  )
+  .await
+  .map_err(|why| why.detail)?;
   run(
     &ground.db,
-    r#"UPDATE "jobs" SET "state" = 'running', "session_id" = $1, "run_name" = $2, "model" = $3
+    r#"UPDATE "jobs" SET "state" = 'running', "session_id" = $1, "run_name" = $2, "model" = $3, "run_id" = $5
        WHERE "id" = $4"#,
     vec![
       session_id.clone().into(),
       name.clone().into(),
       parts.mapping.model.clone().into(),
       id.into(),
+      ledger.into(),
     ],
   )
   .await
@@ -635,7 +684,7 @@ async fn launched(
     publish(ground, "job.changed", member);
   }
 
-  let end = sessions
+  let sent = sessions
     .send_turn(Turn {
       session: SessionId(session_id),
       prompt,
@@ -648,25 +697,56 @@ async fn launched(
         ..TurnContext::default()
       },
     })
-    .await
-    .map_err(|fault| fault.message)?;
+    .await;
+  let end = match sent {
+    Ok(end) => end,
+    Err(fault) => {
+      closed(ground, ledger, "failed", None, None).await;
+      return Err(fault.message);
+    }
+  };
 
   let outcome = match end.outcome {
     agent_session::Outcome::Answered => None,
     other => Some(format!("{other:?}").to_lowercase()),
   };
-  let tokens = end
-    .reply
-    .as_ref()
-    .map(|reply| reply.spend.iter().map(|spent| spent.tokens).sum())
-    .unwrap_or(0);
+  let spent = turn_spent(&end);
+
+  closed(
+    ground,
+    ledger,
+    outcome.as_deref().unwrap_or("answered"),
+    end.reply.as_ref().and_then(|reply| reply.context_tokens),
+    spent,
+  )
+  .await;
 
   let report = match outcome {
     None => end.answer,
     Some(_) => end.answer.or(end.reason),
   };
 
-  Ok(("ended".to_owned(), outcome, report, tokens))
+  Ok(("ended".to_owned(), outcome, report, spent))
+}
+
+// A job turn's run closed in the ledger as the turn ended, with what it spent.
+async fn closed(
+  ground: &Ground,
+  ledger: i64,
+  outcome: &str,
+  context_tokens: Option<i64>,
+  spent: Option<Spent>,
+) {
+  let closing = Closing {
+    finished_at: now_ms().div_euclid(1000),
+    outcome: outcome.to_owned(),
+    context_tokens,
+    spent,
+  };
+
+  if let Err(NotClosed::Store(why)) = run_ledger::close(&ground.db, ledger, &closing).await {
+    eprintln!("run {ledger}: the job's run could not be closed in the ledger: {}", why.detail);
+  }
 }
 
 /// The jobs: recent, by room, by worker, by holder, running.

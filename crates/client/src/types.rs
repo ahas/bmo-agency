@@ -355,7 +355,7 @@ pub struct Run {
   pub message_id: Option<i64>,
 }
 
-/// RunUsage: what a chat turn's run spent, each figure summed over the models that answered it.
+/// RunUsage: what a chat turn or a job's turn spent, each figure summed over the models that answered.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct RunUsage {
@@ -1179,7 +1179,12 @@ pub struct Job {
   pub state: JobState,
   pub outcome: Option<String>,
   pub report: Option<String>,
+  /// What the job's turn spent, the four figures of `usage` together; 0 until it ends or where its road
+  /// reported no figures.
   pub token_count: i64,
+  /// What the job's turn spent, apart; none until it ends or where its road reported no figures.
+  #[serde(default)]
+  pub usage: Option<RunUsage>,
   /// epoch milliseconds
   pub started_at: i64,
   /// epoch milliseconds

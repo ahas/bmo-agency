@@ -28,7 +28,7 @@ a field's exact shape matters, the OpenAPI document is the one to read.
 ## Versioning
 
 - The contract carries the repository's one version, in semver; the workspace manifest is its source. Before
-  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.56`.
+  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.57`.
 - A change to this document and a change to the boundary go in one commit. A change to a route, an event, a
   hook or a shared table's contract repairs this document in the same commit.
 - The major moves on a removed or renamed route, field or event, the minor on an addition, the patch on
@@ -262,11 +262,12 @@ Every route that takes a body names the request type it reads, holding only the 
 | PATCH | `/runs/{runId}` | Close a run, or stop it, or attach the message its answer went out as. |
 
 A run is a row of the ledger (`docs/run-records.md`, 「The run ledger」): a unit the job unit opens and
-closes, and a chat turn's run, which agency opens as the turn starts and closes as it ends. Each answers
+closes, a job's turn, which agency's job runner opens and closes, and a chat turn's run, which agency
+opens as the turn starts and closes as it ends. Each answers
 `roomId`, the room it ran for; `round`, the round the receiver named in the turn's context; and
 `messageId`, the message its answer went out as once the receiver attaches it, the latest message the
-turn answers until then, or null where the turn named neither. A chat turn's run answers what the turn
-spent once it is closed: `usage`, its `inputTokens`, `outputTokens`, `cacheReadTokens` and
+turn answers until then, or null where the turn named neither. A chat turn's run and a job turn's answer
+what the turn spent once it is closed: `usage`, its `inputTokens`, `outputTokens`, `cacheReadTokens` and
 `cacheWriteTokens` summed over the models that answered, and `spentTokens`, the four together; both are
 null on a run whose road reported no figures, and on an open run. Every turn of a round, each question,
 item and check of the draft process among them, is a run of its own under the round. The list narrows by `agentName`, by
@@ -541,7 +542,7 @@ nothing of its placement.
 | PATCH | `/assignments/{assignmentId}` | Release an assignment, or hold it longer. |
 | GET | `/jobs` | Jobs: recent, by room, by worker, by holder, running. |
 | POST | `/jobs` | Run an item on its assigned worker: the harness hands over the item's content and the lease it holds, and the agency launches the worker's session on it; refused while no login can carry it. |
-| GET | `/jobs/{jobId}` | One job and the tokens its model has spent. |
+| GET | `/jobs/{jobId}` | One job and what its turn spent, `usage`. |
 | PATCH | `/jobs/{jobId}` | End a job with its outcome, or stop it; its assignment is released. |
 | GET | `/jobs/{jobId}/prompt` | The prompt the job was launched with. |
 
@@ -559,6 +560,12 @@ in the job service. Agency calls nothing of the job service and keeps no client 
   or `reprepared`) and the reason the turn gave as the report. A launch that never reached its turn — no
   session, no line, no herdr — ends it `stopped`, outcome `failed`, with why as the report. Every end that
   is not an answer is also written as a note into the job's log, so the job's lines say why it ended.
+- **A job's turn is a run of the ledger.** As the turn goes out, the job's runner opens a run under the
+  job's run name, its worker as the agent and its room, and the job carries it as `runId`; as the turn
+  ends the run is closed with how it ended, the tokens its context held and what it spent. A job answers
+  `usage`, what its turn spent: `inputTokens`, `outputTokens`, `cacheReadTokens` and `cacheWriteTokens`,
+  each summed over the models that answered it, and `tokenCount`, the four together. `usage` is null, and
+  `tokenCount` 0, until the turn ends and where its road reported no figures.
 - **A job's end releases its assignment,** whichever way it ended, so its worker is free for the next
   assignment. A `running` assignment whose job has ended is released as the assignments are next read.
 

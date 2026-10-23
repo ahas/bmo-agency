@@ -144,6 +144,16 @@ async fn a_job_waits_for_a_login_ends_with_why_and_frees_its_worker() {
     1
   );
 
+  // The turn was a run of the ledger under the job's run name, closed as it failed, with nothing spent.
+  let run = ended["runId"].as_i64().expect("the job carries its run");
+  let (_, kept) = get(port, token, &format!("/runs/{run}")).await;
+
+  assert_eq!(kept["unitName"], "job-1", "{kept}");
+  assert_eq!(kept["state"], "closed", "{kept}");
+  assert_eq!(kept["outcome"], "failed", "{kept}");
+  assert_eq!(ended["usage"], Value::Null, "{ended}");
+  assert_eq!(ended["tokenCount"], 0, "{ended}");
+
   // The end released the assignment, so the same worker is held for the next item.
   assert_eq!(get(port, token, &format!("/assignments/{assignment}")).await.1["state"], "released");
   assigned(port, token, 42).await;
@@ -170,8 +180,9 @@ async fn a_running_assignment_whose_job_ended_is_released_as_the_assignments_are
   scratch
     .run(
       r#"INSERT INTO "jobs" ("item_id", "lease_id", "holder_name", "assignment_id", "worker_name", "state",
-              "outcome", "token_count", "started_at", "ended_at", "prompt")
-         VALUES (41, 1, 'harness', 7, 'helper', 'ended', 'failed', 0, 0, 1, '# A harmless item')"#,
+              "outcome", "token_count", "input_tokens", "output_tokens", "cache_read_tokens",
+              "cache_write_tokens", "started_at", "ended_at", "prompt")
+         VALUES (41, 1, 'harness', 7, 'helper', 'ended', 'failed', 1111, 1, 10, 1000, 100, 0, 1, '# A harmless item')"#,
       vec![],
     )
     .await;
@@ -180,5 +191,15 @@ async fn a_running_assignment_whose_job_ended_is_released_as_the_assignments_are
   let port = server.port;
 
   assert_eq!(get(port, token, "/assignments/7").await.1["state"], "released");
+
+  // The job answers what its turn spent, apart and together.
+  let (_, jobs) = get(port, token, "/jobs").await;
+  let job = &jobs["items"][0];
+
+  assert_eq!(
+    job["usage"],
+    json!({ "inputTokens": 1, "outputTokens": 10, "cacheReadTokens": 1000, "cacheWriteTokens": 100 })
+  );
+  assert_eq!(job["tokenCount"], 1111);
   assigned(port, token, 42).await;
 }
