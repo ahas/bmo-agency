@@ -190,9 +190,9 @@ are the companion unit's, not agency's. This document covers only what agency ho
     windows they hold open for it — are their owners', and so are the records a turn wrote down under
     its run; the event carries the run names, since a chat run's name says its room but not the agent
     that ran it;
-  - the person range is the brain's: agency asks the brain to let go of everything it holds under the
-    companion's scope — its memories, notes, watches, reminders and fragments — so nothing it
-    remembered comes back (`docs/api.md`, 「Calls agency makes」, the brain); agency takes the records
+  - the person range is the brain's: agency asks the brain to let go of the companion's own brain whole, found
+    by the companion's key, so nothing it remembered comes back (`docs/api.md`, 「Calls agency makes」, the
+    brain); agency takes the records
     its harnesses keep of the recollectors' sessions run in its folder;
   - what it keeps, whichever range — its agent row and pin, its settings, its base prompt choice, its
     gate switches, the rooms themselves, the registry and the engine's placement, and whatever range

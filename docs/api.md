@@ -492,7 +492,8 @@ route. A caller uses one of them and writes no client of its own.
 Agency reaches upstreams only, through what their repositories publish: brain, graph, node, arbiter,
 pocket, testbed and chat through their clients, and cache-warmer through the schedule library
 `bmo-cache-warmer-schedule`.
-Of the brain it asks a companion's holding let go or counted, and the discipline a chat launch's system
+Of the brain it asks a companion's own brain, found by the companion's key, let go whole or only found for a
+preview, and the discipline a chat launch's system
 prompt carries.
 
 Each surface is a crate of its own repository, declared in the workspace manifest and allowed by
