@@ -23,7 +23,38 @@ fn bad(error: impl Into<String>) -> Refused {
 }
 
 const COLUMNS: &str = r#""name", "label", "cwd", "icon", "builtin", "node", "role", "resting_since",
-  "session_id", "last_run_at", "runs""#;
+  "session_id", "last_run_at", "runs", "prefix_documents""#;
+
+/// The prefix documents a body names (docs/worker-bench.md, 「Prefix documents」): none where it names
+/// none, and the list as the store keeps it, null for an empty one, where it names a list of paths none of
+/// which is empty or climbs with `..`.
+fn prefix_documents(body: &Value) -> Result<Option<sea_orm::Value>, Refused> {
+  let Some(listed) = body.get("prefixDocuments") else {
+    return Ok(None);
+  };
+  let paths = listed.as_array().ok_or_else(|| bad("prefixDocuments is a list of paths"))?;
+  let mut kept = Vec::with_capacity(paths.len());
+
+  for path in paths {
+    let path = path.as_str().map(str::trim).filter(|path| !path.is_empty());
+    let Some(path) = path else {
+      return Err(bad("prefixDocuments: every path is a string that is not empty"));
+    };
+
+    if std::path::Path::new(path)
+      .components()
+      .any(|part| part == std::path::Component::ParentDir)
+    {
+      return Err(bad(format!("prefixDocuments: {path} climbs with ..")));
+    }
+
+    kept.push(path.to_owned());
+  }
+
+  Ok(Some(sea_orm::Value::String(
+    (!kept.is_empty()).then(|| Box::new(Value::from(kept).to_string())),
+  )))
+}
 
 async fn member(db: &sea_orm::DatabaseConnection, name: &str) -> Result<Value, Refused> {
   let sql = format!(r#"SELECT {COLUMNS} FROM "agents" WHERE "name" = $1 AND "kind" = 'worker'"#);
@@ -58,6 +89,10 @@ async fn member_of(db: &sea_orm::DatabaseConnection, row: &QueryResult) -> Resul
     "sessionId": row.try_get::<Option<String>>("", "session_id")?,
     "runCount": row.try_get::<i64>("", "runs")?,
     "lastRunAt": row.try_get::<Option<i64>>("", "last_run_at")?,
+    "prefixDocuments": row
+      .try_get::<Option<String>>("", "prefix_documents")?
+      .and_then(|text| serde_json::from_str::<Vec<String>>(&text).ok())
+      .unwrap_or_default(),
   }))
 }
 
@@ -100,13 +135,15 @@ impl Route for AddWorker {
       .map(str::to_owned)
       .unwrap_or_else(|| call.ground().source.to_string_lossy().into_owned());
     let label = field("label").unwrap_or(name);
+    let documents = prefix_documents(&body)?;
 
     run(
       call.store(),
-      r#"INSERT INTO "agents" ("name", "kind", "label", "cwd", "icon", "role", "node", "builtin")
-         VALUES ($1, 'worker', $2, $3, $4, $5, $6, 0)
+      r#"INSERT INTO "agents" ("name", "kind", "label", "cwd", "icon", "role", "node", "builtin", "prefix_documents")
+         VALUES ($1, 'worker', $2, $3, $4, $5, $6, 0, $7)
          ON CONFLICT ("name") DO UPDATE SET "label" = EXCLUDED."label", "cwd" = EXCLUDED."cwd",
-           "icon" = EXCLUDED."icon", "role" = EXCLUDED."role", "node" = EXCLUDED."node""#,
+           "icon" = EXCLUDED."icon", "role" = EXCLUDED."role", "node" = EXCLUDED."node",
+           "prefix_documents" = EXCLUDED."prefix_documents""#,
       {
         let values: Vec<sea_orm::Value> = vec![
           name.to_owned().into(),
@@ -115,6 +152,7 @@ impl Route for AddWorker {
           sea_orm::Value::String(field("icon").map(|value| Box::new(value.to_owned()))),
           sea_orm::Value::String(field("role").map(|value| Box::new(value.to_owned()))),
           sea_orm::Value::String(field("nodeName").map(|value| Box::new(value.to_owned()))),
+          documents.unwrap_or(sea_orm::Value::String(None)),
         ];
         values
       },
@@ -155,6 +193,7 @@ impl Route for ChangeWorker {
     let name = call.param("workerName").unwrap_or_default().to_owned();
     let body = call.body().await?;
     let db = call.store();
+    let documents = prefix_documents(&body)?;
 
     if let Some(sampling) = body.get("sampling").filter(|sampling| sampling.is_object()) {
       let agent = agent_sampling::sampling_owner(db, &name).await.map_err(faulted)?;
@@ -202,7 +241,7 @@ impl Route for ChangeWorker {
     let mut push = |column: &str, value: Option<&str>| {
       if let Some(value) = value {
         values.push(value.to_owned().into());
-        sets.push(format!(r#""{column}" = ${}"#, values.len() + 1));
+        sets.push(format!(r#""{column}" = ${}"#, values.len()));
       }
     };
     push("label", field("label"));
@@ -210,6 +249,11 @@ impl Route for ChangeWorker {
     push("icon", field("icon"));
     push("role", field("role"));
     push("node", if placed { None } else { field("nodeName").or_else(|| field("node")) });
+
+    if let Some(documents) = documents {
+      values.push(documents);
+      sets.push(format!(r#""prefix_documents" = ${}"#, values.len()));
+    }
 
     if !sets.is_empty() {
       values.push(name.clone().into());

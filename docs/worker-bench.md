@@ -10,7 +10,28 @@ Each job worker holds three things beside the work of its jobs:
    beside the pane but restarts when it needs to
 
 - **Where they come from:** all three follow from what the worker's row says, and differ per worker.
-- **None of them is part of the worker session's prefix.**
+- **None of them is part of the worker session's prefix.** What the row puts into the prefix is its list of
+  prefix documents (「Prefix documents」 below).
+
+## Prefix documents
+
+- **A field of the worker row, `prefixDocuments`:** a list of paths, in order, set and read through
+  agency's worker routes (`docs/api.md`, 「workers, prefix-checks and room-holdings」). Left empty, there
+  are none.
+- **A path is the caller's choice and the code decides none.** A relative path is read from the worker's
+  checkout, the directory its row names; an absolute path is read where it stands, such as the umbrella
+  checkout's `STRUCTURE.md` or another repository's document under the umbrella. A path is refused where
+  it is empty or climbs with `..`.
+- **They stand in the worker's system prompt,** after its standing rules and its own rules, one after the
+  other in the list's order, each headed by its path as written. A launch reads each fresh from disk; a
+  document that cannot be read is left out and the launch says so in agency's log, so a path that moved
+  never stops a job.
+- **They are part of the prefix.** The worker's composed rules file carries them, so the session's prefix
+  digest moves when the list or a document's text changes, and the session is folded or opened afresh
+  as any other change to the prefix asks (`docs/launch-lines.md`, 「Why a line is held steady」).
+- **What they are for:** the documents a small model needs before it touches the repository — its
+  structure, the canonical document of the area it works in — read once into the cached prefix rather
+  than again by every job.
 
 ## Preamble
 

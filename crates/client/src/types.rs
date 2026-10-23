@@ -864,6 +864,10 @@ pub struct Worker {
   pub run_count: i64,
   /// epoch milliseconds
   pub last_run_at: Option<i64>,
+  /// The documents its session's prefix carries, in order: a relative path from its checkout, an absolute
+  /// one where it stands.
+  #[serde(default)]
+  pub prefix_documents: Vec<String>,
 }
 
 /// WorkerDefinition:
@@ -1844,6 +1848,9 @@ pub struct WorkerAdd {
   pub icon: Option<String>,
   pub role: Option<String>,
   pub node_name: Option<String>,
+  /// The documents its session's prefix carries, in order.
+  #[serde(default)]
+  pub prefix_documents: Option<Vec<String>>,
 }
 
 /// The body that changes a worker.
@@ -1859,6 +1866,9 @@ pub struct WorkerChange {
   pub role: Option<String>,
   pub stand: Option<bool>,
   pub bench: Option<bool>,
+  /// The documents its session's prefix carries, in order, the list whole; an empty list clears it.
+  #[serde(default)]
+  pub prefix_documents: Option<Vec<String>>,
 }
 
 /// The body that keeps a session's loads.

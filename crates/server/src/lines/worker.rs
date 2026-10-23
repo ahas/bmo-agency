@@ -103,9 +103,23 @@ pub async fn reasoning_of(ground: &Ground, agent: &str) -> Result<Reasoning, Ref
   })
 }
 
-/// Every worker's rules and the worker's own after them, as one file: one shared by every worker with
-/// nothing of its own and one for each worker with something.
-pub fn standing_rules(trees: &Trees, named: Option<&str>) -> Result<(String, PathBuf), Refusal> {
+/// A worker's rules: those its co-workers share — every worker's rules and the worker's own after them —
+/// and the worker's whole, which carry its prefix documents after those, written as one file: one shared
+/// by every worker with nothing of its own and one for each worker with something.
+pub struct StandingRules {
+  pub shared: String,
+  pub text: String,
+  pub file: PathBuf,
+}
+
+/// Every worker's rules, the worker's own after them and the documents its row names for its prefix last,
+/// as one file.
+pub fn standing_rules(
+  trees: &Trees,
+  named: Option<&str>,
+  worker: Option<&str>,
+  documents: Option<&str>,
+) -> Result<StandingRules, Refusal> {
   let own_path = named.map(|named| trees.agent_dir(named).join("own-rules.md"));
   let own = match &own_path {
     Some(path) if path.exists() => Some(read_required(path)?),
@@ -118,13 +132,50 @@ pub fn standing_rules(trees: &Trees, named: Option<&str>) -> Result<(String, Pat
 
   parts.extend(own.clone());
 
+  let shared = parts.join("\n\n");
+
+  parts.extend(documents.map(str::to_owned));
+
   let text = parts.join("\n\n");
-  let name = match (own, named) {
-    (Some(_), Some(named)) => format!("worker-rules-{named}"),
+  let name = match (documents, worker, own, named) {
+    (Some(_), Some(worker), _, _) => format!("worker-rules-{worker}"),
+    (_, _, Some(_), Some(named)) => format!("worker-rules-{named}"),
     _ => "worker-rules".to_owned(),
   };
+  let file = system_prompt_file(trees, &name, &text)?;
 
-  Ok((text.clone(), system_prompt_file(trees, &name, &text)?))
+  Ok(StandingRules { shared, text, file })
+}
+
+/// The documents a worker's row names for its session's prefix (docs/worker-bench.md, 「Prefix
+/// documents」), read fresh in the list's order, each headed by its path as written: a relative path from
+/// the worker's checkout, an absolute one where it stands. A support worker with none of its own takes its
+/// base's. A document that cannot be read is left out and said in the log; none where the list is empty.
+pub async fn prefix_documents(ground: &Ground, worker: &str, cwd: &str) -> Result<Option<String>, Refusal> {
+  let row = one(
+    &ground.db,
+    r#"SELECT COALESCE(own."prefix_documents", base."prefix_documents") AS "documents"
+       FROM "agents" own LEFT JOIN "agents" base ON base."name" = own."support_of"
+       WHERE own."name" = $1"#,
+    vec![worker.into()],
+  )
+  .await?;
+  let listed: Vec<String> = row
+    .and_then(|row| row.try_get::<Option<String>>("", "documents").ok().flatten())
+    .and_then(|text| serde_json::from_str(&text).ok())
+    .unwrap_or_default();
+  let mut read = Vec::new();
+
+  for path in &listed {
+    let at = Path::new(cwd).join(path);
+
+    match std::fs::read_to_string(&at) {
+      Ok(text) => read.push(format!("DOCUMENT {path}:\n{}", text.trim_end())),
+      Err(why) => eprintln!("worker {worker}: its prefix document {} was left out: {why}", at.display()),
+    }
+  }
+
+  Ok((!read.is_empty()).then(|| read.join("\n\n")))
 }
 
 /// A rulebook as an agent is given it, named so the agent can say which rule it applied.
@@ -380,7 +431,15 @@ pub async fn worker_run(
     Some(worker) => Some(documents_of(ground, worker).await?),
     None => None,
   };
-  let (rules_text, rules) = standing_rules(trees, named.as_deref())?;
+  let documents = match worker {
+    Some(worker) => prefix_documents(ground, worker, cwd).await?,
+    None => None,
+  };
+  let StandingRules {
+    shared,
+    text: rules_text,
+    file: rules,
+  } = standing_rules(trees, named.as_deref(), worker, documents.as_deref())?;
   let above = match worker {
     Some(worker) => crate::conversational::role_of(&ground.db, worker)
       .await
@@ -417,7 +476,7 @@ pub async fn worker_run(
     rules,
     mcp_config: mcp_config(ground, trees)?,
     settings: worker_dir.join("settings.json"),
-    agents_json: coworkers_json(ground, &plugin_dir, &rules_text).await?,
+    agents_json: coworkers_json(ground, &plugin_dir, &shared).await?,
     plugin_dir,
     tools_denied: RUN_LINES.line(LINE).map(|line| line.tools_denied.join(",")).unwrap_or_default(),
     cwd: cwd.to_owned(),

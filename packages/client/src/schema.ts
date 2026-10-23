@@ -1066,7 +1066,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** One worker: checkout, node, role, sampling, session, runs. */
+        /** One worker: checkout, node, role, prefix documents, sampling, session, runs. */
         get: operations["getWorker"];
         put?: never;
         post?: never;
@@ -2710,6 +2710,12 @@ export interface components {
              * @description epoch milliseconds
              */
             lastRunAt: number | null;
+            /**
+             * @description The documents its session's prefix carries, in order: a relative path from its checkout, an absolute
+             *     one where it stands.
+             * @default []
+             */
+            prefixDocuments: string[];
         };
         /** @description The body that adds a worker. */
         WorkerAdd: {
@@ -2719,6 +2725,11 @@ export interface components {
             icon: string | null;
             role: string | null;
             nodeName: string | null;
+            /**
+             * @description The documents its session's prefix carries, in order.
+             * @default null
+             */
+            prefixDocuments: string[] | null;
         };
         /** @description The body that changes a worker. */
         WorkerChange: {
@@ -2731,6 +2742,11 @@ export interface components {
             role: string | null;
             stand: boolean | null;
             bench: boolean | null;
+            /**
+             * @description The documents its session's prefix carries, in order, the list whole; an empty list clears it.
+             * @default null
+             */
+            prefixDocuments: string[] | null;
         };
         /** @description WorkerDefinition: */
         WorkerDefinition: {

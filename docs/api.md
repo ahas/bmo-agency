@@ -28,7 +28,7 @@ a field's exact shape matters, the OpenAPI document is the one to read.
 ## Versioning
 
 - The contract carries the repository's one version, in semver; the workspace manifest is its source. Before
-  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.57`.
+  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.58`.
 - A change to this document and a change to the boundary go in one commit. A change to a route, an event, a
   hook or a shared table's contract repairs this document in the same commit.
 - The major moves on a removed or renamed route, field or event, the minor on an addition, the patch on
@@ -516,10 +516,14 @@ yesterday to now where none is given.
 |---|---|---|
 | GET | `/workers` | Every worker. |
 | POST | `/workers` | Add a worker. |
-| GET | `/workers/{workerName}` | One worker: checkout, node, role, sampling, session, runs. |
+| GET | `/workers/{workerName}` | One worker: checkout, node, role, prefix documents, sampling, session, runs. |
 | PATCH | `/workers/{workerName}` | Change a worker: fields, node placement, sampling, stand it again, ready its bench. |
 | DELETE | `/workers/{workerName}` | Remove a worker. |
 | GET | `/workers/{workerName}/definition` | The worker's agent definition: graph, trailer, handoff. |
+
+A worker carries `prefixDocuments`, the paths of the documents its session's prefix carries, in order
+(`docs/worker-bench.md`, 「Prefix documents」); `POST /workers` and `PATCH /workers/{workerName}` take
+the list whole, an empty list clearing it, and refuse an empty path or one that climbs with `..`.
 
 A change that names a node other than the one the worker stands on places it there, and one that names
 none brings it back: the node must be one the node service keeps and that takes jobs, the worker must

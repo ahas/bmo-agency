@@ -1776,7 +1776,7 @@ pub const OPERATIONS: &[Operation] = &[
     path: "/workers/{workerName}",
     id: "getWorker",
     tag: "workers",
-    summary: "One worker: checkout, node, role, sampling, session, runs.",
+    summary: "One worker: checkout, node, role, prefix documents, sampling, session, runs.",
     params: &[Param {
       name: "workerName",
       place: "path",

@@ -66,6 +66,7 @@ mod control {
   mod stand_in_route;
   mod tiers;
   mod walk_reads;
+  mod worker_api;
   mod worker_runtime;
 }
 mod conversational;

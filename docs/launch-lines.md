@@ -224,7 +224,8 @@
   then the rulebook against destroying the system, then that worker's own rules where it has a
   document of its own, `prompts/agents/<worker>/own-rules.md` (a support
   worker takes its base's, and a co-work branch in a standing checkout, which is no worker's, takes
-  none) — and the job prompt ends with the report trailer. A worker that chooses a base prompt
+  none), then the documents its row names as its prefix documents (`docs/worker-bench.md`, 「Prefix
+  documents」) — and the job prompt ends with the report trailer. A worker that chooses a base prompt
   (`docs/base-prompts.md`) is handed the default prompt's place instead: the chosen prompt with the
   same rules after it, as one file named by what it holds, given as the whole system prompt; on
   Codex as its instructions file, with the checkout's `AGENTS.md` still read, and on OpenRouter and

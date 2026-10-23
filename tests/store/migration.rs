@@ -68,7 +68,7 @@ async fn the_columns_carried_beyond_a_tables_first_shape_stand_after_its_row_id(
 
   let agents = columns("agents").await;
   assert_eq!(
-    agents[agents.len() - 8..],
+    agents[agents.len() - 9..],
     [
       "rowid",
       "node",
@@ -77,7 +77,8 @@ async fn the_columns_carried_beyond_a_tables_first_shape_stand_after_its_row_id(
       "turn_shape",
       "default_answerer",
       "prompts",
-      "owner_account"
+      "owner_account",
+      "prefix_documents"
     ]
   );
   let accounts = columns("claude_accounts").await;

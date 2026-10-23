@@ -140,3 +140,42 @@ async fn a_directory_account_with_no_choice_appends_the_rules_to_the_programs_ow
   assert!(!args.iter().any(|arg| arg == "--system-prompt-file"));
   assert_eq!(handed_after(&args, "--append-system-prompt-file"), run.rules);
 }
+
+// A worker's prefix documents stand last in its rules file, in the list's order, each headed by its path
+// as written, a relative one read from its checkout and an absolute one where it stands; one that cannot
+// be read is left out, and the co-workers' rules carry none (docs/worker-bench.md, 「Prefix documents」).
+#[tokio::test]
+async fn a_worker_s_prefix_documents_stand_last_in_its_rules_and_its_co_workers_carry_none() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let checkout = home.path().join("checkout");
+  let umbrella = home.path().join("STRUCTURE.md");
+
+  std::fs::create_dir_all(checkout.join("docs")).unwrap();
+  std::fs::write(checkout.join("docs").join("area.md"), "# The area\n\nIts canonical statement.\n")
+    .unwrap();
+  std::fs::write(&umbrella, "# The structure\n").unwrap();
+
+  let listed = serde_json::json!([umbrella.to_string_lossy(), "docs/area.md", "docs/gone.md"]).to_string();
+
+  scratch
+    .run(
+      r#"INSERT INTO "agents" ("name", "kind", "cwd", "prefix_documents") VALUES ('helper', 'worker', $1, $2)"#,
+      vec![Value::from(checkout.to_string_lossy().into_owned()), Value::from(listed)],
+    )
+    .await;
+
+  let ground = ground(&scratch, &home).await;
+  let trees = Trees::of(&ground);
+  let cwd = checkout.to_string_lossy().into_owned();
+  let run = worker_run(&ground, &trees, Some("helper"), None, "claude-opus-5", &cwd).await.unwrap();
+  let rules = std::fs::read_to_string(&run.rules).unwrap();
+  let expected = format!(
+    "DOCUMENT {}:\n# The structure\n\nDOCUMENT docs/area.md:\n# The area\n\nIts canonical statement.",
+    umbrella.display()
+  );
+
+  assert!(rules.trim_end().ends_with(&expected), "{rules}");
+  assert!(!rules.contains("docs/gone.md"), "{rules}");
+  assert!(!run.agents_json.contains("Its canonical statement."));
+}
