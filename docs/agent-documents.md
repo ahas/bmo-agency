@@ -94,7 +94,7 @@ composed into a system prompt, and what the chat agent's own prompt is made of.
 - **`prompts/agents/chat/manual.md` is the operating manual** — long work, the queue and the owner's
   approval, the worker's run and its close, host work, the fast track, images, the response protocol
   with its sentinels, the language an answer is written in, what the room hears of the agent's tools,
-  the answer rules, promises, and a turn past its clock. It is how the chat agent works at all, and it says when to act.
+  the draft process, the answer rules, promises, and a turn past its clock. It is how the chat agent works at all, and it says when to act.
 - **No document fixes the language the chat agent answers in.** It answers each person in the
   language that person wrote to it in; the room's language, which the turn's ANSWER LANGUAGE line
   names, stands only where the speaker's language cannot be told, and what the owner is told is in the
@@ -104,6 +104,13 @@ composed into a system prompt, and what the chat agent's own prompt is made of.
   any other part of the system, or says one is being called; where a wait wants explaining, the agent
   says in its own words that it will look something up, look into it or translate it. The owner's own
   question about how it works is the exception the absolute rules make.
+- **The manual describes the draft process as the receiver runs it** (the receiver's `docs/drafting.md`):
+  the questions asked in rounds after a turn, every answer before the last being free-form notes of what
+  was read, established in the brain and still unknown, the tools open in every round, the message
+  written in the last, `<<SEND>>` opening an answer making it the message and ending the process,
+  `<<SKIP>>` sending nothing, and the first round's freedom to answer at once, to search quietly where a
+  fact may not hold, and never to hedge about a fact being out of date. The receiver owns the questions;
+  the manual only tells the agent what an answer to each is.
 - **The procedure documents:** how to do what is needed only at the moment it is done — filing and
   running the queue, a fast-track tool, and a run past its clock — is in
   `prompts/agents/chat/procedures/`, one document each, which the session reads right before doing

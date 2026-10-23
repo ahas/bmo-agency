@@ -203,3 +203,26 @@ fn the_room_hears_what_the_agent_will_do_and_never_which_tool_does_it() {
   assert!(!tools.contains('"'), "a rule, with no sentence for the agent to repeat: {tools}");
   assert!(system.find("SPEAKING OF YOUR TOOLS:") < system.find("RESPONSE PROTOCOL:"));
 }
+
+#[test]
+fn the_manual_tells_what_an_answer_to_each_round_of_the_draft_process_is() {
+  let system = composed();
+  let drafting = section(&system, "DRAFTING A MESSAGE");
+
+  for said in [
+    "in rounds",
+    "notes",
+    "wrote into the brain",
+    "still unknown",
+    "tools are open in every round",
+    "The first round has the most freedom",
+    "search for it quietly",
+    "Never tell the room that something may be out of date",
+    "opens with <<SEND>> is the message",
+    "<<SKIP>> anywhere in an answer ends it with nothing sent",
+    "In the last round you write the message",
+  ] {
+    assert!(drafting.contains(said), "{said}: {drafting}");
+  }
+  assert_eq!(drafting.trim().lines().count(), 1, "one paragraph: {drafting}");
+}
