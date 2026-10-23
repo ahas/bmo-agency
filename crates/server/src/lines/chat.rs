@@ -178,15 +178,16 @@ fn hands_toolbook(ground: &Ground) -> bool {
     .is_some_and(|servers| servers.contains_key(harness_providers::toolbook::SERVER))
 }
 
-// The chat's servers: the tool host's namespace and toolbook as every line reaches them, then the two the
-// chat starts as programs of its own — the job plugin on its `mcp` verb, told the queues it subscribes to
-// and the holder it takes them under, and the agency's own binary on the same verb. A value that differs
-// by installation is read from the environment, and each program's bearer is handed to it in the
-// configuration's own environment: a harness starts its children on an environment scrubbed of
+// The chat's servers: the tool host's namespaces its line names and the toolbook, as every line reaches
+// them, then the two the chat starts as programs of its own — the job plugin on its `mcp` verb, told the
+// queues it subscribes to and the holder it takes them under, and the agency's own binary on the same verb.
+// A value that differs by installation is read from the environment, and each program's bearer is handed to
+// it in the configuration's own environment: a harness starts its children on an environment scrubbed of
 // everything but the entries written there.
 fn harness_servers(ground: &Ground) -> Ordered {
   let env = ground.env();
-  let mut servers: Vec<(String, Ordered)> = super::runner::line_servers(ground, &[SERVER])
+  let namespaces: Vec<&str> = RUN_LINES.namespaces(LINE).iter().map(String::as_str).collect();
+  let mut servers: Vec<(String, Ordered)> = super::runner::line_servers(ground, &namespaces)
     .entries()
     .into_iter()
     .flatten()

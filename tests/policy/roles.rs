@@ -2,7 +2,7 @@ use policy::roles::*;
 
 #[test]
 fn each_role_gives_its_bundles_and_every_bundle_a_role_names_is_declared() {
-  assert_eq!(ROLES.bundles_of("chat"), ["room.chat", "room.send"]);
+  assert_eq!(ROLES.bundles_of("chat"), ["room.chat", "room.send", "web.read"]);
   assert_eq!(ROLES.bundles_of("worker"), ["graph.read", "queue.read", "web.read"]);
   assert_eq!(
     ROLES.bundles_of("searcher"),

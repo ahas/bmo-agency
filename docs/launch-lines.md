@@ -157,11 +157,11 @@
   (`prompts/rules/self-preservation.md`), the brain's discipline, the tool host's paragraph on finding
   and using tools (`docs/api.md`, 「Calls agency makes」) and the persona — the base layer of the
   agent's brain, or the one the turn hands in where the brain gives none (`docs/sessions.md`, 「Document reload」) — handed
-  over as a file and replacing the CLI's own. No settings sources, no skills, no Chrome, and four MCP servers, named in `chat.mcp.json`
-  beside the strict flag that keeps every other server out: the tool host's `bmo` namespace and its
-  toolbook, each a streamable HTTP server behind the run's session token (the tool host's
-  `mcp-host.md`), which is where the chat agent's own tools stand — sending, filing a TODO item and
-  its brain's memory tools among them; the job service's harness plugin, `job`, which leases an item
+  over as a file and replacing the CLI's own. No settings sources, no skills, no Chrome, and five MCP servers, named in `chat.mcp.json`
+  beside the strict flag that keeps every other server out: the tool host's namespaces the chat line
+  names, `bmo` and `web`, and its toolbook, each a streamable HTTP server behind the run's session token
+  (the tool host's `mcp-host.md`), which is where the chat agent's own tools stand — sending, filing a
+  TODO item, its brain's memory tools, and the web's search and page fetch among them; the job service's harness plugin, `job`, which leases an item
   from a queue; and the agency's own, `agency`, which assigns a worker and launches the item's job.
   The tools shown are exactly Bash, Read, Write, Edit and the CLI's two MCP resource tools, the list
   and the read, in every run of every chat (none when the owner has turned tools off in that chat),

@@ -30,7 +30,7 @@ made of is `docs/companions.md`.
 
   | Role | Label | Bundles |
   |---|---|---|
-  | `chat` | Chat | `room.chat`, `room.send` |
+  | `chat` | Chat | `room.chat`, `room.send`, `web.read` |
   | `worker` | Worker | `graph.read`, `queue.read`, `web.read` |
   | `searcher` | Searcher | `web.read`, `web.sites`, `web.images`, `web.branches`, `web.rulebooks` |
   | `gate` | Gate | none |
@@ -69,6 +69,9 @@ made of is `docs/companions.md`.
   - its answer pinned to a message by the reply sentinel, as the chat agent's is.
 - **What the room's road cannot carry is refused in that road's one sentence,** as for every sender
   (`chat-providers.md`): the bundle opens the verbs, and the road decides which of them go.
+- **`web.read` — web search and page fetch** of the web namespace, the same two tools the worker reads the
+  web with, shown to the chat line by name. What they find comes back to the session that called them;
+  the agent answers the room with it.
 
 ## The worker role's bundles
 

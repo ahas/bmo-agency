@@ -61,7 +61,7 @@ label = "Rulebooks"
 name = "chat"
 label = "Chat"
 max_concurrent = 8
-bundles = ["room.chat", "room.send"]
+bundles = ["room.chat", "room.send", "web.read"]
 
 [[roles]]
 name = "worker"

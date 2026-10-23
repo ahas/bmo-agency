@@ -46,7 +46,7 @@ composed into a system prompt, and what the chat agent's own prompt is made of.
 - **Agency's deployment writes `worker.mcp.json`,** the job worker's own configuration and the only
   line handed it, naming the tool host's `worker` namespace beside its `web` namespace
   (`mcp-host.md`). The chat line's `chat.mcp.json` is not the deployment's to write: the chat line
-  composes it on every turn, the tool host's `bmo` namespace and toolbook beside the two harness
+  composes it on every turn, the tool host's `bmo` and `web` namespaces and toolbook beside the two harness
   plugins (`docs/launch-lines.md`, 「What is fixed」), and one writer keeps the file from moving between
   two compositions.
 - **The tool host's web namespace is how the web reaches every agent allowed to use it:** its

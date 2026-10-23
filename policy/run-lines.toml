@@ -20,12 +20,12 @@
 needs = []
 keeps_session = true
 composes_typed_lines = true
-capabilities = ["room.tools"]
-namespaces = ["bmo"]
+capabilities = ["room.tools", "web.read"]
+namespaces = ["bmo", "web"]
 shown = [
   "bmo/brain_fold", "bmo/brain_consolidated", "bmo/brain_episode", "bmo/brain_learn", "bmo/brain_list",
   "bmo/brain_move", "bmo/brain_similar", "bmo/brain_unconsolidated", "bmo/running", "bmo/say", "bmo/task",
-  "bmo/todo_add", "bmo/todo_append", "bmo/todo_approve", "bmo/todo_show",
+  "bmo/todo_add", "bmo/todo_append", "bmo/todo_approve", "bmo/todo_show", "web/web_fetch", "web/web_search",
 ]
 
 [gate]
