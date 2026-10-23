@@ -41,6 +41,10 @@ a field's exact shape matters, the OpenAPI document is the one to read.
   token `AGENCY_CONTROL_TOKEN` holds. A request without the token is answered 401.
 - Both variables stand in the data root's `env/agency.env`. A process of agency's whose environment holds
   neither reads them there.
+- The same file names the tool host's port, `BMO_MCP_HOST_PORT`, with the value the tool host's own
+  `env/pocket.env` gives it (3290 where neither names one): every MCP configuration agency writes points
+  its tool host servers at that port, and a line whose port is not the host's has no tool of the host's,
+  a dsh session refusing to open on it.
 - A route takes and answers JSON, keys in camelCase, times in epoch milliseconds, ids as signed 64-bit
   integers. A failure is a non-2xx status with `code` and `error`. A list is a page: `items` and `more`,
   asked with `after` or `before` and `limit`.
