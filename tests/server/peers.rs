@@ -74,20 +74,12 @@ fn machine() -> Value {
 const CHANGES: &str = "event: machine.changed\ndata: not-json\n\n\
 event: machine.changed\ndata: {\"id\":2,\"kind\":\"machine.changed\",\"at\":1700000000000,\"data\":{\"name\":\"local\",\"label\":\"This machine\",\"kind\":\"local\",\"tracking\":true,\"standing\":{\"reading\":null,\"alerts\":[{\"cause\":\"memory\",\"fullPct\":12.5,\"alertPct\":10,\"minutes\":2}],\"browsers\":2,\"scopes\":[],\"largest\":[]}}}\n\n";
 
-fn count(scope: &str, memories: i64) -> Value {
-  json!({
-    "scope": scope,
-    "counts": {
-      "memories": memories,
-      "memoryMatches": 0,
-      "notes": 0,
-      "watches": 0,
-      "reminders": 0,
-      "fragments": 0,
-      "fragmentHits": 0
-    },
-    "state": "remembered"
-  })
+fn brain(agent: &str, id: i64) -> Value {
+  json!({ "id": id, "accountKey": "1", "agentKey": agent, "name": agent, "createdAt": 1 })
+}
+
+fn brains(members: &[(&str, i64)]) -> Value {
+  json!({ "items": members.iter().map(|(agent, id)| brain(agent, *id)).collect::<Vec<_>>(), "more": false })
 }
 
 async fn answer(
@@ -156,16 +148,14 @@ async fn answer(
     ("GET", "events") if query.as_deref().is_some_and(|query| query.contains("kinds=machine.changed")) => {
       return ([("content-type", "text/event-stream")], CHANGES).into_response();
     }
-    ("DELETE", "scopes/kept") if query.as_deref() == Some("dryRun=true") => count("kept", 3),
-    ("DELETE", "scopes/kept") => count("kept", 0),
-    ("DELETE", "scopes/gone") => {
-      return (StatusCode::NOT_FOUND, Json(json!({ "code": "not-found", "error": "Nothing is held." })))
-        .into_response();
-    }
-    ("DELETE", "scopes/busy") => {
+    ("GET", "brains") if query.as_deref() == Some("agentKey=kept&limit=1") => brains(&[("kept", 5)]),
+    ("GET", "brains") if query.as_deref() == Some("agentKey=gone&limit=1") => brains(&[]),
+    ("GET", "brains") if query.as_deref() == Some("agentKey=busy&limit=1") => brains(&[("busy", 6)]),
+    ("DELETE", "brains/5") => brain("kept", 5),
+    ("DELETE", "brains/6") => {
       return (
         StatusCode::CONFLICT,
-        Json(json!({ "code": "conflict", "error": "The scope is being written." })),
+        Json(json!({ "code": "conflict", "error": "The brain is being written." })),
       )
         .into_response();
     }
@@ -292,12 +282,12 @@ async fn the_brain_is_asked_by_the_agent_and_its_refusals_come_back_as_faults() 
 
   let preview = peers.brain.reset("kept", true).await.unwrap();
 
-  assert_eq!(preview.took["memories"], json!(3));
+  assert_eq!(preview.took["brains"], json!(1));
   assert_eq!(preview.could_not, Vec::<String>::new());
 
   let took = peers.brain.reset("kept", false).await.unwrap();
 
-  assert_eq!(took.took["memories"], json!(0));
+  assert_eq!(took.took["brains"], json!(1));
 
   peers.brain.forget("kept").await.unwrap();
   peers.brain.forget("gone").await.unwrap();
@@ -311,7 +301,7 @@ async fn the_brain_is_asked_by_the_agent_and_its_refusals_come_back_as_faults() 
       peer: "brain",
       status: 409,
       code: "conflict".into(),
-      error: "The scope is being written.".into(),
+      error: "The brain is being written.".into(),
     }
   );
 
@@ -323,12 +313,15 @@ async fn the_brain_is_asked_by_the_agent_and_its_refusals_come_back_as_faults() 
       .map(|call| (call.method.as_str(), call.path.as_str(), call.query.as_deref()))
       .collect::<Vec<_>>(),
     [
-      ("DELETE", "/base/scopes/kept", Some("dryRun=true")),
-      ("DELETE", "/base/scopes/kept", None),
-      ("DELETE", "/base/scopes/kept", None),
-      ("DELETE", "/base/scopes/gone", None),
-      ("DELETE", "/base/scopes/gone", None),
-      ("DELETE", "/base/scopes/busy", None)
+      ("GET", "/base/brains", Some("agentKey=kept&limit=1")),
+      ("GET", "/base/brains", Some("agentKey=kept&limit=1")),
+      ("DELETE", "/base/brains/5", None),
+      ("GET", "/base/brains", Some("agentKey=kept&limit=1")),
+      ("DELETE", "/base/brains/5", None),
+      ("GET", "/base/brains", Some("agentKey=gone&limit=1")),
+      ("GET", "/base/brains", Some("agentKey=gone&limit=1")),
+      ("GET", "/base/brains", Some("agentKey=busy&limit=1")),
+      ("DELETE", "/base/brains/6", None)
     ]
   );
   assert!(calls.iter().all(|call| call.authorization.as_deref() == Some("Bearer brain-token")));
