@@ -35,7 +35,6 @@ const INTERNAL: &[&str] = &[
   "road-walked",
   "room-title",
   "run-recovered",
-  "session-summariser",
   "system-prompt-changed",
   "typed-line",
   "worker-words",

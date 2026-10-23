@@ -8,7 +8,6 @@
 pub mod fold;
 pub mod held;
 pub mod records;
-pub mod summary;
 pub mod told;
 pub mod warmth;
 
@@ -406,7 +405,6 @@ pub async fn turn<W: Watch>(side: &Side<'_>, asked: Asked<'_>, watch: &mut W) ->
       resume: resume.clone(),
       account,
       placement: None,
-      thread: None,
     },
   )
   .await?;
@@ -508,7 +506,9 @@ pub async fn turn<W: Watch>(side: &Side<'_>, asked: Asked<'_>, watch: &mut W) ->
     if run.resume.is_none() { "brought up" } else { "resumed" }
   );
 
-  if fold::worker_session_full(reply.context_ratio) {
+  let fold_ratio = fold::worker_fold_ratio(ground, &reply.mode, run.line.tier.as_deref()).await;
+
+  if fold::worker_session_full(reply.context_ratio, fold_ratio) {
     println!("{label} {worker} {model}: {session_id} is full, folding it");
     fold::fold(ground, asked.worker, model, &account, &session_id).await;
   }

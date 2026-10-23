@@ -155,10 +155,10 @@ pub struct RunParts {
 
 /// A work turn's parts, as a job's runner names them (docs/api.md, 「Sessions」, a work turn's parts): the
 /// harness and the model its session record is kept under, the line it is laid on, which session it goes
-/// on, the folder its program works in, the run's name and what a person watching reads over it, the
-/// thread its session is kept under, the room its run's lines stand under, the unit it runs under, the
-/// user and the work key its logins are offered by, whether words pushed into the session reach it, and
-/// the variables its program is started with beside its own.
+/// on, the folder its program works in, the run's name and what a person watching reads over it, the room
+/// its run's lines stand under, the unit it runs under, the user and the work key its logins are offered
+/// by, whether words pushed into the session reach it, and the variables its program is started with
+/// beside its own.
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
 pub struct WorkParts {
   pub provider: String,
@@ -168,8 +168,6 @@ pub struct WorkParts {
   pub cwd: String,
   pub name: String,
   pub title: String,
-  #[serde(default)]
-  pub thread: Option<String>,
   pub chat: i64,
   #[serde(default)]
   pub unit: Option<String>,

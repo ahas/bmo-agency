@@ -2,8 +2,8 @@
 //! row the owner removed left removed.
 
 use store::seed::{
-  AccountSeed, BasePromptSeed, CatalogueSeed, CoworkerTier, LaterSeed, Seeds, TierMapping, TierPlan,
-  WorkKey, settle,
+  AccountSeed, BasePromptSeed, CatalogueSeed, CoworkerTier, FoldRatioSeed, LaterSeed, Seeds, TierMapping,
+  TierPlan, WorkKey, settle,
 };
 
 use crate::scratch::Scratch;
@@ -54,6 +54,16 @@ fn seeds() -> Seeds {
         capacity: 12,
       }],
     },
+    fold_ratios: vec![
+      FoldRatioSeed {
+        provider: "first".into(),
+        ratio: 0.85,
+      },
+      FoldRatioSeed {
+        provider: "engine".into(),
+        ratio: 0.5,
+      },
+    ],
     catalogue: vec![CatalogueSeed {
       name: "entry".into(),
       label: "Entry".into(),
@@ -192,6 +202,54 @@ async fn what_the_owner_removed_stays_removed_and_what_the_owner_set_stands() {
   assert_eq!(mapped(&scratch, "first", "Low").await, None);
   assert_eq!(assignment(&scratch, "gate").await, None);
   assert_eq!(assignment(&scratch, "chat").await.as_deref(), Some("Low"));
+}
+
+async fn fold_ratio(scratch: &Scratch, provider: &str, tier: &str) -> Option<f64> {
+  store::one(
+    scratch.db(),
+    r#"SELECT "ratio" FROM "fold_ratios" WHERE "provider" = $1 AND "tier" = $2"#,
+    vec![provider.into(), tier.into()],
+  )
+  .await
+  .unwrap()
+  .map(|row| row.try_get::<f64>("", "ratio").unwrap())
+}
+
+#[tokio::test]
+async fn every_provider_is_given_its_fold_ratio_at_every_tier_once() {
+  let scratch = Scratch::blank().await;
+
+  settle(scratch.db(), &seeds()).await.unwrap();
+
+  for tier in ["Top", "Low"] {
+    assert_eq!(fold_ratio(&scratch, "first", tier).await, Some(0.85));
+    assert_eq!(fold_ratio(&scratch, "engine", tier).await, Some(0.5));
+  }
+
+  scratch
+    .run(
+      r#"UPDATE "fold_ratios" SET "ratio" = 0.7 WHERE "provider" = 'first' AND "tier" = 'Top'"#,
+      vec![],
+    )
+    .await;
+  scratch
+    .run(r#"DELETE FROM "fold_ratios" WHERE "provider" = 'engine' AND "tier" = 'Low'"#, vec![])
+    .await;
+
+  let mut later = seeds();
+  later.fold_ratios.push(FoldRatioSeed {
+    provider: "late".into(),
+    ratio: 0.6,
+  });
+  settle(scratch.db(), &later).await.unwrap();
+
+  assert_eq!(fold_ratio(&scratch, "first", "Top").await, Some(0.7), "what the owner set stands");
+  assert_eq!(fold_ratio(&scratch, "engine", "Low").await, None, "a provider is seeded once");
+  assert_eq!(
+    fold_ratio(&scratch, "late", "Low").await,
+    Some(0.6),
+    "a provider declared later is seeded"
+  );
 }
 
 #[tokio::test]

@@ -1,6 +1,6 @@
 //! The work a harness hands the agency (docs/api.md, 「Assignments and jobs」): a worker held for an item,
 //! the item handed over with its lease and run on that worker, and what a worker's session carries of the
-//! item, its documents and its agent's summary.
+//! item and its documents.
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
@@ -467,7 +467,6 @@ async fn work_parts(
     cwd,
     name: name.to_owned(),
     title: title.to_owned(),
-    thread: None,
     chat: room,
     unit: Some(name.to_owned()),
     user: None,
@@ -733,7 +732,7 @@ impl Route for ReadJobPrompt {
 
 crate::moved!(ReadJobPrompt);
 
-// ---- session work, loads and summaries ----
+// ---- session work and loads ----
 
 fn results_of(row: Option<&QueryResult>) -> Result<Vec<Value>, Refused> {
   let Some(row) = row else { return Ok(Vec::new()) };
@@ -945,106 +944,3 @@ impl Route for DeleteSessionLoads {
 }
 
 crate::moved!(DeleteSessionLoads);
-
-async fn summary_value(db: &sea_orm::DatabaseConnection, agent: &str) -> Result<Value, Refused> {
-  let row = one(
-    db,
-    r#"SELECT "text", "changed_at" FROM "session_summaries" WHERE "agent" = $1"#,
-    vec![agent.into()],
-  )
-  .await?;
-  let Some(row) = row else { return Err(missing(format!("summary of {agent}"))) };
-
-  Ok(json!({
-    "agentName": agent,
-    "text": row.try_get::<String>("", "text")?,
-    "changedAt": row.try_get::<i64>("", "changed_at")?,
-  }))
-}
-
-/// An agent's kept session summary.
-pub struct ReadSessionSummary;
-
-impl Route for ReadSessionSummary {
-  const METHOD: Method = Method::GET;
-  const PATH: &'static str = "/session-summaries/{agentName}";
-
-  async fn answer(&self, call: Call) -> Result<Response, Refused> {
-    let agent = call.param("agentName").unwrap_or_default();
-
-    Ok(answer(StatusCode::OK, summary_value(&call.ground().db, agent).await?))
-  }
-}
-
-crate::moved!(ReadSessionSummary);
-
-/// Keep an agent's session summary.
-pub struct PutSessionSummary;
-
-impl Route for PutSessionSummary {
-  const METHOD: Method = Method::PUT;
-  const PATH: &'static str = "/session-summaries/{agentName}";
-
-  async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
-    let agent = call.param("agentName").unwrap_or_default().to_owned();
-    let asked = body(&mut call).await?;
-    let text = text(&asked, "text")?.to_owned();
-    let db = &call.ground().db;
-
-    run(
-      db,
-      r#"INSERT INTO "session_summaries" ("agent", "text", "changed_at") VALUES ($1, $2, $3)
-         ON CONFLICT ("agent") DO UPDATE SET "text" = EXCLUDED."text", "changed_at" = EXCLUDED."changed_at""#,
-      vec![agent.clone().into(), text.into(), now_ms().into()],
-    )
-    .await?;
-
-    Ok(answer(StatusCode::OK, summary_value(db, &agent).await?))
-  }
-}
-
-crate::moved!(PutSessionSummary);
-
-/// Clear an agent's session summary.
-pub struct DeleteSessionSummary;
-
-impl Route for DeleteSessionSummary {
-  const METHOD: Method = Method::DELETE;
-  const PATH: &'static str = "/session-summaries/{agentName}";
-
-  async fn answer(&self, call: Call) -> Result<Response, Refused> {
-    let agent = call.param("agentName").unwrap_or_default();
-    run(
-      &call.ground().db,
-      r#"DELETE FROM "session_summaries" WHERE "agent" = $1"#,
-      vec![agent.into()],
-    )
-    .await?;
-
-    Ok(StatusCode::NO_CONTENT.into_response())
-  }
-}
-
-crate::moved!(DeleteSessionSummary);
-
-/// The summariser's task for an agent.
-pub struct ReadSummaryTask;
-
-impl Route for ReadSummaryTask {
-  const METHOD: Method = Method::GET;
-  const PATH: &'static str = "/session-summaries/{agentName}/task";
-
-  async fn answer(&self, call: Call) -> Result<Response, Refused> {
-    let agent = call.param("agentName").unwrap_or_default();
-
-    Ok(answer(
-      StatusCode::OK,
-      json!({
-        "agentName": agent,
-        "task": format!("Summarise the session of {agent}: what it did, what it decided and what is left."),
-      }),
-    ))
-  }
-}
-
-crate::moved!(ReadSummaryTask);

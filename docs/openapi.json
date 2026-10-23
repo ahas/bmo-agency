@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "bmo-agency",
-    "version": "0.1.0-rev.19",
+    "version": "0.1.0-rev.20",
     "description": "The agency's agents, their sessions, turns and runs, the executions on the agent host, the co-worker pool and places, providers, models, tiers and roads, accounts and rest, companions and workers, worker assignments, and the jobs it runs. A job is an item run on a worker for the harness that holds the item: the harness asks for a worker with POST /assignments, then hands the item's content and its lease over with POST /jobs. The agency never calls the job service and keeps no client of it: the run's progress, questions and outcome are its own events and fields, which the harness reads and carries into the job service, where it reports and closes the item; words appended to the item reach the run as the harness sends them into the job's session. Everything it remembers or runs on is an upstream it reaches through what that upstream publishes. It serves only its own nouns: a run with a fixed prompt is an ordinary session started with POST /sessions and the run's prompt document, and that session calls the upstreams it needs through their own MCP servers; no route or tool of the agency forwards to them. It calls no downstream; gate and receiver register at its hook points. It stays one service."
   },
   "servers": [
@@ -135,6 +135,9 @@
       "name": "tiers"
     },
     {
+      "name": "fold-ratios"
+    },
+    {
       "name": "fallback"
     },
     {
@@ -184,9 +187,6 @@
     },
     {
       "name": "session-loads"
-    },
-    {
-      "name": "session-summaries"
     }
   ],
   "paths": {
@@ -931,7 +931,7 @@
         "tags": [
           "sessions"
         ],
-        "summary": "A session's state: provider, model, place, holder, why the prefix changed. A room's answers from its start, before its first turn, at generation 0.",
+        "summary": "A session's state: provider, model, place, holder, why the prefix changed, and the fold ratio for its provider and its agent's tier. A room's answers from its start, before its first turn, at generation 0.",
         "responses": {
           "200": {
             "description": "Answered.",
@@ -3243,6 +3243,98 @@
         }
       }
     },
+    "/fold-ratios": {
+      "get": {
+        "operationId": "listFoldRatios",
+        "tags": [
+          "fold-ratios"
+        ],
+        "summary": "Every provider's fold ratio at every tier, each with where it comes from: set in the table, the provider's own declared share, or the general 0.85.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FoldRatioPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "x-codes": [
+          "unauthorized"
+        ]
+      }
+    },
+    "/fold-ratios/{provider}/{tier}": {
+      "put": {
+        "operationId": "putFoldRatio",
+        "tags": [
+          "fold-ratios"
+        ],
+        "summary": "Set a provider's fold ratio at a tier: the share of a model's window a session may fill before it is folded once the turn that crossed it is over.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FoldRatio"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "not-found"
+        ],
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": ""
+            }
+          },
+          {
+            "name": "tier",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "an abstract tier of the ladder"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FoldRatioWrite"
+              }
+            }
+          }
+        }
+      }
+    },
     "/fallback": {
       "get": {
         "operationId": "getFallback",
@@ -5311,173 +5403,6 @@
           }
         ]
       }
-    },
-    "/session-summaries/{agentName}": {
-      "get": {
-        "operationId": "readSessionSummariesByAgentName",
-        "tags": [
-          "session-summaries"
-        ],
-        "summary": "An agent's kept session summary.",
-        "responses": {
-          "200": {
-            "description": "Answered.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SessionSummary"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          }
-        },
-        "x-codes": [
-          "unauthorized",
-          "not-found"
-        ],
-        "parameters": [
-          {
-            "name": "agentName",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": ""
-            }
-          }
-        ]
-      },
-      "put": {
-        "operationId": "putSessionSummariesByAgentName",
-        "tags": [
-          "session-summaries"
-        ],
-        "summary": "Keep an agent's session summary.",
-        "responses": {
-          "200": {
-            "description": "Answered.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SessionSummary"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          }
-        },
-        "x-codes": [
-          "unauthorized",
-          "bad-request"
-        ],
-        "parameters": [
-          {
-            "name": "agentName",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": ""
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SessionSummaryWrite"
-              }
-            }
-          }
-        }
-      },
-      "delete": {
-        "operationId": "deleteSessionSummariesByAgentName",
-        "tags": [
-          "session-summaries"
-        ],
-        "summary": "Clear an agent's session summary.",
-        "responses": {
-          "204": {
-            "description": "Answered."
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          }
-        },
-        "x-codes": [
-          "unauthorized",
-          "not-found"
-        ],
-        "parameters": [
-          {
-            "name": "agentName",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": ""
-            }
-          }
-        ]
-      }
-    },
-    "/session-summaries/{agentName}/task": {
-      "get": {
-        "operationId": "listSessionSummariesTaskByAgentName",
-        "tags": [
-          "session-summaries"
-        ],
-        "summary": "The summariser's task for an agent.",
-        "responses": {
-          "200": {
-            "description": "Answered.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SummaryTask"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          }
-        },
-        "x-codes": [
-          "unauthorized",
-          "not-found"
-        ],
-        "parameters": [
-          {
-            "name": "agentName",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": ""
-            }
-          }
-        ]
-      }
     }
   },
   "components": {
@@ -6035,6 +5960,14 @@
               "null"
             ],
             "description": "The prompt document the session starts from, one of GET /prompt-documents. A run with a fixed prompt names its document here and carries its own bounds in boundMs and options."
+          },
+          "foldRatio": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "The share of its model's window the session may fill before it is folded once the turn that crossed it is over: the fold-ratio table's value for the provider it stands on and the tier its agent's work key is assigned, read with the session's state; none in a list, or where the state names no provider."
           }
         },
         "required": [
@@ -6277,27 +6210,13 @@
               "string",
               "null"
             ]
-          },
-          "thread": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "note": {
-            "type": [
-              "string",
-              "null"
-            ]
           }
         },
         "required": [
           "provider",
           "model",
           "cwd",
-          "session",
-          "thread",
-          "note"
+          "session"
         ],
         "description": "What a session's change names besides its model and holder."
       },
@@ -6520,12 +6439,6 @@
               "null"
             ]
           },
-          "thread": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
           "chat": {
             "type": [
               "integer",
@@ -6586,7 +6499,6 @@
           "cwd",
           "name",
           "title",
-          "thread",
           "chat",
           "unit",
           "user",
@@ -8710,6 +8622,72 @@
         ],
         "description": "The body that assigns a tier to a work key or sets a tier's mapping on a provider."
       },
+      "FoldRatioPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FoldRatio"
+            }
+          },
+          "more": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "items",
+          "more"
+        ],
+        "description": "FoldRatioPage:"
+      },
+      "FoldRatio": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string"
+          },
+          "tier": {
+            "type": "string"
+          },
+          "ratio": {
+            "type": "number",
+            "format": "double"
+          },
+          "source": {
+            "$ref": "#/components/schemas/FoldRatioSource"
+          }
+        },
+        "required": [
+          "provider",
+          "tier",
+          "ratio",
+          "source"
+        ],
+        "description": "A provider's fold ratio at a tier: the share of a model's window a session may fill before it is folded once the turn that crossed it is over."
+      },
+      "FoldRatioSource": {
+        "type": "string",
+        "enum": [
+          "set",
+          "provider",
+          "default"
+        ],
+        "description": "Where a fold ratio comes from: the table's row, the provider's own declared share where the table holds none, or the general share where the provider declares none either."
+      },
+      "FoldRatioWrite": {
+        "type": "object",
+        "properties": {
+          "ratio": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "required": [
+          "ratio"
+        ],
+        "description": "The body that sets a provider's fold ratio at a tier: a share above 0 and at most 1."
+      },
       "Fallback": {
         "type": "object",
         "properties": {
@@ -10253,56 +10231,6 @@
           "documents"
         ],
         "description": "The body that keeps a session's loads."
-      },
-      "SessionSummary": {
-        "type": "object",
-        "properties": {
-          "agentName": {
-            "type": "string"
-          },
-          "text": {
-            "type": "string"
-          },
-          "changedAt": {
-            "type": "integer",
-            "format": "int64",
-            "description": "epoch milliseconds"
-          }
-        },
-        "required": [
-          "agentName",
-          "text",
-          "changedAt"
-        ],
-        "description": "SessionSummary:"
-      },
-      "SessionSummaryWrite": {
-        "type": "object",
-        "properties": {
-          "text": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "text"
-        ],
-        "description": "The body that keeps an agent's session summary."
-      },
-      "SummaryTask": {
-        "type": "object",
-        "properties": {
-          "agentName": {
-            "type": "string"
-          },
-          "task": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "agentName",
-          "task"
-        ],
-        "description": "SummaryTask:"
       }
     },
     "responses": {
@@ -10416,23 +10344,6 @@
           }
         }
       }
-    },
-    "session-summarising": {
-      "post": {
-        "summary": "The session-summarising hook point, called at the URL registered for it.",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {}
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "the downstream's answer"
-          }
-        }
-      }
     }
   },
   "x-removed": [
@@ -10487,6 +10398,10 @@
     {
       "what": "the cache-warmer crate carried here",
       "why": "moved into bmo-cache-warmer-schedule and imported from there"
+    },
+    {
+      "what": "the routes GET, PUT and DELETE /session-summaries/{agentName} and GET /session-summaries/{agentName}/task, the webhook session-summarising, and the hand-over's note and thread",
+      "why": "no session summary is kept anywhere: a closed session hands nothing over"
     }
   ],
   "x-moved-out": [

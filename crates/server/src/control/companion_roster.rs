@@ -7,9 +7,10 @@
   clippy::unnecessary_to_owned
 )]
 //! A companion added on the console and removed there (docs/companions.md, 「Where a companion and its rooms
-//! come from」): agency holds the agent's half — its row, written once every field has passed, and, as it is
-//! taken out, its two ranges reset first and then everything of its own the reset keeps. The room it answers,
-//! its number there and the room's answerers are the consumer's that holds the console's rooms.
+//! come from」): agency holds the agent's half — its row, written once every field has passed, then its own
+//! brain asked of the brain, and, as it is taken out, its two ranges reset first and then everything of its
+//! own the reset keeps. The room it answers, its number there and the room's answerers are the consumer's
+//! that holds the console's rooms.
 
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, LazyLock};
@@ -35,7 +36,7 @@ use crate::conversational::Settings as Conversation;
 use crate::lines::companion::{carries_answers, pinned_provider};
 use crate::lines::place::Place;
 use crate::now_ms;
-use crate::peers::brain::Brain;
+use crate::peers::brain::{Brain, Made};
 use crate::places::Ground;
 use crate::places::home::Home;
 
@@ -181,12 +182,23 @@ impl Route for CompanionAdd {
     }
 
     written.commit().await?;
+    given_a_brain(ground.peers.brain.as_ref(), &asked).await;
 
     Ok(answer(StatusCode::CREATED, json!({ "ok": true })))
   }
 }
 
 crate::moved!(CompanionAdd);
+
+/// The added companion's own brain asked of the brain, under its name and with its label. The companion is
+/// added whatever the brain answers, so what it could not do is logged and refuses nothing.
+async fn given_a_brain(brain: &dyn Brain, asked: &Asked) {
+  match brain.make(&asked.name, &asked.label).await {
+    Ok(Made::Made) => eprintln!("agency: the companion {} was given its brain", asked.name),
+    Ok(Made::Kept | Made::Undeployed) => {}
+    Err(fault) => eprintln!("agency: the companion {} was added without its brain: {fault}", asked.name),
+  }
+}
 
 /// The companion a removal is asked for, refused where it is none or where the deployment seeds it.
 async fn removable<C: ConnectionTrait>(db: &C, agent: &str) -> Result<(), Fault> {

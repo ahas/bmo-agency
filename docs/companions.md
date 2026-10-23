@@ -23,6 +23,10 @@ are the companion unit's, not agency's. This document covers only what agency ho
   model, the worker, the brain folder `agents/<name>`, no prompt folder and not seeded. Its gate options
   are the gate's. Nothing is restarted: the runner reads the row and its settings for every turn, and
   its place and program are stood by its first turn.
+- **Then its brain is made.** Once the row is written, the brain is asked whether it keeps a brain
+  under the agent's name, and to make one where it keeps none, filed under the deployment's account key
+  (`docs/api.md`, 「Calls agency makes」). The companion is added whatever the brain answers: a brain
+  that cannot be reached, or refuses, is logged, and no later step makes the brain in its place.
 - **Removing it takes everything of its own,** and only a companion the console added:
   - first a reset of both ranges, every room the caller names read as one it shares, so each keeps its
     record (「Starting it afresh」);
@@ -91,8 +95,8 @@ are the companion unit's, not agency's. This document covers only what agency ho
 - **The session hands itself over at the handoff mark,** as every conversational agent's session on
   the registry's provider does, since that provider declares the handoff as its way of handing a full
   session over (`docs/agents.md`, 「What a provider declares for a conversation」). A turn whose context
-  — its last request, as its harness reports it — has reached the share of the window the workers'
-  sessions are handed over at, so with a margin of it left, is followed by one more turn of the same
+  — its last request, as its harness reports it — has reached its fold ratio (`docs/sessions.md`,
+  「Session compaction」), so with a margin of the window left, is followed by one more turn of the same
   session, after its answer has gone out and before the room's next turn:
   - the turn is the session itself asked for its handoff: its prompt is the companion handoff
     instruction, sent as an ordinary turn on the very run the room's turns go out as, so the engine
@@ -120,8 +124,6 @@ are the companion unit's, not agency's. This document covers only what agency ho
   by one turn that grows past it in its own tool calls. It is left on: switched off, a session that
   once grew to the end is refused as too long on every turn after. A window narrow enough that the
   margin reaches below the mark has the harness fold first and the handoff never come.
-- **No session summariser reads it.** The summary the session goes on from is the companion's own,
-  written on its own model.
 - **The window is the engine's whole context:** when other work takes a card, the engine waits at
   that card's stage rather than running on fewer cards (`docs/work-nodes.md`), so the window does not
   shrink and a session goes on as it was.

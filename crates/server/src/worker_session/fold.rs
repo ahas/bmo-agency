@@ -11,7 +11,6 @@ use std::time::Duration;
 
 use harness_providers::claude_code::ClaudeCode;
 use policy::door_words::DOOR_WORDS;
-use policy::resident_turn::RESIDENT_TURN;
 use regex::Regex;
 use serde_json::Value;
 
@@ -21,6 +20,7 @@ use super::told::SessionFolded;
 use super::{Composed, account_named, compose};
 use crate::Refusal;
 use crate::control::claude_accounts::SEED_ACCOUNT;
+use crate::control::fold_ratios;
 use crate::control::harness::provider_enabled;
 use crate::door::record::Tail;
 use crate::door::turn::{Ending, Quiet, put};
@@ -35,10 +35,24 @@ pub const FOLD_BOUND: Duration = Duration::from_secs(5 * 60);
 /// The fold word Claude Code takes.
 pub const FOLD_WORD: &str = "/compact";
 
-/// Whether a worker session is full once its turn is over: past the fold ratio of its model's window
+/// Whether a worker session is full once its turn is over: at or past its fold ratio of its model's window
 /// (docs/sessions.md, 「Session compaction」). A turn that reports no share is not full.
-pub fn worker_session_full(context_ratio: Option<f64>) -> bool {
-  context_ratio.is_some_and(|ratio| ratio >= RESIDENT_TURN.fold_ratio)
+pub fn worker_session_full(context_ratio: Option<f64>, fold_ratio: f64) -> bool {
+  context_ratio.is_some_and(|ratio| ratio >= fold_ratio)
+}
+
+/// The fold ratio of a worker's session: the table's for the provider it stands on and the tier its run
+/// went out on, the provider's own where the store cannot be read, since a fold is upkeep that fails
+/// nothing.
+pub async fn worker_fold_ratio(ground: &Ground, provider: &str, tier: Option<&str>) -> f64 {
+  match fold_ratios::ratio(&ground.db, provider, tier).await {
+    Ok(ratio) => ratio,
+    Err(refused) => {
+      eprintln!("agency: the fold ratio of {provider} did not read, its own stands: {}", refused.error);
+
+      fold_ratios::fallback(provider).0
+    }
+  }
 }
 
 // What the program answers in its own words for a session with too little in it to fold.

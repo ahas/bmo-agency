@@ -387,7 +387,7 @@ in the provider's own terms:
 | Provider | Resident program | A turn goes in by | Words mid-turn | Turn end, answer, tokens | Money and windows | Interrupt | Fold and clear |
 |---|---|---|---|---|---|---|---|
 | claude-code | Claude Code's interactive screen | `agent.prompt` | Taken, measured | Transcript, and the `Stop` or `StopFailure` hook | Status line | Escape, measured | `/compact` and `/clear`, measured |
-| codex | Codex's interactive screen, resumed by its thread id | `agent.prompt` | Taken, measured | Rollout file | Rollout file: tokens and windows, no money | Escape, measured | A new thread from the handover summary |
+| codex | Codex's interactive screen, resumed by its thread id | `agent.prompt` | Taken, measured | Rollout file | Rollout file: tokens and windows, no money | Escape, measured | A new thread, nothing carried over |
 | openrouter | bmo-tui on a dsh session over the Agent Client Protocol | The pane program's inbox, or a line typed at its screen | Not taken | bmo-tui's `loop.jsonl`: the answer's words and model, no tokens | None | Escape cancels the session's working turn | dsh's own session; agency folds nothing |
 | deepseek | bmo-tui on a dsh session over the Agent Client Protocol | The pane program's inbox, or a line typed at its screen | Not taken | bmo-tui's `loop.jsonl`: the answer's words and model, no tokens | None | Escape cancels the session's working turn | dsh's own session; agency folds nothing |
 | registered | Claude Code's interactive screen on the gateway under the registration's name, its records under a home of the registration's own | `agent.prompt`; words said to a worker on the session the program stands on, a conversational agent's turn on its scope's session, every other turn on a session of its own | Not taken: they wait for the next turn | Transcript | None | Escape | `/compact` and `/clear`; a conversation is handed over by a turn asking for its note rather than folded, the program folds itself before the registration's window, and a turn at the limit fails |
@@ -535,8 +535,7 @@ in the provider's own terms:
     the newest rollout where a turn wrote them within that minute, and asks the account otherwise,
     since an idle machine's rollouts say what the windows were rather than what they are.
   - An agent's own turn that the fallback walk gives to Codex is a turn of this program in the
-    agent's pane, on the thread the walk resumes. A gate's, an ephemeral turn's and a summary's stay
-    in the host.
+    agent's pane, on the thread the walk resumes. A gate's and an ephemeral turn's stay in the host.
   - Words put in with `agent.prompt` while a turn works are held on the screen and taken inside
     the same task: after the turn's next tool call, or, where the response ends with no tool call,
     as the task's next request (measured). Nothing is lost and no task of their own is opened, so
@@ -632,8 +631,8 @@ in the provider's own terms:
     thoughts follow as it streams them, then the answer.
   - An agent's own turn that the fallback walk gives to OpenRouter, or that goes out on OpenRouter as
     the provider a worker is pinned to, is a turn of this program in the agent's pane. A gate's turn on
-    an OpenRouter conversation is one too, with no tools and no MCP server; a summary's and an ephemeral
-    turn's stay in the host, on dsh's headless profile.
+    an OpenRouter conversation is one too, with no tools and no MCP server; an ephemeral turn's stays in
+    the host, on dsh's headless profile.
   - **A gate's turn is the gate road wherever its session stands.** A turn carrying the gate's own ask —
     its instructions as the program's whole system prompt, the model and effort its mapping names, the
     thinking it asks for, no tools and no MCP server — goes out on that road in a conversation and in a
@@ -926,8 +925,7 @@ The owner's words:
   starts after it — would take the program on its way out for the one standing.
 - **Fallback.** A round that moves to another provider moves the pane's program with it. The command
   changes, so the program is ended between turns and the next provider's program starts in the same
-  pane, on the session the fresh-start path hands over: the summary of the previous session's
-  record. While the agent runs on a provider with no surface, the pane stands as a host; coming back
+  pane, on a fresh session with nothing of the previous one carried over. While the agent runs on a provider with no surface, the pane stands as a host; coming back
   stands the resident program again.
 - **Keepalive** is a turn put into the resident program, and it is skipped while a turn is working.
 - **Fold** is the surface's fold typed into the program — `/compact` in Claude Code, which keeps the

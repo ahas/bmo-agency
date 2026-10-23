@@ -182,8 +182,8 @@
   heading answers a question asked in that viewer, the
   person-book search that picks which pieces of a room's person book a turn needs, the
   person-book summariser that writes one person's standing sheet from their own chunks, the
-  situation-rule matcher that reads a room's turn against the conditions its memories wait on, the
-  session summariser and the sanitiser that reads text on its way into a model's context on
+  situation-rule matcher that reads a room's turn against the conditions its memories wait on, and
+  the sanitiser that reads text on its way into a model's context on
   Haiku 4.5. All at
   medium effort, each with its
   own instructions and rulebooks as the whole system prompt, handed over as a file named by its

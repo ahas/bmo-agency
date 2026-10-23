@@ -28,7 +28,7 @@ a field's exact shape matters, the OpenAPI document is the one to read.
 ## Versioning
 
 - The contract carries the repository's one version, in semver; the workspace manifest is its source. Before
-  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.14`.
+  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.20`.
 - A change to this document and a change to the boundary go in one commit. A change to a route, an event, a
   hook or a shared table's contract repairs this document in the same commit.
 - The major moves on a removed or renamed route, field or event, the minor on an addition, the patch on
@@ -81,8 +81,7 @@ deleted member. A reader resumes with `Last-Event-ID` or `after`, and narrows wi
 | DELETE | `/hooks/{point}` | Take a registration away. |
 | GET | `/road-verbs` | The verbs a room's road performs, as the consumer answers them. |
 
-The hook points are `turn-submitting` and `session-summarising`, both registered by the gate and the
-receiver. `road-verbs` is what the procedures tool asks a room's road.
+The hook point is `turn-submitting`, registered by the gate and the receiver. `road-verbs` is what the procedures tool asks a room's road.
 
 ### agents
 
@@ -113,7 +112,7 @@ receiver. `road-verbs` is what the procedures tool asks a room's road.
 |---|---|---|
 | GET | `/sessions` | Every session, by agent or scope. |
 | POST | `/sessions` | Start a session for an agent at a scope. A run with a fixed prompt is such a session naming its prompt document. |
-| GET | `/sessions/{sessionId}` | A session's state: provider, model, place, holder, why the prefix changed. |
+| GET | `/sessions/{sessionId}` | A session's state: provider, model, place, holder, why the prefix changed, the fold ratio. |
 | PATCH | `/sessions/{sessionId}` | Move a conversation's provider and model, or a thrown-away session's model, or hand a worker's session over to another holder. |
 | DELETE | `/sessions/{sessionId}` | End a session, or clear a room's session. |
 | POST | `/sessions/{sessionId}/turns` | Send a turn into a session; words to a worker are a turn into its session. |
@@ -150,12 +149,17 @@ A conversation moves its provider and model on the change route, each left as it
 names only the other, and starts its next turn on a fresh session where the road keeps one. A
 thrown-away session's model moves the same way, while its provider stays Claude Code's, where its turns
 go out. A hand-over is a worker's alone: it closes the worker's held
-session on the model, leaves its note for the next turn and drops the record, and the holder the body
+session on the model and drops the record, handing nothing to the next turn, and the holder the body
 names is kept for the session's state; a worker with nothing open keeps the holder alone. An agent's and
 a room's session go out on the provider and model their agent's row names, and that row is where those
 move. `holder` and `prefixChangeReason` are read back on the session wherever it is listed or read. A
 worker's state answers the provider its session stands on: the provider the worker is pinned to, else the
 one its held session last answered on, else `claude-code`.
+
+A session's state carries `foldRatio`: the share of its model's window its context may fill before the
+session is folded once the turn that crossed it is over. It is the fold-ratio table's value for the
+provider the state names and the tier its agent's work key is assigned (「fold-ratios」 below), read
+afresh with each read, so a change on the console reaches the next read of every session.
 
 A turn is named from its start: `turn.created` carries its `turnId`, and the send answers with that same
 id once the turn ends. The progress read answers the turn named, on every scope that carries turns, with
@@ -284,6 +288,23 @@ The model catalogue is a resource of its own, never of `/models`: the files the 
 serve, each with its sizes, its source, its nodes and the registration it stands behind, and the latest
 choice for each engine. Its entries are not models, and `/models` neither lists nor changes them.
 
+### fold-ratios
+
+| Method | Path | Does |
+|---|---|---|
+| GET | `/fold-ratios` | Every provider's fold ratio at every tier, each with where it comes from. |
+| PUT | `/fold-ratios/{provider}/{tier}` | Set a provider's fold ratio at a tier. |
+
+A fold ratio is the share of a model's window a session's context may fill before the session is folded
+once the turn that crossed it is over (`docs/sessions.md`, 「Session compaction」), kept per provider and
+abstract tier. The list holds one member for every provider agency declares and every tier in ladder
+order — the grid a console shows — each with its `provider`, `tier`, `ratio` and `source`: `set` where
+the table holds a row, `provider` where the row is missing and the provider's own declared default
+stands, `default` where the provider declares none either and 0.85 stands. A set takes `ratio`, a
+number above 0 and at most 1, writes the row and answers the member; a provider or a tier that is not
+declared is `not-found`, a ratio outside that range `bad-request`. A set reaches the next turn that
+reads it; no session is folded by the set itself.
+
 ### work-keys, road-blocks and launch-room
 
 | Method | Path | Does |
@@ -389,7 +410,7 @@ A job's `itemId` and `leaseId` are the harness's references, kept as given. The 
 reads the job's progress, questions and outcome from its fields and events, and reports and closes the item
 in the job service. Agency calls nothing of the job service and keeps no client of it.
 
-### session-work, session-loads and session-summaries
+### session-work and session-loads
 
 | Method | Path | Does |
 |---|---|---|
@@ -400,10 +421,6 @@ in the job service. Agency calls nothing of the job service and keeps no client 
 | GET | `/session-loads/{sessionId}` | The documents loaded into a session. |
 | PUT | `/session-loads/{sessionId}` | Keep a session's loads. |
 | DELETE | `/session-loads/{sessionId}` | Forget a session's loads. |
-| GET | `/session-summaries/{agentName}` | An agent's kept session summary. |
-| PUT | `/session-summaries/{agentName}` | Keep an agent's session summary. |
-| DELETE | `/session-summaries/{agentName}` | Clear an agent's session summary. |
-| GET | `/session-summaries/{agentName}/task` | The summariser's task for an agent. |
 
 ## Events
 
@@ -422,7 +439,6 @@ A kind agency keeps to its own processes does not cross the stream.
 ## Hook points
 
 - **`turn-submitting`**: asked before a turn goes out, its answer added to the line.
-- **`session-summarising`**: asked when a worker's session closes, its answer the summary kept.
 
 ## Tables a consumer shares
 
@@ -492,16 +508,26 @@ route. A caller uses one of them and writes no client of its own.
 Agency reaches upstreams only, through what their repositories publish: brain, graph, node, arbiter,
 pocket, testbed and chat through their clients, and cache-warmer through the schedule library
 `bmo-cache-warmer-schedule`.
-Of the brain it asks a companion's own brain, found by the companion's key, let go whole or only found for a
-preview, and the discipline a chat launch's system
-prompt carries.
+Of the brain it asks a companion's own brain made as the companion is added, found by the companion's key,
+let go whole or only found for a preview, and the discipline a chat launch's system prompt carries.
+
+- **Where the brain is.** `AGENCY_BRAIN_URL` names its address and `AGENCY_BRAIN_TOKEN` the token it is
+  called with. With no address, no agent has a brain: nothing is made, counted or let go.
+- **The account a brain is filed under.** The brain keeps one brain per agent, keyed by an account key
+  and the agent's key, and never makes one by itself. A brain agency makes carries the account key
+  `AGENCY_BRAIN_ACCOUNT` names and, as the agent's key, the agent's registered name — the key the brain
+  tool and the gate look a brain up by. The brain reads no meaning into the account key. With no account
+  named, agency makes no brain and logs that it made none.
+- **Making a companion's brain.** As a companion is added, the brain is asked for the agent's key first;
+  where it answers one, nothing is made. A brain that cannot be reached, or refuses, leaves the companion
+  added and the failure logged.
 
 Each surface is a crate of its own repository, declared in the workspace manifest and allowed by
 `tests/dependencies.rs`; every other crate of another repository, a downstream's client among them,
 stays outside the boundary.
 
-It calls no downstream. It calls no job service. The gate and the receiver reach it through the two hook
-points above.
+It calls no downstream. It calls no job service. The gate and the receiver reach it through the hook point
+above.
 
 ## What the redesign took out
 

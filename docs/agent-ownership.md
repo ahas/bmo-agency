@@ -99,7 +99,7 @@ reads the same owner column. `docs/companions.md` is what a companion's session 
 ## The recollectors
 
 - **The recollectors are the agents that decide what becomes an agent's long-term memory:** the
-  digest, the person-book writer and the session summariser. Their kind is `recollector`, and
+  digest and the person-book writer. Their kind is `recollector`, and
   every screen groups them under that name.
 - **Each run is for one agent.** It reads the words of rooms that agent answers, writes into that
   agent's folder and rows, and writes from that agent's own first-person view (the recollection
@@ -110,13 +110,10 @@ reads the same owner column. `docs/companions.md` is what a companion's session 
   the person-book writer keeps each agent's own marks of what it has read (`people-book.md`,
   「Each agent's run」).
 - **Every recollector is told whose memory it writes.** Its task names the agent by the label its
-  row carries, and an editor run stands in that agent's brain folder (`fragments.md`). The
-  session summariser's prompt names the agent the handoff note is for, and the transcript it reads
-  sets that agent's words under the same label.
+  row carries, and an editor run stands in that agent's brain folder (`fragments.md`).
 - **A companion hands its own session over,** the session itself writing its state on its own
-  model in one more turn once its context reaches the handoff mark, and no session summariser runs
-  for it
-  (`docs/companions.md`, 「Its limit」).
+  model in one more turn once its context reaches the handoff mark (`docs/companions.md`, 「Its
+  limit」).
 
 ### Which model a recollector runs on
 

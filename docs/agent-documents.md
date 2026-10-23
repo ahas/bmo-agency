@@ -20,8 +20,7 @@ composed into a system prompt, and what the chat agent's own prompt is made of.
     `study-material.md` and `deep-dives.md` — the search runner;
   - `document-writing.md` — every agent that writes a stored document: the standing-sheet
     summariser, ahead of its own instructions, `plain-writing.md` right after it; the brain, which
-    composes its writers' whole prompts, the digest and person-book editors' and the session
-    summariser's among them, reads it with `plain-writing.md` and `self-preservation.md` through the
+    composes its writers' whole prompts, the digest and person-book editors' among them, reads it with `plain-writing.md` and `self-preservation.md` through the
     rulebook read (`docs/api.md`, 「Agents」);
   - `agent-words.md` — every designated agent: the chat session and every companion, for the turns
     another agent's words woke it in;
@@ -36,8 +35,8 @@ composed into a system prompt, and what the chat agent's own prompt is made of.
   it — `system-documents/instructions.md`, `room-rules/instructions.md`,
   `library-knowledge/instructions.md`, `voice-polish/instructions.md`,
   `voice-reading/instructions.md`, `search/task.md` and `request.md`, `browse/task.md` and
-  `request.md` with its `.mcp.json`, and `worker/trailer.md`. The editors' tasks and the session
-  summariser's prompt are not among them: the brain keeps and composes those.
+  `request.md` with its `.mcp.json`, and `worker/trailer.md`. The editors' tasks are not among them: the
+  brain keeps and composes those.
 - **A job's documents are handed to the job service,** which composes a job's prompt: `worker/graph.md`,
   what a job is told of the code graph; `worker/trailer.md`, the trailer every job is held to, with the
   graph text, the path of the worker plugin's skills and the path of `plain-writing.md` filled in as

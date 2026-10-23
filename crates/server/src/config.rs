@@ -84,6 +84,8 @@ impl Trees {
 pub struct PeerAddresses {
   pub node: Option<PeerAddress>,
   pub brain: Option<PeerAddress>,
+  /// The account key a brain agency makes is filed under, none where the deployment names none.
+  pub brain_account: Option<String>,
 }
 
 impl Config {
@@ -95,6 +97,9 @@ impl Config {
       peers: PeerAddresses {
         node: PeerAddress::read(&node::ADDRESS, &variable)?,
         brain: PeerAddress::read(&brain::ADDRESS, &variable)?,
+        brain_account: variable(brain::ACCOUNT)
+          .map(|value| value.trim().to_owned())
+          .filter(|value| !value.is_empty()),
       },
       brain: variable(BRAIN_ROOT)
         .map(|value| value.trim().to_owned())

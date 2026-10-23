@@ -114,7 +114,7 @@ impl Peers {
   pub fn of(addresses: &PeerAddresses) -> Self {
     Self {
       node: node::client(addresses.node.clone()),
-      brain: brain::client(addresses.brain.clone()),
+      brain: brain::client(addresses.brain.clone(), addresses.brain_account.clone()),
     }
   }
 }

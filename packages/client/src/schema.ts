@@ -220,7 +220,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** A session's state: provider, model, place, holder, why the prefix changed. A room's answers from its start, before its first turn, at generation 0. */
+        /** A session's state: provider, model, place, holder, why the prefix changed, and the fold ratio for its provider and its agent's tier. A room's answers from its start, before its first turn, at generation 0. */
         get: operations["getSession"];
         put?: never;
         post?: never;
@@ -760,6 +760,40 @@ export interface paths {
         patch: operations["changeTier"];
         trace?: never;
     };
+    "/fold-ratios": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every provider's fold ratio at every tier, each with where it comes from: set in the table, the provider's own declared share, or the general 0.85. */
+        get: operations["listFoldRatios"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/fold-ratios/{provider}/{tier}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set a provider's fold ratio at a tier: the share of a model's window a session may fill before it is folded once the turn that crossed it is over. */
+        put: operations["putFoldRatio"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/fallback": {
         parameters: {
             query?: never;
@@ -1288,42 +1322,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/session-summaries/{agentName}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** An agent's kept session summary. */
-        get: operations["readSessionSummariesByAgentName"];
-        /** Keep an agent's session summary. */
-        put: operations["putSessionSummariesByAgentName"];
-        post?: never;
-        /** Clear an agent's session summary. */
-        delete: operations["deleteSessionSummariesByAgentName"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/session-summaries/{agentName}/task": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** The summariser's task for an agent. */
-        get: operations["listSessionSummariesTaskByAgentName"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
 }
 export interface webhooks {
     "turn-submitting": {
@@ -1336,44 +1334,6 @@ export interface webhooks {
         get?: never;
         put?: never;
         /** The turn-submitting hook point, called at the URL registered for it. */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            responses: {
-                /** @description the downstream's answer */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "session-summarising": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** The session-summarising hook point, called at the URL registered for it. */
         post: {
             parameters: {
                 query?: never;
@@ -1561,6 +1521,11 @@ export interface components {
             options: unknown;
             /** @description The prompt document the session starts from, one of GET /prompt-documents. A run with a fixed prompt names its document here and carries its own bounds in boundMs and options. */
             promptDocumentName: string | null;
+            /**
+             * Format: double
+             * @description The share of its model's window the session may fill before it is folded once the turn that crossed it is over: the fold-ratio table's value for the provider it stands on and the tier its agent's work key is assigned, read with the session's state; none in a list, or where the state names no provider.
+             */
+            foldRatio?: number | null;
         };
         /**
          * @description One of the values the API accepts.
@@ -1617,8 +1582,6 @@ export interface components {
             model: string | null;
             cwd: string | null;
             session: string | null;
-            thread: string | null;
-            note: string | null;
         };
         /** @description Turn: */
         Turn: {
@@ -1673,7 +1636,6 @@ export interface components {
             cwd: string | null;
             name: string | null;
             title: string | null;
-            thread: string | null;
             /** Format: int64 */
             chat: number | null;
             unit: string | null;
@@ -2259,6 +2221,29 @@ export interface components {
             /** Format: int64 */
             answerTokens: number | null;
         };
+        /** @description FoldRatioPage: */
+        FoldRatioPage: {
+            items: components["schemas"]["FoldRatio"][];
+            more: boolean;
+        };
+        /** @description A provider's fold ratio at a tier: the share of a model's window a session may fill before it is folded once the turn that crossed it is over. */
+        FoldRatio: {
+            provider: string;
+            tier: string;
+            /** Format: double */
+            ratio: number;
+            source: components["schemas"]["FoldRatioSource"];
+        };
+        /**
+         * @description Where a fold ratio comes from: the table's row, the provider's own declared share where the table holds none, or the general share where the provider declares none either.
+         * @enum {string}
+         */
+        FoldRatioSource: "set" | "provider" | "default";
+        /** @description The body that sets a provider's fold ratio at a tier: a share above 0 and at most 1. */
+        FoldRatioWrite: {
+            /** Format: double */
+            ratio: number;
+        };
         /** @description Fallback: */
         Fallback: {
             routes: unknown[];
@@ -2701,25 +2686,6 @@ export interface components {
         /** @description The body that keeps a session's loads. */
         SessionLoadsAsk: {
             documents: unknown[];
-        };
-        /** @description SessionSummary: */
-        SessionSummary: {
-            agentName: string;
-            text: string;
-            /**
-             * Format: int64
-             * @description epoch milliseconds
-             */
-            changedAt: number;
-        };
-        /** @description The body that keeps an agent's session summary. */
-        SessionSummaryWrite: {
-            text: string;
-        };
-        /** @description SummaryTask: */
-        SummaryTask: {
-            agentName: string;
-            task: string;
         };
     };
     responses: {
@@ -4517,6 +4483,57 @@ export interface operations {
             404: components["responses"]["NotFound"];
         };
     };
+    listFoldRatios: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FoldRatioPage"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    putFoldRatio: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider: string;
+                tier: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FoldRatioWrite"];
+            };
+        };
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FoldRatio"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
     getFallback: {
         parameters: {
             query?: never;
@@ -5705,104 +5722,6 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
-            };
-            401: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
-        };
-    };
-    readSessionSummariesByAgentName: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                agentName: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Answered. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SessionSummary"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
-        };
-    };
-    putSessionSummariesByAgentName: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                agentName: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SessionSummaryWrite"];
-            };
-        };
-        responses: {
-            /** @description Answered. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SessionSummary"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-        };
-    };
-    deleteSessionSummariesByAgentName: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                agentName: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Answered. */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            401: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
-        };
-    };
-    listSessionSummariesTaskByAgentName: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                agentName: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Answered. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SummaryTask"];
-                };
             };
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];

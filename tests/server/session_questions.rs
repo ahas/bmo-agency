@@ -186,7 +186,6 @@ fn work(hears: bool) -> WorkParts {
     cwd: "/tmp/run".into(),
     name: "bmo-job-41".into(),
     title: "a turn".into(),
-    thread: None,
     chat: -5,
     unit: None,
     user: None,

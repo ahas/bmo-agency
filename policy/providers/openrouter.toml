@@ -14,6 +14,10 @@ caps_answer_tokens = false
 # OpenRouter routes to many models, so its co-workers each take their own tier's.
 lends_coworkers = true
 
+# The share of a model's window a session may fill before it is folded, at a tier the fold-ratio table
+# holds no row for (docs/sessions.md, 「Session compaction」): half the window.
+fold_ratio = 0.5
+
 [effort]
 # Every effort word a mapping of it may hold.
 words = ["none", "minimal", "low", "medium", "high", "xhigh"]

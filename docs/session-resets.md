@@ -34,8 +34,8 @@ flowchart TD
 
 - **The chat agent:** the one session every room's rounds go on in (`unified-bmo.md`).
   - A reset is the chat's forced replacement: the next round closes the session and opens a new one,
-    the tail of the old one carried into it as a summary, as any replaced session's is
-    (`docs/sessions.md`, 「Session replacement」).
+    nothing of the old one carried into it, as with any replaced session (`docs/sessions.md`,
+    「Session replacement」).
   - That round settles the ask.
 - **A worker:** the sessions recorded for it, one for each model and login it ran on.
   - Where no job of its runs, a reset removes those records at once and is settled, so its next job

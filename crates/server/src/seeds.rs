@@ -1,6 +1,6 @@
 //! The seeds agency's server settles its store with (docs/store.md, 「Its seeds」): the values agency's
 //! policy declares — the account, the ladder, the first seed's mapping of every tier, every work key with
-//! the tier it starts on, the catalogue's entries and the base prompts — with the account's credential
+//! the tier it starts on, every provider's fold ratio, the catalogue's entries and the base prompts — with the account's credential
 //! the machine's own Claude Code login directory and each base prompt's text its seed file in the code
 //! tree.
 
@@ -13,11 +13,12 @@ use policy::seeds::SEEDS;
 use policy::tiers::TIERS;
 use policy::work_keys::WORK_KEYS;
 use store::seed::{
-  AccountSeed, BasePromptSeed, CatalogueSeed, CoworkerTier, LaterSeed, Seeds, TierMapping, TierPlan,
-  WorkKey,
+  AccountSeed, BasePromptSeed, CatalogueSeed, CoworkerTier, FoldRatioSeed, LaterSeed, Seeds, TierMapping,
+  TierPlan, WorkKey,
 };
 
 use crate::control::claude_accounts::Credential;
+use crate::control::fold_ratios;
 use crate::places::machine_code_root;
 
 /// The seeds the deployment's store is settled with on this machine.
@@ -85,6 +86,14 @@ pub fn deployment(machine: &Machine) -> Seeds {
         })
         .collect(),
     },
+    // Each provider's own declared share, else the general one.
+    fold_ratios: harness_providers::providers()
+      .into_iter()
+      .map(|provider| FoldRatioSeed {
+        provider: provider.name().to_owned(),
+        ratio: fold_ratios::fallback(provider.name()).0,
+      })
+      .collect(),
     catalogue: SEEDS
       .catalogue
       .iter()

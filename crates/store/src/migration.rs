@@ -15,6 +15,8 @@ mod m20261025_000002_endpoint_accounts;
 mod m20261026_000001_pool_session;
 mod m20261027_000001_deepseek_provider;
 mod m20261028_000001_mapping_thinking;
+mod m20261029_000001_session_summaries_retired;
+mod m20261029_000002_fold_ratios;
 
 use sea_orm_migration::prelude::*;
 
@@ -26,7 +28,7 @@ pub const TABLES: &str = m20261016_000001_store::NAME;
 
 /// Every table the store's migrations make, beside the record of what ran: what reads every table of the
 /// store reads these and no other service's beside them (docs/store.md, 「Its tables」).
-pub const OWN_TABLES: [&str; 58] = [
+pub const OWN_TABLES: [&str; 59] = [
   "agents",
   "agent_log",
   "agent_executions",
@@ -64,6 +66,8 @@ pub const OWN_TABLES: [&str; 58] = [
   "model_tier_mappings",
   "model_tier_meta",
   "model_tier_seeded",
+  "fold_ratios",
+  "fold_ratio_seeded",
   "model_uses",
   "registered_models",
   "registered_model_addresses",
@@ -84,7 +88,6 @@ pub const OWN_TABLES: [&str; 58] = [
   "jobs",
   "session_work",
   "session_loads",
-  "session_summaries",
 ];
 
 pub struct Migrator;
@@ -106,6 +109,8 @@ impl MigratorTrait for Migrator {
       Box::new(m20261026_000001_pool_session::Migration),
       Box::new(m20261027_000001_deepseek_provider::Migration),
       Box::new(m20261028_000001_mapping_thinking::Migration),
+      Box::new(m20261029_000001_session_summaries_retired::Migration),
+      Box::new(m20261029_000002_fold_ratios::Migration),
     ]
   }
 

@@ -20,6 +20,7 @@ use axum::response::{IntoResponse, Response};
 use serde::Deserialize;
 use serde_json::{Value, json};
 
+use super::fold_ratios;
 use super::{Call, Refused, Route, answer};
 use crate::herdr_backend::Shared;
 use crate::lines::Trees;
@@ -396,6 +397,20 @@ fn member(session: &Session, state: Option<&State>, body: &Value) -> Value {
   })
 }
 
+// The member with the share of its model's window its session is folded at, read for the provider the
+// state names and the tier its agent stands at now (docs/sessions.md, 「Session compaction」); a member
+// naming no provider carries none.
+async fn folded(db: &sea_orm::DatabaseConnection, mut member: Value) -> Result<Value, Refused> {
+  let provider = member["provider"].as_str().unwrap_or_default().to_owned();
+  let agent = member["agentName"].as_str().unwrap_or_default().to_owned();
+
+  if !provider.is_empty() {
+    member["foldRatio"] = json!(fold_ratios::of_agent(db, &provider, &agent).await?);
+  }
+
+  Ok(member)
+}
+
 /// A session started for an agent at a scope, or the one kept for that scope.
 pub struct SessionStart;
 
@@ -421,7 +436,10 @@ impl Route for SessionStart {
     match backend.start(start).await {
       Ok(session) => {
         let state = backend.read_state(&session.id, None).await.ok();
-        Ok(answer(StatusCode::CREATED, member(&session, state.as_ref(), &body)))
+        Ok(answer(
+          StatusCode::CREATED,
+          folded(call.store(), member(&session, state.as_ref(), &body)).await?,
+        ))
       }
       Err(fault) => Ok(faulted(fault)),
     }
@@ -532,7 +550,9 @@ impl Route for SessionState {
         };
         let (holder, reason) = holder_of(call.store(), &id).await?;
 
-        answer(StatusCode::OK, with_holder(member(&started, Some(&state), &json!({})), holder, reason))
+        let read = folded(call.store(), member(&started, Some(&state), &json!({}))).await?;
+
+        answer(StatusCode::OK, with_holder(read, holder, reason))
       }
       Err(fault) => faulted(fault),
     })
@@ -635,7 +655,7 @@ impl Route for SessionHandover {
         Ok(moved) => {
           let state = backend.read_state(&moved.id, None).await.ok();
 
-          answer(StatusCode::OK, member(&moved, state.as_ref(), &body))
+          answer(StatusCode::OK, folded(call.store(), member(&moved, state.as_ref(), &body)).await?)
         }
         Err(fault) => faulted(fault),
       });
@@ -689,7 +709,11 @@ impl Route for SessionHandover {
           let (holder, reason) = keep_holder(db, &id, &body).await?;
           return Ok(answer(
             StatusCode::OK,
-            with_holder(member(&session_with(&id, &agent), Some(&state), &body), holder, reason),
+            with_holder(
+              folded(db, member(&session_with(&id, &agent), Some(&state), &body)).await?,
+              holder,
+              reason,
+            ),
           ));
         };
         let ttl = session_ttl_ms(ground, &model).await;
@@ -697,7 +721,11 @@ impl Route for SessionHandover {
           let (holder, reason) = keep_holder(db, &id, &body).await?;
           return Ok(answer(
             StatusCode::OK,
-            with_holder(member(&session_with(&id, &agent), Some(&state), &body), holder, reason),
+            with_holder(
+              folded(db, member(&session_with(&id, &agent), Some(&state), &body)).await?,
+              holder,
+              reason,
+            ),
           ));
         };
 
@@ -714,10 +742,9 @@ impl Route for SessionHandover {
       resume: Some(held),
       account: None,
       placement: None,
-      thread: given("thread"),
     };
 
-    held_session::hand_over(ground, &agent, &run, given("note").as_deref())
+    held_session::hand_over(ground, &agent, &run)
       .await
       .map_err(|why| Refused::failed(why.detail))?;
 
@@ -729,7 +756,11 @@ impl Route for SessionHandover {
 
     Ok(answer(
       StatusCode::OK,
-      with_holder(member(&session_with(&id, &agent), Some(&state), &body), holder, reason),
+      with_holder(
+        folded(db, member(&session_with(&id, &agent), Some(&state), &body)).await?,
+        holder,
+        reason,
+      ),
     ))
   }
 }

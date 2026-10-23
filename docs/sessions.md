@@ -86,10 +86,20 @@ session on the owner's ask is `docs/session-resets.md`.
 ## Session compaction
 
 - After every chat turn the program's status line reports how many tokens the session's context
-  holds and how large the model's context window is. When a reply leaves the session past the
-  threshold (85% of the window, the policy's `fold_ratio`), the chat agent announces in that
+  holds and how large the model's context window is. When a reply leaves the session past its fold
+  ratio, the chat agent announces in that
   chat (and only there, when that chat's rest notices are on) that it is going to sleep for a
   moment, types `/compact` into its resident program, and announces that it woke up.
+- **The fold ratio is a value per provider and abstract tier,** kept in agency's fold-ratio table and
+  changed on the console (`docs/api.md`, 「fold-ratios」), never a constant of a policy file:
+  - a session's is the table's value for the provider it stands on and the tier its agent's work key
+    is assigned, read afresh as the session's state is read (`foldRatio`), so a change reaches the
+    next turn of every session;
+  - a provider and tier the table holds no row for read the provider's own declared default — 0.5 for
+    DeepSeek and OpenRouter — and a provider declaring none reads 0.85; a session whose agent's work
+    key is assigned no tier reads its provider's default the same way;
+  - the receiver compares the context ratio a turn ends on against the session's `foldRatio`, and the
+    harness compacts after the turn that crosses it.
 - Both lines are the session's own words: the full session is asked for its going-to-nap line and
   the compacted one for its waking line, each by a quiet instruction, and the fixed lines, which agency
   names by status code and the caller's language pack words, are only the fallback when the session cannot be asked. Each line is a full
@@ -116,8 +126,9 @@ session on the owner's ask is `docs/session-resets.md`.
   - inside a turn, its Claude Code is launched with no compaction setting of the deployment's, so the
     program compacts at its own default share of the model's window while the job goes on;
     compacting a large session early costs more than reading its cached context again;
-  - between turns, the runner folds a worker session past `fold_ratio` of its model's window, the
-    same threshold a chat's session is folded at.
+  - between turns, the runner folds a worker session past its fold ratio — the table's value for the
+    provider it stands on and the tier its run went out on — by the same rule a chat's session is
+    folded by.
   - A worker running on a registered model's road is the one exception: it is launched with the share
     its registration leaves for the answer (`docs/own-llm.md`, 「A turn at the input limit」).
   - Whatever a consumer sent the session to hold — a co-work result among it — is folded away with
@@ -131,20 +142,19 @@ session on the owner's ask is `docs/session-resets.md`.
   on is the one it holds; a session it left for a turn on another model is set aside under its own
   model, not closed.
 - **Turning to another model** sets the held session aside and opens a new one on the new model,
-  unless a warm session is set aside on that model. The new session is seeded with the note of the
-  session it leaves, asked of the summariser as on a replacement (「Session replacement」 below) for a
-  session of the `switch` kind, set aside rather than closed.
+  unless a warm session is set aside on that model. The new session opens on its turn's words alone,
+  and the session it leaves is set aside rather than closed.
 - **Coming back to a model resumes the session set aside on it** only where all of these hold:
   - its cache is warm (the criterion below);
   - it is still the session the worker's record on that model and login names: no reset, lost
     session or job end has taken the record away;
   - it stands on the road the turn goes out on — the same provider, model, effort and login — and
     the prefix it was opened on has not moved.
-- **A resumed session is handed no note.** What the turns on the other model produced reaches it as
-  the new turn's own words: in a co-work, the stage results its prompt opens, none of which that
+- **A resumed session is handed nothing beyond its turn.** What the turns on the other model produced
+  reaches it as the new turn's own words: in a co-work, the stage results its prompt opens, none of which that
   session has read.
 - **A session set aside that fails any of these is dropped** with its record, and the turn opens a
-  new session seeded with the note of the session it leaves, as on any replacement.
+  new session, as on any replacement.
 - **The warm/cold criterion:**
   - warm while the time since the session's last answer is under the cache lifetime, cold from the
     lifetime on;
@@ -159,10 +169,10 @@ session on the owner's ask is `docs/session-resets.md`.
 - **The pool asks this rule before a project's own turn launches** (`docs/coworker-pool.md`, 「A
   project's own session」): the session the worker holds on the turn's model and login is carried on the
   request while it is warm and its last answered turn stayed under the model's context limit; one past
-  either is dropped with its record, and the turn opens a new one with the note a replacement leaves.
+  either is dropped with its record, and the turn opens a new one.
 - **A kept session's record goes cold with its cache.** A record whose last answer is past the
   lifetime is retired as it is read, so neither the standing program nor a turn resumes a session whose
-  cache has gone; the held session it stood for is replaced with its note. `BMO_WORKER_SESSION_TTL_MINUTES`,
+  cache has gone; the held session it stood for is replaced. `BMO_WORKER_SESSION_TTL_MINUTES`,
   where the deployment sets it, retires a record sooner, never later.
 - **Only the worker's own Claude Code sessions are set aside,** since they are the ones recorded per
   model and login. A turn on a stand-in road — Codex, OpenRouter, a registered model — replaces the
@@ -172,8 +182,8 @@ session on the owner's ask is `docs/session-resets.md`.
 - **Nothing keeps a session set aside warm.** The keepalive warms the held session alone, and while a
   turn on another model runs, the worker's program is busy with it. A return after the lifetime opens
   a new session.
-- **A job's end ends them all:** the held session is handed over with its note for the next job, and
-  every session set aside is dropped with its record. A stopped stage retried on a fresh session does
+- **A job's end ends them all:** the held session is handed over — closed, with nothing carried to
+  the next job — and every session set aside is dropped with its record. A stopped stage retried on a fresh session does
   the same, its kept session's record dropped with it. The job's runner asks for each handover across
   the boundary, naming the session where it has one (`docs/api.md`, 「Workers」).
 - **What a job's change moved of the prefix is read by the files a session's prefix is built from:** the
@@ -203,45 +213,17 @@ session on the owner's ask is `docs/session-resets.md`.
   the two prices are compared (`packages/agent/freshstart.ts`): resuming costs what the session's last run
   reported it was carrying, which the archive keeps on the chat's `agents` row and which every round
   that got an answer writes, an unfinished `<<WAIT>>` round included; starting fresh costs the
-  system prompt plus the carried summary, since the round's own messages are sent either way. A size
+  system prompt alone, since the round's own messages are sent either way. A size
   nothing has recorded, and a size a fold has just made meaningless, both read as unknown, and an
   unknown session is never cut.
 - A fresh start is taken only when it saves at least a hundred thousand tokens **and** resuming
   would write at least four times what it writes — a room a little over the line keeps its memory,
   one carrying several times its own weight does not.
-- When the swap is taken, the old session's record is read off the file the CLI wrote under the
-  configuration directory of the login that session was opened on — `projects` under that account's
-  own directory, and under `~/.claude` for an account with none of its own — never by resuming it:
-  resuming is the whole cost being avoided.
-- What is taken from that record is the conversation and only the conversation: the chat agent's own answers,
-  and out of each round's prompt the messages the room sent and the quiet instructions it was given.
-  The rest of a prompt is scaffolding the turn's caller wrote — the chat header, the trailer, and the
-  reference block, which carries the room's person book — and none of it reaches the summariser.
-- The note is the session summariser's, a hook the caller registers (`docs/api.md`, 「Hooks」): agency
-  hands it what closed — the kind of session, the provider, the session id, the folder, the login, what
-  was said on a road that keeps no session, the worker's own note where it wrote one, and the room — and
-  carries the note it answers. How much of the tail is read, how the conversation is told from the
-  scaffolding, the cap, the notes' wording and the context sanitiser the note passes before it seeds the
-  new session (`docs/cache-fallback.md`, 「The sanitiser gate」) are the summariser's.
-- With no summariser registered, nothing is carried over: the new session opens on its turn's words
-  alone.
-- The session id is cleared, a new session opens on the next run, and the note rides in front of
-  that round as a quiet instruction: the room hears nothing and loses detail rather than the thread.
-- Who the people are is not in the note — that reaches the session by the reference gates and the
-  person books, as on every turn.
-- A summary that fails, times out or finds nothing worth carrying does not cancel the swap, because
-  what decided it was the cost of the old context and a failed summary has not made that context
-  cheaper; the summariser's note then tells the new session plainly that it remembers nothing rather
-  than leaving it to invent.
+- **A closed session hands nothing over.** No summary of a session is made or kept anywhere: the old
+  session's record is not read, and the new session opens on its turn's words alone. A chat agent's
+  session carries only the note the receiver hands in with its own turn, which is the receiver's.
+- The session id is cleared and a new session opens on the next run; the room hears nothing.
+- Who the people are reaches the new session by the reference gates and the person books, as on every
+  turn.
 - A session is never replaced inside a turn: the check runs between rounds, with nothing in flight.
-- **The note is written for the line it opens on.** A replacement reaches every line that keeps a
-  session, not the rooms alone, and what the new session is handed is read by it as an instruction —
-  so a room's note, which ends by telling the session that the swap is nothing the room needs to
-  hear, is a room's and goes nowhere else.
-- A job worker has no room: what stands in front of it is the job its prompt goes on to state, and
-  its note says the same fact in those terms — the session is new, this is what the jobs before it
-  were in the middle of or nothing of it could be recovered, and the job written out below is the
-  one to carry on with and to answer in full. A worker handed a room's wording holds an instruction
-  to stay silent as the first thing its prompt says, and an instruction at the head of a prompt is
-  what a run does.
 

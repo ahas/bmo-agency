@@ -28,13 +28,13 @@ export type Place = Schemas["Place"];
 export type Provider = Schemas["Provider"];
 export type Model = Schemas["Model"];
 export type Tier = Schemas["Tier"];
+export type FoldRatio = Schemas["FoldRatio"];
 export type Worker = Schemas["Worker"];
 export type Assignment = Schemas["Assignment"];
 export type JobItem = Schemas["JobItem"];
 export type Job = Schemas["Job"];
 export type SessionWork = Schemas["SessionWork"];
 export type SessionLoads = Schemas["SessionLoads"];
-export type SessionSummary = Schemas["SessionSummary"];
 export type WireError = Schemas["Error"];
 
 export type AgencyClient = Client<paths>;

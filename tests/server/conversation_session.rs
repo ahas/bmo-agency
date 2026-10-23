@@ -157,7 +157,6 @@ async fn a_conversation_stands_on_the_provider_and_model_it_names_and_switches_b
         cwd: "/tmp/run-a".into(),
         name: "job:1".into(),
         title: "a job".into(),
-        thread: None,
         chat: 1,
         unit: None,
         user: None,

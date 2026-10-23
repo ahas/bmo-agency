@@ -38,6 +38,7 @@ mod control {
   mod events_publish;
   mod executions;
   mod fallback;
+  mod fold_ratios;
   mod front;
   mod harness;
   mod job_log;
@@ -185,7 +186,6 @@ mod worker_session {
   mod fold;
   mod held;
   mod records;
-  mod summary;
   mod told;
   mod warmth;
 }

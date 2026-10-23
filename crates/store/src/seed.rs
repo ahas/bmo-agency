@@ -1,5 +1,5 @@
 //! What a store is given beside its tables (docs/store.md, 「Its seeds」): the account, the tiers with
-//! their work keys, the model catalogue and the base prompts. The values are the deployment's, handed in
+//! their work keys, the fold ratios, the model catalogue and the base prompts. The values are the deployment's, handed in
 //! by whoever settles the store; this module knows none of them and supplies only when and how each is
 //! written.
 
@@ -18,6 +18,8 @@ pub struct Seeds {
   /// The account a store holding none is given.
   pub account: Option<AccountSeed>,
   pub tiers: TierPlan,
+  /// Each provider's fold ratio, given at every tier of the ladder once.
+  pub fold_ratios: Vec<FoldRatioSeed>,
   /// The entries the catalogue is given once, as its table is made.
   pub catalogue: Vec<CatalogueSeed>,
   /// The base prompts each given once by its name.
@@ -32,6 +34,14 @@ pub struct BasePromptSeed {
   pub label: String,
   pub text: String,
   pub agents: Vec<String>,
+}
+
+/// The share of a model's window a provider's sessions may fill before they are folded, which every tier of
+/// the ladder is given on it once (docs/sessions.md, 「Session compaction」).
+#[derive(Clone, Debug, PartialEq)]
+pub struct FoldRatioSeed {
+  pub provider: String,
+  pub ratio: f64,
 }
 
 /// The one account a store holding none is given: the login the machine already has.
@@ -142,6 +152,7 @@ pub async fn settle(db: &DatabaseConnection, seeds: &Seeds) -> Result<(), Fault>
   backfill_keys(&writing, &seeds.tiers).await?;
   settle_ladder(&writing, &seeds.tiers).await?;
   later_tiers(&writing, &seeds.tiers, now).await?;
+  fold_ratios(&writing, &seeds.tiers.ladder, &seeds.fold_ratios, now).await?;
   for prompt in &seeds.base_prompts {
     base_prompt_seed(&writing, prompt, now).await?;
   }
@@ -432,6 +443,40 @@ fn planned<'a>(plan: &'a TierPlan, provider: &str, tier: &str) -> Option<&'a Tie
         .find(|later| later.provider == provider)
         .and_then(|later| later.mappings.iter().find(|mapping| mapping.tier == tier))
     })
+}
+
+// Each provider's fold ratio given at every tier of the ladder once, the first time the store is settled
+// with the provider, and recorded as given, so a ratio the owner set is never seeded over.
+async fn fold_ratios<C: ConnectionTrait>(
+  db: &C,
+  ladder: &[String],
+  seeds: &[FoldRatioSeed],
+  now: i64,
+) -> Result<(), Fault> {
+  for seed in seeds {
+    let given = run(
+      db,
+      r#"INSERT INTO "fold_ratio_seeded" ("provider") VALUES ($1) ON CONFLICT DO NOTHING"#,
+      vec![seed.provider.clone().into()],
+    )
+    .await?;
+
+    if given == 0 {
+      continue;
+    }
+
+    for tier in ladder {
+      run(
+        db,
+        r#"INSERT INTO "fold_ratios" ("provider", "tier", "ratio", "set_at") VALUES ($1, $2, $3, $4)
+           ON CONFLICT DO NOTHING"#,
+        vec![seed.provider.clone().into(), tier.clone().into(), seed.ratio.into(), now.into()],
+      )
+      .await?;
+    }
+  }
+
+  Ok(())
 }
 
 // A provider declared after the first seed gains its tiers' mappings and its co-worker pool's starting

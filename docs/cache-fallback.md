@@ -42,8 +42,8 @@ model it launched, the account the run went out on, and the walk it runs when a 
 
 ### The incoming side
 
-- **What passes through it:** a round's new messages, the past-record block a first turn reloads, the
-  summary a session replacement hands over as its seed, reference pieces loaded into a round, the
+- **What passes through it:** a round's new messages, the past-record block a first turn reloads,
+  reference pieces loaded into a round, the
   quiet instructions a search or browse run passes with someone else's page, and the prompt handed to
   a job worker.
 - **The caller that carries the words asks the gate,** through one memo of verdicts, so the same words
@@ -94,9 +94,9 @@ model it launched, the account the run went out on, and the walk it runs when a 
 
 - **The gate does not edit a session's on-disk transcript,** so a session already carrying an
   instruction still reloads it under an ordinary resume.
-- **When it clears on its own:** when the session is replaced, the replacement's summary now passes
-  sanitising, so the new session opens on a clean seed and the gate keeps it clean thereafter.
-- **To clear it at once:** open a new session for that room, which now takes a sanitised seed.
+- **When it clears on its own:** when the session is replaced, the new session opens with nothing of
+  the old one carried over, so it opens clean and the gate keeps it clean thereafter.
+- **To clear it at once:** open a new session for that room, which opens with nothing carried over.
 
 ### When it runs, and the cost
 
@@ -165,8 +165,8 @@ When a demotion first catches — when a healthy session first drops — two thi
 
 - **Notify:** the owner's private chat is told which room dropped to which model. The room itself is
   not told. (Agency raises the fact; the chat agent is what tells the owner.)
-- **Heal:** that room's session is discarded so the next turn opens a new one, which takes a sanitised
-  summary as its seed and so restarts on a context the safeguard does not catch.
+- **Heal:** that room's session is discarded so the next turn opens a new one, which opens with
+  nothing carried over and so restarts on a context the safeguard does not catch.
 - **Once only:** the notice and heal happen on the turn a room started dropping, not on every turn it
   stays dropped, or a room that keeps touching the safeguard would be reset every turn to no effect.
 - **The latch:** once dropped and then cleared, the latch releases, so the next fresh drop notifies
@@ -194,8 +194,8 @@ When a demotion first catches — when a healthy session first drops — two thi
 
 #### Healing differs for a worker
 
-- **A room** hands a sanitised summary as a seed to its new session so conversation continues.
-- **A job** has nothing to hand over — it brings its own instructions and needs no memory of past jobs
+- **A room** opens its new session with nothing carried over, as every replaced session does.
+- **A job** has nothing to hand over either — it brings its own instructions and needs no memory of past jobs
   — so a worker's healing is only the other half: delete the refused session's record, and publish
   which worker dropped to what as `worker-downgraded` (`docs/api.md`, 「Events」). The consumer that
   owns the owner's room reads that fact and explains it to the owner. The next job opens a new session.
@@ -217,7 +217,7 @@ When a demotion first catches — when a healthy session first drops — two thi
   keeps the mark; one that falls further marks the lower model.
 - **The session's held state follows it:** the model and prefix held for the session are those of the
   model that answered, so the next turn on the fallen model is read as the same road and resumes rather
-  than being replaced with a summary.
+  than being replaced.
 - **A fresh session carries no mark:** where a session is opened anew — a job's handover, a lost or
   expired record, a prefix that moved — it is launched on its own model again and falls only if the
   safeguard refuses it afresh.
@@ -380,7 +380,7 @@ When a demotion first catches — when a healthy session first drops — two thi
   chosen account is only where the walk starts again once that one stops answering.
 - **What moves, and when.** The choice changes the head of the walk and nothing else, so everything that
   already happens when the head moves happens at the next run, not at the click: a run already going
-  finishes on the login it went out on; the next chat round summarises its old session and opens a
+  finishes on the login it went out on; the next chat round closes its old session and opens a
   fresh one on the chosen login; the next gate, editor and research branch go out on the chosen
   account; the next job resumes the worker's session kept under that login, or opens one. A turn on a
   session already held stays on that session's own login, since no other login can reach it.

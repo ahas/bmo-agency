@@ -33,14 +33,13 @@ Each job worker holds three things beside the work of its jobs:
   - each stage of a work order, since each is its own job — builder turns continuing the same session,
     and branch roles running their own session in a copy
 - **The order of the prompt received:**
-  1. the handed-over summary, on a turn that opens a new session
-  2. the preamble bundle
-  3. the impact grounds its item was filed with, where it carries any and the run is not a co-work
+  1. the preamble bundle
+  2. the impact grounds its item was filed with, where it carries any and the run is not a co-work
      branch (the job unit's `todo.md`, 「Impact grounds」)
-  4. the job's text
-  5. the knowledge its item calls for, where the knowledge gate picked any (the reference unit's
+  3. the job's text
+  4. the knowledge its item calls for, where the knowledge gate picked any (the reference unit's
      `reference-selection.md`, 「Work beyond a turn」)
-  6. the trailer
+  5. the trailer
 - **Reshape requests:** a request to reshape repeats the whole job prompt, so the preamble goes along
   inside it.
 - **Editing the field:** the new text stands from the next job prompt handed over.

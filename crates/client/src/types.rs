@@ -251,6 +251,9 @@ pub struct Session {
   pub options: Value,
   /// The prompt document the session starts from, one of GET /prompt-documents. A run with a fixed prompt names its document here and carries its own bounds in boundMs and options.
   pub prompt_document_name: Option<String>,
+  /// The share of its model's window the session may fill before it is folded once the turn that crossed it is over: the fold-ratio table's value for the provider it stands on and the tier its agent's work key is assigned, read with the session's state; none in a list, or where the state names no provider.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub fold_ratio: Option<f64>,
 }
 
 /// Turn:
@@ -927,6 +930,42 @@ pub struct TierPage {
   pub more: bool,
 }
 
+/// Where a fold ratio comes from: the table's row, the provider's own declared share where the table holds none, or the general share where the provider declares none either.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub enum FoldRatioSource {
+  #[serde(rename = "set")]
+  Set,
+  #[serde(rename = "provider")]
+  Provider,
+  #[serde(rename = "default")]
+  Default,
+}
+
+/// A provider's fold ratio at a tier: the share of a model's window a session may fill before it is folded once the turn that crossed it is over.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct FoldRatio {
+  pub provider: String,
+  pub tier: String,
+  pub ratio: f64,
+  pub source: FoldRatioSource,
+}
+
+/// FoldRatioPage:
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct FoldRatioPage {
+  pub items: Vec<FoldRatio>,
+  pub more: bool,
+}
+
+/// The body that sets a provider's fold ratio at a tier: a share above 0 and at most 1.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct FoldRatioWrite {
+  pub ratio: f64,
+}
+
 /// RoadBlockPage:
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -1053,24 +1092,6 @@ pub struct SessionLoads {
   pub documents: Vec<Value>,
 }
 
-/// SessionSummary:
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct SessionSummary {
-  pub agent_name: String,
-  pub text: String,
-  /// epoch milliseconds
-  pub changed_at: i64,
-}
-
-/// SummaryTask:
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct SummaryTask {
-  pub agent_name: String,
-  pub task: String,
-}
-
 /// The body that asks for a worker to be assigned to an item.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -1115,13 +1136,6 @@ pub struct JobChange {
 #[serde(rename_all = "camelCase")]
 pub struct SessionWorkChange {
   pub item_id: Option<i64>,
-}
-
-/// The body that keeps an agent's session summary.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct SessionSummaryWrite {
-  pub text: String,
 }
 
 /// The body that registers a hook's address at a point.
@@ -1205,8 +1219,6 @@ pub struct SessionChangeOptions {
   pub model: Option<String>,
   pub cwd: Option<String>,
   pub session: Option<String>,
-  pub thread: Option<String>,
-  pub note: Option<String>,
 }
 
 /// The body that moves a conversation's or a throwaway session's provider and model, or hands a worker's
@@ -1241,7 +1253,6 @@ pub struct WorkPartsAsk {
   pub cwd: Option<String>,
   pub name: Option<String>,
   pub title: Option<String>,
-  pub thread: Option<String>,
   pub chat: Option<i64>,
   pub unit: Option<String>,
   pub user: Option<String>,
@@ -1281,7 +1292,6 @@ pub struct TurnSend {
   pub cwd: Option<String>,
   pub name: Option<String>,
   pub title: Option<String>,
-  pub thread: Option<String>,
   pub chat: Option<i64>,
   pub unit: Option<String>,
   pub user: Option<String>,

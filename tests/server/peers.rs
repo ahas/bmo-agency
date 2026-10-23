@@ -5,7 +5,7 @@
 use std::sync::{Arc, Mutex};
 
 use agency_server::config::{Config, PeerAddresses};
-use agency_server::peers::brain::BrainReset;
+use agency_server::peers::brain::{BrainReset, Made};
 use agency_server::peers::node::NodeKind;
 use agency_server::peers::{PeerFault, Peers};
 use axum::Json;
@@ -151,6 +151,14 @@ async fn answer(
     ("GET", "brains") if query.as_deref() == Some("agentKey=kept&limit=1") => brains(&[("kept", 5)]),
     ("GET", "brains") if query.as_deref() == Some("agentKey=gone&limit=1") => brains(&[]),
     ("GET", "brains") if query.as_deref() == Some("agentKey=busy&limit=1") => brains(&[("busy", 6)]),
+    ("GET", "brains") if query.as_deref() == Some("agentKey=fresh&limit=1") => brains(&[]),
+    ("POST", "brains") => json!({
+      "id": 7,
+      "accountKey": body["accountKey"],
+      "agentKey": body["agentKey"],
+      "name": body["name"],
+      "createdAt": 1
+    }),
     ("DELETE", "brains/5") => brain("kept", 5),
     ("DELETE", "brains/6") => {
       return (
@@ -181,6 +189,18 @@ fn peers_at(address: &str, token: Option<&str>) -> Peers {
   let config = Config::read(|name| match name {
     "AGENCY_NODE_URL" | "AGENCY_BRAIN_URL" => Some(address.to_owned()),
     "AGENCY_NODE_TOKEN" | "AGENCY_BRAIN_TOKEN" => token.map(str::to_owned),
+    _ => None,
+  })
+  .unwrap();
+
+  Peers::of(&config.peers)
+}
+
+// The brain at the stand-in, a brain it makes filed under the account named.
+fn brain_at(address: &str, account: Option<&str>) -> Peers {
+  let config = Config::read(|name| match name {
+    "AGENCY_BRAIN_URL" => Some(address.to_owned()),
+    "AGENCY_BRAIN_ACCOUNT" => account.map(str::to_owned),
     _ => None,
   })
   .unwrap();
@@ -328,6 +348,42 @@ async fn the_brain_is_asked_by_the_agent_and_its_refusals_come_back_as_faults() 
 }
 
 #[tokio::test]
+async fn a_brain_is_made_under_the_account_named_where_the_agent_keeps_none() {
+  let (address, calls) = stand_in().await;
+  let peers = brain_at(&address, Some("1"));
+
+  assert_eq!(peers.brain.make("kept", "Kept").await.unwrap(), Made::Kept);
+  assert_eq!(peers.brain.make("fresh", "Fresh one").await.unwrap(), Made::Made);
+
+  let made = taken(&calls);
+
+  assert_eq!(
+    made
+      .iter()
+      .map(|call| (call.method.as_str(), call.path.as_str(), call.query.as_deref()))
+      .collect::<Vec<_>>(),
+    [
+      ("GET", "/base/brains", Some("agentKey=kept&limit=1")),
+      ("GET", "/base/brains", Some("agentKey=fresh&limit=1")),
+      ("POST", "/base/brains", None)
+    ]
+  );
+  assert_eq!(made[2].body, json!({ "accountKey": "1", "agentKey": "fresh", "name": "Fresh one" }));
+
+  let refused = brain_at(&address, Some("  ")).brain.make("fresh", "Fresh one").await.unwrap_err();
+
+  assert!(
+    matches!(&refused, PeerFault::Refused { peer: "brain", code, .. } if code == "no-account"),
+    "{refused:?}"
+  );
+  assert_eq!(
+    taken(&calls).iter().map(|call| call.method.as_str()).collect::<Vec<_>>(),
+    ["GET"],
+    "with no account named the brain is only looked for"
+  );
+}
+
+#[tokio::test]
 async fn a_service_with_no_listener_is_unreachable() {
   let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
   let address = format!("http://{}/", listener.local_addr().unwrap());
@@ -348,6 +404,10 @@ async fn a_service_with_no_listener_is_unreachable() {
   );
 
   let fault = peers_at(&address, None).brain.forget("kept").await.unwrap_err();
+
+  assert!(matches!(fault, PeerFault::Unreachable { peer: "brain", .. }), "{fault:?}");
+
+  let fault = brain_at(&address, Some("1")).brain.make("kept", "Kept").await.unwrap_err();
 
   assert!(matches!(fault, PeerFault::Unreachable { peer: "brain", .. }), "{fault:?}");
 }
@@ -403,4 +463,5 @@ async fn a_service_with_no_address_answers_its_default() {
   assert!(peers.node.pressures().await.is_ok(), "a stream that tells none is opened");
   peers.brain.forget("kept").await.unwrap();
   assert_eq!(peers.brain.reset("kept", false).await.unwrap(), BrainReset::default());
+  assert_eq!(peers.brain.make("kept", "Kept").await.unwrap(), Made::Undeployed);
 }

@@ -203,6 +203,9 @@ flowchart TD
   (Claude Code's `/compact`); or `handoff`, the session asked for a note in one more turn and a new
   generation opening with it (`docs/companions.md`, 「Its limit」). The registry's provider hands over;
   Claude Code's folds.
+- **Its default fold ratio:** the share of the window a session on it may fill before it is folded or
+  handed over, where the fold-ratio table holds no row for the session's tier (`docs/sessions.md`,
+  「Session compaction」). DeepSeek and OpenRouter declare 0.5; a provider declaring none reads 0.85.
 - **The limits that cut a turn going nowhere,** where the provider declares them: a turn whose tool
   calls repeat or fail again and again, or that runs past its calls or its time, is cut
   (`docs/companions.md`, 「A turn that goes nowhere」). The registry's provider declares them.

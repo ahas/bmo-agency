@@ -47,9 +47,7 @@ async fn read_body<T: DeserializeOwned>(call: &mut Call, what: &str) -> Result<T
 struct Handover {
   model: String,
   cwd: String,
-  thread: Option<String>,
   session: Option<String>,
-  note: Option<String>,
 }
 
 /// A worker's session handed over: the one named, or the kept one on the model with its record dropped.
@@ -96,10 +94,9 @@ impl Route for HandOver {
       resume: Some(held),
       account: None,
       placement: None,
-      thread: asked.thread,
     };
 
-    held::hand_over(ground, &worker, &run, asked.note.as_deref()).await?;
+    held::hand_over(ground, &worker, &run).await?;
 
     if let Some(account) = kept_under {
       records::forget(db, &worker, &asked.model, Some(&account)).await?;

@@ -1020,18 +1020,27 @@ impl HerdrSessions {
       )
       .await;
 
-    // A turn whose context reached the mark hands its session over before the next one, where its provider
-    // declares the handoff.
+    // A turn whose context reached its fold ratio hands its session over before the next one, where its
+    // provider declares the handoff (docs/companions.md, 「Its limit」).
     let hands_off = provider
       .declared()
       .resident
       .as_ref()
       .is_some_and(|resident| resident.handover == policy::providers::Handover::Handoff);
+    let mark =
+      match crate::control::fold_ratios::of_agent(&db, provider.name(), &pinned.companion.name).await {
+        Ok(mark) => mark,
+        Err(refused) => {
+          eprintln!(
+            "agency: {}'s fold ratio did not read, its provider's stands: {}",
+            pinned.companion.name, refused.error
+          );
 
-    if let Some(ratio) = reply
-      .context_ratio
-      .filter(|ratio| hands_off && *ratio >= policy::resident_turn::RESIDENT_TURN.fold_ratio)
-    {
+          crate::control::fold_ratios::fallback(provider.name()).0
+        }
+      };
+
+    if let Some(ratio) = reply.context_ratio.filter(|ratio| hands_off && *ratio >= mark) {
       let due = Due {
         provider,
         system,

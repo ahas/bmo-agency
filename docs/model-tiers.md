@@ -25,7 +25,10 @@ uses the scout's Haiku low effort. Simple uses the small gate baseline. Codex Fi
 Terra low, following the co-work digest effort, below Reliable high.
 A tier's mapping holds the thinking it runs with, the answer-token ceiling a registry's provider
 carries, its model and its effort, and each is read by every key assigned to the tier (`docs/own-llm.md`,
-「Settings per tier」). On a registration the effort is null, `thinking` or `no-thinking`, read by the
+「Settings per tier」). Beside its mapping, a tier holds a fold ratio on each provider — the share of
+the model's window a session at that tier may fill before it is folded — kept in a table of its own
+and changed apart from the mapping (`docs/sessions.md`, 「Session compaction」; `docs/api.md`,
+「fold-ratios」). On a registration the effort is null, `thinking` or `no-thinking`, read by the
 gates, the chat, the workers and
 the editors, where null and a null ceiling leave thinking and the ceiling to the registration the
 mapping names; a gate's null ceiling is the gate's own default. Only those mappings carry a ceiling;

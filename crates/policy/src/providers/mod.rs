@@ -20,6 +20,11 @@ pub struct Declared {
   pub caps_answer_tokens: bool,
   /// Whether co-workers are borrowed on it.
   pub lends_coworkers: bool,
+  /// The share of a model's window a session on it may fill before it is folded, where the fold-ratio
+  /// table holds none for the session's tier (docs/sessions.md, 「Session compaction」); none leaves the
+  /// general share `resident-turn.toml` names.
+  #[serde(default)]
+  pub fold_ratio: Option<f64>,
   pub effort: Effort,
   /// Its standing program, where it stands one in an agent's pane.
   pub resident: Option<Resident>,

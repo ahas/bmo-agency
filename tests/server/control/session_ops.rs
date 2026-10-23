@@ -127,7 +127,6 @@ fn work_body() -> serde_json::Value {
     "cwd": "/checkouts/a",
     "name": "job-41",
     "title": "#1802 build",
-    "thread": "todo:1802",
     "job": 41,
     "item": 1802,
     "chat": -5,
@@ -167,7 +166,6 @@ fn a_work_turns_parts_read_whole_by_the_names_a_jobs_runner_sends() {
       cwd: "/checkouts/a".into(),
       name: "job-41".into(),
       title: "#1802 build".into(),
-      thread: Some("todo:1802".into()),
       chat: -5,
       unit: Some("bmo-job-41".into()),
       user: Some("7".into()),
@@ -179,7 +177,7 @@ fn a_work_turns_parts_read_whole_by_the_names_a_jobs_runner_sends() {
 
   let mut least = work_body();
 
-  for optional in ["thread", "unit", "user", "hears_words", "variables"] {
+  for optional in ["unit", "user", "hears_words", "variables"] {
     least.as_object_mut().unwrap().remove(optional);
   }
 
@@ -188,7 +186,7 @@ fn a_work_turns_parts_read_whole_by_the_names_a_jobs_runner_sends() {
 
   let work = context_read(&least).unwrap().work.unwrap();
 
-  assert_eq!((work.thread, work.unit, work.user), (None, None, None));
+  assert_eq!((work.unit, work.user), (None, None));
   assert!(!work.hears_words && work.variables.is_empty());
   assert_eq!((work.mapping.effort, work.mapping.tier, work.mapping.answer_tokens), (None, None, None));
   assert_eq!(work.resume, Resume::Auto);

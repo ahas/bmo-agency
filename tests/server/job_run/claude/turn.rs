@@ -51,7 +51,6 @@ fn work(resume: Resume) -> WorkParts {
     cwd: "/checkouts/a".into(),
     name: "bmo-job-41".into(),
     title: "#1802 build".into(),
-    thread: Some("todo:1802".into()),
     chat: -5,
     unit: Some("bmo-task-41".into()),
     user: None,

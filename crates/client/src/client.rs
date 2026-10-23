@@ -732,6 +732,21 @@ impl AgencyClient {
     Self::answered(self.request(Method::PATCH, &["tiers", tier_name]).json(body)).await
   }
 
+  /// `GET /fold-ratios`: Every provider's fold ratio at every tier, each with where it comes from.
+  pub async fn list_fold_ratios(&self) -> Answer<FoldRatioPage> {
+    Self::answered(self.request(Method::GET, &["fold-ratios"])).await
+  }
+
+  /// `PUT /fold-ratios/{provider}/{tier}`: Set a provider's fold ratio at a tier.
+  pub async fn put_fold_ratio(
+    &self,
+    provider: &str,
+    tier: &str,
+    body: &FoldRatioWrite,
+  ) -> Answer<FoldRatio> {
+    Self::answered(self.request(Method::PUT, &["fold-ratios", provider, tier]).json(body)).await
+  }
+
   /// `GET /fallback`: The fallback roads and whether the fallback is answering.
   pub async fn get_fallback(&self) -> Answer<Fallback> {
     Self::answered(self.request(Method::GET, &["fallback"])).await
@@ -993,29 +1008,5 @@ impl AgencyClient {
   /// `DELETE /session-loads/{sessionId}`: Forget a session's loads.
   pub async fn delete_session_loads_by_session_id(&self, session_id: &str) -> Answer<()> {
     Self::nothing(self.request(Method::DELETE, &["session-loads", session_id])).await
-  }
-
-  /// `GET /session-summaries/{agentName}`: An agent's kept session summary.
-  pub async fn read_session_summaries_by_agent_name(&self, agent_name: &str) -> Answer<SessionSummary> {
-    Self::answered(self.request(Method::GET, &["session-summaries", agent_name])).await
-  }
-
-  /// `PUT /session-summaries/{agentName}`: Keep an agent's session summary.
-  pub async fn put_session_summaries_by_agent_name(
-    &self,
-    agent_name: &str,
-    body: &SessionSummaryWrite,
-  ) -> Answer<SessionSummary> {
-    Self::answered(self.request(Method::PUT, &["session-summaries", agent_name]).json(body)).await
-  }
-
-  /// `DELETE /session-summaries/{agentName}`: Clear an agent's session summary.
-  pub async fn delete_session_summaries_by_agent_name(&self, agent_name: &str) -> Answer<()> {
-    Self::nothing(self.request(Method::DELETE, &["session-summaries", agent_name])).await
-  }
-
-  /// `GET /session-summaries/{agentName}/task`: The summariser's task for an agent.
-  pub async fn list_session_summaries_task_by_agent_name(&self, agent_name: &str) -> Answer<SummaryTask> {
-    Self::answered(self.request(Method::GET, &["session-summaries", agent_name, "task"])).await
   }
 }

@@ -45,6 +45,15 @@ fn a_named_address_is_read_with_its_token() {
 }
 
 #[test]
+fn the_brain_s_account_key_is_read_trimmed_and_a_blank_one_names_none() {
+  assert_eq!(
+    read(&[("AGENCY_BRAIN_ACCOUNT", " 1 ")]).unwrap().peers.brain_account.as_deref(),
+    Some("1")
+  );
+  assert_eq!(read(&[("AGENCY_BRAIN_ACCOUNT", "  ")]).unwrap().peers.brain_account, None);
+}
+
+#[test]
 fn an_address_that_is_not_a_url_is_a_fault_naming_its_variable() {
   let fault = read(&[("AGENCY_NODE_URL", "nodes over there")]).unwrap_err();
 

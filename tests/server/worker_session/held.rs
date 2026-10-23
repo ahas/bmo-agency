@@ -38,7 +38,6 @@ fn run_on(mode: &'static str, model: &str) -> SessionRun {
     resume: None,
     account: None,
     placement: None,
-    thread: None,
   }
 }
 

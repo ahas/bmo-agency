@@ -42,7 +42,9 @@ seeds. The other crates and the server reach the store only through it.
   - the models and their roads: `model_catalogue`, `model_uses`, `registered_models`,
     `registered_model_addresses`, `model_fallbacks`, `fallback_routes`, `fallback_sessions`, and the
     seven `model_tier_` tables, `assignments`, `backfilled`, `conflicts`, `legacy`, `mappings`, `meta`
-    and `seeded`;
+    and `seeded`; and `fold_ratios`, the share of a model's window a session may fill before it is
+    folded, one row a provider and tier, with `fold_ratio_seeded`, the providers whose ratios were given
+    (`docs/api.md`, 「fold-ratios」);
   - the work nodes: `node_workplaces`, `node_rotation`, `node_assignments`; the nodes themselves, how
     each is reached among it, are the node service's and read from it (`docs/api.md`, 「The node
     service」);
@@ -54,9 +56,8 @@ seeds. The other crates and the server reach the store only through it.
     holder, the worker, its state and when the hold runs out — and `jobs`, one row the item's run on that
     worker — the item and lease the harness named, the assignment, the worker, the session and run it
     opened, the model its turn went out on, its state, outcome, report and tokens, and the prompt it was
-    launched with; and what a session carries: `session_work`, its item and results; `session_loads`, the
-    documents loaded into it; and `session_summaries`, an agent's kept summary (`docs/api.md`,
-    「Assignments and jobs」);
+    launched with; and what a session carries: `session_work`, its item and results, and `session_loads`,
+    the documents loaded into it (`docs/api.md`, 「Assignments and jobs」);
   - the run ledger: `runs`, one row a run of an agent's unit — its agent and room, its unit, how deep
     it runs, its bound, when it started and finished in epoch seconds, how it ended, who started it, the
     tokens its context held and the search it carried — opened and closed by the job unit
@@ -93,8 +94,7 @@ seeds. The other crates and the server reach the store only through it.
     and a turn's consumer reads;
   - the Claude account chosen to run on and the one in use, `claude_account_chosen` and
     `claude_account_in_use`;
-  - a session's record and its summary, `agent_session:*`, `agent_session_summary:*` and
-    `agent_session_summary_thread:*`, and the sessions a worker set aside on other models,
+  - a session's record, `agent_session:*`, and the sessions a worker set aside on other models,
     `agent_session_shelf:*`;
   - a companion's reset point, `reset_point:*` (`docs/companions.md`, 「What the reset cuts off」);
   - the machine watch's notes: `doctor_standing_failure`, `herdr_leftovers_told`,
@@ -126,8 +126,10 @@ seeds. The other crates and the server reach the store only through it.
   `policy/seeds.toml`; every profile's work key at the tier `policy/work-keys.toml` gives it; and the
   catalogue entries `policy/seeds.toml` declares, of which the repository's own declares none, since a
   model file is a deployment's; the base prompts `policy/base-prompts.toml` declares, each with the
-  text of its seed file under the code tree's `prompts/base/`; and the tiers DeepSeek maps to, declared
-  after the first seed in the same file. The registry's provider is given its mappings by the owner.
+  text of its seed file under the code tree's `prompts/base/`; the tiers DeepSeek maps to, declared
+  after the first seed in the same file; and every provider's fold ratio, the default its own
+  declaration under `policy/providers/` names, else the one `policy/resident-turn.toml` names. The
+  registry's provider is given its mappings by the owner.
 - **The settling** runs the migrations and then writes every seed in one transaction.
 - **The account:** a store holding no account is given the one the seed names, the login the machine
   already has; a list the owner has written to is left alone.
@@ -137,6 +139,9 @@ seeds. The other crates and the server reach the store only through it.
   names, and the co-worker pool's starting places at the tiers a co-worker is borrowed at, once. A
   mapping, an assignment or a place the owner removed stays removed, and one that stands is never
   touched. A plan naming a tier its ladder does not hold is refused before anything is written.
+- **The fold ratios:** every provider the plan names is given its ratio at every tier of the ladder
+  once, the first time the store is settled with it, and recorded as given; a ratio the owner set is
+  never touched, and a tier the ladder gains later reads its provider's default until one is set.
 - **The model catalogue:** its entries are written once, as its table is made (`docs/model-catalogue.md`,
   「Where it is kept」).
 - **The base prompts:** each is given once by its name and recorded as given, a prompt of its name

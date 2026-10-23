@@ -78,13 +78,9 @@ never the model's name.
   a companion's prompt after its base prompt.
 - **An agent's rules follow the agent, not the model:** a support worker is handed its base's rules,
   and another agent's run on the same registered model is not.
-- **A worker whose own folder holds a handoff writes its own handoff note.** As such a worker's job
-  ends, the session it ran in is handed over — closed, with a note the next run opens with — and the
-  note is the worker's own rather than the session summariser's: one more turn of the same session,
-  after the report has gone out, carries the worker's handoff instruction, and the answer is the note,
-  in its own first person and bounded in length. The turn is the job's like any other; an answer that
-  came back on another session, failed, or says it has nothing leaves no note, as a failed summariser
-  does; and a worker with no handoff of its own hands over by the summariser.
+- **A worker's session closes with nothing handed over.** As a worker's job ends, the session it ran
+  in is handed over — closed — and the next run opens on its own words alone: no note of the closed
+  session, the worker's own or any other, is carried (`docs/sessions.md`, 「Session replacement」).
 - **A research run keeps to the registration where its registration keeps its research.** A search or
   a browse launched by a run on a registration that keeps its research goes out on that registration
   too, rather than on the research keys' model, and a deeper depth has it search more itself instead of
@@ -548,8 +544,7 @@ bmo-agency agent --route <work key> --provider <auto|claude-code|codex|openroute
   verdict: a formatting gate ends where it stands and the message goes out as the writer wrote it; the
   reference gates and the person-book search end the round as a stop rather than going on with the index;
   the sanitiser ends the round as a stop rather than redacting locally; the translator and the voice
-  reading write or read nothing and say they were stopped; the summariser leaves no note and the swap
-  goes ahead, as a failed summariser does; and every other caller catches nothing of its own, so the
+  reading write or read nothing and say they were stopped; and every other caller catches nothing of its own, so the
   stop ends the piece of work that asked for the judgement.
 
 ### Each gate uses its whole time limit
@@ -633,7 +628,7 @@ bmo-agency agent --route <work key> --provider <auto|claude-code|codex|openroute
 ### What does not split
 
 - **Gates that must read everything at once:** the formatting judgement of one answer, picking pieces
-  for one turn, the summary of one session, one person's standing sheet.
+  for one turn, one person's standing sheet.
 - **Pre-cut inputs:** the summarisers' inputs already arrive cut within their caps.
 - **Runs with tools** (chat, workers, editors, a companion's turn): the whole conversation is one
   request, so they cannot split; a turn that meets the limit ends as 「A turn at the input limit」 below

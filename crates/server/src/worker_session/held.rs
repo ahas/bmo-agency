@@ -2,11 +2,10 @@
 //! (docs/cache-fallback.md): the road it stands on, the prefix it was opened against and when that prefix
 //! was last read, kept in one setting per scope. A run is judged by it on the way in — a session on another
 //! road, another login, a prefix that moved or a cache that outlived its life is replaced, and the next run
-//! is handed the note the replaced one left — and the session that answered is kept again on the way out.
-//! Here it is the worker line's, on the provider the run goes out on; the note itself is the session
-//! summariser's, a hook the caller registers (`super::summary`). A worker's own Claude Code session turned
-//! from for another model is set aside on its own model rather than replaced, and resumed on a return while
-//! its cache is warm (docs/sessions.md, 「A worker's session per model」).
+//! opens a new session with nothing of it carried over — and the session that answered is kept again on the
+//! way out. Here it is the worker line's, on the provider the run goes out on. A worker's own Claude Code
+//! session turned from for another model is set aside on its own model rather than replaced, and resumed on
+//! a return while its cache is warm (docs/sessions.md, 「A worker's session per model」).
 
 use std::collections::BTreeMap;
 
@@ -17,7 +16,6 @@ use sha2::{Digest, Sha256};
 
 use store::run;
 
-use super::summary::{self, Closed, Kind};
 use super::warmth;
 use crate::control::claude_accounts::{Account, SEED_ACCOUNT};
 use crate::door::record::Reply;
@@ -34,17 +32,6 @@ pub const MODE: &str = "claude-code";
 // The provider whose threads a worker's scope keeps beside its sessions.
 const CODEX: &str = crate::lines::codex::PROVIDER;
 
-// How much of what was said on a road with no session of its own is held, in the UTF-16 units the
-// TypeScript side counts a text in, since either side reads the other's.
-pub(crate) const TRANSCRIPT_UNITS: usize = 40_000;
-
-// The last of a text, by its UTF-16 units.
-pub(crate) fn last_units(text: &str, units: usize) -> String {
-  let all: Vec<u16> = text.encode_utf16().collect();
-
-  String::from_utf16_lossy(&all[all.len().saturating_sub(units)..])
-}
-
 /// The scope a worker's session is held under.
 pub fn scope_of(worker: &str) -> String {
   format!("job-worker:{worker}")
@@ -52,14 +39,6 @@ pub fn scope_of(worker: &str) -> String {
 
 pub(crate) fn key(scope: &str) -> String {
   format!("agent_session:{scope}")
-}
-
-pub(crate) fn pending_key(scope: &str) -> String {
-  format!("agent_session_summary:{scope}")
-}
-
-pub(crate) fn pending_thread_key(scope: &str) -> String {
-  format!("agent_session_summary_thread:{scope}")
 }
 
 // The sessions a scope has set aside on their own models while it turned to another.
@@ -88,19 +67,14 @@ pub struct Held {
   pub at: i64,
   #[serde(default)]
   pub missed: bool,
-  #[serde(default, skip_serializing_if = "Option::is_none")]
-  pub transcript: Option<String>,
-  #[serde(default, skip_serializing_if = "Option::is_none")]
-  pub thread: Option<String>,
   /// The share of its model's window the session's last answered turn filled.
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub context_ratio: Option<f64>,
 }
 
 /// One run on a worker's session as it is judged: the provider and the line it goes out on, the words it is
-/// handed, the session it resumes, the login it goes out under, the node its session stands on where its
-/// provider places sessions, and the thread it is on — a job's item, whose next run alone is handed the
-/// note a session closed on it leaves.
+/// handed, the session it resumes, the login it goes out under, and the node its session stands on where
+/// its provider places sessions.
 #[derive(Clone, Debug)]
 pub struct SessionRun {
   pub mode: &'static str,
@@ -109,7 +83,6 @@ pub struct SessionRun {
   pub resume: Option<String>,
   pub account: Option<Account>,
   pub placement: Option<String>,
-  pub thread: Option<String>,
 }
 
 impl SessionRun {
@@ -198,8 +171,8 @@ async fn must_replace(ground: &Ground, held: Option<&Held>, run: &SessionRun) ->
     return Ok(true);
   }
 
-  // A session whose last answered turn filled its model's context is replaced by one carrying its note,
-  // as a session past its cache lifetime is.
+  // A session whose last answered turn filled its model's context is replaced, as a session past its cache
+  // lifetime is.
   if held.context_ratio.is_some_and(|ratio| ratio >= 1.0) {
     return Ok(true);
   }
@@ -212,21 +185,6 @@ async fn must_replace(ground: &Ground, held: Option<&Held>, run: &SessionRun) ->
   let lifetime = warmth::lifetime_ms(run.mode, &run.line.model);
 
   Ok(lifetime.is_some_and(|lifetime| !warmth::warm(held.at, now_ms(), lifetime)))
-}
-
-// The note left for the scope where it belongs to the run's thread.
-pub(crate) async fn pending(
-  ground: &Ground,
-  scope: &str,
-  thread: Option<&str>,
-) -> Result<Option<String>, Refusal> {
-  let note = settings::get(&ground.db, &pending_key(scope)).await?;
-
-  Ok(if settings::get(&ground.db, &pending_thread_key(scope)).await?.as_deref() == thread {
-    note
-  } else {
-    None
-  })
 }
 
 // The sessions a scope has set aside, one to a model, as the setting keeps them.
@@ -293,8 +251,8 @@ async fn take_shelved(
   Ok(None)
 }
 
-// The held session set aside on its own model as the worker turns to another: its note left for the new
-// session under the switch note, and its record kept for the worker's return.
+// The held session set aside on its own model as the worker turns to another, its record kept for the
+// worker's return.
 async fn turn_from(
   ground: &Ground,
   worker: &str,
@@ -302,24 +260,6 @@ async fn turn_from(
   left: &Held,
   run: &SessionRun,
 ) -> Result<(), Refusal> {
-  let account = left.account.clone().unwrap_or_else(|| SEED_ACCOUNT.to_owned());
-  let note = summary::handover(
-    &ground.hooks,
-    Closed {
-      kind: Kind::Switch,
-      mode: left.mode.clone(),
-      session_id: left.id.clone(),
-      cwd: left.cwd.clone().unwrap_or_else(|| run.line.cwd.clone()),
-      account: Some(account),
-      transcript: left.transcript.clone(),
-      own_note: None,
-      chat_id: None,
-    },
-  )
-  .await;
-
-  leave_note(ground, scope, note.as_deref(), left.thread.as_deref()).await?;
-
   let mut shelf = shelf(ground, scope).await?;
 
   shelf.insert(left.model.clone(), left.clone());
@@ -331,8 +271,8 @@ async fn turn_from(
 }
 
 /// The run as it may go out on the worker's held session: on it; on the session set aside on its model,
-/// where it comes back to that model while the session is warm; or on a fresh session with the note the
-/// replaced or set-aside one left ahead of its words (docs/sessions.md, 「A worker's session per model」).
+/// where it comes back to that model while the session is warm; or on a fresh session opened on its words
+/// alone (docs/sessions.md, 「A worker's session per model」).
 pub async fn prepare(ground: &Ground, worker: &str, mut run: SessionRun) -> Result<SessionRun, Refusal> {
   let scope = scope_of(worker);
   let held = held(ground, &scope).await?;
@@ -365,35 +305,21 @@ pub async fn prepare(ground: &Ground, worker: &str, mut run: SessionRun) -> Resu
     turn_from(ground, worker, &scope, left, &run).await?;
     run.resume = None;
   } else if must_replace(ground, held.as_ref(), &run).await? {
-    let thread = held.as_ref().and_then(|held| held.thread.clone());
-
-    replace(ground, worker, &scope, held.as_ref(), &run, thread.as_deref(), None).await?;
+    replace(ground, worker, &scope, held.as_ref(), &run).await?;
     run.resume = None;
-  }
-
-  if run.resume.is_none()
-    && let Some(note) = pending(ground, &scope, run.thread.as_deref()).await?
-  {
-    run.prompt = format!("{note}\n\n{}", run.prompt);
   }
 
   Ok(run)
 }
 
 /// The worker's session handed over on purpose — as its job ends, or ahead of a retry on a fresh session:
-/// the session it holds, or the run's own where it holds none, closed with its note left for the run's
-/// thread alone, and every session it set aside on another model dropped. The note is the worker's own
-/// where it wrote one, and otherwise asked of the session summariser out of the session's record.
-pub async fn hand_over(
-  ground: &Ground,
-  worker: &str,
-  run: &SessionRun,
-  own_note: Option<&str>,
-) -> Result<(), Refusal> {
+/// the session it holds, or the run's own where it holds none, closed with nothing carried to the next
+/// run, and every session it set aside on another model dropped.
+pub async fn hand_over(ground: &Ground, worker: &str, run: &SessionRun) -> Result<(), Refusal> {
   let scope = scope_of(worker);
   let held = held(ground, &scope).await?;
 
-  replace(ground, worker, &scope, held.as_ref(), run, run.thread.as_deref(), own_note).await?;
+  replace(ground, worker, &scope, held.as_ref(), run).await?;
 
   // Every session set aside ends with the one held, its record with it.
   for kept in shelf(ground, &scope).await?.values().filter(|kept| kept.mode == MODE) {
@@ -403,42 +329,14 @@ pub async fn hand_over(
   settings::forget(&ground.db, &shelf_key(&scope)).await
 }
 
-// The held session closed: its note left for the thread given, and every record that would resume it gone.
+// The held session closed, every record that would resume it gone.
 async fn replace(
   ground: &Ground,
   worker: &str,
   scope: &str,
   held: Option<&Held>,
   run: &SessionRun,
-  thread: Option<&str>,
-  own_note: Option<&str>,
 ) -> Result<(), Refusal> {
-  // The record being read is the held session's, under the login that opened it; with nothing held, it
-  // is the run's own.
-  let account = match held {
-    None => run.account.as_ref().map(|account| account.id.clone()),
-    Some(held) => Some(held.account.clone().unwrap_or_else(|| SEED_ACCOUNT.to_owned())),
-  };
-  let session_id = held.and_then(|held| held.id.clone()).or_else(|| run.resume.clone());
-  let cwd = held.and_then(|held| held.cwd.clone()).unwrap_or_else(|| run.line.cwd.clone());
-  let note = summary::handover(
-    &ground.hooks,
-    Closed {
-      kind: Kind::Worker,
-      mode: held.map_or(run.mode, |held| held.mode.as_str()).to_owned(),
-      session_id,
-      cwd,
-      account,
-      transcript: held.and_then(|held| held.transcript.clone()),
-      own_note: own_note.map(str::to_owned),
-      chat_id: None,
-    },
-  )
-  .await;
-  let db = &ground.db;
-
-  leave_note(ground, scope, note.as_deref(), thread).await?;
-
   // A thread is kept by Codex's road and a session record by Claude Code's: whichever the closed session
   // and this run stood on goes.
   if let Some(held) = held {
@@ -459,30 +357,7 @@ async fn replace(
     sessions_of(ground, worker, &run.line.model).await?;
   }
 
-  settings::forget(db, &key(scope)).await
-}
-
-// The note a closed session left kept for the next run of the thread given; where the summariser left
-// none, nothing is carried over and no note of an earlier session stands in its place.
-async fn leave_note(
-  ground: &Ground,
-  scope: &str,
-  note: Option<&str>,
-  thread: Option<&str>,
-) -> Result<(), Refusal> {
-  let db = &ground.db;
-  let Some(note) = note else {
-    settings::forget(db, &pending_key(scope)).await?;
-
-    return settings::forget(db, &pending_thread_key(scope)).await;
-  };
-
-  settings::set(db, &pending_key(scope), note).await?;
-
-  match thread {
-    None => settings::forget(db, &pending_thread_key(scope)).await,
-    Some(thread) => settings::set(db, &pending_thread_key(scope), thread).await,
-  }
+  settings::forget(&ground.db, &key(scope)).await
 }
 
 // The Codex thread the scope keeps on a model and effort.
@@ -509,8 +384,7 @@ async fn sessions_of(ground: &Ground, worker: &str, model: &str) -> Result<(), R
   Ok(())
 }
 
-/// The session that answered kept as the one the scope holds, on the model it answered on, and the note
-/// it was handed taken.
+/// The session that answered kept as the one the scope holds, on the model it answered on.
 pub async fn remember(
   ground: &Ground,
   worker: &str,
@@ -536,18 +410,6 @@ pub async fn remember(
       reply.spend.iter().map(|spend| spend.input_tokens + spend.cache_write_tokens).sum(),
     )
   };
-  // A road that keeps no session of its own is held by what was said on it, the last of it.
-  let transcript = match reply.session_id {
-    Some(_) => None,
-    None => {
-      let before = held(ground, &scope).await?.and_then(|held| held.transcript).unwrap_or_default();
-
-      Some(last_units(
-        &format!("{before}\nUSER: {}\nASSISTANT: {}", run.prompt, reply.text),
-        TRANSCRIPT_UNITS,
-      ))
-    }
-  };
   let answered = reply.model.clone().unwrap_or_else(|| run.line.model.clone());
   // A session the safeguard answered on another model stands on that model now, and the prefix held
   // for it is that model's, so the next turn on it does not read as a moved prefix.
@@ -569,19 +431,10 @@ pub async fn remember(
     at: now_ms(),
     missed: run.resume.is_some() && reads == 0 && fresh > 0,
     cwd: Some(run.line.cwd.clone()),
-    transcript,
-    thread: run.thread.clone(),
     context_ratio: reply.context_ratio,
   };
   let text =
     serde_json::to_string(&kept).map_err(|why| Refusal::bad("session-unwritten", why.to_string()))?;
 
-  settings::set(&ground.db, &key(&scope), &text).await?;
-
-  if pending(ground, &scope, run.thread.as_deref()).await?.is_some() {
-    settings::forget(&ground.db, &pending_key(&scope)).await?;
-    settings::forget(&ground.db, &pending_thread_key(&scope)).await?;
-  }
-
-  Ok(())
+  settings::set(&ground.db, &key(&scope), &text).await
 }

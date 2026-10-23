@@ -45,7 +45,7 @@ use crate::run_log::lines::Line;
 use crate::run_log::spans::JobSpan;
 use crate::run_log::{RunLog, Target};
 use crate::session_questions::{Questions, TurnQuestion};
-use crate::worker_session::fold::{fold, worker_session_full};
+use crate::worker_session::fold::{fold, worker_fold_ratio, worker_session_full};
 use crate::worker_session::held::{self, SessionRun};
 use crate::worker_session::records::{self, fallen_model, heal, launch_model, note_carried, record};
 use crate::worker_session::{
@@ -670,7 +670,6 @@ impl Attempting<'_, '_> {
       resume,
       account,
       placement: None,
-      thread: work.thread.clone(),
     };
     // A session thrown away is no session the worker holds, and is judged by nothing.
     let prepared = match seat {
@@ -822,7 +821,9 @@ impl Attempting<'_, '_> {
       .await?;
     note_carried(&ground.db, worker, &work.model, &account, sent.resume.is_none(), reply).await?;
 
-    if worker_session_full(reply.context_ratio) {
+    let fold_ratio = worker_fold_ratio(ground, &reply.mode, sent.line.tier.as_deref()).await;
+
+    if worker_session_full(reply.context_ratio, fold_ratio) {
       println!("{worker} {}: {session_id} is full, folding it", work.model);
       fold(ground, row, &work.model, &account, &session_id).await;
     }

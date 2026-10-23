@@ -5,7 +5,6 @@ fn the_gate_order_reads_every_gate_once_where_it_first_stands() {
   assert_eq!(
     GATE_ORDER.keys(),
     [
-      "session-summary",
       "system-documents",
       "room-rules",
       "library-knowledge",

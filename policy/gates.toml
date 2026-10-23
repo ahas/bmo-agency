@@ -28,9 +28,6 @@ usage = [
 
 # Pre-gates: the gates that run before the chat agent writes its reply.
 
-[[pre]]
-places = [{ key = "session-summary", condition = "fresh-session" }]
-
 # The three gates that pick a turn's reference, one library each, are marked as such:
 # every roster that lists a gate reads the three of them from these
 # marks.
