@@ -61,8 +61,8 @@ const surfaceOf = (provider: AgentProvider): ResidentSurface => {
 describe("resident or host", () => {
   const surface = surfaceOf(claudeCodeProvider);
 
-  test("every provider declares its surface, and OpenRouter's resident pane is the server's", () => {
-    expect(providerImplementations().filter((provider) => provider.resident === null).map((provider) => provider.name)).toEqual(["openrouter"]);
+  test("every provider declares its surface, and the dsh providers' resident pane is the server's", () => {
+    expect(providerImplementations().filter((provider) => provider.resident === null).map((provider) => provider.name)).toEqual(["openrouter", "deepseek"]);
   });
 
   test("the resolution names no provider", () => {
