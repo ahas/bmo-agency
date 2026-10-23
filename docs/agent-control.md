@@ -104,7 +104,8 @@ The owner's words:
     by a live head is answered the view instead of a second copy.
   - **A gate's pool is the one agent with more than one program:** each of its slots is a place of
     its own, with its own head and program, beside the gate's own place, which shows its host's view
-    (「A gate's pool」).
+    (「A gate's pool」). A gate's turns on a road whose program carries its own turns stand in places
+    of their own the same way, one set for each program they need (「A gate's places」).
   - **A head opened for a host lets go.** A head started with the host-head variable — a pane a bun
     launcher opened for a host beside the program — never races the program's own loop: it is answered
     the program only once nothing has held it for ten seconds, the view while no program is written,
@@ -160,8 +161,8 @@ The owner's words:
     the wait, with the time it waits until, so the place reads as held meanwhile.
   - **Only the same program starting again counts.** A start on another program than the one that ran
     last — a command a turn or the standing pass wrote in its place — begins the place's start history
-    afresh, so a place whose program is replaced from one turn to the next, as a gate's is between two
-    gates' instructions, is neither held back nor taken for a loop.
+    afresh, so a place whose program is replaced from one turn to the next is neither held back nor taken
+    for a loop.
   - **A place that keeps dying is stood up anew.** Six starts of its program within five minutes is a
     program in a loop, and the next turn does not put its prompt into it: the place is rebuilt first
     (「Stopping, falling back and standing up again」).
@@ -232,6 +233,9 @@ The owner's words:
     one room's judgement behind another's and carry one judgement's words into the next. A pool takes
     overlapping judgements in programs of their own and clears each program's conversation between
     them.
+  - A gate on a road whose program carries its own turns — bmo-tui on a dsh session, for DeepSeek and
+    OpenRouter — stands in places kept for the programs its asks compose, each one standing between
+    judgements (「A gate's places」).
   - A gate on any other road stays a host agent: one request asked in its host and shown in its pane.
 - **The registry's provider stands Claude Code on the gateway.** What stands in the pane of an
   agent on a registered model is Claude Code's interactive program pointed at agency's gateway under the
@@ -295,6 +299,47 @@ gate on Claude Code」. How it stands on the places:
   pass takes down each slot its gate marks idle — its program released from the place and its
   workspace closed — where its lock is free; how long a slot stands unused before it is marked idle is
   the gate's.
+
+### A gate's places
+
+The gate unit asks every judgement on a provider's program as a conversation of one agent
+(`docs/api.md`, 「sessions」), whichever gate it is, and a gate's instructions are the program's whole
+system prompt, so one pane would hold another program from one gate to the next and take one judgement
+at a time. On a road whose program carries its own turns — bmo-tui on a dsh session, for DeepSeek and
+OpenRouter — a gate's turn goes instead into a place kept for the program it needs:
+
+- **A place stands for one program.** The program is what the turn's ask composes: the conversation's
+  agent, the provider, the model, the effort, whether it thinks, the instructions and the folder. A place
+  is named after the agent, a digest of that program and a slot, `<agent>-<digest>-<n>`, with a workspace,
+  head pane and loop of its own. Two gates whose asks compose the same program share its places, and a
+  gate whose instructions change stands in new ones.
+- **It stays standing between turns.** Its program is written into it and stood by the first turn that
+  needs it, as any resident program is, and every later turn of that program finds it standing on the
+  same command and goes in with no start. Its dsh session goes on from one judgement to the next.
+- **One turn at a time in a place, several places at once.** A turn takes a free place of its program,
+  the lowest slot first. Where every place of the program is at work it stands another slot, up to the
+  most one program may stand in, so overlapping judgements of one gate run side by side; places of
+  different programs run at once. Where the most gate places that may stand together already stand,
+  the one of another program unused longest is ended to make room; where every one is at work, the turn
+  waits for one to come free.
+- **A long session starts afresh.** A turn whose answer shows its session holding at least the session
+  bound in tokens lets that session go after it answers: the program is ended, the place's session
+  record removed and the same program written back, so the next turn begins a fresh dsh session on a
+  program already standing again.
+- **An idle place is ended.** On the heads' clock each gate place unused for longer than the idle
+  bound, its lock free, is ended: its program released and its workspace closed. So is the program left
+  standing in the agent's own pane on such a road, once nothing has been put into it for as long.
+- **Each place keeps a record** of its agent, program and slot and of when a turn last let it go, so a
+  server started again takes over the places standing from before, the sweep after a job's end counts
+  them as standing, and the idle pass reaches them.
+- **Its bounds are agency's policy** (`policy/gate-places.toml`): the most gate places standing at once,
+  eight; the most one program stands in, four, the pool the gate's own profile names for the translator;
+  the minutes a place may stand unused, thirty; and the session bound, 200,000 tokens. A place is one
+  bmo-tui with its dsh, which hold some 170 MB between them, so the bound keeps them under 1.5 GB.
+- **What it ran is the agent's.** The run's log, its usage and the road it walked are the conversation
+  agent's; the execution is filed under the place, as a pool slot's is.
+- On every other road a gate's turn stands where it stood: Claude Code's in the agent's own pane, on a
+  session the turn opens, and a registered model's as one request to the gateway.
 
 ### What an agent provider is made of
 
@@ -647,6 +692,8 @@ in the provider's own terms:
     either as the provider a worker is pinned to, is a turn of this program in the agent's pane. A gate's turn on
     an OpenRouter conversation is one too, with no tools and no MCP server; an ephemeral turn's stays in
     the host, on dsh's headless profile.
+  - **A gate's turn on that program stands in a place of its program's own,** never in the agent's
+    pane (「A gate's places」).
   - **A gate's turn is the gate road wherever its session stands.** A turn carrying the gate's own ask —
     its instructions as the program's whole system prompt, the model and effort its mapping names, the
     thinking it asks for, no tools and no MCP server — goes out on that road in a conversation and in a

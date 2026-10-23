@@ -21,7 +21,9 @@
   runner's, a research branch's — runs each run apart: the same interactive program in a
   pane of its own, opened on a session of its own for the run and closed with it (`docs/agents.md`,
   「Runs apart」). A gate's line stands as a pool of the same interactive programs, each cleared between
-  the judgements put into it (`gates.md`, 「A gate on Claude Code」). No line has a print-mode
+  the judgements put into it (`gates.md`, 「A gate on Claude Code」); on dsh it stands in places kept
+  for each program a gate's ask composes, which stay up between judgements
+  (`docs/agent-control.md`, 「A gate's places」). No line has a print-mode
   shape: the code refuses a run that asks Claude Code for its answer on the program's output
   (`docs/agents.md`, 「No print mode」).
 - **A line is this repository's code, changed by the work that needs it.** A job whose item is

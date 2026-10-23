@@ -30,6 +30,7 @@ use agent_session::{
 use indexmap::IndexMap;
 use policy::companion_runner::COMPANION_RUNNER;
 use policy::fill_marks;
+use policy::gate_places::GATE_PLACES;
 use policy::resident_turn::RESIDENT_TURN;
 use serde::Serialize;
 use serde_json::Value;
@@ -51,6 +52,7 @@ use crate::events::Event;
 use crate::job_run::claude::turn::{Shows, WorkAsked, WorkSeat, carry, continues};
 use crate::lines::chat::{ChatLaunch, RoomContext, compose_prepared, compose_turn, gate_run};
 use crate::lines::companion::{CompanionTurn, LOST_SESSION, compose, pinned_provider, registration_named};
+use crate::places::gate_places;
 use crate::places::locks::{pane_lock_path, try_hold};
 use crate::places::{AgentRow, Ground, Places};
 use crate::run_ledger;
@@ -1377,8 +1379,28 @@ impl HerdrSessions {
       chat_id: turn.context.room.as_ref().map(|room| room.chat_id),
       job_id: None,
     });
-    let prepared = gate_run(ground, agent, gate, &turn.prompt, cwd)
+    let mut prepared = gate_run(ground, agent, gate, &turn.prompt, cwd)
       .map_err(|refused| fault(FaultKind::Refused, refused.detail))?;
+    // On a road whose program carries its own turns the turn stands in a place kept for its program
+    // (docs/agent-control.md, 「A gate's places」), its run's records staying the agent's.
+    let seat = if provider != CHAT_PROVIDER && crate::chat_stand_in::inbox_declared(provider) {
+      let program = gate_places::Asked {
+        agent,
+        provider,
+        model: &prepared.model,
+        effort: &prepared.effort,
+        thinking: prepared.thinking,
+        system: gate.system.as_deref().unwrap_or_default(),
+        cwd,
+      }
+      .key();
+      let seat = self.places.kept.gate_places.take(ground, agent, &program).await;
+
+      prepared.agent = seat.name.clone();
+      Some(seat)
+    } else {
+      None
+    };
     let started = Instant::now();
     let asked = if provider == CHAT_PROVIDER {
       let composed =
@@ -1461,6 +1483,19 @@ impl HerdrSessions {
         },
       )
       .await;
+
+    // A session past its bound starts afresh once the answer is on its way, its place held until it has.
+    let held: i64 = reply
+      .spend
+      .iter()
+      .map(|spent| spent.input_tokens + spent.cache_read_tokens + spent.output_tokens)
+      .sum();
+
+    if let Some(seat) = seat
+      && held >= GATE_PLACES.session_tokens
+    {
+      tokio::spawn(seat.start_afresh());
+    }
 
     Ok(Came::Answered(reply.text))
   }

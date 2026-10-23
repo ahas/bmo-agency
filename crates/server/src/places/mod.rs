@@ -11,6 +11,7 @@ pub mod checkouts;
 pub mod claims;
 pub mod dev;
 pub mod follow;
+pub mod gate_places;
 mod ground;
 pub mod heads;
 pub mod home;
@@ -43,14 +44,16 @@ const NODES_PASS: Duration = Duration::from_secs(60);
 const LINKS_PASS: Duration = Duration::from_secs(60);
 
 /// What the places keep across their passes for as long as the process stands: the node list as the
-/// last pass saw it, the turns that keep two passes over one thing from running at once, and the hold a
-/// companion's turns keep what they came to under and its reset moves the reset point under.
+/// last pass saw it, the turns that keep two passes over one thing from running at once, the hold a
+/// companion's turns keep what they came to under and its reset moves the reset point under, and the
+/// places a gate's turns stand in.
 #[derive(Default)]
 pub struct Kept {
   pub nodes: NodeList,
   heads_turn: tokio::sync::Mutex<()>,
   pub follow: FollowTurns,
   pub reset: crate::companion::overtaken::ResetHold,
+  pub gate_places: Arc<gate_places::GatePlaces>,
 }
 
 /// The places as one server stands them: the ground, and what is kept between passes.
@@ -72,9 +75,10 @@ impl Places {
   /// process runs: the workbenches made and the renamed checkouts moved as it starts; the dev panes of
   /// the workers a job holds, the heads and the room panes as it attaches to herdr and after every drop;
   /// the heads, the room panes and the checkouts again every ten minutes, with each pane a consumer
-  /// claims and marks idle taken down; the servers a job left swept every ten minutes; and the nodes'
-  /// workspaces and the links to the work nodes as it starts and every minute. A process on a copy of
-  /// the data root moves no checkout, sweeps no server and keeps no link: the machine is not the copy's.
+  /// claims and marks idle taken down and each gate place unused past its bound ended; the servers a job
+  /// left swept every ten minutes; and the nodes' workspaces and the links to the work nodes as it starts
+  /// and every minute. A process on a copy of the data root moves no checkout, sweeps no server and keeps
+  /// no link: the machine is not the copy's.
   /// The places have stood once, for the readiness the health route answers, when the first pass over
   /// the heads is done.
   pub fn stand(self, watch: Option<herdr::picture::Watch>) {
@@ -125,6 +129,7 @@ impl Places {
 
         places.stand_heads().await;
         retire_idle(&places.ground).await;
+        places.kept.gate_places.fold_idle(&places.ground).await;
 
         Ok(())
       }

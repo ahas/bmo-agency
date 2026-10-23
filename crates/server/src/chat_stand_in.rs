@@ -31,7 +31,7 @@ const CODEX: &str = "codex";
 const DEEPSEEK_NAME: &str = "deepseek";
 
 // Whether a provider's turns go through its pane program's inbox, as its declaration says.
-fn inbox_declared(provider: &str) -> bool {
+pub(crate) fn inbox_declared(provider: &str) -> bool {
   harness_providers::provider(provider)
     .and_then(|declared| declared.declared().resident.as_ref())
     .is_some_and(|resident| resident.turns == Turns::Inbox)

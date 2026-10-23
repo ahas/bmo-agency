@@ -136,6 +136,7 @@ mod places {
   mod branch;
   mod claims;
   mod follow;
+  mod gate_places;
   mod ground;
   mod home;
   mod item_sweep;

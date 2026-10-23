@@ -350,15 +350,15 @@ pub async fn run_turn(
   shown: Option<OutputWatch<'_>>,
 ) -> Result<Reply, NoAnswer> {
   let failure = |why: String| NoAnswer::Failed(why);
-  let row = AgentRow::named(&ground.db, agent)
-    .await
-    .map_err(|why| failure(why.detail))?
-    .ok_or_else(|| failure(format!("no agent is named {agent}")))?;
-  let home = ground
-    .home_of_row(&row)
-    .await
-    .map_err(|why| failure(why.detail))?
-    .ok_or_else(|| failure(format!("this machine names no herdr for {agent}'s place")))?;
+  // A gate place stands under no agent's row, by its own name (docs/agent-control.md, 「A gate's places」).
+  let home = match AgentRow::named(&ground.db, agent).await.map_err(|why| failure(why.detail))? {
+    Some(row) => ground.home_of_row(&row).await.map_err(|why| failure(why.detail))?,
+    None if crate::places::gate_places::recorded_place(&ground.roots.data, agent) => {
+      ground.home_of(agent, agent)
+    }
+    None => return Err(failure(format!("no agent is named {agent}"))),
+  }
+  .ok_or_else(|| failure(format!("this machine names no herdr for {agent}'s place")))?;
   // The agent's one program takes one turn at a time, whichever room it is for.
   let _held = hold(agent_lock(ground, agent)).await.map_err(|why| failure(why.to_string()))?;
   let limits = &COMPANION_RUNNER.limits;

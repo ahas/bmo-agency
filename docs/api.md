@@ -28,7 +28,7 @@ a field's exact shape matters, the OpenAPI document is the one to read.
 ## Versioning
 
 - The contract carries the repository's one version, in semver; the workspace manifest is its source. Before
-  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.44`.
+  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.45`.
 - A change to this document and a change to the boundary go in one commit. A change to a route, an event, a
   hook or a shared table's contract repairs this document in the same commit.
 - The major moves on a removed or renamed route, field or event, the minor on an addition, the patch on
@@ -195,8 +195,10 @@ it. The session stands in the server's memory from its start to its end.
 
 A conversation whose agent is a gate work key carries a gate's one turn: the turn's `gate` part holds the
 gate's instructions as the program's whole system prompt, whether it thinks, and the model, effort and
-answer room its mapping resolved to. The turn goes out with no tools, no MCP server and no session kept,
-and its answer is the gate's verdict.
+answer room its mapping resolved to. The turn goes out with no tools and no MCP server, and its answer is
+the gate's verdict. On a road whose program carries its own turns it goes into a place standing for the
+program its ask composes, whose session goes on across judgements up to a bound, several such places
+running at once (`docs/agent-control.md`, 「A gate's places」); on every other road it keeps no session.
 
 A turn's context may name `round`, the receiver's name for the round of the room the turn belongs to,
 which the turn's run keeps (「runs」 below).
