@@ -19,7 +19,6 @@ use super::fault;
 use super::openrouter::{LOCAL_URL, PROVIDER};
 use super::ordered::Ordered;
 use super::stand_in::StandInRun;
-use super::token::TOKEN_VARIABLE;
 use super::worker::LINE;
 use crate::Refusal;
 use crate::door::record::Reply;
@@ -57,6 +56,11 @@ const PERMISSION_MODE: &str = "danger-full-access";
 /// A header dsh evaluates from its own environment as it loads the overlay, written as a placeholder and
 /// laid into the overlay's text as YAML's `!!js` tag.
 pub const ENVIRONMENT_MARK: &str = "bmo-bearer-from-environment:";
+
+/// A value dsh reads from its own environment as it loads the overlay, written as a placeholder naming the
+/// variable and laid into the overlay's text as YAML's `!!js` tag, so a server's secret never stands in the
+/// overlay's file.
+pub const VALUE_MARK: &str = "bmo-value-from-environment:";
 
 /// The most one argument may hold, well inside the kernel's limit whatever the text is made of, and the
 /// UTF-16 units that always fit in it.
@@ -163,8 +167,15 @@ fn mcp_rows(path: Option<&Path>, cwd: &str) -> Result<Vec<Ordered>, Refusal> {
         Some(args @ Ordered::List(_)) => args.clone(),
         _ => Ordered::List(vec![]),
       };
+      // Each variable the server is handed is read from dsh's own environment, where the program's
+      // command carries it, rather than written into the overlay.
       let env = match &server.env {
-        Some(env @ Ordered::Map(_)) => env.clone(),
+        Some(Ordered::Map(env)) => Ordered::map(
+          env
+            .keys()
+            .map(|name| (name.clone(), Ordered::Text(format!("{VALUE_MARK}{name}"))))
+            .collect::<Vec<_>>(),
+        ),
         _ => Ordered::map(Vec::<(String, Ordered)>::new()),
       };
 
@@ -190,7 +201,6 @@ fn mcp_rows(path: Option<&Path>, cwd: &str) -> Result<Vec<Ordered>, Refusal> {
   Ok(rows)
 }
 
-// A file the overlay hands over whole.
 // A text of agency's as dsh's prompt takes it word for word: dsh reads every `{{name}}` in a persona as a
 // variable of its own and refuses the whole prompt on a name it has not registered, so each `{{` is broken
 // by a word joiner, which the model reads past.
@@ -198,6 +208,7 @@ fn literal(text: &str) -> String {
   text.replace("{{", "{\u{2060}{")
 }
 
+// A file the overlay hands over whole.
 fn read(path: &Path) -> Result<String, Refusal> {
   std::fs::read_to_string(path).map_err(|why| fault(format!("{}: {why}", path.display())))
 }
@@ -518,15 +529,16 @@ pub fn gate_command(
 /// The overlay a standing session reads, written under dsh's home and named by its own text: the same run
 /// composes the same path, so the pane's command — and its identity — stands while nothing it reads has
 /// changed, and a changed prompt or route is a new path the pane is stood again on. Its MCP servers are
-/// handed to the session rather than mounted here, so no server stands twice, and dsh's own tools stand
-/// except the web, which those servers replace.
+/// mounted here, each one that cannot open left out rather than failing the session — a namespace the tool
+/// host places nothing under for the session answers not found — and dsh's own tools stand except the web,
+/// which those servers replace.
 pub fn session_patch(
   run: &Composed,
   env: &BTreeMap<String, String>,
   data: &Path,
   route: &Dsh,
 ) -> Result<PathBuf, Refusal> {
-  let text = overlay_text(&overlay_of_with(run, env, false, Tools::Session, route)?)?;
+  let text = overlay_text(&overlay_of_with(run, env, true, Tools::Session, route)?)?;
   let digest = format!("{:x}", Sha256::digest(text.as_bytes()));
   let dir = dsh_home(data).join("overlays");
   let path = dir.join(format!("{}-{digest}.yml", run.line));
@@ -541,12 +553,27 @@ pub fn session_patch(
 /// The overlay as dsh reads it: JSON, which YAML reads too, with the tool host's bearer placeholder replaced
 /// by the tagged expression it stands for.
 pub fn overlay_text(overlay: &Ordered) -> Result<String, Refusal> {
+  static MARKED: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+    regex::Regex::new(&format!(
+      r#""({}|{})([A-Za-z_][A-Za-z0-9_]*)""#,
+      regex::escape(ENVIRONMENT_MARK),
+      regex::escape(VALUE_MARK)
+    ))
+    .expect("the marks")
+  });
   let text = serde_json::to_string_pretty(overlay).map_err(|why| fault(why.to_string()))?;
-  let mark = serde_json::to_string(&format!("{ENVIRONMENT_MARK}{TOKEN_VARIABLE}")).unwrap_or_default();
-  let tagged =
-    serde_json::to_string(&format!("`Bearer ${{process.env.{TOKEN_VARIABLE}}}`")).unwrap_or_default();
+  let tagged = MARKED.replace_all(&text, |found: &regex::Captures| {
+    let name = &found[2];
+    let expression = if &found[1] == ENVIRONMENT_MARK {
+      format!("`Bearer ${{process.env.{name}}}`")
+    } else {
+      format!("process.env.{name}")
+    };
 
-  Ok(format!("{}\n", text.replace(&mark, &format!("!!js {tagged}"))))
+    format!("!!js {}", serde_json::to_string(&expression).unwrap_or_default())
+  });
+
+  Ok(format!("{tagged}\n"))
 }
 
 // The last index at or before `from` that holds a space, as a string's own backward search finds it.

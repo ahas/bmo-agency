@@ -108,14 +108,9 @@ pub fn resident_command(
     args.push(run.effort.to_owned());
   }
 
-  // The agency's own MCP servers, read from the same configuration the Claude Code line is handed: the
-  // session opens with them, and dsh's own tools stand beside them, its web tools off in the overlay so the
-  // deployment's web and site tools are the web the model reaches.
-  if let Some(mcp) = run.mcp {
-    args.push("--mcp-config".to_owned());
-    args.push(mcp.to_string_lossy().into_owned());
-  }
-
+  // The agency's own MCP servers stand in the overlay, read from the same configuration the Claude Code
+  // line is handed, so bmo-tui hands the session none of its own: dsh fails a session whole on a server
+  // handed to it that cannot open, and the overlay's clients let such a server go.
   args.push("--patch".to_owned());
   args.push(patch.to_string_lossy().into_owned());
 

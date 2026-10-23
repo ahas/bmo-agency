@@ -760,8 +760,8 @@ When a demotion first catches — when a healthy session first drops — two thi
     holds it, and the thread that answered kept for the next turn;
   - **OpenRouter** through bmo-tui, which keeps one dsh session on the Agent Client Protocol, the turn put
     into its inbox and its answer read out of its record; the overlay composes the gateway route, the key
-    rides in the program's environment, and the agency's MCP configuration is handed to the session as
-    its servers; no upstream is pinned, since agency keeps no record of a warmed one;
+    rides in the program's environment, and the agency's MCP configuration stands in the overlay as the
+    session's servers; no upstream is pinned, since agency keeps no record of a warmed one;
   - **DeepSeek** through bmo-tui in the same way, the overlay's route DeepSeek's own API on the model the
     key maps to, with the road's key in the program's environment (「The DeepSeek road」);
   - **a registered model** as Claude Code on the gateway, the registration first held to the gateway's

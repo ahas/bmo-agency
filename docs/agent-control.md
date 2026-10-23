@@ -602,9 +602,12 @@ in the provider's own terms:
     turn ends with its answer. A line shown no tools, a gate's among them, has every tool row off. A
     worker takes the whole working set but the web, as a job always has.
   - **The MCP servers are agency's.** They are read from the same configuration file the Claude Code
-    line is handed, given to bmo-tui as `--mcp-config`, and passed into the session as its
-    `mcpServers`. None is mounted in the overlay, so no server stands twice and no dsh default stands
-    beside them.
+    line is handed and mounted in the overlay as dsh's own MCP clients, each one that cannot open left
+    out rather than failing the session: dsh ends a session whole on a server handed to it over the
+    protocol that does not open, and a tool host namespace with nothing placed for the session answers
+    not found. bmo-tui hands the session none of its own, so no server stands twice. A server's bearer
+    and every variable it is given are read from dsh's own environment as the overlay loads, never
+    written into the overlay's file.
   - **The overlay is the route.** Before the program is stood, agency composes the same dsh overlay a
     headless run on the road takes: the prompt, the tool rows and sandbox above, and the provider's API
     as dsh's one route with the model and, where the agent chose one, its reasoning level. The key is

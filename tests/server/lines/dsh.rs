@@ -156,4 +156,12 @@ fn the_overlay_writes_the_bearer_as_dsh_reads_it() {
     overlay_text(&overlay).unwrap(),
     "{\n  \"Authorization\": !!js \"`Bearer ${process.env.BMO_MCP_TOKEN}`\"\n}\n"
   );
+
+  // A server's variable is read from dsh's environment by its name, never written into the file.
+  let env = Ordered::map(vec![("BMO_JOB_TOKEN", Ordered::Text(format!("{VALUE_MARK}BMO_JOB_TOKEN")))]);
+
+  assert_eq!(
+    overlay_text(&env).unwrap(),
+    "{\n  \"BMO_JOB_TOKEN\": !!js \"process.env.BMO_JOB_TOKEN\"\n}\n"
+  );
 }

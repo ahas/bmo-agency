@@ -183,9 +183,8 @@ async fn an_openrouter_step_stands_bmo_tui_on_a_dsh_session_over_its_inbox() {
 
   assert!(args.windows(2).any(|pair| pair[0] == "--place" && pair[1] == place), "{args:?}");
 
-  let mcp = home.path().join("chat.mcp.json").to_string_lossy().into_owned();
-
-  assert!(args.windows(2).any(|pair| pair[0] == "--mcp-config" && pair[1] == mcp), "{args:?}");
+  // The MCP servers stand in the overlay, so bmo-tui hands the session none of its own.
+  assert!(!args.iter().any(|arg| arg == "--mcp-config"), "{args:?}");
 
   // The session is handed the permission mode its sandbox row pairs with, as dsh resolves both ends of it.
   assert_eq!(
@@ -198,9 +197,15 @@ async fn an_openrouter_step_stands_bmo_tui_on_a_dsh_session_over_its_inbox() {
     .find(|pair| pair[0] == "--patch")
     .map(|pair| pair[1].clone())
     .unwrap_or_else(|| panic!("no overlay in {args:?}"));
-  let overlay: Vec<serde_json::Value> =
-    serde_json::from_str(&std::fs::read_to_string(&patch).unwrap()).unwrap();
+  let text = std::fs::read_to_string(&patch).unwrap();
+  let overlay: Vec<serde_json::Value> = serde_json::from_str(&text.replace("!!js ", "")).unwrap();
   let row = |id: &str| overlay.iter().find(|row| row["id"] == id);
+
+  // The tool host's server is a client the session may go without, its bearer read from dsh's environment.
+  let bmo = row("mcp-bmo").unwrap_or_else(|| panic!("no tool host server in {text}"));
+
+  assert_eq!(bmo["config"]["failOnStartupError"], false);
+  assert!(text.contains("!!js \"`Bearer ${process.env.BMO_MCP_TOKEN}`\""), "{text}");
   let disabled = |id: &str| row(id).is_some_and(|row| row["disabled"] == true);
 
   // dsh's own prompt rows are off, and the whole system prompt is the one the chat line composed.
@@ -234,8 +239,6 @@ async fn an_openrouter_step_stands_bmo_tui_on_a_dsh_session_over_its_inbox() {
     assert!(!disabled(id), "{id}");
   }
 
-  // The MCP servers go to the session through its configuration, never mounted beside the route.
-  assert!(row("mcp-bmo").is_none(), "{overlay:?}");
   let route = &row("llm-pi-ai").unwrap()["config"]["providers"]["openrouter"];
 
   assert_eq!(route["apiKeyEnv"], "BMO_OPENROUTER_KEY");
