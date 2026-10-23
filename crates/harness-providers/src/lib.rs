@@ -332,6 +332,28 @@ pub trait Provider: Sync {
   }
 }
 
+/// Whether a standing command is the pane program a provider declares standing a dsh session of its own:
+/// the program its resident surface names, on its `dsh` subcommand, with a model choice whose route is the
+/// provider's own name. Every provider whose turns go through dsh answers its program by this.
+pub fn stands_dsh_session(provider: &dyn Provider, args: &[String]) -> bool {
+  let Some(program) =
+    provider.declared().resident.as_ref().and_then(|resident| resident.program.as_deref())
+  else {
+    return false;
+  };
+  let named = args.iter().position(|arg| arg == "--model").map(|at| at + 1);
+  let choice = named
+    .and_then(|at| args.get(at))
+    .and_then(|choice| serde_json::from_str::<Vec<String>>(choice).ok());
+
+  args
+    .first()
+    .and_then(|path| Path::new(path).file_name())
+    .is_some_and(|name| Some(name) == Path::new(program).file_name())
+    && args.get(1).is_some_and(|arg| arg == "dsh")
+    && choice.and_then(|choice| choice.first().cloned()).as_deref() == Some(provider.name())
+}
+
 /// The provider whose program a standing command is, where one owns it.
 pub fn standing_provider(
   machine: &Machine,

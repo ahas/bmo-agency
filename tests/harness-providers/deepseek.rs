@@ -1,5 +1,5 @@
-//! DeepSeek: present while the endpoint account's key file is private and holds a key; its two models
-//! and the words a run of one may go out with; and the road a standing Claude Code program is on.
+//! DeepSeek: present while the road's key file is private and holds a key; its two models and the words a
+//! run of one may go out with; and the pane program that is its own.
 
 use std::collections::BTreeMap;
 use std::os::unix::fs::PermissionsExt;
@@ -74,18 +74,26 @@ fn a_run_without_thinking_names_its_own_off_word_and_a_level_stands_where_the_mo
 }
 
 #[test]
-fn the_program_under_a_models_home_is_this_providers_and_another_home_is_not() {
+fn bmo_tui_standing_a_dsh_session_on_its_own_route_is_this_providers_and_claude_code_is_not() {
   let dir = tempfile::tempdir().unwrap();
   let machine = Machine::with_env([], dir.path());
-  let ours = DeepSeek::home(&machine, "deepseek-flash");
-  let account = dir.path().join("env").join("deepseek");
-  let owner = |home: &std::path::Path| {
-    let env = BTreeMap::from([("CLAUDE_CONFIG_DIR".to_owned(), home.to_string_lossy().into_owned())]);
+  let owner = |args: &[&str]| {
+    let args: Vec<String> = args.iter().map(|arg| (*arg).to_owned()).collect();
 
-    standing_provider(&machine, &["claude".to_owned()], &env).unwrap().name()
+    standing_provider(&machine, &args, &BTreeMap::new()).map(|provider| provider.name())
+  };
+  let pane = |choice: &str| {
+    owner(&["/deploy/bin/bmo-tui", "dsh", "--program", "dsh", "--place", "/place", "--model", choice])
   };
 
-  assert_eq!(owner(&ours), "deepseek");
-  // A Claude account pointed at the same endpoint, under its own home, stays Claude Code's.
-  assert_eq!(owner(&account), "claude-code");
+  assert_eq!(pane(r#"["deepseek","deepseek-flash"]"#), Some("deepseek"));
+  assert_eq!(pane(r#"["openrouter","vendor/model"]"#), Some("openrouter"));
+  // Claude Code under any home stays Claude Code's: no program of this provider's is Claude Code.
+  let home = dir.path().join("claude-roads").join("deepseek").join("deepseek-flash");
+  let env = BTreeMap::from([("CLAUDE_CONFIG_DIR".to_owned(), home.to_string_lossy().into_owned())]);
+
+  assert_eq!(
+    standing_provider(&machine, &["claude".to_owned()], &env).map(|provider| provider.name()),
+    Some("claude-code")
+  );
 }

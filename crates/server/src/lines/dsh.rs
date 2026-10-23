@@ -191,6 +191,13 @@ fn mcp_rows(path: Option<&Path>, cwd: &str) -> Result<Vec<Ordered>, Refusal> {
 }
 
 // A file the overlay hands over whole.
+// A text of agency's as dsh's prompt takes it word for word: dsh reads every `{{name}}` in a persona as a
+// variable of its own and refuses the whole prompt on a name it has not registered, so each `{{` is broken
+// by a word joiner, which the model reads past.
+fn literal(text: &str) -> String {
+  text.replace("{{", "{\u{2060}{")
+}
+
 fn read(path: &Path) -> Result<String, Refusal> {
   std::fs::read_to_string(path).map_err(|why| fault(format!("{}: {why}", path.display())))
 }
@@ -290,15 +297,17 @@ fn overlay_of_with(
 ) -> Result<Ordered, Refusal> {
   let mut rows = vec![];
   let persona = match (run.system, run.rules) {
-    (Some(system), _) => Some(read(system)?),
-    (None, Some(rules)) if run.worker() => Some(format!("{HEADLESS_OPENER}\n\n{}", read(rules)?)),
+    (Some(system), _) => Some(literal(&read(system)?)),
+    (None, Some(rules)) if run.worker() => Some(format!("{HEADLESS_OPENER}\n\n{}", literal(&read(rules)?))),
     _ => None,
   };
 
+  // The persona prefix is the one place in dsh's system prompt a run writes: it stands after dsh's own
+  // identity line and before its guidance, in place of the profile's own opening line.
   if let Some(persona) = persona {
     rows.push(map(vec![
       ("id", text("system-prompt")),
-      ("config", map(vec![("persona", Ordered::Text(persona))])),
+      ("config", map(vec![("personaPrefix", Ordered::Text(persona))])),
     ]));
   }
 

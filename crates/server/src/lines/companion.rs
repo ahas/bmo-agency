@@ -24,7 +24,6 @@ use serde_json::Value;
 
 use super::chat::{Words, standing_words};
 use super::claude::{Command, Runs, Session, command_env, line_environment};
-use super::deepseek::{OnEndpoint, endpoint_command};
 use super::place::{Holds, Place, write_place_settings};
 use super::standing::{OnGateway, Placing, gateway_command, status_root};
 use super::worker::{effort_of, reasoning_of, system_prompt_file};
@@ -282,24 +281,20 @@ pub async fn compose(
     REGISTERED_PROVIDER => Some(registration_named(ground, turn.model).await?),
     _ => None,
   };
-  let deepseek = (turn.provider == super::deepseek::PROVIDER)
-    .then(|| super::deepseek::model(turn.model))
-    .transpose()?;
   // On Claude Code's own road the program goes out on the login the walk offers the companion now, as every
   // Claude run does, and never on one that cannot answer: where none answers, the turn is not run.
-  let login = match (held.is_some(), deepseek.is_some()) {
-    (true, _) | (_, true) => None,
-    _ => walked_login(ground, turn.agent).await?,
+  let login = match held {
+    Some(_) => None,
+    None => walked_login(ground, turn.agent).await?,
   };
   // A program asked to resume a session it keeps no record of ends before it reads a word: such a session
   // is refused in the program's own words, which the turn reads as a session gone and opens a new one
   // for. The record stands under the home the program keeps its records in: the registration's, the
   // login's directory, or the machine's own.
-  let home = match (&held, &deepseek, login.as_ref().and_then(|login| login.credential.own_home())) {
-    (Some(held), _, _) => Registered::home(machine, &held.name),
-    (_, Some(held), _) => super::deepseek::home(machine, &held.id),
-    (None, None, Some(home)) => home.to_path_buf(),
-    (None, None, None) => ClaudeCode::machine_config_dir(machine),
+  let home = match (&held, login.as_ref().and_then(|login| login.credential.own_home())) {
+    (Some(held), _) => Registered::home(machine, &held.name),
+    (None, Some(home)) => home.to_path_buf(),
+    (None, None) => ClaudeCode::machine_config_dir(machine),
   };
 
   if let Some((id, _)) = turn.resume
@@ -328,44 +323,6 @@ pub async fn compose(
       &session,
     )
   };
-  if let Some(held) = deepseek {
-    let on = OnEndpoint {
-      agent: turn.agent,
-      model: &held.id,
-      effort: &effort,
-      thinking,
-      cwd: &cwd,
-      settings: serde_json::Map::new(),
-      compose_typed: false,
-      shell_guard: true,
-    };
-    let (mut command, name) =
-      endpoint_command(ground, machine, on, ceiling, |name, effort, _, settings| {
-        line(name, effort, settings)
-      })
-      .await?;
-
-    command.env.extend(variables.map(|(name, value)| (name.to_owned(), value)));
-
-    return Ok(ComposedTurn {
-      system_path: system,
-      command,
-      session: session.id().to_owned(),
-      prompt: turn.prompt.to_owned(),
-      model: held.id.clone(),
-      effort: (!effort.is_empty()).then_some(effort),
-      placement: None,
-      window: Some(Window {
-        context_tokens: held.context_tokens,
-        home: super::deepseek::home(machine, &name),
-      }),
-      account: None,
-      began: turn.began,
-      run_env: None,
-      given: None,
-    });
-  }
-
   let Some(held) = held else {
     let place = Place::of(&trees.data, turn.agent);
     let settings =

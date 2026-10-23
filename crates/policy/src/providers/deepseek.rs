@@ -1,5 +1,5 @@
-//! What DeepSeek declares (docs/provider-presence.md): its own API, reached as an Anthropic-compatible
-//! endpoint.
+//! What DeepSeek declares (docs/provider-presence.md): its own API, reached by the dsh harness on its
+//! OpenAI-compatible route.
 
 use serde::Deserialize;
 
@@ -10,43 +10,24 @@ pub struct DeepSeek {
   #[serde(flatten)]
   pub declared: Declared,
   pub presence: Presence,
-  pub endpoint: Endpoint,
+  pub model: Vec<Model>,
   pub balance: super::Balance,
 }
 
-/// The endpoint account's key file, and what the provider says where it cannot serve a run.
+impl DeepSeek {
+  /// The model one id names, where this provider serves it.
+  pub fn held(&self, id: &str) -> Option<&Model> {
+    self.model.iter().find(|one| one.id == id)
+  }
+}
+
+/// The road's key file, and what the provider says where it cannot serve a run.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Presence {
   pub key_file: String,
   pub missing: String,
   pub not_held: String,
-}
-
-/// Where its API answers, and the models it serves there.
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct Endpoint {
-  pub base_url: String,
-  pub base_env: String,
-  pub wait_seconds: i64,
-  pub model: Vec<Model>,
-}
-
-impl Endpoint {
-  /// The API's address on a machine: the stand-in's its environment names, or DeepSeek's own.
-  pub fn base_on<'a>(&'a self, vars: &'a std::collections::BTreeMap<String, String>) -> &'a str {
-    vars
-      .get(&self.base_env)
-      .map(String::as_str)
-      .filter(|named| !named.is_empty())
-      .unwrap_or(&self.base_url)
-  }
-
-  /// The model one id names, where this provider serves it.
-  pub fn held(&self, id: &str) -> Option<&Model> {
-    self.model.iter().find(|one| one.id == id)
-  }
 }
 
 /// One model this provider serves: its name on the wire, the name a screen shows, and the run's sizes.

@@ -207,7 +207,7 @@ Branch prefix digests include effective effort. A co-work reservation for a task
   | Claude Code | those the model's catalogue entry names, every level where it names none | `MAX_THINKING_TOKENS=0` | the line's own |
   | Codex | `low` to `max`, as `model_reasoning_effort` | effort `low` | the line's own |
   | OpenRouter | `low` to `xhigh`, as the request's `reasoning.effort` | reasoning off | the line's own |
-  | DeepSeek | `low` to `max`, as the program's `--effort` and the request's effort | effort `none` | the line's own |
+  | DeepSeek | `low` to `max`, as dsh's reasoning level on DeepSeek's route | effort `none`, reasoning off | the model's own |
   | Registered models (the deployment's own engine among them) | none | effort `no-thinking` | effort `thinking` |
 - **A level the run's model does not take leaves the tier's effort** for that run, since an agent's
   level is one word across providers whose models differ. The console names, for the provider the

@@ -26,7 +26,6 @@ use policy::run_lines::RUN_LINES;
 use super::claude::{Command, Runs, Session, command_env, handed, line_environment};
 use super::codex::{Shape, resident_command_of};
 use super::companion::{ComposedTurn, LOST_SESSION, Window, registration_named, walked_login};
-use super::deepseek::{self, OnEndpoint, endpoint_command};
 use super::dsh::Composed;
 use super::openrouter::resident_command;
 use super::ordered::Ordered;
@@ -780,8 +779,6 @@ pub enum Door {
   Inbox { provider: String },
   /// Claude Code on the gateway, its session placed where the registration places it.
   Gateway { placement: Option<String> },
-  /// Claude Code on DeepSeek's endpoint, at the model's own home.
-  Deepseek,
 }
 
 /// The chat's turn composed for one stand-in step: the agent's own program on the step's road, on the chat
@@ -925,49 +922,11 @@ pub async fn compose_stand_in(
         ..composed(command, opened.clone(), effort)
       })
     }
-    Door::Deepseek => {
-      let on = OnEndpoint {
-        agent: &run.agent,
-        model: &step.model,
-        effort: &step.effort,
-        thinking: step.thinking,
-        cwd: &run.cwd,
-        settings: serde_json::Map::new(),
-        compose_typed: RUN_LINES.composes_typed_lines(LINE),
-        shell_guard: true,
-      };
-      let (mut command, name) =
-        endpoint_command(ground, machine, on, step.answer_tokens, |name, effort, thinking, settings| {
-          let sent = ChatRun {
-            model: name.to_owned(),
-            effort: effort.to_owned(),
-            thinking,
-            ..run.clone()
-          };
-
-          resident_args(&sent, settings, &opened)
-        })
-        .await?;
-
-      command.env.extend(env.into_iter().filter(|(name, _)| name.starts_with("BMO_TURN_")));
-
-      let held = deepseek::model(&step.model)?;
-
-      Ok(ComposedTurn {
-        placement: None,
-        window: Some(Window {
-          context_tokens: held.context_tokens,
-          home: deepseek::home(machine, &name),
-        }),
-        ..composed(command, opened.clone(), effort)
-      })
-    }
   }
 }
 
 /// The command a provider's pane program stands on for a turn: the program and the harness its declaration
-/// names, the key its dsh route reads from the data root's env directory put into the program's environment
-/// alone, and the overlay the run's own words compose. The turn's environment is left as it was handed in, so
+/// names, and the overlay the run's own words compose. The turn's environment is left as it was handed in, so
 /// no key a program reads reaches the run the turn is written down as.
 pub fn inbox_command(
   ground: &Ground,
@@ -992,19 +951,7 @@ pub fn inbox_command(
     .dsh
     .clone()
     .ok_or_else(|| fault(format!("{provider} names no harness program")))?;
-  let mut program_env = env.clone();
-
-  if let Some(route) = declared.declared().dsh.as_ref()
-    && let Some(file) = route.key_file.as_deref()
-  {
-    let path = ground.roots.data.join("env").join(file);
-
-    if let Ok(key) = std::fs::read_to_string(&path) {
-      program_env.insert(route.key_env.clone(), key.trim().to_owned());
-    }
-  }
-
   let place = Place::of(&ground.roots.data, agent);
 
-  resident_command(ground, machine, provider, &program, &dsh, &place.path, agent, run, &program_env)
+  resident_command(ground, machine, provider, &program, &dsh, &place.path, agent, run, env)
 }

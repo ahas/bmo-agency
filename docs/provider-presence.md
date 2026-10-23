@@ -43,9 +43,8 @@ flowchart TD
   `env` directory: a file of its own, mode 0600, not empty.
   - Past that, each side asks agency's store for a registration with an address, and says the policy
     file's sentence for the store it lacks or the address none has.
-- **DeepSeek** can where the endpoint account's key file stands private under the data root's `env`
-  directory, as the registered models' does. The endpoint itself is not asked: the key's presence is
-  the machine's fact.
+- **DeepSeek** can where the road's key file stands private under the data root's `env` directory, as
+  the registered models' does. Its API is not asked: the key's presence is the machine's fact.
 - **A provider that cannot answer** says the English sentence and status its policy file gives,
   and the screen shows it beside the provider in its own language.
 

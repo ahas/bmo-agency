@@ -181,7 +181,6 @@ impl Provider for ClaudeCode {
   fn owns_program(&self, machine: &Machine, args: &[String], env: &BTreeMap<String, String>) -> bool {
     args.first().is_some_and(|program| program == Self::PROGRAM)
       && !crate::registered::registered_road(machine, env)
-      && !crate::deepseek::deepseek_road(machine, env)
   }
 
   // The account's own five-hour and seven-day windows.

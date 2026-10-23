@@ -79,12 +79,15 @@
   in its fixed order.
 - **dsh — the DeepSeek Harness — is the second** (`packages/agent/dsh.ts`): it takes no flags to
   speak of, so a run becomes a patch overlay written fresh for it, naming rows of dsh's own
-  composition — the system prompt as a persona, the model and the gateway it runs on as a route, the
-  tools it may have — and the command is the pinned `@deepseek-ai/dsh` at its headless profile with
+  composition — the system prompt as the persona prefix, the model and the provider's API it runs on as
+  a route, the tools it may have — and the command is the pinned `@deepseek-ai/dsh` at its headless profile with
   the task standing in the line. The task stands there as words headless joins back with one space,
   each short of the kernel's limit on one argument, and it reaches dsh out of a file of its own
   rather than through the string npx hands a shell, because a task can run to hundreds of kilobytes
   and that string is refused whole long before then.
+- **dsh reads every `{{name}}` in a persona as a variable of its own** and refuses the whole prompt on a
+  name it does not hold, so each `{{` of the text agency hands it is broken by a word joiner, which the
+  model reads past; the headless opening line's own `{{model}}` is left for dsh to fill.
 - **What a run may do to the files around it is not one of those rows alone**: dsh keeps how far a
   write may reach and whether the run stops to ask as two knobs, and names only the pairs they make
   together, so a run that set the reach and left the asking behind would be a composition dsh
@@ -110,25 +113,24 @@
 ### Providers and what a route may promise
 
 - **The owner chooses a provider, never a harness.** The providers are Claude Code, Codex,
-  OpenRouter and the registry's.
+  OpenRouter, the registry's and DeepSeek.
 - Each is declared beside the program that carries it and answers for itself whether it can be used
   on this machine right now and why not, where its models come from, which effort words a mapping of
   it may hold and whether one of its runs may go out with an effort or without, whether a mapping of
   it carries a ceiling on the answer's tokens, whether agency chooses the login it goes out under, and
   how its own reply reports what one turn cost — so whoever wants one of those facts asks the
-  provider, and no file outside those programs writes the four names out to answer it.
+  provider, and no file outside those programs writes the providers' names out to answer it.
 - `packages/agent/harnesses.ts` is the one file that names the providers this build carries: it composes
   them into the agent base's provider registry (`packages/agent/agent-providers.ts`), and every
   other file reaches a provider through that registry.
-- Claude Code is carried by Claude Code, Codex by Codex, OpenRouter by dsh, and the registry's by
-  Claude Code pointed at agency's gateway, with a request that needs no tools asked of the gateway
-  directly; the models it offers are the registrations, which the owner adds and changes with no
-  commit (`docs/own-llm.md`). DeepSeek's is carried by Claude Code pointed at DeepSeek's
-  Anthropic-compatible endpoint, the same program on a road of its own — on every line but a resident
-  one. Where a line stands a program in the agent's pane, as the chat line does for a chat agent whose
-  key maps to this provider, DeepSeek's resident program is bmo-tui on dsh, like OpenRouter's, with
-  dsh's own route to DeepSeek's API and the account's key in the program's environment; its provider
-  declaration names that resident program.
+- Claude Code is carried by Claude Code, Codex by Codex, OpenRouter and DeepSeek by dsh, and the
+  registry's by Claude Code pointed at agency's gateway, with a request that needs no tools asked of the
+  gateway directly; the models it offers are the registrations, which the owner adds and changes with no
+  commit (`docs/own-llm.md`). OpenRouter and DeepSeek differ only in dsh's one route: OpenRouter's
+  gateway with its key in the process's environment, or DeepSeek's own OpenAI-compatible API with the
+  road's key file handed to the program as the variable the route reads. On every line their program in
+  the agent's pane is bmo-tui on a dsh session, which each provider's declaration names as its resident
+  program, and a headless run of either is dsh's headless profile on the same route.
 - Which provider runs a piece of work is that work key's row in the route table (`docs/own-llm.md`),
   so a program is picked in exactly one place.
 - **What a route may promise is what the program really carries.** Each harness says what its
@@ -138,7 +140,7 @@
   portable run the fallback runner hands over, and not the search and browse runners, which need
   both.
 - A work key names the one line it runs on, so a provider whose program does not carry that line, or
-  that cannot be used here (no Codex executable, no gateway key, no OpenRouter key), is offered on
+  that cannot be used here (no Codex executable, no gateway key, no OpenRouter key, no DeepSeek key file), is offered on
   the console as unavailable with the reason beside it and refused by the control API.
 - The search and browse runners have no work key and run on Claude Code alone.
 - The lines themselves are the owner's alone: a flag added, removed or reordered rewrites the prefix
@@ -222,8 +224,8 @@
   none) — and the job prompt ends with the report trailer. A worker that chooses a base prompt
   (`docs/base-prompts.md`) is handed the default prompt's place instead: the chosen prompt with the
   same rules after it, as one file named by what it holds, given as the whole system prompt; on
-  Codex as its instructions file, with the checkout's `AGENTS.md` still read, and on OpenRouter as
-  dsh's persona section. A run that goes out on a Claude account naming a base prompt of its own
+  Codex as its instructions file, with the checkout's `AGENTS.md` still read, and on OpenRouter and
+  DeepSeek as dsh's persona prefix. A run that goes out on a Claude account naming a base prompt of its own
   (`docs/cache-fallback.md`, 「The Claude Code road is a list of accounts」) takes the account's base in
   that place, over the worker's own choice and in place of the default prompt alike, with the same
   rules after it, as one file named by what it holds and given with `--system-prompt-file`; so a run
@@ -233,8 +235,8 @@
   definition's prompt closes on the same file's text. A job carried by another provider is handed
   the same file in the place that program keeps beside its own default prompt, never in place of
   it: on Codex as the run's developer instructions (`developer_instructions`), with Codex's own
-  coding-agent prompt and the checkout's `AGENTS.md` left as they are; on OpenRouter as the persona
-  section of dsh's system prompt, after the headless profile's own opening line, with dsh's other
+  coding-agent prompt and the checkout's `AGENTS.md` left as they are; on OpenRouter and DeepSeek as the
+  persona prefix of dsh's system prompt, after the headless profile's own opening line, with dsh's other
   sections and its instruction-file row left as they are. A worker run handed no such file is
   refused on every provider rather than started without it. A worker the deployment gives rules of its own
   names them in that document (`docs/own-llm.md`, 「The own model and the engine behind it」). What
@@ -321,12 +323,13 @@
   under a home of the registration's own, and the gateway's key is read from its file by the
   settings' key helper. Each job is a turn of that program in the worker's pane on a session of its
   own (`docs/own-llm.md`, 「A worker on a registered model is composed as on Claude」).
-- **A job worker on a DeepSeek model**: the same worker line on Claude Code pointed at DeepSeek's
-  Anthropic-compatible endpoint, under a home of the model's own. What differs is the model's id in
-  every model slot, its window and answer ceiling, the request wait, and the effort word: the run's
-  own where it thinks, and the lowest the program takes where it does not, with thinking shut off
-  beside it. The endpoint account's key file is read by the settings' key helper, and no login of the
-  Claude road goes with it.
+- **A job worker on a DeepSeek model**: bmo-tui on a dsh session in the worker's pane, as a worker on
+  OpenRouter stands (`docs/agent-control.md`, 「dsh's providers: OpenRouter and DeepSeek」): the worker's
+  rules after the headless profile's opening line as dsh's persona prefix, every tool row but the web,
+  the deployment's MCP servers, and DeepSeek's own API as dsh's one route on the model the pin or the
+  worker key's tier names, thinking off where the run does not think. The road's key file is read as the
+  program is stood and handed to it in the variable the route names; no login of the Claude road goes
+  with it.
 - **A companion's turn** (agency's server's companion turn): a turn of the companion's resident program,
   which stands on the chat line above as the chat agent's does (`docs/agents.md`, 「Conversational agents」) —
   the same tools shown and allowed, the same configuration, the same mode and the same shell guard —

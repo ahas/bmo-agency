@@ -62,7 +62,7 @@ seconds = 15
 # short (docs/agent-control.md, 「Stopping」).
 interrupt = ["escape"]
 # The program that stands in the agent's pane: bmo-tui, which starts the harness below and keeps its screen
-# open on the session (docs/agent-control.md, 「OpenRouter through dsh」).
+# open on the session (docs/agent-control.md, 「dsh's providers: OpenRouter and DeepSeek」).
 program = "bmo-tui"
 # The harness program bmo-tui starts on its dsh subcommand, at `--profile acp`, which owns the agent loop
 # and the session.

@@ -1,7 +1,7 @@
 //! The program a worker stands with nothing put in (docs/agent-control.md, 「A worker standing with
 //! nothing to do」): Claude Code on the worker's own line, on its kept session or a fresh one; or, for a
 //! worker pinned to a provider whose surface stands with nothing put in, that provider's program — the
-//! registry's Claude Code on the gateway, or the deployment's loop for OpenRouter.
+//! registry's Claude Code on the gateway, or bmo-tui on a dsh session for OpenRouter and DeepSeek.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -723,8 +723,9 @@ pub(crate) async fn worker_sampling(
 }
 
 /// The pane program for a worker pinned to a provider that stands one with nothing put in: bmo-tui on the
-/// worker's place and dsh session, its screen kept open across turns and a line typed at it sent into the
-/// same session.
+/// worker's place and dsh session, on the model its pin names where it names one, its screen kept open
+/// across turns and a line typed at it sent into the same session.
+#[allow(clippy::too_many_arguments)]
 pub async fn inbox_program(
   ground: &Ground,
   machine: &Machine,
@@ -733,9 +734,10 @@ pub async fn inbox_program(
   provider: &str,
   program: &str,
   dsh: &str,
+  model: Option<&str>,
 ) -> Result<Standing, Refusal> {
   let trees = Trees::of(ground);
-  let (run, _) = pinned_run(ground, machine, &trees, worker, cwd, provider, None).await?;
+  let (run, _) = pinned_run(ground, machine, &trees, worker, cwd, provider, model).await?;
   let place = Place::of(&trees.data, worker);
   let mut env: BTreeMap<String, String> = ground.env().clone();
 

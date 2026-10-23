@@ -151,9 +151,6 @@ async fn pinned_program(
 ) -> Result<Option<Standing>, Refusal> {
   match pin {
     "registered" => Ok(Some(registered_program(ground, machine, worker, cwd, model).await?)),
-    "deepseek" => Ok(Some(
-      crate::lines::deepseek::deepseek_program(ground, machine, worker, cwd, model).await?,
-    )),
     _ => {
       let resident = provider(pin).and_then(|provider| provider.declared().resident.as_ref());
       let program = resident.and_then(|resident| resident.program.clone());
@@ -161,7 +158,7 @@ async fn pinned_program(
 
       match (program, dsh) {
         (Some(program), Some(dsh)) => {
-          Ok(Some(inbox_program(ground, machine, worker, cwd, pin, &program, &dsh).await?))
+          Ok(Some(inbox_program(ground, machine, worker, cwd, pin, &program, &dsh, model).await?))
         }
         _ => Ok(None),
       }

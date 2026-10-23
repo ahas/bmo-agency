@@ -570,7 +570,9 @@ in the provider's own terms:
     settings pass it.
   - A worker's program on a registered model is the worker line a Claude run takes, the model and
     endpoint aside (`docs/own-llm.md`, 「A worker on a registered model is composed as on Claude」).
-- **OpenRouter through dsh.**
+- **dsh's providers: OpenRouter and DeepSeek.**
+  - Both providers' programs are dsh, and everything below holds for either; they differ in dsh's one
+    route alone — OpenRouter's gateway, or DeepSeek's own OpenAI-compatible API.
   - dsh has no terminal conversation of its own. Its `headless` profile answers one task and exits,
     its `web` profile serves a browser, and its `acp` profile speaks the Agent Client Protocol. The
     `tui` profile its help names in an example ships in no release: booting it ends with
@@ -586,8 +588,9 @@ in the provider's own terms:
     the run names one. A program started again on the same place and folder takes up the session it
     stood in before and then sets the model and effort the new command names, so a changed model
     carries the conversation over rather than opening an empty session beside it.
-  - **The system prompt is agency's.** The overlay sets dsh's `system-prompt` persona to the run's
-    composed system prompt, the same file the Claude Code line is handed, and switches off dsh's
+  - **The system prompt is agency's.** The overlay sets dsh's `system-prompt` persona prefix to the run's
+    composed system prompt, the same file the Claude Code line is handed, each `{{` in it broken by a
+    word joiner since dsh refuses a prompt naming a variable it does not hold, and switches off dsh's
     instruction-file reader and its title call, as the retired loop's overlay did. A worker keeps the
     instruction-file reader, since the checkout's documents are its work's, and its rules follow dsh's
     opening line rather than replacing it.
@@ -603,10 +606,11 @@ in the provider's own terms:
     `mcpServers`. None is mounted in the overlay, so no server stands twice and no dsh default stands
     beside them.
   - **The overlay is the route.** Before the program is stood, agency composes the same dsh overlay a
-    headless run on the road takes: the prompt, the tool rows and sandbox above, and the OpenRouter
-    gateway as dsh's one route with the model and, where the agent chose one, its reasoning level. The
-    key is named in the overlay as the environment variable it is read from and travels in the
-    program's environment; the overlay holds no secret. It is written under dsh's home — the data
+    headless run on the road takes: the prompt, the tool rows and sandbox above, and the provider's API
+    as dsh's one route with the model and, where the agent chose one, its reasoning level. The key is
+    named in the overlay as the environment variable it is read from and travels in the program's
+    environment — OpenRouter's from the process's own, DeepSeek's read from the road's key file as the
+    program is stood; the overlay holds no secret. It is written under dsh's home — the data
     root's `dsh`, which a deployment lays nothing over — and named by its own text, so the program's
     command — and its identity — stays the same while nothing it reads has changed.
   - **What the bot puts in.** A turn in the inbox is one file: the turn's id, the run's name and what
@@ -629,8 +633,8 @@ in the provider's own terms:
     interrupt.
   - **On the screen** a turn opens with a line naming it and when it started, dsh's words and
     thoughts follow as it streams them, then the answer.
-  - An agent's own turn that the fallback walk gives to OpenRouter, or that goes out on OpenRouter as
-    the provider a worker is pinned to, is a turn of this program in the agent's pane. A gate's turn on
+  - An agent's own turn that the fallback walk gives to OpenRouter or DeepSeek, or that goes out on
+    either as the provider a worker is pinned to, is a turn of this program in the agent's pane. A gate's turn on
     an OpenRouter conversation is one too, with no tools and no MCP server; an ephemeral turn's stays in
     the host, on dsh's headless profile.
   - **A gate's turn is the gate road wherever its session stands.** A turn carrying the gate's own ask —

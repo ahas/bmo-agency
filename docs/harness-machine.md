@@ -35,8 +35,8 @@ flowchart TD
   permissions counts as none.
 - **A key file is taken away only where agency wrote it;** a file an address names that agency did not
   write is left where it is.
-- **The DeepSeek endpoint's key is the endpoint account's own,** `env/deepseek.key` under the data
-  root, at `0600`. Agency reads it where the road runs and never writes it.
+- **DeepSeek's key is the road's own file,** `env/deepseek.key` under the data root, at `0600`. Agency
+  reads it where the road runs and never writes it.
 - **A key reaches the binary on standard input alone,** never as an argument, and nothing the crate
   answers carries one: a write answers the file's name as the address row keeps it.
 

@@ -114,10 +114,10 @@ describe("the providers there are, and the programs that carry them", () => {
       ["registered", "Registered models", "claude-code:registered"],
       ["codex", "Codex", "codex"],
       ["openrouter", "OpenRouter", "dsh"],
-      ["deepseek", "DeepSeek", "claude-code:deepseek"],
+      ["deepseek", "DeepSeek", "dsh:deepseek"],
     ]);
-    // Claude Code carries the registry on the gateway and DeepSeek on its endpoint, each as a program
-    // of its own.
+    // Claude Code carries the registry on the gateway, and dsh carries DeepSeek on its own route, each as
+    // a program of its own.
     expect(harnessImplementations()).toEqual([
       claudeCode,
       provider("registered").adapter,

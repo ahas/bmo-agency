@@ -73,22 +73,7 @@ impl Provider for OpenRouter {
 
   // Its program is bmo-tui standing this provider's dsh session.
   fn owns_program(&self, _machine: &Machine, args: &[String], _env: &BTreeMap<String, String>) -> bool {
-    let Some(program) =
-      OPENROUTER.declared.resident.as_ref().and_then(|resident| resident.program.as_deref())
-    else {
-      return false;
-    };
-    let named = args.iter().position(|arg| arg == "--model").map(|at| at + 1);
-    let choice = named
-      .and_then(|at| args.get(at))
-      .and_then(|choice| serde_json::from_str::<Vec<String>>(choice).ok());
-
-    args
-      .first()
-      .and_then(|path| Path::new(path).file_name())
-      .is_some_and(|name| Some(name) == Path::new(program).file_name())
-      && args.get(1).is_some_and(|arg| arg == "dsh")
-      && choice.and_then(|choice| choice.first().cloned()).as_deref() == Some(self.name())
+    crate::stands_dsh_session(self, args)
   }
 
   fn missing(&self, machine: &Machine) -> Option<String> {

@@ -1,6 +1,7 @@
 //! The worker's run on OpenRouter, as a job's walk sends it there (docs/cache-fallback.md, 「The OpenRouter
-//! substitute is the dsh road」): how dsh takes the run, and the resident pane program that keeps a dsh
-//! session on the Agent Client Protocol, its turns put in through its inbox and read back out of its record.
+//! substitute is the dsh road」): how dsh takes the run; and the resident pane program every provider whose
+//! turns go through dsh stands — OpenRouter's and DeepSeek's alike — which keeps a dsh session on the Agent
+//! Client Protocol, its turns put in through its inbox and read back out of its record.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -42,7 +43,8 @@ pub fn choice(provider: &str, model: &str) -> String {
 
 /// The command a provider's pane program stands on in an agent's place: bmo-tui on its `dsh` subcommand,
 /// the harness at `--profile acp`, the agent's place, the line's model choice and the overlay dsh reads,
-/// under the process's own variables less any one turn's.
+/// under the process's own variables less any one turn's, with the key the provider's dsh route reads from
+/// the data root's env directory put into the program's environment alone.
 #[allow(clippy::too_many_arguments)]
 pub fn resident_command(
   ground: &Ground,
@@ -68,6 +70,16 @@ pub fn resident_command(
   let route = harness_providers::provider(provider)
     .and_then(|declared| declared.declared().dsh.as_ref())
     .ok_or_else(|| super::fault(format!("{provider} names no dsh route")))?;
+
+  // A route whose key stands in a file of the deployment's own is handed it as the variable the route
+  // reads; a route read from the process's own variables already has it.
+  if let Some(file) = route.key_file.as_deref() {
+    let path = ground.roots.data.join("env").join(file);
+
+    if let Ok(key) = std::fs::read_to_string(&path) {
+      env.insert(route.key_env.clone(), key.trim().to_owned());
+    }
+  }
   let patch = dsh::session_patch(run, &env, &ground.roots.data, route)?;
   let mut args = vec![
     program_word(machine, program),

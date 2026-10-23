@@ -6,7 +6,6 @@ pub mod chat;
 pub mod claude;
 pub mod codex;
 pub mod companion;
-pub mod deepseek;
 pub mod dsh;
 pub mod openrouter;
 pub mod ordered;

@@ -198,7 +198,7 @@ async fn an_openrouter_step_stands_bmo_tui_on_a_dsh_session_over_its_inbox() {
   let disabled = |id: &str| row(id).is_some_and(|row| row["disabled"] == true);
 
   // dsh's own prompt rows are off, and the whole system prompt is the one the chat line composed.
-  assert_eq!(row("system-prompt").unwrap()["config"]["persona"], "You are the chat agent.\n");
+  assert_eq!(row("system-prompt").unwrap()["config"]["personaPrefix"], "You are the chat agent.\n");
   assert!(disabled("agent-instructions"));
   assert!(disabled("session-title-llm"));
 

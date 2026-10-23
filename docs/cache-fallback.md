@@ -661,16 +661,19 @@ When a demotion first catches — when a healthy session first drops — two thi
 
 - **A provider of its own.** DeepSeek's two models, `deepseek-flash` and `deepseek-v4-pro`, are served
   by the `deepseek` provider rather than by the registry, and so take their own tier mappings, their own
-  place in the provider order and their own co-worker limits. The endpoint account's key file is the
-  road's key, and it is read by the program itself on every request.
-- **How a run goes out.** Claude Code is pointed at DeepSeek's Anthropic-compatible endpoint under a
-  home of the model's own, so a chat, a worker or a companion keeps its session and reports
-  what it spent as it does on any Claude Code road. A gate is not carried: a gate is the gate service's
-  own run, and a road on this provider is not offered one.
-- **Thinking and effort.** The provider's words are `none`, `low`, `medium`, `high` and `max`. A
-  mapping's word is the program's `--effort`, which DeepSeek reads as the request's effort; `none` is a
-  run without thinking, and so is an agent's own thinking switch turned off. An agent's level reaches
-  the run where it is one of the scale's levels, and the mapping's word stands otherwise.
+  place in the provider order and their own co-worker limits. The road's key file, `env/deepseek.key`
+  under the data root, is the road's key; it is read as a program is stood and handed to it in the
+  variable dsh's route names, and it reaches neither the overlay, the turn's own variables nor a log.
+- **How a run goes out.** Through dsh, as OpenRouter's runs do, with DeepSeek's own OpenAI-compatible API
+  as dsh's one route: a chat, a worker or a companion stands bmo-tui on a dsh session in its pane, its
+  turns put into bmo-tui's inbox and read back out of its record (`docs/agent-control.md`, 「dsh's
+  providers: OpenRouter and DeepSeek」). The session stands in the pane across turns, agency stores no id
+  for it, and its record carries no tokens, so what a turn spent is not reported. A gate is not carried:
+  a gate is the gate service's own run, and a road on this provider is not offered one.
+- **Thinking and effort.** The provider's words are `none`, `low`, `medium`, `high` and `max`. `none` is
+  a run without thinking, and so is an agent's own thinking switch turned off: the route is asked with
+  reasoning off. An agent's level reaches the run as dsh's reasoning level where it is one of the
+  scale's levels; a run that thinks at no level an agent chose is left at the model's own.
 - **The split.** A fresh store maps the heavy tiers, BMO and Frontier, to the pro model and the rest to
   the flash model, the Light and Simple tiers with the low effort. The mapping is the owner's to change
   in the tier settings, and the co-worker limits are the pool's as on every provider that lends them.
@@ -759,10 +762,8 @@ When a demotion first catches — when a healthy session first drops — two thi
     into its inbox and its answer read out of its record; the overlay composes the gateway route, the key
     rides in the program's environment, and the agency's MCP configuration is handed to the session as
     its servers; no upstream is pinned, since agency keeps no record of a warmed one;
-  - **DeepSeek** through bmo-tui in the same way, the overlay's route dsh's own to DeepSeek's API on the
-    model the key maps to, with the account's key in the program's environment; a chat turn on this
-    provider never goes out as Claude Code on the endpoint, which is the road the provider's other lines
-    take (「The DeepSeek road」);
+  - **DeepSeek** through bmo-tui in the same way, the overlay's route DeepSeek's own API on the model the
+    key maps to, with the road's key in the program's environment (「The DeepSeek road」);
   - **a registered model** as Claude Code on the gateway, the registration first held to the gateway's
     list, on a session of its own placed where the registration places it.
 

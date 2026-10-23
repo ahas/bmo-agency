@@ -1,6 +1,6 @@
-//! DeepSeek: present on this machine where the endpoint account's key file stands private under the
-//! data root, and its models the two its policy declares (docs/provider-presence.md). Its program is
-//! Claude Code on DeepSeek's Anthropic-compatible endpoint.
+//! DeepSeek: present on this machine where the road's key file stands private under the data root, and
+//! its models the two its policy declares (docs/provider-presence.md). Its program is bmo-tui standing a
+//! dsh session on DeepSeek's own API.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -10,55 +10,20 @@ use policy::providers::deepseek::{DEEPSEEK, Model as DeclaredModel};
 use serde_json::json;
 
 use crate::balance::{Balance, OffersBalance, figure, key_in_file};
-use crate::claude_code::ClaudeCode;
 use crate::{Machine, Offered, OfferedModel, Offering, PlaceCache, Provider, Reading};
 
 pub struct DeepSeek;
 
 impl DeepSeek {
-  /// Where the endpoint account's key file stands.
+  /// Where the road's key file stands.
   pub fn key_file(machine: &Machine) -> PathBuf {
     machine.data_root().join("env").join(&DEEPSEEK.presence.key_file)
   }
 
-  /// Where the endpoint answers on this machine.
-  pub fn base_url(machine: &Machine) -> String {
-    let vars: BTreeMap<String, String> =
-      machine.every_var().map(|(name, value)| (name.to_owned(), value.to_owned())).collect();
-
-    DEEPSEEK.endpoint.base_on(&vars).to_owned()
-  }
-
   /// The model one id names, where this provider serves it.
   pub fn model(id: &str) -> Option<&'static DeclaredModel> {
-    DEEPSEEK.endpoint.held(id)
+    DEEPSEEK.held(id)
   }
-
-  /// The home Claude Code is handed for a run of one model, under the data root so a session resumed
-  /// across a deployment finds its record.
-  pub fn home(machine: &Machine, model: &str) -> PathBuf {
-    Self::homes(machine).join(model)
-  }
-
-  /// The folder every model's home stands under.
-  pub fn homes(machine: &Machine) -> PathBuf {
-    machine.data_root().join("claude-roads").join(Self.name())
-  }
-
-  /// Whether a program is on this road: its records home is one of this provider's. Its endpoint's
-  /// address is not the answer, since a Claude account of the owner's may point at the same endpoint.
-  fn program_here(machine: &Machine, env: &BTreeMap<String, String>) -> bool {
-    deepseek_road(machine, env)
-  }
-}
-
-/// Whether an environment stands a program on this road: its records home is one of this provider's.
-/// Its endpoint's address is not the answer, since a Claude account of the owner's may point at the
-/// same endpoint.
-pub fn deepseek_road(machine: &Machine, env: &BTreeMap<String, String>) -> bool {
-  let homes = format!("{}/", DeepSeek::homes(machine).display());
-
-  env.get("CLAUDE_CONFIG_DIR").is_some_and(|dir| dir.starts_with(&homes))
 }
 
 /// Whether a secret file may be used: a file of its own, private to its owner, not empty.
@@ -124,12 +89,11 @@ impl Provider for DeepSeek {
     Self::model(model).is_some()
   }
 
-  // Its catalogue is the models its policy declares: an endpoint's listing needs the key, and the
+  // Its catalogue is the models its policy declares: its API's listing needs the key, and the
   // models are a fact of the deployment rather than of the answer.
   fn catalogue<'a>(&'a self, _machine: &'a Machine, _config_dir: Option<&'a Path>) -> Reading<'a> {
     Box::pin(async move {
       let models: Vec<serde_json::Value> = DEEPSEEK
-        .endpoint
         .model
         .iter()
         .map(|model| {
@@ -161,7 +125,7 @@ impl Provider for DeepSeek {
         .into_iter()
         .map(|word| word.map(str::to_owned))
         .collect();
-      let models = DEEPSEEK.endpoint.model.iter().map(|model| OfferedModel {
+      let models = DEEPSEEK.model.iter().map(|model| OfferedModel {
         id: model.id.clone(),
         efforts: efforts.clone(),
         free: None,
@@ -199,41 +163,8 @@ impl Provider for DeepSeek {
     }
   }
 
-  // Claude Code on DeepSeek's endpoint: its configuration under one of the road's homes, or its base
-  // URL at the endpoint.
-  fn owns_program(&self, machine: &Machine, args: &[String], env: &BTreeMap<String, String>) -> bool {
-    args.first().is_some_and(|program| program == ClaudeCode::PROGRAM) && Self::program_here(machine, env)
-  }
-
-  fn session_records(&self, machine: &Machine, cwd: &Path, session: &str, model: &str) -> Vec<PathBuf> {
-    ClaudeCode::records_under(&Self::home(machine, model), cwd, session)
-  }
-
-  fn home_records(&self, machine: &Machine, cwd: &Path) -> Vec<PathBuf> {
-    let Ok(homes) = std::fs::read_dir(Self::homes(machine)) else {
-      return vec![];
-    };
-
-    homes
-      .flatten()
-      .flat_map(|home| ClaudeCode::every_record_under(&home.path(), cwd))
-      .collect()
-  }
-
-  fn forget_prompts(&self, machine: &Machine, cwd: &Path, session: Option<&str>) -> Result<usize, String> {
-    let Ok(homes) = std::fs::read_dir(Self::homes(machine)) else {
-      return Ok(0);
-    };
-    let mut forgotten = 0;
-    let mut refused = vec![];
-
-    for home in homes.flatten() {
-      match ClaudeCode::forget_prompts_under(&home.path(), cwd, session) {
-        Ok(count) => forgotten += count,
-        Err(why) => refused.push(why),
-      }
-    }
-
-    if refused.is_empty() { Ok(forgotten) } else { Err(refused.join("; ")) }
+  // Its program is bmo-tui standing this provider's dsh session.
+  fn owns_program(&self, _machine: &Machine, args: &[String], _env: &BTreeMap<String, String>) -> bool {
+    crate::stands_dsh_session(self, args)
   }
 }

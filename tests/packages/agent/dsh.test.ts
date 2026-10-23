@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
-import { dsh, dshFailure, dshHome, dshOverlay, dshPermissionMode, taskWords } from "@agency/agent/dsh";
+import { dsh, dshFailure, dshHome, dshLiteral, dshOverlay, dshPermissionMode, taskWords } from "@agency/agent/dsh";
 import { openRouterApiBase, openRouterKeyEnv, openRouterModels } from "@agency/agent/openrouter";
 import { scratchDir } from "@agency/test-support/scratch";
 
@@ -77,14 +77,29 @@ function rowsById(run: HarnessRun): Map<string, OverlayRow> {
 
 describe("the overlay one run is configured by", () => {
   test("carries the system prompt the run named, as it stands in the file", () => {
-    const persona = rowsById(runFor()).get("system-prompt")?.config?.persona;
+    const persona = rowsById(runFor()).get("system-prompt")?.config?.personaPrefix;
 
     expect(persona).toBe(readFileSync(promptPath, "utf8"));
   });
 
+  // dsh reads a `{{name}}` in a persona as its own variable and refuses the prompt on one it does not hold.
+  test("breaks every pair of braces in the text it hands over, and keeps the opening line's own variable", () => {
+    expect(dshLiteral("Keep {{name}} and a {lone} brace")).toBe("Keep {\u2060{name}} and a {lone} brace");
+
+    const rulesWithMarks = join(root, "rules-with-marks.md");
+
+    writeFileSync(rulesWithMarks, "Fill {{this}} later.\n");
+
+    const persona = rowsById(workerRun({ extensions: { settingsPath: join(root, "settings.json"), pluginDir: join(root, "plugin"), agentsJson: "{}", rulesPath: rulesWithMarks } }))
+      .get("system-prompt")?.config?.personaPrefix as string;
+
+    expect(persona).toContain("{{model}}");
+    expect(persona.endsWith("Fill {\u2060{this}} later.\n")).toBe(true);
+  });
+
   test("hands a job the worker's rules after the headless opening line, and keeps its instruction files", () => {
     const rows = rowsById(workerRun());
-    const persona = rows.get("system-prompt")?.config?.persona as string;
+    const persona = rows.get("system-prompt")?.config?.personaPrefix as string;
 
     expect(persona.startsWith("You are a coding agent powered by the {{model}} model.")).toBe(true);
     expect(persona.endsWith(`\n\n${readFileSync(rulesPath, "utf8")}`)).toBe(true);

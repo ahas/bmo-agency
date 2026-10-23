@@ -12,7 +12,7 @@ import { providerDeclaration } from "./provider-declaration";
 import declaredOpenRouter from "@agency/policy/providers/openrouter.toml";
 
 import type { AgentReply } from "./agent-reply";
-import type { AgentAdapter, HarnessCommand, HarnessOutput, HarnessRun, AgentProvider } from "./harness";
+import type { AgentAdapter, AgentProviderName, HarnessCommand, HarnessOutput, HarnessRun, AgentProvider } from "./harness";
 
 // dsh — the DeepSeek Harness — as the second program agency runs a line on. It answers the same
 // description of a run the Claude Code implementation answers, and it answers it in dsh's own
@@ -107,6 +107,30 @@ function shownRows(run: HarnessRun): string[] {
 // One row of a patch overlay: a plugin of the composed profile, addressed by the id the profile
 // gave it. A row either reconfigures that plugin or switches it off, and `name` appears only on a
 // row being inserted rather than addressed.
+// A provider's road as dsh's one route: the name dsh knows it by, which is the provider's own, the
+// variable its key is read from, where its API answers, and — for a road whose key stands in a file of
+// the deployment's own rather than in the process's variables — that file.
+export interface DshRoute {
+  provider: AgentProviderName;
+  keyEnv: string;
+  apiBase(): string;
+  keyFile?: () => string;
+}
+
+// The public gateway agency's stand-ins are picked from.
+export const openRouterRoute: DshRoute = {
+  provider: "openrouter",
+  keyEnv: openRouterKeyEnv,
+  apiBase: openRouterApiBase,
+};
+
+// A text of agency's as dsh's prompt takes it word for word: dsh reads every `{{name}}` in a persona as
+// a variable of its own and refuses the whole prompt on a name it has not registered, so each `{{` is
+// broken by a word joiner, which the model reads past.
+export function dshLiteral(text: string): string {
+  return text.replaceAll("{{", "{\u2060{");
+}
+
 export interface OverlayRow {
   id: string;
   name?: string;
@@ -173,17 +197,17 @@ export function dshPermissionMode(run: HarnessRun): string | null {
 // No secret is in it. The route names the environment variable the key is read from and never
 // the key, so the file may be read by anyone who can read the directory and still say nothing;
 // the key itself travels in the run's environment.
-export function dshOverlay(run: HarnessRun): OverlayRow[] {
+export function dshOverlay(run: HarnessRun, route: DshRoute = openRouterRoute): OverlayRow[] {
   const rows: OverlayRow[] = [];
 
   if (run.systemPromptPath !== null) {
-    rows.push({ id: "system-prompt", config: { persona: readFileSync(run.systemPromptPath, "utf8") } });
+    rows.push({ id: "system-prompt", config: { personaPrefix: dshLiteral(readFileSync(run.systemPromptPath, "utf8")) } });
   } else if (run.line === "worker") {
     // A job keeps dsh's own prompt and is handed the worker's rules beside it, as the Claude line
-    // appends them to that CLI's. The persona section is the one place in dsh's system prompt a
+    // appends them to that CLI's. The persona prefix is the one place in dsh's system prompt a
     // run writes, and the headless profile fills it with its opening line, so the rules follow
     // that line there rather than taking its place.
-    rows.push({ id: "system-prompt", config: { persona: `${headlessOpener}\n\n${handedRules(run)}` } });
+    rows.push({ id: "system-prompt", config: { personaPrefix: `${headlessOpener}\n\n${dshLiteral(handedRules(run))}` } });
   }
 
   for (const id of quietRows) {
@@ -244,9 +268,9 @@ export function dshOverlay(run: HarnessRun): OverlayRow[] {
     id: "llm-pi-ai",
     config: {
       providers: {
-        openrouter: {
-          apiKeyEnv: openRouterKeyEnv,
-          baseURL: run.env.BMO_DSH_LOCAL_URL ?? openRouterApiBase(),
+        [route.provider]: {
+          apiKeyEnv: route.keyEnv,
+          baseURL: run.env.BMO_DSH_LOCAL_URL ?? route.apiBase(),
           api: "openai-completions",
           ...(level === null ? {} : { reasoning: level }),
           ...(anthropic ? { cacheRetention: "long" } : {}),
@@ -256,7 +280,7 @@ export function dshOverlay(run: HarnessRun): OverlayRow[] {
     },
   });
 
-  rows.push({ id: "agent-default-model", config: { provider: "openrouter", model: run.model } });
+  rows.push({ id: "agent-default-model", config: { provider: route.provider, model: run.model } });
 
   for (const row of mcpRows(run)) {
     rows.push(row);
@@ -337,12 +361,12 @@ function overlayText(overlay: unknown, variables: readonly string[]): string {
 }
 
 // The overlay on disk, under a name no other run in flight can be holding.
-function overlayFile(run: HarnessRun): string {
+function overlayFile(run: HarnessRun, route: DshRoute): string {
   const dir = join(dshHome(), "overlays");
   const path = join(dir, `${run.line}-${randomUUID()}.yml`);
 
   mkdirSync(dir, { recursive: true });
-  writeFileSync(path, overlayText(dshOverlay(run), [MCP_TOKEN_VARIABLE]));
+  writeFileSync(path, overlayText(dshOverlay(run, route), [MCP_TOKEN_VARIABLE]));
 
   return path;
 }
@@ -453,8 +477,11 @@ function shellWord(word: string): string {
   return `'${word.replaceAll("'", `'\\''`)}'`;
 }
 
-export const dsh: AgentAdapter = {
-  name: "dsh",
+// dsh on one provider's route. Every provider whose runs go through dsh is this adapter on its own
+// route: the name says which, and the reply is filed under that provider.
+export function dshOn(route: DshRoute, name = `dsh:${route.provider}`): AgentAdapter {
+  return {
+  name,
   // Every line whose run headless can answer as one task: a judgement with no tools, and a room's
   // turn or a job, whose
   // prompt already carries what it needs and whose road keeps no session on this program. The
@@ -478,7 +505,7 @@ export const dsh: AgentAdapter = {
         "--package",
         `@deepseek-ai/dsh@${version}`,
         "--call",
-        [launch, taskFile(run), "--profile", profile, "--patch", overlayFile(run), ...(run.resumeSessionId === null ? [] : ["--session-id", run.resumeSessionId])].map((word, at) => (at === 0 ? word : shellWord(word))).join(" "),
+        [launch, taskFile(run), "--profile", profile, "--patch", overlayFile(run, route), ...(run.resumeSessionId === null ? [] : ["--session-id", run.resumeSessionId])].map((word, at) => (at === 0 ? word : shellWord(word))).join(" "),
       ],
       cwd: run.cwd,
       // dsh keeps everything it writes under one directory named here, so a run of agency's leaves
@@ -486,7 +513,7 @@ export const dsh: AgentAdapter = {
       // stands beside it because that is where dsh takes it whole: the overlay row it also stands
       // on sets the sandbox alone, and the profile resolves this name into every knob that hangs
       // off it. A run that composes no file effects names none and keeps dsh's own.
-      env: { ...run.env, DSH_HOME: dshHome(), ...(mode === null ? {} : { DSH_PERMISSION_MODE: mode }) },
+      env: { ...run.env, ...routeKey(route), DSH_HOME: dshHome(), ...(mode === null ? {} : { DSH_PERMISSION_MODE: mode }) },
       stdin: null,
     };
   },
@@ -501,7 +528,7 @@ export const dsh: AgentAdapter = {
   // read by the caller through the failure above rather than carried in a reply.
   async readAnswer(output: HarnessOutput, run?: HarnessRun): Promise<AgentReply> {
     return {
-      mode: "openrouter",
+      mode: route.provider,
       model: run?.model ?? null,
       effort: null,
       text: output.exitCode === 0 ? output.stdout.trim() : "",
@@ -516,6 +543,22 @@ export const dsh: AgentAdapter = {
     };
   },
 };
+}
+
+// The key a route reads from a file of the deployment's own, as the variable the route names; none for a
+// route whose key is already among the process's variables.
+function routeKey(route: DshRoute): Record<string, string> {
+  if (route.keyFile === undefined) return {};
+
+  try {
+    return { [route.keyEnv]: readFileSync(route.keyFile(), "utf8").trim() };
+  } catch {
+    return {};
+  }
+}
+
+// OpenRouter's gateway is the route this program was first written for, and keeps its name.
+export const dsh: AgentAdapter = dshOn(openRouterRoute, "dsh");
 
 // What OpenRouter declares of itself, its own file of the shared policy: among it its own effort
 // words, which its gateway carries to whichever model a request is routed to.

@@ -1,12 +1,12 @@
-# DeepSeek's own API, reached through Claude Code's Anthropic-compatible endpoint with the key the
-# endpoint account holds (docs/cache-fallback.md, 「The DeepSeek road」). Read by this provider's own
+# DeepSeek's own API, reached by the dsh harness through bmo-tui on its OpenAI-compatible route, with the
+# key the road's key file holds (docs/cache-fallback.md, 「The DeepSeek road」). Read by this provider's own
 # declaration on each side.
 
 # The provider's name as a screen shows it.
 label = "DeepSeek"
 
-# The lines its program carries. A gate is another service's to run, and the research lines keep a
-# prompt no endpoint model is offered here.
+# The lines its program carries. A gate is another service's to run, and the research lines need a program
+# that gates each call and withholds its own tools, which dsh is not.
 lines = ["chat", "worker"]
 
 # A mapping of it carries no ceiling on the answer's tokens: the provider publishes none.
@@ -29,30 +29,22 @@ none_held = true
 launch = "either"
 
 [presence]
-# The endpoint account's key file under the data root's env directory, private to its owner.
+# The road's key file under the data root's env directory, private to its owner.
 key_file = "deepseek.key"
 missing = "DeepSeek cannot be chosen: the key file (deepseek.key) is missing or its mode is not 0600."
 # What a pin or a job naming a model this provider does not serve says; the name follows it.
 not_held = "Not a DeepSeek model"
 
-[endpoint]
-# Where DeepSeek speaks the Anthropic Messages API; a test names a stand-in's address in the variable
-# below, which wins where it is set.
-base_url = "https://api.deepseek.com/anthropic"
-base_env = "BMO_DEEPSEEK_API_URL"
-# How long one request is waited for: a whole answer at the model's speed.
-wait_seconds = 1800
-
 # The models this provider serves, in the order a screen offers them. An id is the model's name on the
 # wire, and the window and answer ceiling are the run's own.
-[[endpoint.model]]
+[[model]]
 id = "deepseek-flash"
 label = "DeepSeek V4.1 Flash"
 context_tokens = 1048576
 answer_tokens = 32768
 thinking = true
 
-[[endpoint.model]]
+[[model]]
 id = "deepseek-v4-pro"
 label = "DeepSeek V4 Pro"
 context_tokens = 1048576
@@ -73,7 +65,7 @@ turns = "inbox"
 words_mid_turn = false
 
 # How its turns go through dsh: its own OpenAI-compatible API as dsh's one route and the variable its key
-# is read from, which the run carries from the endpoint account's key file.
+# is read from, which the program carries from the road's key file.
 [dsh]
 api = "https://api.deepseek.com/v1"
 api_env = "BMO_DEEPSEEK_DSH_API_URL"
