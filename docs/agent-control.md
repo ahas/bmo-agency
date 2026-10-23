@@ -745,9 +745,12 @@ The owner's words:
     program is its pin's provider's on whatever model or session: a worker that ran a job stands on
     that job's program between jobs, as it always has.
 - **A pinned worker's pane holding another provider's program has it replaced at once,** without
-  waiting for a turn on the pin.
-  - What replaces it: the program the pin stands with nothing put in — bmo-tui for OpenRouter,
-    Claude Code on the gateway for a registered model, and Claude Code's standing program
+  waiting for a turn on the pin. So has a pane holding its own pin's bmo-tui program, where the pin's
+  turns go through that program's inbox and the program it would stand now is another: one whose
+  words changed under it — a deployment that moved its line, its overlay or its environment — is stood
+  afresh.
+  - What replaces it: the program the pin stands with nothing put in — bmo-tui for OpenRouter and
+    DeepSeek, Claude Code on the gateway for a registered model, and Claude Code's standing program
     above for Claude Code. A pin whose
     surface stands only with a turn, Codex's, has the other program ended and the place handed back
     to the host, and its own program stands with the first turn on it.

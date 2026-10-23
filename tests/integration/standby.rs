@@ -263,6 +263,50 @@ async fn a_pinned_workers_pane_holding_another_providers_program_has_its_pins_pr
 }
 
 #[tokio::test]
+async fn a_dsh_pins_own_program_whose_words_changed_is_stood_afresh_and_a_current_one_is_left() {
+  let bench = Bench::new().await;
+  bench.worker("dsh-worker", Some(("deepseek", Some("deepseek-flash")))).await;
+
+  let place = bench.place("dsh-worker").path.to_string_lossy().into_owned();
+  let (_, mut old) = bench.standing(
+    "dsh-worker",
+    &[
+      "bmo-tui",
+      "dsh",
+      "--program",
+      "dsh",
+      "--place",
+      &place,
+      "--model",
+      r#"["deepseek","deepseek-flash"]"#,
+    ],
+    &[],
+  );
+
+  standby::restand_all(&bench.ground, None).await;
+
+  let program = bench.place("dsh-worker").program().unwrap();
+
+  assert_ne!(program.identity, "standing-bmo-tui");
+  assert!(
+    program.command.args.iter().any(|arg| arg == r#"["deepseek","deepseek-flash"]"#),
+    "{:?}",
+    program.command.args
+  );
+  assert_eq!(
+    program.command.env.get("DSH_PERMISSION_MODE").map(String::as_str),
+    Some("danger-full-access")
+  );
+  assert!(ended(&mut old));
+
+  // Composed again on the same words, the program is the same one, and nothing is stood twice.
+  standby::restand_all(&bench.ground, None).await;
+
+  assert_eq!(bench.place("dsh-worker").program().unwrap().identity, program.identity);
+  assert_eq!(bench.notes("dsh-worker").await.len(), 1);
+}
+
+#[tokio::test]
 async fn a_worker_pinned_to_claude_code_has_a_members_program_replaced_by_claude_codes() {
   let bench = Bench::new().await;
   bench.worker("back-worker", Some(("claude-code", None))).await;

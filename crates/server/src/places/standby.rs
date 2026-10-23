@@ -15,6 +15,7 @@ use std::time::Duration;
 use harness_providers::{Machine, provider, standing_provider};
 use policy::fill_marks;
 use policy::place_words::PLACE_WORDS;
+use policy::providers::Turns;
 use serde_json::{Value, json};
 use store::run;
 
@@ -291,8 +292,8 @@ async fn job_road(ground: &Ground) -> Result<String, Refusal> {
   )
 }
 
-/// What a pinned worker's pane holding another provider's program is replaced by, at once rather than
-/// at the next turn on the pin: the program the pin stands with nothing put in, written before the old
+/// What a pinned worker's pane holding another provider's program, or its own pin's program composed on
+/// words that have since changed, is replaced by, at once rather than at the next turn on the pin: the program the pin stands with nothing put in, written before the old
 /// one is ended, or — for a pin whose program stands only with a turn — the place handed back to the
 /// host. A worker with no pin, a place holding its pin's own program, and a checkout that is not there
 /// are left as they are; so is a place whose locks are held or whose pane is at work on a person's turn.
@@ -315,13 +316,29 @@ pub async fn restand_pinned(
   let place = Place::of(&ground.roots.data, &row.name);
   let machine = ground.machine();
   let Some(pin) = provider(&pinned) else { return Ok(()) };
+
+  if !Path::new(&cwd).exists() {
+    return Ok(());
+  }
+
+  // The program a pin whose turns go through its pane program's inbox would stand now, by its identity:
+  // one whose words changed under it is stood afresh. A program on Claude Code, the gateway's among them,
+  // opens or places a session of its own as it is composed, so its own is left as it stands.
+  let inbox = pin.declared().resident.as_ref().is_some_and(|resident| resident.turns == Turns::Inbox);
+  let fresh = match inbox {
+    true => pinned_program(ground, &machine, &row.name, &cwd, &pinned, model.as_deref())
+      .await?
+      .map(|standing| standing.program.identity),
+    false => None,
+  };
   let stray = || {
-    place
-      .program()
-      .filter(|program| !pin.owns_program(&machine, &program.command.args, &program.command.env))
+    place.program().filter(|program| {
+      !pin.owns_program(&machine, &program.command.args, &program.command.env)
+        || fresh.as_ref().is_some_and(|identity| *identity != program.identity)
+    })
   };
 
-  if !Path::new(&cwd).exists() || stray().is_none() {
+  if stray().is_none() {
     return Ok(());
   }
 
