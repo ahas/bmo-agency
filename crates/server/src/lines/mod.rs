@@ -107,10 +107,12 @@ pub fn publish_text(path: &Path, text: &str) -> Result<(), Refusal> {
 
   std::fs::create_dir_all(dir).map_err(|why| fault(format!("{}: {why}", dir.display())))?;
 
+  // Each write stages under a name of its own, so two turns publishing one file at once never take each
+  // other's.
   let staged = dir.join(format!(
     ".{}.{}",
     path.file_name().map(|name| name.to_string_lossy()).unwrap_or_default(),
-    std::process::id()
+    agent_host::disk::staged_suffix()
   ));
   let body = if text.ends_with('\n') { text.to_owned() } else { format!("{text}\n") };
 

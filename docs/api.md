@@ -28,7 +28,7 @@ a field's exact shape matters, the OpenAPI document is the one to read.
 ## Versioning
 
 - The contract carries the repository's one version, in semver; the workspace manifest is its source. Before
-  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.43`.
+  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.44`.
 - A change to this document and a change to the boundary go in one commit. A change to a route, an event, a
   hook or a shared table's contract repairs this document in the same commit.
 - The major moves on a removed or renamed route, field or event, the minor on an addition, the patch on
@@ -415,6 +415,11 @@ reads it; no session is folded by the set itself.
 | DELETE | `/road-blocks/{blockId}` | Open a road again. |
 | GET | `/launch-room` | Whether a launch may start, why not, and the jobs and browsers running. |
 | PATCH | `/launch-room` | Record that launches are held, and why. |
+
+A work key's read that names no `provider` is resolved first on the provider the key's route is set to,
+where that provider is on, and then on each provider on in the owner's order, and the first that serves the
+key answers. So a gate, which reads its road this way, goes out on the provider its key is set to, and a key
+set to the registry's provider with a registration of its own goes out on that registration.
 
 A block is a resource with an id: its selection — `provider::model` — the moment it opens again in epoch
 milliseconds and the reason it was closed. A list returns the blocks whose moment is still ahead, narrowed

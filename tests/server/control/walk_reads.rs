@@ -124,3 +124,74 @@ async fn a_running_server_answers_the_walk_s_providers_tiers_routes_and_pins() {
   assert_eq!(get(port, token, "/models/none?provider=registered").await.0, 404);
   assert_eq!(get(port, token, "/models/any?provider=nobody").await.0, 404);
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_route_read_with_no_provider_begins_on_the_key_s_own_road_and_registration() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let data = home.path().join("data");
+  let token = "secret";
+
+  std::fs::create_dir_all(&data).unwrap();
+  scratch
+    .run(
+      r#"INSERT INTO "settings" ("key", "value")
+         VALUES ('provider_order', '[{"name":"deepseek","enabled":true},{"name":"registered","enabled":true},{"name":"claude-code","enabled":true}]')"#,
+      vec![],
+    )
+    .await;
+
+  for name in ["tier-cell", "own-pick"] {
+    scratch
+      .run(
+        r#"INSERT INTO "registered_models" ("name", "label", "model", "context_tokens", "answer_tokens",
+              "wait_seconds", "thinking", "walked", "added_at", "keeps_research")
+           VALUES ($1, $1, 'served', 100000, 2000, 60, 0, 1, 1, 0)"#,
+        vec![name.into()],
+      )
+      .await;
+    scratch
+      .run(
+        r#"INSERT INTO "registered_model_addresses" ("registration", "node", "position", "url", "key_file", "key_owned")
+           VALUES ($1, 'n1', 1, 'http://127.0.0.1:9/v1/chat/completions', NULL, 0)"#,
+        vec![name.into()],
+      )
+      .await;
+  }
+
+  scratch
+    .run(
+      r#"INSERT INTO "model_tier_mappings" ("provider", "tier", "model", "effort", "answer_tokens", "thinking")
+         VALUES ('registered', 'Reliable', 'tier-cell', NULL, 2048, false)
+         ON CONFLICT ("provider", "tier") DO UPDATE SET "model" = excluded."model""#,
+      vec![],
+    )
+    .await;
+  // The translator set to the registry's provider on a registration of its own; a gate on Laya walks.
+  scratch
+    .run(
+      r#"INSERT INTO "fallback_routes" ("key", "set_at", "route_mode", "registration")
+         VALUES ('translator', 1, 'registered', 'own-pick'), ('room-rules', 1, 'laya', NULL)"#,
+      vec![],
+    )
+    .await;
+
+  let server = standing::stand_server(home.path(), &data, &scratch.address(), token);
+  let port = server.port;
+  let (status, pinned) = get(port, token, "/work-keys/translator?tier=Reliable").await;
+
+  assert_eq!(status, 200, "{pinned}");
+  assert_eq!(
+    (&pinned["provider"], &pinned["model"]),
+    (&json!("registered"), &json!("own-pick")),
+    "the key's own road is asked before DeepSeek, first in the order, and its registration before the cell"
+  );
+
+  let (_, walked) = get(port, token, "/work-keys/room-rules?tier=Reliable").await;
+
+  assert_eq!(
+    walked["provider"],
+    json!("deepseek"),
+    "a key on Laya names no provider and walks the order"
+  );
+}

@@ -5,6 +5,7 @@ use std::fs::{self, OpenOptions};
 use std::io::{self, Write};
 use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt};
 use std::path::Path;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::Serialize;
@@ -45,11 +46,19 @@ pub fn private_file(path: &Path) -> io::Result<fs::File> {
   OpenOptions::new().write(true).create(true).truncate(true).mode(0o600).open(path)
 }
 
-/// Bytes written beside `path` and renamed onto it.
+/// A name no other write in flight stands under: the process and a count of its own.
+pub fn staged_suffix() -> String {
+  static WRITES: AtomicU64 = AtomicU64::new(0);
+
+  format!("{}.{}", std::process::id(), WRITES.fetch_add(1, Ordering::Relaxed))
+}
+
+/// Bytes written beside `path`, under a name of this write's own so two writers of one path never take
+/// each other's, and renamed onto it.
 pub fn publish_bytes(path: &Path, bytes: &[u8]) -> io::Result<()> {
   let mut staged = path.as_os_str().to_owned();
 
-  staged.push(".new");
+  staged.push(format!(".{}.new", staged_suffix()));
 
   let staged = Path::new(&staged);
 

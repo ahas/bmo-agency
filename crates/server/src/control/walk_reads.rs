@@ -11,7 +11,7 @@ use policy::tiers::TIERS;
 use serde::Deserialize;
 use serde_json::{Value, json};
 
-use super::harness::{enabled_providers, named, provider_order, set_provider_order};
+use super::harness::{named, provider_order, set_provider_order};
 use super::tiers::resolve_execution;
 use super::{Call, Refused, Route, answer, registry};
 use crate::queue::pins::pin_choice;
@@ -165,7 +165,8 @@ impl Route for ListTiers {
 
 crate::moved!(ListTiers);
 
-/// Where a work key goes: the named provider's, or the first that serves it in the provider order.
+/// Where a work key goes: the named provider's, or the first that serves it of the provider the key is set
+/// to and then the provider order.
 pub struct ResolveRoute;
 
 impl Route for ResolveRoute {
@@ -184,7 +185,7 @@ impl Route for ResolveRoute {
     let db = call.store();
     let providers = match asked_provider {
       Some(provider) => vec![provider],
-      None => enabled_providers(db).await?,
+      None => super::roads::route_providers(db, &key).await?,
     };
     let mut reasons = vec![];
 

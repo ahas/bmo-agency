@@ -87,6 +87,15 @@ pub async fn pinned_provider(db: &DatabaseConnection, key: &str) -> Result<Optio
   Ok(Some(mode))
 }
 
+/// The providers a key's route is resolved on where its caller names none, in the order they are asked: the
+/// one the key is set to, where that one is on, and then every provider on in the owner's order.
+pub async fn route_providers(db: &DatabaseConnection, key: &str) -> Result<Vec<String>, Refused> {
+  let pinned = pinned_provider(db, key).await?;
+  let rest = enabled_providers(db).await?.into_iter().filter(|name| Some(name) != pinned.as_ref());
+
+  Ok(pinned.clone().into_iter().chain(rest).collect())
+}
+
 /// Whether the automatic walk of a key asks a provider: it carries the key's line and, where its
 /// models are the registry's, the registration the key's tier maps to there is walked.
 pub(crate) async fn walked(
