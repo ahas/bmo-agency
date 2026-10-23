@@ -82,18 +82,6 @@ export async function workerMcpConfig(): Promise<string> {
   return mcpFile({ web: hostServer("web"), worker: hostServer("worker") });
 }
 
-// The chat line's configuration, every conversational agent's: agency's own namespace alone
-// (docs/agents.md). An agent on it reaches the web through the runners it launches, never by a web tool
-// of its own. It names nothing per room, per turn or per agent — these bytes stand in every session's
-// prefix — so what a call is about is read by the host for each call, out of the run's session record.
-export function chatMcpConfigPath(): string {
-  return linePath("chat");
-}
-
-export async function chatMcpConfig(): Promise<string> {
-  return mcpFile({ bmo: hostServer("bmo") });
-}
-
 // The editor line's configuration: the fragment tool alone. Every run is handed
 // the standing file, its desk named in its session record.
 export function editorMcpConfigPath(): string {
@@ -513,7 +501,6 @@ export async function deployAgents(gates: readonly GateAgent[] = []): Promise<Ag
   await compose(join(building, "browse", "request.md"), async () => agentFile("browse", "request.md"));
   await compose(asHanded(browseMcpConfigPath()), browseMcpConfig);
   await compose(asHanded(workerMcpConfigPath()), workerMcpConfig);
-  await compose(asHanded(chatMcpConfigPath()), chatMcpConfig);
   await compose(asHanded(editorMcpConfigPath()), editorMcpConfig);
   await compose(join(building, "worker", "trailer.md"), async () => workerTrailer());
 
