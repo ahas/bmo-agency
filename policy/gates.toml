@@ -37,6 +37,7 @@ places = [
   { key = "room-rules", reference = true },
   { key = "library-knowledge", reference = true },
   { key = "people-search" },
+  { key = "room-memories" },
   { key = "situation-rules" },
 ]
 

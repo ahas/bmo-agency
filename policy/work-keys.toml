@@ -104,6 +104,20 @@ laya_mode = "shadow"
 laya_road = true
 laya_each = true
 
+# The memory picker reads its candidates as the other pickers do and takes their road; no checkpoint has
+# learnt its question, so Laya is off.
+[[profile]]
+key = "room-memories"
+label = "Room memory picker"
+gate_sampling = { temperature = 0.1, top_p = 0.8, top_k = 20, min_p = 0 }
+kind = "gate"
+line = "gate"
+default_route_mode = "registered"
+default_claude_model = "claude-haiku-4-5-20251001"
+tier = "Simple"
+default_codex = { model = "gpt-5.6-luna", effort = "low" }
+laya_mode = "off"
+
 # The matcher stands beside the reference gates rather than among them, and takes the same road: its
 # own model, its own row, and Laya watching in the shadow.
 [[profile]]

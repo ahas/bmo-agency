@@ -9,6 +9,7 @@ fn the_gate_order_reads_every_gate_once_where_it_first_stands() {
       "room-rules",
       "library-knowledge",
       "people-search",
+      "room-memories",
       "situation-rules",
       "sanitizer",
       "output-format",
