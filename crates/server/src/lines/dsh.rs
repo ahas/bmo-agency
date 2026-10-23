@@ -246,7 +246,7 @@ impl Composed<'_> {
   /// What file effects the run may have, in dsh's own word: none composed for a run shown nothing, any for
   /// the worker, and writes within where it works for a run that allows what it shows, reads alone
   /// otherwise.
-  fn permission_mode(&self) -> Option<&'static str> {
+  pub fn permission_mode(&self) -> Option<&'static str> {
     if self.shown == Some("") {
       None
     } else if self.worker() {

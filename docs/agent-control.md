@@ -610,7 +610,10 @@ in the provider's own terms:
     as dsh's one route with the model and, where the agent chose one, its reasoning level. The key is
     named in the overlay as the environment variable it is read from and travels in the program's
     environment — OpenRouter's from the process's own, DeepSeek's read from the road's key file as the
-    program is stood; the overlay holds no secret. It is written under dsh's home — the data
+    program is stood; the overlay holds no secret. The permission mode the overlay's sandbox row states
+    travels in the program's environment as well, the one name dsh resolves both its sandbox and its
+    asking from: a session given the row alone would compose a pair dsh names no preset for, and its
+    permission service would not stand. It is written under dsh's home — the data
     root's `dsh`, which a deployment lays nothing over — and named by its own text, so the program's
     command — and its identity — stays the same while nothing it reads has changed.
   - **What the bot puts in.** A turn in the inbox is one file: the turn's id, the run's name and what

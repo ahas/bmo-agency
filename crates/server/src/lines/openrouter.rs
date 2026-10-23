@@ -67,6 +67,13 @@ pub fn resident_command(
   // rather than in anybody's home or a tree a deployment rebuilds.
   env.insert("DSH_HOME".to_owned(), dsh::dsh_home(&ground.roots.data).to_string_lossy().into_owned());
 
+  // dsh pairs the overlay's sandbox with whether a run stops to ask and refuses a pair it names no preset
+  // for, so the session is handed the mode as the one name it resolves both ends of, as a headless run is.
+  match run.permission_mode() {
+    Some(mode) => env.insert("DSH_PERMISSION_MODE".to_owned(), mode.to_owned()),
+    None => env.remove("DSH_PERMISSION_MODE"),
+  };
+
   let route = harness_providers::provider(provider)
     .and_then(|declared| declared.declared().dsh.as_ref())
     .ok_or_else(|| super::fault(format!("{provider} names no dsh route")))?;

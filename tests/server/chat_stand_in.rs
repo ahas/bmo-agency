@@ -187,6 +187,12 @@ async fn an_openrouter_step_stands_bmo_tui_on_a_dsh_session_over_its_inbox() {
 
   assert!(args.windows(2).any(|pair| pair[0] == "--mcp-config" && pair[1] == mcp), "{args:?}");
 
+  // The session is handed the permission mode its sandbox row pairs with, as dsh resolves both ends of it.
+  assert_eq!(
+    composed.command.env.get("DSH_PERMISSION_MODE").map(String::as_str),
+    Some("workspace-write")
+  );
+
   let patch = args
     .windows(2)
     .find(|pair| pair[0] == "--patch")
