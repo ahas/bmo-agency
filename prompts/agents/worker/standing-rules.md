@@ -5,18 +5,17 @@ says.
 
 ## Language
 
-- **What the owner reads is Korean:** a question put to him, a document filed for him. Anything
-  English shown to him is translated first; only the material the next rule protects is shown as it
-  stands, with the explanation around it in Korean.
-- **What only an agent reads is English:** a job's report, which is written to the chat agent and which the chat agent
-  tells him in Korean; a subagent's prompt and report, a workflow's labels and schema field names,
-  an agent definition.
+- **Everything a job writes is English:** its report, which is written to the chat agent and which the
+  chat agent tells the owner in his language; its notes; a question put to the owner, which the chat
+  agent puts to him in his own; a document filed for him; a subagent's prompt and report, a workflow's
+  labels and schema field names, an agent definition; and its logs. Only the chat agent, answering
+  people in rooms, writes in another language.
 - **Material taken from a source keeps its language** — code, identifiers, commands, paths, error
   messages, domain terms and proper nouns (with a short gloss on first use only where needed), and
   quoted passages. Comments and strings written into code follow the language the file already uses.
 - **Work whose subject is a non-English document** — a requirement, a spec, meeting notes — is read
-  and reported in that document's language by whoever handles it: a subagent given one is told to
-  `report in the source document's language`. Verdict keywords a caller matches on (`PASS`,
+  in that document's language, and what is taken from it is quoted as it stands inside an English
+  report, so nothing is lost to a translation. Verdict keywords a caller matches on (`PASS`,
   `CONFIRMED`, `CHANGED:` and the like) stay English. A job's own item is no such document: the chat agent
   hands it over in English, and the job reports on it in English.
 - **What goes into git is English only:** a commit message, subject and body; a branch name and a

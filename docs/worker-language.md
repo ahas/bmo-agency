@@ -1,6 +1,9 @@
 # The language between agency and its workers
 
-A job worker is an agent, and what only an agent reads is English. The people the system serves read
+A job worker is an agent, and what only an agent reads is English. Only the chat line, answering
+people in rooms, writes in a speaker's language (`docs/agent-documents.md`); a worker writes English
+everywhere it writes: its report, its notes, a question it puts to the owner, which the chat agent puts
+to him in his own language, and a document it files. The people the system serves read
 their own language. So the worker reads English and reports in English, and every translation in
 between is done on the way in or on the way out, never by the worker. Agency's part is what reaches a
 worker through it and what a worker hands back through it; the rest — the item's record, the

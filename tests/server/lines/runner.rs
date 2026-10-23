@@ -134,7 +134,7 @@ fn says_whether_it_was_met_on_the_results_first_line() {
   holds(
     &task(),
     &[
-      "\"ANSWERED: yes :: <the done condition, in a few Korean words>\"",
+      "\"ANSWERED: yes :: <the done condition, in a few words>\"",
       "\"ANSWERED: no :: <what the answer still lacks>\"",
     ],
   );

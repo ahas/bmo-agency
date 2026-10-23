@@ -95,6 +95,13 @@ composed into a system prompt, and what the chat agent's own prompt is made of.
   approval, the worker's run and its close, host work, the fast track, images, the response protocol
   with its sentinels, the language an answer is written in, what the room hears of the agent's tools,
   the draft process, the answer rules, promises, and a turn past its clock. It is how the chat agent works at all, and it says when to act.
+- **Only the chat line answers in a speaker's language.** The chat agent and every companion, answering
+  people in rooms, write in the language of the person they answer. Every other line writes English: a
+  worker's and a co-worker's reports, notes and questions, a runner's result, a gate's verdict, and the
+  logs; so does the chat agent wherever no person in a room reads it — an item's brief and notes, a work
+  order, a memory, a handoff note — words quoted from people kept as they said them. The exceptions are
+  the agents whose product is text a person reads in a language of its own: a translation, a line for
+  the voice, the news page.
 - **No document fixes the language the chat agent answers in.** It answers each person in the
   language that person wrote to it in; the room's language, which the turn's ANSWER LANGUAGE line
   names, stands only where the speaker's language cannot be told, and what the owner is told is in the

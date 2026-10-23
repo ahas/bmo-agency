@@ -226,3 +226,21 @@ fn the_manual_tells_what_an_answer_to_each_round_of_the_draft_process_is() {
   }
   assert_eq!(drafting.trim().lines().count(), 1, "one paragraph: {drafting}");
 }
+
+#[test]
+fn only_the_chat_line_writes_in_a_speaker_s_language_and_every_other_line_writes_english() {
+  let language = section(&composed(), "THE LANGUAGE YOU ANSWER IN");
+  let prompt = |path: &str| std::fs::read_to_string(tree().join("prompts").join(path)).unwrap();
+
+  assert!(
+    language.contains("Only you, answering people in rooms, write in a speaker's language"),
+    "{language}"
+  );
+  assert!(prompt("agents/worker/standing-rules.md").contains("Everything a job writes is English"));
+  assert!(prompt("agents/companion/handoff.md").contains("Write it in English"));
+
+  for runner in ["agents/search/task.md", "agents/search/branch.md", "agents/browse/task.md"] {
+    assert!(prompt(runner).contains("English, "), "{runner}");
+    assert!(!prompt(runner).contains("Korean"), "{runner}");
+  }
+}

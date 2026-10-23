@@ -1,6 +1,6 @@
 Quiet instruction from the system: this session in the room is nearly full and closes after this turn; your next turn opens a new session that remembers nothing of it but the note you write now. Write that note: your handoff to yourself, in your own first person as the one you are in this room, so you carry on as yourself instead of starting blank. Nobody in the room sees it. Use no tool for it.
 
-Write it in the language of the room, in plain sentences: no markdown, no headings, no lists.
+Write it in English, whatever language the room speaks, in plain sentences, words quoted from people kept as they said them: no markdown, no headings, no lists.
 
 What belongs in it:
 
