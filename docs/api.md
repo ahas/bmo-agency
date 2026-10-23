@@ -28,7 +28,7 @@ a field's exact shape matters, the OpenAPI document is the one to read.
 ## Versioning
 
 - The contract carries the repository's one version, in semver; the workspace manifest is its source. Before
-  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.58`.
+  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.59`.
 - A change to this document and a change to the boundary go in one commit. A change to a route, an event, a
   hook or a shared table's contract repairs this document in the same commit.
 - The major moves on a removed or renamed route, field or event, the minor on an addition, the patch on
@@ -549,11 +549,17 @@ nothing of its placement.
 | GET | `/jobs/{jobId}` | One job and what its turn spent, `usage`. |
 | PATCH | `/jobs/{jobId}` | End a job with its outcome, or stop it; its assignment is released. |
 | GET | `/jobs/{jobId}/prompt` | The prompt the job was launched with. |
+| POST | `/instruction-texts` | The work-order step's line composed from an instruction. |
 
 A job's `itemId` and `leaseId` are the harness's references, kept as given. The harness renews the lease,
 reads the job's progress, questions and outcome from its fields and events, and reports and closes the item
 in the job service. Agency calls nothing of the job service and keeps no client of it.
 
+- **A job may carry an instruction,** `instruction`, beside its item or inside it — `repository`,
+  `documents`, `sentences` and `checks`, every one required and none empty (`docs/worker-bench.md`, 「A
+  small-model instruction」); one that lacks a field is refused 400 naming it. The job keeps it, answers
+  it, and its prompt renders it under the item's title. `POST /instruction-texts` answers `text`, the
+  one line a work-order step is written as, composed from an instruction.
 - **A job is launched only where a login can carry it.** Where every Claude login that carries the job's
   work key is closed — its window full, resting, or waiting for a person to sign in again — `POST /jobs`
   answers 503 `no-login-open`, naming the logins and the moment the first of them reopens, or that each

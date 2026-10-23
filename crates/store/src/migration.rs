@@ -25,6 +25,7 @@ mod m20261102_000001_route_registration;
 mod m20261103_000001_run_usage;
 mod m20261104_000001_job_usage;
 mod m20261105_000001_prefix_documents;
+mod m20261106_000001_job_instruction;
 
 use sea_orm_migration::prelude::*;
 
@@ -128,6 +129,7 @@ impl MigratorTrait for Migrator {
       Box::new(m20261103_000001_run_usage::Migration),
       Box::new(m20261104_000001_job_usage::Migration),
       Box::new(m20261105_000001_prefix_documents::Migration),
+      Box::new(m20261106_000001_job_instruction::Migration),
     ]
   }
 

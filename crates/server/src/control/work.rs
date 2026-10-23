@@ -354,7 +354,7 @@ crate::moved!(ChangeAssignment);
 
 const JOB_COLUMNS: &str = r#""id", "item_id", "lease_id", "holder_name", "assignment_id", "worker_name",
   "session_id", "run_id", "run_name", "room_id", "state", "outcome", "report", "token_count",
-  "input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens",
+  "input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens", "instruction",
   "started_at", "ended_at", "prompt", "prompt_english""#;
 
 /// What a job's turn spent, apart; none until the turn ends and where its road reported no figures.
@@ -397,6 +397,9 @@ fn job_value(row: &QueryResult) -> Result<Value, sea_orm::DbErr> {
     "report": row.try_get::<Option<String>>("", "report")?,
     "tokenCount": row.try_get::<i64>("", "token_count")?,
     "usage": usage_of(row)?,
+    "instruction": row
+      .try_get::<Option<String>>("", "instruction")?
+      .and_then(|text| serde_json::from_str::<Value>(&text).ok()),
     "startedAt": row.try_get::<i64>("", "started_at")?,
     "endedAt": row.try_get::<Option<i64>>("", "ended_at")?,
   }))
@@ -412,11 +415,110 @@ async fn job(db: &sea_orm::DatabaseConnection, id: i64) -> Result<(Value, String
   }
 }
 
-/// The prompt a job's worker is given: the item as the harness read it.
-fn prompt_of(item: &Value) -> String {
+// The four fields of a small-model instruction, in the order a prompt and a step say them.
+const INSTRUCTION_LISTS: [&str; 3] = ["documents", "sentences", "checks"];
+
+/// A small-model instruction as a caller names it (docs/worker-bench.md, 「A small-model instruction」):
+/// its repository and its documents, sentences and checks, every one present and none empty; none where
+/// it names none.
+pub fn instruction_of(named: Option<&Value>) -> Result<Option<Value>, Refused> {
+  let Some(named) = named.filter(|named| !named.is_null()) else {
+    return Ok(None);
+  };
+  let repository = named
+    .get("repository")
+    .and_then(Value::as_str)
+    .map(str::trim)
+    .filter(|repository| !repository.is_empty())
+    .ok_or_else(|| bad("instruction.repository (a string) is required"))?;
+  let mut instruction = json!({ "repository": repository });
+
+  for field in INSTRUCTION_LISTS {
+    let entries = named
+      .get(field)
+      .and_then(Value::as_array)
+      .filter(|entries| !entries.is_empty())
+      .ok_or_else(|| bad(format!("instruction.{field} (a list that is not empty) is required")))?;
+    let mut kept = Vec::with_capacity(entries.len());
+
+    for entry in entries {
+      match entry.as_str().map(str::trim).filter(|entry| !entry.is_empty()) {
+        Some(entry) => kept.push(Value::from(entry)),
+        None => return Err(bad(format!("instruction.{field}: every entry is a string that is not empty"))),
+      }
+    }
+
+    instruction[field] = Value::Array(kept);
+  }
+
+  Ok(Some(instruction))
+}
+
+fn entries<'a>(instruction: &'a Value, field: &str) -> Vec<&'a str> {
+  instruction[field]
+    .as_array()
+    .map(|entries| entries.iter().filter_map(Value::as_str).collect())
+    .unwrap_or_default()
+}
+
+/// An instruction as a job's prompt renders it, ahead of the item's brief.
+pub fn instruction_prompt(instruction: &Value) -> String {
+  let mut text = format!(
+    "## Instruction\n\nRepository: `{}`\n",
+    instruction["repository"].as_str().unwrap_or_default()
+  );
+  let headings = [
+    ("documents", "Read first, the canonical documents the change answers to:"),
+    ("sentences", "The change must make or keep each of these true:"),
+    ("checks", "It is done when each of these passes:"),
+  ];
+
+  for (field, heading) in headings {
+    text.push_str(&format!("\n{heading}\n\n"));
+
+    for entry in entries(instruction, field) {
+      if field == "checks" {
+        text.push_str(&format!("- `{entry}`\n"));
+      } else {
+        text.push_str(&format!("- {entry}\n"));
+      }
+    }
+  }
+
+  text
+}
+
+/// An instruction as the one line a work-order step is written as.
+pub fn instruction_line(instruction: &Value) -> String {
+  format!(
+    "In `{}`, reading {}: {} Checked by {}.",
+    instruction["repository"].as_str().unwrap_or_default(),
+    entries(instruction, "documents").join(", "),
+    entries(instruction, "sentences").join(" "),
+    entries(instruction, "checks")
+      .iter()
+      .map(|check| format!("`{check}`"))
+      .collect::<Vec<_>>()
+      .join(", ")
+  )
+}
+
+/// The prompt a job's worker is given: the item as the harness read it, its instruction first where it
+/// carries one.
+fn prompt_of(item: &Value, instruction: Option<&Value>) -> String {
   let title = item.get("title").and_then(Value::as_str).unwrap_or("the item");
   let brief = item.get("brief").and_then(Value::as_str).unwrap_or_default();
-  let mut prompt = format!("# {title}\n\n{brief}\n");
+  let mut prompt = format!("# {title}\n\n");
+
+  if let Some(instruction) = instruction {
+    prompt.push_str(&instruction_prompt(instruction));
+    prompt.push('\n');
+  }
+
+  if !brief.trim().is_empty() {
+    prompt.push_str(brief);
+    prompt.push('\n');
+  }
 
   if let Some(order) = item.get("workOrder").filter(|order| !order.is_null()) {
     prompt.push_str("\n## Work order\n\n");
@@ -452,6 +554,7 @@ impl Route for CreateJob {
     let lease_id = number(&asked, "leaseId").ok_or_else(|| bad("leaseId (a number) is required"))?;
     let holder = text(&asked, "holderName")?.trim().to_owned();
     let item = asked.get("item").cloned().ok_or_else(|| bad("item is required"))?;
+    let instruction = instruction_of(asked.get("instruction").or_else(|| item.get("instruction")))?;
     let db = &call.ground().db;
     let now = now_ms();
 
@@ -471,13 +574,13 @@ impl Route for CreateJob {
       return Err(Refused::new(StatusCode::SERVICE_UNAVAILABLE, why).with_code("no-login-open"));
     }
     let worker_name: String = held["workerName"].as_str().unwrap_or_default().to_owned();
-    let prompt = prompt_of(&item);
+    let prompt = prompt_of(&item, instruction.as_ref());
     let room_id = number(&asked, "roomId").or_else(|| number(&item, "roomId"));
     let row = one(
       db,
       r#"INSERT INTO "jobs" ("item_id", "lease_id", "holder_name", "assignment_id", "worker_name",
-              "room_id", "state", "token_count", "started_at", "prompt")
-         VALUES ($1, $2, $3, $4, $5, $6, 'starting', 0, $7, $8) RETURNING "id""#,
+              "room_id", "state", "token_count", "started_at", "prompt", "instruction")
+         VALUES ($1, $2, $3, $4, $5, $6, 'starting', 0, $7, $8, $9) RETURNING "id""#,
       vec![
         item_id.into(),
         lease_id.into(),
@@ -487,6 +590,7 @@ impl Route for CreateJob {
         room_id.map(Into::into).unwrap_or(DbValue::BigInt(None)),
         now.into(),
         prompt.clone().into(),
+        instruction.as_ref().map(Value::to_string).into(),
       ],
     )
     .await?
@@ -868,6 +972,23 @@ impl Route for ChangeJob {
 }
 
 crate::moved!(ChangeJob);
+
+/// The line a work-order step is written as, composed from an instruction.
+pub struct InstructionText;
+
+impl Route for InstructionText {
+  const METHOD: Method = Method::POST;
+  const PATH: &'static str = "/instruction-texts";
+
+  async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
+    let asked = body(&mut call).await?;
+    let instruction = instruction_of(Some(&asked))?.ok_or_else(|| bad("an instruction is required"))?;
+
+    Ok(answer(StatusCode::OK, json!({ "text": instruction_line(&instruction) })))
+  }
+}
+
+crate::moved!(InstructionText);
 
 /// The prompt a job was launched with.
 pub struct ReadJobPrompt;

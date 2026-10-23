@@ -1165,6 +1165,28 @@ pub struct JobItem {
   pub notes: Vec<Value>,
   /// the caller's own metadata
   pub labels: BTreeMap<String, String>,
+  /// The item's small-model instruction, where it carries one.
+  #[serde(default)]
+  pub instruction: Option<JobInstruction>,
+}
+
+/// JobInstruction: the whole of a small-model instruction: the checkout the change is made in, the
+/// canonical documents it answers to, the sentences it must make or keep true and the commands whose
+/// passing says it is done; every one present and none empty.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct JobInstruction {
+  pub repository: String,
+  pub documents: Vec<String>,
+  pub sentences: Vec<String>,
+  pub checks: Vec<String>,
+}
+
+/// InstructionText: the one line a work-order step is written as, composed from an instruction.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct InstructionText {
+  pub text: String,
 }
 
 /// Job: itemId and leaseId are the harness's references, kept as given: the harness renews the lease, and reports and closes the item in the job service from report and outcome.
@@ -1189,6 +1211,9 @@ pub struct Job {
   /// What the job's turn spent, apart; none until it ends or where its road reported no figures.
   #[serde(default)]
   pub usage: Option<RunUsage>,
+  /// The small-model instruction the job carries, where it carries one.
+  #[serde(default)]
+  pub instruction: Option<JobInstruction>,
   /// epoch milliseconds
   pub started_at: i64,
   /// epoch milliseconds
@@ -1257,6 +1282,9 @@ pub struct RunJob {
   pub lease_id: i64,
   pub holder_name: String,
   pub item: JobItem,
+  /// The job's small-model instruction, over any its item carries.
+  #[serde(default)]
+  pub instruction: Option<JobInstruction>,
 }
 
 /// The body that ends or stops a job.

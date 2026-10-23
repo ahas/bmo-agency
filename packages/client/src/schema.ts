@@ -1253,6 +1253,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/instruction-texts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** The line a work-order step is written as, composed from a small-model instruction. */
+        post: operations["createInstructionTexts"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/session-work/{sessionId}": {
         parameters: {
             query?: never;
@@ -2829,6 +2846,22 @@ export interface components {
             labels: {
                 [key: string]: string;
             };
+            /**
+             * @description The item's small-model instruction, where it carries one.
+             * @default null
+             */
+            instruction: components["schemas"]["JobInstruction"] | null;
+        };
+        /**
+         * @description JobInstruction: the whole of a small-model instruction: the checkout the change is made in, the
+         *     canonical documents it answers to, the sentences it must make or keep true and the commands whose
+         *     passing says it is done; every one present and none empty.
+         */
+        JobInstruction: {
+            repository: string;
+            documents: string[];
+            sentences: string[];
+            checks: string[];
         };
         /** @description The body that releases an assignment or holds it longer. */
         AssignmentChange: {
@@ -2872,6 +2905,11 @@ export interface components {
              */
             usage: components["schemas"]["RunUsage"] | null;
             /**
+             * @description The small-model instruction the job carries, where it carries one.
+             * @default null
+             */
+            instruction: components["schemas"]["JobInstruction"] | null;
+            /**
              * Format: int64
              * @description epoch milliseconds
              */
@@ -2897,6 +2935,11 @@ export interface components {
             leaseId: number;
             holderName: string;
             item: components["schemas"]["JobItem"];
+            /**
+             * @description The job's small-model instruction, over any its item carries.
+             * @default null
+             */
+            instruction: components["schemas"]["JobInstruction"] | null;
         };
         /** @description The body that ends or stops a job. */
         JobChange: {
@@ -2910,6 +2953,10 @@ export interface components {
             jobId: number;
             text: string;
             english: string | null;
+        };
+        /** @description InstructionText: the one line a work-order step is written as, composed from an instruction. */
+        InstructionText: {
+            text: string;
         };
         /** @description SessionWork: */
         SessionWork: {
@@ -5883,6 +5930,32 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
+        };
+    };
+    createInstructionTexts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JobInstruction"];
+            };
+        };
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstructionText"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
         };
     };
     readSessionWorkBySessionId: {

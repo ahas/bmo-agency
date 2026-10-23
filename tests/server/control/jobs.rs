@@ -203,3 +203,75 @@ async fn a_running_assignment_whose_job_ended_is_released_as_the_assignments_are
   assert_eq!(job["tokenCount"], 1111);
   assigned(port, token, 42).await;
 }
+
+// A job's small-model instruction (docs/worker-bench.md, 「A small-model instruction」): refused naming the
+// field it lacks, kept and answered whole, rendered under the item's title ahead of its brief, and
+// composed into the one line a work-order step is written as.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_job_carries_its_instruction_whole_into_its_prompt_and_a_step_s_line() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let data = home.path().join("data");
+  let token = "secret";
+  let instruction = json!({
+    "repository": "services/area",
+    "documents": ["docs/area.md"],
+    "sentences": ["A refused call names the field it lacks."],
+    "checks": ["cargo test --test area"],
+  });
+
+  std::fs::create_dir_all(&data).unwrap();
+  scratch
+    .run(r#"INSERT INTO "agents" ("name", "kind") VALUES ('helper', 'worker')"#, vec![])
+    .await;
+  scratch.run(r#"DELETE FROM "claude_accounts""#, vec![]).await;
+
+  let server = standing::stand_server(home.path(), &data, &scratch.address(), token);
+  let port = server.port;
+  let assignment = assigned(port, token, 43).await;
+  let job = |instruction: Value| {
+    json!({
+      "assignmentId": assignment,
+      "itemId": 43,
+      "leaseId": 1,
+      "holderName": "harness",
+      "item": item(),
+      "instruction": instruction,
+    })
+  };
+
+  let mut lacking = instruction.clone();
+  lacking["sentences"] = json!([]);
+  let (status, refused) = post(port, token, "/jobs", job(lacking)).await;
+
+  assert_eq!(status, 400, "{refused}");
+  assert!(refused["error"].as_str().unwrap().contains("instruction.sentences"), "{refused}");
+
+  let (status, created) = post(port, token, "/jobs", job(instruction.clone())).await;
+
+  assert_eq!(status, 201, "{created}");
+  assert_eq!(created["instruction"], instruction);
+
+  let id = created["id"].as_i64().unwrap();
+  let prompt = get(port, token, &format!("/jobs/{id}/prompt")).await.1["text"]
+    .as_str()
+    .unwrap()
+    .to_owned();
+  let rendered = prompt.find("## Instruction").expect("the prompt renders the instruction");
+
+  assert!(prompt.starts_with("# A harmless item\n\n## Instruction"), "{prompt}");
+  assert!(rendered < prompt.find("Answer that nothing is to be done.").unwrap(), "{prompt}");
+  assert!(prompt.contains("Repository: `services/area`"), "{prompt}");
+  assert!(prompt.contains("- docs/area.md\n"), "{prompt}");
+  assert!(prompt.contains("- A refused call names the field it lacks.\n"), "{prompt}");
+  assert!(prompt.contains("- `cargo test --test area`\n"), "{prompt}");
+
+  let (status, text) = post(port, token, "/instruction-texts", instruction).await;
+
+  assert_eq!(status, 200, "{text}");
+  assert_eq!(
+    text["text"],
+    "In `services/area`, reading docs/area.md: A refused call names the field it lacks. Checked by \
+     `cargo test --test area`."
+  );
+}

@@ -124,6 +124,11 @@ launching its run. When to file is in the manual; this is how. Your tools are th
    it runs out.
 2. **`run_job`** with `assignmentId`, `itemId`, `leaseId`, `holderName` `harness` and the same
    `item`. It launches the worker's session on the item and the lease, and answers the job.
+   - **Work a small model runs carries an `instruction`,** all four fields filled: `repository`, the
+     checkout; `documents`, the canonical documents the change answers to; `sentences`, each statement
+     the change must make or keep true; `checks`, the commands whose passing says it is done. Nothing
+     the four do not say reaches such a run. A work-order step for such work is written as the line
+     `POST /instruction-texts` composes from the same four.
 3. **While it runs,** renew the lease with `job_lease_renew` and write its progress onto the item
    with `job_report` of kind `progress` and `actorName` `harness`. The plugin renews the lease while
    your session lasts; renew it yourself on every turn that touches the item while a run is going.

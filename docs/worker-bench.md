@@ -33,6 +33,28 @@ Each job worker holds three things beside the work of its jobs:
   structure, the canonical document of the area it works in — read once into the cached prefix rather
   than again by every job.
 
+## A small-model instruction
+
+- **The whole of a small-model instruction is four fields,** the `instruction` a job carries (`docs/api.md`,
+  「assignments and jobs」):
+  - `repository`: the checkout the change is made in;
+  - `documents`: the canonical documents the change answers to, read before anything is touched;
+  - `sentences`: the sentences the change must make or keep true, each a statement a reader can check
+    against the result;
+  - `checks`: the commands whose passing says the change is done.
+- **Each field is required and none is empty.** A job that carries an instruction carries all four; one
+  missing, empty or naming an empty entry is refused with the field it lacks. A job without an instruction
+  is a job as the item's brief states it.
+- **The job's prompt renders it first,** under the item's title and ahead of its brief: the repository,
+  the documents to read, the sentences, and the checks, each as a list in the order given. The brief,
+  work order and notes follow as they stand.
+- **A work-order step's text is composed from it,** `POST /instruction-texts`: one line naming the
+  repository, the documents, the sentences and the checks, in the same order, so a step saved in the job
+  service and the prompt that runs it say the same four things.
+- **Why four fields:** a small model changes code safely where it is told where, against what, to which
+  statements and how to know it is done, and nothing else; whatever the four do not carry is the item's
+  brief, which such a job may leave empty.
+
 ## Preamble
 
 ### What it is
