@@ -52,10 +52,12 @@ async fn a_running_server_reads_the_pool_s_requests_and_roles_and_keeps_a_place_
            ("token", "request_key", "owner", "source", "role", "work_key", "provider", "model", "effort", "tier",
             "capacity", "generation", "state", "enqueued_at", "leased_at", "child_id")
          VALUES ('t-1', 'k-1', 'order:1', 'cowork', 'tracer', 'role:tracer', 'codex', 'm', 'low', 'Light', 4, 1, 'waiting', 100, NULL, NULL),
-                ('t-2', 'k-2', 'order:1', 'cowork', 'tracer', 'role:tracer', 'codex', 'm', 'low', 'Light', 4, 1, 'active', 110, 120, 'unit-2'),
-                ('t-3', 'k-3', 'order:2', 'cowork', 'tracer', 'role:tracer', 'codex', 'm', 'low', 'Light', 4, 1, 'active', 130, 140, 'unit-3'),
+                ('t-2', 'k-2', 'order:1', 'cowork', 'tracer', 'role:tracer', 'codex', 'm', 'low', 'Light', 4, 1, 'active', 110, $1, 'unit-2'),
+                ('t-3', 'k-3', 'order:2', 'cowork', 'tracer', 'role:tracer', 'codex', 'm', 'low', 'Light', 4, 1, 'active', 130, $1, 'unit-3'),
                 ('t-4', 'k-4', 'order:1', 'cowork', 'tracer', 'role:tracer', 'codex', 'm', 'low', 'Light', 4, 1, 'released', 90, 95, 'unit-4')"#,
-      vec![],
+      // The active leases were leased just now, so the server's pass over bound leases leaves them to the
+      // launch's grace rather than reading their made-up children as ended.
+      vec![agency_server::now_ms().into()],
     )
     .await;
   scratch
