@@ -28,7 +28,7 @@ a field's exact shape matters, the OpenAPI document is the one to read.
 ## Versioning
 
 - The contract carries the repository's one version, in semver; the workspace manifest is its source. Before
-  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.21`.
+  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.22`.
 - A change to this document and a change to the boundary go in one commit. A change to a route, an event, a
   hook or a shared table's contract repairs this document in the same commit.
 - The major moves on a removed or renamed route, field or event, the minor on an addition, the patch on
@@ -87,9 +87,64 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
 
 | Method | Path | Does |
 |---|---|---|
-| GET | `/agents` | Every agent. |
+| GET | `/agents` | Every agent, each with the login account that owns it. |
+| POST | `/agents` | Register an agent of any kind; one that converses is given its brain. |
 | GET | `/agents/{agentName}` | One agent: role, gates, reasoning, voice, reset point, stand-in. |
 | PATCH | `/agents/{agentName}` | Change an agent's gates, reasoning, role or voice. |
+| DELETE | `/agents/{agentName}` | End an agent's registration; `forgetBrain` lets its brain go with it. |
+
+- **Every agent is a registration row** (`docs/agents.md`), and these routes add, change and end any of
+  them: the chat agent and the companions, a worker, a gate, a runner and a recollector alike.
+- **An agent is owned by a login account,** `ownerAccount`: the id of the user it belongs to, the same id
+  an account's `user_id` names (`docs/store.md`). None means the administrator's, and every agent
+  registered without an owner reads so. `GET /agents` and `GET /agents/{agentName}` answer it on every
+  agent.
+- **Who may register or end which agent is the caller's to judge.** The agent screen is the
+  administrator's, and a user registers agents of their own under a permission the caller holds; agency
+  writes the owner it is handed and judges no permission.
+- **`POST /agents` takes the registration,** each field judged in this order and nothing written until
+  all have passed:
+  - `name`, the agent's key: a lowercase letter, then lowercase letters, digits and hyphens, forty
+    characters at most (the companions policy's `name_pattern`), and held by no agent yet;
+  - `label`, given;
+  - `kind`, one the roles policy names a role for: `chat`, `worker`, `runner`, `gate` or `recollector`;
+  - `role`, a role the policy declares, the kind's own where none is given (`docs/agent-roles.md`);
+  - `ownerAccount`, none where the caller gives none;
+  - for any kind, `icon`, `thinking`, and `effort`, a level the reasoning policy holds;
+  - for the `chat` kind, its pin and its worker, judged as a companion's are (`docs/companions.md`,
+    「Where a companion and its rooms come from」): `provider`, `model` and `worker`. The row is written
+    as a companion added on the console is: the `room` scope, the `pieces` shape, not the default
+    answerer, the brain folder `agents/<name>`, and no prompt folder;
+  - for the `worker` kind, `cwd`, the code tree's root where none is given, and `nodeName`.
+  - A row of the `runner`, `gate` or `recollector` kind is its name, label, role and owner: what its runs
+    go out on is read by its name off the work keys (`docs/model-tiers.md`), so it runs nothing until a
+    work key's profile names it.
+  - No agent registered here is seeded or the default answerer.
+- **A refusal names its field:** 400 `bad-request` with `field` beside `error`, and 409 `name-taken`
+  for a name an agent already holds.
+- **The answer is 201,** `agent`, the agent as `GET /agents/{agentName}` answers it, and `brain`, what
+  became of its brain: `made`, `kept` where one already stood under its key, `none` where no brain is
+  deployed or the agent is given none, or `failed`, the failure logged. The registration stands whatever
+  the brain answers.
+- **An agent of the `chat` kind, or holding the chat role, is given its brain as it is registered,**
+  through the brain (「Calls agency makes」): filed under its owner's id as the account key where it names
+  an owner, and under `AGENCY_BRAIN_ACCOUNT` where it names none.
+- **`DELETE /agents/{agentName}` ends a registration,** taking `force`, `forgetBrain` and `rooms` in its
+  query:
+  - 404 `not-found` for no agent of the name;
+  - 409 `seeded` for an agent the deployment seeds or the default answerer, whatever `force` says, since
+    the deployment stands it again;
+  - 409 `running` for an agent a turn holds now — its agent lock, or a worker's pane lock — unless
+    `force`, which ends it under the turn.
+  - A companion's conversation is reset first, as its removal resets it (`docs/companions.md`, 「Starting
+    it afresh」), each of the `rooms` named read as a room it shares, so the rooms keep their record.
+  - Then in one write its settings, its base prompt choice, its session reset asks, its gate switches, its
+    sampling, its reset point, a worker's sessions and the words said to it, and its row; then what
+    stands for it: its program, its workspace, its place and home folder, its execution rows, the agent
+    host's records of it and its lock. What could not go is logged.
+  - **Its brain is data and stays,** unless `forgetBrain` is true: then the brain is let go whole, with the
+    records of its recollectors' sessions.
+  - The answer is 204.
 
 ### prompt-documents
 
@@ -512,17 +567,18 @@ route. A caller uses one of them and writes no client of its own.
 Agency reaches upstreams only, through what their repositories publish: brain, graph, node, arbiter,
 pocket, testbed and chat through their clients, and cache-warmer through the schedule library
 `bmo-cache-warmer-schedule`.
-Of the brain it asks a companion's own brain made as the companion is added, found by the companion's key,
+Of the brain it asks an agent's own brain made as the agent is registered, found by the agent's key,
 let go whole or only found for a preview, the discipline a chat launch's system prompt carries, and the
 base layer of the agent's persona that prompt ends with.
 
 - **Where the brain is.** `AGENCY_BRAIN_URL` names its address and `AGENCY_BRAIN_TOKEN` the token it is
   called with. With no address, no agent has a brain: nothing is made, counted or let go.
 - **The account a brain is filed under.** The brain keeps one brain per agent, keyed by an account key
-  and the agent's key, and never makes one by itself. A brain agency makes carries the account key
-  `AGENCY_BRAIN_ACCOUNT` names and, as the agent's key, the agent's registered name — the key the brain
-  tool and the gate look a brain up by. The brain reads no meaning into the account key. With no account
-  named, agency makes no brain and logs that it made none.
+  and the agent's key, and never makes one by itself. A brain agency makes carries, as the account key,
+  the id of the login account owning the agent where it names one, and otherwise the key
+  `AGENCY_BRAIN_ACCOUNT` names; as the agent's key, the agent's registered name — the key the brain tool
+  and the gate look a brain up by. The brain reads no meaning into the account key. With no account to
+  file it under, agency makes no brain and logs that it made none.
 - **The base persona.** At a chat launch the agent's brain, found by its key, is asked for its persona
   rendered of the layer named `persona` alone; a brain that holds no such layer gives none. The tone and
   room layers are no part of it: they stay in the room's block the caller composes.
@@ -533,9 +589,9 @@ base layer of the agent's persona that prompt ends with.
   `name` of its `[owner]` table, and nothing else of the file is read. With no file named, a file that does
   not read, or a key it holds no string for, the placeholder stays unfilled and the brain's persona is not
   used.
-- **Making a companion's brain.** As a companion is added, the brain is asked for the agent's key first;
-  where it answers one, nothing is made. A brain that cannot be reached, or refuses, leaves the companion
-  added and the failure logged.
+- **Making an agent's brain.** As a companion is added, or an agent given a brain is registered
+  (「agents」), the brain is asked for the agent's key first; where it answers one, nothing is made. A brain
+  that cannot be reached, or refuses, leaves the agent registered and the failure logged.
 
 Each surface is a crate of its own repository, declared in the workspace manifest and allowed by
 `tests/dependencies.rs`; every other crate of another repository, a downstream's client among them,

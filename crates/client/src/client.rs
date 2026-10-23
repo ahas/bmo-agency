@@ -319,6 +319,17 @@ pub struct ListCompanionsQuery {
 
 #[derive(Debug, Clone, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct DeleteAgentQuery {
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub force: Option<bool>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub forget_brain: Option<bool>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub rooms: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DeleteRoomHoldingQuery {
   #[serde(skip_serializing_if = "Option::is_none")]
   pub dry_run: Option<bool>,
@@ -395,9 +406,14 @@ impl AgencyClient {
     Self::nothing(self.request(Method::DELETE, &["hooks", point])).await
   }
 
-  /// `GET /agents`: Every agent.
+  /// `GET /agents`: Every agent, each with the login account that owns it.
   pub async fn list_agents(&self) -> Answer<AgentPage> {
     Self::answered(self.request(Method::GET, &["agents"])).await
+  }
+
+  /// `POST /agents`: Register an agent of any kind; one that converses is given its brain.
+  pub async fn create_agents(&self, body: &AgentAsk) -> Answer<AgentCreated> {
+    Self::answered(self.request(Method::POST, &["agents"]).json(body)).await
   }
 
   /// `GET /agents/{agentName}`: One agent: role, gates, reasoning, voice, reset point, stand-in.
@@ -408,6 +424,11 @@ impl AgencyClient {
   /// `PATCH /agents/{agentName}`: Change an agent's gates, reasoning, role or voice.
   pub async fn change_agent(&self, agent_name: &str, body: &AgentChange) -> Answer<Agent> {
     Self::answered(self.request(Method::PATCH, &["agents", agent_name]).json(body)).await
+  }
+
+  /// `DELETE /agents/{agentName}`: End an agent's registration; `forgetBrain` lets its brain go with it.
+  pub async fn delete_agent(&self, agent_name: &str, query: &DeleteAgentQuery) -> Answer<()> {
+    Self::nothing(self.request(Method::DELETE, &["agents", agent_name]).query(query)).await
   }
 
   /// `GET /prompt-documents`: Deployed prompt documents: base prompts, rulebooks, personas, agent definitions, system prompts.

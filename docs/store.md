@@ -10,7 +10,8 @@ seeds. The other crates and the server reach the store only through it.
   it, columns, keys and indexes alike, and the clocks' two tables and the run ledger in agency's own,
   each made by a migration of its own after the first. A column of agency's own beside an archive shape
   is added by a migration of its own too: a worker's session record keeps the tokens its last answered
-  turn carried and the share of the window they filled. The words said to a worker stand in the
+  turn carried and the share of the window they filled, and an agent's row the login account that owns
+  it. The words said to a worker stand in the
   archive's shape, made by a migration of their own after the first.
 - **The record of what ran is `agency_migrations`,** a table of the store's own, so the store may stand
   in a database beside another service's tables without either's record in the other's way.
@@ -78,6 +79,9 @@ seeds. The other crates and the server reach the store only through it.
   shares」).
 - **An account's `user_id`** names the user it belongs to, or none for the owner's; agency reads it and
   never fills it in itself, since who the users are is the caller's.
+- **An agent's `owner_account`** names the id of the user it belongs to, the same id an account's
+  `user_id` names, or none for the administrator's; agency writes the one its registration is handed and
+  never chooses one itself.
 - **An agent's `prompts`** names the folder under `prompts/agents/` that holds what that agent alone is
   given, one plain name, or none for an agent given no folder of its own, as a companion added on the
   console starts. A companion's system prompt and its persona are read from this folder, never from the

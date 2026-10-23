@@ -26,6 +26,7 @@ mod companion {
 mod config;
 mod control {
   mod account_routes;
+  mod agent_roster;
   mod agents;
   mod base_prompts;
   mod claude_account_changes;

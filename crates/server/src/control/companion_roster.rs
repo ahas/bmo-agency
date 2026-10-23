@@ -50,11 +50,14 @@ const ROLE: &str = "chat";
 /// prompt choice and the asks of its session resets.
 const AGENT_TABLES: [&str; 3] = ["companion_settings", "agent_base_prompts", "session_resets"];
 
+/// The tables keyed by a worker whose rows go with it: its sessions and the words said to it.
+const WORKER_TABLES: [&str; 2] = ["worker_sessions", "worker_words"];
+
 // How long a removal waits for the companion's execution rows still open to close before it takes them anyway.
 const OPEN_ROWS_WAIT: Duration = Duration::from_secs(30);
 
 /// One field of the body, trimmed; empty where it is missing or no text.
-fn text(body: &Value, field: &str) -> String {
+pub(super) fn text(body: &Value, field: &str) -> String {
   body.get(field).and_then(Value::as_str).map(str::trim).unwrap_or_default().to_owned()
 }
 
@@ -96,32 +99,46 @@ async fn checked(written: &DatabaseTransaction, ground: &Ground, asked: &Asked) 
     return refused("label", words.label.as_str());
   }
 
-  if pinned_provider(ground, given(&asked.provider), given(&asked.model)).await.is_err() {
-    let carries = harness_providers::provider(&asked.provider).is_some_and(carries_answers);
+  pin_checked(written, ground, &asked.provider, &asked.model, &asked.worker).await
+}
+
+/// A conversational agent's pin and the worker its items go to, judged as its turn judges the pin before it
+/// goes out.
+pub(super) async fn pin_checked(
+  written: &DatabaseTransaction,
+  ground: &Ground,
+  provider: &str,
+  model: &str,
+  worker: &str,
+) -> Result<(), Fault> {
+  let words = &CONTROL_WORDS.companion_roster;
+
+  if pinned_provider(ground, given(provider), given(model)).await.is_err() {
+    let carries = harness_providers::provider(provider).is_some_and(carries_answers);
 
     return if carries {
       refused("model", words.model.as_str())
     } else {
-      refused("provider", fill_marks(&words.provider, &[("provider", &asked.provider)]))
+      refused("provider", fill_marks(&words.provider, &[("provider", provider)]))
     };
   }
 
-  let worker = one(
+  let found = one(
     written,
     "SELECT name FROM agents WHERE name = $1 AND kind = 'worker'",
-    vec![asked.worker.clone().into()],
+    vec![worker.into()],
   )
   .await?;
 
-  if worker.is_none() {
-    return refused("worker", fill_marks(&words.worker, &[("worker", &asked.worker)]));
+  if found.is_none() {
+    return refused("worker", fill_marks(&words.worker, &[("worker", worker)]));
   }
 
   Ok(())
 }
 
 // A field the body gave, none where it gave it empty.
-fn given(field: &str) -> Option<&str> {
+pub(super) fn given(field: &str) -> Option<&str> {
   Some(field).filter(|field| !field.is_empty())
 }
 
@@ -193,7 +210,7 @@ crate::moved!(CompanionAdd);
 /// The added companion's own brain asked of the brain, under its name and with its label. The companion is
 /// added whatever the brain answers, so what it could not do is logged and refuses nothing.
 async fn given_a_brain(brain: &dyn Brain, asked: &Asked) {
-  match brain.make(&asked.name, &asked.label).await {
+  match brain.make(&asked.name, &asked.label, None).await {
     Ok(Made::Made) => eprintln!("agency: the companion {} was given its brain", asked.name),
     Ok(Made::Kept | Made::Undeployed) => {}
     Err(fault) => eprintln!("agency: the companion {} was added without its brain: {fault}", asked.name),
@@ -219,10 +236,14 @@ async fn removable<C: ConnectionTrait>(db: &C, agent: &str) -> Result<(), Fault>
   Ok(())
 }
 
-/// What the reset keeps of a companion taken out, in one write, its row last.
-async fn remove(written: &DatabaseTransaction, agent: &str) -> Result<(), Fault> {
+/// What the reset keeps of an agent taken out, in one write, its row last.
+pub(super) async fn remove(written: &DatabaseTransaction, agent: &str) -> Result<(), Fault> {
   for table in AGENT_TABLES {
     run(written, &format!("DELETE FROM {table} WHERE agent = $1"), vec![agent.into()]).await?;
+  }
+
+  for table in WORKER_TABLES {
+    run(written, &format!("DELETE FROM {table} WHERE worker = $1"), vec![agent.into()]).await?;
   }
 
   // Its own switches of its gates, its sampling and its reset point.
@@ -241,9 +262,9 @@ async fn remove(written: &DatabaseTransaction, agent: &str) -> Result<(), Fault>
   Ok(())
 }
 
-/// What a removal reads of the call to take down what is left of the companion, read before it is awaited.
-struct Left {
-  db: DatabaseConnection,
+/// What a removal reads of the call to take down what is left of the agent, read before it is awaited.
+pub(super) struct Left {
+  pub(super) db: DatabaseConnection,
   data_root: PathBuf,
   home: Option<Home>,
   roots: Roots,
@@ -251,12 +272,23 @@ struct Left {
 }
 
 impl Left {
-  /// What stands for a removed companion and what is left under its name, taken once its row is gone: its
+  pub(super) fn of(call: &Call, agent: &str) -> Self {
+    Self {
+      db: call.store().clone(),
+      data_root: call.data_root(),
+      home: call.places().and_then(|places| places.ground.home_of(agent, agent)),
+      roots: roots(call),
+      brain: call.ground().peers.brain.clone(),
+    }
+  }
+
+  /// What stands for a removed agent and what is left under its name, taken once its row is gone: its
   /// program killed, so it writes no record of what the removal took as it goes, its workspace closed where
   /// herdr stands here, its place and home folder, its execution rows with their envelopes, the agent
-  /// host's view and head records of it, its agent lock, and everything the brain holds under its scope.
-  /// Nothing here refuses the removal, which has already been written; what could not go is logged.
-  async fn taken(&self, agent: &str) {
+  /// host's view and head records of it, its agent lock, and, where its brain is to go, everything the
+  /// brain holds under its scope. Nothing here refuses the removal, which has already been written; what
+  /// could not go is logged.
+  pub(super) async fn taken(&self, agent: &str, forget_brain: bool) {
     let place = Place::of(&self.data_root, agent);
     let mut left = vec![];
 
@@ -283,12 +315,12 @@ impl Left {
       removed(&path, &mut left);
     }
 
-    if let Err(fault) = self.brain.forget(agent).await {
+    if forget_brain && let Err(fault) = self.brain.forget(agent).await {
       left.push(format!("its brain scope: {fault}"));
     }
 
     for what in left {
-      eprintln!("agency: what was left of the removed companion {agent} was not removed: {what}");
+      eprintln!("agency: what was left of the removed agent {agent} was not removed: {what}");
     }
   }
 }
@@ -320,14 +352,8 @@ impl Route for CompanionRemove {
       return fault.answer();
     }
 
-    let reset = reset_whole(&call, &agent, rooms_named(body.get("rooms")), &by);
-    let left = Left {
-      db: call.store().clone(),
-      data_root: call.data_root(),
-      home: call.places().and_then(|places| places.ground.home_of(&agent, &agent)),
-      roots: roots(&call),
-      brain: call.ground().peers.brain.clone(),
-    };
+    let reset = reset_whole(&call, &agent, rooms_named(body.get("rooms")), &by, true);
+    let left = Left::of(&call, &agent);
 
     to_its_end(async move {
       reset.await?;
@@ -339,7 +365,7 @@ impl Route for CompanionRemove {
       }
 
       written.commit().await?;
-      left.taken(&agent).await;
+      left.taken(&agent, true).await;
       eprintln!("agency: the companion {agent} was removed, as {by} asked");
 
       Ok(answer(StatusCode::OK, json!({ "ok": true })))

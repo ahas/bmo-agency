@@ -1,7 +1,7 @@
 //! `GET /agents`: the agent table as the store holds it (docs/api.md, 「Agents」), every agent, the resting
 //! among them, each with what it is configured to begin on, what of its own thinking and effort reaches
 //! that, its gates and the rooms it holds sessions in, and what a recollector reads of it: whether it is
-//! awake, its brain folder and the registration its recollectors run on.
+//! awake, its brain folder and the registration its recollectors run on, and the login account that owns it.
 
 use std::path::Path;
 use std::sync::LazyLock;
@@ -153,6 +153,8 @@ pub struct Agent {
   pub brain_folder: Option<String>,
   /// How the runner carries it, where it is a conversational agent.
   pub conversation: Option<Settings>,
+  /// The id of the login account that owns it, none for the administrator's.
+  pub owner_account: Option<i64>,
 }
 
 impl Agent {
@@ -197,6 +199,7 @@ impl Agent {
       awake: number("resting_since")?.is_none(),
       brain_folder: text("brain_folder")?.map(|folder| folder.trim().trim_end_matches('/').to_owned()),
       conversation: Settings::of(row).map_err(Refused::from)?,
+      owner_account: number("owner_account")?,
     })
   }
 
@@ -244,6 +247,7 @@ async fn agent_view(judging: Judging<'_>, machine: &Machine, agent: &Agent) -> R
   put("lastModel", json!(agent.last_model));
   put("lastEffort", json!(agent.last_effort));
   put("label", json!(agent.label));
+  put("ownerAccount", json!(agent.owner_account));
   put("awake", json!(agent.awake));
   put("brainFolder", json!(agent.brain_folder));
   put(

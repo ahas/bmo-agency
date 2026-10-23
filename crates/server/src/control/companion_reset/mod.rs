@@ -329,19 +329,26 @@ pub async fn to_its_end<T: Send + 'static>(
   tokio::spawn(work).await.map_err(Refused::failed)?
 }
 
-/// A reset of both ranges, as a companion's removal starts with, answered with what it took: every room it
-/// answers read as one it shares, so each keeps its records and only the companion's own rows go. What it
-/// reads of the call is taken before it is awaited.
+/// A reset of the conversation range, and of the person range where the brain is to go with it, as a
+/// companion's removal starts with, answered with what it took: every room it answers read as one it shares,
+/// so each keeps its records and only the companion's own rows go. What it reads of the call is taken
+/// before it is awaited.
 pub fn reset_whole(
   call: &Call,
   agent: &str,
   rooms: Vec<i64>,
   by: &str,
+  forget_brain: bool,
 ) -> impl Future<Output = Result<Value, Refused>> + Send + use<> {
   let standing = Standing::of(call);
+  let ranges = if forget_brain {
+    vec![Range::Conversation, Range::Person]
+  } else {
+    vec![Range::Conversation]
+  };
   let asked = Asked {
     agent: agent.to_owned(),
-    ranges: vec![Range::Conversation, Range::Person],
+    ranges,
     alone: vec![],
     shared: rooms,
   };

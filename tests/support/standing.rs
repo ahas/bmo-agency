@@ -26,7 +26,19 @@ impl Drop for Standing {
 
 /// The server started under `home` on the data root `data` and the store `store`, under `token`.
 pub fn stand_server(home: &Path, data: &Path, store: &str, token: &str) -> Standing {
+  stand_server_with(home, data, store, token, &[])
+}
+
+/// The server started as `stand_server` starts it, with these variables beside its own.
+pub fn stand_server_with(
+  home: &Path,
+  data: &Path,
+  store: &str,
+  token: &str,
+  variables: &[(&str, &str)],
+) -> Standing {
   let mut child = Command::new(binary::built("agency-server", "agency-server"))
+    .envs(variables.iter().copied())
     .arg("--data-root")
     .arg(data)
     .current_dir(home)

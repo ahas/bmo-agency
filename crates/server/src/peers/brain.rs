@@ -1,5 +1,5 @@
-//! The brain (docs/api.md, 「Calls agency makes」) through the client it publishes: the brain a companion is
-//! given as it is added, and what its reset and removal take of what it remembers. Everything an agent
+//! The brain (docs/api.md, 「Calls agency makes」) through the client it publishes: the brain an agent is
+//! given as it is registered, and what its reset and removal take of what it remembers. Everything an agent
 //! remembers is its own brain, found by the agent's key, so agency lets that brain go whole; a preview only
 //! finds it. A chat launch reads the persona that brain renders of the layers it names.
 
@@ -63,8 +63,9 @@ pub enum Rendered {
 
 /// What agency asks the brain.
 pub trait Brain: Send + Sync {
-  /// The agent's own brain made under its key, named as given, where the brain keeps none yet.
-  fn make<'a>(&'a self, agent: &'a str, name: &'a str) -> Asking<'a, Made>;
+  /// The agent's own brain made under its key, named as given, where the brain keeps none yet: filed under
+  /// the id of the login account owning it where one is named, and the deployment's account otherwise.
+  fn make<'a>(&'a self, agent: &'a str, name: &'a str, owner: Option<i64>) -> Asking<'a, Made>;
   /// The agent's brain let go whole, once nothing writes there.
   fn forget<'a>(&'a self, agent: &'a str) -> Asking<'a, ()>;
   /// The agent's brain taken whole or, for a preview, found and counted with nothing taken.
@@ -79,7 +80,7 @@ pub trait Brain: Send + Sync {
 pub struct NoBrain;
 
 impl Brain for NoBrain {
-  fn make<'a>(&'a self, _agent: &'a str, _name: &'a str) -> Asking<'a, Made> {
+  fn make<'a>(&'a self, _agent: &'a str, _name: &'a str, _owner: Option<i64>) -> Asking<'a, Made> {
     Box::pin(async { Ok(Made::Undeployed) })
   }
 
@@ -115,14 +116,14 @@ impl PublishedBrain {
     Ok(Self { client, account })
   }
 
-  /// The agent's brain made where none is kept under its key: refused where the deployment names no
-  /// account to file it under.
-  async fn made(&self, agent: &str, name: &str) -> Result<Made, PeerFault> {
+  /// The agent's brain made where none is kept under its key, filed under its owner's account or the
+  /// deployment's: refused where neither names one.
+  async fn made(&self, agent: &str, name: &str, owner: Option<i64>) -> Result<Made, PeerFault> {
     if self.find(agent).await?.is_some() {
       return Ok(Made::Kept);
     }
 
-    let Some(account) = &self.account else {
+    let Some(account) = owner.map(|owner| owner.to_string()).or_else(|| self.account.clone()) else {
       return Err(PeerFault::Refused {
         peer: PEER,
         code: "no-account".into(),
@@ -130,7 +131,7 @@ impl PublishedBrain {
       });
     };
     let asked = NewBrain {
-      account_key: account.clone(),
+      account_key: account,
       agent_key: agent.to_owned(),
       name: Some(name.to_owned()).filter(|name| !name.is_empty()),
     };
@@ -215,8 +216,8 @@ fn fault(why: ClientFailure) -> PeerFault {
 }
 
 impl Brain for PublishedBrain {
-  fn make<'a>(&'a self, agent: &'a str, name: &'a str) -> Asking<'a, Made> {
-    Box::pin(async move { self.made(agent, name).await })
+  fn make<'a>(&'a self, agent: &'a str, name: &'a str, owner: Option<i64>) -> Asking<'a, Made> {
+    Box::pin(async move { self.made(agent, name, owner).await })
   }
 
   fn forget<'a>(&'a self, agent: &'a str) -> Asking<'a, ()> {

@@ -17,6 +17,7 @@ mod m20261027_000001_deepseek_provider;
 mod m20261028_000001_mapping_thinking;
 mod m20261029_000001_session_summaries_retired;
 mod m20261029_000002_fold_ratios;
+mod m20261030_000001_agent_owner;
 
 use sea_orm_migration::prelude::*;
 
@@ -111,6 +112,7 @@ impl MigratorTrait for Migrator {
       Box::new(m20261028_000001_mapping_thinking::Migration),
       Box::new(m20261029_000001_session_summaries_retired::Migration),
       Box::new(m20261029_000002_fold_ratios::Migration),
+      Box::new(m20261030_000001_agent_owner::Migration),
     ]
   }
 

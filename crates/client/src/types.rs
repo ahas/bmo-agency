@@ -209,6 +209,8 @@ pub struct Agent {
   /// epoch milliseconds
   pub reset_at: Option<i64>,
   pub stand_in_available: bool,
+  /// the id of the login account that owns it, none for the administrator's
+  pub owner_account: Option<i64>,
 }
 
 /// PromptDocument:
@@ -1154,6 +1156,50 @@ pub struct AgentChange {
   pub reasoning: Option<Value>,
   pub role: Option<String>,
   pub voice: Option<Value>,
+}
+
+/// The body that registers an agent: its key, label, kind, role and owner, and the fields its kind
+/// carries.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentAsk {
+  pub name: String,
+  pub label: String,
+  pub kind: String,
+  pub role: Option<String>,
+  /// the id of the login account that owns it, none for the administrator's
+  pub owner_account: Option<i64>,
+  pub icon: Option<String>,
+  pub thinking: Option<bool>,
+  pub effort: Option<String>,
+  /// the `chat` kind's pinned provider
+  pub provider: Option<String>,
+  /// the `chat` kind's pinned model
+  pub model: Option<String>,
+  /// the worker a `chat` agent's items go to
+  pub worker: Option<String>,
+  /// a `worker`'s checkout
+  pub cwd: Option<String>,
+  /// the node a `worker` stands on
+  pub node_name: Option<String>,
+}
+
+/// What became of a registered agent's brain.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "kebab-case")]
+pub enum BrainBirth {
+  Made,
+  Kept,
+  None,
+  Failed,
+}
+
+/// An agent registered, and what became of its brain.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentCreated {
+  pub agent: Agent,
+  pub brain: BrainBirth,
 }
 
 /// The body that creates, saves, removes or chooses a prompt document.

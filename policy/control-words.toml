@@ -78,8 +78,10 @@ follows_base = "{label}'s sampling follows its base worker's."
 shape = "A sampling is names paired with values."
 unknown = "The sampling has no setting {name}."
 
-# An agent's own switches: an {agent} not known, one that answers in no room, the {gates} its turn
-# passes, and the {levels} and {roles} a choice must be one of.
+# An agent's own switches and its registration: an {agent} not known, one that answers in no room, the
+# {gates} its turn passes, the {levels}, {roles} and {kinds} a choice must be one of, an owner that is no
+# account id, and an agent whose registration cannot end, by its {label}: one the deployment seeds, and
+# one a turn holds now.
 [agents]
 not_found = "There is no agent {agent}."
 no_gates = "{agent} answers in no room, so its turns pass no gate."
@@ -90,6 +92,10 @@ follows_base = "{agent}'s thinking and effort follow its base worker's."
 thinking = "Thinking is on, off or the default."
 effort = "Effort is one of {levels}, or the default."
 role = "A role is one of {roles}."
+kind = "A kind is one of {kinds}."
+owner = "The owner is the id of a login account, or none for the administrator's."
+seeded = "{label} is an agent the deployment seeds, so its registration cannot be ended."
+running = "{label} is running a turn now. End it once the turn is over, or force it."
 
 # The base prompts: a {name} not known, already taken or out of its shape, a label or a text past its
 # {most} characters, a prompt the {agents} still choose or the {accounts} still name, an {agent} that

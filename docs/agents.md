@@ -11,6 +11,7 @@ program is spoken to is `docs/agent-control.md`.
   or answers a question about one by its name.
 - **What a row declares:**
   - its name and its label, the words that call it and the window it keeps in a room;
+  - its owner: the login account it belongs to, or none for the administrator's;
   - its kind: the machinery that carries its turns — a conversation in rooms, a worker's jobs, a gate's
     judgements, a runner's research, a recollector's writing;
   - its role: the function bundles its turns are given (`docs/agent-roles.md`);
@@ -30,9 +31,8 @@ program is spoken to is `docs/agent-control.md`.
     for a conversation」 below).
   - Nothing branches on the provider or the model to give an agent fewer tools, another line or
     another session.
-- **A new agent is a new row.** A conversational agent, its model's registration and the room it
-  answers are added on the console, with no commit, no deployment and no restart (「Adding a model and
-  an agent」 below).
+- **A new agent is a new row.** Any agent, its model's registration and the room it answers are added
+  on the console, with no commit, no deployment and no restart (「Adding a model and an agent」 below).
 
 ## One interface
 
@@ -225,8 +225,12 @@ flowchart TD
   rooms come from」).
   - The same tab removes a companion it added, with everything the companion kept of its own, and
     nothing of it is left standing; the rooms it answered stay with their whole record.
-- **Removing what the deployment seeds** is not offered: a seeded companion stands again at the next
-  start.
+- **Any agent:** the agent screen registers one of any kind through `POST /agents` and ends one through
+  `DELETE /agents/{agentName}` (`docs/api.md`, 「agents」), each owned by the login account the caller
+  names. One of the `chat` kind or holding the chat role is given its own brain as it is registered;
+  ending a registration leaves the brain standing unless the caller asks it let go, since the brain is
+  data.
+- **Removing what the deployment seeds** is not offered: a seeded agent stands again at the next start.
 
 ## The stages
 

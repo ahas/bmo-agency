@@ -90,7 +90,7 @@ pub struct WorkersWords {
   pub sampling: WorkersSamplingWords,
 }
 
-/// An agent's own switches.
+/// An agent's own switches and its registration.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct AgentsWords {
@@ -103,6 +103,10 @@ pub struct AgentsWords {
   pub thinking: String,
   pub effort: String,
   pub role: String,
+  pub kind: String,
+  pub owner: String,
+  pub seeded: String,
+  pub running: String,
 }
 
 /// The base prompts.

@@ -98,10 +98,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Every agent. */
+        /** Every agent, each with the login account that owns it. */
         get: operations["listAgents"];
         put?: never;
-        post?: never;
+        /** Register an agent of any kind; one that converses is given its brain. */
+        post: operations["createAgents"];
         delete?: never;
         options?: never;
         head?: never;
@@ -119,7 +120,8 @@ export interface paths {
         get: operations["getAgent"];
         put?: never;
         post?: never;
-        delete?: never;
+        /** End an agent's registration; forgetBrain lets its brain go with it. */
+        delete: operations["deleteAgent"];
         options?: never;
         head?: never;
         /** Change an agent's gates, reasoning, role or voice. */
@@ -1433,6 +1435,49 @@ export interface components {
              */
             resetAt: number | null;
             standInAvailable: boolean;
+            /**
+             * Format: int64
+             * @description the id of the login account that owns it, none for the administrator's
+             */
+            ownerAccount: number | null;
+        };
+        /** @description An agent registered, and what became of its brain. */
+        AgentCreated: {
+            agent: components["schemas"]["Agent"];
+            brain: components["schemas"]["BrainBirth"];
+        };
+        /**
+         * @description What became of a registered agent's brain.
+         * @enum {string}
+         */
+        BrainBirth: "made" | "kept" | "none" | "failed";
+        /**
+         * @description The body that registers an agent: its key, label, kind, role and owner, and the fields its kind
+         *     carries.
+         */
+        AgentAsk: {
+            name: string;
+            label: string;
+            kind: string;
+            role: string | null;
+            /**
+             * Format: int64
+             * @description the id of the login account that owns it, none for the administrator's
+             */
+            ownerAccount: number | null;
+            icon: string | null;
+            thinking: boolean | null;
+            effort: string | null;
+            /** @description the `chat` kind's pinned provider */
+            provider: string | null;
+            /** @description the `chat` kind's pinned model */
+            model: string | null;
+            /** @description the worker a `chat` agent's items go to */
+            worker: string | null;
+            /** @description a `worker`'s checkout */
+            cwd: string | null;
+            /** @description the node a `worker` stands on */
+            nodeName: string | null;
         };
         /** @description The body that changes an agent's gates, reasoning, role or voice. */
         AgentChange: {
@@ -2716,6 +2761,15 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /** @description name-taken */
+        NameTaken: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
         /** @description no-worker-free */
         NoWorkerFree: {
             headers: {
@@ -2727,6 +2781,24 @@ export interface components {
         };
         /** @description not-found */
         NotFound: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description running */
+        Running: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description seeded */
+        Seeded: {
             headers: {
                 [name: string]: unknown;
             };
@@ -2949,6 +3021,33 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
         };
     };
+    createAgents: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentAsk"];
+            };
+        };
+        responses: {
+            /** @description Answered. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentCreated"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            409: components["responses"]["NameTaken"];
+        };
+    };
     getAgent: {
         parameters: {
             query?: never;
@@ -2971,6 +3070,33 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
+        };
+    };
+    deleteAgent: {
+        parameters: {
+            query?: {
+                force?: boolean;
+                forgetBrain?: boolean;
+                rooms?: string;
+            };
+            header?: never;
+            path: {
+                agentName: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Seeded"];
         };
     };
     changeAgent: {

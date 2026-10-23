@@ -352,8 +352,8 @@ async fn a_brain_is_made_under_the_account_named_where_the_agent_keeps_none() {
   let (address, calls) = stand_in().await;
   let peers = brain_at(&address, Some("1"));
 
-  assert_eq!(peers.brain.make("kept", "Kept").await.unwrap(), Made::Kept);
-  assert_eq!(peers.brain.make("fresh", "Fresh one").await.unwrap(), Made::Made);
+  assert_eq!(peers.brain.make("kept", "Kept", None).await.unwrap(), Made::Kept);
+  assert_eq!(peers.brain.make("fresh", "Fresh one", None).await.unwrap(), Made::Made);
 
   let made = taken(&calls);
 
@@ -370,7 +370,7 @@ async fn a_brain_is_made_under_the_account_named_where_the_agent_keeps_none() {
   );
   assert_eq!(made[2].body, json!({ "accountKey": "1", "agentKey": "fresh", "name": "Fresh one" }));
 
-  let refused = brain_at(&address, Some("  ")).brain.make("fresh", "Fresh one").await.unwrap_err();
+  let refused = brain_at(&address, Some("  ")).brain.make("fresh", "Fresh one", None).await.unwrap_err();
 
   assert!(
     matches!(&refused, PeerFault::Refused { peer: "brain", code, .. } if code == "no-account"),
@@ -381,6 +381,21 @@ async fn a_brain_is_made_under_the_account_named_where_the_agent_keeps_none() {
     ["GET"],
     "with no account named the brain is only looked for"
   );
+}
+
+#[tokio::test]
+async fn a_brain_is_filed_under_its_owner_s_account_where_the_agent_names_one() {
+  let (address, calls) = stand_in().await;
+
+  for account in [Some("1"), None] {
+    let made = brain_at(&address, account).brain.make("fresh", "Fresh one", Some(42)).await.unwrap();
+
+    assert_eq!(made, Made::Made);
+    assert_eq!(
+      taken(&calls).last().map(|call| call.body.clone()),
+      Some(json!({ "accountKey": "42", "agentKey": "fresh", "name": "Fresh one" }))
+    );
+  }
 }
 
 #[tokio::test]
@@ -407,7 +422,7 @@ async fn a_service_with_no_listener_is_unreachable() {
 
   assert!(matches!(fault, PeerFault::Unreachable { peer: "brain", .. }), "{fault:?}");
 
-  let fault = brain_at(&address, Some("1")).brain.make("kept", "Kept").await.unwrap_err();
+  let fault = brain_at(&address, Some("1")).brain.make("kept", "Kept", None).await.unwrap_err();
 
   assert!(matches!(fault, PeerFault::Unreachable { peer: "brain", .. }), "{fault:?}");
 }
@@ -463,5 +478,5 @@ async fn a_service_with_no_address_answers_its_default() {
   assert!(peers.node.pressures().await.is_ok(), "a stream that tells none is opened");
   peers.brain.forget("kept").await.unwrap();
   assert_eq!(peers.brain.reset("kept", false).await.unwrap(), BrainReset::default());
-  assert_eq!(peers.brain.make("kept", "Kept").await.unwrap(), Made::Undeployed);
+  assert_eq!(peers.brain.make("kept", "Kept", None).await.unwrap(), Made::Undeployed);
 }
