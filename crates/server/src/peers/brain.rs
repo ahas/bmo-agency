@@ -40,6 +40,8 @@ pub trait Brain: Send + Sync {
   /// What the agent's scope holds taken — its rows of every kind — or, for a preview, counted with nothing
   /// taken.
   fn reset<'a>(&'a self, agent: &'a str, preview: bool) -> Asking<'a, BrainReset>;
+  /// The discipline a chat agent's system prompt carries: how it reads and writes its brain every turn.
+  fn discipline(&self) -> Asking<'_, String>;
 }
 
 /// No brain deployed: nothing is held under any scope, so nothing is counted or taken.
@@ -52,6 +54,10 @@ impl Brain for NoBrain {
 
   fn reset<'a>(&'a self, _agent: &'a str, _preview: bool) -> Asking<'a, BrainReset> {
     Box::pin(async { Ok(BrainReset::default()) })
+  }
+
+  fn discipline(&self) -> Asking<'_, String> {
+    Box::pin(async { Ok(String::new()) })
   }
 }
 
@@ -124,6 +130,10 @@ impl Brain for PublishedBrain {
         Err(fault) => Err(fault),
       }
     })
+  }
+
+  fn discipline(&self) -> Asking<'_, String> {
+    Box::pin(async move { self.client.discipline().await.map_err(fault) })
   }
 }
 

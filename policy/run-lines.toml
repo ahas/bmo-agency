@@ -23,9 +23,9 @@ composes_typed_lines = true
 capabilities = ["room.tools"]
 namespaces = ["bmo"]
 shown = [
-  "bmo/memory_add", "bmo/memory_candidate", "bmo/memory_done", "bmo/memory_list", "bmo/memory_retire",
-  "bmo/memory_revive", "bmo/memory_update", "bmo/running", "bmo/say", "bmo/task", "bmo/todo_add",
-  "bmo/todo_append", "bmo/todo_approve", "bmo/todo_show",
+  "bmo/brain_fold", "bmo/memory_consolidated", "bmo/memory_episode", "bmo/memory_learn", "bmo/memory_list",
+  "bmo/memory_move", "bmo/memory_similar", "bmo/memory_unconsolidated", "bmo/running", "bmo/say", "bmo/task",
+  "bmo/todo_add", "bmo/todo_append", "bmo/todo_approve", "bmo/todo_show",
 ]
 
 [gate]

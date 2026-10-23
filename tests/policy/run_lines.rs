@@ -27,7 +27,9 @@ fn only_the_worker_research_editor_and_chat_lines_show_their_most_called_entries
   assert!(!RUN_LINES.shows("editor", "fragments/fragment_split"));
   assert!(RUN_LINES.shows("chat", "bmo/todo_show"));
   assert!(!RUN_LINES.shows("chat", "bmo/todo_list"));
-  assert!(RUN_LINES.shows("chat", "bmo/memory_add"));
+  assert!(RUN_LINES.shows("chat", "bmo/memory_learn"));
+  assert!(RUN_LINES.shows("chat", "bmo/memory_similar"));
+  assert!(!RUN_LINES.shows("chat", "bmo/memory_add"));
   assert!(RUN_LINES.shows("chat", "bmo/say"));
   assert!(RUN_LINES.shows("chat", "bmo/task"));
   assert!(RUN_LINES.shows("chat", "bmo/running"));

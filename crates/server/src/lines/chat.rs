@@ -109,8 +109,13 @@ pub struct ChatRun {
 }
 
 /// The chat's system prompt: its opening document, the absolute rules bare, its manual and the rulebooks it
-/// reads, each named, with the base persona after them all under its header where one is handed.
-pub fn chat_system(trees: &Trees, base_persona: Option<&str>) -> Result<String, Refusal> {
+/// reads, each named, the brain's discipline where the brain answered one, with the base persona after them
+/// all under its header where one is handed.
+pub fn chat_system(
+  trees: &Trees,
+  base_persona: Option<&str>,
+  discipline: Option<&str>,
+) -> Result<String, Refusal> {
   let system = &CHAT_LINE.system;
   let chat = trees.agent_dir("chat");
   let mut parts = vec![
@@ -121,6 +126,9 @@ pub fn chat_system(trees: &Trees, base_persona: Option<&str>) -> Result<String, 
 
   for name in &system.rulebooks {
     parts.push(rulebook(trees, name)?);
+  }
+  if let Some(discipline) = discipline.map(str::trim).filter(|text| !text.is_empty()) {
+    parts.push(discipline.to_owned());
   }
 
   let system = parts.join("\n\n");
@@ -252,7 +260,14 @@ pub async fn chat_run(
     }
   };
   let thinking = held_thinking.or(reasoning.thinking).unwrap_or(true);
-  let mut system = chat_system(&trees, launch.base_persona)?;
+  let discipline = match ground.peers.brain.discipline().await {
+    Ok(text) => Some(text),
+    Err(why) => {
+      eprintln!("agency: the brain's discipline could not be read; the chat launches without it: {why}");
+      None
+    }
+  };
+  let mut system = chat_system(&trees, launch.base_persona, discipline.as_deref())?;
   let role = crate::conversational::role_of(&ground.db, agent).await.ok().flatten();
 
   if let Some(above) = role.as_deref().and_then(|role| super::role_prompt(&trees, role)) {
