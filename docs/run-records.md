@@ -30,6 +30,13 @@ about a message is not agency's: the judgement records belong to the units that 
   full the session stands, and the `answer` line carries the turn's usage beside its words. Each is
   filed as the line it is, so a room reading the run as it goes sees the turn's progress and its
   spend without waiting for the end.
+  - **Its tool calls are filed as a stream's are.** A `progress` line saying a call began is filed
+    beside itself as a `tool` line under the tool's name, and one saying the call settled as the
+    `tool-result` line that answers it, succeeded or failed, its text saying how many milliseconds
+    the call ran. The record names no call by an id and carries no arguments, so a call's line holds
+    no arguments, each settling answers the oldest call still open, and the two share a reference
+    made of the turn's id and the call's place in the turn. A call reported as asked and then as under
+    way is one call.
 - A line is committed the moment it arrives, so a run killed from outside leaves everything up to
   the kill, and the ids run forward, so a finished run is scrolled back rather than only tailed.
 - It is bounded three ways — a per-line cut, the last few thousand lines per agent, and an age —

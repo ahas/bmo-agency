@@ -6,6 +6,7 @@
 pub mod codex;
 pub mod json;
 pub mod lines;
+pub mod pane_calls;
 pub mod prune;
 pub mod secrets;
 pub mod spans;
@@ -20,6 +21,7 @@ use store::{one, run};
 use self::codex::{CodexChanges, Waiting, codex_lines, rollout_lines, stream_paths};
 use self::json::Json;
 use self::lines::{Line, record_lines, stream_lines};
+use self::pane_calls::PaneCalls;
 use self::secrets::{MASKED_VALUE, mask_secrets, reads_secret_file};
 use self::spans::{JobSpan, SpanTally};
 use crate::rooms::Stays;
@@ -65,6 +67,8 @@ pub struct RunLog {
   codex: Option<CodexChanges>,
   // Whether the log keeps what each run was launched with whole, its prompts uncut.
   keeps_launch: bool,
+  // The calls a pane program's record says began and has not yet said settled.
+  pane_calls: PaneCalls,
 }
 
 /// What a line keeps of its text: the first `limit` characters, counted as the store counts them, and
@@ -87,6 +91,7 @@ impl RunLog {
       source_event: 0,
       codex: None,
       keeps_launch: false,
+      pane_calls: PaneCalls::default(),
     }
   }
 
@@ -246,7 +251,8 @@ impl RunLog {
 
       // Only what the run said and did is a stream's event; the program's own bookkeeping is not. A pane
       // program's record is its own shape: its turn's progress and the answer it ended on are filed as the
-      // lines they are, for the room that reads the run as it goes.
+      // lines they are, for the room that reads the run as it goes, and a call it says began or settled as
+      // the call's own line beside them.
       let lines = match event.get("type").and_then(Json::as_str) {
         Some("assistant" | "user") => {
           self.tally.see(&event);
@@ -256,12 +262,15 @@ impl RunLog {
         None => match event.get("kind").and_then(Json::as_str) {
           Some(kind @ ("progress" | "answer")) => {
             let kind: &'static str = if kind == "progress" { "progress" } else { "answer" };
+            let calls = if kind == "progress" { self.pane_calls.lines(&event) } else { vec![] };
 
-            vec![Line {
+            std::iter::once(Line {
               kind,
               text: trimmed.to_owned(),
               ..Line::default()
-            }]
+            })
+            .chain(calls)
+            .collect()
           }
           _ => continue,
         },

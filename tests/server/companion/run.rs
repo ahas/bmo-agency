@@ -96,7 +96,8 @@ async fn the_text_a_turn_writes_is_read_from_its_session_while_it_runs() {
 }
 
 // A pane program's record is its own shape: what the turn is doing as it goes and the answer it ended on
-// are filed as the lines they are, so the room reading the run sees its progress and its spend.
+// are filed as the lines they are, so the room reading the run sees its progress and its spend, and each
+// call it says began and settled beside them as the call's own lines.
 #[tokio::test]
 async fn a_pane_program_s_progress_and_answer_are_filed_as_their_lines() {
   let service = Service::new(DatabaseConnection::Disconnected, Config::read(|_| None).unwrap());
@@ -120,12 +121,24 @@ async fn a_pane_program_s_progress_and_answer_are_filed_as_their_lines() {
     cut: None,
     shown: None,
   };
-  let progress = json!({ "kind": "progress", "id": "turn-1", "at": 1, "phase": "tool", "tool": "bash" });
+  let progress = json!({ "kind": "progress", "id": "turn-1", "at": 1, "phase": "tool", "tool": "bash", "state": "in_progress" });
+  let settled = json!({ "kind": "progress", "id": "turn-1", "at": 4, "phase": "tool", "tool": "tool", "state": "completed" });
   let answer =
-    json!({ "kind": "answer", "id": "turn-1", "at": 2, "text": "done", "usage": { "inputTokens": 10 } });
-  let written = watched.feed(&[progress.to_string(), answer.to_string()]).await;
+    json!({ "kind": "answer", "id": "turn-1", "at": 5, "text": "done", "usage": { "inputTokens": 10 } });
+  let written = watched.feed(&[progress.to_string(), settled.to_string(), answer.to_string()]).await;
 
-  assert_eq!(written.iter().map(|line| line.kind).collect::<Vec<_>>(), vec!["progress", "answer"]);
+  assert_eq!(
+    written.iter().map(|line| line.kind).collect::<Vec<_>>(),
+    vec!["progress", "tool", "progress", "tool-result", "answer"]
+  );
   assert!(written[0].text.contains("\"phase\":\"tool\""));
-  assert!(written[1].text.contains("\"inputTokens\":10"));
+  assert_eq!(
+    (written[1].name.as_deref(), written[1].reference.as_deref()),
+    (Some("bash"), Some("turn-1:1"))
+  );
+  assert_eq!(
+    (written[3].reference.as_deref(), written[3].state),
+    (Some("turn-1:1"), Some("succeeded"))
+  );
+  assert!(written[4].text.contains("\"inputTokens\":10"));
 }

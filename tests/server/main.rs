@@ -170,6 +170,7 @@ mod run_log {
   mod codex;
   mod json;
   mod lines;
+  mod pane_calls;
   mod secrets;
   mod spans;
   mod writer;
