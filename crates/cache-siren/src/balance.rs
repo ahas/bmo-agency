@@ -1,0 +1,174 @@
+//! The balance reader (docs/usage-windows.md, 「Balances」): what each paid account has left, asked on a
+//! clock of the address its provider declares with the key the account holds, and kept beside the windows.
+//! The reader knows no provider: its source is one provider's member, answering who is asked, where, with
+//! what key, and what an answer states.
+
+use std::future::Future;
+use std::pin::Pin;
+use std::sync::Arc;
+use std::time::Duration;
+
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+
+use crate::reader::{Passing, Reader, Said};
+use crate::windows::{Keeping, Slot};
+
+/// What an account has left: an amount in a currency.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Balance {
+  pub amount: f64,
+  pub currency: String,
+}
+
+/// A balance as the keeping holds it: the balance, and when it was seen.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KeptBalance {
+  #[serde(flatten)]
+  pub balance: Balance,
+  pub seen_at: i64,
+}
+
+/// One account to ask on a pass: the account its balance is kept under, the empty one for the provider's
+/// own road; the address asked; and the key it is asked with, or why there is none.
+pub struct BalanceAsk {
+  pub account: String,
+  pub url: String,
+  pub key: Result<String, String>,
+}
+
+/// The accounts asked being answered.
+pub type Asking<'a> = Pin<Box<dyn Future<Output = Result<Vec<BalanceAsk>, String>> + Send + 'a>>;
+
+/// One provider's balance as its member declares the reading.
+pub trait BalanceSource: Send + Sync {
+  /// The provider whose balance it is, as a slot names it.
+  fn mode(&self) -> &str;
+  /// How often it is read.
+  fn cadence(&self) -> Duration;
+  /// How long a reading stands after it was seen.
+  fn fresh(&self) -> Duration;
+  /// How long an ask may take before it is a failure.
+  fn wait(&self) -> Duration;
+  /// The accounts asked on this pass.
+  fn asks(&self) -> Asking<'_>;
+  /// The balance an answer states, or why it states none.
+  fn balance_of(&self, answer: &Value) -> Result<Balance, String>;
+}
+
+/// The reader on the clock: its source, the client it asks on, and each account's failure as last said.
+pub struct BalanceReader {
+  source: Arc<dyn BalanceSource>,
+  http: reqwest::Client,
+  said: Said,
+}
+
+impl BalanceReader {
+  pub fn new(source: Arc<dyn BalanceSource>) -> Self {
+    Self {
+      http: reqwest::Client::builder().timeout(source.wait()).build().unwrap_or_default(),
+      source,
+      said: Said::default(),
+    }
+  }
+
+  async fn ask(&self, url: &str, key: &str) -> Result<Balance, String> {
+    let answer = self.http.get(url).bearer_auth(key).send().await.map_err(|why| {
+      if why.is_timeout() {
+        "the endpoint did not answer in time".to_owned()
+      } else {
+        "the request failed".to_owned()
+      }
+    })?;
+
+    if !answer.status().is_success() {
+      return Err(format!("HTTP {}", answer.status().as_u16()));
+    }
+
+    let read: Value = answer.json().await.map_err(|_| "the answer is not JSON".to_owned())?;
+
+    self.source.balance_of(&read)
+  }
+
+  // One account asked and its balance kept; why not where it was not.
+  async fn read(&self, keeping: &Keeping, ask: &BalanceAsk, now_ms: i64) -> Result<Balance, String> {
+    let key = ask.key.as_deref().map_err(|why| why.to_owned())?;
+    let balance = self.ask(&ask.url, key).await?;
+    let slot = Slot {
+      mode: self.source.mode(),
+      account: &ask.account,
+    };
+
+    keeping
+      .replace_balance(slot, &balance, now_ms.div_euclid(1000))
+      .await
+      .map_err(|fault| fault.detail)?;
+
+    Ok(balance)
+  }
+
+  /// Every account the source names asked once, each reading replacing that account's balance and nobody
+  /// else's, and each account answered with the balance kept or why nothing was; an account that could not
+  /// be asked keeps what it had.
+  pub async fn read_each(
+    &self,
+    keeping: &Keeping,
+    now_ms: i64,
+  ) -> Result<Vec<(String, Result<Balance, String>)>, String> {
+    let mut outcomes = Vec::new();
+
+    for ask in self.source.asks().await? {
+      let outcome = self.read(keeping, &ask, now_ms).await;
+
+      outcomes.push((ask.account, outcome));
+    }
+
+    Ok(outcomes)
+  }
+
+  // What a failure of one account is said under.
+  fn what(&self, account: &str) -> String {
+    let mode = self.source.mode();
+
+    if account.is_empty() {
+      format!("{mode} balance")
+    } else {
+      format!("{mode} balance for {account}")
+    }
+  }
+}
+
+impl Reader for BalanceReader {
+  fn mode(&self) -> &str {
+    self.source.mode()
+  }
+
+  fn cadence(&self) -> Duration {
+    self.source.cadence()
+  }
+
+  fn fresh(&self) -> Duration {
+    self.source.fresh()
+  }
+
+  fn pass<'a>(&'a self, keeping: &'a Keeping, now_ms: i64) -> Passing<'a> {
+    Box::pin(async move {
+      let accounts = format!("the {} balances", self.source.mode());
+
+      match self.read_each(keeping, now_ms).await {
+        Ok(outcomes) => {
+          self.said.outcome(&accounts, &Ok(()));
+
+          for (account, outcome) in outcomes {
+            self.said.outcome(&self.what(&account), &outcome.map(drop));
+          }
+        }
+        Err(why) => {
+          self.said.outcome(&accounts, &Err(why));
+        }
+      }
+    })
+  }
+}

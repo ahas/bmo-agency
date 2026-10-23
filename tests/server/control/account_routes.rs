@@ -1,7 +1,8 @@
 //! The Claude logins as the job unit and the console ask after them, of a running server: whether a user
 //! holds a login that is on, each login's own two headline windows as the store keeps them, the record homes
 //! each once, and the rest a done job's usage calls for begun on its login where a window stands at its
-//! threshold and nothing begun where none does.
+//! threshold and nothing begun where none does; and the fallback's view answering the active slot's balance
+//! and each account's windows and balance.
 
 use serde_json::{Value, json};
 
@@ -147,4 +148,76 @@ async fn a_running_server_answers_a_user_s_login_the_record_homes_and_a_job_s_us
     0
   );
   assert_eq!(patch(port, token, "/accounts/login-a", json!({ "usage": {} })).await.0, 400);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_fallback_s_view_answers_the_active_slot_s_balance_and_each_account_s_windows_and_balance() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let data = home.path().join("data");
+  let token = "secret";
+
+  std::fs::create_dir_all(&data).unwrap();
+  scratch
+    .run(
+      r#"INSERT INTO "claude_accounts"
+           ("id", "name", "place", "enabled", "credential_kind", "credential_path", "added_at",
+            "endpoint_url", "key_file")
+         VALUES ('login-a', 'one', 1, 1, 'directory', '/logins/one', 0, NULL, NULL),
+                ('paid', 'two', 2, 1, 'endpoint', '/logins/paid', 0, 'https://endpoint.invalid', '/keys/paid')"#,
+      vec![],
+    )
+    .await;
+  scratch
+    .run(
+      r#"INSERT INTO "usage_windows" ("mode", "account", "name", "utilization", "resets_at", "seen_at")
+         VALUES ('claude-code', 'login-a', 'five_hour', 0.25, NULL, 1800000000),
+                ('claude-code', 'login-a', 'seven_day', 0.5, NULL, 1800000000)"#,
+      vec![],
+    )
+    .await;
+  scratch
+    .run(
+      r#"INSERT INTO "usage_balances" ("mode", "account", "amount", "currency", "seen_at")
+         VALUES ('deepseek', '', 12.5, 'CNY', 1800000000),
+                ('deepseek', 'paid', 3, 'CNY', 1800000060)"#,
+      vec![],
+    )
+    .await;
+  scratch
+    .run(
+      r#"INSERT INTO "fallback_routes" ("key", "set_at", "route_mode") VALUES ('bmo', 0, 'deepseek')"#,
+      vec![],
+    )
+    .await;
+
+  let server = standing::stand_server(home.path(), &data, &scratch.address(), token);
+  let (status, fallback) = get(server.port, token, "/fallback").await;
+
+  assert_eq!(status, 200, "{fallback}");
+  assert_eq!(fallback["active"]["provider"], "deepseek");
+  assert_eq!(fallback["active"]["session"], Value::Null);
+  assert_eq!(
+    fallback["active"]["balance"],
+    json!({ "amount": 12.5, "currency": "CNY", "seenAt": 1800000000 })
+  );
+
+  let of = |listed: &Value, id: &str| {
+    listed.as_array().unwrap().iter().find(|account| account["id"] == id).unwrap().clone()
+  };
+  let accounts = &fallback["accounts"];
+
+  assert_eq!(of(accounts, "login-a")["session"]["utilization"], 0.25);
+  assert_eq!(of(accounts, "login-a")["week"]["utilization"], 0.5);
+  assert_eq!(of(accounts, "login-a")["balance"], Value::Null, "a login is paid by its subscription");
+  assert_eq!(of(accounts, "paid")["session"], Value::Null);
+  assert_eq!(of(accounts, "paid")["balance"]["amount"], 3.0);
+
+  let (_, listed) = get(server.port, token, "/accounts").await;
+
+  assert_eq!(
+    of(&listed["items"], "paid")["balance"],
+    json!({ "amount": 3.0, "currency": "CNY", "seenAt": 1800000060 })
+  );
+  assert_eq!(of(&listed["items"], "login-a")["balance"], Value::Null);
 }

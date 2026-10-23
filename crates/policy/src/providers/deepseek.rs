@@ -11,6 +11,7 @@ pub struct DeepSeek {
   pub declared: Declared,
   pub presence: Presence,
   pub endpoint: Endpoint,
+  pub balance: super::Balance,
 }
 
 /// The endpoint account's key file, and what the provider says where it cannot serve a run.

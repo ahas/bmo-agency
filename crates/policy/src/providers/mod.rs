@@ -9,6 +9,32 @@ pub mod deepseek;
 pub mod openrouter;
 pub mod registered;
 
+/// How a provider that offers a balance has it read (docs/usage-windows.md, 「Balances」): the address
+/// asked, the variable a stand-in's address is named in, how long an ask may take, how often it is read,
+/// for how many passes a reading stands, and the currency its answer counts in where the answer names none.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Balance {
+  pub url: String,
+  pub url_env: String,
+  pub ask_seconds: u64,
+  pub pass_seconds: u64,
+  pub fresh_passes: u32,
+  #[serde(default)]
+  pub currency: Option<String>,
+}
+
+impl Balance {
+  /// The address asked on a machine: the stand-in's its environment names, or the provider's own.
+  pub fn url_on<'a>(&'a self, vars: &'a std::collections::BTreeMap<String, String>) -> &'a str {
+    vars
+      .get(&self.url_env)
+      .map(String::as_str)
+      .filter(|named| !named.is_empty())
+      .unwrap_or(&self.url)
+  }
+}
+
 /// What every provider declares, whoever it is.
 #[derive(Debug, Deserialize)]
 pub struct Declared {

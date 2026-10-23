@@ -11,6 +11,7 @@ use std::pin::Pin;
 use policy::providers::Declared;
 use serde_json::Value;
 
+pub mod balance;
 pub mod claude_code;
 pub mod codex;
 pub mod deepseek;
@@ -207,6 +208,12 @@ pub trait Provider: Sync {
     let _ = windows;
 
     Headline::default()
+  }
+
+  /// How its account's balance is read, where it offers one (docs/usage-windows.md, 「Balances」); none for
+  /// a provider that offers none.
+  fn balance(&self) -> Option<&'static dyn balance::OffersBalance> {
+    None
   }
 
   /// Whether it holds logins of its own, so that a run, a slot and its windows are each one login's.

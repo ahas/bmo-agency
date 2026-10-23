@@ -10,13 +10,44 @@ use policy::providers::openrouter::OPENROUTER;
 use serde::Serialize;
 use serde_json::{Value, json};
 
+use crate::balance::{Balance, OffersBalance, figure};
 use crate::{Machine, Offered, OfferedModel, Offering, PlaceCache, Provider, Reading};
 
 pub struct OpenRouter;
 
+// OpenRouter's balance: asked with the key in its key variable, the credits bought less the credits used,
+// in the currency its policy names.
+impl OffersBalance for OpenRouter {
+  fn declared(&self) -> &'static policy::providers::Balance {
+    &OPENROUTER.balance
+  }
+
+  fn key(&self, machine: &Machine) -> Result<String, String> {
+    machine
+      .var(&OPENROUTER.presence.key_env)
+      .map(str::to_owned)
+      .ok_or_else(|| format!("{} is not set", OPENROUTER.presence.key_env))
+  }
+
+  fn read(&self, answer: &Value) -> Result<Balance, String> {
+    let data = answer.get("data").ok_or("the answer states no credits")?;
+    let credits = figure(data.get("total_credits")).ok_or("the answer states no total credits")?;
+    let usage = figure(data.get("total_usage")).ok_or("the answer states no total usage")?;
+
+    Ok(Balance {
+      amount: credits - usage,
+      currency: OPENROUTER.balance.currency.clone().unwrap_or_default(),
+    })
+  }
+}
+
 impl Provider for OpenRouter {
   fn name(&self) -> &'static str {
     "openrouter"
+  }
+
+  fn balance(&self) -> Option<&'static dyn OffersBalance> {
+    Some(&OpenRouter)
   }
 
   fn declared(&self) -> &'static Declared {

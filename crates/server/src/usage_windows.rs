@@ -1,19 +1,24 @@
 //! The accounts' usage windows as agency keeps them (docs/usage-windows.md): the keeping on agency's store
-//! with the readers this machine runs, the registered Claude logins those readers ask for, and a turn's
-//! answer kept under the login that answered.
+//! with the readers this machine runs, the registered Claude logins those readers ask for, each provider's
+//! balance as its member declares the reading, and a turn's answer kept under the login that answered.
 
 use std::future::Future;
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::Arc;
 
+use std::time::Duration;
+
+use cache_siren::balance::{Asking, Balance, BalanceAsk, BalanceReader, BalanceSource};
 use cache_siren::claude::{ClaudeAccounts, Login, Logins};
 use cache_siren::codex::CodexReader;
 use cache_siren::{Keeping, Reader, Slot, Window};
-use harness_providers::Machine;
+use harness_providers::balance::{OffersBalance, key_in_file};
+use harness_providers::{Machine, Provider};
 use sea_orm::DatabaseConnection;
+use serde_json::Value;
 
-use crate::control::claude_accounts::{Account, SEED_ACCOUNT, accounts};
+use crate::control::claude_accounts::{Account, Credential, SEED_ACCOUNT, accounts};
 use crate::door::record::Reply;
 
 const CODEX: &str = "codex";
@@ -41,10 +46,98 @@ pub fn window_logins(held: Vec<Account>) -> Vec<Login> {
     .collect()
 }
 
-/// The readers this machine runs: every Claude account's, and Codex's where Codex is installed.
+/// One provider's balance as its member declares the reading: its own road where it can answer on this
+/// machine, and every endpoint account of the store whose endpoint is the provider's, with the account's own
+/// key file.
+pub struct ProviderBalances {
+  pub provider: &'static dyn Provider,
+  pub offers: &'static dyn OffersBalance,
+  pub machine: Machine,
+  pub db: DatabaseConnection,
+}
+
+impl ProviderBalances {
+  /// The provider's balance on this machine, where it offers one.
+  pub fn of(provider: &'static dyn Provider, machine: &Machine, db: &DatabaseConnection) -> Option<Self> {
+    Some(Self {
+      provider,
+      offers: provider.balance()?,
+      machine: machine.clone(),
+      db: db.clone(),
+    })
+  }
+}
+
+impl BalanceSource for ProviderBalances {
+  fn mode(&self) -> &str {
+    self.provider.name()
+  }
+
+  fn cadence(&self) -> Duration {
+    Duration::from_secs(self.offers.declared().pass_seconds)
+  }
+
+  fn fresh(&self) -> Duration {
+    self.cadence() * self.offers.declared().fresh_passes
+  }
+
+  fn wait(&self) -> Duration {
+    Duration::from_secs(self.offers.declared().ask_seconds)
+  }
+
+  fn asks(&self) -> Asking<'_> {
+    Box::pin(async move {
+      let url = self.offers.url(&self.machine);
+      let mut asks = Vec::new();
+
+      if self.provider.missing(&self.machine).is_none() {
+        asks.push(BalanceAsk {
+          account: String::new(),
+          url: url.clone(),
+          key: self.offers.key(&self.machine),
+        });
+      }
+
+      for account in accounts(&self.db).await.map_err(|refused| refused.error)? {
+        if let Credential::Endpoint {
+          url: endpoint,
+          key_file,
+          ..
+        } = &account.credential
+          && self.offers.serves(endpoint, &self.machine)
+        {
+          asks.push(BalanceAsk {
+            account: account.id.clone(),
+            url: url.clone(),
+            key: key_in_file(key_file),
+          });
+        }
+      }
+
+      Ok(asks)
+    })
+  }
+
+  fn balance_of(&self, answer: &Value) -> Result<Balance, String> {
+    self.offers.read(answer).map(|read| Balance {
+      amount: read.amount,
+      currency: read.currency,
+    })
+  }
+}
+
+/// The readers this machine runs: every Claude account's, Codex's where Codex is installed, and the
+/// balance of every provider that offers one.
 fn readers(db: &DatabaseConnection, machine: &Machine) -> Vec<Arc<dyn Reader>> {
   let mut readers: Vec<Arc<dyn Reader>> =
     vec![Arc::new(ClaudeAccounts::of_provider(Arc::new(StoreLogins(db.clone()))))];
+
+  for provider in harness_providers::providers() {
+    if let Some(balances) = ProviderBalances::of(provider, machine, db) {
+      readers.push(Arc::new(BalanceReader::new(Arc::new(balances))));
+    }
+  }
+
   let codex = harness_providers::provider(CODEX).filter(|codex| codex.missing(machine).is_none());
 
   if codex.is_some() {

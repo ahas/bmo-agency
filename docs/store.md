@@ -36,7 +36,9 @@ seeds. The other crates and the server reach the store only through it.
   - the accounts' usage windows: `usage_windows`, one row a window of a slot — its `mode`, its
     `account` (empty on a provider that holds no logins of agency's) and its `name` together naming it,
     the fraction used, when it resets in epoch seconds or none, when it was seen, its length in minutes
-    or none and its limit's name or none (`docs/usage-windows.md`);
+    or none and its limit's name or none (`docs/usage-windows.md`); and `usage_balances`, one row a
+    slot's balance — its `mode` and `account` naming it, its `amount`, its `currency` and when it was
+    seen (`docs/usage-windows.md`, 「Balances」);
   - the co-worker pool: the thirteen `coworker_pool_` tables, `limits`, `meta`, `native`,
     `native_reservations`, `native_stops`, `pings`, `place_writes`, `requests`, `reservation_meta`,
     `reservations`, `roles`, `tier_limits` and `tier_meta`;

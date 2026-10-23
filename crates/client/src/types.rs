@@ -584,6 +584,68 @@ pub struct Tier {
 pub struct Fallback {
   pub routes: Vec<Value>,
   pub answering: bool,
+  /// The agent serving the chat now and what it has used.
+  #[serde(default)]
+  pub active: Option<FallbackActive>,
+  /// Every Claude account as the road walks them.
+  #[serde(default)]
+  pub accounts: Vec<FallbackAccount>,
+}
+
+/// The agent serving the chat now: the provider its road answers on, the login it walks to where the
+/// provider holds logins, and that slot's two headline windows and balance.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct FallbackActive {
+  pub provider: String,
+  pub account: Option<String>,
+  /// The login's name, or the provider's label where it holds none.
+  pub account_name: String,
+  /// How many logins are on, where the provider holds logins; 0 otherwise.
+  pub accounts: i64,
+  pub session: Option<UsageWindow>,
+  pub week: Option<UsageWindow>,
+  /// What the slot has left, where its provider or its endpoint account offers a balance.
+  pub balance: Option<Balance>,
+}
+
+/// One Claude account as the fallback's view shows it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct FallbackAccount {
+  pub id: String,
+  pub name: String,
+  pub place: i64,
+  pub enabled: bool,
+  /// One of `directory`, `token` or `endpoint`.
+  pub credential_kind: String,
+  pub credential_path: String,
+  pub endpoint_url: Option<String>,
+  /// An endpoint account's key file. Its content is never reported.
+  pub key_file: Option<String>,
+  pub models: Option<EndpointModels>,
+  pub base_prompt: Option<String>,
+  /// One of `standing`, `ending` or `gone`.
+  pub login: String,
+  /// epoch seconds
+  pub login_ends_at: Option<i64>,
+  pub chosen: bool,
+  pub serving: bool,
+  /// epoch seconds
+  pub rest_until: Option<i64>,
+  pub session: Option<UsageWindow>,
+  pub week: Option<UsageWindow>,
+  pub balance: Option<Balance>,
+}
+
+/// What a paid account has left, as its balance reader last read it (docs/usage-windows.md, 「Balances」).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct Balance {
+  pub amount: f64,
+  pub currency: String,
+  /// epoch seconds
+  pub seen_at: i64,
 }
 
 /// WorkKey:
@@ -669,6 +731,9 @@ pub struct Account {
   /// The account's week window, none where it holds none.
   #[serde(default)]
   pub week: Option<UsageWindow>,
+  /// What an endpoint account has left, where its endpoint's provider offers a balance.
+  #[serde(default)]
+  pub balance: Option<Balance>,
   /// epoch milliseconds
   pub rest_until: Option<i64>,
   /// One of `directory`, `token` or `endpoint`.

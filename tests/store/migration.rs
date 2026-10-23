@@ -158,7 +158,12 @@ async fn a_base_prompt_an_account_names_cannot_be_removed_and_a_missing_one_cann
 #[tokio::test]
 async fn no_recollector_is_left_standing_and_nothing_else_goes_with_them() {
   let scratch = Scratch::blank().await;
-  let before = u32::try_from(Migrator::migrations().len() - 1).unwrap();
+  // Every migration before the one that retires the recollectors.
+  let before = Migrator::migrations()
+    .iter()
+    .position(|migration| migration.name() == "m20261031_000001_recollectors_retired")
+    .map(|place| u32::try_from(place).unwrap())
+    .unwrap();
 
   Migrator::up(scratch.db(), Some(before)).await.unwrap();
 

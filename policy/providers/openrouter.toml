@@ -77,3 +77,14 @@ words_mid_turn = false
 api = "https://openrouter.ai/api/v1"
 api_env = "BMO_OPENROUTER_API_URL"
 key_env = "BMO_OPENROUTER_KEY"
+
+[balance]
+# What the account has left, asked with the key in its key variable on a clock (docs/usage-windows.md,
+# 「Balances」): where it is asked, the variable a test names a stand-in's address in, how long an ask may
+# take, how often it is read and for how many passes a reading stands. Its credits are US dollars.
+url = "https://openrouter.ai/api/v1/credits"
+url_env = "BMO_OPENROUTER_BALANCE_URL"
+ask_seconds = 15
+pass_seconds = 300
+fresh_passes = 6
+currency = "USD"

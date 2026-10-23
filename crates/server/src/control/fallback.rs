@@ -8,7 +8,7 @@ use std::collections::BTreeMap;
 
 use axum::http::{Method, StatusCode};
 use axum::response::Response;
-use cache_siren::{Keeping, Slot};
+use cache_siren::{Keeping, KeptBalance, Slot};
 use harness_providers::{ARCHIVE_PROVIDERS, Machine, Window, providers};
 use policy::control_words::CONTROL_WORDS;
 use policy::fill_marks;
@@ -131,8 +131,36 @@ pub(super) async fn account_headlines(
   headline_windows(windows, cache_siren::claude::MODE, Some(id)).await
 }
 
+// A balance as the routes answer it: what is left, its currency and when it was seen, or null.
+fn balance_view(kept: Option<KeptBalance>) -> Value {
+  kept.map_or(Value::Null, |kept| {
+    json!({ "amount": kept.balance.amount, "currency": kept.balance.currency, "seenAt": kept.seen_at })
+  })
+}
+
+// A keeping that cannot be read is a fault, said with its cause.
+fn unread(what: &str) -> impl FnOnce(store::Fault) -> Refused + '_ {
+  move |fault| {
+    eprintln!("the balance of {what}: not read: {fault}");
+    Refused::from(fault)
+  }
+}
+
+/// An endpoint account's balance as its provider's reader last kept it (docs/usage-windows.md,
+/// 「Balances」); null for a directory or token account, which is paid by its subscription, and where none
+/// was read.
+pub(super) async fn account_balance(windows: &Keeping, account: &Account) -> Result<Value, Refused> {
+  if account.credential.window_credential().is_some() {
+    return Ok(Value::Null);
+  }
+
+  Ok(balance_view(
+    windows.balance_of_account(&account.id).await.map_err(unread(&account.id))?,
+  ))
+}
+
 /// The agent serving the chat now and what it has used: the provider its road answers on, the login
-/// it walks to where the provider holds logins, and that slot's two headline windows.
+/// it walks to where the provider holds logins, that slot's two headline windows and its balance.
 pub(super) async fn active_agent_usage(judging: Judging<'_>) -> Result<Value, Refused> {
   let db = judging.db;
   let key = chat_key();
@@ -148,6 +176,19 @@ pub(super) async fn active_agent_usage(judging: Judging<'_>) -> Result<Value, Re
   };
   let id = account.as_ref().map(|one| one.id.clone());
   let (session, week) = headline_windows(judging.windows, &name, id.as_deref()).await?;
+  let balance = match &account {
+    Some(account) => account_balance(judging.windows, account).await?,
+    None => balance_view(
+      judging
+        .windows
+        .balance(Slot {
+          mode: &name,
+          account: "",
+        })
+        .await
+        .map_err(unread(&name))?,
+    ),
+  };
   let held = if provider.holds_logins() {
     accounts(db).await?.iter().filter(|one| one.enabled).count()
   } else {
@@ -161,6 +202,7 @@ pub(super) async fn active_agent_usage(judging: Judging<'_>) -> Result<Value, Re
     "accounts": held,
     "session": session,
     "week": week,
+    "balance": balance,
   }))
 }
 

@@ -19,6 +19,7 @@ mod m20261029_000001_session_summaries_retired;
 mod m20261029_000002_fold_ratios;
 mod m20261030_000001_agent_owner;
 mod m20261031_000001_recollectors_retired;
+mod m20261101_000001_usage_balances;
 
 use sea_orm_migration::prelude::*;
 
@@ -30,7 +31,7 @@ pub const TABLES: &str = m20261016_000001_store::NAME;
 
 /// Every table the store's migrations make, beside the record of what ran: what reads every table of the
 /// store reads these and no other service's beside them (docs/store.md, 「Its tables」).
-pub const OWN_TABLES: [&str; 59] = [
+pub const OWN_TABLES: [&str; 60] = [
   "agents",
   "agent_log",
   "agent_executions",
@@ -44,6 +45,7 @@ pub const OWN_TABLES: [&str; 59] = [
   "session_resets",
   "claude_accounts",
   "usage_windows",
+  "usage_balances",
   "coworker_pool_limits",
   "coworker_pool_meta",
   "coworker_pool_native",
@@ -115,6 +117,7 @@ impl MigratorTrait for Migrator {
       Box::new(m20261029_000002_fold_ratios::Migration),
       Box::new(m20261030_000001_agent_owner::Migration),
       Box::new(m20261031_000001_recollectors_retired::Migration),
+      Box::new(m20261101_000001_usage_balances::Migration),
     ]
   }
 

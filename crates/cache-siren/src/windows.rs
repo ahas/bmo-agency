@@ -1,6 +1,6 @@
 //! The keeping of the accounts' usage windows (docs/usage-windows.md): each slot's last reading in the
 //! store, replaced whole by the next, and read back with how long its reader says it stands and the
-//! account's unread mark.
+//! account's unread mark; and beside them each paid slot's last balance.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -9,6 +9,7 @@ use sea_orm::{DatabaseConnection, QueryResult, TransactionTrait};
 use serde::{Deserialize, Serialize};
 use store::{Fault, all, one, run};
 
+use crate::balance::{Balance, KeptBalance};
 use crate::reader::Reader;
 
 // The settings family an account's unread mark stands in, by the account (docs/store.md, 「The settings
@@ -200,6 +201,81 @@ impl Keeping {
 
     Ok(())
   }
+}
+
+impl Keeping {
+  /// The slot's balance replaced by `balance`, seen at `seen_at` in epoch seconds (docs/usage-windows.md,
+  /// 「Balances」).
+  pub async fn replace_balance(
+    &self,
+    slot: Slot<'_>,
+    balance: &Balance,
+    seen_at: i64,
+  ) -> Result<(), Fault> {
+    run(
+      &self.db,
+      r#"INSERT INTO "usage_balances" ("mode", "account", "amount", "currency", "seen_at")
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT ("mode", "account") DO UPDATE SET
+           "amount" = excluded."amount",
+           "currency" = excluded."currency",
+           "seen_at" = excluded."seen_at""#,
+      vec![
+        slot.mode.into(),
+        slot.account.into(),
+        balance.amount.into(),
+        balance.currency.clone().into(),
+        seen_at.into(),
+      ],
+    )
+    .await?;
+
+    Ok(())
+  }
+
+  /// The slot's last balance, or none where none was read.
+  pub async fn balance(&self, slot: Slot<'_>) -> Result<Option<KeptBalance>, Fault> {
+    one(
+      &self.db,
+      r#"SELECT "amount", "currency", "seen_at" FROM "usage_balances" WHERE "mode" = $1 AND "account" = $2"#,
+      vec![slot.mode.into(), slot.account.into()],
+    )
+    .await?
+    .as_ref()
+    .map(kept_balance)
+    .transpose()
+  }
+
+  /// An account's last balance, whichever provider read it: an account's endpoint is one provider's, so
+  /// its balance stands under one. None where none was read, and none for the empty account.
+  pub async fn balance_of_account(&self, account: &str) -> Result<Option<KeptBalance>, Fault> {
+    if account.is_empty() {
+      return Ok(None);
+    }
+
+    one(
+      &self.db,
+      r#"SELECT "amount", "currency", "seen_at" FROM "usage_balances" WHERE "account" = $1
+         ORDER BY "seen_at" DESC LIMIT 1"#,
+      vec![account.into()],
+    )
+    .await?
+    .as_ref()
+    .map(kept_balance)
+    .transpose()
+  }
+}
+
+fn kept_balance(row: &QueryResult) -> Result<KeptBalance, Fault> {
+  let field = |why: sea_orm::DbErr| Fault::new(format!("a kept balance: {why}"));
+
+  Ok(KeptBalance {
+    balance: Balance {
+      amount: row.try_get("", "amount").map_err(field)?,
+      currency: row.try_get("", "currency").map_err(field)?,
+    },
+    seen_at: row.try_get("", "seen_at").map_err(field)?,
+  })
 }
 
 fn unread_key(account: &str) -> String {

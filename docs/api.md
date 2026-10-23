@@ -333,9 +333,11 @@ the shadow the node's link keeps of that checkout instead.
 
 The fallback's view answers, beside the roads and the work keys, `active`, the agent serving the chat
 now: the `provider` its road answers on, the `account` it walks to where the provider holds logins, its
-`accountName`, how many `accounts` are on, and that slot's two headline windows, `session` and `week`;
+`accountName`, how many `accounts` are on, that slot's two headline windows, `session` and `week`, and
+its `balance`, the same shape the accounts list answers, for a provider or an endpoint account that
+offers one and null otherwise;
 and `accounts`, every Claude account with its kind, path, place, switch, login standing, whether it is
-chosen and serving, its rest and its own `session` and `week`, the same windows the accounts list
+chosen and serving, its rest and its own `session`, `week` and `balance`, the same the accounts list
 answers.
 
 A provider's change throws the owner's switch on it; the last provider left on is not thrown off, since
@@ -413,8 +415,11 @@ path and model map; a key's content is never reported. Each directory and token 
 two headline windows, `session` and `week`, as the usage-window store holds them under the account
 (`docs/usage-windows.md`): each a window's `name`, `utilization` (0 to 1), `resetsAt` and `seenAt` in
 epoch seconds, `durationMinutes` and `limitName`, or null where the account holds no such window; an
-endpoint account holds none. `window` is the usage a report named, answered by the report's change and
-null on the list. Accounts are added and changed through
+endpoint account holds none. An endpoint account whose endpoint is a provider's that offers a balance
+carries `balance`, what it has left as its balance reader last read it (`docs/usage-windows.md`,
+「Balances」): `amount`, `currency` and `seenAt` in epoch seconds, or null where none has been read; a
+directory or token account's is null. `window` is the usage a report named, answered by the report's
+change and null on the list. Accounts are added and changed through
 `PATCH /fallback`'s `add-account` and `update-account` actions, and with `bmo-agency agent --account-add`
 and `--account-set`.
 

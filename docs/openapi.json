@@ -8870,13 +8870,338 @@
           },
           "answering": {
             "type": "boolean"
+          },
+          "active": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FallbackActive"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The agent serving the chat now and what it has used.",
+            "default": null
+          },
+          "accounts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FallbackAccount"
+            },
+            "description": "Every Claude account as the road walks them.",
+            "default": []
           }
         },
         "required": [
           "routes",
-          "answering"
+          "answering",
+          "active",
+          "accounts"
         ],
         "description": "Fallback:"
+      },
+      "FallbackActive": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string"
+          },
+          "account": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "accountName": {
+            "type": "string",
+            "description": "The login's name, or the provider's label where it holds none."
+          },
+          "accounts": {
+            "type": "integer",
+            "format": "int64",
+            "description": "How many logins are on, where the provider holds logins; 0 otherwise."
+          },
+          "session": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UsageWindow"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "week": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UsageWindow"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "balance": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Balance"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What the slot has left, where its provider or its endpoint account offers a balance."
+          }
+        },
+        "required": [
+          "provider",
+          "account",
+          "accountName",
+          "accounts",
+          "session",
+          "week",
+          "balance"
+        ],
+        "description": "The agent serving the chat now: the provider its road answers on, the login it walks to where the\nprovider holds logins, and that slot's two headline windows and balance."
+      },
+      "UsageWindow": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "account": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The login the slot is kept under, none on a provider that holds no logins."
+          },
+          "mode": {
+            "type": "string",
+            "description": "The provider the window was read of."
+          },
+          "utilization": {
+            "type": "number",
+            "format": "double",
+            "description": "The share of the limit used, 0 to 1."
+          },
+          "resetsAt": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "epoch seconds"
+          },
+          "seenAt": {
+            "type": "integer",
+            "format": "int64",
+            "description": "epoch seconds: when the reading it came in was seen."
+          },
+          "durationMinutes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "limitName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "account",
+          "mode",
+          "utilization",
+          "resetsAt",
+          "seenAt",
+          "durationMinutes",
+          "limitName"
+        ],
+        "description": "One usage window of a slot as the usage-window store holds it (docs/usage-windows.md)."
+      },
+      "Balance": {
+        "type": "object",
+        "properties": {
+          "amount": {
+            "type": "number",
+            "format": "double"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "seenAt": {
+            "type": "integer",
+            "format": "int64",
+            "description": "epoch seconds"
+          }
+        },
+        "required": [
+          "amount",
+          "currency",
+          "seenAt"
+        ],
+        "description": "What a paid account has left, as its balance reader last read it (docs/usage-windows.md, 「Balances」)."
+      },
+      "FallbackAccount": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "place": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "credentialKind": {
+            "type": "string",
+            "description": "One of `directory`, `token` or `endpoint`."
+          },
+          "credentialPath": {
+            "type": "string"
+          },
+          "endpointUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "keyFile": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "An endpoint account's key file. Its content is never reported."
+          },
+          "models": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EndpointModels"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "basePrompt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "login": {
+            "type": "string",
+            "description": "One of `standing`, `ending` or `gone`."
+          },
+          "loginEndsAt": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "epoch seconds"
+          },
+          "chosen": {
+            "type": "boolean"
+          },
+          "serving": {
+            "type": "boolean"
+          },
+          "restUntil": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "epoch seconds"
+          },
+          "session": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UsageWindow"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "week": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UsageWindow"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "balance": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Balance"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "place",
+          "enabled",
+          "credentialKind",
+          "credentialPath",
+          "endpointUrl",
+          "keyFile",
+          "models",
+          "basePrompt",
+          "login",
+          "loginEndsAt",
+          "chosen",
+          "serving",
+          "restUntil",
+          "session",
+          "week",
+          "balance"
+        ],
+        "description": "One Claude account as the fallback's view shows it."
+      },
+      "EndpointModels": {
+        "type": "object",
+        "properties": {
+          "opus": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sonnet": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "haiku": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "description": "An endpoint's model ids by the family word Claude Code picks a model by:"
       },
       "FallbackChange": {
         "type": "object",
@@ -8986,30 +9311,6 @@
           "mode"
         ],
         "description": "The body that changes the fallback screen's routes, providers and accounts."
-      },
-      "EndpointModels": {
-        "type": "object",
-        "properties": {
-          "opus": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "sonnet": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "haiku": {
-            "type": [
-              "string",
-              "null"
-            ]
-          }
-        },
-        "description": "An endpoint's model ids by the family word Claude Code picks a model by:"
       },
       "WorkKey": {
         "type": "object",
@@ -9251,6 +9552,18 @@
             "description": "The account's week window, none where it holds none.",
             "default": null
           },
+          "balance": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Balance"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What an endpoint account has left, where its endpoint's provider offers a balance.",
+            "default": null
+          },
           "restUntil": {
             "type": [
               "integer",
@@ -9308,6 +9621,7 @@
           "window",
           "session",
           "week",
+          "balance",
           "restUntil",
           "credentialKind",
           "endpointUrl",
@@ -9316,67 +9630,6 @@
           "basePrompt"
         ],
         "description": "Account:"
-      },
-      "UsageWindow": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "account": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "The login the slot is kept under, none on a provider that holds no logins."
-          },
-          "mode": {
-            "type": "string",
-            "description": "The provider the window was read of."
-          },
-          "utilization": {
-            "type": "number",
-            "format": "double",
-            "description": "The share of the limit used, 0 to 1."
-          },
-          "resetsAt": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64",
-            "description": "epoch seconds"
-          },
-          "seenAt": {
-            "type": "integer",
-            "format": "int64",
-            "description": "epoch seconds: when the reading it came in was seen."
-          },
-          "durationMinutes": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64"
-          },
-          "limitName": {
-            "type": [
-              "string",
-              "null"
-            ]
-          }
-        },
-        "required": [
-          "name",
-          "account",
-          "mode",
-          "utilization",
-          "resetsAt",
-          "seenAt",
-          "durationMinutes",
-          "limitName"
-        ],
-        "description": "One usage window of a slot as the usage-window store holds it (docs/usage-windows.md)."
       },
       "AccountUsage": {
         "type": "object",

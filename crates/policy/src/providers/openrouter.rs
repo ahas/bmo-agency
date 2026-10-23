@@ -12,6 +12,7 @@ pub struct OpenRouter {
   pub gateway: Gateway,
   pub cache: Cache,
   pub catalogue: Catalogue,
+  pub balance: super::Balance,
 }
 
 /// How long a prefix stays cached on each upstream that publishes it, by the model names it begins.

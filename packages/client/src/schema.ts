@@ -2281,6 +2281,111 @@ export interface components {
         Fallback: {
             routes: unknown[];
             answering: boolean;
+            /**
+             * @description The agent serving the chat now and what it has used.
+             * @default null
+             */
+            active: components["schemas"]["FallbackActive"] | null;
+            /**
+             * @description Every Claude account as the road walks them.
+             * @default []
+             */
+            accounts: components["schemas"]["FallbackAccount"][];
+        };
+        /**
+         * @description The agent serving the chat now: the provider its road answers on, the login it walks to where the
+         *     provider holds logins, and that slot's two headline windows and balance.
+         */
+        FallbackActive: {
+            provider: string;
+            account: string | null;
+            /** @description The login's name, or the provider's label where it holds none. */
+            accountName: string;
+            /**
+             * Format: int64
+             * @description How many logins are on, where the provider holds logins; 0 otherwise.
+             */
+            accounts: number;
+            session: components["schemas"]["UsageWindow"] | null;
+            week: components["schemas"]["UsageWindow"] | null;
+            /** @description What the slot has left, where its provider or its endpoint account offers a balance. */
+            balance: components["schemas"]["Balance"] | null;
+        };
+        /** @description One usage window of a slot as the usage-window store holds it (docs/usage-windows.md). */
+        UsageWindow: {
+            name: string;
+            /** @description The login the slot is kept under, none on a provider that holds no logins. */
+            account: string | null;
+            /** @description The provider the window was read of. */
+            mode: string;
+            /**
+             * Format: double
+             * @description The share of the limit used, 0 to 1.
+             */
+            utilization: number;
+            /**
+             * Format: int64
+             * @description epoch seconds
+             */
+            resetsAt: number | null;
+            /**
+             * Format: int64
+             * @description epoch seconds: when the reading it came in was seen.
+             */
+            seenAt: number;
+            /** Format: int64 */
+            durationMinutes: number | null;
+            limitName: string | null;
+        };
+        /** @description What a paid account has left, as its balance reader last read it (docs/usage-windows.md, 「Balances」). */
+        Balance: {
+            /** Format: double */
+            amount: number;
+            currency: string;
+            /**
+             * Format: int64
+             * @description epoch seconds
+             */
+            seenAt: number;
+        };
+        /** @description One Claude account as the fallback's view shows it. */
+        FallbackAccount: {
+            id: string;
+            name: string;
+            /** Format: int64 */
+            place: number;
+            enabled: boolean;
+            /** @description One of `directory`, `token` or `endpoint`. */
+            credentialKind: string;
+            credentialPath: string;
+            endpointUrl: string | null;
+            /** @description An endpoint account's key file. Its content is never reported. */
+            keyFile: string | null;
+            models: components["schemas"]["EndpointModels"] | null;
+            basePrompt: string | null;
+            /** @description One of `standing`, `ending` or `gone`. */
+            login: string;
+            /**
+             * Format: int64
+             * @description epoch seconds
+             */
+            loginEndsAt: number | null;
+            chosen: boolean;
+            serving: boolean;
+            /**
+             * Format: int64
+             * @description epoch seconds
+             */
+            restUntil: number | null;
+            session: components["schemas"]["UsageWindow"] | null;
+            week: components["schemas"]["UsageWindow"] | null;
+            balance: components["schemas"]["Balance"] | null;
+        };
+        /** @description An endpoint's model ids by the family word Claude Code picks a model by: */
+        EndpointModels: {
+            opus?: string | null;
+            sonnet?: string | null;
+            haiku?: string | null;
         };
         /** @description The body that changes the fallback screen's routes, providers and accounts. */
         FallbackChange: {
@@ -2302,12 +2407,6 @@ export interface components {
             basePrompt: string | null;
             key: string | null;
             mode: string | null;
-        };
-        /** @description An endpoint's model ids by the family word Claude Code picks a model by: */
-        EndpointModels: {
-            opus?: string | null;
-            sonnet?: string | null;
-            haiku?: string | null;
         };
         /** @description WorkKey: */
         WorkKey: {
@@ -2385,6 +2484,11 @@ export interface components {
              */
             week: components["schemas"]["UsageWindow"] | null;
             /**
+             * @description What an endpoint account has left, where its endpoint's provider offers a balance.
+             * @default null
+             */
+            balance: components["schemas"]["Balance"] | null;
+            /**
              * Format: int64
              * @description epoch milliseconds
              */
@@ -2399,32 +2503,6 @@ export interface components {
             models: components["schemas"]["EndpointModels"] | null;
             /** @description The base prompt a worker's run on it opens with. */
             basePrompt: string | null;
-        };
-        /** @description One usage window of a slot as the usage-window store holds it (docs/usage-windows.md). */
-        UsageWindow: {
-            name: string;
-            /** @description The login the slot is kept under, none on a provider that holds no logins. */
-            account: string | null;
-            /** @description The provider the window was read of. */
-            mode: string;
-            /**
-             * Format: double
-             * @description The share of the limit used, 0 to 1.
-             */
-            utilization: number;
-            /**
-             * Format: int64
-             * @description epoch seconds
-             */
-            resetsAt: number | null;
-            /**
-             * Format: int64
-             * @description epoch seconds: when the reading it came in was seen.
-             */
-            seenAt: number;
-            /** Format: int64 */
-            durationMinutes: number | null;
-            limitName: string | null;
         };
         /** @description The body that reports a login's session usage. */
         AccountUsage: {

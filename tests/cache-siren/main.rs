@@ -5,6 +5,7 @@
 #[path = "../support/scratch.rs"]
 mod scratch;
 
+mod balance;
 mod claude;
 mod codex;
 mod lifetime;

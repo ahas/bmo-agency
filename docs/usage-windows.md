@@ -2,8 +2,9 @@
 
 How agency keeps the usage windows of every account that has them: the share of each limit an
 account has used and when that limit resets. Directory and token accounts have them; an endpoint
-account is paid by the request and has none, so it holds no slot and no reader asks it
-(`docs/cache-fallback.md`, 「The Claude Code road is a list of accounts」). The account judgement, the stand-ins' walk, the fallback's view and the quota source
+account is paid by the request and has none, so it holds no window slot and no window reader asks it
+(`docs/cache-fallback.md`, 「The Claude Code road is a list of accounts」). What a paid account has left
+is its balance, kept beside the windows (「Balances」 below). The account judgement, the stand-ins' walk, the fallback's view and the quota source
 all read them from here (`docs/cache-fallback.md`, 「The account judgement」, `docs/api.md`,
 「Accounts」). The keeping is the `cache-siren` crate, whose cache-lifetime judgement is
 `docs/sessions.md`'s.
@@ -77,6 +78,30 @@ all read them from here (`docs/cache-fallback.md`, 「The account judgement」, 
   failure.
 - **It passes every minute where Codex is installed, and a reading stands for six passes.** Only the
   public meter fields are kept: no account id, credit balance or plan detail.
+
+## Balances
+
+- **A balance is what a paid account has left:** an amount, its currency, and the moment it was seen.
+  It stands in a slot as a window does, the provider it was read of and the account under it, the empty
+  account for the provider's own road; a reading replaces the slot's balance, and an account that
+  cannot be asked keeps its last.
+- **Each provider that offers a balance declares how it is read,** in its own member and its own policy
+  file: the address asked, the key it is asked with and what its answer states; a provider that declares
+  none is never asked. The reader knows no provider.
+  - **DeepSeek:** a GET of `https://api.deepseek.com/user/balance` with the road's key file as a bearer
+    token; the first of the answer's `balance_infos` is the reading, its `total_balance` the amount and
+    its `currency` the currency.
+  - **OpenRouter:** a GET of `https://openrouter.ai/api/v1/credits` with the key in its key variable as a
+    bearer token; the answer's total credits less its total usage is the amount, in US dollars.
+- **Who is asked:** the provider's own road where the provider can answer on this machine, and every
+  endpoint account whose base address stands on the same origin as the provider's balance address, with
+  the account's own key file, its balance kept under the account. A key goes into the one request header
+  and is never kept, returned or said.
+- **It passes every five minutes, and a reading stands for six passes,** thirty minutes, its ask failing
+  after 15 seconds. A failure is said once when it starts, naming the provider, the account and the
+  reason, and its recovery once when it ends.
+- **What reads it:** the accounts list answers an endpoint account's balance, and the fallback's view its
+  active slot's (`docs/api.md`, 「accounts, rest and usage」), each with the moment it was seen.
 
 ## What reads the windows
 

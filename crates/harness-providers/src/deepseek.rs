@@ -9,6 +9,7 @@ use policy::providers::Declared;
 use policy::providers::deepseek::{DEEPSEEK, Model as DeclaredModel};
 use serde_json::json;
 
+use crate::balance::{Balance, OffersBalance, figure, key_in_file};
 use crate::claude_code::ClaudeCode;
 use crate::{Machine, Offered, OfferedModel, Offering, PlaceCache, Provider, Reading};
 
@@ -68,9 +69,43 @@ fn usable_secret(path: &Path) -> bool {
     .is_ok_and(|meta| meta.is_file() && meta.permissions().mode() & 0o777 == 0o600 && meta.len() > 0)
 }
 
+// DeepSeek's balance: asked with the road's key file, the first of the answer's balances the reading.
+impl OffersBalance for DeepSeek {
+  fn declared(&self) -> &'static policy::providers::Balance {
+    &DEEPSEEK.balance
+  }
+
+  fn key(&self, machine: &Machine) -> Result<String, String> {
+    key_in_file(&Self::key_file(machine))
+  }
+
+  fn read(&self, answer: &serde_json::Value) -> Result<Balance, String> {
+    let first = answer
+      .get("balance_infos")
+      .and_then(serde_json::Value::as_array)
+      .and_then(|infos| infos.first())
+      .ok_or("the answer states no balance")?;
+    let amount = figure(first.get("total_balance")).ok_or("the balance states no total")?;
+    let currency = first
+      .get("currency")
+      .and_then(serde_json::Value::as_str)
+      .filter(|currency| !currency.is_empty())
+      .ok_or("the balance states no currency")?;
+
+    Ok(Balance {
+      amount,
+      currency: currency.to_owned(),
+    })
+  }
+}
+
 impl Provider for DeepSeek {
   fn name(&self) -> &'static str {
     "deepseek"
+  }
+
+  fn balance(&self) -> Option<&'static dyn OffersBalance> {
+    Some(&DeepSeek)
   }
 
   fn declared(&self) -> &'static Declared {

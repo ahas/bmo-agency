@@ -17,7 +17,7 @@ use serde_json::{Value, json};
 use store::one;
 
 use super::claude_accounts::{Judging, accounts, machine_config_dir};
-use super::fallback::account_headlines;
+use super::fallback::{account_balance, account_headlines};
 use super::{Call, Refused, Route, answer};
 use crate::door::record::SessionUsage;
 use crate::now_ms;
@@ -107,6 +107,7 @@ impl Route for AccountHeld {
 
     for account in accounts(call.store()).await? {
       let (session, week) = account_headlines(judging.windows, &account).await?;
+      let balance = account_balance(judging.windows, &account).await?;
       let held = match wanted {
         Some(user) => account.user_id == Some(user) && account.enabled,
         None => account.enabled,
@@ -122,6 +123,7 @@ impl Route for AccountHeld {
         "window": Value::Null,
         "session": session,
         "week": week,
+        "balance": balance,
         "restUntil": Value::Null,
         "credentialKind": account.credential.kind().word(),
         "endpointUrl": endpoint,

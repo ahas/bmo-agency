@@ -7,11 +7,13 @@
 //! The keeping and the judgement know no provider: each reader is one provider's member and declares its
 //! own provider, cadence and freshness, and a provider member hands in the lifetime it declares.
 
+pub mod balance;
 pub mod claude;
 pub mod codex;
 pub mod lifetime;
 pub mod reader;
 pub mod windows;
 
+pub use balance::{Balance, KeptBalance};
 pub use reader::Reader;
 pub use windows::{Keeping, KeptWindow, Reading, Slot, Window};
