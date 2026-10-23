@@ -57,8 +57,10 @@ fn fault(code: &str, message: String) -> Fault {
   }
 }
 
-fn looping(running: Option<&RunningProgram>, now: i64) -> bool {
-  running.is_some_and(|running| {
+// Whether the program `identity` names is in a loop: its own starts, never those of a program it was
+// written in place of.
+fn looping(running: Option<&RunningProgram>, identity: &str, now: i64) -> bool {
+  running.filter(|running| running.identity == identity).is_some_and(|running| {
     running.recent.iter().filter(|at| now - (**at as i64) < RECENT_WINDOW_MS).count() >= LOOPING_STARTS
   })
 }
@@ -168,7 +170,8 @@ pub async fn stand_resident(
   // A start failure written from now on, for this program, is the answer; one written before is a head
   // that may since have been stood again on another environment.
   let asked_at = now_ms();
-  let mut rebuilt = looping(place.running().as_ref(), now_ms()) && rebuild(place, home, None).await;
+  let mut rebuilt =
+    looping(place.running().as_ref(), &program.identity, now_ms()) && rebuild(place, home, None).await;
 
   loop {
     let stood = home.stand().await?;

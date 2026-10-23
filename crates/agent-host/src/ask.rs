@@ -245,7 +245,7 @@ impl Asks {
     {
       let before = place.running();
       let start = next_start(&program, before.as_ref());
-      let recent = recent_starts(before.as_ref(), now);
+      let recent = recent_starts(before.as_ref(), &start.identity, now);
       let wait_ms = restart_delay(&recent, now);
       let started_at = now + wait_ms;
       let mut recent = recent;

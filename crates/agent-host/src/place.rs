@@ -80,9 +80,11 @@ const FREE_STARTS: u32 = 3;
 const FIRST_WAIT_MS: u64 = 2_000;
 const LONGEST_WAIT_MS: u64 = 30_000;
 
-/// The starts still remembered at `now`.
-pub fn recent_starts(running: Option<&RunningProgram>, now: u64) -> Vec<u64> {
-  running.map_or_else(Vec::new, |running| {
+/// The starts of the program `identity` names still remembered at `now`. A start on another program than
+/// the one that ran last is a command written in its place, not the same program starting again, so its
+/// history begins afresh.
+pub fn recent_starts(running: Option<&RunningProgram>, identity: &str, now: u64) -> Vec<u64> {
+  running.filter(|running| running.identity == identity).map_or_else(Vec::new, |running| {
     running
       .recent
       .iter()

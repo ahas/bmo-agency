@@ -1,12 +1,13 @@
 //! A turn's context as the turn route reads it from a body: every part optional, the room's block whole,
 //! the road and the persona trimmed and none where blank, a work turn's parts whole by the names a job's
 //! runner sends, and a body that does not read refused. A start's scope, a question's answer, a session's
-//! state and a turn's end as the routes read and write them.
+//! state and a turn's end as the routes read and write them. A turn's work carried to its end though its
+//! caller lets go.
 
 use std::collections::BTreeMap;
 
 use agency_server::control::session_ops::{
-  answer_read, context_read, scope_read, scope_value, state_value,
+  answer_read, carried, context_read, scope_read, scope_value, state_value,
 };
 use agent_session::{
   AccountFailure, Answer, Apart, Asks, Context, Conversation, Failure, GateAsk, JobMark, Mapping, Outcome,
@@ -452,4 +453,24 @@ fn a_turns_end_writes_its_reply_in_camel_case_and_the_rest_in_snake_case() {
     (Some("reprepared"), Some("harness-2"))
   );
   assert_eq!(json!(TurnEnd::of("r", Outcome::Blocked))["delivery"], "blocked");
+}
+
+#[tokio::test]
+async fn work_a_caller_lets_go_of_is_carried_to_its_end() {
+  let (done, ended) = tokio::sync::oneshot::channel();
+  let work = async move {
+    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    let _ = done.send("ended");
+    "answered"
+  };
+
+  // The caller waits a moment and lets go, as a sender whose connection drops does.
+  let waited = tokio::time::timeout(std::time::Duration::from_millis(20), carried(work)).await;
+
+  assert!(waited.is_err());
+  assert_eq!(
+    tokio::time::timeout(std::time::Duration::from_secs(5), ended).await.unwrap().unwrap(),
+    "ended"
+  );
+  assert_eq!(carried(async { "answered" }).await, "answered");
 }

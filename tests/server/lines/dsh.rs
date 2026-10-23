@@ -165,3 +165,50 @@ fn the_overlay_writes_the_bearer_as_dsh_reads_it() {
     "{\n  \"BMO_JOB_TOKEN\": !!js \"process.env.BMO_JOB_TOKEN\"\n}\n"
   );
 }
+
+#[test]
+fn the_same_session_composes_the_same_overlay_and_a_changed_prompt_another() {
+  let dir = tempfile::tempdir().unwrap();
+  let system = dir.path().join("system.md");
+  let mcp = dir.path().join("mcp.json");
+
+  std::fs::write(&system, "You are the agent.\n").unwrap();
+  std::fs::write(
+    &mcp,
+    r#"{"mcpServers": {
+      "bmo": {"type": "http", "url": "http://127.0.0.1:1/mcp/bmo", "headers": {"Authorization": "Bearer ${BMO_MCP_TOKEN}"}},
+      "web": {"type": "http", "url": "http://127.0.0.1:1/mcp/web", "headers": {"Authorization": "Bearer ${BMO_MCP_TOKEN}"}},
+      "job": {"command": "bmo-job", "args": ["mcp"], "env": {"B_TOKEN": "b", "A_TOKEN": "a"}}
+    }}"#,
+  )
+  .unwrap();
+
+  let run = Composed {
+    line: "chat",
+    provider: "deepseek",
+    system: Some(&system),
+    rules: None,
+    shown: Some("Bash,Read"),
+    allowed: Some("Bash,Read"),
+    cwd: "/work",
+    model: "deepseek-flash",
+    effort: "max",
+    chosen: true,
+    thinking: true,
+    mcp: Some(&mcp),
+  };
+  let env = BTreeMap::from([("B".to_owned(), "2".to_owned()), ("A".to_owned(), "1".to_owned())]);
+  let route = DEEPSEEK.declared.dsh.as_ref().unwrap();
+  let first = session_patch(&run, &env, dir.path(), route).unwrap();
+  let first_text = std::fs::read_to_string(&first).unwrap();
+  let second = session_patch(&run, &env, dir.path(), route).unwrap();
+
+  // Composed again on the same words, the overlay is the same file to the byte, so the pane's command and
+  // its identity stand.
+  assert_eq!(first, second);
+  assert_eq!(std::fs::read_to_string(&second).unwrap(), first_text);
+
+  std::fs::write(&system, "You are another agent.\n").unwrap();
+
+  assert_ne!(session_patch(&run, &env, dir.path(), route).unwrap(), first);
+}

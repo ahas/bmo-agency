@@ -28,7 +28,7 @@ a field's exact shape matters, the OpenAPI document is the one to read.
 ## Versioning
 
 - The contract carries the repository's one version, in semver; the workspace manifest is its source. Before
-  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.42`.
+  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.43`.
 - A change to this document and a change to the boundary go in one commit. A change to a route, an event, a
   hook or a shared table's contract repairs this document in the same commit.
 - The major moves on a removed or renamed route, field or event, the minor on an addition, the patch on
@@ -225,6 +225,10 @@ A session's state carries `foldRatio`: the share of its model's window its conte
 session is folded once the turn that crossed it is over. It is the fold-ratio table's value for the
 provider the state names and the tier its agent's work key is assigned (「fold-ratios」 below), read
 afresh with each read, so a change on the console reaches the next read of every session.
+
+A turn sent is carried to its end whether or not its sender still waits on the send: a sender that lets
+go of the request, or goes down while the turn works, leaves the turn running, and the turn ends as it
+would have, its run closed and its end published as `turn.ended`.
 
 A turn is named from its start: `turn.created` carries its `turnId`, and the send answers with that same
 id once the turn ends. The progress read answers the turn named, on every scope that carries turns, with

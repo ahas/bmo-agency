@@ -413,7 +413,17 @@ impl Route for SessionStart {
 
 crate::moved!(SessionStart);
 
-/// One turn sent into a session and carried until it ends.
+/// Work a route answers with, carried to its end on a task of its own: a caller that lets go of the
+/// request, or goes down while it waits, drops only its wait, never the work (docs/api.md, 「sessions」).
+/// A panic in the work is the route's as it would have been.
+pub async fn carried<T: Send + 'static>(work: impl Future<Output = T> + Send + 'static) -> T {
+  match tokio::spawn(work).await {
+    Ok(done) => done,
+    Err(failed) => std::panic::resume_unwind(failed.into_panic()),
+  }
+}
+
+/// One turn sent into a session and carried until it ends, whether or not its sender still waits.
 pub struct SessionTurn;
 
 impl Route for SessionTurn {
@@ -429,7 +439,9 @@ impl Route for SessionTurn {
       context: context_read(&body)?,
     };
 
-    Ok(match backend(&call)?.send_turn(turn).await {
+    let sessions = backend(&call)?;
+
+    Ok(match carried(async move { sessions.send_turn(turn).await }).await {
       Ok(end) => {
         let state = match end.outcome {
           agent_session::Outcome::Answered => "ended",

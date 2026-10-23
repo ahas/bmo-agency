@@ -28,8 +28,9 @@ this is how.
 - There is no room outbox and no file-sending tool in this build. A file a tool makes is read back
   by you, and what it holds is what you answer; never say you sent a file.
 - A tool that takes longer than moments is launched on its own, and the reply does not wait for it:
-  `systemd-run --user --collect --unit fasttrack-<name> sh -c '<command> > /tmp/fasttrack-<name>.log 2>&1'`
-  A result you promised comes back to nothing: no watch wakes you. Do not promise to return with it.
+  `bmo use <tool> --async`, whose end wakes you; a command no tool carries writes its output to a log,
+  and `bmo/watch` on that log, used with `--async`, wakes you once it is done. A result you promised
+  comes back to you that way.
 - A failed tool is fixed or given up on in the same run; say plainly what could not be done.
 
 ## Keeping a tool

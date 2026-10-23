@@ -154,12 +154,16 @@ The owner's words:
   - **One exit is not started again:** the code `HEAD_STOPPED`, which only the head gives, when the
     agent host tells it to let go of the pane. Any other end, a program ended by a signal included, is
     started again; a pane closed from herdr takes its loop down with it by the hangup.
-  - **Starting again is bounded.** The agent host keeps the times of the program's recent starts in
-    the place. The first three within a minute start at once; each start after that waits twice as long
-    as the one before, from two seconds up to thirty. The start is recorded before the wait, with the
-    time it waits until, so the place reads as held meanwhile.
-  - **A place that keeps dying is stood up anew.** Six starts within five minutes is a program in a
-    loop, and the next turn does not put its prompt into it: the place is rebuilt first
+  - **Starting again is bounded.** The agent host keeps the times of the recent starts of the program
+    the place holds in the place. The first three within a minute start at once; each start after that
+    waits twice as long as the one before, from two seconds up to thirty. The start is recorded before
+    the wait, with the time it waits until, so the place reads as held meanwhile.
+  - **Only the same program starting again counts.** A start on another program than the one that ran
+    last — a command a turn or the standing pass wrote in its place — begins the place's start history
+    afresh, so a place whose program is replaced from one turn to the next, as a gate's is between two
+    gates' instructions, is neither held back nor taken for a loop.
+  - **A place that keeps dying is stood up anew.** Six starts of its program within five minutes is a
+    program in a loop, and the next turn does not put its prompt into it: the place is rebuilt first
     (「Stopping, falling back and standing up again」).
 - **Every agent's pane is stood up, not waited for.** The chat receiver stands them all up as it
   attaches to herdr, on every reattachment and every ten minutes (`chat-providers.md`, 「Where the
