@@ -194,4 +194,70 @@ async fn a_route_read_with_no_provider_begins_on_the_key_s_own_road_and_registra
     json!("deepseek"),
     "a key on Laya names no provider and walks the order"
   );
+  assert_eq!(pinned["runMode"], json!("registered"), "the road the key is set to");
+  assert_eq!(
+    walked["runMode"],
+    json!("laya"),
+    "the road the key stands on, never a word of the read's own"
+  );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_walk_passes_over_a_shut_road_and_a_key_set_to_a_provider_stays_on_it() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let data = home.path().join("data");
+  let token = "secret";
+
+  std::fs::create_dir_all(&data).unwrap();
+  scratch
+    .run(
+      r#"INSERT INTO "settings" ("key", "value")
+         VALUES ('provider_order', '[{"name":"deepseek","enabled":true},{"name":"claude-code","enabled":true}]')"#,
+      vec![],
+    )
+    .await;
+  scratch
+    .run(
+      r#"INSERT INTO "fallback_routes" ("key", "set_at", "route_mode") VALUES ('room-rules', 1, 'laya'),
+           ('library-knowledge', 1, 'deepseek'), ('people-search', 1, 'auto')"#,
+      vec![],
+    )
+    .await;
+
+  let server = standing::stand_server(home.path(), &data, &scratch.address(), token);
+  let port = server.port;
+  let (_, before) = get(port, token, "/work-keys/room-rules?tier=Simple").await;
+
+  assert_eq!(
+    (&before["provider"], &before["runMode"]),
+    (&json!("deepseek"), &json!("laya")),
+    "{before}"
+  );
+
+  // DeepSeek's model shut by a failure still standing: the walk passes it over for the next road.
+  let until = agency_server::now_ms() + 600_000;
+  let selection = format!("deepseek::{}", before["model"].as_str().unwrap());
+  let (status, blocked) = post(
+    port,
+    token,
+    "/road-blocks",
+    json!({ "selection": selection, "until": until, "reason": "the road is down" }),
+  )
+  .await;
+
+  assert_eq!(status, 201, "{blocked}");
+
+  for key in ["room-rules", "people-search"] {
+    let (status, walked) = get(port, token, &format!("/work-keys/{key}?tier=Simple")).await;
+
+    assert_eq!(status, 200, "{walked}");
+    assert_eq!(walked["provider"], json!("claude-code"), "{key}: {walked}");
+  }
+
+  // A key set to DeepSeek is the owner's choice and stays on it, its run mode naming it.
+  let (_, set) = get(port, token, "/work-keys/library-knowledge?tier=Simple").await;
+
+  assert_eq!((&set["provider"], &set["runMode"]), (&json!("deepseek"), &json!("deepseek")), "{set}");
+  assert_eq!(get(port, token, "/work-keys/people-search").await.1["runMode"], json!("auto"));
 }

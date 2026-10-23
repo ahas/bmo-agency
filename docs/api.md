@@ -431,9 +431,18 @@ reads it; no session is folded by the set itself.
 | PATCH | `/launch-room` | Record that launches are held, and why. |
 
 A work key's read that names no `provider` is resolved first on the provider the key's route is set to,
-where that provider is on, and then on each provider on in the owner's order, and the first that serves the
-key answers. So a gate, which reads its road this way, goes out on the provider its key is set to, and a key
-set to the registry's provider with a registration of its own goes out on that registration.
+where that provider is on, and then walks each provider on in the owner's order, and the first that serves
+the key answers. The walk passes over a provider whose program does not carry the key's line (a gate's
+`gate`), the registry's provider where the registration the key's tier maps to there is not walked, and a
+model that is not healthy now: its road shut by a failure still standing or, for Claude Code, by the
+deployment's rest, or a registration whose engine says it stands aside. So a gate, which reads its road this
+way, goes out on the provider its key is set to, and a key set to the registry's provider with a registration
+of its own goes out on that registration.
+
+`runMode` is the road the key stands on: the route the owner wrote for it, else its profile's default —
+`auto` for the walk, a provider's name, or `laya` for a gate whose classifier answers it. A gate on `laya`
+runs no model the read names; the provider and model it answers are where the walk would take the key, the
+road its fallback LLM begins on where it names none.
 
 A block is a resource with an id: its selection — `provider::model` — the moment it opens again in epoch
 milliseconds and the reason it was closed. A list returns the blocks whose moment is still ahead, narrowed

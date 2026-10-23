@@ -11,10 +11,12 @@ use policy::tiers::TIERS;
 use serde::Deserialize;
 use serde_json::{Value, json};
 
+use super::claude_accounts::Judging;
 use super::harness::{named, provider_order, set_provider_order};
 use super::tiers::resolve_execution;
-use super::{Call, Refused, Route, answer, registry};
+use super::{Call, Refused, Route, answer, registry, roads};
 use crate::queue::pins::pin_choice;
+use crate::queue::routes::{Unrouted, route_blocked};
 
 fn bad(error: impl Into<String>) -> Refused {
   Refused::new(StatusCode::BAD_REQUEST, error)
@@ -165,8 +167,9 @@ impl Route for ListTiers {
 
 crate::moved!(ListTiers);
 
-/// Where a work key goes: the named provider's, or the first that serves it of the provider the key is set
-/// to and then the provider order.
+/// Where a work key goes, and the road it stands on: the named provider's, or the first that serves it of the
+/// provider the key is set to and then the providers the walk asks, each carrying the key's line with a
+/// healthy model.
 pub struct ResolveRoute;
 
 impl Route for ResolveRoute {
@@ -183,38 +186,86 @@ impl Route for ResolveRoute {
     }
 
     let db = call.store();
+    let mode = roads::selected_mode(db, &key).await?;
+    let pinned = roads::pinned_provider(db, &key).await?;
+    let line = roads::profile(&key).map_or("worker", |profile| profile.line.as_str());
+    let walking = asked_provider.is_none();
     let providers = match asked_provider {
       Some(provider) => vec![provider],
-      None => super::roads::route_providers(db, &key).await?,
+      None => roads::route_providers(db, &key).await?,
     };
+    let judging = Judging::of(call.ground());
+    let data_root = call.data_root();
     let mut reasons = vec![];
 
     for provider in &providers {
-      let asked = if tier.is_empty() { None } else { Some(tier.as_str()) };
-      match resolve_execution(db, &key, provider, asked).await {
-        Ok(mapping) => {
-          return Ok(answer(
-            StatusCode::OK,
-            json!({
-              "key": key,
-              "provider": mapping.provider,
-              "model": mapping.model,
-              "thinking": mapping.thinking,
-              "effort": mapping.effort,
-              "answerTokens": mapping.answer_tokens,
-              "capMs": 0,
-              "runMode": "run",
-            }),
-          ));
-        }
-        Err(reason) => reasons.push(reason),
+      // The walk asks a provider the key is not set to only where its program carries the key's line.
+      let walked = walking && pinned.as_ref() != Some(provider);
+
+      if walked && !roads::walked(db, named(provider)?, &key, line).await? {
+        reasons.push(format!("{provider}: not walked on the {line} line"));
+        continue;
       }
+
+      let asked = if tier.is_empty() { None } else { Some(tier.as_str()) };
+      let mapping = match resolve_execution(db, &key, provider, asked).await {
+        Ok(mapping) => mapping,
+        Err(reason) => {
+          reasons.push(reason);
+          continue;
+        }
+      };
+
+      if walked && let Some(reason) = unhealthy(judging, &data_root, provider, &mapping.model).await? {
+        reasons.push(reason);
+        continue;
+      }
+
+      return Ok(answer(
+        StatusCode::OK,
+        json!({
+          "key": key,
+          "provider": mapping.provider,
+          "model": mapping.model,
+          "thinking": mapping.thinking,
+          "effort": mapping.effort,
+          "answerTokens": mapping.answer_tokens,
+          "capMs": 0,
+          "runMode": mode,
+        }),
+      ));
     }
 
     let reason = if reasons.is_empty() { "no provider is on".to_owned() } else { reasons.join("; ") };
 
     Ok(WireError::new(ErrorCode::NotFound, format!("no route serves {key}: {reason}")).into_response())
   }
+}
+
+// Why a provider's model is not healthy now, or nothing where it is: its road shut by a failure still standing
+// or by the deployment's rest, or, for a registration, an engine that says it stands aside.
+async fn unhealthy(
+  judging: Judging<'_>,
+  data_root: &std::path::Path,
+  provider: &str,
+  model: &str,
+) -> Result<Option<String>, Refused> {
+  if route_blocked(judging, &format!("{provider}::{model}"), crate::now_ms())
+    .await
+    .map_err(|Unrouted(why)| Refused::failed(why))?
+  {
+    return Ok(Some(format!("{provider}: the road to {model} is shut now")));
+  }
+
+  if named(provider)?.unregistered().is_some()
+    && registry::registration_health(judging.db, data_root, model)
+      .await?
+      .is_some_and(|health| health.aside.is_some())
+  {
+    return Ok(Some(format!("{provider}: the engine behind {model} stands aside")));
+  }
+
+  Ok(None)
 }
 
 crate::moved!(ResolveRoute);

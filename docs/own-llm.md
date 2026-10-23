@@ -457,7 +457,7 @@ bmo-agency agent --route <work key> [--provider registered] --registration <regi
 - **Where:** the run-route and gate tabs of the agent management screen, or with this command:
 
 ```
-bmo-agency agent --route <work key> --provider <auto|claude-code|codex|openrouter|registered|laya>
+bmo-agency agent --route <work key> --provider <auto|claude-code|codex|openrouter|registered|deepseek|laya>
 ```
 
 - **Model check:** a registry cell's registration is checked against the registry on saving.

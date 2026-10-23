@@ -668,8 +668,9 @@ When a demotion first catches — when a healthy session first drops — two thi
   as dsh's one route: a chat, a worker or a companion stands bmo-tui on a dsh session in its pane, its
   turns put into bmo-tui's inbox and read back out of its record (`docs/agent-control.md`, 「dsh's
   providers: OpenRouter and DeepSeek」). The session stands in the pane across turns, agency stores no id
-  for it, and its record carries no tokens, so what a turn spent is not reported. A gate is not carried:
-  a gate is the gate service's own run, and a road on this provider is not offered one.
+  for it, and its record carries no tokens, so what a turn spent is not reported. A gate is carried: its
+  judgements stand in places kept for the programs its asks compose (`docs/agent-control.md`, 「A gate's
+  places」), so a gate's key may be set to this provider and the walk of a gate's key asks it.
 - **Thinking and effort.** The provider's words are `none`, `low`, `medium`, `high` and `max`. `none` is
   a run without thinking, and so is an agent's own thinking switch turned off: the route is asked with
   reasoning off. An agent's level reaches the run as dsh's reasoning level where it is one of the
