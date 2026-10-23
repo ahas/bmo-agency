@@ -201,7 +201,8 @@ never the model's name.
   - `bmo-agency agent --unregister <name> [<node label>]` removes a registration, or one of its
     addresses.
 - **What a removal is refused for:** a registration a tier mapping, an agent's pin — a worker's or a
-  companion's — or a model catalogue entry names is not removed, and the refusal names each of them;
+  companion's — a work key's own registration or a model catalogue entry names is not removed, and the
+  refusal names each of them;
   each of those answers for itself whether it names the registration. The last address of a
   registration something names is not removed either.
 - **The rules a save is held to** — what a name, a node label, a model and a key file may be, the
@@ -404,14 +405,38 @@ never the model's name.
 ### The route table
 
 - **One row per work key** in the run route table.
-- **What a row holds:** the key's run mode.
+- **What a row holds:** the key's run mode, and — where the owner pins one — the registration the key
+  runs on at the registry's provider (「A key's own registration」 below).
 - **Run modes:** automatic, or one provider — Claude Code, Codex, OpenRouter, the registry's provider
   (`docs/cache-fallback.md`, 「The per-key choice is automatic or one provider」). A key's row set to a
   provider that does not carry its line is refused on save.
-- **What the row does not hold:** the model, the answer size and thinking — the tier settings decide
-  them (「Settings per tier」 below, `docs/model-tiers.md`) — and a gate's time limit, which is a separate
-  table (「Per-gate time limit」 below).
+- **What the row does not hold:** the model on any other provider, the answer size and thinking — the
+  tier settings decide them (「Settings per tier」 below, `docs/model-tiers.md`) — and a gate's time
+  limit, which is a separate table (「Per-gate time limit」 below).
 - **A key with no row** reads the profile's initial values.
+
+### A key's own registration
+
+- **One key may name one registration** in place of its tier's registry cell. It stands for that key
+  alone: every other key assigned to the tier keeps the cell, so a gate can move to a registration of
+  its own without moving the tier.
+- **What it may name:** a registration the registry holds with an address, checked on saving; none takes
+  the pin away, and the key reads its tier's cell again.
+- **Where it stands:** wherever the key is resolved on the registry's provider — its own runs on that
+  provider, the model a gate's request names to the gateway, whether the automatic walk asks the
+  registry for the key, and the route `GET /work-keys/{workKey}` answers. A resolution that names a tier
+  of its own reads that tier's cell. The registration's answer size and thinking default are its own,
+  unless the key's tier cell maps to that same registration, whose answer size and thinking then stand,
+  as a worker pinned to a registration takes them (「A worker pinned to a provider」 below).
+- **It is no run mode:** the pin chooses the registration and nothing else, so a key on automatic
+  reaches it only where its walk reaches the registry's provider, and a key set to another provider
+  runs there.
+- **Where it is set:** the route row's change on the console, or with this command, `auto` taking the pin
+  away; the command may set the key's provider in the same line:
+
+```
+bmo-agency agent --route <work key> [--provider registered] --registration <registration|auto>
+```
 
 ### Initial modes
 
@@ -889,7 +914,8 @@ bmo-agency agent --route <work key> --provider <auto|claude-code|codex|openroute
 - **Where:** the registry's column of the tier table on the agent management screen's model tab; a cell's
   dropdown sets them for that tier, offering every registration by its name.
 - **Who reads them:** every key assigned to that tier that runs on the registry's provider — a gate, the
-  chat, a worker.
+  chat, a worker — save a key that names a registration of its own (「A key's own registration」 above),
+  which reads its registration in place of the cell.
 - **The registry's cell may leave two of them to the registration:** an empty answer size is the
   registration's answer size, and the default thinking choice is the registration's thinking default; the
   on and off choices override it.

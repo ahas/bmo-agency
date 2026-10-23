@@ -500,6 +500,54 @@ async fn a_key_s_road_is_set_as_the_console_sets_it_and_a_model_of_its_own_is_re
   assert!(walked.out.last().unwrap().starts_with("route voice-reading changed to auto ("));
 }
 
+// "a key names a registration of its own from the command line, refused where it has no address"
+#[tokio::test]
+async fn a_key_s_own_registration_is_set_and_taken_away_from_the_command_line() {
+  let bench = Bench::new().await;
+
+  bench
+    .scratch
+    .run(
+      r#"INSERT INTO "registered_models" ("name", "label", "model", "context_tokens", "answer_tokens",
+            "wait_seconds", "thinking", "walked", "added_at", "keeps_research")
+         VALUES ('own-pick', 'Own pick', 'served', 100000, 4000, 60, 0, 1, 1, 0),
+                ('unplaced', 'Unplaced', 'served', 100000, 4000, 60, 0, 1, 1, 0)"#,
+      vec![],
+    )
+    .await;
+  bench
+    .scratch
+    .run(
+      r#"INSERT INTO "registered_model_addresses" ("registration", "node", "position", "url", "key_file", "key_owned")
+         VALUES ('own-pick', 'n1', 1, 'http://127.0.0.1:9/v1/chat/completions', NULL, 0)"#,
+      vec![],
+    )
+    .await;
+
+  let refused = bench.run(&["--route", "translator", "--registration", "unplaced"]).await;
+
+  assert_eq!(ended(&refused).0, 1);
+  assert_eq!(bench.text(r#"SELECT "key" FROM "fallback_routes""#, vec![]).await, None);
+
+  let pinned = bench.run(&["--route", "translator", "--registration", "own-pick"]).await;
+
+  assert_eq!(
+    pinned.out.last().unwrap(),
+    "route translator: runs on registration own-pick at the registry's provider"
+  );
+  assert_eq!(
+    bench
+      .text(r#"SELECT "registration" FROM "fallback_routes" WHERE "key" = 'translator'"#, vec![])
+      .await,
+    Some("own-pick".to_owned())
+  );
+
+  let cleared = bench.run(&["--route", "translator", "--registration", "auto"]).await;
+
+  assert_eq!(cleared.out.last().unwrap(), "route translator: reads its tier's registration");
+  assert_eq!(bench.text(r#"SELECT "key" FROM "fallback_routes""#, vec![]).await, None);
+}
+
 // "a registration is made, given an address and a key from standing input, listed without its key, and removed"
 #[tokio::test]
 async fn a_registration_is_made_given_an_address_and_a_key_listed_without_it_and_removed() {

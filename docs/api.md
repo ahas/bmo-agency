@@ -28,7 +28,7 @@ a field's exact shape matters, the OpenAPI document is the one to read.
 ## Versioning
 
 - The contract carries the repository's one version, in semver; the workspace manifest is its source. Before
-  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.27`.
+  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.28`.
 - A change to this document and a change to the boundary go in one commit. A change to a route, an event, a
   hook or a shared table's contract repairs this document in the same commit.
 - The major moves on a removed or renamed route, field or event, the minor on an addition, the patch on
@@ -358,6 +358,14 @@ answers.
 
 A provider's change throws the owner's switch on it; the last provider left on is not thrown off, since
 nothing would answer.
+
+Each work key's member of the fallback's `routes` answers, beside its `routeMode` and `account`, its
+`registration`: the registration the key runs on at the registry's provider in place of its tier's cell,
+or null where it names none (`docs/own-llm.md`, 「A key's own registration」). `PATCH /fallback` with the
+action `set-route-registration`, the `key` and a `registration` sets it; `auto`, an empty name or null
+takes it away. A registration the registry does not hold, or holds with no address, is `bad-request`, and
+the answer is the key and the registration it now names. Every resolution of the key on the registry's
+provider names that registration as its model, `GET /work-keys/{workKey}` among them.
 
 A model is one registration of the registry's provider: the list, the create, the read, the change and the
 take-away all read or write the registrations, so the list holds exactly what can be changed and removed. A

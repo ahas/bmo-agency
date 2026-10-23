@@ -1723,6 +1723,9 @@ pub struct FallbackChange {
   pub base_prompt: Option<String>,
   pub key: Option<String>,
   pub mode: Option<String>,
+  /// The registration a work key runs on at the registry's provider in place of its tier's cell, `auto`
+  /// or null to read the cell again.
+  pub registration: Option<String>,
 }
 
 /// The body that blocks a selection's road.

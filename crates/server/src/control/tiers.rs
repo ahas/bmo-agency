@@ -157,8 +157,33 @@ pub async fn resolve_tier(db: &DatabaseConnection, tier: &str, provider: &str) -
   Ok(mapping)
 }
 
-/// What a work key resolves to on a provider, or the refusal: its assignment, its migration settled.
+/// What a work key resolves to on a provider, or the refusal: its assignment, its migration settled, and on
+/// the registry's provider the registration the key names of its own in place of its tier's cell, on that
+/// registration's own answer size and thinking unless the cell maps to it (docs/own-llm.md, 「A key's own
+/// registration」).
 pub async fn resolve(db: &DatabaseConnection, key: &str, provider: &str) -> Result<Mapping, String> {
+  let mapping = resolve_assigned(db, key, provider).await?;
+
+  if provider != super::registry::PROVIDER {
+    return Ok(mapping);
+  }
+
+  let pinned = super::roads::key_registration(db, key).await.map_err(|refused| refused.error)?;
+
+  Ok(match pinned {
+    Some(registration) if registration != mapping.model => Mapping {
+      model: registration,
+      thinking: None,
+      effort: None,
+      answer_tokens: None,
+      ..mapping
+    },
+    _ => mapping,
+  })
+}
+
+// What a work key's tier maps to on a provider.
+async fn resolve_assigned(db: &DatabaseConnection, key: &str, provider: &str) -> Result<Mapping, String> {
   let tier = one(db, "SELECT tier FROM model_tier_assignments WHERE key = $1", vec![key.into()])
     .await
     .map_err(|refusal| refusal.detail)?

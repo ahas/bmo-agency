@@ -2449,6 +2449,11 @@ export interface components {
             basePrompt: string | null;
             key: string | null;
             mode: string | null;
+            /**
+             * @description The registration a work key runs on at the registry's provider in place of its tier's cell, `auto`
+             *     or null to read the cell again.
+             */
+            registration: string | null;
         };
         /** @description WorkKey: */
         WorkKey: {

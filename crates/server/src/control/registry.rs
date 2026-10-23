@@ -375,8 +375,8 @@ pub async fn walks(db: &sea_orm::DatabaseConnection, key: &str) -> bool {
 }
 
 /// What names a registration, each thing that may name one answering for itself: the tiers whose
-/// mapping on the registry names it, the workers and companions pinned to it, and the model
-/// catalogue's entries served behind it.
+/// mapping on the registry names it, the workers and companions pinned to it, the work keys that name it
+/// as their own, and the model catalogue's entries served behind it.
 pub async fn referrers<C: ConnectionTrait>(db: &C, name: &str) -> Result<Vec<String>, Refused> {
   let names = |rows: Vec<QueryResult>, column: &str| -> Result<Vec<String>, Refused> {
     rows
@@ -416,6 +416,15 @@ pub async fn referrers<C: ConnectionTrait>(db: &C, name: &str) -> Result<Vec<Str
   .into_iter()
   .filter(|pinned| conversational.contains(pinned))
   .collect();
+  let keys = names(
+    all(
+      db,
+      "SELECT key FROM fallback_routes WHERE registration = $1 ORDER BY key",
+      vec![name.into()],
+    )
+    .await?,
+    "key",
+  )?;
   let entries = names(
     all(
       db,
@@ -442,6 +451,7 @@ pub async fn referrers<C: ConnectionTrait>(db: &C, name: &str) -> Result<Vec<Str
           .iter()
           .map(|companion| fill_marks(&CONTROL_WORDS.registry.companion_pin, &[("companion", companion)])),
       )
+      .chain(keys.iter().map(|key| fill_marks(&CONTROL_WORDS.registry.key_pin, &[("key", key)])))
       .chain(
         entries
           .iter()

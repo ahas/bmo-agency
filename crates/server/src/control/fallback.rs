@@ -25,8 +25,8 @@ use super::harness::{
   provider_order, set_provider_order,
 };
 use super::roads::{
-  LAYA, OfferedRoad, is_route_mode, mode_refusal, offered_roads, pinned_provider, profile, route_row,
-  set_account, set_mode,
+  LAYA, OfferedRoad, is_route_mode, mode_refusal, offered_roads, pinned_provider, profile,
+  registration_refusal, route_row, set_account, set_mode, set_registration,
 };
 use super::{Call, Refused, Route, answer, registry, setting, tiers};
 use crate::now_ms;
@@ -288,6 +288,7 @@ async fn profile_view(
     "openrouterModel": model("openrouter"),
     "routeMode": route_mode,
     "account": row.as_ref().and_then(|row| row.account.clone()),
+    "registration": row.as_ref().and_then(|row| row.registration.clone()),
     "setAt": row.as_ref().map(|row| row.set_at),
     "offered": offered.iter().map(OfferedRoad::view).collect::<Vec<_>>(),
     "noRoute": (!available).then_some(no_route),
@@ -594,6 +595,26 @@ async fn key_change(
       set_account(db, key, Some(&held.id), at).await?;
 
       Ok(Some(answer(StatusCode::OK, json!({ "ok": true, "key": key, "account": held.id }))))
+    }
+    // Which registration this key runs on at the registry's provider in place of its tier's cell: one
+    // registration with an address, or none to read the cell again (docs/own-llm.md, 「A key's own
+    // registration」).
+    "set-route-registration" => {
+      let asked = body.get("registration").and_then(Value::as_str).map(str::trim).unwrap_or_default();
+
+      if asked == "auto" || asked.is_empty() {
+        set_registration(db, key, None, at).await?;
+
+        return Ok(Some(answer(StatusCode::OK, json!({ "ok": true, "key": key, "registration": null }))));
+      }
+
+      if let Some(refusal) = registration_refusal(db, asked).await? {
+        return Err(bad(refusal));
+      }
+
+      set_registration(db, key, Some(asked), at).await?;
+
+      Ok(Some(answer(StatusCode::OK, json!({ "ok": true, "key": key, "registration": asked }))))
     }
     _ => Ok(None),
   }

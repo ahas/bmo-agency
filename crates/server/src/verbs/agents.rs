@@ -110,6 +110,10 @@ pub struct AgentsArgs {
   pub route: Option<String>,
   #[arg(long)]
   pub account: Option<String>,
+  /// The registration a route's key runs on at the registry's provider in place of its tier's cell, or
+  /// `auto` to read the cell again.
+  #[arg(long)]
+  pub registration: Option<String>,
   #[arg(long)]
   pub provider: Option<String>,
   #[arg(long)]
@@ -300,9 +304,10 @@ pub async fn agents(stand: &Stand<'_>, args: &AgentsArgs) -> Result<Said, VerbEr
   };
 
   if let Some(key) = &args.route {
-    return match &args.account {
-      Some(account) => route_account(&stand.ground.db, said, key, account).await,
-      None => route_mode(stand, said, key, args).await,
+    return match (&args.account, &args.registration) {
+      (Some(account), _) => route_account(&stand.ground.db, said, key, account).await,
+      (None, Some(registration)) => route_registration(stand, said, key, args, registration).await,
+      (None, None) => route_mode(stand, said, key, args).await,
     };
   }
 
@@ -880,6 +885,46 @@ async fn route_account(
 
   roads::set_account(db, key, Some(&named.id), now_seconds()).await.map_err(failed)?;
   said.line(format!("route {key}: runs on {} ({})", named.id, named.name));
+
+  Ok(said)
+}
+
+// A key's own registration set, its road first where the line names one as well (docs/own-llm.md, 「A key's
+// own registration」).
+async fn route_registration(
+  stand: &Stand<'_>,
+  said: Said,
+  key: &str,
+  args: &AgentsArgs,
+  asked: &str,
+) -> Result<Said, VerbError> {
+  const USAGE: &str =
+    "usage: bmo-agency agent --route <key> [--provider registered] --registration <registration|auto>";
+  let db = &stand.ground.db;
+
+  if roads::profile(key).is_none() || asked.trim().is_empty() {
+    return Ok(said.misread(USAGE));
+  }
+
+  let named = (asked != "auto").then_some(asked);
+
+  if let Some(name) = named
+    && let Some(refusal) = roads::registration_refusal(db, name).await.map_err(failed)?
+  {
+    return Ok(said.refused(refusal));
+  }
+
+  let mut said = if args.provider.is_some() { route_mode(stand, said, key, args).await? } else { said };
+
+  if said.ended.is_some() {
+    return Ok(said);
+  }
+
+  roads::set_registration(db, key, named, now_seconds()).await.map_err(failed)?;
+  said.line(match named {
+    Some(name) => format!("route {key}: runs on registration {name} at the registry's provider"),
+    None => format!("route {key}: reads its tier's registration"),
+  });
 
   Ok(said)
 }

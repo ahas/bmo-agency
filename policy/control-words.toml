@@ -166,13 +166,14 @@ mapping = "Choose a provider, a model and an effort."
 answer_tokens = "An answer ceiling is set only on {providers}, as one of {choices}."
 
 # The registry of models: what names a registration — a {tier}, a {worker}'s pin, a {companion}'s pin, a
-# model file {entry} — a name, a node, an address or a key file out of its shape, a field's {label} out of
+# work {key}'s own registration, a model file {entry} — a name, a node, an address or a key file out of its shape, a field's {label} out of
 # its {min} to {max}, a label past its {most} characters, a {name} not registered or with no address on a
 # {node}, and {what} cannot be removed while the {names} name it.
 [registry]
 tier = "the {tier} tier"
 worker_pin = "worker {worker}'s pin"
 companion_pin = "companion {companion}'s pin"
+key_pin = "work key {key}'s own registration"
 model_file = "model file {entry}"
 name = "A name starts with a lowercase letter and holds only lowercase letters, digits and hyphens, at most 40 characters."
 node = "A node's name starts with a lowercase letter and holds only lowercase letters, digits and hyphens, at most 40 characters."

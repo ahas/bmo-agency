@@ -21,11 +21,14 @@ pub const LAYA: &str = "laya";
 /// The road that walks the providers in the owner's order.
 pub const AUTO: &str = "auto";
 
-/// What the owner wrote for one work key: its road, the Claude login it is pinned to, and when.
+/// What the owner wrote for one work key: its road, the Claude login it is pinned to, the registration it
+/// runs on at the registry's provider in place of its tier's cell (docs/own-llm.md, 「A key's own
+/// registration」), and when.
 #[derive(Clone, Debug)]
 pub struct RouteRow {
   pub route_mode: String,
   pub account: Option<String>,
+  pub registration: Option<String>,
   pub set_at: i64,
 }
 
@@ -43,7 +46,7 @@ pub fn is_route_mode(mode: &str) -> bool {
 pub async fn route_row(db: &DatabaseConnection, key: &str) -> Result<Option<RouteRow>, Refused> {
   let Some(row) = one(
     db,
-    "SELECT route_mode, account, set_at FROM fallback_routes WHERE key = $1",
+    "SELECT route_mode, account, registration, set_at FROM fallback_routes WHERE key = $1",
     vec![key.into()],
   )
   .await?
@@ -54,6 +57,7 @@ pub async fn route_row(db: &DatabaseConnection, key: &str) -> Result<Option<Rout
   Ok(Some(RouteRow {
     route_mode: row.try_get("", "route_mode")?,
     account: row.try_get("", "account")?,
+    registration: row.try_get("", "registration")?,
     set_at: row.try_get("", "set_at")?,
   }))
 }
@@ -223,12 +227,49 @@ pub async fn set_account(
   delete_if_empty(db, key).await
 }
 
+/// The registration a key runs on at the registry's provider written: one registration, or none to read the
+/// tier's cell.
+pub async fn set_registration(
+  db: &DatabaseConnection,
+  key: &str,
+  registration: Option<&str>,
+  at: i64,
+) -> Result<(), Refused> {
+  run(
+    db,
+    "INSERT INTO fallback_routes (key, set_at, route_mode, registration) VALUES ($1, $2, $3, $4)
+     ON CONFLICT (key) DO UPDATE SET registration = excluded.registration, set_at = excluded.set_at",
+    vec![key.into(), at.into(), default_mode(key).into(), registration.map(str::to_owned).into()],
+  )
+  .await?;
+
+  delete_if_empty(db, key).await
+}
+
+/// Why a key may not name a registration of its own, or nothing where it may: the registry holds it with an
+/// address.
+pub async fn registration_refusal(db: &DatabaseConnection, name: &str) -> Result<Option<String>, Refused> {
+  let held = registry::registration(db, name).await?;
+
+  Ok(
+    held
+      .is_none_or(|held| held.addresses.is_empty())
+      .then(|| format!("{}: {name}", policy::providers::registered::REGISTERED.presence.not_registered)),
+  )
+}
+
+/// The registration a key names of its own, where it names one.
+pub async fn key_registration(db: &DatabaseConnection, key: &str) -> Result<Option<String>, Refused> {
+  Ok(route_row(db, key).await?.and_then(|row| row.registration))
+}
+
 // A row that says nothing the key's defaults do not is removed, so the key follows its profile again.
 async fn delete_if_empty(db: &DatabaseConnection, key: &str) -> Result<(), Refused> {
   run(
     db,
     "DELETE FROM fallback_routes WHERE key = $1 AND codex_model IS NULL AND codex_effort IS NULL
-       AND openrouter_model IS NULL AND claude_model IS NULL AND account IS NULL AND route_mode = $2",
+       AND openrouter_model IS NULL AND claude_model IS NULL AND account IS NULL AND registration IS NULL
+       AND route_mode = $2",
     vec![key.into(), default_mode(key).into()],
   )
   .await?;

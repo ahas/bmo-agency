@@ -190,6 +190,7 @@ pub struct RegistryWords {
   pub tier: String,
   pub worker_pin: String,
   pub companion_pin: String,
+  pub key_pin: String,
   pub model_file: String,
   pub name: String,
   pub node: String,

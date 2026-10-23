@@ -57,6 +57,7 @@ mod control {
   mod resources;
   mod roads;
   mod room_session_reads;
+  mod route_registration;
   mod run_launch;
   mod session_ops;
   mod sessions;
