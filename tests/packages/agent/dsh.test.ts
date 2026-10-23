@@ -308,7 +308,7 @@ describe("the command a run is carried on", () => {
       "--package",
       // Pinned rather than floating: a release that renamed a row the overlay addresses would be
       // a different harness answering the same command.
-      "@deepseek-ai/dsh@0.2.0-rc.2",
+      "@deepseek-ai/dsh@0.2.1-rc.2",
       "--call",
     ]);
 

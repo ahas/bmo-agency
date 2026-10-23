@@ -203,8 +203,8 @@ async fn an_openrouter_step_stands_bmo_tui_on_a_dsh_session_over_its_inbox() {
   assert!(disabled("session-title-llm"));
 
   // dsh's own tools stand on a line that grants tools; the web the deployment replaces with the servers its
-  // MCP configuration hands the session, and the goal and ralph rows stand off so no turn outlives its answer.
-  for id in ["tool-web", "tool-goal", "tool-ralph"] {
+  // MCP configuration hands the session, and the goal row stands off so no turn outlives its answer.
+  for id in ["tool-web", "tool-goal"] {
     assert!(disabled(id), "{id}");
   }
 

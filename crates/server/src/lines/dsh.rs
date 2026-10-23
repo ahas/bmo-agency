@@ -28,23 +28,23 @@ use crate::host_run::Command;
 // The version the deployment runs dsh at. A harness is its whole composition — the rows its profile mounts,
 // the ids they are addressed by — and the overlay below addresses rows by id, so the version moves only
 // with a reading of what moved with it.
-const VERSION: &str = "0.2.0-rc.2";
+const VERSION: &str = "0.2.1-rc.2";
 
 // The profile that runs one task and prints the answer.
 const PROFILE: &str = "headless";
 
-// The persona the headless profile of the pinned version opens its system prompt with, which the worker's
-// rules are written after; `{{model}}` and `{{cwd}}` are dsh's own prompt variables.
-const HEADLESS_OPENER: &str =
-  "You are a coding agent powered by the {{model}} model. Your working directory is {{cwd}}.";
+// The persona prefix the headless profile of the pinned version opens its system prompt with, which the
+// worker's rules are written after; `{{model}}` is dsh's own prompt variable, and the working directory is
+// dsh's own runtime context rather than a variable of the persona.
+const HEADLESS_OPENER: &str = "You are a coding agent powered by the {{model}} model.";
 
 // The one row of the pinned profile's tools a worker goes without, every other one on: the web reaches it
 // through the deployment's own server.
 const WEB_ROW: &str = "tool-web";
 
-// The rows a standing session goes without beside the web: a goal and the ralph loop keep the session
-// working past the turn that was put in, and a chat's turn ends with its answer.
-const LOOP_ROWS: [&str; 2] = ["tool-goal", "tool-ralph"];
+// The rows a standing session goes without beside the web: a goal keeps the session working past the turn
+// that was put in, and a chat's turn ends with its answer.
+const LOOP_ROWS: [&str; 1] = ["tool-goal"];
 
 // The row that spends a second model call titling a session nothing opens again; a worker keeps the
 // instruction-file reader, since the checkout's documents are its work's.
@@ -466,8 +466,8 @@ const TOOL_ROWS: [&str; 18] = [
   "tool-workflow",
   "tool-todo",
   "tool-goal",
-  "tool-ralph",
   "tool-str-replace-editor",
+  "tool-working-directory",
   "tool-web",
   "plan-mode",
   "user-questions",

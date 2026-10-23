@@ -595,10 +595,10 @@ in the provider's own terms:
     instruction-file reader, since the checkout's documents are its work's, and its rules follow dsh's
     opening line rather than replacing it.
   - **The web is agency's, and the rest of the tools are dsh's.** A line that grants tools keeps the
-    rows dsh ships — the shell, the files, the search, jobs, sub-agents, workflows, todo, the editor,
-    plan mode and the user question — and switches off the web row, since the web the model reaches is
-    the deployment's own, handed in through its MCP configuration. A standing session goes without the
-    goal and ralph rows too: both keep a session working past the turn that was put in, and a chat's
+    rows dsh ships — the shell, the files, the search, jobs, sub-agents, workflows, todo, the editor, the
+    working-directory tool, plan mode and the user question — and switches off the web row, since the web
+    the model reaches is the deployment's own, handed in through its MCP configuration. A standing session goes without the
+    goal row too: it keeps a session working past the turn that was put in, and a chat's
     turn ends with its answer. A line shown no tools, a gate's among them, has every tool row off. A
     worker takes the whole working set but the web, as a job always has.
   - **The MCP servers are agency's.** They are read from the same configuration file the Claude Code

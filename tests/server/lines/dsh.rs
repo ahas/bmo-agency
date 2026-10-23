@@ -61,7 +61,7 @@ fn a_session_granting_tools_keeps_dsh_s_defaults_but_the_web_and_the_loops() {
   let overlay = session_overlay("Bash,Read");
   let disabled = |id: &str| overlay.iter().any(|row| row["id"] == id && row["disabled"] == true);
 
-  for id in ["tool-web", "tool-goal", "tool-ralph"] {
+  for id in ["tool-web", "tool-goal"] {
     assert!(disabled(id), "{id}");
   }
 
@@ -137,8 +137,8 @@ fn a_session_shown_no_tools_switches_every_tool_row_off() {
     "tool-workflow",
     "tool-todo",
     "tool-goal",
-    "tool-ralph",
     "tool-str-replace-editor",
+    "tool-working-directory",
     "tool-web",
     "plan-mode",
     "user-questions",

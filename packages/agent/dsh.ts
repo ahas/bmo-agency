@@ -41,16 +41,16 @@ import type { AgentAdapter, AgentProviderName, HarnessCommand, HarnessOutput, Ha
 // holding tools it was told not to have, or with no route to a model at all: the same command
 // standing for a different program on a different day. It moves when somebody reads what moved
 // with it.
-const version = "0.2.0-rc.2";
+const version = "0.2.1-rc.2";
 
 // The profile that runs one task and prints the answer. dsh's other profiles open a server or a
 // browser UI, and neither is a thing a bot spawns.
 const profile = "headless";
 
-// The persona the headless profile of the pinned version opens its system prompt with, which a
-// job's rules are written after. It belongs to the version above: `{{model}}` and `{{cwd}}` are
-// dsh's own prompt variables, filled as the prompt is rendered.
-const headlessOpener = "You are a coding agent powered by the {{model}} model. Your working directory is {{cwd}}.";
+// The persona prefix the headless profile of the pinned version opens its system prompt with, which
+// a job's rules are written after. It belongs to the version above: `{{model}}` is dsh's own prompt
+// variable, filled as the prompt is rendered, and the working directory is dsh's own runtime context.
+const headlessOpener = "You are a coding agent powered by the {{model}} model.";
 
 // The word dsh's own commands are reached by. Nothing here ever asks for it: headless keeps no
 // session agency could resume, so there is no session of dsh's to fold.
@@ -74,8 +74,8 @@ const toolRows = [
   "tool-workflow",
   "tool-todo",
   "tool-goal",
-  "tool-ralph",
   "tool-str-replace-editor",
+  "tool-working-directory",
   "tool-web",
   "plan-mode",
 ];
@@ -94,7 +94,8 @@ const quietRows = ["agent-instructions", "session-title-llm"];
 // may touch is exactly what the sandbox below lets a file tool touch. The names are not
 // translated one for one — dsh's tools are named nothing like the CLI's — but what those names
 // are is a shell and a filesystem, and these are dsh's. The agentic rows neither is shown —
-// subagent, workflow, todo, goal, ralph, skill, web, plan mode — stay off with the rest.
+// subagent, workflow, todo, goal, skill, the working-directory tool, web, plan mode — stay off with
+// the rest.
 const fileToolRows = ["tool-fs", "tool-fs-search", "tool-str-replace-editor"];
 const shellToolRow = "tool-bash";
 
