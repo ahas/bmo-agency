@@ -2372,7 +2372,18 @@ export interface components {
             userName: string | null;
             held: boolean;
             home: string | null;
+            /** @description The usage a report named, on the report's answer; null on the list. */
             window: unknown;
+            /**
+             * @description The account's session window, none where it holds none: an endpoint account never does.
+             * @default null
+             */
+            session: components["schemas"]["UsageWindow"] | null;
+            /**
+             * @description The account's week window, none where it holds none.
+             * @default null
+             */
+            week: components["schemas"]["UsageWindow"] | null;
             /**
              * Format: int64
              * @description epoch milliseconds
@@ -2388,6 +2399,32 @@ export interface components {
             models: components["schemas"]["EndpointModels"] | null;
             /** @description The base prompt a worker's run on it opens with. */
             basePrompt: string | null;
+        };
+        /** @description One usage window of a slot as the usage-window store holds it (docs/usage-windows.md). */
+        UsageWindow: {
+            name: string;
+            /** @description The login the slot is kept under, none on a provider that holds no logins. */
+            account: string | null;
+            /** @description The provider the window was read of. */
+            mode: string;
+            /**
+             * Format: double
+             * @description The share of the limit used, 0 to 1.
+             */
+            utilization: number;
+            /**
+             * Format: int64
+             * @description epoch seconds
+             */
+            resetsAt: number | null;
+            /**
+             * Format: int64
+             * @description epoch seconds: when the reading it came in was seen.
+             */
+            seenAt: number;
+            /** Format: int64 */
+            durationMinutes: number | null;
+            limitName: string | null;
         };
         /** @description The body that reports a login's session usage. */
         AccountUsage: {

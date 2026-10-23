@@ -32,22 +32,29 @@ pub trait Reader: Send + Sync {
 pub struct Said(Mutex<HashMap<String, String>>);
 
 impl Said {
-  /// What a reading of `what` came to, said where it differs from what was said of it last.
-  pub fn outcome(&self, what: &str, outcome: &Result<(), String>) {
+  /// What a reading of `what` came to, said where it differs from what was said of it last: a failure on
+  /// the error output with its reason, a recovery on the standard output. Answers the line it said, where
+  /// it said one.
+  pub fn outcome(&self, what: &str, outcome: &Result<(), String>) -> Option<String> {
     let mut said = self.0.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
 
     match outcome {
-      Ok(()) => {
-        if said.remove(what).is_some() {
-          println!("{what} read again");
-        }
-      }
+      Ok(()) => said.remove(what).map(|_| {
+        let line = format!("{what} read again");
+
+        println!("{line}");
+        line
+      }),
       Err(failure) => {
-        if said.get(what) != Some(failure) {
-          eprintln!("{what} could not be read: {failure}");
-        }
+        let line = (said.get(what) != Some(failure)).then(|| {
+          let line = format!("{what} could not be read: {failure}");
+
+          eprintln!("{line}");
+          line
+        });
 
         said.insert(what.to_owned(), failure.clone());
+        line
       }
     }
   }

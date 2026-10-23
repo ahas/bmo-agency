@@ -1,7 +1,9 @@
-//! The Claude account reader: an answer read into windows as the parity cases record them, each account
-//! asked with its own login and its windows written under it alone, an account that cannot be asked
-//! keeping what it had, and a token that cannot be read with marking the account unread so its last full
-//! reading stops standing, until a reading lifts the mark.
+//! The Claude account reader against a stand-in endpoint: an answer read into windows as the parity cases
+//! record them, each account asked with its own login and its windows written under it alone, an account
+//! that cannot be asked keeping what it had, an endpoint that does not answer in time a failure that leaves
+//! the account unmarked, a token that cannot be read with marking the account unread so its last full
+//! reading stops standing until a reading lifts the mark, and a failure said once when it starts and its
+//! recovery once when it ends.
 
 use std::future::Future;
 use std::pin::Pin;
@@ -13,6 +15,7 @@ use axum::extract::Request;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use cache_siren::claude::{ClaudeAccounts, Credential, Login, Logins, MODE, windows_of};
+use cache_siren::reader::Said;
 use cache_siren::{Keeping, Reader, Slot, Window};
 use serde_json::{Value, json};
 use tokio::net::TcpListener;
@@ -227,4 +230,68 @@ async fn a_full_reading_the_reader_cannot_renew_for_its_token_stops_standing_unt
   assert_eq!(main.unread_at, None, "a reading taken lifts the mark");
   assert_eq!(main.standing(NOW + 1).count(), 2);
   assert_eq!(keeping.unread_at("spare").await.unwrap(), Some(NOW), "a refused token stays marked");
+}
+
+/// An account-usage endpoint that answers nothing for longer than any ask here waits.
+async fn silent_endpoint() -> String {
+  let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+  let port = listener.local_addr().unwrap().port();
+  let app = Router::new().fallback(|| async {
+    tokio::time::sleep(Duration::from_secs(30)).await;
+
+    StatusCode::OK
+  });
+
+  tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+
+  format!("http://127.0.0.1:{port}/usage")
+}
+
+#[tokio::test]
+async fn an_endpoint_that_does_not_answer_in_time_is_a_failure_and_the_account_keeps_what_it_had() {
+  let scratch = Scratch::new().await;
+  let dir = tempfile::tempdir().unwrap();
+  let token = dir.path().join("token");
+
+  std::fs::write(&token, "sk-token-one").unwrap();
+
+  let reader = Arc::new(
+    ClaudeAccounts::new(silent_endpoint().await, Arc::new(Fixed(vec![token_login("one", token)])))
+      .waiting(Duration::from_millis(200)),
+  );
+  let keeping = Keeping::new(scratch.db().clone(), vec![reader.clone()]);
+  let kept = full("five_hour");
+
+  keeping.replace(slot("one"), std::slice::from_ref(&kept), NOW - 60).await.unwrap();
+
+  let outcomes = reader.read_each(&keeping, NOW_MS).await.unwrap();
+
+  assert_eq!(outcomes, [("one".to_owned(), Err("the endpoint did not answer in time".to_owned()))]);
+
+  let read = keeping.read(slot("one")).await.unwrap();
+
+  assert_eq!(read.windows[0].window, kept);
+  assert_eq!(read.windows[0].seen_at, NOW - 60);
+  assert_eq!(read.unread_at, None, "an endpoint that did not answer says nothing of the token");
+}
+
+#[test]
+fn a_failure_is_said_once_with_its_reason_and_its_recovery_once() {
+  let said = Said::default();
+  let what = "claude usage for one";
+  let refused = Err("HTTP 401".to_owned());
+
+  assert_eq!(said.outcome(what, &Ok(())), None, "a reading taken says nothing");
+  assert_eq!(
+    said.outcome(what, &refused).as_deref(),
+    Some("claude usage for one could not be read: HTTP 401")
+  );
+  assert_eq!(said.outcome(what, &refused), None, "the same failure is not said again");
+  assert_eq!(
+    said.outcome(what, &Err("the endpoint did not answer in time".to_owned())).as_deref(),
+    Some("claude usage for one could not be read: the endpoint did not answer in time"),
+    "another reason is said as it starts"
+  );
+  assert_eq!(said.outcome(what, &Ok(())).as_deref(), Some("claude usage for one read again"));
+  assert_eq!(said.outcome(what, &Ok(())), None);
 }

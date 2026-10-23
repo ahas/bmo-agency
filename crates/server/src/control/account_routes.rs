@@ -6,9 +6,9 @@
   clippy::let_and_return,
   clippy::unnecessary_to_owned
 )]
-//! The Claude logins as a job's runner and the job unit ask after them (docs/api.md, 「Accounts」): the rest a
-//! done job's session usage calls for, whether a user holds a login that is on, and where the logins keep
-//! their session records.
+//! The Claude logins as a job's runner, the job unit and the console ask after them (docs/api.md,
+//! 「Accounts」): the rest a done job's session usage calls for, whether a user holds a login that is on with
+//! each login's own two headline windows, and where the logins keep their session records.
 
 use axum::http::{Method, StatusCode};
 use axum::response::{IntoResponse, Response};
@@ -17,6 +17,7 @@ use serde_json::{Value, json};
 use store::one;
 
 use super::claude_accounts::{Judging, accounts, machine_config_dir};
+use super::fallback::account_headlines;
 use super::{Call, Refused, Route, answer};
 use crate::door::record::SessionUsage;
 use crate::now_ms;
@@ -102,7 +103,10 @@ impl Route for AccountHeld {
       None => None,
     };
 
+    let judging = Judging::of(call.ground());
+
     for account in accounts(call.store()).await? {
+      let (session, week) = account_headlines(judging.windows, &account).await?;
       let held = match wanted {
         Some(user) => account.user_id == Some(user) && account.enabled,
         None => account.enabled,
@@ -116,6 +120,8 @@ impl Route for AccountHeld {
         "held": held,
         "home": account.records_dir(machine).to_string_lossy(),
         "window": Value::Null,
+        "session": session,
+        "week": week,
         "restUntil": Value::Null,
         "credentialKind": account.credential.kind().word(),
         "endpointUrl": endpoint,

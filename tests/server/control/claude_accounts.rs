@@ -1,5 +1,6 @@
-//! The Claude accounts: a setting read as a whole number, a credential's stated end, and a login closed
-//! by a window of its own agency keeps read full while its reading stands.
+//! The Claude accounts: a setting read as a whole number, a credential's stated end, a login closed by a
+//! window of its own agency keeps read full while its reading stands, and each account's view carrying its
+//! own two headline windows whichever road the chat stands on.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -75,6 +76,75 @@ async fn a_login_rests_while_a_window_of_its_own_is_kept_full_and_its_reading_st
   scratch.run(r#"DROP TABLE "usage_windows""#, vec![]).await;
 
   assert_eq!(rest(&read).await, None, "a keeping that cannot be read closes nothing");
+}
+
+#[tokio::test]
+async fn each_account_s_view_carries_its_own_headline_windows_and_an_endpoint_account_none() {
+  let scratch = Scratch::new().await;
+  let db = scratch.db();
+  let windows = Keeping::new(db.clone(), vec![Arc::new(HalfHour)]);
+  let window = |name: &str, used: f64| Window {
+    name: name.into(),
+    utilization: used,
+    resets_at: None,
+    duration_minutes: None,
+    limit_name: None,
+  };
+
+  scratch
+    .run(
+      r#"INSERT INTO "claude_accounts"
+           ("id", "name", "place", "enabled", "credential_kind", "credential_path", "added_at",
+            "endpoint_url", "key_file")
+         VALUES ('main', 'one', 1, 1, 'directory', '/logins/one', 0, NULL, NULL),
+                ('spare', 'two', 2, 0, 'token', '/logins/two.token', 0, NULL, NULL),
+                ('paid', 'three', 3, 1, 'endpoint', '/logins/paid', 0, 'https://endpoint.invalid', '/keys/paid')"#,
+      vec![],
+    )
+    .await;
+  windows
+    .replace(
+      Slot {
+        mode: "claude-code",
+        account: "main",
+      },
+      &[window("five_hour", 0.25), window("seven_day", 0.5)],
+      100,
+    )
+    .await
+    .unwrap();
+  windows.replace(SPARE, &[window("seven_day", 0.75)], 100).await.unwrap();
+  windows
+    .replace(
+      Slot {
+        mode: "claude-code",
+        account: "paid",
+      },
+      &[window("five_hour", 1.0)],
+      100,
+    )
+    .await
+    .unwrap();
+
+  let views = views(Judging {
+    db,
+    windows: &windows,
+  })
+  .await
+  .unwrap();
+  let of = |id: &str| views.iter().find(|view| view["id"] == id).unwrap();
+
+  assert_eq!(of("main")["session"]["utilization"], 0.25);
+  assert_eq!(of("main")["session"]["seenAt"], 100);
+  assert_eq!(of("main")["week"]["utilization"], 0.5);
+  assert_eq!(
+    of("spare")["session"],
+    serde_json::Value::Null,
+    "an account off still answers what it holds"
+  );
+  assert_eq!(of("spare")["week"]["utilization"], 0.75);
+  assert_eq!(of("paid")["session"], serde_json::Value::Null, "an endpoint account holds no windows");
+  assert_eq!(of("paid")["week"], serde_json::Value::Null);
 }
 
 #[test]

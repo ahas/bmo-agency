@@ -114,6 +114,11 @@ fn access_token(credential: &Credential, now_ms: i64) -> Result<String, &'static
   Ok(token.to_owned())
 }
 
+// The client every ask goes out on: a request that has not answered within `wait` fails.
+fn asking_within(wait: Duration) -> reqwest::Client {
+  reqwest::Client::builder().timeout(wait).build().unwrap_or_default()
+}
+
 /// The reader on the clock: where it asks, who it asks for, and each account's failure as last said.
 pub struct ClaudeAccounts {
   url: String,
@@ -127,13 +132,17 @@ impl ClaudeAccounts {
   pub fn new(url: impl Into<String>, logins: Arc<dyn Logins>) -> Self {
     Self {
       url: url.into(),
-      http: reqwest::Client::builder()
-        .timeout(Duration::from_secs(CLAUDE_CODE.usage.ask_seconds))
-        .build()
-        .unwrap_or_default(),
+      http: asking_within(Duration::from_secs(CLAUDE_CODE.usage.ask_seconds)),
       logins,
       said: Said::default(),
     }
+  }
+
+  /// The same reader taking a request that has not answered within `wait` as a failure, where a caller
+  /// stands in an endpoint of its own.
+  pub fn waiting(mut self, wait: Duration) -> Self {
+    self.http = asking_within(wait);
+    self
   }
 
   /// The reader asking the provider's own account-usage endpoint.
@@ -280,7 +289,9 @@ impl Reader for ClaudeAccounts {
             self.said.outcome(&format!("claude usage for {account}"), &outcome.map(drop));
           }
         }
-        Err(why) => self.said.outcome("the claude accounts", &Err(why)),
+        Err(why) => {
+          self.said.outcome("the claude accounts", &Err(why));
+        }
       }
     })
   }

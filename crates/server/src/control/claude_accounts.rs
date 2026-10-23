@@ -849,6 +849,7 @@ pub async fn views(judging: Judging<'_>) -> Result<Vec<Value>, Refused> {
   for account in accounts(judging.db).await? {
     let rest = rest_until(judging, &account.id).await?.filter(|until| until * 1000 > now);
     let (endpoint, key_file, models) = account.credential.endpoint_parts();
+    let (session, week) = super::fallback::account_headlines(judging.windows, &account).await?;
 
     views.push(json!({
       "id": account.id,
@@ -866,6 +867,8 @@ pub async fn views(judging: Judging<'_>) -> Result<Vec<Value>, Refused> {
       "chosen": chosen.as_deref() == Some(account.id.as_str()),
       "serving": serving.as_deref() == Some(account.id.as_str()),
       "restUntil": rest,
+      "session": session,
+      "week": week,
     }));
   }
 

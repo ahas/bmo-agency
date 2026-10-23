@@ -633,6 +633,25 @@ pub struct EndpointModels {
   pub haiku: Option<String>,
 }
 
+/// One usage window of a slot as the usage-window store holds it (docs/usage-windows.md).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct UsageWindow {
+  pub name: String,
+  /// The login the slot is kept under, none on a provider that holds no logins.
+  pub account: Option<String>,
+  /// The provider the window was read of.
+  pub mode: String,
+  /// The share of the limit used, 0 to 1.
+  pub utilization: f64,
+  /// epoch seconds
+  pub resets_at: Option<i64>,
+  /// epoch seconds: when the reading it came in was seen.
+  pub seen_at: i64,
+  pub duration_minutes: Option<i64>,
+  pub limit_name: Option<String>,
+}
+
 /// Account:
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -642,7 +661,14 @@ pub struct Account {
   pub user_name: Option<String>,
   pub held: bool,
   pub home: Option<String>,
+  /// The usage a report named, on the report's answer; null on the list.
   pub window: Value,
+  /// The account's session window, none where it holds none: an endpoint account never does.
+  #[serde(default)]
+  pub session: Option<UsageWindow>,
+  /// The account's week window, none where it holds none.
+  #[serde(default)]
+  pub week: Option<UsageWindow>,
   /// epoch milliseconds
   pub rest_until: Option<i64>,
   /// One of `directory`, `token` or `endpoint`.

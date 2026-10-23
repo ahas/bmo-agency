@@ -18,7 +18,7 @@ use serde_json::{Value, json};
 
 use super::claude_account_changes::{self as changes, BasePromptGiven, CredentialGiven, account_named};
 use super::claude_accounts::{
-  self, CredentialKind, EndpointModels, Judging, accounts, leading_integer, walk_for,
+  self, Account, CredentialKind, EndpointModels, Judging, SEED_ACCOUNT, accounts, leading_integer, walk_for,
 };
 use super::harness::{
   OrderEntry, is_default_order, missing, named, order_shape_reason, order_to_save, provider_enabled,
@@ -113,6 +113,22 @@ pub(super) async fn headline_windows(
   let at = |place: Option<usize>| place.map_or(Value::Null, |place| own[place].clone());
 
   Ok((at(headline.session), at(headline.week)))
+}
+
+/// An account's own two headline windows, the session's and the week's, as the Claude account reader and
+/// its runs keep them under it; null for an endpoint account, which holds no windows, and where the account
+/// holds no such window.
+pub(super) async fn account_headlines(
+  windows: &Keeping,
+  account: &Account,
+) -> Result<(Value, Value), Refused> {
+  if account.credential.window_credential().is_none() {
+    return Ok((Value::Null, Value::Null));
+  }
+
+  let id = if account.id.is_empty() { SEED_ACCOUNT } else { account.id.as_str() };
+
+  headline_windows(windows, cache_siren::claude::MODE, Some(id)).await
 }
 
 /// The agent serving the chat now and what it has used: the provider its road answers on, the login

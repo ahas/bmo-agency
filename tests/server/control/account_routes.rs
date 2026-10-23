@@ -1,6 +1,7 @@
-//! The Claude logins as the job unit asks after them, of a running server: whether a user holds a login that
-//! is on, the record homes each once, and the rest a done job's usage calls for begun on its login where a
-//! window stands at its threshold and nothing begun where none does.
+//! The Claude logins as the job unit and the console ask after them, of a running server: whether a user
+//! holds a login that is on, each login's own two headline windows as the store keeps them, the record homes
+//! each once, and the rest a done job's usage calls for begun on its login where a window stands at its
+//! threshold and nothing begun where none does.
 
 use serde_json::{Value, json};
 
@@ -48,6 +49,15 @@ async fn a_running_server_answers_a_user_s_login_the_record_homes_and_a_job_s_us
       vec![],
     )
     .await;
+  scratch
+    .run(
+      r#"INSERT INTO "usage_windows" ("mode", "account", "name", "utilization", "resets_at", "seen_at")
+         VALUES ('claude-code', 'login-a', 'five_hour', 0.25, 1800003600, 1800000000),
+                ('claude-code', 'login-a', 'seven_day', 0.5, NULL, 1800000000),
+                ('claude-code', 'login-c', 'five_hour', 0.75, NULL, 1800000000)"#,
+      vec![],
+    )
+    .await;
 
   let server = standing::stand_server(home.path(), &data, &scratch.address(), token);
   let port = server.port;
@@ -90,6 +100,29 @@ async fn a_running_server_answers_a_user_s_login_the_record_homes_and_a_job_s_us
   assert_eq!(status, 200);
   assert_eq!(homes.len(), 3, "{homes:?}");
   assert_eq!(&homes[1..], ["/logins/two", "/logins/one"]);
+
+  // Each login answers its own two headline windows, and null where it holds no such window.
+  let of = |id: &str| {
+    accounts["items"]
+      .as_array()
+      .unwrap()
+      .iter()
+      .find(|account| account["id"] == id)
+      .unwrap()
+      .clone()
+  };
+  let one = of("login-a");
+
+  assert_eq!(
+    one["session"],
+    json!({ "name": "five_hour", "account": "login-a", "mode": "claude-code", "utilization": 0.25,
+            "resetsAt": 1800003600, "seenAt": 1800000000, "durationMinutes": null, "limitName": null })
+  );
+  assert_eq!(one["week"]["name"], "seven_day");
+  assert_eq!(one["week"]["utilization"], 0.5);
+  assert_eq!(of("login-b")["session"], Value::Null);
+  assert_eq!(of("login-c")["session"]["utilization"], 0.75);
+  assert_eq!(of("login-c")["week"], Value::Null);
 
   // A session window at its threshold rests its login until it resets; one below rests nothing.
   let until = 4_102_444_800_i64;

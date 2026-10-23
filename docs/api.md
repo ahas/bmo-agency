@@ -28,7 +28,7 @@ a field's exact shape matters, the OpenAPI document is the one to read.
 ## Versioning
 
 - The contract carries the repository's one version, in semver; the workspace manifest is its source. Before
-  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.23`.
+  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.24`.
 - A change to this document and a change to the boundary go in one commit. A change to a route, an event, a
   hook or a shared table's contract repairs this document in the same commit.
 - The major moves on a removed or renamed route, field or event, the minor on an addition, the patch on
@@ -331,6 +331,13 @@ the shadow the node's link keeps of that checkout instead.
 | GET | `/fallback` | The fallback roads, the Claude accounts and whether the fallback is answering. |
 | PATCH | `/fallback` | Change the fallback roads and the Claude accounts. |
 
+The fallback's view answers, beside the roads and the work keys, `active`, the agent serving the chat
+now: the `provider` its road answers on, the `account` it walks to where the provider holds logins, its
+`accountName`, how many `accounts` are on, and that slot's two headline windows, `session` and `week`;
+and `accounts`, every Claude account with its kind, path, place, switch, login standing, whether it is
+chosen and serving, its rest and its own `session` and `week`, the same windows the accounts list
+answers.
+
 A provider's change throws the owner's switch on it; the last provider left on is not thrown off, since
 nothing would answer.
 
@@ -402,7 +409,12 @@ An account is reached one of three ways: a directory holding a login, a token fi
 Anthropic-compatible base URL with a key file and an optional map from the `opus`, `sonnet` and `haiku`
 family words to the endpoint's model ids. It may also name a base prompt that a worker's run on it opens
 with. The list reports each account's kind, its home and, for an endpoint account, its base URL, key-file
-path and model map; a key's content is never reported. Accounts are added and changed through
+path and model map; a key's content is never reported. Each directory and token account carries its
+two headline windows, `session` and `week`, as the usage-window store holds them under the account
+(`docs/usage-windows.md`): each a window's `name`, `utilization` (0 to 1), `resetsAt` and `seenAt` in
+epoch seconds, `durationMinutes` and `limitName`, or null where the account holds no such window; an
+endpoint account holds none. `window` is the usage a report named, answered by the report's change and
+null on the list. Accounts are added and changed through
 `PATCH /fallback`'s `add-account` and `update-account` actions, and with `bmo-agency agent --account-add`
 and `--account-set`.
 
