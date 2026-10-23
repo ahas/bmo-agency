@@ -144,3 +144,50 @@ async fn a_chat_launch_handed_the_toolbook_carries_the_tool_hosts_paragraph_wher
   assert!(!unanswered.contains(PARAGRAPH));
   assert!(unanswered.ends_with(&format!("\n\n{header}\nthe persona")));
 }
+
+// The chat's system prompt as this checkout composes it, with no persona and no paragraph of the brain's or
+// the tool host's.
+fn composed() -> String {
+  let home = tempfile::tempdir().unwrap();
+  let trees = Trees {
+    code: tree(),
+    agents: home.path().join("agents"),
+    source: home.path().to_path_buf(),
+    data: home.path().join("data"),
+    home: home.path().to_path_buf(),
+  };
+
+  chat_system(&trees, None, None, None).unwrap()
+}
+
+// The section of the composed prompt under a heading, up to the next heading of the manual's shape.
+fn section(system: &str, heading: &str) -> String {
+  let at = system
+    .find(&format!("\n{heading}:\n"))
+    .unwrap_or_else(|| panic!("no {heading} section"));
+  let rest = &system[at + heading.len() + 3..];
+  let end = regex::Regex::new(r"\n\n[A-Z][A-Z ,()'-]+:")
+    .unwrap()
+    .find(rest)
+    .map_or(rest.len(), |end| end.start());
+
+  rest[..end].to_owned()
+}
+
+#[test]
+fn no_document_of_the_chat_fixes_the_language_it_answers_in() {
+  let system = composed();
+  let todo = std::fs::read_to_string(tree().join("prompts/agents/chat/procedures/todo.md")).unwrap();
+  let fixed = regex::Regex::new(
+    r"(?i)\b(reply|answer|respond|refuse[ds]?|tell[^.\n]{0,40}) in (one short )?(your own )?Korean\b|short Korean (sentence|line)|your own Korean",
+  )
+  .unwrap();
+  let language = section(&system, "THE LANGUAGE YOU ANSWER IN");
+
+  for text in [&system, &todo] {
+    assert!(!fixed.is_match(text), "{:?}", fixed.find(text).map(|found| found.as_str()));
+  }
+  assert!(language.contains("the language they wrote to you in"), "{language}");
+  assert!(language.contains("ANSWER LANGUAGE"), "{language}");
+  assert!(system.find("THE LANGUAGE YOU ANSWER IN:") < system.find("RESPONSE PROTOCOL:"));
+}

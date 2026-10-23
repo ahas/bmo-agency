@@ -147,7 +147,7 @@ launching its run. When to file is in the manual; this is how. Your tools are th
   `done` to close it. The close is allowed while the lease stands; a lease that ran out leaves the
   item open, so take it again before closing. Never close on a report saying its checks did not
   pass.
-- **Tell the owner the report in Korean, whole,** as the manual says: its shape, every figure and
+- **Tell the owner the report in his language, whole,** as the manual says: its shape, every figure and
   path and command as they stand, then what the report could not say.
 - **A question the run asks** is named on the item's notes; read it with `job_question` and its
   replies with `job_replies`. Put it to the owner in his own chat, and never answer it for him. A
