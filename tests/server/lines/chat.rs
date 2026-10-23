@@ -191,3 +191,15 @@ fn no_document_of_the_chat_fixes_the_language_it_answers_in() {
   assert!(language.contains("ANSWER LANGUAGE"), "{language}");
   assert!(system.find("THE LANGUAGE YOU ANSWER IN:") < system.find("RESPONSE PROTOCOL:"));
 }
+
+#[test]
+fn the_room_hears_what_the_agent_will_do_and_never_which_tool_does_it() {
+  let system = composed();
+  let tools = section(&system, "SPEAKING OF YOUR TOOLS");
+
+  assert!(tools.contains("No message names a tool"), "{tools}");
+  assert!(tools.contains("look it up, look into it or translate it"), "{tools}");
+  assert!(tools.contains("in your own words"), "{tools}");
+  assert!(!tools.contains('"'), "a rule, with no sentence for the agent to repeat: {tools}");
+  assert!(system.find("SPEAKING OF YOUR TOOLS:") < system.find("RESPONSE PROTOCOL:"));
+}
