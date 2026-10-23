@@ -33,13 +33,7 @@ fn each_kind_holds_a_declared_role_where_its_writer_names_none() {
 
   assert_eq!(
     kinds,
-    [
-      ("chat", "chat"),
-      ("gate", "gate"),
-      ("recollector", "recollector"),
-      ("runner", "searcher"),
-      ("worker", "worker"),
-    ]
+    [("chat", "chat"), ("gate", "gate"), ("runner", "searcher"), ("worker", "worker"),]
   );
   assert!(ROLES.kinds.values().all(|role| ROLES.holds(role)));
 }

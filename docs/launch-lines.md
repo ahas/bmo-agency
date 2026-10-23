@@ -6,7 +6,7 @@
   permission mode and allow list, what of this machine's configuration it reads, how its system
   prompt is delivered, and its environment.
 - **Where the lines are:** agency's server's `lines` module — the chat, a companion's turn, the job
-  worker, the editors and the runners. A gate's judgement is the gate unit's to run, on the gate line
+  worker and the runners. A gate's judgement is the gate unit's to run, on the gate line
   described below; agency's TypeScript side runs none. The interactive program an agent keeps
   standing in its pane is built from those same lines by the Claude Code surface in
   `packages/agent/claude-code.ts` (`docs/agent-control.md`, 「The interactive surface a
@@ -17,8 +17,8 @@
   flags without print mode and without a prompt, the session named by `--session-id` for the first
   start and by `--resume` for every start after it, and `--settings` naming the agent place's
   settings file — the status line and the hooks — placed after the allowed tools so that list flag
-  never swallows it. Every turn is words put into that program. A line that keeps no session — an
-  editor's, a runner's, a research branch's — runs each run apart: the same interactive program in a
+  never swallows it. Every turn is words put into that program. A line that keeps no session — a
+  runner's, a research branch's — runs each run apart: the same interactive program in a
   pane of its own, opened on a session of its own for the run and closed with it (`docs/agents.md`,
   「Runs apart」). A gate's line stands as a pool of the same interactive programs, each cleared between
   the judgements put into it (`gates.md`, 「A gate on Claude Code」). No line has a print-mode
@@ -30,11 +30,11 @@
   steady is the cache (「Why a line is held steady」 below): a change is made whole and once, never as
   a side effect of other work and never to a line the item does not need.
 - **Which provider carries a piece of work is a different question** and is not settled here: every
-  work key — the chat, the job worker, each gate, each editor — has its route in agency's store, the
+  work key — the chat, the job worker, each gate — has its route in agency's store, the
   owner sets it in the console, the program that runs the work follows from that provider, and a
   provider whose program cannot carry that work is refused rather than silently standing in for it.
-- **An agent's own thinking and effort stand over its tier.** The chat agent, a worker, an editor and a
-  runner go out with the effort level and the thinking its agent's row names where the row names one
+- **An agent's own thinking and effort stand over its tier.** The chat agent, a worker and a runner go
+  out with the effort level and the thinking its agent's row names where the row names one
   (`docs/model-tiers.md`, 「An agent's own thinking and effort」). On Claude Code the level is the
   `--effort` word and thinking off is `MAX_THINKING_TOKENS=0` in the environment, so no flag moves that
   is not already the line's. Where the row names nothing, each line below is as written.
@@ -74,8 +74,8 @@
 ### The harnesses this build carries
 
 - **Claude Code is one implementation of it** (`packages/agent/claude-code.ts`), and every flag the
-  CLI is spoken to with is written in that one file — the six lines (a chat round, a gate's
-  judgement, a job, a search, a browse, a digest's editor) and the two folds are its answers, each
+  CLI is spoken to with is written in that one file — the five lines (a chat round, a gate's
+  judgement, a job, a search, a browse) and the two folds are its answers, each
   in its fixed order.
 - **dsh — the DeepSeek Harness — is the second** (`packages/agent/dsh.ts`): it takes no flags to
   speak of, so a run becomes a patch overlay written fresh for it, naming rows of dsh's own
@@ -83,17 +83,14 @@
   tools it may have — and the command is the pinned `@deepseek-ai/dsh` at its headless profile with
   the task standing in the line. The task stands there as words headless joins back with one space,
   each short of the kernel's limit on one argument, and it reaches dsh out of a file of its own
-  rather than through the string npx hands a shell, because a room's person-book batch runs to
-  hundreds of kilobytes and that string is refused whole long before then.
+  rather than through the string npx hands a shell, because a task can run to hundreds of kilobytes
+  and that string is refused whole long before then.
 - **What a run may do to the files around it is not one of those rows alone**: dsh keeps how far a
   write may reach and whether the run stops to ask as two knobs, and names only the pairs they make
   together, so a run that set the reach and left the asking behind would be a composition dsh
   refuses outright — before a word goes anywhere.
 - The mode therefore travels in the run's environment as the one name dsh resolves both ends of, as
   well as on the row that states it.
-- An editor run is given dsh's filesystem rows and no shell, and may write in its checkout and in
-  the machine's temporary directories, which dsh's workspace-write mode leaves open, and nowhere
-  else.
 - **Codex is the third** (`packages/agent/codex.ts`): `codex exec` on the machine's own login, its
   JSON events read back into the same reply, a thread id kept per scope, model and effort.
 - **A harness after those three is one more file.** What it has to write is the whole of the
@@ -137,7 +134,7 @@
 - **What a route may promise is what the program really carries.** Each harness says what its
   program offers — a gate on every tool call, a tool set made of the MCP servers it is handed alone
   — and each line what it needs of its program: Claude Code offers both and so carries every line;
-  Codex and dsh offer neither and carry a chat round, a job, a gate and an editor, each as a
+  Codex and dsh offer neither and carry a chat round, a job and a gate, each as a
   portable run the fallback runner hands over, and not the search and browse runners, which need
   both.
 - A work key names the one line it runs on, so a provider whose program does not carry that line, or
@@ -182,7 +179,6 @@
   output gate, the three reference gates, the document seeker that picks which document or
   heading answers a question asked in that viewer, the
   person-book search that picks which pieces of a room's person book a turn needs, the
-  person-book summariser that writes one person's standing sheet from their own chunks, the
   situation-rule matcher that reads a room's turn against the conditions its memories wait on, and
   the sanitiser that reads text on its way into a model's context on
   Haiku 4.5. All at
@@ -195,8 +191,7 @@
   and the person-book search run with thinking off: picking slugs out of an index needs none,
   and the thinking was what pushed those runs past their timeout.
   Four of them are kept warm and the rest are not: a prefix held open for a gate that runs only
-  when a room's session is replaced, when a word makes the sanitiser worth asking, when a digest
-  has notes to sort, when a
+  when a room's session is replaced, when a word makes the sanitiser worth asking, when a
   briefing has something to transliterate, when a job worker is handed text to read in English, or when the owner asks the document viewer to
   translate or to find something would cost more than the runs it serves.
 - **Job worker**: the model, effort and tier the job's turn names in its mapping, which its runner
@@ -340,36 +335,6 @@
   the messages the turn answers and whether each is the owner's stand in the place's run as its own
   variables. On a registered model it goes out as every run on one does, the thinking its agent row
   names or else the registration's, with its generation settings as the run's sampling.
-- **Editor runs** (`digest`, `people-digest`): each a single run under a work key of its own —
-  a run apart, one task put in and one answer read off its record, on a session no run resumes. On the Claude road it is Sonnet 5 unless the
-  owner chose another model for that key, at high effort, don't-ask mode, exactly Read, Write,
-  Edit, Glob and Grep shown, those and the fragment server's tools allowed, no settings, no skills,
-  no Chrome, run in the brain repository — the folder `AGENCY_BRAIN_ROOT` names, else `brain` under the
-  data root, or the agent's folder under it the turn names; an editor key whose brain holds no
-  repository yet is not run. Its task is the caller's whole prompt: the brain composes it, the
-  rulebooks every document writer shares among it, which it reads through `GET /prompt-documents`, and agency
-  adds no rulebook of its own. Its MCP servers are the
-  tool host's `fragments` namespace and the toolbook (`fragments.md`, `mcp-host.md`): every run and the
-  keepalive are handed the standing `editor.mcp.json`, and a run's session record names the desk its
-  batch opened where it opened one, so every run is shown the same tools from the same bytes. On another provider the same run goes over with its file
-  tools and the same server — on Codex as the shell inside a workspace-write sandbox, on OpenRouter
-  as dsh's filesystem with no shell, on a registered model as this same line through the gateway —
-  and the brain repository and the machine's
-  temporary directories are the whole of what it may write. A line's MCP tools stand beside the
-  file tools it shows rather than narrowing them, so allowing them leaves the run allowed to write.
-  A consumer asks for an editor run as a turn of the key's editor session (`docs/api.md`, 「Sessions」),
-  several at once where it runs several batches, each with its run's parts: the run's name, which its
-  run variables carry as `BMO_RUN_NAME`; the room, as `BMO_TURN_CHAT`; and the fragment desk, as
-  `BMO_FRAGMENT_DESK`, which its session record names. A run in a pane carries the editor cap as its
-  clock and is asked about past it (`docs/agent-control.md`, 「A clock asks before it cuts」). A turn that
-  names a registration goes out on that registration alone, as this same line through the gateway, and
-  fails where it does not answer. Otherwise the session walks the key first
-  (`docs/cache-fallback.md`): each enabled stand-in the walk meets runs the editor line apart on its own
-  road, as above — Codex's `exec` and dsh in the host, a registered model's Claude Code on the gateway in
-  a pane of its own — and the first that answers is the run's answer, published as `fallback-answering`
-  where the key walks rather than being set to that provider. A walk that had to answer and met none
-  fails the run; otherwise, or where the walk stands aside, the run goes out on Claude Code, on the login
-  the walk of its logins offers the key.
 - **Search runner**: the model and the effort its depth's tier assignment names on the first
   enabled provider whose program carries the search line — Frontier at every depth to start with —
   refused rather than launched where that model does not list the effort
@@ -451,12 +416,12 @@
     declaration in agency's policy (`policy/providers/`), which every side that starts one of
     its lines reads. To turn one back on, set its value to `1` there and let the commit go live.
 - **The CLI's own memory is switched off on every line.** `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` is
-  among those variables. Left on, the CLI's prompt tells every run that keeps it — the job worker,
-  and the editors — about a memory directory of its own under the login's records and how to write
-  it: some seven hundred tokens in a worker's prefix and some four thousand in an editor's, where
-  the file tools make it offer writing as well. No agent of the system's keeps anything there: what a job
-  learns goes into its checkout's documents (the `docs-conventions` skill), and what the
-  editors write is the brain. To turn it back on, remove the variable and let the commit go live;
+  among those variables. Left on, the CLI's prompt tells every run that keeps it — the job worker
+  among them — about a memory directory of its own under the login's records and how to write
+  it: some seven hundred tokens in a worker's prefix, and more where the file tools make it offer
+  writing as well. No agent of the system's keeps anything there: what a job learns goes into its
+  checkout's documents (the `docs-conventions` skill), and an agent's long-term memory is its brain.
+  To turn it back on, remove the variable and let the commit go live;
   it moves the worker's prefix like any change to the line. A variable adds nothing to a cached prefix,
     but it is part of the command a pane's program was started with, so the change starts each
     resident program again on `--resume` of its own session at its next turn.

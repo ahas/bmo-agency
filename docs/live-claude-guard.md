@@ -6,7 +6,7 @@
   session, or putting something like `/compact` into a CLI in a pane makes that session write its
   uncached prefix and conversation from the start. For a session with a long conversation, one such
   write exceeds a hundred thousand cache-write tokens.
-- **The bot's own sessions** — room answers, job turns, gates, runners, editors, keepalive,
+- **The bot's own sessions** — room answers, job turns, gates, runners, keepalive,
   session folding — are opened knowing that cost.
 - **A job's sessions** for a measurement or an experiment are opened only once the job has said
   what it is opening them for. The owner is not asked: the job opens the guard itself, and what it ran,
@@ -230,32 +230,14 @@
   that takes the turn itself — the close, the suite's script, a cargo wrapper.
 - **Nothing opens it.**
 
-## The same hook sets the brain hold
-
-- **What it does:** a file edit or a shell command of a job that writes into the brain sets a brain hold
-  for that job, so no brain editor starts a batch until the job's run ends (the people-book unit's
-  `people-book.md`, 「A job editing the brain holds the editors off」).
-- **What counts as a write there:** a file tool whose target lies in the brain; a shell command naming the
-  brain with a redirect into it, a writer program or an in-place editor given a path in it, a git command
-  that changes files (`add`, `commit`, `rm`, `mv`, `checkout`, `restore`, `reset`, `apply`, `stash`,
-  `merge`, `revert`, `cherry-pick`), or an interpreter's inline script whose write call names it (or that names
-  it and writes somewhere the reading cannot resolve) — a script opening a brain file to read it is not a
-  write; and after a
-  `cd` into the brain, the same with any relative path. The same reading of assignments, `bash -c`,
-  `zsh -c` and `eval` holds.
-- **What it refuses:** that write, only while an editor holds an agent's editing lock. The refusal names
-  the brain hold's wait verb; the hold stays, so the wait ends with the running batch.
-- **When it cannot tell:** a job's process with no run name, or a store it cannot open, sets nothing and
-  refuses nothing.
-
 ## The same hook keeps a job in its own checkout
 
 - **What it guards:** every registered worker's checkout — each base and each support worker — but the
   job's own worker's and the ones the job has borrowed (`docs/worker-slots.md`, 「A job writes only in
   its own checkout」).
-- **What counts as a write there:** the same reading as the brain's — a file tool whose target lies in it,
-  a redirect, a writer program, an in-place editor, a git command that changes files, an interpreter's
-  inline script, and relative paths after a `cd` into it. A path is matched at a boundary, so a support
+- **What counts as a write there:** a file tool whose target lies in it, a redirect, a writer
+  program, an in-place editor, a git command that changes files, an interpreter's inline script, and
+  relative paths after a `cd` into it. A path is matched at a boundary, so a support
   worktree whose path begins with its base's is never read as the base, and `~` and `$HOME` spellings
   count.
 - **What it refuses with:** whose checkout it is, and `bmo-agency borrow <worker>` by the deploy tree's path,
@@ -279,7 +261,7 @@
   - So a script that calls the pane-opening function or the herdr client directly, bypassing the
     function that runs a turn, meets the same guard.
 - **What it blocks:** the lines that hold a session or write a prefix the next run will read — job,
-  room, a companion's turn, editor, search, browse, and a session inside a pane.
+  room, a companion's turn, search, browse, and a session inside a pane.
 - **A pane holding another provider's program** — Codex's, standing in an agent's pane — is still a
   pane a job does not put words into, so the job refusal holds there too. No Claude session is
   written by it, so Claude being off does not refuse it and nothing is recorded as a Claude run.

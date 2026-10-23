@@ -12,8 +12,8 @@
 //! an English sentence saying why.
 
 use agent_session::{
-  Answer, Apart, Aside, Conversation, Fault, FaultKind, GateAsk, JobMark, RoomBlock, RunParts, Scope,
-  Session, SessionId, Sessions, Start, State, Turn, TurnContext, WorkParts,
+  Answer, Apart, Aside, Conversation, Fault, FaultKind, GateAsk, JobMark, RoomBlock, Scope, Session,
+  SessionId, Sessions, Start, State, Turn, TurnContext, WorkParts,
 };
 use axum::http::{Method, StatusCode};
 use axum::response::{IntoResponse, Response};
@@ -49,8 +49,7 @@ fn faulted(fault: Fault) -> Response {
   answer(status, json!({ "code": fault.kind.code(), "error": fault.message }))
 }
 
-// A turn's context as a body names it, every part optional (docs/api.md, 「Sessions」): an editor run's
-// parts are read only where the body names the run.
+// A turn's context as a body names it, every part optional (docs/api.md, 「Sessions」).
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ContextRead {
@@ -66,24 +65,6 @@ struct ContextRead {
   answers: Vec<i64>,
   #[serde(default)]
   began: Option<i64>,
-  #[serde(default)]
-  run: Option<String>,
-  #[serde(default)]
-  parent: Option<String>,
-  #[serde(default)]
-  agent: Option<String>,
-  #[serde(default)]
-  chat_id: Option<i64>,
-  #[serde(default)]
-  step: Option<i64>,
-  #[serde(default)]
-  steps: Option<i64>,
-  #[serde(default)]
-  workdir: Option<String>,
-  #[serde(default)]
-  desk: Option<String>,
-  #[serde(default)]
-  registration: Option<String>,
   #[serde(default)]
   job: Option<i64>,
   #[serde(default)]
@@ -132,18 +113,6 @@ pub fn context_read(body: &Value) -> Result<TurnContext, Refused> {
   let named =
     |value: Option<String>| value.map(|value| value.trim().to_owned()).filter(|value| !value.is_empty());
 
-  let run = named(read.run).map(|name| RunParts {
-    name,
-    parent: named(read.parent),
-    agent: named(read.agent),
-    chat_id: read.chat_id,
-    step: read.step,
-    steps: read.steps,
-    workdir: named(read.workdir),
-    desk: named(read.desk),
-    registration: named(read.registration),
-  });
-
   Ok(TurnContext {
     room: read.room.map(|room| RoomBlock {
       chat_id: room.chat_id,
@@ -155,7 +124,6 @@ pub fn context_read(body: &Value) -> Result<TurnContext, Refused> {
     privileged: read.privileged,
     answers: read.answers,
     began: read.began,
-    run,
     job: read.job.map(|job| JobMark {
       job,
       item: read.item,
@@ -177,7 +145,6 @@ pub fn scope_value(scope: &Scope) -> Value {
     Scope::Agent => json!({ "kind": "agent" }),
     Scope::Room(room) => json!({ "kind": "room", "room": room }),
     Scope::Worker => json!({ "kind": "worker" }),
-    Scope::Editor => json!({ "kind": "editor" }),
     Scope::Apart(apart) => json!({
       "kind": "apart",
       "provider": apart.provider,
@@ -242,7 +209,6 @@ pub fn scope_read(body: &Value) -> Result<Scope, Refused> {
   match scope.get("kind").and_then(Value::as_str) {
     Some("agent") => Ok(Scope::Agent),
     Some("worker") => Ok(Scope::Worker),
-    Some("editor") => Ok(Scope::Editor),
     Some("room") => match scope.get("room") {
       Some(Value::String(room)) if !room.is_empty() => Ok(Scope::Room(room.clone())),
       Some(Value::Number(room)) => Ok(Scope::Room(room.to_string())),
@@ -277,7 +243,7 @@ pub fn scope_read(body: &Value) -> Result<Scope, Refused> {
         cwd: scope.get("cwd").and_then(Value::as_str).map(str::trim).unwrap_or_default().to_owned(),
       }))
     }
-    _ => Err(bad("scope.kind is agent, room, worker, editor, apart or conversation")),
+    _ => Err(bad("scope.kind is agent, room, worker, apart or conversation")),
   }
 }
 
@@ -291,7 +257,6 @@ fn scope_word(scope: &Scope) -> &'static str {
     Scope::Agent => "agent",
     Scope::Room(_) => "room",
     Scope::Worker => "worker",
-    Scope::Editor => "editor",
     Scope::Apart(_) => "apart",
     Scope::Conversation(_) => "conversation",
   }
@@ -310,7 +275,6 @@ fn scope_asked(body: &Value) -> Result<Scope, Refused> {
     return match scope {
       "agent" => Ok(Scope::Agent),
       "worker" => Ok(Scope::Worker),
-      "editor" => Ok(Scope::Editor),
       "room" => {
         let room = body
           .get("roomId")
@@ -352,9 +316,7 @@ fn scope_asked(body: &Value) -> Result<Scope, Refused> {
           cwd: field("cwd").map(str::to_owned).unwrap_or_default(),
         }))
       }
-      other => {
-        Err(bad(format!("scope is agent, room, worker, editor, apart or conversation, not {other}")))
-      }
+      other => Err(bad(format!("scope is agent, room, worker, apart or conversation, not {other}"))),
     };
   }
 

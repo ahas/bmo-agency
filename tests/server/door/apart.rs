@@ -17,7 +17,7 @@ fn the_pane_is_handed_what_the_line_set_and_none_of_the_launchers_own_environmen
 
   env.insert("ANTHROPIC_BASE_URL".to_owned(), Some("http://127.0.0.1:3291".to_owned()));
   env.insert("MAX_THINKING_TOKENS".to_owned(), Some("0".to_owned()));
-  env.insert("BMO_FRAGMENT_DESK".to_owned(), Some("/desk".to_owned()));
+  env.insert("BMO_TURN_CHAT".to_owned(), Some("-7".to_owned()));
   env.insert("CLAUDE_CODE_OAUTH_TOKEN".to_owned(), None);
 
   let command = Command {
@@ -25,12 +25,12 @@ fn the_pane_is_handed_what_the_line_set_and_none_of_the_launchers_own_environmen
     cwd: "/w".into(),
     env,
   };
-  let pane = pane_environment(&process, &command, "digest-1234abcd");
+  let pane = pane_environment(&process, &command, "search-1234abcd");
 
   assert_eq!(pane["ANTHROPIC_BASE_URL"], "http://127.0.0.1:3291");
   assert_eq!(pane["MAX_THINKING_TOKENS"], "0");
-  assert_eq!(pane["BMO_FRAGMENT_DESK"], "/desk");
-  assert_eq!(pane["BMO_RUN_NAME"], "digest-1234abcd");
+  assert_eq!(pane["BMO_TURN_CHAT"], "-7");
+  assert_eq!(pane["BMO_RUN_NAME"], "search-1234abcd");
   assert!(!pane.contains_key("HOME"));
   assert!(!pane.contains_key("CLAUDE_CODE_OAUTH_TOKEN"));
 }
@@ -42,7 +42,7 @@ fn a_full_window_in_the_programs_own_error_is_the_walks_limit_and_a_stop_is_a_st
       error: "Claude AI usage limit reached|1791430000".to_owned(),
       kind: Some("rate_limit".to_owned()),
     },
-    "digest",
+    "search",
   );
 
   assert!(matches!(
@@ -57,7 +57,7 @@ fn a_full_window_in_the_programs_own_error_is_the_walks_limit_and_a_stop_is_a_st
       Ending::Stopped {
         screen: String::new()
       },
-      "digest"
+      "search"
     ),
     Err(Failure::Stopped)
   );

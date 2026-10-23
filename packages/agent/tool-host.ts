@@ -160,7 +160,6 @@ export async function toolSessionRecord(line: string, command: ToolRecordRun, de
   );
   const root = present(env.BMO_DATA_DIR) ?? dataRoot();
   const place = present(env[PLACE_VARIABLE]);
-  const desk = present(env.BMO_FRAGMENT_DESK);
   const labels: Record<string, unknown> = {
     line,
     checkout: command.cwd,
@@ -170,7 +169,6 @@ export async function toolSessionRecord(line: string, command: ToolRecordRun, de
   if (own.labels !== undefined) Object.assign(labels, own.labels);
   if (own.role !== undefined) labels.role = own.role;
   if (place !== undefined) labels.place = place;
-  if (desk !== undefined) labels.fragmentDesk = desk;
   if (own.research !== undefined) labels.research = own.research;
 
   variables.BMO_DATA_DIR = root;

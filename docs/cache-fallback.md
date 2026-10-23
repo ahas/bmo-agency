@@ -57,8 +57,8 @@ model it launched, the account the run went out on, and the walk it runs when a 
 - **What passes through it:** every place an answer agency delivered goes back to a room — the
   session's answer, alerts, captions, and what a voice message speaks aloud.
 - **Why clean outgoing words:** an outgoing word is soon an incoming word. A sent message stays in the
-  record as it was and is reread into the session context, into the digest that writes documents, and
-  into later searches, so an attack instruction or a copied report mixed into it returns on its own
+  record as it was and is reread into the session context, into the brain the agent writes as it
+  reads, and into later searches, so an attack instruction or a copied report mixed into it returns on its own
   feet days later and touches the safeguard.
 - **One clean before the message exists,** so the words a room reads, the words a later gate judges and
   the words kept in the record are one and the same text. Spoken words are cleaned before the sound is
@@ -349,7 +349,7 @@ When a demotion first catches — when a healthy session first drops — two thi
 ### The login in use is used to the end
 
 - **One login is in use, for the whole road.** Every automatic run — a chat round, a job, a gate
-  judgement, an editor batch, a research branch, a session opened after a restart — starts its walk on
+  judgement, a research branch, a session opened after a restart — starts its walk on
   that login for as long as it can answer, ahead of the chosen account and the order.
 - **A login coming back moves nothing.** An earlier or chosen account answering again is no reason to
   leave the login in use; the road moves only when that login stops answering, or when the owner
@@ -381,7 +381,7 @@ When a demotion first catches — when a healthy session first drops — two thi
 - **What moves, and when.** The choice changes the head of the walk and nothing else, so everything that
   already happens when the head moves happens at the next run, not at the click: a run already going
   finishes on the login it went out on; the next chat round closes its old session and opens a
-  fresh one on the chosen login; the next gate, editor and research branch go out on the chosen
+  fresh one on the chosen login; the next gate and research branch go out on the chosen
   account; the next job resumes the worker's session kept under that login, or opens one. A turn on a
   session already held stays on that session's own login, since no other login can reach it.
 - **A key pinned to an account is not moved** — the choice decides where automatic keys go.
@@ -461,7 +461,7 @@ When a demotion first catches — when a healthy session first drops — two thi
 ### The account judgement
 
 - **One judgement says whether a login answers now, and every Claude run is offered a login by it** —
-  chat rounds, jobs, a word said to a worker, folds, gates, editors, search and browse, the warm pings,
+  chat rounds, jobs, a word said to a worker, folds, gates, search and browse, the warm pings,
   a worker's standing program and a companion on Claude Code's own road. No line keeps a judgement of
   its own, and none falls back to the machine's own login in place of one.
 - **A login is open while all three hold:** it is on; no window of its own is full (neither a limit rest
@@ -530,7 +530,6 @@ When a demotion first catches — when a healthy session first drops — two thi
 - **Who receives that failure, each in its own place:**
   - **Chat** reads it like the API not answering, enters a rest state, and notifies the owner once; with
     a usable substitute left, the next message tries the walk again.
-  - **An editor** records that its batch failed.
   - **A job** tries every enabled provider once and ends saying every usable provider is blocked. A road
     that did not answer is passed over by the jobs after it for a while — a minute for an outage, five
     for a refused access, fifteen or until its reset for a limit. On a provider whose models are
@@ -565,19 +564,19 @@ When a demotion first catches — when a healthy session first drops — two thi
 - **A key names its account as well as its provider.** Beside the provider, every work key says which
   Claude account its runs go out on: automatic walks the account order, and a named account runs that key
   on that account alone. A key pinned to an account fails on it rather than moving, and while that account
-  is off the key walks the account order as automatic does. So the chat agent, each gate, each editor and
-  each worker can sit on an account of its own.
+  is off the key walks the account order as automatic does. So the chat agent, each gate and each
+  worker can sit on an account of its own.
 - **Why order alone cannot express it:** putting a provider or an account at the front of its order moves
   every automatic key at once, so a key that must stay on one provider or one account says so on its own
   row.
 - **Refusal:** a provider whose program cannot carry the key's run line is refused when it is chosen, with
   the reason the console shows beside it.
 - **The canonical name of a road is the work key,** not a Claude model name — `bmo`, `job-worker`, one
-  per gate, one per editor — the same key in settings, the store and the console. If a key's work moves
+  per gate — the same key in settings, the store and the console. If a key's work moves
   from one Claude model to another the substitute choice does not move on its own, and each provider's
   choice is kept on the key when its mode moves elsewhere.
 
-### How a job worker, a gate, a chat and an editor cross over
+### How a job worker, a gate and a chat cross over
 
 - **A gate** carries one system prompt and one request as is.
 - **A chat** carries the request its caller assembled with recent conversation, and its tool presence
@@ -588,9 +587,6 @@ When a demotion first catches — when a healthy session first drops — two thi
   - **Codex** keeps the thread id `codex exec` produced, per run scope, model and effort, and continues
     with `codex exec resume <id>` under a cross-process lock, one request at a time. A dsh headless run
     has no resume interface and is stateless.
-- **An editor** is a single run carrying file tools and the checkout as is, so it keeps no session — on
-  Codex as the shell in a workspace-write sandbox, on dsh with filesystem tools and no shell — and the
-  only writable places are the checkout and this machine's temporary directories.
 - **Search and browse runners do not cross over:** the runner is outside the order, so even with Claude
   Code off a search or browse request runs on Claude, but its keepalive warms Claude's prefix only while
   Claude Code is on.
@@ -668,7 +664,7 @@ When a demotion first catches — when a healthy session first drops — two thi
   place in the provider order and their own co-worker limits. The endpoint account's key file is the
   road's key, and it is read by the program itself on every request.
 - **How a run goes out.** Claude Code is pointed at DeepSeek's Anthropic-compatible endpoint under a
-  home of the model's own, so a chat, a worker, a companion or an editor keeps its session and reports
+  home of the model's own, so a chat, a worker or a companion keeps its session and reports
   what it spent as it does on any Claude Code road. A gate is not carried: a gate is the gate service's
   own run, and a road on this provider is not offered one.
 - **Thinking and effort.** The provider's words are `none`, `low`, `medium`, `high` and `max`. A
@@ -782,7 +778,7 @@ the same. "None" means that program has no such concept, with the reason.
 
 | Option | Claude Code | Codex | OpenRouter (dsh) | Registered models |
 |---|---|---|---|---|
-| Process time limit | A gate that gate's limit, an editor the editor limit, a chat and a job no clock | Takes the same value | Takes the same value | A gate gives its whole limit to its one request; a run with tools is Claude Code on a registered model |
+| Process time limit | A gate that gate's limit, a chat and a job no clock | Takes the same value | Takes the same value | A gate gives its whole limit to its one request; a run with tools is Claude Code on a registered model |
 | Cache lifetime · ping interval | 1 hour · 40 minutes | 30 minutes · 20 minutes for models that announce it, else none | Follows the answering upstream, none if not listed | None. No announced lifetime |
 | Ping time limit | Chat 90 seconds, a gate that gate's limit, worker 2 minutes | Same | Same | No ping |
 | Keepalive stop · rest | Obeys global and per-agent stops, pauses during its own account's rest | Obeys stops but warms during a rest, since a rest is one Claude account's affair | As Codex | Not applicable |

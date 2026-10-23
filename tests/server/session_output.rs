@@ -1,8 +1,7 @@
 //! What a session's turn has written so far (docs/api.md, 「Sessions」, the output read): the text blocks
 //! its answers wrote in the record, in order; read while the turn goes and after it was stopped, begun
-//! again by an attempt that goes out again and by the session's next turn; held under the turn's id, so a
-//! session carrying several, an editor's, keeps each; nothing found for a turn a session never carried,
-//! and every scope's turn kept, an editor's among them.
+//! again by an attempt that goes out again and by the session's next turn; held under the turn's id, so
+//! turns of one session are each kept apart; and nothing found for a turn a session never carried.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -131,9 +130,9 @@ fn an_attempt_that_goes_out_again_and_the_next_turn_begin_the_words_again() {
 }
 
 #[test]
-fn a_session_carrying_several_turns_keeps_each_under_its_id() {
+fn the_turns_of_one_session_are_each_kept_under_their_id() {
   let outputs = Outputs::default();
-  let session = SessionId("digest@editor".into());
+  let session = SessionId("worker-one@worker".into());
 
   outputs.begun(&session, 1, "run-a");
   outputs.begun(&session, 2, "run-b");
@@ -189,10 +188,5 @@ async fn every_scope_answers_a_turn_it_never_carried_as_nothing_found() {
     sessions.output(&SessionId("branch-a@apart:99".into()), None).await.unwrap_err().kind,
     FaultKind::Unknown,
     "a session never started names nothing"
-  );
-  assert_eq!(
-    sessions.output(&SessionId("digest@editor".into()), Some(7)).await.unwrap_err().kind,
-    FaultKind::UnknownTurn,
-    "an editor's session answers a turn it never carried like every other scope's"
   );
 }

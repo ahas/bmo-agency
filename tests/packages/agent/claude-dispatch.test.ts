@@ -89,10 +89,10 @@ describe("the logins a work key is offered", () => {
   test("a key pinned to one login is offered that login and no other", async () => {
     const { archive, second } = await twoAccounts();
 
-    await archive.fallbacks().setFallbackRouteAccount("digest", second, 1);
+    await archive.fallbacks().setFallbackRouteAccount("translator", second, 1);
 
-    expect((await pinnedClaudeAccount(archive, "digest"))?.id).toBe(second);
-    expect((await claudeAccountWalk(archive, "digest")).map((one) => one.id)).toEqual([second]);
+    expect((await pinnedClaudeAccount(archive, "translator"))?.id).toBe(second);
+    expect((await claudeAccountWalk(archive, "translator")).map((one) => one.id)).toEqual([second]);
     // Another key is untouched by it.
     expect((await claudeAccountWalk(archive, "bmo")).map((one) => one.id)).toEqual([SEED_ACCOUNT_ID, second]);
   });
@@ -100,11 +100,11 @@ describe("the logins a work key is offered", () => {
   test("a key pinned to a login the owner has turned off walks like any other", async () => {
     const { archive, second } = await twoAccounts();
 
-    await archive.fallbacks().setFallbackRouteAccount("digest", second, 1);
+    await archive.fallbacks().setFallbackRouteAccount("translator", second, 1);
     await setClaudeAccountEnabled(archive, second, false);
 
-    expect(await pinnedClaudeAccount(archive, "digest")).toBeNull();
-    expect((await claudeAccountWalk(archive, "digest")).map((one) => one.id)).toEqual([SEED_ACCOUNT_ID]);
+    expect(await pinnedClaudeAccount(archive, "translator")).toBeNull();
+    expect((await claudeAccountWalk(archive, "translator")).map((one) => one.id)).toEqual([SEED_ACCOUNT_ID]);
   });
 
   test("an endpoint account is open while its key is there, and passed over while it is not", async () => {
@@ -148,11 +148,11 @@ describe("the logins a work key is offered", () => {
   test("a pin is a row of its own and is taken off by naming none", async () => {
     const { archive, second } = await twoAccounts();
 
-    await archive.fallbacks().setFallbackRouteAccount("digest", second, 1);
-    expect((await archive.fallbacks().fallbackRoute("digest"))?.account).toBe(second);
+    await archive.fallbacks().setFallbackRouteAccount("translator", second, 1);
+    expect((await archive.fallbacks().fallbackRoute("translator"))?.account).toBe(second);
 
-    await archive.fallbacks().setFallbackRouteAccount("digest", null, 2);
-    expect(await archive.fallbacks().fallbackRoute("digest")).toBeNull();
+    await archive.fallbacks().setFallbackRouteAccount("translator", null, 2);
+    expect(await archive.fallbacks().fallbackRoute("translator")).toBeNull();
   });
 });
 
@@ -180,10 +180,10 @@ describe("the account chosen to run on now", () => {
   test("leaves a key pinned to another login where it is", async () => {
     const { archive, second } = await twoAccounts();
 
-    await archive.fallbacks().setFallbackRouteAccount("digest", SEED_ACCOUNT_ID, 1);
+    await archive.fallbacks().setFallbackRouteAccount("translator", SEED_ACCOUNT_ID, 1);
     await chooseClaudeAccount(archive, second);
 
-    expect((await claudeAccountWalk(archive, "digest")).map((one) => one.id)).toEqual([SEED_ACCOUNT_ID]);
+    expect((await claudeAccountWalk(archive, "translator")).map((one) => one.id)).toEqual([SEED_ACCOUNT_ID]);
     expect((await claudeAccountWalk(archive, "bmo"))[0]?.id).toBe(second);
   });
 
@@ -401,10 +401,10 @@ describe("one run carried by the logins", () => {
     const { archive, second } = await twoAccounts();
     const asked: string[] = [];
 
-    await archive.fallbacks().setFallbackRouteAccount("digest", second, 1);
+    await archive.fallbacks().setFallbackRouteAccount("translator", second, 1);
 
     await expect(
-      onClaudeAccounts({ archive, config }, "digest", run(), async (attempt) => {
+      onClaudeAccounts({ archive, config }, "translator", run(), async (attempt) => {
         asked.push(attempt.account?.id ?? "none");
 
         throw new ClaudeLimitError(hour);

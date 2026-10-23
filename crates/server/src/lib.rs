@@ -25,7 +25,6 @@ pub mod conversational;
 pub mod data_move;
 pub mod doctor;
 pub mod door;
-pub mod editor_session;
 pub mod events;
 pub mod herdr_backend;
 pub mod hooks;

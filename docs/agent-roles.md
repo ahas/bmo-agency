@@ -34,10 +34,9 @@ made of is `docs/companions.md`.
   | `worker` | Worker | `graph.read`, `queue.read`, `web.read` |
   | `searcher` | Searcher | `web.read`, `web.sites`, `web.images`, `web.branches`, `web.rulebooks` |
   | `gate` | Gate | none |
-  | `recollector` | Recollector | none |
 
-- **A role with no bundle of its own still names what the agent is for.** A gate's and a
-  recollector's runs hold what their lines declare (`docs/launch-lines.md`) and nothing of a role.
+- **A role with no bundle of its own still names what the agent is for.** A gate's runs hold what
+  their line declares (`docs/launch-lines.md`) and nothing of a role.
 - **A role may name a prompt its agents are given before their own,** `prompt`, a file under
   `prompts/roles/`: the role's instruction stands for every agent holding it, and the agent's own
   documents follow it. A role naming none gives none.
@@ -145,12 +144,12 @@ made of is `docs/companions.md`.
 ## Where a role comes from
 
 - **The role each kind is for** is declared in `policy/roles.toml` under `kinds`: the chat role for the
-  `chat` kind, the worker role for `worker`, the searcher role for `runner`, the gate role for `gate`
-  and the recollector role for `recollector`. Agency's own processes register it as they load, so a row
+  `chat` kind, the worker role for `worker`, the searcher role for `runner` and the gate role for
+  `gate`. Agency's own processes register it as they load, so a row
   the store makes for a kind with no role named holds its kind's.
 - **Every row added names its role:** a row written for a kind holds its kind's role unless the writer
   names another; a worker added by the owner holds the worker role; a companion's seed names its own,
   and one that names none holds the chat role.
 - **A row that stood before roles** holds the role its kind is for, written once as the column is
   added: the chat agent and every companion the chat role, a worker the worker role, a runner the
-  searcher role, a gate the gate role and a recollector the recollector role.
+  searcher role and a gate the gate role.

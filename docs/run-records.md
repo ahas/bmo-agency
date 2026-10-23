@@ -74,7 +74,7 @@ about a message is not agency's: the judgement records belong to the units that 
   thousand characters from the end, on a line boundary, with a `…` where the head went, and output
   that was decoration and nothing else keeps its own tail rather than leaving the record empty.
 - **One length, everywhere a failure is written down** — the reader of a run's output, a gate run,
-  the warm line and a worker's keepalive, a compaction, an editor run, a research branch, the
+  the warm line and a worker's keepalive, a compaction, a research branch, the
   co-worker place ping, a worker session and the job runner — because a record cut to two hundred
   characters in one place and five hundred in another is read as two different failures.
 - None of this decides anything: whether a run failed and which failure it is are read off what was

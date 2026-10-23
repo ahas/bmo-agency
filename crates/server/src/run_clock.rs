@@ -2,20 +2,17 @@
 //! asks before it cuts」). The clocked run is a row of `run_clocks` while it goes; past its bound an ask is a
 //! row of `clock_asks`, published as `clock-asked` for the consumer that queues the order in the owner's
 //! chat, and the run's door looks for the verdict on each pass until one comes or the wait for it runs
-//! out, when agency cuts the run itself. A run that ends while asked closes its ask as ended. The bound an
-//! editor run carries is the editor cap: the policy's, or the request wait of the registration its
-//! agent's recollectors run on where that is longer.
+//! out, when agency cuts the run itself. A run that ends while asked closes its ask as ended.
 
 use std::time::Duration;
 
 use policy::fill_marks;
 use policy::run_clock::RUN_CLOCK;
-use sea_orm::{ConnectionTrait, DatabaseConnection, QueryResult};
+use sea_orm::{ConnectionTrait, DatabaseConnection};
 use serde::Serialize;
 use serde_json::json;
 use store::{all, one, run};
 
-use crate::control::registry;
 use crate::door::confirm::{Asking, Confirmation};
 use crate::door::turn::{AsideOutcome, Overrun, Overtime, Watch};
 use crate::events::{Bus, Event};
@@ -348,53 +345,6 @@ pub async fn settle(
     verdict: word.to_owned(),
     kept_until,
   })
-}
-
-/// The bound an editor run of a key carries for an agent: the policy's editor cap, or the request wait of
-/// the registration the run goes on where that is longer — the one the turn names, else the one the
-/// agent's recollectors run on.
-pub async fn editor_cap<C: ConnectionTrait>(
-  db: &C,
-  agent: Option<&str>,
-  registration: Option<&str>,
-) -> Result<Duration, Refusal> {
-  let cap = Duration::from_secs(RUN_CLOCK.editor_cap_seconds);
-  let named = match (registration, agent) {
-    (Some(registration), _) => Some(registration.to_owned()),
-    (None, Some(agent)) => recollector_registration(db, agent).await?,
-    (None, None) => None,
-  };
-  let Some(named) = named else {
-    return Ok(cap);
-  };
-  let wait = registry::registration(db, &named)
-    .await
-    .map_err(|why| Refusal::failed(why.error))?
-    .map_or(0, |held| held.wait_seconds);
-
-  Ok(cap.max(Duration::from_secs(u64::try_from(wait).unwrap_or(0))))
-}
-
-/// The registration an agent's recollectors run on, none for their work key's own road.
-pub async fn recollector_registration<C: ConnectionTrait>(
-  db: &C,
-  agent: &str,
-) -> Result<Option<String>, Refusal> {
-  let row = one(
-    db,
-    r#"SELECT "recollector_model" FROM "companion_settings" WHERE "agent" = $1"#,
-    vec![agent.into()],
-  )
-  .await?;
-
-  Ok(
-    row
-      .map(|row: QueryResult| row.try_get::<Option<String>>("", "recollector_model"))
-      .transpose()?
-      .flatten()
-      .map(|name| name.trim().to_owned())
-      .filter(|name| !name.is_empty()),
-  )
 }
 
 /// A run's door watch with the clock's ask put in front of it: past the bound an ask is opened and

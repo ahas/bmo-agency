@@ -207,7 +207,7 @@ export interface paths {
         /** Every session, by agent or scope. */
         get: operations["listSessions"];
         put?: never;
-        /** Start a session for an agent at a scope, readable at once before its first turn; a throwaway one is scope apart with boundMs and its own options. A run with a fixed prompt (a digest, a research, a browse, a narration, the morning news) is such a session naming its prompt document; it calls the upstreams it needs through their own MCP servers. */
+        /** Start a session for an agent at a scope, readable at once before its first turn; a throwaway one is scope apart with boundMs and its own options. A run with a fixed prompt (a research, a browse, a narration, the morning news) is such a session naming its prompt document; it calls the upstreams it needs through their own MCP servers. */
         post: operations["createSessions"];
         delete?: never;
         options?: never;
@@ -1576,7 +1576,7 @@ export interface components {
          * @description One of the values the API accepts.
          * @enum {string}
          */
-        SessionScope: "worker" | "room" | "agent" | "editor" | "apart" | "conversation";
+        SessionScope: "worker" | "room" | "agent" | "apart" | "conversation";
         /**
          * @description The body that starts a session: the agent, the scope, the room and the options, with the older
          *     top-level names read where the options name none.
@@ -1658,18 +1658,6 @@ export interface components {
             answers: number[] | null;
             /** Format: int64 */
             began: number | null;
-            run: string | null;
-            parent: string | null;
-            agent: string | null;
-            /** Format: int64 */
-            chatId: number | null;
-            /** Format: int64 */
-            step: number | null;
-            /** Format: int64 */
-            steps: number | null;
-            workdir: string | null;
-            desk: string | null;
-            registration: string | null;
             /** Format: int64 */
             job: number | null;
             /** Format: int64 */
@@ -2484,7 +2472,6 @@ export interface components {
             pieces: unknown;
             persona: string | null;
             registration: string | null;
-            recollectorModel: string | null;
             generation: unknown;
             thinking: boolean | null;
         };

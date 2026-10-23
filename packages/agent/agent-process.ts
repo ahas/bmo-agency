@@ -158,8 +158,7 @@ export async function spawnAgentProcess(command: HarnessCommand, line: RunLine, 
   return { stdout, stderr, exited, kill: () => { callerStopped = true; controller.abort(); } };
 }
 
-// A run started and left in its agent's host — a runner's coordinator, an editor's batch driver, a
-// briefing. Its execution record's root is the run's own name, which is what makes the name read as
+// A run started and left in its agent's host — a runner's coordinator, a briefing. Its execution record's root is the run's own name, which is what makes the name read as
 // alive while it runs and what a stop of that name reaches.
 export async function launchInHost(archive: Archive, run: {
   name: string;

@@ -73,7 +73,7 @@ pub fn prompt_refusal() -> Option<String> {
 }
 
 // The lines whose program, Claude Code, opens a session that writes a whole prefix to the cache.
-const SESSION_LINES: [&str; 6] = ["worker", "chat", "editor", "search", "browse", "pane"];
+const SESSION_LINES: [&str; 5] = ["worker", "chat", "search", "browse", "pane"];
 
 // The programs a launch is judged by: Claude Code itself, and herdr, which stands one in a pane.
 const GUARDED: [&str; 2] = ["claude", "herdr"];

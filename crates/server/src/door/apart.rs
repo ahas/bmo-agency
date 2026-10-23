@@ -1,5 +1,5 @@
-//! A run apart (docs/agents.md, 「Runs apart」): one run of a line that keeps no session — an editor's
-//! batch, a research run, a branch, a ping, a probe, a judging batch — as the interactive program in a pane
+//! A run apart (docs/agents.md, 「Runs apart」): one run of a line that keeps no session — a research
+//! run, a branch, a ping, a probe, a judging batch — as the interactive program in a pane
 //! of its own, opened for the run on a session of its own and closed with it. The run's command is its
 //! line's; what it is handed beside that is its own tool token and the variables its line set, and what
 //! comes back is the door's reading of the program's record.

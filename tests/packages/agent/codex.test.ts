@@ -134,13 +134,14 @@ describe("the Codex fallback harness", () => {
     expect(configValues(restricted.args).get("sandbox_mode")).toBe('"read-only"');
   });
 
-  // The fragment server an editor is allowed stands beside its file tools; the editor still writes.
-  test("keeps an editor allowed its MCP server beside its file tools in a sandbox it writes", async () => {
-    const editor = await codex.command(
-      runFor({ line: "editor", toolsShown: "Read,Write,Edit,Glob,Grep", toolsAllowed: "Read,Write,Edit,Glob,Grep,mcp__fragments" }),
+  // An MCP server a run is allowed stands beside its file tools; a gate shown file tools still writes
+  // only inside its sandbox.
+  test("keeps a run allowed its MCP server beside its file tools in a sandbox it writes", async () => {
+    const run = await codex.command(
+      runFor({ line: "gate", toolsShown: "Read,Write,Edit,Glob,Grep", toolsAllowed: "Read,Write,Edit,Glob,Grep,mcp__web" }),
     );
 
-    expect(configValues(editor.args).get("sandbox_mode")).toBe('"workspace-write"');
+    expect(configValues(run.args).get("sandbox_mode")).toBe('"workspace-write"');
   });
 
   test("keeps the YOLO boundary when a privileged chat resumes its thread", async () => {

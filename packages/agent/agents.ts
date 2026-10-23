@@ -82,16 +82,6 @@ export async function workerMcpConfig(): Promise<string> {
   return mcpFile({ web: hostServer("web"), worker: hostServer("worker") });
 }
 
-// The editor line's configuration: the fragment tool alone. Every run is handed
-// the standing file, its desk named in its session record.
-export function editorMcpConfigPath(): string {
-  return linePath("editor");
-}
-
-export async function editorMcpConfig(): Promise<string> {
-  return mcpFile({ fragments: hostServer("fragments") });
-}
-
 // The search runner's standing MCP configuration: the web namespace, its branch tool and rulebook
 // tool shown by what each run's record holds. Every run and branch is handed it, its research settings
 // in its record.
@@ -161,15 +151,8 @@ export function rulebook(name: string): string {
   return `RULEBOOK prompts/rules/${name}.md:\n${readRequired(join(rulesDir, `${name}.md`))}`;
 }
 
-// What an agent that writes stored documents is given ahead of its own instructions: the rulebooks
-// every such writer follows for language and shape, and for words that read as a person's. Each
-// writer's own composition calls it.
-export function documentWriter(instructions: string): string {
-  return [rulebook("document-writing"), rulebook("plain-writing"), instructions].join("\n\n");
-}
-
-// The rulebook every agent that acts — the chat agent, the workers and their co-workers, the editors and
-// the runners — is given, forbidding it to destroy the system it runs in. A gate holds no tool and is not
+// The rulebook every agent that acts — the chat agent, the workers and their co-workers and the runners
+// — is given, forbidding it to destroy the system it runs in. A gate holds no tool and is not
 // given it.
 export const selfPreservation = "self-preservation";
 
@@ -258,16 +241,11 @@ export function referenceGateSystem(gate: string): string {
   return agentFile(gate, "instructions.md");
 }
 
-// The person book has a search of its own beside the reference gates and a summariser that writes
-// one person's standing sheet. Each is told only what its own layer is for: the search never
-// picks a piece for the sake of the speaker being the speaker, because the sheet is already
-// there, and the summariser is told it is reducing rather than summarising.
+// The person book has a search of its own beside the reference gates, told only what its own layer is
+// for: it never picks a piece for the sake of the speaker being the speaker, because the speaker's
+// standing sheet is already there.
 export function peopleSearchSystem(selectionCap: number): string {
   return render(agentFile("people-search", "instructions.md"), { selectionCap });
-}
-
-export function peopleStandingSystem(): string {
-  return documentWriter(agentFile("people-standing", "instructions.md"));
 }
 
 // The matcher reads one instruction file of its own, under its own name. It is not one of the
@@ -484,7 +462,6 @@ export async function deployAgents(gates: readonly GateAgent[] = []): Promise<Ag
     }
   }
   await compose(join(building, "people-search", "system.md"), async () => peopleSearchSystem(peopleSelectionCap));
-  await compose(join(building, "people-standing", "system.md"), async () => peopleStandingSystem());
   await compose(join(building, "situation-rules", "system.md"), async () => situationRulesSystem());
   await compose(join(building, "voice-polish", "system.md"), async () => voicePolishSystem());
   await compose(join(building, "voice-reading", "system.md"), async () => voiceReadingSystem());
@@ -501,7 +478,6 @@ export async function deployAgents(gates: readonly GateAgent[] = []): Promise<Ag
   await compose(join(building, "browse", "request.md"), async () => agentFile("browse", "request.md"));
   await compose(asHanded(browseMcpConfigPath()), browseMcpConfig);
   await compose(asHanded(workerMcpConfigPath()), workerMcpConfig);
-  await compose(asHanded(editorMcpConfigPath()), editorMcpConfig);
   await compose(join(building, "worker", "trailer.md"), async () => workerTrailer());
 
   carryPrompts(join(root, "prompts"), join(building, "prompts"));

@@ -211,7 +211,7 @@ describe("the writer", () => {
 
   test("what a run wrote in its own words is stored whole, and only bulk is cut and marked", async () => {
     const { archive, rows } = await logArchive();
-    const log = new RunLog({ archive, agent: "digest", run: "digest:1", chatId: ROOM_ID });
+    const log = new RunLog({ archive, agent: "search", run: "search:1", chatId: ROOM_ID });
     const report = "€".repeat(10_000);
 
     await log.feed(

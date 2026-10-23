@@ -62,7 +62,7 @@ describe("a job opening a Claude Code session", () => {
   test("is refused on every line that carries a session, with the way to ask named", async () => {
     const env = jobEnv(await archiveWith(false));
 
-    for (const line of ["worker", "chat", "editor", "search", "browse", "pane"]) {
+    for (const line of ["worker", "chat", "search", "browse", "pane"]) {
       const reason = await launchRefusal(line, cli, { env });
 
       expect(reason).toContain("before it has said what for");

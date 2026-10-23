@@ -152,7 +152,7 @@ pub struct CompanionsWords {
   pub pieces_none: String,
   pub persona: String,
   pub registration: String,
-  pub recollector_model: String,
+  pub not_field: String,
   pub thinking: String,
   pub reset_reason: String,
 }

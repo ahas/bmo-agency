@@ -170,7 +170,7 @@ impl Standing {
 }
 
 /// The folders the harnesses ran in whose sessions the ranges asked take: the companion's home for the
-/// conversation, and its brain folder, where its recollectors' sessions ran, for the person range.
+/// conversation, and its brain folder, for the person range.
 fn harness_folders(standing: &Standing, asked: &Asked, companion: &Companion) -> Vec<PathBuf> {
   let mut folders = vec![];
 

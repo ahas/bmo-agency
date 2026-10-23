@@ -525,10 +525,10 @@ function count(value: unknown): number {
 export const codex: AgentAdapter = {
   name: "codex",
   streamFormat: "codex",
-  // A judgement, a job, a room's turn and an editor's single run. The runner owns a chat's and a
-  // worker's resumable thread; a gate and an editor keep none. An editor is shown its file tools
-  // as the shell inside a workspace-write sandbox rooted at the run's directory, and keeps Codex's
-  // own base prompt with the checkout's AGENTS.md, since it has no system prompt file of its own.
+  // A judgement, a job and a room's turn. The runner owns a chat's and a worker's resumable thread; a
+  // gate keeps none. A run shown file tools alone is shown them as the shell inside a workspace-write
+  // sandbox rooted at the run's directory, and keeps Codex's own base prompt with the checkout's
+  // AGENTS.md where it has no system prompt file of its own.
   // The runners are not carried: their tools are agency's own MCP wiring and co-worker gate, which
   // this road does not reproduce, so it offers neither the tool gate nor a tool set made of MCP
   // servers alone.

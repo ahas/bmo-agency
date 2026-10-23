@@ -363,10 +363,6 @@ pub async fn issue_for_run(
     labels.insert("place".to_owned(), json!(place));
   }
 
-  if let Some(desk) = given("BMO_FRAGMENT_DESK") {
-    labels.insert("fragmentDesk".to_owned(), json!(desk));
-  }
-
   if let Some(research) = research {
     labels.insert("research".to_owned(), research);
   }

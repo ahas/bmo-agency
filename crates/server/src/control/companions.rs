@@ -37,7 +37,20 @@ static OWN_PIECE: LazyLock<Regex> = LazyLock::new(|| {
 });
 
 /// The settings fields a save may change, by the names a save marks as saved.
-const FIELDS: [&str; 5] = ["referenceOn", "pieces", "ownPieces", "persona", "recollectorModel"];
+const FIELDS: [&str; 4] = ["referenceOn", "pieces", "ownPieces", "persona"];
+
+/// Every field a save's body may name: the companion, who saves, its settings, its pin and its thinking.
+const BODY_FIELDS: [&str; 9] = [
+  "agent",
+  "by",
+  "referenceOn",
+  "ownPieces",
+  "pieces",
+  "persona",
+  "registration",
+  "generation",
+  "thinking",
+];
 
 /// One companion's settings as its row holds them, every default where it holds none.
 #[derive(Clone, Debug)]
@@ -48,7 +61,6 @@ pub struct Settings {
   own_pieces: Map<String, Value>,
   persona: Option<String>,
   generation: Map<String, Value>,
-  recollector_model: Option<String>,
   // The names of every setting a save or the seed has ever written on the row.
   saved: Vec<String>,
   updated_at: Option<i64>,
@@ -72,7 +84,6 @@ impl Settings {
         own_pieces: Map::new(),
         persona: None,
         generation: Map::new(),
-        recollector_model: None,
         saved: vec![],
         updated_at: None,
         updated_by: None,
@@ -100,7 +111,6 @@ impl Settings {
       own_pieces: object(parsed(text("own_pieces")?), Value::is_string),
       persona: text("persona")?,
       generation: object(parsed(text("generation")?), |value| value.is_number() || value.is_boolean()),
-      recollector_model: text("recollector_model")?.filter(|model| !model.is_empty()),
       saved: parsed(text("saved_settings")?)
         .and_then(|read| serde_json::from_value(read).ok())
         .unwrap_or_default(),
@@ -117,7 +127,6 @@ impl Settings {
       "ownPieces": self.own_pieces,
       "persona": self.persona,
       "generation": self.generation,
-      "recollectorModel": self.recollector_model,
       "updatedAt": self.updated_at,
       "updatedBy": self.updated_by,
     })
@@ -512,6 +521,13 @@ async fn checked<C: ConnectionTrait>(
 ) -> Result<Checked, Fault> {
   let mut change = Change::default();
 
+  if let Some(field) = body
+    .as_object()
+    .and_then(|named| named.keys().find(|key| !BODY_FIELDS.contains(&key.as_str())))
+  {
+    return refused(field, fill_marks(&CONTROL_WORDS.companions.not_field, &[("field", field)]));
+  }
+
   if let Some(reference) = body.get("referenceOn") {
     if !reference.is_boolean() {
       return refused("referenceOn", CONTROL_WORDS.companions.reference.as_str());
@@ -625,18 +641,6 @@ async fn checked<C: ConnectionTrait>(
     };
 
     pinned = Some(name);
-  }
-
-  match body.get("recollectorModel") {
-    None => {}
-    Some(Value::Null) => change.set("recollectorModel", Value::Null),
-    Some(named) => {
-      let Some(name) = offered(db, named).await? else {
-        return refused("recollectorModel", CONTROL_WORDS.companions.recollector_model.as_str());
-      };
-
-      change.set("recollectorModel", name.into());
-    }
   }
 
   if let Some(generation) = body.get("generation") {
@@ -753,17 +757,6 @@ async fn write(
       ],
     )
     .await?;
-
-    // A save naming the recollectors' model keeps the default as an empty text, so no later seed sets it
-    // again; a save leaving it out leaves the column as it stands.
-    if let Some(model) = saved.change.get("recollectorModel") {
-      run(
-        db,
-        "UPDATE companion_settings SET recollector_model = $1 WHERE agent = $2",
-        vec![model.as_str().unwrap_or_default().into(), agent.into()],
-      )
-      .await?;
-    }
 
     fields_changed.extend(generation);
   }

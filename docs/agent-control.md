@@ -16,7 +16,7 @@ The owner's words for the scope are:
 
 - **Every model invocation runs through herdr, for every provider.** That is the chat agent's turns,
   every gate, chat compaction, chat and gate warming, workers, repository-managed co-work
-  branches, editors, search and browse runners, their fallback attempts, keepalive and worker
+  branches, search and browse runners, their fallback attempts, keepalive and worker
   compaction.
 - **There is one launch path, and nothing branches on the line.** No line, provider or caller
   keeps a process of its own beside it, and none calls a model over HTTP from the bot.
@@ -216,7 +216,7 @@ The owner's words:
   - A companion keeps a session in each room it answers, and its one program goes on in the session of
     the room its turn is for: a turn for another room changes the command, which starts the program
     again on that room's session in the same pane (「The interactive surface a provider declares」).
-- **A run that keeps no session is a run apart:** every editor's batch, the search and browse runs,
+- **A run that keeps no session is a run apart:** the search and browse runs,
   research branches, the news page's writer and their keepalive pings each stand the interactive
   program in a pane of their own, opened for the run and closed with it, so two runs of one agent at
   once are two panes (`docs/agents.md`, 「Runs apart」).
@@ -969,10 +969,7 @@ flowchart TD
 - **Which runs carry a clock.** A job's turn and a chat round carry none. A word said to a worker
   while nothing of its own runs carries ten minutes, since the worker's queue waits on its lock while
   it runs; past it the clock asks, as every clocked run's does. The keepalive ping and a fold
-  carry bounds of their own. A digest's or a person book's editor run carries the editor cap: thirty
-  minutes, or the request wait of the registration the agent's recollectors run on where that is
-  longer (`docs/own-llm.md`, 「What a registration holds」), which `GET /editors/cap` answers; a browse
-  carries its profile's total time (`research-runs.md`), and a voice run ten minutes for the speaking of
+  carry bounds of their own. A browse carries its profile's total time (`research-runs.md`), and a voice run ten minutes for the speaking of
   its line, on this machine's card or a node.
 - **The mechanism is the run's, the policy its caller's.** A pane turn, and a run that is one
   process or one call, may each be handed an overtime policy, asked each time the bound passes with
@@ -980,8 +977,8 @@ flowchart TD
   it was and what it was. The policy answers either cut or the next moment to look again, and the run
   goes on in between, so a run that ends on its own ends as it always does. A run handed none is cut
   at its bound, and so is one whose policy cannot answer.
-- **A clocked run of work is never cut on its clock alone.** A word's turn, a digest's or a person
-  book's editor run, a browse and a voice run each hand their clock a policy that asks the chat agent first:
+- **A clocked run of work is never cut on its clock alone.** A word's turn, a browse and a voice run
+  each hand their clock a policy that asks the chat agent first:
   1. The ask is an order queued for the chat agent's session in the owner's private chat, carrying the facts:
      which agent and run it is and what it is doing, how long it has run, when it last did anything
      and what that was, and the clock with its length. The order names the procedure `overtime`. Agency
@@ -1011,19 +1008,13 @@ flowchart TD
 - **A wait sized on a run's clock follows its keep.** Whatever waits behind a clocked run for as long
   as that run's clock and a slack goes on waiting while an ask on the run stands — until its answer is
   due while the chat agent has not answered, until the keep ends once it has — and the same slack after:
-  - A batch of the notes digest or of a person book waiting for its agent folder's editing lock, behind
-    the run that holds it (`people-book.md`, 「The lock passes in the order waiting began」).
-  - The person-book launcher waiting on a room's worker, which follows the batch the worker has open
-    now — a worker catching up runs batch after batch, each on its clock — and its keep.
   - A voice node's own asker cannot be told of a keep once started, so it is given the cap and the
     longest one keep. A voice line kept a second time ends at the node's wait at the latest, and the
     room hears it as the node's timeout.
 - **Upkeep is cut without asking.** A keepalive ping or a fold past its bound holds nothing of
   anyone's work and the next round does it again; asking would wake the chat agent for a warming nobody asked
   for.
-- **A gate's clock does not ask.** A gate's judgement time is a wait the chat agent itself is in. An editor run
-  in the host, on Codex or OpenRouter, keeps that road's own ceiling (`docs/cache-fallback.md`); one in a
-  pane, on Claude Code or a registered model, carries the editor cap.
+- **A gate's clock does not ask.** A gate's judgement time is a wait the chat agent itself is in.
 
 ### What standing costs
 
@@ -1031,8 +1022,8 @@ Measured on this machine: one resident chat program and one resident worker prog
 throwaway workspaces, both on Sonnet 5 at low effort, with the machine read before they stood and while
 both did.
 
-- **Agents.** The agents table holds 25 rows: one chat, eight workers, twelve gates, two runners and
-  two editors. Resident are `bmo` and the eight workers — nine agents — and each co-work place of the
+- **Agents.** The agents table holds 23 rows: one chat, eight workers, twelve gates and two runners.
+  Resident are `bmo` and the eight workers — nine agents — and each co-work place of the
   pool adds one.
 - **Panes.** One pane and one workspace per resident agent, and nothing more: standing the two added
   two workspaces and two panes to the machine (29 → 31 workspaces, 33 → 35 panes), and the job turns,
@@ -1182,7 +1173,7 @@ flowchart TD
 - **Liveness.** A collector asks whether the supervisor named by the start acknowledgement is alive,
   and before that whether the claim holder is. A supervisor gone before the outcome is published is a
   transport failure, never an answer.
-- **Detached executions.** A runner's coordinator — a search, a browse, a digest, a briefing — is
+- **Detached executions.** A runner's coordinator — a search, a browse, a briefing — is
   launched and left, and reports on its own. It is an execution with no owner: the launcher grants
   it before putting it in, nothing collects it, and a bot restart does not stop it. It carries an
   execution record whose root is the run's name, which is how the run reads as alive and how a
@@ -1219,8 +1210,7 @@ create two executions for the same claim.
 
 The row also names the agent it is for, among the keys that never change once written: the agent
 whose program a resident turn goes into, the agent whose host a run is left in, or, where a host
-carries a run on another agent's behalf — a companion's person-book book or sort in the person-book
-writer's host — that other agent. A native child's row carries its parent's. A turn in a pane of its
+carries a run on another agent's behalf, that other agent. A native child's row carries its parent's. A turn in a pane of its
 own names none. This is what a companion's removal finds its rows by (`docs/companions.md`, 「Where a
 companion and its rooms come from」); neither a root, a place's path nor a work key says it.
 
@@ -1434,7 +1424,7 @@ carry results; an AbortSignal or timeout terminates the child process group. Unc
 retain private evidence for reconciliation rather than discarding it.
 
 `packages/agent/agent-process.ts` is the one launch for every harness command — chat, gates, workers,
-editors, search and browse, including fallback, warming and compaction. Each caller names the agent whose host runs it. Incremental raw-file collection feeds
+search and browse, including fallback, warming and compaction. Each caller names the agent whose host runs it. Incremental raw-file collection feeds
 the existing stream readers while the command is running. The adapter checks eligibility before
 placement and before granting execution. A gate's request to a registered model with no tools is run through the same launch as a
 small command that makes the request and prints the reply; the catalogue check that names the
@@ -1479,7 +1469,6 @@ four-provider byte test does not establish provider support for an otherwise uns
 | Gates | Host fixture | Host fixture | Host fixture; tap stays in the bot | Host fixture; direct request as a host command |
 | Resident turns: chat, worker, keepalive, fold, co-work places | Transcript, hook and status-line fixture | Rollout fixture; words mid-turn and interrupt unmeasured | bmo-tui fixture over a dsh ACP session; the session stands, no tokens recorded | Claude Code's transcript on a registered model; words on the standing session, every other turn on one of its own |
 | Structured worker and co-work task | Pane fixture | Pane fixture; thread semantics retained | Pane fixture; the session stands in bmo-tui's pane | Pane fixture; stateless |
-| Editors | Pane fixture; ephemeral | Pane fixture; ephemeral | Pane fixture; ephemeral | Pane fixture; ephemeral |
 | Search/browse | Pane fixture | Unsupported by harness | Unsupported by harness | Unsupported by harness |
 | Worker warming/compaction | Pane fixture | Existing provider-specific warming only | Existing provider-specific warming only | Existing provider-specific warming only |
 | Native children | Request/start/notification reducer fixtures; external format and Claude Workflow branch coverage incomplete | Receiver-state reducer fixtures; installed CLI format coverage incomplete | Native tools disabled by the chat agent overlay; inapplicable | Native tools disabled by the chat agent overlay; inapplicable |
@@ -1551,8 +1540,7 @@ line too.
   - A turn whose words are refused so ends at once as unsubmitted, the refusal its reason, rather than
     standing its program up again to be refused the same way.
   - Keeping a prompt under the cap is its writer's concern: a writer that hands a run documents
-    bounds them by its own ceiling (the people-book unit's `people-book.md`, 「The writer's prompt carries
-    what it reads」).
+    bounds them by its own ceiling.
 - **The server lives** even after the shell that started it ends.
 - **Not every workspace is an agent's.** Each node of the node list has a workspace of its own, carrying
   the `node` token rather than the `agent` one and standing after every agent's; the bot stands those
@@ -1674,7 +1662,7 @@ Two calls do it. What launches into which workspace is set by "What goes where" 
     for, ends itself, and its collector closes the row as a stop. A chat turn stands in the chat agent's resident
     program and is interrupted by the surface's interrupt, and its collector closes the row as a stop
     on the interrupted marker.
-  - **A runner, an editor and a job** each stand in a unit of their own, and the id is that unit's name. A
+  - **A runner and a job** each stand in a unit of their own, and the id is that unit's name. A
     run in a host is ended through the cancellation markers its execution records lead to, and its host
     signals its group and forces it after its grace; a unit whose run is a turn of a resident program is
     asked over the channel to stop, given a bounded grace period to end its turn, and only then
@@ -1694,7 +1682,7 @@ Two calls do it. What launches into which workspace is set by "What goes where" 
     no cancel file of its own, and it cannot outlive the parent — so a stop aimed at one is refused, and
     the refusal names the parent as the target to aim at instead.
 - **Every row of the picture names its own stop.** The bot says per row what a stop on it is aimed at
-  — a runner, an editor and a worker by their unit, a gate and a chat turn by the execution each
+  — a runner and a worker by their unit, a gate and a chat turn by the execution each
   opened, a co-worker tile by the run it works inside — so no screen and no script works a target out
   of a row's shape, and the one place that decides which kind is reached by what stays the verb's. A
   row with nothing to aim at says so, and wears no stop.
@@ -2141,7 +2129,7 @@ question used to stand until somebody attached to herdr and answered it.
   - **Who is asked is the scope's.** On a worker's and a thrown-away session's turn the caller is the
     one that sent the turn over the session contract: the question stands on the session's state, is
     published as `turn-question`, and is answered through `POST /session/answer` (`docs/api.md`,
-    「Sessions」, 「A question in the middle of a turn」). On a companion's, an agent's and an editor's
+    「Sessions」, 「A question in the middle of a turn」). On a companion's and an agent's
     turn nothing is put to anybody and the question stands for a person in the pane.
   - **Agency judges no question.** Which command a job may run of itself, which question goes to the
     owner, what is recommended and what a question nobody answers settles on are the caller's: a job's
@@ -2192,7 +2180,7 @@ What a person attached to herdr reads in the sidebar is a workspace label, so pl
 agent's character.
 
 - **Every agent stands in one workspace.** Every row of agency's `agents` table — the chat agent, each gate, each
-  worker, runner and editor; the table answers the list — has one workspace, its label the row's herdr
+  worker and runner; the table answers the list — has one workspace, its label the row's herdr
   name where the row carries one and its calling name otherwise. The herdr name is the owner's,
   for an agent the owner wants shown in herdr under another name than the console's, such as a Latin
   spelling of a name the console writes in another script. A name a run is launched under with no row — a co-work role, message sending, a voice briefing —
@@ -2232,7 +2220,7 @@ agent's character.
     In one shared workspace each side would take the other's head for a display left over and close
     it. So an agent of such a root stands in a workspace
     of its own, carrying the agent's token and a `data` token naming the root, and labelled with the
-    calling name and the root's name (`people-book summariser · copy verify-770`).
+    calling name and the root's name (`translator · copy verify-770`).
   - A workspace is an agent's only where both tokens match; the bot's own workspaces carry no `data`
     token. A revived workspace, found by label, cannot cross either, since the labels differ.
   - The root's name is its directory's own, or where that is `data`, the name of the directory holding it.
@@ -2788,20 +2776,17 @@ what the target's kind is, the reach 「Stopping」 above holds.
 
 Launch refusal cleanup closes the coordinator job and removes its private prompt. A failed co-work setup restores the task’s previous slot association; pooled checkout directories remain reusable. Utility fallback accepts only the binaries the deployment placed in the tree's own `bin/` (the verbs binary's voice, say, mp3 and watch runners), never arbitrary commands.
 
-Digest scheduler, digest-now and people-digest fan-out also refuse herdr launch failure; none retries its coordinator in a transient unit.
-
 ### Execution entrypoints checked for launch coverage
 
 | Entry | Physical model boundary |
 |---|---|
 | Task and co-work coordinator (agency's turn and pool routes) | `bmo-agency job-run`: every turn into its resident program, a co-work branch's stand-in roads as one run in the worker's host |
-| Editors, including digest and people-digest | The editor launcher: the editor run on its road, one process in the editor's host |
 | Search and browse, including search escalation | Runner → `spawnAgentProcess`; escalation invokes the search launcher again |
 | Worker warming and compaction | agency's server's keepalive pass and worker fold: a turn into the worker's resident program |
 | Worker keepalive and branch-prefix warming | agency's server's keepalive pool: a turn into the place's resident program |
 | Chat turns and chat compaction | agency's server's conversations: a turn through the chat agent's resident door, or a stand-in road run in the agent's host |
 | Gates | the gate unit's own runs; agency's TypeScript side starts none |
-| Runner, editor and briefing coordinators | `launchDetachedExecution`, in the agent's host |
+| Runner and briefing coordinators | `launchDetachedExecution`, in the agent's host |
 
 The remaining `systemd-run` constructors are task/co-work coordination, deployment
 service supervision, and the four explicit utility entrypoints in `launchRunUnit`. Every one of
@@ -2814,7 +2799,7 @@ or live-provider outcomes; those have separate acceptance checks.
 
 Execution identity uses an explicit logical root and work key, with atomic per-root attempt allocation in SQLite. Physical launches receive fresh UUID tokens. Native identifiers are archived as opaque data and hashed with the parent/provider namespace for record IDs. Model and session associations travel separately from command arguments; stateless harnesses keep a null session.
 
-Co-work retry units map to their revisioned task key without the trailing retry number; their coordinator unit remains the parent association. Independent editor batches and maintenance turns receive separate logical roots. A fallback request carries one root through provider changes and lost-session retries. Counter initialization preserves the highest existing attempt when upgrading older records. Identity fields cannot be reassigned by lifecycle updates.
+Co-work retry units map to their revisioned task key without the trailing retry number; their coordinator unit remains the parent association. Maintenance turns receive separate logical roots. A fallback request carries one root through provider changes and lost-session retries. Counter initialization preserves the highest existing attempt when upgrading older records. Identity fields cannot be reassigned by lifecycle updates.
 
 Launch adapters require an installed archive before opening included work. Refusals before prompt delivery are recorded as launch errors. Structured supervisors reject expired grants and unreadable policy archives, publishing a launch outcome without starting a child. Interactive eligibility is checked again immediately before prompt delivery; uncertain delivery remains unknown.
 

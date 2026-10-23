@@ -426,22 +426,22 @@ async fn a_key_is_pinned_to_a_login_and_one_login_is_chosen_to_run_on() {
   bench
     .scratch
     .run(
-      r#"INSERT INTO "agents" ("name", "kind", "role") VALUES ('digest', 'editor', 'editor')"#,
+      r#"INSERT INTO "agents" ("name", "kind", "role") VALUES ('translator', 'gate', 'gate')"#,
       vec![],
     )
     .await;
 
-  let pinned = bench.run(&["--route", "digest", "--account", "second"]).await;
+  let pinned = bench.run(&["--route", "translator", "--account", "second"]).await;
 
-  assert_eq!(pinned.out.last().unwrap(), "route digest: runs on account-2 (second)");
-  assert!(said_line(&bench.run(&[]).await, "digest").contains(" on account-2"));
+  assert_eq!(pinned.out.last().unwrap(), "route translator: runs on account-2 (second)");
+  assert!(said_line(&bench.run(&[]).await, "translator").contains(" on account-2"));
   assert_eq!(
-    ended(&bench.run(&["--route", "digest", "--account", "nobody"]).await),
+    ended(&bench.run(&["--route", "translator", "--account", "nobody"]).await),
     (1, fill_marks(&VERB_WORDS.agents.no_account, &[("named", "nobody")]).as_str())
   );
   assert_eq!(
-    bench.run(&["--route", "digest", "--account", "auto"]).await.out.last().unwrap(),
-    "route digest: walks the account order"
+    bench.run(&["--route", "translator", "--account", "auto"]).await.out.last().unwrap(),
+    "route translator: walks the account order"
   );
   assert_eq!(bench.text(r#"SELECT "key" FROM "fallback_routes""#, vec![]).await, None);
 

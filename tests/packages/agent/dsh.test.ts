@@ -178,11 +178,11 @@ describe("the overlay one run is configured by", () => {
     expect(own.get("sandbox-policy")?.config).toEqual({ mode: "workspace-write", workspaceRoot: root });
   });
 
-  // An editor is shown file tools and no shell, so it gets the filesystem rows and the shell stays
-  // off: whatever it writes is a file tool's write, fenced to the directory the run works in.
-  test("an editor keeps the filesystem, has no shell, and writes only within its own directory", async () => {
+  // A run shown file tools and no shell gets the filesystem rows and the shell stays off: whatever it
+  // writes is a file tool's write, fenced to the directory the run works in.
+  test("a run shown file tools alone keeps the filesystem, has no shell, and writes only within its own directory", async () => {
     const tools = "Read,Write,Edit,Glob,Grep";
-    const rows = rowsById(runFor({ line: "editor", systemPromptPath: null, toolsShown: tools, toolsAllowed: tools, cwd: root }));
+    const rows = rowsById(runFor({ line: "chat", systemPromptPath: null, toolsShown: tools, toolsAllowed: tools, cwd: root }));
 
     expect(rows.get("tool-bash")?.disabled).toBe(true);
     expect(rows.get("tool-pwsh")?.disabled).toBe(true);
@@ -194,7 +194,7 @@ describe("the overlay one run is configured by", () => {
     expect(rows.get("tool-web")?.disabled).toBe(true);
     expect(rows.get("agent-instructions")?.disabled).toBe(true);
     expect(rows.get("sandbox-policy")?.config).toEqual({ mode: "workspace-write", workspaceRoot: root });
-    expect((await dsh.command(runFor({ line: "editor", systemPromptPath: null, toolsShown: tools, toolsAllowed: tools, cwd: root }))).env.DSH_PERMISSION_MODE).toBe("workspace-write");
+    expect((await dsh.command(runFor({ line: "chat", systemPromptPath: null, toolsShown: tools, toolsAllowed: tools, cwd: root }))).env.DSH_PERMISSION_MODE).toBe("workspace-write");
   });
 
   test("a run that allows less than it shows reads but does not write", () => {
@@ -391,11 +391,11 @@ describe("what a run may do to the files around it", () => {
     expect(dshPermissionMode(runFor({ toolsShown: "Bash,Read,Write,Edit", toolsAllowed: "Read" }))).toBe("read-only");
   });
 
-  // The fragment server an editor is allowed stands beside the file tools it shows, and does not
-  // make the editor one that only reads.
+  // An MCP server a run is allowed stands beside the file tools it shows, and does not make the run
+  // one that only reads.
   test("an MCP server allowed beside the tools shown leaves the run writing", () => {
-    expect(dshPermissionMode(runFor({ line: "editor", toolsShown: "Read,Write,Edit,Glob,Grep", toolsAllowed: "Read,Write,Edit,Glob,Grep,mcp__fragments" }))).toBe("workspace-write");
-    expect(dshPermissionMode(runFor({ line: "editor", toolsShown: "Read,Write,Edit,Glob,Grep", toolsAllowed: "Read,Glob,mcp__fragments" }))).toBe("read-only");
+    expect(dshPermissionMode(runFor({ line: "chat", toolsShown: "Read,Write,Edit,Glob,Grep", toolsAllowed: "Read,Write,Edit,Glob,Grep,mcp__fragments" }))).toBe("workspace-write");
+    expect(dshPermissionMode(runFor({ line: "chat", toolsShown: "Read,Write,Edit,Glob,Grep", toolsAllowed: "Read,Glob,mcp__fragments" }))).toBe("read-only");
   });
 
   test("and a run shown nothing composes no file effects at all, so it names none", async () => {

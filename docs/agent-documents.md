@@ -18,14 +18,13 @@ composed into a system prompt, and what the chat agent's own prompt is made of.
     markdown into, kept beside the rulebooks it points to for the marks and the fold;
   - `search-kinds.md`, `product-search.md`, `restaurant-search.md`, `investment-search.md`,
     `study-material.md` and `deep-dives.md` — the search runner;
-  - `document-writing.md` — every agent that writes a stored document: the standing-sheet
-    summariser, ahead of its own instructions, `plain-writing.md` right after it; the brain, which
-    composes its writers' whole prompts, the digest and person-book editors' among them, reads it with `plain-writing.md` and `self-preservation.md` through the
+  - `document-writing.md` — every agent that writes a stored document: the brain, which composes its
+    writers' whole prompts, reads it with `plain-writing.md` and `self-preservation.md` through the
     rulebook read (`docs/api.md`, 「Agents」);
   - `agent-words.md` — every designated agent: the chat session and every companion, for the turns
     another agent's words woke it in;
   - `self-preservation.md` — every agent that acts: the chat session, every job worker and
-    co-worker, the digest and person-book editors, the search runner, its branches, the news page
+    co-worker, the search runner, its branches, the news page
     writer and the browse runner; never a gate, which holds no tool.
 - **`prompts/agents/<worker>/own-rules.md`** is what one worker alone is appended after every
   worker's rules, where it has one; no worker carried in this repository has one.
@@ -35,8 +34,7 @@ composed into a system prompt, and what the chat agent's own prompt is made of.
   it — `system-documents/instructions.md`, `room-rules/instructions.md`,
   `library-knowledge/instructions.md`, `voice-polish/instructions.md`,
   `voice-reading/instructions.md`, `search/task.md` and `request.md`, `browse/task.md` and
-  `request.md` with its `.mcp.json`, and `worker/trailer.md`. The editors' tasks are not among them: the
-  brain keeps and composes those.
+  `request.md` with its `.mcp.json`, and `worker/trailer.md`.
 - **A job's documents are handed to the job service,** which composes a job's prompt: `worker/graph.md`,
   what a job is told of the code graph; `worker/trailer.md`, the trailer every job is held to, with the
   graph text, the path of the worker plugin's skills and the path of `plain-writing.md` filled in as
@@ -112,7 +110,7 @@ composed into a system prompt, and what the chat agent's own prompt is made of.
 - **The room context:** a group room's turn carries `prompts/agents/chat/rules.md`, its standing
   grants and requests. The owner's chat gets `prompts/agents/chat/owner.md` there instead: the names
   the owner calls the agents by (the chat agent and its per-room presences, the gates, the runners,
-  the editors, the worker), which no room needs.
+  the worker), which no room needs.
 - **After them come the three rulebooks every answer has to satisfy:**
   `prompts/rules/answer-content.md`, `prompts/rules/answer-shape.md` (the very text the output gate
   reads, so the session and its gate hold one document) and `prompts/rules/plain-writing.md`; then

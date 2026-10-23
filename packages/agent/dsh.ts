@@ -89,8 +89,8 @@ const quietRows = ["agent-instructions", "session-title-llm"];
 
 // The tool rows a run's shown file tools stand for — reading, searching and editing files — and
 // the shell, which is on only where the run is shown Bash. A chat is shown the shell and the
-// filesystem on the Claude road (Bash, Read, Write, Edit) and gets both; an editor is shown file
-// tools alone (Read, Write, Edit, Glob, Grep) and gets the filesystem with no shell, so what it
+// filesystem on the Claude road (Bash, Read, Write, Edit) and gets both; a run shown file tools
+// alone (Read, Write, Edit, Glob, Grep) gets the filesystem with no shell, so what it
 // may touch is exactly what the sandbox below lets a file tool touch. The names are not
 // translated one for one — dsh's tools are named nothing like the CLI's — but what those names
 // are is a shell and a filesystem, and these are dsh's. The agentic rows neither is shown —
@@ -138,9 +138,9 @@ export function dshHome(): string {
  * What file effects a run may have, in dsh's own words, and null for a run that composes none.
  *
  * dsh fences file writes to a workspace root of its own, set to the directory the run works in —
- * this repository for a chat and an editor, so a write lands where the room's scripts and the
- * digests already write. The mode is what the run allows measured against what it shows: a run that
- * allows exactly what it shows (every chat with its tools on, an editor) writes within that root;
+ * this repository for a chat, so a write lands where the room's scripts already write. The mode is
+ * what the run allows measured against what it shows: a run that allows exactly what it shows (every
+ * chat with its tools on) writes within that root;
  * one that allows less reads but does not write; a job may do anything, since editing a checkout
  * is what it is for. dsh has no per-command allow list, so a script-by-script grant would have no
  * equal here — read-only is what stands in its place. The mode fences
@@ -455,8 +455,8 @@ function shellWord(word: string): string {
 
 export const dsh: AgentAdapter = {
   name: "dsh",
-  // Every line whose run headless can answer as one task: a judgement with no tools, an editor's
-  // single run with the filesystem fenced to its directory, and a room's turn or a job, whose
+  // Every line whose run headless can answer as one task: a judgement with no tools, and a room's
+  // turn or a job, whose
   // prompt already carries what it needs and whose road keeps no session on this program. The
   // runners are not carried: their tools are agency's own MCP servers and co-worker gate, and a run
   // without them would come back with nothing to record, so it offers neither.

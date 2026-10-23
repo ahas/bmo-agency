@@ -1,8 +1,8 @@
 # A run past its clock
 
 Read this when you are handed a run that reached its time limit: an order in the owner's chat
-headed `[A run reached its clock — keep it or cut it]`. The run is a word said to a worker, a
-digest's or a person book's editor run, a browse, or a voice line being spoken.
+headed `[A run reached its clock — keep it or cut it]`. The run is a word said to a worker, a browse,
+or a voice line being spoken.
 `docs/agent-control.md` 「A clock asks before it cuts」 is the canonical statement.
 
 ## What you are handed
@@ -17,8 +17,8 @@ digest's or a person book's editor run, a browse, or a voice line being spoken.
 - **The decision is yours alone.** Never ask the owner whether to keep or cut it; he left it to you.
 - Look before you decide, as far as the facts leave it open: the run log the order names, a
   worker's screen and its pane, what the last activity was and how long ago.
-- **Others wait on a kept run.** A digest or person-book editor holds the brain's editing lock, and
-  the batches behind it wait for as long as you keep it.
+- **Others wait on a kept run.** A word said to a worker holds the worker's lock, and the worker's
+  queue behind it waits for as long as you keep it.
 - **Keep it** when it is still working: its last activity is recent, or what it is waiting on (a
   build, a test run, a long command) is expected to take this long.
 - **Cut it** when it is stuck: nothing written for a long while with no command that explains the

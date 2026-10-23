@@ -4,12 +4,12 @@
 //! resident program on the chat line with the system prompt its settings compose; a session across rooms is
 //! the one its agent's row keeps, carried by its resident program on the chat line around the room block,
 //! the road and the base persona, its brain's or else the one the turn's caller hands in, or by a stand-in
-//! where the agent's key walks onto one; an editor work key's session carries one editor run a turn and
-//! keeps nothing; and a thrown-away session, held in memory from its start to its end, carries a co-work
-//! branch's or a research run's turns, each on a fresh harness session; and a conversation the caller opened, held there too, carries ordinary
-//! turns on the provider and model it names, resuming the session its road keeps. A session is known by its
-//! agent and its scope — `<agent>@worker`, `<agent>@<room>`, `<agent>`, `<key>@editor`,
-//! `<agent>@apart:<n>`, `<agent>@conversation:<n>` — and stands across the generations its harness opens.
+//! where the agent's key walks onto one; a thrown-away session, held in memory from its start to its end,
+//! carries a co-work branch's or a research run's turns, each on a fresh harness session; and a conversation
+//! the caller opened, held there too, carries ordinary turns on the provider and model it names, resuming the
+//! session its road keeps. A session is known by its agent and its scope — `<agent>@worker`,
+//! `<agent>@<room>`, `<agent>`, `<agent>@apart:<n>`, `<agent>@conversation:<n>` — and stands across the
+//! generations its harness opens.
 //!
 //! A turn is carried whole before *send a turn* answers with its end: whether the program took the words,
 //! or refused them while it waits on a person, and how it ended. Its end is published as `turn-ended`, and
@@ -47,12 +47,10 @@ use crate::control::companions::Settings;
 use crate::door::aside;
 use crate::door::record::{ModelSpend, UsageSpent};
 use crate::door::turn::{AsideOutcome, Quiet, Watch};
-use crate::editor_session::{EditorTurn, composed as editor_composed, editor_turn, is_editor, workdir_of};
 use crate::events::Event;
 use crate::job_run::claude::turn::{Shows, WorkAsked, WorkSeat, carry, continues};
 use crate::lines::chat::{ChatLaunch, RoomContext, compose_prepared, compose_turn, gate_run};
 use crate::lines::companion::{CompanionTurn, LOST_SESSION, compose, pinned_provider, registration_named};
-use crate::lines::editor::PROVIDER as EDITOR_PROVIDER;
 use crate::places::locks::{pane_lock_path, try_hold};
 use crate::places::{AgentRow, Ground, Places};
 use crate::run_log::lines::Line;
@@ -68,9 +66,6 @@ use crate::{Refusal, now_ms};
 
 // What a worker's session is told apart by in its id, after its agent.
 const WORKER: &str = "worker";
-
-// What an editor work key's session is told apart by in its id, after its key.
-const EDITOR: &str = "editor";
 
 // What a thrown-away session is told apart by in its id, after its agent.
 const APART: &str = "apart";
@@ -214,9 +209,8 @@ pub async fn keep_agent_session(
 /// The session contract over herdr, on the places the server stands.
 pub struct HerdrSessions {
   places: Places,
-  // The turns each session carries while they go, each with the run it goes out as, which the interrupt
-  // stops: one a session, a second turn refused while it goes, but an editor's session, which carries
-  // several at once.
+  // The turn each session carries while it goes, with the run it goes out as, which the interrupt stops:
+  // one a session, a second turn refused while it goes.
   going: Mutex<HashMap<SessionId, Vec<Running>>>,
   // What each session's turn going now shows of itself to a reading of its state: what it went out on,
   // once its line is settled.
@@ -270,7 +264,6 @@ pub fn id_of(agent: &str, scope: &Scope) -> Option<SessionId> {
     Scope::Agent => agent.to_owned(),
     Scope::Room(room) => format!("{agent}@{room}"),
     Scope::Worker => format!("{agent}@{WORKER}"),
-    Scope::Editor => format!("{agent}@{EDITOR}"),
     Scope::Apart(_) | Scope::Conversation(_) => return None,
   };
 
@@ -287,7 +280,6 @@ pub fn scope_of(id: &SessionId) -> (String, Scope) {
   match id.0.split_once('@') {
     None => (id.0.clone(), Scope::Agent),
     Some((agent, WORKER)) => (agent.to_owned(), Scope::Worker),
-    Some((agent, EDITOR)) => (agent.to_owned(), Scope::Editor),
     Some((agent, room)) => (agent.to_owned(), Scope::Room(room.to_owned())),
   }
 }
@@ -642,20 +634,14 @@ impl HerdrSessions {
       Scope::Conversation(_) => {
         Err(fault(FaultKind::Refused, format!("{agent} is not a conversational agent")))
       }
-      Scope::Editor => {
-        Err(fault(FaultKind::Refused, format!("{agent} is an editor's work key, not an agent")))
-      }
       Scope::Apart(_) => Err(apart_refused(agent)),
     }
   }
 
-  // The agent a session's scope stands on, where it stands on one; an editor's session stands on its work
-  // key alone, which must be an editor's, and a thrown-away session on the name its turns run under, which
-  // is no agent's row.
+  // The agent a session's scope stands on, where it stands on one; a thrown-away session stands on the
+  // name its turns run under, which is no agent's row.
   async fn admitted(&self, agent: &str, scope: &Scope) -> Result<Option<AgentRow>, Fault> {
     match scope {
-      Scope::Editor if is_editor(agent) => Ok(None),
-      Scope::Editor => Err(fault(FaultKind::Refused, format!("{agent} is no editor's work key"))),
       Scope::Apart(apart) if apart.provider != worker_session::PROVIDER => Err(fault(
         FaultKind::Refused,
         format!(
@@ -1786,10 +1772,6 @@ impl Sessions for HerdrSessions {
         FaultKind::Refused,
         format!("{session} goes out on the provider and model its agent's row names"),
       )),
-      Scope::Editor => Err(fault(
-        FaultKind::Refused,
-        format!("{session} is an editor work key's, and switches nothing"),
-      )),
     }
   }
 
@@ -1798,8 +1780,7 @@ impl Sessions for HerdrSessions {
 
     self.admitted(&agent, &scope).await?;
 
-    // The turn the words name must be the one the session carries now; a session carrying several, an
-    // editor's, takes words into none.
+    // The turn the words name must be the one the session carries now.
     let run = match self.going().get(session).map(Vec::as_slice) {
       Some([run]) if run.turn == turn => run.run.clone(),
       Some(_) => {
@@ -1839,16 +1820,8 @@ impl Sessions for HerdrSessions {
     let room = match &scope {
       Scope::Room(room) => Some(room.clone()),
       Scope::Agent => turn.context.room.as_ref().map(|room| room.chat_id.to_string()),
-      Scope::Worker | Scope::Editor | Scope::Apart(_) | Scope::Conversation(_) => None,
+      Scope::Worker | Scope::Apart(_) | Scope::Conversation(_) => None,
     };
-    let parts = match scope {
-      Scope::Editor => turn.context.run.as_ref(),
-      _ => None,
-    };
-
-    if let Err(why) = workdir_of(parts) {
-      return Err(fault(FaultKind::Refused, why));
-    }
 
     // A job's turn goes out under the run name its runner gives it, on Claude Code alone; a thrown-away
     // session carries nothing else.
@@ -1885,13 +1858,12 @@ impl Sessions for HerdrSessions {
       ));
     }
 
-    let run = match (room, parts, work) {
-      (_, Some(parts), _) => parts.name.clone(),
-      (_, None, Some(work)) => work.name.clone(),
-      (Some(room), None, None) => {
+    let run = match (room, work) {
+      (_, Some(work)) => work.name.clone(),
+      (Some(room), None) => {
         fill_marks(&COMPANION_RUNNER.runs.turn, &[("chat", room.as_str()), ("at", &at.to_string())])
       }
-      (None, None, None) => format!("turn:{agent}:{at}"),
+      (None, None) => format!("turn:{agent}:{at}"),
     };
 
     let turn_id;
@@ -1899,9 +1871,8 @@ impl Sessions for HerdrSessions {
     {
       let mut going = self.going();
       let runs = going.entry(turn.session.clone()).or_default();
-      let several = matches!(scope, Scope::Editor);
 
-      if runs.iter().any(|running| running.run == run) || (!several && !runs.is_empty()) {
+      if !runs.is_empty() {
         return Err(fault(FaultKind::Busy, format!("{} is in a turn", turn.session)));
       }
 
@@ -1960,23 +1931,6 @@ impl Sessions for HerdrSessions {
         None => self.conversation_turn(&turn, &agent, conversation, &run, shown).await,
       },
       (Scope::Worker, None) => Err(fault(FaultKind::Unknown, format!("no worker is named {agent}"))),
-      (Scope::Editor, _) => {
-        let asked = EditorTurn {
-          key: &agent,
-          run: &run,
-          prompt: &turn.prompt,
-          parts,
-        };
-
-        Ok(match editor_turn(self.ground(), &asked, shown).await {
-          Ok(answer) => {
-            self.outputs.wrote(&turn.session, turn_id, std::slice::from_ref(&answer));
-
-            Came::Answered(answer)
-          }
-          Err(why) => Came::Failed(why, None),
-        })
-      }
       (Scope::Room(room), _) => match room_number(room) {
         Ok(chat_id) => self.room_turn(&agent, chat_id, &run, &turn.prompt, &turn.context, shown).await,
         Err(refused) => Err(refused),
@@ -2014,18 +1968,6 @@ impl Sessions for HerdrSessions {
     let place = crate::lines::place::place_of(&ground.roots.data, &agent).to_string_lossy().into_owned();
 
     match &scope {
-      Scope::Editor => {
-        let editor = editor_composed(ground, &agent).await.map_err(|why| fault(FaultKind::Refused, why))?;
-
-        Ok(State::standing(
-          session.clone(),
-          EDITOR_PROVIDER.to_owned(),
-          editor.model,
-          editor.cwd.to_string_lossy().into_owned(),
-          1,
-          None,
-        ))
-      }
       // A room's session is readable from its start, before its first turn opens a generation: it stands
       // then on the provider and model its agent's row names, at generation 0.
       Scope::Room(room) => {
@@ -2216,7 +2158,6 @@ impl Sessions for HerdrSessions {
         FaultKind::Refused,
         format!("{session} is carried past its window by its program inside its own turns"),
       )),
-      Scope::Editor => Err(fault(FaultKind::Refused, format!("{session} keeps no session to fold"))),
       Scope::Worker => {
         let (Some(row), Some(held)) = (row, self.latest_worker(&agent).await?) else {
           return Err(fault(FaultKind::Unknown, format!("{session} has not been opened")));
@@ -2251,7 +2192,6 @@ impl Sessions for HerdrSessions {
     let ground = self.ground();
 
     match &scope {
-      Scope::Editor => {}
       Scope::Room(room) => {
         let chat_id = room_number(room)?;
         let held = sessions::session(&ground.db, &agent, chat_id).await.map_err(store_fault)?;

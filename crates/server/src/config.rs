@@ -1,6 +1,7 @@
 //! The deployment's configuration: the names its agent and its owner go by (docs/policy.md, 「The
 //! deployment's names」), where each service agency calls is reached (docs/api.md, 「Calls agency
-//! makes」), the brain repository the editor line runs in (docs/launch-lines.md, 「What is fixed」), the file
+//! makes」), the brain repository the agents' brain folders stand in (docs/agent-ownership.md, 「Long-term
+//! memory」), the file
 //! the persona's placeholder values are kept in (docs/api.md, 「Calls agency makes」), and the trees its
 //! release is read from (docs/agent-control.md, 「The job's release」). Each is read through the variables
 //! the deployment names it in.

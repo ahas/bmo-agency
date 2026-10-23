@@ -386,7 +386,7 @@ pub const OPERATIONS: &[Operation] = &[
     path: "/sessions",
     id: "createSessions",
     tag: "sessions",
-    summary: "Start a session for an agent at a scope, readable at once before its first turn; a throwaway one is scope apart with boundMs and its own options. A run with a fixed prompt (a digest, a research, a browse, a narration, the morning news) is such a session naming its prompt document; it calls the upstreams it needs through their own MCP servers.",
+    summary: "Start a session for an agent at a scope, readable at once before its first turn; a throwaway one is scope apart with boundMs and its own options. A run with a fixed prompt (a research, a browse, a narration, the morning news) is such a session naming its prompt document; it calls the upstreams it needs through their own MCP servers.",
     params: &[],
     body: Some("SessionStart"),
     answers: &[(201, Some("Session"), false)],
@@ -2699,6 +2699,10 @@ const REMOVED: &[(&str, &str)] = &[
   (
     "the routes GET, PUT and DELETE /session-summaries/{agentName} and GET /session-summaries/{agentName}/task, the webhook session-summarising, and the hand-over's note and thread",
     "no session summary is kept anywhere: a closed session hands nothing over",
+  ),
+  (
+    "the agent kind and role recollector, the session scope editor with a turn's run parts (run, parent, agent, chatId, step, steps, workdir, desk, registration), the work keys digest, people-digest and people-standing, the companion setting recollectorModel and the agent's recollectorRegistration",
+    "no recollector stands: every agent of the chat kind writes its own long-term memory into its brain as it reads",
   ),
 ];
 

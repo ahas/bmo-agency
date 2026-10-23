@@ -135,14 +135,14 @@ describe("the providers there are, and the programs that carry them", () => {
   });
 
   // What each program says it can carry. Claude Code was written for every line; Codex and dsh
-  // carry a judgement, a room's turn, a job and an editor's single run, and neither carries a
+  // carry a judgement, a room's turn and a job, and neither carries a
   // runner, whose tools are agency's own MCP wiring and co-worker gate.
   test("each carries the lines its program offers what they need", () => {
     const carried = (harness: typeof claudeCode) => runLines.filter((line) => carriesRunLine(harness, line)).toSorted();
 
     expect(carried(claudeCode)).toEqual([...runLines].toSorted());
-    expect(carried(codex)).toEqual(["chat", "editor", "gate", "worker"]);
-    expect(carried(dsh)).toEqual(["chat", "editor", "gate", "worker"]);
+    expect(carried(codex)).toEqual(["chat", "gate", "worker"]);
+    expect(carried(dsh)).toEqual(["chat", "gate", "worker"]);
   });
 
   // What differs from one provider to the next is the provider's own to declare, so a consumer asks

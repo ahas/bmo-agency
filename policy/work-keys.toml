@@ -1,16 +1,15 @@
 # Agency's work keys and the profile each starts on (docs/cache-fallback.md, 「The canonical name of a road
 # is the work key, not a Claude model name」). The keys are the stable names callers, the archive and
-# the console share: one for the chat agent, one for all job workers (their launch line is common), one for each
-# gate in the gate order, and one for each editor. Every gate of the gate order has a profile here,
-# and nothing else does.
+# the console share: one for the chat agent, one for all job workers (their launch line is common) and one for
+# each gate in the gate order. Every gate of the gate order has a profile here, and nothing else does.
 #
 # A profile's values are defaults only: an owner's explicit choice is an archive row and survives a
 # later change here. The small classification and summary gates start on the registry's provider, on
-# the registration their tier maps to there; the deeper reading gates, the chat agent, the worker and the editors
-# start on auto. The person book's two gates, the reference gates and the knowledge classifier are
+# the registration their tier maps to there; the deeper reading gates, the chat agent and the worker start on
+# auto. The person book's search, the reference gates and the knowledge classifier are
 # keys of their own, so a provider chosen for one never moves the others under the owner.
 #
-# Each profile names its key, the label a screen shows, its kind (bmo, worker, gate or editor), the
+# Each profile names its key, the label a screen shows, its kind (bmo, worker or gate), the
 # run line it goes out on, the road it takes where the owner wrote none, the tier it starts on, and
 # the Claude and Codex choices the tier store's first seed drew on. A gate may add:
 # - laya_mode: its Laya mode where the owner chose none; a gate
@@ -27,7 +26,7 @@
 #   polished one at 0.5, none of them the chat's;
 # - gate_pool: the most programs its pool stands on Claude Code, where its callers keep more parts out at
 #   once than the pool's default bound.
-# An editor may add answer_floor and thinking_answer_floor (docs/own-llm.md, 「Answer slots」).
+# A key that is no gate may add answer_floor and thinking_answer_floor (docs/own-llm.md, 「Answer slots」).
 
 [[profile]]
 key = "bmo"
@@ -148,21 +147,6 @@ default_codex = { model = "gpt-5.6-luna", effort = "low" }
 laya_mode = "shadow"
 laya_road = true
 
-# This gate's answer is a person's whole standing sheet, which its own ceilings let run to 8,000
-# characters; Korean at that length is over 6,000 tokens.
-[[profile]]
-key = "people-standing"
-label = "People book summariser"
-gate_sampling = { temperature = 0.3, top_p = 0.8, top_k = 20, min_p = 0 }
-kind = "gate"
-line = "gate"
-default_route_mode = "registered"
-default_claude_model = "claude-haiku-4-5-20251001"
-tier = "Simple"
-default_codex = { model = "gpt-5.6-luna", effort = "low" }
-gate_answer_tokens = 8192
-gate_pool = 4
-
 [[profile]]
 key = "document-seek"
 label = "Document seek gate"
@@ -214,31 +198,3 @@ default_route_mode = "auto"
 default_claude_model = "claude-sonnet-5"
 tier = "Reliable"
 default_codex = { model = "gpt-5.6-terra", effort = "high" }
-
-# An editor writes a whole piece, sheet or document in one tool call, so its answer has room for the
-# longest of them past whatever a registration gives a turn. A thinking model drafts the pieces it
-# means to write in its thinking before it writes them, which alone overran 16,384 tokens on a
-# person-book batch of a registered thinking model (docs/own-llm.md, 「Answer slots」).
-[[profile]]
-key = "digest"
-label = "Digest"
-kind = "editor"
-line = "editor"
-default_route_mode = "auto"
-default_claude_model = "claude-sonnet-5"
-tier = "Reliable"
-default_codex = { model = "gpt-5.6-terra", effort = "high" }
-answer_floor = 16384
-thinking_answer_floor = 65536
-
-[[profile]]
-key = "people-digest"
-label = "People book writer"
-kind = "editor"
-line = "editor"
-default_route_mode = "auto"
-default_claude_model = "claude-sonnet-5"
-tier = "Reliable"
-default_codex = { model = "gpt-5.6-terra", effort = "high" }
-answer_floor = 16384
-thinking_answer_floor = 65536

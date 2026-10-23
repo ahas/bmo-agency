@@ -11,7 +11,7 @@ start_delay_seconds = 30
 # How often the pass comes round.
 tick_seconds = 60
 
-# How long one ping on a launch line, an editor or a gate may take before it is killed.
+# How long one ping on a launch line or a gate may take before it is killed.
 line_ping_seconds = 90
 
 # How long a ping on a worker's own session may take. It resumes a session, which reads its own context

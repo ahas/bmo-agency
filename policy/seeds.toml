@@ -14,8 +14,8 @@ name = "Default account"
 
 # The first seed's mapping of every tier on each provider the store begins with: the model and the effort each
 # tier's work goes out on until the owner maps it otherwise. The chat agents' at Supervisor, the job
-# worker's at Frontier, the editors' at Reliable, Fine a Reliable mapping told to think less, and the gates'
-# at Light and Simple.
+# worker's at Frontier, the reliable gates' at Reliable, Fine a Reliable mapping told to think less, and the
+# other gates' at Light and Simple.
 [[mapping]]
 tier = "Supervisor"
 provider = "claude-code"

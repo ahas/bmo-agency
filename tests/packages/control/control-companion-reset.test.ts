@@ -48,7 +48,7 @@ interface Stood {
   shared: number;
   // The registered harness's records of the session run in its home, and of the one run in its brain folder.
   home: string[];
-  recollector: string[];
+  brainFolder: string[];
 }
 
 interface ResetAnswer {
@@ -139,7 +139,7 @@ async function stand(agent: string, rooms: number): Promise<Stood> {
     alone,
     shared,
     home: harnessRecords(join(dataRoot(), "companion-homes", agent), `s-${agent}`),
-    recollector: harnessRecords(join(brainRoot, "agents", agent), `r-${agent}`),
+    brainFolder: harnessRecords(join(brainRoot, "agents", agent), `r-${agent}`),
   };
 }
 
@@ -169,7 +169,7 @@ describe("POST /companion-resets", () => {
     expect([both.agent, both.label, both.ranges]).toEqual([stood.agent, "Tester", ["conversation", "person"]]);
     expect([both.alone, both.shared]).toEqual([[{ chatId: stood.alone, title: null }], [{ chatId: stood.shared, title: null }]]);
     expect(rowsOf(both)).toEqual({ agent_log: 2, runs: 3, room_session_turns: 4, room_sessions: 2 });
-    expect(both.files.toSorted()).toEqual([...stood.home, ...stood.recollector].toSorted());
+    expect(both.files.toSorted()).toEqual([...stood.home, ...stood.brainFolder].toSorted());
     expect(both.brain).toEqual({ took: counts, couldNot: [] });
     expect(brainAsked).toEqual([{ method: "GET", path: "/brains", query: `?agentKey=${stood.agent}&limit=1` }]);
 
@@ -178,7 +178,7 @@ describe("POST /companion-resets", () => {
     expect(conversation.files.toSorted()).toEqual(stood.home.toSorted());
     expect(conversation.brain).toBeNull();
     expect([await count("room_sessions WHERE agent = ?", stood.agent), await count("agent_log WHERE chat_id = ?", stood.alone)]).toEqual([2, 2]);
-    expect([...stood.home, ...stood.recollector].every((path) => existsSync(path))).toBe(true);
+    expect([...stood.home, ...stood.brainFolder].every((path) => existsSync(path))).toBe(true);
   });
 
   test("of the conversation takes its rows and the lone room's whole log, ends its sessions on record, and keeps what it remembers", async () => {
@@ -194,7 +194,7 @@ describe("POST /companion-resets", () => {
     expect([await count("room_sessions WHERE agent = ?", stood.agent), await count("room_session_turns WHERE agent = ?", stood.agent)]).toEqual([0, 0]);
     expect([await count("agent_log WHERE chat_id = ?", stood.alone), await count("agent_log WHERE chat_id = ?", stood.shared)]).toEqual([0, 1]);
     expect(await archive!.sql.all("SELECT agent, chat_id AS room FROM runs WHERE chat_id IN (?, ?)", stood.alone, stood.shared)).toEqual([{ agent: "other", room: stood.shared }]);
-    expect([stood.home.some((path) => existsSync(path)), stood.recollector.every((path) => existsSync(path))]).toEqual([false, true]);
+    expect([stood.home.some((path) => existsSync(path)), stood.brainFolder.every((path) => existsSync(path))]).toEqual([false, true]);
     expect([done.brain, brainAsked]).toEqual([null, []]);
     expect(await archive!.sql.all("SELECT chat_id AS room, asked_by AS by, reason, CASE WHEN done_at IS NULL THEN 'waiting' ELSE 'done' END AS state FROM session_resets WHERE agent = ? ORDER BY id", stood.agent)).toEqual([
       { room: stood.alone, by: "tester", reason: "generation settings saved", state: "done" },
@@ -203,21 +203,21 @@ describe("POST /companion-resets", () => {
     ]);
   });
 
-  test("of what it remembers has the brain let its brain go, takes its recollectors' records, and keeps the conversation", async () => {
+  test("of what it remembers has the brain let its brain go, takes the records kept in its brain folder, and keeps the conversation", async () => {
     const stood = await stand("tester-mind", 730);
 
     brainAsked.length = 0;
 
     const done = await answered(reset({ agent: stood.agent, person: true, alone: String(stood.alone), shared: String(stood.shared) }));
 
-    expect([done.rows, done.files.toSorted()]).toEqual([[], stood.recollector.toSorted()]);
+    expect([done.rows, done.files.toSorted()]).toEqual([[], stood.brainFolder.toSorted()]);
     expect(done.brain).toEqual({ took: counts, couldNot: [] });
     expect(done.failures).toEqual([]);
     expect(brainAsked).toEqual([
       { method: "GET", path: "/brains", query: `?agentKey=${stood.agent}&limit=1` },
       { method: "DELETE", path: `/brains/${BRAIN_ID}`, query: "" },
     ]);
-    expect([stood.home.every((path) => existsSync(path)), stood.recollector.some((path) => existsSync(path))]).toEqual([true, false]);
+    expect([stood.home.every((path) => existsSync(path)), stood.brainFolder.some((path) => existsSync(path))]).toEqual([true, false]);
     expect([await count("room_sessions WHERE agent = ?", stood.agent), await count("session_resets WHERE agent = ?", stood.agent), await count("runs WHERE agent = ?", stood.agent)]).toEqual([2, 0, 2]);
   });
 

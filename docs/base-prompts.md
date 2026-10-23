@@ -30,8 +30,8 @@
   - Its co-workers' prompts are as on any worker: the role's own, closed by the same rules.
 - **A companion** that chooses one is sent the chosen prompt, then the self-preservation rulebook,
   then the pieces its settings list (`docs/companions.md`, 「What a turn is given」).
-- **The other lines read no base prompt:** the chat agent's turns, the gates, the runners, the editors
-  and batch runs are composed as they are on any account, since each already replaces the program's
+- **The other lines read no base prompt:** the chat agent's turns, the gates, the runners and batch
+  runs are composed as they are on any account, since each already replaces the program's
   whole prompt with its own; a companion reads its own choice alone.
 
 ```mermaid

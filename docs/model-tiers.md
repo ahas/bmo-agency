@@ -11,16 +11,16 @@ model, thinking and nullable effort. Work keys (including `role:<name>` and runn
 Workers share `job-worker`; runtime agent observations are never configuration seeds.
 An agent's row in the `agents` table carries no model. What an agent is configured to run on is
 read as the tier store's answer — by agency's agent routes — for the agent's work key on
-the provider its road begins on: the chat agent, each gate and each editor on its own key's road, every
+the provider its road begins on: the chat agent and each gate on its own key's road, every
 worker on `job-worker` on the provider it is pinned to or else first in the provider order, and the searcher and the browser on their own
 keys on the first enabled provider carrying their line. Agency's agent list (`docs/api.md`, 「Agents」), the console
 screens built on it and the `bmo-agency agent` listing all show that answer, and an agent with no
 work key, or one the settings refuse, shows none rather than a remembered value. The model a held
 chat session runs on is that session's own road record, not the row either.
 
-The initial representatives are bmo at Supervisor, job-worker at Frontier, digest at Reliable, role:scout
-at Light and output-format at Simple. Supervisor and Frontier inherit complete stored provider overrides.
-Reliable uses editor high effort; Fine uses the co-work digest's Sonnet low effort; Light
+The initial representatives are bmo at Supervisor, job-worker at Frontier, translator at Reliable,
+role:scout at Light and output-format at Simple. Supervisor and Frontier inherit complete stored provider
+overrides. Reliable uses high effort; Fine uses the co-work digest's Sonnet low effort; Light
 uses the scout's Haiku low effort. Simple uses the small gate baseline. Codex Fine uses
 Terra low, following the co-work digest effort, below Reliable high.
 A tier's mapping holds the thinking it runs with, the answer-token ceiling a registry's provider
@@ -29,8 +29,7 @@ carries, its model and its effort, and each is read by every key assigned to the
 the model's window a session at that tier may fill before it is folded — kept in a table of its own
 and changed apart from the mapping (`docs/sessions.md`, 「Session compaction」; `docs/api.md`,
 「fold-ratios」). On a registration the effort is null, `thinking` or `no-thinking`, read by the
-gates, the chat, the workers and
-the editors, where null and a null ceiling leave thinking and the ceiling to the registration the
+gates, the chat and the workers, where null and a null ceiling leave thinking and the ceiling to the registration the
 mapping names; a gate's null ceiling is the gate's own default. Only those mappings carry a ceiling;
 every other provider's is null. The registry's provider lists the registrations as its models, read
 afresh from agency's store on every question, so a registration is choosable the moment it is saved,
@@ -192,7 +191,7 @@ Branch prefix digests include effective effort. A co-work reservation for a task
 ## An agent's own thinking and effort
 
 - **Two settings of the agent's own, over its tier.** Every agent that runs a line with tools — the
-  chat agent, each worker, the two editors, the searcher and the browser searcher — carries on its `agents`
+  chat agent, each worker, the searcher and the browser searcher — carries on its `agents`
   row whether it thinks (default, on or off) and its effort (default or one level). Default leaves the
   run exactly
   as its tier mapping and its line make it, which is where every agent stands unless the owner or a
@@ -298,7 +297,6 @@ entries can disappear, be rate-limited, lack tool/context support, or be inacces
 A listing is not a successful provider run. The console defaults its list to free entries and
 requires an explicit filter change to list paid entries; no paid replacement is automatic.
 
-Editor warmup groups prefixes by resolved model and effort, passes the actual editor work key to the resolver, and skips unresolved mappings. Provider disablement between groups does not increment counters for a skipped group.
 
 Codex and OpenRouter keepalive skip a retained session whose tier configuration is unavailable or has changed. They preserve its saved identity and continue warming other eligible sessions.
 

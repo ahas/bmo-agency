@@ -1,6 +1,6 @@
-//! Whether a stand-in answers, and an editor's session, asked of a running server over its control routes:
-//! `GET /stand-in` answers for the agent named and refuses a call naming none, and an editor's session is
-//! started, read and refused as the session contract says, on a store the server settled itself.
+//! Whether a stand-in answers, asked of a running server over its control routes: the agent's read answers
+//! whether one answers for it, and a session is started at no scope the contract does not name — on a store
+//! the server settled itself.
 
 use serde_json::{Value, json};
 
@@ -31,7 +31,7 @@ async fn post(port: u16, token: &str, path: &str, body: Value) -> (u16, Value) {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn a_running_server_answers_whether_a_stand_in_answers_and_carries_an_editors_session() {
+async fn a_running_server_answers_whether_a_stand_in_answers_and_starts_no_editors_session() {
   let scratch = Scratch::new().await;
   let home = tempfile::tempdir().unwrap();
   let data = home.path().join("data");
@@ -48,29 +48,10 @@ async fn a_running_server_answers_whether_a_stand_in_answers_and_carries_an_edit
   // Claude Code stands open and no stand-in is pinned, so none answers for the agent.
   assert_eq!(get(port, token, "/agents/chat-agent").await.1["standInAvailable"], json!(false));
 
-  let (status, started) =
+  let (status, refused) =
     post(port, token, "/sessions", json!({ "agentName": "digest", "scope": "editor" })).await;
 
-  assert_eq!(status, 201, "{started}");
-  assert_eq!(started["id"], "digest@editor");
-  assert_eq!(started["scope"], json!("editor"));
-
-  let (status, refused) =
-    post(port, token, "/sessions", json!({ "agentName": "worker", "scope": "editor" })).await;
-
-  assert_eq!((status, refused["code"].as_str()), (422, Some("backend-refused")));
-
-  // The brain under the server's data root is no repository, so the session's state says why.
-  let (status, state) = get(port, token, "/sessions/digest@editor").await;
-
-  assert_eq!(status, 422, "{state}");
-  assert!(state["error"].as_str().unwrap().contains("no repository"), "{state}");
-
-  std::fs::create_dir_all(data.join("brain").join(".git")).unwrap();
-
-  let (status, state) = get(port, token, "/sessions/digest@editor").await;
-
-  assert_eq!(status, 200, "{state}");
-  assert_eq!(state["provider"], "claude-code");
-  assert_eq!(state["place"], data.join("brain").to_string_lossy().as_ref());
+  assert_eq!(status, 400, "{refused}");
+  assert!(refused["error"].as_str().unwrap().contains("not editor"), "{refused}");
+  assert_ne!(get(port, token, "/sessions/digest@editor").await.0, 200);
 }

@@ -1,5 +1,6 @@
 //! The routes a consumer holding the rooms asks beside a turn, asked of a running server in the shapes that
-//! consumer sends: a companion's agent row stood up and taken out, an agent's reset point, why a rest that has
+//! consumer sends: a companion's agent row stood up and taken out, a save of its settings naming a field none
+//! takes, an agent's reset point, why a rest that has
 //! just passed silenced the deployment, words pushed into a session's working turn, and a run of the ledger
 //! read by its id and listed by its search beside its opening and closing, on a store the server settled
 //! itself.
@@ -121,6 +122,19 @@ async fn a_running_server_answers_the_calls_a_room_holder_makes_beside_its_turns
     .await;
   let (_, after) = get(port, token, "/agents/companion-a").await;
   assert_eq!(after["resetAt"], json!(2000));
+
+  // A save naming a field no save takes — the recollectors' model among them — is refused by that field,
+  // and nothing is written.
+  let (status, refused) =
+    patch(port, token, "/companions/companion-a", json!({ "recollectorModel": "local-model" })).await;
+
+  assert_eq!((status, refused["field"].as_str()), (400, Some("recollectorModel")), "{refused}");
+  assert_eq!(
+    scratch
+      .count(r#"SELECT count(*) FROM "companion_settings" WHERE "agent" = 'companion-a'"#, vec![])
+      .await,
+    0
+  );
 
   // Words name the turn they are pushed into, and a turn the session carries none of is not there.
   assert_eq!(

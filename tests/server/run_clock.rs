@@ -1,8 +1,8 @@
 //! A run held to a clock is asked about past its bound rather than cut (docs/agent-control.md, 「A clock asks
 //! before it cuts」): its clock read by its name and the unit it runs under, an ask opened and published past
 //! the bound, a keep holding it until its moment, a cut and a want of a verdict cutting it with whose call it
-//! was, a verdict on a closed ask refused, and the run's end closing what stood open; and the editor cap read
-//! for an agent — on a store of the test's own.
+//! was, a verdict on a closed ask refused, and the run's end closing what stood open — on a store of the
+//! test's own.
 
 use std::time::Duration;
 
@@ -10,10 +10,8 @@ use agency_server::door::turn::{Overrun, Overtime, Quiet, Watch};
 use agency_server::events::Bus;
 use agency_server::now_ms;
 use agency_server::run_clock::{
-  Asked, ClockAskClosed, ClockAsked, Clocked, NotSettled, Verdict, clock_of, close, editor_cap, open,
-  open_asks, settle,
+  Asked, ClockAskClosed, ClockAsked, Clocked, NotSettled, Verdict, clock_of, close, open, open_asks, settle,
 };
-use policy::run_clock::RUN_CLOCK;
 
 use crate::scratch::Scratch;
 
@@ -21,9 +19,9 @@ fn clocked(run: &str) -> Clocked {
   Clocked {
     run: run.to_owned(),
     parent: Some("batch-unit".to_owned()),
-    work_key: "digest".to_owned(),
+    work_key: "voice-reading".to_owned(),
     agent: Some("companion".to_owned()),
-    what: "The digest run".to_owned(),
+    what: "The voice-reading run".to_owned(),
     bound: Duration::from_secs(60),
   }
 }
@@ -131,36 +129,4 @@ async fn an_ask_with_no_verdict_by_its_moment_is_cut_by_agency_and_one_open_at_t
 
   assert_eq!((ended.ask, ended.verdict.as_str(), ended.by), (open_ask.ask, "ended", None));
   assert!(open_asks(db).await.unwrap().is_empty());
-}
-
-#[tokio::test]
-async fn the_editor_cap_is_the_policys_unless_the_agents_recollector_registration_waits_longer() {
-  let scratch = Scratch::new().await;
-  let db = scratch.db();
-  let cap = Duration::from_secs(RUN_CLOCK.editor_cap_seconds);
-
-  assert_eq!(editor_cap(db, None, None).await.unwrap(), cap);
-  assert_eq!(editor_cap(db, Some("companion"), None).await.unwrap(), cap);
-
-  scratch
-    .run(
-      r#"INSERT INTO "companion_settings" ("agent", "recollector_model") VALUES ('companion', 'unregistered')"#,
-      vec![],
-    )
-    .await;
-
-  assert_eq!(editor_cap(db, Some("companion"), None).await.unwrap(), cap);
-
-  scratch
-    .run(
-      "INSERT INTO registered_models VALUES ('local-0-1', 'Local 0.1', 'ko2', 32768, 4096, 2400, 1, 0, 200, 1)",
-      vec![],
-    )
-    .await;
-  scratch
-    .run(r#"UPDATE "companion_settings" SET "recollector_model" = 'local-0-1'"#, vec![])
-    .await;
-
-  assert_eq!(editor_cap(db, Some("companion"), None).await.unwrap(), Duration::from_secs(2_400));
-  assert_eq!(editor_cap(db, None, Some("local-0-1")).await.unwrap(), Duration::from_secs(2_400));
 }

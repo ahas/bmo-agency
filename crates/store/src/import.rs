@@ -272,7 +272,6 @@ pub const TABLES: &[TableMap] = &[
       "updated_at",
       "updated_by",
       "generation",
-      "recollector_model",
     ],
     &["updated_at"],
   ),

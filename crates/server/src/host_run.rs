@@ -451,7 +451,7 @@ struct LeftEnvelope<'a> {
 const LEFT_GRACE: Duration = Duration::from_secs(30);
 const LEFT_START: Duration = Duration::from_secs(30);
 
-/// One run started and left in its agent's host — a runner's coordinator, an editor's batch driver — its
+/// One run started and left in its agent's host — a runner's coordinator — its
 /// execution row rooted on the run's own name, which is what makes the name read as alive while it runs and
 /// what a stop of that name reaches. The run closes its own row; what this answers is whether it started,
 /// or the code of the reason it did not, with the row closed as a launch that never ran.

@@ -8,7 +8,6 @@ pub mod codex;
 pub mod companion;
 pub mod deepseek;
 pub mod dsh;
-pub mod editor;
 pub mod openrouter;
 pub mod ordered;
 pub mod persona;

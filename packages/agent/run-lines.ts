@@ -5,9 +5,9 @@ import declaredRunLines from "@agency/policy/run-lines.toml";
 import type { AgentAdapter, RunCapability, RunLineDeclaration } from "./harness";
 
 // The lines agency runs, named for what the run is for rather than for the program that carries it: a
-// room's turn of any conversational agent, a judgement, a job, a search, a browse, a digest. What a line is, and how a program is
+// room's turn of any conversational agent, a judgement, a job, a search, a browse. What a line is, and how a program is
 // judged to carry one, are the agent base's (`harness.ts`).
-export const runLines = ["chat", "gate", "worker", "search", "browse", "editor"] as const;
+export const runLines = ["chat", "gate", "worker", "search", "browse"] as const;
 
 export type RunLine = (typeof runLines)[number];
 

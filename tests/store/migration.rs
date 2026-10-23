@@ -1,5 +1,5 @@
-//! The migrations make every table of the store in an empty database, and record what ran in the
-//! store's own record.
+//! The migrations make every table of the store in an empty database, record what ran in the store's own
+//! record, and leave no recollector standing.
 
 use sea_orm_migration::MigratorTrait;
 use store::migration::{MIGRATIONS_TABLE, Migrator, OWN_TABLES, TABLES};
@@ -153,4 +153,91 @@ async fn a_base_prompt_an_account_names_cannot_be_removed_and_a_missing_one_cann
 
   scratch.run(r#"UPDATE "claude_accounts" SET "base_prompt" = NULL"#, vec![]).await;
   remove_kept().await.unwrap();
+}
+
+#[tokio::test]
+async fn no_recollector_is_left_standing_and_nothing_else_goes_with_them() {
+  let scratch = Scratch::blank().await;
+  let before = u32::try_from(Migrator::migrations().len() - 1).unwrap();
+
+  Migrator::up(scratch.db(), Some(before)).await.unwrap();
+
+  for statement in [
+    r#"INSERT INTO "agents" ("name", "kind", "role") VALUES ('digest', 'recollector', 'recollector'),
+         ('people-digest', 'recollector', 'recollector'), ('session-summary', 'recollector', 'recollector'),
+         ('people-standing', 'gate', 'gate'), ('companion', 'chat', 'chat'), ('translator', 'gate', 'gate')"#,
+    r#"INSERT INTO "companion_settings" ("agent", "persona", "recollector_model")
+         VALUES ('companion', 'Plain.', 'local-model'), ('digest', NULL, NULL)"#,
+    r#"INSERT INTO "runs" ("agent", "unit", "depth", "started_at") VALUES ('digest', 'u-1', 0, 1),
+         ('people-digest', 'u-2', 0, 1), ('companion', 'u-3', 0, 1)"#,
+    r#"INSERT INTO "agent_log" ("agent", "run", "at", "kind", "text") VALUES ('people-standing', 'r-1', 1, 'line', 'x'),
+         ('companion', 'r-2', 1, 'line', 'y')"#,
+    r#"INSERT INTO "run_clocks" ("run", "work_key", "agent", "what", "started_at", "bound_ms")
+         VALUES ('clocked-digest', 'digest', 'companion', 'w', 1, 1), ('clocked-voice', 'voice-reading', 'companion', 'w', 1, 1)"#,
+    r#"INSERT INTO "clock_asks" ("run", "facts", "asked_at", "answer_by") VALUES ('clocked-digest', '{}', 1, 2),
+         ('clocked-voice', '{}', 1, 2)"#,
+    r#"INSERT INTO "model_tier_assignments" ("key", "tier") VALUES ('digest', 'Reliable'),
+         ('people-standing', 'Simple'), ('session-summary', 'Reliable'), ('translator', 'Reliable')"#,
+    r#"INSERT INTO "fallback_routes" ("key", "set_at") VALUES ('people-digest', 1), ('translator', 1)"#,
+    r#"INSERT INTO "settings" ("key", "value") VALUES ('agent_gate:digest:sanitizer', 'off'),
+         ('agent_sampling:people-digest', '{}'), ('reset_point:session-summary', '1'), ('reset_point:companion', '2')"#,
+  ] {
+    scratch.run(statement, vec![]).await;
+  }
+
+  Migrator::up(scratch.db(), None).await.unwrap();
+
+  let count = |sql: &'static str| scratch.count(sql, vec![]);
+
+  assert_eq!(
+    count(
+      r#"SELECT count(*) FROM information_schema.columns
+         WHERE table_schema = current_schema() AND table_name = 'companion_settings' AND column_name = 'recollector_model'"#
+    )
+    .await,
+    0
+  );
+  assert_eq!(count(r#"SELECT count(*) FROM "agents" WHERE "kind" = 'recollector'"#).await, 0);
+  assert_eq!(
+    count(r#"SELECT count(*) FROM "agents" WHERE "name" IN ('companion', 'translator')"#).await,
+    2
+  );
+  assert_eq!(
+    count(r#"SELECT count(*) FROM "agents" WHERE "name" IN ('digest', 'people-digest', 'session-summary', 'people-standing')"#)
+      .await,
+    0
+  );
+  assert_eq!(
+    count(r#"SELECT count(*) FROM "companion_settings" WHERE "persona" = 'Plain.'"#).await,
+    1
+  );
+  assert_eq!(count(r#"SELECT count(*) FROM "companion_settings" WHERE "agent" = 'digest'"#).await, 0);
+  assert_eq!(count(r#"SELECT count(*) FROM "runs""#).await, 1);
+  assert_eq!(count(r#"SELECT count(*) FROM "agent_log""#).await, 1);
+  assert_eq!(count(r#"SELECT count(*) FROM "run_clocks" WHERE "run" = 'clocked-voice'"#).await, 1);
+  assert_eq!(count(r#"SELECT count(*) FROM "run_clocks""#).await, 1);
+  assert_eq!(count(r#"SELECT count(*) FROM "clock_asks""#).await, 1);
+  assert_eq!(
+    count(r#"SELECT count(*) FROM "model_tier_assignments" WHERE "key" = 'translator'"#).await,
+    1
+  );
+  assert_eq!(
+    count(r#"SELECT count(*) FROM "model_tier_assignments" WHERE "key" IN ('digest', 'people-standing', 'session-summary')"#)
+      .await,
+    0
+  );
+  assert_eq!(count(r#"SELECT count(*) FROM "fallback_routes" WHERE "key" = 'translator'"#).await, 1);
+  assert_eq!(
+    count(r#"SELECT count(*) FROM "fallback_routes" WHERE "key" = 'people-digest'"#).await,
+    0
+  );
+  assert_eq!(
+    count(r#"SELECT count(*) FROM "settings" WHERE "key" IN ('agent_gate:digest:sanitizer', 'agent_sampling:people-digest', 'reset_point:session-summary')"#)
+      .await,
+    0
+  );
+  assert_eq!(
+    count(r#"SELECT count(*) FROM "settings" WHERE "key" = 'reset_point:companion'"#).await,
+    1
+  );
 }

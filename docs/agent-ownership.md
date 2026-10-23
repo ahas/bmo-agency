@@ -50,7 +50,7 @@ reads the same owner column. `docs/companions.md` is what a companion's session 
 | memories, situation rules and state rows | `agent` | the agent's turns, its matcher, its tools, the console's memories screen |
 | reminders | `agent` | the reminder clock, which wakes the owner when one comes due |
 | watches | `agent` | the watch runner, which wakes the owner when its check ends |
-| room notes | `agent` | the owner's digest run, which files them into the owner's long-term memory |
+| room notes | `agent` | the owner's own turns, which write what is worth keeping of them into its brain |
 | fragments (knowledge, room rules, person-book pieces, system documents, lore) | `agent`, with `all_agents` | the reference gates of a turn |
 | gate options | `agent` | the gates when they run for that agent's turn |
 | usage runs | `agent`, already standing | the usage screens, now grouped by agent |
@@ -68,8 +68,8 @@ reads the same owner column. `docs/companions.md` is what a companion's session 
   note, reminder and watch scripts and the chat tools read; a script also takes `--agent`, and a call
   naming no agent is refused.
 - **Every read names the agent too.** A turn reads its own agent's rows; the matcher is offered only
-  its own agent's condition rows; a reminder or watch wakes its own agent; a room's notes go to its
-  own agent's digest. Every room several agents share hold rows of each, and each
+  its own agent's condition rows; a reminder or watch wakes its own agent; a room's notes are read by
+  its own agent's turns. Every room several agents share hold rows of each, and each
   agent sees only its own.
 - **A companion's gate options are made when it stands,** copied from the chat agent's as they are
   then, so the gates run for it from its first turn and are tuned apart afterwards.
@@ -79,7 +79,8 @@ reads the same owner column. `docs/companions.md` is what a companion's session 
 - **Each agent's long-term memory is a folder of the brain:** its `brain_folder`, holding the same
   three parts the brain has always had — `people/`, `rooms/`, `knowledge/` — with the same shapes
   (`people-book.md`, `knowledge.md`). The chat agent's folder is the brain root, so its
-  books, rulebooks and knowledge stay exactly where they are.
+  books, rulebooks and knowledge stay exactly where they are. The brain root is the folder
+  `AGENCY_BRAIN_ROOT` names, else `brain` under the data root.
 - **A fragment row names the agent whose folder its body is in,** and the reconcile reads the agent
   from the path's folder, so a body and its row never disagree about whose it is.
 - **The shipped libraries are the chat agent's.** The system documents and the lore describe the
@@ -87,7 +88,7 @@ reads the same owner column. `docs/companions.md` is what a companion's session 
   reads one only where it is marked for every agent.
 - **Shared between agents is a mark, not a place.** A fragment's `all_agents` mark says every
   designated agent's gates may offer it; the body stays in its owner's folder. It is off unless
-  a recollector or a person sets it, and nothing sets it by default.
+  the agent writing the memory or a person sets it, and nothing sets it by default.
 - **Three axes, kept apart:**
   - the room scope — every room or one room (`[shared]` or `[chat:<room>]`, and the row's room);
   - the person a person-book piece is about — the row's `owner`;
@@ -96,45 +97,22 @@ reads the same owner column. `docs/companions.md` is what a companion's session 
   and the situation matcher take as candidates only the rows of the turn's agent and the rows marked
   for every agent, before any narrowing (`reference-selection.md`).
 
-## The recollectors
+## Who writes long-term memory
 
-- **The recollectors are the agents that decide what becomes an agent's long-term memory:** the
-  digest and the person-book writer. Their kind is `recollector`, and
-  every screen groups them under that name.
-- **Each run is for one agent.** It reads the words of rooms that agent answers, writes into that
-  agent's folder and rows, and writes from that agent's own first-person view (the recollection
-  rulebook, which the brain keeps with the fragment tool's). A room several agents answer is read once
-  per agent, and each run writes its own.
-- **A room is read for an agent where the agent answers it,** as the room answerers record says;
-  a room with no answerers is the chat agent's alone. The digest takes each agent's own notes, and
-  the person-book writer keeps each agent's own marks of what it has read (`people-book.md`,
-  「Each agent's run」).
-- **Every recollector is told whose memory it writes.** Its task names the agent by the label its
-  row carries, and an editor run stands in that agent's brain folder (`fragments.md`).
+- **Each agent of the chat kind writes its own,** the chat agent and every companion alike, in the
+  turn itself and on its own model: as it reads each message, the live one that woke it and every
+  archived message a turn hands it — what arrived while it was away, after a handover or on its
+  return to a room — it writes what matters of them into its brain. The discipline its system prompt
+  carries from the brain says so (`docs/api.md`, 「Calls agency makes」), and no other agent writes an
+  agent's memory behind it.
+- **It writes from its own first-person view,** into its own brain, so what it remembers is read back
+  into its own turns as it wrote it, and no other model's judgement of what is fit to say reaches its
+  turns through its memory.
+- **A room several agents answer is read by each,** and each writes its own.
 - **A companion hands its own session over,** the session itself writing its state on its own
   model in one more turn once its context reaches the handoff mark (`docs/companions.md`, 「Its
   limit」).
-
-### Which model a recollector runs on
-
-- **Each recollector's own key's road, by default:** the person-book writer on `people-digest`, the
-  summariser of the standing sheets on `people-standing`, the digest on `digest`, each changed on
-  agent management (`people-book.md`, 「Records」). The chat agent's recollectors always run so.
-- **A companion may name its own:** where its settings name a registration as its recollectors'
-  model (`docs/companions.md`, 「Its settings」), every recollector run for that companion — a
-  batch, a cut, a sort, a reform, a sheet, a digest of its notes — goes out on that registration on
-  the registry's provider, with the registration's own answer size, and the key's road is not
-  read. An editor run thinks as the companion's own row says its turns think, and as the
-  registration does where the row names nothing; a sheet keeps the summariser's own thinking. The run is the same run: its prompt, its tools, its desk and its checks are the
-  recollector's, and only the model answering it is the companion's.
-  - **A sheet so asked** is the summariser's request sent to that registration with the summariser's
-    own wait and answer room (`gates.md`), as a gate on the registry's provider is asked.
-  - **No other road stands behind it:** a registration that does not answer fails the run as a chosen
-    road that did not answer does, and nothing turns to the key's road or to Claude in its place.
-- **Why the companion's:** what a companion remembers is read back into its own turns, so it is
-  written by the model that speaks as it, from its view, and no other model's judgement of what is
-  fit to say reaches its turns through its memory.
-- **Each run sorts what it keeps:** a fact every agent is better for knowing — about the owner or
+- **It sorts what it keeps:** a fact every agent is better for knowing — about the owner or
   another person, about the system, the machines or their running — is written with the
   `all_agents` mark; a memory of the agent's own — what it said, promised, felt, how it plays or
   works — is written as its own.
@@ -143,8 +121,8 @@ reads the same owner column. `docs/companions.md` is what a companion's session 
 
 - **The agent menu groups by kind.** The chat agent's and the companions' kinds stand in one group,
   labelled as designated agents, each agent under its own label, so another companion stands there
-  the moment its row does. The recollectors stand in their own group, labelled as recollectors. The
-  console reads the groups from agency's agent list (`docs/api.md`, 「Agents」).
+  the moment its row does. The console reads the groups from agency's agent list (`docs/api.md`,
+  「Agents」).
 - **The memories screen shows whose a row is** and filters by agent, listing the agents from the
   table.
 - **Each agent's own screen shows its usage,** its week's tokens read from its usage rows, a

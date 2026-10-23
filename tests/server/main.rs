@@ -29,6 +29,7 @@ mod control {
   mod agent_roster;
   mod agents;
   mod base_prompts;
+  mod brain_reads;
   mod claude_account_changes;
   mod claude_accounts;
   mod companion_reset;
@@ -51,7 +52,6 @@ mod control {
   mod pool_reads;
   mod pool_sessions;
   mod pool_sources;
-  mod recollector_routes;
   mod registry;
   mod resources;
   mod roads;
@@ -81,7 +81,6 @@ mod door {
   mod record;
   mod rollout;
 }
-mod editor_session;
 mod events;
 mod ground;
 mod herdr_backend;

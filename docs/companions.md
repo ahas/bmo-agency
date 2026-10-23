@@ -195,7 +195,7 @@ are the companion unit's, not agency's. This document covers only what agency ho
   - the person range is the brain's: agency asks the brain to let go of the companion's own brain whole, found
     by the companion's key, so nothing it remembered comes back (`docs/api.md`, 「Calls agency makes」, the
     brain); agency takes the records
-    its harnesses keep of the recollectors' sessions run in its folder;
+    its harnesses keep of the sessions run in its brain folder;
   - what it keeps, whichever range — its agent row and pin, its settings, its base prompt choice, its
     gate switches, the rooms themselves, the registry and the engine's placement, and whatever range
     was not named.

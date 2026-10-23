@@ -8,7 +8,7 @@ import type { FallbackRouteMode } from "./route-modes";
 import type { ArchiveSql } from "./archive-sql";
 
 // One work key's route: the road it runs on and the model chosen on every provider. The key is
-// the chat agent's, the shared job-worker line, a gate or an editor — never a Claude model — so changing a
+// the chat agent's, the shared job-worker line or a gate — never a Claude model — so changing a
 // launch model cannot silently move this row. Every model stays on the row when the road changes,
 // so switching away and back restores the earlier choice. A null model means the profile's code
 // default; a null OpenRouter field means there is no OpenRouter model for this key.

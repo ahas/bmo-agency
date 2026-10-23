@@ -20,7 +20,6 @@ chat = "chat"
 worker = "worker"
 runner = "searcher"
 gate = "gate"
-recollector = "recollector"
 
 [[bundles]]
 name = "room.chat"
@@ -80,10 +79,4 @@ bundles = ["web.read", "web.sites", "web.images", "web.branches", "web.rulebooks
 name = "gate"
 label = "Gate"
 max_concurrent = 8
-bundles = []
-
-[[roles]]
-name = "recollector"
-label = "Recollector"
-max_concurrent = 4
 bundles = []

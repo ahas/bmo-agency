@@ -10,8 +10,8 @@ import { scratchArchive, scratchDatabase } from "@agency/test-support/store";
 
 test("independent batches have separate roots even in one bot service", async () => {
   const archive = await scratchArchive();
-  const a = await beginExecution(archive, "codex", "editor", { root: executionRoot("bmo.service"), workKey: "digest", model: "model-a" });
-  const b = await beginExecution(archive, "codex", "editor", { root: executionRoot("bmo.service"), workKey: "digest", model: "model-a" });
+  const a = await beginExecution(archive, "codex", "gate", { root: executionRoot("bmo.service"), workKey: "translator", model: "model-a" });
+  const b = await beginExecution(archive, "codex", "gate", { root: executionRoot("bmo.service"), workKey: "translator", model: "model-a" });
   expect(a.root).not.toBe(b.root);
   expect(a.attempt).toBe(1); expect(b.attempt).toBe(1);
 });

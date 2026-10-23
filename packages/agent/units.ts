@@ -1,8 +1,8 @@
 import { executionCancelled } from "./execution-identity";
 import { providerSettingsArchive } from "./provider-order";
 // Where everything that runs apart lives: how one is started, whether one is still alive, and how
-// one is ended from outside. Everything the bot launches outside its own cgroup — a runner, an
-// editor, the job worker — gets a place apart, and a run killed from outside never gets to
+// one is ended from outside. Everything the bot launches outside its own cgroup — a runner, the job
+// worker — gets a place apart, and a run killed from outside never gets to
 // write its own end, so what the bot wrote down says what a run is and its supervisor says whether
 // it is still going on.
 //

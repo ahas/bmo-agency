@@ -1,7 +1,7 @@
 //! What the brain reads of a running server over its control routes (docs/api.md, 「Agents」, 「Sessions」,
-//! 「Workers」): every agent with whether it is awake, its brain folder and its recollectors' registration;
-//! the shared rulebooks by name; a run's clock and the editor cap; a verdict on an ask that is not there;
-//! and a reload naming the agent and the rooms carried as published — on a store the server settled itself.
+//! 「Workers」): every agent with whether it is awake and its brain folder, and nothing of a recollector;
+//! the shared rulebooks by name; a work key's road; a verdict on an ask that is not there; and a reload
+//! naming the agent and the rooms carried as published — on a store the server settled itself.
 
 use serde_json::{Value, json};
 
@@ -44,7 +44,7 @@ async fn post(port: u16, token: &str, path: &str, body: Value) -> (u16, Value) {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn a_running_server_answers_what_the_brains_recollectors_read() {
+async fn a_running_server_answers_what_the_brain_reads() {
   let scratch = Scratch::new().await;
   let home = tempfile::tempdir().unwrap();
   let data = home.path().join("data");
@@ -60,12 +60,6 @@ async fn a_running_server_answers_what_the_brains_recollectors_read() {
     .await;
   scratch
     .run(r#"UPDATE "agents" SET "resting_since" = 1 WHERE "name" = 'worker-one'"#, vec![])
-    .await;
-  scratch
-    .run(
-      r#"INSERT INTO "companion_settings" ("agent", "recollector_model") VALUES ('companion', 'local-model')"#,
-      vec![],
-    )
     .await;
 
   let server = standing::stand_server(home.path(), &data, &scratch.address(), token);
@@ -83,17 +77,18 @@ async fn a_running_server_answers_what_the_brains_recollectors_read() {
       .cloned()
       .unwrap_or_else(|| panic!("{name} is listed"))
   };
-  let read = |agent: Value| {
-    (
-      agent["awake"].clone(),
-      agent["brainFolder"].clone(),
-      agent["recollectorRegistration"].clone(),
-    )
-  };
+  let read = |agent: Value| (agent["awake"].clone(), agent["brainFolder"].clone());
 
-  assert_eq!(read(agent("chat-agent")), (json!(true), json!(""), Value::Null));
-  assert_eq!(read(agent("companion")), (json!(true), json!("agents/companion"), json!("local-model")));
-  assert_eq!(read(agent("worker-one")), (json!(false), Value::Null, Value::Null));
+  assert_eq!(read(agent("chat-agent")), (json!(true), json!("")));
+  assert_eq!(read(agent("companion")), (json!(true), json!("agents/companion")));
+  assert_eq!(read(agent("worker-one")), (json!(false), Value::Null));
+
+  for agent in listed["items"].as_array().unwrap() {
+    let fields = agent.as_object().unwrap();
+
+    assert!(!fields.keys().any(|field| field.to_lowercase().contains("recollector")), "{agent}");
+    assert_ne!(agent["kind"], json!("recollector"), "{agent}");
+  }
 
   let (status, document) = get(port, token, "/prompt-documents/plain-writing").await;
 
@@ -113,7 +108,7 @@ async fn a_running_server_answers_what_the_brains_recollectors_read() {
     404
   );
   assert_eq!(patch(port, token, "/overtime-requests/1", json!({ "verdict": "wait" })).await.0, 400);
-  assert_eq!(get(port, token, "/work-keys/digest?agentName=companion").await.0, 200);
+  assert_eq!(get(port, token, "/work-keys/translator?agentName=companion").await.0, 200);
 
   let moved =
     json!({ "paths": ["agents/companion/people/a.md"], "now": false, "agent": "companion", "rooms": [-7] });

@@ -494,24 +494,24 @@ describe("ending a run in a pane", () => {
 describe("waiting for a run in a pane", () => {
   test("it falls the moment no pane carries the name", async () => {
     const herdr = herdrLike("wait");
-    const opened = await openPane(run("bmo-people-digest-7"), { socket: herdr.path });
+    const opened = await openPane(run("bmo-search-7"), { socket: herdr.path });
 
     setTimeout(() => herdr.model.exit(opened.ok ? opened.result.paneId : ""), 150);
 
-    expect(await waitForRun("bmo-people-digest-7", { timeoutMs: 5_000, everyMs: 50, socket: herdr.path })).toBe(true);
+    expect(await waitForRun("bmo-search-7", { timeoutMs: 5_000, everyMs: 50, socket: herdr.path })).toBe(true);
   });
 
   // Bounded on purpose: a wait that cannot fall would hold the launcher open for ever.
   test("and it gives up at its bound rather than waiting for ever", async () => {
     const herdr = herdrLike("bound");
 
-    await openPane(run("bmo-people-digest-7"), { socket: herdr.path });
+    await openPane(run("bmo-search-7"), { socket: herdr.path });
 
-    expect(await waitForRun("bmo-people-digest-7", { timeoutMs: 250, everyMs: 50, socket: herdr.path })).toBe(false);
+    expect(await waitForRun("bmo-search-7", { timeoutMs: 250, everyMs: 50, socket: herdr.path })).toBe(false);
   });
 
   test("a herdr that cannot be asked is not holding anything, so the wait is over", async () => {
-    expect(await waitForRun("bmo-people-digest-7", { timeoutMs: 5_000, socket: absent("wait") })).toBe(true);
+    expect(await waitForRun("bmo-search-7", { timeoutMs: 5_000, socket: absent("wait") })).toBe(true);
   });
 });
 

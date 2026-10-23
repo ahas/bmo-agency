@@ -1,5 +1,5 @@
 # The lines agency runs, named for what the run is for rather than for the program that carries it: a
-# room's turn of any conversational agent, a judgement, a job, a search, a browse, a digest
+# room's turn of any conversational agent, a judgement, a job, a search, a browse
 # (docs/launch-lines.md, docs/agents.md). One table to a line, read by every side that composes a run of it.
 #
 # needs: what its program has to offer for the line to go out on it. The runners' tools are agency's own
@@ -61,11 +61,4 @@ needs = ["tool-gate", "mcp-only-tools"]
 keeps_session = false
 namespaces = ["web"]
 shown = ["web/danawa_search", "web/exchange_rate", "web/github_issue", "web/huggingface_model", "web/iwedding_product", "web/naver_blog", "web/read_rulebook", "web/reddit", "web/research_branch", "web/view_image", "web/web_fetch", "web/web_search"]
-
-[editor]
-needs = []
-keeps_session = false
-capabilities = ["fragments.desk"]
-namespaces = ["fragments"]
-shown = ["fragments/fragment_owed", "fragments/fragment_search", "fragments/fragment_write"]
 

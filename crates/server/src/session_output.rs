@@ -2,8 +2,7 @@
 //! every text block the program's answers wrote in the turn's record, in order, joined as the turn's
 //! words, kept from the turn's start past its end until the session's next turn begins or the session
 //! ends, so a turn stopped from outside still leaves what it wrote. An attempt that goes out again on
-//! another login or a fresh session begins its words again. A session that carries several turns at once,
-//! an editor's, keeps each turn's words under its id.
+//! another login or a fresh session begins its words again. Each turn's words are kept under its id.
 
 use std::collections::HashMap;
 use std::sync::Mutex;

@@ -25,7 +25,7 @@ pub struct CodexChoice {
 pub struct Profile {
   pub key: String,
   pub label: String,
-  /// bmo, worker, gate or editor.
+  /// bmo, worker or gate.
   pub kind: String,
   /// The run line the work goes out on.
   pub line: String,

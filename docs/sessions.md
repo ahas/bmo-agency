@@ -85,10 +85,9 @@ session on the owner's ask is `docs/session-resets.md`.
   instruction and reload notices all fall due together.
 - Instructions that wake rooms are held to the same gap, one cold wake at a time, by the instruction
   pass (`bmo-window.md`, 「Quiet instruction」). Everything else the bot starts — gates, runners,
-  digests, compactions — comes one at a time by construction and is not paced.
-- The upkeep still waits behind the real work: the digest's first launch comes three minutes after
-  start, the people digest's five, the keepalive check's ten. The going-down line is a fixed message
-  and starts no session.
+  compactions — comes one at a time by construction and is not paced.
+- The upkeep still waits behind the real work: the keepalive check's first launch comes ten minutes
+  after start. The going-down line is a fixed message and starts no session.
 
 ## Session compaction
 
@@ -120,9 +119,9 @@ session on the owner's ask is `docs/session-resets.md`.
   and the going-to-nap line is not said again, and a different failure says its own piece. A fold
   that works again in that silence comes back in it, since a room told nothing about a nap is not
   told it woke from one.
-- Compaction is also when the chat's person book is brought up to date: that chat's people digest
-  worker is launched as its own unit just before the compaction starts, and nothing waits for it,
-  since it reads the archive rather than the session.
+- Nothing is launched beside a compaction: what the session has read and not yet kept it writes into
+  its brain itself, as the brain's discipline asks (`docs/agent-ownership.md`, 「Who writes long-term
+  memory」).
 - The session id is unchanged and the compacted session keeps its memory of the chat. A fold is given
   the time the policy names (`policy/chat-health.toml`), and what the session is asked and told
   around it stands there too, read by agency's server.

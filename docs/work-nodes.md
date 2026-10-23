@@ -169,7 +169,7 @@ side of a remote agent, the rotation, and what a dropped node does.
   herdr it stands in, and standing its pane, a turn, a stop, a confirmation and the leftovers sweep
   take it from there. Pane and agent ids are the node's, so they are always read and used together
   with the node. A silent herdr of a node is the node's link, and is told as no want of room here.
-- **Only a resident program stands on a node.** A structured execution — a gate, an editor, a runner,
+- **Only a resident program stands on a node.** A structured execution — a gate, a runner,
   a co-work coordinator — always runs here, so its cancel files and process groups are this machine's
   as ever.
 - **A remote place's processes are the node's.** Every operation on a place's processes — whether its

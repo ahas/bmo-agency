@@ -415,8 +415,8 @@ export function handedRules(run: HarnessRun): string {
 /**
  * Whether a run may use every tool it is shown: what decides, on a harness that has no allow list of
  * its own, between writing and only reading. The MCP servers a run is allowed stand beside the tools
- * it shows rather than narrowing them, so they are left out of the comparison — an editor allowed its
- * file tools and the fragment server may still write.
+ * it shows rather than narrowing them, so they are left out of the comparison — a run allowed its
+ * file tools and an MCP server may still write.
  */
 export function allowsWhatItShows(run: Pick<HarnessRun, "toolsShown" | "toolsAllowed">): boolean {
   if (run.toolsAllowed === null || run.toolsShown === null) {

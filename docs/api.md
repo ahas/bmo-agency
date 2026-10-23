@@ -28,7 +28,7 @@ a field's exact shape matters, the OpenAPI document is the one to read.
 ## Versioning
 
 - The contract carries the repository's one version, in semver; the workspace manifest is its source. Before
-  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.22`.
+  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.23`.
 - A change to this document and a change to the boundary go in one commit. A change to a route, an event, a
   hook or a shared table's contract repairs this document in the same commit.
 - The major moves on a removed or renamed route, field or event, the minor on an addition, the patch on
@@ -94,7 +94,7 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
 | DELETE | `/agents/{agentName}` | End an agent's registration; `forgetBrain` lets its brain go with it. |
 
 - **Every agent is a registration row** (`docs/agents.md`), and these routes add, change and end any of
-  them: the chat agent and the companions, a worker, a gate, a runner and a recollector alike.
+  them: the chat agent and the companions, a worker, a gate and a runner alike.
 - **An agent is owned by a login account,** `ownerAccount`: the id of the user it belongs to, the same id
   an account's `user_id` names (`docs/store.md`). None means the administrator's, and every agent
   registered without an owner reads so. `GET /agents` and `GET /agents/{agentName}` answer it on every
@@ -107,7 +107,7 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
   - `name`, the agent's key: a lowercase letter, then lowercase letters, digits and hyphens, forty
     characters at most (the companions policy's `name_pattern`), and held by no agent yet;
   - `label`, given;
-  - `kind`, one the roles policy names a role for: `chat`, `worker`, `runner`, `gate` or `recollector`;
+  - `kind`, one the roles policy names a role for: `chat`, `worker`, `runner` or `gate`;
   - `role`, a role the policy declares, the kind's own where none is given (`docs/agent-roles.md`);
   - `ownerAccount`, none where the caller gives none;
   - for any kind, `icon`, `thinking`, and `effort`, a level the reasoning policy holds;
@@ -116,7 +116,7 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
     as a companion added on the console is: the `room` scope, the `pieces` shape, not the default
     answerer, the brain folder `agents/<name>`, and no prompt folder;
   - for the `worker` kind, `cwd`, the code tree's root where none is given, and `nodeName`.
-  - A row of the `runner`, `gate` or `recollector` kind is its name, label, role and owner: what its runs
+  - A row of the `runner` or `gate` kind is its name, label, role and owner: what its runs
     go out on is read by its name off the work keys (`docs/model-tiers.md`), so it runs nothing until a
     work key's profile names it.
   - No agent registered here is seeded or the default answerer.
@@ -142,8 +142,8 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
     sampling, its reset point, a worker's sessions and the words said to it, and its row; then what
     stands for it: its program, its workspace, its place and home folder, its execution rows, the agent
     host's records of it and its lock. What could not go is logged.
-  - **Its brain is data and stays,** unless `forgetBrain` is true: then the brain is let go whole, with the
-    records of its recollectors' sessions.
+  - **Its brain is data and stays,** unless `forgetBrain` is true: then the brain is let go whole, with
+    the harness records kept in its folder.
   - The answer is 204.
 
 ### prompt-documents
@@ -178,9 +178,9 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
 | POST | `/sessions/{sessionId}/folds` | Fold a session, compacting its context. |
 
 A job's run is a worker's session turn with the work parts in the turn's context. A session is started at
-one scope — `agent`, `room`, `worker`, `editor`, `apart` or `conversation` — and the scope says what is
+one scope — `agent`, `room`, `worker`, `apart` or `conversation` — and the scope says what is
 kept. Its id names the agent and the scope: the agent's name alone for an agent's session,
-`<agent>@<room>`, `<agent>@worker` or `<agent>@editor` for a room's, a worker's or an editor's, and a
+`<agent>@<room>` or `<agent>@worker` for a room's or a worker's, and a
 number the service gives it for a thrown-away session (`<agent>@apart:<n>`) and a conversation
 (`<agent>@conversation:<n>`), so every start of one of those is a session of its own.
 

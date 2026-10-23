@@ -13,7 +13,7 @@ fn the_worker_line_keeps_its_session_and_leaves_its_tools_to_its_agents_role() {
 }
 
 #[test]
-fn only_the_worker_research_editor_and_chat_lines_show_their_most_called_entries_by_name() {
+fn only_the_worker_research_and_chat_lines_show_their_most_called_entries_by_name() {
   assert!(RUN_LINES.shows("worker", "worker/graph_impact"));
   assert!(RUN_LINES.shows("worker", "web/web_fetch"));
   assert!(!RUN_LINES.shows("worker", "web/research_branch"));
@@ -23,8 +23,7 @@ fn only_the_worker_research_editor_and_chat_lines_show_their_most_called_entries
   assert!(RUN_LINES.shows("browse", "web/view_image"));
   assert!(RUN_LINES.shows("worker", "worker/todo_show"));
   assert!(!RUN_LINES.shows("worker", "worker/graph_list"));
-  assert!(RUN_LINES.shows("editor", "fragments/fragment_write"));
-  assert!(!RUN_LINES.shows("editor", "fragments/fragment_split"));
+  assert!(!RUN_LINES.shows("editor", "fragments/fragment_write"), "no editor line stands");
   assert!(RUN_LINES.shows("chat", "bmo/todo_show"));
   assert!(!RUN_LINES.shows("chat", "bmo/todo_list"));
   assert!(RUN_LINES.shows("chat", "bmo/brain_learn"));

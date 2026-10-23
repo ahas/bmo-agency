@@ -3,7 +3,7 @@ import declaredRegistry from "@agency/policy/registry.toml";
 import type { Database } from "bun:sqlite";
 import type { ArchiveSql } from "./archive-sql";
 
-// The models the owner registers for the chat, the workers and the editors to run on (docs/own-llm.md,
+// The models the owner registers for the chat and the workers to run on (docs/own-llm.md,
 // 「Registered models」): each a name, a label, the model its addresses serve, its sizes, its wait,
 // its thinking default, whether the automatic walk asks it and whether the research its runs set off
 // runs on it, with one or more addresses, each a node

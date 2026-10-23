@@ -33,8 +33,6 @@ pub enum SessionScope {
   Room,
   #[serde(rename = "agent")]
   Agent,
-  #[serde(rename = "editor")]
-  Editor,
   #[serde(rename = "apart")]
   Apart,
   #[serde(rename = "conversation")]
@@ -1320,15 +1318,6 @@ pub struct TurnSend {
   pub privileged: Option<bool>,
   pub answers: Option<Vec<i64>>,
   pub began: Option<i64>,
-  pub run: Option<String>,
-  pub parent: Option<String>,
-  pub agent: Option<String>,
-  pub chat_id: Option<i64>,
-  pub step: Option<i64>,
-  pub steps: Option<i64>,
-  pub workdir: Option<String>,
-  pub desk: Option<String>,
-  pub registration: Option<String>,
   pub job: Option<i64>,
   pub item: Option<i64>,
   pub provider: Option<String>,
@@ -1687,7 +1676,6 @@ pub struct CompanionChange {
   pub pieces: Option<Value>,
   pub persona: Option<String>,
   pub registration: Option<String>,
-  pub recollector_model: Option<String>,
   pub generation: Option<Value>,
   pub thinking: Option<bool>,
 }

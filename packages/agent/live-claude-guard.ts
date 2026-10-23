@@ -69,7 +69,7 @@ function within(path: string, dir: string): boolean {
 // The lines whose runs carry a session or write a prefix a later run reads. A gate run is one
 // judgement on a small fixed prompt with nothing kept, and a job's own tools — asking the owner,
 // sending a message — may need one.
-const sessionLines: ReadonlySet<string> = new Set(["worker", "chat", "editor", "search", "browse", "pane"]);
+const sessionLines: ReadonlySet<string> = new Set(["worker", "chat", "search", "browse", "pane"]);
 
 // Why starting this command is refused here, or nothing.
 export async function launchRefusal(

@@ -49,7 +49,7 @@ export function levelReasoning(levels: (model: string) => Promise<readonly Reaso
 
 // Whether an agent's own choice reaches its runs: not a gate's, a judgement asked under its tier, and
 // not a support worker's, which runs on its base's. What runs as a gate is the deployment's gate
-// order's to say, whatever kind the agent's row is — a recollector asked as a gate is one.
+// order's to say, whatever kind the agent's row is.
 export function ownsReasoning(agent: { name: string; supportOf: string | null }): boolean {
   return !archiveSeeds().gateKeys.includes(agent.name) && agent.supportOf === null;
 }

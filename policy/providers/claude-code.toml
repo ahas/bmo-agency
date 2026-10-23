@@ -5,7 +5,7 @@
 label = "Claude Code"
 
 # The lines its program carries.
-lines = ["chat", "gate", "worker", "search", "browse", "editor"]
+lines = ["chat", "gate", "worker", "search", "browse"]
 
 # A mapping of it carries no ceiling on the answer's tokens: the provider publishes none.
 caps_answer_tokens = false

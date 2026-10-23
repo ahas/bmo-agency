@@ -121,7 +121,8 @@ none_in_room = "There is no session to clear: {agent} (room {room})"
 asked_shape = "Name the session to clear by its agent and its room."
 asked = "session reset asked"
 
-# A companion's settings: an {agent} that is no companion, a setting {name} not known, an own piece's
+# A companion's settings: an {agent} that is no companion, a {field} a save does not take, a setting
+# {name} not known, an own piece's
 # {name} out of its shape, beside the {pieces} every companion has, or past its {most} characters, the
 # pieces {offered} to choose from, and the reason the rooms a saved generation reaches are reset under.
 [companions]
@@ -137,7 +138,7 @@ pieces_twice = "A piece cannot be put in twice."
 pieces_none = "A system prompt holds at least one piece."
 persona = "A persona is a text of at most {most} characters."
 registration = "Choose a registered model with an address."
-recollector_model = "The recollectors' model is the default or a registered model with an address."
+not_field = "Not a companion setting: {field}"
 thinking = "Thinking is on, off or the default."
 reset_reason = "generation settings saved"
 

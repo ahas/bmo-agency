@@ -751,8 +751,8 @@ export class AgentStore {
     });
   }
 
-  // What an agent that keeps no session was carrying at the end of its last run. A runner and an
-  // editor open a fresh context every time they run, so this is not what the agent is holding
+  // What an agent that keeps no session was carrying at the end of its last run. A runner opens a
+  // fresh context every time it runs, so this is not what the agent is holding
   // now — nothing is holding it — but the size the last run reached, which is what there is to
   // read about how much one of its runs carries. A run that reported no figure writes none:
   // silence leaves the last real reading standing rather than erasing it.

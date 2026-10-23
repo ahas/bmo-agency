@@ -7,7 +7,7 @@ label = "DeepSeek"
 
 # The lines its program carries. A gate is another service's to run, and the research lines keep a
 # prompt no endpoint model is offered here.
-lines = ["chat", "worker", "editor"]
+lines = ["chat", "worker"]
 
 # A mapping of it carries no ceiling on the answer's tokens: the provider publishes none.
 caps_answer_tokens = false

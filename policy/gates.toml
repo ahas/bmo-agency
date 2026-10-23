@@ -8,7 +8,7 @@
 # step runs under where it runs in some turns only.
 
 # The off-turn part: the gates that run outside any chat turn, in the order the console lists them.
-apart = ["people-standing", "document-seek", "translator", "voice-polish", "voice-reading"]
+apart = ["document-seek", "translator", "voice-polish", "voice-reading"]
 
 # The gates whose runs' cost is written under their own names, and which the usage screen reads back:
 # the ones that record their spend themselves, retired ones among them, whose recorded runs are still

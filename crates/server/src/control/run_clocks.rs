@@ -1,12 +1,11 @@
 //! A run's clock across the boundary (docs/api.md, 「Workers」): the clock of the runs standing under a name,
-//! the asks open on runs past their clock and a verdict on one, and the bound an editor run carries.
+//! the asks open on runs past their clock and a verdict on one.
 
 use axum::http::{Method, StatusCode};
 use axum::response::Response;
 use serde_json::{Value, json};
 
 use super::{Call, Refused, Route, answer};
-use crate::editor_session::is_editor;
 use crate::run_clock::{self, NotSettled, Verdict};
 
 fn bad(error: impl Into<String>) -> Refused {
@@ -109,27 +108,3 @@ impl Route for RunOvertimeVerdict {
 }
 
 crate::moved!(RunOvertimeVerdict);
-
-/// The bound an editor run of a key carries for an agent.
-pub struct EditorCap;
-
-impl Route for EditorCap {
-  const METHOD: Method = Method::GET;
-  const PATH: &'static str = "/editors/cap";
-
-  async fn answer(&self, call: Call) -> Result<Response, Refused> {
-    let key = named(&call, "workKey")?;
-    let agent = call
-      .query("agent")
-      .map(|agent| agent.trim().to_owned())
-      .filter(|agent| !agent.is_empty());
-
-    if !is_editor(&key) {
-      return Err(Refused::new(StatusCode::UNPROCESSABLE_ENTITY, format!("{key} is no editor's work key")));
-    }
-
-    let cap = run_clock::editor_cap(call.store(), agent.as_deref(), None).await?;
-
-    Ok(answer(StatusCode::OK, json!({ "capSeconds": cap.as_secs() })))
-  }
-}

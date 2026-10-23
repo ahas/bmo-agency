@@ -8,7 +8,7 @@ roads, as registered models.
   agency's, the registry's, offers on every line it carries. A registration is the whole declaration
   of such a model: one is added, changed and removed with no commit and no deployment, and no model,
   address, window, answer size or wait of one is written in the code.
-  - A run with tools — the chat, a worker, an editor, a companion's turn — is Claude Code pointed at
+  - A run with tools — the chat, a worker, a companion's turn — is Claude Code pointed at
     agency's gateway under the registration's name (「How requests go」 below).
   - A request with no tools — a gate — is one request to the gateway's chat completions path under the
     same name, asked in the agent's host (「A request with no tools」 below).
@@ -44,8 +44,8 @@ roads, as registered models.
 - **The providers are programs, so they are code:** Claude Code, Codex, OpenRouter and the registry's
   provider are each a program or a client with its own launch line, its own records and its own reading
   of an answer, and a build carries the ones it was written with.
-- **Which lines the registry's provider carries:** the chat, the worker, the editors, the gates and
-  the companions. A line is a shape of the deployment's own work, so it is the deployment's to say
+- **Which lines the registry's provider carries:** the chat, the worker, the gates and the
+  companions. A line is a shape of the deployment's own work, so it is the deployment's to say
   which provider carries it.
 - **The gateway's address and key file,** read in one place by every caller (「The gateway」 below).
 - **Nothing else:** no model, address, window, answer size, wait or engine is named in the code beyond
@@ -127,9 +127,7 @@ never the model's name.
 - **Its answer size:** the answer ceiling of a run on it where the key's tier names none, a whole
   number of tokens within the policy's bounds and smaller than its window.
 - **Its request wait:** how long one request is waited for, long enough for a whole default answer at
-  the model's speed. Claude Code waits it, and so does the gateway behind. An editor run on it is given
-  at least this long before it is cut, its work's own cap being shorter than one request of a slow
-  model.
+  the model's speed. Claude Code waits it, and so does the gateway behind.
 - **Its thinking default:** on or off, what a run on it does where its tier mapping leaves thinking to
   the registration.
 - **Whether it is walked:** whether the automatic walk asks the registry's provider when a key's tier
@@ -248,7 +246,7 @@ never the model's name.
   gateway, and behind it the engine on its node and the cards it uses on the internal network — and
   what each hop logs of a request is the node's own concern (`docs/work-nodes.md`).
 - **What the gates that may stand on an external registration send about people:** the person-book
-  search and summariser send person-book indexes and pieces; the translator sends parts of documents
+  search sends person-book indexes and pieces; the translator sends parts of documents
   the console asked to translate, a person book's text as it is where that is the document; the document
   seek gate sends document indexes and the owner's question.
 
@@ -422,7 +420,7 @@ never the model's name.
 - **Automatic:** the voice gates.
 - **A gate's classifier provider:** the formatting gate, and the reference gates and matchers that offer
   it, each start on their provider and are offered the classifier too (`laya.md`).
-- **No key that is no gate starts on the registry's provider:** the chat, the worker key or an editor is
+- **No key that is no gate starts on the registry's provider:** the chat or the worker key is
   put on it only by the owner's choice, and the automatic walk reaches it as 「Own services in the
   provider order」 below says.
 - **Owner changes persist:** rows the owner changed stand as they are on the next start.
@@ -529,8 +527,7 @@ bmo-agency agent --route <work key> --provider <auto|claude-code|codex|openroute
   provider's rules. If they bring no answer, the gate has no answer.
 - **Each caller keeps its own fallback** for a gate with no answer: a formatting gate not answering sends
   the answer without a formatting verdict; a reference gate or the person-book search not answering
-  attaches the index that gate read instead of pieces; the person-book summariser not answering leaves
-  that batch unwritten this time.
+  attaches the index that gate read instead of pieces.
 - **What is lost is one verdict,** not the room's answer.
 
 ### A gate somebody stopped is not a gate with no answer
@@ -592,7 +589,7 @@ bmo-agency agent --route <work key> --provider <auto|claude-code|codex|openroute
 - **Estimating input tokens from characters:** a non-ASCII character counts as 0.8 tokens, an ASCII
   character as 0.3, which comes out slightly above what the service actually counts, so nothing overruns
   from an underestimate.
-- **Which answer size:** for a gate, the gate's answer size; for the chat, workers and editors, the
+- **Which answer size:** for a gate, the gate's answer size; for the chat and workers, the
   key's answer size; and if nobody chose, a floor for gates and a larger floor for the rest.
 - **Fitting the context:** if the slot is larger than what remains of the context it shrinks to what
   remains, and if too little remains the request is not sent.
@@ -628,16 +625,15 @@ bmo-agency agent --route <work key> --provider <auto|claude-code|codex|openroute
 ### What does not split
 
 - **Gates that must read everything at once:** the formatting judgement of one answer, picking pieces
-  for one turn, one person's standing sheet.
-- **Pre-cut inputs:** the summarisers' inputs already arrive cut within their caps.
-- **Runs with tools** (chat, workers, editors, a companion's turn): the whole conversation is one
+  for one turn.
+- **Runs with tools** (chat, workers, a companion's turn): the whole conversation is one
   request, so they cannot split; a turn that meets the limit ends as 「A turn at the input limit」 below
   says.
 - **A registration's turn of a provider walk** carries the prompt of the run the walk assembled, not a
   gate's request, so it does not split either.
 - **Answer slots** are sized as above. A non-gate key's answer size is its tier's answer size on the
   registry's provider, and is the registration's answer size where the tier names none, never below the
-  floor its own work declares: an editor that writes a whole document in one tool call declares a floor
+  floor its own work declares: a work that writes a whole document in one tool call declares a floor
   that holds one. A run that thinks writes its thinking out of the same room, so a work may declare a
   larger floor for such a run, given as far as a fraction of the registration's window allows.
 - **Only registered models limit input.** Claude Code, Codex and OpenRouter runs have no place where
@@ -647,8 +643,8 @@ bmo-agency agent --route <work key> --provider <auto|claude-code|codex|openroute
 
 ### Choosing a registered model
 
-- **The registry's provider carries every line but research:** the chat, the job worker, the editors and
-  the companions as a Claude Code road, and the gates as requests with no tools (「A request with no
+- **The registry's provider carries every line but research:** the chat, the job worker and the
+  companions as a Claude Code road, and the gates as requests with no tools (「A request with no
   tools」 above). No search or browse key is offered it and no research run walks to it: a research run
   goes out on a registration only where it was set off by a run on one that keeps its research (「How
   requests go」 below).
@@ -700,7 +696,7 @@ bmo-agency agent --route <work key> --provider <auto|claude-code|codex|openroute
   request with no tools」 above).
 - **Runs with tools go to Claude Code,** the program every line was written for, pointed at the gateway
   under the registration's name (「The gateway」 above). The line is the one a Claude run of it takes — the
-  chat's, the editor's, the worker's, a companion's (「A worker on a registered model is composed as on
+  chat's, the worker's, a companion's (「A worker on a registered model is composed as on
   Claude」 below). Its program carries the search and browse lines as Claude Code does, and a research run
   goes out on it only as `research-runs.md` says, since a registration's window decides whether the
   runner's instructions fit at all. The road changes only what follows, each value read from the
@@ -748,7 +744,7 @@ bmo-agency agent --route <work key> --provider <auto|claude-code|codex|openroute
     give up its cards at once once an answer calls one of them, and to keep them while a short tool runs.
     A program whose adapter names none sends no such header.
 - **What comes back** is Claude Code's own record — its transcript in a pane, a standing one or one of a
-  run apart's own — read as a Claude run's is. An editor's run and a research run have each line of their
+  run apart's own — read as a Claude run's is. A research run has each line of its
   record written into their run log as it is written; a gate's run in the host prints one object at its
   end, whose answer text is all its log is given; a job's turn in the pane has its transcript written
   into the job's run log as the program writes it, so a long turn on a slow engine is never a job
@@ -817,7 +813,7 @@ bmo-agency agent --route <work key> --provider <auto|claude-code|codex|openroute
   Claude's, which never passes the gateway. The gateway rewrites no prompt.
 - **What stays in the host:** a gate with no tool is one request and one answer, asked in the agent's
   host (「How requests go」 above). A gate on a registration stays a host agent; only a gate on Claude Code
-  stands programs of its own (`gates.md`). An editor's and a runner's run on a registration is a run
+  stands programs of its own (`gates.md`). A runner's run on a registration is a run
   apart (`docs/agents.md`, 「Runs apart」).
 - **Standing with nothing to do:** a worker pinned to a registered model has the program written into its
   place by the standing pass where the place holds no program, on the job line's run for the registration
@@ -893,7 +889,7 @@ bmo-agency agent --route <work key> --provider <auto|claude-code|codex|openroute
 - **Where:** the registry's column of the tier table on the agent management screen's model tab; a cell's
   dropdown sets them for that tier, offering every registration by its name.
 - **Who reads them:** every key assigned to that tier that runs on the registry's provider — a gate, the
-  chat, a worker, an editor.
+  chat, a worker.
 - **The registry's cell may leave two of them to the registration:** an empty answer size is the
   registration's answer size, and the default thinking choice is the registration's thinking default; the
   on and off choices override it.
@@ -903,10 +899,10 @@ bmo-agency agent --route <work key> --provider <auto|claude-code|codex|openroute
 ### Answer size is the ceiling of the answer slot
 
 - **Choices:** a small set of token sizes, or none.
-- **None means the work's default:** a floor for a gate, and for the chat, workers and editors on a
+- **None means the work's default:** a floor for a gate, and for the chat and workers on a
   registered model the registration's answer size.
-- **A gate's own floor:** a summariser that writes a full sheet never runs below a size that holds one,
-  and the translator never below a size that holds a part, whatever their tier says; the other gates'
+- **A gate's own floor:** the translator never runs below a size that holds a part, whatever its tier
+  says; the other gates'
   answers are one verdict line or a few.
 - **The rules of 「Input size」 above still hold:** a ceiling larger than what remains of the context
   shrinks to what remains; with too little remaining nothing is sent; a splittable gate sends only when

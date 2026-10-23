@@ -13,7 +13,7 @@ program is spoken to is `docs/agent-control.md`.
   - its name and its label, the words that call it and the window it keeps in a room;
   - its owner: the login account it belongs to, or none for the administrator's;
   - its kind: the machinery that carries its turns — a conversation in rooms, a worker's jobs, a gate's
-    judgements, a runner's research, a recollector's writing;
+    judgements, a runner's research;
   - its role: the function bundles its turns are given (`docs/agent-roles.md`);
   - its pin: the provider its turns go out on and that provider's model or registration;
   - its own prompt: the documents and settings its system prompt is composed from;
@@ -80,9 +80,9 @@ flowchart TD
 
 ## Runs apart
 
-A run apart is one run of a line that keeps no session: an editor's batch (`digest`,
-`people-digest`), a search, a browse, a research branch, the morning news page's writer, a keepalive
-ping on one of those lines, a tool probe and a judging batch of the gate project's claude road.
+A run apart is one run of a line that keeps no session: a search, a browse, a research branch, the
+morning news page's writer, a keepalive ping on one of those lines, a tool probe and a judging batch of
+the gate project's claude road.
 
 ```mermaid
 flowchart TD
@@ -239,7 +239,7 @@ Each kind of agent comes onto the interface in its own stage; this table is wher
 | Stage | What it moves | State |
 |---|---|---|
 | 1 | Companions onto the chat line, as resident programs in their own pane; the shell guard and the job guard's print-mode refusal; the print-mode check; adding and removing a companion and its room on the console | Done |
-| 2 | Editors, recollectors, the search and browse runners, research branches, the news page's writer, their keepalive pings, the tool probe and the gate project's judging road on Claude: each run apart, an interactive program in a pane of its own read back from its record (「Runs apart」) | Done |
+| 2 | The search and browse runners, research branches, the news page's writer, their keepalive pings, the tool probe and the gate project's judging road on Claude: each run apart, an interactive program in a pane of its own read back from its record (「Runs apart」) | Done |
 | 3 | Gates on Claude Code: a pool of standing interactive programs per gate, a judgement put into a free one and its conversation cleared after it, so overlapping judgements for several rooms are taken at once (`gates.md`, 「A gate on Claude Code」) | Done |
 | 4 | The chat agent's turns and its fold only in its resident program, a turn with no pane failing as a transport failure; the TypeScript lines interactive alone, and a gate a verb under `scripts/` asks on Claude Code handed to the service binary's gate run and its pool | Done |
 | 5 | One runner for every conversational agent, the chat agent's included: its session's scope, its turn's shape and whether it answers unnamed rooms settings of its row, the kinds `chat` and `companion` one kind, no path chosen by the chat agent's name or a kind, a provider's handover, turn limits and engine wait its own declaration, and the results and job endings an agent set going told to that agent (「One runner」) | Done |

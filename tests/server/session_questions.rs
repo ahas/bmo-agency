@@ -16,7 +16,8 @@ use agency_server::places::{Ground, Places};
 use agency_server::seeds::deployment;
 use agency_server::session_questions::{Questions, TurnQuestion};
 use agent_session::{
-  Answer, Apart, Asks, FaultKind, Mapping, Question, Resume, Scope, SessionId, Sessions, Start, WorkParts,
+  Answer, Apart, Asks, Conversation, FaultKind, Mapping, Question, Resume, Scope, SessionId, Sessions,
+  Start, WorkParts,
 };
 use harness_providers::Machine;
 use serde_json::json;
@@ -221,11 +222,30 @@ async fn a_session_whose_turns_put_no_question_to_their_caller_takes_no_answer()
   let service =
     Service::new(scratch.db().clone(), Config::read(|name| variables.get(name).cloned()).unwrap());
   let sessions = HerdrSessions::new(Places::new(Ground::new(&service, &machine, None), Arc::default()));
-  let editor = SessionId("digest@editor".into());
+  scratch
+    .run(
+      r#"INSERT INTO "agents" ("name", "kind", "role", "session_scope", "turn_shape")
+         VALUES ('companion', 'chat', 'chat', 'room', 'pieces')"#,
+      vec![],
+    )
+    .await;
+
+  let conversation = sessions
+    .start(Start {
+      agent: "companion".into(),
+      scope: Scope::Conversation(Conversation {
+        provider: "claude-code".into(),
+        model: "claude-sonnet-5".into(),
+        cwd: "/tmp/run".into(),
+      }),
+    })
+    .await
+    .unwrap();
 
   assert_eq!(
-    sessions.answer(&editor, "q-1", Answer::Allow).await.unwrap_err().kind,
-    FaultKind::Unknown
+    sessions.answer(&conversation.id, "q-1", Answer::Allow).await.unwrap_err().kind,
+    FaultKind::Unknown,
+    "a conversation puts no question to its caller"
   );
 
   let apart = sessions

@@ -1,6 +1,6 @@
 //! The seeds agency's server settles its store with: the account on the machine's own Claude Code login,
 //! the first seed's mapping of every tier on each provider the store begins with, and every work key at the
-//! tier it starts on; given once, so a second settling writes nothing more.
+//! tier it starts on, no recollector's among them; given once, so a second settling writes nothing more.
 
 use agency_server::seeds::{base_prompt_seeds, deployment};
 use harness_providers::Machine;
@@ -77,6 +77,16 @@ async fn a_fresh_store_is_given_the_account_the_tiers_and_the_keys_once() {
       1,
       "{key} starts on {tier}"
     );
+  }
+}
+
+#[test]
+fn no_recollector_is_seeded() {
+  let seeds = deployment(&machine(&[("HOME", "/home/someone")]));
+  let keys: Vec<&str> = seeds.tiers.keys.iter().map(|key| key.key.as_str()).collect();
+
+  for retired in ["digest", "people-digest", "people-standing", "session-summary"] {
+    assert!(!keys.contains(&retired), "{retired} is seeded");
   }
 }
 

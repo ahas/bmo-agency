@@ -1,7 +1,7 @@
 //! `GET /agents`: the agent table as the store holds it (docs/api.md, 「Agents」), every agent, the resting
 //! among them, each with what it is configured to begin on, what of its own thinking and effort reaches
-//! that, its gates and the rooms it holds sessions in, and what a recollector reads of it: whether it is
-//! awake, its brain folder and the registration its recollectors run on, and the login account that owns it.
+//! that, its gates and the rooms it holds sessions in, whether it is awake, its brain folder, and the login
+//! account that owns it.
 
 use std::path::Path;
 use std::sync::LazyLock;
@@ -250,10 +250,6 @@ async fn agent_view(judging: Judging<'_>, machine: &Machine, agent: &Agent) -> R
   put("ownerAccount", json!(agent.owner_account));
   put("awake", json!(agent.awake));
   put("brainFolder", json!(agent.brain_folder));
-  put(
-    "recollectorRegistration",
-    json!(crate::run_clock::recollector_registration(db, &agent.name).await?),
-  );
   put("aliases", json!(agent.aliases));
   put("icon", json!(agent.icon));
   put("cwd", json!(agent.cwd));
@@ -304,8 +300,8 @@ async fn agent_view(judging: Judging<'_>, machine: &Machine, agent: &Agent) -> R
 
 // What an agent begins on, read the one way every screen reads it: out of the shared tier settings for its
 // work key (docs/model-tiers.md). A worker is the worker key on the provider it is pinned to or the first
-// its walk asks; a conversational agent pinned to a provider its pin; the deployment's chat, a gate and an
-// editor their key's road; each research runner its key on the first provider carrying its line. Anything
+// its walk asks; a conversational agent pinned to a provider its pin; the deployment's chat and a gate
+// their key's road; each research runner its key on the first provider carrying its line. Anything
 // the settings refuse to answer leaves the agent with none.
 pub async fn configured(db: &DatabaseConnection, agent: &Agent) -> Option<Configured> {
   match agent.kind.as_str() {
@@ -318,7 +314,7 @@ pub async fn configured(db: &DatabaseConnection, agent: &Agent) -> Option<Config
       })
     }
     _ => match roads::profile(&agent.name).map(|profile| profile.line.as_str()) {
-      Some("chat" | "gate" | "editor") => road_choice(db, &agent.name).await.ok(),
+      Some("chat" | "gate") => road_choice(db, &agent.name).await.ok(),
       _ if agent.kind == "runner" && (agent.name == "search" || agent.name == "browse") => {
         research_choice(db, &agent.name).await.ok()
       }

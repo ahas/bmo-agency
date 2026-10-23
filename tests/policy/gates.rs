@@ -12,7 +12,6 @@ fn the_gate_order_reads_every_gate_once_where_it_first_stands() {
       "situation-rules",
       "sanitizer",
       "output-format",
-      "people-standing",
       "document-seek",
       "translator",
       "voice-polish",
