@@ -68,6 +68,11 @@ warming and standing checkouts, is agency's.
     unit and pane have all ended.
   - An active lease is not taken away for age alone. So the same place cannot be given to two runs on
     the clock while a process is still alive.
+  - **A lease bound to its launched child is given back once that child has ended,** whatever said or
+    did not say so: from the server's start and every minute after, a lease bound ten minutes or more
+    ago whose child no systemd unit, herdr pane or open execution holds any longer is finished as
+    ended. Where what runs on the machine cannot be asked, nothing is given back on that pass. A native
+    call's lease is read by its caller's process instead (「Native co-worker places」 below).
 
 ## Prior requests and yielding requests
 
@@ -100,7 +105,8 @@ warming and standing checkouts, is agency's.
     counts against no tier's limit. It waits only while another turn holds its checkout, the earliest
     waiting turn of that checkout first.
   - The runner takes a place before launching the job, and while waiting for a place the unit does not
-    launch. The place is released when the job row closes and its unit is no longer alive.
+    launch. The place is released when the job row closes and its unit is no longer alive, and the
+    pool's own pass gives it back once the unit has ended where that release never came.
   - A provider switch within one builder turn uses the place it got — a worker job's provider fallback
     is not subject to the branch limit (「Native co-worker places」 below).
   - The checkout's job lock stands as is: the key sets what launches first, and the lock keeps what

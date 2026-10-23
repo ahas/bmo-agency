@@ -164,40 +164,6 @@ impl Route for PoolAcquire {
 
 crate::moved!(PoolAcquire);
 
-/// The unit a launch carries a lease into, written once.
-pub struct PoolBind;
-
-impl Route for PoolBind {
-  const METHOD: Method = Method::POST;
-  const PATH: &'static str = "/pool/bind";
-
-  async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
-    let body = call.body().await?;
-    let held = request_named(call.store(), &body).await?;
-    let bound = bind(call.store(), &held, text(&body, "childId")?).await.map_err(refused)?;
-
-    Ok(answer(StatusCode::OK, shown(bound)?))
-  }
-}
-
-/// A lease ended with what it came to, released or cancelled where it never ran.
-pub struct PoolFinish;
-
-impl Route for PoolFinish {
-  const METHOD: Method = Method::POST;
-  const PATH: &'static str = "/pool/finish";
-
-  async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
-    let body = call.body().await?;
-    let cancel = body.get("cancel").and_then(Value::as_bool).unwrap_or(false);
-    let held = finish(call.store(), text(&body, "token")?, text(&body, "outcome")?, cancel)
-      .await
-      .map_err(refused)?;
-
-    Ok(answer(StatusCode::OK, json!({ "held": held })))
-  }
-}
-
 /// Seats of one tier on one provider held for an owner.
 pub struct PoolReserve;
 

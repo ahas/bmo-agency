@@ -94,6 +94,10 @@ async fn serve(args: Args) -> Result<(), String> {
 
   places.clone().stand(watch.clone());
   clocks(&ground);
+  tokio::spawn(agency_server::order_run::clocks::keep_bound(
+    ground.db.clone(),
+    agency_server::queue::running::Running::new(ground.db.clone(), &ground.machine(), watch.clone()),
+  ));
 
   // The agents' documents are written afresh on every start, so the runners' directories carry the text
   // this release reads.

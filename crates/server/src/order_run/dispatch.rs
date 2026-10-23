@@ -1203,6 +1203,78 @@ fn alive(pid: Option<i64>, start: Option<&str>) -> bool {
   after.split(' ').nth(19) == Some(start)
 }
 
+/// How long a lease bound to its launched child is left alone before the child's standing is asked: the
+/// launch's own start, so a child that has not come up yet is never read as one that ended.
+pub const BOUND_GRACE_MS: i64 = 10 * 60 * 1000;
+
+/// Every active lease bound to a launched child — a unit, or a run a pane holds — leased before `before`,
+/// as its token and its child; the native calls, whose callers are read by their processes, left out.
+pub async fn bound_leases(db: &DatabaseConnection, before: i64) -> Result<Vec<(String, String)>, Fault> {
+  let rows = all(
+    db,
+    r#"SELECT r.token, r.child_id FROM coworker_pool_requests r
+       WHERE r.state = 'active' AND r.child_id IS NOT NULL AND r.leased_at < $1
+         AND NOT EXISTS (SELECT 1 FROM coworker_pool_native n WHERE n.token = r.token)
+       ORDER BY r.sequence"#,
+    vec![before.into()],
+  )
+  .await
+  .map_err(faulted)?;
+
+  rows
+    .iter()
+    .map(|row| {
+      Ok((
+        row.try_get("", "token").map_err(faulted)?,
+        row.try_get("", "child_id").map_err(faulted)?,
+      ))
+    })
+    .collect()
+}
+
+/// The bound leases whose child no longer stands given back: the place a job's turn or a branch held is
+/// released once its unit and its pane have ended and no open execution names it
+/// (docs/coworker-pool.md, 「Prior requests and yielding requests」); how many.
+pub async fn release_ended(
+  db: &DatabaseConnection,
+  leases: &[(String, String)],
+  standing: &std::collections::HashSet<String>,
+) -> Result<i64, Fault> {
+  let mut released = 0;
+
+  for (token, child) in leases {
+    if standing.contains(child) {
+      continue;
+    }
+
+    if finish(db, token, "its launched child no longer stands", false).await? {
+      released += 1;
+    }
+  }
+
+  Ok(released)
+}
+
+/// Every bound lease whose child has ended released, asked of what runs on this machine; nothing where
+/// that could not be asked, since "nothing stands" and "nobody could say" are kept apart.
+pub async fn reclaim_bound(
+  db: &DatabaseConnection,
+  running: &crate::queue::running::Running,
+) -> Result<i64, Fault> {
+  let leases = bound_leases(db, crate::now_ms() - BOUND_GRACE_MS).await?;
+
+  if leases.is_empty() {
+    return Ok(0);
+  }
+
+  let children: Vec<String> = leases.iter().map(|(_, child)| child.clone()).collect();
+  let Some(standing) = running.answered(&children).await.map_err(|why| why.detail)? else {
+    return Ok(0);
+  };
+
+  release_ended(db, &leases, &standing).await
+}
+
 // How long a native call's stop mark is kept.
 const STOP_MARK_MS: i64 = 24 * 60 * 60 * 1000;
 

@@ -50,6 +50,7 @@ mod control {
   mod models;
   mod own_llm;
   mod pool_board;
+  mod pool_bound;
   mod pool_reads;
   mod pool_sessions;
   mod pool_sources;
