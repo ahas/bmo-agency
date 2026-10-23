@@ -290,10 +290,10 @@ never the model's name.
     OpenAI-compatible address.
   - A request with no tools, on the chat completions path and the model list.
 - **Its table is written from the registry:** the unit's process is agency's gateway launcher, the
-  `llm-gateway` binary. It reads the registry out of the store, at the address `BMO_ARCHIVE_URL` names
-  or else the one the data root's `env/archive-url` holds, opened read-only for each reading, so it never
-  holds a lock the bot waits on. It writes the table under the data root, private and renamed into
-  place, copies the hooks beside it from the gateway crate's `hooks/` folder in the tree it runs from,
+  `llm-gateway` binary. It reads the registry out of the store the server runs on, at the address found
+  as every reader of the store finds it (`docs/store.md`, 「Connecting」), opened read-only for each
+  reading, so it never holds a lock the bot waits on. It writes the table under the data root, private
+  and renamed into place, copies the hooks beside it from the gateway crate's `hooks/` folder in the tree it runs from,
   and starts LiteLLM on it as a child on a free loopback port. The table names each key by a variable
   the launcher sets from the key's file in that child's environment alone, and never a key; the child's
   environment holds nothing else but its `PATH` and `HOME`.

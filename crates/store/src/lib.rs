@@ -1,11 +1,12 @@
-//! Agency's store (docs/store.md): the PostgreSQL database agency keeps its tables in, the pools and the
-//! read-only connection a process opens on it, the one way a statement is bound and run, the registry's
+//! Agency's store (docs/store.md): the PostgreSQL database agency keeps its tables in, where it is, the pools
+//! and the read-only connection a process opens on it, the one way a statement is bound and run, the registry's
 //! readers, a companion's reset point, the migrations that make its tables and the seeds a fresh store is
 //! given.
 
 pub mod connection;
 pub mod import;
 pub mod migration;
+pub mod place;
 pub mod registry;
 pub mod reset_point;
 pub mod seed;

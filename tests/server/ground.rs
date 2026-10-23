@@ -78,9 +78,10 @@ fn a_store_fault_is_refused_as_the_stores() {
 }
 
 // The variable is the process's, which a test never sets, since tests share the process: where the run
-// names a store the variable is read first, and the data root's file only where it does not.
+// names a store the variable is read first, then the server's environment file, and the address file only
+// where neither names one.
 #[test]
-fn the_stores_place_is_the_variables_else_the_data_roots_file() {
+fn the_stores_place_is_the_variables_else_the_servers_environment_file_else_the_data_roots_file() {
   let named = std::env::var("BMO_ARCHIVE_URL").ok().filter(|value| !value.trim().is_empty());
   let root = tempfile::tempdir().unwrap();
 
@@ -90,7 +91,18 @@ fn the_stores_place_is_the_variables_else_the_data_roots_file() {
 
   std::fs::write(root.path().join("env/archive-url"), "  postgres:///kept\n").unwrap();
 
-  let expected = named.map_or("postgres:///kept".to_owned(), |value| value.trim().to_owned());
+  let expected = named.clone().map_or("postgres:///kept".to_owned(), |value| value.trim().to_owned());
+
+  assert_eq!(archive_place(root.path()).as_deref(), Some(expected.as_str()));
+
+  // The server's environment file names the store the server runs on, and outranks the address file.
+  std::fs::write(
+    root.path().join("env/agency.env"),
+    "AGENCY_CONTROL_PORT=1\nBMO_ARCHIVE_URL=\"postgres:///agency\"\n",
+  )
+  .unwrap();
+
+  let expected = named.map_or("postgres:///agency".to_owned(), |value| value.trim().to_owned());
 
   assert_eq!(archive_place(root.path()).as_deref(), Some(expected.as_str()));
 }

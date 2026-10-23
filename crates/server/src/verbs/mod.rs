@@ -191,7 +191,7 @@ pub fn turn_variable(name: &str) -> Option<String> {
 pub async fn store(data_root: &Path) -> Result<DatabaseConnection, VerbError> {
   let Some(place) = crate::archive_place(data_root) else {
     return Err(VerbError::Refused(format!(
-      "no store is named for {}: set BMO_ARCHIVE_URL or write env/archive-url",
+      "no store is named for {}: set BMO_ARCHIVE_URL, or name it in env/agency.env or env/archive-url",
       data_root.display()
     )));
   };

@@ -70,7 +70,7 @@ async fn serve(args: Args) -> Result<(), String> {
   let data_root = args.data_root.unwrap_or_else(agency_server::verbs::data_root);
   let place = archive_place(&data_root).ok_or_else(|| {
     format!(
-      "no store is named for {}: set BMO_ARCHIVE_URL or write env/archive-url",
+      "no store is named for {}: set BMO_ARCHIVE_URL, or name it in env/agency.env or env/archive-url",
       data_root.display()
     )
   })?;

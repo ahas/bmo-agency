@@ -158,8 +158,14 @@ seeds. The other crates and the server reach the store only through it.
 
 ## Connecting
 
-- **The store's address** is the one `BMO_ARCHIVE_URL` names, else the one the data root's
-  `env/archive-url` holds; a process with neither names no store.
+- **The store's address** is the one `BMO_ARCHIVE_URL` names: in the process's own environment, else in
+  the server's environment file, the data root's `env/agency.env`, else the one the data root's
+  `env/archive-url` holds; a process with none of them names no store.
+- **The server's store is the canonical one.** The server reads `env/agency.env` as its unit's
+  environment, and the command and the model gateway, which run without it, read the address out of the
+  same file, so the registry the command writes, the one the gateway serves and the one the server runs on
+  are one. `env/archive-url` names another service's database where both files stand, and agency reads it
+  only on an installation whose `env/agency.env` names no store.
 - **The service opens a pool,** which never hands out a connection opened before the store's shape last
   moved under the process: a statement met with PostgreSQL's code for a plan whose table moved is run
   once more on a fresh connection.

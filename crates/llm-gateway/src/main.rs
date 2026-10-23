@@ -2,8 +2,8 @@
 //!
 //!   llm-gateway [--port <port>]
 //!
-//! The port is 18030 unless named; a check stands a launcher of its own on another. The store is the one
-//! `BMO_ARCHIVE_URL` names, else the one the data root's `env/archive-url` holds.
+//! The port is 18030 unless named; a check stands a launcher of its own on another. The store is the one the
+//! server runs on, found as every reader of it finds it (docs/store.md, 「Connecting」).
 
 use std::os::unix::fs::DirBuilderExt;
 use std::path::{Path, PathBuf};
@@ -51,15 +51,9 @@ fn port_of(args: &[String]) -> Option<u16> {
   }
 }
 
-/// The store's address: the one `BMO_ARCHIVE_URL` names, else the one the data root's
-/// `env/archive-url` holds.
+/// The store's address, read as the server reads it, so the gateway serves the registry the server runs on.
 fn store_address(data_root: &Path) -> Option<String> {
-  named("BMO_ARCHIVE_URL").or_else(|| {
-    std::fs::read_to_string(data_root.join("env/archive-url"))
-      .ok()
-      .map(|held| held.trim().to_owned())
-      .filter(|held| !held.is_empty())
-  })
+  store::place::place(data_root)
 }
 
 /// The registry as it stands, read without a write: the store is opened read-only each time, so the
@@ -111,8 +105,9 @@ async fn main() -> ExitCode {
     .unwrap_or_else(|| home().join(".local/share/bmo/data"));
   let Some(store) = store_address(&data_root) else {
     eprintln!(
-      "llm-gateway: no store is named, neither by BMO_ARCHIVE_URL nor in {}",
-      data_root.join("env/archive-url").display()
+      "llm-gateway: no store is named, neither by BMO_ARCHIVE_URL nor in {} or {}",
+      data_root.join(store::place::SERVICE_ENV).display(),
+      data_root.join(store::place::ADDRESS_FILE).display()
     );
     return ExitCode::FAILURE;
   };

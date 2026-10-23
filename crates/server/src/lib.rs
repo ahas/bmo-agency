@@ -202,16 +202,10 @@ impl IntoResponse for Refusal {
   }
 }
 
-/// The store's place as every reader of it reads it: the address `BMO_ARCHIVE_URL` names, else the one
-/// the data root's `env/archive-url` holds, or none where neither names one (docs/store.md,
-/// 「Connecting」).
+/// The store's place as every reader of it reads it (docs/store.md, 「Connecting」), or none where nothing
+/// names one.
 pub fn archive_place(data_root: &Path) -> Option<String> {
-  let held = |text: String| Some(text.trim().to_owned()).filter(|text| !text.is_empty());
-
-  std::env::var("BMO_ARCHIVE_URL")
-    .ok()
-    .and_then(held)
-    .or_else(|| std::fs::read_to_string(data_root.join("env/archive-url")).ok().and_then(held))
+  store::place::place(data_root)
 }
 
 /// Now, in the epoch milliseconds agency's own columns keep.

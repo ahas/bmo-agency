@@ -6,7 +6,7 @@ After=network-online.target
 ConditionPathExists=%h/.local/share/bmo/data/env/agency.env
 
 [Service]
-# The server settles the store at the address the data root's env/archive-url names, stands the places in this
+# The server settles the store at the address env/agency.env names (docs/store.md), stands the places in this
 # machine's herdr, starts its clocks — the readers of the accounts' usage windows and the keepalive pass among
 # them, which it runs itself rather than calling another service (docs/usage-windows.md,
 # docs/keepalive-schedule.md) — and serves the quota source and the control routes on the ports and under the
