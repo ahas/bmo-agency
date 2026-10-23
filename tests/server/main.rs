@@ -45,6 +45,7 @@ mod control {
   mod front;
   mod harness;
   mod job_log;
+  mod jobs;
   mod mcp;
   mod model_tiers;
   mod models;

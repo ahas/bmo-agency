@@ -2082,7 +2082,7 @@ pub const OPERATIONS: &[Operation] = &[
     params: &[],
     body: Some("RunJob"),
     answers: &[(201, Some("Job"), false)],
-    codes: &["bad-request", "conflict", "gone"],
+    codes: &["bad-request", "conflict", "gone", "no-login-open"],
   },
   Operation {
     method: "GET",
@@ -2476,7 +2476,7 @@ fn status_of(code: &str) -> u16 {
     "too-large" => 413,
     "failed" => 500,
     "upstream-failed" => 502,
-    "not-ready" => 503,
+    "not-ready" | "no-login-open" => 503,
     _ => 422,
   }
 }

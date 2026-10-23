@@ -1,0 +1,184 @@
+//! A job asked of a running server in the shapes the harness sends (docs/api.md, 「assignments and jobs」): a
+//! launch refused while every login that carries it is closed, the assignment left held; a turn that
+//! fails ending the job with why, written into its log; and the end releasing the
+//! assignment, so the worker is held again for the next item.
+
+use std::time::Duration;
+
+use serde_json::{Value, json};
+
+use crate::scratch::Scratch;
+use crate::standing;
+
+async fn get(port: u16, token: &str, path: &str) -> (u16, Value) {
+  let answer = reqwest::Client::new()
+    .get(format!("http://127.0.0.1:{port}{path}"))
+    .bearer_auth(token)
+    .send()
+    .await
+    .unwrap();
+
+  (answer.status().as_u16(), answer.json().await.unwrap_or(Value::Null))
+}
+
+async fn post(port: u16, token: &str, path: &str, body: Value) -> (u16, Value) {
+  let answer = reqwest::Client::new()
+    .post(format!("http://127.0.0.1:{port}{path}"))
+    .bearer_auth(token)
+    .json(&body)
+    .send()
+    .await
+    .unwrap();
+
+  (answer.status().as_u16(), answer.json().await.unwrap_or(Value::Null))
+}
+
+fn item() -> Value {
+  json!({ "title": "A harmless item", "brief": "Answer that nothing is to be done.", "notes": [] })
+}
+
+async fn assigned(port: u16, token: &str, item_id: i64) -> i64 {
+  let (status, assignment) = post(
+    port,
+    token,
+    "/assignments",
+    json!({ "itemId": item_id, "holderName": "harness", "assigneeName": "helper", "item": item() }),
+  )
+  .await;
+
+  assert_eq!(status, 201, "{assignment}");
+  assignment["id"].as_i64().unwrap()
+}
+
+async fn run_job(port: u16, token: &str, assignment: i64, item_id: i64) -> (u16, Value) {
+  post(
+    port,
+    token,
+    "/jobs",
+    json!({
+      "assignmentId": assignment,
+      "itemId": item_id,
+      "leaseId": 1,
+      "holderName": "harness",
+      "item": item(),
+    }),
+  )
+  .await
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_job_waits_for_a_login_ends_with_why_and_frees_its_worker() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let data = home.path().join("data");
+  let login = home.path().join("login-a");
+  let token = "secret";
+  let resting = chrono::Utc::now().timestamp() + 3600;
+
+  std::fs::create_dir_all(&data).unwrap();
+  std::fs::create_dir_all(&login).unwrap();
+  scratch
+    .run(r#"INSERT INTO "agents" ("name", "kind") VALUES ('helper', 'worker')"#, vec![])
+    .await;
+  scratch.run(r#"DELETE FROM "claude_accounts""#, vec![]).await;
+  scratch
+    .run(
+      r#"INSERT INTO "claude_accounts" ("id", "name", "place", "enabled", "credential_kind", "credential_path", "added_at")
+         VALUES ('login-a', 'login-a', 1, 1, 'directory', $1, 0)"#,
+      vec![login.to_string_lossy().into_owned().into()],
+    )
+    .await;
+  scratch
+    .run(
+      r#"INSERT INTO "settings" ("key", "value") VALUES ('rest_until:login-a', $1)"#,
+      vec![resting.to_string().into()],
+    )
+    .await;
+
+  let server = standing::stand_server(home.path(), &data, &scratch.address(), token);
+  let port = server.port;
+
+  // Every login that carries the job rests: nothing is launched, and the worker stays held for the item.
+  let assignment = assigned(port, token, 41).await;
+  let (status, refused) = run_job(port, token, assignment, 41).await;
+
+  assert_eq!(status, 503, "{refused}");
+  assert_eq!(refused["code"], "no-login-open", "{refused}");
+  assert!(refused["error"].as_str().unwrap().contains("login-a"), "{refused}");
+  assert_eq!(scratch.count(r#"SELECT COUNT(*) FROM "jobs""#, vec![]).await, 0);
+  assert_eq!(get(port, token, &format!("/assignments/{assignment}")).await.1["state"], "held");
+
+  // The login reopens; the launch goes out and its turn, with no herdr to stand it in, fails: the job ends
+  // saying why, in its report and in its log.
+  scratch
+    .run(r#"DELETE FROM "settings" WHERE "key" = 'rest_until:login-a'"#, vec![])
+    .await;
+
+  let (status, job) = run_job(port, token, assignment, 41).await;
+
+  assert_eq!(status, 201, "{job}");
+
+  let id = job["id"].as_i64().unwrap();
+  let mut ended = Value::Null;
+
+  for _ in 0..100 {
+    ended = get(port, token, &format!("/jobs/{id}")).await.1;
+
+    if ended["state"] != "starting" && ended["state"] != "running" {
+      break;
+    }
+
+    tokio::time::sleep(Duration::from_millis(50)).await;
+  }
+
+  assert_eq!(ended["state"], "ended", "{ended}");
+  assert_eq!(ended["outcome"], "failed", "{ended}");
+  assert!(!ended["report"].as_str().unwrap_or_default().is_empty(), "{ended}");
+  assert_eq!(
+    scratch
+      .count(
+        r#"SELECT COUNT(*) FROM "agent_log" WHERE "job_id" = $1 AND "kind" = 'note' AND "text" LIKE 'The job ended failed:%'"#,
+        vec![id.into()],
+      )
+      .await,
+    1
+  );
+
+  // The end released the assignment, so the same worker is held for the next item.
+  assert_eq!(get(port, token, &format!("/assignments/{assignment}")).await.1["state"], "released");
+  assigned(port, token, 42).await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_running_assignment_whose_job_ended_is_released_as_the_assignments_are_read() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let data = home.path().join("data");
+  let token = "secret";
+
+  std::fs::create_dir_all(&data).unwrap();
+  scratch
+    .run(r#"INSERT INTO "agents" ("name", "kind") VALUES ('helper', 'worker')"#, vec![])
+    .await;
+  scratch
+    .run(
+      r#"INSERT INTO "assignments" ("id", "item_id", "holder_name", "worker_name", "state", "expires_at", "created_at", "changed_at")
+         VALUES (7, 41, 'harness', 'helper', 'running', 0, 0, 0)"#,
+      vec![],
+    )
+    .await;
+  scratch
+    .run(
+      r#"INSERT INTO "jobs" ("item_id", "lease_id", "holder_name", "assignment_id", "worker_name", "state",
+              "outcome", "token_count", "started_at", "ended_at", "prompt")
+         VALUES (41, 1, 'harness', 7, 'helper', 'ended', 'failed', 0, 0, 1, '# A harmless item')"#,
+      vec![],
+    )
+    .await;
+
+  let server = standing::stand_server(home.path(), &data, &scratch.address(), token);
+  let port = server.port;
+
+  assert_eq!(get(port, token, "/assignments/7").await.1["state"], "released");
+  assigned(port, token, 42).await;
+}

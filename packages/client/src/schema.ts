@@ -2945,6 +2945,15 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /** @description no-login-open */
+        NoLoginOpen: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
         /** @description no-worker-free */
         NoWorkerFree: {
             headers: {
@@ -5770,6 +5779,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             409: components["responses"]["Conflict"];
             410: components["responses"]["Gone"];
+            503: components["responses"]["NoLoginOpen"];
         };
     };
     readJobsByJobId: {

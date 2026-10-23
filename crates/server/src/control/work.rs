@@ -15,11 +15,14 @@ use sea_orm::{QueryResult, Value as DbValue};
 use serde_json::{Value, json};
 
 use super::{Call, Refused, Route, answer};
+use crate::control::claude_accounts::{Judging, carried_for_user, reopens_at, walk_for_user};
 use crate::events::Named;
 use crate::lines::{Trees, worker};
 use crate::now_ms;
 use crate::places::{AgentRow, Ground};
 use crate::queue::routes::JOB_WORK_KEY;
+use crate::run_log::lines::Line;
+use crate::run_log::{RunLog, Target};
 use crate::worker_session::PROVIDER;
 use store::{all, one, run};
 
@@ -102,7 +105,8 @@ async fn assignment(db: &sea_orm::DatabaseConnection, id: i64) -> Result<Value, 
   }
 }
 
-/// A hold that ran out is expired before anything reads it.
+/// A hold that ran out is expired, and a running assignment whose job has ended is released, before
+/// anything reads them.
 async fn expire(db: &sea_orm::DatabaseConnection) -> Result<(), Refused> {
   let now = now_ms();
   run(
@@ -112,8 +116,56 @@ async fn expire(db: &sea_orm::DatabaseConnection) -> Result<(), Refused> {
     vec![now.into()],
   )
   .await?;
+  run(
+    db,
+    r#"UPDATE "assignments" a SET "state" = 'released', "changed_at" = $1
+       WHERE a."state" = 'running'
+         AND EXISTS (SELECT 1 FROM "jobs" j WHERE j."assignment_id" = a."id")
+         AND NOT EXISTS (SELECT 1 FROM "jobs" j
+               WHERE j."assignment_id" = a."id" AND j."state" IN ('starting', 'running'))"#,
+    vec![now.into()],
+  )
+  .await?;
 
   Ok(())
+}
+
+/// That an assignment's job has ended: the worker it held is free.
+async fn release(db: &sea_orm::DatabaseConnection, assignment_id: i64) -> Result<(), Refused> {
+  run(
+    db,
+    r#"UPDATE "assignments" SET "state" = 'released', "changed_at" = $1 WHERE "id" = $2 AND "state" = 'running'"#,
+    vec![now_ms().into(), assignment_id.into()],
+  )
+  .await?;
+
+  Ok(())
+}
+
+/// Why no job can be launched now: every login that carries the job's work key is closed. None where one
+/// is open, or where no login carries the key and the run goes out as it stands.
+async fn logins_closed(ground: &Ground) -> Result<Option<String>, Refused> {
+  let judging = Judging::of(ground);
+
+  if !walk_for_user(judging, JOB_WORK_KEY, None).await?.is_empty() {
+    return Ok(None);
+  }
+
+  let carried = carried_for_user(&ground.db, JOB_WORK_KEY, None).await?;
+
+  if carried.is_empty() {
+    return Ok(None);
+  }
+
+  let names = carried.iter().map(|account| account.id.as_str()).collect::<Vec<_>>().join(", ");
+
+  Ok(Some(match reopens_at(judging, &carried).await? {
+    Some(at) => format!(
+      "no login can carry a job now ({names}); the first reopens at {}",
+      chrono::DateTime::from_timestamp(at, 0).map_or_else(|| at.to_string(), |moment| moment.to_rfc3339())
+    ),
+    None => format!("no login can carry a job now ({names}); each waits for a person to sign in again"),
+  }))
 }
 
 /// A worker held for an item for the harness that asked.
@@ -389,6 +441,9 @@ impl Route for CreateJob {
         "the assignment holds another item or another holder",
       ));
     }
+    if let Some(why) = logins_closed(call.ground()).await? {
+      return Err(Refused::new(StatusCode::SERVICE_UNAVAILABLE, why).with_code("no-login-open"));
+    }
     let worker_name: String = held["workerName"].as_str().unwrap_or_default().to_owned();
     let prompt = prompt_of(&item);
     let room_id = number(&asked, "roomId").or_else(|| number(&item, "roomId"));
@@ -476,7 +531,8 @@ async fn work_parts(
   })
 }
 
-// The run of one job: the worker's session started, the item's turn carried, and the job's end written.
+// The run of one job: the worker's session started, the item's turn carried, and the job's end written,
+// its assignment released, and an end that is no answer noted in the job's log.
 async fn launch(ground: Arc<Ground>, sessions: Option<crate::herdr_backend::Shared>, id: i64) {
   let ended = launched(&ground, sessions, id).await;
   let (state, outcome, report, tokens) = match ended {
@@ -484,6 +540,10 @@ async fn launch(ground: Arc<Ground>, sessions: Option<crate::herdr_backend::Shar
     Err(why) => ("stopped".to_owned(), Some("failed".to_owned()), Some(why), 0),
   };
   let now = now_ms();
+
+  if let Some(outcome) = &outcome {
+    noted(&ground, id, outcome, report.as_deref()).await;
+  }
 
   if let Err(why) = run(
     &ground.db,
@@ -504,8 +564,33 @@ async fn launch(ground: Arc<Ground>, sessions: Option<crate::herdr_backend::Shar
   }
 
   if let Ok((member, _)) = job(&ground.db, id).await {
+    let assignment_id = member["assignmentId"].as_i64().unwrap_or_default();
+
+    if let Err(why) = release(&ground.db, assignment_id).await {
+      eprintln!("job {id}: its assignment {assignment_id} was not released: {}", why.error);
+    }
+
     publish(&ground, if state == "ended" { "job.ended" } else { "job.changed" }, member);
   }
+}
+
+// A job's end that is no answer, written into its log under its run as a note: its outcome and why.
+async fn noted(ground: &Ground, id: i64, outcome: &str, why: Option<&str>) {
+  let Ok((member, _)) = job(&ground.db, id).await else {
+    return;
+  };
+  let mut log = RunLog::new(Target {
+    agent: member["workerName"].as_str().unwrap_or_default().to_owned(),
+    run: member["runName"].as_str().map_or_else(|| format!("job-{id}"), str::to_owned),
+    chat_id: member["roomId"].as_i64(),
+    job_id: Some(id),
+  });
+  let text = match why.map(str::trim).filter(|why| !why.is_empty()) {
+    Some(why) => format!("The job ended {outcome}: {why}"),
+    None => format!("The job ended {outcome}, and its turn gave no reason."),
+  };
+
+  log.write(&ground.db, Line::note(text)).await;
 }
 
 type Ended = (String, Option<String>, Option<String>, i64);
@@ -576,7 +661,12 @@ async fn launched(
     .map(|reply| reply.spend.iter().map(|spent| spent.tokens).sum())
     .unwrap_or(0);
 
-  Ok(("ended".to_owned(), outcome, end.answer, tokens))
+  let report = match outcome {
+    None => end.answer,
+    Some(_) => end.answer.or(end.reason),
+  };
+
+  Ok(("ended".to_owned(), outcome, report, tokens))
 }
 
 /// The jobs: recent, by room, by worker, by holder, running.

@@ -28,7 +28,7 @@ a field's exact shape matters, the OpenAPI document is the one to read.
 ## Versioning
 
 - The contract carries the repository's one version, in semver; the workspace manifest is its source. Before
-  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.46`.
+  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.56`.
 - A change to this document and a change to the boundary go in one commit. A change to a route, an event, a
   hook or a shared table's contract repairs this document in the same commit.
 - The major moves on a removed or renamed route, field or event, the minor on an addition, the patch on
@@ -540,7 +540,7 @@ nothing of its placement.
 | GET | `/assignments/{assignmentId}` | One assignment. |
 | PATCH | `/assignments/{assignmentId}` | Release an assignment, or hold it longer. |
 | GET | `/jobs` | Jobs: recent, by room, by worker, by holder, running. |
-| POST | `/jobs` | Run an item on its assigned worker: the harness hands over the item's content and the lease it holds, and the agency launches the worker's session on it. |
+| POST | `/jobs` | Run an item on its assigned worker: the harness hands over the item's content and the lease it holds, and the agency launches the worker's session on it; refused while no login can carry it. |
 | GET | `/jobs/{jobId}` | One job and the tokens its model has spent. |
 | PATCH | `/jobs/{jobId}` | End a job with its outcome, or stop it; its assignment is released. |
 | GET | `/jobs/{jobId}/prompt` | The prompt the job was launched with. |
@@ -548,6 +548,19 @@ nothing of its placement.
 A job's `itemId` and `leaseId` are the harness's references, kept as given. The harness renews the lease,
 reads the job's progress, questions and outcome from its fields and events, and reports and closes the item
 in the job service. Agency calls nothing of the job service and keeps no client of it.
+
+- **A job is launched only where a login can carry it.** Where every Claude login that carries the job's
+  work key is closed — its window full, resting, or waiting for a person to sign in again — `POST /jobs`
+  answers 503 `no-login-open`, naming the logins and the moment the first of them reopens, or that each
+  waits for a person; nothing is written and the assignment stays held. A work key no login carries goes
+  out as it stands.
+- **A job ends by itself as its turn ends.** A turn that answered ends the job `ended` with its answer as
+  the report. A turn that did not answer ends it `ended` with its outcome (`failed`, `blocked`, `stopped`
+  or `reprepared`) and the reason the turn gave as the report. A launch that never reached its turn — no
+  session, no line, no herdr — ends it `stopped`, outcome `failed`, with why as the report. Every end that
+  is not an answer is also written as a note into the job's log, so the job's lines say why it ended.
+- **A job's end releases its assignment,** whichever way it ended, so its worker is free for the next
+  assignment. A `running` assignment whose job has ended is released as the assignments are next read.
 
 ### session-work and session-loads
 
