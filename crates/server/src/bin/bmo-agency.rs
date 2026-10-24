@@ -313,6 +313,8 @@ enum DevVerb {
 enum CompanionVerb {
   /// A companion's session in a room printed as it was kept and then each turn as it is appended.
   Follow {
+    /// The room by its number, which may begin with a minus.
+    #[arg(allow_negative_numbers = true)]
     room: String,
     #[arg(long)]
     agent: String,

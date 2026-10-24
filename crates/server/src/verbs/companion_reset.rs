@@ -29,10 +29,10 @@ pub struct ResetArgs {
   #[arg(long = "dry-run")]
   pub dry_run: bool,
   /// A room it answers alone, repeatable or comma separated.
-  #[arg(long, value_delimiter = ',')]
+  #[arg(long, value_delimiter = ',', allow_negative_numbers = true)]
   pub alone: Vec<i64>,
   /// A room it shares with other agents, repeatable or comma separated.
-  #[arg(long, value_delimiter = ',')]
+  #[arg(long, value_delimiter = ',', allow_negative_numbers = true)]
   pub shared: Vec<i64>,
 }
 

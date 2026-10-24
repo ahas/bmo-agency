@@ -14,6 +14,7 @@ mod common;
 mod agent_status_verb;
 mod agents_verb;
 mod claude_logins;
+mod companion_follow_verb;
 mod companion_reset_verb;
 mod dev_model_verbs;
 mod door_guard;
