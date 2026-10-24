@@ -93,6 +93,9 @@ async fn serve(args: Args) -> Result<(), String> {
   let ground = places.ground.clone();
 
   places.clone().stand(watch.clone());
+  // The gate's kinds read before the routes stand, so an agent's switches list its gates from the
+  // gate's own declaration and not from a copy agency would keep.
+  agency_server::gate_kinds::refresh(&ground).await;
   clocks(&ground);
   tokio::spawn(agency_server::order_run::clocks::keep_bound(
     ground.db.clone(),
@@ -140,6 +143,21 @@ async fn serve(args: Args) -> Result<(), String> {
 // swept.
 fn clocks(ground: &Arc<Ground>) {
   tokio::spawn(agency_server::run_log::prune::keep(ground.db.clone()));
+
+  let gated = ground.clone();
+
+  tokio::spawn(async move {
+    every("gate kinds", Duration::from_secs(60), Duration::from_secs(60), move || {
+      let ground = gated.clone();
+
+      async move {
+        agency_server::gate_kinds::refresh(&ground).await;
+
+        Ok(())
+      }
+    })
+    .await
+  });
   tokio::spawn(agency_server::order_run::clocks::keep_pool(ground.db.clone()));
   tokio::spawn(agency_server::order_run::clocks::keep_leftovers(ground.clone()));
   tokio::spawn(agency_server::order_run::clocks::keep_warm(ground.clone()));

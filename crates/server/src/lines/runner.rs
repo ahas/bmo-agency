@@ -25,7 +25,7 @@ pub const PROVIDER: &str = "claude-code";
 
 // The web reaches every runner through the deployment's own server and its toolbook, and no built-in tool
 // is shown to any.
-const WEB_TOOLS: &str = "mcp__web,mcp__toolbook";
+const WEB_TOOLS: &str = "mcp__bmo,mcp__web,mcp__toolbook";
 
 // The rulebook every text a person reads is written to.
 const PLAIN_WRITING: &str = "plain-writing";
@@ -127,8 +127,38 @@ pub(crate) fn handed_config(
   path: PathBuf,
   compose: impl FnOnce() -> Result<Ordered, Refusal>,
 ) -> Result<PathBuf, Refusal> {
+  let composed = compose()?;
+
   if !path.exists() {
-    publish_text(&path, &Ordered::map([("mcpServers", compose()?)]).pretty())?;
+    publish_text(&path, &Ordered::map([("mcpServers", composed)]).pretty())?;
+
+    return Ok(path);
+  }
+
+  // A server the line has taken up since the file was written is added to it; the servers standing
+  // there, and anything else the file holds, are left as they are.
+  let mut held: Ordered = serde_json::from_str(
+    &std::fs::read_to_string(&path).map_err(|why| fault(format!("{}: {why}", path.display())))?,
+  )
+  .map_err(|why| fault(format!("{}: {why}", path.display())))?;
+  let Some(servers) = held
+    .entries_mut()
+    .and_then(|top| top.get_mut("mcpServers"))
+    .and_then(Ordered::entries_mut)
+  else {
+    return Ok(path);
+  };
+  let mut added = false;
+
+  for (name, server) in composed.entries().into_iter().flatten() {
+    if !servers.contains_key(name) {
+      servers.insert(name.clone(), server.clone());
+      added = true;
+    }
+  }
+
+  if added {
+    publish_text(&path, &held.pretty())?;
   }
 
   Ok(path)
@@ -188,7 +218,7 @@ impl Runner for Search {
 
   // The web namespace alone, on the tool host, with the toolbook.
   fn mcp_config(&self, ground: &Ground, trees: &Trees) -> Result<PathBuf, Refusal> {
-    handed_config(trees.agents.join("search.mcp.json"), || Ok(line_servers(ground, &["web"])))
+    handed_config(trees.agents.join("search.mcp.json"), || Ok(line_servers(ground, &["bmo", "web"])))
   }
 }
 
@@ -198,7 +228,7 @@ impl Runner for Browse {
   }
 
   fn tools_allowed(&self) -> &'static str {
-    "mcp__chrome-devtools,mcp__web,mcp__toolbook"
+    "mcp__bmo,mcp__chrome-devtools,mcp__web,mcp__toolbook"
   }
 
   async fn instructions(&self, _ground: &Ground, trees: &Trees) -> Result<Option<String>, Refusal> {
@@ -285,7 +315,7 @@ pub fn browse_servers(
     servers.insert("chrome-devtools".to_owned(), Ordered::Map(started));
   }
 
-  for (name, server) in line_servers(ground, &["web"]).entries().into_iter().flatten() {
+  for (name, server) in line_servers(ground, &["bmo", "web"]).entries().into_iter().flatten() {
     servers.insert(name.clone(), server.clone());
   }
 

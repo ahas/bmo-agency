@@ -46,3 +46,17 @@ fn only_the_worker_research_and_chat_lines_show_their_most_called_entries_by_nam
   assert!(RUN_LINES.variables("worker").is_empty());
   assert!(!RUN_LINES.shows("companion", "worker/graph_impact"));
 }
+
+#[test]
+fn a_research_line_writes_the_deployment_agent_s_brain_and_shows_the_tools_for_it() {
+  for line in ["search", "browse"] {
+    assert!(RUN_LINES.capabilities(line).iter().any(|one| one == "room.chat"), "{line}");
+    assert!(RUN_LINES.namespaces(line).iter().any(|one| one == "bmo"), "{line}");
+    assert!(RUN_LINES.shows(line, "bmo/brain_learn"), "{line}");
+    assert!(RUN_LINES.shows(line, "bmo/brain_similar"), "{line}");
+    assert!(RUN_LINES.writes_agent_brain(line), "{line}");
+  }
+
+  assert!(!RUN_LINES.writes_agent_brain("worker"));
+  assert!(!RUN_LINES.writes_agent_brain("chat"));
+}

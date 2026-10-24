@@ -235,6 +235,9 @@ pub struct HerdrSessions {
   outputs: Outputs,
   // The places each bounded role holds for its running turns, by the role's name.
   role_places: Mutex<BTreeMap<String, Arc<tokio::sync::Semaphore>>>,
+  // The thrown-away sessions whose first prompt has been handed the gate's reference, so a research
+  // run's later rounds are asked over it and not over it again.
+  referenced: Mutex<HashSet<SessionId>>,
 }
 
 /// One turn a session carries while it goes: its id, and the run it goes out as.
@@ -515,11 +518,16 @@ impl HerdrSessions {
       deaf: Mutex::default(),
       outputs: Outputs::default(),
       role_places: Mutex::default(),
+      referenced: Mutex::default(),
     }
   }
 
   fn deaf(&self) -> std::sync::MutexGuard<'_, HashSet<SessionId>> {
     self.deaf.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+  }
+
+  fn referenced(&self) -> std::sync::MutexGuard<'_, HashSet<SessionId>> {
+    self.referenced.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
   }
 
   // The role's places: a role the policy bounds holds one for the turn's length, so its agents run at
@@ -1714,6 +1722,97 @@ impl HerdrSessions {
     carry(&asked, &shown).await.map(|end| Came::Ended(Box::new(end)))
   }
 
+  // A research run's rounds (docs/launch-lines.md, 「A research run's rounds」): after the answer to the
+  // task, the line's questions are asked of the same session, each over the task and the answers
+  // already written, and the last answer is the run's result. A question whose run does not answer
+  // leaves the last answer standing; past the line's ceiling the final question is asked at once, or
+  // the run returns what it had.
+  async fn research_rounds(
+    &self,
+    turn: &Turn,
+    agent: &str,
+    apart: &Apart,
+    work: &WorkParts,
+    first: Came,
+    turn_id: i64,
+  ) -> Result<Came, Fault> {
+    let db = &self.ground().db;
+    let Some(process) = crate::research_draft::process_of(db, &work.work_key).await.map_err(store_fault)?
+    else {
+      return Ok(first);
+    };
+    let answered =
+      |end: &TurnEnd| (end.outcome == Outcome::Answered).then(|| end.answer.clone().unwrap_or_default());
+    let Came::Ended(first_end) = first else { return Ok(first) };
+    let Some(first_text) = answered(&first_end) else {
+      return Ok(Came::Ended(first_end));
+    };
+    let began = std::time::Instant::now();
+    let mut answers = vec![first_text];
+    let mut last_end = first_end;
+    let mut asking = 0;
+
+    while asking < process.rounds.len() {
+      let name = &process.rounds[asking];
+      let past = began.elapsed().as_secs() as i64 >= process.ceiling_seconds;
+
+      // Past the ceiling the line either asks its final question at once or returns what it has, as
+      // the policy says. The final question is asked once, whichever road reached it.
+      if past && name.as_str() != policy::research::Draft::FINAL {
+        match process.past_ceiling {
+          policy::research::PastCeiling::Last => break,
+          policy::research::PastCeiling::Final => {
+            let Some(final_at) =
+              process.rounds.iter().position(|one| one.as_str() == policy::research::Draft::FINAL)
+            else {
+              break;
+            };
+
+            if final_at < asking {
+              break;
+            }
+
+            asking = final_at;
+            continue;
+          }
+        }
+      }
+
+      let Some(question) = crate::research_draft::question_of(db, name).await.map_err(store_fault)? else {
+        asking += 1;
+        continue;
+      };
+      let mut sub = turn.clone();
+
+      sub.prompt = crate::research_draft::prompt(&question, &turn.prompt, &answers);
+
+      match self.carried(&sub, agent, WorkSeat::Apart(apart), work, turn_id).await {
+        Ok(Came::Ended(end)) => match answered(&end) {
+          Some(text) => {
+            answers.push(text);
+            last_end = end;
+          }
+          None => break,
+        },
+        Ok(_) => break,
+        Err(why) => {
+          eprintln!("research run {name}: the round did not answer: {}", why.message);
+          break;
+        }
+      }
+
+      let asked_final = name.as_str() == policy::research::Draft::FINAL;
+
+      asking += 1;
+
+      if asked_final {
+        break;
+      }
+    }
+
+    Ok(Came::Ended(last_end))
+  }
+
   // A worker's job turn carried on a fallback road: the same stand-in walk, roads and setting a chat turn
   // crosses over on, composing the worker's own line — its rules, tools, MCP and checkout. The road was
   // chosen in the job's work parts (`control::work`, `worker_road`); dsh keeps no session, so nothing of the
@@ -2012,10 +2111,12 @@ impl Sessions for HerdrSessions {
 
     // A research run's first prompt carries the reference the gate picks over its instruction; a
     // co-work branch's prompt is composed by its parent and carries none, and a gate's turn is a
-    // judgement of its own. A run whose pick fails keeps its own words and nothing else.
+    // judgement of its own. A run whose pick fails keeps its own words and nothing else, and a later
+    // round of the same run is asked over the reference its first prompt already carries.
     if let Scope::Apart(apart) = &scope
       && !(apart.todo.is_some() && apart.role.is_some())
       && turn.context.gate.is_none()
+      && self.referenced().insert(turn.session.clone())
     {
       let lines: Vec<String> = turn.prompt.lines().map(str::to_owned).collect();
 
@@ -2103,7 +2204,12 @@ impl Sessions for HerdrSessions {
         (Some(gate), _) => {
           self.gate_turn(&turn, &agent, &apart.provider, &apart.cwd, gate, &run, shown).await
         }
-        (None, Some(work)) => self.carried(&turn, &agent, WorkSeat::Apart(apart), work, turn_id).await,
+        (None, Some(work)) => {
+          match self.carried(&turn, &agent, WorkSeat::Apart(apart), work, turn_id).await {
+            Ok(first) => self.research_rounds(&turn, &agent, apart, work, first, turn_id).await,
+            Err(why) => Err(why),
+          }
+        }
         (None, None) => Err(apart_refused(&agent)),
       },
       (Scope::Conversation(conversation), _) => match &turn.context.gate {
@@ -2407,6 +2513,7 @@ impl Sessions for HerdrSessions {
       }
       Scope::Apart(_) => {
         self.apart().remove(session);
+        self.referenced().remove(session);
       }
       Scope::Conversation(_) => {
         let harness = self.conversations().remove(session).and_then(|(_, held)| held.harness);

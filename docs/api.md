@@ -28,7 +28,7 @@ a field's exact shape matters, the OpenAPI document is the one to read.
 ## Versioning
 
 - The contract carries the repository's one version, in semver; the workspace manifest is its source. Before
-  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.63`.
+  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.64`.
 - A change to this document and a change to the boundary go in one commit. A change to a route, an event, a
   hook or a shared table's contract repairs this document in the same commit.
 - The major moves on a removed or renamed route, field or event, the minor on an addition, the patch on
@@ -459,6 +459,49 @@ The launch room answers `held`, every reason it is held, the jobs at work and, o
 place runs a browser. The launcher's own notice is kept beside the machine's reasons and read back with
 them; a notice that holds nothing is withdrawn.
 
+### gate kinds
+
+| Method | Path | Does |
+|---|---|---|
+| GET | `/gate-kinds` | The gate kinds the gate declared, each with the part of a turn it stands in and its step there. |
+| PUT | `/gate-kinds` | The gate declares its kinds and their order, over the declaration standing. |
+
+- **The gate declares its kinds; agency keeps no copy of the gate order.** A gate kind is a work key whose
+  line is the gate's, and its order — which of them stand before a reply, which after it and which outside
+  any turn — is the gate's own policy (`docs/agent-roles.md`). The agency reads `GET /gates` from the gate
+  as it starts and once a minute after, and keeps what the gate answers; `PUT /gate-kinds` is the route the
+  gate declares through when it has more to say than that page carries. The declaration is written over
+  the one standing whole: a kind the gate no longer names is no kind of a turn.
+- **What a turn reads.** An agent's gate switches (`GET /agents/{agentName}`) and whether its own thinking
+  and effort reach its runs are read from the declared kinds: a gate named there owns no reasoning, and an
+  agent whose turns answer in no room has no gates to switch. A companion's gates are agency's own subset
+  of the same kinds (`policy/companion-turn.toml`).
+- **A declaration names its gates,** each as the gate publishes it: `gateName`, `part` (`pre`, `post` or
+  `apart`), `step`, `condition` or null, `switchable`, `layaProbe`, `defaultLayaMode` and `answerTokens`.
+  An empty declaration, or one whose kind stands in no turn part, is refused 400 `bad-request`. A gate
+  the address does not answer leaves the declaration already kept as it stands.
+
+### research drafts
+
+| Method | Path | Does |
+|---|---|---|
+| GET | `/draft-processes` | Every research line's rounds: its questions in order, its ceiling and what a process past it does. |
+| PUT | `/draft-processes/{line}` | Change one line's rounds; a field left out keeps what the line holds. |
+| DELETE | `/draft-processes/{line}` | Take a line's own rounds back, the policy's row standing again. |
+| GET | `/draft-questions` | Every question the lines' rounds may name, with its text. |
+| PUT | `/draft-questions/{name}` | Change a question's text, or add one under a name of the console's own. |
+
+- **A research run keeps no receiver, so agency asks its rounds** (`docs/launch-lines.md`, 「A research
+  run's rounds」): after the answer to the task, the line's questions go to the same session one turn
+  each, over the task and the answers already written, and the last answer is the run's result.
+- **The rows are in the receiver's draft-process shape,** keyed by the line rather than by a provider, a
+  tier and an agent: `line`, `rounds`, `ceilingSeconds`, `pastCeiling` (`final` or `last`) and `source`
+  (`default` where the policy's row stands, `set` where the console's does). A question is `name`, `text`
+  and `source`.
+- **What a line's rounds must be:** a list that ends in `final` and holds it nowhere else, a ceiling above
+  nothing, and questions the catalogue holds. A change that breaks one is refused 400 `bad-request`, and a
+  line the policy does not declare is 404 `not-found`.
+
 ### accounts, rest and usage
 
 | Method | Path | Does |
@@ -694,7 +737,8 @@ base layer of the agent's persona that prompt ends with. Of the tool host it ask
 with the issuer token, a session token for each program and run that holds a capability, which it takes
 back, a namespace's listing and facts, and the paragraph on finding and using tools that a chat launch's
 system prompt carries. Of the gate it asks the reference a job's or a research run's instruction calls
-for, picked over the chat agent's brain, and attaches the picked entries to the run's first prompt.
+for, picked over the chat agent's brain, and attaches the picked entries to the run's first prompt; and it
+reads the gate kinds and their order as the gate publishes them, so no copy of the gate order stands here.
 
 - **Where the gate is.** `BMO_GATE_URL` names its address and `BMO_GATE_TOKEN_FILE` the path of the file
   its token stands in. With no address, no reference is asked and a job or a research run carries only its

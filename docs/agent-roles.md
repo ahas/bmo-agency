@@ -97,6 +97,11 @@ made of is `docs/companions.md`.
   holds the picture viewer, the branch tool and the rulebooks only where its settings open them, so a
   search, a browse, a branch and a news brief are each shown what their own settings ask for, and a run
   carrying no research setting at all is shown the reading tools alone.
+- **The search and browse lines hold the shared brain's writing tools** (`docs/launch-lines.md`, 「A
+  research run's rounds」): `brain_learn` and `brain_similar` of the `bmo` namespace, on the deployment's
+  agent's brain. The line's session record names that agent as the turn the brain tools run for, so a
+  research run writes what it establishes into the same brain the chat agent reads, while the run itself
+  stays the runner's and its work stays the runner work key's.
 - **The search runner and the browse runner hold it,** and so does every run on their behalf: a research
   branch, a news brief, and the keepalive pings that warm their lines and their branch places.
 

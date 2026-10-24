@@ -57,6 +57,10 @@ pub trait Gate: Send + Sync {
   /// documents of the chat agent's brain its lines call for, each with its path, text and source. Empty
   /// where the gate is undeployed or does not answer.
   fn reference<'a>(&'a self, lines: Vec<String>) -> Asking<'a, Vec<Entry>>;
+
+  /// The gate kinds and the order they stand in, as the gate publishes them. Empty where the gate is
+  /// undeployed, so agency keeps no copy of its order.
+  fn kinds<'a>(&'a self) -> Asking<'a, Vec<bmo_gate_client::Gate>>;
 }
 
 /// A prompt with the reference the gate picked attached, its entries under a heading of their own, each
@@ -82,6 +86,10 @@ pub struct NoGate;
 
 impl Gate for NoGate {
   fn reference<'a>(&'a self, _lines: Vec<String>) -> Asking<'a, Vec<Entry>> {
+    Box::pin(async { Ok(Vec::new()) })
+  }
+
+  fn kinds<'a>(&'a self) -> Asking<'a, Vec<bmo_gate_client::Gate>> {
     Box::pin(async { Ok(Vec::new()) })
   }
 }
@@ -151,6 +159,10 @@ fn fault(why: bmo_gate_client::ClientFailure) -> PeerFault {
 impl Gate for PublishedGate {
   fn reference<'a>(&'a self, lines: Vec<String>) -> Asking<'a, Vec<Entry>> {
     Box::pin(async move { self.reference_selected(lines).await })
+  }
+
+  fn kinds<'a>(&'a self) -> Asking<'a, Vec<bmo_gate_client::Gate>> {
+    Box::pin(async move { self.client.gates().await.map(|page| page.items).map_err(fault) })
   }
 }
 

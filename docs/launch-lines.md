@@ -346,10 +346,13 @@
 - **Search runner**: the model and the effort its depth's tier assignment names on the first
   enabled provider whose program carries the search line — Frontier at every depth to start with —
   refused rather than launched where that model does not list the effort
-  (`research-runs.md`) — don't-ask mode, no built-in tool shown, the web MCP server's tools
-  and the toolbook's and nothing else allowed; no settings sources, no other MCP, no Chrome, run in its deployed
+  (`research-runs.md`) — don't-ask mode, no built-in tool shown, the web MCP server's tools,
+  the brain's `bmo` namespace and the toolbook's and nothing else allowed; no settings sources, no other
+  MCP, no Chrome, run in its deployed
   directory. It is handed the standing `search.mcp.json`, and the run's session record holds when
-  research closes, so the web tools know it; the searcher role's bundles show it the `research_branch`
+  research closes, so the web tools know it; the record also names the deployment's agent as the turn its
+  brain tools run for, so a fact the run establishes is written into the chat agent's brain while the run
+  itself stays the runner's. The searcher role's bundles show it the `research_branch`
   tool, which opens a branch only after taking a place in the common co-worker pool, and the
   `view_image` tool, which shows the run a picture by its address.
   A branch is a run apart on the same line, which the web server opens through
@@ -367,11 +370,25 @@
   - **A branch's system prompt is the branch instructions** with the same catalogue and the rulebook
     against destroying the system; its angle and
     when its research closes are its prompt, so every branch shares one prefix.
+  - **A research run's rounds.** A run on a research line keeps no receiver, so agency asks the
+    line's questions itself after the run's first answer (`docs/api.md`, 「research drafts」): each
+    question goes to the same session as one more turn, over the task it was given and the answers it
+    has already written, and the last answer is the run's result. The policy holds the questions and
+    each line's list in `policy/research.toml` — what the task must establish, the sources the answer
+    needs, whether every fact was checked against a second source, whether the answer covers the
+    question, whether the facts it rests on were established, and finally the answer itself — and the
+    console changes a line's list or a question's text through the agency's routes.
+  - **What a run establishes is written into the shared brain.** The search line holds
+    `brain_learn` and `brain_similar` on the deployment's agent's brain: a fact or a piece of knowledge
+    a run establishes is written there with the source it was read from, after the brain's similar rows
+    are read, and the brain's write judgement confirms a duplicate, strengthens a version of a row and
+    closes what a row contradicts. The question before the final one asks whether every fact the answer
+    rests on was written.
   - **The morning news page** runs on this line with its own instructions as the system prompt and
     the day it is written for as the prompt (`news-brief.md`).
 - **Browse runner**: the model and the effort its tier assignment names (Frontier to start with),
-  don't-ask mode, no built-in tool shown, the chrome-devtools tools and the tool host's web tools
-  and toolbook from an MCP configuration written for the run — chrome-devtools started as the profile's strategy
+  don't-ask mode, no built-in tool shown, the chrome-devtools tools, the tool host's web tools, the
+  brain's `bmo` namespace and the toolbook from an MCP configuration written for the run — chrome-devtools started as the profile's strategy
   asks, the web namespace as every line names it, the run's own values in its session record — and
   nothing else, no settings, no other MCP, no
   Chrome integration, run in its deployed directory. The profile's browser strategy decides

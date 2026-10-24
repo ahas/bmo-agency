@@ -42,6 +42,14 @@ impl Ordered {
     }
   }
 
+  /// The entries of an object, to set one, none for any other value.
+  pub fn entries_mut(&mut self) -> Option<&mut IndexMap<String, Ordered>> {
+    match self {
+      Self::Map(map) => Some(map),
+      _ => None,
+    }
+  }
+
   pub fn as_text(&self) -> Option<&str> {
     match self {
       Self::Text(text) => Some(text),

@@ -468,7 +468,10 @@ async fn reasoning_view(
   agent: &Agent,
   configured: Option<&Configured>,
 ) -> Value {
-  if !owns_reasoning(&agent.name, agent.support_of.as_deref()) {
+  if !owns_reasoning(judging.db, &agent.name, agent.support_of.as_deref())
+    .await
+    .unwrap_or(false)
+  {
     return Value::Null;
   }
 
@@ -492,7 +495,8 @@ async fn reasoning_view(
 // Every gate the agent's turn passes, once, in the first part it stands in and in the turn's order,
 // with the agent's own switch, on unless it holds "off"; null for an agent with no turn in a room.
 async fn gates_view(db: &DatabaseConnection, agent: &Agent) -> Result<Value, Refused> {
-  let Some(gates) = turn_gates_of(agent.conversation.as_ref().map(|settings| settings.shape)) else {
+  let Some(gates) = turn_gates_of(db, agent.conversation.as_ref().map(|settings| settings.shape)).await?
+  else {
     return Ok(Value::Null);
   };
   let mut views = Vec::with_capacity(gates.len());

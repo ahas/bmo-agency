@@ -43,6 +43,7 @@ mod control {
   mod fallback;
   mod fold_ratios;
   mod front;
+  mod gate_kinds;
   mod harness;
   mod job_log;
   mod jobs;
@@ -56,6 +57,7 @@ mod control {
   mod pool_sessions;
   mod pool_sources;
   mod registry;
+  mod research_drafts;
   mod resources;
   mod roads;
   mod room_session_reads;

@@ -865,6 +865,28 @@ async fn a_worker_is_placed_on_a_node_and_brought_back() {
   );
 }
 
+// The gate kinds a test declares, as the gate publishes them.
+fn declared_gates() -> Vec<bmo_gate_client::Gate> {
+  let gate = |name: &str, part: &str, step: i64| bmo_gate_client::Gate {
+    gate_name: name.into(),
+    part: part.into(),
+    step,
+    condition: None,
+    switchable: false,
+    laya_probe: false,
+    default_laya_mode: None,
+    answer_tokens: None,
+  };
+
+  vec![
+    gate("system-documents", "pre", 0),
+    gate("room-rules", "pre", 0),
+    gate("sanitizer", "pre", 1),
+    gate("sanitizer", "post", 0),
+    gate("output-format", "post", 1),
+  ]
+}
+
 // An agent's own thinking and effort, each flag left out keeping what the row holds, and its gates
 // switched one at a time.
 #[tokio::test]
@@ -890,6 +912,7 @@ async fn an_agent_s_own_thinking_effort_and_gates() {
       vec![],
     )
     .await;
+  agency_server::gate_kinds::store(bench.scratch.db(), &declared_gates()).await.unwrap();
 
   let listed = bench.run(&["--gates", "bmo"]).await;
   let first = listed.out[4].split("  ").nth(1).unwrap().to_owned();

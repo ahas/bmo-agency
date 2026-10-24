@@ -83,7 +83,7 @@ pub fn read<T: DeserializeOwned>(file: &str, text: &str) -> T {
 }
 
 /// A part of the policy, compiled in from its file under the repository's `policy/` and read once on
-/// first use: `policy::part!(pub GATE_ORDER: GateOrder = "gates.toml");`
+/// first use: `policy::part!(pub TIERS: Tiers = "tiers.toml");`
 #[macro_export]
 macro_rules! part {
   ($vis:vis $name:ident: $type:ty = $file:literal) => {

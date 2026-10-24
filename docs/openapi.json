@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "bmo-agency",
-    "version": "0.1.0-rev.63",
+    "version": "0.1.0-rev.64",
     "description": "The agency's agents, their sessions, turns and runs, the executions on the agent host, the co-worker pool and places, providers, models, tiers and roads, accounts and rest, companions and workers, worker assignments, and the jobs it runs. A job is an item run on a worker for the harness that holds the item: the harness asks for a worker with POST /assignments, then hands the item's content and its lease over with POST /jobs. The agency never calls the job service and keeps no client of it: the run's progress, questions and outcome are its own events and fields, which the harness reads and carries into the job service, where it reports and closes the item; words appended to the item reach the run as the harness sends them into the job's session. Everything it remembers or runs on is an upstream it reaches through what that upstream publishes. It serves only its own nouns: a run with a fixed prompt is an ordinary session started with POST /sessions and the run's prompt document, and that session calls the upstreams it needs through their own MCP servers; no route or tool of the agency forwards to them. It calls no downstream; gate and receiver register at its hook points. It stays one service."
   },
   "servers": [
@@ -25,8 +25,9 @@
     "arbiter",
     "pocket",
     "testbed",
-    "cache-warmer",
-    "chat"
+    "gate",
+    "chat",
+    "cache-warmer"
   ],
   "x-harness": {
     "plugin": "bmo-agency",
@@ -187,6 +188,12 @@
     },
     {
       "name": "session-loads"
+    },
+    {
+      "name": "gate-kinds"
+    },
+    {
+      "name": "research-drafts"
     }
   ],
   "paths": {
@@ -5564,6 +5571,267 @@
             }
           }
         ]
+      }
+    },
+    "/gate-kinds": {
+      "get": {
+        "operationId": "listGateKinds",
+        "tags": [
+          "gate-kinds"
+        ],
+        "summary": "The gate kinds and the order the gate declared them in.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GateKindPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "x-codes": [
+          "unauthorized"
+        ]
+      },
+      "put": {
+        "operationId": "putGateKinds",
+        "tags": [
+          "gate-kinds"
+        ],
+        "summary": "The gate declares its kinds and their order, over the declaration standing.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GateKindPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GateKindDeclaration"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/draft-processes": {
+      "get": {
+        "operationId": "listDraftProcesses",
+        "tags": [
+          "research-drafts"
+        ],
+        "summary": "Every research line's rounds, the policy's rows with the console's over them.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DraftProcessPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "x-codes": [
+          "unauthorized"
+        ]
+      }
+    },
+    "/draft-processes/{line}": {
+      "put": {
+        "operationId": "putDraftProcessesByLine",
+        "tags": [
+          "research-drafts"
+        ],
+        "summary": "Change one research line's rounds; a field left out keeps what the line holds.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DraftProcess"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "not-found"
+        ],
+        "parameters": [
+          {
+            "name": "line",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the work key the line's runs go out under"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DraftProcessChange"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteDraftProcessesByLine",
+        "tags": [
+          "research-drafts"
+        ],
+        "summary": "Take a line's own rounds back, the policy's row standing again.",
+        "responses": {
+          "204": {
+            "description": "Answered."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "not-found"
+        ],
+        "parameters": [
+          {
+            "name": "line",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": ""
+            }
+          }
+        ]
+      }
+    },
+    "/draft-questions": {
+      "get": {
+        "operationId": "listDraftQuestions",
+        "tags": [
+          "research-drafts"
+        ],
+        "summary": "Every question a research line's rounds may name.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DraftQuestionPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "x-codes": [
+          "unauthorized"
+        ]
+      }
+    },
+    "/draft-questions/{name}": {
+      "put": {
+        "operationId": "putDraftQuestionsByName",
+        "tags": [
+          "research-drafts"
+        ],
+        "summary": "Change a question's text, or add one under a name the policy does not hold.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DraftQuestion"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request"
+        ],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": ""
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DraftQuestionChange"
+              }
+            }
+          }
+        }
       }
     }
   },
@@ -11058,6 +11326,260 @@
           "documents"
         ],
         "description": "The body that keeps a session's loads."
+      },
+      "GateKindPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GateKind"
+            }
+          },
+          "more": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "items",
+          "more"
+        ],
+        "description": "A page of the gate kinds the gate declared."
+      },
+      "GateKind": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "part": {
+            "type": "string"
+          },
+          "step": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "condition": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "key",
+          "part",
+          "step",
+          "condition"
+        ],
+        "description": "One gate kind as the gate declares it: its key, the part of a turn it stands in, its step there and\nthe condition it runs under where it runs in some turns only."
+      },
+      "GateKindDeclaration": {
+        "type": "object",
+        "properties": {
+          "gates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DeclaredGate"
+            }
+          }
+        },
+        "required": [
+          "gates"
+        ],
+        "description": "The gate's declaration of its kinds, written over the one standing."
+      },
+      "DeclaredGate": {
+        "type": "object",
+        "properties": {
+          "gateName": {
+            "type": "string"
+          },
+          "part": {
+            "type": "string",
+            "description": "`pre`, `post` or `apart`."
+          },
+          "step": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "condition": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "switchable": {
+            "type": "boolean"
+          },
+          "layaProbe": {
+            "type": "boolean"
+          },
+          "defaultLayaMode": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "answerTokens": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          }
+        },
+        "required": [
+          "gateName",
+          "part",
+          "step",
+          "condition",
+          "switchable",
+          "layaProbe",
+          "defaultLayaMode",
+          "answerTokens"
+        ],
+        "description": "One gate of the gate's declaration, as the gate publishes it."
+      },
+      "DraftProcessPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DraftProcess"
+            }
+          },
+          "more": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "items",
+          "more"
+        ],
+        "description": "A page of a research line's rounds."
+      },
+      "DraftProcess": {
+        "type": "object",
+        "properties": {
+          "line": {
+            "type": "string",
+            "description": "The line the runs go out on."
+          },
+          "rounds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The questions in order, ending in the final one."
+          },
+          "ceilingSeconds": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "pastCeiling": {
+            "type": "string",
+            "description": "`final` asks the final question at once past the ceiling; `last` returns the answer already written."
+          },
+          "source": {
+            "type": "string",
+            "description": "`default` where the policy's row stands, `set` where the console's does."
+          }
+        },
+        "required": [
+          "line",
+          "rounds",
+          "ceilingSeconds",
+          "pastCeiling",
+          "source"
+        ],
+        "description": "One research line's rounds, as the console reads and sets them."
+      },
+      "DraftProcessChange": {
+        "type": "object",
+        "properties": {
+          "rounds": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "ceilingSeconds": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "pastCeiling": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "rounds",
+          "ceilingSeconds",
+          "pastCeiling"
+        ],
+        "description": "A change to one line's rounds; a field left out keeps what the line holds."
+      },
+      "DraftQuestionPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DraftQuestion"
+            }
+          },
+          "more": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "items",
+          "more"
+        ],
+        "description": "A page of the questions a research line's rounds name."
+      },
+      "DraftQuestion": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "description": "`default` where the policy's text stands, `set` where the console's does."
+          }
+        },
+        "required": [
+          "name",
+          "text",
+          "source"
+        ],
+        "description": "One question of a research line's rounds."
+      },
+      "DraftQuestionChange": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "description": "A question's text changed, or a question added under a name of the console's own."
       }
     },
     "responses": {

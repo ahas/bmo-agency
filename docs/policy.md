@@ -25,12 +25,13 @@ says. Each is a TOML file under `policy/`, one file to a part, and the `policy` 
 ## The parts agency shares with its callers
 
 Some parts hold settings another service also works by: the research settings, a worker's job prompt,
-the chat agent's health notices, the gate order and the browser's launch. Of each, agency's file holds
-only the keys agency itself reads (what a research run's settings open, the scratch folder under a
-worker's workbench, the account of a dead run and the notice of one that came back, the gates a
-companion's turn passes and their order, how a Chrome agency starts stands apart). Agency owns those
-keys: a caller that needs one has it from agency rather than keeping a copy of its own, and every other
-key of those settings is the caller's.
+the chat agent's health notices, the rounds a research line asks and the browser's launch. Of each,
+agency's file holds only the keys agency itself reads (what a research run's settings open, the scratch
+folder under a worker's workbench, the account of a dead run and the notice of one that came back, the
+questions of a research line's rounds, how a Chrome agency starts stands apart). Agency owns those keys:
+a caller that needs one has it from agency rather than keeping a copy of its own, and every other key of
+those settings is the caller's. The gate order is not among them: it is the gate's, declared to agency
+(`docs/api.md`, 「Gate kinds」), and agency's file holds only the companion's own part of a turn.
 
 ## The deployment's names
 

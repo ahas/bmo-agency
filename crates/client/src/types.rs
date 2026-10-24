@@ -1905,3 +1905,101 @@ pub struct WorkerChange {
 pub struct SessionLoadsAsk {
   pub documents: Vec<Value>,
 }
+
+/// One research line's rounds, as the console reads and sets them.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct DraftProcess {
+  /// The line the runs go out on.
+  pub line: String,
+  /// The questions in order, ending in the final one.
+  pub rounds: Vec<String>,
+  pub ceiling_seconds: i64,
+  /// `final` asks the final question at once past the ceiling; `last` returns the answer already written.
+  pub past_ceiling: String,
+  /// `default` where the policy's row stands, `set` where the console's does.
+  pub source: String,
+}
+
+/// A page of a research line's rounds.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct DraftProcessPage {
+  pub items: Vec<DraftProcess>,
+  pub more: bool,
+}
+
+/// A change to one line's rounds; a field left out keeps what the line holds.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct DraftProcessChange {
+  pub rounds: Option<Vec<String>>,
+  pub ceiling_seconds: Option<i64>,
+  pub past_ceiling: Option<String>,
+}
+
+/// One question of a research line's rounds.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct DraftQuestion {
+  pub name: String,
+  pub text: String,
+  /// `default` where the policy's text stands, `set` where the console's does.
+  pub source: String,
+}
+
+/// A page of the questions a research line's rounds name.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct DraftQuestionPage {
+  pub items: Vec<DraftQuestion>,
+  pub more: bool,
+}
+
+/// A question's text changed, or a question added under a name of the console's own.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct DraftQuestionChange {
+  pub text: String,
+}
+
+/// One gate kind as the gate declares it: its key, the part of a turn it stands in, its step there and
+/// the condition it runs under where it runs in some turns only.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct GateKind {
+  pub key: String,
+  pub part: String,
+  pub step: i64,
+  pub condition: Option<String>,
+}
+
+/// A page of the gate kinds the gate declared.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct GateKindPage {
+  pub items: Vec<GateKind>,
+  pub more: bool,
+}
+
+/// One gate of the gate's declaration, as the gate publishes it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct DeclaredGate {
+  pub gate_name: String,
+  /// `pre`, `post` or `apart`.
+  pub part: String,
+  pub step: i64,
+  pub condition: Option<String>,
+  pub switchable: bool,
+  pub laya_probe: bool,
+  pub default_laya_mode: Option<String>,
+  pub answer_tokens: Option<i64>,
+}
+
+/// The gate's declaration of its kinds, written over the one standing.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct GateKindDeclaration {
+  pub gates: Vec<DeclaredGate>,
+}

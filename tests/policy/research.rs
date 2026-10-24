@@ -26,3 +26,25 @@ fn a_search_is_bound_by_every_rulebook_it_may_be_given_on_request() {
       .all(|rulebook| RESEARCH.search.rulebooks.contains(rulebook))
   );
 }
+
+#[test]
+fn every_research_line_ends_in_the_final_question_and_holds_it_nowhere_else() {
+  assert!(!RESEARCH.draft.lines.is_empty());
+
+  for (line, rounds) in &RESEARCH.draft.lines {
+    assert!(
+      rounds.rounds.last().is_some_and(|name| name == Draft::FINAL),
+      "{line} does not end in the final question"
+    );
+    assert_eq!(
+      rounds.rounds.iter().filter(|name| name.as_str() == Draft::FINAL).count(),
+      1,
+      "{line} holds the final question more than once"
+    );
+    assert!(rounds.ceiling_seconds > 0, "{line} has no ceiling");
+    assert!(
+      rounds.rounds.iter().all(|name| RESEARCH.draft.question(name).is_some()),
+      "{line} names a question the catalogue does not hold"
+    );
+  }
+}

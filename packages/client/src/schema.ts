@@ -1341,6 +1341,93 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/gate-kinds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The gate kinds and the order the gate declared them in. */
+        get: operations["listGateKinds"];
+        /** The gate declares its kinds and their order, over the declaration standing. */
+        put: operations["putGateKinds"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/draft-processes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every research line's rounds, the policy's rows with the console's over them. */
+        get: operations["listDraftProcesses"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/draft-processes/{line}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Change one research line's rounds; a field left out keeps what the line holds. */
+        put: operations["putDraftProcessesByLine"];
+        post?: never;
+        /** Take a line's own rounds back, the policy's row standing again. */
+        delete: operations["deleteDraftProcessesByLine"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/draft-questions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every question a research line's rounds may name. */
+        get: operations["listDraftQuestions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/draft-questions/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Change a question's text, or add one under a name the policy does not hold. */
+        put: operations["putDraftQuestionsByName"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export interface webhooks {
     "turn-submitting": {
@@ -2978,6 +3065,81 @@ export interface components {
         /** @description The body that keeps a session's loads. */
         SessionLoadsAsk: {
             documents: unknown[];
+        };
+        /** @description A page of the gate kinds the gate declared. */
+        GateKindPage: {
+            items: components["schemas"]["GateKind"][];
+            more: boolean;
+        };
+        /**
+         * @description One gate kind as the gate declares it: its key, the part of a turn it stands in, its step there and
+         *     the condition it runs under where it runs in some turns only.
+         */
+        GateKind: {
+            key: string;
+            part: string;
+            /** Format: int64 */
+            step: number;
+            condition: string | null;
+        };
+        /** @description The gate's declaration of its kinds, written over the one standing. */
+        GateKindDeclaration: {
+            gates: components["schemas"]["DeclaredGate"][];
+        };
+        /** @description One gate of the gate's declaration, as the gate publishes it. */
+        DeclaredGate: {
+            gateName: string;
+            /** @description `pre`, `post` or `apart`. */
+            part: string;
+            /** Format: int64 */
+            step: number;
+            condition: string | null;
+            switchable: boolean;
+            layaProbe: boolean;
+            defaultLayaMode: string | null;
+            /** Format: int64 */
+            answerTokens: number | null;
+        };
+        /** @description A page of a research line's rounds. */
+        DraftProcessPage: {
+            items: components["schemas"]["DraftProcess"][];
+            more: boolean;
+        };
+        /** @description One research line's rounds, as the console reads and sets them. */
+        DraftProcess: {
+            /** @description The line the runs go out on. */
+            line: string;
+            /** @description The questions in order, ending in the final one. */
+            rounds: string[];
+            /** Format: int64 */
+            ceilingSeconds: number;
+            /** @description `final` asks the final question at once past the ceiling; `last` returns the answer already written. */
+            pastCeiling: string;
+            /** @description `default` where the policy's row stands, `set` where the console's does. */
+            source: string;
+        };
+        /** @description A change to one line's rounds; a field left out keeps what the line holds. */
+        DraftProcessChange: {
+            rounds: string[] | null;
+            /** Format: int64 */
+            ceilingSeconds: number | null;
+            pastCeiling: string | null;
+        };
+        /** @description A page of the questions a research line's rounds name. */
+        DraftQuestionPage: {
+            items: components["schemas"]["DraftQuestion"][];
+            more: boolean;
+        };
+        /** @description One question of a research line's rounds. */
+        DraftQuestion: {
+            name: string;
+            text: string;
+            /** @description `default` where the policy's text stands, `set` where the console's does. */
+            source: string;
+        };
+        /** @description A question's text changed, or a question added under a name of the console's own. */
+        DraftQuestionChange: {
+            text: string;
         };
     };
     responses: {
@@ -6135,6 +6297,174 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
+        };
+    };
+    listGateKinds: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GateKindPage"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    putGateKinds: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GateKindDeclaration"];
+            };
+        };
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GateKindPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    listDraftProcesses: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DraftProcessPage"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    putDraftProcessesByLine: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                line: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DraftProcessChange"];
+            };
+        };
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DraftProcess"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteDraftProcessesByLine: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                line: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listDraftQuestions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DraftQuestionPage"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    putDraftQuestionsByName: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DraftQuestionChange"];
+            };
+        };
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DraftQuestion"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
         };
     };
 }

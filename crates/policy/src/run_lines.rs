@@ -31,6 +31,9 @@ pub struct RunLine {
   /// The deployment's variables every run of it hands its record, each where the deployment sets it.
   #[serde(default)]
   pub variables: Vec<String>,
+  /// Whether the brain its runs write is the deployment's agent's own, rather than the runner's.
+  #[serde(default)]
+  pub brain_agent: bool,
 }
 
 /// Every line, by its name.
@@ -73,6 +76,11 @@ impl RunLines {
   /// Whether a person's typed line in the line's standing program is composed.
   pub fn composes_typed_lines(&self, name: &str) -> bool {
     self.line(name).is_some_and(|line| line.composes_typed_lines)
+  }
+
+  /// Whether a run of the line writes the deployment's agent's brain rather than its runner's.
+  pub fn writes_agent_brain(&self, name: &str) -> bool {
+    self.line(name).is_some_and(|line| line.brain_agent)
   }
 }
 

@@ -7,7 +7,7 @@ use axum::http::{Method, StatusCode};
 use axum::response::Response;
 use policy::control_words::CONTROL_WORDS;
 use policy::fill_marks;
-use policy::gates::{COMPANION_TURN, GATE_ORDER};
+use policy::gates::COMPANION_TURN;
 use policy::reasoning::REASONING;
 use policy::roles::ROLES;
 use sea_orm::DatabaseConnection;
@@ -23,8 +23,10 @@ struct Agent {
   kind: String,
   label: Option<String>,
   support_of: Option<String>,
-  /// The shape of its turns, where it is a conversational agent.
-  shape: Option<Shape>,
+  /// The gates its turn passes, once each with the first part it stands in.
+  gates: Option<Vec<(&'static str, String)>>,
+  /// Whether its name is a gate kind the gate declared.
+  gate_kind: bool,
 }
 
 impl Agent {
@@ -39,13 +41,18 @@ impl Agent {
     .await?;
 
     let Some(row) = row else { return Ok(None) };
+    let name: String = row.try_get("", "name")?;
+    let shape = Settings::of(&row).map_err(Refused::from)?.map(|settings| settings.shape);
+    let gates = turn_gates_of(db, shape).await?;
+    let gate_kind = crate::gate_kinds::holds(db, &name).await?;
 
     Ok(Some(Self {
-      name: row.try_get("", "name")?,
+      name,
       kind: row.try_get("", "kind")?,
       label: row.try_get("", "label")?,
       support_of: row.try_get("", "support_of")?,
-      shape: Settings::of(&row).map_err(Refused::from)?.map(|settings| settings.shape),
+      gates,
+      gate_kind,
     }))
   }
 
@@ -56,11 +63,11 @@ impl Agent {
 
   /// The gates the agent's turn passes, once each.
   fn turn_gates(&self) -> Option<Vec<String>> {
-    turn_gates_of(self.shape).map(|gates| gates.into_iter().map(|(_, key)| key).collect())
+    self.gates.as_ref().map(|gates| gates.iter().map(|(_, key)| key.clone()).collect())
   }
 
   fn owns_reasoning(&self) -> bool {
-    owns_reasoning(&self.name, self.support_of.as_deref())
+    !self.gate_kind && self.support_of.is_none()
   }
 
   /// Why it has no gates to switch.
@@ -74,19 +81,27 @@ impl Agent {
 
 /// The gates a conversational agent's turn passes, as the shape of its turns declares them, once each with
 /// the first part it stands in; none for an agent that answers in no room.
-pub fn turn_gates_of(shape: Option<Shape>) -> Option<Vec<(&'static str, String)>> {
-  let turn = match shape? {
-    Shape::Window => GATE_ORDER.turn(),
-    Shape::Pieces => COMPANION_TURN.clone(),
+pub async fn turn_gates_of(
+  db: &DatabaseConnection,
+  shape: Option<Shape>,
+) -> Result<Option<Vec<(&'static str, String)>>, Refused> {
+  let turn = match shape {
+    None => return Ok(None),
+    Some(Shape::Window) => crate::gate_kinds::turn(&crate::gate_kinds::declared(db).await?),
+    Some(Shape::Pieces) => COMPANION_TURN.clone(),
   };
 
-  Some(turn.gates().into_iter().map(|(part, key)| (part, key.to_owned())).collect())
+  Ok(Some(turn.gates().into_iter().map(|(part, key)| (part, key.to_owned())).collect()))
 }
 
 /// Whether an agent's own choice reaches its runs: not a gate's, a judgement asked under its tier, and
 /// not a support worker's, which runs on its base's.
-pub fn owns_reasoning(name: &str, support_of: Option<&str>) -> bool {
-  !GATE_ORDER.keys().contains(&name) && support_of.is_none()
+pub async fn owns_reasoning(
+  db: &DatabaseConnection,
+  name: &str,
+  support_of: Option<&str>,
+) -> Result<bool, Refused> {
+  Ok(!crate::gate_kinds::holds(db, name).await? && support_of.is_none())
 }
 
 /// What an agent there is no row of is refused with.
@@ -166,7 +181,7 @@ pub async fn agent_gates(
   let Some(agent) = Agent::find(db, name).await? else {
     return Ok(Err(not_found(name)));
   };
-  let Some(gates) = turn_gates_of(agent.shape) else {
+  let Some(gates) = agent.gates.clone() else {
     return Ok(Err(agent.no_gates()));
   };
   let mut switches = Vec::with_capacity(gates.len());

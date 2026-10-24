@@ -51,6 +51,9 @@ seeds. The other crates and the server reach the store only through it.
   - the work nodes: `node_workplaces`, `node_rotation`, `node_assignments`; the nodes themselves, how
     each is reached among it, are the node service's and read from it (`docs/api.md`, 「The node
     service」);
+  - the gate kinds the gate declared: `gate_kinds`, one row a kind's place in the order — its key, the
+    part of a turn and the step there, the condition it runs under, and what the gate says of its probe,
+    switch and answer — written whole by the declaration `docs/api.md`, 「Gate kinds」 states;
   - the live Claude guard: `live_claude_openings`, `live_claude_runs`; an opening is kept under the run
     it was opened for, `run`, and carries its job and item only where a caller names them, since a
     job's rows are the job unit's (`docs/live-claude-guard.md`);
@@ -108,6 +111,8 @@ seeds. The other crates and the server reach the store only through it.
     `dev_server_max_age_minutes`;
   - the logins watch's notes: `claude_node_token_gone:*` and its notice keys;
   - a job's road and its stop: `job_route_block:*`, `job_stop:*`;
+  - a research line's rounds and a question's text, `research-draft:*` and `research-question:*`
+    (`docs/api.md`, 「research drafts」);
   - the machine's room: its six limits, `machine_limit:<name>`, the launcher's notice of launches held,
     `machine_launch_held`, its `at` and `held` as JSON; and the job and item a worker's turn named while
     it goes, `worker_job:*` by the worker, as JSON (`docs/agent-control.md`, 「Room on the machine」);

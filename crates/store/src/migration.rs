@@ -27,6 +27,7 @@ mod m20261104_000001_job_usage;
 mod m20261105_000001_prefix_documents;
 mod m20261106_000001_job_instruction;
 mod m20261107_000001_run_tools;
+mod m20261108_000001_gate_kinds;
 
 use sea_orm_migration::prelude::*;
 
@@ -38,8 +39,9 @@ pub const TABLES: &str = m20261016_000001_store::NAME;
 
 /// Every table the store's migrations make, beside the record of what ran: what reads every table of the
 /// store reads these and no other service's beside them (docs/store.md, 「Its tables」).
-pub const OWN_TABLES: [&str; 60] = [
+pub const OWN_TABLES: [&str; 61] = [
   "agents",
+  "gate_kinds",
   "agent_log",
   "agent_executions",
   "execution_attempts",
@@ -132,6 +134,7 @@ impl MigratorTrait for Migrator {
       Box::new(m20261105_000001_prefix_documents::Migration),
       Box::new(m20261106_000001_job_instruction::Migration),
       Box::new(m20261107_000001_run_tools::Migration),
+      Box::new(m20261108_000001_gate_kinds::Migration),
     ]
   }
 

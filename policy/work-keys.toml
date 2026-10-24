@@ -1,7 +1,8 @@
 # Agency's work keys and the profile each starts on (docs/cache-fallback.md, 「The canonical name of a road
 # is the work key, not a Claude model name」). The keys are the stable names callers, the archive and
 # the console share: one for the chat agent, one for all job workers (their launch line is common) and one for
-# each gate in the gate order. Every gate of the gate order has a profile here, and nothing else does.
+# each gate kind the deployment runs. Every gate kind has a profile here, and nothing else does; the
+# gate's own order is the gate's and is declared to agency at run time (docs/api.md, 「Gate kinds」).
 #
 # A profile's values are defaults only: an owner's explicit choice is an archive row and survives a
 # later change here. The small classification and summary gates start on the registry's provider, on

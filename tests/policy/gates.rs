@@ -1,30 +1,23 @@
 use policy::gates::*;
 
 #[test]
-fn the_gate_order_reads_every_gate_once_where_it_first_stands() {
-  assert_eq!(
-    GATE_ORDER.keys(),
-    [
-      "system-documents",
-      "room-rules",
-      "library-knowledge",
-      "people-search",
-      "room-memories",
-      "situation-rules",
-      "sanitizer",
-      "output-format",
-      "document-seek",
-      "translator",
-      "voice-polish",
-      "voice-reading",
-    ]
-  );
-}
-
-#[test]
-fn a_companions_turn_passes_its_reference_and_the_outgoing_sanitiser() {
+fn a_companion_s_turn_passes_its_reference_and_the_outgoing_sanitiser() {
   let gates: Vec<_> = COMPANION_TURN.gates();
 
   assert_eq!(gates.last(), Some(&("post", "sanitizer")));
   assert_eq!(gates.len(), 6);
+}
+
+#[test]
+fn no_gate_stands_twice_in_one_part_of_a_companion_s_turn() {
+  let gates: Vec<_> = COMPANION_TURN.gates();
+  let keys: Vec<&str> = gates.iter().map(|(_, key)| *key).collect();
+  let mut once = keys.clone();
+
+  once.sort_unstable();
+  once.dedup();
+
+  assert_eq!(keys.len(), once.len(), "a gate of a companion's turn stands once");
+  assert!(COMPANION_TURN.pre.iter().all(|step| !step.places.is_empty()));
+  assert!(COMPANION_TURN.post.iter().all(|step| !step.places.is_empty()));
 }

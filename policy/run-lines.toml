@@ -55,15 +55,22 @@ tools_denied = [
 ]
 
 # A branch goes out on the search line, its record narrowed to what its research settings open.
+# The brain tools it holds are the chat agent's own memory (docs/agent-roles.md, 「The searcher role's
+# bundles」): the record names the deployment's agent as the turn its brain tools write, so a research
+# run establishes what it found in the same brain the chat agent reads.
 [search]
 needs = ["tool-gate", "mcp-only-tools"]
 keeps_session = false
-namespaces = ["web"]
-shown = ["web/danawa_search", "web/exchange_rate", "web/github_issue", "web/huggingface_model", "web/iwedding_product", "web/naver_blog", "web/read_rulebook", "web/reddit", "web/research_branch", "web/view_image", "web/web_fetch", "web/web_search"]
+capabilities = ["room.chat"]
+namespaces = ["bmo", "web"]
+shown = ["bmo/brain_learn", "bmo/brain_similar", "web/danawa_search", "web/exchange_rate", "web/github_issue", "web/huggingface_model", "web/iwedding_product", "web/naver_blog", "web/read_rulebook", "web/reddit", "web/research_branch", "web/view_image", "web/web_fetch", "web/web_search"]
+brain_agent = true
 
 [browse]
 needs = ["tool-gate", "mcp-only-tools"]
 keeps_session = false
-namespaces = ["web"]
-shown = ["web/danawa_search", "web/exchange_rate", "web/github_issue", "web/huggingface_model", "web/iwedding_product", "web/naver_blog", "web/read_rulebook", "web/reddit", "web/research_branch", "web/view_image", "web/web_fetch", "web/web_search"]
+capabilities = ["room.chat"]
+namespaces = ["bmo", "web"]
+shown = ["bmo/brain_learn", "bmo/brain_similar", "web/danawa_search", "web/exchange_rate", "web/github_issue", "web/huggingface_model", "web/iwedding_product", "web/naver_blog", "web/read_rulebook", "web/reddit", "web/research_branch", "web/view_image", "web/web_fetch", "web/web_search"]
+brain_agent = true
 

@@ -34,6 +34,7 @@ pub mod pool_board;
 mod pool_routes;
 pub mod quota;
 pub mod registry;
+pub mod research_drafts;
 pub mod road_verbs;
 pub mod roads;
 mod rooms;

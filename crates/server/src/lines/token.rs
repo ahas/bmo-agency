@@ -12,6 +12,7 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use bmo_pocket_client::{Failure, NameQuery, Pocket, SessionRequest};
+use policy::deployment::DEPLOYMENT;
 use policy::research::RESEARCH;
 use policy::roles::ROLES;
 use policy::run_lines::RUN_LINES;
@@ -380,6 +381,13 @@ pub async fn issue_for_run(
 
   variables.insert("BMO_DATA_DIR".to_owned(), data_root);
   variables.extend(line_variables(ground, line));
+
+  // A research line's brain tools write the deployment's agent's brain: the record names that agent as
+  // the turn its tools run for, while the run itself stays the runner's (docs/agent-roles.md, 「The
+  // searcher role's bundles」).
+  if RUN_LINES.writes_agent_brain(line) {
+    variables.insert("BMO_TURN_AGENT".to_owned(), DEPLOYMENT.agent_key.clone());
+  }
 
   let mut labels = Map::new();
   labels.insert("line".to_owned(), json!(line));

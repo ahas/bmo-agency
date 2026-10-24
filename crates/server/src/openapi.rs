@@ -2274,6 +2274,101 @@ pub const OPERATIONS: &[Operation] = &[
     answers: &[(204, None, false)],
     codes: &["not-found"],
   },
+  Operation {
+    method: "GET",
+    path: "/gate-kinds",
+    id: "listGateKinds",
+    tag: "gate-kinds",
+    summary: "The gate kinds and the order the gate declared them in.",
+    params: &[],
+    body: None,
+    answers: &[(200, Some("GateKindPage"), false)],
+    codes: &[],
+  },
+  Operation {
+    method: "PUT",
+    path: "/gate-kinds",
+    id: "putGateKinds",
+    tag: "gate-kinds",
+    summary: "The gate declares its kinds and their order, over the declaration standing.",
+    params: &[],
+    body: Some("GateKindDeclaration"),
+    answers: &[(200, Some("GateKindPage"), false)],
+    codes: &["bad-request"],
+  },
+  Operation {
+    method: "GET",
+    path: "/draft-processes",
+    id: "listDraftProcesses",
+    tag: "research-drafts",
+    summary: "Every research line's rounds, the policy's rows with the console's over them.",
+    params: &[],
+    body: None,
+    answers: &[(200, Some("DraftProcessPage"), false)],
+    codes: &[],
+  },
+  Operation {
+    method: "PUT",
+    path: "/draft-processes/{line}",
+    id: "putDraftProcessesByLine",
+    tag: "research-drafts",
+    summary: "Change one research line's rounds; a field left out keeps what the line holds.",
+    params: &[Param {
+      name: "line",
+      place: "path",
+      required: true,
+      kind: "string",
+      description: "the work key the line's runs go out under",
+    }],
+    body: Some("DraftProcessChange"),
+    answers: &[(200, Some("DraftProcess"), false)],
+    codes: &["bad-request", "not-found"],
+  },
+  Operation {
+    method: "DELETE",
+    path: "/draft-processes/{line}",
+    id: "deleteDraftProcessesByLine",
+    tag: "research-drafts",
+    summary: "Take a line's own rounds back, the policy's row standing again.",
+    params: &[Param {
+      name: "line",
+      place: "path",
+      required: true,
+      kind: "string",
+      description: "",
+    }],
+    body: None,
+    answers: &[(204, None, false)],
+    codes: &["not-found"],
+  },
+  Operation {
+    method: "GET",
+    path: "/draft-questions",
+    id: "listDraftQuestions",
+    tag: "research-drafts",
+    summary: "Every question a research line's rounds may name.",
+    params: &[],
+    body: None,
+    answers: &[(200, Some("DraftQuestionPage"), false)],
+    codes: &[],
+  },
+  Operation {
+    method: "PUT",
+    path: "/draft-questions/{name}",
+    id: "putDraftQuestionsByName",
+    tag: "research-drafts",
+    summary: "Change a question's text, or add one under a name the policy does not hold.",
+    params: &[Param {
+      name: "name",
+      place: "path",
+      required: true,
+      kind: "string",
+      description: "",
+    }],
+    body: Some("DraftQuestionChange"),
+    answers: &[(200, Some("DraftQuestion"), false)],
+    codes: &["bad-request"],
+  },
 ];
 
 /// The schema of one named type, generated from the client's own types.
@@ -2416,6 +2511,16 @@ fn schema(g: &mut SchemaGenerator, name: &str) -> Schema {
     "WorkerAdd" => g.subschema_for::<WorkerAdd>(),
     "WorkerChange" => g.subschema_for::<WorkerChange>(),
     "SessionLoadsAsk" => g.subschema_for::<SessionLoadsAsk>(),
+    "GateKind" => g.subschema_for::<GateKind>(),
+    "GateKindPage" => g.subschema_for::<GateKindPage>(),
+    "DeclaredGate" => g.subschema_for::<DeclaredGate>(),
+    "GateKindDeclaration" => g.subschema_for::<GateKindDeclaration>(),
+    "DraftProcess" => g.subschema_for::<DraftProcess>(),
+    "DraftProcessPage" => g.subschema_for::<DraftProcessPage>(),
+    "DraftProcessChange" => g.subschema_for::<DraftProcessChange>(),
+    "DraftQuestion" => g.subschema_for::<DraftQuestion>(),
+    "DraftQuestionPage" => g.subschema_for::<DraftQuestionPage>(),
+    "DraftQuestionChange" => g.subschema_for::<DraftQuestionChange>(),
     "Value" => g.subschema_for::<Value>(),
     other => panic!("no type is named {other}"),
   }
@@ -2458,7 +2563,8 @@ pub const EVENTS: [&str; 32] = [
 ];
 
 /// The upstreams this service reaches, through what each repository publishes.
-const CALLS: [&str; 8] = ["brain", "graph", "node", "arbiter", "pocket", "testbed", "cache-warmer", "chat"];
+const CALLS: [&str; 9] =
+  ["brain", "graph", "node", "arbiter", "pocket", "testbed", "gate", "chat", "cache-warmer"];
 
 const DESCRIPTION: &str = "The agency's agents, their sessions, turns and runs, the executions on the agent host, \
   the co-worker pool and places, providers, models, tiers and roads, accounts and rest, companions and workers, \

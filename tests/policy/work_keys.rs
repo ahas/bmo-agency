@@ -1,10 +1,10 @@
 use std::collections::BTreeSet;
 
-use policy::gates::GATE_ORDER;
 use policy::work_keys::*;
 
 #[test]
-fn every_gate_of_the_gate_order_has_a_profile_and_nothing_else_is_a_gate() {
+fn the_profiles_are_the_chat_agent_the_worker_and_the_gates_their_line_runs() {
+  let keys: BTreeSet<&str> = WORK_KEYS.profile.iter().map(|one| one.key.as_str()).collect();
   let gates: BTreeSet<&str> = WORK_KEYS
     .profile
     .iter()
@@ -12,7 +12,12 @@ fn every_gate_of_the_gate_order_has_a_profile_and_nothing_else_is_a_gate() {
     .map(|one| one.key.as_str())
     .collect();
 
-  assert_eq!(gates, GATE_ORDER.keys().into_iter().collect());
+  assert!(keys.contains("bmo") && keys.contains("job-worker"));
+  assert!(!gates.contains("bmo") && !gates.contains("job-worker"));
+  assert!(
+    WORK_KEYS.profile.iter().all(|one| (one.kind == "gate") == (one.line == "gate")),
+    "a gate's line is the gate line and no other kind's is"
+  );
 }
 
 #[test]

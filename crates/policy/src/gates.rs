@@ -1,4 +1,5 @@
-//! The gate order and the gates each kind of turn passes.
+//! The gates one kind of turn passes (docs/gates.md): a companion's part of the gate order, which the
+//! gate declares for a chat turn. Agency keeps no order of its own; the gate's declaration is its.
 
 use serde::Deserialize;
 
@@ -45,41 +46,4 @@ impl TurnGates {
   }
 }
 
-/// The gate order: its chat turn's two parts, the gates that run outside any turn, and the gates
-/// whose spend the usage screen reads back.
-#[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct GateOrder {
-  pub pre: Vec<Step>,
-  pub post: Vec<Step>,
-  pub apart: Vec<String>,
-  pub usage: Vec<String>,
-}
-
-impl GateOrder {
-  /// The chat turn's two parts.
-  pub fn turn(&self) -> TurnGates {
-    TurnGates {
-      pre: self.pre.clone(),
-      post: self.post.clone(),
-    }
-  }
-
-  /// Every gate once, where it first stands: the pre-gate part, then the post-gate part, then off-turn.
-  pub fn keys(&self) -> Vec<&str> {
-    let mut seen = std::collections::HashSet::new();
-
-    self
-      .pre
-      .iter()
-      .chain(&self.post)
-      .flat_map(|step| &step.places)
-      .map(|place| place.key.as_str())
-      .chain(self.apart.iter().map(String::as_str))
-      .filter(|key| seen.insert(*key))
-      .collect()
-  }
-}
-
-crate::part!(pub GATE_ORDER: GateOrder = "gates.toml");
 crate::part!(pub COMPANION_TURN: TurnGates = "companion-turn.toml");
