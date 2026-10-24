@@ -561,6 +561,9 @@ When a demotion first catches — when a healthy session first drops — two thi
   provider (never a turn of the walk). Automatic is the walk above; a single provider runs that key on
   that provider only and, with no answer, fails rather than walking on. While a chosen provider is turned
   off, the key walks like automatic.
+- **Every work key has a row, the chat, the gates and `job-worker` alike,** the same table and shape,
+  read and edited where the chat's stand-ins are (`GET`/`PATCH /fallback`, keyed by the work key). A key
+  with no row of its own takes its profile's default run mode.
 - **A key names its account as well as its provider.** Beside the provider, every work key says which
   Claude account its runs go out on: automatic walks the account order, and a named account runs that key
   on that account alone. A key pinned to an account fails on it rather than moving, and while that account
@@ -584,6 +587,15 @@ When a demotion first catches — when a healthy session first drops — two thi
 - **A job worker** carries the whole job prompt and the checkout, the repository instructions, the
   worker's rules, the web MCP and work rights. The rules go where each program keeps them beside its own
   default prompt (`docs/launch-lines.md`).
+  - **A job's turn crosses over on the same walk a chat turn does.** The `job-worker` key has a row of the
+    fallback table like any other, read and set through the same screen; its run mode is automatic or one
+    provider, and while its primary (or every Claude login) rests or cannot carry it, the worker's job
+    turn is composed on the first provider of the walk that carries the worker line — the Codex, dsh and
+    registered roads, in the owner's order — and goes back to the primary once it can answer again. The
+    launch resolves the road as the job's work parts are read (`docs/api.md`, 「assignments and jobs」), and
+    the turn goes out through the one stand-in path, which composes the worker's own line: its rules, its
+    tools, its MCP and its checkout. A dsh road keeps no session, so a worker on it carries nothing between
+    jobs.
   - **Codex** keeps the thread id `codex exec` produced, per run scope, model and effort, and continues
     with `codex exec resume <id>` under a cross-process lock, one request at a time. A dsh headless run
     has no resume interface and is stateless.

@@ -1714,6 +1714,94 @@ impl HerdrSessions {
     carry(&asked, &shown).await.map(|end| Came::Ended(Box::new(end)))
   }
 
+  // A worker's job turn carried on a fallback road: the same stand-in walk, roads and setting a chat turn
+  // crosses over on, composing the worker's own line — its rules, tools, MCP and checkout. The road was
+  // chosen in the job's work parts (`control::work`, `worker_road`); dsh keeps no session, so nothing of the
+  // worker's Claude session is read, judged or kept here.
+  async fn worker_stand_in(
+    &self,
+    agent: &str,
+    work: &WorkParts,
+    prompt: &str,
+    began: i64,
+    job: Option<agent_session::JobMark>,
+    shown: OutputWatch<'_>,
+  ) -> Result<Came, Fault> {
+    let ground = self.ground();
+    let trees = crate::lines::Trees::of(ground);
+    let row = AgentRow::named(&ground.db, agent)
+      .await
+      .map_err(|why| fault(FaultKind::Unknown, why.detail))?
+      .ok_or_else(|| fault(FaultKind::Unknown, format!("no worker is named {agent}")))?;
+    let cwd = row.cwd.clone().unwrap_or_else(|| ground.source.to_string_lossy().into_owned());
+    let line = crate::lines::worker::worker_run(ground, &trees, Some(agent), None, &work.model, &cwd)
+      .await
+      .map_err(|why| fault(FaultKind::Refused, why.detail))?;
+    let mut env: std::collections::BTreeMap<String, String> = ground.env().clone();
+
+    for (name, value) in &work.variables {
+      env.insert(name.clone(), value.clone());
+    }
+    env.insert("BMO_TURN_AGENT".to_owned(), agent.to_owned());
+    if job.is_some() {
+      env.insert("BMO_TASK_LOCKED".to_owned(), "1".to_owned());
+    }
+
+    // The worker's whole system prompt where a base prompt composed one, else its rules file, which dsh
+    // carries after the headless opener as the worker's persona.
+    let system_path = line.system_prompt.clone().unwrap_or_else(|| line.rules.clone());
+    let run = crate::lines::chat::ChatRun {
+      line: crate::lines::worker::LINE,
+      agent: agent.to_owned(),
+      model: work.model.clone(),
+      effort: line.effort.clone(),
+      tier: work.mapping.tier.clone(),
+      reasoning: line.reasoning.clone().unwrap_or_default(),
+      thinking: line.thinking,
+      system_path,
+      room: RoomContext {
+        chat_id: 0,
+        text: String::new(),
+        mark: String::new(),
+      },
+      // The worker takes every dsh tool row but the web (its own server replaces it); the list only has to
+      // be non-empty for the road to hand it its working rows rather than none.
+      tools_shown: "Bash".to_owned(),
+      tools_allowed: "Bash".to_owned(),
+      mcp_config: line.mcp_config.clone(),
+      mcp_tools: None,
+      prompt: prompt.to_owned(),
+      persona_unused: None,
+      fold: false,
+      ping: false,
+      resume: None,
+      cwd,
+      env,
+    };
+    let mut log = RunLog::new(Target {
+      agent: agent.to_owned(),
+      run: work.name.clone(),
+      chat_id: (work.chat != 0).then_some(work.chat),
+      job_id: job.map(|job| job.job),
+    });
+
+    match stand_in_turn(ground, &mut log, &run, crate::queue::routes::JOB_WORK_KEY, &[], began, Some(shown))
+      .await
+    {
+      Ok(Some(reply)) => Ok(Came::Answered(reply.text, spent_of(&reply.spend))),
+      Ok(None) => Ok(Came::Failed(
+        format!("{agent}: no fallback road carried the job and Claude could not be asked"),
+        None,
+      )),
+      Err(NoAnswer::Overtaken) => Ok(Came::Stopped),
+      Err(no) => {
+        let (reason, engine) = failure_of(no);
+
+        Ok(Came::Failed(reason, engine))
+      }
+    }
+  }
+
   // A worker's latest session record, the one a fold or a reading of its state goes by.
   async fn latest_worker(&self, worker: &str) -> Result<Option<records::WorkerSession>, Fault> {
     Ok(records::sessions(&self.ground().db, worker).await.map_err(store_fault)?.pop())
@@ -1993,8 +2081,16 @@ impl Sessions for HerdrSessions {
 
         keep_worker_job(db, &agent, turn.context.job).await;
 
+        let began = turn.context.began.unwrap_or(at);
         let came = match work {
-          Some(work) => self.carried(&turn, &agent, WorkSeat::Worker(row), work, turn_id).await,
+          // The worker's road is Claude where its key stands on it; a fallback road crosses over on the
+          // same stand-in walk a chat turn uses (docs/cache-fallback.md).
+          Some(work) if work.provider == worker_session::PROVIDER => {
+            self.carried(&turn, &agent, WorkSeat::Worker(row), work, turn_id).await
+          }
+          Some(work) => {
+            self.worker_stand_in(&agent, work, &turn.prompt, began, turn.context.job, shown).await
+          }
           None => self.worker_turn(row, &run, &turn.prompt, &turn.session, turn_id).await,
         };
 

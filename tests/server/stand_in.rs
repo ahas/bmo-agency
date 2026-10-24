@@ -54,3 +54,27 @@ fn a_key_set_to_one_provider_answers_there_alone() {
   set.route = Some(CLAUDE.to_owned());
   assert!(!meets(&set));
 }
+
+// The worker/job line crosses over on this same walk (docs/cache-fallback.md): while every Claude login
+// rests past its weekly ceiling the walk falls to DeepSeek on its own, and once Claude can answer again the
+// key stands back on Claude's own road with no stand-in.
+#[test]
+fn a_worker_key_falls_to_a_stand_in_while_claude_rests_and_back_to_claude_when_it_can_answer() {
+  let with_deepseek = |closed: bool| {
+    let mut standing = standing(&[CLAUDE, "deepseek"], closed);
+
+    standing.services.push(Service {
+      provider: "deepseek".to_owned(),
+      present: true,
+      walked: true,
+    });
+    standing
+  };
+  let walked = walk_over(&with_deepseek(true)).expect("a walk while Claude rests");
+
+  assert_eq!(
+    (walked.steps, walked.required, walked.chosen.as_str()),
+    (vec!["deepseek".to_owned()], false, "auto")
+  );
+  assert_eq!(walk_over(&with_deepseek(false)), None);
+}

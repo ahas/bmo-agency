@@ -616,6 +616,33 @@ impl Route for CreateJob {
 
 crate::moved!(CreateJob);
 
+/// The worker's road now: `claude-code` where its key stands on Claude, else the first enabled provider of
+/// its fallback walk (`stand_in::walk_of`), with that provider's tier model. The same walk, order and
+/// setting a chat turn crosses over on; the worker supplies only its own line.
+async fn worker_road(ground: &Ground) -> Result<(String, super::tiers::Mapping), String> {
+  let db = &ground.db;
+  let claude = || async {
+    super::tiers::resolve_execution(db, JOB_WORK_KEY, PROVIDER, None)
+      .await
+      .map(|m| (PROVIDER.to_owned(), m))
+  };
+
+  let Some(walk) = crate::stand_in::walk_of(ground, &ground.machine(), JOB_WORK_KEY).await else {
+    return claude().await;
+  };
+
+  for provider in &walk.steps {
+    if crate::control::harness::provider_enabled(db, provider).await.map_err(|why| why.error)?
+      && let Ok(mapping) = super::tiers::resolve_execution(db, JOB_WORK_KEY, provider, None).await
+    {
+      return Ok((provider.clone(), mapping));
+    }
+  }
+
+  // The walk named no enabled stand-in; the key goes out on Claude as it would have.
+  claude().await
+}
+
 /// The work parts a job's turn is carried with.
 async fn work_parts(
   ground: &Ground,
@@ -624,7 +651,10 @@ async fn work_parts(
   name: &str,
   title: &str,
 ) -> Result<WorkParts, String> {
-  let mapping = super::tiers::resolve_execution(&ground.db, JOB_WORK_KEY, PROVIDER, None).await?;
+  // The worker's road: Claude Code where its key stands on it, else the first enabled fallback step of its
+  // walk (docs/cache-fallback.md). A worker whose primary (or Claude) is resting stands on its fallback by
+  // the same walk a chat turn crosses over on, with no pin of its own.
+  let (provider, mapping) = worker_road(ground).await?;
   let row = AgentRow::named(&ground.db, worker_name)
     .await
     .map_err(|why| why.detail)?
@@ -640,7 +670,7 @@ async fn work_parts(
   variables.insert("BMO_DATA_DIR".to_owned(), ground.roots.data.to_string_lossy().into_owned());
 
   Ok(WorkParts {
-    provider: PROVIDER.to_owned(),
+    provider,
     model: mapping.model.clone(),
     mapping: WorkMapping {
       model: mapping.model,
