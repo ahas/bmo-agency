@@ -1,4 +1,4 @@
-# Telegram markup rules (텔레그램 마크업 규칙)
+# Telegram markup rules (Telegram markup rules)
 
 - The rulebook of the converter on the send path, read by no model. It sets what is valid in the
   Telegram Bot API's HTML parse mode, and what the markdown written in an answer becomes in that
@@ -26,26 +26,26 @@
 ## Formatting available
 
 - Each entry gives the form, the escaping, the version it came in and the constraints.
-- **Bold:** `<b>굵게</b>`, `<strong>굵게</strong>`; inside, escape only `< > &`. Supported from the
-  start (no version noted). MarkdownV2 `*굵게*`.
-- **Italic:** `<i>기울임</i>`, `<em>기울임</em>`; no version noted. MarkdownV2 `_기울임_`.
-- **Underline:** `<u>밑줄</u>`, `<ins>밑줄</ins>`. Bot API 4.5 (31 December 2019), with
-  strikethrough; the same release brought entity nesting and MarkdownV2. MarkdownV2 `__밑줄__`.
-- **Strikethrough:** `<s>취소</s>`, `<strike>취소</strike>`, `<del>취소</del>`. Bot API 4.5.
-  MarkdownV2 `~취소~`.
-- **Spoiler:** `<tg-spoiler>가림</tg-spoiler>` or `<span class="tg-spoiler">가림</span>`. Bot API
-  5.6 (30 December 2021). MarkdownV2 `||가림||`.
+- **Bold:** `<b>bold</b>`, `<strong>bold</strong>`; inside, escape only `< > &`. Supported from the
+  start (no version noted). MarkdownV2 `*bold*`.
+- **Italic:** `<i>italic</i>`, `<em>italic</em>`; no version noted. MarkdownV2 `_italic_`.
+- **Underline:** `<u>underline</u>`, `<ins>underline</ins>`. Bot API 4.5 (31 December 2019), with
+  strikethrough; the same release brought entity nesting and MarkdownV2. MarkdownV2 `__underline__`.
+- **Strikethrough:** `<s>strikethrough</s>`, `<strike>strikethrough</strike>`, `<del>strikethrough</del>`. Bot API 4.5.
+  MarkdownV2 `~strikethrough~`.
+- **Spoiler:** `<tg-spoiler>spoiler</tg-spoiler>` or `<span class="tg-spoiler">spoiler</span>`. Bot API
+  5.6 (30 December 2021). MarkdownV2 `||spoiler||`.
   - The content shows only when the recipient taps it.
   - Hiding a photo or video itself is a separate send parameter (`has_spoiler`), not formatting.
 - **Inline code:** `<code>cargo test --workspace</code>`; inside, too, escape
   only `< > &` (escaping backticks and backslashes is MarkdownV2's alone).
   - No other formatting goes inside code or a code block, and code cannot go inside formatting
     such as bold or italic.
-- **Code block:** `<pre>여러 줄</pre>`; spaces and line breaks inside are kept.
+- **Code block:** `<pre>multiple lines</pre>`; spaces and line breaks inside are kept.
   - A language is named by `<code>` as the only child of `<pre>` with a class:
     `<pre><code class="language-python">...</code></pre>`. `<code>` alone cannot name one; the
     languages are libprisma's supported-languages.
-- **Link:** `<a href="https://example.com/">보이는 글자</a>`; inside href, `&` becomes `&amp;` and
+- **Link:** `<a href="https://example.com/">visible text</a>`; inside href, `&` becomes `&amp;` and
   `"` becomes `&quot;`.
   - Bold, italic, underline, strikethrough and spoiler can go inside a link; code and code blocks
     cannot.
@@ -54,9 +54,9 @@
     with the bot or is a member of that room.
   - Clients show the full URL in a confirmation before opening an inline link: link text hides the
     address only where the message is read.
-- **Quote:** `<blockquote>인용문</blockquote>`. Bot API 7.0 (29 December 2023). MarkdownV2 `>` at
+- **Quote:** `<blockquote>quotation</blockquote>`. Bot API 7.0 (29 December 2023). MarkdownV2 `>` at
   the start of a line.
-- **Expandable quote:** `<blockquote expandable>긴 인용문</blockquote>`. Bot API 7.4 (28 May 2024).
+- **Expandable quote:** `<blockquote expandable>long quotation</blockquote>`. Bot API 7.4 (28 May 2024).
   Arrives folded and unfolds when tapped.
 - **Custom emoji:** `<tg-emoji emoji-id="5368324170671202286">🙂</tg-emoji>`.
   - Bot API 6.7 (21 April 2023) for bots that bought an extra username on Fragment; from Bot API
@@ -64,7 +64,7 @@
     when its owner has Telegram Premium.
   - The tag holds one real emoji character, shown wherever the custom emoji cannot be.
   - **Neither condition has been confirmed, so this bot does not use it.**
-- **Date and time:** `<tg-time unix="1647531900" format="wDT">22:45 내일</tg-time>`. Bot API 9.5
+- **Date and time:** `<tg-time unix="1647531900" format="wDT">22:45 tomorrow</tg-time>`. Bot API 9.5
   (1 March 2026).
   - Shown in the reader's local format. The format string follows `r|w?[dD]?[tT]?`: `r` relative
     time from now, combined with no other letter; `w` weekday; `d`/`D` short/long date; `t`/`T`
@@ -102,7 +102,7 @@
 - The marks that become formatting, when a mark is left as a character, the marks laid flat and
   what is not formatting are the writer's list in `answer-shape.md` (「How to write in markdown」);
   the converter carries it out. Beyond that list:
-- **Emphasis pairs** stuck to Korean text (`이건**중요**합니다`) are pairs; the closing-space,
+- **Emphasis pairs** stuck to Korean text (`this**is important**`) are pairs; the closing-space,
   stuck-to-a-letter and no-pair cases apply to `**`, `*`, `~~` and `||` alike.
 - **Backticks.** The same value wrapped several times is code at each place. Characters inside code
   are only escaped, never read as other marks. An unpaired backtick is left as a character.
@@ -114,7 +114,7 @@
 - **Links.** An address that is not http or https does not become a link; the address is written
   out after the text. The image mark also becomes a link.
   - A bare address stays as characters, and Telegram shows it as a link on its own. Where a Korean
-    letter follows it with no space (`주소에`, `(주소)에`) it becomes a link ending before that
+    letter follows it with no space (`to the address`, `to (the address)`) it becomes a link ending before that
     letter and any bracket it did not open, since Telegram would read the letter into the address.
 - **Quotes** do not nest, so `>>` is also one level of quote.
 - **Tables.** The separator row disappears, and the cells are joined by ` · `. A vertical bar

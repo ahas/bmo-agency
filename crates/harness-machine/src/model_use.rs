@@ -165,19 +165,20 @@ async fn copy(
 }
 
 impl Install {
-  /// The engine's installer in the source root's `gate/`, run with the entry's name, its output
-  /// written into the log. An engine with no installer is a failure naming its path.
+  /// The engine's installer in the gate's training tooling (`training/tooling/scripts/` under the source
+  /// root), run with the entry's name, its output written into the log. An engine with no installer is a
+  /// failure naming its path.
   pub async fn run(&self) -> std::io::Result<Installed> {
-    let gate = self.source_root.join("gate");
+    let tooling = self.source_root.join("gate").join("training").join("tooling");
     let script = Path::new("scripts").join(format!("{}-install.ts", self.engine));
 
-    if !gate.join(&script).exists() {
+    if !tooling.join(&script).exists() {
       return Ok(Installed {
         ok: false,
         last: format!(
           "The {} engine has no installer at {}.",
           self.engine,
-          Path::new("gate").join(&script).display()
+          Path::new("gate").join("training").join("tooling").join(&script).display()
         ),
       });
     }
@@ -191,7 +192,7 @@ impl Install {
     let mut child = tokio::process::Command::new(&self.bun)
       .arg(&script)
       .args(["--model", &self.entry])
-      .current_dir(&gate)
+      .current_dir(&tooling)
       .env("BMO_DB_PATH", &self.archive)
       .stdin(Stdio::null())
       .stdout(Stdio::piped())

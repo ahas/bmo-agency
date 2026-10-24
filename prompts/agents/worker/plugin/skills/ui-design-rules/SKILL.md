@@ -113,7 +113,7 @@ screen says otherwise, the work follows these rules for what it builds and repor
   3. Only a value with no physical unit of its own, such as a utilisation, is written as a share.
   4. It is exact: one unit and one precision for the same kind of value wherever it stands, and a
      figure that could not be read says so rather than standing as nought.
-- A time in the future — a reset, a deadline — must be shown as the time remaining ("3시간 남음").
+- A time in the future — a reset, a deadline — must be shown as the time remaining ("3 hours left").
 - Progress must be shown as `n/n n%`, with no words around it.
   1. Either part may stand alone.
   2. When the target is fixed, the percentage is always shown.
@@ -352,26 +352,26 @@ screen says otherwise, the work follows these rules for what it builds and repor
 - Descriptions of an item must be short.
 - A complete sentence ending in `.` must be followed by a line break, so the text reads easily.
 - Labels must be terse: every extra character costs horizontal space.
-  1. Drop particles such as '~에', '~의'. Right: '파일 리뷰'; wrong: '파일에 리뷰'.
-  2. Do not repeat what the screen already shows, such as the name of the open tab. Right: '리뷰';
-     wrong: 'notes.md의 리뷰'.
-  3. An action button names the action alone, not its object. Right: '저장', '전송'; wrong:
-     '설정 저장', '메시지 전송'.
-  4. Do not over-explain. Wrong: '메모 (비워 두고 저장하면 지워집니다)'; right: '메모',
-     '사유 (선택)'.
+  1. Drop particles such as the Korean for 'to' and 'of'. Right: 'file review'; wrong: 'review of the file'.
+  2. Do not repeat what the screen already shows, such as the name of the open tab. Right: 'review';
+     wrong: 'review of notes.md'.
+  3. An action button names the action alone, not its object. Right: 'save', 'send'; wrong:
+     'save settings', 'send message'.
+  4. Do not over-explain. Wrong: 'note (leave it empty and saving deletes it)'; right: 'note',
+     'reason (optional)'.
 - Excessively purified Korean must not be used in place of established terms.
   1. The word people commonly say is written, whatever its origin: a Sino-Korean word or a loanword
-     in its Hangul spelling is never swapped for a native word or a coinage. Right: '위치', '툴바',
-     '빌트인'; wrong: '자리', '도구띠', '붙박이'.
-  2. English must not be dropped into Korean text. Right: '툴바를 눌러'; wrong: 'toolbar를 눌러'.
+     in its Hangul spelling is never swapped for a native word or a coinage. Right: 'location', 'toolbar',
+     'built-in'; wrong: 'place', 'tool strip', 'fixed'.
+  2. English must not be dropped into Korean text. Right: 'press the toolbar'; wrong: 'press toolbar'.
   3. English stays only where no Hangul spelling is in common use — code identifiers, commands,
      file names, product and library names.
   4. Read `wording.md` before writing Korean text: the banned terms, and under 「Console text」
      the one word each UI concept takes in every inflection, one style per screen, no dash.
 - A page, section or panel header must not carry a sentence introducing what the screen is.
   1. The title and the layout alone must make clear what the screen is for.
-  2. Sentences that describe the screen or explain how to use it — "~한 기록입니다", "~를 봅니다",
-     "여기서 ~할 수 있습니다" — must not be written.
+  2. Sentences that describe the screen or explain how to use it — "this is a record of X", "view X",
+     "here you can X" — must not be written.
   3. Guidance is allowed only in an empty state or an error state, and then in one line.
 - A screen must not explain what it did internally or why it looks the way it does. A fallback —
   opening at the first line when a target is not found — must happen silently; the user is told

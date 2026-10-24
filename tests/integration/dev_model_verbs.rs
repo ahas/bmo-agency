@@ -303,9 +303,10 @@ async fn runs_the_engine_s_installer_with_the_entry_and_ends_done_or_failed_with
   let bin = data.path().join("bin");
   let asked = data.path().join("asked");
 
-  std::fs::create_dir_all(source.join("gate/scripts")).unwrap();
+  std::fs::create_dir_all(source.join("gate/training/tooling/scripts")).unwrap();
   std::fs::create_dir_all(&bin).unwrap();
-  std::fs::write(source.join("gate/scripts/local-llm-install.ts"), "// stand-in\n").unwrap();
+  std::fs::write(source.join("gate/training/tooling/scripts/local-llm-install.ts"), "// stand-in\n")
+    .unwrap();
   // A stand-in bun that writes the arguments it was given and ends well for rvn alone.
   common::executable(
     &bin.join("bun"),

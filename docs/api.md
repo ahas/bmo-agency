@@ -193,6 +193,11 @@ parts. A provider whose program keeps a session continues the one its last answe
 keeps its dsh session inside bmo-tui's pane, which carries the next turn although agency stores no id for
 it. The session stands in the server's memory from its start to its end.
 
+A thrown-away session's turn is a co-work branch's or a research run's. A research run — one whose scope
+names no branch role — carries the reference its instruction calls for, picked by the gate's reference
+selection over the chat agent's brain and attached to the run's first prompt, the same way a job's is
+(「assignments and jobs」); a co-work branch's prompt is composed by its parent and carries none.
+
 A conversation whose agent is a gate work key carries a gate's one turn: the turn's `gate` part holds the
 gate's instructions as the program's whole system prompt, whether it thinks, and the model, effort and
 answer room its mapping resolved to. The turn goes out with no tools and no MCP server, and its answer is
@@ -561,6 +566,11 @@ in the job service. Agency calls nothing of the job service and keeps no client 
   small-model instruction」); one that lacks a field is refused 400 naming it. The job keeps it, answers
   it, and its prompt renders it under the item's title. `POST /instruction-texts` answers `text`, the
   one line a work-order step is written as, composed from an instruction.
+- **A job's first prompt carries the reference its instruction calls for.** As the job is launched, its
+  instruction is handed to the gate's reference selection (`POST /reference/selected` of the gate), and
+  the entries the gate picks from the chat agent's brain — knowledge, rules and documents — are attached
+  to the prompt under a `## Reference` heading. A job with no instruction, or a gate that picks nothing,
+  stands on its own words; a worker reads the brain only through what the gate picked here.
 - **A job is launched only where a login can carry it.** Where every Claude login that carries the job's
   work key is closed — its window full, resting, or waiting for a person to sign in again — `POST /jobs`
   answers 503 `no-login-open`, naming the logins and the moment the first of them reopens, or that each
@@ -676,15 +686,19 @@ route. A caller uses one of them and writes no client of its own.
 ## Calls agency makes
 
 Agency reaches upstreams only, through what their repositories publish: brain, graph, node, arbiter,
-pocket, testbed and chat through their clients, and cache-warmer through the schedule library
+pocket, testbed, gate and chat through their clients, and cache-warmer through the schedule library
 `bmo-cache-warmer-schedule`.
 Of the brain it asks an agent's own brain made as the agent is registered, found by the agent's key,
 let go whole or only found for a preview, the discipline a chat launch's system prompt carries, and the
 base layer of the agent's persona that prompt ends with. Of the tool host it asks, on its control socket
 with the issuer token, a session token for each program and run that holds a capability, which it takes
 back, a namespace's listing and facts, and the paragraph on finding and using tools that a chat launch's
-system prompt carries.
+system prompt carries. Of the gate it asks the reference a job's or a research run's instruction calls
+for, picked over the chat agent's brain, and attaches the picked entries to the run's first prompt.
 
+- **Where the gate is.** `BMO_GATE_URL` names its address and `BMO_GATE_TOKEN_FILE` the path of the file
+  its token stands in. With no address, no reference is asked and a job or a research run carries only its
+  own words.
 - **Where the brain is.** `AGENCY_BRAIN_URL` names its address and `AGENCY_BRAIN_TOKEN` the token it is
   called with. With no address, no agent has a brain: nothing is made, counted or let go.
 - **The account a brain is filed under.** The brain keeps one brain per agent, keyed by an account key

@@ -25,7 +25,7 @@
   - Code Refactoring
   - Miscellaneous
 - Do **NOT** create empty subsections.
-- Do **NOT** write placeholders such as "None", "N/A", or "없음".
+- Do **NOT** write placeholders such as "None", "N/A", or "none".
 
 ## Update Behavior (Critical)
 - If the current semantic version already exists in `CHANGELOG.md`, update that existing version entry.

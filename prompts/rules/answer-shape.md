@@ -1,4 +1,4 @@
-# Answer shape (답의 모양)
+# Answer shape (the shape of an answer)
 
 - This document sets the shape an answer with several items is written in: shape, not manner of
   speech. How the words themselves read is `plain-writing.md`. It goes as it stands into the system
@@ -24,7 +24,7 @@
 - **In a list answer, every item name may be bold.**
   - This is the one exception to the usage rule of one bold per message.
   - It holds only when the item name takes its whole line. Bold on a name sharing a line with its
-    explanation ("메인보드: MSI B450…") is just bold on a noun.
+    explanation ("motherboard: MSI B450…") is just bold on a noun.
 
 ## How to write in markdown
 
@@ -32,10 +32,10 @@
   dialect accepts and escapes whatever that form needs escaped; the room block says what the marks
   become there. So the writer writes no tags and does not think about escaping.
 - These are the only marks that become formatting:
-  - `**굵게**`, `*기울임*`, `~~취소선~~`, `||스포일러||`
+  - `**bold**`, `*italic*`, `~~strikethrough~~`, `||spoiler||`
   - inline code, wrapped in one pair of backticks
   - a code block, opened and closed with three backticks; the opening line may name a language
-  - a link, `[보이는 글자](https://주소)`
+  - a link, `[visible text](https://address)`
   - a quote, `> ` at the start of a line
 - Marks pair only within one line. An asterisk stuck to a letter, digit, underscore or slash
   (`2**3`, `src/**/*.ts`) is left as a character, not a pair, and so is a mark whose inside starts
@@ -72,16 +72,16 @@
 
 ## Why this shape: a real case
 
-- To "리눅스에서 root도 못 하는 게 뭐냐", seven items pressed into one paragraph with the axis in its
+- To "what can even root not do on Linux", seven items pressed into one paragraph with the axis in its
   last sentence failed, and so did the items split but each name joined to its explanation by a
   dash: the reader still had to lay them out by hand. The shape wanted, of which two items show
   the form:
 
-> ① TPM 봉인 데이터
-> 하드웨어 키로 암호화된 시크릿은 root도 못 엶 (FDE 복호화 키 등)
-> ② Kernel Lockdown 모드
-> 켜져 있으면 모듈 로드·kexec·/dev/mem 접근 자체가 차단돼 root도 막힘
+> ① TPM-sealed data
+> Secrets encrypted with a hardware key cannot be opened even by root (FDE decryption keys, etc.)
+> ② Kernel Lockdown mode
+> When it is on, module loading, kexec and /dev/mem access are blocked, so even root is stopped
 
 - Skimming the item names gives the skeleton of the answer, and the reader reads the explanation of
-  just the item wanted. With the axis "OS 안이냐 밖이냐" on the first line and a closing line that
+  just the item wanted. With the axis "inside or outside the OS" on the first line and a closing line that
   ties it together, it is complete.

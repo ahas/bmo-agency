@@ -11,11 +11,11 @@ description: "Marking a deliberate wait on the job's TODO item so the chat agent
   as work, so a busy test run or build needs no mark; a wait where nothing of the job's own works —
   a unit, another process, a run on another machine — does.
 - **So mark the wait before you stand still on purpose:**
-  `~/.local/share/bmo/deploy/bin/bmo job wait --todo <id> --what '<무엇을 기다리나>' --unit <유닛> --until 40m`.
+  `~/.local/share/bmo/deploy/bin/bmo job wait --todo <id> --what '<what you are waiting for>' --unit <unit> --until 40m`.
   - `--pid <pid>` in place of `--unit` for a process.
   - The end is a length or a Korean clock time (`2h`, `14:30`).
 - **A wait that is one command** is handed after `--` instead of a target:
-  `~/.local/share/bmo/deploy/bin/bmo job wait --todo <id> --what '<무엇>' --until 30m -- <명령…>`.
+  `~/.local/share/bmo/deploy/bin/bmo job wait --todo <id> --what '<what>' --until 30m -- <command…>`.
   The mark stands on that run and clears the moment it ends, its exit code passed through.
 - **Otherwise clear it** with `--clear` once the wait is over.
 - **The mark is believed only while its target lives and its time has not passed.** A target that

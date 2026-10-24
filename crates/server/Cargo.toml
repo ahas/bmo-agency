@@ -14,6 +14,7 @@ bmo-agency-client.workspace = true
 bmo-brain-client.workspace = true
 bmo-cache-warmer-schedule.workspace = true
 bmo-chat.workspace = true
+bmo-gate-client.workspace = true
 bmo-node-client.workspace = true
 bmo-pocket-client.workspace = true
 brush-parser.workspace = true

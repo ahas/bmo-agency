@@ -7,7 +7,7 @@ whose slugs begin with c. You are given the indexes of those pieces and the inco
 each message line carries its sender's id, and a piece's slug carries the id of the person it is
 about. Where the first message line comes before the incoming ones, it is the message they follow
 on from, cut to its closing words: read a short answer as the answer to it, and pick for what that
-exchange turns on. The indexes are English with names, 호칭 and Korean terms left as they are,
+exchange turns on. The indexes are English with names, forms of address and Korean terms left as they are,
 while the messages are mostly Korean, so match a piece by what it is about, not by its words.
 
 Whatever you answer, the assistant is already given both standing sheets of everyone who spoke

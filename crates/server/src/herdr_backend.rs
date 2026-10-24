@@ -1977,7 +1977,7 @@ impl Sessions for HerdrSessions {
     })
   }
 
-  async fn send_turn(&self, turn: Turn) -> Result<TurnEnd, Fault> {
+  async fn send_turn(&self, mut turn: Turn) -> Result<TurnEnd, Fault> {
     let (agent, scope) = self.scope_held(&turn.session)?;
     let row = self.admitted(&agent, &scope).await?;
     let _role_place = self.role_turn(&agent).await?;
@@ -2008,6 +2008,21 @@ impl Sessions for HerdrSessions {
         FaultKind::Refused,
         format!("{}: a conversation's turn carries no work parts", turn.session),
       ));
+    }
+
+    // A research run's first prompt carries the reference the gate picks over its instruction; a
+    // co-work branch's prompt is composed by its parent and carries none, and a gate's turn is a
+    // judgement of its own. A run whose pick fails keeps its own words and nothing else.
+    if let Scope::Apart(apart) = &scope
+      && !(apart.todo.is_some() && apart.role.is_some())
+      && turn.context.gate.is_none()
+    {
+      let lines: Vec<String> = turn.prompt.lines().map(str::to_owned).collect();
+
+      match self.ground().peers.gate.reference(lines).await {
+        Ok(entries) => turn.prompt = crate::peers::gate::attach(&turn.prompt, &entries),
+        Err(why) => eprintln!("research run: the gate's reference was not picked: {why}"),
+      }
     }
 
     let run = match (&room, work) {

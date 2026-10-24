@@ -1,7 +1,7 @@
 ---
 name: "asking-the-owner"
 version: "1.1.0"
-description: "How a job puts something in front of the owner: a decision that is genuinely his (hard to undo, or settled by his own taste) asked with bmo job ask, and a document for him to read or approve filed in the deployment's 아카이브. Use before asking him anything and before handing him any document."
+description: "How a job puts something in front of the owner: a decision that is genuinely his (hard to undo, or settled by his own taste) asked with bmo job ask, and a document for him to read or approve filed in the deployment's archive. Use before asking him anything and before handing him any document."
 ---
 
 # Asking the owner
@@ -9,10 +9,10 @@ description: "How a job puts something in front of the owner: a decision that is
 ## A decision that is his
 
 - **Put it to him only where the choice is really his** — hard to undo, or settled by his own taste
-  and no reading of the code. Everything else the work settles itself and writes under 정한 것: a
+  and no reading of the code. Everything else the work settles itself and writes under what was decided: a
   question about something you could have looked up is worse than never asking.
 - **The command:**
-  `~/.local/share/bmo/deploy/bin/bmo job ask --todo <id> --question '<무엇을 정할지>' --option '<하나>' --option '<다른 하나>' --recommend <추천 번호> --why '<왜 네가 못 정하는지 한 줄>'`.
+  `~/.local/share/bmo/deploy/bin/bmo job ask --todo <id> --question '<what to decide>' --option '<one>' --option '<another>' --recommend <recommended number> --why '<why you cannot settle it, in one line>'`.
   - Two or more options, the recommendation one of them by its number.
 - **It is put in his own chat**, the only chat an answer can be given in.
 - **The command does not return until it is answered: your own run is what waits,** holding its
@@ -23,7 +23,7 @@ description: "How a job puts something in front of the owner: a decision that is
 - **Where he talks instead of choosing, it exits 3 and the question is still open.** He asked what
   an option means, objected, or said something else: what he said is printed with the call that
   answers him. You answer, since you hold what the options were written out of and the chat agent does not.
-  - `~/.local/share/bmo/deploy/bin/bmo job ask --talk <질문 번호> --say '<답>'` puts your answer in his chat and waits on the
+  - `~/.local/share/bmo/deploy/bin/bmo job ask --talk <question number> --say '<your answer>'` puts your answer in his chat and waits on the
     same question again, coming back the same two ways. Answer plainly: what each option would do,
     what it costs, why you recommend yours.
   - Where the talk changes the choice, the same call puts it again with `--option` for every option
@@ -39,7 +39,7 @@ description: "How a job puts something in front of the owner: a decision that is
 
 ## A document for him to read
 
-- **It goes into the deployment's own 아카이브 and nowhere else.** Write it as markdown in your scratch folder
+- **It goes into the deployment's own archive and nowhere else.** Write it as markdown in your scratch folder
   and file it with `artifact_file`, which takes `body`, the document: `kind` `record`, the Korean
   `title`, `actorName` the worker name you file as, and `labels` `{}`; or file an HTML page as
   `kind` `page` with its `html`.
@@ -49,7 +49,7 @@ description: "How a job puts something in front of the owner: a decision that is
     narration: a script for the ear by the rules of a deep dive's, in
     `~/.local/share/bmo-agency/deploy/prompts/rules/deep-dives.md` 「The narration」, spoken in the chat
     agent's voice by the voice engine and attached with `artifact_attach` at `role` `head` as its
-    들으며 보세요 band.
+    "listen while you look" band.
   - A document with a narration is handed over only once its sound is kept: `artifact_attach`
     answers once the file is kept, and the `researching-and-benching` skill says how to wait for the
     voice.

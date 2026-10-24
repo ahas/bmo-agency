@@ -50,7 +50,7 @@ Then sort each literal by who reads it:
 2. Input that is not about Korean becomes neutral English: names like Bob, Carol, Dave, rooms like
    Alpha Room, words like hello. Real people's or rooms' names and ids never stand in a test.
 3. Input the behaviour under test reads as Korean — a particle helper, a Korean word list, a Korean
-   site's page — stays Korean, with neutral Korean names (홍길동, 철수) instead of real ones.
+   site's page — stays Korean, with neutral Korean names (Hong Gil-dong, Cheolsu) instead of real ones.
 4. Run the test file and its twin, if any, before and after; the count of passing tests stays.
 
 ## Bundle kind C: a comment
@@ -85,9 +85,9 @@ test expectations and the document that quotes it.
 
 - A: the running report, the TODO readings and verbs, the word chain, a work order's edits and
   checkout hold, a job's question, the resident turn's notes, the control routes' refusals and the
-  Telegram message kinds moved into the pack — the commit titled 「#1479 사람이 읽는 문장을 언어팩으로」.
+  Telegram message kinds moved into the pack — the commit titled 「#1479 sentences a person reads into the language pack」.
 - B: `chat/chat/kinds.test.ts` checking by key with neutral input, in the same commit.
-- C: the commit titled 「#1479 예시(주석): 주석의 오너를 the owner로」.
-- D: the commit titled 「#1479 예시(읽지 못하는 언어): KakaoChatServer.cs의 주석과 메시지를 영어로」.
+- C: the commit titled 「#1479 example (comment): the comment's owner as the owner」.
+- D: the commit titled 「#1479 example (a language no parser reads): KakaoChatServer.cs's comments and messages into English」.
 - E: the tool traffic reading's report and usage in English, in the commit titled
-  「#1479 TODO 읽기·동사와 툴 트래픽의 한국어 정리」.
+  「#1479 cleaning up the Korean of the TODO readings, verbs and tool traffic」.

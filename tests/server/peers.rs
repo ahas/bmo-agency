@@ -479,4 +479,23 @@ async fn a_service_with_no_address_answers_its_default() {
   peers.brain.forget("kept").await.unwrap();
   assert_eq!(peers.brain.reset("kept", false).await.unwrap(), BrainReset::default());
   assert_eq!(peers.brain.make("kept", "Kept", None).await.unwrap(), Made::Undeployed);
+  assert!(peers.gate.reference(vec!["the instruction".to_owned()]).await.unwrap().is_empty());
+}
+
+#[test]
+fn a_picked_reference_stands_under_a_heading_named_by_path_and_source() {
+  use agency_server::peers::gate::attach;
+
+  assert_eq!(attach("the prompt", &[]), "the prompt");
+  assert_eq!(
+    attach(
+      "the prompt",
+      &[bmo_gate_client::Entry {
+        path: "knowledge/index.md".to_owned(),
+        text: "a known fact".to_owned(),
+        source: "knowledge".to_owned(),
+      }]
+    ),
+    "the prompt\n\n## Reference\n\n`knowledge/index.md` (knowledge)\n\na known fact\n\n"
+  );
 }

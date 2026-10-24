@@ -3,7 +3,7 @@
 Every agent that writes or edits a stored document follows this rulebook: the repository's
 documents, the knowledge library, room rules, person books and lore. An answer to a person (a chat
 reply, a report, a summary returned to the caller) is not a stored document; its own instructions
-set its language. A document of the 아카이브 (what the search runner writes about one search, or
+set its language. A document of the archive (what the search runner writes about one search, or
 what the chat agent writes there when asked to record something) is outside the language rule and stays in
 the room's language, never translated; the diagram rule under Shape and `plain-writing.md` still
 hold for it.
@@ -12,7 +12,8 @@ hold for it.
 
 - Write the document in English: headings, list labels, brackets, statements, index nouns.
 - Keep in the original language whatever loses its meaning in translation:
-  - names, nicknames and forms of address (the owner's name, 형, 언니, 존댓말/반말)
+  - names, nicknames and forms of address (the owner's name, a term of address such as older
+    brother or older sister, honorific or casual speech)
   - examples of how someone talks: sentence endings, catchphrases, a short phrase of theirs
   - short quotes, and every passage quoted from a source
   - domain terms bound to their language: a room's own words, an internal name, a product or
@@ -37,7 +38,7 @@ hold for it.
   - In markdown, a fenced `mermaid` block, top to bottom (`flowchart TD`), a few words to a box so
     it reads on a phone; the console draws it.
   - Name no colour: the console gives each series its own hue in either theme. A pie or a chart
-    keeps to eight series, the rest folded into one 기타; boxes of a flow differing in kind are
+    keeps to eight series, the rest folded into one other; boxes of a flow differing in kind are
     marked `class A,B c1` through `c8`, one class to a kind.
   - In an HTML page, inline SVG in the page's own colours, scaled by its view box.
 - A fixed format the agent's own instructions set (a chunk template, a bracket, an index line)

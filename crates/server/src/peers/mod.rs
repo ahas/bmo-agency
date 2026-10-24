@@ -3,6 +3,7 @@
 //! default that calls nothing where the deployment names no address.
 
 pub mod brain;
+pub mod gate;
 pub mod node;
 
 use std::future::Future;
@@ -12,6 +13,7 @@ use std::sync::Arc;
 use url::Url;
 
 use self::brain::Brain;
+use self::gate::Gate;
 use self::node::NodeService;
 use crate::config::PeerAddresses;
 
@@ -107,6 +109,7 @@ impl std::error::Error for PeerFault {}
 pub struct Peers {
   pub node: Arc<dyn NodeService>,
   pub brain: Arc<dyn Brain>,
+  pub gate: Arc<dyn Gate>,
 }
 
 impl Peers {
@@ -115,6 +118,7 @@ impl Peers {
     Self {
       node: node::client(addresses.node.clone()),
       brain: brain::client(addresses.brain.clone(), addresses.brain_account.clone()),
+      gate: gate::client(addresses.gate.clone()),
     }
   }
 }

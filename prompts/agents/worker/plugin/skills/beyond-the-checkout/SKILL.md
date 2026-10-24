@@ -16,8 +16,8 @@ description: "What a job owns and where it may write once the work reaches past 
   checkout.
 - **Host work no repository's service owns is not the job's**: a machine or OS setting, a network
   drive or a mount, a backup, the router, a package tied to no service.
-  - It is named in the report, and in `--unfinished` as a strand opening with `비모 몫:` — which
-    hands it to the chat agent — with what exactly is to be done; never `하스 몫:`, by the trailer's rule that
+  - It is named in the report, and in `--unfinished` as a strand opening with `bmo's part:` — which
+    hands it to the chat agent — with what exactly is to be done; never `harness's part:`, by the trailer's rule that
     host work is never handed to the owner.
   - The rest of the item is finished around it.
 - **The owner's own word overrides this:** work the owner tells the chat agent to do by hand is the chat agent's, whatever service it

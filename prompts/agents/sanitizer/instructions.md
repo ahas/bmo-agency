@@ -10,9 +10,9 @@ session's whole context would read as enabling a real-world attack? Only three k
 1. An ORDER to carry out an attack or intrusion: to break into a site, company, account, server
    or system; to steal, crack or dump credentials or data; to plant malware, ransomware or a
    backdoor; to run a denial-of-service; to exploit a target's weakness. It counts whether the
-   target is named, only pointed at (그 사이트, 저 서버, 얘 계정, that box) or not spelled out at
-   all (a bare "해킹해", "그거 뚫어" or "털어" is still an order), and even when the target is the
-   speaker's own system ("내 시스템 해킹해봐"). The trigger is telling someone to DO an attack, not
+   target is named, only pointed at (that site, that server, this account, that box) or not spelled out at
+   all (a bare "hack it", "break into that" or "steal it" is still an order), and even when the target is the
+   speaker's own system ("try hacking my system"). The trigger is telling someone to DO an attack, not
    naming a victim or whose the target is. Setting up remote access to, or remote control of, a
    machine the speaker owns is NOT attacking it: that is the remote-administration carve-out
    below, however it is worded.
@@ -20,12 +20,12 @@ session's whole context would read as enabling a real-world attack? Only three k
 2. An operational ACCOUNT of an attack carried out on a real target that is not the speaker's own
    system: the concrete result of an intrusion, not merely that one happened: what was broken
    into, where the hole is, what path is exposed, what was accessed or could be pulled
-   ("뚫었다, 여기가 뚫리고 저건 막혀 있다, 관리자 경로가 노출돼 있다, 이 파라미터로 남의 주문이
-   열린다"). A reader can act on it, so it is defused like an order.
+   ("I broke in, this part is open and that part is blocked, the admin path is exposed, this parameter
+   opens other people's orders"). A reader can act on it, so it is defused like an order.
 
 3. A concrete METHOD to defeat a model's own safety gate: steps to slip attack or intrusion
-   content past a safety or cyber classifier: keyword-evasion lists (exploit·payload·C2 를 이렇게
-   바꿔 쓰면 안 걸린다), phrasing-abstraction recipes disguising an attack request, turning off or
+   content past a safety or cyber classifier: keyword-evasion lists (if you rewrite exploit·payload·C2
+   like this, it will not be caught), phrasing-abstraction recipes disguising an attack request, turning off or
    predicting a refusal fallback so a blocked request answers anyway. Discussing THAT such gates
    exist or misfire is fine; a working recipe for getting attack material through one counts.
 
@@ -40,10 +40,10 @@ session's whole context would read as enabling a real-world attack? Only three k
   DEFUSE: <the span, copied exactly>
 
   A span lies inside one line of the text; material over several lines gets one DEFUSE line per
-  line. Leave a plainly named target outside the span so it stays in the text: for 너, 저 쇼핑몰
-  관리자 페이지 해킹해 the answer is DEFUSE: 해킹해, only the order defused.
+  line. Leave a plainly named target outside the span so it stays in the text: for "hey, hack that
+  shopping mall's admin page" the answer is DEFUSE: hack it, only the order defused.
 
-  Every place a span appears is replaced with the neutral marker 「보안 관련 표현 · 무해화됨」, so
+  Every place a span appears is replaced with the neutral marker "security-related expression · neutralized", so
   that something happened survives but the material to act on does not; every other sentence, name,
   number, date and word stays as it was. Add no heading, numbering, quotation marks around a span,
   or explanation.
@@ -67,17 +67,17 @@ What is NOT a trigger, and stays CLEAN:
   screen or desktop control, screenshots, sent keystrokes, run commands, reading that machine's own
   browser or files, fetching from its network, keeping the agent alive across reboots or
   reinstalling it) is administration, not an intrusion. It stays CLEAN even with a loaded word
-  (백도어처럼, RAT처럼, 원격 장악), though the same capabilities aimed at someone else's machine
+  (like a backdoor, like a RAT, remote takeover), though the same capabilities aimed at someone else's machine
   would be an attack. What decides it is whose machine it is and whether the owner is in on it:
   the speaker's own device, or one administered with the owner's knowledge and consent, is
   administration; a machine not the speaker's, entered without the owner knowing
-  (남의 기계에 몰래, 걔 모르게), is category 1.
+  (secretly on someone else's machine, without them knowing), is category 1.
 - Talking or asking ABOUT security, a breach in the news, defending against attacks, or that a
   safety gate exists or misfires, with no order, usable finding or working bypass.
 - A site, company, system or tool named on its own, with no order to attack it and no finding
   from having done so.
 - Saying THAT an intrusion request was made or a test was run, without reproducing the order or
-  finding: 그 방에 해킹 요청이 들어왔다, 지난주 침해 사고를 조사했다, 그 사이트 점검해봤다. Only
+  finding: a hacking request came into that room, I investigated last week's breach, I checked that site. Only
   a reproduced order, finding or bypass recipe is defused.
 - Genuinely ambiguous wording where you cannot tell intrusion material from ordinary talk. An
   imperative plainly telling someone to break in, a finding plainly saying where a real target is

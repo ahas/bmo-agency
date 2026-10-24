@@ -503,6 +503,50 @@ pub fn instruction_line(instruction: &Value) -> String {
   )
 }
 
+/// An instruction's lines as the gate's reference road reads them: its repository and each document,
+/// sentence and check, one a line.
+fn instruction_lines(instruction: &Value) -> Vec<String> {
+  let mut lines = Vec::new();
+
+  if let Some(repository) = instruction["repository"].as_str() {
+    lines.push(repository.to_owned());
+  }
+
+  for field in INSTRUCTION_LISTS {
+    lines.extend(entries(instruction, field).into_iter().map(str::to_owned));
+  }
+
+  lines
+}
+
+/// A prompt with the reference the gate picked attached, its entries under a heading of their own, each
+/// named by its path and source; the prompt stands alone where no entry was picked.
+fn with_reference(prompt: &str, entries: &[bmo_gate_client::Entry]) -> String {
+  crate::peers::gate::attach(prompt, entries)
+}
+
+/// The prompt a job's worker is given, with the reference the gate picked over the job's instruction
+/// attached ahead of the run; a job with no instruction, or a gate that picks nothing, stands as it was.
+async fn referenced(ground: &Ground, instruction: Option<&Value>, prompt: &str) -> String {
+  let Some(instruction) = instruction.filter(|instruction| !instruction.is_null()) else {
+    return prompt.to_owned();
+  };
+  let lines = instruction_lines(instruction);
+
+  if lines.is_empty() {
+    return prompt.to_owned();
+  }
+
+  match ground.peers.gate.reference(lines).await {
+    Ok(entries) => with_reference(prompt, &entries),
+    Err(why) => {
+      eprintln!("job: the gate's reference was not picked: {why}");
+
+      prompt.to_owned()
+    }
+  }
+}
+
 /// The prompt a job's worker is given: the item as the harness read it, its instruction first where it
 /// carries one.
 fn prompt_of(item: &Value, instruction: Option<&Value>) -> String {
@@ -773,6 +817,10 @@ async fn launched(
   let Some(sessions) = sessions else {
     return Err("agency stands no places to carry sessions on".to_owned());
   };
+
+  // The gate picks the reference a job's instruction calls for, and the run carries it in its first
+  // prompt; a job with no instruction stands as it was.
+  let prompt = referenced(ground, member.get("instruction"), &prompt).await;
 
   let session = sessions
     .start(Start {

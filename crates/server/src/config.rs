@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 use harness_providers::Machine;
 use policy::deployment::{DEPLOYMENT_NAMES, Deployment};
 
-use crate::peers::{PeerAddress, brain, node};
+use crate::peers::{PeerAddress, brain, gate, node};
 
 /// The configuration a process runs under.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -91,6 +91,7 @@ impl Trees {
 pub struct PeerAddresses {
   pub node: Option<PeerAddress>,
   pub brain: Option<PeerAddress>,
+  pub gate: Option<gate::GateAddress>,
   /// The account key a brain agency makes is filed under, none where the deployment names none.
   pub brain_account: Option<String>,
 }
@@ -104,6 +105,7 @@ impl Config {
       peers: PeerAddresses {
         node: PeerAddress::read(&node::ADDRESS, &variable)?,
         brain: PeerAddress::read(&brain::ADDRESS, &variable)?,
+        gate: gate::GateAddress::read(&variable)?,
         brain_account: variable(brain::ACCOUNT)
           .map(|value| value.trim().to_owned())
           .filter(|value| !value.is_empty()),

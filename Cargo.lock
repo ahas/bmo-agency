@@ -11,6 +11,7 @@ dependencies = [
  "agent-session",
  "axum",
  "bmo-agency-client",
+ "bmo-gate-client",
  "cache-siren",
  "chrono",
  "clap",
@@ -54,6 +55,7 @@ dependencies = [
  "bmo-brain-client",
  "bmo-cache-warmer-schedule",
  "bmo-chat",
+ "bmo-gate-client",
  "bmo-node-client",
  "bmo-pocket-client",
  "brush-parser",
@@ -421,6 +423,21 @@ dependencies = [
  "serde_json",
  "strum 0.28.0",
  "tokio",
+]
+
+[[package]]
+name = "bmo-gate-client"
+version = "0.16.1"
+dependencies = [
+ "futures-util",
+ "gate-codes",
+ "reqwest",
+ "schemars",
+ "serde",
+ "serde_json",
+ "sse-stream",
+ "thiserror 2.0.21",
+ "url",
 ]
 
 [[package]]
@@ -1206,6 +1223,10 @@ dependencies = [
  "pin-project-lite",
  "slab",
 ]
+
+[[package]]
+name = "gate-codes"
+version = "0.16.1"
 
 [[package]]
 name = "generic-array"

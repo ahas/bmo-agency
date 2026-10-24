@@ -1,7 +1,7 @@
 ---
 name: "researching-and-benching"
 version: "1.1.0"
-description: "How a job researches, benches or tunes something the lab runs — an engine, a model, a library, a card, a setting: the maker's own material first, then what the lab can do with it, then measurement; every option tried until none the job can try is left, with none handed back to the owner and no interim report; one final document in the deployment's 아카이브, reported once its narration is spoken; and the bench lock released before the report. Use before the first step of any item that measures, compares, tunes or researches something to run on the lab's machines."
+description: "How a job researches, benches or tunes something the lab runs — an engine, a model, a library, a card, a setting: the maker's own material first, then what the lab can do with it, then measurement; every option tried until none the job can try is left, with none handed back to the owner and no interim report; one final document in the deployment's archive, reported once its narration is spoken; and the bench lock released before the report. Use before the first step of any item that measures, compares, tunes or researches something to run on the lab's machines."
 ---
 
 # Researching and benching
@@ -37,7 +37,7 @@ flowchart TD
   adopted or rejected with its reason. A candidate a result turns up joins the list. The work stops
   only when no option a job can try now is left, never after the first measurement.
 - **An option no job can try now** — hardware not yet in the lab, infrastructure only the owner changes, a
-  purchase — is not tried. It goes into the document under 나중에 할 수 있는 선택지 with the effect
+  purchase — is not tried. It goes into the document under options for later with the effect
   expected and what it needs, and the work carries on with the rest.
 - **The document is built as the work goes.** Its working copy is kept in the item's own folder
   under the workbench, which outlives the job, each option's order, measurement, verdict and reason
@@ -64,12 +64,12 @@ flowchart TD
 
 ## The final document
 
-- **A deep dive in the deployment's 아카이브,** filed with `artifact_file` and its narration
+- **A deep dive in the deployment's archive,** filed with `artifact_file` and its narration
   attached as the `asking-the-owner` skill says: what the maker states first, then the method, the raw
   material, the tables and figures, the reasoning behind the verdict, the configuration adopted, and
   the options for later.
 - **What is still open is only what no job can reach now,** each with what puts it there. A value a
-  job could have measured is measured, never marked `추정` or `확인 필요`.
+  job could have measured is measured, never marked `estimated` or `needs checking`.
 - **The narration** is written by the rules of a deep dive's, `deep-dives.md` 「The narration」.
 - **It is reported only once its voice is ready.** Speak the narration through the voice engine and,
   marked as the `marking-a-wait` skill says, wait until its synthesis is done. Then attach the sound

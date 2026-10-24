@@ -1,4 +1,4 @@
-# Formatting judgement (서식 판단)
+# Formatting judgement (the fold judgement)
 
 - The rulebook that decides whether a message people read is folded.
 - Answers are written in markdown; code turns them into the room's dialect, and then, for a dialect

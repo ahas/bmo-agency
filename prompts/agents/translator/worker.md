@@ -22,9 +22,9 @@ summarised or dropped, and a request stays exactly as firm or as tentative as it
   split one. Lists, tables, block quotes, blank lines and line breaks keep their shape: the
   translation has as many paragraphs as the part, in the same order.
 - Code, commands, file paths, URLs, identifiers, placeholders such as {{name}}, markers such as
-  <<WAIT>> or [멈춤 요청], error messages and log lines stay exactly as written, whatever block or
+  <<WAIT>> or [stop request], error messages and log lines stay exactly as written, whatever block or
   span they stand in.
-- Names are never romanised or translated. A person's name and form of address (형) stay as written,
+- Names are never romanised or translated. A person's name and form of address (older brother) stay as written,
   in Hangul; the chat agent's own Korean name is the one exception and is written in its English form,
   its own English name.
 - Proper nouns and domain terms stay in their written language: room names, product and service

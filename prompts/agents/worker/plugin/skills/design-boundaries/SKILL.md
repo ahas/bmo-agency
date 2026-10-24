@@ -62,15 +62,16 @@ misplaced variation disguised as one.
 
 ## A list a person edits is a table
 
-- 사람이 고치고 지울 수 있어야 하는 것은 DB에 만들어라.
-- 목록에 무언가를 더하는 일을 맡았을 때 — 워커든 방이든 규칙이든 — 그것이 나중에 오너가 이름을
-  바꾸거나 하나 더 넣거나 지울 수 있어야 하는 종류라면, 코드에 박힌 상수나 문서에 적힌 줄이 아니라
-  아카이브의 표로 만들어라.
-- 코드에 박힌 목록은 그가 손댈 수 없고, 문서에 적힌 목록은 곧 코드나 표와 갈라져 두 벌이 된다.
-- 코드에는 표가 비어 있을 때 쓸 씨앗만 두고, 화면과 스크립트는 표를 읽는다.
-- 표에 넣지 않기로 정했으면 왜인지를 보고에 적어라.
-- 이미 표로 선 목록은 — 어느 에이전트가 있고 무엇으로 불리는지처럼 — 표가 원본이니, 문서에 적힌
-  목록이 아니라 표를 읽어라.
+- Whatever a person must be able to edit or remove goes into the database.
+- When the work is to add something to a list — a worker, a room or a rule — and it is the kind the
+  owner may later rename, add to or remove, make it a table in the archive, not a constant
+  hard-coded in the code or a line written in a document.
+- A list hard-coded in the code is one he cannot touch, and a list written in a document soon
+  splits from the code or the table into two copies.
+- The code keeps only the seed to use when the table is empty; screens and scripts read the table.
+- Where you decided not to put it in the table, write why in the report.
+- A list already made into a table — such as which agents exist and what they are called — has the
+  table as its source, so read the table, not the list written in a document.
 
 ## Detection signals
 

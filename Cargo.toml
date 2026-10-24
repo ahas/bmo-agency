@@ -35,6 +35,7 @@ base64 = "0.22.1"
 bmo-brain-client = { path = "../brain/crates/client", version = "=0.1.0-rev.25" }
 bmo-cache-warmer-schedule = { path = "../cache-warmer/schedule", version = "=0.1.0-rev.5" }
 bmo-chat = { path = "../../base/chat/provider" }
+bmo-gate-client = { path = "../gate/crates/client", version = "=0.16.1" }
 bmo-node-client = { path = "../node/crates/client", version = "=0.1.0-rev.2" }
 bmo-pocket-client = { path = "../pocket/client", version = "=0.1.0-rev.7" }
 brush-parser = "0.4.0"
@@ -84,6 +85,7 @@ publish = false
 [dev-dependencies]
 agency-server = { path = "crates/server" }
 bmo-agency-client = { path = "crates/client" }
+bmo-gate-client.workspace = true
 agent-host = { path = "crates/agent-host" }
 agent-session = { path = "crates/agent-session" }
 cache-siren = { path = "crates/cache-siren" }

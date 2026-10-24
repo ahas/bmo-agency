@@ -17,7 +17,7 @@ agent memory stays minimal** — memory is local, not shared across teammates or
 | A working rule of the repository that binds only the work on one part of its tree | A rule file scoped to those paths (`.claude/rules/` with `paths:`), each named with its paths from the root guidance file, so a tool reading the root file alone still finds it |
 | How a worker works in any checkout (when it may speak, the shell it runs in, how it closes a change, what it may not alter) | The worker's own common trailer and the worker's own skills, never a repository's guidance file (「A worker's rule and a repository's」 below) |
 | Design and planning (SSOT for large work in progress) | Design document under `docs/` |
-| A design, a comparison or an explanation put in front of the owner to read or decide on | the deployment's 아카이브, filed the way the `asking-the-owner` skill says — never a page hosted outside it: no claude.ai artifact, no Claude Docs document, no gist, no paste |
+| A design, a comparison or an explanation put in front of the owner to read or decide on | the deployment's archive, filed the way the `asking-the-owner` skill says — never a page hosted outside it: no claude.ai artifact, no Claude Docs document, no gist, no paste |
 | Operational procedures (deployment, restart, bootstrap) | Runbook under `docs/` |
 | Follow-up tasks, bugs, issues | TODO under `docs/` or the issue tracker |
 | Parameters, quality criteria, development pitfalls | Technical note under `docs/` |
@@ -63,7 +63,7 @@ person.
   address; examples of how someone talks; short quotes and every passage quoted from a source;
   domain terms bound to their language (a room's own words, an internal name, a product or statute
   name). Code, commands, paths, links, identifiers and error messages stay as written.
-- **A tilde in the words is written `\~`,** a Korean range ("3\~5개") as much as any other:
+- **A tilde in the words is written `\~`,** a Korean range ("3\~5 items") as much as any other:
   GitHub strikes through the words between two single tildes of one paragraph. A tilde in code or
   a path stands as it is.
 - **A document you touch that is still in another language** is carried into English whole, every

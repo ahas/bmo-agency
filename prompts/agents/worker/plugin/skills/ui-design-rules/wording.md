@@ -24,30 +24,30 @@
 - A Korean sentence uses the word people most commonly say for the thing, whatever its origin: a
   Sino-Korean word, a loanword in its usual Hangul spelling, or a native word, whichever is the one
   in everyday use.
-  - Right: 위치, 질문, 단어, 이유, 툴바, 빌트인, 편집, 수정.
-  - Wrong: a native word or coinage put in place of the common one — "자리" for 위치, "물음" for
-    질문, "낱말" for 단어, "까닭" for 이유, "도구 띠" for 툴바, "붙박이" for 빌트인, "손대기" for 편집.
-- A native word is written where it is the one people say — 파일을 열어, 줄을 바꿔 — and never
+  - Right: location, question, word, reason, toolbar, built-in, edit, revise.
+  - Wrong: a native word or coinage put in place of the common one — "place" for location, "asking" for
+    question, "term" for word, "cause" for reason, "tool strip" for toolbar, "fixed" for built-in, "fiddling" for edit.
+- A native word is written where it is the one people say — open the file, break the line — and never
   because it is native. Plain writing (`prompts/rules/plain-writing.md`) is about how sentences
   read; it is not a preference for native words.
 - The English documents a writer reads are written in English idiom, not in terms: a thing
   "stands" somewhere, holds "a place", is reached by "a road", leaves "a strand". A Korean text
   renders the meaning in the common Korean word, never the English word's native Korean twin.
-  - A place is 위치, a queue's 순서 or a pool's 슬롯; to stand somewhere is 있다 or 표시되다; a
-    road is 경로 or 방법; a strand is one 건 of a list.
+  - A place is location, a queue's order or a pool's slot; to stand somewhere is to be or to be shown; a
+    road is path or method; a strand is one entry of a list.
 - English is not dropped into the middle of a Korean sentence.
-  - Right: "툴바를 눌러". Wrong: "toolbar를 눌러".
+  - Right: "press the toolbar". Wrong: "press toolbar".
 - English stays English only where no Hangul spelling is in common use:
   - Code identifiers, commands, file and path names — `max_tokens`, `bun run test`, `WORDING.md`.
   - Names of products, libraries and protocols — Nuxt UI, SSE, herdr.
-- **A job is Job or 작업 in Korean text, never 잡.** This is the owner's own choice of the word, and it
+- **A job is Job or work in Korean text, never a transliteration of Job.** This is the owner's own choice of the word, and it
   holds wherever the chat agent or a worker writes: an answer, a job's report, a notice, a console label, a
   document's Korean example.
-  - Job where the text names this system's unit of work — Job #123, Job 워커, Job 보고, 다음
-    Job, 실행 중인 Job — and wherever 작업 would read as the TODO item (항목) or as a work order
-    (작업 지시서). A particle follows it as it followed 잡: Job이, Job을, Job은, Job으로.
-  - 작업 where the text means the work itself rather than the unit that runs it.
-  - Spoken, Job is 잡: the voice name table reads it so in a briefing (`docs/voice-plan.md`,
+  - Job where the text names this system's unit of work — Job #123, the Job worker, the Job report, the next
+    Job, the running Job — and wherever work would read as the TODO item or as a work order.
+    A particle follows it as it followed the transliteration: Job-i, Job-eul, Job-eun, Job-euro.
+  - work where the text means the work itself rather than the unit that runs it.
+  - Spoken, Job is said as job: the voice name table reads it so in a briefing (`docs/voice-plan.md`,
     「How names are said」), so a line written with Job is heard the way the owner says it.
 - The list below names the swaps already caught; a word missing from it is held to the same
   principle.
@@ -57,41 +57,41 @@
 - The web console, its language pack and every message a control route hands it to show are
   written by this glossary as well as by the principle above.
 - Each line is `<English concept> → <the Korean UI word>`, with the forms it takes and the forms it
-  replaces. The word stands in every inflection: where the glossary says 삭제, a past tense is
-  삭제했습니다 and a failure 삭제하지 못했습니다.
-- delete → 삭제: 삭제, 삭제했습니다, 삭제하지 못했습니다, 삭제된, 삭제할까요. Never 지우다, 지우기, 지운,
-  지워진, 지움; taking one entry out of a list is 삭제 or 제거, never 빼기.
-- retire, take down → 보관; bringing one back → 복원. Switching a piece in or out of use → 켜기, 끄기.
-  Never 내리기, 올리기.
-- fold (a work order) → 종료. 접기 is only ever a panel folding away, and is written as below.
-- file, stand up (an item) → 만들기: 항목 만들기, 만든 항목, 만들지 못했습니다. Never 세우기, 올리기.
-- ask (a job's question) → 질문, 질문하다: Job의 질문. Never 물다, 물어본 것, 묻기.
-- machine → 기기: 이 기기, 기기 여유. Never 기계.
-- render → 렌더링: 렌더링하지 않는 기간. Never 그리다.
-- message, words → 메시지: 메시지를 보내다, 보낼 메시지. A conversation is 대화, an instruction added
-  to an item is 지시. Never 말, 할 말, 이야기, 말을 걸다.
-- filter, sift → 필터. Never 거르기.
-- page → 페이지. Never 쪽.
-- table → 테이블; row → 행; query → 쿼리, wherever the text is about a database. Never 표, 줄, 질의.
-- default → 기본값. Never 처음 값.
-- section → 섹션. Never 구역.
-- health check → 헬스 체크; the one run before anything changes → 사전 헬스 체크. Never 생존 확인.
-- rollback → 롤백. Never 되돌림.
-- template → 템플릿; coverage → 커버리지; cap → 상한; cooldown → 쿨다운. Never 틀, 덮음, 천장, 휴식.
-- output tokens → 출력; context window → 컨텍스트. Never 답, 창.
-- collapse, expand a panel → 닫기, 열기; collapse, expand in place → 축소, 확장. Never 접기, 펴기, 펼치기.
-- reach a limit → 도달; a match → 일치, 해당; tied to → 연결된. Never 걸리다, 걸린 곳.
-- reach a service → 연결되다: 봇에 연결되지 않아. Never 닿다.
-- request → 요청하다. Never 청하다.
-- choose, pick → 선택: 선택해 주세요, 선택 취소. Never 고르기, 골라 주세요, 물리기.
-- enter text → 입력: 입력해 주세요, {n}자 이내로 입력. Never 적어 주세요.
-- launch, start a run → 실행. Never 띄우다, 뜨다, 발사.
-- stop a run → 중지; pause and resume a timer → 정지, 재개; run out of time → 시간 초과. Never 멈추기,
-  다시 흐르게, 때를 놓침.
-- leave the queue → 대기열에서 제외. Never 대기열에서 빠지다.
-- set by hand → 수동 지정. Never 손으로 정함.
-- **One screen speaks in one style.** A notice, a guidance line and an error end in 합니다 and
-  했습니다 throughout; 어요 is never mixed into them.
+  replaces. The word stands in every inflection: where the glossary says delete, a past tense is
+  deleted and a failure could not delete.
+- delete → delete: delete, deleted, could not delete, deleted, delete it?. Never erase, erasing, erased,
+  erased, erasing; taking one entry out of a list is delete or remove, never subtract.
+- retire, take down → archive; bringing one back → restore. Switching a piece in or out of use → on, off.
+  Never take down, bring up.
+- fold (a work order) → end. Folding is only ever a panel folding away, and is written as below.
+- file, stand up (an item) → create: create item, created item, could not create. Never stand up, bring up.
+- ask (a job's question) → question: the Job's question. Never query, asking.
+- machine → device: this device, device headroom. Never machine.
+- render → rendering: the period without rendering. Never draw.
+- message, words → message: send a message, the message to send. A conversation is a conversation, an instruction added
+  to an item is an instruction. Never talk, words to say, story, strike up a talk.
+- filter, sift → filter. Never sifting.
+- page → page. Never leaf.
+- table → table; row → row; query → query, wherever the text is about a database. Never grid, line, inquiry.
+- default → default. Never first value.
+- section → section. Never area.
+- health check → health check; the one run before anything changes → pre-change health check. Never survival check.
+- rollback → rollback. Never undo.
+- template → template; coverage → coverage; cap → cap; cooldown → cooldown. Never frame, covering, ceiling, rest.
+- output tokens → output; context window → context. Never answer, window.
+- collapse, expand a panel → close, open; collapse, expand in place → shrink, expand. Never fold, spread, unfold.
+- reach a limit → reach; a match → match; tied to → connected. Never caught, caught place.
+- reach a service → connected: not connected to the bot. Never touch.
+- request → request. Never ask.
+- choose, pick → choose: please choose, undo the choice. Never picking, please pick, undo.
+- enter text → enter: please enter, enter within {n} characters. Never please write.
+- launch, start a run → run. Never float, rise, fire.
+- stop a run → stop; pause and resume a timer → pause, resume; run out of time → time out. Never stopping,
+  flowing again, missing the moment.
+- leave the queue → remove from the queue. Never fall out of the queue.
+- set by hand → set by hand. Never set by hand literally.
+- **One screen speaks in one style.** A notice, a guidance line and an error end in the same polite
+  form throughout; a casual form is never mixed into them.
 - **No dash between words.** A range is written `{min}~{max}`; a caveat on a title stands on its
   own smaller line, or after a ` · `.
 
@@ -104,107 +104,107 @@
 - The banned term is matched as written, spaces included, so a spacing variant is a line of its
   own.
 - A Korean term is matched only where it stands at the head of its word: a syllable running into
-  it from the left makes it part of another word, so 되돌리기 is not 돌리기 and 한도는 is not 도는.
+  it from the left makes it part of another word, so rewind is not wind and limit is not it.
   What follows it is not asked about, since a particle or an ending there leaves the word its own.
 - One line per ending in use, rather than a stem standing for a family, so that the line can say
   what to write in that ending's place.
-- 돌려 is not listed: 돌려주다 and 돌려보내다 are their own verbs and share the spelling. Where it
-  means running something, write 실행해 — 실행해 둔 채, 두 번 실행해도, 한 줄만 실행해 주면.
-- 돈 and 돌아 are not listed either: 돈 is money and 돌아오다 and 돌아가다 are their own verbs. Where
-  either means running something, write 실행 — 실행된 Job, 뜨지 못한 실행.
-- 나무 alone is not listed: 나무위키 and 나무집 are names. Where it stands for a tree of files, folders
-  or nodes, write 트리, and each such phrase is a line below.
-- 마디 is listed alone, since 한마디 is its own word and the word-head rule leaves it be; it is
+- running is not listed: return and send back are their own verbs and share the spelling. Where it
+  means running something, write run — left running, run twice, run just one line.
+- money and return are not listed either: money is money and come back and go back are their own verbs. Where
+  either means running something, write run — the Job that ran, a run that never started.
+- tree alone is not listed: Namuwiki and tree house are names. Where it stands for a tree of files, folders
+  or nodes, write tree, and each such phrase is a line below.
+- node is listed alone, since one word is its own word and the word-head rule leaves it be; it is
   written without a space.
-- 자리 is listed alone and banned where it stands for a position, a slot or a part of a text or of
+- place is listed alone and banned where it stands for a position, a slot or a part of a text or of
   code; the phrases in which it keeps its own sense, a seat or a digit, are listed under
-  「Uses in the word's own sense」. 제자리, 빈자리 and 일자리 are words of their own, and the
+  「Uses in the word's own sense」. In place, empty place and workplace are words of their own, and the
   word-head rule leaves them be.
-- 길 is not listed alone: 길이 and 길다 share it. Where it means a route or a way of doing
-  something, write 경로 or 방법, and each phrase in use is a line below.
-- 잡 is listed alone, since a job written 잡 takes the same particles the verb 잡다 takes. The
-  verb's own endings, the words that open with it (잡음, 잡담, 잡지) and 잡 following an object
-  (을 잡, 를 잡) are listed under 「Uses in the word's own sense」; 손잡이 and 붙잡다 are left be by
-  the word-head rule. 잡은 and 잡을 with no object before them read as a job, so the verb is
+- way is not listed alone: length and long share it. Where it means a route or a way of doing
+  something, write path or method, and each phrase in use is a line below.
+- job is listed alone, since a job written as the transliteration takes the same particles the verb to catch takes. The
+  verb's own endings, the words that open with it (noise, chat, magazine) and the transliteration following an object
+  (catching it, catching it) are listed under 「Uses in the word's own sense」; handle and grasp are left be by
+  the word-head rule. The transliteration with a particle and with no object before it reads as a job, so the verb is
   written there with its object.
-- 판 is not listed alone: 판정, 판단 and 판매 open with it, and a round of a game is 한 판. Where it
-  means a version, write 버전 — the console labels an installed commit 버전 — and each phrase in
-  use is a line below. A phrase line matches 판정, 판단 and 판매 after it too, so each of those it
+- version is not listed alone: judgement, decision and sale open with it, and a round of a game is one round. Where it
+  means a version, write version — the console labels an installed commit a version — and each phrase in
+  use is a line below. A phrase line matches judgement, decision and sale after it too, so each of those it
   meets in use is listed under 「Uses in the word's own sense」.
 
-- ko · 도구 띠 → 툴바
-- ko · 도구띠 → 툴바
-- ko · 붙박이 → 빌트인
-- ko · 손대기 → 수정, 편집, 정정
-- ko · 고치기 → 수정, 편집, 정정 — when it means editing; where it means a repair, the use is written under the allowed uses
-- ko · 지시서 접기 → 지시서 종료 — 접기 means folding a panel away, never ending a thing
-- ko · 건너뛰고 접기 → 건너뛰고 종료
-- ko · 접는 중인 지시서 → 종료 중인 지시서
-- ko · 접는 중이라 → 종료 중이라
-- ko · 있어 접지 않습니다 → 있어 종료하지 않습니다
-- ko · 다시 읽기 → 새로고침 — a control or notice that fetches a screen's data again
-- ko · 다시 읽는 중 → 새로고침 중
-- ko · 돌리기 → 실행 — running a thing is 실행: 협업으로 돌리기 is 협업으로 실행, 다시 돌리기 is 다시 실행
-- ko · 돌기 → 실행 — when it means running something
-- ko · 돌리는 → 실행하는
-- ko · 돌리지 → 실행하지
-- ko · 돌리고 → 실행하고
-- ko · 돌리며 → 실행하며
-- ko · 돌리게 → 실행하게
-- ko · 돌리거나 → 실행하거나
-- ko · 돌리려면 → 실행하려면
-- ko · 돌린 → 실행한 — 돌린다 with it
-- ko · 돌릴 → 실행할
-- ko · 돌립니다 → 실행합니다
-- ko · 돌렸 → 실행했
-- ko · 돎 → 실행됨 — 협업으로 돎 is 협업 실행됨
-- ko · 도는 → 실행 중인, 실행되는
-- ko · 돌고 → 실행 중이고, 실행되고 — 돌고 있습니다 is 실행 중입니다
-- ko · 돈다 → 실행된다
-- ko · 돌았 → 실행됐
-- ko · 돌면 → 실행되면
-- ko · 검색 문서 → 아카이브 — the space every kept document stands in, whoever wrote it; one document in it is 아카이브 문서, or 문서
-- ko · 까닭 → 이유, 사유, 원인 — 이유 for why a thing is or was so; 사유 for the reason a person gives for stopping, skipping, ending or taking down a thing, so 접는 까닭 is 종료 사유 and 중지하는 까닭 is 중지 사유; 원인 for what made a thing fail
-- ko · 파일 나무 → 파일 트리
-- ko · 폴더 나무 → 폴더 트리
-- ko · 나무 구조 → 트리 구조
-- ko · 마디 → 노드, 턴 — 노드 for a node of a graph or a tree, 턴 for a turn of a conversation: {n}마디 is {n}턴
-- ko · 갈래 → 브랜치, 종류, 분류, 번호 — 브랜치 for a branch of a search, a co-work or a workflow; 종류 for a kind of thing, as in <종류>:<id>; 분류 for a group things are counted under; 번호 for one numbered part of a 미결, as in 미결 2번; where it means splitting, 둘로 나누기
-- ko · 곁가지 → 코워커 — a co-worker's run out of the pool is a co-worker's, whichever road it came by: a co-work task, a search's branch or a job's own call
-- ko · 자리 → 위치, 부분, 지점, 슬롯, 순서, 바로 — 위치 for where a thing is or goes, so 이 자리 is 이 위치 and 원래 자리 is 원래 위치; 부분 or 코드 for the part of a text or of code that does something, so 읽는 자리 is 읽는 부분; 지점 for where a run stopped; 슬롯 for a place a pool or a worker holds, so 코워커 자리 is 코워커 슬롯; 순서 for an item's place in a queue; 바로 or 즉시 for 그 자리에서 meaning at once; where it means a matter that is someone's, as in 오너가 정할 자리다, 일
-- ko · 낱말 → 단어
-- ko · 물음 → 질문
-- ko · 머리말 → 헤더, 서두
-- ko · 꼬리말 → 푸터, 끝부분
-- ko · 토막 → 부분, 단락, 구간 — 세 토막 양식 is 세 부분 양식
-- ko · 갈무리 → 캡처, 저장
-- ko · 길목 → 경로, 지점
-- ko · 같은 길로 → 같은 경로로, 같은 방법으로
-- ko · 같은 길을 → 같은 경로를, 같은 방법을
-- ko · 다른 길로 → 다른 경로로, 다른 방법으로
-- ko · 다른 길을 → 다른 경로를, 다른 방법을
-- ko · 문턱 → 임계값, 기준 — 95% 문턱 is 95% 임계값
-- ko · 값어치 → 가치
-- ko · 짜임 → 구조, 구성
-- ko · 가닥 → 건, 항목 — 미결 3가닥 is 미결 3건
-- ko · 콘솔 글자 → 콘솔 문구
-- ko · 화면 글자 → 화면 문구
-- ko · 잡 → Job, 작업 — a job: Job where the text names the unit of work, so 잡 #123 is Job #123, 잡 워커 is Job 워커 and 실행 중인 잡 is 실행 중인 Job; 작업 where it means the work itself
-- ko · 데이터 집합 → 데이터셋, 데이터 세트 — a set of data
-- ko · 대체 불가능한 토큰 → NFT — a non-fungible token
-- ko · 상향 판매 → 업셀링, 업셀 — selling a customer a costlier or added product
-- ko · 위도 풀다운 → 랫풀다운, 랫 풀다운 — the gym exercise, lat read as latitude
-- ko · 하위 레딧 → 서브레딧 — a community on Reddit
-- ko · 새 판 올리 → 새 버전 올리 — a version: 새 판 올리느라 is 새 버전 올리느라
-- ko · 판을 올리 → 버전을 올리
-- ko · 판이 올라 → 버전이 올라
-- ko · 판으로 올 → 버전으로 올
-- ko · 같은 판 → 같은 버전
-- ko · 이전 판 → 이전 버전
-- ko · 커밋의 판 → 커밋의 버전
-- ko · 받은 판 → 받은 버전
-- ko · 판 번호 → 버전 번호
-- ko · 발사 → 실행, 시작 — launch read word for word: launching a unit, a run, a search or a session is 실행, and its first moment 시작
+- ko · tool strip → toolbar
+- ko · toolstrip → toolbar
+- ko · fixed → built-in
+- ko · fiddling → edit, revise, correct
+- ko · fixing → edit, revise, correct — when it means editing; where it means a repair, the use is written under the allowed uses
+- ko · folding a work order → ending a work order — folding means folding a panel away, never ending a thing
+- ko · skip and fold → skip and end
+- ko · work order being folded → work order being ended
+- ko · being folded → being ended
+- ko · still folding → still ending
+- ko · re-read → refresh — a control or notice that fetches a screen's data again
+- ko · re-reading → refreshing
+- ko · running → run — running a thing is run: running as co-work is run as co-work, running again is run again
+- ko · turning → run — when it means running something
+- ko · running (form) → running (form)
+- ko · not running (form) → not running (form)
+- ko · and running (form) → and running (form)
+- ko · while running (form) → while running (form)
+- ko · so as to run → so as to run
+- ko · or run → or run
+- ko · to run → to run
+- ko · ran → ran — with it
+- ko · to run (future) → to run (future)
+- ko · runs (polite) → runs (polite)
+- ko · ran (polite) → ran (polite)
+- ko · being run → being run — co-work being run is co-work run
+- ko · running (progressive) → running, being run
+- ko · and running (progressive) → running, and being run — is running is is in progress
+- ko · runs → runs
+- ko · ran (plain) → was run
+- ko · if it runs → if it runs
+- ko · search document → archive — the space every kept document stands in, whoever wrote it; one document in it is an archive document, or document
+- ko · cause → reason, ground, cause — reason for why a thing is or was so; ground for the reason a person gives for stopping, skipping, ending or taking down a thing, so the cause of folding is the ground for ending and the cause of stopping is the ground for stopping; cause for what made a thing fail
+- ko · file tree (native) → file tree
+- ko · folder tree (native) → folder tree
+- ko · tree structure (native) → tree structure
+- ko · node (native) → node, turn — node for a node of a graph or a tree, turn for a turn of a conversation: {n} nodes is {n} turns
+- ko · branch (native) → branch, kind, group, number — branch for a branch of a search, a co-work or a workflow; kind for a kind of thing, as in <kind>:<id>; group for a group things are counted under; number for one numbered part of an unfinished note, as in unfinished note 2; where it means splitting, split in two
+- ko · offshoot → co-worker — a co-worker's run out of the pool is a co-worker's, whichever road it came by: a co-work task, a search's branch or a job's own call
+- ko · place → location, part, point, slot, order, at once — location for where a thing is or goes, so this place is this location and the original place is the original location; part or code for the part of a text or of code that does something, so the reading place is the reading part; point for where a run stopped; slot for a place a pool or a worker holds, so a co-worker place is a co-worker slot; order for an item's place in a queue; at once or immediately for on the spot meaning at once; where it means a matter that is someone's, as in it is the owner's place to decide, matter
+- ko · term (native) → word
+- ko · asking → question
+- ko · head word → header, opening
+- ko · tail word → footer, end
+- ko · chunk → part, paragraph, section — a three-chunk form is a three-part form
+- ko · keeping → capture, save
+- ko · route point → path, point
+- ko · the same way (native) → the same path, the same method
+- ko · the same way, object (native) → the same path, the same method
+- ko · another way (native) → another path, another method
+- ko · another way, object (native) → another path, another method
+- ko · threshold (native) → threshold, criterion — a 95% threshold is a 95% threshold
+- ko · worth → value
+- ko · weave → structure, composition
+- ko · strand → one, item — 3 unfinished strands is 3 unfinished items
+- ko · console letters → console wording
+- ko · screen letters → screen wording
+- ko · job (transliteration) → Job, work — a job: Job where the text names the unit of work, so job #123 is Job #123, job worker is the Job worker and the running job is the running Job; work where it means the work itself
+- ko · data set (native) → dataset, data set — a set of data
+- ko · irreplaceable token → NFT — a non-fungible token
+- ko · upward selling → upselling, upsell — selling a customer a costlier or added product
+- ko · latitude pulldown → lat pulldown — the gym exercise, lat read as latitude
+- ko · sub-reddit (native) → subreddit — a community on Reddit
+- ko · put up a new version (native) → put up a new version — a version: putting up a new version is putting up a new version
+- ko · put the version up → put the version up
+- ko · the version went up → the version went up
+- ko · up to the version → up to the version
+- ko · the same version (native) → the same version
+- ko · the previous version (native) → the previous version
+- ko · the commit's version (native) → the commit's version
+- ko · the received version (native) → the received version
+- ko · version number → version number
+- ko · fire → run, start — launch read word for word: launching a unit, a run, a search or a session is run, and its first moment start
 
 ## Uses in the word's own sense
 
@@ -214,81 +214,81 @@
   ` — <the sense it keeps>`. The phrase is matched as written, spaces included, around the term.
 - A phrase that does not hold its term, or names a term not banned above, is refused.
 
-- ko · 자리 · 자리를 비 — a seat left empty: 자리를 비우다, 자리를 비웠어
-- ko · 자리 · 자리 비 — a seat left empty: 자리 비움
-- ko · 자리 · 자리에 앉 — a seat
-- ko · 자리 · 앉을 자리 — a seat
-- ko · 자리 · 앉은 자리 — a seat
-- ko · 자리 · 앉는 자리 — a seat
-- ko · 자리 · 자리에서 일어나 — a seat
-- ko · 자리 · 자리를 뜨 — leaving where one sat
-- ko · 자리 · 자리를 지키 — staying where one is
-- ko · 자리 · 자리를 지켜 — staying where one is
-- ko · 자리 · 자리 지켜 — staying where one is
-- ko · 자리 · 자리 예약 — a seat booked
-- ko · 자리 · 창가 자리 — a seat
-- ko · 자리 · 식사 자리 — a gathering
-- ko · 자리 · 회식 자리 — a gathering
-- ko · 자리 · 모임 자리 — a gathering
-- ko · 자리 · 자리 숫자 — a digit
-- ko · 자리 · 자리 수 — a count of digits
-- ko · 자리 · 자리 코드 — a code of so many digits
-- ko · 자리 · 자리 번호 — a number of so many digits
-- ko · 자리 · 째 자리 — a decimal place
-- ko · 자리 · 자리매김 — its own word
-- ko · 물음 · 물음표 — the question mark
-- ko · 토막 · 토막잠 — its own word
-- ko · 문턱 · 문턱이 낮 — a barrier to entry
-- ko · 문턱 · 문턱이 높 — a barrier to entry
-- ko · 문턱 · 문턱을 넘 — a threshold crossed
-- ko · 가닥 · 가닥을 잡 — getting the gist
-- ko · 가닥 · 가닥이 잡 — getting the gist
-- ko · 잡 · 을 잡 — the verb 잡다 after its object
-- ko · 잡 · 를 잡 — the verb 잡다 after its object
-- ko · 잡 · 잡아 — the verb 잡다
-- ko · 잡 · 잡았 — the verb 잡다
-- ko · 잡 · 잡고 — the verb 잡다
-- ko · 잡 · 잡는 — the verb 잡다
-- ko · 잡 · 잡느라 — the verb 잡다
-- ko · 잡 · 잡다 — the verb 잡다, and 잡다한
-- ko · 잡 · 잡게 — the verb 잡다
-- ko · 잡 · 잡기 — the verb 잡다
-- ko · 잡 · 잡자 — the verb 잡다
-- ko · 잡 · 잡던 — the verb 잡다
-- ko · 잡 · 잡습니 — the verb 잡다
-- ko · 잡 · 잡으면 — the verb 잡다
-- ko · 잡 · 잡으려 — the verb 잡다
-- ko · 잡 · 잡으며 — the verb 잡다
-- ko · 잡 · 잡으므로 — the verb 잡다
-- ko · 잡 · 잡으니 — the verb 잡다
-- ko · 잡 · 잡으세요 — the verb 잡다
-- ko · 잡 · 잡을 수 — the verb 잡다
-- ko · 잡 · 잡을게 — the verb 잡다
-- ko · 잡 · 잡을까 — the verb 잡다
-- ko · 잡 · 잡히 — the verb 잡히다
-- ko · 잡 · 잡혀 — the verb 잡히다
-- ko · 잡 · 잡힌 — the verb 잡히다
-- ko · 잡 · 잡힐 — the verb 잡히다
-- ko · 잡 · 잡혔 — the verb 잡히다
-- ko · 잡 · 잡힘 — the verb 잡히다
-- ko · 잡 · 잡지 — the verb 잡다, and a magazine
-- ko · 잡 · 잡음 — noise, and a slot held
-- ko · 잡 · 잡담 — its own word
-- ko · 잡 · 잡일 — its own word
-- ko · 잡 · 잡무 — its own word
-- ko · 잡 · 잡념 — its own word
-- ko · 잡 · 잡초 — its own word
-- ko · 잡 · 잡화 — its own word
-- ko · 잡 · 잡동사니 — its own word
-- ko · 같은 판 · 같은 판정 — a judgement
-- ko · 같은 판 · 같은 판단 — a judgement
-- ko · 같은 판 · 같은 판매 — a sale
-- ko · 이전 판 · 이전 판정 — a judgement
-- ko · 이전 판 · 이전 판단 — a judgement
-- ko · 이전 판 · 이전 판매 — a sale
-- ko · 받은 판 · 받은 판정 — a judgement
-- ko · 받은 판 · 받은 판단 — a judgement
-- ko · 커밋의 판 · 커밋의 판단 — a judgement
+- ko · place · leaving a place — a seat left empty: leave a seat, left a seat
+- ko · place · a place left — a seat left empty: a seat left
+- ko · place · sitting at a place — a seat
+- ko · place · a place to sit — a seat
+- ko · place · a place one sat — a seat
+- ko · place · a place one sits — a seat
+- ko · place · get up from a place — a seat
+- ko · place · leaving a place — leaving where one sat
+- ko · place · keeping a place — staying where one is
+- ko · place · keeping a place (form) — staying where one is
+- ko · place · keep the place — staying where one is
+- ko · place · seat reservation — a seat booked
+- ko · place · window place — a seat
+- ko · place · meal gathering — a gathering
+- ko · place · company gathering — a gathering
+- ko · place · meet-up — a gathering
+- ko · place · place digit — a digit
+- ko · place · place count — a count of digits
+- ko · place · place code — a code of so many digits
+- ko · place · place number — a number of so many digits
+- ko · place · -th place — a decimal place
+- ko · place · positioning — its own word
+- ko · asking · question mark — the question mark
+- ko · chunk · a nap — its own word
+- ko · threshold · a low threshold — a barrier to entry
+- ko · threshold · a high threshold — a barrier to entry
+- ko · threshold · crossing the threshold — a threshold crossed
+- ko · strand · getting the strand — getting the gist
+- ko · strand · the strand is got — getting the gist
+- ko · job · catching it — the verb to catch after its object
+- ko · job · catching it (form) — the verb to catch after its object
+- ko · job · catch — the verb to catch
+- ko · job · caught — the verb to catch
+- ko · job · catching — the verb to catch
+- ko · job · catching (form) — the verb to catch
+- ko · job · catching up — the verb to catch
+- ko · job · to catch — the verb to catch, and trivial
+- ko · job · so as to catch — the verb to catch
+- ko · job · catching (noun) — the verb to catch
+- ko · job · let's catch — the verb to catch
+- ko · job · was catching — the verb to catch
+- ko · job · catches (polite) — the verb to catch
+- ko · job · if it catches — the verb to catch
+- ko · job · so as to catch (form) — the verb to catch
+- ko · job · while catching — the verb to catch
+- ko · job · since it catches — the verb to catch
+- ko · job · as it catches — the verb to catch
+- ko · job · please catch — the verb to catch
+- ko · job · can catch — the verb to catch
+- ko · job · will catch — the verb to catch
+- ko · job · shall I catch — the verb to catch
+- ko · job · is caught — the verb to be caught
+- ko · job · being caught — the verb to be caught
+- ko · job · caught (passive) — the verb to be caught
+- ko · job · will be caught — the verb to be caught
+- ko · job · was caught (passive) — the verb to be caught
+- ko · job · being caught (noun) — the verb to be caught
+- ko · job · does not catch — the verb to catch, and a magazine
+- ko · job · noise — noise, and a slot held
+- ko · job · chat — its own word
+- ko · job · chores — its own word
+- ko · job · odd jobs — its own word
+- ko · job · idle thought — its own word
+- ko · job · weeds — its own word
+- ko · job · sundries — its own word
+- ko · job · odds and ends — its own word
+- ko · same version · same judgement — a judgement
+- ko · same version · same decision — a judgement
+- ko · same version · same sale — a sale
+- ko · previous version · previous judgement — a judgement
+- ko · previous version · previous decision — a judgement
+- ko · previous version · previous sale — a sale
+- ko · received version · received judgement — a judgement
+- ko · received version · received decision — a judgement
+- ko · the commit's version · the commit's decision — a judgement
 
 ## Allowed uses
 
@@ -298,70 +298,70 @@
 - An allowed use that no longer matches any line is itself reported, so the list does not outlive
   the text it excused.
 
-- ko · 도구 띠 · prompts/agents/worker/trailer.md · "도구 띠"; 빌트인 — the worker's statement of this principle, naming the wrong form
-- ko · 붙박이 · prompts/agents/worker/trailer.md · 빌트인, not "붙박이" — the worker's statement of this principle, naming the wrong form
-- ko · 손대기 · prompts/agents/worker/trailer.md · not "손대기" — the worker's statement of this principle, naming the wrong form
-- ko · 다시 읽기 · graph/docs.json · 다시 읽기 -> 새로고침이 맞음 — the owner's own words kept as a graph alias, naming the wrong form
-- ko · 도구 띠 · prompts/agents/chat/manual.md · 툴바, not "도구 띠" — the chat's statement of this principle, naming the wrong form
-- ko · 붙박이 · prompts/agents/chat/manual.md · 빌트인, not "붙박이" — the chat's statement of this principle, naming the wrong form
-- ko · 손대기 · prompts/agents/chat/manual.md · not "손대기" or "고치기" — the chat's statement of this principle, naming the wrong form
-- ko · 고치기 · prompts/agents/chat/manual.md · not "손대기" or "고치기" — the chat's statement of this principle, naming the wrong form
-- ko · 도구띠 · prompts/agents/worker/plugin/skills/ui-design-rules/SKILL.md · '도구띠', — the skill's statement of this principle, naming the wrong form
-- ko · 자리 · prompts/agents/worker/plugin/skills/ui-design-rules/SKILL.md · wrong: '자리', — the skill's statement of this principle, naming the wrong form
-- ko · 자리 · prompts/agents/worker/trailer.md · 위치, not "자리" — the worker's statement of this principle, naming the wrong form
-- ko · 물음 · prompts/agents/worker/trailer.md · 질문, not "물음" — the worker's statement of this principle, naming the wrong form
-- ko · 자리 · prompts/agents/chat/manual.md · 위치, not "자리" — the chat's statement of this principle, naming the wrong form
-- ko · 물음 · prompts/agents/chat/manual.md · 질문, not "물음" — the chat's statement of this principle, naming the wrong form
-- ko · 자리 · prompts/rules/plain-writing.md · "자리" for 위치 — the rulebook's statement of this principle, naming the wrong form
-- ko · 물음 · prompts/rules/plain-writing.md · "물음" for 질문 — the rulebook's statement of this principle, naming the wrong form
-- ko · 낱말 · prompts/rules/plain-writing.md · "낱말" for 단어 — the rulebook's statement of this principle, naming the wrong form
-- ko · 까닭 · prompts/rules/plain-writing.md · "까닭" for 이유 — the rulebook's statement of this principle, naming the wrong form
-- ko · 도구 띠 · prompts/rules/plain-writing.md · "도구 띠" for 툴바 — the rulebook's statement of this principle, naming the wrong form
-- ko · 붙박이 · prompts/agents/worker/plugin/skills/ui-design-rules/SKILL.md · '붙박이'. — the skill's statement of this principle, naming the wrong form
-- ko · 돈다 · graph/docs.json · 돈다 라는 표현은 실행 이라고 써야함 — the owner's own words kept as a graph alias, naming the wrong form
-- ko · 돌리기 · markup/markup/wording.ts · 되돌리기 is not 돌리기 — the check's own statement of the word-head rule, naming the two forms it tells apart
-- ko · 돌고 · graph/bot.json · 잡 세개가 한번에 돌고있는거야 — the owner's own words kept as a graph alias, in the spelling he wrote
-- ko · 돌리게 · graph/scripts.json · 차라리 한번에 한 테스트씩만 돌리게 — the owner's own words kept as a graph alias, in the spelling he wrote
-- ko · 검색 문서 · graph/bot.json · 그대로 읽어서 검색 문서에 넣어줘 — the owner's own words kept as a graph alias, from before the space was renamed
-- ko · 검색 문서 · graph/bot.json · 검색 문서 따로 저장해야하고 — the owner's own words kept as a graph alias, from before the space was renamed
-- ko · 검색 문서 · graph/console.json · 검색 문서에 있는 표들 — the owner's own words kept as a graph alias, from before the space was renamed
-- ko · 검색 문서 · graph/console.json · 검색 문서 페이지 — the owner's own words kept as a graph alias, from before the space was renamed
-- ko · 검색 문서 · graph/bot.json · "검색 문서" — the old name kept as a graph alias of the archive document, so a search in the owner's earlier word still lands on it
-- ko · 검색 문서 · graph/console.json · "검색 문서" — the old name kept as a graph alias of the archive screen, so a search in the owner's earlier word still lands on it
-- ko · 곁가지 · graph/bot.json · "곁가지" — the old name kept as a graph alias of the co-work runner, so a search in the owner's earlier word still lands on it
-- ko · 갈래 · graph/bot.json · "갈래 분해" — the owner's own words kept as a graph alias of the job spans, so a search in his earlier word still lands on it
-- ko · 갈래 · graph/console.json · "후보 갈래 고르기" — the owner's own words kept as a graph alias of the documents viewer, so a search in his earlier word still lands on it
-- ko · 갈래 · agents/agent/job-spans.ts · { 갈래: branchWord } — the word spans already kept in an archive open with, named so the archive can rewrite them to the branch word
-- ko · 잡 · graph/agents.json · "잡본문" — the owner's own words kept as a graph alias, from before Job was the written word
-- ko · 잡 · graph/agents.json · "잡워커" — the owner's own words kept as a graph alias, from before Job was the written word
-- ko · 잡 · graph/bot.json · "잡 진행중 실패" — the owner's own words kept as a graph alias, from before Job was the written word
-- ko · 잡 · graph/bot.json · "잡 세개가 한번에 돌고있는거야" — the owner's own words kept as a graph alias, from before Job was the written word
-- ko · 잡 · graph/bot.json · "잡 대기열이 멈췄어" — the owner's own words kept as a graph alias, from before Job was the written word
-- ko · 잡 · graph/bot.json · "잡 가드" — the owner's own words kept as a graph alias, from before Job was the written word
-- ko · 잡 · graph/bot.json · 번역기 달으라는 잡 없었나 — the owner's own words kept as a graph alias, from before Job was the written word
-- ko · 잡 · graph/bot.json · "실행중인 잡에서 n번째 실행 — the owner's own words kept as a graph alias, from before Job was the written word
-- ko · 잡 · graph/bot.json · "잡 워커" — the owner's own words kept as a graph alias, from before Job was the written word
-- ko · 잡 · graph/bot.json · 합세해서 잡을 여러개 — the owner's own words kept as a graph alias, from before Job was the written word
-- ko · 잡 · graph/crates.json · 말거는건 잡이 아니야 — the owner's own words kept as a graph alias, from before Job was the written word
-- ko · 잡 · graph/console.json · 다른 잡 워커들은 개별 채팅 — the owner's own words kept as a graph alias, from before Job was the written word
-- ko · 잡 · graph/console.json · "좌측패널에 잡 워커" — the owner's own words kept as a graph alias, from before Job was the written word
-- ko · 잡 · graph/scripts.json · "배포는 매 잡 끝날때 한번" — the owner's own words kept as a graph alias, from before Job was the written word
-- ko · 잡 · graph/scripts.json · "잡마다 테스트 스위트는 — the owner's own words kept as a graph alias, from before Job was the written word
-- ko · 잡 · graph/scripts.json · "일을 끝내지 않고 잡이 끝났다" — the owner's own words kept as a graph alias, from before Job was the written word
-- ko · 잡 · graph/scripts.json · "보이스브리핑은 잡 완료등의 — the owner's own words kept as a graph alias, from before Job was the written word
-- ko · 잡 · graph/bot.json · "근데 보이스브리핑은 잡이라고 읽어줘" — the owner's own words kept as a graph alias, asking for Job to be said 잡
-- ko · 잡 · graph/docs.json · "잡 한국어 표기는 작업이라고 하거나 Job 이라고 해" — the owner's own words kept as a graph alias, setting this rule
-- ko · 잡 · prompts/rules/plain-writing.md · Job or 작업, never 잡 — the rulebook's statement of this rule, naming the wrong form
-- ko · 잡 · prompts/rules/plain-writing.md · says Job as 잡 — the rulebook's statement of how a briefing says the word
-- ko · 잡 · docs/voice-plan.md · | `Job` | 잡 | — the voice name table's row saying Job as 잡
-- ko · 잡 · docs/voice-plan.md · the owner says it 잡 — the reason for that row
-- ko · 잡 · bot/bot/voice.ts · the owner says it 잡 — the reason for the seed row saying Job as 잡
-- ko · 잡 · bot/bot/voice.ts · ko: "잡" — the seed row saying Job as 잡
-- ko · 잡 · docs/voice-lines.md · (잡 for Job) — a voice script's reading may say Job as the voice name table does
-- ko · 잡 · tools/voice/bmo/voice-lines.ts · Job is read 잡 — why a voice script's reading may say Job as the voice name table does
-- ko · 잡 · lang/bmo-lang/lang/ko/agent-catalogue.yaml · "잡 워커", "워커", "워커잡" — the names the owner calls the worker by, kept so his words still find it
-- ko · 잡 · policy/bmo-policy/policy/common-words.toml · "job", "잡", — a word every turn carries, listed so a description leaning on it is told from one saying what its piece is about; the older word is still in what is written
-- ko · 잡 · policy/bmo-policy/policy/closing.toml · (Job|잡|항목 — a report's deferral is read in the older word as much as the written one
+- ko · tool strip · prompts/agents/worker/trailer.md · "tool strip"; built-in — the worker's statement of this principle, naming the wrong form
+- ko · fixed · prompts/agents/worker/trailer.md · built-in, not "fixed" — the worker's statement of this principle, naming the wrong form
+- ko · fiddling · prompts/agents/worker/trailer.md · not "fiddling" — the worker's statement of this principle, naming the wrong form
+- ko · re-read · graph/docs.json · re-read should be refresh — the owner's own words kept as a graph alias, naming the wrong form
+- ko · tool strip · prompts/agents/chat/manual.md · toolbar, not "tool strip" — the chat's statement of this principle, naming the wrong form
+- ko · fixed · prompts/agents/chat/manual.md · built-in, not "fixed" — the chat's statement of this principle, naming the wrong form
+- ko · fiddling · prompts/agents/chat/manual.md · not "fiddling" or "fixing" — the chat's statement of this principle, naming the wrong form
+- ko · fixing · prompts/agents/chat/manual.md · not "fiddling" or "fixing" — the chat's statement of this principle, naming the wrong form
+- ko · toolstrip · prompts/agents/worker/plugin/skills/ui-design-rules/SKILL.md · 'tool strip', — the skill's statement of this principle, naming the wrong form
+- ko · place · prompts/agents/worker/plugin/skills/ui-design-rules/SKILL.md · wrong: 'place', — the skill's statement of this principle, naming the wrong form
+- ko · place · prompts/agents/worker/trailer.md · location, not "place" — the worker's statement of this principle, naming the wrong form
+- ko · asking · prompts/agents/worker/trailer.md · question, not "asking" — the worker's statement of this principle, naming the wrong form
+- ko · place · prompts/agents/chat/manual.md · location, not "place" — the chat's statement of this principle, naming the wrong form
+- ko · asking · prompts/agents/chat/manual.md · question, not "asking" — the chat's statement of this principle, naming the wrong form
+- ko · place · prompts/rules/plain-writing.md · "place" for location — the rulebook's statement of this principle, naming the wrong form
+- ko · asking · prompts/rules/plain-writing.md · "asking" for question — the rulebook's statement of this principle, naming the wrong form
+- ko · term (native) · prompts/rules/plain-writing.md · "term" for word — the rulebook's statement of this principle, naming the wrong form
+- ko · cause · prompts/rules/plain-writing.md · "cause" for reason — the rulebook's statement of this principle, naming the wrong form
+- ko · tool strip · prompts/rules/plain-writing.md · "tool strip" for toolbar — the rulebook's statement of this principle, naming the wrong form
+- ko · fixed · prompts/agents/worker/plugin/skills/ui-design-rules/SKILL.md · 'fixed'. — the skill's statement of this principle, naming the wrong form
+- ko · runs · graph/docs.json · the wording runs should be written as run — the owner's own words kept as a graph alias, naming the wrong form
+- ko · running (noun) · markup/markup/wording.ts · rewind is not running — the check's own statement of the word-head rule, naming the two forms it tells apart
+- ko · and running · graph/bot.json · three jobs running at once — the owner's own words kept as a graph alias, in the spelling he wrote
+- ko · so as to run · graph/scripts.json · rather run only one test at a time — the owner's own words kept as a graph alias, in the spelling he wrote
+- ko · search document · graph/bot.json · read it as is and put it in the search document — the owner's own words kept as a graph alias, from before the space was renamed
+- ko · search document · graph/bot.json · the search document must be saved separately — the owner's own words kept as a graph alias, from before the space was renamed
+- ko · search document · graph/console.json · the tables in the search document — the owner's own words kept as a graph alias, from before the space was renamed
+- ko · search document · graph/console.json · the search document page — the owner's own words kept as a graph alias, from before the space was renamed
+- ko · search document · graph/bot.json · "search document" — the old name kept as a graph alias of the archive document, so a search in the owner's earlier word still lands on it
+- ko · search document · graph/console.json · "search document" — the old name kept as a graph alias of the archive screen, so a search in the owner's earlier word still lands on it
+- ko · offshoot · graph/bot.json · "offshoot" — the old name kept as a graph alias of the co-work runner, so a search in the owner's earlier word still lands on it
+- ko · branch · graph/bot.json · "branch breakdown" — the owner's own words kept as a graph alias of the job spans, so a search in his earlier word still lands on it
+- ko · branch · graph/console.json · "choosing candidate branches" — the owner's own words kept as a graph alias of the documents viewer, so a search in his earlier word still lands on it
+- ko · branch · agents/agent/job-spans.ts · { branch: branchWord } — the word spans already kept in an archive open with, named so the archive can rewrite them to the branch word
+- ko · job · graph/agents.json · "job body" — the owner's own words kept as a graph alias, from before Job was the written word
+- ko · job · graph/agents.json · "job worker" — the owner's own words kept as a graph alias, from before Job was the written word
+- ko · job · graph/bot.json · "job in progress failed" — the owner's own words kept as a graph alias, from before Job was the written word
+- ko · job · graph/bot.json · "three jobs running at once" — the owner's own words kept as a graph alias, from before Job was the written word
+- ko · job · graph/bot.json · "the job queue stopped" — the owner's own words kept as a graph alias, from before Job was the written word
+- ko · job · graph/bot.json · "job guard" — the owner's own words kept as a graph alias, from before Job was the written word
+- ko · job · graph/bot.json · wasn't there a job to attach the translator — the owner's own words kept as a graph alias, from before Job was the written word
+- ko · job · graph/bot.json · "the n-th run in the running job — the owner's own words kept as a graph alias, from before Job was the written word
+- ko · job · graph/bot.json · "job worker" — the owner's own words kept as a graph alias, from before Job was the written word
+- ko · job · graph/bot.json · joining together into several jobs — the owner's own words kept as a graph alias, from before Job was the written word
+- ko · job · graph/crates.json · talking is not a job — the owner's own words kept as a graph alias, from before Job was the written word
+- ko · job · graph/console.json · other job workers are individual chats — the owner's own words kept as a graph alias, from before Job was the written word
+- ko · job · graph/console.json · "job worker in the left panel" — the owner's own words kept as a graph alias, from before Job was the written word
+- ko · job · graph/scripts.json · "deploy once at the end of every job" — the owner's own words kept as a graph alias, from before Job was the written word
+- ko · job · graph/scripts.json · "a test suite per job — the owner's own words kept as a graph alias, from before Job was the written word
+- ko · job · graph/scripts.json · "the job ended without finishing the work" — the owner's own words kept as a graph alias, from before Job was the written word
+- ko · job · graph/scripts.json · "the voice briefing is job completion and such — the owner's own words kept as a graph alias, from before Job was the written word
+- ko · job · graph/bot.json · "but read the voice briefing as job" — the owner's own words kept as a graph alias, asking for Job to be said job
+- ko · job · graph/docs.json · "the Korean spelling of job is work, or Job" — the owner's own words kept as a graph alias, setting this rule
+- ko · job · prompts/rules/plain-writing.md · Job or work, never a transliteration of Job — the rulebook's statement of this rule, naming the wrong form
+- ko · job · prompts/rules/plain-writing.md · says Job as job — the rulebook's statement of how a briefing says the word
+- ko · job · docs/voice-plan.md · | `Job` | job | — the voice name table's row saying Job as job
+- ko · job · docs/voice-plan.md · the owner says it job — the reason for that row
+- ko · job · bot/bot/voice.ts · the owner says it job — the reason for the seed row saying Job as job
+- ko · job · bot/bot/voice.ts · ko: "job" — the seed row saying Job as job
+- ko · job · docs/voice-lines.md · (job for Job) — a voice script's reading may say Job as the voice name table does
+- ko · job · tools/voice/bmo/voice-lines.ts · Job is read job — why a voice script's reading may say Job as the voice name table does
+- ko · job · lang/bmo-lang/lang/ko/agent-catalogue.yaml · "job worker", "worker", "worker job" — the names the owner calls the worker by, kept so his words still find it
+- ko · job · policy/bmo-policy/policy/common-words.toml · "job", "job", — a word every turn carries, listed so a description leaning on it is told from one saying what its piece is about; the older word is still in what is written
+- ko · job · policy/bmo-policy/policy/closing.toml · (Job|job|item — a report's deferral is read in the older word as much as the written one
 
 ## Where it is held as words are written
 
@@ -385,7 +385,7 @@
   with no rendering between it and the chat, so this is the one place its words are held
   (`docs/jobs.md`, 「A job's question to the owner」).
 - **Quoted words are not read there.** A span inside backticks or quotation marks is how a text
-  names a wrong form — 툴바, not "도구 띠" — or quotes a command or somebody's words, and it passes.
+  names a wrong form — toolbar, not "tool strip" — or quotes a command or somebody's words, and it passes.
   The file check has no such exception: a quoted use in the tree is written under the allowed uses.
 
 ## Where it is checked

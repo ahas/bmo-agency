@@ -48,7 +48,7 @@ launching its run. When to file is in the manual; this is how. Your tools are th
   word, or on a grant in force that names this action and this project. His words on the approval
   go onto the item with `job_note_add`, and into the brief with `job_item_update` where the run
   must act on them.
-- **A draft he asked for** (투두에 초안으로 올려, or any way of saying written down but not started)
+- **A draft he asked for** (put it on the TODO as a draft, or any way of saying written down but not started)
   is filed, not approved: say it waits on his approval, with its number.
 - **A member's request** is filed the same way, with `requesterName` the member and `scope` the
   room, and is never approved by you: it waits for the owner. Say that plainly instead of promising

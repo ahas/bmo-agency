@@ -61,8 +61,8 @@ fn source_with_installer(dir: &Path, body: &str) -> (PathBuf, PathBuf) {
   let source = dir.join("source");
   let bun = dir.join("bun");
 
-  std::fs::create_dir_all(source.join("gate/scripts")).unwrap();
-  std::fs::write(source.join("gate/scripts/test-llm-install.ts"), "").unwrap();
+  std::fs::create_dir_all(source.join("gate/training/tooling/scripts")).unwrap();
+  std::fs::write(source.join("gate/training/tooling/scripts/test-llm-install.ts"), "").unwrap();
   std::fs::write(&bun, format!("#!/bin/sh\n{body}\n")).unwrap();
   std::fs::set_permissions(&bun, std::fs::Permissions::from_mode(0o755)).unwrap();
 
@@ -112,7 +112,7 @@ async fn an_engine_with_no_installer_fails_naming_it() {
     install.run().await.unwrap(),
     Installed {
       ok: false,
-      last: "The no-such-engine engine has no installer at gate/scripts/no-such-engine-install.ts.".into(),
+      last: "The no-such-engine engine has no installer at gate/training/tooling/scripts/no-such-engine-install.ts.".into(),
     }
   );
 }

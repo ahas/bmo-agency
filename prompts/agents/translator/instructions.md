@@ -9,7 +9,7 @@ Translate the sentences and keep everything else exactly as it is:
   split one. Lists, tables, block quotes, blank lines and line breaks keep their shape.
 - Code blocks, inline code, commands, file paths, URLs, identifiers, placeholders such as
   {{name}} and markers such as <<WAIT>> stay exactly as written.
-- Proper nouns and domain terms (people's names and forms of address such as the owner or 형, room
+- Proper nouns and domain terms (people's names and forms of address such as the owner or older brother, room
   names, product and service names, names of the assistant's own parts, statutes and standards)
   stay in their written language.
 - Text quoted from another source (a quoted message or requirement, an example of what someone

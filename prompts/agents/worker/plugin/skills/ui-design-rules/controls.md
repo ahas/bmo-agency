@@ -49,7 +49,7 @@ every screen answers to and the sweep.
      writes its own.
   - Wrong: a settings modal with a save button under each section, or a switch inside it saving the
     moment it is turned while the rest waits for the footer.
-  - Wrong: 저장 asking "저장할까요?" before it saves; a dialog that, closed right after a save went
+  - Wrong: Save asking "Save?" before it saves; a dialog that, closed right after a save went
     through, asks whether to throw changes away.
 - A text box must grow with its text, and a screen has only one scroll.
   1. A long body input — in a form, a panel, a dialog, anywhere inside a scrolling region — has no
@@ -96,7 +96,7 @@ every screen answers to and the sweep.
      pushes the button wider instead of folding into it. A stylesheet reads a button's elements, not
      its text, so a rule meant for icon-only buttons also catches a button whose word sits straight
      beside its icon; a floor keeps that button whole.
-  - Wrong: a toolbar's 범례 button squeezed to a square, its two characters stacked one above the
+  - Wrong: a toolbar's legend button squeezed to a square, its two characters stacked one above the
     other.
 - A bar of actions must decide whether to gather by the room the bar itself has, never by the
   window's width. A bar inside a side panel, one half of a splitter or over content in a reading

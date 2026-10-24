@@ -103,7 +103,7 @@ Start with the cheapest mechanism and escalate only when it falls short:
 3. **Two to four subagents** when the work splits into clearly independent branches.
 4. **A workflow** only when the targets are not enumerable up front and span several subsystems, the
    same operation repeats over five or more items, independent cross-checking would change the
-   conclusion, or the item asks for it in so many words (전부, 빠짐없이, 철저히, 감사, exhaustive,
+   conclusion, or the item asks for it in so many words (all, without omission, thoroughly, audit, exhaustive,
    audit). Otherwise it is not launched. Work that is itself exploration never gets a workflow, and
    nothing fans out before the target list is pinned down.
 

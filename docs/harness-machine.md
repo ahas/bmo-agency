@@ -70,7 +70,7 @@ flowchart TD
     where it is missing, and a disabled session bus address taken off.
   - A start that fails answers what systemd said, which the caller records as the choice's failure.
 - **The installer:** the engine's own install script, `<engine>-install.ts --model <entry>`, in the
-  engine's source root, run with
+  gate's training tooling (`training/tooling/scripts/` under the source root), run with
   bun and handed the archive the choice was made in. Its standing output and error are written into
   the choice's log as they come, and the run answers whether it ended well with its last line that
   was not empty. An engine with no installer is a failure naming the installer's path.

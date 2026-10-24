@@ -1,4 +1,4 @@
-# Search kinds and options (검색 종류별 규칙)
+# Search kinds and options (rules by search kind)
 
 - This rulebook sets what a search checks and attaches by kind of question, how it writes its
   pictures and reviews, the shape of its body, and the options any search may carry. It is
@@ -12,11 +12,11 @@
 
 ## By kind
 
-1. **News and current affairs (뉴스·시사).**
+1. **News and current affairs (news and current affairs).**
    - Fix a period (the last 24 hours, the last week) and keep to it.
    - Write as fact only what at least two different outlets report.
    - Put the article date on every item.
-2. **Development and technology (개발·기술).**
+2. **Development and technology (development and technology).**
    - Look at the official documentation and GitHub releases first; a deep dive reads its maker as
      `deep-dives.md` sets.
    - For what is new (a release, a tool, IT news) also skim `news.hada.io` (GeekNews) to see what
@@ -24,7 +24,7 @@
      open the original the item points at and write as fact only what the original says.
    - Always give the version and its release date.
    - Blog posts only supplement.
-3. **AI models and hardware (AI 모델·하드웨어).**
+3. **AI models and hardware (AI models and hardware).**
    - Copy benchmark figures exactly as the original gives them.
    - Mark official announcements apart from rumours and leaks.
    - **A model is its exact weights, never its family name.** One name covers many weights:
@@ -42,7 +42,7 @@
      - whether the figure is the open weights' or a hosted API's, and for an API the date it was
        measured, since a hosted name can change the weights under it.
    - **Search by the exact identifier, not the family name**, once the question's model is pinned:
-     a name the question gives loosely (`Qwen3.8 Flash 저비트판`) is first resolved to the
+     a name the question gives loosely (`Qwen3.8 Flash low-bit version`) is first resolved to the
      identifiers it can mean, each named, and the answer either covers each or says which one it
      took and why.
    - **Every figure carries its exact weights** in its own row, cell or sentence, never once at the
@@ -52,28 +52,28 @@
      weights) are never one row or set against each other as one model's; where the question turns
      on them, each is a row of its own. A derivative's card repeating its original's table is the
      original's figure and is labelled so.
-   - **A figure whose weights cannot be pinned is marked `버전 미확인`** beside it, is kept out of any
+   - **A figure whose weights cannot be pinned is marked `version unchecked`** beside it, is kept out of any
      comparison the answer rests on, and is named in UNCONFIRMED with what was missing. A
      leaderboard, an index or an aggregator naming a model by its family is no exception: the
      model is pinned from that site's own model page or the figure is marked so, and this holds in
      the VERDICT and the summary as much as in a table.
    - **Whether a later dated release of the same name exists is checked**, as for a product, and the
      newest is named with its date.
-4. **Law, regulation and tax (법·제도·세금).**
-   - The original text first: 국가법령정보센터 and the like.
+4. **Law, regulation and tax (law, regulation and tax).**
+   - The original text first: the National Law Information Center and the like.
    - Give the effective date and whether it was amended recently.
-5. **Health and medicine (건강·약).**
-   - Only official sources are grounds: 식약처, papers.
+5. **Health and medicine (health and medicine).**
+   - Only official sources are grounds: the Ministry of Food and Drug Safety, papers.
    - Community reviews are marked apart.
-6. **Real estate and second-hand prices (부동산·중고 시세).**
-   - Actual transaction records are the basis: 국토부 실거래가, 당근 and 번개장터 prices.
-7. **Travel and places (여행·장소).**
+6. **Real estate and second-hand prices (real estate and second-hand prices).**
+   - Actual transaction records are the basis: the Ministry of Land's actual transaction prices, Karrot and Bungaejangter prices.
+7. **Travel and places (travel and places).**
    - Opening hours, closing days and the booking link.
    - The weather for the day of the visit.
    - Location: the address, a map link and a street-view link.
-8. **Economy and markets (주식·경제).**
+8. **Economy and markets (stocks and economy).**
    - A chart or indicator image for the price asked about (an IMAGE line), with the as-of time.
-9. **Products and comparisons (상품·비교).**
+9. **Products and comparisons (products and comparisons).**
    - A comparison table, product images, and the reviews as REVIEW lines.
    - A price-history chart as an IMAGE line where a price-comparison page offers one.
    - Every candidate carries its release date, whether a newer model replaced it, the selling
@@ -82,21 +82,21 @@
      raised or cut) is searched beside the sellers and written in a section of its own.
    - The order of places, the answer's shape and each candidate's entry are `product-search.md`,
      which also alone decides whether a search is one of these.
-10. **Local information and restaurants (지역·맛집).**
+10. **Local information and restaurants (local information and restaurants).**
     - Check the reviews for photos of the actual food and attach them.
     - The reviews themselves go in as REVIEW lines.
     - Attach the street view, the map and the address.
     - The filter, the count of places and the delivery checks are `restaurant-search.md`.
-11. **Design, screens and anything looked at (디자인·화면).**
+11. **Design, screens and anything looked at (design and screens).**
     - The picture is the material, not decoration: a question about how something looks, how a
       screen is laid out, what a style is, is not answered by prose alone.
     - Attach the actual screens, works and pieces as IMAGE lines in the body, each captioned with
       what it shows and where it is from.
     - A description with no picture beside it is an unfinished answer to such a question.
-12. **Study material (학습자료).**
+12. **Study material (study material).**
     - A request to be taught a subject, not a question about it, and a document kind of its own:
       `study-material.md` sets the whole of it and alone decides whether a search is one.
-13. **Investment strategy (투자 전략).**
+13. **Investment strategy (investment strategy).**
     - Where to put money, a stable strategy, a forecast or which stocks will rise: answered from a
       short-term and a long-term view across Korean and US stocks, bonds and gold, each strategy
       with its dated grounds, expected return, risk, named products and the case against.
@@ -134,15 +134,15 @@
 - **Choosing among places, businesses or products takes pictures in plenty.** One picture per
   entry decides nothing: the owner judges a studio, a hall, a shop or a product by setting like against
   like.
-  - Gather each entry's pictures grouped by composition or kind of shot (a studio's 야외, 실내,
-    드레스 전신; a hall's 홀 전경, 버진로드, 연회장; a product's 정면, 측면, 착용샷), two to four
+  - Gather each entry's pictures grouped by composition or kind of shot (a studio's outdoor, indoor,
+    dress full-body; a hall's hall view, aisle, banquet hall; a product's front, side, worn shot), two to four
     groups an entry where that many exist, and three to six similar pictures in each group.
   - Take them from more than one page: the business's own site and channels for its samples, and
     reviews and blog posts for what customers actually got.
   - Each such picture's line carries three more fields:
     "IMAGE: <url> :: <caption> :: <entry> :: <shot> :: <source>". The entry is the entry's
     `NAME:`, the shot is the group's name, written the same way for every picture of the group,
-    and the source is `공식` for the business's or maker's own sample or `고객` for a customer's
+    and the source is `official` for the business's or maker's own sample or `customer` for a customer's
     photo.
   - Write an entry's pictures group by group, in the order the groups are best compared in.
   - Where fewer pass than that, the entry says how many were found, rather than filling a group
@@ -159,7 +159,7 @@
 
 - **A review goes in as the review**, never as a sentence summarising reviews. One line per
   review: "REVIEW: <the rating> :: <the review's own words> :: <the page it is on>".
-- **The rating is the source's own** (4.5, ★★★★☆, 별점 4개) as the source writes it, and `없음`
+- **The rating is the source's own** (4.5, ★★★★☆, 4-star rating) as the source writes it, and `none`
   where it gives none.
 - **The words are the reviewer's own**, quoted rather than rewritten; from a long review, quote
   only the part that decides something.
@@ -167,7 +167,7 @@
   went wrong for somebody, and a summary is exactly where a known defect goes missing.
 - **A review's own pictures** are looked at as any picture. Of them, you
   write those worth showing among the entry's other pictures, in the group of their shot with
-  `고객` as their source where the entry's pictures carry one, and
+  `customer` as their source where the entry's pictures carry one, and
   otherwise the caption saying they came from a review, so the entry's pictures stay one gallery.
 - **Three to five reviews per thing** where that many exist, and plainly fewer where fewer.
 
@@ -191,11 +191,11 @@ The launch may give any of these; one not given is decided from the question.
   is the shape of a search's answer; study material is its own kind, shaped wholly by
   `study-material.md`, and nothing here binds it.
 - **Three places are fixed and the middle is not.** Every result with a body opens with the
-  verdict, then the 세 줄 요약, and closes with what could not be confirmed. What stands between is the question's,
-  and no part is required: no 서론 and no 결론, since what was asked is the head's `TOPIC:` and
+  verdict, then the three-line summary, and closes with what could not be confirmed. What stands between is the question's,
+  and no part is required: no introduction and no conclusion, since what was asked is the head's `TOPIC:` and
   the answer is the verdict.
 
-### The verdict (핵심 답)
+### The verdict (core answer)
 
 - **The answer comes before the summary.** A summary sums up a document; what was asked for is
   read before any document, so it stands first, under `VERDICT:`, above `SUMMARY:`.
@@ -212,7 +212,7 @@ The launch may give any of these; one not given is decided from the question.
 - **Not every result has one.** A brief result is the value on its summary line, which is already
   the answer; study material answers nothing and has neither.
 
-### The 세 줄 요약
+### The three-line summary
 
 - **Pick the form the answer fits**, one of three:
   - background, fact, verdict: the one thing to know first, what was found, and what it comes
@@ -243,7 +243,7 @@ The launch may give any of these; one not given is decided from the question.
   - Neither is a set of parts to fill; a section with nothing of its own is not written.
 - **A section is named for what it holds.** Each opens with `SECTION: <its name>`, the name saying
   what stands in it: the dispute so far, what the maker says, how the options divide. Never a
-  generic word like 본론, 배경 or 결론 standing for any content.
+  generic word like body, background or conclusion standing for any content.
 - **A single table or a single set needs no section line**; it stands under the summary as is.
 - **Figures that are compared or that move are drawn as a chart** as well as tabled: values set
   against each other across the candidates, a price, rate or count over time, the shares of a
@@ -274,7 +274,7 @@ The launch may give any of these; one not given is decided from the question.
   more in it than one value still leaves one.
 - **Nothing else changes.** The answer goes to the room as every answer does, the run is recorded
   as every run is, and the search can still be read by its own number. It is only absent from the
-  아카이브's list, with nothing to hand out on a share link.
+  archive's list, with nothing to hand out on a share link.
 
 ## The tools before the search
 

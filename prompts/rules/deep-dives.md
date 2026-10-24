@@ -1,4 +1,4 @@
-# Deep dives (딥다이브)
+# Deep dives (deep dives)
 
 - This rulebook sets how a deep dive works: how it frames its question, reads the maker of a thing
   before anyone writing about it, sets the maker's figures as the baseline, what its document holds
@@ -55,7 +55,7 @@
   maker, a third party, or us.
 - **A figure stands beside its pair:** one setting against another, the maker's claim against an
   independent measurement, the thing against what we already run where it would take that place.
-- **A judgement resting on figures nobody reproduced is marked `기준점 없음`**: a tuning, a
+- **A judgement resting on figures nobody reproduced is marked `no baseline`**: a tuning, a
   comparison, a better or worse that no one here measured under the maker's conditions. It is
   never written as measured.
 - **A value nobody measured is a calculation shown whole**, what goes in and the arithmetic, so the
@@ -64,7 +64,7 @@
 - **Whether we could run it is judged against our own equipment** as the request names it, each
   machine or card coming out as fitting, not fitting, or what blocks it. A request naming no
   equipment leaves the fit in UNCONFIRMED rather than guessed.
-- **A value not checked is marked `추정` or `확인 필요`**, its ground in brackets after it.
+- **A value not checked is marked `estimated` or `needs checking`**, its ground in brackets after it.
 
 ## What the document holds
 
@@ -76,10 +76,10 @@
   figure, on which set, with which settings, about how long it takes, and whether the maker
   publishes the script and the data.
 - **What was read and what was not** is the middle's last section: every primary material read,
-  and every one that could not be read with what it answered, or 없음.
+  and every one that could not be read with what it answered, or none.
 - **Tables and lists stand on lines of their own,** never run into a paragraph.
 
-## The narration (낭독본)
+## The narration (reading script)
 
 - **Every deep dive with a body carries one:** a script for the ear, written apart from the
   document, which the chat agent's voice speaks and the document keeps at its top, so its reader can listen
