@@ -27,6 +27,7 @@ quick = ["layout", "dependencies"]
 base_libraries = [
   "bmo-chat",
   "bmo-chat-client",
+  "bmo-gate-client",
   "bmo-ui",
   "bmo-brain-client",
   "bmo-cache-warmer-schedule",
