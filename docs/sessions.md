@@ -12,6 +12,23 @@ session on the owner's ask is `docs/session-resets.md`.
   table is where the model is named (`docs/model-tiers.md`), and `bmo-agency agent` shows what each agent
   is configured to run on.
 
+## A restart hands the session over
+
+- **The chat works in the deploy tree's link,** whose path is the same while its target moves from
+  release to release. The program records the session it stands in under its place with that folder; a
+  program stood again on the same folder takes the session up again rather than opening a fresh one
+  beside it.
+- **A deploy moves the link's target, not its path,** so a program stood after it on the same folder
+  resumes the conversation it held. The relaunch instruction a consumer writes at a deploy is the
+  deployment briefing, not the notice of a closed session.
+- **A program stood afresh while a turn runs resumes the same session.** The turn in flight is the
+  caller's to ask again from its own round, which holds the item, the message it answers and the
+  report in hand; the session keeps everything before it. One session answers a room: the folder's
+  record is what tells a program which session that is, so no second one is opened while the first
+  stands.
+- **A caller that names a folder works in it,** as a conversation opened on one does; only the chat's
+  own launches, which name none, stand in the link.
+
 ## Document reload
 
 - A session is resumed, so what it remembers of a document is the version it read then; sessions

@@ -354,10 +354,14 @@ pub async fn chat_run(
     fold,
     ping: launch.ping,
     resume: launch.resume.clone(),
+    // The folder a run works in: the caller's, else the deploy tree's link. The link's path is the same
+    // across releases though its target moves, so the resident program's own record of its session — kept
+    // under the folder it was stood in — is taken up again when the program is stood after a restart,
+    // rather than a fresh session opened beside it (docs/sessions.md, 「A restart hands the session over」).
     cwd: launch
       .cwd
       .map(str::to_owned)
-      .unwrap_or_else(|| trees.source.to_string_lossy().into_owned()),
+      .unwrap_or_else(|| ground.roots.deploy.to_string_lossy().into_owned()),
     env,
   })
 }

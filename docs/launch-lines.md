@@ -177,8 +177,10 @@
   session's own judgement under its rules, not by the allow list. The chat stands as the chat agent's
   resident program, whose line keeps its slash commands — `/compact` is one, typed into the program
   to fold the session in place, on the same prefix its turns stand on. There is no separate fold
-  line for the chat. A turn that finds no pane to stand the program in, herdr down, fails as a
-  transport failure and is run in no other shape.
+  line for the chat. It works in the deploy tree's link, whose path stays the same across releases,
+  so the program's own record of its session is taken up again after a restart (docs/sessions.md, 「A
+  restart hands the session over」). A turn that finds no pane to stand the program in, herdr down,
+  fails as a transport failure and is run in no other shape.
 - **Gate runs**, which the gate unit carries: the reading gate that
   writes a line the way a Korean voice says it before a briefing is spoken, and the translator that
   renders a document the console's document viewer shows into its other language, and what reaches a

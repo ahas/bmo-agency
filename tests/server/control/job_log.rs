@@ -45,22 +45,23 @@ async fn a_running_server_reads_a_job_s_lines_and_keeps_its_notes_and_turn_recor
 
   // Job 12's lines across two runs: a call kept cut with its whole arguments in its detail, a call whose
   // arguments are no JSON, a branch's call under a parent, a result kept cut, the request lines and a
-  // compaction.
+  // compaction. The times are now, since the run log's pruner keeps a window and the server prunes it.
+  let now = agency_server::now_ms() / 1000;
   scratch
     .run(
       r#"INSERT INTO "agent_log"
            ("id", "agent", "run", "at", "kind", "name", "parent", "ref", "text", "detail", "job_id",
             "source", "source_id", "detail_complete", "detail_length")
          VALUES
-           (1, 'helper', 'unit-a', 100, 'tool', 'Bash', NULL, 'call-1', '{"command":"car', '{"command":"cargo check"}', 12, 'claude-code', 'req-1', 1, 25),
-           (2, 'helper', 'unit-a', 101, 'tool-result', NULL, NULL, 'call-1', 'ok', NULL, 12, 'claude-code', 'req-1', 0, 90000),
-           (3, 'helper', 'unit-a', 102, 'text', NULL, NULL, NULL, 'thinking aloud', NULL, 12, 'claude-code', 'req-1', 1, 14),
-           (4, 'helper', 'unit-b', 103, 'tool', 'Agent', 'call-0', 'call-2', '{}', NULL, 12, 'claude-code', 'req-2', 1, 2),
-           (5, 'helper', 'unit-b', 104, 'thinking', NULL, NULL, NULL, 'hmm', NULL, 12, 'claude-code', 'req-3', 1, 3),
-           (6, 'helper', 'unit-b', 105, 'tool', 'Read', NULL, 'call-3', $1, NULL, 12, NULL, 'req-3', 1, 2500),
-           (7, 'helper', 'unit-b', 106, 'compact', NULL, NULL, NULL, 'compacted', NULL, 12, NULL, NULL, 1, 9),
-           (8, 'other', 'unit-c', 107, 'tool', 'Bash', NULL, 'call-9', '{}', NULL, 13, NULL, 'req-9', 1, 2)"#,
-      vec![long.clone().into()],
+           (1, 'helper', 'unit-a', $2 + 0, 'tool', 'Bash', NULL, 'call-1', '{"command":"car', '{"command":"cargo check"}', 12, 'claude-code', 'req-1', 1, 25),
+           (2, 'helper', 'unit-a', $2 + 1, 'tool-result', NULL, NULL, 'call-1', 'ok', NULL, 12, 'claude-code', 'req-1', 0, 90000),
+           (3, 'helper', 'unit-a', $2 + 2, 'text', NULL, NULL, NULL, 'thinking aloud', NULL, 12, 'claude-code', 'req-1', 1, 14),
+           (4, 'helper', 'unit-b', $2 + 3, 'tool', 'Agent', 'call-0', 'call-2', '{}', NULL, 12, 'claude-code', 'req-2', 1, 2),
+           (5, 'helper', 'unit-b', $2 + 4, 'thinking', NULL, NULL, NULL, 'hmm', NULL, 12, 'claude-code', 'req-3', 1, 3),
+           (6, 'helper', 'unit-b', $2 + 5, 'tool', 'Read', NULL, 'call-3', $1, NULL, 12, NULL, 'req-3', 1, 2500),
+           (7, 'helper', 'unit-b', $2 + 6, 'compact', NULL, NULL, NULL, 'compacted', NULL, 12, NULL, NULL, 1, 9),
+           (8, 'other', 'unit-c', $2 + 7, 'tool', 'Bash', NULL, 'call-9', '{}', NULL, 13, NULL, 'req-9', 1, 2)"#,
+      vec![long.clone().into(), now.into()],
     )
     .await;
   scratch
@@ -135,23 +136,25 @@ async fn an_agent_s_log_reads_across_its_runs_newest_before_after_and_at_a_momen
   let server = standing::stand_server(home.path(), &data, &scratch.address(), token);
   let port = server.port;
 
-  // Five lines in one run and five in the next, in order, and another agent's line between.
+  // Five lines in one run and five in the next, in order, and another agent's line between. The times
+  // are now, not a fixed epoch, since the run log's pruner keeps a window and the server prunes it.
+  let now = agency_server::now_ms() / 1000;
   scratch
     .run(
       r#"INSERT INTO "agent_log" ("id", "agent", "run", "at", "kind", "text")
          VALUES
-           (1, 'worker', 'unit-a', 100, 'text', 'a1'),
-           (2, 'worker', 'unit-a', 101, 'text', 'a2'),
-           (3, 'worker', 'unit-a', 102, 'text', 'a3'),
-           (4, 'worker', 'unit-a', 103, 'text', 'a4'),
-           (5, 'worker', 'unit-a', 104, 'text', 'a5'),
-           (6, 'other', 'unit-x', 105, 'text', 'x1'),
-           (7, 'worker', 'unit-b', 106, 'text', 'b1'),
-           (8, 'worker', 'unit-b', 107, 'text', 'b2'),
-           (9, 'worker', 'unit-b', 108, 'text', 'b3'),
-           (10, 'worker', 'unit-b', 109, 'text', 'b4'),
-           (11, 'worker', 'unit-b', 110, 'text', 'b5')"#,
-      vec![],
+           (1, 'worker', 'unit-a', $1 + 0, 'text', 'a1'),
+           (2, 'worker', 'unit-a', $1 + 1, 'text', 'a2'),
+           (3, 'worker', 'unit-a', $1 + 2, 'text', 'a3'),
+           (4, 'worker', 'unit-a', $1 + 3, 'text', 'a4'),
+           (5, 'worker', 'unit-a', $1 + 4, 'text', 'a5'),
+           (6, 'other', 'unit-x', $1 + 5, 'text', 'x1'),
+           (7, 'worker', 'unit-b', $1 + 6, 'text', 'b1'),
+           (8, 'worker', 'unit-b', $1 + 7, 'text', 'b2'),
+           (9, 'worker', 'unit-b', $1 + 8, 'text', 'b3'),
+           (10, 'worker', 'unit-b', $1 + 9, 'text', 'b4'),
+           (11, 'worker', 'unit-b', $1 + 10, 'text', 'b5')"#,
+      vec![now.into()],
     )
     .await;
 
@@ -212,7 +215,7 @@ async fn an_agent_s_log_reads_across_its_runs_newest_before_after_and_at_a_momen
 
   // The page standing at a moment opens at the head of the run its line belongs to, and says older lines
   // stand before it and newer ones after.
-  let (status, at) = get(port, token, "/log/agents/worker/lines?limit=3&at=107").await;
+  let (status, at) = get(port, token, &format!("/log/agents/worker/lines?limit=3&at={}", now + 7)).await;
 
   assert_eq!(status, 200, "{at}");
   assert_eq!(at["hasOlder"], json!(true));

@@ -244,3 +244,58 @@ fn only_the_chat_line_writes_in_a_speaker_s_language_and_every_other_line_writes
     assert!(!prompt(runner).contains("Korean"), "{runner}");
   }
 }
+
+// A chat with no folder of its own works in the deploy tree's link, whose path stays the same across
+// releases, so the resident program's record of its session is taken up again after a restart rather
+// than a fresh session opened under a new release path (docs/sessions.md, 「A restart hands the session
+// over」).
+#[tokio::test]
+async fn a_chat_with_no_folder_of_its_own_works_in_the_deploy_link() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let deploy = tree();
+  let at = |path: &Path| path.to_string_lossy().into_owned();
+  let machine = Machine::with_env(
+    [
+      ("HOME".to_owned(), at(home.path())),
+      ("PATH".to_owned(), "/usr/bin:/bin".to_owned()),
+      ("BMO_DEPLOY_DIR".to_owned(), at(&deploy)),
+      ("BMO_AGENTS_DIR".to_owned(), at(&home.path().join("agents"))),
+      ("BMO_SOURCE_DIR".to_owned(), at(&home.path().join("a-release"))),
+    ],
+    home.path().join("data"),
+  );
+  let variables: HashMap<String, String> = [("AGENCY_DEPLOY_DIR".to_owned(), at(&deploy))].into();
+  let service =
+    Service::new(scratch.db().clone(), Config::read(|name| variables.get(name).cloned()).unwrap());
+  let ground = Ground::new(&service, &machine, None);
+
+  scratch
+    .run(
+      r#"INSERT INTO "agents" ("name", "kind", "session_scope", "turn_shape", "default_answerer")
+         VALUES ('chat-agent', 'chat', 'agent', 'window', 1)"#,
+      vec![],
+    )
+    .await;
+
+  let launch = ChatLaunch {
+    agent: "chat-agent",
+    chat_id: -5,
+    room: RoomContext {
+      chat_id: -5,
+      text: "the room's block".into(),
+      mark: "[a]".into(),
+    },
+    via: None,
+    resume: None,
+    privileged: false,
+    ping: false,
+    base_persona: None,
+    model: Some("claude-model"),
+    cwd: None,
+  };
+  let run = chat_run(&ground, &machine, &launch, "hello", false).await.unwrap();
+
+  assert_eq!(run.cwd, at(&deploy));
+  assert_ne!(run.cwd, at(&home.path().join("a-release")));
+}
