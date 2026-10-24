@@ -101,6 +101,8 @@ pub struct Run {
   pub spent: Option<Spent>,
   pub round: Option<String>,
   pub message_id: Option<i64>,
+  /// How many tool calls its log lines held as it closed; none on an open run.
+  pub tools: Option<i64>,
 }
 
 impl Run {
@@ -118,6 +120,7 @@ impl Run {
       spent: Self::spent_of(row)?,
       round: row.try_get("", "round")?,
       message_id: row.try_get("", "message_id")?,
+      tools: row.try_get("", "tool_count")?,
     })
   }
 
@@ -189,7 +192,9 @@ pub async fn close<C: ConnectionTrait>(db: &C, id: i64, closing: &Closing) -> Re
   let closed = run(
     db,
     r#"UPDATE "runs" SET "finished_at" = $2, "outcome" = $3, "context_tokens" = $4,
-         "input_tokens" = $5, "output_tokens" = $6, "cache_read_tokens" = $7, "cache_write_tokens" = $8
+         "input_tokens" = $5, "output_tokens" = $6, "cache_read_tokens" = $7, "cache_write_tokens" = $8,
+         "tool_count" = (SELECT COUNT(*) FROM "agent_log" l
+                          WHERE l."agent" = "runs"."agent" AND l."run" = "runs"."unit" AND l."kind" = 'tool')
        WHERE "id" = $1 AND "finished_at" IS NULL"#,
     vec![
       id.into(),
@@ -218,7 +223,7 @@ pub async fn close<C: ConnectionTrait>(db: &C, id: i64, closing: &Closing) -> Re
 // What a run is read with.
 const RUN_FIELDS: &str = r#""id", "agent", "chat_id", "unit", "depth", "started_at", "finished_at", "outcome",
   "context_tokens", "input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens", "round",
-  "message_id""#;
+  "message_id", "tool_count""#;
 
 /// A run by its id, or none where the ledger holds no row of it.
 pub async fn read<C: ConnectionTrait>(db: &C, id: i64) -> Result<Option<Run>, Refusal> {

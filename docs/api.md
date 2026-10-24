@@ -28,7 +28,7 @@ a field's exact shape matters, the OpenAPI document is the one to read.
 ## Versioning
 
 - The contract carries the repository's one version, in semver; the workspace manifest is its source. Before
-  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.59`.
+  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.60`.
 - A change to this document and a change to the boundary go in one commit. A change to a route, an event, a
   hook or a shared table's contract repairs this document in the same commit.
 - The major moves on a removed or renamed route, field or event, the minor on an addition, the patch on
@@ -273,7 +273,8 @@ null on a run whose road reported no figures, and on an open run. Every turn of 
 item and check of the draft process among them, is a run of its own under the round. The list narrows by `agentName`, by
 `roomId`, by `round`, and by `names`, a comma-separated list each matched against a run's unit and its
 round. A change naming `messageId` alone attaches the message, on an open or a closed run alike, and
-leaves the run's closing as it stands.
+leaves the run's closing as it stands. A closed run answers `counts.tools`, how many tool calls its log
+lines held as it closed; an open run's `counts` is empty.
 
 ### log-lines
 

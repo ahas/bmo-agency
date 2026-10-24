@@ -49,7 +49,7 @@ fn member(run: &run_ledger::Run) -> Value {
       "cacheReadTokens": spent.cache_read_tokens,
       "cacheWriteTokens": spent.cache_write_tokens,
     })),
-    "counts": {},
+    "counts": run.tools.map_or_else(|| json!({}), |tools| json!({ "tools": tools })),
     "roomId": run.chat_id,
     "round": run.round.clone(),
     "messageId": run.message_id,

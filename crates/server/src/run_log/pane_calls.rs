@@ -1,9 +1,10 @@
 //! A pane program's tool calls (docs/run-records.md, 「Agent log」): bmo-tui's record says a call began by a
 //! `progress` line naming the tool and the state dsh gave it, and that it settled by one naming the state it
-//! settled in. Each call is filed as a `tool` line under the tool's name and a `tool-result` line saying how it
-//! ended and how long it took, as a stream's calls are, so a turn on that road reads back with its calls. The
-//! record carries no call's id and no arguments, so a call is matched to its ending first in, first out, under a
-//! reference made of the turn's id and the call's place in it.
+//! settled in. Each call is filed as a `tool` line under the tool's name, carrying the summary of its
+//! arguments the record keeps, and a `tool-result` line saying how it ended, how long it took and how large
+//! its result was, as a stream's calls are, so a turn on that road reads back with its calls. A line that
+//! names its call by `toolCallId` is matched to that call; a record that names none, an older one, is matched
+//! first in, first out, under a reference made of the turn's id and the call's place in it.
 
 use std::collections::VecDeque;
 
@@ -19,6 +20,8 @@ const STARTED: [&str; 2] = [PENDING, "in_progress"];
 
 #[derive(Debug)]
 struct Open {
+  // The call's id where the record names one.
+  id: Option<String>,
   reference: String,
   name: String,
   at: Option<i64>,
@@ -50,16 +53,49 @@ impl PaneCalls {
     let name = event.get("tool").and_then(Json::as_str).unwrap_or(UNNAMED);
     let state = event.get("state").and_then(Json::as_str);
     let at = number(event, "at");
+    let id = event.get("toolCallId").and_then(Json::as_str).filter(|id| !id.is_empty());
 
-    match state {
-      Some("completed" | "failed") => self.settled(state == Some("failed"), at),
-      None => self.begun(name, true, event, at),
-      Some(state) if STARTED.contains(&state) => self.begun(name, state == PENDING, event, at),
-      Some(_) => vec![],
+    match (state, id) {
+      (Some("completed" | "failed"), _) => self.settled(id, state == Some("failed"), event, at),
+      (None, Some(id)) => self.begun_by_id(id, name, true, event, at),
+      (None, None) => self.begun(name, true, event, at),
+      (Some(state), Some(id)) if STARTED.contains(&state) => {
+        self.begun_by_id(id, name, state == PENDING, event, at)
+      }
+      (Some(state), None) if STARTED.contains(&state) => self.begun(name, state == PENDING, event, at),
+      _ => vec![],
     }
   }
 
-  // A call begun: a new one, unless it is the last one asked still waiting to start, now under way.
+  // A call named by its id begun: a new one, unless that call is already open, now under way.
+  fn begun_by_id(
+    &mut self,
+    id: &str,
+    name: &str,
+    pending: bool,
+    event: &Json,
+    at: Option<i64>,
+  ) -> Vec<Line> {
+    if let Some(open) = self.open.iter_mut().find(|open| open.id.as_deref() == Some(id)) {
+      open.pending = pending;
+
+      return vec![];
+    }
+
+    self.made += 1;
+    self.open.push_back(Open {
+      id: Some(id.to_owned()),
+      reference: id.to_owned(),
+      name: name.to_owned(),
+      at,
+      pending,
+    });
+
+    vec![Self::call_line(name, id, event)]
+  }
+
+  // A call begun in a record that names no call: a new one, unless it is the last one asked still waiting
+  // to start, now under way.
   fn begun(&mut self, name: &str, pending: bool, event: &Json, at: Option<i64>) -> Vec<Line> {
     if name == UNNAMED {
       return vec![];
@@ -80,31 +116,49 @@ impl PaneCalls {
     let reference = format!("{turn}:{}", self.made);
 
     self.open.push_back(Open {
+      id: None,
       reference: reference.clone(),
       name: name.to_owned(),
       at,
       pending,
     });
 
-    vec![Line {
-      kind: "tool",
-      name: Some(name.to_owned()),
-      reference: Some(reference),
-      state: Some("requested"),
-      ..Line::default()
-    }]
+    vec![Self::call_line(name, &reference, event)]
   }
 
-  // The oldest call open settled, with how long it ran where both moments are known.
-  fn settled(&mut self, failed: bool, at: Option<i64>) -> Vec<Line> {
-    let Some(open) = self.open.pop_front() else {
+  // A call's own line: its tool, its reference, and the summary of its arguments the record keeps, cut where
+  // the record says it cut them.
+  fn call_line(name: &str, reference: &str, event: &Json) -> Line {
+    Line {
+      kind: "tool",
+      name: Some(name.to_owned()),
+      reference: Some(reference.to_owned()),
+      state: Some("requested"),
+      text: event.get("input").and_then(Json::as_str).unwrap_or_default().to_owned(),
+      upstream_truncated: event.get("inputCut").and_then(Json::as_bool).unwrap_or(false),
+      ..Line::default()
+    }
+  }
+
+  // The call settled — the one its id names, else the oldest open — with how long it ran where both moments
+  // are known and how large its result was where the record says.
+  fn settled(&mut self, id: Option<&str>, failed: bool, event: &Json, at: Option<i64>) -> Vec<Line> {
+    let place = match id {
+      Some(id) => self.open.iter().position(|open| open.id.as_deref() == Some(id)),
+      None => (!self.open.is_empty()).then_some(0),
+    };
+    let Some(open) = place.and_then(|place| self.open.remove(place)) else {
       return vec![];
     };
     let word = if failed { "failed" } else { "completed" };
-    let text = match open.at.zip(at) {
+    let mut text = match open.at.zip(at) {
       Some((began, ended)) => format!("{word} in {} ms", (ended - began).max(0)),
       None => word.to_owned(),
     };
+
+    if let Some(bytes) = number(event, "resultBytes") {
+      text.push_str(&format!(", {bytes} bytes"));
+    }
 
     vec![Line {
       kind: "tool-result",

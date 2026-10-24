@@ -31,12 +31,17 @@ about a message is not agency's: the judgement records belong to the units that 
   filed as the line it is, so a room reading the run as it goes sees the turn's progress and its
   spend without waiting for the end.
   - **Its tool calls are filed as a stream's are.** A `progress` line saying a call began is filed
-    beside itself as a `tool` line under the tool's name, and one saying the call settled as the
-    `tool-result` line that answers it, succeeded or failed, its text saying how many milliseconds
-    the call ran. The record names no call by an id and carries no arguments, so a call's line holds
-    no arguments, each settling answers the oldest call still open, and the two share a reference
-    made of the turn's id and the call's place in the turn. A call reported as asked and then as under
-    way is one call.
+    beside itself as a `tool` line under the tool's name, its text the summary of the call's arguments
+    the record keeps — redacted and cut by bmo-tui, the line marked cut upstream where the record says
+    `inputCut` — and one saying the call settled as the `tool-result` line that answers it, succeeded
+    or failed, its text saying how many milliseconds the call ran and how many bytes its result held
+    where the record gives `resultBytes`.
+  - **A call is matched by its id.** A record line naming its call by `toolCallId` is that call's: its
+    first line opens it, a later one of the same id that is not a settling changes nothing, and its
+    settling answers it, whatever else is open; the two lines share the id as their reference. A record
+    that names no call by an id is matched first in, first out: each settling answers the oldest call
+    still open, the two sharing a reference made of the turn's id and the call's place in the turn, and
+    a call reported as asked and then as under way is one call.
 - A line is committed the moment it arrives, so a run killed from outside leaves everything up to
   the kill, and the ids run forward, so a finished run is scrolled back rather than only tailed.
 - It is bounded three ways — a per-line cut, the last few thousand lines per agent, and an age —
@@ -61,8 +66,9 @@ about a message is not agency's: the judgement records belong to the units that 
 ## The run ledger
 
 - **A run of the ledger is one row of `runs`:** its agent, its unit, its room, its depth, when it
-  started and finished in epoch seconds, its outcome and the tokens its context carried as it ended. A
-  run keeps the first closing it was given (`docs/api.md`, 「runs」).
+  started and finished in epoch seconds, its outcome, the tokens its context carried as it ended, and how
+  many tool calls its log lines held under its unit as it closed, every `tool` line of the agent under
+  that name, a branch's among them. A run keeps the first closing it was given (`docs/api.md`, 「runs」).
 - **The job unit's runs** are opened and closed by the job unit across the boundary.
 - **A chat turn's run is opened by agency** as a turn into a room's or an agent's session starts, the
   turn naming its room and carrying no work parts: its unit is the name the turn's log lines are written
