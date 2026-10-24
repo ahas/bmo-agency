@@ -87,24 +87,23 @@ async fn note_failed(ground: &Ground, log: &mut RunLog, step: &Step, why: &str) 
 pub async fn stand_in_turn(
   ground: &Ground,
   log: &mut RunLog,
-  launch: &ChatLaunch<'_>,
-  prompt: &str,
+  run: &ChatRun,
+  key: &str,
   answers: &[i64],
   began: i64,
   shown: Option<OutputWatch<'_>>,
 ) -> Result<Option<Reply>, NoAnswer> {
   let machine = ground.machine();
-  let agent = launch.agent;
+  let agent = run.agent.as_str();
   let Some(Walk {
     steps,
     required,
     chosen,
-  }) = walk_of(ground, &machine, agent).await
+  }) = walk_of(ground, &machine, key).await
   else {
     return Ok(None);
   };
   let db = &ground.db;
-  let run = chat_run(ground, &machine, launch, prompt, false).await.map_err(refusal)?;
 
   run.note_persona(ground, log).await;
 
@@ -115,7 +114,7 @@ pub async fn stand_in_turn(
       continue;
     }
 
-    let step = match step_of(ground, &machine, agent, provider, &run.reasoning).await {
+    let step = match step_of(ground, &machine, key, provider, &run.reasoning).await {
       Ok(step) => step,
       Err(why) => {
         last = Some(why);
@@ -123,11 +122,11 @@ pub async fn stand_in_turn(
       }
     };
     let outcome = match provider.as_str() {
-      CODEX => codex_road(ground, &machine, &run, &step, log, answers, began, shown).await?,
+      CODEX => codex_road(ground, &machine, run, &step, log, answers, began, shown).await?,
       name if inbox_declared(name) => {
-        inbox_road(ground, &machine, &run, &step, log, answers, began, shown).await?
+        inbox_road(ground, &machine, run, &step, log, answers, began, shown).await?
       }
-      _ => registered_road(ground, &machine, &run, &step, log, answers, began, shown).await?,
+      _ => registered_road(ground, &machine, run, &step, log, answers, began, shown).await?,
     };
 
     match outcome {
@@ -358,6 +357,7 @@ async fn deliver(
   match run_turn(
     ground,
     &run.agent,
+    run.line,
     &step.provider,
     &composed,
     resumed.as_deref(),

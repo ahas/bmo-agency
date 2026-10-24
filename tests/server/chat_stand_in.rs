@@ -11,7 +11,7 @@ use agency_server::chat_stand_in::{FallbackEnded, fallback_ended, stand_in_turn}
 use agency_server::companion::run::NoAnswer;
 use agency_server::config::Config;
 use agency_server::control::harness::{OrderEntry, set_provider_order};
-use agency_server::lines::chat::{ChatLaunch, ChatRun, Door, RoomContext, compose_stand_in};
+use agency_server::lines::chat::{ChatRun, Door, RoomContext, compose_stand_in};
 use agency_server::lines::worker::Reasoning;
 use agency_server::places::Ground;
 use agency_server::run_log::{RunLog, Target};
@@ -50,6 +50,7 @@ fn chat_run(home: &std::path::Path) -> ChatRun {
   std::fs::write(home.join("system.md"), "You are the chat agent.\n").unwrap();
 
   ChatRun {
+    line: "chat",
     agent: "chat-agent".into(),
     model: "claude-model".into(),
     effort: "high".into(),
@@ -271,25 +272,6 @@ async fn store_with(order: &[(&str, bool)]) -> Scratch {
   scratch
 }
 
-fn launch<'a>() -> ChatLaunch<'a> {
-  ChatLaunch {
-    agent: "chat-agent",
-    chat_id: -5,
-    room: RoomContext {
-      chat_id: -5,
-      text: "the room's block".into(),
-      mark: "[a]".into(),
-    },
-    via: None,
-    resume: None,
-    privileged: false,
-    ping: false,
-    base_persona: None,
-    model: None,
-    cwd: None,
-  }
-}
-
 fn log() -> RunLog {
   RunLog::new(Target {
     agent: "chat-agent".into(),
@@ -306,7 +288,7 @@ async fn a_walk_that_must_answer_and_meets_no_stand_in_fails_the_turn() {
     store_with(&[("claude-code", false), ("codex", true), ("openrouter", true), ("registered", true)])
       .await;
   let ground = ground_on(scratch.db().clone(), home.path(), &[]);
-  let walked = stand_in_turn(&ground, &mut log(), &launch(), "what is new", &[], 1, None).await;
+  let walked = stand_in_turn(&ground, &mut log(), &chat_run(home.path()), "chat-agent", &[], 1, None).await;
 
   assert!(matches!(walked, Err(NoAnswer::Failed(_))), "{walked:?}");
 }
@@ -317,7 +299,7 @@ async fn a_walk_that_meets_no_stand_in_before_an_open_claude_leaves_the_turn_to_
   let scratch =
     store_with(&[("claude-code", true), ("codex", true), ("openrouter", true), ("registered", true)]).await;
   let ground = ground_on(scratch.db().clone(), home.path(), &[]);
-  let walked = stand_in_turn(&ground, &mut log(), &launch(), "what is new", &[], 1, None).await;
+  let walked = stand_in_turn(&ground, &mut log(), &chat_run(home.path()), "chat-agent", &[], 1, None).await;
 
   assert!(matches!(walked, Ok(None)), "{walked:?}");
 }

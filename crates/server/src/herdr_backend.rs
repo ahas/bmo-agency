@@ -1126,6 +1126,7 @@ impl HerdrSessions {
     let reply = run_turn(
       ground,
       &companion.name,
+      crate::lines::chat::LINE,
       provider.name(),
       &composed,
       resume.map(|(id, _)| id),
@@ -1168,17 +1169,22 @@ impl HerdrSessions {
     let held = agent_session(&db, agent).await.map_err(store_fault)?;
     let started = Instant::now();
     // The agent's key walked first: a stand-in that answers carries the turn, and Claude Code's session
-    // stays as it stands for its next turn.
-    let stood_in = stand_in_turn(
+    // stays as it stands for its next turn. The run is the chat line's; the fallback walk and roads are
+    // the one mechanism every line crosses over on (docs/cache-fallback.md).
+    let line_run = match crate::lines::chat::chat_run(
       ground,
-      &mut log,
+      &ground.machine(),
       &launch_of(agent, room, context, None),
       prompt,
-      &context.answers,
-      began,
-      Some(shown),
+      false,
     )
-    .await;
+    .await
+    {
+      Ok(line_run) => line_run,
+      Err(why) => return Ok(Came::Failed(why.detail, None)),
+    };
+    let stood_in =
+      stand_in_turn(ground, &mut log, &line_run, agent, &context.answers, began, Some(shown)).await;
     let on_claude = matches!(stood_in, Ok(None));
     let asked = match stood_in {
       Ok(Some(reply)) => Ok(reply),
@@ -1433,7 +1439,19 @@ impl HerdrSessions {
         Ok(composed) => {
           log.launched(&ground.db, Some(&composed.system_path), &turn.prompt, &[]).await;
 
-          run_turn(ground, agent, CHAT_PROVIDER, &composed, None, &mut log, false, None, Some(shown)).await
+          run_turn(
+            ground,
+            agent,
+            crate::lines::chat::LINE,
+            CHAT_PROVIDER,
+            &composed,
+            None,
+            &mut log,
+            false,
+            None,
+            Some(shown),
+          )
+          .await
         }
         Err(refused) => Err(NoAnswer::Failed(refused.detail)),
       }
@@ -1616,6 +1634,7 @@ impl HerdrSessions {
     run_turn(
       ground,
       agent,
+      crate::lines::chat::LINE,
       CHAT_PROVIDER,
       &composed,
       launch.resume.as_deref(),

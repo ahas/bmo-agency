@@ -86,6 +86,9 @@ pub struct ChatLaunch<'a> {
 /// The run composed.
 #[derive(Clone, Debug)]
 pub struct ChatRun {
+  /// The line the run composes under — `chat`, `gate` or `worker` — which its stand-in roads name its
+  /// program, prompt and files by. The fallback mechanism is one; only the line it runs differs.
+  pub line: &'static str,
   /// The agent whose turn it is, whose work key, place, lock and records the run stands under.
   pub agent: String,
   pub model: String,
@@ -343,6 +346,7 @@ pub async fn chat_run(
   }
 
   Ok(ChatRun {
+    line: LINE,
     agent: agent.to_owned(),
     model,
     effort,
@@ -502,6 +506,7 @@ pub fn gate_run(
   }
 
   Ok(ChatRun {
+    line: LINE,
     agent: agent.to_owned(),
     model: gate.model.clone().unwrap_or_default(),
     effort: effort.clone(),
@@ -690,7 +695,7 @@ impl ChatRun {
     keep_session: bool,
   ) -> StandIn<'a> {
     StandIn {
-      line: LINE,
+      line: self.line,
       model,
       effort,
       system_prompt_path: &self.system_path,
@@ -754,7 +759,7 @@ pub fn prefix(run: &ChatRun, mode: &str) -> String {
   let file = |path: &PathBuf| std::fs::read_to_string(path).ok();
   let prefix = Prefix {
     mode,
-    line: LINE,
+    line: run.line,
     model: &run.model,
     effort: &run.effort,
     thinking: run.thinking,
@@ -840,7 +845,7 @@ pub async fn compose_stand_in(
   match door {
     Door::Codex { thread } => {
       let shape = Shape::of_line(
-        LINE,
+        run.line,
         &step.model,
         &step.effort,
         run.thinking,
@@ -860,7 +865,7 @@ pub async fn compose_stand_in(
     }
     Door::Inbox { provider } => {
       let laid = Composed {
-        line: LINE,
+        line: run.line,
         provider,
         system: Some(&run.system_path),
         rules: None,
@@ -889,7 +894,7 @@ pub async fn compose_stand_in(
         effort: &step.effort,
         cwd: &run.cwd,
         settings: serde_json::Map::new(),
-        compose_typed: RUN_LINES.composes_typed_lines(LINE),
+        compose_typed: RUN_LINES.composes_typed_lines(run.line),
         shell_guard: true,
         sampling: None,
       };

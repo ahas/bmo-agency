@@ -164,6 +164,7 @@ pub async fn hand_over(ground: &Ground, hold: &ResetHold, companion: &Companion,
   let replied = run_turn(
     ground,
     &companion.name,
+    crate::lines::chat::LINE,
     due.provider.name(),
     &composed,
     Some(&due.session),

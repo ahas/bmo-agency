@@ -22,7 +22,7 @@ use crate::door::execution::{Identity, execution_root, own_unit};
 use crate::door::record::{ModelSpend, Reply as Recorded};
 use crate::door::surface::{Run, SurfaceEnding, SurfaceTurn, interrupt_of};
 use crate::door::turn::{Ending, Overrun, Overtime, Seat, Timings, Turn, Watch, pasted_lead, put};
-use crate::lines::companion::{ComposedTurn, LINE};
+use crate::lines::companion::ComposedTurn;
 use crate::lines::place::{Place, Program, token_of};
 use crate::lines::token;
 use crate::places::locks::{agent_lock_path, hold, try_hold};
@@ -341,6 +341,7 @@ fn failed(ending: &Ending) -> String {
 pub async fn run_turn(
   ground: &Ground,
   agent: &str,
+  line: &str,
   provider: &str,
   composed: &ComposedTurn,
   resumed: Option<&str>,
@@ -402,7 +403,7 @@ pub async fn run_turn(
         effort: composed.effort.clone(),
         tier: None,
       },
-      line: LINE.to_owned(),
+      line: line.to_owned(),
       provider: provider.to_owned(),
       lead: pasted_lead(),
       trusts_folder: true,
@@ -419,7 +420,7 @@ pub async fn run_turn(
   } else {
     let turn = SurfaceTurn {
       run: Run {
-        line: LINE.to_owned(),
+        line: line.to_owned(),
         model: composed.model.clone(),
         effort: composed.effort.clone().unwrap_or_default(),
         tier: None,
@@ -428,7 +429,7 @@ pub async fn run_turn(
         env: composed.run_env.clone().unwrap_or_else(|| composed.command.env.clone()),
         resume_session_id: resumed.map(str::to_owned),
       },
-      given: composed.given.clone().unwrap_or_else(|| json!({ "agent": agent, "line": LINE })),
+      given: composed.given.clone().unwrap_or_else(|| json!({ "agent": agent, "line": line })),
       home,
       name: run.clone(),
       title,
