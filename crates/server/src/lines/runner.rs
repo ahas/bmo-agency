@@ -23,9 +23,9 @@ use crate::places::Ground;
 /// The provider a runner's line is warmed on.
 pub const PROVIDER: &str = "claude-code";
 
-// The web reaches every runner through the deployment's own server and its toolbook, and no built-in tool
-// is shown to any.
-const WEB_TOOLS: &str = "mcp__bmo,mcp__web,mcp__toolbook";
+// The web reaches every runner through the deployment's own server, and no built-in tool is shown to any.
+// A hosted tool the namespaces do not show is reached with `bmo use`.
+const WEB_TOOLS: &str = "mcp__bmo,mcp__web";
 
 // The rulebook every text a person reads is written to.
 const PLAIN_WRITING: &str = "plain-writing";
@@ -104,21 +104,15 @@ fn server_on(port: u16, namespace: &str) -> Ordered {
   ])
 }
 
-/// A line's servers on the tool host: the namespaces it uses, then the toolbook, which reaches what those
-/// namespaces do not list.
+/// A line's servers on the tool host: the namespaces it uses. A hosted tool those namespaces do not show is
+/// reached with `bmo use`, never handed as a server of its own.
 pub(crate) fn line_servers(ground: &Ground, namespaces: &[&str]) -> Ordered {
   servers_on(ground.roots.mcp_port, namespaces)
 }
 
 /// The same servers on the tool host listening on the port given, each behind the run's token.
 pub fn servers_on(port: u16, namespaces: &[&str]) -> Ordered {
-  Ordered::map(
-    namespaces
-      .iter()
-      .copied()
-      .chain([harness_providers::toolbook::SERVER])
-      .map(|namespace| (namespace, server_on(port, namespace))),
-  )
+  Ordered::map(namespaces.iter().copied().map(|namespace| (namespace, server_on(port, namespace))))
 }
 
 // A configuration written where the line reads it when nothing has, and left as it stands otherwise: two
@@ -135,8 +129,9 @@ pub(crate) fn handed_config(
     return Ok(path);
   }
 
-  // A server the line has taken up since the file was written is added to it; the servers standing
-  // there, and anything else the file holds, are left as they are.
+  // A server the line has taken up since the file was written is added to it; the toolbook a line is no
+  // longer handed is taken out; the servers standing there, and anything else the file holds, are left as
+  // they are.
   let mut held: Ordered = serde_json::from_str(
     &std::fs::read_to_string(&path).map_err(|why| fault(format!("{}: {why}", path.display())))?,
   )
@@ -148,16 +143,24 @@ pub(crate) fn handed_config(
   else {
     return Ok(path);
   };
-  let mut added = false;
+  let mut changed = false;
+
+  if !composed
+    .entries()
+    .is_some_and(|entries| entries.contains_key(harness_providers::toolbook::SERVER))
+    && servers.shift_remove(harness_providers::toolbook::SERVER).is_some()
+  {
+    changed = true;
+  }
 
   for (name, server) in composed.entries().into_iter().flatten() {
     if !servers.contains_key(name) {
       servers.insert(name.clone(), server.clone());
-      added = true;
+      changed = true;
     }
   }
 
-  if added {
+  if changed {
     publish_text(&path, &held.pretty())?;
   }
 
@@ -216,7 +219,7 @@ impl Runner for Search {
     search_instructions(trees, &tools).map(Some)
   }
 
-  // The web namespace alone, on the tool host, with the toolbook.
+  // The web namespace alone, on the tool host.
   fn mcp_config(&self, ground: &Ground, trees: &Trees) -> Result<PathBuf, Refusal> {
     handed_config(trees.agents.join("search.mcp.json"), || Ok(line_servers(ground, &["bmo", "web"])))
   }
@@ -228,7 +231,7 @@ impl Runner for Browse {
   }
 
   fn tools_allowed(&self) -> &'static str {
-    "mcp__bmo,mcp__chrome-devtools,mcp__web,mcp__toolbook"
+    "mcp__bmo,mcp__chrome-devtools,mcp__web"
   }
 
   async fn instructions(&self, _ground: &Ground, trees: &Trees) -> Result<Option<String>, Refusal> {

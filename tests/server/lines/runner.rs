@@ -64,18 +64,20 @@ fn placeholder(text: &str) -> bool {
 }
 
 #[test]
-fn a_line_names_its_namespaces_then_the_toolbook_each_on_the_host_behind_the_run_s_token() {
+fn a_line_names_its_namespaces_alone_on_the_host_behind_the_run_s_token() {
   let server = |namespace: &str| {
     format!(
       "  \"{namespace}\": {{\n    \"type\": \"http\",\n    \"url\": \"http://127.0.0.1:3290/mcp/{namespace}\",\n    \"headers\": {{\n      \"Authorization\": \"Bearer ${{BMO_MCP_TOKEN}}\"\n    }}\n  }}"
     )
   };
 
-  // In the order the deployment's writer writes them, which the line's prefix is read off.
+  // In the order the deployment's writer writes them, which the line's prefix is read off. The toolbook is
+  // the host's own face `bmo use` asks, never a server named in a line's configuration.
   assert_eq!(
     servers_on(3290, &["web", "worker"]).pretty(),
-    format!("{{\n{},\n{},\n{}\n}}", server("web"), server("worker"), server("toolbook"))
+    format!("{{\n{},\n{}\n}}", server("web"), server("worker"))
   );
+  assert!(!servers_on(3290, &["web", "worker"]).pretty().contains("toolbook"));
 }
 
 // is the instructions alone, every mark in them filled

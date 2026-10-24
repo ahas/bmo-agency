@@ -46,9 +46,9 @@ composed into a system prompt, and what the chat agent's own prompt is made of.
 - **Agency's deployment writes `worker.mcp.json`,** the job worker's own configuration and the only
   line handed it, naming the tool host's `worker` namespace beside its `web` namespace
   (`mcp-host.md`). The chat line's `chat.mcp.json` is not the deployment's to write: the chat line
-  composes it on every turn, the tool host's `bmo`, `web` and `gate` namespaces and toolbook beside the
-  two harness plugins (`docs/launch-lines.md`, 「What is fixed」), and one writer keeps the file from
-  moving between two compositions.
+  composes it on every turn, the tool host's `bmo`, `web` and `gate` namespaces beside the two harness
+  plugins (`docs/launch-lines.md`, 「What is fixed」), and one writer keeps the file from moving between two
+  compositions. A hosted tool those namespaces do not show is reached with `bmo use`.
 - **The tool host's web namespace is how the web reaches every agent allowed to use it:** its
   `web_search` and `web_fetch` are the tool host's (`web-access.md`). The CLI's WebSearch and
   WebFetch, which return a model's rendering of a page that the page itself can steer, are shown to
@@ -140,10 +140,10 @@ composed into a system prompt, and what the chat agent's own prompt is made of.
   the rule against destroying the system, `prompts/rules/self-preservation.md`; then the brain's
   discipline, how the agent reads and writes its long-term memory every turn, read from the brain at
   the launch through its client and left out where no brain answers; then the tool host's paragraph on
-  finding and using tools, read from the tool host at the launch through its client, whole and as the
-  host words it, for a session handed the toolbook, and left out where the host does not answer; and
-  then the persona, the base layer of the agent's own brain, or the one the turn hands in where the
-  brain gives none (`docs/sessions.md`, 「Document reload」).
+  finding and using tools with `bmo use`, read from the tool host at the launch through its client, whole
+  and as the host words it, and left out where the host does not answer; and then the persona, the base
+  layer of the agent's own brain, or the one the turn hands in where the brain gives none
+  (`docs/sessions.md`, 「Document reload」).
 - **That whole composition is the system prompt,** replacing the CLI's own: nothing of Claude Code's
   coding conventions, memory rules or instruction files reaches a chat session, and neither do this
   machine's settings, MCP servers or skills.

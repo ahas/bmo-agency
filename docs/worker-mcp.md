@@ -51,7 +51,7 @@
   and the worker role is the only role giving those two bundles (`docs/agent-roles.md`), and no line
   declares them (`mcp-host.md`, 「Namespaces and capabilities」). So a tool added with those
   capabilities reaches job workers and their co-workers and nothing else: by its own name where it is
-  resident, through the worker's toolbook otherwise (`toolbook.md`, 「Which tools are resident」).
+  resident, with `bmo use` otherwise.
 - **They are a namespace of their own rather than more web tools.** The web tools are shared with
   the search and browse runners, whose business is the open web; the graph of this repository and
   the owner's queue are no part of that, and a research run has no reason to be shown them.

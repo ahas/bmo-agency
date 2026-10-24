@@ -159,13 +159,14 @@
   (`prompts/rules/self-preservation.md`), the brain's discipline, the tool host's paragraph on finding
   and using tools (`docs/api.md`, 「Calls agency makes」) and the persona — the base layer of the
   agent's brain, or the one the turn hands in where the brain gives none (`docs/sessions.md`, 「Document reload」) — handed
-  over as a file and replacing the CLI's own. No settings sources, no skills, no Chrome, and six MCP servers, named in `chat.mcp.json`
+  over as a file and replacing the CLI's own. No settings sources, no skills, no Chrome, and five MCP servers, named in `chat.mcp.json`
   beside the strict flag that keeps every other server out: the tool host's namespaces the chat line
-  names, `bmo`, `web` and `gate`, and its toolbook, each a streamable HTTP server behind the run's session
+  names, `bmo`, `web` and `gate`, each a streamable HTTP server behind the run's session
   token (the tool host's `mcp-host.md`), which is where the chat agent's own tools stand — sending, filing
   a TODO item, its brain's memory tools, the web's search and page fetch, and the gate's translator among
   them; the job service's harness plugin, `job`, which leases an item
-  from a queue; and the agency's own, `agency`, which assigns a worker and launches the item's job.
+  from a queue; and the agency's own, `agency`, which assigns a worker and launches the item's job. A
+  hosted tool those namespaces do not show is reached with `bmo use`.
   The tools shown are exactly Bash, Read, Write, Edit and the CLI's two MCP resource tools, the list
   and the read, in every run of every chat (none when the owner has turned tools off in that chat),
   with the four servers' tools beside them; the permission mode is don't-ask, and the allow list is
@@ -346,9 +347,9 @@
 - **Search runner**: the model and the effort its depth's tier assignment names on the first
   enabled provider whose program carries the search line — Frontier at every depth to start with —
   refused rather than launched where that model does not list the effort
-  (`research-runs.md`) — don't-ask mode, no built-in tool shown, the web MCP server's tools,
-  the brain's `bmo` namespace and the toolbook's and nothing else allowed; no settings sources, no other
-  MCP, no Chrome, run in its deployed
+  (`research-runs.md`) — don't-ask mode, no built-in tool shown, the web MCP server's tools and the brain's
+  `bmo` namespace, and nothing else allowed; any other hosted tool it holds is reached with `bmo use`; no
+  settings sources, no other MCP, no Chrome, run in its deployed
   directory. It is handed the standing `search.mcp.json`, and the run's session record holds when
   research closes, so the web tools know it; the record also names the deployment's agent as the turn its
   brain tools run for, so a fact the run establishes is written into the chat agent's brain while the run
@@ -387,8 +388,8 @@
   - **The morning news page** runs on this line with its own instructions as the system prompt and
     the day it is written for as the prompt (`news-brief.md`).
 - **Browse runner**: the model and the effort its tier assignment names (Frontier to start with),
-  don't-ask mode, no built-in tool shown, the chrome-devtools tools, the tool host's web tools, the
-  brain's `bmo` namespace and the toolbook from an MCP configuration written for the run — chrome-devtools started as the profile's strategy
+  don't-ask mode, no built-in tool shown, the chrome-devtools tools, the tool host's web tools and the
+  brain's `bmo` namespace from an MCP configuration written for the run — chrome-devtools started as the profile's strategy
   asks, the web namespace as every line names it, the run's own values in its session record — and
   nothing else, no settings, no other MCP, no
   Chrome integration, run in its deployed directory. The profile's browser strategy decides
@@ -406,9 +407,9 @@
   written for each run for its chrome-devtools; the job worker has the two built-ins disallowed on its line and is handed
   `worker.mcp.json`, which carries that same server beside the worker's own and which no other
   line is given, since the scope this machine registers the server in is shut off for it.
-- **The toolbook**: every line's MCP configuration names the tool host's `toolbook` after its
-  namespaces, and every allow list that names servers names it too, so a tool a line holds and its
-  namespaces do not list is reached through it (`toolbook.md`). The site tools are the
+- **`bmo use`**: a hosted tool a line holds and its namespaces do not list is reached with the `bmo use`
+  command, under the run's own tool session token, as the tool host's paragraph in the session's prompt says
+  (`toolbook.md`). No line's MCP configuration names the tool host's toolbook. The site tools are the
   searcher's alone; the job worker and a companion's hands keep web search and page fetch.
 - **Environment**: every one of these processes is started with the repository's git status
   left out of its prompt; every Claude line also carries the configuration directory of the

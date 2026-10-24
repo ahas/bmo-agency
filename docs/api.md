@@ -28,7 +28,7 @@ a field's exact shape matters, the OpenAPI document is the one to read.
 ## Versioning
 
 - The contract carries the repository's one version, in semver; the workspace manifest is its source. Before
-  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.67`.
+  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.68`.
 - A change to this document and a change to the boundary go in one commit. A change to a route, an event, a
   hook or a shared table's contract repairs this document in the same commit.
 - The major moves on a removed or renamed route, field or event, the minor on an addition, the patch on
@@ -801,10 +801,11 @@ reads the gate kinds and their order as the gate publishes them, so no copy of t
 - **Making an agent's brain.** As a companion is added, or an agent given a brain is registered
   (「agents」), the brain is asked for the agent's key first; where it answers one, nothing is made. A brain
   that cannot be reached, or refuses, leaves the agent registered and the failure logged.
-- **The tool discipline.** At a chat launch whose session is handed the toolbook, the tool host's
-  `GET /discipline` is read through its client and its text is put into the system prompt whole; agency
-  writes nothing of its own about the toolbook. The control socket is the one `BMO_MCP_HOST_SOCKET` names,
-  else `bmo/mcp-host.sock` under the user's runtime directory. A host that cannot be reached, or refuses,
+- **The tool discipline.** At a chat launch, the tool host's `GET /discipline` is read through its client
+  and its text, telling the session how to find and use a hosted tool with `bmo use`, is put into the
+  system prompt whole; agency writes nothing of its own about it. The control socket is the one
+  `BMO_MCP_HOST_SOCKET` names, else `bmo/mcp-host.sock` under the user's runtime directory. A host that
+  cannot be reached, or refuses,
   leaves the paragraph out and the launch logs one sentence saying so.
 
 Each surface is a crate of its own repository, declared in the workspace manifest and allowed by

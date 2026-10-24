@@ -137,8 +137,8 @@ flowchart TD
     out;
   - the same shell guard;
   - the same record on the tool host: the chat line's capability and the chat role's bundles, so the
-    tool list each is shown is the whole catalogue, reached through the `bmo` and toolbook servers
-    `chat.mcp.json` names (the tool host's `mcp-host.md`).
+    tool list each is shown is the whole catalogue, the resident tools through the `bmo`, `web` and `gate`
+    servers `chat.mcp.json` names and the rest with `bmo use` (the tool host's `mcp-host.md`).
 - **Every tool acts as the agent whose turn calls it:** its memories, notes and reminders are its
   own, a send goes out under its own name into a room it answers and nowhere else, and an item it
   files goes to its own worker (`docs/agent-roles.md`, `docs/companions.md`, 「Filing a TODO item」).

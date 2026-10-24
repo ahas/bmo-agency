@@ -4,7 +4,7 @@
 # [[bundles]]: one function bundle a role may give, a capability of the tool host, with the short name a screen writes it by.
 # [[roles]]: one role, in the order a screen lists them: its name, its label as a screen writes it, the
 #   bundles it gives, and in `shown` the tool entries, by full name, its agents are shown by name whatever
-#   their line; every other entry a session of the role holds stands in its toolbook unless the line
+#   their line; every other entry a session of the role holds is reached with `bmo use` unless the line
 #   lists it. None is listed for now.
 # coworker: the role a co-worker's run holds. A co-worker is a sub-agent for a worker's use alone, and
 #   the place it works in, a standing branch checkout, has no agents row to name a role of its own.

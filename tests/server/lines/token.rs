@@ -50,7 +50,7 @@ fn a_research_run_carries_what_its_runner_told_it() {
 }
 
 // The paragraph a stand-in tool host words, which no agency text holds.
-pub(crate) const PARAGRAPH: &str = "Reach a tool through the toolbook: list, describe, then call.";
+pub(crate) const PARAGRAPH: &str = "Reach a tool with bmo use: list, describe, then call.";
 
 /// A tool host standing on `socket` that answers `GET /discipline` as text to the issuer `token` alone.
 pub(crate) fn tool_host(socket: &std::path::Path, token: &'static str) {

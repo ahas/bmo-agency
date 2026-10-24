@@ -407,9 +407,10 @@ pub async fn coworkers_json(ground: &Ground, plugin_dir: &Path, rules: &str) -> 
   serde_json::to_string(&Definitions(definitions)).map_err(|why| fault(why.to_string()))
 }
 
-/// The worker line's MCP configuration, on the tool host — the web namespace, the worker's own and the
-/// toolbook — written where the line reads it when nothing has written it, and left as it stands
-/// otherwise: two trees writing one file would move the worker's prefix back and forth between them.
+/// The worker line's MCP configuration, on the tool host — the web namespace and the worker's own — written
+/// where the line reads it when nothing has written it, and left as it stands otherwise: two trees writing
+/// one file would move the worker's prefix back and forth between them. A hosted tool those namespaces do
+/// not show is reached with `bmo use`.
 pub fn mcp_config(ground: &Ground, trees: &Trees) -> Result<PathBuf, Refusal> {
   super::runner::handed_config(trees.agents.join("worker.mcp.json"), || {
     Ok(super::runner::line_servers(ground, &["web", "worker"]))

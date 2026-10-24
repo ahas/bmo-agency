@@ -14,7 +14,7 @@
 # namespaces: the tool host namespaces a run of the line is issued; absent on a line that is handed no
 #   tools.
 # shown: the placed tool entries, by full name, every run of the line is shown by name in their namespace
-#   whatever its agent's role, where it holds them; every other entry it holds stands in its toolbook.
+#   whatever its agent's role, where it holds them; every other entry it holds is reached with `bmo use`.
 # variables: the deployment's variables every run of the line hands its record, each where the deployment
 #   sets it, for the placed tools that read them: a record's variable wins over the tool host's own.
 

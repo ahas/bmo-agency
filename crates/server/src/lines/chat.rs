@@ -156,12 +156,13 @@ pub async fn server_digest(ground: &Ground) -> Option<String> {
   facts(ground, SERVER).await?.get("digest")?.as_str().map(str::to_owned)
 }
 
-/// The chat line's MCP configuration: the tool host's own namespace and its toolbook, each behind the
-/// run's session token, where the chat agent's sending, filing and memory tools stand; then the job
-/// service's harness plugin, which leases an item from a queue, and the agency's own, which assigns a
-/// worker and launches the item's job. The two plugins start as programs beside the chat and take their
-/// bearers from the environment the chat inherits; a deployment that names neither leaves that server
-/// out. Written on every composition, since this line is the one writer.
+/// The chat line's MCP configuration: the tool host's own namespaces, each behind the run's session token,
+/// where the chat agent's sending, filing and memory tools stand; then the job service's harness plugin,
+/// which leases an item from a queue, and the agency's own, which assigns a worker and launches the item's
+/// job. A hosted tool those namespaces do not show is reached with `bmo use`. The two plugins start as
+/// programs beside the chat and take their bearers from the environment the chat inherits; a deployment
+/// that names neither leaves that server out. Written on every composition, since this line is the one
+/// writer.
 pub fn mcp_config(ground: &Ground, trees: &Trees) -> Result<PathBuf, Refusal> {
   let path = trees.agents.join("chat.mcp.json");
   let text = format!("{}\n", Ordered::map([("mcpServers", harness_servers(ground))]).pretty());
@@ -174,16 +175,9 @@ pub fn mcp_config(ground: &Ground, trees: &Trees) -> Result<PathBuf, Refusal> {
   Ok(path)
 }
 
-// Whether the chat's session is handed the tool host's toolbook among its servers.
-fn hands_toolbook(ground: &Ground) -> bool {
-  harness_servers(ground)
-    .entries()
-    .is_some_and(|servers| servers.contains_key(harness_providers::toolbook::SERVER))
-}
-
-// The chat's servers: the tool host's namespaces its line names and the toolbook, as every line reaches
-// them, then the two the chat starts as programs of its own — the job plugin on its `mcp` verb, told the
-// queues it subscribes to and the holder it takes them under, and the agency's own binary on the same verb.
+// The chat's servers: the tool host's namespaces its line names, then the two the chat starts as programs of
+// its own — the job plugin on its `mcp` verb, told the queues it subscribes to and the holder it takes them
+// under, and the agency's own binary on the same verb.
 // A value that differs by installation is read from the environment, and each program's bearer is handed to
 // it in the configuration's own environment: a harness starts its children on an environment scrubbed of
 // everything but the entries written there.
@@ -294,18 +288,14 @@ pub async fn chat_run(
       None
     }
   };
-  let tool_discipline = if hands_toolbook(ground) {
-    match super::token::discipline(ground).await {
-      Ok(text) => Some(text),
-      Err(why) => {
-        eprintln!(
-          "agency: the tool host's discipline could not be read; the chat launches without it: {why}"
-        );
-        None
-      }
+  let tool_discipline = match super::token::discipline(ground).await {
+    Ok(text) => Some(text),
+    Err(why) => {
+      eprintln!(
+        "agency: the tool host's discipline could not be read; the chat launches without it: {why}"
+      );
+      None
     }
-  } else {
-    None
   };
   let persona = super::persona::base_persona(
     ground.peers.brain.as_ref(),

@@ -122,7 +122,7 @@ async fn launched_system(scratch: &Scratch, home: &Path, socket: &Path) -> Strin
 }
 
 #[tokio::test]
-async fn a_chat_launch_handed_the_toolbook_carries_the_tool_hosts_paragraph_where_the_host_answers() {
+async fn a_chat_launch_carries_the_tool_hosts_paragraph_where_the_host_answers() {
   let scratch = Scratch::new().await;
   let home = tempfile::tempdir().unwrap();
   let socket = home.path().join("mcp-host.sock");

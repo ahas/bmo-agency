@@ -49,8 +49,8 @@ made of is `docs/companions.md`.
   to name a role of its own (`docs/coworker-pool.md`, 「Standing branch checkouts and their list」).
 
 - **A role may list the tool entries its agents are shown by name,** by full name in its `shown`
-  list; every other entry its record holds stands in its toolbook (`toolbook.md`, 「Which tools
-  are resident」). No role lists any now: each line's declaration lists what its sessions are shown.
+  list; every other entry its record holds is reached with `bmo use`. No role lists any now: each line's
+  declaration lists what its sessions are shown.
 - **The bundle that opens sending is named once,** as `send` in `roles.toml`, and every guard of a
   send reads it there.
 
@@ -81,8 +81,7 @@ made of is `docs/companions.md`.
 - **`graph.read` and `queue.read` — the worker's own namespace,** the graph's four reading verbs and the
   queue's two (`docs/worker-mcp.md`).
 - **`web.read` — web search and page fetch** of the web namespace. The site tools are the searcher's
-  alone (`toolbook.md`, 「Each line's toolbook」); a page one of them claims is still read its
-  way when the worker fetches it.
+  alone; a page one of them claims is still read its way when the worker fetches it.
 - **Every run a worker's work goes out on holds them:** a job's turns in the worker's standing program,
   its runs on another provider's road, the program a worker stands idle, and a co-work task's turns in
   its place and the pings that warm it.
@@ -91,8 +90,8 @@ made of is `docs/companions.md`.
 
 - **`web.read`, `web.sites`, `web.images`, `web.branches` and `web.rulebooks` — the whole of the web
   namespace:** search and fetch, the site tools, the picture viewer, the research branch and the
-  rulebooks. Its booked tools stand in its own toolbook, which no other role's holds
-  (`toolbook.md`).
+  rulebooks. The tools its line does not show are reached with `bmo use` under its own record, which no
+  other role holds.
 - **A run's research settings narrow them** (`mcp-host.md`, 「The session record」): a research run
   holds the picture viewer, the branch tool and the rulebooks only where its settings open them, so a
   search, a browse, a branch and a news brief are each shown what their own settings ask for, and a run
