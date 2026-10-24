@@ -1,0 +1,167 @@
+//! A job left running with no live execution behind it (docs/api.md, 「assignments and jobs」): the reaper
+//! reads the executions and runs the store already keeps, ends the job as stopped with why, closes its run,
+//! releases its assignment, and leaves a job a live execution or another machine still stands behind.
+
+use std::collections::HashMap;
+
+use agency_server::Service;
+use agency_server::config::Config;
+use agency_server::control::work::reap_stale;
+use agency_server::now_ms;
+use agency_server::places::Ground;
+use harness_providers::Machine;
+
+use crate::scratch::Scratch;
+
+fn ground(scratch: &Scratch, machine: &Machine) -> Ground {
+  let variables: HashMap<String, String> = HashMap::new();
+  let service =
+    Service::new(scratch.db().clone(), Config::read(|name| variables.get(name).cloned()).unwrap());
+
+  Ground::new(&service, machine, None)
+}
+
+fn machine(home: &std::path::Path) -> Machine {
+  let at = |path: std::path::PathBuf| path.to_string_lossy().into_owned();
+
+  Machine::with_env(
+    [
+      ("HOME".to_owned(), at(home.to_path_buf())),
+      ("PATH".to_owned(), "/usr/bin:/bin".to_owned()),
+    ],
+    home.join("data"),
+  )
+}
+
+#[tokio::test]
+async fn a_job_with_no_live_execution_is_stopped_and_a_live_one_is_left() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let machine = machine(home.path());
+  let ground = ground(&scratch, &machine);
+  let now = now_ms();
+  let old = now - 20 * 60 * 1000;
+  let later = now - 10 * 60 * 1000;
+
+  scratch
+    .run(
+      r#"INSERT INTO "agents" ("name", "kind", "node") VALUES ('bmo-cli', 'worker', NULL), ('node-worker', 'worker', 'n3')"#,
+      vec![],
+    )
+    .await;
+  scratch
+    .run(
+      r#"INSERT INTO "jobs" ("item_id", "lease_id", "holder_name", "assignment_id", "worker_name",
+           "run_id", "run_name", "room_id", "state", "started_at", "prompt")
+         VALUES
+           (1, 11, 'harness', 10, 'bmo-cli', 100, 'job-1', 7, 'running', $1, 'one'),
+           (2, 12, 'harness', 20, 'bmo-cli', 200, 'job-2', 7, 'running', $3, 'two'),
+           (3, 13, 'harness', 30, 'node-worker', 300, 'job-3', 7, 'running', $1, 'three'),
+           (4, 14, 'harness', 40, 'bmo-cli', 400, 'job-4', 7, 'running', $2, 'four'),
+           (5, 15, 'harness', 50, 'bmo-cli', 500, 'job-5', 7, 'ended', $2, 'five')"#,
+      vec![old.into(), now.into(), later.into()],
+    )
+    .await;
+  scratch
+    .run(
+      r#"INSERT INTO "runs" ("agent", "unit", "depth", "started_at", "id") VALUES
+           ('bmo-cli', 'job-1', 0, $1, 100),
+           ('bmo-cli', 'job-2', 0, $3, 200),
+           ('node-worker', 'job-3', 0, $1, 300),
+           ('bmo-cli', 'job-4', 0, $2, 400),
+           ('bmo-cli', 'job-5', 0, $2, 500)"#,
+      vec![old.into(), now.into(), later.into()],
+    )
+    .await;
+  scratch
+    .run(
+      r#"UPDATE "runs" SET "finished_at" = $1, "outcome" = 'answered' WHERE "id" = 500"#,
+      vec![now.into()],
+    )
+    .await;
+  scratch
+    .run(
+      r#"INSERT INTO "agent_executions" ("id", "body") VALUES ('live-execution', $1)"#,
+      vec![
+        serde_json::json!({
+          "id": "live-execution", "agent": "bmo-cli", "line": "worker", "state": "running",
+          "startedAt": later + 10, "endedAt": null
+        })
+        .to_string()
+        .into(),
+      ],
+    )
+    .await;
+  scratch
+    .run(
+      r#"INSERT INTO "assignments" ("id", "item_id", "holder_name", "worker_name", "state", "expires_at",
+           "created_at", "changed_at")
+         VALUES (10, 1, 'harness', 'bmo-cli', 'running', $1, $1, $1),
+                (20, 2, 'harness', 'bmo-cli', 'running', $1, $1, $1),
+                (30, 3, 'harness', 'node-worker', 'running', $1, $1, $1),
+                (40, 4, 'harness', 'bmo-cli', 'running', $1, $1, $1),
+                (50, 5, 'harness', 'bmo-cli', 'running', $1, $1, $1)"#,
+      vec![now.into()],
+    )
+    .await;
+
+  assert_eq!(reap_stale(&ground).await.unwrap(), 1);
+
+  let job = |id: i64| {
+    let db = scratch.db();
+    async move {
+      store::one(
+        db,
+        r#"SELECT "state", "outcome", "report", "ended_at" FROM "jobs" WHERE "id" = $1"#,
+        vec![id.into()],
+      )
+      .await
+      .unwrap()
+      .unwrap()
+    }
+  };
+  let stopped = job(1).await;
+
+  assert_eq!(stopped.try_get::<String>("", "state").unwrap(), "stopped");
+  assert_eq!(stopped.try_get::<String>("", "outcome").unwrap(), "stopped");
+  assert!(
+    stopped
+      .try_get::<String>("", "report")
+      .unwrap()
+      .contains("agency process that ran this job went away")
+  );
+  assert!(stopped.try_get::<Option<i64>>("", "ended_at").unwrap().is_some());
+  for id in [2, 3, 4] {
+    assert_eq!(job(id).await.try_get::<String>("", "state").unwrap(), "running");
+  }
+  assert_eq!(job(5).await.try_get::<String>("", "state").unwrap(), "ended");
+
+  let run = |id: i64| {
+    let db = scratch.db();
+    async move {
+      store::one(db, r#"SELECT "finished_at", "outcome" FROM "runs" WHERE "id" = $1"#, vec![id.into()])
+        .await
+        .unwrap()
+        .unwrap()
+    }
+  };
+
+  assert_eq!(run(100).await.try_get::<String>("", "outcome").unwrap(), "stopped");
+  assert!(run(100).await.try_get::<Option<i64>>("", "finished_at").unwrap().is_some());
+  assert!(run(200).await.try_get::<Option<i64>>("", "finished_at").unwrap().is_none());
+
+  let assignment = |id: i64| {
+    let db = scratch.db();
+    async move {
+      store::one(db, r#"SELECT "state" FROM "assignments" WHERE "id" = $1"#, vec![id.into()])
+        .await
+        .unwrap()
+        .unwrap()
+    }
+  };
+
+  assert_eq!(assignment(10).await.try_get::<String>("", "state").unwrap(), "released");
+  assert_eq!(assignment(20).await.try_get::<String>("", "state").unwrap(), "running");
+  assert_eq!(assignment(30).await.try_get::<String>("", "state").unwrap(), "running");
+  assert_eq!(assignment(40).await.try_get::<String>("", "state").unwrap(), "running");
+}

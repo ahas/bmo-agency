@@ -42,7 +42,8 @@ fn the_order_carries_the_item_the_worker_and_the_report_whole() {
 fn a_job_that_left_no_report_says_so_and_a_stop_carries_its_outcome() {
   let said = order(&member(None, Some("failed")));
 
-  assert!(said.contains("ended ended, its outcome failed"));
+  assert!(said.contains("ended, its outcome failed"));
+  assert!(!said.contains("ended ended"));
   assert!(said.contains("The run left no report; its end is all there is to tell."));
 }
 

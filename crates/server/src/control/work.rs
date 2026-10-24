@@ -795,6 +795,139 @@ async fn launch(ground: Arc<Ground>, sessions: Option<crate::herdr_backend::Shar
   }
 }
 
+/// How long after it began a job is old enough to be read as gone when no live execution stands behind it:
+/// past any launch window, so a launch still placing its turn is never mistaken for one the process lost.
+pub const REAP_GRACE_MS: i64 = 2 * 60 * 1000;
+
+/// What a job with no live execution behind it is told: the process that ran it went away.
+pub const REAPED: &str = "The agency process that ran this job went away before the job could write its own end (a restart), so the job is stopped.";
+
+// A job's live execution: an open execution row of its worker's, laid on the worker line, begun at the job's
+// own start. The worker runs one job at a time, so one that begins in the job's first minute is its own.
+async fn live_execution(
+  db: &sea_orm::DatabaseConnection,
+  worker: &str,
+  started_at: i64,
+) -> Result<bool, Refused> {
+  Ok(
+    one(
+      db,
+      r#"SELECT "id" FROM "agent_executions"
+         WHERE ("body"::jsonb)->>'agent' = $1
+           AND ("body"::jsonb)->>'line' = 'worker'
+           AND (("body"::jsonb)->>'endedAt') IS NULL
+           AND (("body"::jsonb)->>'startedAt')::bigint >= $2
+           AND (("body"::jsonb)->>'startedAt')::bigint <= $3
+         LIMIT 1"#,
+      vec![worker.to_owned().into(), (started_at - 1_000).into(), (started_at + 60_000).into()],
+    )
+    .await?
+    .is_some(),
+  )
+}
+
+/// A job found `starting` or `running` with no live execution behind it, ended as stopped with the reason
+/// (docs/api.md, 「assignments and jobs」): the process that ran it went away, so no later end would ever be
+/// written. Its assignment is released, its open run closed, its lease returned and its report told to the
+/// room, exactly as any other end. A job whose worker stands on another machine is left, since its execution
+/// is no record this machine keeps. Answers how many jobs ended.
+pub async fn reap_stale(ground: &Ground) -> Result<usize, Refused> {
+  let now = now_ms();
+  let rows = all(
+    &ground.db,
+    r#"SELECT "id", "worker_name", "assignment_id", "run_id", "started_at", "state"
+       FROM "jobs" WHERE "state" IN ('starting', 'running') ORDER BY "id""#,
+    vec![],
+  )
+  .await?;
+  let mut reaped = 0;
+
+  for row in rows {
+    let id: i64 = row.try_get("", "id")?;
+    let worker: String = row.try_get("", "worker_name")?;
+    let run_id: Option<i64> = row.try_get("", "run_id")?;
+    let started_at: i64 = row.try_get("", "started_at")?;
+    let state: String = row.try_get("", "state")?;
+
+    if now - started_at < REAP_GRACE_MS {
+      continue;
+    }
+
+    // A worker on a node runs elsewhere: its execution is no row this machine holds.
+    let node: Option<String> = one(
+      &ground.db,
+      r#"SELECT "node" FROM "agents" WHERE "name" = $1"#,
+      vec![worker.clone().into()],
+    )
+    .await?
+    .and_then(|row| row.try_get::<Option<String>>("", "node").ok().flatten())
+    .filter(|node| !node.trim().is_empty());
+
+    if node.is_some() {
+      println!("job {id}: left {state}: its worker {worker} stands on {}", node.unwrap_or_default());
+      continue;
+    }
+
+    let live = live_execution(&ground.db, &worker, started_at).await?;
+    let run_open = match run_id.filter(|run| *run > 0) {
+      Some(run) => run_ledger::read(&ground.db, run)
+        .await
+        .map(|held| held.is_some_and(|held| held.finished_at.is_none()))
+        .unwrap_or(false),
+      None => false,
+    };
+
+    if live && (run_open || run_id.is_none()) {
+      continue;
+    }
+
+    let report = format!("{REAPED} It was {state} when the process ended.");
+
+    if run(
+      &ground.db,
+      r#"UPDATE "jobs" SET "state" = 'stopped', "outcome" = 'stopped', "report" = $1, "ended_at" = $2
+         WHERE "id" = $3 AND "state" IN ('starting', 'running')"#,
+      vec![report.clone().into(), now.into(), id.into()],
+    )
+    .await?
+      == 0
+    {
+      continue;
+    }
+
+    noted(ground, id, "stopped", Some("the agency process that ran it went away (a restart)")).await;
+
+    if let Some(assignment) = row.try_get::<Option<i64>>("", "assignment_id").ok().flatten()
+      && assignment > 0
+      && let Err(why) = release(&ground.db, assignment).await
+    {
+      eprintln!("job {id}: its assignment {assignment} was not released: {}", why.error);
+    }
+
+    if let Some(run_id) = run_id.filter(|run| *run > 0) {
+      let closing = Closing {
+        finished_at: now,
+        outcome: "stopped".to_owned(),
+        context_tokens: None,
+        spent: None,
+      };
+
+      if let Err(why) = run_ledger::close(&ground.db, run_id, &closing).await {
+        println!("job {id}: its run {run_id} was not closed: {why:?}");
+      }
+    }
+
+    if let Ok((member, _)) = job(&ground.db, id).await {
+      crate::job_end::delivered(ground, &member).await;
+      publish(ground, "job.changed", member);
+    }
+
+    reaped += 1;
+  }
+
+  Ok(reaped)
+}
+
 // A job's end that is no answer, written into its log under its run as a note: its outcome and why.
 async fn noted(ground: &Ground, id: i64, outcome: &str, why: Option<&str>) {
   let Ok((member, _)) = job(&ground.db, id).await else {

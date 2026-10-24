@@ -120,9 +120,12 @@ pub fn order(member: &Value) -> String {
   let state = member["state"].as_str().unwrap_or_default();
   let outcome = member["outcome"].as_str().map(str::trim).filter(|why| !why.is_empty());
   let report = member["report"].as_str().map(str::trim).filter(|said| !said.is_empty());
-  let ended = match outcome {
-    Some(outcome) => format!("ended {state}, its outcome {outcome}"),
-    None => format!("ended {state}"),
+  let ended = match (state, outcome) {
+    ("ended", None) => "ended".to_owned(),
+    ("stopped", None) => "stopped".to_owned(),
+    (state, Some(outcome)) if outcome == state => state.to_owned(),
+    (state, Some(outcome)) => format!("{state}, its outcome {outcome}"),
+    (state, None) => state.to_owned(),
   };
   let text = format!(
     "The job of item #{item} on worker {worker} {ended}.\n\nIts report, as the run left it:\n\n{}\n\n\

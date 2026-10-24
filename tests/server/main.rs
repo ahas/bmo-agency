@@ -47,6 +47,7 @@ mod control {
   mod harness;
   mod job_end;
   mod job_log;
+  mod job_reaper;
   mod jobs;
   mod mcp;
   mod model_tiers;

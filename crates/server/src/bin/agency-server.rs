@@ -96,6 +96,16 @@ async fn serve(args: Args) -> Result<(), String> {
   // The gate's kinds read before the routes stand, so an agent's switches list its gates from the
   // gate's own declaration and not from a copy agency would keep.
   agency_server::gate_kinds::refresh(&ground).await;
+  // Execution rows the last process left open are closed on what they left, and a job whose process
+  // went away with the last one is ended before the routes stand. The same pass runs on its clock.
+  if let Err(why) = agency_server::queue::reconcile::pass(&ground.db, &ground.roots.data).await {
+    eprintln!("agency: the executions: {}", why.detail);
+  }
+
+  if let Err(why) = agency_server::control::work::reap_stale(&ground).await {
+    eprintln!("agency: the jobs left running: {}", why.error);
+  }
+
   clocks(&ground);
   tokio::spawn(agency_server::order_run::clocks::keep_bound(
     ground.db.clone(),
@@ -172,8 +182,11 @@ fn clocks(ground: &Arc<Ground>) {
       async move {
         agency_server::queue::reconcile::pass(&ground.db, &ground.roots.data)
           .await
+          .map_err(|refusal| refusal.detail)?;
+        agency_server::control::work::reap_stale(&ground)
+          .await
           .map(|_| ())
-          .map_err(|refusal| refusal.detail)
+          .map_err(|refusal| refusal.error)
       }
     })
     .await

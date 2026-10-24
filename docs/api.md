@@ -28,7 +28,7 @@ a field's exact shape matters, the OpenAPI document is the one to read.
 ## Versioning
 
 - The contract carries the repository's one version, in semver; the workspace manifest is its source. Before
-  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.65`.
+  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.66`.
 - A change to this document and a change to the boundary go in one commit. A change to a route, an event, a
   hook or a shared table's contract repairs this document in the same commit.
 - The major moves on a removed or renamed route, field or event, the minor on an addition, the patch on
@@ -617,6 +617,16 @@ are the ones a job's end states below.
   room; the item a harness hands over carries that `scope` with it, so a job launched from a room is told
   back in that room.
 
+- **A job left running with no live execution ends as stopped on the pass.** The process that ran it can
+  go away with agency's own restart before the run writes its end. On start, and on the reconcile pass that
+  keeps the execution rows, a job still `starting` or `running` is read against the records the store
+  already keeps: an open execution row of its worker's on the worker line begun at the job's start is a live
+  execution, and an open run in the ledger is a live run. A job with neither — or whose run is already
+  closed — ends as `stopped` with a report saying the process that ran it went away, its open run is closed,
+  its assignment released, and its lease returned and its report told to the room through the same delivery
+  as any other end. A job younger than the launch window is left for the next pass, and one whose worker
+  stands on another machine is left, since its execution is no record this machine keeps. A job with a live
+  execution is left running.
 - **A job may carry an instruction,** `instruction`, beside its item or inside it — `repository`,
   `documents`, `sentences` and `checks`, every one required and none empty (`docs/worker-bench.md`, 「A
   small-model instruction」); one that lacks a field is refused 400 naming it. The job keeps it, answers
