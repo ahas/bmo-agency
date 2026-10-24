@@ -119,11 +119,12 @@ launching its run. When to file is in the manual; this is how. Your tools are th
 
 1. **`assign_worker`** with `itemId`, `holderName` `harness`, `assigneeName` the worker, `holdMs`
    the same span as the lease, and `item` the content you read: `title`, `brief`, `workOrder`,
-   `notes` and `labels`. The agency reads nothing of the job service, so the item is handed over
-   whole. It answers the assignment and the worker it holds; the hold lasts until the job starts or
-   it runs out.
+   `notes`, `labels` and `scope`, the room the item was filed from. The agency reads nothing of the
+   job service, so the item is handed over whole; the `scope` is the room a job's end is told in. It
+   answers the assignment and the worker it holds; the hold lasts until the job starts or it runs out.
 2. **`run_job`** with `assignmentId`, `itemId`, `leaseId`, `holderName` `harness` and the same
-   `item`. It launches the worker's session on the item and the lease, and answers the job.
+   `item`, `scope` among it. It launches the worker's session on the item and the lease, and answers
+   the job; as the job ends, the agency gives its lease back and tells the room its report.
    - **Work a small model runs carries an `instruction`,** all four fields filled: `repository`, the
      checkout; `documents`, the canonical documents the change answers to; `sentences`, each statement
      the change must make or keep true; `checks`, the commands whose passing says it is done. Nothing

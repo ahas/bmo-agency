@@ -1165,6 +1165,9 @@ pub struct JobItem {
   pub notes: Vec<Value>,
   /// the caller's own metadata
   pub labels: BTreeMap<String, String>,
+  /// The room the item was filed from, where it names one: the room a job's end is told in.
+  #[serde(default)]
+  pub scope: Option<String>,
   /// The item's small-model instruction, where it carries one.
   #[serde(default)]
   pub instruction: Option<JobInstruction>,

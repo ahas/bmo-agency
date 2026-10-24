@@ -28,7 +28,7 @@ a field's exact shape matters, the OpenAPI document is the one to read.
 ## Versioning
 
 - The contract carries the repository's one version, in semver; the workspace manifest is its source. Before
-  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.64`.
+  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.65`.
 - A change to this document and a change to the boundary go in one commit. A change to a route, an event, a
   hook or a shared table's contract repairs this document in the same commit.
 - The major moves on a removed or renamed route, field or event, the minor on an addition, the patch on
@@ -602,7 +602,20 @@ nothing of its placement.
 
 A job's `itemId` and `leaseId` are the harness's references, kept as given. The harness renews the lease,
 reads the job's progress, questions and outcome from its fields and events, and reports and closes the item
-in the job service. Agency calls nothing of the job service and keeps no client of it.
+in the job service. Agency keeps no job store and no client of the job service; the two calls it makes there
+are the ones a job's end states below.
+
+- **A job's end reaches the room and gives its lease back.** However a job ends — its run finishing, failing,
+  or the harness ending or stopping it — the agency returns the item's lease to the job service as the end is
+  written, so the item is open again the moment no run holds it, and queues the job's report in the room's
+  chat agent through the receiver's `POST /instructions`: an order carrying the item, the worker, the
+  outcome and the report whole, under the event `job-ended:#<item>`. The receiver keeps the instruction until
+  a turn takes it, so a chat session being replaced when the job ended loses nothing; the chat agent reads
+  the report and briefs the owner as its own manual says. A job with no room is queued for the owner's
+  private room, which is the room the receiver gives an instruction that names none. The room a job answers is
+  `roomId` from the launch, or the item's own `roomId`, or the item's `scope` where the item was filed from a
+  room; the item a harness hands over carries that `scope` with it, so a job launched from a room is told
+  back in that room.
 
 - **A job may carry an instruction,** `instruction`, beside its item or inside it — `repository`,
   `documents`, `sentences` and `checks`, every one required and none empty (`docs/worker-bench.md`, 「A
@@ -728,9 +741,12 @@ route. A caller uses one of them and writes no client of its own.
 
 ## Calls agency makes
 
-Agency reaches upstreams only, through what their repositories publish: brain, graph, node, arbiter,
+Agency reaches upstreams through what their repositories publish: brain, graph, node, arbiter,
 pocket, testbed, gate and chat through their clients, and cache-warmer through the schedule library
-`bmo-cache-warmer-schedule`.
+`bmo-cache-warmer-schedule`. Two calls go below it, both as a job ends: the job service's lease is given
+back, and the receiver's `POST /instructions` is handed the report for the room's chat agent. Both are the
+documented routes of the units that hold what the end must reach; agency keeps no client of either and no
+store of their rows.
 Of the brain it asks an agent's own brain made as the agent is registered, found by the agent's key,
 let go whole or only found for a preview, the discipline a chat launch's system prompt carries, and the
 base layer of the agent's persona that prompt ends with. Of the tool host it asks, on its control socket
@@ -774,8 +790,9 @@ Each surface is a crate of its own repository, declared in the workspace manifes
 `tests/dependencies.rs`; every other crate of another repository, a downstream's client among them,
 stays outside the boundary.
 
-It calls no downstream. It calls no job service. The gate and the receiver reach it through the hook point
-above.
+It calls no downstream but the two calls a job's end makes: the lease returned to the job service, and the
+report handed to the receiver's instruction route. The gate and the receiver reach it through the hook point
+above for everything else.
 
 ## What the redesign took out
 

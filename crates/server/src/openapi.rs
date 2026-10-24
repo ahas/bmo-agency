@@ -2078,7 +2078,7 @@ pub const OPERATIONS: &[Operation] = &[
     path: "/jobs",
     id: "createJobs",
     tag: "jobs",
-    summary: "Run an item on its assigned worker: the harness hands over the item's content and the lease it holds, and the agency launches the worker's session on it. The agency calls nothing of the job service.",
+    summary: "Run an item on its assigned worker: the harness hands over the item's content and the lease it holds, and the agency launches the worker's session on it; as the job ends the agency gives the lease back and queues the report in the room.",
     params: &[],
     body: Some("RunJob"),
     answers: &[(201, Some("Job"), false)],
@@ -2570,10 +2570,10 @@ const DESCRIPTION: &str = "The agency's agents, their sessions, turns and runs, 
   the co-worker pool and places, providers, models, tiers and roads, accounts and rest, companions and workers, \
   worker assignments, and the jobs it runs. A job is an item run on a worker for the harness that holds the \
   item: the harness asks for a worker with POST /assignments, then hands the item's content and its lease over \
-  with POST /jobs. The agency never calls the job service and keeps no client of it: the run's progress, \
-  questions and outcome are its own events and fields, which the harness reads and carries into the job \
-  service, where it reports and closes the item; words appended to the item reach the run as the harness sends \
-  them into the job's session. Everything it remembers or runs on is an upstream it reaches through what \
+  with POST /jobs. The run's progress, questions and outcome are its own events and fields, which the \
+  harness reads and carries into the job service, where it reports and closes the item; words appended to the \
+  item reach the run as the harness sends them into the job's session. As a job ends, the agency gives its \
+  lease back to the job service and queues its report in the room through the receiver's instruction route. Everything it remembers or runs on is an upstream it reaches through what \
   that upstream publishes. It serves only its own nouns: a run with a fixed prompt is an ordinary session \
   started with POST /sessions and the run's prompt document, and that session calls the upstreams it needs \
   through their own MCP servers; no route or tool of the agency forwards to them. It calls no \

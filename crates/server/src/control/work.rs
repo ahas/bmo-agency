@@ -627,7 +627,10 @@ impl Route for CreateJob {
       return Err(Refused::new(StatusCode::SERVICE_UNAVAILABLE, why).with_code("no-login-open"));
     }
     let prompt = prompt_of(&item, instruction.as_ref());
-    let room_id = number(&asked, "roomId").or_else(|| number(&item, "roomId"));
+    let room_id = number(&asked, "roomId")
+      .or_else(|| number(&item, "roomId"))
+      .or_else(|| item.get("scope").and_then(Value::as_str).and_then(|scope| scope.trim().parse().ok()))
+      .or_else(|| number(&item, "scope"));
     let row = one(
       db,
       r#"INSERT INTO "jobs" ("item_id", "lease_id", "holder_name", "assignment_id", "worker_name",
@@ -787,6 +790,7 @@ async fn launch(ground: Arc<Ground>, sessions: Option<crate::herdr_backend::Shar
       eprintln!("job {id}: its assignment {assignment_id} was not released: {}", why.error);
     }
 
+    crate::job_end::delivered(&ground, &member).await;
     publish(&ground, if state == "ended" { "job.ended" } else { "job.changed" }, member);
   }
 }
@@ -1047,6 +1051,8 @@ impl Route for ChangeJob {
     run(db, r#"UPDATE "assignments" SET "state" = 'released', "changed_at" = $1 WHERE "id" = $2 AND "state" = 'running'"#, vec![now.into(), assignment_id.into()]).await?;
 
     let (member, _) = job(db, id).await?;
+
+    crate::job_end::delivered(call.ground(), &member).await;
     publish(
       call.ground(),
       if wanted == "ended" { "job.ended" } else { "job.changed" },

@@ -1210,7 +1210,7 @@ export interface paths {
         /** Jobs: recent, by room, by worker, by holder, running. */
         get: operations["listJobs"];
         put?: never;
-        /** Run an item on its assigned worker: the harness hands over the item's content and the lease it holds, and the agency launches the worker's session on it. The agency calls nothing of the job service. */
+        /** Run an item on its assigned worker: the harness hands over the item's content and the lease it holds, and the agency launches the worker's session on it; as the job ends the agency gives the lease back and queues the report in the room. */
         post: operations["createJobs"];
         delete?: never;
         options?: never;
@@ -2933,6 +2933,11 @@ export interface components {
             labels: {
                 [key: string]: string;
             };
+            /**
+             * @description The room the item was filed from, where it names one: the room a job's end is told in.
+             * @default null
+             */
+            scope: string | null;
             /**
              * @description The item's small-model instruction, where it carries one.
              * @default null
