@@ -2010,19 +2010,6 @@ impl Sessions for HerdrSessions {
       ));
     }
 
-    if let (Scope::Worker, Some(work)) = (&scope, work)
-      && work.provider != worker_session::PROVIDER
-    {
-      return Err(fault(
-        FaultKind::Refused,
-        format!(
-          "{agent}: a worker's session stands on {}, not {}",
-          worker_session::PROVIDER,
-          work.provider
-        ),
-      ));
-    }
-
     let run = match (&room, work) {
       (_, Some(work)) => work.name.clone(),
       (Some(room), None) => {
