@@ -122,3 +122,105 @@ async fn a_running_server_reads_a_job_s_lines_and_keeps_its_notes_and_turn_recor
   assert_eq!(note["text"], json!("claude-code · m"));
   assert_eq!(note["jobId"], json!(12));
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn an_agent_s_log_reads_across_its_runs_newest_before_after_and_at_a_moment() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let data = home.path().join("data");
+  let token = "secret";
+
+  std::fs::create_dir_all(&data).unwrap();
+
+  let server = standing::stand_server(home.path(), &data, &scratch.address(), token);
+  let port = server.port;
+
+  // Five lines in one run and five in the next, in order, and another agent's line between.
+  scratch
+    .run(
+      r#"INSERT INTO "agent_log" ("id", "agent", "run", "at", "kind", "text")
+         VALUES
+           (1, 'worker', 'unit-a', 100, 'text', 'a1'),
+           (2, 'worker', 'unit-a', 101, 'text', 'a2'),
+           (3, 'worker', 'unit-a', 102, 'text', 'a3'),
+           (4, 'worker', 'unit-a', 103, 'text', 'a4'),
+           (5, 'worker', 'unit-a', 104, 'text', 'a5'),
+           (6, 'other', 'unit-x', 105, 'text', 'x1'),
+           (7, 'worker', 'unit-b', 106, 'text', 'b1'),
+           (8, 'worker', 'unit-b', 107, 'text', 'b2'),
+           (9, 'worker', 'unit-b', 108, 'text', 'b3'),
+           (10, 'worker', 'unit-b', 109, 'text', 'b4'),
+           (11, 'worker', 'unit-b', 110, 'text', 'b5')"#,
+      vec![],
+    )
+    .await;
+
+  // The newest page: the last three lines, oldest first, with another page older.
+  let (status, newest) = get(port, token, "/log/agents/worker/lines?limit=3").await;
+
+  assert_eq!(status, 200, "{newest}");
+  assert_eq!(
+    newest["items"]
+      .as_array()
+      .unwrap()
+      .iter()
+      .map(|line| line["id"].as_i64().unwrap())
+      .collect::<Vec<_>>(),
+    [9, 10, 11]
+  );
+  assert_eq!(newest["hasMore"], json!(true));
+  assert_eq!(newest["hasOlder"], json!(false));
+  assert_eq!(newest["items"][0]["fields"]["run"], json!("unit-b"));
+
+  // The page before the oldest of those: three more, oldest first, still across the next run.
+  let (status, older) = get(port, token, "/log/agents/worker/lines?limit=3&before=9").await;
+
+  assert_eq!(status, 200, "{older}");
+  assert_eq!(
+    older["items"]
+      .as_array()
+      .unwrap()
+      .iter()
+      .map(|line| line["id"].as_i64().unwrap())
+      .collect::<Vec<_>>(),
+    [5, 7, 8]
+  );
+  assert_eq!(older["hasMore"], json!(true));
+  assert!(
+    older["items"]
+      .as_array()
+      .unwrap()
+      .iter()
+      .any(|line| line["fields"]["run"] == json!("unit-a")),
+    "the page reaches back into the run before"
+  );
+
+  // The page after an id reads forward; the last of the log has no more.
+  let (status, forward) = get(port, token, "/log/agents/worker/lines?limit=10&after=7").await;
+
+  assert_eq!(status, 200, "{forward}");
+  assert_eq!(
+    forward["items"]
+      .as_array()
+      .unwrap()
+      .iter()
+      .map(|line| line["id"].as_i64().unwrap())
+      .collect::<Vec<_>>(),
+    [8, 9, 10, 11]
+  );
+  assert_eq!(forward["hasMore"], json!(false));
+
+  // The page standing at a moment opens at the head of the run its line belongs to, and says older lines
+  // stand before it and newer ones after.
+  let (status, at) = get(port, token, "/log/agents/worker/lines?limit=3&at=107").await;
+
+  assert_eq!(status, 200, "{at}");
+  assert_eq!(at["hasOlder"], json!(true));
+  assert_eq!(at["hasMore"], json!(true));
+  assert_eq!(at["items"][0]["id"], json!(7));
+
+  // An agent with no line reads an empty page.
+  let (status, none) = get(port, token, "/log/agents/no-such-agent/lines?limit=3").await;
+
+  assert_eq!((status, none["items"].as_array().unwrap().len()), (200, 0));
+}

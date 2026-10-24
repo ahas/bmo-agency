@@ -28,7 +28,7 @@ a field's exact shape matters, the OpenAPI document is the one to read.
 ## Versioning
 
 - The contract carries the repository's one version, in semver; the workspace manifest is its source. Before
-  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.66`.
+  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.67`.
 - A change to this document and a change to the boundary go in one commit. A change to a route, an event, a
   hook or a shared table's contract repairs this document in the same commit.
 - The major moves on a removed or renamed route, field or event, the minor on an addition, the patch on
@@ -287,6 +287,7 @@ lines held as it closed; an open run's `counts` is empty.
 |---|---|---|
 | GET | `/log-lines` | Log lines across runs: by run, job or agent, kinds, latest, before or after. |
 | POST | `/log-lines` | Add a note in the bot's own words to a run's log, beside the run's own lines. |
+| GET | `/log/agents/{agentName}/lines` | One agent's log across its runs: the newest page, a page before or after an id, or the page at a moment. |
 
 `runId` names a run as its lines were written under it, or a run of the ledger by its id, whose lines
 are the ones written under its unit. Each line answers the ledger's `runId` where the ledger holds its run, and
@@ -297,6 +298,16 @@ line with the same `ref` saying how the call ended in its `state`, `succeeded` o
 road whose program carries its own turns has them too, read off that program's record: there a call's
 line carries no arguments and its result's text says how long the call ran (`docs/run-records.md`,
 「Agent log」).
+
+- **One agent's log across its runs** is `GET /log/agents/{agentName}/lines`, in the same line shape:
+  - no cursor reads the newest page, oldest line first, and `hasMore` says older lines wait;
+  - `before` reads the page before that line id, oldest line first, and `hasMore` says older lines wait;
+  - `after` reads the page after that line id, oldest line first, and `hasMore` says newer lines wait;
+  - `at` opens the page where the line at or shortly after that moment stands, beginning at the head of
+    its run (a run's name is not unique for ever); `chat` narrows the moment to one room. Such a page
+    answers `hasOlder` for the lines before its head, and `hasMore` for newer lines; a moment already
+    left out of the log reads the newest page.
+  - The page answers `items`, `hasMore` and `hasOlder`; `limit` is 500 where left out and at most 500.
 
 ### executions
 

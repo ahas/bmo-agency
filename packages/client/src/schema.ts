@@ -391,6 +391,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/log/agents/{agentName}/lines": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One agent's log across its runs: the newest page, a page before or after an id, or the page at a moment. */
+        get: operations["listAgentLogLines"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/executions": {
         parameters: {
             query?: never;
@@ -2009,6 +2026,16 @@ export interface components {
              * @default null
              */
             messageId: number | null;
+        };
+        /**
+         * @description One agent's log across its runs: its lines, whether another page waits towards the way it was read,
+         *     and, for a page opened at a moment, whether older lines stand before it.
+         */
+        AgentLogPage: {
+            items: components["schemas"]["LogLine"][];
+            hasMore: boolean;
+            /** @default false */
+            hasOlder: boolean;
         };
         /** @description The body that writes a note into a run's log. */
         LogLineAsk: {
@@ -4152,6 +4179,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LogLine"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    listAgentLogLines: {
+        parameters: {
+            query?: {
+                before?: number;
+                after?: number;
+                at?: number;
+                chat?: number;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                agentName: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentLogPage"];
                 };
             };
             401: components["responses"]["Unauthorized"];

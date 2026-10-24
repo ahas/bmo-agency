@@ -31,6 +31,55 @@ const PAGE: i64 = 500;
 // A tool call's arguments as the log keeps them: whole in its detail where the line was cut.
 const CALLED: &str = r#"COALESCE("detail", "text")"#;
 
+// One line as every log route reads it.
+const LINE_COLUMNS: &str = r#""id", "agent", "run", "chat_id", "at", "kind", "name", "parent", "ref",
+  "text", "job_id", "state", "truncated", "detail""#;
+
+/// One line of the log in the shape every read answers: its own fields, and the ledger's run it was
+/// written under where the ledger holds one.
+async fn line_of(
+  db: &sea_orm::DatabaseConnection,
+  row: sea_orm::QueryResult,
+  held: &mut HashMap<(String, String), Option<run_ledger::Run>>,
+) -> Result<Value, Refused> {
+  let text = |name: &str| row.try_get::<Option<String>>("", name);
+  let number = |name: &str| row.try_get::<Option<i64>>("", name);
+
+  let run: String = row.try_get("", "run")?;
+  let agent: String = row.try_get("", "agent")?;
+  let ledger = match held.get(&(agent.clone(), run.clone())) {
+    Some(ledger) => ledger,
+    None => {
+      let read = run_ledger::of_unit(db, &agent, &run).await?;
+
+      held.entry((agent.clone(), run.clone())).or_insert(read)
+    }
+  };
+
+  Ok(json!({
+    "id": row.try_get::<i64>("", "id")?,
+    "runId": ledger.as_ref().map_or_else(|| run.parse::<i64>().unwrap_or(0), |ledger| ledger.id),
+    "roomId": ledger.as_ref().and_then(|ledger| ledger.chat_id),
+    "round": ledger.as_ref().and_then(|ledger| ledger.round.clone()),
+    "messageId": ledger.as_ref().and_then(|ledger| ledger.message_id),
+    "jobId": number("job_id")?,
+    "agentName": row.try_get::<String>("", "agent")?,
+    "kind": row.try_get::<String>("", "kind")?,
+    "text": row.try_get::<String>("", "text")?,
+    "at": row.try_get::<i64>("", "at")?,
+    "fields": {
+      "run": run,
+      "chatId": number("chat_id")?,
+      "name": text("name")?,
+      "parent": text("parent")?,
+      "reference": text("ref")?,
+      "state": text("state")?,
+      "truncated": row.try_get::<i64>("", "truncated")? != 0,
+      "detail": text("detail")?,
+    },
+  }))
+}
+
 fn bad(error: impl Into<String>) -> Refused {
   Refused::new(StatusCode::BAD_REQUEST, error)
 }
@@ -80,42 +129,7 @@ impl Route for RunLogLines {
     let mut held = HashMap::new();
 
     for row in rows {
-      let text = |name: &str| row.try_get::<Option<String>>("", name);
-      let number = |name: &str| row.try_get::<Option<i64>>("", name);
-
-      let run: String = row.try_get("", "run")?;
-      let agent: String = row.try_get("", "agent")?;
-      // The ledger's run the line was written under, where it holds one: its id, room, round and message.
-      let ledger = match held.get(&(agent.clone(), run.clone())) {
-        Some(ledger) => ledger,
-        None => {
-          let read = run_ledger::of_unit(call.store(), &agent, &run).await?;
-
-          held.entry((agent.clone(), run.clone())).or_insert(read)
-        }
-      };
-      lines.push(json!({
-        "id": row.try_get::<i64>("", "id")?,
-        "runId": ledger.as_ref().map_or_else(|| run.parse::<i64>().unwrap_or(0), |ledger| ledger.id),
-        "roomId": ledger.as_ref().and_then(|ledger| ledger.chat_id),
-        "round": ledger.as_ref().and_then(|ledger| ledger.round.clone()),
-        "messageId": ledger.as_ref().and_then(|ledger| ledger.message_id),
-        "jobId": number("job_id")?,
-        "agentName": row.try_get::<String>("", "agent")?,
-        "kind": row.try_get::<String>("", "kind")?,
-        "text": row.try_get::<String>("", "text")?,
-        "at": row.try_get::<i64>("", "at")?,
-        "fields": {
-          "run": run,
-          "chatId": number("chat_id")?,
-          "name": text("name")?,
-          "parent": text("parent")?,
-          "reference": text("ref")?,
-          "state": text("state")?,
-          "truncated": row.try_get::<i64>("", "truncated")? != 0,
-          "detail": text("detail")?,
-        },
-      }));
+      lines.push(line_of(call.store(), row, &mut held).await?);
     }
 
     Ok(answer(StatusCode::OK, json!({ "items": lines, "more": false })))
@@ -123,6 +137,178 @@ impl Route for RunLogLines {
 }
 
 crate::moved!(RunLogLines);
+
+// How long after the moment named a line may stand for the run a screen opens on: a gate works its start
+// back from its verdict and can be a second or two out.
+const ANCHOR_WINDOW_MS: i64 = 120_000;
+
+/// One agent's log across its runs (docs/api.md, 「log-lines」): its newest page, the page before an id, the
+/// pages after one, and the page standing at a moment. The same line shape as a run's log, narrowed to the
+/// agent, with `hasMore` for the direction the page was read towards and `hasOlder` for the lines before a
+/// page opened at a moment.
+pub struct AgentLogLines;
+
+impl Route for AgentLogLines {
+  const METHOD: Method = Method::GET;
+  const PATH: &'static str = "/log/agents/{agentName}/lines";
+
+  async fn answer(&self, call: Call) -> Result<Response, Refused> {
+    let agent = call.param("agentName").unwrap_or_default().trim().to_owned();
+
+    if agent.is_empty() {
+      return Err(bad("agentName (an agent's name) is required"));
+    }
+
+    let db = call.store();
+    let limit = call
+      .query("limit")
+      .and_then(|limit| limit.parse::<i64>().ok())
+      .unwrap_or(PAGE)
+      .clamp(1, PAGE);
+    let window = limit + 1;
+    let before = call.query("before").and_then(|before| before.parse::<i64>().ok());
+    let after = call.query("after").and_then(|after| after.parse::<i64>().ok());
+    let at = call.query("at").and_then(|at| at.parse::<i64>().ok());
+    let chat = call.query("chat").and_then(|chat| chat.parse::<i64>().ok());
+    let rows;
+    let mut reversed = false;
+    let mut has_older = false;
+
+    if let Some(at) = at {
+      // The first line written at or shortly after the moment, in the room named where one is, and the head
+      // of the unbroken stretch of its run: a run's name is not unique for ever.
+      let found = match chat {
+        Some(chat) => {
+          one(
+            db,
+            r#"SELECT "id", "run" FROM "agent_log"
+               WHERE "agent" = $1 AND "chat_id" = $4 AND "at" >= $2 AND "at" <= $3 ORDER BY "id" ASC LIMIT 1"#,
+            vec![agent.clone().into(), at.into(), (at + ANCHOR_WINDOW_MS).into(), chat.into()],
+          )
+          .await?
+        }
+        None => {
+          one(
+            db,
+            r#"SELECT "id", "run" FROM "agent_log"
+               WHERE "agent" = $1 AND "at" >= $2 AND "at" <= $3 ORDER BY "id" ASC LIMIT 1"#,
+            vec![agent.clone().into(), at.into(), (at + ANCHOR_WINDOW_MS).into()],
+          )
+          .await?
+        }
+      };
+
+      let first = match found {
+        Some(found) => {
+          let id: i64 = found.try_get("", "id")?;
+          let run: String = found.try_get("", "run")?;
+          let before_run = one(
+            db,
+            r#"SELECT MAX("id") AS "id" FROM "agent_log"
+               WHERE "agent" = $1 AND "id" < $2 AND "run" <> $3"#,
+            vec![agent.clone().into(), id.into(), run.clone().into()],
+          )
+          .await?
+          .and_then(|row| row.try_get::<Option<i64>>("", "id").ok().flatten())
+          .unwrap_or(0);
+          let head = one(
+            db,
+            r#"SELECT MIN("id") AS "id" FROM "agent_log"
+               WHERE "agent" = $1 AND "run" = $2 AND "id" > $3"#,
+            vec![agent.clone().into(), run.into(), before_run.into()],
+          )
+          .await?
+          .and_then(|row| row.try_get::<Option<i64>>("", "id").ok().flatten());
+
+          head.unwrap_or(id)
+        }
+        None => 0,
+      };
+
+      if first == 0 {
+        // A moment already pruned out of the log, or before its first line: the newest page stands in.
+        rows = all(
+          db,
+          &format!(
+            r#"SELECT {LINE_COLUMNS} FROM "agent_log" WHERE "agent" = $1 ORDER BY "id" DESC LIMIT $2"#
+          ),
+          vec![agent.clone().into(), window.into()],
+        )
+        .await?;
+        reversed = true;
+      } else {
+        rows = all(
+          db,
+          &format!(
+            r#"SELECT {LINE_COLUMNS} FROM "agent_log" WHERE "agent" = $1 AND "id" > $2 ORDER BY "id" ASC LIMIT $3"#
+          ),
+          vec![agent.clone().into(), (first - 1).into(), window.into()],
+        )
+        .await?;
+        has_older = one(
+          db,
+          r#"SELECT 1 AS "one" FROM "agent_log" WHERE "agent" = $1 AND "id" < $2 LIMIT 1"#,
+          vec![agent.clone().into(), first.into()],
+        )
+        .await?
+        .is_some();
+      }
+    } else if let Some(after) = after {
+      rows = all(
+        db,
+        &format!(
+          r#"SELECT {LINE_COLUMNS} FROM "agent_log" WHERE "agent" = $1 AND "id" > $2 ORDER BY "id" ASC LIMIT $3"#
+        ),
+        vec![agent.clone().into(), after.into(), window.into()],
+      )
+      .await?;
+    } else {
+      rows = match before {
+        Some(before) => {
+          all(
+            db,
+            &format!(
+              r#"SELECT {LINE_COLUMNS} FROM "agent_log" WHERE "agent" = $1 AND "id" < $2 ORDER BY "id" DESC LIMIT $3"#
+            ),
+            vec![agent.clone().into(), before.into(), window.into()],
+          )
+          .await?
+        }
+        None => {
+          all(
+            db,
+            &format!(
+              r#"SELECT {LINE_COLUMNS} FROM "agent_log" WHERE "agent" = $1 ORDER BY "id" DESC LIMIT $2"#
+            ),
+            vec![agent.clone().into(), window.into()],
+          )
+          .await?
+        }
+      };
+      reversed = true;
+    }
+
+    let has_more = rows.len() as i64 > limit;
+    let mut rows: Vec<_> = rows.into_iter().take(limit as usize).collect();
+
+    if reversed {
+      rows.reverse();
+    }
+    let mut lines = Vec::with_capacity(rows.len());
+    let mut held = HashMap::new();
+
+    for row in rows {
+      lines.push(line_of(db, row, &mut held).await?);
+    }
+
+    Ok(answer(
+      StatusCode::OK,
+      json!({ "items": lines, "hasMore": has_more, "hasOlder": has_older }),
+    ))
+  }
+}
+
+crate::moved!(AgentLogLines);
 
 // The job the path names by its id.
 fn job_of(call: &Call) -> Result<i64, Refused> {

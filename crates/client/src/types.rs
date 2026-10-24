@@ -990,6 +990,17 @@ pub struct LogLinePage {
   pub more: bool,
 }
 
+/// One agent's log across its runs: its lines, whether another page waits towards the way it was read,
+/// and, for a page opened at a moment, whether older lines stand before it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentLogPage {
+  pub items: Vec<LogLine>,
+  pub has_more: bool,
+  #[serde(default)]
+  pub has_older: bool,
+}
+
 /// ExecutionPage:
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
