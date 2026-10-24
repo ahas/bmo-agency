@@ -614,10 +614,18 @@ impl Route for CreateJob {
         "the assignment holds another item or another holder",
       ));
     }
-    if let Some(why) = logins_closed(call.ground()).await? {
+    let worker_name: String = held["workerName"].as_str().unwrap_or_default().to_owned();
+    // A job whose worker stands on another provider than Claude Code needs no Claude login to start: the
+    // guard is about the login the job's work key runs on, and the key's walk stands on a registered
+    // provider here.
+    let (road, _) = worker_road(call.ground())
+      .await
+      .map_err(|why| Refused::new(StatusCode::SERVICE_UNAVAILABLE, why))?;
+    if road == PROVIDER
+      && let Some(why) = logins_closed(call.ground()).await?
+    {
       return Err(Refused::new(StatusCode::SERVICE_UNAVAILABLE, why).with_code("no-login-open"));
     }
-    let worker_name: String = held["workerName"].as_str().unwrap_or_default().to_owned();
     let prompt = prompt_of(&item, instruction.as_ref());
     let room_id = number(&asked, "roomId").or_else(|| number(&item, "roomId"));
     let row = one(
