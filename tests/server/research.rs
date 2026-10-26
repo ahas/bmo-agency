@@ -138,6 +138,44 @@ fn a_run_s_settings_travel_on_its_tool_session_record() {
 }
 
 #[test]
+fn a_branch_s_record_names_its_parent_and_holds_it_to_one_branch_s_budget() {
+  let mut settings = defaults();
+
+  settings.keys.insert(
+    "search:thorough".into(),
+    Kept {
+      branches: 2,
+      minutes: 15,
+      pages: Some(8),
+      branch_pages: Some(4),
+    },
+  );
+
+  let mut vars: std::collections::BTreeMap<String, String> =
+    variables(&settings, "search:thorough", "search", Some("the owner"), Some(-5), 1_900_000_000_000);
+
+  vars.insert("BMO_RESEARCH_BRANCH_OF".into(), "6191".into());
+
+  let (record, withheld) = research_record(&vars);
+  let record = record.expect("a branch carries its parent's settings");
+
+  assert_eq!(record["branchOf"], 6191);
+  assert_eq!(record["pages"], 4, "a branch is held to the budget each branch of its parent has");
+  assert!(record.get("branchPages").is_none(), "a branch opens no branch to give a budget");
+  assert_eq!(record["branches"], 0);
+  assert_eq!(record["closesAt"], 1_900_000_000_000_i64);
+  assert!(withheld.contains(&"web.branches"), "a branch is not shown the branch tool");
+
+  vars.remove("BMO_RESEARCH_BRANCH_OF");
+
+  let parent = research_record(&vars).0.unwrap();
+
+  assert!(parent.get("branchOf").is_none());
+  assert_eq!(parent["pages"], 8);
+  assert_eq!(parent["branchPages"], 4);
+}
+
+#[test]
 fn an_ask_names_a_research_key_and_a_question() {
   let ask = |key: &str, query: &str| ResearchRunAsk {
     key: key.into(),

@@ -11,7 +11,7 @@ use serde::Serialize;
 use serde_json::{Value, json};
 
 use crate::balance::{Balance, OffersBalance, figure};
-use crate::{Machine, Offered, OfferedModel, Offering, PlaceCache, Provider, Reading};
+use crate::{Machine, Offered, OfferedModel, Offering, PlaceCache, Provider, Reading, Reason};
 
 pub struct OpenRouter;
 
@@ -76,11 +76,11 @@ impl Provider for OpenRouter {
     crate::stands_dsh_session(self, args)
   }
 
-  fn missing(&self, machine: &Machine) -> Option<String> {
+  fn missing(&self, machine: &Machine) -> Option<Reason> {
     machine
       .var(&OPENROUTER.presence.key_env)
       .is_none()
-      .then(|| OPENROUTER.presence.missing.clone())
+      .then(|| Reason::new(&OPENROUTER.presence.missing_code, &OPENROUTER.presence.missing))
   }
 
   fn catalogue<'a>(&'a self, machine: &'a Machine, _config_dir: Option<&'a Path>) -> Reading<'a> {

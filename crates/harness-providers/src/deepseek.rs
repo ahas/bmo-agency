@@ -10,7 +10,7 @@ use policy::providers::deepseek::{DEEPSEEK, Model as DeclaredModel};
 use serde_json::json;
 
 use crate::balance::{Balance, OffersBalance, figure, key_in_file};
-use crate::{Machine, Offered, OfferedModel, Offering, PlaceCache, Provider, Reading};
+use crate::{Machine, Offered, OfferedModel, Offering, PlaceCache, Provider, Reading, Reason};
 
 pub struct DeepSeek;
 
@@ -77,8 +77,9 @@ impl Provider for DeepSeek {
     &DEEPSEEK.declared
   }
 
-  fn missing(&self, machine: &Machine) -> Option<String> {
-    (!usable_secret(&Self::key_file(machine))).then(|| DEEPSEEK.presence.missing.clone())
+  fn missing(&self, machine: &Machine) -> Option<Reason> {
+    (!usable_secret(&Self::key_file(machine)))
+      .then(|| Reason::new(&DEEPSEEK.presence.missing_code, &DEEPSEEK.presence.missing))
   }
 
   fn not_registered(&self) -> Option<&'static str> {

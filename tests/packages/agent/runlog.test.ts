@@ -470,7 +470,7 @@ describe("what the log keeps", () => {
 
     for (const number of [1, 2, 3]) await rolling.write({ kind: "text", text: `rolling ${number}` });
     await rolling.write({ kind: "end", text: "rolling end" });
-    await archive.runs().pruneAgentLog({ agent: "worker", keep: 1, maxBytes: Infinity, before: Math.floor(Date.now() / 1000) - maxAgeSeconds });
+    await archive.runs().pruneAgentLog({ agent: "worker", keep: 1, maxBytes: Infinity, before: Date.now() - maxAgeSeconds * 1000 });
 
     expect((await rows()).map((row) => row.text)).toEqual(["job detail", "rolling end"]);
   });

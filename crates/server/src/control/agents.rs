@@ -105,8 +105,13 @@ fn roles_view() -> Value {
       .iter()
       .map(|role| json!({
         "name": role.name,
+        "code": role.name,
         "label": role.label,
-        "bundles": role.bundles.iter().map(|bundle| json!({ "name": bundle, "label": ROLES.bundle_label(bundle) })).collect::<Vec<_>>(),
+        "bundles": role
+          .bundles
+          .iter()
+          .map(|bundle| json!({ "name": bundle, "code": bundle.replace('.', "-"), "label": ROLES.bundle_label(bundle) }))
+          .collect::<Vec<_>>(),
       }))
       .collect::<Vec<_>>()
   )

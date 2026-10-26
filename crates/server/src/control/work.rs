@@ -1322,7 +1322,7 @@ impl Carrier for OnSession<'_> {
         unit: self.name.to_owned(),
         depth: 0,
         cap_ms: None,
-        started_at: now_ms().div_euclid(1000),
+        started_at: now_ms(),
         started_by: Some(member["holderName"].as_str().unwrap_or_default().to_owned()),
         search_id: None,
         round: None,
@@ -1471,7 +1471,7 @@ async fn closed(
   spent: Option<Spent>,
 ) {
   let closing = Closing {
-    finished_at: now_ms().div_euclid(1000),
+    finished_at: now_ms(),
     outcome: outcome.to_owned(),
     context_tokens,
     spent,

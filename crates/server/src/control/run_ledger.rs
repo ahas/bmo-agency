@@ -36,8 +36,8 @@ fn member(run: &run_ledger::Run) -> Value {
     "workerName": Value::Null,
     "jobId": Value::Null,
     "state": if run.finished_at.is_some() { "closed" } else { "open" },
-    "startedAt": run.started_at * 1000,
-    "endedAt": run.finished_at.map(|at| at * 1000),
+    "startedAt": run.started_at,
+    "endedAt": run.finished_at,
     "outcome": run.outcome.clone(),
     "capEndsAt": Value::Null,
     "keptUntil": Value::Null,
@@ -207,7 +207,7 @@ impl Route for CloseRun {
         .get("finishedAt")
         .or_else(|| asked.get("finished_at"))
         .and_then(Value::as_i64)
-        .unwrap_or_else(|| crate::now_ms() / 1000),
+        .unwrap_or_else(crate::now_ms),
       outcome: asked
         .get("outcome")
         .and_then(Value::as_str)

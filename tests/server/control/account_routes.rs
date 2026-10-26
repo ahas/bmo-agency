@@ -196,6 +196,15 @@ async fn the_fallback_s_view_answers_the_active_slot_s_balance_and_each_account_
 
   assert_eq!(status, 200, "{fallback}");
   assert_eq!(fallback["active"]["provider"], "deepseek");
+
+  // A provider that cannot answer here says why twice over: the code a screen words, and the sentence.
+  for road in fallback["order"].as_array().unwrap() {
+    assert_eq!(road["reason"].is_null(), road["reasonCode"].is_null(), "{road}");
+
+    if road["name"] == "openrouter" && !road["reason"].is_null() {
+      assert_eq!(road["reasonCode"], "openrouter-key-unset", "{road}");
+    }
+  }
   assert_eq!(fallback["active"]["session"], Value::Null);
   assert_eq!(
     fallback["active"]["balance"],

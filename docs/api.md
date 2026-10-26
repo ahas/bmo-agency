@@ -103,6 +103,10 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
   an account's `user_id` names (`docs/store.md`). None means the administrator's, and every agent
   registered without an owner reads so. `GET /agents` and `GET /agents/{agentName}` answer it on every
   agent.
+- **`GET /agents` answers `roles` beside the agents:** every role the policy declares, each with its
+  `name`, its `code`, its English `label` and its `bundles`, each bundle with its `name`, its `code` and its
+  `label`. A code is the kebab-case word a screen words the role or bundle by in its own language: a role's
+  is its name, and a bundle's its name with each dot a hyphen, so `room.chat` is `room-chat`.
 - **Who may register or end which agent is the caller's to judge.** The agent screen is the
   administrator's, and a user registers agents of their own under a permission the caller holds; agency
   writes the owner it is handed and judges no permission.
@@ -402,6 +406,13 @@ answers.
 
 A provider's change throws the owner's switch on it; the last provider left on is not thrown off, since
 nothing would answer.
+
+A road that cannot be taken says why twice over (`docs/provider-presence.md`): each member of the
+fallback's `order`, and each road a work key is `offered`, answers `reason`, the English sentence, and
+`reasonCode`, its kebab-case code, both null on a road that can be taken; a tier's cell answers its
+provider's as `error` and `errorCode`, the code null where the error is the resolution's own. The codes
+are a provider's own, from its policy file, and agency's `line-not-carried`, a provider whose program does
+not carry the key's line, and `laya-url-unset`.
 
 Each work key's member of the fallback's `routes` answers, beside its `routeMode` and `account`, its
 `registration`: the registration the key runs on at the registry's provider in place of its tier's cell,

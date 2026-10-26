@@ -3,7 +3,7 @@
 //! offers a tier mapping. The machine's answers are the harness-providers crate's; what the store holds —
 //! the order, the registrations — is read here.
 
-use harness_providers::{ARCHIVE_PROVIDERS, Machine, Offered, OfferedModel, Provider, provider};
+use harness_providers::{ARCHIVE_PROVIDERS, Machine, Offered, OfferedModel, Provider, Reason, provider};
 use policy::control_words::CONTROL_WORDS;
 use policy::fill_marks;
 use policy::reasoning::REASONING;
@@ -228,19 +228,22 @@ pub async fn addressed_registrations(db: &DatabaseConnection) -> Result<Vec<Stri
   .collect()
 }
 
-/// Why this machine cannot use a provider now, as a person reads it, or nothing where it can: the
-/// machine's answer, then the registry's where the provider's models are registrations.
+/// The code of the reason a provider whose program does not carry a line gives.
+pub const NOT_CARRIED: &str = "line-not-carried";
+
+/// Why this machine cannot use a provider now, or nothing where it can: the machine's answer, then the
+/// registry's where the provider's models are registrations.
 pub async fn missing(
   db: &DatabaseConnection,
   machine: &Machine,
   provider: &dyn Provider,
-) -> Result<Option<String>, Refused> {
+) -> Result<Option<Reason>, Refused> {
   if let Some(missing) = provider.missing(machine) {
     return Ok(Some(missing));
   }
 
   match provider.unregistered() {
-    Some(sentence) if addressed_registrations(db).await?.is_empty() => Ok(Some(sentence.to_owned())),
+    Some(reason) if addressed_registrations(db).await?.is_empty() => Ok(Some(reason)),
     _ => Ok(None),
   }
 }
@@ -252,17 +255,17 @@ pub async fn offered_reason(
   machine: &Machine,
   provider: &dyn Provider,
   line: &str,
-) -> Result<Option<String>, Refused> {
+) -> Result<Option<Reason>, Refused> {
   if let Some(missing) = missing(db, machine, provider).await? {
     return Ok(Some(missing));
   }
 
   let declared = provider.declared();
 
-  Ok(
-    (!declared.carries(line))
-      .then(|| fill_marks(&CONTROL_WORDS.fallback.not_carried, &[("provider", &declared.label)])),
-  )
+  Ok((!declared.carries(line)).then(|| Reason {
+    code: NOT_CARRIED.to_owned(),
+    text: fill_marks(&CONTROL_WORDS.fallback.not_carried, &[("provider", &declared.label)]),
+  }))
 }
 
 /// What a provider offers a tier mapping, read afresh: the registrations with an address, each taking

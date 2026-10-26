@@ -43,7 +43,13 @@ async fn answer(cli: Cli) -> Result<Value, String> {
     Ask::Presence => Ok(json!({
       "providers": presence(&machine)
         .into_iter()
-        .map(|(name, missing)| json!({ "name": name, "missing": missing }))
+        .map(|(name, missing)| {
+          json!({
+            "name": name,
+            "missing": missing.as_ref().map(|reason| &reason.text),
+            "missingCode": missing.as_ref().map(|reason| &reason.code),
+          })
+        })
         .collect::<Vec<_>>(),
     })),
     Ask::Models {

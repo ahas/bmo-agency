@@ -65,7 +65,7 @@ async fn main() -> ExitCode {
 async fn serve(args: Args) -> Result<(), String> {
   // The moment this process started, in seconds as the ledger keeps them: what is open from before it was
   // left by the process before.
-  let started_at = agency_server::now_ms().div_euclid(1000);
+  let started_at = agency_server::now_ms();
   let token = args
     .token
     .filter(|token| !token.is_empty())

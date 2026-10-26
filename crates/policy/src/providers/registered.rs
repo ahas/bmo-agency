@@ -27,8 +27,10 @@ pub struct Gateway {
 #[serde(deny_unknown_fields)]
 pub struct Presence {
   pub key_file: String,
+  pub missing_code: String,
   pub missing: String,
   pub no_archive: String,
+  pub no_address_code: String,
   pub no_address: String,
   pub not_registered: String,
   /// What a run naming a node the registration no longer has says: `{name}` and `{node}`.

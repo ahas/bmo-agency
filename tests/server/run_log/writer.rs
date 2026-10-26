@@ -3,7 +3,7 @@
 
 use agency_server::run_log::lines::Line;
 use agency_server::run_log::prune::{
-  LOG_BYTES_PER_AGENT, LOG_LINES_PER_AGENT, LOG_MOST_AGE_SECONDS, agent_run_log, run_log,
+  LOG_BYTES_PER_AGENT, LOG_LINES_PER_AGENT, LOG_MOST_AGE_MS, agent_run_log, run_log,
 };
 use agency_server::run_log::secrets::MASKED_VALUE;
 use agency_server::run_log::{MAX_TOOL_CHARS, RunLog, Target, preview};
@@ -29,8 +29,8 @@ fn a_preview_cuts_at_a_character_and_says_so() {
 #[test]
 fn the_bounds_are_the_sweeps() {
   assert_eq!(
-    (LOG_LINES_PER_AGENT, LOG_BYTES_PER_AGENT, LOG_MOST_AGE_SECONDS),
-    (4000, 64 * 1024 * 1024, 604_800)
+    (LOG_LINES_PER_AGENT, LOG_BYTES_PER_AGENT, LOG_MOST_AGE_MS),
+    (4000, 64 * 1024 * 1024, 604_800_000)
   );
 }
 
@@ -83,8 +83,8 @@ async fn a_jobs_lines_are_numbered_kept_whole_and_masked() {
 #[tokio::test]
 async fn the_log_is_held_to_its_age_but_an_agents_newest_system_prompt_and_a_jobs_lines() {
   let scratch = Scratch::new().await;
-  let now = 2_000_000_000;
-  let old = now - LOG_MOST_AGE_SECONDS - 60;
+  let now = 2_000_000_000_000;
+  let old = now - LOG_MOST_AGE_MS - 60_000;
   let insert = |agent: &'static str, kind: &'static str, name: Option<&'static str>, job: Option<i64>| {
     let db = scratch.db().clone();
 

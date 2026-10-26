@@ -32,9 +32,13 @@ url = "http://127.0.0.1:18030"
 [presence]
 # The gateway's key, a private file under the data root's env directory.
 key_file = "llm-gateway.key"
+# What it says where the key file is not usable, and where no registration has an address: each a
+# kebab-case code a screen words in its own language, and the English sentence the log keeps.
+missing_code = "gateway-key-unusable"
 missing = "The gateway's key file (llm-gateway.key) is missing or its mode is not 0600."
 # What the registry itself says where it cannot answer.
 no_archive = "There is no store to read the registered models from."
+no_address_code = "no-registration-addressed"
 no_address = "No registered model has an address."
 # What a pin, or a job, naming one registration says where the registry holds none of that name with an
 # address; the name follows it.

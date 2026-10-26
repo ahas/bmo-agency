@@ -9,7 +9,7 @@ use policy::providers::Declared;
 use policy::providers::registered::REGISTERED;
 
 use crate::claude_code::ClaudeCode;
-use crate::{Machine, Provider};
+use crate::{Machine, Provider, Reason};
 
 pub struct Registered;
 
@@ -71,12 +71,13 @@ impl Provider for Registered {
     )
   }
 
-  fn missing(&self, machine: &Machine) -> Option<String> {
-    (!usable_secret(&Self::key_file(machine))).then(|| REGISTERED.presence.missing.clone())
+  fn missing(&self, machine: &Machine) -> Option<Reason> {
+    (!usable_secret(&Self::key_file(machine)))
+      .then(|| Reason::new(&REGISTERED.presence.missing_code, &REGISTERED.presence.missing))
   }
 
-  fn unregistered(&self) -> Option<&'static str> {
-    Some(&REGISTERED.presence.no_address)
+  fn unregistered(&self) -> Option<Reason> {
+    Some(Reason::new(&REGISTERED.presence.no_address_code, &REGISTERED.presence.no_address))
   }
 
   fn not_registered(&self) -> Option<&'static str> {

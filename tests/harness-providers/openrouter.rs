@@ -108,7 +108,10 @@ async fn a_listing_that_did_not_arrive_says_its_status() {
 fn the_key_in_the_environment_is_the_whole_of_its_presence() {
   let dir = tempfile::tempdir().unwrap();
 
-  assert!(OpenRouter.missing(&Machine::with_env([], dir.path())).is_some());
+  assert_eq!(
+    OpenRouter.missing(&Machine::with_env([], dir.path())).unwrap().code,
+    "openrouter-key-unset"
+  );
   assert!(
     OpenRouter
       .missing(&Machine::with_env([("BMO_OPENROUTER_KEY".into(), String::new())], dir.path()))

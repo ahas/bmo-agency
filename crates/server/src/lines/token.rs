@@ -315,8 +315,53 @@ fn leading_number(value: Option<&String>) -> i64 {
 /// What a run's session record carries of its research settings,
 /// read out of the run's environment where its runner put them, and the capabilities the policy ties to
 /// those settings that they do not open; no settings and
-/// every such capability left out for a run carrying none.
+/// every such capability left out for a run carrying none. A research branch's record carries its
+/// parent's settings held to the budget of one of the parent's branches, opens no branch, and names the
+/// parent's run as `branchOf`.
 pub fn research_record(env: &BTreeMap<String, String>) -> (Option<Value>, Vec<&'static str>) {
+  let branch_of = count(env.get(BRANCH_OF)).filter(|run| *run > 0);
+  let narrowed;
+  let env = match branch_of {
+    Some(_) => {
+      narrowed = branch_variables(env);
+      &narrowed
+    }
+    None => env,
+  };
+  let (research, withheld) = settings_record(env);
+
+  match (research, branch_of) {
+    (Some(Value::Object(mut research)), Some(parent)) => {
+      research.insert("branchOf".to_owned(), json!(parent));
+
+      (Some(Value::Object(research)), withheld)
+    }
+    (research, _) => (research, withheld),
+  }
+}
+
+/// The variable that names, on a research branch's run, the ledger's run it is a branch of.
+pub const BRANCH_OF: &str = "BMO_RESEARCH_BRANCH_OF";
+
+// A branch's variables as its record reads them: its parent's settings, its page budget the one each branch
+// of the parent has, and no branch of its own.
+fn branch_variables(env: &BTreeMap<String, String>) -> BTreeMap<String, String> {
+  let mut narrowed = env.clone();
+  let budget = narrowed.remove("BMO_RESEARCH_BRANCH_PAGES");
+
+  narrowed.remove("BMO_RESEARCH_TOOLS");
+  narrowed.insert("BMO_RESEARCH_BRANCHES".to_owned(), "0".to_owned());
+
+  match budget {
+    Some(pages) => narrowed.insert("BMO_RESEARCH_PAGES".to_owned(), pages),
+    None => narrowed.remove("BMO_RESEARCH_PAGES"),
+  };
+
+  narrowed
+}
+
+// The research settings a run's variables carry, and the capabilities those settings do not open.
+fn settings_record(env: &BTreeMap<String, String>) -> (Option<Value>, Vec<&'static str>) {
   let set = |name: &str| env.get(name).filter(|value| !value.is_empty());
 
   if !env.iter().any(|(name, value)| {

@@ -247,3 +247,49 @@ async fn no_recollector_is_left_standing_and_nothing_else_goes_with_them() {
     1
   );
 }
+
+#[tokio::test]
+async fn a_moment_kept_in_seconds_is_given_its_milliseconds_and_one_in_milliseconds_is_left() {
+  let scratch = Scratch::blank().await;
+  // Every migration before the one that holds the run log's and the ledger's moments in milliseconds.
+  let before = Migrator::migrations()
+    .iter()
+    .position(|migration| migration.name() == "m20261111_000001_moments_in_milliseconds")
+    .map(|place| u32::try_from(place).unwrap())
+    .unwrap();
+
+  Migrator::up(scratch.db(), Some(before)).await.unwrap();
+  scratch
+    .run(
+      r#"INSERT INTO "agent_log" ("agent", "run", "at", "kind", "text")
+           VALUES ('pal', 'seconds', 1793003847, 'tool', 'x'), ('pal', 'milliseconds', 1792580336000, 'tool', 'y')"#,
+      vec![],
+    )
+    .await;
+  scratch
+    .run(
+      r#"INSERT INTO "runs" ("agent", "unit", "depth", "started_at", "finished_at")
+           VALUES ('pal', 'seconds', 0, 1793011298, 1793011319), ('pal', 'milliseconds', 0, 1792580336000, NULL)"#,
+      vec![],
+    )
+    .await;
+  Migrator::up(scratch.db(), None).await.unwrap();
+
+  let scratch = &scratch;
+  let run = |unit: &'static str, column: &'static str| async move {
+    let sql = format!(r#"SELECT COALESCE("{column}", 0) FROM "runs" WHERE "unit" = '{unit}'"#);
+
+    scratch.count(&sql, vec![]).await
+  };
+
+  assert_eq!(run("seconds", "started_at").await, 1_793_011_298_000);
+  assert_eq!(run("seconds", "finished_at").await, 1_793_011_319_000);
+  assert_eq!(run("milliseconds", "started_at").await, 1_792_580_336_000);
+  assert_eq!(run("milliseconds", "finished_at").await, 0, "an open run stays open");
+
+  let at =
+    |run: &'static str| scratch.count(r#"SELECT "at" FROM "agent_log" WHERE "run" = $1"#, vec![run.into()]);
+
+  assert_eq!(at("seconds").await, 1_793_003_847_000);
+  assert_eq!(at("milliseconds").await, 1_792_580_336_000);
+}

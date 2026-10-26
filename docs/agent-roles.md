@@ -26,7 +26,8 @@ made of is `docs/companions.md`.
 
 - **Declared in agency's policy,** `policy/roles.toml`, one table to a role, read by the bun side and
   the Rust side alike: its label, an English word a screen translates through its own language pack,
-  and the bundles it gives.
+  and the bundles it gives. A screen is handed each role and bundle with its kebab-case code beside the
+  label (`docs/api.md`, 「agents」), and words the code; the label is the English the log keeps.
 
   | Role | Label | Bundles |
   |---|---|---|

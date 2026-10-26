@@ -360,7 +360,7 @@ async fn step(
   }
 
   if let Some(missing) = harness::missing(db, machine, provider).await.map_err(refused)? {
-    return cannot(Closed::plain(name, missing));
+    return cannot(Closed::plain(name, missing.text));
   }
 
   if let Some(closed) = balance_spent(ground, provider).await {
@@ -484,7 +484,7 @@ pub async fn provider_closed(ground: &Ground, name: &str) -> Result<Option<Strin
   }
 
   if let Some(missing) = harness::missing(&ground.db, &ground.machine(), provider).await.map_err(refused)? {
-    return Ok(Some(missing));
+    return Ok(Some(missing.text));
   }
 
   Ok(balance_spent(ground, provider).await.map(|closed| closed.reason))

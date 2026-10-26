@@ -45,8 +45,9 @@ flowchart TD
     file's sentence for the store it lacks or the address none has.
 - **DeepSeek** can where the road's key file stands private under the data root's `env` directory, as
   the registered models' does. Its API is not asked: the key's presence is the machine's fact.
-- **A provider that cannot answer** says the English sentence and status its policy file gives,
-  and the screen shows it beside the provider in its own language.
+- **A provider that cannot answer** says why twice over, both from its policy file: a kebab-case code a
+  screen words in its own language, such as `openrouter-key-unset`, and the English sentence the log and
+  the machine's output keep. Every route that answers a provider's reason answers its code beside it.
 - **Presence is the first of the questions the road resolution asks.** Whether a provider can answer now
   adds what its member declares beside presence — a balance it offers, read above zero, and the logins
   it holds, one of them open — and the resolution walks the owner's order on those answers alone
@@ -81,7 +82,8 @@ flowchart TD
 ## The binary
 
 - **`harness-providers presence --data-root <dir>`** prints one line of JSON: every provider in the
-  providers' order with the sentence it says, or none where it can answer.
+  providers' order with the sentence it says as `missing` and its code as `missingCode`, both none where it
+  can answer.
 - **`harness-providers models <provider>`** prints the provider's catalogue as JSON;
   `--config-dir <dir>` names the login's directory for Claude Code. A listing that fails ends with a
   non-zero status and its reason on the standard error.

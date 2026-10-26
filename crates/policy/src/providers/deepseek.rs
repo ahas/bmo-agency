@@ -26,6 +26,7 @@ impl DeepSeek {
 #[serde(deny_unknown_fields)]
 pub struct Presence {
   pub key_file: String,
+  pub missing_code: String,
   pub missing: String,
   pub not_held: String,
 }

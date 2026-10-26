@@ -26,6 +26,9 @@ fault = "This harness requires explicit effort"
 # The executable is the whole of what this machine holds for it: the account is signed in once,
 # outside agency. It is looked up on the process's PATH.
 program = "codex"
+# What it says where the executable is not found: the kebab-case code a screen words in its own language,
+# and the English sentence the log keeps.
+missing_code = "codex-missing"
 missing = "The Codex executable is missing."
 
 [catalogue]

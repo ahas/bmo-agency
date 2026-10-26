@@ -50,9 +50,14 @@ same way (`docs/launch-lines.md`, 「Translate runner」).
     search engine, each null where the web tools' own default stands.
 - **The settings travel on the run's tool session record.** As a run is launched, agency writes them into
   the run's variables, and the record it issues for the run carries them under `labels.research` —
-  `closesAt`, `branches`, `role`, `source`, `strategy`, `hostIntervalMs`, `engineIntervalMs` — the shape
-  the web tools read (bmo-explorer's `docs/api.md`, 「What a placed tool reads of its record」). What the
-  console shows is what the next run carries.
+  `closesAt`, `branches`, `role`, `source`, `strategy`, `hostIntervalMs`, `engineIntervalMs`, `pages` and
+  `branchPages` — the shape the web tools read (bmo-explorer's `docs/api.md`, 「What a placed tool reads of
+  its record」). What the console shows is what the next run carries.
+- **A branch's record says it is one.** A research branch is launched with its parent's variables and
+  `BMO_RESEARCH_BRANCH_OF`, the ledger id of the run it is a branch of. Its record carries the parent's
+  settings with `branchOf`, that id; its `pages` is the parent's `branchPages`, the budget each branch of
+  the parent has, which the web tools hold its fetches to; and it opens no branch of its own, `branches`
+  0, no `branchPages`, and the branch tool not shown.
 - **The search engines' state** is the web tools' own, read through the tool host's call of
   `explorer/search_engines`, and answered beside the settings; where the tool host cannot be asked, the
   answer says why instead.

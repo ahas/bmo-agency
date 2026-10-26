@@ -61,6 +61,7 @@ impl Cache {
 #[serde(deny_unknown_fields)]
 pub struct Presence {
   pub program: String,
+  pub missing_code: String,
   pub missing: String,
 }
 

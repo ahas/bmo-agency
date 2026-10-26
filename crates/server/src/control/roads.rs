@@ -3,7 +3,7 @@
 //! begins on, the roads the key is offered with why each is shut, and Laya for a gate whose profile
 //! says Laya can give its whole verdict, the gate's own service, which runs on no agent provider.
 
-use harness_providers::{ARCHIVE_PROVIDERS, Machine, Provider, providers};
+use harness_providers::{ARCHIVE_PROVIDERS, Machine, Provider, Reason, providers};
 use policy::control_words::CONTROL_WORDS;
 use policy::fill_marks;
 use policy::work_keys::{Profile, WORK_KEYS};
@@ -136,12 +136,20 @@ pub async fn road_provider(db: &DatabaseConnection, key: &str) -> Result<String,
 pub struct OfferedRoad {
   pub name: String,
   pub label: String,
-  pub reason: Option<String>,
+  pub reason: Option<Reason>,
 }
+
+/// The code of the reason Laya gives where the process names no address to ask it at.
+pub const LAYA_UNSET: &str = "laya-url-unset";
 
 impl OfferedRoad {
   pub fn view(&self) -> Value {
-    json!({ "name": self.name, "label": self.label, "reason": self.reason })
+    json!({
+      "name": self.name,
+      "label": self.label,
+      "reason": self.reason.as_ref().map(|reason| &reason.text),
+      "reasonCode": self.reason.as_ref().map(|reason| &reason.code),
+    })
   }
 }
 
@@ -171,7 +179,7 @@ pub async fn offered_roads(
     roads.push(OfferedRoad {
       name: LAYA.to_owned(),
       label: "Laya".to_owned(),
-      reason: (!addressed).then(|| CONTROL_WORDS.fallback.laya_unset.clone()),
+      reason: (!addressed).then(|| Reason::new(LAYA_UNSET, &CONTROL_WORDS.fallback.laya_unset)),
     });
   }
 
@@ -191,7 +199,7 @@ pub async fn mode_refusal(
   }
 
   Ok(match offered_roads(db, machine, key).await?.into_iter().find(|one| one.name == mode) {
-    Some(road) => road.reason,
+    Some(road) => road.reason.map(|reason| reason.text),
     None => Some(fill_marks(&CONTROL_WORDS.fallback.not_offered, &[("key", key), ("mode", mode)])),
   })
 }

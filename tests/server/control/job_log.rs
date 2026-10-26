@@ -46,7 +46,7 @@ async fn a_running_server_reads_a_job_s_lines_and_keeps_its_notes_and_turn_recor
   // Job 12's lines across two runs: a call kept cut with its whole arguments in its detail, a call whose
   // arguments are no JSON, a branch's call under a parent, a result kept cut, the request lines and a
   // compaction. The times are now, since the run log's pruner keeps a window and the server prunes it.
-  let now = agency_server::now_ms() / 1000;
+  let now = agency_server::now_ms();
   scratch
     .run(
       r#"INSERT INTO "agent_log"
@@ -138,7 +138,7 @@ async fn an_agent_s_log_reads_across_its_runs_newest_before_after_and_at_a_momen
 
   // Five lines in one run and five in the next, in order, and another agent's line between. The times
   // are now, not a fixed epoch, since the run log's pruner keeps a window and the server prunes it.
-  let now = agency_server::now_ms() / 1000;
+  let now = agency_server::now_ms();
   scratch
     .run(
       r#"INSERT INTO "agent_log" ("id", "agent", "run", "at", "kind", "text")

@@ -15,7 +15,7 @@ use crate::{Refusal, now_ms};
 /// past which no line stays.
 pub const LOG_LINES_PER_AGENT: i64 = 4000;
 pub const LOG_BYTES_PER_AGENT: i64 = 64 * 1024 * 1024;
-pub const LOG_MOST_AGE_SECONDS: i64 = 7 * 24 * 60 * 60;
+pub const LOG_MOST_AGE_MS: i64 = 7 * 24 * 60 * 60 * 1000;
 
 /// How often the whole table is swept.
 pub const PRUNE_PASS: Duration = Duration::from_secs(24 * 60 * 60);
@@ -74,14 +74,14 @@ pub async fn agent_run_log(db: &DatabaseConnection, agent: &str, now: i64) -> Re
   let aged = run(
     db,
     &format!(r#"DELETE FROM "agent_log" WHERE "at" < $2 AND "job_id" IS NULL AND {kept}"#),
-    vec![agent.into(), (now - LOG_MOST_AGE_SECONDS).into()],
+    vec![agent.into(), (now - LOG_MOST_AGE_MS).into()],
   )
   .await?;
 
   Ok(weighed + aged)
 }
 
-/// The run log held to its bounds over every agent at `now`, in epoch seconds. How many lines went.
+/// The run log held to its bounds over every agent at `now`, in epoch milliseconds. How many lines went.
 pub async fn run_log(db: &DatabaseConnection, now: i64) -> Result<u64, Refusal> {
   let kept = kept_prompts("");
   let weighed = run(
@@ -93,7 +93,7 @@ pub async fn run_log(db: &DatabaseConnection, now: i64) -> Result<u64, Refusal> 
   let aged = run(
     db,
     &format!(r#"DELETE FROM "agent_log" WHERE "at" < $1 AND "job_id" IS NULL AND {kept}"#),
-    vec![(now - LOG_MOST_AGE_SECONDS).into()],
+    vec![(now - LOG_MOST_AGE_MS).into()],
   )
   .await?;
 
@@ -107,7 +107,7 @@ pub async fn keep(db: DatabaseConnection) {
     let db = db.clone();
 
     async move {
-      let gone = run_log(&db, now_ms() / 1000).await.map_err(|refusal| refusal.detail)?;
+      let gone = run_log(&db, now_ms()).await.map_err(|refusal| refusal.detail)?;
 
       if gone > 0 {
         println!("run log prune: {gone} line(s) past the log's bounds taken out");

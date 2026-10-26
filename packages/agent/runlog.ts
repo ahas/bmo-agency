@@ -768,6 +768,6 @@ export async function pruneRunLog(archive: Archive, agent: string | null): Promi
     agent,
     keep: maxLinesPerAgent,
     maxBytes: maxBytesPerAgent,
-    before: Math.floor(Date.now() / 1000) - maxAgeSeconds,
+    before: Date.now() - maxAgeSeconds * 1000,
   });
 }

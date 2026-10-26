@@ -174,7 +174,7 @@ async fn the_routes_answer_a_chat_run_by_its_room_and_round_and_its_lines_by_its
          VALUES ('chat-agent', 'chat:-5:1000', -5, $1, 'tool', 'called'),
                 ('chat-agent', 'chat:-6:1000', -6, $1, 'tool', 'elsewhere')"#,
       // Written now, so the server's prune of old lines as it starts leaves them.
-      vec![(agency_server::now_ms() / 1000).into()],
+      vec![agency_server::now_ms().into()],
     )
     .await;
 
@@ -289,23 +289,23 @@ async fn every_turn_of_a_round_keeps_what_it_spent_and_the_usage_groups_it_by_ro
   let home = tempfile::tempdir().unwrap();
   let data = home.path().join("data");
   let token = "secret";
-  let now = agency_server::now_ms() / 1000;
+  let now = agency_server::now_ms();
 
   std::fs::create_dir_all(&data).unwrap();
 
   // The round's own turn and two questions of its draft process, one of them on a road that reported nothing,
   // and another round's turn.
-  let first = spent_turn(&scratch, "chat:-5:1", "round:-5:1", now - 30, spent(1000, 50)).await;
-  spent_turn(&scratch, "chat:-5:2", "round:-5:1", now - 20, spent(200, 20)).await;
-  let silent = spent_turn(&scratch, "chat:-5:3", "round:-5:1", now - 10, None).await;
-  spent_turn(&scratch, "chat:-5:4", "round:-5:2", now - 5, spent(10, 1)).await;
+  let first = spent_turn(&scratch, "chat:-5:1", "round:-5:1", now - 30_000, spent(1000, 50)).await;
+  spent_turn(&scratch, "chat:-5:2", "round:-5:1", now - 20_000, spent(200, 20)).await;
+  let silent = spent_turn(&scratch, "chat:-5:3", "round:-5:1", now - 10_000, None).await;
+  spent_turn(&scratch, "chat:-5:4", "round:-5:2", now - 5_000, spent(10, 1)).await;
 
   let read = run_ledger::read(scratch.db(), first).await.unwrap().unwrap();
 
   assert_eq!(read.spent, spent(1000, 50));
   assert_eq!(run_ledger::read(scratch.db(), silent).await.unwrap().unwrap().spent, None);
 
-  let rounds = run_ledger::spent_by_round(scratch.db(), now - 60, now).await.unwrap();
+  let rounds = run_ledger::spent_by_round(scratch.db(), now - 60_000, now).await.unwrap();
 
   assert_eq!(rounds.len(), 2, "{rounds:?}");
   assert_eq!(
@@ -315,7 +315,7 @@ async fn every_turn_of_a_round_keeps_what_it_spent_and_the_usage_groups_it_by_ro
   );
   assert_eq!(rounds[0].spent.input_tokens, 1200);
   assert_eq!(rounds[0].spent.total(), 1200 + 70 + 200 + 20);
-  assert_eq!((rounds[0].first_at, rounds[0].last_at), (now - 30, now - 20));
+  assert_eq!((rounds[0].first_at, rounds[0].last_at), (now - 30_000, now - 20_000));
 
   let server = standing::stand_server(home.path(), &data, &scratch.address(), token);
   let port = server.port;
@@ -333,7 +333,7 @@ async fn every_turn_of_a_round_keeps_what_it_spent_and_the_usage_groups_it_by_ro
     (&Value::Null, &Value::Null)
   );
 
-  let path = format!("/usage?groupBy=round&after={}&before={}", (now - 60) * 1000, (now + 1) * 1000);
+  let path = format!("/usage?groupBy=round&after={}&before={}", now - 60_000, now + 1_000);
   let (status, usage) = ask(port, token, reqwest::Method::GET, &path, None).await;
   let groups = usage["groups"].as_array().unwrap();
 
@@ -342,6 +342,6 @@ async fn every_turn_of_a_round_keeps_what_it_spent_and_the_usage_groups_it_by_ro
   assert_eq!((&groups[0]["key"], &groups[0]["turns"]), (&json!("round:-5:1"), &json!(2)));
   assert_eq!(groups[0]["tokens"], 1200 + 70 + 200 + 20);
   assert_eq!(groups[0]["outputTokens"], 70);
-  assert_eq!(groups[0]["firstAt"], (now - 30) * 1000);
+  assert_eq!(groups[0]["firstAt"], now - 30_000);
   assert_eq!(groups[1]["key"], "round:-5:2");
 }

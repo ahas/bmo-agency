@@ -558,7 +558,7 @@ pub async fn sweep_cut(
 ) -> Result<usize, Refusal> {
   let mut closed = 0;
   let closing = Closing {
-    finished_at: now_ms().div_euclid(1000),
+    finished_at: now_ms(),
     outcome: CUT.to_owned(),
     context_tokens: None,
     spent: None,
@@ -747,7 +747,7 @@ pub async fn launch(ground: Arc<Ground>, ask: ResearchRunAsk) -> Result<Research
       unit: unit.clone(),
       depth: ledger_depth(&ask.key),
       cap_ms: Some(kept.minutes * 60_000),
-      started_at: now_ms().div_euclid(1000),
+      started_at: now_ms(),
       started_by: ask.asker.clone(),
       search_id: None,
       round: None,
@@ -1020,7 +1020,7 @@ impl Going {
     };
 
     let closing = Closing {
-      finished_at: now_ms().div_euclid(1000),
+      finished_at: now_ms(),
       outcome: outcome.to_owned(),
       context_tokens: None,
       spent,

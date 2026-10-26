@@ -31,6 +31,9 @@ launch = "either"
 [presence]
 # The road's key file under the data root's env directory, private to its owner.
 key_file = "deepseek.key"
+# What it says where the key file is not usable: the kebab-case code a screen words in its own language,
+# and the English sentence the log keeps.
+missing_code = "deepseek-key-unusable"
 missing = "DeepSeek cannot be chosen: the key file (deepseek.key) is missing or its mode is not 0600."
 # What a pin or a job naming a model this provider does not serve says; the name follows it.
 not_held = "Not a DeepSeek model"

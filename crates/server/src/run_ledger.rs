@@ -441,7 +441,7 @@ pub async fn launch(ground: &Ground, id: i64, launch: Launch) -> Result<(), NotL
     return Ok(());
   };
   let closing = Closing {
-    finished_at: crate::now_ms() / 1000,
+    finished_at: crate::now_ms(),
     outcome: LAUNCH_ERROR.to_owned(),
     context_tokens: None,
     spent: None,

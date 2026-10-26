@@ -132,7 +132,7 @@ async fn note(ground: &Ground, worker: &str, text: &str) -> Result<(), Refusal> 
     vec![
       worker.into(),
       format!("bmo-standby-{worker}-{}", now_ms()).into(),
-      (now_ms() / 1000).into(),
+      now_ms().into(),
       text.into(),
       (text.chars().count() as i64).into(),
     ],

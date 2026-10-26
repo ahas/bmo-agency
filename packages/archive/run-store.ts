@@ -179,7 +179,7 @@ export class RunStore {
              upstream_truncated, detail_complete, detail_length, metadata_length, detail, metadata)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           RETURNING id
-        `, line.agent, line.run, line.chatId, Math.floor(Date.now() / 1000), line.kind, line.name, line.parent, line.ref, line.truncated ? 1 : 0, line.text, jobId, sequence, line.source ?? (jobId === null ? null : deploymentNames().agentKey), line.sourceEvent ?? null, line.sourceBlock ?? null, line.sourceId ?? null, line.state ?? null, line.upstreamTruncated === true ? 1 : 0, (line.detailComplete ?? !line.truncated) ? 1 : 0, detailLength, metadataLength, line.detail ?? null, line.metadata ?? null) as { id: number }).id;
+        `, line.agent, line.run, line.chatId, Date.now(), line.kind, line.name, line.parent, line.ref, line.truncated ? 1 : 0, line.text, jobId, sequence, line.source ?? (jobId === null ? null : deploymentNames().agentKey), line.sourceEvent ?? null, line.sourceBlock ?? null, line.sourceId ?? null, line.state ?? null, line.upstreamTruncated === true ? 1 : 0, (line.detailComplete ?? !line.truncated) ? 1 : 0, detailLength, metadataLength, line.detail ?? null, line.metadata ?? null) as { id: number }).id;
     });
   }
 
@@ -301,7 +301,7 @@ export class RunStore {
     return row ?? null;
   }
 
-  // When an agent's log last took a line for one room, in seconds, or null where it took none: where a
+  // When an agent's log last took a line for one room, in epoch milliseconds, or null where it took none: where a
   // screen opens that agent's session in the room.
   async latestAgentLogAt(agent: string, chatId: number): Promise<number | null> {
     const row = await this.sql.get("SELECT MAX(at) AS at FROM agent_log WHERE agent = ? AND chat_id = ?", agent, chatId) as { at: number | null } | null;

@@ -69,6 +69,7 @@ impl Gateway {
 #[serde(deny_unknown_fields)]
 pub struct Presence {
   pub key_env: String,
+  pub missing_code: String,
   pub missing: String,
 }
 

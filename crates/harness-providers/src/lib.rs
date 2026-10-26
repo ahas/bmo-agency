@@ -100,6 +100,23 @@ pub struct Offered {
   pub stale_read_at: Option<f64>,
 }
 
+/// Why a provider cannot answer here: the kebab-case code a screen words in its own language, and the
+/// English sentence the log keeps.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Reason {
+  pub code: String,
+  pub text: String,
+}
+
+impl Reason {
+  pub fn new(code: &str, text: &str) -> Self {
+    Self {
+      code: code.to_owned(),
+      text: text.to_owned(),
+    }
+  }
+}
+
 /// What a provider offers being read.
 pub type Offering<'a> = Pin<Box<dyn Future<Output = Result<Offered, String>> + Send + 'a>>;
 
@@ -136,8 +153,8 @@ pub trait Provider: Sync {
   /// What its policy file declares.
   fn declared(&self) -> &'static Declared;
 
-  /// Why this machine cannot use it, in the owner's language, or nothing where it can.
-  fn missing(&self, machine: &Machine) -> Option<String>;
+  /// Why this machine cannot use it, or nothing where it can.
+  fn missing(&self, machine: &Machine) -> Option<Reason>;
 
   /// Its catalogue as this machine holds it, read afresh. A login's configuration directory is named
   /// where the provider's catalogue is kept under one.
@@ -155,9 +172,9 @@ pub trait Provider: Sync {
   }
 
   /// Where its models are the registry's registrations, which each side reads from its own archive,
-  /// the sentence it says where none has an address: it answers only where one has, and offers
+  /// the reason it gives where none has an address: it answers only where one has, and offers
   /// those. Nothing for a provider whose models are not.
-  fn unregistered(&self) -> Option<&'static str> {
+  fn unregistered(&self) -> Option<Reason> {
     None
   }
 
@@ -385,7 +402,7 @@ pub fn provider(name: &str) -> Option<&'static dyn Provider> {
 }
 
 /// Every provider with what it says about this machine, in the providers' order.
-pub fn presence(machine: &Machine) -> Vec<(&'static str, Option<String>)> {
+pub fn presence(machine: &Machine) -> Vec<(&'static str, Option<Reason>)> {
   providers().into_iter().map(|one| (one.name(), one.missing(machine))).collect()
 }
 

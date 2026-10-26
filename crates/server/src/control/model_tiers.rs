@@ -87,15 +87,21 @@ async fn effective(
 
   for provider in ARCHIVE_PROVIDERS {
     views.push(match resolve_execution(db, key, provider, None).await {
-      Ok(selection) => json!({
-        "provider": provider,
-        "selection": selection,
-        "error": offered_reason(db, machine, named(provider)?, line_of(key)).await?,
-      }),
+      Ok(selection) => {
+        let reason = offered_reason(db, machine, named(provider)?, line_of(key)).await?;
+
+        json!({
+          "provider": provider,
+          "selection": selection,
+          "error": reason.as_ref().map(|reason| &reason.text),
+          "errorCode": reason.as_ref().map(|reason| &reason.code),
+        })
+      }
       Err(error) => json!({
         "provider": provider,
         "selection": held.iter().find(|one| one.provider == provider && one.tier == tier),
         "error": error,
+        "errorCode": null,
       }),
     });
   }

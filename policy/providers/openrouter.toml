@@ -32,6 +32,9 @@ fault = "OpenRouter dsh does not support explicit effort"
 [presence]
 # The environment variable the key is read from; its value is never held anywhere else.
 key_env = "BMO_OPENROUTER_KEY"
+# What it says where the key is not set: the kebab-case code a screen words in its own language, and the
+# English sentence the log keeps.
+missing_code = "openrouter-key-unset"
 missing = "OpenRouter cannot be chosen: BMO_OPENROUTER_KEY is not set."
 
 [gateway]

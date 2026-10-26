@@ -448,8 +448,7 @@ async fn by_round(
   after: i64,
   before: i64,
 ) -> Result<Vec<Value>, Refused> {
-  let rounds =
-    crate::run_ledger::spent_by_round(db, after.div_euclid(1000), before.div_euclid(1000)).await?;
+  let rounds = crate::run_ledger::spent_by_round(db, after, before).await?;
 
   Ok(
     rounds
@@ -464,8 +463,8 @@ async fn by_round(
           "outputTokens": round.spent.output_tokens,
           "cacheReadTokens": round.spent.cache_read_tokens,
           "cacheWriteTokens": round.spent.cache_write_tokens,
-          "firstAt": round.first_at * 1000,
-          "lastAt": round.last_at * 1000,
+          "firstAt": round.first_at,
+          "lastAt": round.last_at,
           "contextTokens": Value::Null,
         })
       })

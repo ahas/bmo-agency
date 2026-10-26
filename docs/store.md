@@ -66,7 +66,7 @@ seeds. The other crates and the server reach the store only through it.
     input, output, cache-read and cache-write tokens) and their sum, and the prompt it was launched with; and what a session carries: `session_work`, its item and results, and `session_loads`,
     the documents loaded into it (`docs/api.md`, 「Assignments and jobs」);
   - the run ledger: `runs`, one row a run of an agent's unit — its agent and room, its unit, how deep
-    it runs, its bound, when it started and finished in epoch seconds, how it ended, who started it, the
+    it runs, its bound, when it started and finished in epoch milliseconds, how it ended, who started it, the
     tokens its context held, what it spent (its input, output, cache-read and cache-write tokens), the
     search it carried, the round it belongs to and the message its answer went out as — opened and closed by the job unit, and a job turn's and a chat turn's by agency (`docs/api.md`,
     「runs」, `docs/run-records.md`, 「The run ledger」); a room forgotten takes its runs with it, and a

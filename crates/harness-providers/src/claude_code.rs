@@ -13,8 +13,8 @@ use serde::Serialize;
 use serde_json::{Value, json};
 
 use crate::{
-  Headline, Machine, ModelEfforts, Offered, OfferedModel, Offering, PlaceCache, Provider, Reading, Window,
-  number,
+  Headline, Machine, ModelEfforts, Offered, OfferedModel, Offering, PlaceCache, Provider, Reading, Reason,
+  Window, number,
 };
 
 pub struct ClaudeCode;
@@ -168,7 +168,7 @@ impl Provider for ClaudeCode {
     &CLAUDE_CODE.declared
   }
 
-  fn missing(&self, _machine: &Machine) -> Option<String> {
+  fn missing(&self, _machine: &Machine) -> Option<Reason> {
     None
   }
 

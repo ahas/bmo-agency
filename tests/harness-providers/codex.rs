@@ -1,7 +1,7 @@
 //! Codex: its headline windows, its catalogue as the executable on the PATH prints it, and its failures.
 
 use harness_providers::codex::*;
-use harness_providers::{Headline, Machine, Provider, Window};
+use harness_providers::{Headline, Machine, Provider, Reason, Window};
 
 #[test]
 fn the_headline_is_the_standard_windows_by_length_then_by_slot() {
@@ -102,7 +102,7 @@ async fn the_catalogue_is_the_one_the_executable_on_the_path_prints() {
   assert_eq!(Codex.missing(&machine), None);
   assert_eq!(models(&machine).await.unwrap()[0].id, "gpt-5.6-sol");
   assert_eq!(
-    Codex.missing(&Machine::with_env([], dir.path())).as_deref(),
-    Some("The Codex executable is missing.")
+    Codex.missing(&Machine::with_env([], dir.path())),
+    Some(Reason::new("codex-missing", "The Codex executable is missing."))
   );
 }

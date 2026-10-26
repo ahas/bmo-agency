@@ -256,6 +256,15 @@ async fn agents_of_every_kind_are_registered_owned_given_a_brain_and_ended() {
 
   assert_eq!(status, 200);
 
+  // Each role and bundle carries the code a screen words it by beside its English label.
+  let chat = list["roles"].as_array().unwrap().iter().find(|role| role["name"] == "chat").unwrap();
+
+  assert_eq!((&chat["code"], &chat["label"]), (&json!("chat"), &json!("Chat")));
+  assert_eq!(
+    chat["bundles"][0],
+    json!({ "name": "room.chat", "code": "room-chat", "label": "Memory, notes and TODO" })
+  );
+
   let owners: Vec<(String, Value)> = list["items"]
     .as_array()
     .unwrap()

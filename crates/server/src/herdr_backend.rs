@@ -2796,7 +2796,7 @@ async fn open_chat_run(
     unit: run.to_owned(),
     depth: 0,
     cap_ms: None,
-    started_at: at.div_euclid(1000),
+    started_at: at,
     started_by: None,
     search_id: None,
     round: context.round.clone(),
@@ -2837,7 +2837,7 @@ pub async fn close_chat_run(
     return;
   };
   let closing = run_ledger::Closing {
-    finished_at: now_ms().div_euclid(1000),
+    finished_at: now_ms(),
     outcome: serde_json::to_value(end.outcome)
       .ok()
       .and_then(|outcome| outcome.as_str().map(str::to_owned))

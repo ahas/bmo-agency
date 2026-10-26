@@ -312,12 +312,14 @@ async fn order_view(db: &DatabaseConnection, machine: &Machine) -> Result<Vec<Va
 
   for one in provider_order(db).await? {
     let provider = named(&one.name)?;
+    let reason = missing(db, machine, provider).await?;
 
     views.push(json!({
       "name": one.name,
       "enabled": one.enabled,
       "label": provider.declared().label,
-      "reason": missing(db, machine, provider).await?,
+      "reason": reason.as_ref().map(|reason| &reason.text),
+      "reasonCode": reason.as_ref().map(|reason| &reason.code),
     }));
   }
 

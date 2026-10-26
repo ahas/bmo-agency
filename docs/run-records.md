@@ -49,6 +49,8 @@ about a message is not agency's: the judgement records belong to the units that 
   session's server did not attach, one note naming the server and why.
 - A line is committed the moment it arrives, so a run killed from outside leaves everything up to
   the kill, and the ids run forward, so a finished run is scrolled back rather than only tailed.
+- **A line's moment is in epoch milliseconds,** whichever writer filed it and whatever program the run
+  is on: the store keeps it so, and every route answers it as kept.
 - It is bounded three ways — a per-line cut, the last few thousand lines per agent, and an age —
   pruned by the writer as it goes, and over the whole table by agency's own clock: by its server as
   it starts and once a day after.
@@ -71,7 +73,7 @@ about a message is not agency's: the judgement records belong to the units that 
 ## The run ledger
 
 - **A run of the ledger is one row of `runs`:** its agent, its unit, its room, its depth, when it
-  started and finished in epoch seconds, its outcome, the tokens its context carried as it ended, and how
+  started and finished in epoch milliseconds, its outcome, the tokens its context carried as it ended, and how
   many tool calls its log lines held under its unit as it closed, every `tool` line of the agent under
   that name, a branch's among them. A run keeps the first closing it was given (`docs/api.md`, 「runs」).
 - **The job unit's runs** are opened and closed by the job unit across the boundary.

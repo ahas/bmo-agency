@@ -220,7 +220,7 @@ async fn a_running_server_answers_the_calls_a_room_holder_makes_beside_its_turns
   assert_eq!(read_run["agentName"], json!("helper"));
   assert_eq!(read_run["unitName"], json!("unit-1"));
   assert_eq!(read_run["state"], json!("open"));
-  assert_eq!(read_run["startedAt"], json!(4_000_000));
+  assert_eq!(read_run["startedAt"], json!(4_000));
 
   let closing = json!({ "finishedAt": 9_000, "outcome": "done", "contextTokens": 30_000 });
 

@@ -12,7 +12,9 @@ use serde::Serialize;
 use serde_json::{Value, json};
 use tokio::process::Command;
 
-use crate::{Headline, Machine, Offered, OfferedModel, Offering, PlaceCache, Provider, Reading, Window};
+use crate::{
+  Headline, Machine, Offered, OfferedModel, Offering, PlaceCache, Provider, Reading, Reason, Window,
+};
 
 pub struct Codex;
 
@@ -70,11 +72,11 @@ impl Provider for Codex {
       .ok_or_else(|| format!("Codex publishes no cache lifetime for {model}."))
   }
 
-  fn missing(&self, machine: &Machine) -> Option<String> {
+  fn missing(&self, machine: &Machine) -> Option<Reason> {
     machine
       .program(&CODEX.presence.program)
       .is_none()
-      .then(|| CODEX.presence.missing.clone())
+      .then(|| Reason::new(&CODEX.presence.missing_code, &CODEX.presence.missing))
   }
 
   fn catalogue<'a>(&'a self, machine: &'a Machine, _config_dir: Option<&'a Path>) -> Reading<'a> {

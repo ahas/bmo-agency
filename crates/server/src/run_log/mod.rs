@@ -184,7 +184,7 @@ impl RunLog {
         self.target.agent.clone().into(),
         self.target.run.clone().into(),
         self.target.chat_id.into(),
-        (now_ms() / 1000).into(),
+        now_ms().into(),
         line.kind.into(),
         line.name.clone().into(),
         line.parent.clone().into(),
@@ -567,5 +567,5 @@ fn with_diffs(metadata: Json, diffs: Vec<Json>) -> Json {
 
 // One agent's own lines held to the run log's bounds.
 async fn prune(db: &DatabaseConnection, agent: &str) -> Result<(), Refusal> {
-  prune::agent_run_log(db, agent, now_ms() / 1000).await.map(|_| ())
+  prune::agent_run_log(db, agent, now_ms()).await.map(|_| ())
 }
