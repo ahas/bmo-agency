@@ -756,6 +756,7 @@ pub async fn inbox_program(
     chosen: run.reasoning.as_ref().is_some_and(|reasoning| reasoning.level.is_some()),
     thinking: run.thinking,
     mcp: Some(&run.mcp_config),
+    compact_at: None,
   };
   let command = super::openrouter::resident_command(
     ground,

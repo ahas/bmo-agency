@@ -282,6 +282,9 @@ pub struct Composed<'a> {
   pub chosen: bool,
   pub thinking: bool,
   pub mcp: Option<&'a Path>,
+  /// The share of the model's window a standing session compacts itself at, where its session folds itself
+  /// (docs/sessions.md, 「Session compaction」); none leaves dsh's own threshold.
+  pub compact_at: Option<f64>,
 }
 
 impl Composed<'_> {
@@ -430,6 +433,16 @@ fn overlay_of_with(
 
   rows.extend(route_rows(run.provider, run.model, level, env, route));
 
+  // A standing session that folds itself compacts at its session's fold ratio rather than dsh's own default.
+  if tools == Tools::Session
+    && let Some(share) = run.compact_at.and_then(serde_json::Number::from_f64)
+  {
+    rows.push(map(vec![
+      ("id", text(COMPACTION_ROW)),
+      ("config", map(vec![("thresholdRatio", Ordered::Number(share))])),
+    ]));
+  }
+
   // The clients are rows the profile does not hold, so they stand in one insert entry: a row naming an id
   // the profile lacks is a change to nothing, which dsh mounts nothing for. A standing session's clients
   // say why one did not open; a headless run's go quietly, its error stream being its failure's account.
@@ -442,6 +455,18 @@ fn overlay_of_with(
   }
 
   Ok(Ordered::List(rows))
+}
+
+/// The profile's row of dsh's own automatic compaction, whose threshold a session that folds itself sets.
+pub const COMPACTION_ROW: &str = "compaction-basic";
+
+/// The share of its model's window a chat agent's standing session compacts itself at: its session's fold
+/// ratio, the table's value for the provider and the tier its agent's work key is assigned; none where the
+/// table cannot be read.
+pub async fn compact_share(ground: &crate::places::Ground, agent: &str, provider: &str) -> Option<f64> {
+  let tier = crate::control::fold_ratios::agent_tier(&ground.db, agent).await.ok()?;
+
+  crate::control::fold_ratios::ratio(&ground.db, provider, tier.as_deref()).await.ok()
 }
 
 /// The tools a standing session keeps of dsh's own, as the pinned version names them to the model: every row
@@ -530,6 +555,7 @@ fn worker_composed(run: &StandInRun) -> Composed<'_> {
     chosen: run.reasoning.as_ref().is_some_and(|reasoning| reasoning.effort.is_some()),
     thinking: run.thinking,
     mcp: Some(&run.mcp_config_path),
+    compact_at: None,
   }
 }
 

@@ -2414,6 +2414,36 @@ impl Sessions for HerdrSessions {
         ))
       }
       Scope::Agent => {
+        // An agent whose turns go through its resident's inbox holds no session id of its own: its session
+        // stands from its start on the provider its row pins it to, else the one its last answer went out
+        // on, at its resident's context.
+        let last = one(
+          &ground.db,
+          r#"SELECT "pinned_provider", "pinned_model", "last_mode", "last_model" FROM "agents" WHERE "name" = $1"#,
+          vec![agent.clone().into()],
+        )
+        .await
+        .map_err(|why| store_fault(why.into()))?;
+        let field = |name: &str| {
+          last
+            .as_ref()
+            .and_then(|row| row.try_get::<Option<String>>("", name).ok().flatten())
+            .filter(|value| !value.is_empty())
+        };
+        let road = match field("pinned_provider") {
+          Some(pinned) => Some((pinned, field("pinned_model"))),
+          None => field("last_mode").map(|mode| (mode, field("last_model"))),
+        };
+
+        if let Some((provider, model)) =
+          road.filter(|(provider, _)| crate::chat_stand_in::inbox_declared(provider))
+        {
+          let model = model.unwrap_or_default();
+          let context = self.resident_context(&agent, &provider).or_else(|| self.left_of(session));
+
+          return Ok(State::standing(session.clone(), provider, model, place, 1, context));
+        }
+
         if agent_session(&ground.db, &agent).await.map_err(store_fault)?.is_none() {
           return Err(fault(FaultKind::Unknown, format!("{session} has not been opened")));
         }

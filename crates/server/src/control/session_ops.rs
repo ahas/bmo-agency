@@ -377,6 +377,11 @@ async fn folded(db: &sea_orm::DatabaseConnection, mut member: Value) -> Result<V
     member["foldRatio"] = json!(fold_ratios::ratio(db, &provider, tier.as_deref()).await?);
   }
   member["tier"] = json!(tier);
+  // A room's or an agent's session on a program that carries its own turns compacts itself at that share.
+  member["foldsItself"] = json!(
+    matches!(member["scope"].as_str(), Some("agent" | "room"))
+      && crate::chat_stand_in::inbox_declared(&provider)
+  );
 
   Ok(member)
 }

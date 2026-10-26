@@ -170,7 +170,7 @@ session on the owner's ask is `docs/session-resets.md`.
     read off that turn's answer and held while agency's process stands, and let go as the session folds
     or ends; a session no turn has ended on since then carries none, and the next turn's end fills it;
   - **a session whose agent's resident program carries its own turns** — dsh's, one session across the
-    agent's rooms — carries instead what the program's record says of its last answer: `carried` the
+    agent's rooms, read alike by the agent's own session and each of its rooms' — carries instead what the program's record says of its last answer: `carried` the
     `used` that answer's context names, or where it names none, as dsh writes it only on a turn of
     several requests, the input, cache-read and output tokens of the answer's one request; `window` the
     `size` the record's latest context names. The held context stands only where the record holds no
@@ -179,6 +179,13 @@ session on the owner's ask is `docs/session-resets.md`.
     window — with the session's `foldRatio`, and the harness compacts after the turn that crosses it; a
     provider that hands its session over rather than folding it is judged by agency itself at the turn's
     end against the same share;
+  - **a chat session on a resident program that carries its own turns folds itself.** dsh takes no
+    command through the inbox its turns arrive by, every line put there reaching the model, so the fold is
+    its own compaction: the overlay its program stands on names the session's fold ratio as dsh's
+    compaction threshold (its `compaction-basic` row's `thresholdRatio`), and dsh compacts inside the turn
+    that would carry its context past that share. The session's state says so, `foldsItself` true, and a
+    consumer makes no fold call for it; a change of the fold ratio changes the program's command, which
+    stands the program again on the same session. Every other session's `foldsItself` is false;
   - the session's state names that tier as `tier`, none where the key is assigned none, so a consumer
     whose own table is keyed by tier, the receiver's draft process table among them, reads the same tier
     the fold ratio was read at.

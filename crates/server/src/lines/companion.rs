@@ -245,6 +245,7 @@ pub async fn compose(
 
     env.extend(variables.iter().map(|(name, value)| ((*name).to_owned(), value.clone())));
 
+    let compact_at = super::dsh::compact_share(ground, turn.agent, turn.provider).await;
     let laid = super::dsh::Composed {
       line: LINE,
       provider: turn.provider,
@@ -258,6 +259,7 @@ pub async fn compose(
       chosen: reasoning.level.is_some(),
       thinking,
       mcp: Some(&mcp),
+      compact_at,
     };
     let command = super::chat::inbox_command(ground, machine, turn.provider, turn.agent, &laid, &env)?;
 

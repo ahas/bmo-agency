@@ -171,6 +171,7 @@ mod relay;
 mod research;
 mod research_cut;
 mod research_document;
+mod resident_state;
 mod rest;
 mod road;
 mod rooms;

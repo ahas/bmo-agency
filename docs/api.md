@@ -227,7 +227,11 @@ standing in that place only where the brain gives none (`docs/sessions.md`, 「D
 A room's session is readable by its id from its start, before its first turn has opened a generation:
 the read answers the provider, model and place its agent's row names, at generation 0, and its first
 turn opens the first generation on that road. A start writes nothing of the session, so the list of
-sessions names a room's once its first turn has opened one.
+sessions names a room's once its first turn has opened one. An agent's session is readable once its
+agent holds one; an agent whose provider's program carries its own turns, dsh's, holds no session id of
+its own, its turns going through its resident's inbox, so its session is readable from its start as a
+room's is: the provider and model its row pins it to, else those its last answer went out on, its
+resident's context and that provider's `foldRatio`.
 
 A conversation moves its provider and model on the change route, each left as it stands where the body
 names only the other, and starts its next turn on a fresh session where the road keeps one. A
@@ -248,7 +252,9 @@ agent's session carry `context` beside it,
 the context their last turn left — `carried`, its tokens, and `window`, the model's window — or null
 where no turn has ended on it since agency's process started or since it last folded or ended; on a
 resident program that carries its own turns it is read off the program's record, its last answer against
-the latest window the record names (`docs/sessions.md`, 「Session compaction」). It carries
+the latest window the record names (`docs/sessions.md`, 「Session compaction」). Beside it stands
+`foldsItself`: true for a room's or an agent's session on such a program, which compacts itself at the
+session's `foldRatio` and takes no fold call, and false for every other session. It carries
 `tier` beside it: that tier, by its name, or null where the key is assigned none, so a consumer keyed by
 tier matches the session by the tier the agency reads it at.
 

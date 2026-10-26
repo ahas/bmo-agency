@@ -49,6 +49,7 @@ fn session_overlay(shown: &'static str) -> Vec<Value> {
     chosen: false,
     thinking: true,
     mcp: None,
+    compact_at: None,
   };
   let patch =
     session_patch(&run, &BTreeMap::new(), dir.path(), OPENROUTER.declared.dsh.as_ref().unwrap()).unwrap();
@@ -101,6 +102,7 @@ fn a_worker_s_session_on_deepseek_writes_its_rules_after_the_opening_line_on_dee
     chosen: false,
     thinking: true,
     mcp: None,
+    compact_at: None,
   };
   let patch =
     session_patch(&run, &BTreeMap::new(), dir.path(), DEEPSEEK.declared.dsh.as_ref().unwrap()).unwrap();
@@ -201,6 +203,7 @@ fn the_same_session_composes_the_same_overlay_and_a_changed_prompt_another() {
     chosen: true,
     thinking: true,
     mcp: Some(&mcp),
+    compact_at: None,
   };
   let env = BTreeMap::from([("B".to_owned(), "2".to_owned()), ("A".to_owned(), "1".to_owned())]);
   let route = DEEPSEEK.declared.dsh.as_ref().unwrap();
@@ -266,6 +269,7 @@ fn a_server_s_own_value_is_carried_under_its_own_variable_where_the_program_hold
     chosen: true,
     thinking: true,
     mcp: Some(&mcp),
+    compact_at: None,
   };
   let route = DEEPSEEK.declared.dsh.as_ref().unwrap();
   let text = std::fs::read_to_string(session_patch(&run, &program, dir.path(), route).unwrap()).unwrap();
@@ -281,5 +285,43 @@ fn a_server_s_own_value_is_carried_under_its_own_variable_where_the_program_hold
   assert!(
     !text.contains("chat-token") && !text.contains("\"control\""),
     "no value in the file: {text}"
+  );
+}
+
+#[test]
+fn a_session_that_folds_itself_compacts_at_its_fold_ratio_and_another_at_dsh_s_own() {
+  let dir = tempfile::tempdir().unwrap();
+  let system = dir.path().join("system.md");
+
+  std::fs::write(&system, "You are the agent.\n").unwrap();
+
+  let overlay = |compact_at: Option<f64>| -> Vec<Value> {
+    let run = Composed {
+      line: "chat",
+      provider: "deepseek",
+      system: Some(&system),
+      rules: None,
+      shown: Some("Bash"),
+      allowed: Some("Bash"),
+      cwd: "/work",
+      model: "deepseek-flash",
+      effort: "",
+      chosen: false,
+      thinking: true,
+      mcp: None,
+      compact_at,
+    };
+    let patch =
+      session_patch(&run, &BTreeMap::new(), dir.path(), DEEPSEEK.declared.dsh.as_ref().unwrap()).unwrap();
+
+    serde_json::from_str(&std::fs::read_to_string(&patch).unwrap()).unwrap()
+  };
+  let folding = overlay(Some(0.5));
+  let row = folding.iter().find(|row| row["id"] == COMPACTION_ROW).expect("the compaction row");
+
+  assert_eq!(row["config"], serde_json::json!({ "thresholdRatio": 0.5 }));
+  assert!(
+    overlay(None).iter().all(|row| row["id"] != COMPACTION_ROW),
+    "dsh's own threshold stands"
   );
 }
