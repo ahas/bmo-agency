@@ -28,7 +28,7 @@ a field's exact shape matters, the OpenAPI document is the one to read.
 ## Versioning
 
 - The contract carries the repository's one version, in semver; the workspace manifest is its source. Before
-  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.75`.
+  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.76`.
 - A change to this document and a change to the boundary go in one commit. A change to a route, an event, a
   hook or a shared table's contract repairs this document in the same commit.
 - The major moves on a removed or renamed route, field or event, the minor on an addition, the patch on
@@ -526,17 +526,18 @@ them; a notice that holds nothing is withdrawn.
 
 | Method | Path | Does |
 |---|---|---|
-| GET | `/draft-processes` | Every research line's rounds: its questions in order, its ceiling and what a process past it does. |
-| PUT | `/draft-processes/{line}` | Change one line's rounds; a field left out keeps what the line holds. |
-| DELETE | `/draft-processes/{line}` | Take a line's own rounds back, the policy's row standing again. |
+| GET | `/draft-processes` | Every research key's rounds: its questions in order, its ceiling and what a process past it does. |
+| PUT | `/draft-processes/{line}` | Change one key's rounds; a field left out keeps what the key holds. |
+| DELETE | `/draft-processes/{line}` | Take a key's own rounds back, the policy's row standing again. |
 | GET | `/draft-questions` | Every question the lines' rounds may name, with its text. |
 | PUT | `/draft-questions/{name}` | Change a question's text, or add one under a name of the console's own. |
 
 - **A research run keeps no receiver, so agency asks its rounds** (`docs/launch-lines.md`, 「A research
-  run's rounds」): after the answer to the task, the line's questions go to the same session one turn
+  run's rounds」): after the answer to the task, the key's questions go to the same session one turn
   each, carrying the task and the answer written last, and the last answer is the run's result.
-- **The rows are in the receiver's draft-process shape,** keyed by the line rather than by a provider, a
-  tier and an agent: `line`, `rounds`, `ceilingSeconds`, `pastCeiling` (`final` or `last`) and `source`
+- **The rows are in the receiver's draft-process shape,** keyed by the research key whose runs ask them
+  (`search:basic`, `search:thorough`, `search:exhaustive`, `browse`), which `line` names, rather than by a
+  provider, a tier and an agent: `line`, `rounds`, `ceilingSeconds`, `pastCeiling` (`final` or `last`) and `source`
   (`default` where the policy's row stands, `set` where the console's does). A question is `name`, `text`
   and `source`.
 - **What a line's rounds must be:** a list that ends in `final` and holds it nowhere else, a ceiling above
@@ -844,8 +845,11 @@ handoff, with `reason` and `room` where the turn names one, and waited on (`docs
 hands the session over」); and every minute the job service's `GET /queues`, `GET /items` with `state`
 `open` and its port's `GET /items?open=1`, whose `approved` says which items are approved, are read, and
 an idle queue is told once through the receiver's `POST /owner/notices` with the code `queue-idle`
-(`docs/agent-control.md`, 「An idle queue is told to the owner」). Each is the documented route of the unit
-that holds what must reach it; agency keeps no client of either unit and no store of their rows.
+(`docs/agent-control.md`, 「An idle queue is told to the owner」); and a research run's result is filed in
+bmo-artifact's `POST /documents` and given a link by its `POST /shares`, at the address and with the token
+`BMO_ARTIFACT_URL` and `BMO_ARTIFACT_TOKEN` (or `BMO_ARTIFACT_TOKEN_FILE`) name (`docs/research-runs.md`,
+「One run, step by step」). Each is the documented route of the unit that holds what must reach it; agency
+keeps no client of these units and no store of their rows.
 Of the brain it asks an agent's own brain made as the agent is registered, found by the agent's key,
 let go whole or only found for a preview, the discipline a chat launch's system prompt carries, and the
 base layer of the agent's persona that prompt ends with. Of the tool host it asks, on its control socket

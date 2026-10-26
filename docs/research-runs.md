@@ -60,12 +60,29 @@ is held to; and how its result comes back.
    the options, the depth and the branches it may open (a browse: the task and its time); the program
    answers in its pane, on the logins the key's walk offers one after another where a login fails under it
    (`docs/cache-fallback.md`, 「Automatic walks only on providers, in order」).
-5. **The rounds:** after the first answer the line's research rounds are asked of the same session, one
-   turn each (`docs/launch-lines.md`, 「A research run's rounds」, `docs/api.md`, 「research drafts」); the
-   last answer is the run's result.
-6. **The end:** the run is closed in the ledger with what it spent, its log says how it ended, and its
-   result — or why there is none — is queued for the room through the receiver's `POST /instructions`, as
-   a job's report is, for the owner's private room where the ask named none.
+5. **The rounds:** after the first answer the key's research rounds are asked of the same session, one
+   turn each — at the basic depth only the final question, at the deeper ones every question in turn
+   (`docs/launch-lines.md`, 「A research run's rounds」, `docs/api.md`, 「research drafts」); the last answer
+   is the run's result.
+6. **The end:** the run is closed in the ledger with what it spent, and its log says how it ended.
+   Every result leaves its document, a brief one included: it is filed whole in bmo-artifact (its
+   `POST /documents`, the kind `learning` for a result whose head says `KIND: learning` and `record`
+   otherwise, titled by its `TITLE:` line, labelled with the run, its key and its question), and a share
+   link is made for it (`POST /shares`). The room is queued an instruction through the receiver's `POST
+   /instructions`, as a job's report is, for the owner's private room where the ask named none: the
+   answer in brief — the result's verdict, else its summary — and the link, with the shape the chat
+   agent answers in: the answer in one or two short lines in the owner's language and its own voice,
+   then exactly that one link, and no grounds, sources or document text in the chat, saying what was
+   found and never how. Where the deployment names no artifact service or the filing fails, the
+   instruction carries the result whole instead, and the run log says why it was not filed. A run that
+   ended with no answer is told as such.
+7. **A run that is cut** — its pane gone under it, or agency's own restart ending it — is closed in the
+   ledger with the outcome `cut`, and the room is handed what the run had written where its session's
+   record holds anything, as unfinished, and otherwise one line saying the work was cut off (the
+   receiver's `docs/voiced-notices.md`, a stopped run). A run under way is kept in agency's settings,
+   `research_in_flight:<run>`, with its key, question, room, model and the record its session writes;
+   a server that starts closes every run the process before it left there, and every research run the
+   ledger still holds open from before its start, the same way, before the routes stand.
 
 ## The chat agent's ask
 

@@ -110,6 +110,9 @@ seeds. The other crates and the server reach the store only through it.
   - a turn in flight, `turn_in_flight:*` by its run, as JSON: the session, the turn's id, the agent, the
     room, the chat turn's run in the ledger, the job and when it began, kept while the turn goes and read
     by the next server's start (`docs/sessions.md`, 「A restart hands the session over」);
+  - a research run under way, `research_in_flight:*` by its ledger run, as JSON: its key, question, room,
+    model and the record its session writes, kept while the run goes and read by the next server's start
+    (`docs/research-runs.md`, 「One run, step by step」);
   - a companion's reset point, `reset_point:*` (`docs/companions.md`, 「What the reset cuts off」);
   - the machine watch's notes: `doctor_standing_failure`, `herdr_leftovers_told`,
     `dev_server_max_age_minutes`;

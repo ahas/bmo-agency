@@ -1,5 +1,5 @@
-//! The rounds a research line asks after its first answer (docs/launch-lines.md, 「A research run's
-//! rounds」): the policy's questions and the lines that ask them, a line's own row standing over the
+//! The rounds a research run asks after its first answer (docs/launch-lines.md, 「A research run's
+//! rounds」): the policy's questions and each research key's list, a key's own row standing over the
 //! policy's, and the prompt each question is asked with. A research run keeps no receiver, so agency
 //! asks its rounds itself; the console reads and changes them through the control routes in
 //! `control::research_drafts`.

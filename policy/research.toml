@@ -23,11 +23,12 @@ rulebooks = ["search-kinds", "product-search", "restaurant-search", "investment-
 on_request = ["product-search", "restaurant-search", "investment-search", "study-material", "deep-dives"]
 applies_section = "Whether this rulebook applies at all"
 
-# The rounds a research line asks the same session after its first answer (docs/launch-lines.md, 「A
-# research run's rounds」): the questions by name, each a rule the session is asked, and the lines that
-# ask them. A line's list ends in `final` and holds it nowhere else. `ceiling_seconds` bounds the whole
-# process from the first answer; past it the line's `past_ceiling` says what happens: `final` asks the
-# final question at once, `last` returns the answer the session had already written.
+# The rounds a research run asks the same session after its first answer (docs/launch-lines.md, 「A
+# research run's rounds」): the questions by name, each a rule the session is asked, and each research
+# key's list, the depth deciding how hard an answer is checked. A list ends in `final` and holds it nowhere
+# else. `ceiling_seconds` bounds the whole process from the first answer; past it the key's `past_ceiling`
+# says what happens: `final` asks the final question at once, `last` returns the answer the session had
+# already written.
 [draft.questions]
 what = "Decide what this task must establish: the question it asks, each part of that question, and what would count as an answer. Say plainly what the sources this run may read cannot reach."
 sources = "Name the sources the answer needs: the kind of page or document each fact can come from, and the search wordings that reach them. Read them with the web tools; a page the run did not read is not a source."
@@ -36,7 +37,17 @@ coverage = "Check the answer against the task: every part of the question answer
 establish = "Write the facts and knowledge this run established into the shared brain with brain_learn, each with its source, after brain_similar shows the rows like it: a duplicate is confirmed or strengthened, a contradiction is closed. Then say which rows were written."
 final = "Write the result now: the whole answer to the task, in the form the task asks for, resting only on the facts established above and citing the sources read. This answer is the run's result."
 
-[draft.lines.search]
+[draft.lines."search:basic"]
+rounds = ["final"]
+ceiling_seconds = 900
+past_ceiling = "final"
+
+[draft.lines."search:thorough"]
+rounds = ["what", "sources", "facts", "coverage", "establish", "final"]
+ceiling_seconds = 900
+past_ceiling = "final"
+
+[draft.lines."search:exhaustive"]
 rounds = ["what", "sources", "facts", "coverage", "establish", "final"]
 ceiling_seconds = 900
 past_ceiling = "final"

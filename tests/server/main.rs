@@ -168,6 +168,8 @@ mod queue {
 mod readiness;
 mod relay;
 mod research;
+mod research_cut;
+mod research_document;
 mod rest;
 mod road;
 mod rooms;

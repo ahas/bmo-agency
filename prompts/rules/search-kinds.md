@@ -255,26 +255,21 @@ The launch may give any of these; one not given is decided from the question.
 - **A product search** keeps this frame, its table and entries as the middle. `product-search.md`
   sets the whole of it and decides which searches are these.
 
-## When a search leaves no document
+## A brief result
 
 - **The result's size follows the question.** A question after one value or one fact (a
   price, a rate, a date, a version, a yes or no) is brief unless the launch said otherwise: the
-  value, its as-of time, and what could not be confirmed. Nothing the question did not ask for is
-  added: no trend, background, comparison or history unless asked.
-- **Such a question leaves no document.** The answer is the value, the room has it once the chat agent says
-  it, and a page about it is a page nobody opens. Such a result carries `DOCUMENT: no` in its
-  head, and the search keeps no findings, pages or file: only its own row, saying what was asked
-  and how it ended.
-- **Everything else leaves one.** Anything with a body (a section of findings, a set of entries,
-  a picture, a review, a comparison) is read again and keeps its document. The line is written
-  only on a result that really is the value alone; anywhere else it is ignored and the document
-  written anyway.
-- **It is the same cut as the brief shape.** A result of the head, the summary and what could not
-  be confirmed is exactly the search that leaves no document; `--shape brief` on a question with
-  more in it than one value still leaves one.
-- **Nothing else changes.** The answer goes to the room as every answer does, the run is recorded
-  as every run is, and the search can still be read by its own number. It is only absent from the
-  archive's list, with nothing to hand out on a share link.
+  value, its as-of time, the grounds it rests on, and what could not be confirmed. Nothing the
+  question did not ask for is added: no trend, background, comparison or history unless asked.
+- **Every result leaves its document, a brief one too.** The room hears the answer in a line or two
+  and is handed the document's link; the grounds and the sources stand in the document, where anyone
+  can later ask which page a value came from, and never in the chat.
+- **Its shape:** the head, `SUMMARY:` with the value and its as-of time, `SECTION: Grounds` with a
+  few lines on what the value rests on and how it was checked against a second source, the
+  `SOURCE` lines that close it, and `UNCONFIRMED:`. No `VERDICT:`: the value on the summary line is
+  the answer.
+- **It is the same cut as the brief shape.** `--shape brief` asks for this result whatever the
+  question; a question with more in it than one value takes the body the rest of this rulebook sets.
 
 ## The tools before the search
 

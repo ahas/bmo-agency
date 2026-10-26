@@ -20,21 +20,21 @@ async fn process(db: &sea_orm::DatabaseConnection, line: &str) -> research_draft
 async fn a_line_reads_the_policy_s_rounds_and_the_console_s_row_stands_over_them() {
   let scratch = Scratch::new().await;
   let db = scratch.db();
-  let search = process(db, "search").await;
+  let search = process(db, "search:thorough").await;
 
-  assert_eq!(search.rounds, RESEARCH.draft.line("search").unwrap().rounds);
-  assert_eq!(search.ceiling_seconds, RESEARCH.draft.line("search").unwrap().ceiling_seconds);
+  assert_eq!(search.rounds, RESEARCH.draft.line("search:thorough").unwrap().rounds);
+  assert_eq!(search.ceiling_seconds, RESEARCH.draft.line("search:thorough").unwrap().ceiling_seconds);
   assert_eq!(search.past_ceiling, PastCeiling::Final);
   assert_eq!(search.source, Source::Default);
   assert!(research_draft::process_of(db, "no-such-line").await.unwrap().is_none());
 
   set(
     db,
-    &format!("{PROCESS_KEY}search"),
+    &format!("{PROCESS_KEY}search:thorough"),
     &json!({ "rounds": ["what", "final"], "ceilingSeconds": 60, "pastCeiling": "last" }).to_string(),
   )
   .await;
-  let changed = process(db, "search").await;
+  let changed = process(db, "search:thorough").await;
 
   assert_eq!(changed.rounds, ["what", "final"]);
   assert_eq!(changed.ceiling_seconds, 60);
@@ -71,7 +71,7 @@ async fn a_question_is_the_console_s_text_over_the_policy_s_and_a_line_may_name_
 async fn the_rounds_must_end_in_the_final_question_hold_it_once_and_name_questions_that_stand() {
   let scratch = Scratch::new().await;
   let db = scratch.db();
-  let mut process = process(db, "search").await;
+  let mut process = process(db, "search:thorough").await;
 
   process.rounds = vec!["what".to_owned(), "facts".to_owned()];
   assert!(research_draft::refusal(db, &process).await.unwrap().is_some());
@@ -102,4 +102,23 @@ fn a_question_is_asked_over_the_task_and_the_answer_written_last() {
 
   assert!(later.ends_with("## What you wrote last\n\nsecond"));
   assert!(!later.contains("first"));
+}
+
+// The basic depth asks only the final question after its first answer; the deeper ones ask every question.
+#[tokio::test]
+async fn the_basic_depth_asks_only_the_final_question_and_the_deeper_ones_every_question() {
+  let scratch = Scratch::new().await;
+  let db = scratch.db();
+
+  assert_eq!(process(db, "search:basic").await.rounds, ["final"]);
+
+  for key in ["search:thorough", "search:exhaustive", "browse"] {
+    assert_eq!(
+      process(db, key).await.rounds,
+      ["what", "sources", "facts", "coverage", "establish", "final"],
+      "{key}"
+    );
+  }
+
+  assert!(research_draft::process_of(db, "search").await.unwrap().is_none(), "rows are the keys'");
 }

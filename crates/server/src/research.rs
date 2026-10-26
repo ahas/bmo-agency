@@ -305,6 +305,290 @@ pub enum Refused {
   Failed(String),
 }
 
+/// The settings row a run under way is kept in, by its ledger run (docs/research-runs.md, 「One run, step
+/// by step」).
+pub const IN_FLIGHT_KEY: &str = "research_in_flight:";
+
+/// The outcome a run is closed with when its pane went away under it or agency's own restart ended it.
+pub const CUT: &str = "cut";
+
+/// A run under way as its settings row keeps it: what the room is told of it if it is cut, and the record
+/// its session writes, where what it had written is read.
+#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct InFlight {
+  pub key: String,
+  pub query: String,
+  #[serde(default)]
+  pub room: Option<i64>,
+  #[serde(default)]
+  pub model: String,
+  #[serde(default)]
+  pub record: Option<String>,
+}
+
+async fn keep_in_flight(db: &sea_orm::DatabaseConnection, ledger: i64, kept: &InFlight) {
+  let text = serde_json::to_string(kept).unwrap_or_default();
+
+  if let Err(why) = settings::set(db, &format!("{IN_FLIGHT_KEY}{ledger}"), &text).await {
+    eprintln!("research {ledger}: the run under way was not kept: {}", why.detail);
+  }
+}
+
+async fn in_flight(db: &sea_orm::DatabaseConnection, ledger: i64) -> Option<InFlight> {
+  let held = settings::get(db, &format!("{IN_FLIGHT_KEY}{ledger}")).await.ok().flatten()?;
+
+  serde_json::from_str(&held).ok()
+}
+
+/// What a run's session had written by the time it was cut: the last answer its record holds, none where it
+/// holds none.
+pub fn written_so_far(record: &std::path::Path) -> Option<String> {
+  let records = crate::door::record::Tail::new(record).look();
+  let text = crate::door::record::read_turn(&records, 0).text;
+
+  Some(text.trim().to_owned()).filter(|text| !text.is_empty())
+}
+
+/// The instruction the room is queued with for a cut run: what it had written, handed back as unfinished,
+/// or one line saying the work was cut off.
+pub fn cut_instruction(
+  ledger: i64,
+  key: &str,
+  query: Option<&str>,
+  room: Option<i64>,
+  written: Option<&str>,
+) -> Value {
+  let asked = query
+    .map(str::trim)
+    .filter(|query| !query.is_empty())
+    .map(|query| format!(" (\"{query}\")"));
+  let said = match written {
+    Some(text) => format!(
+      "The research on {key}{} was cut off before it finished. What it had written:\n\n{text}\n\nHand the \
+       owner what it had written, in his language, saying it is unfinished.",
+      asked.unwrap_or_default()
+    ),
+    None => format!(
+      "The research on {key}{} was cut off before it wrote anything.\n\nTell the owner in one line that the \
+       work was cut off.",
+      asked.unwrap_or_default()
+    ),
+  };
+
+  json!({
+    "room": room.filter(|room| *room != 0),
+    "said": { "order": said },
+    "sort": "notice",
+    "kind": format!("research-ended:{ledger}"),
+    "summary": format!("The research {ledger} was cut"),
+    "events": [format!("research-ended:{ledger}")],
+    "run": ledger,
+  })
+}
+
+/// The structure lines a result's blocks open with, which end the block before them.
+const BLOCK_OPENERS: [&str; 6] =
+  ["VERDICT:", "SUMMARY:", "SECTION:", "UNCONFIRMED:", "===ITEM===", "SOURCE "];
+
+// The value of a head line, such as `TITLE: <it>`, where the result writes one.
+fn head_line<'a>(result: &'a str, name: &str) -> Option<&'a str> {
+  result
+    .lines()
+    .find_map(|line| line.trim().strip_prefix(name).map(str::trim))
+    .filter(|value| !value.is_empty())
+}
+
+// The block a structure line opens, to the next one, where the result writes it.
+fn block(result: &str, opener: &str) -> Option<String> {
+  let mut lines = result.lines().skip_while(|line| line.trim() != opener);
+
+  lines.next()?;
+
+  let text: Vec<&str> = lines
+    .take_while(|line| !BLOCK_OPENERS.iter().any(|next| line.trim_start().starts_with(next)))
+    .collect();
+  let text = text.join("\n").trim().to_owned();
+
+  Some(text).filter(|text| !text.is_empty())
+}
+
+/// The answer in brief a result gives the room: its verdict, else its summary, else its title.
+pub fn brief_of(result: &str) -> Option<String> {
+  block(result, "VERDICT:")
+    .or_else(|| block(result, "SUMMARY:"))
+    .or_else(|| head_line(result, "TITLE:").map(str::to_owned))
+}
+
+/// The document a result is filed as in bmo-artifact: its kind, title, body, scope and labels.
+pub fn document_of(ledger: i64, key: &str, query: &str, room: Option<i64>, result: &str) -> Value {
+  let kind = match head_line(result, "KIND:") {
+    Some("learning") => "learning",
+    _ => "record",
+  };
+  let title = head_line(result, "TITLE:").unwrap_or(query.trim()).to_owned();
+
+  json!({
+    "kind": kind,
+    "title": title,
+    "body": result,
+    "scope": room.filter(|room| *room != 0).map(|room| room.to_string()),
+    "actorName": RESEARCH_ACTOR,
+    "labels": { "research": ledger, "key": key, "query": query.trim() },
+  })
+}
+
+/// Who a research document is filed by.
+pub const RESEARCH_ACTOR: &str = "research";
+
+/// A result filed in bmo-artifact and given its share link, answering the link; none where the deployment
+/// names no artifact service.
+pub async fn file_result(
+  vars: &BTreeMap<String, String>,
+  document: &Value,
+) -> Result<Option<String>, String> {
+  let (Some(url), Some(token)) = (
+    crate::job_end::address(vars, "BMO_ARTIFACT_URL"),
+    crate::job_end::token(vars, "BMO_ARTIFACT_TOKEN", "BMO_ARTIFACT_TOKEN_FILE"),
+  ) else {
+    return Ok(None);
+  };
+  let client = reqwest::Client::new();
+  let post = async |path: &str, body: &Value| -> Result<Value, String> {
+    let answer = client
+      .post(format!("{url}{path}"))
+      .bearer_auth(&token)
+      .json(body)
+      .timeout(FILING_WITHIN)
+      .send()
+      .await
+      .map_err(|why| why.to_string())?;
+    let status = answer.status();
+    let body: Value = answer.json().await.unwrap_or(Value::Null);
+
+    if status.is_success() {
+      Ok(body)
+    } else {
+      Err(format!("bmo-artifact answered {} to {path}: {}", status.as_u16(), body["error"]))
+    }
+  };
+  let filed = post("/documents", document).await?;
+  let id = filed["id"].as_i64().ok_or("bmo-artifact named no document for the result")?;
+  let shared = post("/shares", &json!({ "documentId": id })).await?;
+
+  shared["url"]
+    .as_str()
+    .map(|link| Some(link.to_owned()))
+    .ok_or_else(|| "bmo-artifact named no link".to_owned())
+}
+
+// How long a filing call waits.
+const FILING_WITHIN: Duration = Duration::from_secs(20);
+
+/// The instruction the room's chat agent is queued with for an answered run whose document was filed:
+/// the answer in brief and the one link, with the shape it answers in.
+pub fn linked_instruction(
+  ledger: i64,
+  key: &str,
+  query: &str,
+  room: Option<i64>,
+  brief: &str,
+  link: &str,
+) -> Value {
+  let said = format!(
+    "The research on {key} answered \"{}\". The answer in brief:\n\n{brief}\n\nIts document, with the \
+     grounds and the sources: {link}\n\nTell the owner the answer in one or two short lines, in his \
+     language and your own voice, saying what was found and never how, then this one link on a line of its \
+     own. Put no grounds, sources or document text in the chat: they stand in the document.",
+    query.trim()
+  );
+
+  json!({
+    "room": room.filter(|room| *room != 0),
+    "said": { "order": said },
+    "sort": "notice",
+    "kind": format!("research-ended:{ledger}"),
+    "summary": format!("The research {ledger} ended"),
+    "events": [format!("research-ended:{ledger}")],
+    "run": ledger,
+  })
+}
+
+// The research key a ledger row's line and depth name.
+fn key_of(line: &str, depth: i64) -> String {
+  match (line, depth) {
+    ("search", 1) => "search:thorough".to_owned(),
+    ("search", 2) => "search:exhaustive".to_owned(),
+    ("search", _) => "search:basic".to_owned(),
+    (line, _) => line.to_owned(),
+  }
+}
+
+/// A server's start: every run the process before it kept under way, and every research run the ledger
+/// still holds open from before `started_at` (seconds), closed as cut and told to its room. Answers how
+/// many were closed.
+pub async fn sweep_cut(
+  db: &sea_orm::DatabaseConnection,
+  vars: &BTreeMap<String, String>,
+  started_at: i64,
+) -> Result<usize, Refusal> {
+  let mut closed = 0;
+  let closing = Closing {
+    finished_at: now_ms().div_euclid(1000),
+    outcome: CUT.to_owned(),
+    context_tokens: None,
+    spent: None,
+  };
+  let tell = async |ledger: i64, body: Value| {
+    match run_ledger::close(db, ledger, &closing).await {
+      Ok(()) => {}
+      Err(run_ledger::NotClosed::Store(why)) => return Err(why),
+      Err(_) => return Ok(false),
+    }
+
+    if let Err(why) = crate::job_end::instruct(vars, &body).await {
+      eprintln!("research {ledger}: its cut was not told to the room: {why}");
+    }
+
+    Ok(true)
+  };
+
+  for name in settings::named(db, IN_FLIGHT_KEY).await? {
+    let Ok(ledger) = name.parse::<i64>() else { continue };
+    let kept = in_flight(db, ledger).await.unwrap_or_default();
+    let written = kept.record.as_deref().and_then(|record| written_so_far(std::path::Path::new(record)));
+    let body = cut_instruction(ledger, &kept.key, Some(&kept.query), kept.room, written.as_deref());
+
+    if tell(ledger, body).await? {
+      closed += 1;
+    }
+
+    settings::forget(db, &format!("{IN_FLIGHT_KEY}{name}")).await?;
+  }
+
+  let open = store::all(
+    db,
+    r#"SELECT "id", "agent", "depth", "chat_id" FROM "runs"
+       WHERE "unit" LIKE 'research-%' AND "finished_at" IS NULL AND "started_at" < $1"#,
+    vec![started_at.into()],
+  )
+  .await?;
+
+  for row in open {
+    let (Ok(ledger), Ok(line)) = (row.try_get::<i64>("", "id"), row.try_get::<String>("", "agent")) else {
+      continue;
+    };
+    let depth = row.try_get::<i64>("", "depth").unwrap_or_default();
+    let room = row.try_get::<Option<i64>>("", "chat_id").ok().flatten();
+
+    if tell(ledger, cut_instruction(ledger, &key_of(&line, depth), None, room, None)).await? {
+      closed += 1;
+    }
+  }
+
+  Ok(closed)
+}
+
 // The depth a search key names, as the request words it; a browse names none.
 fn depth_of(key: &str) -> &str {
   key.split_once(':').map_or(key, |(_, depth)| depth)
@@ -540,6 +824,18 @@ impl Attempt<Reply> for OnLogin<'_> {
       cwd: going.run.cwd.to_string_lossy().into_owned(),
       env,
     };
+
+    // Where this login's session writes, so a run cut under it still hands back what it had written.
+    keep_in_flight(
+      &ground.db,
+      going.ledger,
+      &InFlight {
+        record: Some(apart::record_of(ground, &command, &self.session).to_string_lossy().into_owned()),
+        ..going.in_flight()
+      },
+    )
+    .await;
+
     let ending = apart::run(
       ground,
       Apart {
@@ -606,6 +902,17 @@ fn sum(spent: Option<Spent>, more: Spent) -> Option<Spent> {
 }
 
 impl Going {
+  // What the run's settings row keeps of it before a session writes anything.
+  fn in_flight(&self) -> InFlight {
+    InFlight {
+      key: self.ask.key.clone(),
+      query: self.ask.query.clone(),
+      room: self.ask.room_id,
+      model: self.run.model.clone(),
+      record: None,
+    }
+  }
+
   async fn note(&self, log: &mut RunLog, text: String) {
     log.write(&self.ground.db, Line::note(text)).await;
   }
@@ -628,6 +935,8 @@ impl Going {
       )
       .await;
 
+    keep_in_flight(&ground.db, self.ledger, &self.in_flight()).await;
+
     let session = new_session();
     let mut first = OnLogin {
       going: &self,
@@ -639,6 +948,7 @@ impl Going {
     let answered = on_accounts(&Walking { ground: &ground }, &self.ask.key, None, &mut first).await;
     let account = first.account.clone();
     let (outcome, result, spent) = match answered {
+      Err(Failure::Transport { message }) => (CUT, Err(message), None),
       Err(failure) => ("failed", Err(failure.message()), None),
       Ok(reply) => {
         let mut spent = sum(None, spent_of(&reply));
@@ -667,8 +977,58 @@ impl Going {
       Err(why) => self.note(&mut log, format!("The research ended with no answer: {why}")).await,
     }
 
-    if let Err(why) = crate::job_end::instruct(ground.vars(), &self.instruction(&result)).await {
+    let told = if let Ok(text) = &result
+      && outcome != CUT
+    {
+      let document = document_of(self.ledger, &self.ask.key, &self.ask.query, self.ask.room_id, text);
+
+      match file_result(ground.vars(), &document).await {
+        Ok(Some(link)) => {
+          self.note(&mut log, format!("The result was filed as a document: {link}")).await;
+
+          let brief = brief_of(text).unwrap_or_else(|| text.clone());
+
+          linked_instruction(self.ledger, &self.ask.key, &self.ask.query, self.ask.room_id, &brief, &link)
+        }
+        Ok(None) => {
+          self
+            .note(
+              &mut log,
+              "No artifact service is named, so the result goes to the room whole.".to_owned(),
+            )
+            .await;
+          self.instruction(&result)
+        }
+        Err(why) => {
+          self
+            .note(&mut log, format!("The result was not filed, so it goes to the room whole: {why}"))
+            .await;
+          self.instruction(&result)
+        }
+      }
+    } else if outcome == CUT {
+      let written = in_flight(&ground.db, self.ledger)
+        .await
+        .and_then(|kept| kept.record)
+        .and_then(|record| written_so_far(std::path::Path::new(&record)));
+
+      cut_instruction(
+        self.ledger,
+        &self.ask.key,
+        Some(&self.ask.query),
+        self.ask.room_id,
+        written.as_deref(),
+      )
+    } else {
+      self.instruction(&result)
+    };
+
+    if let Err(why) = crate::job_end::instruct(ground.vars(), &told).await {
       eprintln!("research {}: its result was not told to the room: {why}", self.ledger);
+    }
+
+    if let Err(why) = settings::forget(&ground.db, &format!("{IN_FLIGHT_KEY}{}", self.ledger)).await {
+      eprintln!("research {}: the run under way was not let go: {}", self.ledger, why.detail);
     }
   }
 
@@ -684,7 +1044,7 @@ impl Going {
     log: &mut RunLog,
   ) {
     let db = &self.ground.db;
-    let Ok(Some(process)) = crate::research_draft::process_of(db, &self.line).await else {
+    let Ok(Some(process)) = crate::research_draft::process_of(db, &self.ask.key).await else {
       return;
     };
     let began = std::time::Instant::now();

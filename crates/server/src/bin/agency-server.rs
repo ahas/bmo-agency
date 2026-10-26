@@ -63,6 +63,9 @@ async fn main() -> ExitCode {
 }
 
 async fn serve(args: Args) -> Result<(), String> {
+  // The moment this process started, in seconds as the ledger keeps them: what is open from before it was
+  // left by the process before.
+  let started_at = agency_server::now_ms().div_euclid(1000);
   let token = args
     .token
     .filter(|token| !token.is_empty())
@@ -100,6 +103,13 @@ async fn serve(args: Args) -> Result<(), String> {
   // waited on where the program goes on with it, before anything else reads what that process left.
   if let Err(why) = agency_server::turn_pickup::at_start(&ground).await {
     eprintln!("agency: the turns left in flight: {}", why.detail);
+  }
+
+  // Research runs the last process left under way are closed as cut and told to their rooms.
+  match agency_server::research::sweep_cut(&ground.db, ground.vars(), started_at).await {
+    Ok(0) => {}
+    Ok(closed) => println!("agency: {closed} research runs cut by the restart closed and told"),
+    Err(why) => eprintln!("agency: the research runs left under way: {}", why.detail),
   }
 
   // Execution rows the last process left open are closed on what they left, and a job whose process

@@ -394,11 +394,13 @@
     question goes to the same session as one more turn, carrying the task it was given and the answer
     it wrote last, and the last answer is the run's result. The session already holds every earlier
     answer, so a round carries none of them again; the task and the latest answer are what a round needs
-    where it reaches a session that does not hold them. The policy holds the questions and
-    each line's list in `policy/research.toml` — what the task must establish, the sources the answer
-    needs, whether every fact was checked against a second source, whether the answer covers the
-    question, whether the facts it rests on were established, and finally the answer itself — and the
-    console changes a line's list or a question's text through the agency's routes.
+    where it reaches a session that does not hold them. The policy holds the questions and each research
+    key's list in `policy/research.toml` — what the task must establish, the sources the answer needs,
+    whether every fact was checked against a second source, whether the answer covers the question,
+    whether the facts it rests on were established, and finally the answer itself. The list is the key's,
+    since the depth decides how hard an answer is checked: `search:basic` asks only the final question
+    after its first answer, `search:thorough`, `search:exhaustive` and `browse` ask every question in
+    turn. The console changes a key's list or a question's text through the agency's routes.
   - **What a run establishes is written into the shared brain.** The search line holds
     `brain_learn` and `brain_similar` on the deployment's agent's brain: a fact or a piece of knowledge
     a run establishes is written there with the source it was read from, after the brain's similar rows

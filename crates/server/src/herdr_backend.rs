@@ -1759,8 +1759,8 @@ impl HerdrSessions {
   }
 
   // A research run's rounds (docs/launch-lines.md, 「A research run's rounds」): after the answer to the
-  // task, the line's questions are asked of the same session, each over the task and the answers
-  // already written, and the last answer is the run's result. A question whose run does not answer
+  // task, the key's questions are asked of the same session, each carrying the task and the answer
+  // written last, and the last answer is the run's result. A question whose run does not answer
   // leaves the last answer standing; past the line's ceiling the final question is asked at once, or
   // the run returns what it had.
   async fn research_rounds(

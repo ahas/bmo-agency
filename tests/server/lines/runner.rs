@@ -153,7 +153,7 @@ fn the_task_asks_for_one_line_per_page() {
       // The page has to be one the run actually opened, so a search-result link is refused.
       "never a search-result link",
       // And the structure lines it names include this one, so it is read as structure, not markup.
-      "The ANSWERED, TITLE, TOPIC, KEYWORDS, RULE, KIND, DOCUMENT, LISTEN, VERDICT, SUMMARY, SECTION, UNCONFIRMED, NAME, ADDRESS, MAP, ROADVIEW, MENU, RELEASED, NEWER, STOCK, DEAL, MORE, IMAGE, REVIEW and SOURCE lines are structure",
+      "The ANSWERED, TITLE, TOPIC, KEYWORDS, RULE, KIND, LISTEN, VERDICT, SUMMARY, SECTION, UNCONFIRMED, NAME, ADDRESS, MAP, ROADVIEW, MENU, RELEASED, NEWER, STOCK, DEAL, MORE, IMAGE, REVIEW and SOURCE lines are structure",
     ],
   );
 }
@@ -357,17 +357,21 @@ fn a_product_search_searches_the_lines_news() {
   );
 }
 
-// a one-value search is told to leave no document
+// a one-value search is brief and still leaves its document, its grounds in the document and not the chat
 #[test]
-fn a_one_value_search_is_told_to_leave_no_document() {
+fn a_one_value_search_is_brief_and_still_leaves_its_document() {
+  let task = task();
+
   holds(
-    &task(),
+    &task,
     &[
-      "\"DOCUMENT: no\"",
-      "a page about it is a page nobody opens",
-      "## When a search leaves no document",
+      "Every result leaves its document, a brief one included",
+      "\"SECTION: Grounds\"",
+      "## A brief result",
+      "never in the chat",
     ],
   );
+  lacks(&task, &["DOCUMENT: no", "leaves no document"]);
 }
 
 // carries the catalogue itself, so a tool made today is in front of tomorrow's search
