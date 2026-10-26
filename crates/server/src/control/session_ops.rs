@@ -359,6 +359,9 @@ fn member(session: &Session, state: Option<&State>, body: &Value) -> Value {
     "boundMs": number(body, "boundMs"),
     "options": body.get("options").cloned().unwrap_or_else(|| json!({})),
     "promptDocumentName": body.get("promptDocumentName").cloned().unwrap_or(Value::Null),
+    "context": state
+      .and_then(|state| state.context)
+      .map(|context| json!({ "carried": context.carried, "window": context.window })),
   })
 }
 
@@ -371,7 +374,10 @@ async fn folded(db: &sea_orm::DatabaseConnection, mut member: Value) -> Result<V
   let tier = fold_ratios::agent_tier(db, &agent).await?;
 
   if !provider.is_empty() {
-    member["foldRatio"] = json!(fold_ratios::ratio(db, &provider, tier.as_deref()).await?);
+    let window = member["context"]["window"].as_u64();
+    let ratio = fold_ratios::ratio(db, &provider, tier.as_deref()).await?;
+
+    member["foldRatio"] = json!(fold_ratios::bounded(ratio, &provider, window));
   }
   member["tier"] = json!(tier);
 

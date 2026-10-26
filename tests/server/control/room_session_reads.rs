@@ -87,6 +87,7 @@ async fn a_room_session_is_readable_from_its_start_before_any_turn() {
   assert_eq!(state["model"], json!("opus"), "{state}");
   assert_eq!(state["generation"], json!(0), "{state}");
   assert!(state["place"].as_str().is_some_and(|place| !place.is_empty()), "{state}");
+  assert_eq!(state["context"], Value::Null, "no turn has left it a context: {state}");
 
   // Reading it wrote nothing of the room's session: the first turn still opens the first generation.
   assert_eq!(

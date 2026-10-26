@@ -313,7 +313,7 @@ pub async fn hand_back(ground: &Ground, place: &Place, turn: &InFlight, came: Ca
       spend_told(ground, turn, reply).await;
     }
 
-    close_chat_run(db, turn.ledger, &end, spent).await;
+    close_chat_run(db, turn.ledger, &end, spent, None).await;
   }
 
   ground.events.publish(TurnEnded {

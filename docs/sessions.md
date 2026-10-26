@@ -166,8 +166,20 @@ session on the owner's ask is `docs/session-resets.md`.
   - a provider and tier the table holds no row for read the provider's own declared default — 0.5 for
     DeepSeek and OpenRouter — and a provider declaring none reads 0.85; a session whose agent's work
     key is assigned no tier reads its provider's default the same way;
-  - the receiver compares the context ratio a turn ends on against the session's `foldRatio`, and the
-    harness compacts after the turn that crosses it;
+  - **a provider may bound the fold in tokens as well,** `fold_tokens` in its policy file: the most tokens
+    a session's context may carry before it folds, whatever its model's window. Every request of a turn
+    reads the whole context again, so a session that grows all day on a window of a million tokens costs
+    millions of tokens an answer long before half its window is full; DeepSeek bounds its sessions at
+    150,000 tokens, and a provider naming no bound folds at its ratio alone. A session's `foldRatio` is
+    the lower of the table's share and that bound against the window its last turn read, so the bound
+    reaches every reader of the share;
+  - **a session's state carries the context its last turn left,** `context` with `carried` and `window`,
+    read off that turn's answer and held while agency's process stands, and let go as the session folds
+    or ends; a session no turn has ended on since then carries none, and the next turn's end fills it;
+  - the receiver compares the context ratio a turn ends on — the state's `context`, carried against
+    window — with the session's `foldRatio`, and the harness compacts after the turn that crosses it; a
+    provider that hands its session over rather than folding it is judged by agency itself at the turn's
+    end against the same share;
   - the session's state names that tier as `tier`, none where the key is assigned none, so a consumer
     whose own table is keyed by tier, the receiver's draft process table among them, reads the same tier
     the fold ratio was read at.

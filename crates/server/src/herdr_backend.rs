@@ -239,6 +239,8 @@ pub struct HerdrSessions {
   // The thrown-away sessions whose first prompt has been handed the gate's reference, so a research
   // run's later rounds are asked over it and not over it again.
   referenced: Mutex<HashSet<SessionId>>,
+  // The context each room's and agent's session was left with by its last turn that read one.
+  left: Mutex<HashMap<SessionId, Context>>,
 }
 
 /// One turn a session carries while it goes: its id, and the run it goes out as.
@@ -446,8 +448,8 @@ fn generation_of(settings: &Settings) -> IndexMap<String, Value> {
 // What a turn on a session came to, before it is published: a failure carries why, and the engine's error
 // where its engine ended the turn with one.
 enum Came {
-  /// The answer, with what the turn spent where its road reported it.
-  Answered(String, Option<run_ledger::Spent>),
+  /// The answer, with what the turn spent where its road reported it and the context it left where it read.
+  Answered(String, Option<run_ledger::Spent>, Option<Context>),
   Blocked,
   Stopped,
   Failed(String, Option<EngineError>),
@@ -459,7 +461,7 @@ impl Came {
   // The turn's end under the run it went out as.
   fn end(self, run: &str) -> TurnEnd {
     match self {
-      Self::Answered(text, _) => TurnEnd::answered(run, text),
+      Self::Answered(text, _, _) => TurnEnd::answered(run, text),
       Self::Blocked => TurnEnd::of(run, Outcome::Blocked),
       Self::Stopped => TurnEnd::of(run, Outcome::Stopped),
       Self::Failed(why, engine) => TurnEnd::failed(run, why, engine),
@@ -470,11 +472,28 @@ impl Came {
   // What the turn spent, read off the answer where it carried it and off a job's end where that did.
   fn spent(&self) -> Option<run_ledger::Spent> {
     match self {
-      Self::Answered(_, spent) => *spent,
+      Self::Answered(_, spent, _) => *spent,
       Self::Ended(end) => turn_spent(end),
       _ => None,
     }
   }
+
+  // The context the turn left, where its answer read it.
+  fn context(&self) -> Option<Context> {
+    match self {
+      Self::Answered(_, _, context) => *context,
+      Self::Ended(end) => end
+        .reply
+        .as_ref()
+        .and_then(|reply| carried_of(reply.context_tokens, reply.context_ratio)),
+      _ => None,
+    }
+  }
+}
+
+// The context a companion run's answer left.
+fn left(reply: &Reply) -> Option<Context> {
+  carried_of(reply.context_tokens, reply.context_ratio)
 }
 
 /// What a turn's models spent, each figure summed over them; none where they reported nothing.
@@ -520,7 +539,13 @@ impl HerdrSessions {
       outputs: Outputs::default(),
       role_places: Mutex::default(),
       referenced: Mutex::default(),
+      left: Mutex::default(),
     }
+  }
+
+  // The context a session's last turn left it with, where one read it.
+  fn left_of(&self, session: &SessionId) -> Option<Context> {
+    self.left.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).get(session).copied()
   }
 
   fn deaf(&self) -> std::sync::MutexGuard<'_, HashSet<SessionId>> {
@@ -794,7 +819,7 @@ impl HerdrSessions {
       (_, Some(Missed::Person)) => Came::Blocked,
       (_, Some(Missed::Stopped)) => Came::Stopped,
       (false, missed) => Came::Failed(format!("the words did not reach the session ({missed:?})"), None),
-      (true, _) => Came::Answered(turned.reply.map(|reply| reply.text).unwrap_or_default(), None),
+      (true, _) => Came::Answered(turned.reply.map(|reply| reply.text).unwrap_or_default(), None, None),
     })
   }
 
@@ -1091,6 +1116,9 @@ impl HerdrSessions {
         }
       };
 
+    let mark =
+      crate::control::fold_ratios::bounded(mark, provider.name(), left(&reply).map(|left| left.window));
+
     if let Some(ratio) = reply.context_ratio.filter(|ratio| hands_off && *ratio >= mark) {
       let due = Due {
         provider,
@@ -1105,7 +1133,7 @@ impl HerdrSessions {
       tokio::spawn(async move { hand_over(&ground, &hold, &companion, chat_id, due).await });
     }
 
-    Ok(Came::Answered(reply.text, spent_of(&reply.spend)))
+    Ok(Came::Answered(reply.text.clone(), spent_of(&reply.spend), left(&reply)))
   }
 
   #[allow(clippy::too_many_arguments)]
@@ -1318,7 +1346,7 @@ impl HerdrSessions {
       )
       .await;
 
-    Ok(Came::Answered(reply.text, spent_of(&reply.spend)))
+    Ok(Came::Answered(reply.text.clone(), spent_of(&reply.spend), left(&reply)))
   }
 
   // One turn of a conversation the caller opened, on the provider and model its scope names: the chat
@@ -1425,7 +1453,7 @@ impl HerdrSessions {
       )
       .await;
 
-    Ok(Came::Answered(reply.text, spent_of(&reply.spend)))
+    Ok(Came::Answered(reply.text.clone(), spent_of(&reply.spend), left(&reply)))
   }
 
   // One gate's turn of a conversation: the gate's instructions as the program's whole system prompt, on the
@@ -1581,7 +1609,7 @@ impl HerdrSessions {
       tokio::spawn(seat.start_afresh());
     }
 
-    Ok(Came::Answered(reply.text, spent_of(&reply.spend)))
+    Ok(Came::Answered(reply.text.clone(), spent_of(&reply.spend), left(&reply)))
   }
 
   // One turn of a conversation on the road its launch names: Claude Code's chat line on the deployment's
@@ -1938,7 +1966,7 @@ impl HerdrSessions {
     )
     .await
     {
-      Ok(reply) => Ok(Came::Answered(reply.text, spent_of(&reply.spend))),
+      Ok(reply) => Ok(Came::Answered(reply.text.clone(), spent_of(&reply.spend), left(&reply))),
       Err(NoAnswer::Overtaken) => Ok(Came::Stopped),
       Err(no) => {
         let (reason, engine) = failure_of(no);
@@ -2299,10 +2327,20 @@ impl Sessions for HerdrSessions {
     match came {
       Ok(came) => {
         let spent = came.spent();
+        let context = came.context();
+
+        if let (Some(context), Scope::Room(_) | Scope::Agent) = (context, &scope) {
+          self
+            .left
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .insert(turn.session.clone(), context);
+        }
+
         let mut end = came.end(&run);
 
         end.turn = turn_id;
-        close_chat_run(&self.ground().db, ledger, &end, spent).await;
+        close_chat_run(&self.ground().db, ledger, &end, spent, context).await;
 
         Ok(self.published(&turn.session, end))
       }
@@ -2310,7 +2348,7 @@ impl Sessions for HerdrSessions {
         let mut end = TurnEnd::failed(&run, refused.message.clone(), None);
 
         end.turn = turn_id;
-        close_chat_run(&self.ground().db, ledger, &end, None).await;
+        close_chat_run(&self.ground().db, ledger, &end, None, None).await;
         self.published(&turn.session, end);
         Err(refused)
       }
@@ -2347,7 +2385,7 @@ impl Sessions for HerdrSessions {
           model,
           place,
           u64::try_from(held.as_ref().map_or(0, |held| held.generation)).unwrap_or_default(),
-          None,
+          self.left_of(session),
         ))
       }
       Scope::Agent => {
@@ -2365,7 +2403,14 @@ impl Sessions for HerdrSessions {
         .and_then(|row| row.try_get::<Option<String>>("", "last_model").ok().flatten())
         .unwrap_or_default();
 
-        Ok(State::standing(session.clone(), CHAT_PROVIDER.to_owned(), model, place, 1, None))
+        Ok(State::standing(
+          session.clone(),
+          CHAT_PROVIDER.to_owned(),
+          model,
+          place,
+          1,
+          self.left_of(session),
+        ))
       }
       Scope::Worker => {
         let Some(held) = self.latest_worker(&agent).await? else {
@@ -2483,6 +2528,9 @@ impl Sessions for HerdrSessions {
       return Err(fault(FaultKind::Busy, format!("{session} is in a turn")));
     }
 
+    // What its last turn left is no longer what it carries.
+    self.left.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).remove(session);
+
     match &scope {
       Scope::Room(room) => {
         let chat_id = room_number(room)?;
@@ -2546,6 +2594,9 @@ impl Sessions for HerdrSessions {
     if self.in_turn(session) {
       return Err(fault(FaultKind::Busy, format!("{session} is in a turn")));
     }
+
+    // What its last turn left is no longer what it carries.
+    self.left.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).remove(session);
 
     let ground = self.ground();
 
@@ -2826,12 +2877,14 @@ pub fn turn_spent(end: &TurnEnd) -> Option<run_ledger::Spent> {
   })
 }
 
-/// A chat turn's run closed as its turn ended: how it ended, the tokens its context carried and what it spent.
+/// A chat turn's run closed as its turn ended: how it ended, the tokens its context carried — its answer's,
+/// else the context the turn left — and what it spent.
 pub async fn close_chat_run(
   db: &sea_orm::DatabaseConnection,
   ledger: Option<i64>,
   end: &TurnEnd,
   spent: Option<run_ledger::Spent>,
+  left: Option<Context>,
 ) {
   let Some(id) = ledger else {
     return;
@@ -2842,7 +2895,11 @@ pub async fn close_chat_run(
       .ok()
       .and_then(|outcome| outcome.as_str().map(str::to_owned))
       .unwrap_or_else(|| "failed".to_owned()),
-    context_tokens: end.reply.as_ref().and_then(|reply| reply.context_tokens),
+    context_tokens: end
+      .reply
+      .as_ref()
+      .and_then(|reply| reply.context_tokens)
+      .or_else(|| left.and_then(|left| i64::try_from(left.carried).ok())),
     spent,
   };
 

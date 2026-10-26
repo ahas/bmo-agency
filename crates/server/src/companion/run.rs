@@ -45,6 +45,8 @@ pub struct Reply {
   pub spend: Vec<ModelSpend>,
   /// How full the session's context stands after it, against its window, where that can be read.
   pub context_ratio: Option<f64>,
+  /// The tokens that context carries, where they can be read.
+  pub context_tokens: Option<i64>,
   /// The Claude login it went out on, where it went out on one of agency's.
   pub account: Option<String>,
 }
@@ -480,6 +482,7 @@ pub async fn run_turn(
       effort: composed.effort.clone(),
       spend: reply.spend,
       context_ratio: reply.context_ratio,
+      context_tokens: reply.context_tokens,
       account: composed.account.clone(),
     });
   };
@@ -506,6 +509,7 @@ pub async fn run_turn(
     context_ratio: record
       .map(|tokens| tokens as f64 / window.context_tokens as f64)
       .or(reply.context_ratio),
+    context_tokens: record.or(reply.context_tokens),
     account: composed.account.clone(),
   })
 }
