@@ -172,9 +172,8 @@
   from a queue, started on the chat's own caller token where the deployment names one (`BMO_JOB_CHAT_TOKEN`,
   or the file `BMO_JOB_CHAT_TOKEN_FILE` names), so the job service records what the chat does — an
   approval among it, which it keeps as the chat's recommendation rather than the owner's approval — under
-  the chat's name, and on the deployment's shared token otherwise, its own item creation not shown to the
-  chat on Claude Code (`--disallowedTools`) and named by no prompt on dsh, whose MCP client shows a server's
-  every tool; and the agency's own, `agency`, started for the agent the configuration is
+  the chat's name, and on the deployment's shared token otherwise, its own item creation left out of what it
+  serves (`--without job_item_create`) and, on Claude Code, disallowed as well (`--disallowedTools`); and the agency's own, `agency`, started for the agent the configuration is
   composed for (`--agent`, one configuration a chat agent), which files an item through agency
   (`docs/api.md`, 「assignments and jobs」), assigns a worker, launches the item's job and sends a research
   out. A

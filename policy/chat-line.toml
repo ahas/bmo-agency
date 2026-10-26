@@ -21,9 +21,10 @@ rulebooks = ["answer-content", "answer-shape", "plain-writing", "agent-words", "
 [tools]
 shown = "Bash,Read,Write,Edit,ListMcpResourcesTool,ReadMcpResourceTool"
 allowed = "Bash,Read,Write,Edit,ListMcpResourcesTool,ReadMcpResourceTool,mcp__bmo,mcp__web,mcp__gate,mcp__job,mcp__agency"
-# What the line keeps from the chat where its program can keep a server's one tool out: the job plugin's own
-# item creation, since an item is filed through the agency's file_item, which reads the turn's room and whether
-# the owner asked it (docs/api.md, 「assignments and jobs」).
+# What the line keeps from the chat: the job plugin's own item creation, since an item is filed through the
+# agency's file_item, which reads the turn's room and whether the owner asked it (docs/api.md, 「assignments and
+# jobs」). Claude Code is told it as disallowed tools, and the job plugin is started without each of its own
+# tools here, so no program lists it.
 hidden = "mcp__job__job_item_create"
 # The tools paragraph after the manual, composed at each launch for the program the session runs on
 # (docs/agent-documents.md, 「The chat agent」): {program} is the program's own tools by name, {servers} the

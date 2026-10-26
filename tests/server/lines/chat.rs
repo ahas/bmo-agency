@@ -421,3 +421,40 @@ fn every_program_s_chat_prompt_is_the_role_then_the_persona_whose_voice_holds_in
     assert!(system.contains("Never say that something is written, recorded"), "{program}");
   }
 }
+
+#[tokio::test]
+async fn the_chat_s_servers_file_items_for_its_agent_and_the_job_plugin_serves_no_item_creation() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let at = |path: &Path| path.to_string_lossy().into_owned();
+  let machine = Machine::with_env(
+    [
+      ("HOME".to_owned(), at(home.path())),
+      ("BMO_AGENTS_DIR".to_owned(), at(&home.path().join("agents"))),
+      ("BMO_JOB_PLUGIN".to_owned(), "/opt/bmo-job".to_owned()),
+      ("BMO_JOB_URL".to_owned(), "http://127.0.0.1:1".to_owned()),
+      ("BMO_AGENCY_URL".to_owned(), "http://127.0.0.1:2".to_owned()),
+    ],
+    home.path().join("data"),
+  );
+  let variables: HashMap<String, String> = HashMap::new();
+  let service =
+    Service::new(scratch.db().clone(), Config::read(|name| variables.get(name).cloned()).unwrap());
+  let ground = Ground::new(&service, &machine, None);
+  let path = mcp_config(&ground, &Trees::of(&ground), "chat-agent").unwrap();
+  let config: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+  let args = |server: &str| -> Vec<String> {
+    config["mcpServers"][server]["args"]
+      .as_array()
+      .unwrap_or_else(|| panic!("{server}: {config}"))
+      .iter()
+      .map(|arg| arg.as_str().unwrap().to_owned())
+      .collect()
+  };
+  let job = args("job");
+  let agency = args("agency");
+
+  assert!(path.ends_with("chat.chat-agent.mcp.json"), "{}", path.display());
+  assert!(job.windows(2).any(|pair| pair == ["--without", "job_item_create"]), "{job:?}");
+  assert!(agency.windows(2).any(|pair| pair == ["--agent", "chat-agent"]), "{agency:?}");
+}

@@ -902,8 +902,8 @@ The service publishes `bmo-agency` beside its client: `bmo-agency mcp` serves th
 tool is a thin call of one route through the agency's own client.
 
 - `file_item` calls `POST /item-filings`, naming the agent its server was started for (`bmo-agency mcp
-  --agent <name>`); it is the chat line's one road for filing an item: the job plugin's own item creation is not
-  shown to the chat on Claude Code, and no prompt names it on any program.
+  --agent <name>`); it is the chat line's one road for filing an item: the job plugin is started without its own
+  item creation on every program, and no prompt names it.
 - `assign_worker` calls `POST /assignments`.
 - `run_job` calls `POST /jobs`.
 - `run_research` calls `POST /research-runs`.

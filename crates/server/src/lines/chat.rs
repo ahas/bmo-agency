@@ -260,6 +260,20 @@ fn harness_servers(ground: &Ground, agent: &str) -> Ordered {
       Ordered::text(HARNESS),
     ];
 
+    // The plugin's own tools the line keeps from the chat, which the plugin then neither lists nor calls on
+    // any program, by the names it serves them under.
+    let without: Vec<&str> = CHAT_LINE
+      .tools
+      .hidden
+      .split(',')
+      .filter_map(|tool| tool.trim().strip_prefix("mcp__job__"))
+      .collect();
+
+    if !without.is_empty() {
+      args.push(Ordered::text("--without"));
+      args.push(Ordered::text(without.join(",")));
+    }
+
     for queue in env
       .get("BMO_JOB_QUEUES")
       .into_iter()
