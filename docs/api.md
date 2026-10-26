@@ -879,7 +879,7 @@ bmo-artifact's `POST /documents` and given a link by its `POST /shares`, at the 
 `BMO_ARTIFACT_URL` and `BMO_ARTIFACT_TOKEN` (or `BMO_ARTIFACT_TOKEN_FILE`) name (`docs/research-runs.md`,
 「One run, step by step」); and for pull request reviews the job service's `GET /items` by the `pr` label,
 `POST /items`, `POST /items/{itemId}/notes` and `PATCH /items/{itemId}`, and once an hour GitHub's search through
-`gh api search/issues` (`docs/pull-request-reviews.md`). Each is the documented route of the unit that holds what
+`gh api search/issues` for the owner's login (`user:`) (`docs/pull-request-reviews.md`). Each is the documented route of the unit that holds what
 must reach it; agency keeps no client of these units and no store of their rows.
 Of the brain it asks an agent's own brain made as the agent is registered, found by the agent's key,
 let go whole or only found for a preview, the discipline a chat launch's system prompt carries, and the

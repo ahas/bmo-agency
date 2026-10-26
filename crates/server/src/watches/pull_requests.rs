@@ -21,8 +21,13 @@ const ANSWER_WITHIN: Duration = Duration::from_secs(20);
 /// The variable naming the webhook secret, and the one naming the file it stands in.
 pub const SECRET: &str = "BMO_GITHUB_WEBHOOK_SECRET";
 pub const SECRET_FILE: &str = "BMO_GITHUB_WEBHOOK_SECRET_FILE";
-/// The variable naming the organisation the fallback searches.
-pub const ORGANISATION: &str = "BMO_GITHUB_ORG";
+/// The variable naming the GitHub login whose repositories the fallback searches.
+pub const OWNER: &str = "BMO_GITHUB_ORG";
+
+/// The fallback's search: every open pull request of the repositories a login owns.
+pub fn search_query(owner: &str) -> String {
+  format!("is:pr is:open user:{}", owner.trim())
+}
 
 // The host a GitHub remote names.
 const GITHUB: &str = "github.com";
@@ -312,14 +317,13 @@ pub fn searched(page: &Value) -> Vec<PullRequest> {
     .collect()
 }
 
-/// The fallback: one search for every open pull request of the organisation, and each a delivery missed
-/// filed; nothing where the deployment names no organisation.
+/// The fallback: one search for every open pull request of the repositories the owner's login owns, and each a
+/// delivery missed filed; nothing where the deployment names no login.
 pub async fn fallback(db: &DatabaseConnection, vars: &BTreeMap<String, String>) -> Result<(), String> {
-  let Some(organisation) = vars.get(ORGANISATION).map(|org| org.trim()).filter(|org| !org.is_empty())
-  else {
+  let Some(owner) = vars.get(OWNER).map(|owner| owner.trim()).filter(|owner| !owner.is_empty()) else {
     return Ok(());
   };
-  let query = format!("q=is:pr is:open org:{organisation}");
+  let query = format!("q={}", search_query(owner));
   let per_page = format!("per_page={}", PULL_REQUESTS.page);
   let out = tokio::process::Command::new("gh")
     .args(["api", "-X", "GET", "search/issues", "-f", &query, "-f", &per_page])

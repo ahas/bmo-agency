@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
 use agency_server::watches::pull_requests::{
-  Delivered, PullRequest, act, read_delivery, repository_of, review_item, searched, signed,
+  Delivered, PullRequest, act, read_delivery, repository_of, review_item, search_query, searched, signed,
 };
 use axum::body::Bytes;
 use axum::extract::State;
@@ -109,6 +109,9 @@ fn the_fallback_reads_every_open_pull_request_of_the_search_and_the_item_names_i
       ..request()
     }]
   );
+
+  // The login owns the repositories: a user's, so the search names it with `user:`, never `org:`.
+  assert_eq!(search_query(" someone "), "is:pr is:open user:someone");
 
   let item = review_item(&request(), "base-ui");
 

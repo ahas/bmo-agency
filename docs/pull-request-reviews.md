@@ -14,7 +14,7 @@ item for the worker, and a merge lets the item that waited on the pull request g
 
 ## The delivery
 
-- **GitHub pushes.** The deployment's GitHub organisation, or each repository, sends its `pull_request` events
+- **GitHub pushes.** Each repository a worker holds sends its `pull_request` events
   (opened, reopened, synchronize, closed) to the public address, where the console's gateway hands each
   delivery, its body as it came and its headers, to agency's `POST /github/deliveries` (`docs/api.md`,
   「pull request reviews」).
@@ -27,10 +27,10 @@ item for the worker, and a merge lets the item that waited on the pull request g
 
 ## The fallback
 
-- **Once an hour, one search.** Agency asks GitHub's search for every open pull request of the organisation the
-  deployment names (`BMO_GITHUB_ORG`) in one request (`gh api search/issues`, `is:pr is:open org:<org>`, a
-  hundred to a page), and files what a delivery missed. A deployment that names no organisation runs no
-  fallback.
+- **Once an hour, one search.** Agency asks GitHub's search for every open pull request of the repositories the
+  owner's login the deployment names (`BMO_GITHUB_ORG`) owns, in one request (`gh api search/issues`, `is:pr
+  is:open user:<login>`, a hundred to a page), and files what a delivery missed. A deployment that names no
+  login runs no fallback.
 - **The budget:** one GitHub call an hour for the fallback, a page more only past a hundred open pull requests,
   and none for a delivery; no model tokens at all for the watch.
 
