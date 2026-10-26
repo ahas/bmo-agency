@@ -8,8 +8,6 @@
 use std::path::Path;
 use std::sync::LazyLock;
 
-use axum::http::{Method, StatusCode};
-use axum::response::Response;
 use harness_machine::engine_health::{self, EngineHealth};
 use harness_machine::{gateway, keys};
 use policy::control_words::CONTROL_WORDS;
@@ -21,8 +19,8 @@ use regex::Regex;
 use sea_orm::{ConnectionTrait, QueryResult, TransactionTrait};
 use serde_json::{Value, json};
 
+use super::Refused;
 use super::fault::{Fault, refused};
-use super::{Call, Refused, Route, answer};
 use crate::now_ms;
 use crate::text::{grouped, length};
 use store::{all, one, run};
@@ -889,44 +887,6 @@ impl<C: ConnectionTrait> Change<'_, C> {
     self.gone.extend(held.addresses);
 
     Ok(())
-  }
-}
-
-/// Every registration as a caller shows it.
-pub struct RegistryView;
-
-impl Route for RegistryView {
-  const METHOD: Method = Method::GET;
-  const PATH: &'static str = "/registry";
-
-  async fn answer(&self, call: Call) -> Result<Response, Refused> {
-    Ok(answer(StatusCode::OK, view(call.store(), &call.data_root()).await?))
-  }
-}
-
-/// One change: a registration made or saved, an address set or removed, or a registration removed,
-/// answered with the registry as it then stands.
-pub struct RegistryChange;
-
-impl Route for RegistryChange {
-  const METHOD: Method = Method::POST;
-  const PATH: &'static str = "/registry";
-
-  async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
-    let body = call.body().await?;
-
-    if !body.is_object() && !body.is_array() {
-      return Err(Refused::new(StatusCode::BAD_REQUEST, CONTROL_WORDS.request.action.as_str()));
-    }
-
-    let data_root = call.data_root();
-    let db = call.store();
-
-    if let Err(fault) = made(db, &data_root, &body).await {
-      return fault.answer();
-    }
-
-    Ok(answer(StatusCode::OK, view(db, &data_root).await?))
   }
 }
 

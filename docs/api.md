@@ -457,8 +457,9 @@ A create starts a registration under its own name as its label, at the registry'
 and wait and with no address, and is refused where the name already stands. `tier` and `healthy` are read
 back; the model behind a registration is what the change edits. A registration's addresses are the
 registry's: each carries `roleFiles`, whether the instance behind it keeps role files
-(`docs/own-llm.md`, 「Role files」), set by the registry's address change, left as it stands where the
-change names none and off on a new address.
+(`docs/own-llm.md`, 「Role files」), set with `bmo-agency agent --register-address … --role-files on|off`
+(`docs/own-llm.md`, 「Where it is set」), left as it stands where the command names none and off on a new
+address; no route of this boundary sets an address.
 
 The model catalogue is a resource of its own, never of `/models`: the files the deployment's own engines
 serve, each with its sizes, its source, its nodes and the registration it stands behind, and the latest
