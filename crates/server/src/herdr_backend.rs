@@ -543,6 +543,20 @@ impl HerdrSessions {
     }
   }
 
+  // The context an agent's resident program stands at where it carries its own turns, as its record last wrote
+  // it since the program started (docs/sessions.md, 「Session compaction」); none on any other provider.
+  fn resident_context(&self, agent: &str, provider: &str) -> Option<Context> {
+    if !crate::chat_stand_in::inbox_declared(provider) {
+      return None;
+    }
+
+    let place = crate::lines::place::Place::of(&self.ground().roots.data, agent);
+    let since = place.running().map_or(0, |running| running.started_at);
+    let (carried, window) = crate::door::inbox::latest_context(&place.path, since)?;
+
+    Some(Context { carried, window })
+  }
+
   // The context a session's last turn left it with, where one read it.
   fn left_of(&self, session: &SessionId) -> Option<Context> {
     self.left.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).get(session).copied()
@@ -2389,13 +2403,15 @@ impl Sessions for HerdrSessions {
           },
         };
 
+        let context = self.resident_context(&agent, &provider).or_else(|| self.left_of(session));
+
         Ok(State::standing(
           session.clone(),
           provider,
           model,
           place,
           u64::try_from(held.as_ref().map_or(0, |held| held.generation)).unwrap_or_default(),
-          self.left_of(session),
+          context,
         ))
       }
       Scope::Agent => {

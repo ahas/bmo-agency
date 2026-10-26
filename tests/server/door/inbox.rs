@@ -138,3 +138,35 @@ fn only_a_turns_own_variables_travel_with_it() {
   assert!(!is_inbox_turn_variable("OPENROUTER_API_KEY"));
   assert!(!is_inbox_turn_variable("PATH"));
 }
+
+#[test]
+fn the_context_stands_at_the_last_figures_written_since_the_program_started() {
+  let place = tempfile::tempdir().unwrap();
+  let lines = [
+    json!({ "kind": "start", "id": "a", "name": "chat:-5:1", "at": 50 }),
+    json!({ "kind": "answer", "id": "a", "text": "before", "context": { "used": 900, "size": 1000 } }),
+    json!({ "kind": "end", "id": "a" }),
+    json!({ "kind": "start", "id": "b", "name": "chat:-5:2", "at": 200 }),
+    json!({ "kind": "answer", "id": "b", "text": "first", "context": { "used": 400, "size": 1000 } }),
+    json!({ "kind": "end", "id": "b" }),
+    json!({ "kind": "start", "id": "c", "name": "chat:-6:3", "at": 300 }),
+    json!({ "kind": "answer", "id": "c", "text": "no figures", "context": null }),
+    json!({ "kind": "end", "id": "c" }),
+  ];
+
+  assert_eq!(latest_context(place.path(), 0), None, "a place with no record holds none");
+
+  std::fs::write(
+    record_path(place.path()),
+    lines.iter().map(|line| format!("{line}\n")).collect::<String>(),
+  )
+  .unwrap();
+
+  assert_eq!(
+    latest_context(place.path(), 100),
+    Some((400, 1000)),
+    "an answer naming none leaves the last"
+  );
+  assert_eq!(latest_context(place.path(), 0), Some((400, 1000)));
+  assert_eq!(latest_context(place.path(), 250), None, "nothing written since the program started");
+}

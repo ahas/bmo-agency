@@ -94,6 +94,35 @@ pub fn span_named_after(records: &[Value], name: &str, before: usize) -> Option<
   Some(start..next.map_or(records.len(), |next| start + 1 + next))
 }
 
+/// The context the pane program's session stands at, as its record last wrote it on a turn begun at or after
+/// `since`, in epoch milliseconds: the `used` and `size` of the last answer naming both. The program writes
+/// them only on some answers, so the last ones written stand for the session until it writes others; none
+/// where no answer since then names them.
+pub fn latest_context(place: &Path, since: u64) -> Option<(u64, u64)> {
+  let mut begun = None;
+  let mut latest = None;
+
+  for record in read_record(place) {
+    match kind(&record) {
+      Some("start") => begun = record.get("at").and_then(Value::as_u64),
+      Some("answer") if begun.is_some_and(|at| at >= since) => {
+        let context = record.get("context");
+        let figure = |name: &str| context.and_then(|context| context.get(name)).and_then(Value::as_u64);
+
+        if let (Some(used), Some(size)) = (figure("used"), figure("size"))
+          && used > 0
+          && size > 0
+        {
+          latest = Some((used, size));
+        }
+      }
+      _ => {}
+    }
+  }
+
+  latest
+}
+
 /// Whether the place's pane program is working on a turn, as its record says: its last turn, the bot's or
 /// a person's, started and has not ended. A place whose program keeps no record says nothing of the kind.
 pub fn turn_working(place: &Path) -> bool {
