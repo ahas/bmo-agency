@@ -190,7 +190,7 @@ async fn a_route_read_with_no_provider_begins_on_the_key_s_own_road_and_registra
   scratch
     .run(
       r#"INSERT INTO "fallback_routes" ("key", "set_at", "route_mode", "registration")
-         VALUES ('translator', 1, 'registered', 'own-pick'), ('room-rules', 1, 'laya', NULL)"#,
+         VALUES ('translator', 1, 'registered', 'own-pick'), ('output-format', 1, 'laya', NULL)"#,
       vec![],
     )
     .await;
@@ -206,7 +206,7 @@ async fn a_route_read_with_no_provider_begins_on_the_key_s_own_road_and_registra
     "the key's own road is asked before DeepSeek, first in the order, and its registration before the cell"
   );
 
-  let (_, walked) = get(port, token, "/work-keys/room-rules?tier=Reliable").await;
+  let (_, walked) = get(port, token, "/work-keys/output-format?tier=Reliable").await;
 
   assert_eq!(
     walked["provider"],
@@ -239,15 +239,15 @@ async fn the_walk_passes_over_a_shut_road_and_a_key_set_to_a_provider_stays_on_i
     .await;
   scratch
     .run(
-      r#"INSERT INTO "fallback_routes" ("key", "set_at", "route_mode") VALUES ('room-rules', 1, 'laya'),
-           ('library-knowledge', 1, 'deepseek'), ('people-search', 1, 'auto')"#,
+      r#"INSERT INTO "fallback_routes" ("key", "set_at", "route_mode") VALUES ('output-format', 1, 'laya'),
+           ('sanitizer', 1, 'deepseek'), ('translator', 1, 'auto')"#,
       vec![],
     )
     .await;
 
   let server = standing::stand_server(home.path(), &data, &scratch.address(), token);
   let port = server.port;
-  let (_, before) = get(port, token, "/work-keys/room-rules?tier=Simple").await;
+  let (_, before) = get(port, token, "/work-keys/output-format?tier=Simple").await;
 
   assert_eq!(
     (&before["provider"], &before["runMode"]),
@@ -268,7 +268,7 @@ async fn the_walk_passes_over_a_shut_road_and_a_key_set_to_a_provider_stays_on_i
 
   assert_eq!(status, 201, "{blocked}");
 
-  for key in ["room-rules", "people-search"] {
+  for key in ["output-format", "translator"] {
     let (status, walked) = get(port, token, &format!("/work-keys/{key}?tier=Simple")).await;
 
     assert_eq!(status, 200, "{walked}");
@@ -276,8 +276,8 @@ async fn the_walk_passes_over_a_shut_road_and_a_key_set_to_a_provider_stays_on_i
   }
 
   // A key set to DeepSeek is the owner's choice and stays on it, its run mode naming it.
-  let (_, set) = get(port, token, "/work-keys/library-knowledge?tier=Simple").await;
+  let (_, set) = get(port, token, "/work-keys/sanitizer?tier=Simple").await;
 
   assert_eq!((&set["provider"], &set["runMode"]), (&json!("deepseek"), &json!("deepseek")), "{set}");
-  assert_eq!(get(port, token, "/work-keys/people-search").await.1["runMode"], json!("auto"));
+  assert_eq!(get(port, token, "/work-keys/translator").await.1["runMode"], json!("auto"));
 }

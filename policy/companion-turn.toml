@@ -1,15 +1,4 @@
-# The gates a companion's turn passes: the gates that pick
-# its reference before it, as the chat agent's turn asks them, and its whole answer through the outgoing
-# sanitiser after it. Each runs only where the companion's own switch leaves it on.
-
-[[pre]]
-places = [
-  { key = "system-documents" },
-  { key = "room-rules" },
-  { key = "library-knowledge" },
-  { key = "people-search" },
-  { key = "situation-rules" },
-]
-
-[[post]]
-places = [{ key = "sanitizer" }]
+# The gates a companion's turn passes: none. No gate picks what a turn reads — the agent reads the brain's
+# index in its own draft step — and the sanitiser is shelved, asked by no turn (the gate's `docs/gates.md`).
+pre = []
+post = []

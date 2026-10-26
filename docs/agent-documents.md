@@ -31,9 +31,7 @@ composed into a system prompt, and what the chat agent's own prompt is made of.
 - **`prompts/agents/<name>/` holds what one agent alone is given:** `chat/manual.md`,
   `chat/procedures/` and `chat/rules.md`,
   `output-gate/<dialect>/format.md` — one per folding dialect, which is the dialect's own and names
-  it — `system-documents/instructions.md`, `room-rules/instructions.md`,
-  `library-knowledge/instructions.md`, `voice-polish/instructions.md`,
-  `voice-reading/instructions.md`, `search/task.md` and `request.md`, `browse/task.md` and
+  it — `sanitizer/instructions.md`, `search/task.md` and `request.md`, `browse/task.md` and
   `request.md` with its `.mcp.json`, and `worker/trailer.md`.
 - **A job's documents:** `worker/graph.md`, what a job is told of the code graph; `worker/trailer.md`,
   the trailer every job is held to, with the graph text, the path of the worker plugin's skills and the
@@ -61,9 +59,6 @@ composed into a system prompt, and what the chat agent's own prompt is made of.
 - **Agency's prompt composer composes these into what each agent sees** — the chat session's system
   prompt, each gate's, each runner's standing instructions and the request of each run — and the
   launch lines read from it, fresh on every run, so an edited document applies at the next launch.
-- **A prompt told its own ceiling** — the person book's search and the document seeker — is rendered
-  with the number `policy/gate-prompts.toml` declares for it, so the deployed copy says the number the
-  gate's run holds to.
 - **A system prompt reaches the CLI as a file,** written under the deploy root's `prompts/` for that
   launch and named after the chat line or the gate, never on the command line: a chat's runs tens of
   kilobytes.

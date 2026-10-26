@@ -186,28 +186,17 @@
   so the program's own record of its session is taken up again after a restart (docs/sessions.md, 「A
   restart hands the session over」). A turn that finds no pane to stand the program in, herdr down,
   fails as a transport failure and is run in no other shape.
-- **Gate runs**, which the gate unit carries: the reading gate that
-  writes a line the way a Korean voice says it before a briefing is spoken, and the translator that
-  renders a document the console's document viewer shows into its other language, and what reaches a
-  job worker into English, on Sonnet 5; the
-  output gate, the three reference gates, the document seeker that picks which document or
-  heading answers a question asked in that viewer, the
-  person-book search that picks which pieces of a room's person book a turn needs, the
-  situation-rule matcher that reads a room's turn against the conditions its memories wait on, and
-  the sanitiser that reads text on its way into a model's context on
-  Haiku 4.5. All at
-  medium effort, each with its
-  own instructions and rulebooks as the whole system prompt, handed over as a file named by its
-  content; the rulebook against destroying the system is not among them, since a gate holds no tool to
-  act with. No tools at all, no settings but the pool slot's own status line and hooks, no MCP, no
-  Chrome, and no session named: the program opens its own, and `/clear` opens the next after every
-  judgement (`gates.md`, 「A gate on Claude Code」). The reference gates
-  and the person-book search run with thinking off: picking slugs out of an index needs none,
-  and the thinking was what pushed those runs past their timeout.
-  Four of them are kept warm and the rest are not: a prefix held open for a gate that runs only
-  when a room's session is replaced, when a word makes the sanitiser worth asking, when a
-  briefing has something to transliterate, when a job worker is handed text to read in English, or when the owner asks the document viewer to
-  translate or to find something would cost more than the runs it serves.
+- **Gate runs**, which the gate unit carries: the output gate, whose judgements keep a fixed shape in
+  and out; the translator, for the gate's own translations route, until that route hands each part to
+  agency's translate runner (「Translate runner」 below); and the sanitiser, which is shelved and asked by
+  no turn. Each at medium effort, with its own
+  instructions and rulebooks as the whole system prompt, handed over as a file named by its content; the
+  rulebook against destroying the system is not among them, since a gate holds no tool to act with. No
+  tools at all, no settings but the pool slot's own status line and hooks, no MCP, no Chrome, and no
+  session named: the program opens its own, and `/clear` opens the next after every judgement
+  (`gates.md`, 「A gate on Claude Code」). No gate picks what a turn reads: the chat agent reads the
+  brain's index in its own draft step and fetches what its answer needs with its tools (the gate's
+  `reference-selection.md`).
 - **Job worker**: the model, effort and tier the job's turn names in its mapping, which its runner
   reads off `job-worker`'s tier (`docs/model-tiers.md`) unless the job was launched with another
   model, and the tier's own where a turn names none, in

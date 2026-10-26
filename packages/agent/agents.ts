@@ -1,4 +1,3 @@
-import gatePrompts from "@agency/policy/gate-prompts.toml";
 import chatLine from "@agency/policy/chat-line.toml";
 import { TOOL_HOST_AUTHORIZATION, toolHostUrl } from "./tool-host";
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
@@ -11,8 +10,8 @@ import { systemPromptFile } from "./prompt-files";
 
 /**
  * A gate whose prompt the caller hands in, as the caller's gates file names it: an output gate with
- * its model and the system prompt it composed, or a reference gate by its name alone, whose system
- * prompt is its own folder's instructions.
+ * its model and the system prompt it composed. A gate it names with no prompt is composed from nothing
+ * here: no gate picks what a turn reads.
  */
 export interface GateAgent {
   name: string;
@@ -213,57 +212,7 @@ export function outputFormatSystem(dialect: string): string {
   return [gateInstructions(dialect, "format"), rulebook("formatting-judgement"), rulebook("answer-shape")].join("\n\n");
 }
 
-// The reading gate reads one line the chat agent is about to say out loud and writes the parts a Korean
-// voice has no reading for the way they sound. Its instructions are its whole system prompt: it
-// is given that one line and nothing about this machine.
-export function voiceReadingSystem(): string {
-  return agentFile("voice-reading", "instructions.md");
-}
-
-// The polishing gate rewrites the script of a line's full reading for the ear. Its instructions are
-// its whole system prompt: it is given that one script and nothing about this machine.
-export function voicePolishSystem(): string {
-  return agentFile("voice-polish", "instructions.md");
-}
-
-// How many pieces the person book's search may name, as the shared policy declares it: a variable of
-// the prompt itself, since the gate is told its own ceiling and the deployed copy of that prompt has to
-// say the same number the run says. The person book is searched by a gate of its own and held to a
-// budget of its own, because a turn that wants a great deal of lore and a turn that wants a great deal
-// of one person are not the same turn and neither should spend the other's room.
-export const peopleSelectionCap: number = gatePrompts.people_search.cap;
-
-// The three reference gates read one instruction file each, under their own name. They are told
-// no ceiling: each answers yes or no for every candidate it is offered, and what a turn may carry
-// is a size rather than a count. Which gate it is is all that
-// differs, so it is a parameter rather than three functions saying the same thing.
-export function referenceGateSystem(gate: string): string {
-  return agentFile(gate, "instructions.md");
-}
-
-// The person book has a search of its own beside the reference gates, told only what its own layer is
-// for: it never picks a piece for the sake of the speaker being the speaker, because the speaker's
-// standing sheet is already there.
-export function peopleSearchSystem(selectionCap: number): string {
-  return render(agentFile("people-search", "instructions.md"), { selectionCap });
-}
-
-// The matcher reads one instruction file of its own, under its own name. It is not one of the
-// three, so it is not in their loop: it asks two questions of every rule rather than one, and its
-// candidates are the rows of a table rather than an index's lines.
-export function situationRulesSystem(): string {
-  return agentFile("situation-rules", "instructions.md");
-}
-
-// The console's document viewer has two gates of its own. The document seeker picks where a
-// question is answered out of an index the console built, and is told its own ceiling as the
-// pickers are; the translator renders one part of a document into the language its prompt names.
-export const documentSeekCap: number = gatePrompts.document_seek.cap;
-
-export function documentSeekSystem(): string {
-  return render(agentFile("document-seek", "instructions.md"), { selectionCap: documentSeekCap });
-}
-
+// The translator renders one part of a document into the language its prompt names.
 export function translatorSystem(): string {
   return agentFile("translator", "instructions.md");
 }
@@ -403,7 +352,7 @@ export function agentFaultLine(fault: AgentFault): string {
 // before anything is swung over, and emptying the live root first would leave every runner
 // without the configuration it launches with until somebody noticed.
 // The gates are handed in by the caller, which holds the gate order: an output gate with the system
-// prompt it composed, a reference gate by its name, composed here from its own folder.
+// prompt it composed.
 export async function deployAgents(gates: readonly GateAgent[] = []): Promise<AgentDeployment> {
   const root = deployRoot();
   const building = `${root}.building`;
@@ -455,17 +404,10 @@ export async function deployAgents(gates: readonly GateAgent[] = []): Promise<Ag
   for (const gate of gates) {
     const system = gate.system;
 
-    if (system === undefined) {
-      await compose(join(building, gate.name, "system.md"), async () => referenceGateSystem(gate.name));
-    } else {
+    if (system !== undefined) {
       await compose(join(building, "output-gate", `${gate.name}.md`), async () => system());
     }
   }
-  await compose(join(building, "people-search", "system.md"), async () => peopleSearchSystem(peopleSelectionCap));
-  await compose(join(building, "situation-rules", "system.md"), async () => situationRulesSystem());
-  await compose(join(building, "voice-polish", "system.md"), async () => voicePolishSystem());
-  await compose(join(building, "voice-reading", "system.md"), async () => voiceReadingSystem());
-  await compose(join(building, "document-seek", "system.md"), async () => documentSeekSystem());
   await compose(join(building, "translator", "system.md"), async () => translatorSystem());
   await compose(join(building, "translator", "worker.md"), async () => workerTranslatorSystem());
   await compose(join(building, "translator", "record.md"), async () => recordTranslatorSystem());

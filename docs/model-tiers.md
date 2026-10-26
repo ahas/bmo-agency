@@ -68,7 +68,7 @@ resolution; already returned values and historical execution identities do not c
 Seeds run once, not on every read. Deleting a mapping leaves a missing mapping that fails
 closed, rather than silently restoring a code default. New roles/work keys require an
 explicit assignment. A work key that its fallback profile declares after the store was seeded
-(the document viewer's `translator` and `document-seek` gates, for example) receives the assignment
+(the output gate's `output-format`, for example) receives the assignment
 its profile implies — Simple for a Haiku-default gate, Reliable for any other gate — once, the
 first time the store is opened without it; an existing assignment is never touched, and a key no
 profile declares still fails closed. Configuration writes validate names and provider-specific effort

@@ -929,10 +929,9 @@ The owner's words:
   its lines are the chat round policy's `push` table.
   It also says that only the last answer written after it goes out, and nothing written before it:
   the reply is written whole, the new words taken in, however much of it was already written.
-- **A push is selected for only what it brings.** The reference gates are asked over the pushed
-  words for what the round does not already hold, and the bot's lines alone ask only the system
-  documents and the matcher; the pieces a push attaches join what the round holds
-  (`reference-selection.md`, 「Words pushed into a working round」).
+- **A push brings only its words.** No gate picks for it: the round's agent reads the brain's index for
+  what the pushed words call for, as for any words in its draft step (`reference-selection.md`, 「Words
+  pushed into a working round」).
 - **The round's answer is judged once.** The output gates read the one answer
   the round sends, at its end; nothing a turn wrote before a push is judged on its own.
 - **A push never widens what the turn was told.** A round's prompt declares its standing —

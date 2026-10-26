@@ -442,11 +442,10 @@ bmo-agency agent --route <work key> [--provider registered] --registration <regi
 
 ### Initial modes
 
-- **The registry's provider:** the reference gates and the other gates each start on the registration
-  their tier maps to there, as the tiers are seeded (`docs/model-tiers.md`).
-- **Automatic:** the voice gates.
-- **A gate's classifier provider:** the formatting gate, and the reference gates and matchers that offer
-  it, each start on their provider and are offered the classifier too (`laya.md`).
+- **The registry's provider:** the gates each start on the registration their tier maps to there, as
+  the tiers are seeded (`docs/model-tiers.md`).
+- **A gate's classifier provider:** the formatting gate starts on its provider and is offered the
+  classifier too (`laya.md`).
 - **No key that is no gate starts on the registry's provider:** the chat or the worker key is
   put on it only by the owner's choice, and the automatic walk reaches it as 「Own services in the
   provider order」 below says.
@@ -556,8 +555,7 @@ bmo-agency agent --route <work key> --provider <auto|claude-code|codex|openroute
 - **Retries within the same provider** — transient network errors and 408, 429, 5xx — follow that
   provider's rules. If they bring no answer, the gate has no answer.
 - **Each caller keeps its own fallback** for a gate with no answer: a formatting gate not answering sends
-  the answer without a formatting verdict; a reference gate or the person-book search not answering
-  attaches the index that gate read instead of pieces.
+  the answer without a formatting verdict.
 - **What is lost is one verdict,** not the room's answer.
 
 ### A gate somebody stopped is not a gate with no answer
@@ -569,9 +567,8 @@ bmo-agency agent --route <work key> --provider <auto|claude-code|codex|openroute
   asked again. Whatever the gate had walked up to that point is the whole of its record.
 - **Each caller's own ending under a stop,** since it arrives as a raised stop rather than a missing
   verdict: a formatting gate ends where it stands and the message goes out as the writer wrote it; the
-  reference gates and the person-book search end the round as a stop rather than going on with the index;
-  the sanitiser ends the round as a stop rather than redacting locally; the translator and the voice
-  reading write or read nothing and say they were stopped; and every other caller catches nothing of its own, so the
+  sanitiser ends the round as a stop rather than redacting locally; the translator writes nothing and
+  says it was stopped; and every other caller catches nothing of its own, so the
   stop ends the piece of work that asked for the judgement.
 
 ### Each gate uses its whole time limit

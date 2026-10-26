@@ -295,7 +295,7 @@ session on the owner's ask is `docs/session-resets.md`.
   session's record is not read, and the new session opens on its turn's words alone. A chat agent's
   session carries only the note the receiver hands in with its own turn, which is the receiver's.
 - The session id is cleared and a new session opens on the next run; the room hears nothing.
-- Who the people are reaches the new session by the reference gates and the person books, as on every
-  turn.
+- Who the people are reaches the new session by the brain's index, whose people group its first turn
+  walks, and the person books, as on every turn.
 - A session is never replaced inside a turn: the check runs between rounds, with nothing in flight.
 

@@ -489,15 +489,15 @@ async fn a_key_s_road_is_set_as_the_console_sets_it_and_a_model_of_its_own_is_re
   );
 
   // Nothing is registered, so the registry is no road for the key, said as the console says it.
-  let refused = bench.run(&["--route", "voice-reading", "--provider", "registered"]).await;
+  let refused = bench.run(&["--route", "sanitizer", "--provider", "registered"]).await;
 
   assert_eq!(ended(&refused).0, 1);
   assert_eq!(bench.text(r#"SELECT "key" FROM "fallback_routes""#, vec![]).await, None);
 
-  let walked = bench.run(&["--route", "voice-reading", "--provider", "auto"]).await;
+  let walked = bench.run(&["--route", "sanitizer", "--provider", "auto"]).await;
 
   assert_eq!(ended(&walked), (0, ""));
-  assert!(walked.out.last().unwrap().starts_with("route voice-reading changed to auto ("));
+  assert!(walked.out.last().unwrap().starts_with("route sanitizer changed to auto ("));
 }
 
 // "a key names a registration of its own from the command line, refused where it has no address"

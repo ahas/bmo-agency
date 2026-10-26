@@ -1,15 +1,14 @@
 # Agency's work keys and the profile each starts on (docs/cache-fallback.md, 「The canonical name of a road
 # is the work key, not a Claude model name」). The keys are the stable names callers, the archive and
 # the console share: one for the chat agent, one for all job workers (their launch line is common), one for
-# each research a runner carries — each search depth and the browse runner (docs/research-runs.md) — and one
-# for each gate kind the deployment runs. Every gate kind has a profile here, and nothing else does; the
-# gate's own order is the gate's and is declared to agency at run time (docs/api.md, 「Gate kinds」).
+# each research a runner carries — each search depth and the browse runner (docs/research-runs.md) — one for
+# the translator runner, and one for each gate kind a turn or a caller asks. A gate the gate declares shelved
+# has none, since nothing asks it; the gate's own order is the gate's and is declared to agency at run time
+# (docs/api.md, 「Gate kinds」).
 #
 # A profile's values are defaults only: an owner's explicit choice is an archive row and survives a
-# later change here. The small classification and summary gates start on the registry's provider, on
-# the registration their tier maps to there; the deeper reading gates, the chat agent and the worker start on
-# auto. The person book's search, the reference gates and the knowledge classifier are
-# keys of their own, so a provider chosen for one never moves the others under the owner.
+# later change here. The small gates start on the registry's provider, on the registration their tier maps
+# to there; the chat agent and the worker start on auto.
 #
 # Each profile names its key, the label a screen shows, its kind (bmo, worker, runner or gate), the
 # run line it goes out on, the road it takes where the owner wrote none, the tier it starts on, and
@@ -91,91 +90,6 @@ tier = "Frontier"
 default_codex = { model = "gpt-5.6-sol", effort = "high" }
 
 [[profile]]
-key = "system-documents"
-label = "System document classifier"
-gate_sampling = { temperature = 0.1, top_p = 0.8, top_k = 20, min_p = 0 }
-kind = "gate"
-line = "gate"
-default_route_mode = "registered"
-default_claude_model = "claude-haiku-4-5-20251001"
-tier = "Simple"
-default_codex = { model = "gpt-5.6-luna", effort = "low" }
-laya_mode = "shadow"
-laya_road = true
-laya_each = true
-
-[[profile]]
-key = "room-rules"
-label = "Room rule classifier"
-gate_sampling = { temperature = 0.1, top_p = 0.8, top_k = 20, min_p = 0 }
-kind = "gate"
-line = "gate"
-default_route_mode = "registered"
-default_claude_model = "claude-haiku-4-5-20251001"
-tier = "Simple"
-default_codex = { model = "gpt-5.6-luna", effort = "low" }
-laya_mode = "shadow"
-laya_road = true
-laya_each = true
-
-[[profile]]
-key = "library-knowledge"
-label = "Library knowledge classifier"
-gate_sampling = { temperature = 0.1, top_p = 0.8, top_k = 20, min_p = 0 }
-kind = "gate"
-line = "gate"
-default_route_mode = "registered"
-default_claude_model = "claude-haiku-4-5-20251001"
-tier = "Simple"
-default_codex = { model = "gpt-5.6-luna", effort = "low" }
-laya_mode = "shadow"
-laya_road = true
-laya_each = true
-
-[[profile]]
-key = "people-search"
-label = "People book search"
-gate_sampling = { temperature = 0.1, top_p = 0.8, top_k = 20, min_p = 0 }
-kind = "gate"
-line = "gate"
-default_route_mode = "registered"
-default_claude_model = "claude-haiku-4-5-20251001"
-tier = "Simple"
-default_codex = { model = "gpt-5.6-luna", effort = "low" }
-laya_mode = "shadow"
-laya_road = true
-laya_each = true
-
-# The memory picker reads its candidates as the other pickers do and takes their road; no checkpoint has
-# learnt its question, so Laya is off.
-[[profile]]
-key = "room-memories"
-label = "Room memory picker"
-gate_sampling = { temperature = 0.1, top_p = 0.8, top_k = 20, min_p = 0 }
-kind = "gate"
-line = "gate"
-default_route_mode = "registered"
-default_claude_model = "claude-haiku-4-5-20251001"
-tier = "Simple"
-default_codex = { model = "gpt-5.6-luna", effort = "low" }
-laya_mode = "off"
-
-# The matcher stands beside the reference gates rather than among them, and takes the same road: its
-# own model, its own row, and Laya watching in the shadow.
-[[profile]]
-key = "situation-rules"
-label = "Situation rule matcher"
-gate_sampling = { temperature = 0.1, top_p = 0.8, top_k = 20, min_p = 0 }
-kind = "gate"
-line = "gate"
-default_route_mode = "registered"
-default_claude_model = "claude-haiku-4-5-20251001"
-tier = "Simple"
-default_codex = { model = "gpt-5.6-luna", effort = "low" }
-laya_mode = "shadow"
-laya_road = true
-
-[[profile]]
 key = "sanitizer"
 label = "Sanitiser gate"
 gate_sampling = { temperature = 0.1, top_p = 0.8, top_k = 20, min_p = 0 }
@@ -202,17 +116,6 @@ tier = "Simple"
 default_codex = { model = "gpt-5.6-luna", effort = "low" }
 laya_mode = "shadow"
 laya_road = true
-
-[[profile]]
-key = "document-seek"
-label = "Document seek gate"
-gate_sampling = { temperature = 0.1, top_p = 0.8, top_k = 20, min_p = 0 }
-kind = "gate"
-line = "gate"
-default_route_mode = "registered"
-default_claude_model = "claude-haiku-4-5-20251001"
-tier = "Simple"
-default_codex = { model = "gpt-5.6-luna", effort = "low" }
 
 # The translator runner's key (docs/launch-lines.md, 「Translate runner」): the registered translation model
 # first, the walk after. Its answer is the whole text it was given, rendered.
@@ -242,29 +145,3 @@ tier = "Reliable"
 default_codex = { model = "gpt-5.6-terra", effort = "high" }
 gate_answer_tokens = 2048
 gate_pool = 4
-
-# Its answer is the whole script said again, which a long answer of the chat agent's makes long. A full reading
-# without it is the mechanical script, which is already right to say, so it may be switched off.
-[[profile]]
-key = "voice-polish"
-label = "Voice polish gate"
-gate_sampling = { temperature = 0.5, top_p = 0.8, top_k = 20, min_p = 0 }
-kind = "gate"
-line = "gate"
-default_route_mode = "auto"
-default_claude_model = "claude-sonnet-5"
-tier = "Reliable"
-default_codex = { model = "gpt-5.6-terra", effort = "high" }
-gate_answer_tokens = 8192
-switchable = true
-
-[[profile]]
-key = "voice-reading"
-label = "Voice reading gate"
-gate_sampling = { temperature = 0.3, top_p = 0.8, top_k = 20, min_p = 0 }
-kind = "gate"
-line = "gate"
-default_route_mode = "auto"
-default_claude_model = "claude-sonnet-5"
-tier = "Reliable"
-default_codex = { model = "gpt-5.6-terra", effort = "high" }
