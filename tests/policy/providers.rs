@@ -27,3 +27,10 @@ fn a_launch_rule_refuses_what_it_names() {
   assert_eq!(registered::REGISTERED.declared.effort.fault(Some("thinking")), None);
   assert_eq!(claude_code::CLAUDE_CODE.declared.effort.vocabulary().first(), Some(&None));
 }
+
+#[test]
+fn deepseek_carries_the_search_line_and_claude_code_alone_the_browse_line() {
+  assert!(deepseek::DEEPSEEK.declared.carries("search"));
+  assert!(!deepseek::DEEPSEEK.declared.carries("browse"));
+  assert!(claude_code::CLAUDE_CODE.declared.carries("browse"));
+}

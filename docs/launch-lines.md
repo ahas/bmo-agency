@@ -138,13 +138,13 @@
 - **What a route may promise is what the program really carries.** Each harness says what its
   program offers — a gate on every tool call, a tool set made of the MCP servers it is handed alone
   — and each line what it needs of its program: Claude Code offers both and so carries every line;
-  Codex and dsh offer neither and carry a chat round, a job and a gate, each as a
-  portable run the fallback runner hands over, and not the search and browse runners, which need
-  both.
+  Codex and dsh offer no gate on a tool call and carry a chat round, a job and a gate, each as a portable
+  run the fallback runner hands over; dsh with every tool row of its own off also carries the search line,
+  whose tools are the run's MCP servers alone (`research-runs.md`, 「The road」), and the browse line stays
+  Claude Code's.
 - A work key names the one line it runs on, so a provider whose program does not carry that line, or
   that cannot be used here (no Codex executable, no gateway key, no OpenRouter key, no DeepSeek key file), is offered on
   the console as unavailable with the reason beside it and refused by the control API.
-- The search and browse runners have no work key and run on Claude Code alone.
 - The lines themselves are the owner's alone: a flag added, removed or reordered rewrites the prefix
   every warm session of that line stands on, so what an implementation may not do is move one.
 ## What is fixed

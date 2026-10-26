@@ -766,6 +766,7 @@ pub async fn launch(ground: Arc<Ground>, ask: ResearchRunAsk) -> Result<Research
   };
   let going = Going {
     ground: ground.clone(),
+    taken,
     ask,
     line,
     unit,
@@ -795,17 +796,22 @@ async fn composed(
     .await
     .map_err(Refused::Failed)?;
   let reasoning = reasoning_of(ground, line).await.map_err(failed)?;
-  let effort = effort_of(
-    ground,
-    &ground.machine(),
-    PROVIDER,
-    &taken.model,
-    mapping.effort.as_deref(),
-    Some(&reasoning),
-  )
-  .await
-  .map_err(failed)?
-  .unwrap_or_default();
+  // On a program that carries its own turns the road's step reads the effort itself.
+  let effort = if taken.provider == PROVIDER {
+    effort_of(
+      ground,
+      &ground.machine(),
+      PROVIDER,
+      &taken.model,
+      mapping.effort.as_deref(),
+      Some(&reasoning),
+    )
+    .await
+    .map_err(failed)?
+    .unwrap_or_default()
+  } else {
+    mapping.effort.clone().unwrap_or_default()
+  };
   let on = On {
     model: taken.model.clone(),
     effort,
@@ -832,6 +838,8 @@ async fn composed(
 // A run under way: everything it was launched with.
 struct Going {
   ground: Arc<Ground>,
+  /// The road the run went out on.
+  taken: Road,
   ask: ResearchRunAsk,
   line: String,
   unit: String,
@@ -996,9 +1004,22 @@ impl Going {
 
     keep_in_flight(&ground.db, self.ledger, &self.in_flight()).await;
 
+    let (outcome, result, spent) = if crate::chat_stand_in::inbox_declared(&self.taken.provider) {
+      self.on_places(&mut log).await
+    } else {
+      self.on_claude(&mut log).await
+    };
+
+    self.ended(outcome, result, spent, &mut log).await;
+  }
+
+  // The run on Claude Code: its first answer on the logins its key's walk offers, then each of the line's
+  // rounds on a session of their own and the same login.
+  async fn on_claude(&self, log: &mut RunLog) -> (&'static str, Result<String, String>, Option<Spent>) {
+    let ground = self.ground.clone();
     let session = new_session();
     let mut first = OnLogin {
-      going: &self,
+      going: self,
       session: session.clone(),
       resume: false,
       prompt: self.prompt.clone(),
@@ -1007,18 +1028,168 @@ impl Going {
     };
     let answered = on_accounts(&Walking { ground: &ground }, &self.ask.key, None, &mut first).await;
     let account = first.account.clone();
-    let (outcome, result, spent) = match answered {
+    match answered {
       Err(Failure::Transport { message }) => (CUT, Err(message), None),
       Err(failure) => ("failed", Err(failure.message()), None),
       Ok(reply) => {
         let mut spent = sum(None, spent_of(&reply));
         let mut answers = vec![reply.text.clone()];
 
-        self.rounds(&session, account, &mut answers, &mut spent, &mut log).await;
+        self.rounds(&session, account, &mut answers, &mut spent, log).await;
+        ("answered", Ok(answers.pop().unwrap_or_default()), spent)
+      }
+    }
+  }
+
+  // The run on a program that carries its own turns (docs/research-runs.md, 「The road」): its first answer in a
+  // place of the run's own, each of the line's rounds in a second, both ended with the run.
+  async fn on_places(&self, log: &mut RunLog) -> (&'static str, Result<String, String>, Option<Spent>) {
+    let first_place = format!("{}-{}", self.line, self.ledger);
+    let rounds_place = format!("{first_place}-rounds");
+    let first = self.in_place(&first_place, &self.prompt, &self.vars, log).await;
+    let ended = match first {
+      Err(crate::companion::run::NoAnswer::Cut(why)) => (CUT, Err(why), None),
+      Err(no) => ("failed", Err(crate::herdr_backend::failure_of(no).0), None),
+      Ok(reply) => {
+        let mut spent = crate::herdr_backend::spent_of(&reply.spend);
+        let mut answers = vec![reply.text.clone()];
+
+        self.place_rounds(&rounds_place, &mut answers, &mut spent, log).await;
         ("answered", Ok(answers.pop().unwrap_or_default()), spent)
       }
     };
 
+    for place in [&first_place, &rounds_place] {
+      end_place(&self.ground, place).await;
+    }
+
+    ended
+  }
+
+  // One turn of the run in a place of its own: the line's standing instructions, the run's MCP servers and no
+  // tool of the program's own, on the road the run went out on.
+  async fn in_place(
+    &self,
+    place: &str,
+    prompt: &str,
+    vars: &BTreeMap<String, String>,
+    log: &mut RunLog,
+  ) -> Result<crate::companion::run::Reply, crate::companion::run::NoAnswer> {
+    let ground = &self.ground;
+    let mut env = ground.env().clone();
+
+    env.extend(vars.iter().map(|(name, value)| (name.clone(), value.clone())));
+
+    let run = crate::lines::chat::ChatRun {
+      line: self.run.line,
+      agent: place.to_owned(),
+      model: self.taken.model.clone(),
+      effort: self.run.effort.clone(),
+      tier: Some(self.run.tier.clone()),
+      reasoning: crate::lines::worker::Reasoning {
+        thinking: Some(self.run.thinking),
+        level: None,
+      },
+      thinking: self.run.thinking,
+      system_path: self.run.system_prompt.clone(),
+      system_parts: None,
+      room: crate::lines::chat::RoomContext {
+        chat_id: 0,
+        text: String::new(),
+        mark: String::new(),
+      },
+      tools_shown: String::new(),
+      tools_allowed: String::new(),
+      mcp_config: self.run.mcp_config.clone(),
+      mcp_tools: None,
+      prompt: prompt.to_owned(),
+      persona_unused: None,
+      fold: false,
+      ping: false,
+      resume: None,
+      cwd: self.run.cwd.to_string_lossy().into_owned(),
+      env,
+    };
+
+    crate::chat_stand_in::job_turn_on(ground, log, &run, &self.ask.key, &self.taken, now_ms(), None).await
+  }
+
+  // The line's rounds in their own place, each a turn of the same session there: as on Claude Code, past the
+  // line's ceiling the final one asked at once or the run returning what it has, and a round that does not
+  // answer leaving the last answer standing.
+  async fn place_rounds(
+    &self,
+    place: &str,
+    answers: &mut Vec<String>,
+    spent: &mut Option<Spent>,
+    log: &mut RunLog,
+  ) {
+    let db = &self.ground.db;
+    let Ok(Some(process)) = crate::research_draft::process_of(db, &self.ask.key).await else {
+      return;
+    };
+    let rounds_vars = rounds_variables(&self.vars);
+    let began = std::time::Instant::now();
+    let mut asking = 0;
+
+    while asking < process.rounds.len() {
+      let name = process.rounds[asking].clone();
+      let past = began.elapsed().as_secs() as i64 >= process.ceiling_seconds;
+
+      if past && name.as_str() != policy::research::Draft::FINAL {
+        match process.past_ceiling {
+          policy::research::PastCeiling::Last => return,
+          policy::research::PastCeiling::Final => {
+            match process.rounds.iter().position(|one| one.as_str() == policy::research::Draft::FINAL) {
+              Some(at) if at >= asking => {
+                asking = at;
+                continue;
+              }
+              _ => return,
+            }
+          }
+        }
+      }
+
+      let Ok(Some(question)) = crate::research_draft::question_of(db, &name).await else {
+        asking += 1;
+        continue;
+      };
+      let prompt = crate::research_draft::prompt(&question, &self.prompt, answers);
+
+      match self.in_place(place, &prompt, &rounds_vars, log).await {
+        Ok(reply) => {
+          if let Some(more) = crate::herdr_backend::spent_of(&reply.spend) {
+            *spent = sum(spent.take(), more);
+          }
+
+          answers.push(reply.text);
+        }
+        Err(no) => {
+          let why = crate::herdr_backend::failure_of(no).0;
+
+          self.note(log, format!("The round {name} did not answer: {why}")).await;
+          return;
+        }
+      }
+
+      if name.as_str() == policy::research::Draft::FINAL {
+        return;
+      }
+
+      asking += 1;
+    }
+  }
+
+  // The run closed in the ledger, its result filed and queued for the room, and its run under way let go.
+  async fn ended(
+    &self,
+    outcome: &'static str,
+    result: Result<String, String>,
+    spent: Option<Spent>,
+    log: &mut RunLog,
+  ) {
+    let ground = self.ground.clone();
     let closing = Closing {
       finished_at: now_ms(),
       outcome: outcome.to_owned(),
@@ -1033,8 +1204,8 @@ impl Going {
     }
 
     match &result {
-      Ok(_) => self.note(&mut log, "The research answered.".to_owned()).await,
-      Err(why) => self.note(&mut log, format!("The research ended with no answer: {why}")).await,
+      Ok(_) => self.note(log, "The research answered.".to_owned()).await,
+      Err(why) => self.note(log, format!("The research ended with no answer: {why}")).await,
     }
 
     let told = if let Ok(text) = &result
@@ -1048,7 +1219,7 @@ impl Going {
         Ok(drawn) => {
           if drawn.narration.is_some() {
             self
-              .note(&mut log, "The narration was lifted out of the document for the voice path.".to_owned())
+              .note(log, "The narration was lifted out of the document for the voice path.".to_owned())
               .await;
           }
 
@@ -1067,7 +1238,7 @@ impl Going {
 
       match filed {
         Ok(Some(link)) => {
-          self.note(&mut log, format!("The result was filed as a document: {link}")).await;
+          self.note(log, format!("The result was filed as a document: {link}")).await;
 
           let brief = brief_of(text).unwrap_or_else(|| text.clone());
 
@@ -1075,16 +1246,13 @@ impl Going {
         }
         Ok(None) => {
           self
-            .note(
-              &mut log,
-              "No artifact service is named, so the result goes to the room whole.".to_owned(),
-            )
+            .note(log, "No artifact service is named, so the result goes to the room whole.".to_owned())
             .await;
           self.instruction(&result)
         }
         Err(why) => {
           self
-            .note(&mut log, format!("The result was not filed, so it goes to the room whole: {why}"))
+            .note(log, format!("The result was not filed, so it goes to the room whole: {why}"))
             .await;
           self.instruction(&result)
         }
@@ -1219,5 +1387,25 @@ impl Going {
       "events": [format!("research-ended:{id}")],
       "run": id,
     })
+  }
+}
+
+// How long the end of a run's place waits for a turn still holding it.
+const PLACE_END_WAIT: Duration = Duration::from_secs(30);
+
+// A place a run stood in ended with it: its program released and its workspace closed, under its lock.
+async fn end_place(ground: &Ground, name: &str) {
+  let data = &ground.roots.data;
+  let Some(_held) =
+    crate::places::locks::hold_within(crate::places::locks::agent_lock_path(data, name), PLACE_END_WAIT)
+      .await
+  else {
+    return eprintln!("research place {name}: a turn still holds it, so it was not ended");
+  };
+
+  crate::lines::place::Place::of(data, name).release().await;
+
+  if let Some(home) = ground.home_of(name, name) {
+    let _ = home.close().await;
   }
 }

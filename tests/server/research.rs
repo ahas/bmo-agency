@@ -213,7 +213,7 @@ async fn every_on(scratch: &Scratch) {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn a_research_key_goes_out_on_claude_code_alone_and_its_closed_road_says_why() {
+async fn a_search_key_goes_out_on_a_program_that_carries_the_line_and_its_closed_road_says_why() {
   let scratch = Scratch::new().await;
   let home = tempfile::tempdir().unwrap();
   let ground = ground_on(&scratch, home.path());
@@ -224,7 +224,9 @@ async fn a_research_key_goes_out_on_claude_code_alone_and_its_closed_road_says_w
   let open = resolve(&ground, &Ask::key("search:thorough")).await.unwrap();
 
   assert_eq!(open.road().map(|road| road.provider.as_str()), Some("claude-code"), "{open:?}");
-  assert!(open.uncarried.contains(&"deepseek".to_owned()), "{open:?}");
+  // DeepSeek's program carries the search line, so it is a step of the walk; Codex's does not.
+  assert!(!open.uncarried.contains(&"deepseek".to_owned()), "{open:?}");
+  assert!(open.uncarried.contains(&"codex".to_owned()), "{open:?}");
 
   scratch
     .run(

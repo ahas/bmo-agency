@@ -120,6 +120,9 @@ async fn rebuild(place: &Place, home: &Home, pane: Option<&str>) -> bool {
   true
 }
 
+// How long a research place's session token may stand if nothing takes it back first.
+const RESEARCH_TOKEN_LIFE: Duration = Duration::from_secs(24 * 3_600);
+
 /// The program the turn needs, standing. A place already running it is left as it is, and so is one
 /// running another program while its record says a turn of it works. A different program is written and
 /// the one standing ended, which the loop answers by starting the new one in the
@@ -161,9 +164,17 @@ pub async fn stand_resident(
     .is_none_or(|standing| standing.identity != program.identity || token_of(standing).is_none())
   {
     let checkout = token::record_checkout(ground, &place.path, &program.command.cwd.to_string_lossy());
-    let issued = token::issue(ground, line, &home.agent, &place.path, &checkout)
-      .await
-      .map_err(|refused| fault("tool-host-down", refused.detail))?;
+    // A program carrying a research run's settings holds them on its record, as a run apart's does, under
+    // the runner its line is, whose role gives the research tools (docs/research-runs.md, 「The road」).
+    let issued = if token::research_record(&program.command.env).0.is_some() {
+      let deadline = u64::try_from(now_ms()).unwrap_or_default() + RESEARCH_TOKEN_LIFE.as_millis() as u64;
+
+      token::issue_for_run(ground, line, line, &checkout.to_string_lossy(), &program.command.env, deadline)
+        .await
+    } else {
+      token::issue(ground, line, &home.agent, &place.path, &checkout).await
+    }
+    .map_err(|refused| fault("tool-host-down", refused.detail))?;
 
     if let Some(issued) = issued {
       for command in std::iter::once(&mut written.command).chain(written.restart.as_mut()) {

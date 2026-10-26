@@ -5,9 +5,10 @@
 # The provider's name as a screen shows it.
 label = "DeepSeek"
 
-# The lines its program carries. A gate's judgements stand in places of their own on it; the research lines
-# need a program that gates each call and withholds its own tools, which dsh is not.
-lines = ["chat", "gate", "worker"]
+# The lines its program carries. A gate's judgements stand in places of their own on it, and so does a search,
+# dsh standing with every tool row of its own off so the run's MCP servers are its only tools; the browse line
+# needs Claude Code's program.
+lines = ["chat", "gate", "worker", "search"]
 
 # A mapping of it carries no ceiling on the answer's tokens: the provider publishes none.
 caps_answer_tokens = false
