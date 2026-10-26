@@ -48,7 +48,7 @@ same way (`docs/launch-lines.md`, 「Translate runner」).
   - **Each place keeps a record naming the run** while the run stands in it, `research-place.json`, so it
     stands under no agent's row and no sweep of leftovers takes it down.
   - **Both places are ended with the run,** their programs released, their workspaces closed and their
-    records taken away.
+    folders taken away, records and all.
 
 ## What a run is held to: the research settings
 

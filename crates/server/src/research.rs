@@ -1394,7 +1394,8 @@ impl Going {
 // How long the end of a run's place waits for a turn still holding it.
 const PLACE_END_WAIT: Duration = Duration::from_secs(30);
 
-// A place a run stood in ended with it: its program released and its workspace closed, under its lock.
+// A place a run stood in ended with it: its program released, its workspace closed and its folder taken away,
+// under its lock.
 async fn end_place(ground: &Ground, name: &str) {
   let data = &ground.roots.data;
   let Some(_held) =
@@ -1412,7 +1413,7 @@ async fn end_place(ground: &Ground, name: &str) {
     let _ = home.close().await;
   }
 
-  let _ = std::fs::remove_file(place.path.join(RUN_PLACE));
+  let _ = std::fs::remove_dir_all(&place.path);
 }
 
 /// The record a research run's own place keeps while the run stands in it, naming the run, so a turn into the
