@@ -37,7 +37,10 @@ item for the worker, and a merge lets the item that waited on the pull request g
 ## The review item
 
 - **One item per pull request.** An open pull request a worker holds is filed in the job service as an item for
-  that worker (`POST /items`): its title names the repository and the pull request's number and title, and its
+  that worker (`POST /items`), the worker whose checkout's repository the pull request belongs to named as its
+  `assigneeName`, so only that worker takes it and the idle queue's alarm tells the chat agent once it waits a
+  minute on that worker while the worker is free (`docs/agent-control.md`, 「An idle queue is told to the
+  owner」): its title names the repository and the pull request's number and title, and its
   brief is the review the worker runs — hold the change to the base-library rule where the repository is a
   base library (the general case only, the base's own tests, nothing of one asker's), run the repository's
   checks on the pull request's branch, use bmo-review where it helps, then merge it or send it back with the

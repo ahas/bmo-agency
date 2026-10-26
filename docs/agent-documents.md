@@ -117,6 +117,10 @@ composed into a system prompt, and what the chat agent's own prompt is made of.
 - **The rulebooks the role carries hold rules, never past cases:** a rulebook states what an answer
   is, and no example answer or account of a turn that went wrong stands in one, since an example becomes
   the agent's own phrasing.
+- **What the agent says of an item it says in the room the item was asked in,** the room its `scope` or
+  `roomId` names, and in the owner's private room only for an item that names none. A run's end is relayed
+  there in a few lines: its outcome, the commit or artefact it left, and one line of what it left out; the
+  worker's report stays whole on the item, where the console shows it, and is never pasted into the room.
 - **The persona's voice holds in every round.** The persona sets how the agent speaks to each person,
   the owner included, and the header it stands under says that voice holds for every message the agent
   sends, a report or what a run came to among them; the role never frames a round's answer as a report

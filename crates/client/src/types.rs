@@ -2010,6 +2010,9 @@ pub struct TranslationRunAsk {
   pub purpose: String,
   pub language: String,
   pub text: String,
+  /// The caller's word on this one part, carried into the run's input as a note not to be translated.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub note: Option<String>,
 }
 
 /// TranslationRun: a translation as it came back, whole, with the road it went out on.

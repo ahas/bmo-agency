@@ -3292,6 +3292,8 @@ export interface components {
             purpose: string;
             language: string;
             text: string;
+            /** @description The caller's word on this one part, carried into the run's input as a note not to be translated. */
+            note?: string | null;
         };
         /** @description ResearchRun: a research run as it was launched: its run in the ledger, its key and the road it went out on. */
         ResearchRun: {
@@ -3554,6 +3556,15 @@ export interface components {
         };
         /** @description seeded */
         Seeded: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description too-large */
+        TooLarge: {
             headers: {
                 [name: string]: unknown;
             };
@@ -6783,6 +6794,7 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
+            413: components["responses"]["TooLarge"];
             422: components["responses"]["NoAnswer"];
             503: components["responses"]["NoLoginOpen"];
         };

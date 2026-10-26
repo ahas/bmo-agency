@@ -20,7 +20,15 @@ impl Route for CreateTranslationRun {
       Refused::new(StatusCode::BAD_REQUEST, format!("a translation ask: {why}")).with_code("bad-request")
     })?;
 
-    match translate::translate(call.ground(), &asked.purpose, &asked.language, &asked.text).await {
+    match translate::translate(
+      call.ground(),
+      &asked.purpose,
+      &asked.language,
+      asked.note.as_deref(),
+      &asked.text,
+    )
+    .await
+    {
       Ok(done) => Ok(answer(
         StatusCode::OK,
         serde_json::to_value(TranslationRun {
@@ -35,6 +43,9 @@ impl Route for CreateTranslationRun {
       }
       Err(Translation::Closed(why)) => {
         Err(Refused::new(StatusCode::SERVICE_UNAVAILABLE, why).with_code("no-login-open"))
+      }
+      Err(Translation::TooLarge(why)) => {
+        Err(Refused::new(StatusCode::PAYLOAD_TOO_LARGE, why).with_code("too-large"))
       }
       Err(Translation::NoAnswer(why)) => {
         Err(Refused::new(StatusCode::BAD_GATEWAY, why).with_code("no-answer"))

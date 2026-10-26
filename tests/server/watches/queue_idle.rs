@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex};
 
 use agency_server::watches::queue_idle::{
   MINUTES_KEY, Open, SEEN_PREFIX, SWITCH_KEY, Standing, awaiting_launch, idle, job_started,
-  launch_instruction, launches_due, notice, pass, waiting,
+  launch_instruction, launches_due, notice, pass, room_of, waiting,
 };
 use axum::body::Bytes;
 use axum::extract::State;
@@ -24,6 +24,7 @@ fn open(id: i64, assignee: Option<&str>) -> Open {
     id,
     title: format!("item {id}"),
     assignee: assignee.map(str::to_owned),
+    room: None,
   }
 }
 
@@ -113,7 +114,17 @@ fn an_item_awaiting_a_launch_is_told_in_the_owner_s_room_with_the_three_calls() 
   let told = launch_instruction(&open(2265, Some("w1")));
   let order = told["said"]["order"].as_str().unwrap();
 
-  assert_eq!(told["room"], Value::Null, "the owner's private room");
+  assert_eq!(told["room"], Value::Null, "an item naming no room is the owner's private room's");
+
+  // An item asked in a room is told in that room: its roomId, else the room its scope names.
+  let asked = Open {
+    room: room_of(&json!({ "scope": "-9000000000003" })),
+    ..open(2268, Some("w1"))
+  };
+
+  assert_eq!(launch_instruction(&asked)["room"], json!(-9_000_000_000_003_i64));
+  assert_eq!(room_of(&json!({ "roomId": 5, "scope": "-7" })), Some(5));
+  assert_eq!(room_of(&json!({ "scope": "" })), None);
   assert_eq!(told["events"], json!(["item-awaits-launch:#2265"]));
 
   for word in ["#2265", "w1", "job_lease_next", "assign_worker", "run_job", "why not"] {
@@ -150,20 +161,13 @@ async fn stand_in(State(calls): State<Calls>, uri: Uri, body: Bytes) -> impl Int
       ],
       "more": false,
     })),
-    "/items" if uri.query().is_some_and(|query| query.contains("open=1")) => axum::Json(json!({
-      "items": [
-        { "id": 11, "approved": true, "status": "open", "title": "for the free worker", "worker": "w1" },
-        { "id": 12, "approved": true, "status": "open", "title": "for the busy worker", "worker": "w2" },
-        { "id": 13, "approved": true, "status": "open", "title": "in a paused queue", "worker": "w1" },
-        { "id": 14, "approved": false, "status": "open", "title": "not approved", "worker": "w1" },
-      ],
-    })),
     "/items" => axum::Json(json!({
       "items": [
         { "id": 11, "title": "for the free worker", "state": "open", "queueName": "todo", "assigneeName": "w1" },
         { "id": 12, "title": "for the busy worker", "state": "open", "queueName": "todo", "assigneeName": "w2" },
         { "id": 13, "title": "in a paused queue", "state": "open", "queueName": "later", "assigneeName": "w1" },
-        { "id": 14, "title": "not approved", "state": "open", "queueName": "todo", "assigneeName": "w1" },
+        { "id": 14, "title": "opened by its lane", "state": "open", "queueName": "todo", "assigneeName": "w1",
+          "labels": { "lane": "pr-review" }, "scope": "-9000000000003" },
       ],
       "more": false,
     })),
@@ -235,13 +239,24 @@ async fn a_pass_tells_the_owner_once_of_the_items_a_free_worker_could_take() {
       vec![(agency_server::now_ms() - 61_000).to_string().into(), format!("{SEEN_PREFIX}11").into()],
     )
     .await;
+  scratch
+    .run(
+      r#"UPDATE "settings" SET "value" = $1 WHERE "key" = $2"#,
+      vec![(agency_server::now_ms() - 61_000).to_string().into(), format!("{SEEN_PREFIX}14").into()],
+    )
+    .await;
   pass(db, &vars).await.unwrap();
   pass(db, &vars).await.unwrap();
 
   let launches = instructed(&calls);
 
-  assert_eq!(launches.len(), 1, "told once: {launches:?}");
+  // An item its unattended lane opened is told as an approved one is, in the room it was asked in.
+  assert_eq!(launches.len(), 2, "each told once: {launches:?}");
   assert_eq!(launches[0]["events"], json!(["item-awaits-launch:#11"]));
+  assert_eq!(
+    (&launches[1]["events"], &launches[1]["room"]),
+    (&json!(["item-awaits-launch:#14"]), &json!(-9_000_000_000_003_i64))
+  );
 
   let notices = told(&calls);
 
@@ -249,7 +264,10 @@ async fn a_pass_tells_the_owner_once_of_the_items_a_free_worker_could_take() {
   assert_eq!(notices[0]["code"], QUEUE_IDLE.code.as_str());
   assert_eq!(
     notices[0]["openItems"],
-    json!([{ "id": 11, "title": "for the free worker", "assignee": "w1" }])
+    json!([
+      { "id": 11, "title": "for the free worker", "assignee": "w1" },
+      { "id": 14, "title": "opened by its lane", "assignee": "w1" },
+    ])
   );
   assert_eq!(notices[0]["freeWorkers"], json!(["w1"]));
 

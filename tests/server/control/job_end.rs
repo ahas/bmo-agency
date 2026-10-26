@@ -35,7 +35,9 @@ fn the_order_carries_the_item_the_worker_and_the_report_whole() {
   assert!(said.contains("worker bmo-agency"));
   assert!(said.contains("The change landed in commit abc123."));
   assert!(said.contains("What is left: a deploy."));
-  assert!(said.contains("Tell the owner this report"));
+  // The room is told the job's end in a few lines; the report stays whole on the item.
+  assert!(said.contains("Relay its end in a few lines in this room"));
+  assert!(said.contains("never paste it into the room"));
 }
 
 #[test]

@@ -5823,6 +5823,9 @@
           "503": {
             "$ref": "#/components/responses/NoLoginOpen"
           },
+          "413": {
+            "$ref": "#/components/responses/TooLarge"
+          },
           "422": {
             "$ref": "#/components/responses/NoAnswer"
           }
@@ -5831,6 +5834,7 @@
           "unauthorized",
           "bad-request",
           "no-login-open",
+          "too-large",
           "no-answer"
         ],
         "requestBody": {
@@ -11969,6 +11973,13 @@
           },
           "text": {
             "type": "string"
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The caller's word on this one part, carried into the run's input as a note not to be translated."
           }
         },
         "required": [
@@ -12521,6 +12532,16 @@
       },
       "Seeded": {
         "description": "seeded",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "TooLarge": {
+        "description": "too-large",
         "content": {
           "application/json": {
             "schema": {

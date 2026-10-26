@@ -2381,7 +2381,7 @@ pub const OPERATIONS: &[Operation] = &[
     params: &[],
     body: Some("TranslationRunAsk"),
     answers: &[(200, Some("TranslationRun"), false)],
-    codes: &["bad-request", "no-login-open", "no-answer"],
+    codes: &["bad-request", "no-login-open", "too-large", "no-answer"],
   },
   Operation {
     method: "POST",

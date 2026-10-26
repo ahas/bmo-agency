@@ -89,9 +89,25 @@ pub fn system_prompt(trees: &Trees, purpose: Purpose) -> Result<String, String> 
   })
 }
 
-/// What a translation is asked with: the target language's line, then the text.
-pub fn input(language: &str, text: &str) -> String {
-  format!("Translate into {}.\n\n{text}", language.trim())
+/// What a translation is asked with: the target language's line, the caller's note on this part where it gives
+/// one, then the text.
+pub fn input(language: &str, note: Option<&str>, text: &str) -> String {
+  match note.map(str::trim).filter(|note| !note.is_empty()) {
+    Some(note) => format!(
+      "Translate into {}.\n\nA note on this part, not to be translated: {note}\n\n{text}",
+      language.trim()
+    ),
+    None => format!("Translate into {}.\n\n{text}", language.trim()),
+  }
+}
+
+/// Whether a model's refusal says the part is longer than its window takes.
+pub fn too_large(why: &str) -> bool {
+  let why = why.to_lowercase();
+
+  ["context length", "context window", "maximum context", "too long", "too large"]
+    .iter()
+    .any(|said| why.contains(said))
 }
 
 /// A translation as it came back.
@@ -107,6 +123,8 @@ pub struct Translated {
 pub enum Refused {
   Ask(String),
   Closed(String),
+  /// The model refused the part as longer than its window takes.
+  TooLarge(String),
   NoAnswer(String),
 }
 
@@ -115,6 +133,7 @@ pub async fn translate(
   ground: &Ground,
   purpose: &str,
   language: &str,
+  note: Option<&str>,
   text: &str,
 ) -> Result<Translated, Refused> {
   let purpose = Purpose::read(purpose)
@@ -135,7 +154,7 @@ pub async fn translate(
 
   let trees = Trees::of(ground);
   let system = system_prompt(&trees, purpose).map_err(Refused::NoAnswer)?;
-  let input = input(language, text);
+  let input = input(language, note, text);
   let answer = if taken.provider == crate::control::registry::PROVIDER {
     on_gateway(ground, &taken.model, &system, &input).await
   } else if taken.provider == crate::lines::runner::PROVIDER {
@@ -143,7 +162,7 @@ pub async fn translate(
   } else {
     Err(format!("{} carries no translation", taken.provider))
   }
-  .map_err(Refused::NoAnswer)?;
+  .map_err(|why| if too_large(&why) { Refused::TooLarge(why) } else { Refused::NoAnswer(why) })?;
 
   Ok(Translated {
     text: answer,

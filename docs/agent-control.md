@@ -2797,12 +2797,13 @@ them run a browser, and whose a place is.
 
 ### An idle queue is told to the owner
 
-- **Approved work a free worker could take, with no job started, is an idle queue.** Every minute agency
-  reads the job service's items waiting for a lease (its `GET /items`, `state` `open`), which of them are
-  approved (its port's `GET /items?open=1`, `approved`: an approval of the kind `approval`, which the state
-  alone does not say) and its queues (`GET /queues`), beside its own jobs. An item waits on a free worker
-  where it is approved, its queue is open and holds nothing, and its assignee is a worker that is not
-  resting and has no job at work, or it names no assignee while such a worker stands. Where one item waits so and no job has
+- **Open work a free worker could take, with no job started, is an idle queue.** Every minute agency
+  reads the job service's items waiting for a lease (its `GET /items`, `state` `open`) and its queues
+  (`GET /queues`), beside its own jobs. An item stands open only once an approver approved it or it was
+  raised with one of the job service's unattended labels — a pull request's review among them — so its
+  state is the whole of whether it may be launched. An item waits on a free worker where it is open, its
+  queue is open and holds nothing, and its assignee is a worker that is not resting and has no job at
+  work, or it names no assignee while such a worker stands. Where one item waits so and no job has
   started on this machine for the idle minutes (`policy/queue-idle.toml`, five, or the owner's own row
   `queue_idle_minutes` of the settings table), the queue is idle.
 - **The owner is told once, through the receiver.** Agency queues one owner notice, `POST /owner/notices`
@@ -2811,15 +2812,15 @@ them run a browser, and whose a place is.
   a free worker or says why it does not. The receiver hands it to the chat agent in the owner's private chat, which
   voices it (the receiver's `docs/voiced-notices.md`). It is told once for each idle stretch: the moment it
   was told is kept, and nothing more is said until a job starts again.
-- **An item waiting on its own free worker is told to the chat agent on its own.** Where an approved open
-  item names as its assignee a worker that is free, and it is still waiting a minute after agency first
+- **An item waiting on its own free worker is told to the chat agent on its own.** Where an open item
+  names as its assignee a worker that is free, and it is still waiting a minute after agency first
   saw it so (`policy/queue-idle.toml`, `launch_seconds`), agency queues one instruction for the chat agent
-  in the owner's private room through the receiver's `POST /instructions`, under the event
+  in the room the item was asked in — its `roomId`, else the room its `scope` names — and in the owner's
+  private room only for an item that names none, through the receiver's `POST /instructions`, under the event
   `item-awaits-launch:#<item>`: the item awaits a launch, so lease it (`job_lease_next`), assign its worker
   (`assign_worker`), run it (`run_job`), or say in one line why not. It is told once for each item: the
   moment it was first seen waiting and the moment it was told are kept by the item's number, the first let
-  go once the item no longer waits on a free worker, the second once the item is no longer open and
-  approved. It stands beside the idle stretch's notice and does not wait for the idle minutes.
+  go once the item no longer waits on a free worker, the second once the item is no longer open. It stands beside the idle stretch's notice and does not wait for the idle minutes.
 - **A switch silences both,** the settings row `queue_idle_alarm` set to `off`; the next job that starts turns
   it on again. A deployment that names no job service or no receiver tells nothing.
 

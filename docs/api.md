@@ -571,14 +571,18 @@ them; a notice that holds nothing is withdrawn.
 
 | Method | Path | Does |
 |---|---|---|
-| POST | `/translation-runs` | Translate one text on the `translate` road: `purpose` (`document`, `worker` or `record`), `language` (the target's name as the instructions ask for it) and `text`; answers 200 with `text`, the translation whole, and the `provider` and `model` it went out on. |
+| POST | `/translation-runs` | Translate one text on the `translate` road: `purpose` (`document`, `worker` or `record`), `language` (the target's name as the instructions ask for it), `text` and an optional `note`; answers 200 with `text`, the translation whole, and the `provider` and `model` it went out on. |
 
 - **One text, one run** (`docs/launch-lines.md`, 「Translate runner」): no session is kept, nothing is
   queued and nothing is cached here; the caller cuts a long text into parts, keeps the translations it
   wants kept, and bounds how many parts it has out at once.
+- **A note** is the caller's word on this one part — what an earlier answer for it got wrong, or that a
+  one-line title is wanted — carried into the run's input between the language line and the text, marked as
+  a note that is not to be translated. A part with no note is asked as the language line and the text alone.
 - **Refusals:** 400 `bad-request` for a purpose it does not know or an empty text or language; 503
-  `no-login-open` with the road resolution's sentence where nothing can carry it; 502 `no-answer` where
-  the road answered with nothing or failed, naming why.
+  `no-login-open` with the road resolution's sentence where nothing can carry it; 413 `too-large` where the
+  model refused the part as longer than its window takes, so the caller cuts it smaller; 502 `no-answer`
+  where the road answered with nothing or failed otherwise, naming why.
 
 ### research drafts
 
@@ -714,7 +718,8 @@ are the ones a job's end states below.
   chat agent through the receiver's `POST /instructions`: an order carrying the item, the worker, the
   outcome and the report whole, under the event `job-ended:#<item>`. The receiver keeps the instruction until
   a turn takes it, so a chat session being replaced when the job ended loses nothing; the chat agent reads
-  the report and briefs the owner as its own manual says. A job with no room is queued for the owner's
+  the report and relays the job's end in a few lines in that room, as its own manual says, the report itself
+  staying whole on the item. A job with no room is queued for the owner's
   private room, which is the room the receiver gives an instruction that names none. The room a job answers is
   `roomId` from the launch, or the item's own `roomId`, or the item's `scope` where the item was filed from a
   room; the item a harness hands over carries that `scope` with it, so a job launched from a room is told

@@ -148,8 +148,9 @@ pub fn order(member: &Value) -> String {
   };
   let text = format!(
     "The job of item #{item} on worker {worker} {ended}.\n\nIts report, as the run left it:\n\n{}\n\n\
-     Tell the owner this report in his language, whole: what finished, what changed and what is left, \
-     keeping every figure, path and command as it stands, then say what the report could not.",
+     Relay its end in a few lines in this room, in the asker's language: the outcome, the commit or \
+     artefact it left, and one line of what it left out, then what the report could not say. The report \
+     stays whole on the item; never paste it into the room.",
     report.unwrap_or("The run left no report; its end is all there is to tell.")
   );
 

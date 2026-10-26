@@ -1,6 +1,6 @@
-//! The idle queue's alarm (docs/agent-control.md, 「An idle queue is told to the owner」): approved work in the
+//! The idle queue's alarm (docs/agent-control.md, 「An idle queue is told to the owner」): open work in the
 //! job service that a free worker could take, and no job started for the idle minutes, told to the owner once
-//! for each idle stretch through the receiver's owner notice; and an approved item waiting a minute on its own
+//! for each idle stretch through the receiver's owner notice; and an open item waiting a minute on its own
 //! free worker, told to the chat agent once for that item. The owner's switch silences both until the next
 //! job starts.
 
@@ -38,6 +38,8 @@ pub struct Open {
   pub title: String,
   /// The worker it is to go to, where it names one.
   pub assignee: Option<String>,
+  /// The room it was asked in, where it names one: its `roomId`, else the room its `scope` names.
+  pub room: Option<i64>,
 }
 
 /// What the queue stands at as one pass reads it.
@@ -98,7 +100,8 @@ pub fn launches_due<'a>(
     .collect()
 }
 
-/// The instruction an item awaiting a launch is queued with for the chat agent, in the owner's private room.
+/// The instruction an item awaiting a launch is queued with for the chat agent, in the room the item was asked
+/// in, or the owner's private room for an item that names none.
 pub fn launch_instruction(item: &Open) -> Value {
   let number = item.id.to_string();
   let order = fill_marks(
@@ -111,7 +114,7 @@ pub fn launch_instruction(item: &Open) -> Value {
   );
 
   json!({
-    "room": Value::Null,
+    "room": item.room,
     "said": { "order": order },
     "sort": "notice",
     "kind": format!("item-awaits-launch:{}", item.id),
@@ -137,7 +140,7 @@ async fn marks(db: &DatabaseConnection, prefix: &str) -> Result<BTreeMap<i64, i6
 
 /// The items awaiting a launch told to the chat agent once each, and the rows kept for them brought up to
 /// date: a waiting item first seen now marked, one no longer waiting let go, and a told item that is no
-/// longer open and approved let go.
+/// longer open let go.
 pub async fn tell_launches(
   db: &DatabaseConnection,
   vars: &BTreeMap<String, String>,
@@ -272,9 +275,9 @@ async fn read_job(url: &str, token: &str, path: &str, query: &[(&str, &str)]) ->
   answer.json().await.map_err(|why| why.to_string())
 }
 
-// The job service's approved open items in the queues that take leases — open, holding nothing; none
-// where the deployment names no job service. Approved is the port's `approved`, an approval of the kind
-// `approval`, which an item's state does not say.
+// The job service's open items in the queues that take leases — open, holding nothing; none where the
+// deployment names no job service. An item stands open only once an approver approved it or it was raised
+// with an unattended label, so its state is the whole of whether it may be launched.
 async fn open_items(vars: &BTreeMap<String, String>) -> Result<Option<Vec<Open>>, String> {
   let (Some(url), Some(token)) =
     (address(vars, "BMO_JOB_URL"), token(vars, "BMO_JOB_TOKEN", "BMO_JOB_TOKEN_FILE"))
@@ -291,14 +294,6 @@ async fn open_items(vars: &BTreeMap<String, String>) -> Result<Option<Vec<Open>>
     })
     .filter_map(|queue| queue["name"].as_str())
     .collect();
-  let port = read_job(&url, &token, "/items", &[("open", "1")]).await?;
-  let approved: Vec<i64> = port["items"]
-    .as_array()
-    .into_iter()
-    .flatten()
-    .filter(|item| item["approved"] == true)
-    .filter_map(|item| item["id"].as_i64())
-    .collect();
   let page = read_job(&url, &token, "/items", &[("state", "open"), ("limit", "100")]).await?;
 
   Ok(Some(
@@ -307,16 +302,26 @@ async fn open_items(vars: &BTreeMap<String, String>) -> Result<Option<Vec<Open>>
       .into_iter()
       .flatten()
       .filter(|item| item["queueName"].as_str().is_some_and(|queue| taking.contains(&queue)))
-      .filter(|item| item["id"].as_i64().is_some_and(|id| approved.contains(&id)))
       .filter_map(|item| {
         Some(Open {
           id: item["id"].as_i64()?,
           title: item["title"].as_str().unwrap_or_default().to_owned(),
           assignee: item["assigneeName"].as_str().map(str::to_owned),
+          room: room_of(item),
         })
       })
       .collect(),
   ))
+}
+
+/// The room an item was asked in: its `roomId`, else the room its `scope` names; none for an item that names
+/// neither, which the owner's private room answers for.
+pub fn room_of(item: &Value) -> Option<i64> {
+  item["roomId"]
+    .as_i64()
+    .or_else(|| item["scope"].as_str().and_then(|scope| scope.trim().parse().ok()))
+    .or_else(|| item["scope"].as_i64())
+    .filter(|room| *room != 0)
 }
 
 // The owner notice queued with the receiver; nothing where the deployment names no receiver.

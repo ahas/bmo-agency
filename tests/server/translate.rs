@@ -6,7 +6,9 @@
 use std::time::Duration;
 
 use agency_server::lines::Trees;
-use agency_server::translate::{KEY, LINE, Purpose, ROLE, gateway_request, input, system_prompt};
+use agency_server::translate::{
+  KEY, LINE, Purpose, ROLE, gateway_request, input, system_prompt, too_large,
+};
 use policy::providers::claude_code::CLAUDE_CODE;
 use policy::providers::registered::REGISTERED;
 use policy::roles::ROLES;
@@ -51,7 +53,18 @@ fn a_translation_s_prompt_is_the_role_s_then_its_purpose_s() {
   assert!(system_prompt(&trees(), Purpose::Record).unwrap().contains("Plain writing"));
   assert_eq!(Purpose::read("document"), Some(Purpose::Document));
   assert_eq!(Purpose::read("gate"), None);
-  assert_eq!(input(" Korean ", "the text"), "Translate into Korean.\n\nthe text");
+  assert_eq!(input(" Korean ", None, "the text"), "Translate into Korean.\n\nthe text");
+  assert_eq!(
+    input("Korean", Some(" Keep it to one line. "), "the text"),
+    "Translate into Korean.\n\nA note on this part, not to be translated: Keep it to one line.\n\nthe text"
+  );
+
+  // A refusal for a part past the model's window is told apart from any other failure.
+  assert!(too_large(
+    "the gateway answered 400: \"This model's maximum context length is 32768 tokens\""
+  ));
+  assert!(too_large("Prompt is too long"));
+  assert!(!too_large("the gateway answered no words"));
 }
 
 #[test]
