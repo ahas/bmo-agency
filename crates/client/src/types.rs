@@ -1228,10 +1228,30 @@ pub struct Job {
   /// The small-model instruction the job carries, where it carries one.
   #[serde(default)]
   pub instruction: Option<JobInstruction>,
+  /// Every road the job's turns went out on, in order, each with why the road before it was left.
+  #[serde(default)]
+  pub roads: Vec<JobRoad>,
+  /// Why the job waits, where no provider of its order can answer now; none whenever a turn is out.
+  #[serde(default)]
+  pub held_for: Option<String>,
   /// epoch milliseconds
   pub started_at: i64,
   /// epoch milliseconds
   pub ended_at: Option<i64>,
+}
+
+/// JobRoad: one road a job's turn went out on.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct JobRoad {
+  pub provider: String,
+  pub model: String,
+  /// The login it went out on, where its provider holds logins.
+  pub account: Option<String>,
+  /// epoch milliseconds
+  pub at: i64,
+  /// Why the road before it was left; none on the first.
+  pub reason: Option<String>,
 }
 
 /// JobPage:

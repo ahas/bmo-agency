@@ -3,10 +3,28 @@
 //! tiers, a route resolved on one provider and on the first that serves it, refused where its provider is
 //! off or its tier is no tier, a pin's value read, and a model's engine health.
 
+use std::os::unix::fs::PermissionsExt;
+
+use policy::providers::deepseek::DEEPSEEK;
+use policy::providers::registered::REGISTERED;
 use serde_json::{Value, json};
 
 use crate::scratch::Scratch;
 use crate::standing;
+
+// DeepSeek's key and the gateway's, private under the data root's env directory, so both can answer here.
+fn keys_in(data: &std::path::Path) {
+  let env = data.join("env");
+
+  std::fs::create_dir_all(&env).unwrap();
+
+  for name in [&DEEPSEEK.presence.key_file, &REGISTERED.presence.key_file] {
+    let file = env.join(name);
+
+    std::fs::write(&file, "a key\n").unwrap();
+    std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o600)).unwrap();
+  }
+}
 
 async fn get(port: u16, token: &str, path: &str) -> (u16, Value) {
   let answer = reqwest::Client::new()
@@ -133,6 +151,7 @@ async fn a_route_read_with_no_provider_begins_on_the_key_s_own_road_and_registra
   let token = "secret";
 
   std::fs::create_dir_all(&data).unwrap();
+  keys_in(&data);
   scratch
     .run(
       r#"INSERT INTO "settings" ("key", "value")
@@ -210,6 +229,7 @@ async fn the_walk_passes_over_a_shut_road_and_a_key_set_to_a_provider_stays_on_i
   let token = "secret";
 
   std::fs::create_dir_all(&data).unwrap();
+  keys_in(&data);
   scratch
     .run(
       r#"INSERT INTO "settings" ("key", "value")

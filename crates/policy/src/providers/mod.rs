@@ -11,7 +11,8 @@ pub mod registered;
 
 /// How a provider that offers a balance has it read (docs/usage-windows.md, 「Balances」): the address
 /// asked, the variable a stand-in's address is named in, how long an ask may take, how often it is read,
-/// for how many passes a reading stands, and the currency its answer counts in where the answer names none.
+/// for how many passes a reading stands, the currency its answer counts in where the answer names none, and
+/// where a person tops a spent balance up.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Balance {
@@ -22,6 +23,8 @@ pub struct Balance {
   pub fresh_passes: u32,
   #[serde(default)]
   pub currency: Option<String>,
+  /// Where a person tops a spent balance up, as the sentence a closed road says it in.
+  pub top_up: String,
 }
 
 impl Balance {

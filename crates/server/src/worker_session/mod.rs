@@ -24,7 +24,6 @@ use self::records::{
 };
 use crate::control::claude_accounts::{self, Account};
 use crate::control::harness::provider_enabled;
-use crate::control::roads::pinned_provider;
 use crate::door::execution::Identity;
 use crate::door::record::Reply;
 use crate::door::surface::interrupt_of;
@@ -266,19 +265,28 @@ fn turn_on(
   })
 }
 
-// Whether a ping on this run warms anything: Claude Code on, the worker key set to no other provider,
+// Whether a ping on this run warms anything: Claude Code on and the road the worker's next job would take
+// — the road resolution's answer for it (docs/cache-fallback.md, 「One road resolution」) — Claude Code's,
 // and the session held, where one is, standing on this run's provider, model and effort.
 async fn idle_turn_stands(
   ground: &Ground,
+  worker: &str,
   held: Option<&held::Held>,
   line: &WorkerRun,
 ) -> Result<bool, Refusal> {
   let db = &ground.db;
-  let pinned = pinned_provider(db, JOB_WORK_KEY).await.map_err(|refused| fault(refused.error))?;
 
-  if !provider_enabled(db, PROVIDER).await.map_err(|refused| fault(refused.error))?
-    || pinned.is_some_and(|pinned| pinned != PROVIDER)
-  {
+  if !provider_enabled(db, PROVIDER).await.map_err(|refused| fault(refused.error))? {
+    return Ok(false);
+  }
+
+  let ask = crate::road::Ask {
+    worker: Some(worker),
+    ..crate::road::Ask::key(JOB_WORK_KEY)
+  };
+  let resolution = crate::road::resolve(ground, &ask).await.map_err(fault)?;
+
+  if resolution.road().is_none_or(|taken| taken.provider != PROVIDER) {
     return Ok(false);
   }
 
@@ -391,7 +399,9 @@ pub async fn turn<W: Watch>(side: &Side<'_>, asked: Asked<'_>, watch: &mut W) ->
 
   // A ping is worth a turn only where it reads a prefix again: not on a road this worker's key is set
   // away from, and not where the session held stands on another road than this run.
-  if asked.prompt == KEEPALIVE.prompt && !idle_turn_stands(ground, held_road.as_ref(), &launched).await? {
+  if asked.prompt == KEEPALIVE.prompt
+    && !idle_turn_stands(ground, worker, held_road.as_ref(), &launched).await?
+  {
     return Ok(Turned::missed(Missed::Idle));
   }
 

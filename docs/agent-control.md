@@ -814,8 +814,13 @@ The owner's words:
   - It stands on the worker's kept session for that model and login where one is recorded and
     resumable, and opens a fresh session under a name it chose otherwise.
   - It is not written while the worker's job lock or pane lock is held, while Claude Code is switched off or the
-    worker's road is another provider's — its pin where it has one, the job key's road otherwise —
-    for a checkout that is not there, or in a copy of the data root.
+    worker's road is another provider's — the road resolution's answer for it (`docs/cache-fallback.md`,
+    「One road resolution」): its pin while the pin can answer, the next road of its walk while it cannot,
+    the job key's road where it has no pin — for a checkout that is not there, or in a copy of the data
+    root.
+  - **A pinned worker stands its road's program, not always its pin's:** while the pinned provider cannot
+    answer, the pane is stood on the program of the road its walk answers instead, and once the pin can
+    answer again the next pass stands the pin's program back, never while a turn is at work in the pane.
   - **A worker pinned to a provider whose surface stands with nothing put in** — bmo-tui for
     OpenRouter, Claude Code on the gateway for a registered model — has that program written
     instead, on the job line's run for that provider: the registration the worker is pinned to, or

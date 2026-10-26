@@ -20,10 +20,11 @@ use crate::lines::codex::lost_thread;
 use crate::lines::standing::place_registered;
 use crate::places::Ground;
 use crate::queue::settings;
+use crate::road::{self, Closed};
 use crate::run_log::RunLog;
 use crate::run_log::lines::Line;
 use crate::session_output::OutputWatch;
-use crate::stand_in::{CLAUDE, Step, Walk, announce, listed, step_of, walk_of};
+use crate::stand_in::{CLAUDE, Step, announce, listed, step_of};
 use crate::{Refusal, now_ms};
 use store::{one, run as written};
 
@@ -80,9 +81,11 @@ async fn note_failed(ground: &Ground, log: &mut RunLog, step: &Step, why: &str) 
     .await;
 }
 
-/// The turn across rooms on the first stand-in of the agent's walk that answers: none where Claude Code is
-/// the road it stands on now or no stand-in answered and Claude Code may still be asked, the stand-in's reply
-/// where one did, and why where the walk had to answer and none did.
+/// The turn across rooms on the road resolution's walk of the agent's key (docs/cache-fallback.md, 「One road
+/// resolution」): each road of it that can answer now in turn, until one answers. None where the walk reaches
+/// Claude Code, whose own session carries the turn — and where no stand-in answered while Claude Code is on,
+/// whose own failure then says why; the stand-in's reply where one answered; and the closed road's sentence
+/// where nothing of the order answered and Claude Code is off.
 #[allow(clippy::too_many_arguments)]
 pub async fn stand_in_turn(
   ground: &Ground,
@@ -95,33 +98,31 @@ pub async fn stand_in_turn(
 ) -> Result<Option<Reply>, NoAnswer> {
   let machine = ground.machine();
   let agent = run.agent.as_str();
-  let Some(Walk {
-    steps,
-    required,
-    chosen,
-  }) = walk_of(ground, &machine, key).await
-  else {
-    return Ok(None);
-  };
-  let db = &ground.db;
+  let resolution = road::resolve(ground, &road::Ask::key(key)).await.map_err(failed)?;
+  let chosen = resolution.pinned.clone().unwrap_or_else(|| "auto".to_owned());
+  let mut tried: Vec<Closed> = vec![];
+  let mut noted = false;
 
-  run.note_persona(ground, log).await;
+  for taken in resolution.open() {
+    if taken.provider == CLAUDE {
+      road::went(ground, &resolution, Some(taken), &tried).await;
 
-  let mut last: Option<String> = None;
-
-  for provider in &steps {
-    if !provider_enabled(db, provider).await.map_err(|why| failed(why.error))? {
-      continue;
+      return Ok(None);
     }
 
-    let step = match step_of(ground, &machine, key, provider, &run.reasoning).await {
+    if !noted {
+      run.note_persona(ground, log).await;
+      noted = true;
+    }
+
+    let step = match road_step(ground, &machine, key, taken, &run.reasoning).await {
       Ok(step) => step,
       Err(why) => {
-        last = Some(why);
+        tried.push(Closed::plain(&taken.provider, why));
         continue;
       }
     };
-    let outcome = match provider.as_str() {
+    let outcome = match taken.provider.as_str() {
       CODEX => codex_road(ground, &machine, run, &step, log, answers, began, shown).await?,
       name if inbox_declared(name) => {
         inbox_road(ground, &machine, run, &step, log, answers, began, shown).await?
@@ -132,25 +133,95 @@ pub async fn stand_in_turn(
     match outcome {
       Err(why) => {
         note_failed(ground, log, &step, &why).await;
-        last = Some(why);
+        tried.push(Closed::plain(&taken.provider, why));
       }
       Ok(reply) => {
+        let provider = &taken.provider;
+
         if provider != &chosen
           && let Err(why) = announce(ground, &ground.events, owner_id(ground), provider, &step.model).await
         {
           eprintln!("fallback {agent}: its answering on {provider} was not marked: {}", why.detail);
         }
 
+        road::went(ground, &resolution, Some(taken), &tried).await;
+
         return Ok(Some(reply));
       }
     }
   }
 
-  if required || !provider_enabled(db, CLAUDE).await.map_err(|why| failed(why.error))? {
-    return Err(failed(last.unwrap_or_else(|| format!("{agent}: no stand-in of its walk answered"))));
+  road::went(ground, &resolution, None, &tried).await;
+
+  // Claude Code on, though it cannot answer now: its own failure, the limit it rests on among them,
+  // carries the turn's end as it always has.
+  if provider_enabled(&ground.db, CLAUDE).await.map_err(|why| failed(why.error))? {
+    return Ok(None);
   }
 
-  Ok(None)
+  let mut sentence = resolution.sentence();
+
+  for closed in &tried {
+    sentence.push_str(&format!("\n{}: {}", closed.provider, closed.reason));
+  }
+
+  Err(failed(sentence))
+}
+
+/// The step a road goes out on for a key: the model and effort the key maps to on its provider, and the
+/// road's own model where it names another — a registration of its own on the registry's provider.
+pub async fn road_step(
+  ground: &Ground,
+  machine: &Machine,
+  key: &str,
+  taken: &road::Road,
+  reasoning: &crate::lines::worker::Reasoning,
+) -> Result<Step, String> {
+  let mut step = step_of(ground, machine, key, &taken.provider, reasoning).await?;
+
+  if step.model != taken.model {
+    if taken.provider == registry::PROVIDER {
+      return crate::stand_in::registration_step(ground, key, &taken.model, reasoning).await;
+    }
+
+    step.model.clone_from(&taken.model);
+  }
+
+  Ok(step)
+}
+
+/// One worker's job turn carried on the road its launch resolved, on the worker line the run composed: the
+/// road's own program standing in the worker's pane, never another provider's.
+#[allow(clippy::too_many_arguments)]
+pub async fn job_turn_on(
+  ground: &Ground,
+  log: &mut RunLog,
+  run: &ChatRun,
+  key: &str,
+  taken: &road::Road,
+  began: i64,
+  shown: Option<OutputWatch<'_>>,
+) -> Result<Reply, NoAnswer> {
+  let machine = ground.machine();
+  let step = road_step(ground, &machine, key, taken, &run.reasoning).await.map_err(failed)?;
+
+  run.note_persona(ground, log).await;
+
+  let outcome = match taken.provider.as_str() {
+    CODEX => codex_road(ground, &machine, run, &step, log, &[], began, shown).await?,
+    name if inbox_declared(name) => {
+      inbox_road(ground, &machine, run, &step, log, &[], began, shown).await?
+    }
+    _ => registered_road(ground, &machine, run, &step, log, &[], began, shown).await?,
+  };
+
+  match outcome {
+    Ok(reply) => Ok(reply),
+    Err(why) => {
+      note_failed(ground, log, &step, &why).await;
+      Err(failed(why))
+    }
+  }
 }
 
 /// One conversational turn on the provider and model the caller named rather than on the agent's walk:

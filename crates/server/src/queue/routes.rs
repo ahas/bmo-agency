@@ -80,6 +80,24 @@ pub async fn worker_pin(
   db: &DatabaseConnection,
   worker: &str,
 ) -> Result<Option<(String, Option<String>)>, Unrouted> {
+  let Some((provider, model)) = worker_pin_held(db, worker).await? else {
+    return Ok(None);
+  };
+
+  if !provider_enabled(db, &provider).await.map_err(|refused| Unrouted(refused.error))? {
+    return Ok(None);
+  }
+
+  Ok(Some((provider, model)))
+}
+
+/// What a worker is pinned to, whether or not the owner has its provider on: the head of the worker's walk
+/// (docs/cache-fallback.md, 「One road resolution」), a provider this build carries and, where its models
+/// are named one by one, the model. A support worker is on its base's pin.
+pub async fn worker_pin_held(
+  db: &DatabaseConnection,
+  worker: &str,
+) -> Result<Option<(String, Option<String>)>, Unrouted> {
   let row = one(
     db,
     r#"SELECT COALESCE(b."pinned_provider", CASE WHEN a."support_of" IS NULL THEN a."pinned_provider" END) AS "provider",
@@ -91,14 +109,12 @@ pub async fn worker_pin(
   let Some(row) = row else {
     return Ok(None);
   };
-  let Some(provider) = row.try_get::<Option<String>>("", "provider")? else {
+  let Some(provider) = row
+    .try_get::<Option<String>>("", "provider")?
+    .filter(|provider| ARCHIVE_PROVIDERS.contains(&provider.as_str()))
+  else {
     return Ok(None);
   };
-
-  if !provider_enabled(db, &provider).await.map_err(|refused| Unrouted(refused.error))? {
-    return Ok(None);
-  }
-
   let names_models =
     named(&provider).map_err(|refused| Unrouted(refused.error))?.not_registered().is_some();
   let model = if names_models { row.try_get::<Option<String>>("", "model")? } else { None };
@@ -380,14 +396,33 @@ pub async fn route_blocked(judging: Judging<'_>, selection: &str, now_ms: i64) -
     return Ok(true);
   }
 
+  Ok(standing_block(db, selection, now_ms).await?.is_some())
+}
+
+/// The block standing on a selection's road at `now_ms`, where one does: the moment it opens again, in
+/// epoch milliseconds, and the reason the failure that closed it gave.
+pub async fn standing_block(
+  db: &DatabaseConnection,
+  selection: &str,
+  now_ms: i64,
+) -> Result<Option<(i64, String)>, Unrouted> {
+  let Some(asked) = choice(selection) else {
+    return Ok(None);
+  };
   let block = settings::get(db, &health_key(&asked))
     .await
-    .map_err(|refusal| Unrouted(refusal.detail))?;
-  let until = block
-    .and_then(|text| serde_json::from_str::<Value>(&text).ok())
-    .and_then(|read| read.get("until").and_then(Value::as_f64));
+    .map_err(|refusal| Unrouted(refusal.detail))?
+    .and_then(|text| serde_json::from_str::<Value>(&text).ok());
+  let Some(block) = block else { return Ok(None) };
+  let until = block.get("until").and_then(Value::as_f64).unwrap_or(0.0);
 
-  Ok(until.is_some_and(|until| until > now_ms as f64))
+  if until <= now_ms as f64 {
+    return Ok(None);
+  }
+
+  let reason = block.get("reason").and_then(Value::as_str).unwrap_or_default().to_owned();
+
+  Ok(Some((until as i64, reason)))
 }
 
 /// Whether an item has a route to run on now: some selection its job may go out on that is not

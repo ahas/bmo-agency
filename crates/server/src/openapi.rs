@@ -2582,7 +2582,7 @@ fn schema(g: &mut SchemaGenerator, name: &str) -> Schema {
 }
 
 /// The events the agency publishes.
-pub const EVENTS: [&str; 32] = [
+pub const EVENTS: [&str; 33] = [
   "agent.changed",
   "session.created",
   "session.changed",
@@ -2607,6 +2607,7 @@ pub const EVENTS: [&str; 32] = [
   "fallback.changed",
   "account.changed",
   "usage.changed",
+  "road.changed",
   "launch-room.changed",
   "companion-reset.created",
   "place.changed",
@@ -2793,7 +2794,7 @@ pub fn openapi() -> Value {
     "x-stage": 5,
     "x-calls": CALLS,
     "x-harness": { "plugin": "bmo-agency", "mcp": "bmo-agency mcp", "entry": ENTRY },
-    "x-events": EVENTS,
+    "x-events": EVENTS.as_slice(),
     "tags": tags.iter().map(|tag| json!({ "name": tag })).collect::<Vec<_>>(),
     "paths": paths,
     "components": {

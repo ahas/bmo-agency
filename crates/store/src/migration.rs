@@ -28,6 +28,7 @@ mod m20261105_000001_prefix_documents;
 mod m20261106_000001_job_instruction;
 mod m20261107_000001_run_tools;
 mod m20261108_000001_gate_kinds;
+mod m20261109_000001_job_roads;
 
 use sea_orm_migration::prelude::*;
 
@@ -135,6 +136,7 @@ impl MigratorTrait for Migrator {
       Box::new(m20261106_000001_job_instruction::Migration),
       Box::new(m20261107_000001_run_tools::Migration),
       Box::new(m20261108_000001_gate_kinds::Migration),
+      Box::new(m20261109_000001_job_roads::Migration),
     ]
   }
 

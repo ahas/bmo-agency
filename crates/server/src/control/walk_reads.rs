@@ -190,13 +190,27 @@ impl Route for ResolveRoute {
     let pinned = roads::pinned_provider(db, &key).await?;
     let line = roads::profile(&key).map_or("worker", |profile| profile.line.as_str());
     let walking = asked_provider.is_none();
+    let mut reasons = vec![];
+    // The walk is the road resolution's (docs/cache-fallback.md, 「One road resolution」): its providers
+    // that can answer now, in its order, each closed one's reason kept for a read nobody serves.
     let providers = match asked_provider {
       Some(provider) => vec![provider],
-      None => roads::route_providers(db, &key).await?,
+      None => {
+        let resolution = crate::road::resolve(call.ground(), &crate::road::Ask::key(&key))
+          .await
+          .map_err(Refused::failed)?;
+
+        reasons.extend(
+          resolution
+            .closed()
+            .iter()
+            .map(|closed| format!("{}: {}", closed.provider, closed.reason)),
+        );
+        resolution.open().map(|road| road.provider.clone()).collect()
+      }
     };
     let judging = Judging::of(call.ground());
     let data_root = call.data_root();
-    let mut reasons = vec![];
 
     for provider in &providers {
       // The walk asks a provider the key is not set to only where its program carries the key's line.

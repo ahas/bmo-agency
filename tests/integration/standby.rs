@@ -4,6 +4,7 @@
 
 use crate::common;
 
+use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
 use agency_server::lines::place::{Place, Standby};
@@ -12,6 +13,8 @@ use agent_host::identity::process_birth;
 use common::Scratch;
 use common::herdr::HerdrModel;
 use harness_providers::{Machine, provider};
+use policy::providers::deepseek::DEEPSEEK;
+use policy::providers::registered::REGISTERED;
 use serde_json::{Value, json};
 
 /// A machine of the test's own: a home whose data root is the machine's own, the agents root in it,
@@ -48,6 +51,19 @@ impl Bench {
     );
     let service = common::service(&scratch, &[("AGENCY_SOURCE_DIR", at(home.path().join("source")))]);
     let ground = Ground::new(&service, &machine, Some(herdr::Herdr::there(herdr.socket.clone())));
+
+    // The gateway's key and DeepSeek's, private under the data root's env directory, so a worker pinned to
+    // either stands on its pin: a pin that cannot answer would stand the next road of its walk instead.
+    let env = machine.data_root().join("env");
+
+    std::fs::create_dir_all(&env).unwrap();
+
+    for name in [&REGISTERED.presence.key_file, &DEEPSEEK.presence.key_file] {
+      let file = env.join(name);
+
+      std::fs::write(&file, "a key\n").unwrap();
+      std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o600)).unwrap();
+    }
 
     for sql in [
       r#"DELETE FROM "agents""#,

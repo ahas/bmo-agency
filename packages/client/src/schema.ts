@@ -3029,6 +3029,16 @@ export interface components {
              */
             instruction: components["schemas"]["JobInstruction"] | null;
             /**
+             * @description Every road the job's turns went out on, in order, each with why the road before it was left.
+             * @default []
+             */
+            roads: components["schemas"]["JobRoad"][];
+            /**
+             * @description Why the job waits, where no provider of its order can answer now; none whenever a turn is out.
+             * @default null
+             */
+            heldFor: string | null;
+            /**
              * Format: int64
              * @description epoch milliseconds
              */
@@ -3044,6 +3054,20 @@ export interface components {
          * @enum {string}
          */
         JobState: "starting" | "running" | "ended" | "stopped";
+        /** @description JobRoad: one road a job's turn went out on. */
+        JobRoad: {
+            provider: string;
+            model: string;
+            /** @description The login it went out on, where its provider holds logins. */
+            account: string | null;
+            /**
+             * Format: int64
+             * @description epoch milliseconds
+             */
+            at: number;
+            /** @description Why the road before it was left; none on the first. */
+            reason: string | null;
+        };
         /** @description The body that hands an item and its lease over to be run. */
         RunJob: {
             /** Format: int64 */

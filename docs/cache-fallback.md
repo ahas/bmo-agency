@@ -350,34 +350,37 @@ When a demotion first catches — when a healthy session first drops — two thi
 
 - **One login is in use, for the whole road.** Every automatic run — a chat round, a job, a gate
   judgement, a research branch, a session opened after a restart — starts its walk on
-  that login for as long as it can answer, ahead of the chosen account and the order.
-- **A login coming back moves nothing.** An earlier or chosen account answering again is no reason to
-  leave the login in use; the road moves only when that login stops answering, or when the owner
-  chooses an account. A session and its warm cache belong to the login that opened them, and the
-  owner spends one account's window before the next, so moving off a login that still answers throws
-  the sessions away for nothing.
+  that login for as long as it can answer, behind the chosen account while that one can answer, and
+  ahead of the order.
+- **A login coming back moves nothing, except the chosen one.** An earlier account answering again is no
+  reason to leave the login in use; the road moves only when that login stops answering, when the owner
+  chooses an account, or when the chosen account can answer again (「Running on one account now」). A
+  session and its warm cache belong to the login that opened them, and the owner spends one account's
+  window before the next, so moving off a login that still answers throws the sessions away for nothing.
 - **What is kept:** one setting naming the login in use, so a restart or a deployment starts every run
   where the road stood. It is written by the first run that answers while no login is in use or while
   the one in use cannot answer, and by the owner's choice.
 - **A login in use that cannot answer is walked past like any other** — off, removed, at its limit or
   waiting for a person — and the walk goes on from the chosen account and then the order from the top;
   the login that answers there becomes the one in use. A key pinned to an account is offered that
-  account alone and never moves the login in use.
+  account first, while it can answer, and never moves the login in use.
 
 ### Running on one account now
 
 - **The owner can name the account the road runs on now,** from a row on the console or with the
   command below. That account is the chosen one, and choosing it is a switch: it becomes the login in
-  use at once, so the next run of every key goes out on it. Whenever the login in use cannot answer,
-  the walk goes on from the chosen account first, then every other account that is on, from the top.
+  use at once, so the next run of every key goes out on it. The chosen account heads every automatic
+  walk whenever it can answer; while it cannot, the login in use answers where it can, then every other
+  account that is on, from the top.
 - **The choice leaves the order alone.** It is one setting beside the accounts' rows, naming one account
   by its id; neither the order nor any switch is rewritten to express it. With nothing chosen the walk
   is the account order as it stands.
 - **Only an account that is on can be chosen.** Choosing one that is off is refused; turning the chosen
   account off, removing it or resetting the order lets the choice go with it.
-- **A chosen account that cannot answer is walked past like any other,** and the account that answers
-  becomes the login in use. The choice stays, but the login in use is used to the end first and the
-  chosen account is only where the walk starts again once that one stops answering.
+- **A chosen account that cannot answer is walked past like any other:** it is not the account serving
+  now — the first open account is — and the account that answers becomes the login in use. The choice
+  stays, and once the chosen account can answer again — its windows reopened, its login signed in again
+  — the next run goes out on it; a run already going finishes where it went out.
 - **What moves, and when.** The choice changes the head of the walk and nothing else, so everything that
   already happens when the head moves happens at the next run, not at the click: a run already going
   finishes on the login it went out on; the next chat round closes its old session and opens a
@@ -448,15 +451,69 @@ When a demotion first catches — when a healthy session first drops — two thi
   account has nothing for it to read. Its wording, how long before the end it speaks and the year
   a token stands for are read from agency's policy (`policy/`).
 
-### Availability
+### Availability: whether a provider can answer now
 
-- **Order sets only order and on/off.** Whether an on provider is usable now, each provider answers for
-  itself:
-  - Codex — its executable is present
-  - OpenRouter — a model is registered for that key and the environment key is present
-  - registered models — the gateway's key file is present (`docs/own-llm.md`)
-  - Claude Code — the account judgement below, asked of each account on its own
-- **An unusable provider is skipped** in its turn, and so is an account the judgement closes.
+- **Order sets only order and on/off.** Whether a provider that is on can answer now, each provider
+  answers for itself, out of its own member. It cannot answer for one of these reasons, and can
+  otherwise:
+  - **no credential on this machine** — the presence its member reads (`docs/provider-presence.md`):
+    Codex's executable, OpenRouter's key, the gateway's key file and a registration with an address,
+    DeepSeek's key file; Claude Code's credentials are its logins, below;
+  - **its balance spent** — where it offers a balance, the one its reader last kept for its own road is
+    at or below zero (`docs/usage-windows.md`, 「Balances」); a balance never read closes nothing;
+  - **no login open** — where it holds logins, none of the logins the key may go out on is open by the
+    account judgement below, each account's own reason beside it.
+- **A provider that is no road of the key** — its program does not carry the key's line, the key maps no
+  model on it, or, for the registry's provider, the key's registration is not walked (`docs/own-llm.md`)
+  — is passed without a reason, since nothing about it is closed.
+- **A provider that cannot answer now is passed over** in its turn with its reason, and so is an account
+  the judgement closes.
+
+### One road resolution
+
+- **One place decides where work goes:** the road resolution. It is asked for one work key, and for a
+  job's worker beside it, and answers where that work goes out now — the provider, the model and, where
+  the provider holds logins, the account — together with every provider it passed ahead of that one and
+  why each could not answer. Where nothing in the order can answer, it answers so, with every provider's
+  reason and what a person must do.
+- **The setting is automatic or a pin.** The pin is a worker's own pin where it has one, else the key's
+  row (「The per-key choice is automatic or one provider」); a worker's pin may name one model of its
+  provider.
+- **The walk.** Automatic begins at the top of the owner's order. A pin begins at its provider, then takes
+  the providers after it in the order, then those before it. A pin is the head of the walk and never a
+  wall: the work goes out on the pinned provider whenever it can answer now, whichever provider leads the
+  order or answers for other keys, and moves on only while it cannot.
+- **The model.** On the pinned provider, the model the pin names where it names one; everywhere else the
+  key's tier mapping on that provider. So automatic work goes out on its key's own tier of the first
+  provider that can answer — a job's on `job-worker`'s, the Frontier tier.
+- **The account.** Where the provider holds logins, the first login the account judgement offers the key.
+- **Every line asks it, and none keeps a walk of its own:** the chat's turn, a job's launch and its
+  relaunch, a worker's standing program, a work key's read (`GET /work-keys/{workKey}`, which the runners
+  and the gates resolve their road by), and the warming, which warms no provider that cannot answer now.
+  The resolution knows no provider by name: every provider's answer is its own member's, and the
+  resolution only walks.
+- **Return comes with the next start, never mid-run.** The resolution is asked afresh as each job starts
+  and each chat turn or session opens, so a pinned or earlier provider that can answer again carries the
+  next one; a run already going finishes where it went out and is never cut to move it back.
+- **A move is a fact, told once.** Each key's last road is kept beside it, so the system acts first and
+  then publishes what it did, once per move (`docs/api.md`, 「Events」):
+  - `road-moved` as work first goes out on a road other than the head of its walk, or on another one
+    than the last move's: the key, the road it moved from and the road it moved to — each a provider, a
+    model and, where the provider holds logins, an account — and why every provider passed could not
+    answer;
+  - `road-returned` as it goes out on the head of its walk again after a move;
+  - `road-closed` as nothing in the order can answer: the key, every provider's reason, and what a person
+    does to reopen the first road a person can reopen.
+
+  The consumer holding the owner's chat tells the owner each once. A road that reopens on its own — a
+  window's reset — is never said as the end of the matter: each fact names what the system moved to, or
+  the moment and what a person does.
+- **When nothing answers.** Only then is work refused or held: a chat turn fails, a job's launch is
+  refused 503 `no-login-open`, and a running job waits (「Automatic walks only on providers, in order」).
+  The sentence names every provider's reason and what a person must do for the first one a person can
+  reopen: an account waiting for a person, the sign-in command with that account's own configuration
+  directory in front of it, as the login notice words it; a spent balance, where its provider's member
+  says it is topped up. A road that only waits for a window names the moment it reopens.
 
 ### The account judgement
 
@@ -465,37 +522,42 @@ When a demotion first catches — when a healthy session first drops — two thi
   a worker's standing program and a companion on Claude Code's own road. No line keeps a judgement of
   its own, and none falls back to the machine's own login in place of one.
 - **A login is open while all three hold:** it is on; no window of its own is full (neither a limit rest
-  standing under it, nor a fresh reading of its own windows showing one at its ceiling that has not
-  reset — `docs/usage-windows.md`); and its login has not gone (「A login that is about to end」).
-- **An endpoint account is open while it is on, its key file is present and not empty, and no rest
-  stands under it.** It has no windows to read, so only a rest written from a refusal closes it, and
-  only a refusal of its key or its balance marks it as waiting for a person.
-- **A fresh window read full closes its login** whether or not any run has met the refusal yet. The
-  windows are read on a clock from the account's own login, so a login spent elsewhere is closed by the
-  reading, and a rest removed by hand does not reopen a login whose window is still full.
-- **A full reading is fresh for a bounded window and no longer,** since a quota can come back before the
-  reset its reading names and nothing tells this side but the next reading. A reading the reader cannot
-  renew stops standing for the window, so the walk neither sends a run onto a login known spent nor
-  leaves a login shut forever on a reading no one can refresh.
-- **A stale full reading closes nothing, and a run settles it:** the next run goes out on the login — one
-  that answers renews its own token and takes a fresh reading, one still spent meets the provider's
-  refusal, which rests it as any refusal does.
+  standing under it, nor a reading of its own windows showing one at its ceiling that has not reset —
+  `docs/usage-windows.md`); and its login has not gone (「A login that is about to end」). A login that
+  waits for a person is closed.
+- **An endpoint account is open while it is on, its key file is present and not empty, no rest stands
+  under it, and the balance last read for it is above zero.** It has no windows to read, so only a rest
+  written from a refusal or a spent balance closes it, and only a refusal of its key or its balance marks
+  it as waiting for a person; a balance never read closes nothing.
+- **A window read full closes its login** whether or not any run has met the refusal yet. The windows are
+  read on a clock from the account's own login, so a login spent elsewhere is closed by the reading, and
+  a rest removed by hand does not reopen a login whose window is still full.
+- **A full window that names its reset closes its login until that reset, however old its reading,**
+  since nothing but a newer reading can say it came back early: a newer reading that finds it below its
+  ceiling opens the login at once, and the reset opens it on time. A login spent until a day later
+  therefore stays out of every walk until then, even where its token has lapsed and the reader can no
+  longer ask for it.
+- **A full window that names no reset closes its login only while its reading is fresh,** a bounded
+  window, since a quota can come back and nothing tells this side but the next reading; past that it
+  closes nothing, so the walk never leaves a login shut forever on a reading no one can refresh, and the
+  next run settles it — one that answers renews its own token and takes a fresh reading, one still spent
+  meets the provider's refusal, which rests it as any refusal does.
 - **A rest written from a run's refusal or its own usage is not a reading:** it closes the login until
   its moment whatever the reader later finds, so a login a run found spent is never sent another run
   before the refusal's own moment. A done job's usage is handed to agency by the job's runner, which
   rests the login where a window stands at its threshold (`docs/api.md`, 「Accounts」).
 - **A closed login is never offered.** The walk offers the open logins in its order and none other; a
-  key pinned to a closed login is offered none.
+  key pinned to a closed login is offered the open logins of the account order instead.
 - **A run none of whose logins answers goes out on none.** It ends without launching anything, and
   whatever receives that failure reads it as it reads any limit or lost login, beginning no rest, since
   the run went out on no login.
 
 ### Automatic walks only on providers, in order
 
-- **The Claude turn:** if Claude Code is on and its turn is reached, the login in use answers where it
-  can (「The login in use is used to the end」); otherwise the account order is walked from the top — from
-  the chosen account where one is chosen — and the first open account answers. The Claude Code turn is
-  closed only when every account is.
+- **The Claude turn:** if Claude Code is on and its turn is reached, the chosen account answers where it
+  can, then the login in use (「The login in use is used to the end」); otherwise the account order is
+  walked from the top and the first open account answers. The Claude Code turn is closed only when every
+  account is.
 - **A run that fails on the account rather than on the work** — its limit reached, its login gone — moves
   to the next open account before the walk leaves the Claude Code turn, and the work that asked never
   learns the first account was tried. A failure of the work itself moves nothing, and neither does the
@@ -524,17 +586,29 @@ When a demotion first catches — when a healthy session first drops — two thi
   are each one process given the account the key is offered first; a worker's standing program and a
   companion's turn on Claude Code's own road take the first open account the same way. Everything that
   can be launched again is carried account by account.
-- **Walking down:** if a turn's provider is not run or ends with no answer, the walk goes to the next
-  turn. With Claude Code off, an automatic key starts straight from the next enabled provider, and if
-  nobody answers to the end the run fails and does not fall back to Claude.
+- **Walking down:** if a turn's provider cannot answer now, is not run or ends with no answer, the walk
+  goes to the next provider of the road resolution's walk (「One road resolution」). With Claude Code off,
+  an automatic key starts straight from the next enabled provider, and if nobody answers to the end the
+  run fails and does not fall back to Claude.
 - **Who receives that failure, each in its own place:**
   - **Chat** reads it like the API not answering, enters a rest state, and notifies the owner once; with
     a usable substitute left, the next message tries the walk again.
-  - **A job** tries every enabled provider once and ends saying every usable provider is blocked. A road
-    that did not answer is passed over by the jobs after it for a while — a minute for an outage, five
-    for a refused access, fifteen or until its reset for a limit. On a provider whose models are
-    services of their own, that road is the one registration that did not answer, and one registration
-    going quiet leaves the others open (`docs/own-llm.md`).
+  - **A job moves to the next road rather than failing.** A job whose turn fails for its provider's
+    availability — the provider refusing its quota, its window, its balance or its credential, its last
+    open login closing under it, or the road it went out on found unable to answer as the turn ends — is
+    launched again on the road resolution's next answer: the same job, item and lease, in the same
+    checkout, at most once on each provider in one job, its prompt opened with a line saying it continues
+    work already in the checkout. The job keeps each road it went out on and why it moved, and its report
+    says so. Where nothing in the order can answer, the job waits, held with the reason, and goes out
+    again once a provider can answer; it is never failed for that. A failure of the work itself moves
+    nothing and ends the job as it stands.
+  - **A blocked road stays passed over for a while.** A road a harness blocks after it did not answer is
+    passed over by a work key's read that walks to it (`docs/api.md`, 「work-keys, road-blocks and
+    launch-room」) — a minute for an outage, five for a refused access, fifteen or until its reset for a
+    limit; a block is the harness's memory of a failure, not one of the reasons a provider cannot answer
+    now, so it never moves a pinned key. On a provider whose models are services of their own, that road is the one
+    registration that did not answer, and one registration going quiet leaves the others open
+    (`docs/own-llm.md`).
     - **A turn stopped from outside closes no road:** a turn that ends without an answer while its job has
       been stopped is the stop, on every road.
     - **A request the road refused closes no road:** a registered model's turn that ends on a 400, 413 or
@@ -549,26 +623,27 @@ When a demotion first catches — when a healthy session first drops — two thi
   off while waiting for a lock is not launched anew, a request already running is left to finish, and
   Claude's run line is unchanged. While Claude is off, chat and worker context folding is deferred and
   session records preserved, and branch-prefix warming is not sent.
-- **A job whose worker key is set to one provider** runs only on that provider while it is enabled, and
-  recovery has no other to move to; if there is no candidate at all, it ends as an explicit cannot-run. A
-  work order's turned-off model is matched to the role tier of the next enabled provider, and recovery
-  and the next stage's place reservation use the same tier.
+- **A job whose worker or key is set to one provider** runs on that provider whenever it can answer now,
+  and on the next road of the walk while it cannot; it waits only where no provider of the order can
+  answer. A work order's turned-off model is matched to the role tier of the next enabled provider, and
+  recovery and the next stage's place reservation use the same tier.
 
 ### The per-key choice is automatic or one provider
 
 - **Run modes:** a key's run mode is automatic or one provider that carries its line — Claude Code,
   Codex, OpenRouter, the registry's provider — and, for a gate whose profile offers it, a dedicated gate
   provider (never a turn of the walk). Automatic is the walk above; a single provider runs that key on
-  that provider only and, with no answer, fails rather than walking on. While a chosen provider is turned
-  off, the key walks like automatic.
+  that provider whenever it can answer now and, while it cannot — turned off among the reasons — walks
+  on from it through the order (「One road resolution」).
 - **Every work key has a row, the chat, the gates and `job-worker` alike,** the same table and shape,
   read and edited where the chat's stand-ins are (`GET`/`PATCH /fallback`, keyed by the work key). A key
   with no row of its own takes its profile's default run mode.
 - **A key names its account as well as its provider.** Beside the provider, every work key says which
   Claude account its runs go out on: automatic walks the account order, and a named account runs that key
-  on that account alone. A key pinned to an account fails on it rather than moving, and while that account
-  is off the key walks the account order as automatic does. So the chat agent, each gate and each
-  worker can sit on an account of its own.
+  on that account whenever it is open. An account pin is the head of the account walk as a provider pin is
+  of the provider walk: while the pinned account cannot answer — off, at its limit or waiting for a person
+  — the key walks the open accounts of the order, and goes back to the pinned one from its next run once
+  it can answer. So the chat agent, each gate and each worker can sit on an account of its own.
 - **Why order alone cannot express it:** putting a provider or an account at the front of its order moves
   every automatic key at once, so a key that must stay on one provider or one account says so on its own
   row.
@@ -589,28 +664,30 @@ When a demotion first catches — when a healthy session first drops — two thi
   default prompt (`docs/launch-lines.md`).
   - **A job's turn crosses over on the same walk a chat turn does.** The `job-worker` key has a row of the
     fallback table like any other, read and set through the same screen; its run mode is automatic or one
-    provider, and while its primary (or every Claude login) rests or cannot carry it, the worker's job
-    turn is composed on the first provider of the walk that carries the worker line — the Codex, dsh and
-    registered roads, in the owner's order — and goes back to the primary once it can answer again. The
-    launch resolves the road as the job's work parts are read (`docs/api.md`, 「assignments and jobs」), and
-    the turn goes out through the one stand-in path, which composes the worker's own line: its rules, its
-    tools, its MCP and its checkout. A dsh road keeps no session, so a worker on it carries nothing between
-    jobs.
+    provider, and a worker's own pin stands before it. The launch asks the road resolution as the job's
+    work parts are read (`docs/api.md`, 「assignments and jobs」), so while the head of the worker's walk
+    cannot answer, the job turn is composed on the first provider of the walk that can and carries the
+    worker line, and the next job goes back to the head once it can answer again. A turn on Claude Code
+    goes out on the worker's own session; any other goes out through the one stand-in path, which
+    composes the worker's own line: its rules, its tools, its MCP and its checkout. A dsh road keeps no
+    session, so a worker on it carries nothing between jobs.
   - **Codex** keeps the thread id `codex exec` produced, per run scope, model and effort, and continues
     with `codex exec resume <id>` under a cross-process lock, one request at a time. A dsh headless run
     has no resume interface and is stateless.
-- **Search and browse runners do not cross over:** the runner is outside the order, so even with Claude
-  Code off a search or browse request runs on Claude, but its keepalive warms Claude's prefix only while
-  Claude Code is on.
+- **Search and browse runners do not cross over:** a thrown-away session's only program is Claude Code,
+  so a search or browse request runs on Claude even with Claude Code off, on the first login the account
+  judgement offers its key; its key's read answers by the road resolution like any other, and its
+  keepalive warms Claude's prefix only while Claude Code is on.
 
 ### A turned-off provider is not used on fallback keys
 
 - **What is skipped:** an automatic key, a key set to one provider, and even a job launched with an
   explicit provider and model are not run on a turned-off provider, and its session is not warmed, since
   turning off is the owner saying not to use that provider and one key's setting does not override that.
+  A turned-off provider is one that cannot answer now, so the work goes on to the next provider of its
+  walk (「One road resolution」).
 - **A turned-off account is passed over the same way:** the Claude Code entry does not walk it, its
-  sessions are not warmed, and a key pinned to it walks the account order as automatic does while it is
-  off.
+  sessions are not warmed, and a key pinned to it walks the open accounts of the order while it is off.
 - **No per-model off:** a key uses one model per provider, so turning off a provider removes those models
   from fallback, and changing one key's model is done by that line's model selector.
 
@@ -630,9 +707,11 @@ When a demotion first catches — when a healthy session first drops — two thi
   warmed, since a prefix belongs to the account it was built under. **An endpoint account:** its
   sessions are never warmed, whether it is on or off. The endpoint ignores the cache markers a ping
   would renew and keeps its own cache by itself, so a ping would only be a paid request. **Codex off /
-  OpenRouter off:** that provider's sessions are not warmed. An unwarmed session's record is left in
-  place, and re-enabling a
-  provider judges the next warming from the time that record names.
+  OpenRouter off:** that provider's sessions are not warmed. **A provider on that cannot answer now** —
+  its credential gone, its balance spent, every login it holds closed (「Availability: whether a provider
+  can answer now」) — is not warmed either, since no run goes out on it until it can. An unwarmed
+  session's record is left in place, and re-enabling a provider judges the next warming from the time
+  that record names.
 
 ### The Codex substitute is the Codex CLI
 
@@ -749,11 +828,9 @@ When a demotion first catches — when a healthy session first drops — two thi
 ### While a fallback stands, the room is not silent
 
 - **A rest is one account's,** so a room falls quiet only when no account and no provider will answer it.
-  Even where every account rests, if the walk meets a usable substitute before the Claude turn it keeps
-  taking the room. For this walk a login is closed where its own limit rest stands and its week — the
-  window its provider counts as its week, among the windows agency keeps for it
-  (`docs/usage-windows.md`) — is used past the rest's weekly ceiling; a login agency holds no reading
-  for is not closed by it.
+  Even where every account rests, if the road resolution's walk of the agent's key meets a provider other
+  than Claude Code that can answer now, the agent keeps taking the room (`GET /stand-in`); a login is
+  closed for it exactly as the account judgement closes it (「The account judgement」).
 - **Which model it switched to is operational information,** so it is not told to other rooms. The owner
   is not told before the first answer either; only when a substitute first answers, or later drops to
   another, does agency mark the road answering with the moment the fallback began and publish
@@ -765,10 +842,11 @@ When a demotion first catches — when a healthy session first drops — two thi
   is not answering still holds. When Claude produces an answer with a real session id, the fallback mark
   is cleared and `fallback-ended` is published with the stand-in that answered last; telling the owner it
   is back is the consumer's.
-- **How the chat's turn goes out on a stand-in.** A turn across rooms walks the agent's own key before
-  Claude Code's turn, each enabled stand-in of the walk in turn on the model and effort the key maps to
-  there, until one answers. It stands in the agent's own pane as that provider's program, on the chat
-  line's system prompt, tools and MCP configuration:
+- **How the chat's turn goes out on a stand-in.** A turn across rooms takes the road resolution's walk of
+  the agent's own key (「One road resolution」): each provider of it that can answer now, in the walk's
+  order, on the model and effort the key maps to there, until one answers; where the walk reaches Claude
+  Code, the turn goes out on Claude Code's own session. A stand-in stands in the agent's own pane as that
+  provider's program, on the chat line's system prompt, tools and MCP configuration:
   - **Codex** on the agent's kept thread for that model and effort, opened afresh where Codex no longer
     holds it, and the thread that answered kept for the next turn;
   - **OpenRouter** through bmo-tui, which keeps one dsh session on the Agent Client Protocol, the turn put
@@ -784,10 +862,13 @@ When a demotion first catches — when a healthy session first drops — two thi
   - **a registered model** as Claude Code on the gateway, the registration first held to the gateway's
     list, on a session of its own placed where the registration places it.
 
-  A walk that had to answer — a key set to one provider, or Claude Code switched off — and met no
-  stand-in that answered fails the turn with the last stand-in's reason; otherwise the turn falls to
-  Claude Code. The session the agent's row keeps across rooms is Claude Code's, and a stand-in's turn
-  leaves it as it stands.
+  A stand-in that does not answer passes the turn to the next provider of the walk, a key set to one
+  provider among them. Where no provider of the walk answered, the road is closed and told once
+  (`road-closed`); with Claude Code on, though it cannot answer now, the turn then goes to Claude Code,
+  whose own failure — the limit its logins rest on — ends it as the chat has always read one, and with
+  Claude Code off the turn fails with the sentence the resolution gives for a closed road: every
+  provider's reason and what a person must do. The session the agent's row keeps across rooms is Claude
+  Code's, and a stand-in's turn leaves it as it stands.
 
 ### The response options each road receives
 

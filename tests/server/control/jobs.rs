@@ -1,10 +1,12 @@
 //! A job asked of a running server in the shapes the harness sends (docs/api.md, 「assignments and jobs」): a
-//! launch refused while every login that carries it is closed, the assignment left held; a turn that
+//! launch refused while nothing in the order can answer, the assignment left held; a turn that
 //! fails ending the job with why, written into its log; and the end releasing the
 //! assignment, so the worker is held again for the next item.
 
 use std::time::Duration;
 
+use agency_server::control::harness::{OrderEntry, set_provider_order};
+use harness_providers::ARCHIVE_PROVIDERS;
 use serde_json::{Value, json};
 
 use crate::scratch::Scratch;
@@ -94,17 +96,32 @@ async fn a_job_waits_for_a_login_ends_with_why_and_frees_its_worker() {
       vec![resting.to_string().into()],
     )
     .await;
+  // Claude Code is the one provider of the order the owner has on, so its logins are the whole order.
+  set_provider_order(
+    scratch.db(),
+    &ARCHIVE_PROVIDERS
+      .iter()
+      .map(|name| OrderEntry {
+        name: (*name).to_owned(),
+        enabled: *name == "claude-code",
+      })
+      .collect::<Vec<_>>(),
+  )
+  .await
+  .unwrap();
 
   let server = standing::stand_server(home.path(), &data, &scratch.address(), token);
   let port = server.port;
 
-  // Every login that carries the job rests: nothing is launched, and the worker stays held for the item.
+  // Nothing in the order can answer: nothing is launched, the worker stays held for the item, and the
+  // refusal names every provider's reason and the moment the first login reopens.
   let assignment = assigned(port, token, 41).await;
   let (status, refused) = run_job(port, token, assignment, 41).await;
 
   assert_eq!(status, 503, "{refused}");
   assert_eq!(refused["code"], "no-login-open", "{refused}");
-  assert!(refused["error"].as_str().unwrap().contains("login-a"), "{refused}");
+  assert!(refused["error"].as_str().unwrap().contains("login-a is at its limit"), "{refused}");
+  assert!(refused["error"].as_str().unwrap().contains("reopens on its own"), "{refused}");
   assert_eq!(scratch.count(r#"SELECT COUNT(*) FROM "jobs""#, vec![]).await, 0);
   assert_eq!(get(port, token, &format!("/assignments/{assignment}")).await.1["state"], "held");
 

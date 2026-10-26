@@ -29,6 +29,7 @@ mod registry;
 mod research;
 mod resident_turn;
 mod rest;
+mod roads;
 mod roles;
 mod run_lines;
 mod run_stop;

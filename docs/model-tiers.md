@@ -14,9 +14,11 @@ and the route listing shows it: a work key may name a registration of its own on
 in place of its tier's cell there (`docs/own-llm.md`, 「A key's own registration」). What an agent is
 configured to run on is
 read as the tier store's answer — by agency's agent routes — for the agent's work key on
-the provider its road begins on: the chat agent and each gate on its own key's road, every
+the provider its road begins on, the head of its walk: the chat agent and each gate on its own key's road, every
 worker on `job-worker` on the provider it is pinned to or else first in the provider order, and the searcher and the browser on their own
-keys on the first enabled provider carrying their line. Agency's agent list (`docs/api.md`, 「Agents」), the console
+keys on the first enabled provider carrying their line. Where work goes out now, while that head cannot
+answer, is the road resolution's answer rather than the configuration (`docs/cache-fallback.md`, 「One road
+resolution」): the first provider of the walk that can answer now, on the key's tier there. Agency's agent list (`docs/api.md`, 「Agents」), the console
 screens built on it and the `bmo-agency agent` listing all show that answer, and an agent with no
 work key, or one the settings refuse, shows none rather than a remembered value. The model a held
 chat session runs on is that session's own road record, not the row either.
@@ -235,8 +237,9 @@ Branch prefix digests include effective effort. A co-work reservation for a task
   key's tier assignment is its tier; any tier may be chosen. The model and the effort both come from
   that tier's mapping on the provider the run launches on — the research profile carries neither
   (`research-runs.md`).
-- **The provider** is the first enabled provider in the order whose program carries the run's line;
-  a provider that cannot carry it is passed over.
+- **The provider** is the road resolution's answer for the run's key (`docs/cache-fallback.md`, 「One road
+  resolution」): the first provider of the walk whose program carries the run's line and that can answer
+  now; a provider that cannot carry it, or cannot answer now, is passed over.
 - **The effort is checked before launch** against the resolved provider and model: where the Claude Code
   catalogue names the efforts a model accepts, an effort outside them refuses the run rather than handing
   the CLI a value it would silently lower, and where the catalogue names none for that model the

@@ -28,7 +28,7 @@ a field's exact shape matters, the OpenAPI document is the one to read.
 ## Versioning
 
 - The contract carries the repository's one version, in semver; the workspace manifest is its source. Before
-  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.71`.
+  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.72`.
 - A change to this document and a change to the boundary go in one commit. A change to a route, an event, a
   hook or a shared table's contract repairs this document in the same commit.
 - The major moves on a removed or renamed route, field or event, the minor on an addition, the patch on
@@ -452,11 +452,13 @@ reads it; no session is folded by the set itself.
 | GET | `/launch-room` | Whether a launch may start, why not, and the jobs and browsers running. |
 | PATCH | `/launch-room` | Record that launches are held, and why. |
 
-A work key's read that names no `provider` is resolved first on the provider the key's route is set to,
-where that provider is on, and then walks each provider on in the owner's order, and the first that serves
-the key answers. The walk passes over a provider whose program does not carry the key's line (a gate's
-`gate`), the registry's provider where the registration the key's tier maps to there is not walked, and a
-model that is not healthy now: its road shut by a failure still standing or, for Claude Code, by the
+A work key's read that names no `provider` walks the road resolution's walk for the key
+(`docs/cache-fallback.md`, 「One road resolution」): the provider the key's route is set to first, then the
+rest of the owner's order from it, each only where it can answer now, and the first that serves the key
+answers. The walk passes over a provider whose program does not carry the key's line (a gate's
+`gate`), the registry's provider where the registration the key's tier maps to there is not walked, a
+provider that cannot answer now — off, its credential missing, its balance spent, no login of it open —
+and a model that is not healthy now: its road shut by a failure still standing or, for Claude Code, by the
 deployment's rest, or a registration whose engine says it stands aside. So a gate, which reads its road this
 way, goes out on the provider its key is set to, and a key set to the registry's provider with a registration
 of its own goes out on that registration.
@@ -609,7 +611,7 @@ nothing of its placement.
 | GET | `/assignments/{assignmentId}` | One assignment. |
 | PATCH | `/assignments/{assignmentId}` | Release an assignment, or hold it longer. |
 | GET | `/jobs` | Jobs: recent, by room, by worker, by holder, running. |
-| POST | `/jobs` | Run an item on its assigned worker: the harness hands over the item's content and the lease it holds, and the agency launches the worker's session on it; refused while no login can carry it. |
+| POST | `/jobs` | Run an item on its assigned worker: the harness hands over the item's content and the lease it holds, and the agency launches the worker's session on it; refused only while no provider of the order can answer. |
 | GET | `/jobs/{jobId}` | One job and what its turn spent, `usage`. |
 | PATCH | `/jobs/{jobId}` | End a job with its outcome, or stop it; its assignment is released. |
 | GET | `/jobs/{jobId}/prompt` | The prompt the job was launched with. |
@@ -647,7 +649,8 @@ are the ones a job's end states below.
   its assignment released, and its lease returned and its report told to the room through the same delivery
   as any other end. A job younger than the launch window is left for the next pass, and one whose worker
   stands on another machine is left, since its execution is no record this machine keeps. A job with a live
-  execution is left running.
+  execution is left running, and so is one this process is still carrying — waiting for a road, or between
+  one road and the next.
 - **A job may carry an instruction,** `instruction`, beside its item or inside it — `repository`,
   `documents`, `sentences` and `checks`, every one required and none empty (`docs/worker-bench.md`, 「A
   small-model instruction」); one that lacks a field is refused 400 naming it. The job keeps it, answers
@@ -658,11 +661,23 @@ are the ones a job's end states below.
   the entries the gate picks from the chat agent's brain — knowledge, rules and documents — are attached
   to the prompt under a `## Reference` heading. A job with no instruction, or a gate that picks nothing,
   stands on its own words; a worker reads the brain only through what the gate picked here.
-- **A job is launched only where a login can carry it.** Where every Claude login that carries the job's
-  work key is closed — its window full, resting, or waiting for a person to sign in again — `POST /jobs`
-  answers 503 `no-login-open`, naming the logins and the moment the first of them reopens, or that each
-  waits for a person; nothing is written and the assignment stays held. A work key no login carries goes
-  out as it stands.
+- **A job goes out on the road the road resolution answers** (`docs/cache-fallback.md`, 「One road
+  resolution」): its worker's pin, else the job key's setting, as the head of the owner's provider order,
+  the first provider of that walk that can answer now carrying it. A job is refused only where nothing in
+  the order can answer: then `POST /jobs` answers 503 `no-login-open`, its sentence naming every
+  provider's reason — each Claude login's own, with the moment the first of them reopens — and what a
+  person must do for the first road a person can reopen, a sign-in command or where a balance is topped
+  up; nothing is written and the assignment stays held.
+- **A job moves when its road stops answering.** A turn that fails for its provider's availability — its
+  quota, window, balance or credential refused, its last login closing under it, or its road found unable
+  to answer as the turn ends — is launched again on the resolution's next answer: the same job, item,
+  lease and checkout, at most once on each provider in one job, its prompt opened with a line saying it
+  continues work already in the checkout. A job answers `roads`, every road its turns went out on in
+  order — each `provider`, `model`, `account` (null off a provider that holds logins), `at` in epoch
+  milliseconds and `reason`, why the road before it was left, null on the first — and its report ends
+  saying where it ran and why it moved. Where nothing in the order can answer, the job stays `running`
+  and answers `heldFor`, the reason it waits; it goes out again as soon as a provider can answer, and
+  `heldFor` is null whenever a turn is out. A failure of the work itself moves nothing.
 - **A job ends by itself as its turn ends.** A turn that answered ends the job `ended` with its answer as
   the report. A turn that did not answer ends it `ended` with its outcome (`failed`, `blocked`, `stopped`
   or `reprepared`) and the reason the turn gave as the report. A launch that never reached its turn — no
@@ -698,10 +713,24 @@ Agency publishes one stream, `GET /events`. The kinds are:
 `execution.changed`, `seat-request.changed`, `reservation.changed`, `worker.changed`, `worker.deleted`,
 `prompt-document.changed`, `document-move.created`, `overtime-request.created`,
 `overtime-request.changed`, `rest.changed`, `fallback.changed`, `account.changed`, `usage.changed`,
-`launch-room.changed`, `companion-reset.created`, `place.changed`, `assignment.created`,
+`road.changed`, `launch-room.changed`, `companion-reset.created`, `place.changed`, `assignment.created`,
 `assignment.changed`, `job.created`, `job.changed`, `job.ended`.
 
 A kind agency keeps to its own processes does not cross the stream.
+
+- **`road.changed`** carries one fact of a work key's road (`docs/cache-fallback.md`, 「One road
+  resolution」), published once per move, after the system has acted, and named in its `fact`:
+  - `road-moved`: `key`, `from` and `to` — each a road, its `provider`, `model` and `account`, the
+    account null off a provider that holds logins — and `reasons`, why each provider passed could not
+    answer, each a `provider` and its `reason`;
+  - `road-returned`: `key`, `from`, the road it had moved to, and `to`, the head of its walk it is back on;
+  - `road-closed`: `key`, `reasons`, every provider's reason, and `command`, what a person does to reopen
+    the first road a person can reopen — the sign-in command with the account's own configuration
+    directory, or where a spent balance is topped up — or null where every road only waits for a reset,
+    with `reopensAt`, the epoch second the first of them reopens, or null.
+
+  Telling the owner is the consumer's: the moved road as what the system switched to, the closed road
+  with its command passed over verbatim. No fact is the end of the matter, and none is said twice.
 
 ## Hook points
 

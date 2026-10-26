@@ -31,6 +31,7 @@ pub mod registry;
 pub mod research;
 pub mod resident_turn;
 pub mod rest;
+pub mod roads;
 pub mod roles;
 pub mod run_clock;
 pub mod run_lines;

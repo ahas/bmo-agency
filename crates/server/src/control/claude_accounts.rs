@@ -513,11 +513,12 @@ pub async fn rest_until(judging: Judging<'_>, account: &str) -> Result<Option<i6
   Ok(own.max(full_window_until(judging.windows, account, now_ms().div_euclid(1000)).await))
 }
 
-// The moment the latest of an account's windows read at its ceiling resets, where one is, has not reset by
-// `now` and was seen by a reading that stands: within the span its reader says a reading stands, and after
-// the account's unread mark. A full window that named no reset is kept for the policy's fallback after it
-// was read. A keeping that cannot be read is said with its cause and closes nothing: the next run meets the
-// refusal that rests the login.
+// The moment the latest of an account's windows read at its ceiling resets, where one is and has not reset
+// by `now`. A full window that names its reset closes the login until then however old its reading is,
+// since only a newer reading, which replaces it, can say it came back early. A full window that named no
+// reset closes it only where the reading stands — within the span its reader says a reading stands, and
+// after the account's unread mark — for the policy's fallback after it was read. A keeping that cannot be
+// read is said with its cause and closes nothing: the next run meets the refusal that rests the login.
 async fn full_window_until(windows: &Keeping, account: &str, now: i64) -> Option<i64> {
   let reading = match windows
     .read(Slot {
@@ -534,14 +535,18 @@ async fn full_window_until(windows: &Keeping, account: &str, now: i64) -> Option
   };
   let mut until = None;
 
-  for kept in reading.standing(now) {
+  for kept in &reading.windows {
     let window = &kept.window;
 
     if window.utilization < window_ceiling(&window.name) {
       continue;
     }
 
-    let reset = window.resets_at.unwrap_or(kept.seen_at + REST.fallback_seconds);
+    let reset = match window.resets_at {
+      Some(reset) => reset,
+      None if reading.stands(kept, now) => kept.seen_at + REST.fallback_seconds,
+      None => continue,
+    };
 
     if reset > now {
       until = until.max(Some(reset));
@@ -620,13 +625,13 @@ async fn needs_login(db: &DatabaseConnection, account: &Account, now: i64) -> Re
   Ok(false)
 }
 
-// The logins that are on, in the order the road takes them: the login in use first, then the account the
-// owner chose where one was chosen, then the owner's order.
+// The logins that are on, in the order the road takes them: the account the owner chose where one was
+// chosen, so it carries the next run whenever it can answer; then the login in use; then the owner's order.
 async fn road_order(db: &DatabaseConnection) -> Result<Vec<Account>, Refused> {
   let enabled: Vec<Account> = accounts(db).await?.into_iter().filter(|one| one.enabled).collect();
   let mut heads = Vec::new();
 
-  for key in [IN_USE_KEY, CHOSEN_KEY] {
+  for key in [CHOSEN_KEY, IN_USE_KEY] {
     if let Some(id) = setting(db, key).await?
       && enabled.iter().any(|one| one.id == id)
       && !heads.contains(&id)
@@ -643,21 +648,113 @@ async fn road_order(db: &DatabaseConnection) -> Result<Vec<Account>, Refused> {
   Ok(first.into_iter().chain(rest).collect())
 }
 
-/// Whether a login answers now: it is on, no window of its own is full, and its login has not gone; an
-/// endpoint account's key file is there and not empty besides, and having no windows, only a rest closes
-/// it. This is the one judgement every run of every line is offered a login by.
-async fn open_now(judging: Judging<'_>, account: &Account, now: i64) -> Result<bool, Refused> {
-  Ok(
-    account.enabled
-      && account.credential.key_held()
-      && !resting(judging, &account.id, now).await?
-      && !needs_login(judging.db, account, now).await?,
-  )
+/// Why a login cannot answer now.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum LoginClosed {
+  /// The owner turned it off.
+  Off,
+  /// An endpoint account whose key file is missing or empty.
+  Key,
+  /// It waits for a person to sign in again, or to settle its endpoint's key or balance.
+  Person,
+  /// A window of its own is full, or a rest stands under it, until this epoch second.
+  Resting(i64),
+  /// An endpoint account whose balance, as last read, is at or below zero.
+  Balance,
 }
 
-/// The logins the road offers a run pinned to none, in order: the login in use first while it can
-/// answer, then the open ones in the owner's order, started on the account the owner chose where one
-/// was chosen. A login that cannot answer is never offered, so where none is open none is.
+impl LoginClosed {
+  /// The reason in the road's words, naming the account.
+  pub fn reason(&self, account: &Account) -> String {
+    let words = &policy::roads::ROADS.logins;
+    let line = match self {
+      Self::Off => &words.off,
+      Self::Key => &words.key,
+      Self::Person => &words.person,
+      Self::Resting(_) => &words.resting,
+      Self::Balance => &words.balance,
+    };
+    let until = match self {
+      Self::Resting(until) => moment_words(*until),
+      _ => String::new(),
+    };
+
+    policy::fill_marks(line, &[("account", &account.name), ("until", &until)])
+  }
+
+  /// What a person does to open it again, where a person can: the sign-in command with the account's own
+  /// configuration directory, as the login notice words it, or where the balance of the provider whose
+  /// endpoint the account stands on is topped up. None where it opens on its own or by the owner's switch.
+  pub fn command(&self, account: &Account, machine: &Machine) -> Option<String> {
+    let wording = &CLAUDE_CODE.login;
+
+    match (self, &account.credential) {
+      (Self::Person, Credential::Directory { .. }) => Some(
+        wording
+          .directory_command
+          .replace("{path}", &account.credential.path().to_string_lossy()),
+      ),
+      (Self::Person, Credential::Token { .. }) => {
+        Some(wording.token_command.replace("{path}", &account.credential.path().to_string_lossy()))
+      }
+      (Self::Person | Self::Balance, Credential::Endpoint { url, .. }) => harness_providers::providers()
+        .into_iter()
+        .filter_map(|provider| provider.balance())
+        .find(|offers| offers.serves(url, machine))
+        .map(|offers| offers.declared().top_up.clone()),
+      _ => None,
+    }
+  }
+}
+
+/// An epoch second as the road's words say a moment: its RFC 3339 form.
+pub fn moment_words(at: i64) -> String {
+  chrono::DateTime::from_timestamp(at, 0).map_or_else(|| at.to_string(), |moment| moment.to_rfc3339())
+}
+
+/// Why a login cannot answer now, or none where it can: it is on, an endpoint account's key file is there
+/// and not empty, its login has not gone, no window of its own is full, and an endpoint account's balance
+/// as last read is above zero. This is the one judgement every run of every line is offered a login by.
+pub async fn closed_why(
+  judging: Judging<'_>,
+  account: &Account,
+  now: i64,
+) -> Result<Option<LoginClosed>, Refused> {
+  if !account.enabled {
+    return Ok(Some(LoginClosed::Off));
+  }
+
+  if !account.credential.key_held() {
+    return Ok(Some(LoginClosed::Key));
+  }
+
+  if needs_login(judging.db, account, now).await? {
+    return Ok(Some(LoginClosed::Person));
+  }
+
+  if let Some(until) = rest_until(judging, &account.id).await?.filter(|until| *until > now.div_euclid(1000))
+  {
+    return Ok(Some(LoginClosed::Resting(until)));
+  }
+
+  if matches!(account.credential, Credential::Endpoint { .. }) {
+    match judging.windows.balance_of_account(&account.id).await {
+      Ok(Some(kept)) if kept.balance.amount <= 0.0 => return Ok(Some(LoginClosed::Balance)),
+      Ok(_) => {}
+      Err(fault) => eprintln!("claude account {}: its balance could not be read: {fault}", account.id),
+    }
+  }
+
+  Ok(None)
+}
+
+async fn open_now(judging: Judging<'_>, account: &Account, now: i64) -> Result<bool, Refused> {
+  Ok(closed_why(judging, account, now).await?.is_none())
+}
+
+/// The logins the road offers a run pinned to none, in order: the account the owner chose where one was
+/// chosen and it can answer, then the login in use while it can, then the open ones in the owner's order.
+/// A login that cannot answer is never offered, so where none is open none is.
 pub async fn open_accounts(judging: Judging<'_>) -> Result<Vec<Account>, Refused> {
   let now = now_ms();
   let mut open = Vec::new();
@@ -707,8 +804,8 @@ pub async fn pinned_account(db: &DatabaseConnection, key: &str) -> Result<Option
 
 /// The logins a work key's run may go out on for the user it is made for, whether or not they answer now,
 /// in the order the road takes them: that user's own logins alone, and for no user the platform's own
-/// work's. A key pinned to one login that is on may go out on
-/// that one and no other.
+/// work's. A key pinned to one login that is on takes that one first, as the head of its walk, and the
+/// rest of the road's order after it.
 pub async fn carried_for_user(
   db: &DatabaseConnection,
   key: &str,
@@ -720,15 +817,18 @@ pub async fn carried_for_user(
     None => account.user_id.is_none() || administrator.is_none() || account.user_id == administrator,
   };
 
-  if let Some(pinned) = pinned_account(db, key).await? {
-    return Ok(if carries(&pinned) { vec![pinned] } else { vec![] });
-  }
+  let pinned = pinned_account(db, key).await?.filter(|pinned| carries(pinned));
+  let pinned_id = pinned.as_ref().map(|pinned| pinned.id.clone());
+  let rest = road_order(db)
+    .await?
+    .into_iter()
+    .filter(|one| carries(one) && pinned_id.as_ref() != Some(&one.id));
 
-  Ok(road_order(db).await?.into_iter().filter(|one| carries(one)).collect())
+  Ok(pinned.into_iter().chain(rest).collect())
 }
 
 /// The logins a work key's run is offered for the user it is made for: of the logins it may go out on,
-/// those that answer now. A key pinned to a login that cannot answer is offered none.
+/// those that answer now. A key pinned to a login that cannot answer is offered the others that can.
 pub async fn walk_for_user(
   judging: Judging<'_>,
   key: &str,

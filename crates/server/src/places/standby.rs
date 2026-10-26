@@ -1,7 +1,9 @@
 //! A worker standing with nothing to do (docs/agent-control.md, 「A worker standing with nothing to
 //! do」): every worker's place holds the program its next job would start, written with nothing put in,
 //! so its pane is the program's own screen where a person can type the worker's first request; and a
-//! pinned worker's place holding another provider's program has its pin's program stood there at once.
+//! pinned worker's place holding another provider's program has its road's program stood there at once: its
+//! pin's while the pin can answer, the next road of its walk while it cannot (docs/cache-fallback.md, 「One
+//! road resolution」).
 //!
 //! The pass runs before every head is stood — as this process attaches to herdr and on the heads'
 //! clock — and over the pinned workers as a pin changes and after a job's end, then waiting a while for
@@ -24,11 +26,11 @@ use super::trust::trust_worker_folder;
 use super::{AgentRow, Ground};
 use crate::control::fallback::fallback_provider;
 use crate::control::harness::provider_enabled;
-use crate::control::roads::pinned_provider;
 use crate::lines::place::{Place, Program, token_of};
 use crate::lines::standing::{Standing, claim_standby, claude_program, inbox_program, registered_program};
 use crate::lines::token;
-use crate::queue::routes::{JOB_WORK_KEY, worker_pin};
+use crate::queue::routes::{JOB_WORK_KEY, worker_pin_held};
+use crate::road::{self, Ask};
 use crate::{Refusal, now_ms};
 
 /// How long the pass after a job's end waits for the checkout's lock the ended runner still holds.
@@ -212,9 +214,7 @@ pub async fn stand_idle(ground: &Ground, row: &AgentRow) -> Result<(), Refusal> 
   }
 
   let machine = ground.machine();
-  let pin = worker_pin(&ground.db, &row.name)
-    .await
-    .map_err(|unrouted| crate::lines::fault(unrouted.0))?;
+  let pin = pinned_road(ground, &row.name).await?;
 
   if let Some((pinned, model)) = pin.as_ref().filter(|(pinned, _)| pinned != CLAUDE_CODE) {
     let Some(_locks) = worker_pane(ground, &row.name, &cwd, None).await else {
@@ -275,13 +275,17 @@ pub async fn stand_idle(ground: &Ground, row: &AgentRow) -> Result<(), Refusal> 
   Ok(())
 }
 
-// The provider the job key's runs go out on now: the one it is set to, or the stand-in answering while
-// the fallback stands, or Claude Code.
+// The provider the job key's runs go out on now, as the road resolution answers it for the job key; the
+// stand-in answering while the fallback stands, or Claude Code, where nothing of its walk can answer.
 async fn job_road(ground: &Ground) -> Result<String, Refusal> {
   let fault = |refused: crate::control::Refused| crate::lines::fault(refused.error);
 
-  if let Some(pinned) = pinned_provider(&ground.db, JOB_WORK_KEY).await.map_err(fault)? {
-    return Ok(pinned);
+  if let Some(taken) = road::resolve(ground, &Ask::key(JOB_WORK_KEY))
+    .await
+    .map_err(crate::lines::fault)?
+    .road()
+  {
+    return Ok(taken.provider.clone());
   }
 
   Ok(
@@ -290,6 +294,28 @@ async fn job_road(ground: &Ground) -> Result<String, Refusal> {
       .map_err(fault)?
       .unwrap_or_else(|| CLAUDE_CODE.to_owned()),
   )
+}
+
+// The road a pinned worker's pane stands on now: its pin where the pin can answer, the next road of its walk
+// that can where it cannot (docs/cache-fallback.md, 「One road resolution」), with the model where that
+// road's provider names its models one by one; its pin as it stands where nothing of the walk can answer.
+// None for a worker with no pin.
+async fn pinned_road(ground: &Ground, worker: &str) -> Result<Option<(String, Option<String>)>, Refusal> {
+  let Some(pin) = worker_pin_held(&ground.db, worker)
+    .await
+    .map_err(|unrouted| crate::lines::fault(unrouted.0))?
+  else {
+    return Ok(None);
+  };
+  let ask = Ask {
+    worker: Some(worker),
+    ..Ask::key(JOB_WORK_KEY)
+  };
+  let resolution = road::resolve(ground, &ask).await.map_err(crate::lines::fault)?;
+  let Some(taken) = resolution.road() else { return Ok(Some(pin)) };
+  let names_models = provider(&taken.provider).is_some_and(|one| one.not_registered().is_some());
+
+  Ok(Some((taken.provider.clone(), names_models.then(|| taken.model.clone()))))
 }
 
 /// What a pinned worker's pane holding another provider's program, or its own pin's program composed on
@@ -306,10 +332,7 @@ pub async fn restand_pinned(
     return Ok(());
   }
 
-  let Some((pinned, model)) = worker_pin(&ground.db, &row.name)
-    .await
-    .map_err(|unrouted| crate::lines::fault(unrouted.0))?
-  else {
+  let Some((pinned, model)) = pinned_road(ground, &row.name).await? else {
     return Ok(());
   };
   let cwd = ground.checkout_of(row);
@@ -412,9 +435,7 @@ pub async fn compose(ground: &Ground, worker: &str) -> Result<Option<Standing>, 
   let Some(row) = AgentRow::named(&ground.db, worker).await? else { return Ok(None) };
   let cwd = ground.checkout_of(&row);
   let machine = ground.machine();
-  let pin = worker_pin(&ground.db, worker)
-    .await
-    .map_err(|unrouted| crate::lines::fault(unrouted.0))?;
+  let pin = pinned_road(ground, worker).await?;
 
   match pin.as_ref().filter(|(pinned, _)| pinned != CLAUDE_CODE) {
     Some((pinned, model)) => pinned_program(ground, &machine, worker, &cwd, pinned, model.as_deref()).await,

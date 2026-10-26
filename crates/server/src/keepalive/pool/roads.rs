@@ -209,8 +209,14 @@ impl StandIn for OpenRouterPing<'_> {
 async fn stand_in<S: StandIn>(ground: &Ground, place: &WarmPlace, road: &S) -> Result<Pinged, Refusal> {
   let mode = road.mode();
 
+  // A provider that cannot answer now — off, missing, its balance spent — is not warmed, since no run goes
+  // out on it until it can (docs/cache-fallback.md, 「Warming only enabled providers」).
   if !enabled(ground, mode).await? {
     return Ok(off(mode));
+  }
+
+  if let Some(why) = crate::road::provider_closed(ground, mode).await.map_err(fault)? {
+    return Ok(Pinged::Failed(format!("{mode}: {why}")));
   }
 
   let Some(_held) = try_hold(&place.lock) else { return Ok(Pinged::Busy) };

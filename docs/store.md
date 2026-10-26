@@ -61,7 +61,8 @@ seeds. The other crates and the server reach the store only through it.
   - the work a harness hands over: `assignments`, one row a worker held for an item — the item, the
     holder, the worker, its state and when the hold runs out — and `jobs`, one row the item's run on that
     worker — the item and lease the harness named, the assignment, the worker, the session and run it
-    opened, the model its turn went out on, its state, outcome and report, what its turn spent (its
+    opened, the model its turn went out on, every road its turns went out on and why each was left, the
+    reason it waits where no road can answer, its state, outcome and report, what its turn spent (its
     input, output, cache-read and cache-write tokens) and their sum, and the prompt it was launched with; and what a session carries: `session_work`, its item and results, and `session_loads`,
     the documents loaded into it (`docs/api.md`, 「Assignments and jobs」);
   - the run ledger: `runs`, one row a run of an agent's unit — its agent and room, its unit, how deep

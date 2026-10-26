@@ -47,6 +47,11 @@ flowchart TD
   the registered models' does. Its API is not asked: the key's presence is the machine's fact.
 - **A provider that cannot answer** says the English sentence and status its policy file gives,
   and the screen shows it beside the provider in its own language.
+- **Presence is the first of the questions the road resolution asks.** Whether a provider can answer now
+  adds what its member declares beside presence — a balance it offers, read above zero, and the logins
+  it holds, one of them open — and the resolution walks the owner's order on those answers alone
+  (`docs/cache-fallback.md`, 「Availability: whether a provider can answer now」). A provider whose balance
+  is spent says where its member says it is topped up, from its own policy file.
 
 ## Which models a provider offers
 

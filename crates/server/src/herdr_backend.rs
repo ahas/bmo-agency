@@ -1813,10 +1813,10 @@ impl HerdrSessions {
     Ok(Came::Ended(last_end))
   }
 
-  // A worker's job turn carried on a fallback road: the same stand-in walk, roads and setting a chat turn
-  // crosses over on, composing the worker's own line — its rules, tools, MCP and checkout. The road was
-  // chosen in the job's work parts (`control::work`, `worker_road`); dsh keeps no session, so nothing of the
-  // worker's Claude session is read, judged or kept here.
+  // A worker's job turn carried on a road other than Claude Code's: the road the job's launch resolved and
+  // named in its work parts (`control::work`, the road resolution), on the stand-in roads a chat turn
+  // crosses over on, composing the worker's own line — its rules, tools, MCP and checkout. dsh keeps no
+  // session, so nothing of the worker's Claude session is read, judged or kept here.
   async fn worker_stand_in(
     &self,
     agent: &str,
@@ -1885,14 +1885,24 @@ impl HerdrSessions {
       job_id: job.map(|job| job.job),
     });
 
-    match stand_in_turn(ground, &mut log, &run, crate::queue::routes::JOB_WORK_KEY, &[], began, Some(shown))
-      .await
+    let taken = crate::road::Road {
+      provider: work.provider.clone(),
+      model: work.model.clone(),
+      account: None,
+    };
+
+    match crate::chat_stand_in::job_turn_on(
+      ground,
+      &mut log,
+      &run,
+      crate::queue::routes::JOB_WORK_KEY,
+      &taken,
+      began,
+      Some(shown),
+    )
+    .await
     {
-      Ok(Some(reply)) => Ok(Came::Answered(reply.text, spent_of(&reply.spend))),
-      Ok(None) => Ok(Came::Failed(
-        format!("{agent}: no fallback road carried the job and Claude could not be asked"),
-        None,
-      )),
+      Ok(reply) => Ok(Came::Answered(reply.text, spent_of(&reply.spend))),
       Err(NoAnswer::Overtaken) => Ok(Came::Stopped),
       Err(no) => {
         let (reason, engine) = failure_of(no);

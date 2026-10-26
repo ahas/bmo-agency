@@ -50,8 +50,9 @@ all read them from here (`docs/cache-fallback.md`, 「The account judgement」, 
   no figure is left out rather than written as nought, and an answer with no usable window is a
   failure.
 - **It passes every five minutes, and a reading stands for six passes,** thirty minutes: long enough to
-  ride out a passing failure of the endpoint, short enough that a full window that came back early, a
-  quota reset nobody could read, stops closing its login.
+  ride out a passing failure of the endpoint, short enough that a full window that names no reset, a
+  quota that may have come back unread, stops closing its login. A full window that names its reset
+  closes its login until that reset however old its reading is (「What reads the windows」).
 - **An account that cannot be asked keeps its last reading.** A failure is said once when it starts,
   on the server's error output, naming the account and its reason (the credential file unreadable, no
   token, the token expired, the endpoint's HTTP status, no answer in time, no usable window), and its
@@ -101,14 +102,18 @@ all read them from here (`docs/cache-fallback.md`, 「The account judgement」, 
   after 15 seconds. A failure is said once when it starts, naming the provider, the account and the
   reason, and its recovery once when it ends.
 - **What reads it:** the accounts list answers an endpoint account's balance, and the fallback's view its
-  active slot's (`docs/api.md`, 「accounts, rest and usage」), each with the moment it was seen.
+  active slot's (`docs/api.md`, 「accounts, rest and usage」), each with the moment it was seen. The road
+  resolution reads a provider's own road's balance, and the account judgement an endpoint account's: one
+  at or below zero is a road that cannot answer now, and one never read closes nothing
+  (`docs/cache-fallback.md`, 「Availability: whether a provider can answer now」).
 
 ## What reads the windows
 
-- **The account judgement** closes a login whose own window stands at its ceiling, not reset, by a
-  reading that stands: younger than its reader's span and later than the account's unread mark
-  (`docs/cache-fallback.md`, 「The account judgement」). An endpoint account has no window for it to
-  read, and the judgement asks it nothing here.
+- **The account judgement** closes a login whose own window stands at its ceiling, not reset: one that
+  names its reset, until that reset whatever the reading's age, since only a newer reading can say it came
+  back; one that names none, while its reading stands — younger than its reader's span and later than the
+  account's unread mark (`docs/cache-fallback.md`, 「The account judgement」). An endpoint account has no
+  window for it to read, and the judgement asks it nothing here.
 - **The stand-ins' walk** reads each login's week, the window its provider counts as its week
   (`docs/cache-fallback.md`, 「While a fallback stands, the room is not silent」).
 - **The fallback's view and the quota source** read each slot's two headline windows (`docs/api.md`,

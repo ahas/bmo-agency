@@ -523,8 +523,9 @@ bmo-agency agent --route <work key> --provider <auto|claude-code|codex|openroute
 
 ### A gate runs on its one provider
 
-- **Which provider:** if the gate's run mode is a provider and that provider is enabled, the gate's road
-  is that provider; otherwise it is the first enabled provider in the provider order. On the registry's
+- **Which provider:** the road resolution's answer for the gate's key (`docs/cache-fallback.md`, 「One road
+  resolution」): the provider its run mode names whenever that one can answer now, otherwise the first
+  provider of the walk that can. On the registry's
   provider its model is its tier's cell, unless its key names a registration of its own (「A key's own
   registration」).
 - **One ask, and that is all.** It never moves to another provider or model — not on timeout, busy,

@@ -1,6 +1,7 @@
 //! The Claude accounts: a setting read as a whole number, a credential's stated end, a login closed by a
-//! window of its own agency keeps read full while its reading stands, and each account's view carrying its
-//! own two headline windows whichever road the chat stands on.
+//! window of its own agency keeps read full — until the reset it names, or while its reading stands where
+//! it names none — the chosen account serving only while it can answer, and each account's view carrying
+//! its own two headline windows whichever road the chat stands on.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -38,44 +39,146 @@ const SPARE: Slot<'static> = Slot {
   account: "spare",
 };
 
+// A full window that names its reset closes its login until that reset however old its reading is, since
+// only a newer reading can say it came back early; one that names none closes it only while its reading
+// stands (docs/cache-fallback.md, 「The account judgement」).
 #[tokio::test]
-async fn a_login_rests_while_a_window_of_its_own_is_kept_full_and_its_reading_stands() {
+async fn a_login_rests_until_a_full_window_s_reset_and_on_one_naming_none_only_while_its_reading_stands() {
   let scratch = Scratch::new().await;
   let db = scratch.db();
   let now = now_ms() / 1000;
   let resets_at = now + 600;
   let read = Keeping::new(db.clone(), vec![Arc::new(HalfHour)]);
-  let unread = Keeping::new(db.clone(), vec![]);
-  let five_hour = |used: f64| Window {
+  let five_hour = |used: f64, resets_at: Option<i64>| Window {
     name: "five_hour".into(),
     utilization: used,
-    resets_at: Some(resets_at),
+    resets_at,
     duration_minutes: Some(300),
     limit_name: None,
   };
   let rest = |windows| async move { rest_until(Judging { db, windows }, "spare").await.unwrap() };
 
-  read.replace(SPARE, &[five_hour(1.0)], now - 10).await.unwrap();
+  read.replace(SPARE, &[five_hour(1.0, Some(resets_at))], now - 10).await.unwrap();
 
   assert_eq!(rest(&read).await, Some(resets_at));
-  assert_eq!(rest(&unread).await, None, "no reading stands where no reader keeps the windows");
 
   read.mark_unread("spare", now - 10).await.unwrap();
 
-  assert_eq!(rest(&read).await, None, "a reading seen at the account's unread mark closes nothing");
+  assert_eq!(
+    rest(&read).await,
+    Some(resets_at),
+    "an unread mark does not reopen a window full until its reset"
+  );
 
   read.lift_unread("spare").await.unwrap();
-  read.replace(SPARE, &[five_hour(1.0)], now - 3600).await.unwrap();
+  read.replace(SPARE, &[five_hour(1.0, Some(resets_at))], now - 3600).await.unwrap();
 
-  assert_eq!(rest(&read).await, None, "a reading past its span closes nothing");
+  assert_eq!(
+    rest(&read).await,
+    Some(resets_at),
+    "a reading past its span still closes it until its reset"
+  );
 
-  read.replace(SPARE, &[five_hour(0.5)], now - 10).await.unwrap();
+  read.replace(SPARE, &[five_hour(1.0, Some(now - 60))], now - 3600).await.unwrap();
 
-  assert_eq!(rest(&read).await, None);
+  assert_eq!(rest(&read).await, None, "a window whose reset has passed closes nothing");
+
+  read.replace(SPARE, &[five_hour(1.0, None)], now - 10).await.unwrap();
+
+  assert!(
+    rest(&read).await.is_some_and(|until| until > now),
+    "a fresh full window naming no reset closes it"
+  );
+
+  read.replace(SPARE, &[five_hour(1.0, None)], now - 3600).await.unwrap();
+
+  assert_eq!(rest(&read).await, None, "a stale full window naming no reset closes nothing");
+
+  read.replace(SPARE, &[five_hour(0.5, Some(resets_at))], now - 10).await.unwrap();
+
+  assert_eq!(rest(&read).await, None, "a newer reading below its ceiling opens it");
 
   scratch.run(r#"DROP TABLE "usage_windows""#, vec![]).await;
 
   assert_eq!(rest(&read).await, None, "a keeping that cannot be read closes nothing");
+}
+
+// A chosen account that cannot answer is not the one serving: the first open account is, and once the
+// chosen one can answer again it heads the walk and serves (docs/cache-fallback.md, 「Running on one account
+// now」).
+#[tokio::test]
+async fn a_chosen_account_spent_until_its_reset_is_not_serving_and_serves_again_once_it_reopens() {
+  let scratch = Scratch::new().await;
+  let db = scratch.db();
+  let now = now_ms() / 1000;
+  let windows = Keeping::new(db.clone(), vec![Arc::new(HalfHour)]);
+  let week = |used: f64| Window {
+    name: "seven_day".into(),
+    utilization: used,
+    resets_at: Some(now + 3 * 86_400),
+    duration_minutes: None,
+    limit_name: None,
+  };
+  let judging = Judging {
+    db,
+    windows: &windows,
+  };
+  let serving = || async {
+    views(judging)
+      .await
+      .unwrap()
+      .into_iter()
+      .filter(|view| view["serving"] == true)
+      .map(|view| view["id"].as_str().unwrap_or_default().to_owned())
+      .collect::<Vec<_>>()
+  };
+
+  scratch.run(r#"DELETE FROM "claude_accounts""#, vec![]).await;
+  scratch
+    .run(
+      r#"INSERT INTO "claude_accounts" ("id", "name", "place", "enabled", "credential_kind", "credential_path", "added_at")
+         VALUES ('first', 'first', 1, 1, 'directory', '/logins/first', 0),
+                ('second', 'second', 2, 1, 'directory', '/logins/second', 0)"#,
+      vec![],
+    )
+    .await;
+  scratch
+    .run(
+      r#"INSERT INTO "settings" ("key", "value") VALUES ('claude_account_chosen', 'first'),
+           ('claude_account_in_use', 'first')"#,
+      vec![],
+    )
+    .await;
+
+  // Its week is full until a day three days away, read an hour ago by a reading no reader renewed since.
+  let first = Slot {
+    mode: "claude-code",
+    account: "first",
+  };
+
+  windows.replace(first, &[week(1.0)], now - 3600).await.unwrap();
+
+  assert_eq!(serving().await, vec!["second".to_owned()]);
+  assert_eq!(
+    open_accounts(judging)
+      .await
+      .unwrap()
+      .iter()
+      .map(|one| one.id.as_str())
+      .collect::<Vec<_>>(),
+    vec!["second"]
+  );
+
+  // Its window reopens, and the next run goes out on the chosen account again, ahead of the one in use.
+  scratch
+    .run(
+      r#"UPDATE "settings" SET "value" = 'second' WHERE "key" = 'claude_account_in_use'"#,
+      vec![],
+    )
+    .await;
+  windows.replace(first, &[week(0.1)], now - 10).await.unwrap();
+
+  assert_eq!(serving().await, vec!["first".to_owned()]);
 }
 
 #[tokio::test]

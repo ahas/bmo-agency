@@ -174,14 +174,15 @@ async fn a_login_whose_window_is_read_full_is_never_offered_whatever_became_of_i
   assert_eq!(bench.walk().await, ["main", "default"]);
 }
 
-// A full reading closes its login for as long as its reader says it stands, and no longer.
+// A full window that names its reset closes its login until that reset however old its reading is, since
+// only a newer reading can say it came back early; one whose reset has passed closes nothing.
 #[tokio::test]
-async fn a_full_reading_past_its_fresh_span_closes_nothing() {
+async fn a_full_window_closes_its_login_until_its_reset_however_old_its_reading() {
   let bench = Bench::new().await;
   let fresh = bench.ground.windows.fresh("claude-code").as_secs() as i64;
 
-  bench.read("main", 1.0, now() + 4 * 24 * HOUR, now() - fresh + 60).await;
-  bench.read("default", 1.0, now() + HOUR, now() - fresh - 60).await;
+  bench.read("main", 1.0, now() + 4 * 24 * HOUR, now() - fresh - 60).await;
+  bench.read("default", 1.0, now() - 60, now() - fresh - 60).await;
 
   assert_eq!(bench.walk().await, ["default"]);
 }

@@ -7,7 +7,8 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use agent_session::{
-  JobMark, Mapping as WorkMapping, Resume, Scope, SessionId, Sessions, Start, Turn, TurnContext, WorkParts,
+  JobMark, Mapping as WorkMapping, Resume, Scope, SessionId, Sessions, Start, Turn, TurnContext, TurnEnd,
+  WorkParts,
 };
 use axum::http::{Method, StatusCode};
 use axum::response::{IntoResponse, Response};
@@ -15,17 +16,16 @@ use sea_orm::{QueryResult, Value as DbValue};
 use serde_json::{Value, json};
 
 use super::{Call, Refused, Route, answer};
-use crate::control::claude_accounts::{Judging, carried_for_user, reopens_at, walk_for_user};
 use crate::events::Named;
 use crate::herdr_backend::turn_spent;
 use crate::lines::{Trees, worker};
 use crate::now_ms;
 use crate::places::{AgentRow, Ground};
 use crate::queue::routes::JOB_WORK_KEY;
+use crate::road::{self, Ask, Closed, Road};
 use crate::run_ledger::{self, Closing, NotClosed, Opening, Spent};
 use crate::run_log::lines::Line;
 use crate::run_log::{RunLog, Target};
-use crate::worker_session::PROVIDER;
 use store::{all, one, run};
 
 /// The longest a worker is held for an item where the caller names no hold, and the longest it may be held.
@@ -142,32 +142,6 @@ async fn release(db: &sea_orm::DatabaseConnection, assignment_id: i64) -> Result
   .await?;
 
   Ok(())
-}
-
-/// Why no job can be launched now: every login that carries the job's work key is closed. None where one
-/// is open, or where no login carries the key and the run goes out as it stands.
-async fn logins_closed(ground: &Ground) -> Result<Option<String>, Refused> {
-  let judging = Judging::of(ground);
-
-  if !walk_for_user(judging, JOB_WORK_KEY, None).await?.is_empty() {
-    return Ok(None);
-  }
-
-  let carried = carried_for_user(&ground.db, JOB_WORK_KEY, None).await?;
-
-  if carried.is_empty() {
-    return Ok(None);
-  }
-
-  let names = carried.iter().map(|account| account.id.as_str()).collect::<Vec<_>>().join(", ");
-
-  Ok(Some(match reopens_at(judging, &carried).await? {
-    Some(at) => format!(
-      "no login can carry a job now ({names}); the first reopens at {}",
-      chrono::DateTime::from_timestamp(at, 0).map_or_else(|| at.to_string(), |moment| moment.to_rfc3339())
-    ),
-    None => format!("no login can carry a job now ({names}); each waits for a person to sign in again"),
-  }))
 }
 
 /// A worker held for an item for the harness that asked.
@@ -355,7 +329,7 @@ crate::moved!(ChangeAssignment);
 const JOB_COLUMNS: &str = r#""id", "item_id", "lease_id", "holder_name", "assignment_id", "worker_name",
   "session_id", "run_id", "run_name", "room_id", "state", "outcome", "report", "token_count",
   "input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens", "instruction",
-  "started_at", "ended_at", "prompt", "prompt_english""#;
+  "started_at", "ended_at", "prompt", "prompt_english", "roads", "held_for""#;
 
 /// What a job's turn spent, apart; none until the turn ends and where its road reported no figures.
 fn usage_of(row: &QueryResult) -> Result<Value, sea_orm::DbErr> {
@@ -400,6 +374,11 @@ fn job_value(row: &QueryResult) -> Result<Value, sea_orm::DbErr> {
     "instruction": row
       .try_get::<Option<String>>("", "instruction")?
       .and_then(|text| serde_json::from_str::<Value>(&text).ok()),
+    "roads": row
+      .try_get::<Option<String>>("", "roads")?
+      .and_then(|text| serde_json::from_str::<Value>(&text).ok())
+      .unwrap_or_else(|| json!([])),
+    "heldFor": row.try_get::<Option<String>>("", "held_for")?,
     "startedAt": row.try_get::<i64>("", "started_at")?,
     "endedAt": row.try_get::<Option<i64>>("", "ended_at")?,
   }))
@@ -615,16 +594,17 @@ impl Route for CreateJob {
       ));
     }
     let worker_name: String = held["workerName"].as_str().unwrap_or_default().to_owned();
-    // A job whose worker stands on another provider than Claude Code needs no Claude login to start: the
-    // guard is about the login the job's work key runs on, and the key's walk stands on a registered
-    // provider here.
-    let (road, _) = worker_road(call.ground())
+    // A job is refused only where nothing in its worker's walk can answer now (docs/cache-fallback.md,
+    // 「One road resolution」); the sentence names every provider's reason and what a person must do.
+    let resolution = road::resolve(call.ground(), &job_ask(&worker_name, &[]))
       .await
       .map_err(|why| Refused::new(StatusCode::SERVICE_UNAVAILABLE, why))?;
-    if road == PROVIDER
-      && let Some(why) = logins_closed(call.ground()).await?
-    {
-      return Err(Refused::new(StatusCode::SERVICE_UNAVAILABLE, why).with_code("no-login-open"));
+    if resolution.road().is_none() {
+      road::went(call.ground(), &resolution, None, &[]).await;
+
+      return Err(
+        Refused::new(StatusCode::SERVICE_UNAVAILABLE, resolution.sentence()).with_code("no-login-open"),
+      );
     }
     let prompt = prompt_of(&item, instruction.as_ref());
     let room_id = number(&asked, "roomId")
@@ -671,45 +651,30 @@ impl Route for CreateJob {
 
 crate::moved!(CreateJob);
 
-/// The worker's road now: `claude-code` where its key stands on Claude, else the first enabled provider of
-/// its fallback walk (`stand_in::walk_of`), with that provider's tier model. The same walk, order and
-/// setting a chat turn crosses over on; the worker supplies only its own line.
-async fn worker_road(ground: &Ground) -> Result<(String, super::tiers::Mapping), String> {
-  let db = &ground.db;
-  let claude = || async {
-    super::tiers::resolve_execution(db, JOB_WORK_KEY, PROVIDER, None)
-      .await
-      .map(|m| (PROVIDER.to_owned(), m))
-  };
-
-  let Some(walk) = crate::stand_in::walk_of(ground, &ground.machine(), JOB_WORK_KEY).await else {
-    return claude().await;
-  };
-
-  for provider in &walk.steps {
-    if crate::control::harness::provider_enabled(db, provider).await.map_err(|why| why.error)?
-      && let Ok(mapping) = super::tiers::resolve_execution(db, JOB_WORK_KEY, provider, None).await
-    {
-      return Ok((provider.clone(), mapping));
-    }
+/// What a job's road is asked: the job key, on its worker, with the providers this job already left.
+fn job_ask<'a>(worker: &'a str, left: &'a [Closed]) -> Ask<'a> {
+  Ask {
+    key: JOB_WORK_KEY,
+    worker: Some(worker),
+    user: None,
+    left,
   }
-
-  // The walk named no enabled stand-in; the key goes out on Claude as it would have.
-  claude().await
 }
 
-/// The work parts a job's turn is carried with.
+/// The work parts a job's turn is carried with, on the road the resolution answered for it: its provider
+/// and model, and the effort and tier the job key maps to there.
 async fn work_parts(
   ground: &Ground,
   worker_name: &str,
   room: i64,
   name: &str,
   title: &str,
+  taken: &Road,
 ) -> Result<WorkParts, String> {
-  // The worker's road: Claude Code where its key stands on it, else the first enabled fallback step of its
-  // walk (docs/cache-fallback.md). A worker whose primary (or Claude) is resting stands on its fallback by
-  // the same walk a chat turn crosses over on, with no pin of its own.
-  let (provider, mapping) = worker_road(ground).await?;
+  let provider = taken.provider.clone();
+  let mut mapping = super::tiers::resolve_execution(&ground.db, JOB_WORK_KEY, &provider, None).await?;
+
+  mapping.model.clone_from(&taken.model);
   let row = AgentRow::named(&ground.db, worker_name)
     .await
     .map_err(|why| why.detail)?
@@ -746,10 +711,24 @@ async fn work_parts(
   })
 }
 
-// The run of one job: the worker's session started, the item's turn carried, and the job's end written,
-// its assignment released, and an end that is no answer noted in the job's log.
+// The jobs this process carries now, from their launch to their end: one waiting for a road, or between one
+// road and the next, has no live execution behind it and is still no job the process lost.
+static CARRYING: std::sync::LazyLock<std::sync::Mutex<std::collections::HashSet<i64>>> =
+  std::sync::LazyLock::new(Default::default);
+
+fn carrying() -> std::sync::MutexGuard<'static, std::collections::HashSet<i64>> {
+  CARRYING.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
+// The run of one job: the worker's session started, the item's turns carried across its roads, and the
+// job's end written, its assignment released, and an end that is no answer noted in the job's log. A job
+// ended from outside while it waited for a road keeps the end written for it.
 async fn launch(ground: Arc<Ground>, sessions: Option<crate::herdr_backend::Shared>, id: i64) {
+  carrying().insert(id);
+
   let ended = launched(&ground, sessions, id).await;
+
+  carrying().remove(&id);
 
   finish(&ground, id, ended).await;
 }
@@ -767,13 +746,15 @@ pub async fn job_turn_ended(ground: &Ground, id: i64, end: agent_session::TurnEn
   };
   let ended = ended_of(ground, ledger, end).await;
 
-  finish(ground, id, Ok(ended)).await;
+  finish(ground, id, Ok(Some(ended))).await;
 }
 
-// A job's end written whole, however its turn came to it.
-async fn finish(ground: &Ground, id: i64, ended: Result<Ended, String>) {
+// A job's end written whole, however its turn came to it; nothing where it was ended from outside while it
+// waited for a road.
+async fn finish(ground: &Ground, id: i64, ended: Result<Option<Ended>, String>) {
   let (state, outcome, report, spent) = match ended {
-    Ok(end) => end,
+    Ok(Some(end)) => end,
+    Ok(None) => return,
     Err(why) => ("stopped".to_owned(), Some("failed".to_owned()), Some(why), None),
   };
   let now = now_ms();
@@ -871,7 +852,7 @@ pub async fn reap_stale(ground: &Ground) -> Result<usize, Refused> {
     let started_at: i64 = row.try_get("", "started_at")?;
     let state: String = row.try_get("", "state")?;
 
-    if now - started_at < REAP_GRACE_MS {
+    if now - started_at < REAP_GRACE_MS || carrying().contains(&id) {
       continue;
     }
 
@@ -980,11 +961,391 @@ async fn noted(ground: &Ground, id: i64, outcome: &str, why: Option<&str>) {
 
 type Ended = (String, Option<String>, Option<String>, Option<Spent>);
 
+/// What carries one turn of a job on one road: the worker's session through the session contract, or a
+/// test's stand-in for it. A turn that could not be carried at all is its error; any turn that was is its
+/// end, however it ended.
+pub trait Carrier {
+  fn carry(&mut self, taken: &Road, prompt: &str) -> impl Future<Output = Result<TurnEnd, String>>;
+}
+
+/// The job a walk of roads carries: its id, its worker and the prompt it was launched with.
+pub struct Carried<'a> {
+  pub id: i64,
+  pub worker: &'a str,
+  pub prompt: &'a str,
+}
+
+/// Why a turn's end says its road stopped answering rather than the work failing, where it does
+/// (docs/cache-fallback.md, 「Automatic walks only on providers, in order」): the provider refusing its quota,
+/// its window, its balance or its credential, its last login closing under it, or the road switched off —
+/// read off the end's own failure, its engine's error, and its words through the one failure reading every
+/// run asks. A turn that answered, or was stopped from outside, never says so.
+pub fn road_stopped(end: &TurnEnd) -> Option<String> {
+  use agent_session::{AccountFailure, Failure, Outcome};
+
+  if matches!(end.outcome, Outcome::Answered | Outcome::Stopped | Outcome::Reprepared) {
+    return None;
+  }
+
+  let words = end
+    .reason
+    .clone()
+    .or_else(|| end.answer.clone())
+    .or_else(|| end.failure.as_ref().map(Failure::words))
+    .unwrap_or_default();
+  let said = || {
+    Some(if words.trim().is_empty() {
+      "its road stopped answering".to_owned()
+    } else {
+      words.clone()
+    })
+  };
+
+  match &end.failure {
+    Some(Failure::Stopped) => return None,
+    Some(
+      Failure::Limit { .. }
+      | Failure::Unavailable { .. }
+      | Failure::Account {
+        failure: AccountFailure::Limit | AccountFailure::Login,
+        ..
+      },
+    ) => return said(),
+    _ => {}
+  }
+
+  let engine = end.engine_error.as_ref().and_then(|engine| engine.kind.as_deref());
+
+  if matches!(engine, Some("rate_limit" | "billing_error" | "authentication_error")) {
+    return said();
+  }
+
+  use crate::job_run::claude::failure::{self as reading, AccountFailure as Read};
+
+  match reading::of_errored(&words, JOB_WORK_KEY) {
+    reading::Failure::Limit { .. }
+    | reading::Failure::Account {
+      failure: Read::Limit | Read::Login,
+      ..
+    } => said(),
+    _ => None,
+  }
+}
+
+/// The line a job's prompt is opened with as it goes out again on the next road, ahead of its own words.
+pub fn continued(from: &Road, why: &str, prompt: &str) -> String {
+  let line =
+    policy::fill_marks(&policy::roads::ROADS.job.continued, &[("from", &from.words()), ("why", why)]);
+
+  format!("{line}\n\n{prompt}")
+}
+
+// One road a job's turn went out on, as the job keeps and answers it.
+fn road_value(taken: &Road, reason: Option<&str>) -> Value {
+  json!({
+    "provider": taken.provider,
+    "model": taken.model,
+    "account": taken.account,
+    "at": now_ms(),
+    "reason": reason,
+  })
+}
+
+// The line a job's report ends with where its turns went out on more than one road: each road it left, why,
+// and the road it ended on.
+fn moved_line(roads: &[(Road, Option<String>)]) -> Option<String> {
+  if roads.len() < 2 {
+    return None;
+  }
+
+  let words = &policy::roads::ROADS.job;
+  let mut parts = vec![];
+
+  for (at, (taken, _)) in roads.iter().enumerate() {
+    match roads.get(at + 1).and_then(|(_, why)| why.as_deref()) {
+      Some(why) => parts.push(policy::fill_marks(&words.road, &[("road", &taken.words()), ("why", why)])),
+      None => parts.push(taken.words()),
+    }
+  }
+
+  Some(policy::fill_marks(&words.moved, &[("roads", &parts.join(", then "))]))
+}
+
+// A job's report with the account of its roads at its end, where it moved.
+fn with_roads(report: Option<String>, roads: &[(Road, Option<String>)]) -> Option<String> {
+  match (report, moved_line(roads)) {
+    (Some(report), Some(moved)) => Some(format!("{report}\n\n{moved}")),
+    (None, Some(moved)) => Some(moved),
+    (report, None) => report,
+  }
+}
+
+fn summed(spent: Option<Spent>, more: Option<Spent>) -> Option<Spent> {
+  match (spent, more) {
+    (Some(spent), Some(more)) => Some(Spent {
+      input_tokens: spent.input_tokens + more.input_tokens,
+      output_tokens: spent.output_tokens + more.output_tokens,
+      cache_read_tokens: spent.cache_read_tokens + more.cache_read_tokens,
+      cache_write_tokens: spent.cache_write_tokens + more.cache_write_tokens,
+    }),
+    (spent, more) => spent.or(more),
+  }
+}
+
+// The roads a job went out on written onto its row, with the model of the last, and the job told.
+async fn kept_roads(ground: &Ground, id: i64, roads: &[(Road, Option<String>)], values: &[Value]) {
+  let model = roads.last().map(|(taken, _)| taken.model.clone());
+
+  if let Err(why) = run(
+    &ground.db,
+    r#"UPDATE "jobs" SET "roads" = $1, "model" = COALESCE($2, "model") WHERE "id" = $3"#,
+    vec![Value::Array(values.to_vec()).to_string().into(), model.into(), id.into()],
+  )
+  .await
+  {
+    eprintln!("job {id}: its roads were not written: {why}");
+  }
+}
+
+// That a job waits for a road, with the reason, or no longer does; the job told either way.
+async fn held_for(ground: &Ground, id: i64, why: Option<&str>) {
+  if let Err(why) = run(
+    &ground.db,
+    r#"UPDATE "jobs" SET "held_for" = $1 WHERE "id" = $2"#,
+    vec![why.map(str::to_owned).into(), id.into()],
+  )
+  .await
+  {
+    eprintln!("job {id}: its hold was not written: {why}");
+  }
+
+  if let Ok((member, _)) = job(&ground.db, id).await {
+    publish(ground, "job.changed", member);
+  }
+}
+
+// Whether a job was ended or stopped from outside while this process carried it.
+async fn ended_outside(ground: &Ground, id: i64) -> bool {
+  job(&ground.db, id)
+    .await
+    .is_ok_and(|(member, _)| matches!(member["state"].as_str(), Some("ended" | "stopped")))
+}
+
+// A job waiting for a road: held with the closed road's sentence and asked again on the policy's clock until
+// a provider of its walk can answer. False where the job was ended from outside while it waited.
+async fn wait_for_road(
+  ground: &Ground,
+  job: &Carried<'_>,
+  resolution: &road::Resolution,
+) -> Result<bool, String> {
+  let sentence = resolution.sentence();
+
+  held_for(ground, job.id, Some(&sentence)).await;
+  road::went(ground, resolution, None, &[]).await;
+  noted_line(ground, job.id, &sentence).await;
+
+  loop {
+    tokio::time::sleep(std::time::Duration::from_secs(policy::roads::ROADS.job.wait_seconds)).await;
+
+    if ended_outside(ground, job.id).await {
+      held_for(ground, job.id, None).await;
+
+      return Ok(false);
+    }
+
+    if road::resolve(ground, &job_ask(job.worker, &[])).await?.road().is_some() {
+      held_for(ground, job.id, None).await;
+
+      return Ok(true);
+    }
+  }
+}
+
+/// A job carried across its roads (docs/cache-fallback.md, 「One road resolution」): each turn goes out on
+/// the road the resolution answers for the job's worker now; a turn whose road stopped answering is carried
+/// again on the next road, the same job in the same checkout, at most once on each provider, its prompt
+/// opened with the line saying it continues the work; and where nothing in the order can answer, the job
+/// waits, held with the reason, until a provider can. The end it answers carries every road's spending and,
+/// in its report, where the job ran and why it moved; none where the job was ended from outside.
+pub async fn carry_job<C: Carrier>(
+  ground: &Ground,
+  job: &Carried<'_>,
+  carrier: &mut C,
+) -> Result<Option<Ended>, String> {
+  let mut left: Vec<Closed> = vec![];
+  let mut roads: Vec<(Road, Option<String>)> = vec![];
+  let mut values: Vec<Value> = vec![];
+  let mut spent: Option<Spent> = None;
+  let mut prompt = job.prompt.to_owned();
+  let mut last: Option<Ended> = None;
+
+  loop {
+    let resolution = road::resolve(ground, &job_ask(job.worker, &left)).await?;
+    let Some(taken) = resolution.road().cloned() else {
+      // Every road that can answer now was already tried in this job: it ends as its last turn did.
+      if let Some((state, outcome, report, _)) = last.take()
+        && road::resolve(ground, &job_ask(job.worker, &[])).await?.road().is_some()
+      {
+        return Ok(Some((state, outcome, with_roads(report, &roads), spent)));
+      }
+
+      if !wait_for_road(ground, job, &resolution).await? {
+        return Ok(None);
+      }
+
+      left.clear();
+      continue;
+    };
+    let why = roads.last().and_then(|_| left.last().map(|left| left.reason.clone()));
+
+    road::went(ground, &resolution, Some(&taken), &[]).await;
+    values.push(road_value(&taken, why.as_deref()));
+    roads.push((taken.clone(), why));
+    kept_roads(ground, job.id, &roads, &values).await;
+
+    let end = carrier.carry(&taken, &prompt).await?;
+
+    spent = summed(spent, turn_spent(&end));
+
+    let outcome = match end.outcome {
+      agent_session::Outcome::Answered => None,
+      other => Some(format!("{other:?}").to_lowercase()),
+    };
+    let report = match outcome {
+      None => end.answer.clone(),
+      Some(_) => end.answer.clone().or_else(|| end.reason.clone()),
+    };
+
+    let Some(stopped) = road_stopped(&end) else {
+      return Ok(Some(("ended".to_owned(), outcome, with_roads(report, &roads), spent)));
+    };
+
+    noted_line(
+      ground,
+      job.id,
+      &format!("The job's road {} stopped answering: {stopped}", taken.words()),
+    )
+    .await;
+    prompt = continued(&taken, &stopped, job.prompt);
+    left.push(Closed::plain(&taken.provider, stopped));
+    last = Some(("ended".to_owned(), outcome, report, None));
+  }
+}
+
+// One line written into a job's log under its run.
+async fn noted_line(ground: &Ground, id: i64, text: &str) {
+  let Ok((member, _)) = job(&ground.db, id).await else {
+    return;
+  };
+  let mut log = RunLog::new(Target {
+    agent: member["workerName"].as_str().unwrap_or_default().to_owned(),
+    run: member["runName"].as_str().map_or_else(|| format!("job-{id}"), str::to_owned),
+    chat_id: member["roomId"].as_i64(),
+    job_id: Some(id),
+  });
+
+  log.write(&ground.db, Line::note(text.to_owned())).await;
+}
+
+// The worker's session carrying a job's turns: each turn on the work parts of its road, a run of the ledger
+// opened for it and closed as it ends.
+struct OnSession<'a> {
+  ground: &'a Ground,
+  sessions: crate::herdr_backend::Shared,
+  session_id: String,
+  member: &'a Value,
+  worker: &'a str,
+  room: i64,
+  name: &'a str,
+  title: &'a str,
+}
+
+impl Carrier for OnSession<'_> {
+  async fn carry(&mut self, taken: &Road, prompt: &str) -> Result<TurnEnd, String> {
+    let ground = self.ground;
+    let member = self.member;
+    let id = member["id"].as_i64().unwrap_or_default();
+    let parts = work_parts(ground, self.worker, self.room, self.name, self.title, taken).await?;
+    let ledger = run_ledger::open(
+      &ground.db,
+      &Opening {
+        agent: self.worker.to_owned(),
+        chat_id: member["roomId"].as_i64(),
+        unit: self.name.to_owned(),
+        depth: 0,
+        cap_ms: None,
+        started_at: now_ms().div_euclid(1000),
+        started_by: Some(member["holderName"].as_str().unwrap_or_default().to_owned()),
+        search_id: None,
+        round: None,
+        message_id: None,
+      },
+    )
+    .await
+    .map_err(|why| why.detail)?;
+    run(
+      &ground.db,
+      r#"UPDATE "jobs" SET "state" = 'running', "session_id" = $1, "run_name" = $2, "model" = $3, "run_id" = $5
+         WHERE "id" = $4"#,
+      vec![
+        self.session_id.clone().into(),
+        self.name.to_owned().into(),
+        parts.mapping.model.clone().into(),
+        id.into(),
+        ledger.into(),
+      ],
+    )
+    .await
+    .map_err(|why| why.detail)?;
+    if let Ok((member, _)) = job(&ground.db, id).await {
+      publish(ground, "job.changed", member);
+    }
+
+    let sent = self
+      .sessions
+      .send_turn(Turn {
+        session: SessionId(self.session_id.clone()),
+        prompt: prompt.to_owned(),
+        context: TurnContext {
+          job: Some(JobMark {
+            job: id,
+            item: member["itemId"].as_i64(),
+          }),
+          work: Some(parts),
+          ..TurnContext::default()
+        },
+      })
+      .await;
+    let end = match sent {
+      Ok(end) => end,
+      Err(fault) => {
+        closed(ground, ledger, "failed", None, None).await;
+        return Err(fault.message);
+      }
+    };
+    let outcome = match end.outcome {
+      agent_session::Outcome::Answered => "answered".to_owned(),
+      other => format!("{other:?}").to_lowercase(),
+    };
+
+    closed(
+      ground,
+      ledger,
+      &outcome,
+      end.reply.as_ref().and_then(|reply| reply.context_tokens),
+      turn_spent(&end),
+    )
+    .await;
+
+    Ok(end)
+  }
+}
+
 async fn launched(
   ground: &Ground,
   sessions: Option<crate::herdr_backend::Shared>,
   id: i64,
-) -> Result<Ended, String> {
+) -> Result<Option<Ended>, String> {
   let (member, prompt) = job(&ground.db, id).await.map_err(|why| why.error)?;
   let worker_name = member["workerName"].as_str().unwrap_or_default().to_owned();
   let room = member["roomId"].as_i64().unwrap_or(0);
@@ -1005,66 +1366,27 @@ async fn launched(
     })
     .await
     .map_err(|fault| fault.message)?;
-  let session_id = session.id.0;
-  let parts = work_parts(ground, &worker_name, room, &name, &title).await?;
-  let ledger = run_ledger::open(
-    &ground.db,
-    &Opening {
-      agent: worker_name.clone(),
-      chat_id: member["roomId"].as_i64(),
-      unit: name.clone(),
-      depth: 0,
-      cap_ms: None,
-      started_at: now_ms().div_euclid(1000),
-      started_by: Some(member["holderName"].as_str().unwrap_or_default().to_owned()),
-      search_id: None,
-      round: None,
-      message_id: None,
-    },
-  )
-  .await
-  .map_err(|why| why.detail)?;
-  run(
-    &ground.db,
-    r#"UPDATE "jobs" SET "state" = 'running', "session_id" = $1, "run_name" = $2, "model" = $3, "run_id" = $5
-       WHERE "id" = $4"#,
-    vec![
-      session_id.clone().into(),
-      name.clone().into(),
-      parts.mapping.model.clone().into(),
-      id.into(),
-      ledger.into(),
-    ],
-  )
-  .await
-  .map_err(|why| why.detail)?;
-  if let Ok((member, _)) = job(&ground.db, id).await {
-    publish(ground, "job.changed", member);
-  }
-
-  let sent = sessions
-    .send_turn(Turn {
-      session: SessionId(session_id),
-      prompt,
-      context: TurnContext {
-        job: Some(JobMark {
-          job: id,
-          item: member["itemId"].as_i64(),
-        }),
-        work: Some(parts),
-        ..TurnContext::default()
-      },
-    })
-    .await;
-  let end = match sent {
-    Ok(end) => end,
-    Err(fault) => {
-      closed(ground, ledger, "failed", None, None).await;
-      return Err(fault.message);
-    }
+  let mut carrier = OnSession {
+    ground,
+    sessions,
+    session_id: session.id.0,
+    member: &member,
+    worker: &worker_name,
+    room,
+    name: &name,
+    title: &title,
   };
 
-  Ok(ended_of(ground, ledger, end).await)
+  carry_job(
+    ground,
+    &Carried {
+      id,
+      worker: &worker_name,
+      prompt: &prompt,
+    },
+    &mut carrier,
+  )
+  .await
 }
 
 // What a job's turn's end makes of the job, its run closed with it.
