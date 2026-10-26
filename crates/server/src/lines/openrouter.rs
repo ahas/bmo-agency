@@ -87,6 +87,12 @@ pub fn resident_command(
       env.insert(route.key_env.clone(), key.trim().to_owned());
     }
   }
+  // A stdio server's own value the program does not hold under its name — the chat's own job token — is
+  // carried under the server's own variable, which the overlay reads.
+  let carried = dsh::server_values(run.mcp, &env)?;
+
+  env.extend(carried);
+
   let patch = dsh::session_patch(run, &env, &ground.roots.data, route)?;
 
   // dsh starts its shell on an environment scrubbed of every variable whose name says it holds a

@@ -380,10 +380,12 @@
     when its research closes are its prompt, so every branch shares one prefix.
   - **A research run's rounds.** A run on a research line keeps no receiver, so agency asks the
     line's questions itself after the run's first answer (`docs/api.md`, 「research drafts」): each
-    question goes to the same session as one more turn, carrying the task it was given and the answer
-    it wrote last, and the last answer is the run's result. The session already holds every earlier
-    answer, so a round carries none of them again; the task and the latest answer are what a round needs
-    where it reaches a session that does not hold them. The policy holds the questions and each research
+    question goes to a session of the rounds' own, opened fresh by the first round on the same program
+    and road, as one more turn of it, carrying the task it was given and the answer written last, and the
+    last answer is the run's result. The search session is let go after its first answer, so no round
+    reads again the pages and branches it fetched; the rounds' session holds the rounds' own words. Its
+    record withholds the branches, the image viewer and the rulebook reader, so a round that checks a
+    source holds the reading tools alone. The policy holds the questions and each research
     key's list in `policy/research.toml` — what the task must establish, the sources the answer needs,
     whether every fact was checked against a second source, whether the answer covers the question,
     whether the facts it rests on were established, and finally the answer itself. The list is the key's,

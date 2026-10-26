@@ -63,24 +63,28 @@ same way (`docs/launch-lines.md`, 「Translate runner」).
    the options, the depth and the branches it may open (a browse: the task and its time); the program
    answers in its pane, on the logins the key's walk offers one after another where a login fails under it
    (`docs/cache-fallback.md`, 「Automatic walks only on providers, in order」).
-5. **The rounds:** after the first answer the key's research rounds are asked of the same session, one
-   turn each — at the basic depth only the final question, at the deeper ones every question in turn
+5. **The rounds:** after the first answer the key's research rounds are asked of a session of their own,
+   opened fresh on the same program and road, one turn each — at the basic depth only the final question, at the deeper ones every question in turn
    (`docs/launch-lines.md`, 「A research run's rounds」, `docs/api.md`, 「research drafts」); the last answer
    is the run's result.
 6. **The end:** the run is closed in the ledger with what it spent, and its log says how it ended.
    Every result leaves its document, a brief one included, written for its reader and filed in
-   bmo-artifact (its `POST /documents`, then a share link by `POST /shares`); bmo-artifact draws it
+   bmo-artifact (its `POST /documents`, then a share link by `POST /shares` that ends a day after it is
+   made — the document stays in the archive, and a person who wants it again takes a fresh link from the
+   console); bmo-artifact draws it
    (its `docs/archive.md`, 「How a document is drawn」, 「Attachments」, 「References」). The result is the
    searcher's structure lines (`prompts/agents/search/task.md`, `prompts/rules/search-kinds.md`); the
    document is made of them and carries none of them:
    - **its head:** the title is the `TITLE:` line and the description the `TOPIC:` line, both in the
-     question's language as the searcher writes them; the kind is `learning` where `KIND: learning`
-     says so and `record` otherwise; the labels are the run, its key, its question, its `KEYWORDS:` and
+     question's language as the searcher writes them, the description handed as the document's own so a
+     card or a preview reads it rather than the body; the kind is `learning` where `KIND: learning` says
+     so and `search` otherwise; the labels are the run, its key, its question, its `KEYWORDS:` and
      its `RULE:` where it has one. The `ANSWERED:` line is the run's own and stands nowhere.
    - **its body:** each block a section under a heading in the question's language, the words of
      `prompts/agents/search/document.toml`: the verdict under 「the answer」, the summary as its
      numbered list under 「the summary」 — under 「the answer」 itself on a brief result, which has no
-     verdict — each `SECTION:` under its own name, a section of grounds under 「the grounds」, the
+     verdict — each `SECTION:` under its own name — the product line's news under 「the news」, since its rulebook
+     names that section in English — a section of grounds under 「the grounds」, the
      unconfirmed list under 「what was not confirmed」, and the sources last under 「the sources」, one
      numbered line each, the page as a link titled by what it supports, the snippet-only mark kept.
      Tables, lists and `mermaid` blocks stand as written. A set's entries stand as sections of their

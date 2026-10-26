@@ -425,6 +425,9 @@ pub fn brief_of(result: &str) -> Option<String> {
     .or_else(|| head_line(result, "TITLE:").map(str::to_owned))
 }
 
+/// How long a research document's share link opens.
+pub const SHARE_LIFE: Duration = Duration::from_secs(24 * 3_600);
+
 /// Who a research document is filed by.
 pub const RESEARCH_ACTOR: &str = "research";
 
@@ -457,7 +460,11 @@ pub async fn file_result(
       .await?;
   }
 
-  let shared = artifact.send(reqwest::Method::POST, "/shares", &json!({ "documentId": id })).await?;
+  // The link ends a day after it is made; the document stays in the archive.
+  let ends = now_ms() + SHARE_LIFE.as_millis() as i64;
+  let shared = artifact
+    .send(reqwest::Method::POST, "/shares", &json!({ "documentId": id, "expiresAt": ends }))
+    .await?;
 
   shared["url"]
     .as_str()
@@ -567,6 +574,19 @@ pub async fn sweep_cut(
   }
 
   Ok(closed)
+}
+
+/// The variables a run's rounds go out with: its own, its branches, images and rulebooks closed, so a round
+/// that checks a source holds the reading tools alone.
+pub fn rounds_variables(vars: &BTreeMap<String, String>) -> BTreeMap<String, String> {
+  let mut rounds = vars.clone();
+
+  for closed in ["BMO_RESEARCH_TOOLS", "BMO_RESEARCH_IMAGES", "BMO_RESEARCH_RULEBOOKS"] {
+    rounds.remove(closed);
+  }
+
+  rounds.insert("BMO_RESEARCH_BRANCHES".to_owned(), "0".to_owned());
+  rounds
 }
 
 // The depth a search key names, as the request words it; a browse names none.
@@ -778,6 +798,8 @@ struct OnLogin<'a> {
   resume: bool,
   prompt: String,
   account: Option<Account>,
+  /// The run variables this turn goes out with: the run's own, or the rounds' narrower ones.
+  vars: &'a BTreeMap<String, String>,
 }
 
 impl Attempt<Reply> for OnLogin<'_> {
@@ -795,7 +817,7 @@ impl Attempt<Reply> for OnLogin<'_> {
     let mut env = command_env(ground.env(), account.as_ref(), &Runs::Here, going.run.thinking)
       .map_err(|why| Failure::error(why.detail))?;
 
-    for (name, value) in &going.vars {
+    for (name, value) in self.vars {
       env.insert(name.clone(), Some(value.clone()));
     }
 
@@ -924,6 +946,7 @@ impl Going {
       resume: false,
       prompt: self.prompt.clone(),
       account: None,
+      vars: &self.vars,
     };
     let answered = on_accounts(&Walking { ground: &ground }, &self.ask.key, None, &mut first).await;
     let account = first.account.clone();
@@ -1040,7 +1063,7 @@ impl Going {
   // leaves the last answer standing.
   async fn rounds(
     &self,
-    session: &str,
+    _first: &str,
     account: Option<Account>,
     answers: &mut Vec<String>,
     spent: &mut Option<Spent>,
@@ -1050,6 +1073,9 @@ impl Going {
     let Ok(Some(process)) = crate::research_draft::process_of(db, &self.ask.key).await else {
       return;
     };
+    let rounds_session = new_session();
+    let rounds_vars = rounds_variables(&self.vars);
+    let mut asked_any = false;
     let began = std::time::Instant::now();
     let mut asking = 0;
 
@@ -1076,16 +1102,20 @@ impl Going {
         asking += 1;
         continue;
       };
+      // The rounds go to a session of their own, opened by the first of them, so no round reads again the
+      // pages the search session fetched: each carries the task and the last answer.
       let mut round = OnLogin {
         going: self,
-        session: session.to_owned(),
-        resume: true,
+        session: rounds_session.clone(),
+        resume: asked_any,
         prompt: crate::research_draft::prompt(&question, &self.prompt, answers),
         account: None,
+        vars: &rounds_vars,
       };
 
       match round.attempt(account.clone()).await {
         Ok(reply) => {
+          asked_any = true;
           *spent = sum(spent.take(), spent_of(&reply));
           answers.push(reply.text);
         }

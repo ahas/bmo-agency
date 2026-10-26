@@ -18,6 +18,7 @@ newer = "후속 모델"
 stock = "판매 상태"
 deal = "할인"
 review = "후기"
+news = "신제품·가격 소식"
 
 [en]
 answer = "The answer"
@@ -35,3 +36,4 @@ newer = "Newer model"
 stock = "Stock"
 deal = "Deal"
 review = "Review"
+news = "New products and prices"

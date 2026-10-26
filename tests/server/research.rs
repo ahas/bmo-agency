@@ -311,3 +311,18 @@ async fn the_routes_keep_the_settings_and_refuse_what_is_no_research_or_what_not
   );
   assert_eq!(lines.iter().filter(|line| **line == "browse").count(), 1);
 }
+
+// The rounds go out on a session of their own whose record withholds the branches, the image viewer and
+// the rulebook reader (docs/launch-lines.md, 「A research run's rounds」).
+#[test]
+fn the_rounds_hold_the_reading_tools_alone() {
+  let vars =
+    variables(&defaults(), "search:thorough", "search", Some("the owner"), Some(5), 1_900_000_000_000);
+  let rounds = rounds_variables(&vars);
+
+  assert!(vars.contains_key("BMO_RESEARCH_TOOLS"));
+  assert!(!rounds.contains_key("BMO_RESEARCH_TOOLS") && !rounds.contains_key("BMO_RESEARCH_IMAGES"));
+  assert!(!rounds.contains_key("BMO_RESEARCH_RULEBOOKS"));
+  assert_eq!(rounds["BMO_RESEARCH_BRANCHES"], "0");
+  assert_eq!(rounds["BMO_RESEARCH_CLOSES_AT"], vars["BMO_RESEARCH_CLOSES_AT"]);
+}

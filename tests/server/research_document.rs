@@ -84,7 +84,7 @@ fn a_brief_result_is_its_answer_its_grounds_what_was_not_confirmed_and_its_sourc
       format!("## {}", words.sources)
     ]
   );
-  assert!(body.starts_with("_the base rate today_"), "{body}");
+  assert!(body.starts_with(&format!("## {}", words.brief_answer)), "{body}");
   assert!(body.contains("- [1] [the bank's rate history](https://example.org/rates)"), "{body}");
   assert!(body.contains("- [2\u{2020}] [snippet: held](https://news.example/held)"), "{body}");
 
@@ -157,7 +157,8 @@ fn a_result_is_filed_titled_by_its_head_and_labelled_with_its_run_and_a_study_ma
   let drawn = draw(BRIEF, &english());
   let document = filing(&drawn, 7, "search:basic", " the rate ", Some(5));
 
-  assert_eq!(document["kind"], "record");
+  assert_eq!(document["kind"], "search");
+  assert_eq!(document["description"], "the base rate today");
   assert_eq!(document["title"], "The base rate stays at 3.00%");
   assert_eq!(document["body"], drawn.body);
   assert_eq!(document["scope"], "5");
@@ -257,6 +258,23 @@ async fn a_picture_that_cannot_be_kept_is_drawn_from_its_address_and_the_documen
     made.iter().map(|(method, path, _)| (method.as_str(), path.as_str())).collect();
 
   assert_eq!(paths, [("POST", "/documents"), ("PATCH", "/documents/41"), ("POST", "/shares")]);
+
+  let ends = made[2].2["expiresAt"].as_i64().unwrap();
+  let day = agency_server::research::SHARE_LIFE.as_millis() as i64;
+
+  assert!(
+    (ends - agency_server::now_ms() - day).abs() < 60_000,
+    "the link ends a day after it is made"
+  );
   assert!(made[1].2["body"].as_str().unwrap().contains("![a picture](http://127.0.0.1:1/p.jpg)"));
   assert_eq!(file_result(&BTreeMap::new(), &document, &drawn).await.unwrap(), None);
+}
+
+#[test]
+fn the_product_line_s_news_section_stands_under_its_heading_in_the_question_s_language() {
+  let words = words(&trees(), "ko").unwrap();
+  let drawn = draw("TITLE: t\n\nVERDICT:\n1. a\n\nSECTION: New products and prices\nnews", &words);
+
+  assert!(drawn.body.contains(&format!("## {}", words.news)), "{}", drawn.body);
+  assert!(!drawn.body.contains("New products and prices"));
 }

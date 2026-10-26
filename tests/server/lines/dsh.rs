@@ -212,3 +212,69 @@ fn the_same_session_composes_the_same_overlay_and_a_changed_prompt_another() {
 
   assert_ne!(session_patch(&run, &env, dir.path(), route).unwrap(), first);
 }
+
+// A stdio server's value the program holds under the same name is read by that name; one it holds otherwise
+// — the chat's own job token beside the shared one — is carried under the server's own variable, which the
+// overlay reads (docs/agent-control.md, the overlay's MCP servers).
+#[test]
+fn a_server_s_own_value_is_carried_under_its_own_variable_where_the_program_holds_another() {
+  let dir = tempfile::tempdir().unwrap();
+  let system = dir.path().join("system.md");
+  let mcp = dir.path().join("mcp.json");
+
+  std::fs::write(&system, "You are the agent.\n").unwrap();
+  std::fs::write(
+    &mcp,
+    r#"{"mcpServers": {
+      "job": {"command": "bmo-job", "args": ["mcp"], "env": {"BMO_JOB_TOKEN": "chat-token"}},
+      "agency": {"command": "bmo-agency", "args": ["mcp"], "env": {"AGENCY_CONTROL_TOKEN": "control"}}
+    }}"#,
+  )
+  .unwrap();
+
+  let env = BTreeMap::from([
+    ("BMO_JOB_TOKEN".to_owned(), "shared-token".to_owned()),
+    ("AGENCY_CONTROL_TOKEN".to_owned(), "control".to_owned()),
+  ]);
+  let carried = server_values(Some(&mcp), &env).unwrap();
+
+  assert_eq!(server_variable("job", "BMO_JOB_TOKEN"), "BMO_MCP_JOB_BMO_JOB_TOKEN");
+  assert_eq!(
+    carried,
+    BTreeMap::from([("BMO_MCP_JOB_BMO_JOB_TOKEN".to_owned(), "chat-token".to_owned())])
+  );
+
+  let mut program = env.clone();
+
+  program.extend(carried);
+
+  let run = Composed {
+    line: "chat",
+    provider: "deepseek",
+    system: Some(&system),
+    rules: None,
+    shown: Some("Bash,Read"),
+    allowed: Some("Bash,Read"),
+    cwd: "/work",
+    model: "deepseek-flash",
+    effort: "max",
+    chosen: true,
+    thinking: true,
+    mcp: Some(&mcp),
+  };
+  let route = DEEPSEEK.declared.dsh.as_ref().unwrap();
+  let text = std::fs::read_to_string(session_patch(&run, &program, dir.path(), route).unwrap()).unwrap();
+
+  assert!(
+    text.contains("\"BMO_JOB_TOKEN\": !!js \"process.env.BMO_MCP_JOB_BMO_JOB_TOKEN\""),
+    "{text}"
+  );
+  assert!(
+    text.contains("\"AGENCY_CONTROL_TOKEN\": !!js \"process.env.AGENCY_CONTROL_TOKEN\""),
+    "{text}"
+  );
+  assert!(
+    !text.contains("chat-token") && !text.contains("\"control\""),
+    "no value in the file: {text}"
+  );
+}

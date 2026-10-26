@@ -31,7 +31,11 @@ pub struct Words {
   pub stock: String,
   pub deal: String,
   pub review: String,
+  pub news: String,
 }
+
+// The name the product rulebook gives its news section, which a result writes in English.
+const NEWS_SECTION: &str = "New products and prices";
 
 // The language a document is written in where the question's has no words of its own.
 const FALLBACK_LANGUAGE: &str = "en";
@@ -182,8 +186,19 @@ pub fn draw(result: &str, words: &Words) -> Drawn {
       heading(&mut body, if brief { &words.brief_answer } else { &words.summary });
     } else if let Some(name) = after(trimmed, "SECTION:") {
       let grounds = name.eq_ignore_ascii_case("grounds") || name == words.grounds;
+      // The product rulebook names its news section in English, the one name a result writes as it stands.
+      let news = name.eq_ignore_ascii_case(NEWS_SECTION);
 
-      heading(&mut body, if grounds { &words.grounds } else { name });
+      heading(
+        &mut body,
+        if grounds {
+          &words.grounds
+        } else if news {
+          &words.news
+        } else {
+          name
+        },
+      );
     } else if trimmed == "UNCONFIRMED:" {
       heading(&mut body, &words.unconfirmed);
     } else if trimmed == "===ITEM===" {
@@ -271,11 +286,6 @@ pub fn draw(result: &str, words: &Words) -> Drawn {
     }
   }
 
-  if let Some(topic) = &drawn.description {
-    body.insert(0, String::new());
-    body.insert(0, format!("_{topic}_"));
-  }
-
   drawn.body = tidy(&body);
   drawn.narration = Some(narration.join("\n").trim().to_owned()).filter(|text| !text.is_empty());
   drawn
@@ -300,8 +310,8 @@ fn tidy(lines: &[String]) -> String {
   out.join("\n")
 }
 
-/// The document as bmo-artifact files it: its kind, title, body — opened by the topic, which bmo-artifact
-/// reads as its description — scope and labels.
+/// The document as bmo-artifact files it: its kind — `search`, or `learning` for study material — title,
+/// description (the topic), body, scope and labels.
 pub fn filing(drawn: &Drawn, ledger: i64, key: &str, query: &str, room: Option<i64>) -> Value {
   let mut labels = json!({ "research": ledger.to_string(), "key": key, "query": query.trim() });
 
@@ -318,8 +328,9 @@ pub fn filing(drawn: &Drawn, ledger: i64, key: &str, query: &str, room: Option<i
   }
 
   json!({
-    "kind": if drawn.learning { "learning" } else { "record" },
+    "kind": if drawn.learning { "learning" } else { "search" },
     "title": drawn.title.clone().unwrap_or_else(|| query.trim().to_owned()),
+    "description": drawn.description,
     "body": drawn.body,
     "scope": room.filter(|room| *room != 0).map(|room| room.to_string()),
     "actorName": crate::research::RESEARCH_ACTOR,

@@ -28,7 +28,7 @@ a field's exact shape matters, the OpenAPI document is the one to read.
 ## Versioning
 
 - The contract carries the repository's one version, in semver; the workspace manifest is its source. Before
-  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.80`.
+  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.81`.
 - A change to this document and a change to the boundary go in one commit. A change to a route, an event, a
   hook or a shared table's contract repairs this document in the same commit.
 - The major moves on a removed or renamed route, field or event, the minor on an addition, the patch on
@@ -546,8 +546,9 @@ them; a notice that holds nothing is withdrawn.
 | PUT | `/draft-questions/{name}` | Change a question's text, or add one under a name of the console's own. |
 
 - **A research run keeps no receiver, so agency asks its rounds** (`docs/launch-lines.md`, 「A research
-  run's rounds」): after the answer to the task, the key's questions go to the same session one turn
-  each, carrying the task and the answer written last, and the last answer is the run's result.
+  run's rounds」): after the answer to the task, the key's questions go to a session of the rounds' own,
+  opened fresh, one turn each, carrying the task and the answer written last, and the last answer is the
+  run's result.
 - **The rows are in the receiver's draft-process shape,** keyed by the research key whose runs ask them
   (`search:basic`, `search:thorough`, `search:exhaustive`, `browse`), which `line` names, rather than by a
   provider, a tier and an agent: `line`, `rounds`, `ceilingSeconds`, `pastCeiling` (`final` or `last`) and `source`

@@ -667,7 +667,10 @@ in the provider's own terms:
     open, and a tool host namespace with nothing placed for the session answers not found. bmo-tui hands
     the session none of its own, so no server stands twice. A server's bearer and every variable it is
     given are read from dsh's own environment as the overlay loads, never written into the overlay's
-    file.
+    file: under the variable's own name where the program's environment holds the same value, and
+    otherwise — the job plugin started on the chat's own caller token, beside the deployment's shared one
+    the program carries — under a name of the server's own, `BMO_MCP_<SERVER>_<NAME>`, which the
+    program's environment is given with the value the configuration names.
   - **The shell keeps the variables dsh drops.** dsh starts every child, its shell among them, on an
     environment scrubbed of each variable whose name holds `KEY`, `PASSWORD`, `SECRET` or `TOKEN`, and
     names no exception to that rule. So the program's command opts into carrying: as its program is

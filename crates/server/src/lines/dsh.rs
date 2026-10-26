@@ -115,11 +115,56 @@ fn bearer_variable(headers: &IndexMap<String, String>) -> Option<String> {
   .then(|| name.to_owned())
 }
 
+/// The variable a stdio server's own value is carried under in dsh's environment where the program's
+/// environment holds another under the same name: `BMO_MCP_<SERVER>_<NAME>`.
+pub fn server_variable(server: &str, name: &str) -> String {
+  let server: String = server
+    .chars()
+    .map(|c| if c.is_ascii_alphanumeric() { c.to_ascii_uppercase() } else { '_' })
+    .collect();
+
+  format!("BMO_MCP_{server}_{name}")
+}
+
+/// The values the run's stdio servers are given that the program's environment does not hold under their own
+/// names, each under its server's own variable, for the program's environment to carry.
+pub fn server_values(
+  path: Option<&Path>,
+  env: &BTreeMap<String, String>,
+) -> Result<BTreeMap<String, String>, Refusal> {
+  let Some(path) = path.filter(|path| !path.as_os_str().is_empty()) else {
+    return Ok(BTreeMap::new());
+  };
+  let read = std::fs::read_to_string(path).map_err(|why| fault(format!("{}: {why}", path.display())))?;
+  let file: McpFile =
+    serde_json::from_str(&read).map_err(|why| fault(format!("{}: {why}", path.display())))?;
+  let mut values = BTreeMap::new();
+
+  for (name, server) in &file.servers {
+    if let Some(Ordered::Map(given)) = &server.env {
+      for (key, value) in given {
+        if let Some(value) = value.as_text()
+          && env.get(key).map(String::as_str) != Some(value)
+        {
+          values.insert(server_variable(name, key), value.to_owned());
+        }
+      }
+    }
+  }
+
+  Ok(values)
+}
+
 // The MCP servers the run may reach, each a client of its own under the name its tools are called by: a
 // server on the tool host as a Streamable HTTP row with its bearer header read from dsh's environment, any
 // other as the command it is spawned on. A loud client that cannot open fails its own activation, which dsh
 // writes to its error stream with the cause; a quiet one is let go without a word.
-fn mcp_rows(path: Option<&Path>, cwd: &str, loud: bool) -> Result<Vec<Ordered>, Refusal> {
+fn mcp_rows(
+  path: Option<&Path>,
+  cwd: &str,
+  loud: bool,
+  env: &BTreeMap<String, String>,
+) -> Result<Vec<Ordered>, Refusal> {
   let Some(path) = path.filter(|path| !path.as_os_str().is_empty()) else {
     return Ok(vec![]);
   };
@@ -169,12 +214,18 @@ fn mcp_rows(path: Option<&Path>, cwd: &str, loud: bool) -> Result<Vec<Ordered>, 
         _ => Ordered::List(vec![]),
       };
       // Each variable the server is handed is read from dsh's own environment, where the program's
-      // command carries it, rather than written into the overlay.
-      let env = match &server.env {
-        Some(Ordered::Map(env)) => Ordered::map(
-          env
-            .keys()
-            .map(|name| (name.clone(), Ordered::Text(format!("{VALUE_MARK}{name}"))))
+      // command carries it, rather than written into the overlay: under its own name where the program
+      // holds the same value, under the server's own variable otherwise.
+      let given = match &server.env {
+        Some(Ordered::Map(given)) => Ordered::map(
+          given
+            .iter()
+            .map(|(key, value)| {
+              let own = value.as_text().is_none_or(|value| env.get(key).map(String::as_str) == Some(value));
+              let read = if own { key.clone() } else { server_variable(&name, key) };
+
+              (key.clone(), Ordered::Text(format!("{VALUE_MARK}{read}")))
+            })
             .collect::<Vec<_>>(),
         ),
         _ => Ordered::map(Vec::<(String, Ordered)>::new()),
@@ -190,7 +241,7 @@ fn mcp_rows(path: Option<&Path>, cwd: &str, loud: bool) -> Result<Vec<Ordered>, 
             ("serverName", Ordered::Text(name.clone())),
             ("command", text(command)),
             ("args", args),
-            ("env", env),
+            ("env", given),
             ("cwd", text(cwd)),
             ("failOnStartupError", Ordered::Flag(loud)),
           ]),
@@ -378,7 +429,7 @@ fn overlay_of_with(
   // the profile lacks is a change to nothing, which dsh mounts nothing for. A standing session's clients
   // say why one did not open; a headless run's go quietly, its error stream being its failure's account.
   if mcp {
-    let servers = mcp_rows(run.mcp, run.cwd, tools == Tools::Session)?;
+    let servers = mcp_rows(run.mcp, run.cwd, tools == Tools::Session, env)?;
 
     if !servers.is_empty() {
       rows.push(map(vec![("insert", Ordered::List(servers))]));
@@ -748,9 +799,13 @@ pub fn line_command(
   env: &BTreeMap<String, String>,
   data: &Path,
 ) -> Result<Command, Refusal> {
-  let overlay = overlay_text(&overlay_of(run, env, openrouter_route()?)?)?;
+  let mut env = env.clone();
 
-  launched(run.line, prompt, &overlay, run.cwd, env, data, run.permission_mode())
+  env.extend(server_values(run.mcp, &env)?);
+
+  let overlay = overlay_text(&overlay_of(run, &env, openrouter_route()?)?)?;
+
+  launched(run.line, prompt, &overlay, run.cwd, &env, data, run.permission_mode())
 }
 
 // The line a gate's run goes out on, which its files under dsh's home are named by.
