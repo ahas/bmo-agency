@@ -10,7 +10,7 @@ use agent_host::place::RunningProgram;
 use herdr::Fault;
 use policy::resident_turn::RESIDENT_TURN;
 use serde::Deserialize;
-use serde_json::json;
+use serde_json::{Value, json};
 
 use super::looks::{GoneConfirm, Look, send_keys, status_of};
 use super::place_run::read_run;
@@ -120,8 +120,19 @@ async fn rebuild(place: &Place, home: &Home, pane: Option<&str>) -> bool {
   true
 }
 
-// How long a research place's session token may stand if nothing takes it back first.
-const RESEARCH_TOKEN_LIFE: Duration = Duration::from_secs(24 * 3_600);
+// How long past the moment its run's web tools close a research place's session token may stand where
+// nothing takes it back first, and from its issue where that moment has passed (docs/research-runs.md, 「The
+// road」).
+const RESEARCH_TOKEN_GRACE: Duration = Duration::from_secs(30 * 60);
+
+/// The moment a research place's session token stands until, in epoch milliseconds: its run's web tools
+/// closing, where its research settings name the moment, and the grace past it, but never less than the grace
+/// from `now`.
+pub fn research_token_deadline(research: &Value, now: u64) -> u64 {
+  let closes = research.get("closesAt").and_then(Value::as_u64).unwrap_or(now);
+
+  closes.max(now) + RESEARCH_TOKEN_GRACE.as_millis() as u64
+}
 
 /// The program the turn needs, standing. A place already running it is left as it is, and so is one
 /// running another program while its record says a turn of it works. A different program is written and
@@ -166,8 +177,8 @@ pub async fn stand_resident(
     let checkout = token::record_checkout(ground, &place.path, &program.command.cwd.to_string_lossy());
     // A program carrying a research run's settings holds them on its record, as a run apart's does, under
     // the runner its line is, whose role gives the research tools (docs/research-runs.md, 「The road」).
-    let issued = if token::research_record(&program.command.env).0.is_some() {
-      let deadline = u64::try_from(now_ms()).unwrap_or_default() + RESEARCH_TOKEN_LIFE.as_millis() as u64;
+    let issued = if let Some(research) = token::research_record(&program.command.env).0 {
+      let deadline = research_token_deadline(&research, u64::try_from(now_ms()).unwrap_or_default());
 
       token::issue_for_run(ground, line, line, &checkout.to_string_lossy(), &program.command.env, deadline)
         .await

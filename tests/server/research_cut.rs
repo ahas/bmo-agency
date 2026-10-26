@@ -74,11 +74,50 @@ fn ground(scratch: &Scratch, home: &std::path::Path, address: &str) -> Arc<Groun
       ("PATH".to_owned(), "/usr/bin:/bin".to_owned()),
       ("BMO_RECEIVER_URL".to_owned(), address.to_owned()),
       ("BMO_RECEIVER_TOKEN".to_owned(), "receiver-token".to_owned()),
+      ("BMO_MCP_HOST_SOCKET".to_owned(), home.join("host.sock").to_string_lossy().into_owned()),
+      ("BMO_MCP_HOST_ISSUER_TOKEN".to_owned(), "issuer".to_owned()),
     ],
     home.join("data"),
   );
 
   Arc::new(Ground::new(&service, &machine, None))
+}
+
+// The tool host's stand-in on its socket under `home`, keeping every session it is asked to take back.
+fn tool_host(home: &std::path::Path) -> Arc<Mutex<Vec<String>>> {
+  let revoked: Arc<Mutex<Vec<String>>> = Arc::default();
+  let listener = tokio::net::UnixListener::bind(home.join("host.sock")).unwrap();
+  let kept = revoked.clone();
+  let app = axum::Router::new().route(
+    "/tool-sessions/{token}",
+    axum::routing::delete(move |axum::extract::Path(token): axum::extract::Path<String>| {
+      let kept = kept.clone();
+
+      async move {
+        kept.lock().unwrap().push(token);
+        StatusCode::NO_CONTENT
+      }
+    }),
+  );
+
+  tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+  revoked
+}
+
+// A place's program record, carrying the session token it was issued.
+fn program_with(place: &std::path::Path, token: &str) {
+  let program = agency_server::lines::place::Program {
+    identity: "a-program".into(),
+    command: agent_host::place::ResidentCommand {
+      args: vec!["bmo-tui".into()],
+      cwd: place.to_path_buf(),
+      env: [("BMO_MCP_TOKEN".to_owned(), token.to_owned())].into(),
+    },
+    restart: None,
+    opened: None,
+  };
+
+  std::fs::write(place.join("program.json"), serde_json::to_vec(&program).unwrap()).unwrap();
 }
 
 // The receiver's stand-in, answering every call it is made and keeping it.
@@ -249,6 +288,7 @@ async fn a_run_whose_place_still_stands_is_taken_up_and_finished_and_one_whose_p
   let home = tempfile::tempdir().unwrap();
   let (address, calls) = receiver().await;
   let ground = ground(&scratch, home.path(), &address);
+  let revoked = tool_host(home.path());
   let rounds = agency_server::research_draft::process_of(db, "search:basic")
     .await
     .unwrap()
@@ -267,6 +307,9 @@ async fn a_run_whose_place_still_stands_is_taken_up_and_finished_and_one_whose_p
 
   let rounds_place = place_with(&ground.roots.data, "search-9-rounds", 9, "the final answer");
   let first_place = place_with(&ground.roots.data, "search-9", 9, "the first answer");
+
+  program_with(&rounds_place, "rounds-token");
+  program_with(&first_place, "first-token");
 
   for (ledger, place) in [(9, "search-9-rounds"), (10, "search-10-rounds")] {
     agency_server::queue::settings::set(
@@ -325,6 +368,15 @@ async fn a_run_whose_place_still_stands_is_taken_up_and_finished_and_one_whose_p
 
   assert!(result.contains("the final answer") && !result.contains("cut off"), "{told:?}");
   assert!(!rounds_place.exists() && !first_place.exists(), "both places are ended with the run");
+
+  let mut taken_back = revoked.lock().unwrap().clone();
+
+  taken_back.sort();
+  assert_eq!(
+    taken_back,
+    ["first-token", "rounds-token"],
+    "their session tokens are taken back with them"
+  );
   assert!(
     agency_server::queue::settings::get(db, &format!("{IN_FLIGHT_KEY}9"))
       .await

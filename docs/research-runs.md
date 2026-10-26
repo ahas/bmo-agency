@@ -40,15 +40,18 @@ same way (`docs/launch-lines.md`, 「Translate runner」).
     as the persona suffix after dsh's own prompt, every dsh tool row off, and the run's MCP servers — the
     tool host's `bmo` and `web` namespaces — on a session token issued for that place, whose record
     carries the run's research settings as a Claude Code run's does (「What a run is held to」); the
-    rounds' place is issued its token on the rounds' narrower settings.
+    rounds' place is issued its token on the rounds' narrower settings. A place's token stands until the
+    moment the run's web tools close and half an hour past it, or half an hour from its issue where that
+    moment has passed: the bound a token keeps where nothing takes it back.
   - **Its words** are put into the place's inbox, the request first and each round's question after, and
     its answer is read back out of the place's record.
   - **What it spent** is the record's own figures for each turn, the input, output and cache-read tokens
     DeepSeek's API answered, summed over the run's turns as the ledger keeps them.
   - **Each place keeps a record naming the run** while the run stands in it, `research-place.json`, so it
     stands under no agent's row and no sweep of leftovers takes it down.
-  - **Both places are ended with the run,** their programs released, their workspaces closed and their
-    folders taken away, records and all. Until then they outlive agency's restart, and the run with them
+  - **Both places are ended with the run,** however it ends — answered, cut or stopped — their programs
+    released, the session tokens they carried taken back from the tool host, their workspaces closed and
+    their folders taken away, records and all. Until then they outlive agency's restart, and the run with them
     (「One run, step by step」, step 7).
 
 ## What a run is held to: the research settings

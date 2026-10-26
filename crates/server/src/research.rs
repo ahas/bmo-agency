@@ -1773,7 +1773,10 @@ async fn end_place(ground: &Ground, name: &str) {
 
   let place = crate::lines::place::Place::of(data, name);
 
-  place.release().await;
+  // The session token its program carried is taken back with it, so the run's tools end with the run.
+  if let Some(token) = place.release().await.as_ref().and_then(crate::lines::place::token_of) {
+    crate::lines::token::revoke(ground, token).await;
+  }
 
   if let Some(home) = ground.home_of(name, name) {
     let _ = home.close().await;
