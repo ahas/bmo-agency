@@ -247,8 +247,8 @@ afresh with each read, so a change on the console reaches the next read of every
 agent's session carry `context` beside it,
 the context their last turn left — `carried`, its tokens, and `window`, the model's window — or null
 where no turn has ended on it since agency's process started or since it last folded or ended; on a
-resident program that carries its own turns it is the latest figures the program's record wrote since the
-program last started (`docs/sessions.md`, 「Session compaction」). It carries
+resident program that carries its own turns it is read off the program's record, its last answer against
+the latest window the record names (`docs/sessions.md`, 「Session compaction」). It carries
 `tier` beside it: that tier, by its name, or null where the key is assigned none, so a consumer keyed by
 tier matches the session by the tier the agency reads it at.
 

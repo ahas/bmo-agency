@@ -169,11 +169,12 @@ session on the owner's ask is `docs/session-resets.md`.
   - **a session's state carries the context its last turn left,** `context` with `carried` and `window`,
     read off that turn's answer and held while agency's process stands, and let go as the session folds
     or ends; a session no turn has ended on since then carries none, and the next turn's end fills it;
-  - **a session whose agent's resident program carries its own turns** — dsh's, which writes the
-    context its session stands at only on some of its answers — carries instead the latest figures the
-    program's record holds since the program last started: the `used` and `size` of the last answer that
-    wrote them, as `carried` and `window`, the held context only where the record holds none, so a turn
-    whose answer wrote no figures leaves the session at the last ones written rather than at none;
+  - **a session whose agent's resident program carries its own turns** — dsh's, one session across the
+    agent's rooms — carries instead what the program's record says of its last answer: `carried` the
+    `used` that answer's context names, or where it names none, as dsh writes it only on a turn of
+    several requests, the input, cache-read and output tokens of the answer's one request; `window` the
+    `size` the record's latest context names. The held context stands only where the record holds no
+    answer or names no size;
   - the receiver compares the context ratio a turn ends on — the state's `context`, carried against
     window — with the session's `foldRatio`, and the harness compacts after the turn that crosses it; a
     provider that hands its session over rather than folding it is judged by agency itself at the turn's

@@ -94,33 +94,35 @@ pub fn span_named_after(records: &[Value], name: &str, before: usize) -> Option<
   Some(start..next.map_or(records.len(), |next| start + 1 + next))
 }
 
-/// The context the pane program's session stands at, as its record last wrote it on a turn begun at or after
-/// `since`, in epoch milliseconds: the `used` and `size` of the last answer naming both. The program writes
-/// them only on some answers, so the last ones written stand for the session until it writes others; none
-/// where no answer since then names them.
-pub fn latest_context(place: &Path, since: u64) -> Option<(u64, u64)> {
-  let mut begun = None;
-  let mut latest = None;
+/// The context the pane program's session stands at, as its record says of its last answer, and the window
+/// the record's latest context names (docs/sessions.md, 「Session compaction」): the `used` the answer's context
+/// names, or where it names none — the program writes it only on a turn of several requests — the input,
+/// cache-read and output tokens of the answer's one request. None where the record holds no answer or names
+/// no window.
+pub fn latest_context(place: &Path) -> Option<(u64, u64)> {
+  let records = read_record(place);
+  let context = |record: &Value, name: &str| {
+    record
+      .get("context")
+      .and_then(|context| context.get(name))
+      .and_then(Value::as_u64)
+      .filter(|n| *n > 0)
+  };
+  let window = records
+    .iter()
+    .rev()
+    .filter(|record| kind(record) == Some("answer"))
+    .find_map(|record| context(record, "size"))?;
+  let last = records.iter().rev().find(|record| kind(record) == Some("answer"))?;
+  let carried = context(last, "used").or_else(|| {
+    let usage = last.get("usage")?;
+    let tokens = |name: &str| usage.get(name).and_then(Value::as_u64).unwrap_or(0);
+    let sum = tokens("inputTokens") + tokens("cacheReadTokens") + tokens("outputTokens");
 
-  for record in read_record(place) {
-    match kind(&record) {
-      Some("start") => begun = record.get("at").and_then(Value::as_u64),
-      Some("answer") if begun.is_some_and(|at| at >= since) => {
-        let context = record.get("context");
-        let figure = |name: &str| context.and_then(|context| context.get(name)).and_then(Value::as_u64);
+    (sum > 0).then_some(sum)
+  })?;
 
-        if let (Some(used), Some(size)) = (figure("used"), figure("size"))
-          && used > 0
-          && size > 0
-        {
-          latest = Some((used, size));
-        }
-      }
-      _ => {}
-    }
-  }
-
-  latest
+  Some((carried, window))
 }
 
 /// Whether the place's pane program is working on a turn, as its record says: its last turn, the bot's or

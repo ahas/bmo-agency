@@ -140,33 +140,36 @@ fn only_a_turns_own_variables_travel_with_it() {
 }
 
 #[test]
-fn the_context_stands_at_the_last_figures_written_since_the_program_started() {
+fn the_context_is_the_last_answer_s_against_the_latest_window_named() {
   let place = tempfile::tempdir().unwrap();
-  let lines = [
-    json!({ "kind": "start", "id": "a", "name": "chat:-5:1", "at": 50 }),
-    json!({ "kind": "answer", "id": "a", "text": "before", "context": { "used": 900, "size": 1000 } }),
-    json!({ "kind": "end", "id": "a" }),
-    json!({ "kind": "start", "id": "b", "name": "chat:-5:2", "at": 200 }),
-    json!({ "kind": "answer", "id": "b", "text": "first", "context": { "used": 400, "size": 1000 } }),
-    json!({ "kind": "end", "id": "b" }),
-    json!({ "kind": "start", "id": "c", "name": "chat:-6:3", "at": 300 }),
-    json!({ "kind": "answer", "id": "c", "text": "no figures", "context": null }),
-    json!({ "kind": "end", "id": "c" }),
-  ];
+  let write = |lines: &[Value]| {
+    std::fs::write(
+      record_path(place.path()),
+      lines.iter().map(|line| format!("{line}\n")).collect::<String>(),
+    )
+    .unwrap()
+  };
+  let several = json!({ "kind": "answer", "id": "a", "text": "a", "context": { "used": 400, "size": 1000 },
+                        "usage": { "inputTokens": 50, "cacheReadTokens": 1150, "outputTokens": 9 } });
+  let one = json!({ "kind": "answer", "id": "b", "text": "b", "context": null,
+                    "usage": { "inputTokens": 30, "cacheReadTokens": 400, "outputTokens": 20 } });
 
-  assert_eq!(latest_context(place.path(), 0), None, "a place with no record holds none");
+  assert_eq!(latest_context(place.path()), None, "a place with no record holds none");
 
-  std::fs::write(
-    record_path(place.path()),
-    lines.iter().map(|line| format!("{line}\n")).collect::<String>(),
-  )
-  .unwrap();
-
+  write(std::slice::from_ref(&several));
   assert_eq!(
-    latest_context(place.path(), 100),
+    latest_context(place.path()),
     Some((400, 1000)),
-    "an answer naming none leaves the last"
+    "the context a turn of several requests names"
   );
-  assert_eq!(latest_context(place.path(), 0), Some((400, 1000)));
-  assert_eq!(latest_context(place.path(), 250), None, "nothing written since the program started");
+
+  write(&[several, one.clone()]);
+  assert_eq!(
+    latest_context(place.path()),
+    Some((450, 1000)),
+    "one request's tokens where it names none"
+  );
+
+  write(&[one]);
+  assert_eq!(latest_context(place.path()), None, "no window named");
 }

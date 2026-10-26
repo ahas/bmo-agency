@@ -543,16 +543,15 @@ impl HerdrSessions {
     }
   }
 
-  // The context an agent's resident program stands at where it carries its own turns, as its record last wrote
-  // it since the program started (docs/sessions.md, 「Session compaction」); none on any other provider.
+  // The context an agent's resident program stands at where it carries its own turns, as its record says of its
+  // last answer (docs/sessions.md, 「Session compaction」); none on any other provider.
   fn resident_context(&self, agent: &str, provider: &str) -> Option<Context> {
     if !crate::chat_stand_in::inbox_declared(provider) {
       return None;
     }
 
     let place = crate::lines::place::Place::of(&self.ground().roots.data, agent);
-    let since = place.running().map_or(0, |running| running.started_at);
-    let (carried, window) = crate::door::inbox::latest_context(&place.path, since)?;
+    let (carried, window) = crate::door::inbox::latest_context(&place.path)?;
 
     Some(Context { carried, window })
   }
