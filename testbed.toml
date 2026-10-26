@@ -75,9 +75,10 @@ root = "~/.local/share/bmo-agency"
 link = "deploy"
 data_root = "~/.local/share/bmo/data"
 units = ["deploy/*.service"]
-# Answers 0 where no chat turn or research run stands under way that the restart would cut: the receiver's
-# own `quiet` command, by its deployed path, waited on before the flip (the testbed's docs/deploy.md).
-quiet = "~/.local/share/bmo-receiver/deploy/bin/bmo-receiver --config ~/.local/share/bmo-receiver/deploy/settings.toml quiet"
+# Answers 0 where no chat turn, research run or job's run stands under way that the restart would cut: the
+# receiver's own `quiet` command, by its deployed path, with every job's run counted, since this restart can cut a
+# worker's tool calls mid-turn; waited on before the flip (the testbed's docs/deploy.md).
+quiet = "~/.local/share/bmo-receiver/deploy/bin/bmo-receiver --config ~/.local/share/bmo-receiver/deploy/settings.toml quiet --with-jobs"
 
 # The worker plugin is the skills repository's worker bundle, placed over the copy the release carries by
 # that repository's own placer (docs/launch-lines.md, the skills handed over as a plugin directory): from
