@@ -68,17 +68,39 @@ same way (`docs/launch-lines.md`, 「Translate runner」).
    (`docs/launch-lines.md`, 「A research run's rounds」, `docs/api.md`, 「research drafts」); the last answer
    is the run's result.
 6. **The end:** the run is closed in the ledger with what it spent, and its log says how it ended.
-   Every result leaves its document, a brief one included: it is filed whole in bmo-artifact (its
-   `POST /documents`, the kind `learning` for a result whose head says `KIND: learning` and `record`
-   otherwise, titled by its `TITLE:` line, labelled with the run, its key and its question), and a share
-   link is made for it (`POST /shares`). The room is queued an instruction through the receiver's `POST
-   /instructions`, as a job's report is, for the owner's private room where the ask named none: the
-   answer in brief — the result's verdict, else its summary — and the link, with the shape the chat
-   agent answers in: the answer in one or two short lines in the owner's language and its own voice,
-   then exactly that one link, and no grounds, sources or document text in the chat, saying what was
-   found and never how. Where the deployment names no artifact service or the filing fails, the
-   instruction carries the result whole instead, and the run log says why it was not filed. A run that
-   ended with no answer is told as such.
+   Every result leaves its document, a brief one included, written for its reader and filed in
+   bmo-artifact (its `POST /documents`, then a share link by `POST /shares`); bmo-artifact draws it
+   (its `docs/archive.md`, 「How a document is drawn」, 「Attachments」, 「References」). The result is the
+   searcher's structure lines (`prompts/agents/search/task.md`, `prompts/rules/search-kinds.md`); the
+   document is made of them and carries none of them:
+   - **its head:** the title is the `TITLE:` line and the description the `TOPIC:` line, both in the
+     question's language as the searcher writes them; the kind is `learning` where `KIND: learning`
+     says so and `record` otherwise; the labels are the run, its key, its question, its `KEYWORDS:` and
+     its `RULE:` where it has one. The `ANSWERED:` line is the run's own and stands nowhere.
+   - **its body:** each block a section under a heading in the question's language, the words of
+     `prompts/agents/search/document.toml`: the verdict under 「the answer」, the summary as its
+     numbered list under 「the summary」 — under 「the answer」 itself on a brief result, which has no
+     verdict — each `SECTION:` under its own name, a section of grounds under 「the grounds」, the
+     unconfirmed list under 「what was not confirmed」, and the sources last under 「the sources」, one
+     numbered line each, the page as a link titled by what it supports, the snippet-only mark kept.
+     Tables, lists and `mermaid` blocks stand as written. A set's entries stand as sections of their
+     own under their names, with the address, the map and road-view links, the menu as its own list,
+     the four product lines and the reviews each as a line of the entry in the same words file.
+   - **its pictures:** every `IMAGE:` line's picture is fetched through the guarded direct fetch, at
+     most twelve, within a bound for the whole keeping, and attached to the document under a name of
+     its own (`POST /documents/{documentId}/attachments`), the body drawing it by that name with its
+     caption; a picture that could not be fetched is drawn from its address.
+   - **its references:** the sources are links of the body, which bmo-artifact keeps as the document's
+     references with their previews, the list of pages read beside the document.
+   - **the narration:** a deep dive's `LISTEN:` script is lifted out and never filed in the body; it is
+     handed to the voice path as the document's head sound once that path takes one.
+   The room is queued an instruction through the receiver's `POST /instructions`, as a job's report is,
+   for the owner's private room where the ask named none: the answer in brief — the result's verdict,
+   else its summary — and the link, with the shape the chat agent answers in: the answer in one or two
+   short lines in the owner's language and its own voice, then exactly that one link, and no grounds,
+   sources or document text in the chat, saying what was found and never how. Where the deployment
+   names no artifact service or the filing fails, the instruction carries the result whole instead, and
+   the run log says why it was not filed. A run that ended with no answer is told as such.
 7. **A run that is cut** — its pane gone under it, or agency's own restart ending it — is closed in the
    ledger with the outcome `cut`, and the room is handed what the run had written where its session's
    record holds anything, as unfinished, and otherwise one line saying the work was cut off (the

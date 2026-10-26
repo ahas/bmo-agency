@@ -81,6 +81,8 @@ belongs to no one service is a repository of its own, not a folder here.
 - **`tools/read_rulebook`** declares the entry `web/read_rulebook`, read-only, to a session holding
   `web.rulebooks`. Its one argument, `name`, a non-empty string, names a rulebook as its file under
   `prompts/rules/` is named, without `.md`.
+- **It declares a listing line,** so the site-tools paragraph of a search run's instructions names it
+  beside the site tools (`docs/launch-lines.md`, 「Search runner」).
 - **It answers one of the run's rulebooks whole,** headed `RULEBOOK prompts/rules/<name>.md:`. A research
   run's prompt carries only the section of each rulebook that decides whether it applies to the search;
   once it does, the run reads the whole here before searching.

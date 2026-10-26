@@ -4,4 +4,4 @@
 idle_minutes = 5
 check_seconds = 60
 code = "queue-idle"
-ask = "Pick the next open item for a free worker and launch it, or tell the owner why none is launched."
+ask = "Launch the next waiting item now, as your TODO procedure (procedures/todo.md) sets it: take its lease with job_lease_next, choose its worker with assign_worker, then run_job. Where none can be launched, tell the owner why in one line."

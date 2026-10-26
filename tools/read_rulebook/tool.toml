@@ -18,3 +18,7 @@ description = "Returns one of this run's rulebooks whole. The prompt carries onl
 input = "read_rulebook.json"
 hints = { read_only = true }
 capabilities = ["web.rulebooks"]
+
+[entry.listing]
+line = "- read_rulebook — one of this run's rulebooks whole, by its name; read it once its deciding section says it applies"
+order = 3

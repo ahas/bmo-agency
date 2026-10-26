@@ -241,10 +241,14 @@ fn only_the_chat_line_writes_in_a_speaker_s_language_and_every_other_line_writes
   assert!(prompt("agents/worker/standing-rules.md").contains("Everything a job writes is English"));
   assert!(prompt("agents/companion/handoff.md").contains("Write it in English"));
 
-  for runner in ["agents/search/task.md", "agents/search/branch.md", "agents/browse/task.md"] {
+  for runner in ["agents/search/branch.md", "agents/browse/task.md"] {
     assert!(prompt(runner).contains("English, "), "{runner}");
     assert!(!prompt(runner).contains("Korean"), "{runner}");
   }
+
+  // The search's result is the document its asker reads, so it is written in the question's language
+  // (docs/research-runs.md, 「One run, step by step」).
+  assert!(prompt("agents/search/task.md").contains("in the language the question is asked in"));
 }
 
 // A chat with no folder of its own works in the deploy tree's link, whose path stays the same across

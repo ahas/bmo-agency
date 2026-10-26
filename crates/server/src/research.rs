@@ -425,32 +425,16 @@ pub fn brief_of(result: &str) -> Option<String> {
     .or_else(|| head_line(result, "TITLE:").map(str::to_owned))
 }
 
-/// The document a result is filed as in bmo-artifact: its kind, title, body, scope and labels.
-pub fn document_of(ledger: i64, key: &str, query: &str, room: Option<i64>, result: &str) -> Value {
-  let kind = match head_line(result, "KIND:") {
-    Some("learning") => "learning",
-    _ => "record",
-  };
-  let title = head_line(result, "TITLE:").unwrap_or(query.trim()).to_owned();
-
-  json!({
-    "kind": kind,
-    "title": title,
-    "body": result,
-    "scope": room.filter(|room| *room != 0).map(|room| room.to_string()),
-    "actorName": RESEARCH_ACTOR,
-    "labels": { "research": ledger.to_string(), "key": key, "query": query.trim() },
-  })
-}
-
 /// Who a research document is filed by.
 pub const RESEARCH_ACTOR: &str = "research";
 
-/// A result filed in bmo-artifact and given its share link, answering the link; none where the deployment
-/// names no artifact service.
+/// A result's document filed in bmo-artifact — `filing` the document as its routes take it, `drawn` the
+/// pictures it keeps — and given its share link, answering the link; none where the deployment names no
+/// artifact service.
 pub async fn file_result(
   vars: &BTreeMap<String, String>,
-  document: &Value,
+  filing: &Value,
+  drawn: &crate::research_document::Drawn,
 ) -> Result<Option<String>, String> {
   let (Some(url), Some(token)) = (
     crate::job_end::address(vars, "BMO_ARTIFACT_URL"),
@@ -458,37 +442,28 @@ pub async fn file_result(
   ) else {
     return Ok(None);
   };
-  let client = reqwest::Client::new();
-  let post = async |path: &str, body: &Value| -> Result<Value, String> {
-    let answer = client
-      .post(format!("{url}{path}"))
-      .bearer_auth(&token)
-      .json(body)
-      .timeout(FILING_WITHIN)
-      .send()
-      .await
-      .map_err(|why| why.to_string())?;
-    let status = answer.status();
-    let body: Value = answer.json().await.unwrap_or(Value::Null);
-
-    if status.is_success() {
-      Ok(body)
-    } else {
-      Err(format!("bmo-artifact answered {} to {path}: {}", status.as_u16(), body["error"]))
-    }
-  };
-  let filed = post("/documents", document).await?;
+  let artifact = crate::research_document::Artifact::at(url, token);
+  let filed = artifact.send(reqwest::Method::POST, "/documents", filing).await?;
   let id = filed["id"].as_i64().ok_or("bmo-artifact named no document for the result")?;
-  let shared = post("/shares", &json!({ "documentId": id })).await?;
+  let (body, _) = crate::research_document::keep_pictures(&artifact, id, drawn).await;
+
+  if body != drawn.body {
+    artifact
+      .send(
+        reqwest::Method::PATCH,
+        &format!("/documents/{id}"),
+        &json!({ "body": body, "labels": filing["labels"] }),
+      )
+      .await?;
+  }
+
+  let shared = artifact.send(reqwest::Method::POST, "/shares", &json!({ "documentId": id })).await?;
 
   shared["url"]
     .as_str()
     .map(|link| Some(link.to_owned()))
     .ok_or_else(|| "bmo-artifact named no link".to_owned())
 }
-
-// How long a filing call waits.
-const FILING_WITHIN: Duration = Duration::from_secs(20);
 
 /// The instruction the room's chat agent is queued with for an answered run whose document was filed:
 /// the answer in brief and the one link, with the shape it answers in.
@@ -985,9 +960,32 @@ impl Going {
     let told = if let Ok(text) = &result
       && outcome != CUT
     {
-      let document = document_of(self.ledger, &self.ask.key, &self.ask.query, self.ask.room_id, text);
+      let trees = Trees::of(&ground);
+      let language = crate::research_document::language_of(&self.ask.query);
+      let drawn = crate::research_document::words(&trees, language)
+        .map(|words| crate::research_document::draw(text, &words));
+      let filed = match &drawn {
+        Ok(drawn) => {
+          if drawn.narration.is_some() {
+            self
+              .note(&mut log, "The narration was lifted out of the document for the voice path.".to_owned())
+              .await;
+          }
 
-      match file_result(ground.vars(), &document).await {
+          let filing = crate::research_document::filing(
+            drawn,
+            self.ledger,
+            &self.ask.key,
+            &self.ask.query,
+            self.ask.room_id,
+          );
+
+          file_result(ground.vars(), &filing, drawn).await
+        }
+        Err(why) => Err(why.clone()),
+      };
+
+      match filed {
         Ok(Some(link)) => {
           self.note(&mut log, format!("The result was filed as a document: {link}")).await;
 

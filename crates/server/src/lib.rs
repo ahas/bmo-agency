@@ -62,6 +62,7 @@ pub mod places;
 pub mod queue;
 pub mod readiness;
 pub mod research;
+pub mod research_document;
 pub mod research_draft;
 pub mod rest;
 pub mod road;

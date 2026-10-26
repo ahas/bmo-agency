@@ -108,7 +108,8 @@
 
 - **Attach a picture wherever the thing itself is worth seeing**: a dish, a product, a place, a
   chart, a screen, a design. The line is "IMAGE: <url> :: <caption>", the caption saying in a few
-  English words what the picture shows and what it belongs to, so it reads on its own.
+  words of the question's language what the picture shows and what it belongs to, so it reads on its
+  own.
 - **The line goes where what it shows is written about**: inside the entry it belongs to where
   the result is a set of things, never loose after it, and in the body where the answer itself
   is the thing looked at.
