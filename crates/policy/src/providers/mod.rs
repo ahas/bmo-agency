@@ -54,10 +54,6 @@ pub struct Declared {
   /// general share `resident-turn.toml` names.
   #[serde(default)]
   pub fold_ratio: Option<f64>,
-  /// The most tokens a session's context on it may carry before it is folded, whatever its model's window;
-  /// none folds at the ratio alone.
-  #[serde(default)]
-  pub fold_tokens: Option<u64>,
   pub effort: Effort,
   /// Its standing program, where it stands one in an agent's pane.
   pub resident: Option<Resident>,

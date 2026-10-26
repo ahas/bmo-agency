@@ -430,7 +430,7 @@ dependencies = [
 
 [[package]]
 name = "bmo-gate-client"
-version = "0.18.2"
+version = "0.1.0-rev.1"
 dependencies = [
  "futures-util",
  "gate-codes",
@@ -1229,7 +1229,7 @@ dependencies = [
 
 [[package]]
 name = "gate-codes"
-version = "0.18.2"
+version = "0.1.0-rev.1"
 
 [[package]]
 name = "generic-array"

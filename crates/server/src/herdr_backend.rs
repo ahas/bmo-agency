@@ -1116,9 +1116,6 @@ impl HerdrSessions {
         }
       };
 
-    let mark =
-      crate::control::fold_ratios::bounded(mark, provider.name(), left(&reply).map(|left| left.window));
-
     if let Some(ratio) = reply.context_ratio.filter(|ratio| hands_off && *ratio >= mark) {
       let due = Due {
         provider,

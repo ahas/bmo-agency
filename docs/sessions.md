@@ -166,13 +166,6 @@ session on the owner's ask is `docs/session-resets.md`.
   - a provider and tier the table holds no row for read the provider's own declared default — 0.5 for
     DeepSeek and OpenRouter — and a provider declaring none reads 0.85; a session whose agent's work
     key is assigned no tier reads its provider's default the same way;
-  - **a provider may bound the fold in tokens as well,** `fold_tokens` in its policy file: the most tokens
-    a session's context may carry before it folds, whatever its model's window. Every request of a turn
-    reads the whole context again, so a session that grows all day on a window of a million tokens costs
-    millions of tokens an answer long before half its window is full; DeepSeek bounds its sessions at
-    150,000 tokens, and a provider naming no bound folds at its ratio alone. A session's `foldRatio` is
-    the lower of the table's share and that bound against the window its last turn read, so the bound
-    reaches every reader of the share;
   - **a session's state carries the context its last turn left,** `context` with `carried` and `window`,
     read off that turn's answer and held while agency's process stands, and let go as the session folds
     or ends; a session no turn has ended on since then carries none, and the next turn's end fills it;

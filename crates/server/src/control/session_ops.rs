@@ -374,10 +374,7 @@ async fn folded(db: &sea_orm::DatabaseConnection, mut member: Value) -> Result<V
   let tier = fold_ratios::agent_tier(db, &agent).await?;
 
   if !provider.is_empty() {
-    let window = member["context"]["window"].as_u64();
-    let ratio = fold_ratios::ratio(db, &provider, tier.as_deref()).await?;
-
-    member["foldRatio"] = json!(fold_ratios::bounded(ratio, &provider, window));
+    member["foldRatio"] = json!(fold_ratios::ratio(db, &provider, tier.as_deref()).await?);
   }
   member["tier"] = json!(tier);
 

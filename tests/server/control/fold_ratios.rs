@@ -3,9 +3,7 @@
 //! general share where the provider declares none either; a session's read by the tier its agent stands at;
 //! and the routes a console reads and sets them through.
 
-use agency_server::control::fold_ratios::{
-  Source, admissible, agent_tier, bounded, fallback, of_agent, ratio,
-};
+use agency_server::control::fold_ratios::{Source, admissible, agent_tier, fallback, of_agent, ratio};
 use policy::resident_turn::RESIDENT_TURN;
 use serde_json::{Value, json};
 
@@ -20,19 +18,6 @@ fn a_provider_s_own_share_stands_before_the_general_one() {
   assert_eq!(fallback("registered"), (RESIDENT_TURN.fold_ratio, Source::Default));
   assert_eq!(fallback("no-such-provider"), (RESIDENT_TURN.fold_ratio, Source::Default));
   assert_eq!(RESIDENT_TURN.fold_ratio, 0.85);
-}
-
-#[test]
-fn a_provider_bounding_its_sessions_in_tokens_folds_at_that_bound_first() {
-  // DeepSeek folds a session at 150,000 tokens whatever its window, once the window its turn read is known.
-  assert!((bounded(0.5, "deepseek", Some(1_000_000)) - 0.15).abs() < 1e-9);
-  assert_eq!(bounded(0.1, "deepseek", Some(1_000_000)), 0.1, "a lower share stands");
-  assert_eq!(bounded(0.5, "deepseek", None), 0.5, "no window read leaves the share");
-  assert_eq!(
-    bounded(0.85, "claude-code", Some(1_000_000)),
-    0.85,
-    "a provider naming no bound folds at its share"
-  );
 }
 
 #[test]

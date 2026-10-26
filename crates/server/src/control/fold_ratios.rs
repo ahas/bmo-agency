@@ -65,17 +65,6 @@ pub fn fallback(provider: &str) -> (f64, Source) {
   }
 }
 
-/// The share a session is folded at: the ratio, or less where its provider bounds a session in tokens and
-/// the window its last turn read is known, so the bound is reached first.
-pub fn bounded(ratio: f64, provider: &str, window: Option<u64>) -> f64 {
-  let tokens = harness_providers::provider(provider).and_then(|one| one.declared().fold_tokens);
-
-  match (tokens, window.filter(|window| *window > 0)) {
-    (Some(tokens), Some(window)) => ratio.min(tokens as f64 / window as f64),
-    _ => ratio,
-  }
-}
-
 /// Whether a share may be kept: more than nothing and at most the whole window.
 pub fn admissible(ratio: f64) -> bool {
   ratio > 0.0 && ratio <= 1.0

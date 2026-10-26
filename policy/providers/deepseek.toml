@@ -18,9 +18,6 @@ lends_coworkers = true
 # The share of a model's window a session may fill before it is folded, at a tier the fold-ratio table
 # holds no row for (docs/sessions.md, 「Session compaction」): half the window.
 fold_ratio = 0.5
-# The most tokens a session's context may carry before it is folded, whatever the window: every request of a
-# turn reads the whole context again, so the bound is what one answer costs at most.
-fold_tokens = 150000
 
 [effort]
 # Every effort word a mapping of it may hold, in the order a screen shows them. `none` is DeepSeek's

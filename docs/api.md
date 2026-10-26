@@ -236,9 +236,8 @@ one its held session last answered on, else `claude-code`.
 A session's state carries `foldRatio`: the share of its model's window its context may fill before the
 session is folded once the turn that crossed it is over. It is the fold-ratio table's value for the
 provider the state names and the tier its agent's work key is assigned (「fold-ratios」 below), read
-afresh with each read, so a change on the console reaches the next read of every session; where the
-provider bounds its sessions in tokens, the share is no more than that bound against the window
-(`docs/sessions.md`, 「Session compaction」). A room's and an agent's session carry `context` beside it,
+afresh with each read, so a change on the console reaches the next read of every session. A room's and an
+agent's session carry `context` beside it,
 the context their last turn left — `carried`, its tokens, and `window`, the model's window — or null
 where no turn has ended on it since agency's process started or since it last folded or ended. It carries
 `tier` beside it: that tier, by its name, or null where the key is assigned none, so a consumer keyed by
