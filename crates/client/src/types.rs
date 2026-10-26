@@ -2020,6 +2020,14 @@ pub struct ResearchKeySettings {
   pub key: String,
   pub branches: i64,
   pub minutes: i64,
+  /// The most pages the first answer fetches; none for no ceiling. Left out of a change, it keeps what the
+  /// key holds.
+  #[serde(default)]
+  pub pages: Option<i64>,
+  /// The most pages each branch fetches; none for no ceiling. Left out of a change, it keeps what the key
+  /// holds.
+  #[serde(default)]
+  pub branch_pages: Option<i64>,
 }
 
 /// One search engine's state, as the web tools answer it.

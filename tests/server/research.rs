@@ -49,6 +49,8 @@ fn a_change_lays_over_the_settings_and_one_that_cannot_stand_is_refused_whole() 
       key: "search:thorough".into(),
       branches: 3,
       minutes: 20,
+      pages: None,
+      branch_pages: Some(5),
     }]),
     ..ResearchSettingsChange::default()
   };
@@ -60,8 +62,11 @@ fn a_change_lays_over_the_settings_and_one_that_cannot_stand_is_refused_whole() 
     laid.keys["search:thorough"],
     Kept {
       branches: 3,
-      minutes: 20
-    }
+      minutes: 20,
+      pages: Some(8),
+      branch_pages: Some(5),
+    },
+    "a budget left out keeps the key's own"
   );
   assert_eq!(
     laid.keys["search:basic"],
@@ -86,6 +91,7 @@ fn a_change_lays_over_the_settings_and_one_that_cannot_stand_is_refused_whole() 
     json!({ "branchRole": "nobody" }),
     json!({ "keys": [{ "key": "job-worker", "branches": 1, "minutes": 5 }] }),
     json!({ "keys": [{ "key": "browse", "branches": 0, "minutes": 0 }] }),
+    json!({ "keys": [{ "key": "search:basic", "branches": 0, "minutes": 5, "pages": 0 }] }),
   ] {
     let change: ResearchSettingsChange = serde_json::from_value(wrong.clone()).unwrap();
 
@@ -107,6 +113,8 @@ fn a_run_s_settings_travel_on_its_tool_session_record() {
     Kept {
       branches: 2,
       minutes: 15,
+      pages: Some(8),
+      branch_pages: Some(4),
     },
   );
 
@@ -325,4 +333,33 @@ fn the_rounds_hold_the_reading_tools_alone() {
   assert!(!rounds.contains_key("BMO_RESEARCH_RULEBOOKS"));
   assert_eq!(rounds["BMO_RESEARCH_BRANCHES"], "0");
   assert_eq!(rounds["BMO_RESEARCH_CLOSES_AT"], vars["BMO_RESEARCH_CLOSES_AT"]);
+}
+
+// Each depth's budget is the policy's and is told to the run as a ceiling, and travels on its record
+// (docs/research-runs.md, 「What a run is held to: the research settings」).
+#[test]
+fn each_depth_holds_its_budget_and_the_run_is_told_it_as_a_ceiling() {
+  let keys = defaults().keys;
+  let budget = |key: &str| (keys[key].pages, keys[key].branches, keys[key].branch_pages);
+
+  assert_eq!(budget("search:basic"), (Some(3), 0, None));
+  assert_eq!(budget("search:thorough"), (Some(8), 2, Some(4)));
+  assert_eq!(budget("search:exhaustive"), (Some(20), 5, Some(6)));
+  assert_eq!(keys["browse"].pages, None, "a browse names no budget");
+
+  let told = budget_line(keys["search:thorough"]);
+
+  assert!(
+    told.contains("at most 8 pages") && told.contains("each of the 2 branches it may open at most 4"),
+    "{told}"
+  );
+  assert!(told.contains("fetch nothing more") && told.contains("UNCONFIRMED"), "{told}");
+  assert!(!budget_line(keys["search:basic"]).contains("branches"));
+  assert_eq!(budget_line(keys["browse"]), "");
+
+  let vars = variables(&defaults(), "search:thorough", "search", None, None, 1);
+  let (record, _) = research_record(&vars);
+  let record = record.unwrap();
+
+  assert_eq!((record["pages"].as_i64(), record["branchPages"].as_i64()), (Some(8), Some(4)));
 }

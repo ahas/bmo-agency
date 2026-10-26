@@ -348,6 +348,12 @@ pub fn research_record(env: &BTreeMap<String, String>) -> (Option<Value>, Vec<&'
   }
 
   research.insert("branches".to_owned(), json!(count(set("BMO_RESEARCH_BRANCHES")).unwrap_or(0)));
+
+  for (key, variable) in [("pages", "BMO_RESEARCH_PAGES"), ("branchPages", "BMO_RESEARCH_BRANCH_PAGES")] {
+    if let Some(pages) = count(set(variable)) {
+      research.insert(key.to_owned(), json!(pages));
+    }
+  }
   research.insert("chat".to_owned(), json!(leading_number(set("BMO_RESEARCH_CHAT"))));
 
   if let Some(strategy) = set("BMO_WEB_STRATEGY") {

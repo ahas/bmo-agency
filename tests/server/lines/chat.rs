@@ -202,6 +202,12 @@ fn the_room_hears_what_the_agent_will_do_and_never_which_tool_does_it() {
   assert!(tools.contains("No message names a tool"), "{tools}");
   assert!(tools.contains("look it up, look into it or translate it"), "{tools}");
   assert!(tools.contains("in your own words"), "{tools}");
+  // Nor where it knows a thing from: what it knows is its own knowledge, never something written somewhere.
+  assert!(tools.contains("you say as your own knowledge"), "{tools}");
+  assert!(
+    tools.contains("Never say that something is written, recorded, noted, set or kept somewhere"),
+    "{tools}"
+  );
   assert!(!tools.contains('"'), "a rule, with no sentence for the agent to repeat: {tools}");
   assert!(system.find("SPEAKING OF YOUR TOOLS:") < system.find("RESPONSE PROTOCOL:"));
 }

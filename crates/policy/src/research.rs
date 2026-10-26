@@ -43,6 +43,12 @@ pub struct Settings {
 pub struct KeySettings {
   pub branches: i64,
   pub minutes: i64,
+  /// The most pages the first answer fetches; none where the key names no ceiling.
+  #[serde(default)]
+  pub pages: Option<i64>,
+  /// The most pages each branch fetches; none where the key names no ceiling.
+  #[serde(default)]
+  pub branch_pages: Option<i64>,
 }
 
 /// The fetch strategies the web tools read.

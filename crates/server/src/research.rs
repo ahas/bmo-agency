@@ -66,11 +66,18 @@ pub struct Settings {
   pub keys: BTreeMap<String, Kept>,
 }
 
-/// One research key's branches and clock, as the settings keep them.
+/// One research key's branches, clock and budget, as the settings keep them.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Kept {
   pub branches: i64,
   pub minutes: i64,
+  /// The most pages the first answer fetches; none where no ceiling holds, or where a kept row names none
+  /// and the policy's stands.
+  #[serde(default)]
+  pub pages: Option<i64>,
+  /// The most pages each branch fetches, read the same way.
+  #[serde(default)]
+  pub branch_pages: Option<i64>,
 }
 
 impl From<&KeySettings> for Kept {
@@ -78,6 +85,8 @@ impl From<&KeySettings> for Kept {
     Self {
       branches: declared.branches,
       minutes: declared.minutes,
+      pages: declared.pages,
+      branch_pages: declared.branch_pages,
     }
   }
 }
@@ -97,6 +106,8 @@ pub fn defaults() -> Settings {
           Kept {
             branches: 0,
             minutes: 5,
+            pages: None,
+            branch_pages: None,
           },
           Kept::from,
         );
@@ -120,8 +131,16 @@ pub async fn settings(db: &sea_orm::DatabaseConnection) -> Result<(Settings, boo
   let mut keys = fallback.keys;
 
   for (key, kept) in held.keys {
-    if keys.contains_key(&key) {
-      keys.insert(key, kept);
+    if let Some(policy) = keys.get(&key).copied() {
+      // A kept row naming no budget takes the policy's.
+      keys.insert(
+        key,
+        Kept {
+          pages: kept.pages.or(policy.pages),
+          branch_pages: kept.branch_pages.or(policy.branch_pages),
+          ..kept
+        },
+      );
     }
   }
 
@@ -175,9 +194,15 @@ pub fn changed(mut settings: Settings, change: &ResearchSettingsChange) -> Resul
       ));
     }
 
+    if key.pages.is_some_and(|pages| pages < 1) || key.branch_pages.is_some_and(|pages| pages < 1) {
+      return Err(format!("{}: a budget reads one page at least", key.key));
+    }
+
     *kept = Kept {
       branches: key.branches,
       minutes: key.minutes,
+      pages: key.pages.or(kept.pages),
+      branch_pages: key.branch_pages.or(kept.branch_pages),
     };
   }
 
@@ -234,6 +259,8 @@ pub fn view(
           key: profile.key.clone(),
           branches: kept.branches,
           minutes: kept.minutes,
+          pages: kept.pages,
+          branch_pages: kept.branch_pages,
         })
       })
       .collect(),
@@ -258,6 +285,8 @@ pub fn variables(
   let kept = settings.keys.get(key).copied().unwrap_or(Kept {
     branches: 0,
     minutes: 5,
+    pages: None,
+    branch_pages: None,
   });
   let mut set = BTreeMap::from([
     ("BMO_RESEARCH_CLOSES_AT".to_owned(), closes_at.to_string()),
@@ -269,6 +298,14 @@ pub fn variables(
 
   if kept.branches > 0 {
     set.insert("BMO_RESEARCH_TOOLS".to_owned(), "research_branch".to_owned());
+  }
+
+  for (variable, pages) in
+    [("BMO_RESEARCH_PAGES", kept.pages), ("BMO_RESEARCH_BRANCH_PAGES", kept.branch_pages)]
+  {
+    if let Some(pages) = pages {
+      set.insert(variable.to_owned(), pages.to_string());
+    }
   }
 
   if let Some(asker) = asker.map(str::trim).filter(|asker| !asker.is_empty()) {
@@ -603,6 +640,22 @@ fn ledger_depth(key: &str) -> u32 {
   }
 }
 
+/// The budget a run is told as its ceiling: the pages its first answer may fetch and each branch's, or nothing
+/// where the key names none.
+pub fn budget_line(kept: Kept) -> String {
+  let Some(pages) = kept.pages else { return String::new() };
+  let branches = match (kept.branches, kept.branch_pages) {
+    (0, _) => String::new(),
+    (count, Some(each)) => format!(", and each of the {count} branches it may open at most {each}"),
+    (count, None) => format!(", beside the {count} branches it may open"),
+  };
+
+  format!(
+    "Its budget, a hard ceiling: the first answer fetches at most {pages} pages{branches}. Once it is spent, \
+     fetch nothing more and write with what you have; what stays open goes under UNCONFIRMED."
+  )
+}
+
 // The request a run is put to, its line's template filled with the ask.
 fn request(trees: &Trees, line: &str, ask: &ResearchRunAsk, kept: Kept) -> Result<String, Refusal> {
   let template = crate::lines::read_required(&trees.agent_dir(line).join("request.md"))?;
@@ -627,6 +680,7 @@ fn request(trees: &Trees, line: &str, ask: &ResearchRunAsk, kept: Kept) -> Resul
       1 => "one pooled branch".to_owned(),
       many => format!("up to {many} pooled branches"),
     };
+    let budget = budget_line(kept);
 
     render(
       &template,
@@ -648,6 +702,7 @@ fn request(trees: &Trees, line: &str, ask: &ResearchRunAsk, kept: Kept) -> Resul
         ),
         ("depth", depth_of(&ask.key)),
         ("branches", &branches),
+        ("budget", &budget),
       ],
     )
   })
@@ -675,6 +730,8 @@ pub async fn launch(ground: Arc<Ground>, ask: ResearchRunAsk) -> Result<Research
   let kept = settings.keys.get(&ask.key).copied().unwrap_or(Kept {
     branches: 0,
     minutes: 5,
+    pages: None,
+    branch_pages: None,
   });
   let closes_at = now_ms() + kept.minutes * 60_000;
   let trees = Trees::of(&ground);

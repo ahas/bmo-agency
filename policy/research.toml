@@ -69,14 +69,19 @@ strategy = "direct-then-browser"
 [settings.keys."search:basic"]
 branches = 0
 minutes = 5
+pages = 3
 
 [settings.keys."search:thorough"]
 branches = 2
 minutes = 15
+pages = 8
+branch_pages = 4
 
 [settings.keys."search:exhaustive"]
 branches = 5
 minutes = 30
+pages = 20
+branch_pages = 6
 
 [settings.keys.browse]
 branches = 0

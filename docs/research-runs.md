@@ -39,6 +39,12 @@ same way (`docs/launch-lines.md`, 「Translate runner」).
   - **the branch role:** the co-worker role whose tier a search's pooled branches go out on;
   - **each key's branches:** how many pooled branches a run of it may open — none at the basic depth to
     start with — and **its clock:** how many minutes its web tools stay open from the run's start;
+  - **each key's budget:** how many pages its first answer may fetch and how many each branch it opens may
+    — three and no branch at the basic depth, eight and two branches of four at the thorough, twenty and
+    five branches of six at the exhaustive, none named for a browse. The request states it as a ceiling:
+    once it is spent the run fetches nothing more and writes with what it has, what stayed open under its
+    unconfirmed list. The record carries it as `pages` and `branchPages` for the web tools that hold a run
+    to it;
   - **the fetch strategy:** `direct-then-browser`, `browser-first` or `direct-only`;
   - **the gaps:** the milliseconds between two direct requests to one host and between two requests to one
     search engine, each null where the web tools' own default stands.

@@ -11978,12 +11978,32 @@
           "minutes": {
             "type": "integer",
             "format": "int64"
+          },
+          "pages": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The most pages the first answer fetches; none for no ceiling. Left out of a change, it keeps what the\nkey holds.",
+            "default": null
+          },
+          "branchPages": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The most pages each branch fetches; none for no ceiling. Left out of a change, it keeps what the key\nholds.",
+            "default": null
           }
         },
         "required": [
           "key",
           "branches",
-          "minutes"
+          "minutes",
+          "pages",
+          "branchPages"
         ],
         "description": "One research key's settings: how many pooled branches a run of it may open, and for how many minutes its web\ntools stay open."
       },
