@@ -362,7 +362,8 @@
   `bmo` namespace, and nothing else allowed; any other hosted tool it holds is reached with `bmo use`; no
   settings sources, no other MCP, no Chrome, run in its deployed
   directory. It is handed the standing `search.mcp.json`, and the run's session record holds when
-  research closes, so the web tools know it; the record also names the deployment's agent as the turn its
+  research closes, so the web tools know it; the record also names the chat agent — the agent whose row
+  answers every room that names nobody — as the turn its
   brain tools run for, so a fact the run establishes is written into the chat agent's brain while the run
   itself stays the runner's. The searcher role's bundles show it the `research_branch`
   tool, which opens a branch only after taking a place in the common co-worker pool, and the
@@ -397,7 +398,7 @@
     after its first answer, `search:thorough`, `search:exhaustive` and `browse` ask every question in
     turn. The console changes a key's list or a question's text through the agency's routes.
   - **What a run establishes is written into the shared brain.** The search line holds
-    `brain_learn` and `brain_similar` on the deployment's agent's brain: a fact or a piece of knowledge
+    `brain_learn` and `brain_similar` on the chat agent's brain: a fact or a piece of knowledge
     a run establishes is written there with the source it was read from, after the brain's similar rows
     are read, and the brain's write judgement confirms a duplicate, strengthens a version of a row and
     closes what a row contradicts. The question before the final one asks whether every fact the answer
