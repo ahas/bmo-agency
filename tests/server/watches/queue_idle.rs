@@ -2,11 +2,12 @@
 //! free worker could take and no job started for the idle minutes, told to the owner once for each stretch
 //! through the receiver, and silenced by the owner's switch until the next job starts.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Arc, Mutex};
 
 use agency_server::watches::queue_idle::{
-  MINUTES_KEY, Open, SWITCH_KEY, Standing, idle, job_started, notice, pass, waiting,
+  MINUTES_KEY, Open, SEEN_PREFIX, SWITCH_KEY, Standing, awaiting_launch, idle, job_started,
+  launch_instruction, launches_due, notice, pass, waiting,
 };
 use axum::body::Bytes;
 use axum::extract::State;
@@ -77,6 +78,47 @@ fn an_idle_stretch_is_told_once_and_the_switch_silences_it() {
 
   silenced.silenced = true;
   assert!(!idle(&silenced, 1_000 + 20 * MINUTE));
+}
+
+#[test]
+fn an_item_waiting_a_minute_on_its_own_free_worker_is_due_once_and_the_switch_silences_it() {
+  let mut quiet = standing(vec![open(1, Some("w1")), open(2, Some("w2")), open(3, None)], &["w1"]);
+
+  assert_eq!(
+    awaiting_launch(&quiet),
+    vec![&open(1, Some("w1"))],
+    "its own assignee free, and only that"
+  );
+
+  let seen = BTreeMap::from([(1, 10_000)]);
+  let none = BTreeSet::new();
+
+  assert!(launches_due(&quiet, &seen, &none, 10_000 + MINUTE - 1).is_empty(), "not yet a minute");
+  assert_eq!(launches_due(&quiet, &seen, &none, 10_000 + MINUTE), vec![&open(1, Some("w1"))]);
+  assert!(
+    launches_due(&quiet, &seen, &BTreeSet::from([1]), 10_000 + MINUTE).is_empty(),
+    "told once"
+  );
+  assert!(
+    launches_due(&quiet, &BTreeMap::new(), &none, 10_000 + MINUTE).is_empty(),
+    "never seen waiting"
+  );
+
+  quiet.silenced = true;
+  assert!(launches_due(&quiet, &seen, &none, 10_000 + MINUTE).is_empty(), "silenced");
+}
+
+#[test]
+fn an_item_awaiting_a_launch_is_told_in_the_owner_s_room_with_the_three_calls() {
+  let told = launch_instruction(&open(2265, Some("w1")));
+  let order = told["said"]["order"].as_str().unwrap();
+
+  assert_eq!(told["room"], Value::Null, "the owner's private room");
+  assert_eq!(told["events"], json!(["item-awaits-launch:#2265"]));
+
+  for word in ["#2265", "w1", "job_lease_next", "assign_worker", "run_job", "why not"] {
+    assert!(order.contains(word), "{order}");
+  }
 }
 
 #[test]
@@ -174,6 +216,32 @@ async fn a_pass_tells_the_owner_once_of_the_items_a_free_worker_could_take() {
   };
 
   pass(db, &vars).await.unwrap();
+
+  // The item on its own free worker is first seen waiting; told to the chat agent once a minute has passed.
+  let instructed = |calls: &Calls| -> Vec<Value> {
+    calls
+      .lock()
+      .unwrap()
+      .iter()
+      .filter(|(path, _)| path == "/instructions")
+      .map(|(_, body)| body.clone())
+      .collect()
+  };
+
+  assert!(instructed(&calls).is_empty(), "not yet a minute");
+  scratch
+    .run(
+      r#"UPDATE "settings" SET "value" = $1 WHERE "key" = $2"#,
+      vec![(agency_server::now_ms() - 61_000).to_string().into(), format!("{SEEN_PREFIX}11").into()],
+    )
+    .await;
+  pass(db, &vars).await.unwrap();
+  pass(db, &vars).await.unwrap();
+
+  let launches = instructed(&calls);
+
+  assert_eq!(launches.len(), 1, "told once: {launches:?}");
+  assert_eq!(launches[0]["events"], json!(["item-awaits-launch:#11"]));
 
   let notices = told(&calls);
 

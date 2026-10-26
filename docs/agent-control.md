@@ -2811,7 +2811,16 @@ them run a browser, and whose a place is.
   a free worker or says why it does not. The receiver hands it to the chat agent in the owner's private chat, which
   voices it (the receiver's `docs/voiced-notices.md`). It is told once for each idle stretch: the moment it
   was told is kept, and nothing more is said until a job starts again.
-- **A switch silences it,** the settings row `queue_idle_alarm` set to `off`; the next job that starts turns
+- **An item waiting on its own free worker is told to the chat agent on its own.** Where an approved open
+  item names as its assignee a worker that is free, and it is still waiting a minute after agency first
+  saw it so (`policy/queue-idle.toml`, `launch_seconds`), agency queues one instruction for the chat agent
+  in the owner's private room through the receiver's `POST /instructions`, under the event
+  `item-awaits-launch:#<item>`: the item awaits a launch, so lease it (`job_lease_next`), assign its worker
+  (`assign_worker`), run it (`run_job`), or say in one line why not. It is told once for each item: the
+  moment it was first seen waiting and the moment it was told are kept by the item's number, the first let
+  go once the item no longer waits on a free worker, the second once the item is no longer open and
+  approved. It stands beside the idle stretch's notice and does not wait for the idle minutes.
+- **A switch silences both,** the settings row `queue_idle_alarm` set to `off`; the next job that starts turns
   it on again. A deployment that names no job service or no receiver tells nothing.
 
 ### Pressure told as a fact

@@ -1,7 +1,11 @@
 # The idle queue's alarm (docs/agent-control.md, 「An idle queue is told to the owner」): how long no job may
 # start while approved work waits and a worker is free before the owner is told, how often it is looked
-# for, the code the owner's notice carries, and what the chat agent is asked to do about it.
+# for, the code the owner's notice carries, and what the chat agent is asked to do about it; and how long an
+# approved item may wait on its own free worker before the chat agent is told of it alone, with the order it
+# is told, `{item}`, `{title}` and `{worker}` marking what it carries.
 idle_minutes = 5
 check_seconds = 60
 code = "queue-idle"
 ask = "Launch the next waiting item now, as your TODO procedure (procedures/todo.md) sets it: take its lease with job_lease_next, choose its worker with assign_worker, then run_job. Where none can be launched, tell the owner why in one line."
+launch_seconds = 60
+launch_order = "Item #{item} ({title}) awaits a launch on {worker}: lease it (job_lease_next), assign its worker (assign_worker), run it (run_job), or say in one line why not."

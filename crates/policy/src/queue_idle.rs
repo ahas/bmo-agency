@@ -13,6 +13,11 @@ pub struct QueueIdle {
   pub code: String,
   /// What the chat agent is asked to do about it.
   pub ask: String,
+  /// How long an approved item may wait on its own free worker before the chat agent is told of it, in
+  /// seconds.
+  pub launch_seconds: i64,
+  /// What the chat agent is told of such an item: `{item}`, `{title}` and `{worker}`.
+  pub launch_order: String,
 }
 
 crate::part!(pub QUEUE_IDLE: QueueIdle = "queue-idle.toml");
