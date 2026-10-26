@@ -5,7 +5,7 @@
 label = "Registered models"
 
 # The lines it carries: every line but research.
-lines = ["chat", "gate", "worker"]
+lines = ["chat", "gate", "worker", "translate"]
 
 # A mapping of it carries a ceiling on the answer's tokens beside its model and effort.
 caps_answer_tokens = true

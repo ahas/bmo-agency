@@ -963,6 +963,11 @@ impl AgencyClient {
     Self::answered(self.request(Method::POST, &["jobs"]).json(body)).await
   }
 
+  /// `POST /translation-runs`: Translate one text on the translator runner's road, answered whole.
+  pub async fn create_translation_runs(&self, body: &TranslationRunAsk) -> Answer<TranslationRun> {
+    Self::answered(self.request(Method::POST, &["translation-runs"]).json(body)).await
+  }
+
   /// `POST /research-runs`: Run a research on a research key: a search at a depth, or a browse.
   pub async fn create_research_runs(&self, body: &ResearchRunAsk) -> Answer<ResearchRun> {
     Self::answered(self.request(Method::POST, &["research-runs"]).json(body)).await

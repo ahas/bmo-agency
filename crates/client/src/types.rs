@@ -1963,6 +1963,25 @@ pub struct DraftProcessPage {
   pub more: bool,
 }
 
+/// TranslationRunAsk: one text to translate on the `translate` road: what it is for (`document`, `worker` or
+/// `record`), the language to render it in and the text.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct TranslationRunAsk {
+  pub purpose: String,
+  pub language: String,
+  pub text: String,
+}
+
+/// TranslationRun: a translation as it came back, whole, with the road it went out on.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct TranslationRun {
+  pub text: String,
+  pub provider: String,
+  pub model: String,
+}
+
 /// ResearchRunAsk: a research asked of the agency: its research key, its question, and who asked, the options and
 /// the room its result is for, where they are known.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]

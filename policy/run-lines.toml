@@ -38,6 +38,12 @@ variables = ["BMO_GATE_URL", "BMO_GATE_TOKEN_FILE"]
 needs = []
 keeps_session = false
 
+# A translation asked of the translator runner (docs/launch-lines.md, 「Translate runner」): no tools, no
+# session, the purpose's instructions as its system prompt.
+[translate]
+needs = []
+keeps_session = false
+
 # tools_denied: what its program is never shown — the CLI's web tools, its Artifact tools, the
 #   claude.ai Docs connector, named by its server so every tool it serves is covered, and the tools that
 #   bring a session back after its turn has ended, which a job, whose turn's end is its answer, has no

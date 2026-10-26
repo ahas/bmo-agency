@@ -28,7 +28,7 @@ a field's exact shape matters, the OpenAPI document is the one to read.
 ## Versioning
 
 - The contract carries the repository's one version, in semver; the workspace manifest is its source. Before
-  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.77`.
+  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.78`.
 - A change to this document and a change to the boundary go in one commit. A change to a route, an event, a
   hook or a shared table's contract repairs this document in the same commit.
 - The major moves on a removed or renamed route, field or event, the minor on an addition, the patch on
@@ -521,6 +521,19 @@ them; a notice that holds nothing is withdrawn.
   any of the owner's fields and answers the settings; a strategy outside the three, a gap below 0, a
   branch count below 0, a clock of no minutes, a key that is no research key or a role that is no
   co-worker role is 400 `bad-request`, and nothing is written.
+
+### translations
+
+| Method | Path | Does |
+|---|---|---|
+| POST | `/translation-runs` | Translate one text on the `translate` road: `purpose` (`document`, `worker` or `record`), `language` (the target's name as the instructions ask for it) and `text`; answers 200 with `text`, the translation whole, and the `provider` and `model` it went out on. |
+
+- **One text, one run** (`docs/launch-lines.md`, 「Translate runner」): no session is kept, nothing is
+  queued and nothing is cached here; the caller cuts a long text into parts, keeps the translations it
+  wants kept, and bounds how many parts it has out at once.
+- **Refusals:** 400 `bad-request` for a purpose it does not know or an empty text or language; 503
+  `no-login-open` with the road resolution's sentence where nothing can carry it; 502 `no-answer` where
+  the road answered with nothing or failed, naming why.
 
 ### research drafts
 

@@ -409,6 +409,18 @@
     rests on was written.
   - **The morning news page** runs on this line with its own instructions as the system prompt and
     the day it is written for as the prompt (`news-brief.md`).
+- **Translate runner**: one translation asked through agency's `POST /translation-runs` (`docs/api.md`,
+  「translations」), on the road the road resolution answers for the work key `translate`, whose profile
+  starts on the registry's provider, so the registered translation model answers first and the walk
+  after. Its system prompt is the translator role's prompt (`prompts/roles/translator.md`) and then the
+  instructions of the purpose asked — `prompts/agents/translator/instructions.md` for a document's part,
+  `worker.md` for a text a job worker reads, `record.md` for a worker's record the owner reads, that
+  one after the plain-writing rulebook — and its input is one line naming the target language and then
+  the text. On the registry's provider it is one request to the gateway's chat completions path under
+  the registration the mapping names, with thinking off and the profile's sampling (`docs/own-llm.md`,
+  「A request with no tools」). On Claude Code it is a run apart (`docs/agents.md`, 「Runs apart」): that
+  system prompt as the whole of it, no tool shown or allowed, no MCP server, a fresh session, thinking
+  off. No other provider carries the line. The answer is the translation whole.
 - **Browse runner**: the model and the effort its tier assignment names (Frontier to start with),
   don't-ask mode, no built-in tool shown, the chrome-devtools tools, the tool host's web tools and the
   brain's `bmo` namespace from an MCP configuration written for the run — chrome-devtools started as the profile's strategy

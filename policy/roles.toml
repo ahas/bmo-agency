@@ -76,6 +76,13 @@ max_concurrent = 4
 bundles = ["web.read", "web.sites", "web.images", "web.branches", "web.rulebooks"]
 
 [[roles]]
+name = "translator"
+label = "Translator"
+prompt = "translator.md"
+max_concurrent = 4
+bundles = []
+
+[[roles]]
 name = "gate"
 label = "Gate"
 max_concurrent = 8

@@ -214,6 +214,20 @@ default_claude_model = "claude-haiku-4-5-20251001"
 tier = "Simple"
 default_codex = { model = "gpt-5.6-luna", effort = "low" }
 
+# The translator runner's key (docs/launch-lines.md, 「Translate runner」): the registered translation model
+# first, the walk after. Its answer is the whole text it was given, rendered.
+[[profile]]
+key = "translate"
+label = "Translator"
+gate_sampling = { temperature = 0.3, top_p = 0.8, top_k = 20, min_p = 0 }
+kind = "runner"
+line = "translate"
+default_route_mode = "registered"
+default_claude_model = "claude-sonnet-5"
+tier = "Reliable"
+default_codex = { model = "gpt-5.6-terra", effort = "high" }
+gate_answer_tokens = 2048
+
 # The translator's answer is the whole part it was given, rendered; parts are cut small enough that
 # this holds one with room to spare, so the first of them shows within seconds.
 [[profile]]

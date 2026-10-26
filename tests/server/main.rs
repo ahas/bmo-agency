@@ -178,6 +178,7 @@ mod seeds;
 mod session_output;
 mod session_questions;
 mod session_tools;
+mod translate;
 mod turn_pickup;
 mod usage_balances;
 

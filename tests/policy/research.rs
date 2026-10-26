@@ -54,7 +54,7 @@ fn every_research_key_has_its_branches_and_clock_and_the_strategy_is_one_the_web
   let keys: Vec<&str> = policy::work_keys::WORK_KEYS
     .profile
     .iter()
-    .filter(|profile| profile.kind == "runner")
+    .filter(|profile| profile.kind == "runner" && profile.line != "translate")
     .map(|profile| profile.key.as_str())
     .collect();
 

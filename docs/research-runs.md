@@ -6,6 +6,9 @@ is held to; and how its result comes back.
 
 ## The work keys
 
+The translator is a runner too, asked through its own route rather than this one, and runs apart in the
+same way (`docs/launch-lines.md`, 「Translate runner」).
+
 - **Each depth and the browse runner is a work key with a profile of its own:** `search:basic`,
   `search:thorough` and `search:exhaustive` on the search line, and `browse` on the browse line
   (`policy/work-keys.toml`). Like every other key each has a row of the fallback table (`GET`/`PATCH

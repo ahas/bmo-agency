@@ -33,7 +33,15 @@ made of is `docs/companions.md`.
   | `chat` | Chat | `room.chat`, `room.send`, `web.read` |
   | `worker` | Worker | `graph.read`, `queue.read`, `web.read` |
   | `searcher` | Searcher | `web.read`, `web.sites`, `web.images`, `web.branches`, `web.rulebooks` |
+  | `translator` | Translator | none |
   | `gate` | Gate | none |
+
+- **The translator is a runner, not a gate.** A gate judges a turn in the chain around it, its input and
+  answer fixed; a translation is work asked on demand — a document's part, a text a job worker reads, a
+  record the owner reads — and goes out on a road of its own (`docs/launch-lines.md`, 「Translate
+  runner」). Its agent, `translator`, is a row of kind `runner` holding the `translator` role, whose prompt,
+  `prompts/roles/translator.md`, stands before the instructions of the purpose it is asked for. It holds
+  no bundle: no web, no tool.
 
 - **A role with no bundle of its own still names what the agent is for.** A gate's runs hold what
   their line declares (`docs/launch-lines.md`) and nothing of a role.

@@ -1376,6 +1376,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/translation-runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Translate one text on the translator runner's road, answered whole. */
+        post: operations["createTranslationRuns"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/research-runs": {
         parameters: {
             query?: never;
@@ -3191,6 +3208,21 @@ export interface components {
             /** Format: int64 */
             answerTokens: number | null;
         };
+        /** @description TranslationRun: a translation as it came back, whole, with the road it went out on. */
+        TranslationRun: {
+            text: string;
+            provider: string;
+            model: string;
+        };
+        /**
+         * @description TranslationRunAsk: one text to translate on the `translate` road: what it is for (`document`, `worker` or
+         *     `record`), the language to render it in and the text.
+         */
+        TranslationRunAsk: {
+            purpose: string;
+            language: string;
+            text: string;
+        };
         /** @description ResearchRun: a research run as it was launched: its run in the ledger, its key and the road it went out on. */
         ResearchRun: {
             /** Format: int64 */
@@ -3366,6 +3398,15 @@ export interface components {
         };
         /** @description name-taken */
         NameTaken: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description no-answer */
+        NoAnswer: {
             headers: {
                 [name: string]: unknown;
             };
@@ -6567,6 +6608,34 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
+        };
+    };
+    createTranslationRuns: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TranslationRunAsk"];
+            };
+        };
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TranslationRun"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            422: components["responses"]["NoAnswer"];
+            503: components["responses"]["NoLoginOpen"];
         };
     };
     createResearchRuns: {

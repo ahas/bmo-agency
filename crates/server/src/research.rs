@@ -40,14 +40,19 @@ pub const SETTINGS_KEY: &str = "research_settings";
 // How long past its clock a run may go on writing its result before its pane is cut.
 const WRITING_MARGIN: Duration = Duration::from_secs(10 * 60);
 
-/// A research key's profile: a runner's key on the search or browse line.
+/// A research key's profile: a runner's key the research settings hold, on the search or browse line; the
+/// translator is a runner too and no research.
 pub fn research_profile(key: &str) -> Option<&'static Profile> {
-  WORK_KEYS.profile(key).filter(|profile| profile.kind == "runner")
+  WORK_KEYS.profile(key).filter(|profile| is_research(profile))
 }
 
 /// Every research key, in the policy's order.
 pub fn research_keys() -> impl Iterator<Item = &'static Profile> {
-  WORK_KEYS.profile.iter().filter(|profile| profile.kind == "runner")
+  WORK_KEYS.profile.iter().filter(|profile| is_research(profile))
+}
+
+fn is_research(profile: &Profile) -> bool {
+  profile.kind == "runner" && RESEARCH.settings.keys.contains_key(&profile.key)
 }
 
 /// The settings every research run is held to: the owner's where he changed them, the policy's otherwise.
