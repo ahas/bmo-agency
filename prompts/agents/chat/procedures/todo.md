@@ -2,10 +2,10 @@
 
 Read this before filing, approving, holding, merging or dropping an item, and before leasing one or
 launching its run. When to file is in the manual; this is how. Your tools are the job service's:
-`job_item_create`, `job_item_update`, `job_item`, `job_items`, `job_note_add`, `job_notes`,
-`job_report`, `job_work_order`, `job_tasks`, `job_queues`, `job_lease_next`, `job_lease_renew`,
+`job_item_update`, `job_item`, `job_items`, `job_note_add`, `job_notes`, `job_report`,
+`job_work_order`, `job_tasks`, `job_queues`, `job_lease_next`, `job_lease_renew`,
 `job_lease_release`, `job_question_ask`, `job_question` and `job_replies`; and the agency's own:
-`assign_worker` and `run_job`.
+`file_item`, `assign_worker` and `run_job`.
 
 ## The queue
 
@@ -22,15 +22,15 @@ launching its run. When to file is in the manual; this is how. Your tools are th
   given back or run out moves it to open; `held` sets an open or leased item aside and `open` takes
   it back; `done` closes a leased item; any unfinished item can be dropped, or merged with
   `mergedInto`. A move the service does not allow is refused with the state it stands in.
-- **`scope` is this room's chat id, and `requesterName` is who asked.** `labels` is your own
-  metadata. The queue reads none of them; the room's own views do.
+- **The item's room is the turn's,** which `file_item` sets itself; `requesterName` is who asked, and
+  `labels` is your own metadata.
 - **A queue paused or under a hold gives no lease.** `job_queues` shows it; say where it stands
   rather than working around it.
 
 ## Filing an item
 
-- **Tool:** `job_item_create` with `queueName`, `title`, `brief` and, where they apply,
-  `priority`, `assigneeName`, `requesterName`, `scope` and `labels`.
+- **Tool:** `file_item` with `queueName`, `title`, `brief` and, where they apply, `priority`,
+  `assigneeName`, `requesterName` and `labels`. It is the only way an item is filed.
 - **The brief is the run's whole instruction.** The worker never sees this conversation or the
   owner's approval; it reads the item's brief, its work order and its notes, so the brief carries
   the whole instruction and the notes carry the record and the conditions added later. Write it in
@@ -42,8 +42,10 @@ launching its run. When to file is in the manual; this is how. Your tools are th
   nothing more. Everything else he said is told in your own English.
 - **The title is the item's name** in the queue, on the console and at the head of the run's
   prompt: a short English line, never the date alone.
-- **Filing raises a draft.** It enters the queue only on the owner's own approval, which he gives on
-  the console; the job service tells his approval from anyone else's by who calls it, never by a name.
+- **What the owner asks for himself opens at once.** An item filed in a turn whose every new message is
+  his enters the queue open, with no approval to wait for: his word in the room is the approval. Any
+  other item raises a draft, which enters the queue only on his own approval on the console; the job
+  service tells his approval from anyone else's by who calls it, never by a name.
 - **What you record is a recommendation.** `job_item_update` with item <id> and an `approval` (no name:
   the service records it under the chat's own caller) is your recommendation that the owner approve
   it; the draft stays a draft until he does. Record one only on his own word, or on a grant in force
@@ -52,8 +54,8 @@ launching its run. When to file is in the manual; this is how. Your tools are th
   `job_item_update` where the run must act on them.
 - **A draft he asked for** (put it on the TODO as a draft, or any way of saying written down but not started)
   is filed, not approved: say it waits on his approval, with its number.
-- **A member's request** is filed the same way, with `requesterName` the member and `scope` the
-  room, and is never approved by you: it waits for the owner. Say that plainly instead of promising
+- **A member's request** is filed the same way, with `requesterName` the member, and is never
+  approved by you: it waits for the owner. Say that plainly instead of promising
   the work.
 
 ## Changing an item that stands
@@ -111,7 +113,7 @@ launching its run. When to file is in the manual; this is how. Your tools are th
   again.
 - **A run that ended in an error is repaired before anything else moves on.** Read the item and its
   notes and find the cause, not the symptom. A cause outside the item's own work is filed as a
-  repair item of its own with `job_item_create`, put first, and approved only on the owner's word or
+  repair item of its own with `file_item`, put first, and approved only on the owner's word or
   a grant; a cause in the item's own work means the rerun is the repair, with what the failure
   taught written into the brief. A launch that never reached the work is not a failure of the work:
   fix the launch and run it again. A cause you cannot name is put to the owner, not relaunched

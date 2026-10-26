@@ -32,7 +32,8 @@ fn the_committed_document_is_what_the_code_generates() {
 
 #[test]
 fn the_harness_plugin_lists_exactly_the_document_s_tools() {
-  let listed: Vec<&str> = agency_server::mcp::tools().iter().map(|tool| tool.name).collect();
+  let listed: Vec<&str> =
+    agency_server::mcp::tools(Some("chat-agent")).iter().map(|tool| tool.name).collect();
   let document = agency_server::openapi::openapi();
   let stated: Vec<&str> = document["x-tools"]
     .as_array()
@@ -41,6 +42,6 @@ fn the_harness_plugin_lists_exactly_the_document_s_tools() {
     .map(|tool| tool["name"].as_str().expect("a tool has a name"))
     .collect();
 
-  assert_eq!(listed, ["assign_worker", "run_job", "run_research"]);
+  assert_eq!(listed, ["file_item", "assign_worker", "run_job", "run_research"]);
   assert_eq!(listed, stated);
 }

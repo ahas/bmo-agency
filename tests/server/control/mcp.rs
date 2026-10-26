@@ -15,7 +15,7 @@ async fn the_mcp_server_starts_and_lists_exactly_the_document_s_tools() {
 
   let listed = tokio::task::spawn_blocking(move || {
     let mut child = Command::new(binary)
-      .arg("mcp")
+      .args(["mcp", "--agent", "chat-agent"])
       .env("AGENCY_URL", "http://127.0.0.1:1")
       .env("AGENCY_CONTROL_TOKEN", "secret")
       .stdin(Stdio::piped())
@@ -74,5 +74,6 @@ async fn the_mcp_server_starts_and_lists_exactly_the_document_s_tools() {
     .expect("the plugin answers")
     .expect("the reader runs");
 
-  assert_eq!(names, ["assign_worker", "run_job", "run_research"]);
+  // A server started for an agent files that agent's items.
+  assert_eq!(names, ["file_item", "assign_worker", "run_job", "run_research"]);
 }

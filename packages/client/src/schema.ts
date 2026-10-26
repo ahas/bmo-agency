@@ -831,6 +831,23 @@ export interface paths {
         patch: operations["changeFallback"];
         trace?: never;
     };
+    "/item-filings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** File an item in the job service for the turn an agent is carrying now: its room as the item's scope, and asked-by=owner where every message of that turn is the owner's. */
+        post: operations["createItemFilings"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/work-keys": {
         parameters: {
             query?: never;
@@ -2708,6 +2725,34 @@ export interface components {
              */
             registration: string | null;
         };
+        /** @description ItemFiled: the item as the job service raised it. */
+        ItemFiled: {
+            /** Format: int64 */
+            id: number;
+            /** @description `open` where the job service's unattended labels opened it, `draft` otherwise. */
+            state: string;
+            scope: string | null;
+            /** @description The item's labels, each a string. */
+            labels: unknown;
+        };
+        /**
+         * @description ItemFilingAsk: an item a chat agent files for the turn it carries now; the agent is the one its harness
+         *     plugin was started for, and the item's room and whether the owner asked it are agency's to read.
+         */
+        ItemFilingAsk: {
+            agentName: string;
+            title: string;
+            brief: string;
+            queueName: string;
+            /** Format: int64 */
+            priority?: number | null;
+            assigneeName?: string | null;
+            requesterName?: string | null;
+            /** @default {} */
+            labels: {
+                [key: string]: string;
+            };
+        };
         /** @description WorkKeyAssignmentPage: */
         WorkKeyAssignmentPage: {
             items: components["schemas"]["WorkKeyAssignment"][];
@@ -3453,6 +3498,28 @@ export interface components {
         DraftQuestionChange: {
             text: string;
         };
+        /** @description FileItem: an item to file as the chat agent asks it, everything but the agent its plugin was started for. */
+        FileItem: {
+            /** @description The item's name in the queue: a short English line. */
+            title: string;
+            /** @description The run's whole instruction, in English. */
+            brief: string;
+            /** @description The queue it is filed in. */
+            queueName: string;
+            /** Format: int64 */
+            priority?: number | null;
+            /** @description The worker it is to go to, where it names one. */
+            assigneeName?: string | null;
+            /** @description Who asked for it. */
+            requesterName?: string | null;
+            /**
+             * @description Labels of the filer's own, each a string.
+             * @default {}
+             */
+            labels: {
+                [key: string]: string;
+            };
+        };
     };
     responses: {
         /** @description bad-request */
@@ -3518,6 +3585,15 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /** @description no-turn */
+        NoTurn: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
         /** @description no-webhook-secret */
         NoWebhookSecret: {
             headers: {
@@ -3574,6 +3650,15 @@ export interface components {
         };
         /** @description unauthorized */
         Unauthorized: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description upstream-failed */
+        UpstreamFailed: {
             headers: {
                 [name: string]: unknown;
             };
@@ -5500,6 +5585,34 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
+        };
+    };
+    createItemFilings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ItemFilingAsk"];
+            };
+        };
+        responses: {
+            /** @description Answered. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ItemFiled"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            422: components["responses"]["NoTurn"];
+            502: components["responses"]["UpstreamFailed"];
         };
     };
     listWorkKeys: {

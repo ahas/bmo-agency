@@ -15,7 +15,14 @@ pub struct Tool {
 }
 
 /// The tools the agency's MCP server lists.
-pub const TOOLS: [Tool; 3] = [
+pub const TOOLS: [Tool; 4] = [
+  Tool {
+    name: "file_item",
+    description: "File an item in the job service: the room it was asked in and whether the owner asked for it are the turn's, which the agency reads; an item the owner asked for himself opens at once, any other waits as a draft for his approval.",
+    input: "FileItem",
+    output: "ItemFiled",
+    route: "POST /item-filings",
+  },
   Tool {
     name: "assign_worker",
     description: "Assign a worker to an item for the harness holding it: the agency picks the worker from the item's content and the assignee it names, and holds it until the job starts or the hold runs out.",

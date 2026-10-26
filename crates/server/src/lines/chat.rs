@@ -223,9 +223,9 @@ pub async fn server_digest(ground: &Ground) -> Option<String> {
 /// programs beside the chat and take their bearers from the environment the chat inherits; a deployment
 /// that names neither leaves that server out. Written on every composition, since this line is the one
 /// writer.
-pub fn mcp_config(ground: &Ground, trees: &Trees) -> Result<PathBuf, Refusal> {
-  let path = trees.agents.join("chat.mcp.json");
-  let text = format!("{}\n", Ordered::map([("mcpServers", harness_servers(ground))]).pretty());
+pub fn mcp_config(ground: &Ground, trees: &Trees, agent: &str) -> Result<PathBuf, Refusal> {
+  let path = trees.agents.join(format!("chat.{agent}.mcp.json"));
+  let text = format!("{}\n", Ordered::map([("mcpServers", harness_servers(ground, agent))]).pretty());
 
   agent_host::disk::private_dir(&trees.agents)
     .map_err(|why| fault(format!("{}: {why}", trees.agents.display())))?;
@@ -241,7 +241,7 @@ pub fn mcp_config(ground: &Ground, trees: &Trees) -> Result<PathBuf, Refusal> {
 // A value that differs by installation is read from the environment, and each program's bearer is handed to
 // it in the configuration's own environment: a harness starts its children on an environment scrubbed of
 // everything but the entries written there.
-fn harness_servers(ground: &Ground) -> Ordered {
+fn harness_servers(ground: &Ground, agent: &str) -> Ordered {
   let env = ground.env();
   let namespaces: Vec<&str> = RUN_LINES.namespaces(LINE).iter().map(String::as_str).collect();
   let mut servers: Vec<(String, Ordered)> = super::runner::line_servers(ground, &namespaces)
@@ -313,7 +313,13 @@ fn harness_servers(ground: &Ground) -> Ordered {
       ("command", Ordered::text(program.to_string_lossy().into_owned())),
       (
         "args",
-        Ordered::List(vec![Ordered::text("mcp"), Ordered::text("--url"), Ordered::text(url)]),
+        Ordered::List(vec![
+          Ordered::text("mcp"),
+          Ordered::text("--url"),
+          Ordered::text(url),
+          Ordered::text("--agent"),
+          Ordered::text(agent),
+        ]),
       ),
     ];
 
@@ -386,7 +392,7 @@ pub async fn chat_run(
     persona: persona.text.clone(),
     discipline,
     tool_discipline,
-    servers: harness_servers(ground)
+    servers: harness_servers(ground, agent)
       .entries()
       .into_iter()
       .flatten()
@@ -402,7 +408,7 @@ pub async fn chat_run(
     .collect();
   let system = parts.compose(&trees, &shown)?;
   let system_path = system_prompt_file(&trees, agent, &system)?;
-  let mcp = mcp_config(ground, &trees)?;
+  let mcp = mcp_config(ground, &trees, agent)?;
   let mut env: BTreeMap<String, String> = ground.env().clone();
 
   for (name, value) in &CLAUDE_CODE.launch.variables {
@@ -669,6 +675,10 @@ pub fn words(line: &Words<'_>) -> Result<Vec<String>, Refusal> {
 
   if !line.host_commands {
     args.push("--disable-slash-commands".to_owned());
+  }
+
+  if !CHAT_LINE.tools.hidden.is_empty() {
+    args.extend(["--disallowedTools".to_owned(), CHAT_LINE.tools.hidden.clone()]);
   }
 
   args.extend(["--no-chrome", "--permission-mode", "dontAsk", "--tools"].map(str::to_owned));

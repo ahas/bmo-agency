@@ -143,6 +143,9 @@
       "name": "fallback"
     },
     {
+      "name": "assignments-and-jobs"
+    },
+    {
       "name": "work-keys"
     },
     {
@@ -3605,6 +3608,55 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/FallbackChange"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/item-filings": {
+      "post": {
+        "operationId": "createItemFilings",
+        "tags": [
+          "assignments-and-jobs"
+        ],
+        "summary": "File an item in the job service for the turn an agent is carrying now: its room as the item's scope, and asked-by=owner where every message of that turn is the owner's.",
+        "responses": {
+          "201": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemFiled"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "422": {
+            "$ref": "#/components/responses/NoTurn"
+          },
+          "502": {
+            "$ref": "#/components/responses/UpstreamFailed"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "no-turn",
+          "upstream-failed"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ItemFilingAsk"
               }
             }
           }
@@ -10125,6 +10177,86 @@
         ],
         "description": "The body that changes the fallback screen's routes, providers and accounts."
       },
+      "ItemFiled": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "state": {
+            "type": "string",
+            "description": "`open` where the job service's unattended labels opened it, `draft` otherwise."
+          },
+          "scope": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "labels": {
+            "description": "The item's labels, each a string."
+          }
+        },
+        "required": [
+          "id",
+          "state",
+          "scope",
+          "labels"
+        ],
+        "description": "ItemFiled: the item as the job service raised it."
+      },
+      "ItemFilingAsk": {
+        "type": "object",
+        "properties": {
+          "agentName": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "brief": {
+            "type": "string"
+          },
+          "queueName": {
+            "type": "string"
+          },
+          "priority": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "assigneeName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "requesterName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "labels": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "default": {}
+          }
+        },
+        "required": [
+          "agentName",
+          "title",
+          "brief",
+          "queueName",
+          "labels"
+        ],
+        "description": "ItemFilingAsk: an item a chat agent files for the turn it carries now; the agent is the one its harness\nplugin was started for, and the item's room and whether the owner asked it are agency's to read."
+      },
       "WorkKeyAssignmentPage": {
         "type": "object",
         "properties": {
@@ -12417,6 +12549,59 @@
           "text"
         ],
         "description": "A question's text changed, or a question added under a name of the console's own."
+      },
+      "FileItem": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "The item's name in the queue: a short English line."
+          },
+          "brief": {
+            "type": "string",
+            "description": "The run's whole instruction, in English."
+          },
+          "queueName": {
+            "type": "string",
+            "description": "The queue it is filed in."
+          },
+          "priority": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "assigneeName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The worker it is to go to, where it names one."
+          },
+          "requesterName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Who asked for it."
+          },
+          "labels": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Labels of the filer's own, each a string.",
+            "default": {}
+          }
+        },
+        "required": [
+          "title",
+          "brief",
+          "queueName",
+          "labels"
+        ],
+        "description": "FileItem: an item to file as the chat agent asks it, everything but the agent its plugin was started for."
       }
     },
     "responses": {
@@ -12482,6 +12667,16 @@
       },
       "NoLoginOpen": {
         "description": "no-login-open",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "NoTurn": {
+        "description": "no-turn",
         "content": {
           "application/json": {
             "schema": {
@@ -12559,6 +12754,16 @@
             }
           }
         }
+      },
+      "UpstreamFailed": {
+        "description": "upstream-failed",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
       }
     },
     "securitySchemes": {
@@ -12570,6 +12775,17 @@
     }
   },
   "x-tools": [
+    {
+      "name": "file_item",
+      "description": "File an item in the job service: the room it was asked in and whether the owner asked for it are the turn's, which the agency reads; an item the owner asked for himself opens at once, any other waits as a draft for his approval.",
+      "input": {
+        "$ref": "#/components/schemas/FileItem"
+      },
+      "output": {
+        "$ref": "#/components/schemas/ItemFiled"
+      },
+      "route": "POST /item-filings"
+    },
     {
       "name": "assign_worker",
       "description": "Assign a worker to an item for the harness holding it: the agency picks the worker from the item's content and the assignee it names, and holds it until the job starts or the hold runs out.",

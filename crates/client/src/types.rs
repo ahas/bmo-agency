@@ -691,6 +691,60 @@ pub struct Balance {
   pub seen_at: i64,
 }
 
+/// ItemFilingAsk: an item a chat agent files for the turn it carries now; the agent is the one its harness
+/// plugin was started for, and the item's room and whether the owner asked it are agency's to read.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ItemFilingAsk {
+  pub agent_name: String,
+  pub title: String,
+  pub brief: String,
+  pub queue_name: String,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub priority: Option<i64>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub assignee_name: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub requester_name: Option<String>,
+  #[serde(default)]
+  pub labels: std::collections::BTreeMap<String, String>,
+}
+
+/// FileItem: an item to file as the chat agent asks it, everything but the agent its plugin was started for.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct FileItem {
+  /// The item's name in the queue: a short English line.
+  pub title: String,
+  /// The run's whole instruction, in English.
+  pub brief: String,
+  /// The queue it is filed in.
+  pub queue_name: String,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub priority: Option<i64>,
+  /// The worker it is to go to, where it names one.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub assignee_name: Option<String>,
+  /// Who asked for it.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub requester_name: Option<String>,
+  /// Labels of the filer's own, each a string.
+  #[serde(default)]
+  pub labels: std::collections::BTreeMap<String, String>,
+}
+
+/// ItemFiled: the item as the job service raised it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ItemFiled {
+  pub id: i64,
+  /// `open` where the job service's unattended labels opened it, `draft` otherwise.
+  pub state: String,
+  pub scope: Option<String>,
+  /// The item's labels, each a string.
+  pub labels: Value,
+}
+
 /// WorkKeyAssignment: one work key's tier, the tiers it may be assigned, the owner's choices from before the
 /// tiers kept for review, and what it resolves to on each provider of the registry's archive.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]

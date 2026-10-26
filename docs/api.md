@@ -706,11 +706,25 @@ nothing of its placement.
 | PATCH | `/jobs/{jobId}` | End a job with its outcome, or stop it; its assignment is released. |
 | GET | `/jobs/{jobId}/prompt` | The prompt the job was launched with. |
 | POST | `/instruction-texts` | The work-order step's line composed from an instruction. |
+| POST | `/item-filings` | File an item in the job service for the turn an agent is carrying now: its room as the item's `scope`, and `asked-by=owner` where every message of that turn is the owner's. |
 
 A job's `itemId` and `leaseId` are the harness's references, kept as given. The harness renews the lease,
 reads the job's progress, questions and outcome from its fields and events, and reports and closes the item
-in the job service. Agency keeps no job store and no client of the job service; the two calls it makes there
-are the ones a job's end states below.
+in the job service. Agency keeps no job store; the calls it makes there are the ones a job's end states below,
+and the filing of an item.
+
+- **An item a chat agent files goes through agency,** `POST /item-filings`, so what the item says of where it
+  was asked and who asked is agency's reading of the turn rather than anything the model writes. It takes the
+  `agentName` its harness plugin was started for — never one the model names — and the item's `title`,
+  `brief`, `queueName`, and where they apply `priority`, `assigneeName`, `requesterName` and `labels`, and
+  raises it in the job service (`POST /items`) on the chat's own caller token where the deployment names one:
+  - its `scope` is the room of the turn that agent is carrying now;
+  - its labels gain `asked-by=owner` where the receiver marked that turn privileged — every new message in it
+    the owner's — and lose any `asked-by` the call names, so the job service's unattended labels open an item
+    the owner asked for at once while one the agent raised itself, or anyone else asked for, stays a draft;
+  - an agent carrying no turn now files no item: 409 `no-turn`.
+  It answers 201 with the item's `id`, `state`, `scope` and `labels`, as the job service answered them; a
+  refusal of the job service's is 502 `upstream-failed` with its sentence.
 
 - **A job's end reaches the room and gives its lease back.** However a job ends — its run finishing, failing,
   or the harness ending or stopping it — the agency returns the item's lease to the job service as the end is
@@ -878,6 +892,9 @@ input, so `bmo` finds it from any directory.
 The service publishes `bmo-agency` beside its client: `bmo-agency mcp` serves the MCP server, and each
 tool is a thin call of one route through the agency's own client.
 
+- `file_item` calls `POST /item-filings`, naming the agent its server was started for (`bmo-agency mcp
+  --agent <name>`); it is the chat line's one road for filing an item: the job plugin's own item creation is not
+  shown to the chat on Claude Code, and no prompt names it on any program.
 - `assign_worker` calls `POST /assignments`.
 - `run_job` calls `POST /jobs`.
 - `run_research` calls `POST /research-runs`.

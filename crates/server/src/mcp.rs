@@ -6,7 +6,8 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use bmo_agency_client::{
-  AgencyClient, Answer, AssignWorker, Assignment, ClientFailure, Job, ResearchRun, ResearchRunAsk, RunJob,
+  AgencyClient, Answer, AssignWorker, Assignment, ClientFailure, FileItem, ItemFiled, ItemFilingAsk, Job,
+  ResearchRun, ResearchRunAsk, RunJob,
 };
 use rmcp::model::{
   CallToolRequestParams, CallToolResponse, CallToolResult, ContentBlock, Implementation, InitializeResult,
@@ -21,7 +22,8 @@ use serde::de::DeserializeOwned;
 use serde_json::{Map, Value, json};
 
 /// What the server tells a harness of itself when it starts.
-const INSTRUCTIONS: &str = "Runs items on the agency's workers. A harness holding an item asks for a worker \
+const INSTRUCTIONS: &str = "Files items and runs them on the agency's workers. An item is filed with file_item, \
+  which files it for the turn being carried now. A harness holding an item asks for a worker \
   with assign_worker, hands the item and its lease over with run_job, and reads the job's progress, questions \
   and outcome from the job's events and fields; the harness renews its lease and reports and closes the item \
   in the job service. A web research goes out with run_research, its result queued for the room as it ends. A \
@@ -120,9 +122,34 @@ where
   }
 }
 
-/// The tools the server lists, and the document states under `x-tools`.
-pub fn tools() -> Vec<AgencyTool> {
-  vec![
+/// The tools the server lists, and the document states under `x-tools`: `file_item` where the server was started
+/// for an agent, whose turn its items are filed for.
+pub fn tools(agent: Option<&str>) -> Vec<AgencyTool> {
+  let mut tools = vec![];
+
+  if let Some(agent) = agent.map(str::to_owned) {
+    tools.push(tool::<FileItem, ItemFiled, _, _>(
+      "file_item",
+      "File an item in the job service: the room it was asked in and whether the owner asked for it are the turn's, which the agency reads; an item the owner asked for himself opens at once, any other waits as a draft for his approval.",
+      "POST /item-filings",
+      move |client, item: FileItem| {
+        let ask = ItemFilingAsk {
+          agent_name: agent.clone(),
+          title: item.title,
+          brief: item.brief,
+          queue_name: item.queue_name,
+          priority: item.priority,
+          assignee_name: item.assignee_name,
+          requester_name: item.requester_name,
+          labels: item.labels,
+        };
+
+        async move { client.create_item_filings(&ask).await }
+      },
+    ));
+  }
+
+  tools.extend([
     tool::<AssignWorker, Assignment, _, _>(
       "assign_worker",
       "Assign a worker to an item for the harness holding it: the agency picks the worker from the item's content and the assignee it names, and holds it until the job starts or the hold runs out.",
@@ -141,7 +168,9 @@ pub fn tools() -> Vec<AgencyTool> {
       "POST /research-runs",
       |client, body| async move { client.create_research_runs(&body).await },
     ),
-  ]
+  ]);
+
+  tools
 }
 
 /// The server over the agency the client reaches.
@@ -151,10 +180,11 @@ pub struct AgencyServer {
 }
 
 impl AgencyServer {
-  pub fn new(client: AgencyClient) -> Self {
+  /// The server over the agency `client` reaches, filing items for `agent`'s turns where it names one.
+  pub fn new(client: AgencyClient, agent: Option<&str>) -> Self {
     Self {
       client,
-      tools: tools(),
+      tools: tools(agent),
     }
   }
 

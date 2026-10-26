@@ -229,6 +229,9 @@ enum Verb {
     /// The agency's bearer token.
     #[arg(long, env = "AGENCY_CONTROL_TOKEN", hide_env_values = true)]
     token: Option<String>,
+    /// The agent whose turns the server files items for, which its line names.
+    #[arg(long)]
+    agent: Option<String>,
   },
   /// Prints the OpenAPI document.
   Openapi,
@@ -590,7 +593,7 @@ async fn run(verb: Verb) -> ExitCode {
       request,
       data_root: named,
     } => ended(turns::host_run(&named.unwrap_or(data_root), &request).await),
-    Verb::Mcp { url, token } => mcp(url, token).await,
+    Verb::Mcp { url, token, agent } => mcp(url, token, agent).await,
     Verb::Openapi => {
       print!("{}", agency_server::openapi::openapi_json());
       ExitCode::SUCCESS
@@ -598,7 +601,7 @@ async fn run(verb: Verb) -> ExitCode {
   }
 }
 
-async fn mcp(url: Option<String>, token: Option<String>) -> ExitCode {
+async fn mcp(url: Option<String>, token: Option<String>, agent: Option<String>) -> ExitCode {
   let port = std::env::var("AGENCY_CONTROL_PORT")
     .ok()
     .and_then(|port| port.trim().parse::<u16>().ok())
@@ -612,7 +615,7 @@ async fn mcp(url: Option<String>, token: Option<String>) -> ExitCode {
       return ExitCode::FAILURE;
     }
   };
-  let server = AgencyServer::new(client);
+  let server = AgencyServer::new(client, agent.as_deref());
   match server.serve(stdio()).await {
     Ok(service) => {
       let _ = service.waiting().await;

@@ -77,6 +77,7 @@ pub mod session_tools;
 pub mod stand_in;
 pub mod text;
 pub mod translate;
+pub mod turn_marks;
 pub mod turn_pickup;
 pub mod usage_windows;
 

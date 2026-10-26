@@ -45,6 +45,7 @@ mod control {
   mod front;
   mod gate_kinds;
   mod harness;
+  mod item_filings;
   mod job_end;
   mod job_log;
   mod job_notes;

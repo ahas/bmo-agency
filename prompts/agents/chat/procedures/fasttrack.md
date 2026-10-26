@@ -36,7 +36,7 @@ this is how.
 ## Keeping a tool
 
 - A tool worth reusing, where the same kind of request is likely again, is filed in the same run as
-  a queue item: `job_item_create` with a title naming the tool, a brief saying what it does, what a
+  a queue item: `file_item` with a title naming the tool, a brief saying what it does, what a
   proper tool of the repository would need and why it is worth keeping, and `requesterName` you.
   It is a draft, and you never approve it: approval is the owner's.
 - Once he approves it, a job makes the tool one of the repository's own, a folder of its `tools/`,

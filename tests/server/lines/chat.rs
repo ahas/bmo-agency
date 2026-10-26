@@ -47,6 +47,7 @@ fn every_conversational_agent_stands_on_the_chat_line_with_its_own_prompt_and_se
   assert!(!opened.iter().any(|word| word == "--disable-slash-commands"));
   assert_eq!(at(&opened, "--system-prompt-file"), Some(system.to_string_lossy().into_owned()));
   assert_eq!(at(&opened, "--permission-mode").as_deref(), Some("dontAsk"));
+  assert_eq!(at(&opened, "--disallowedTools").as_deref(), Some("mcp__job__job_item_create"));
   assert_eq!(at(&opened, "--allowedTools").as_deref(), Some("Bash,Read,mcp__bmo"));
   assert_eq!(at(&opened, "--settings"), Some(settings.to_string_lossy().into_owned()));
   assert_eq!(opened[opened.len() - 2..], ["--session-id".to_owned(), "s-1".to_owned()]);

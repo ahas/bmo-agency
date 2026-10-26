@@ -166,14 +166,18 @@
   settings sources, no skills, no Chrome, and five MCP servers, named in `chat.mcp.json`
   beside the strict flag that keeps every other server out: the tool host's namespaces the chat line
   names, `bmo`, `web` and `gate`, each a streamable HTTP server behind the run's session
-  token (the tool host's `mcp-host.md`), which is where the chat agent's own tools stand — sending, filing
-  a TODO item, its brain's memory tools, the web's search and page fetch, and the gate's translator among
+  token (the tool host's `mcp-host.md`), which is where the chat agent's own tools stand — sending, its
+  brain's memory tools, the web's search and page fetch, and the gate's translator among
   them; the job service's harness plugin, `job`, which leases an item
   from a queue, started on the chat's own caller token where the deployment names one (`BMO_JOB_CHAT_TOKEN`,
   or the file `BMO_JOB_CHAT_TOKEN_FILE` names), so the job service records what the chat does — an
   approval among it, which it keeps as the chat's recommendation rather than the owner's approval — under
-  the chat's name, and on the deployment's shared token otherwise; and the agency's own, `agency`, which
-  assigns a worker, launches the item's job and sends a research out. A
+  the chat's name, and on the deployment's shared token otherwise, its own item creation not shown to the
+  chat on Claude Code (`--disallowedTools`) and named by no prompt on dsh, whose MCP client shows a server's
+  every tool; and the agency's own, `agency`, started for the agent the configuration is
+  composed for (`--agent`, one configuration a chat agent), which files an item through agency
+  (`docs/api.md`, 「assignments and jobs」), assigns a worker, launches the item's job and sends a research
+  out. A
   hosted tool those namespaces do not show is reached with `bmo use`.
   The tools shown are exactly Bash, Read, Write, Edit and the CLI's two MCP resource tools, the list
   and the read, in every run of every chat (none when the owner has turned tools off in that chat),

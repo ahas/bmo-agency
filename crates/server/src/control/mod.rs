@@ -24,6 +24,7 @@ pub mod github_deliveries;
 pub mod harness;
 mod health;
 mod hook_routes;
+pub mod item_filings;
 mod keepalive;
 mod machine;
 pub mod model_tiers;

@@ -2255,6 +2255,18 @@ impl Sessions for HerdrSessions {
     )
     .await;
 
+    // A room turn of a conversational agent is what an item it files is filed under.
+    if let (Some(room), None, None) = (&room, work, &turn.context.gate) {
+      crate::turn_marks::carrying(
+        &agent,
+        &run,
+        crate::turn_marks::Mark {
+          chat_id: room.parse().unwrap_or_default(),
+          privileged: turn.context.privileged,
+        },
+      );
+    }
+
     self.ground().events.publish(TurnStarted {
       session: turn.session.0.clone(),
       run: run.clone(),
@@ -2318,6 +2330,7 @@ impl Sessions for HerdrSessions {
     };
 
     self.ended(&turn.session, &run);
+    crate::turn_marks::ended(&agent, &run);
     crate::turn_pickup::forget(&self.ground().db, &run).await;
 
     // A turn refused once its start was published still ends, failed with the refusal.
