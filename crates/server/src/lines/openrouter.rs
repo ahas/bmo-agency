@@ -101,6 +101,15 @@ pub fn resident_command(
   // are made as the program is written, the token being issued after this command is composed.
   env.insert(CARRY_VARIABLE.to_owned(), "1".to_owned());
   env.insert(SHELL_START.to_owned(), carry_script(&ground.roots.data)?.to_string_lossy().into_owned());
+
+  // A conversational line's shell asks agency's guard before each command; a worker's names none.
+  if run.line == super::chat::LINE {
+    let guard = ground.code_root().join("bin").join(crate::places::VERBS_BINARY);
+
+    env.insert(super::place::SHELL_GUARD_VARIABLE.to_owned(), guard.to_string_lossy().into_owned());
+  } else {
+    env.remove(super::place::SHELL_GUARD_VARIABLE);
+  }
   // What dsh says on its error stream — a client that did not activate among it — is kept in the place
   // rather than drawn over bmo-tui's screen.
   env.insert(

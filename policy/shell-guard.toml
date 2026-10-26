@@ -1,0 +1,9 @@
+# What a conversational agent's shell guard refuses beside a start of Claude Code (docs/agents.md, 「No agent
+# reaches another unit's store」): the database clients it may not run, the address schemes it may not name,
+# the loopback ports the deployment's units answer on, and the sentence its refusal ends with, naming the
+# road instead.
+programs = ["psql", "pg_dump", "pg_dumpall", "pg_restore", "pg_basebackup", "createdb", "dropdb", "sqlite3", "redis-cli", "mysql"]
+schemes = ["postgres://", "postgresql://", "redis://", "mysql://"]
+ports = [3213, 3217, 3230, 3296, 5432, 6379, 7431, 7439, 7440, 9023]
+port_ranges = [[13100, 13130], [18000, 18099]]
+road = "A unit's store, its ports and its token files are its own. Read what the system knows through your tools: the brain with mcp__bmo__brain_list (its subject and type) or mcp__bmo__brain_similar (the question's words), called as those tools and never through the shell; a document or a rule with mcp__gate__reference_search and then mcp__gate__reference_piece; any other unit through its own tools (docs/agents.md, 「No agent reaches another unit's store」)."

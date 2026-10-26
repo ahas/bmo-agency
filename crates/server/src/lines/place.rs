@@ -80,6 +80,15 @@ for bmo_carried in "${!BMO_CARRIED_@}"; do
   fi
 done
 unset bmo_carried bmo_hex bmo_name bmo_at bmo_char
+# A conversational agent's shell guard (docs/agents.md, 「No agent reaches another unit's store」): the command
+# about to run handed to agency's guard, and refused before it runs.
+if [[ -n ${BMO_SHELL_GUARD-} && -n ${BASH_EXECUTION_STRING-} && -x ${BMO_SHELL_GUARD} ]]; then
+  if ! bmo_refused=$(printf '%s' "$BASH_EXECUTION_STRING" | "$BMO_SHELL_GUARD" guard-shell 2>&1); then
+    printf '%s\n' "$bmo_refused" >&2
+    exit 126
+  fi
+  unset bmo_refused
+fi
 "#;
 
 /// The carrier name a variable's copy stands under.
@@ -106,6 +115,10 @@ pub fn carry(env: &mut BTreeMap<String, String>) {
 
   env.extend(copies);
 }
+
+/// The variable naming the guard a conversational agent's dsh shell asks before each command: the deploy tree's
+/// `bmo-agency`, set on a conversational line's program alone.
+pub const SHELL_GUARD_VARIABLE: &str = "BMO_SHELL_GUARD";
 
 /// The shell start-up file that puts carried variables back, written under the data root where it is not
 /// there as it stands.

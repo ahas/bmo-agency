@@ -8,7 +8,10 @@ fn the_worker_line_keeps_its_session_and_leaves_its_tools_to_its_agents_role() {
   assert!(!RUN_LINES.composes_typed_lines("worker"));
   assert!(RUN_LINES.composes_typed_lines("chat"));
   assert!(RUN_LINES.capabilities("worker").is_empty());
-  assert_eq!(RUN_LINES.capabilities("chat"), ["room.tools", "web.read", "gate.translate"]);
+  assert_eq!(
+    RUN_LINES.capabilities("chat"),
+    ["room.tools", "web.read", "gate.translate", "gate.reference"]
+  );
   assert_eq!(RUN_LINES.namespaces("chat"), ["bmo", "web", "gate"]);
   assert!(RUN_LINES.capabilities("gate").is_empty());
 }

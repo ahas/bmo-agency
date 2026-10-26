@@ -83,6 +83,9 @@ made of is `docs/companions.md`.
 - **The chat line itself holds `gate.translate`,** whatever its agent's role: the gate's translator,
   `gate/translate`, shown to the line by name. An agent asked to translate does it through that tool unless
   the asker says otherwise, and answers with the readings it returned.
+- **The chat line holds `gate.reference` too:** the gate's `gate/reference_index`, `gate/reference_piece`
+  and `gate/reference_search`, shown by name, which read the brain's index, one piece of it and a search
+  over its documents, rules and knowledge.
 
 ## The worker role's bundles
 

@@ -77,6 +77,16 @@ flowchart TD
   - A job's guard refuses print mode outright, whatever the job has opened (`docs/live-claude-guard.md`).
 - **The check:** a test reads this repository's code for a place that launches Claude Code in print
   mode, and fails on any it finds.
+- **No agent reaches another unit's store.** A unit's database, its loopback port and its token files are
+  its own: a conversational agent knows what the system holds through its tools alone — the brain's
+  `brain_list` and `brain_similar`, the gate's reference tools, and each unit's own tools — never its
+  store. The same shell guard refuses, before it runs, a shell command that runs a database client
+  (`psql`, `pg_dump`, `pg_restore`, `sqlite3` and their kin), names a `postgres://` or `postgresql://`
+  address, reaches a loopback port a unit of the deployment answers on, reads the token files under
+  the data root's `env/`, or handles the session's own token (`policy/shell-guard.toml`). Its refusal names the road instead: the brain
+  through its tools or `bmo use bmo/brain_*`, a document or a rule through the gate's reference tools, a
+  unit through its own tools. A job's worker is no conversational agent and its shell is held by its own
+  guard.
 
 ## Runs apart
 

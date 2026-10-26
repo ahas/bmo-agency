@@ -98,8 +98,15 @@ composed into a system prompt, and what the chat agent's own prompt is made of.
   on, in the words `policy/chat-line.toml` holds for it: that program's own tools by their names — on
   Claude Code the tools the line shows, on dsh the tools the overlay leaves its session —, the servers
   the line's MCP configuration hands the session by name, the tool host's entries the line shows by name
-  (`policy/run-lines.toml`, `shown`), and that every other hosted tool is found with `bmo use --tools`,
-  read with `bmo use <tool> --describe` and called with `bmo use <tool>`. A server that does not attach
+  (`policy/run-lines.toml`, `shown`) — each called as that tool, never through the shell or `bmo use` — and
+  that only a hosted tool not shown is found with `bmo use --tools`, read with `bmo use <tool> --describe`
+  and called with `bmo use <tool>`, the session's token never written to a file or echoed. It names the
+  read path too: what
+  the turn does not already hold of a person, a room or a thing is looked up with the brain's
+  `brain_list`, by its subject and type, or `brain_similar`, by the question's words, and a document or a
+  rule with the gate's `reference_search` and then `reference_piece`; those tools are the only road to
+  what the system knows, never a unit's store, port, database or files. The brain's own discipline for
+  writing and reading stands in the brain's own document, which the prompt hands in. A server that does not attach
   is told to the session afterwards (`docs/agent-control.md`, 「dsh's providers: OpenRouter and
   DeepSeek」).
 - **Only the chat line answers in a speaker's language.** The chat agent and every companion, answering

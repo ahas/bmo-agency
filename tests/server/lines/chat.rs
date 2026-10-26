@@ -324,6 +324,19 @@ fn the_tools_paragraph_names_the_programs_own_tools_the_servers_and_the_entries_
   assert!(paragraph.contains("bmo, job"), "{paragraph}");
   assert!(paragraph.contains("mcp__bmo__say, mcp__web__web_fetch"), "{paragraph}");
   assert!(paragraph.contains("bmo use --tools") && paragraph.contains("bmo use <tool> --describe"));
+
+  // The read path is named exactly, and every other road to what the system knows is shut.
+  for named in [
+    "mcp__bmo__brain_list with its subject and type",
+    "mcp__bmo__brain_similar with the question's own words",
+    "mcp__gate__reference_search, then mcp__gate__reference_piece",
+    "never a unit's store, port, database or files",
+    "A tool shown to you by name is called as that tool, never through your shell or `bmo use`",
+    "Only a hosted tool not shown to you is found with `bmo use --tools`",
+    "never written to a file, echoed or named in a command",
+  ] {
+    assert!(paragraph.contains(named), "{named}: {paragraph}");
+  }
 }
 
 #[test]

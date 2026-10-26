@@ -6,6 +6,7 @@
 pub mod reading;
 pub mod records;
 pub mod shell;
+pub mod store_guard;
 
 use serde_json::{Map, Value, json};
 

@@ -207,11 +207,21 @@ pub async fn typed_hook_output(
 pub fn shell_guard(input: &str) -> Option<String> {
   let input = hook_input(input).ok()?;
   let command = input.command.filter(|_| input.tool == "Bash")?;
-  let launch = claude_launch(&command)?;
 
-  Some(hook_refusal(&format!(
-    "refused: {launch}. No agent of this system starts Claude Code itself: hand work to a worker with your task tool (file it with todo_add first where it needs an item), and a search or a browse with their own tools (docs/agents.md, 「No print mode」)."
-  )))
+  shell_refusal(&command, &super::data_root()).map(|refused| hook_refusal(&refused))
+}
+
+/// Why a conversational agent's shell may not run this command, or nothing: it starts Claude Code, or it
+/// reaches another unit's store (docs/agents.md, 「No print mode」, 「No agent reaches another unit's store」).
+pub fn shell_refusal(command: &str, data_root: &Path) -> Option<String> {
+  if let Some(launch) = claude_launch(command) {
+    return Some(format!(
+      "refused: {launch}. No agent of this system starts Claude Code itself: hand work to a worker with your task tool (file it with todo_add first where it needs an item), and a search or a browse with their own tools (docs/agents.md, 「No print mode」)."
+    ));
+  }
+
+  crate::command_reading::store_guard::store_reach(command, data_root)
+    .map(|reason| crate::command_reading::store_guard::store_refusal(&reason))
 }
 
 /// One call of the hook: what it writes into the place, and the lines it prints — the status line, a block,

@@ -381,7 +381,8 @@ in the provider's own terms:
   on the session the agent resumes, with what lets agency read the program while it stays up — for
   Claude Code, a settings file naming agency's status-line command and its `Stop`, `StopFailure`,
   `UserPromptSubmit` and `SessionStart` hooks, and on a conversational agent's program the shell guard, a `PreToolUse` hook on the shell
-  that refuses a command starting Claude Code (`docs/agents.md`, 「No print mode」).
+  that refuses a command starting Claude Code or reaching another unit's store (`docs/agents.md`, 「No print
+  mode」 and 「No agent reaches another unit's store」).
 - **How one turn goes in:** `agent.prompt` for a program herdr recognises as an agent, the pane
   program's own inbox for one it does not.
 - **Whether words go into a turn that is working.** A surface that takes them says so; one that
@@ -671,6 +672,12 @@ in the provider's own terms:
     otherwise — the job plugin started on the chat's own caller token, beside the deployment's shared one
     the program carries — under a name of the server's own, `BMO_MCP_<SERVER>_<NAME>`, which the
     program's environment is given with the value the configuration names.
+  - **The shell guard stands in dsh's shell start-up.** dsh offers no hook before its shell runs a
+    command, and runs each as `bash -c` with the start-up file the program names. On a conversational
+    agent's program that file hands the command about to run, bash's own execution string, to the deploy
+    tree's `bmo-agency guard-shell`, the same guard the Claude Code hook asks; a command it refuses never
+    runs, and its refusal stands as the command's error with the exit code 126. A worker's dsh program names
+    no guard.
   - **The shell keeps the variables dsh drops.** dsh starts every child, its shell among them, on an
     environment scrubbed of each variable whose name holds `KEY`, `PASSWORD`, `SECRET` or `TOKEN`, and
     names no exception to that rule. So the program's command opts into carrying: as its program is

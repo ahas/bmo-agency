@@ -97,6 +97,11 @@ enum Verb {
   /// and gates read and changed.
   #[command(alias = "agents")]
   Agent(AgentsArgs),
+  /// The shell guard of a conversational agent's dsh program, asked by its shell's start-up with the command
+  /// about to run on standard input: silent and 0 where it may run, its refusal on the error stream and 126
+  /// where it may not (docs/agent-control.md, the shell guard in dsh's shell start-up).
+  #[command(hide = true)]
+  GuardShell,
   /// An agent's resident program's status line and hooks, with what it has to say on standard input; and
   /// its shell guard, which refuses a shell command that starts Claude Code.
   AgentStatus {
@@ -472,6 +477,13 @@ async fn run(verb: Verb) -> ExitCode {
         }
       }
       Err(why) => ended(Err(why)),
+    },
+    Verb::GuardShell => match agent_status::shell_refusal(&standing_input(), &data_root) {
+      Some(refused) => {
+        eprintln!("{refused}");
+        ExitCode::from(126)
+      }
+      None => ExitCode::SUCCESS,
     },
     Verb::AgentStatus {
       kind,
