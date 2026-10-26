@@ -14,6 +14,10 @@ session on the owner's ask is `docs/session-resets.md`.
 
 ## A restart hands the session over
 
+- **A deployment waits for quiet before its flip** (`testbed.toml`, `quiet`): the receiver's `quiet`
+  command, run by its deployed path, says whether a chat turn or a research run stands under way that the
+  restart of agency would cut, and the testbed waits on it before it flips (the receiver's
+  `docs/boundary-api.md`, 「The service and its commands」; the testbed's `docs/deploy.md`).
 - **The chat works in a folder whose name a release does not change.** Each program keeps the session
   it stands in by the folder it was stood in, and a program stood again on the same folder takes the
   session up again rather than opening a fresh one beside it:
