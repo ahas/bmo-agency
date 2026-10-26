@@ -434,7 +434,7 @@ pub fn document_of(ledger: i64, key: &str, query: &str, room: Option<i64>, resul
     "body": result,
     "scope": room.filter(|room| *room != 0).map(|room| room.to_string()),
     "actorName": RESEARCH_ACTOR,
-    "labels": { "research": ledger, "key": key, "query": query.trim() },
+    "labels": { "research": ledger.to_string(), "key": key, "query": query.trim() },
   })
 }
 

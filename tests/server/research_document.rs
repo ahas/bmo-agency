@@ -39,7 +39,7 @@ fn a_result_is_filed_whole_titled_by_its_head_and_labelled_with_its_run() {
   assert_eq!(document["body"], BRIEF);
   assert_eq!(document["scope"], "5");
   assert_eq!(document["actorName"], RESEARCH_ACTOR);
-  assert_eq!(document["labels"], json!({ "research": 7, "key": "search:basic", "query": "the rate" }));
+  assert_eq!(document["labels"], json!({ "research": "7", "key": "search:basic", "query": "the rate" }));
 
   let learning = document_of(8, "search:thorough", "teach me", None, "KIND: learning\nTITLE: A book");
 
