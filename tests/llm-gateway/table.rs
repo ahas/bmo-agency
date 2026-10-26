@@ -29,6 +29,7 @@ fn address(node: &str, url: &str, key_file: Option<&str>) -> RegisteredAddress {
     key_file: key_file.map(str::to_owned),
     key_owned: false,
     placed_at: None,
+    role_files: false,
   }
 }
 
@@ -119,7 +120,7 @@ fn each_address_is_asked_for_the_model_with_its_wait_and_thinking_off_and_keys_n
     json!({
       "drop_params": true,
       "use_chat_completions_url_for_anthropic_messages": true,
-      "callbacks": ["thinking.handler", "sampling.handler", "reminders.handler", "long_tools.handler"],
+      "callbacks": ["thinking.handler", "sampling.handler", "reminders.handler", "long_tools.handler", "roles.handler"],
       "num_retries": 0,
     })
   );
@@ -165,4 +166,40 @@ fn a_changed_hook_is_a_new_table() {
   let digest = |hooks: &[(String, Vec<u8>)]| table_digest(&table, |_| None, hooks);
   assert_eq!(digest(&hooks("first")), digest(&hooks("first")));
   assert_ne!(digest(&hooks("first")), digest(&hooks("second")));
+}
+
+#[test]
+fn an_address_that_keeps_role_files_says_so_on_every_entry_it_stands_behind_and_no_other_does() {
+  let mut kept = address("alpha", "http://127.0.0.1:18021/v1/chat/completions", None);
+
+  kept.role_files = true;
+
+  let table = gateway_table(&[registration(
+    "nodes",
+    vec![kept, address("bravo", "http://127.0.0.1:18023/v1/chat/completions", None)],
+  )]);
+  let read: serde_json::Value = serde_json::from_str(&table.text).unwrap();
+  let infos: Vec<(String, serde_json::Value)> = read["model_list"]
+    .as_array()
+    .unwrap()
+    .iter()
+    .map(|entry| (entry["model_name"].as_str().unwrap().to_owned(), entry["model_info"].clone()))
+    .collect();
+  let on = serde_json::json!({ "role_files": true });
+
+  assert_eq!(
+    infos,
+    [
+      ("nodes".to_owned(), on.clone()),
+      ("nodes@alpha".to_owned(), on),
+      ("nodes".to_owned(), serde_json::Value::Null),
+      ("nodes@bravo".to_owned(), serde_json::Value::Null),
+    ]
+  );
+  assert!(
+    read["litellm_settings"]["callbacks"]
+      .as_array()
+      .unwrap()
+      .contains(&"roles.handler".into())
+  );
 }

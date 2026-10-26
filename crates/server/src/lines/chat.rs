@@ -1058,6 +1058,10 @@ pub async fn compose_stand_in(
         compose_typed: RUN_LINES.composes_typed_lines(run.line),
         shell_guard: true,
         sampling: None,
+        // The chat agent's and a gate's runs are asked as the role their work key names, where it names one.
+        role: policy::work_keys::WORK_KEYS
+          .profile(&run.agent)
+          .and_then(|profile| profile.prefix_role.as_deref()),
       };
       let (mut command, name) = gateway_command(
         ground,

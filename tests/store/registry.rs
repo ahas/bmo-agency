@@ -11,7 +11,7 @@ const ROWS: [&str; 5] = [
   "INSERT INTO registered_models VALUES ('local-0-1', 'Local 0.1', 'ko2', 32768, 4096, 2400, 1, 0, 200, 1)",
   "INSERT INTO registered_models VALUES ('local-model', 'Local model', 'qwen', 65536, 8192, 90, 0, 1, 100, 0)",
   "INSERT INTO registered_model_addresses VALUES ('local-0-1', 'bravo', 2, 'http://127.0.0.1:18023/v1/chat/completions', NULL, 0, NULL)",
-  "INSERT INTO registered_model_addresses VALUES ('local-0-1', 'alpha', 1, 'http://127.0.0.1:18021/v1/chat/completions', 'alpha-llm.token', 0, 1700000000)",
+  "INSERT INTO registered_model_addresses (registration, node, position, url, key_file, key_owned, placed_at, role_files) VALUES ('local-0-1', 'alpha', 1, 'http://127.0.0.1:18021/v1/chat/completions', 'alpha-llm.token', 0, 1700000000, 1)",
   "INSERT INTO registered_model_addresses VALUES ('local-model', 'd-vex', 1, 'https://llm.example.com/v1/chat/completions', 'registered/local-model-d-vex.key', 1, NULL)",
 ];
 
@@ -33,6 +33,7 @@ fn expected() -> Vec<Registration> {
         key_file: Some("registered/local-model-d-vex.key".into()),
         key_owned: true,
         placed_at: None,
+        role_files: false,
       }],
     },
     Registration {
@@ -52,6 +53,7 @@ fn expected() -> Vec<Registration> {
           key_file: Some("alpha-llm.token".into()),
           key_owned: false,
           placed_at: Some(1_700_000_000),
+          role_files: true,
         },
         RegisteredAddress {
           node: "bravo".into(),
@@ -59,6 +61,7 @@ fn expected() -> Vec<Registration> {
           key_file: None,
           key_owned: false,
           placed_at: None,
+          role_files: false,
         },
       ],
     },

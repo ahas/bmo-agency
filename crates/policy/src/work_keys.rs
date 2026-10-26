@@ -53,6 +53,10 @@ pub struct Profile {
   pub switchable: bool,
   #[serde(default)]
   pub holds_no_session: bool,
+  /// The role whose saved prefix an engine that keeps role files starts its requests from (docs/own-llm.md,
+  /// 「Role files」); none where the key's prompt is no fixed role.
+  #[serde(default)]
+  pub prefix_role: Option<String>,
 }
 
 impl WorkKeys {

@@ -35,6 +35,8 @@ pub struct RegisteredAddress {
   pub key_owned: bool,
   /// When the address was last given a new session, in seconds.
   pub placed_at: Option<i64>,
+  /// Whether the instance behind it keeps role files (docs/own-llm.md, 「Role files」).
+  pub role_files: bool,
 }
 
 // An integer column, however the writer stored it.
@@ -55,7 +57,7 @@ pub async fn registrations(store: &mut AnyConnection) -> Result<Vec<Registration
   .fetch_all(&mut *store)
   .await?;
   let addresses = sqlx::query(
-    "SELECT registration, node, url, key_file, key_owned, placed_at \
+    "SELECT registration, node, url, key_file, key_owned, placed_at, role_files \
      FROM registered_model_addresses ORDER BY registration, position, node",
   )
   .fetch_all(&mut *store)
@@ -75,6 +77,7 @@ pub async fn registrations(store: &mut AnyConnection) -> Result<Vec<Registration
         key_file: address.try_get("key_file")?,
         key_owned: flag(address, "key_owned")?,
         placed_at: whole(address, "placed_at")?,
+        role_files: flag(address, "role_files")?,
       });
     }
     read.push(Registration {

@@ -9012,6 +9012,13 @@
               "string",
               "null"
             ]
+          },
+          "roleFiles": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Whether the instance behind the address keeps role files; left as it stands where none is named."
           }
         },
         "description": "The body that saves or removes a registration, or sets or removes one of its addresses."

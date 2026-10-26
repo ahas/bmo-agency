@@ -74,3 +74,65 @@ fn a_registration_is_a_service_on_the_gateway_and_a_mapping_its_settings() {
     }
   );
 }
+
+#[tokio::test]
+async fn an_address_keeps_role_files_as_its_change_names_and_as_it_stands_where_one_names_none() {
+  let scratch = crate::scratch::Scratch::new().await;
+  let db = scratch.db();
+  let data = tempfile::tempdir().unwrap();
+  let address = |body: serde_json::Value| {
+    let mut asked = serde_json::json!({
+      "action": "set-address", "name": "nodes", "node": "alpha",
+      "url": "http://127.0.0.1:18021/v1/chat/completions",
+    });
+
+    asked.as_object_mut().unwrap().extend(body.as_object().unwrap().clone());
+    asked
+  };
+
+  change(
+    db,
+    data.path(),
+    &serde_json::json!({
+      "action": "save", "name": "nodes", "model": "m",
+      "contextTokens": 32_768, "answerTokens": 4_096, "waitSeconds": 90,
+    }),
+  )
+  .await
+  .unwrap()
+  .unwrap();
+  change(db, data.path(), &address(serde_json::json!({}))).await.unwrap().unwrap();
+  assert!(!role_files_of(db).await, "a new address keeps none unless it is named");
+
+  change(db, data.path(), &address(serde_json::json!({ "roleFiles": true })))
+    .await
+    .unwrap()
+    .unwrap();
+  assert!(role_files_of(db).await);
+
+  let moved = address(serde_json::json!({ "url": "http://127.0.0.1:18022/v1/chat/completions" }));
+
+  change(db, data.path(), &moved).await.unwrap().unwrap();
+  assert!(role_files_of(db).await, "a change naming none leaves it as it stands");
+
+  let refused = change(db, data.path(), &address(serde_json::json!({ "roleFiles": "yes" })))
+    .await
+    .unwrap();
+
+  assert!(refused.is_err(), "{refused:?}");
+
+  let shown = view(db, data.path()).await.unwrap();
+
+  assert!(shown.to_string().contains("\"roleFiles\":true"), "{shown}");
+}
+
+async fn role_files_of(db: &sea_orm::DatabaseConnection) -> bool {
+  registrations(db)
+    .await
+    .unwrap()
+    .into_iter()
+    .find(|one| one.name == "nodes")
+    .unwrap()
+    .addresses[0]
+    .role_files
+}

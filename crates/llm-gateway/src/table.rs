@@ -13,9 +13,10 @@ use store::registry::Registration;
 /// The hooks LiteLLM loads, each from a file of its name beside the table: the one that carries a
 /// Messages request's thinking to the chat template, the one that writes a run's sampling settings
 /// from its header into the request, the one that folds a system turn inside the conversation into
-/// the person's turn beside it, and the one that copies a run's long tools from their header into the
-/// field the engines read.
-pub const HOOKS: [&str; 4] = ["thinking", "sampling", "reminders", "long_tools"];
+/// the person's turn beside it, the one that copies a run's long tools from their header into the
+/// field the engines read, and the one that starts a request from its role's saved prefix on an instance
+/// that keeps role files.
+pub const HOOKS: [&str; 5] = ["thinking", "sampling", "reminders", "long_tools", "roles"];
 
 /// The gateway's own key, as the variable the table names it by.
 pub const GATEWAY_KEY_VARIABLE: &str = "LLM_GATEWAY_KEY";
@@ -59,6 +60,16 @@ struct Config {
 struct Entry {
   model_name: String,
   litellm_params: Params,
+  /// What the hooks read of the address behind the entry, which LiteLLM hands no backend; none where the
+  /// address says nothing.
+  #[serde(skip_serializing_if = "Option::is_none")]
+  model_info: Option<Info>,
+}
+
+#[derive(Clone, Serialize)]
+struct Info {
+  /// The instance behind the address keeps role files (docs/own-llm.md, 「Role files」).
+  role_files: bool,
 }
 
 #[derive(Clone, Serialize)]
@@ -119,19 +130,23 @@ pub fn gateway_table(registrations: &[Registration]) -> Table {
           enable_thinking: false,
         },
       };
+      let info = address.role_files.then_some(Info { role_files: true });
       if registration.addresses.len() > 1 {
         models.push(Entry {
           model_name: registration.name.clone(),
           litellm_params: params.clone(),
+          model_info: info.clone(),
         });
         models.push(Entry {
           model_name: format!("{}@{}", registration.name, address.node),
           litellm_params: params,
+          model_info: info,
         });
       } else {
         models.push(Entry {
           model_name: registration.name.clone(),
           litellm_params: params,
+          model_info: info,
         });
       }
     }

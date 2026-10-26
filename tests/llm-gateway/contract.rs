@@ -418,7 +418,7 @@ async fn the_table_is_written_private_beside_its_hooks_and_the_keys_reach_the_ch
     config["model_list"][0]["litellm_params"]["api_key"],
     "os.environ/BMO_KEY_ALPHA_LLM_TOKEN"
   );
-  for hook in ["thinking.py", "sampling.py", "reminders.py", "long_tools.py"] {
+  for hook in ["thinking.py", "sampling.py", "reminders.py", "long_tools.py", "roles.py"] {
     assert!(world.folder().join(hook).exists(), "{hook} was not copied beside the table");
   }
 

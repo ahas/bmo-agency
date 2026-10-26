@@ -120,7 +120,8 @@ never the model's name.
 - **Its label:** how a screen shows it.
 - **Its addresses,** one or more, each a node the same model is served on: an OpenAI-compatible chat
   completions address ending in `/chat/completions`; a short label, unique within the registration,
-  that names the node; and a key or none (「The keys」 below).
+  that names the node; a key or none (「The keys」 below); and whether the instance behind it keeps role
+  files, a role's saved prefix it restores on asking (「Role files」 below), off unless named.
 - **Its model:** the model's name as every one of its addresses serves it.
 - **Its context window:** a whole number of tokens within the bounds the policy sets (「The context
   window」 below).
@@ -375,6 +376,8 @@ never the model's name.
     pool take the field out before the request goes on to the model server behind them. LiteLLM's own
     forwarding of a caller's headers is left off, since it hands the backend every such header with no
     way to name one alone and a caller's key may stand in one.
+- **A request that names a role starts from that role's saved prefix** on an instance that keeps role
+  files (「Role files」 below).
 - **A saved change reaches it within seconds, and no request is cut:** the launcher reads the registry
   every few seconds. Where the table it would write differs from the one it serves, it starts a new child
   on a fresh port with the new table and waits until that child answers its readiness check; it then
@@ -399,6 +402,35 @@ never the model's name.
   are cut with it.
 - **A changed hook needs no restart:** the table's digest covers the hooks' contents, so the next
   reading of the registry starts a new child on them and hands over the way a changed registry does.
+
+### Role files
+
+- **What a role file is:** an instance of an engine that saves and restores its conversation state —
+  Lab-arena's `POST /slots/0?action=save|restore`, a file named in a JSON body — keeps one file per role,
+  the state of that role's system prompt read once. Restoring it is a fraction of a second where reading
+  the prompt again is many; the file is named `role-<role>.bin`, the role's name being its whole key.
+  Which files stand and whether one is still valid are the engine deployment's own: it builds them and
+  builds them again when the prompt or a setting bound into them changes, so a file that stands is the
+  role's. Agency never saves one.
+- **Which requests name a role:** a run whose work key's profile names one (`policy/work-keys.toml`,
+  `prefix_role`) sends it in the role header on every request it makes through the gateway: the chat
+  agent's runs name `chat`, and the output-format gate's `gate`. A request naming no role — the
+  translator's among them, and every run of a key whose profile names none — is asked as it stands. `session-summary` is a role an engine deployment may build a file for; no work key of agency's
+  names it.
+- **Which instances keep them:** an address of a registration says so (「What a registration holds」
+  above), and the gateway's table carries that on each entry the address stands behind. An address that
+  does not say so is never asked to restore.
+- **What the gateway does:** a hook of its own, run after the instance a request goes to is chosen and
+  before the request is sent, keeps for each instance the role it last restored or served. A request that
+  names a role on an instance not on that role has the instance restore `role-<role>.bin` first, under
+  the address's key, and is then sent; a request that names none leaves the instance on no role, since
+  what it reads replaces the role's state. Each restore is a line in the gateway's log, with the
+  instance, the role and how long it took.
+- **A restore that fails is a plain request:** a file the instance does not hold (`404`), another
+  refusal or no answer within the wait leaves the request to be sent as it stands, with a line in the
+  log saying why, and that role is not asked of that instance again for ten minutes. What the hook keeps
+  is the running gateway's: a new child starts with every instance on no role, and the first request of
+  each role restores it.
 
 ## Routes and modes
 

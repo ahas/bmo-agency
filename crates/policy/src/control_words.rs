@@ -214,6 +214,7 @@ pub struct RegistryWords {
   pub keeps_research: String,
   pub unknown: String,
   pub key_text: String,
+  pub role_files: String,
   pub in_use: String,
   pub last_address: String,
   pub no_address: String,

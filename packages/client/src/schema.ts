@@ -2456,6 +2456,8 @@ export interface components {
             node?: string | null;
             url?: string | null;
             key?: string | null;
+            /** @description Whether the instance behind the address keeps role files; left as it stands where none is named. */
+            roleFiles?: boolean | null;
         };
         /** @description ModelCatalogueView: */
         ModelCatalogueView: {

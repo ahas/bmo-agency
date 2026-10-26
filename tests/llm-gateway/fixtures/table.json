@@ -73,7 +73,8 @@
       "thinking.handler",
       "sampling.handler",
       "reminders.handler",
-      "long_tools.handler"
+      "long_tools.handler",
+      "roles.handler"
     ],
     "num_retries": 0
   },

@@ -9,7 +9,7 @@ fn a_run_on_the_gateway_names_its_wait_its_sampling_and_its_programs_long_tools(
 
   assert_eq!(tools, ["Bash", "Agent", "Task", "WebFetch", "WebSearch"]);
   assert_eq!(
-    gateway_headers(90_500, Some(r#"{"top_k":20}"#), tools),
+    gateway_headers(90_500, Some(r#"{"top_k":20}"#), tools, None),
     [
       "x-litellm-timeout: 91",
       "x-litellm-stream-timeout: 91",
@@ -17,7 +17,15 @@ fn a_run_on_the_gateway_names_its_wait_its_sampling_and_its_programs_long_tools(
       "x-bmo-long-tools: Bash,Agent,Task,WebFetch,WebSearch",
     ]
   );
-  assert_eq!(gateway_headers(1, None, &[]), ["x-litellm-timeout: 1", "x-litellm-stream-timeout: 1"]);
+  assert_eq!(
+    gateway_headers(1, None, &[], None),
+    ["x-litellm-timeout: 1", "x-litellm-stream-timeout: 1"]
+  );
+  assert_eq!(
+    gateway_headers(1, None, &[], Some("chat")),
+    ["x-litellm-timeout: 1", "x-litellm-stream-timeout: 1", "x-bmo-role: chat"],
+    "a run whose work key names a role says it on every request"
+  );
 }
 
 #[test]

@@ -2007,6 +2007,9 @@ pub struct ModelChange {
   pub url: Option<String>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub key: Option<String>,
+  /// Whether the instance behind the address keeps role files; left as it stands where none is named.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub role_files: Option<bool>,
 }
 
 /// The body that assigns a tier to a work key or sets a tier's mapping on a provider.

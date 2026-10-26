@@ -455,7 +455,10 @@ model in the path. `provider` names the registry's provider alone, since every o
 its own catalogue and no route changes them; `tier` narrows the list to the registrations that tier maps to.
 A create starts a registration under its own name as its label, at the registry's smallest window, answer
 and wait and with no address, and is refused where the name already stands. `tier` and `healthy` are read
-back; the model behind a registration is what the change edits.
+back; the model behind a registration is what the change edits. An address is set by the change's
+`set-address` with its `node`, `url`, `key` and `roleFiles`, whether the instance behind it keeps role
+files (`docs/own-llm.md`, 「Role files」), left as it stands where the change names none and off on a new
+address; each address is answered with its `roleFiles`.
 
 The model catalogue is a resource of its own, never of `/models`: the files the deployment's own engines
 serve, each with its sizes, its source, its nodes and the registration it stands behind, and the latest

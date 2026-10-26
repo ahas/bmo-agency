@@ -45,6 +45,8 @@ pub struct Address {
   pub url: String,
   pub key_file: Option<String>,
   pub key_owned: bool,
+  /// Whether the instance behind it keeps role files (docs/own-llm.md, 「Role files」).
+  pub role_files: bool,
 }
 
 /// One registration with its addresses in their order.
@@ -88,6 +90,7 @@ pub async fn registrations<C: ConnectionTrait>(db: &C) -> Result<Vec<Registratio
           url: address.try_get("", "url")?,
           key_file: address.try_get("", "key_file")?,
           key_owned: flag(address, "key_owned")?,
+          role_files: flag(address, "role_files")?,
         });
       }
     }
@@ -475,6 +478,7 @@ pub async fn view<C: ConnectionTrait>(db: &C, data_root: &Path) -> Result<Value,
           "node": address.node,
           "url": address.url,
           "key": keys::state(data_root, address.key_file.as_deref()),
+          "roleFiles": address.role_files,
         })
       })
       .collect();
@@ -740,6 +744,7 @@ impl<C: ConnectionTrait> Change<'_, C> {
     url: &str,
     key_file: Option<&str>,
     key_owned: bool,
+    role_files: bool,
   ) -> Result<(), Fault> {
     self.required(name).await?;
     checked_node(node)?;
@@ -760,10 +765,10 @@ impl<C: ConnectionTrait> Change<'_, C> {
 
     run(
       self.db,
-      "INSERT INTO registered_model_addresses (registration, node, position, url, key_file, key_owned)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      "INSERT INTO registered_model_addresses (registration, node, position, url, key_file, key_owned, role_files)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        ON CONFLICT (registration, node) DO UPDATE SET url = excluded.url, key_file = excluded.key_file,
-       key_owned = excluded.key_owned",
+       key_owned = excluded.key_owned, role_files = excluded.role_files",
       vec![
         name.into(),
         node.into(),
@@ -771,6 +776,7 @@ impl<C: ConnectionTrait> Change<'_, C> {
         url.into(),
         key_file.map(str::to_owned).into(),
         i64::from(key_file.is_some() && key_owned).into(),
+        i64::from(role_files).into(),
       ],
     )
     .await?;
@@ -789,6 +795,13 @@ impl<C: ConnectionTrait> Change<'_, C> {
       return refused("key", CONTROL_WORDS.registry.key_text.as_str());
     }
 
+    // Whether the instance keeps role files: as the change names it, else as the address stands, off on a new one.
+    let role_files = match body.get("roleFiles") {
+      None | Some(Value::Null) => standing.as_ref().is_some_and(|standing| standing.role_files),
+      Some(Value::Bool(on)) => *on,
+      Some(_) => return refused("roleFiles", CONTROL_WORDS.registry.role_files.as_str()),
+    };
+
     // The address is checked before a key file is written, so a refused address leaves no file
     // behind, and the row is written once.
     checked_node(&node)?;
@@ -798,20 +811,20 @@ impl<C: ConnectionTrait> Change<'_, C> {
       Some(Value::String(key)) => {
         let key_file = keys::write(self.data_root, name, &node, key)?;
 
-        self.set_address(name, &node, &url, Some(&key_file), true).await?;
+        self.set_address(name, &node, &url, Some(&key_file), true, role_files).await?;
         self
           .gone
           .extend(standing.filter(|standing| standing.key_file.as_deref() != Some(&key_file)));
       }
       Some(Value::Null) => {
-        self.set_address(name, &node, &url, None, false).await?;
+        self.set_address(name, &node, &url, None, false, role_files).await?;
         self.gone.extend(standing);
       }
       _ => {
         let (key_file, owned) =
           standing.map_or((None, false), |standing| (standing.key_file, standing.key_owned));
 
-        self.set_address(name, &node, &url, key_file.as_deref(), owned).await?;
+        self.set_address(name, &node, &url, key_file.as_deref(), owned, role_files).await?;
       }
     }
 

@@ -374,6 +374,7 @@ pub async fn registered_command(
     compose_typed: RUN_LINES.composes_typed_lines(LINE),
     shell_guard: false,
     sampling,
+    role: None,
   };
 
   gateway_command(ground, machine, on, answer_tokens, placing, |name, effort, thinking, settings| {
@@ -400,6 +401,8 @@ pub struct OnGateway<'a> {
   pub compose_typed: bool,
   pub shell_guard: bool,
   pub sampling: Option<String>,
+  /// The role whose saved prefix the run's requests start from on an engine that keeps role files.
+  pub role: Option<&'a str>,
 }
 
 /// The command Claude Code stands on for a line on a registered model's road: the registration's home
@@ -474,7 +477,7 @@ pub async fn gateway_command(
   }
 
   let wait_ms = held.wait_seconds * 1_000;
-  let headers = gateway_headers(wait_ms, on.sampling.as_deref(), ClaudeCode.long_tools());
+  let headers = gateway_headers(wait_ms, on.sampling.as_deref(), ClaudeCode.long_tools(), on.role);
   let mut env: BTreeMap<String, Option<String>> =
     ground.env().iter().map(|(name, value)| (name.clone(), Some(value.clone()))).collect();
 
@@ -606,8 +609,14 @@ pub(crate) fn keyed_settings_at(
 }
 
 /// The headers every request of a run on the gateway carries: how long it is waited for, the run's own
-/// sampling where it names any, and the tools of its program whose calls wait long where it names any.
-pub fn gateway_headers(wait_ms: i64, sampling: Option<&str>, long_tools: &[String]) -> Vec<String> {
+/// sampling where it names any, the tools of its program whose calls wait long where it names any, and the
+/// role its prompt is where its work key names one (docs/own-llm.md, 「Role files」).
+pub fn gateway_headers(
+  wait_ms: i64,
+  sampling: Option<&str>,
+  long_tools: &[String],
+  role: Option<&str>,
+) -> Vec<String> {
   let seconds = ((wait_ms + 999) / 1_000).max(1);
   let mut headers =
     vec![format!("x-litellm-timeout: {seconds}"), format!("x-litellm-stream-timeout: {seconds}")];
@@ -618,6 +627,10 @@ pub fn gateway_headers(wait_ms: i64, sampling: Option<&str>, long_tools: &[Strin
 
   if !long_tools.is_empty() {
     headers.push(format!("x-bmo-long-tools: {}", long_tools.join(",")));
+  }
+
+  if let Some(role) = role {
+    headers.push(format!("x-bmo-role: {role}"));
   }
 
   headers

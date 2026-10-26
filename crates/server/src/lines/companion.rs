@@ -397,6 +397,7 @@ pub async fn compose(
     compose_typed: false,
     shell_guard: true,
     sampling: sampled,
+    role: None,
   };
   let (mut command, _) =
     gateway_command(ground, machine, on, ceiling, Placing::At(placement), |name, effort, _, settings| {
