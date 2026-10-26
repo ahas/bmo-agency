@@ -94,6 +94,7 @@ mod door {
 }
 mod events;
 mod ground;
+mod handoff;
 mod herdr_backend;
 mod hooks;
 mod host_run;
@@ -165,6 +166,7 @@ mod queue {
 }
 mod readiness;
 mod relay;
+mod research;
 mod rest;
 mod road;
 mod rooms;

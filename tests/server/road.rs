@@ -60,6 +60,8 @@ fn resolution(pinned: Option<&str>, steps: Vec<Step>) -> Resolution {
     key: "job-worker".into(),
     pinned: pinned.map(str::to_owned),
     steps,
+    line: Some("worker".into()),
+    uncarried: vec![],
   }
 }
 

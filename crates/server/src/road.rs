@@ -125,6 +125,10 @@ pub struct Resolution {
   pub pinned: Option<String>,
   /// Every provider of the walk in its order, with what it answered.
   pub steps: Vec<Step>,
+  /// The key's line, where its profile names one, and the providers the owner has on whose program
+  /// cannot carry it, which the walk passes as no road of the key.
+  pub line: Option<String>,
+  pub uncarried: Vec<String>,
 }
 
 /// The walk over the owner's order: automatic from the top; a pin from its provider, then the providers
@@ -226,6 +230,19 @@ impl Resolution {
       lines.push(fill_marks(&words.reopens, &[("at", &moment_words(at))]));
     }
 
+    if let Some(line) = self.line.as_deref().filter(|_| !self.uncarried.is_empty()) {
+      let needs = policy::run_lines::RUN_LINES.line(line).map(|declared| declared.needs.join(", "));
+
+      lines.push(fill_marks(
+        &words.uncarried,
+        &[
+          ("providers", &self.uncarried.join(", ")),
+          ("line", line),
+          ("needs", &needs.unwrap_or_default()),
+        ],
+      ));
+    }
+
     if let Some((provider, command)) = self.command() {
       lines.push(fill_marks(&words.person, &[("provider", provider), ("command", command)]));
     }
@@ -260,13 +277,19 @@ pub async fn resolve(ground: &Ground, ask: &Ask<'_>) -> Result<Resolution, Strin
   let order = provider_order(db).await.map_err(|refused| refused.error)?;
   let pin = pin_of(ground, ask).await?;
   let names: Vec<String> = order.iter().map(|entry| entry.name.clone()).collect();
+  let line = WORK_KEYS.profile(ask.key).map(|profile| profile.line.clone());
   let mut steps = vec![];
+  let mut uncarried = vec![];
 
   for name in walk(&names, pin.as_ref().map(|pin| pin.provider.as_str())) {
     let provider = harness::named(&name).map_err(|refused| refused.error)?;
     let enabled = order.iter().any(|entry| entry.name == name && entry.enabled);
     let pinned = pin.as_ref().filter(|pin| pin.provider == name);
     let mut asked = step(ground, &machine, ask, provider, enabled, pinned).await?;
+
+    if enabled && line.as_deref().is_some_and(|line| !provider.declared().carries(line)) {
+      uncarried.push(name.clone());
+    }
 
     // A provider this job already left is one that cannot answer it, for the reason it was left.
     if let Some(left) = ask.left.iter().find(|left| left.provider == name)
@@ -282,6 +305,8 @@ pub async fn resolve(ground: &Ground, ask: &Ask<'_>) -> Result<Resolution, Strin
     key: ask.key.to_owned(),
     pinned: pin.map(|pin| pin.provider),
     steps,
+    line,
+    uncarried,
   })
 }
 

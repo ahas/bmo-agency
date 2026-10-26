@@ -66,15 +66,18 @@ pub fn chat_key() -> &'static str {
 
 /// One slot's two headline windows, the session's and the week's, as the provider picks them out of every
 /// window agency keeps under the slot; null where the slot holds no such window. A slot with no login is
-/// read under the empty account. A keeping that cannot be read is a fault, answered with its cause rather
-/// than read as a slot with no windows.
+/// read under the empty account. A login's slot answers only the windows its answering login was read
+/// with: none seen at or before the account's unread mark, nor at or before `marked`, the moment the login
+/// was marked as waiting for a person (docs/usage-windows.md, 「What reads the windows」). A keeping that
+/// cannot be read is a fault, answered with its cause rather than read as a slot with no windows.
 pub(super) async fn headline_windows(
   windows: &Keeping,
   name: &str,
   account: Option<&str>,
+  marked: Option<i64>,
 ) -> Result<(Value, Value), Refused> {
   let provider = named(name)?;
-  let read = windows
+  let reading = windows
     .read(Slot {
       mode: name,
       account: account.unwrap_or_default(),
@@ -83,8 +86,13 @@ pub(super) async fn headline_windows(
     .map_err(|fault| {
       eprintln!("{name} windows of {}: not read: {fault}", account.unwrap_or("no login"));
       Refused::from(fault)
-    })?
-    .windows;
+    })?;
+  let after = account.and(reading.unread_at).max(marked);
+  let read: Vec<_> = reading
+    .windows
+    .into_iter()
+    .filter(|kept| after.is_none_or(|after| kept.seen_at > after))
+    .collect();
   let own: Vec<Value> = read
     .iter()
     .map(|kept| {
@@ -128,7 +136,7 @@ pub(super) async fn account_headlines(
 
   let id = if account.id.is_empty() { SEED_ACCOUNT } else { account.id.as_str() };
 
-  headline_windows(windows, cache_siren::claude::MODE, Some(id)).await
+  headline_windows(windows, cache_siren::claude::MODE, Some(id), account.needs_login_at).await
 }
 
 // A balance as the routes answer it: what is left, its currency and when it was seen, or null.
@@ -175,7 +183,8 @@ pub(super) async fn active_agent_usage(judging: Judging<'_>) -> Result<Value, Re
     None
   };
   let id = account.as_ref().map(|one| one.id.clone());
-  let (session, week) = headline_windows(judging.windows, &name, id.as_deref()).await?;
+  let marked = account.as_ref().and_then(|one| one.needs_login_at);
+  let (session, week) = headline_windows(judging.windows, &name, id.as_deref(), marked).await?;
   let balance = match &account {
     Some(account) => account_balance(judging.windows, account).await?,
     None => balance_view(

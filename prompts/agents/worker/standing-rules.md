@@ -44,7 +44,7 @@ says.
 - **A base never knows its consumers:** it supplies the mechanism, the extension point and a safe
   default; the consumer supplies the policy.
 - Test: add one more member and count the files outside it that must change; one in the base layer
-  means the variation is misplaced. The `design-boundaries` skill is the rest, and is read before a
+  means the variation is misplaced. The `ahas-code-boundaries` skill is the rest, and is read before a
   registry is added or defended.
 
 ## A general format is read by what already reads it

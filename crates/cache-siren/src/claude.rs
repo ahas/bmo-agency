@@ -7,10 +7,11 @@
 //! token found expired is left for the CLI, and the account is marked unread so its last reading stops
 //! standing until a reading lifts the mark.
 
+use std::collections::HashMap;
 use std::future::Future;
 use std::path::PathBuf;
 use std::pin::Pin;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use policy::providers::claude_code::CLAUDE_CODE;
@@ -119,12 +120,14 @@ fn asking_within(wait: Duration) -> reqwest::Client {
   reqwest::Client::builder().timeout(wait).build().unwrap_or_default()
 }
 
-/// The reader on the clock: where it asks, who it asks for, and each account's failure as last said.
+/// The reader on the clock: where it asks, who it asks for, each account's failure as last said, and the
+/// moment, in epoch seconds, before which an account the endpoint refused for asking too often is not asked.
 pub struct ClaudeAccounts {
   url: String,
   http: reqwest::Client,
   logins: Arc<dyn Logins>,
   said: Said,
+  paused: Mutex<HashMap<String, i64>>,
 }
 
 impl ClaudeAccounts {
@@ -135,7 +138,12 @@ impl ClaudeAccounts {
       http: asking_within(Duration::from_secs(CLAUDE_CODE.usage.ask_seconds)),
       logins,
       said: Said::default(),
+      paused: Mutex::default(),
     }
+  }
+
+  fn paused(&self) -> std::sync::MutexGuard<'_, HashMap<String, i64>> {
+    self.paused.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
   }
 
   /// The same reader taking a request that has not answered within `wait` as a failure, where a caller
@@ -150,7 +158,9 @@ impl ClaudeAccounts {
     Self::new(CLAUDE_CODE.usage.url.as_str(), logins)
   }
 
-  async fn ask(&self, token: &str) -> Result<Vec<Window>, String> {
+  // One ask for an account's windows. A refusal for asking too often pauses the account until the moment
+  // the refusal's `Retry-After` names, in seconds, or for the policy's pause where it names none.
+  async fn ask(&self, token: &str, account: &str, now: i64) -> Result<Vec<Window>, String> {
     let answer = self.http.get(&self.url).bearer_auth(token).send().await.map_err(|why| {
       if why.is_timeout() {
         "the endpoint did not answer in time".to_owned()
@@ -158,6 +168,20 @@ impl ClaudeAccounts {
         "the request failed".to_owned()
       }
     })?;
+
+    if answer.status().as_u16() == 429 {
+      let after = answer
+        .headers()
+        .get(reqwest::header::RETRY_AFTER)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.trim().parse::<i64>().ok())
+        .filter(|seconds| *seconds > 0)
+        .unwrap_or(i64::try_from(CLAUDE_CODE.usage.refused_pause_seconds).unwrap_or(300));
+
+      self.paused().insert(account.to_owned(), now + after);
+
+      return Err(format!("HTTP 429; not asked again for {after} seconds"));
+    }
 
     if !answer.status().is_success() {
       return Err(format!("HTTP {}", answer.status().as_u16()));
@@ -207,8 +231,13 @@ impl ClaudeAccounts {
   async fn read(&self, keeping: &Keeping, login: &Login, now_ms: i64) -> Result<Vec<Window>, String> {
     let now = now_ms.div_euclid(1000);
     let account = login.account.as_str();
+
+    if let Some(until) = self.paused().get(account).copied().filter(|until| *until > now) {
+      return Err(format!("paused after the endpoint refused the pace, until {until}"));
+    }
+
     let asked = match access_token(&login.credential, now_ms) {
-      Ok(token) => self.ask(&token).await,
+      Ok(token) => self.ask(&token, account, now).await,
       Err(why) => Err(why.to_owned()),
     };
     let windows = match asked {

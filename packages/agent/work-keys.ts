@@ -12,10 +12,10 @@ import type { GenerationValues } from "./generation-settings";
 import type { RunLine } from "./run-lines";
 import type { CodexChoice, DeploymentWork, FallbackRouteMode, LayaMode, WorkProfile } from "./work-profile";
 
-// The kinds of work a key names: the chat agent's own, the job worker's and a gate's.
-export type WorkKind = "bmo" | "worker" | "gate";
+// The kinds of work a key names: the chat agent's own, the job worker's, a research runner's and a gate's.
+export type WorkKind = "bmo" | "worker" | "runner" | "gate";
 
-const kinds: readonly WorkKind[] = ["bmo", "worker", "gate"];
+const kinds: readonly WorkKind[] = ["bmo", "worker", "runner", "gate"];
 const layaModes: readonly LayaMode[] = ["off", "shadow", "filter", "asymmetric"];
 
 // A profile as the policy's file declares it.

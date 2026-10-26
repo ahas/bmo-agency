@@ -1963,6 +1963,104 @@ pub struct DraftProcessPage {
   pub more: bool,
 }
 
+/// ResearchRunAsk: a research asked of the agency: its research key, its question, and who asked, the options and
+/// the room its result is for, where they are known.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ResearchRunAsk {
+  /// `search:basic`, `search:thorough`, `search:exhaustive` or `browse`.
+  pub key: String,
+  pub query: String,
+  #[serde(default)]
+  pub asker: Option<String>,
+  #[serde(default)]
+  pub options: Option<String>,
+  #[serde(default)]
+  pub room_id: Option<i64>,
+}
+
+/// ResearchRun: a research run as it was launched: its run in the ledger, its key and the road it went out on.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ResearchRun {
+  pub run_id: i64,
+  pub key: String,
+  pub provider: String,
+  pub model: String,
+  /// The login it went out on, where its provider holds logins and one was offered.
+  pub account: Option<String>,
+  /// epoch milliseconds: when its web tools close
+  pub closes_at: i64,
+}
+
+/// One research key's settings: how many pooled branches a run of it may open, and for how many minutes its web
+/// tools stay open.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ResearchKeySettings {
+  pub key: String,
+  pub branches: i64,
+  pub minutes: i64,
+}
+
+/// One search engine's state, as the web tools answer it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchEngineState {
+  pub name: String,
+  #[serde(default)]
+  pub category: Option<String>,
+  pub state: String,
+  #[serde(default)]
+  pub reason: Option<String>,
+  #[serde(default)]
+  pub observed_at: Option<i64>,
+  #[serde(default)]
+  pub suspended_until: Option<i64>,
+}
+
+/// ResearchSettings: what every research run is held to, and the search engines' state.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ResearchSettings {
+  /// The co-worker role a search's pooled branches go out on.
+  pub branch_role: String,
+  /// `direct-then-browser`, `browser-first` or `direct-only`.
+  pub strategy: String,
+  /// The gap between two direct requests to one host, in milliseconds; null where the web tools' default stands.
+  pub host_interval_ms: Option<i64>,
+  /// The gap between two requests to one search engine, in milliseconds; null where the web tools' default stands.
+  pub engine_interval_ms: Option<i64>,
+  pub keys: Vec<ResearchKeySettings>,
+  /// `default` where the policy's values stand, `set` where the owner changed one.
+  pub source: String,
+  /// The search engines' state; null where it could not be read.
+  pub engines: Option<Vec<SearchEngineState>>,
+  /// Why the engines' state could not be read, where it could not.
+  pub engines_unread: Option<String>,
+}
+
+fn present<'de, D: serde::Deserializer<'de>>(given: D) -> Result<Option<Option<i64>>, D::Error> {
+  Option::<i64>::deserialize(given).map(Some)
+}
+
+/// ResearchSettingsChange: a change to the research settings; a field left out keeps what it holds, and a gap given
+/// as null returns to the web tools' default.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ResearchSettingsChange {
+  #[serde(default)]
+  pub branch_role: Option<String>,
+  #[serde(default)]
+  pub strategy: Option<String>,
+  #[serde(default, deserialize_with = "present", skip_serializing_if = "Option::is_none")]
+  pub host_interval_ms: Option<Option<i64>>,
+  #[serde(default, deserialize_with = "present", skip_serializing_if = "Option::is_none")]
+  pub engine_interval_ms: Option<Option<i64>>,
+  #[serde(default)]
+  pub keys: Option<Vec<ResearchKeySettings>>,
+}
+
 /// A change to one line's rounds; a field left out keeps what the line holds.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]

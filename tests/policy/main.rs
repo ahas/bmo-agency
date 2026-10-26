@@ -15,6 +15,7 @@ mod door_words;
 mod gate_places;
 mod gate_prompts;
 mod gates;
+mod handoff;
 mod keepalive;
 mod marks;
 mod model_catalogue;

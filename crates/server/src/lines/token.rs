@@ -11,7 +11,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
-use bmo_pocket_client::{Failure, NameQuery, Pocket, SessionRequest};
+use bmo_pocket_client::{Failure, NameQuery, Pocket, SessionRequest, ToolCallRequest};
 use policy::deployment::DEPLOYMENT;
 use policy::research::RESEARCH;
 use policy::roles::ROLES;
@@ -466,6 +466,64 @@ fn host_down(socket: &Path, why: impl Into<String>) -> Refusal {
     why.into()
   ))
 }
+
+/// One call of an entry the tool host keeps for the system alone (docs/research-runs.md, 「What a run is held
+/// to: the research settings」), made under a record of its own naming only the entry's namespace and taken
+/// back once the call ends: the tool's structured content, or why there is none.
+pub async fn system_call(
+  ground: &Ground,
+  namespace: &str,
+  name: &str,
+  input: Map<String, Value>,
+) -> Result<Value, String> {
+  let variables =
+    BTreeMap::from([("BMO_DATA_DIR".to_owned(), ground.roots.data.to_string_lossy().into_owned())]);
+  let mut labels = Map::new();
+
+  labels.insert("line".to_owned(), json!("system"));
+
+  let request = SessionRequest {
+    holder_name: "agency".to_owned(),
+    namespaces: BTreeSet::from([namespace.to_owned()]),
+    capabilities: Default::default(),
+    grants: Vec::new(),
+    shown: Default::default(),
+    variables,
+    variables_file: None,
+    labels,
+    ttl_ms: Some(SYSTEM_CALL_TTL_MS),
+  };
+  let token = issue_record(ground, &request).await.map_err(|why| why.detail)?;
+  let called = pocket(ground, token.clone())
+    .call(&ToolCallRequest {
+      namespace: namespace.to_owned(),
+      name: name.to_owned(),
+      input,
+    })
+    .await;
+
+  revoke(ground, &token).await;
+
+  let call = called.map_err(|failure| match failure {
+    Failure::Refused { status, error } => format!("{status} {} ({})", error.error, error.code.as_str()),
+    Failure::Unreadable { status, why } => format!("{status} {why}"),
+    Failure::Unreachable(why) => why.to_string(),
+  })?;
+
+  if call.result.is_error == Some(true) {
+    let said: Vec<&str> = call.result.content.iter().filter_map(|block| block["text"].as_str()).collect();
+
+    return Err(said.join(" "));
+  }
+
+  call
+    .result
+    .structured_content
+    .ok_or_else(|| format!("{namespace}/{name} answered no structured content"))
+}
+
+// How long the record of one system call may stand where nothing takes its token back.
+const SYSTEM_CALL_TTL_MS: u64 = 60_000;
 
 /// A token taken back; a host that does not answer has lost it already.
 pub async fn revoke(ground: &Ground, token: &str) {

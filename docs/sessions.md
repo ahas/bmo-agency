@@ -53,6 +53,26 @@ session on the owner's ask is `docs/session-resets.md`.
   first stands.
 - **A caller that names a folder works in it,** as a conversation opened on one does; only the chat's
   own launches, which name none, stand in the link.
+- **A fresh session of a chat agent is never opened without the handoff.** Where a chat-line turn — the
+  chat agent's across rooms, or a companion's in a room — is about to open a fresh session for an agent
+  that had one, agency first asks the receiver for the agent's handoff (`POST /handoffs/{agentName}` of
+  the receiver, with the reason and the room where the turn names one) and waits for its answer, so the
+  session going away writes what the next one needs before anything replaces it:
+  - **what counts as replacing a session:** the kept session gone — the program no longer holds it — and
+    a session the agent had that the turn does not resume — a reset, a provider or a prefix change, a
+    login the session cannot follow — while the agent's program still stands in its pane;
+  - **what does not:** a turn that resumes the session it had, and a program stood again on the same
+    folder after agency's own restart or a deployment, which takes the same session up again, so
+    neither asks anything;
+  - **the order:** the ask goes out while the old program still stands in its pane under herdr, before
+    the turn's stand replaces it; the old program usually outlives agency's own restart, so a turn after
+    a restart that opens a fresh session asks as any other does;
+  - **the answer:** 200 with the handoff file's path and size where the old session wrote one, 204 where
+    there was nothing to ask or it wrote nothing; a 409, a handoff already under way, is waited on and
+    asked again; the wait is bounded by the receiver's own handoff bound and a margin
+    (`policy/handoff.toml`), and an error, a refusal or the bound passing lets the turn go on — the
+    fresh session is opened all the same, and the run log says the handoff was not had and why. A
+    deployment that names no receiver asks nothing.
 
 ## Document reload
 

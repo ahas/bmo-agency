@@ -277,8 +277,24 @@ fn harness_servers(ground: &Ground) -> Ordered {
       ("args", Ordered::List(args)),
     ];
 
-    if let Some(token) = env.get("BMO_JOB_TOKEN").filter(|token| !token.is_empty()) {
-      fields.push(("env", Ordered::map([("BMO_JOB_TOKEN", Ordered::text(token.as_str()))])));
+    // The chat's own caller token where the deployment names one, so the job service records what the
+    // chat does under the chat's name; the shared token otherwise.
+    let own =
+      env
+        .get("BMO_JOB_CHAT_TOKEN")
+        .filter(|token| !token.trim().is_empty())
+        .cloned()
+        .or_else(|| {
+          env
+            .get("BMO_JOB_CHAT_TOKEN_FILE")
+            .and_then(|file| std::fs::read_to_string(file).ok())
+            .map(|token| token.trim().to_owned())
+            .filter(|token| !token.is_empty())
+        });
+
+    if let Some(token) = own.or_else(|| env.get("BMO_JOB_TOKEN").filter(|token| !token.is_empty()).cloned())
+    {
+      fields.push(("env", Ordered::map([("BMO_JOB_TOKEN", Ordered::text(token))])));
     }
 
     servers.push(("job".to_owned(), Ordered::map(fields)));

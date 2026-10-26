@@ -63,7 +63,8 @@ pub async fn quota_source(judging: Judging<'_>) -> Result<Value, Refused> {
         continue;
       }
 
-      let (session, week) = headline_windows(judging.windows, &provider, Some(&account.id)).await?;
+      let (session, week) =
+        headline_windows(judging.windows, &provider, Some(&account.id), account.needs_login_at).await?;
 
       slots.push(slot(&provider, &json!(account.id), &account.name, &session, &week, false));
     }

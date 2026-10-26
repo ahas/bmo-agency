@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "bmo-agency",
-    "version": "0.1.0-rev.72",
+    "version": "0.1.0-rev.73",
     "description": "The agency's agents, their sessions, turns and runs, the executions on the agent host, the co-worker pool and places, providers, models, tiers and roads, accounts and rest, companions and workers, worker assignments, and the jobs it runs. A job is an item run on a worker for the harness that holds the item: the harness asks for a worker with POST /assignments, then hands the item's content and its lease over with POST /jobs. The run's progress, questions and outcome are its own events and fields, which the harness reads and carries into the job service, where it reports and closes the item; words appended to the item reach the run as the harness sends them into the job's session. As a job ends, the agency gives its lease back to the job service and queues its report in the room through the receiver's instruction route. Everything it remembers or runs on is an upstream it reaches through what that upstream publishes. It serves only its own nouns: a run with a fixed prompt is an ordinary session started with POST /sessions and the run's prompt document, and that session calls the upstreams it needs through their own MCP servers; no route or tool of the agency forwards to them. It calls no downstream; gate and receiver register at its hook points. It stays one service."
   },
   "servers": [
@@ -5717,6 +5717,117 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/GateKindDeclaration"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/research-runs": {
+      "post": {
+        "operationId": "createResearchRuns",
+        "tags": [
+          "research-drafts"
+        ],
+        "summary": "Run a research on a research key: a search at a depth, or a browse; answered at once, its result queued for the room as it ends.",
+        "responses": {
+          "202": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResearchRun"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "503": {
+            "$ref": "#/components/responses/NoLoginOpen"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "no-login-open"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResearchRunAsk"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/research-settings": {
+      "get": {
+        "operationId": "getResearchSettings",
+        "tags": [
+          "research-drafts"
+        ],
+        "summary": "The settings every research run is held to, and the search engines' state.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResearchSettings"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "x-codes": [
+          "unauthorized"
+        ]
+      },
+      "put": {
+        "operationId": "putResearchSettings",
+        "tags": [
+          "research-drafts"
+        ],
+        "summary": "Change the research settings; a field left out keeps what it holds.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResearchSettings"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResearchSettingsChange"
               }
             }
           }
@@ -11614,6 +11725,275 @@
         ],
         "description": "One gate of the gate's declaration, as the gate publishes it."
       },
+      "ResearchRun": {
+        "type": "object",
+        "properties": {
+          "runId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "key": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "account": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The login it went out on, where its provider holds logins and one was offered."
+          },
+          "closesAt": {
+            "type": "integer",
+            "format": "int64",
+            "description": "epoch milliseconds: when its web tools close"
+          }
+        },
+        "required": [
+          "runId",
+          "key",
+          "provider",
+          "model",
+          "account",
+          "closesAt"
+        ],
+        "description": "ResearchRun: a research run as it was launched: its run in the ledger, its key and the road it went out on."
+      },
+      "ResearchRunAsk": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "`search:basic`, `search:thorough`, `search:exhaustive` or `browse`."
+          },
+          "query": {
+            "type": "string"
+          },
+          "asker": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "options": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "roomId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "default": null
+          }
+        },
+        "required": [
+          "key",
+          "query",
+          "asker",
+          "options",
+          "roomId"
+        ],
+        "description": "ResearchRunAsk: a research asked of the agency: its research key, its question, and who asked, the options and\nthe room its result is for, where they are known."
+      },
+      "ResearchSettings": {
+        "type": "object",
+        "properties": {
+          "branchRole": {
+            "type": "string",
+            "description": "The co-worker role a search's pooled branches go out on."
+          },
+          "strategy": {
+            "type": "string",
+            "description": "`direct-then-browser`, `browser-first` or `direct-only`."
+          },
+          "hostIntervalMs": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The gap between two direct requests to one host, in milliseconds; null where the web tools' default stands."
+          },
+          "engineIntervalMs": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The gap between two requests to one search engine, in milliseconds; null where the web tools' default stands."
+          },
+          "keys": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ResearchKeySettings"
+            }
+          },
+          "source": {
+            "type": "string",
+            "description": "`default` where the policy's values stand, `set` where the owner changed one."
+          },
+          "engines": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/SearchEngineState"
+            },
+            "description": "The search engines' state; null where it could not be read."
+          },
+          "enginesUnread": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why the engines' state could not be read, where it could not."
+          }
+        },
+        "required": [
+          "branchRole",
+          "strategy",
+          "hostIntervalMs",
+          "engineIntervalMs",
+          "keys",
+          "source",
+          "engines",
+          "enginesUnread"
+        ],
+        "description": "ResearchSettings: what every research run is held to, and the search engines' state."
+      },
+      "ResearchKeySettings": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "branches": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "minutes": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "required": [
+          "key",
+          "branches",
+          "minutes"
+        ],
+        "description": "One research key's settings: how many pooled branches a run of it may open, and for how many minutes its web\ntools stay open."
+      },
+      "SearchEngineState": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "category": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "state": {
+            "type": "string"
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "observedAt": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "default": null
+          },
+          "suspendedUntil": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "default": null
+          }
+        },
+        "required": [
+          "name",
+          "category",
+          "state",
+          "reason",
+          "observedAt",
+          "suspendedUntil"
+        ],
+        "description": "One search engine's state, as the web tools answer it."
+      },
+      "ResearchSettingsChange": {
+        "type": "object",
+        "properties": {
+          "branchRole": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "strategy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "hostIntervalMs": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "engineIntervalMs": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "keys": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/ResearchKeySettings"
+            },
+            "default": null
+          }
+        },
+        "required": [
+          "branchRole",
+          "strategy",
+          "keys"
+        ],
+        "description": "ResearchSettingsChange: a change to the research settings; a field left out keeps what it holds, and a gap given\nas null returns to the web tools' default."
+      },
       "DraftProcessPage": {
         "type": "object",
         "properties": {
@@ -11887,6 +12267,17 @@
         "$ref": "#/components/schemas/Job"
       },
       "route": "POST /jobs"
+    },
+    {
+      "name": "run_research",
+      "description": "Send a web research out on a research key: a search at a depth, or a browse. Answered at once with the run and the road it went out on; its result is queued for the room as the run ends.",
+      "input": {
+        "$ref": "#/components/schemas/ResearchRunAsk"
+      },
+      "output": {
+        "$ref": "#/components/schemas/ResearchRun"
+      },
+      "route": "POST /research-runs"
     }
   ],
   "webhooks": {

@@ -46,6 +46,8 @@ pub struct Closed {
   pub reopens: String,
   /// With `{provider}` and `{command}`.
   pub person: String,
+  /// With `{providers}`, `{line}` and `{needs}`.
+  pub uncarried: String,
 }
 
 /// A job launched again on the next road.

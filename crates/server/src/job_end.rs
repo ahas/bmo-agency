@@ -22,7 +22,7 @@ fn setting<'a>(vars: &'a BTreeMap<String, String>, name: &str) -> Option<&'a str
 }
 
 /// The token a peer is called with: a value the deployment names, or the file it names.
-fn token(vars: &BTreeMap<String, String>, variable: &str, file: &str) -> Option<String> {
+pub(crate) fn token(vars: &BTreeMap<String, String>, variable: &str, file: &str) -> Option<String> {
   if let Some(token) = setting(vars, variable) {
     return Some(token.to_owned());
   }
@@ -33,7 +33,7 @@ fn token(vars: &BTreeMap<String, String>, variable: &str, file: &str) -> Option<
     .filter(|token| !token.is_empty())
 }
 
-fn address(vars: &BTreeMap<String, String>, variable: &str) -> Option<String> {
+pub(crate) fn address(vars: &BTreeMap<String, String>, variable: &str) -> Option<String> {
   setting(vars, variable).map(|url| url.trim_end_matches('/').to_owned())
 }
 

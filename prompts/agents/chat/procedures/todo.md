@@ -42,12 +42,14 @@ launching its run. When to file is in the manual; this is how. Your tools are th
   nothing more. Everything else he said is told in your own English.
 - **The title is the item's name** in the queue, on the console and at the head of the run's
   prompt: a short English line, never the date alone.
-- **Filing raises a draft.** It enters the queue only when an approval is recorded on it.
-- **The owner's approval** is `job_item_update` with item <id> and an `approval` whose `actorName`
-  is the owner's recorded name; the service moves the draft to open. Record it only on his own
-  word, or on a grant in force that names this action and this project. His words on the approval
-  go onto the item with `job_note_add`, and into the brief with `job_item_update` where the run
-  must act on them.
+- **Filing raises a draft.** It enters the queue only on the owner's own approval, which he gives on
+  the console; the job service tells his approval from anyone else's by who calls it, never by a name.
+- **What you record is a recommendation.** `job_item_update` with item <id> and an `approval` (no name:
+  the service records it under the chat's own caller) is your recommendation that the owner approve
+  it; the draft stays a draft until he does. Record one only on his own word, or on a grant in force
+  that names this action and this project, and say the item waits for his approval on the console,
+  with its number. His words on it go onto the item with `job_note_add`, and into the brief with
+  `job_item_update` where the run must act on them.
 - **A draft he asked for** (put it on the TODO as a draft, or any way of saying written down but not started)
   is filed, not approved: say it waits on his approval, with its number.
 - **A member's request** is filed the same way, with `requesterName` the member and `scope` the

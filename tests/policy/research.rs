@@ -48,3 +48,28 @@ fn every_research_line_ends_in_the_final_question_and_holds_it_nowhere_else() {
     );
   }
 }
+
+#[test]
+fn every_research_key_has_its_branches_and_clock_and_the_strategy_is_one_the_web_tools_read() {
+  let keys: Vec<&str> = policy::work_keys::WORK_KEYS
+    .profile
+    .iter()
+    .filter(|profile| profile.kind == "runner")
+    .map(|profile| profile.key.as_str())
+    .collect();
+
+  assert_eq!(keys, ["search:basic", "search:thorough", "search:exhaustive", "browse"]);
+  assert!(
+    keys
+      .iter()
+      .all(|key| RESEARCH.settings.keys.get(*key).is_some_and(|kept| kept.minutes > 0))
+  );
+  assert!(STRATEGIES.contains(&RESEARCH.settings.strategy.as_str()));
+  assert!(
+    policy::seeds::SEEDS
+      .key
+      .iter()
+      .any(|key| key.key == format!("role:{}", RESEARCH.settings.branch_role)),
+    "the branch role is a co-worker role with a tier of its own"
+  );
+}

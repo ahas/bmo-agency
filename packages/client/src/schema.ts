@@ -1376,6 +1376,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/research-runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Run a research on a research key: a search at a depth, or a browse; answered at once, its result queued for the room as it ends. */
+        post: operations["createResearchRuns"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/research-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The settings every research run is held to, and the search engines' state. */
+        get: operations["getResearchSettings"];
+        /** Change the research settings; a field left out keeps what it holds. */
+        put: operations["putResearchSettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/draft-processes": {
         parameters: {
             query?: never;
@@ -3155,6 +3190,109 @@ export interface components {
             defaultLayaMode: string | null;
             /** Format: int64 */
             answerTokens: number | null;
+        };
+        /** @description ResearchRun: a research run as it was launched: its run in the ledger, its key and the road it went out on. */
+        ResearchRun: {
+            /** Format: int64 */
+            runId: number;
+            key: string;
+            provider: string;
+            model: string;
+            /** @description The login it went out on, where its provider holds logins and one was offered. */
+            account: string | null;
+            /**
+             * Format: int64
+             * @description epoch milliseconds: when its web tools close
+             */
+            closesAt: number;
+        };
+        /**
+         * @description ResearchRunAsk: a research asked of the agency: its research key, its question, and who asked, the options and
+         *     the room its result is for, where they are known.
+         */
+        ResearchRunAsk: {
+            /** @description `search:basic`, `search:thorough`, `search:exhaustive` or `browse`. */
+            key: string;
+            query: string;
+            /** @default null */
+            asker: string | null;
+            /** @default null */
+            options: string | null;
+            /**
+             * Format: int64
+             * @default null
+             */
+            roomId: number | null;
+        };
+        /** @description ResearchSettings: what every research run is held to, and the search engines' state. */
+        ResearchSettings: {
+            /** @description The co-worker role a search's pooled branches go out on. */
+            branchRole: string;
+            /** @description `direct-then-browser`, `browser-first` or `direct-only`. */
+            strategy: string;
+            /**
+             * Format: int64
+             * @description The gap between two direct requests to one host, in milliseconds; null where the web tools' default stands.
+             */
+            hostIntervalMs: number | null;
+            /**
+             * Format: int64
+             * @description The gap between two requests to one search engine, in milliseconds; null where the web tools' default stands.
+             */
+            engineIntervalMs: number | null;
+            keys: components["schemas"]["ResearchKeySettings"][];
+            /** @description `default` where the policy's values stand, `set` where the owner changed one. */
+            source: string;
+            /** @description The search engines' state; null where it could not be read. */
+            engines: components["schemas"]["SearchEngineState"][] | null;
+            /** @description Why the engines' state could not be read, where it could not. */
+            enginesUnread: string | null;
+        };
+        /**
+         * @description One research key's settings: how many pooled branches a run of it may open, and for how many minutes its web
+         *     tools stay open.
+         */
+        ResearchKeySettings: {
+            key: string;
+            /** Format: int64 */
+            branches: number;
+            /** Format: int64 */
+            minutes: number;
+        };
+        /** @description One search engine's state, as the web tools answer it. */
+        SearchEngineState: {
+            name: string;
+            /** @default null */
+            category: string | null;
+            state: string;
+            /** @default null */
+            reason: string | null;
+            /**
+             * Format: int64
+             * @default null
+             */
+            observedAt: number | null;
+            /**
+             * Format: int64
+             * @default null
+             */
+            suspendedUntil: number | null;
+        };
+        /**
+         * @description ResearchSettingsChange: a change to the research settings; a field left out keeps what it holds, and a gap given
+         *     as null returns to the web tools' default.
+         */
+        ResearchSettingsChange: {
+            /** @default null */
+            branchRole: string | null;
+            /** @default null */
+            strategy: string | null;
+            /** Format: int64 */
+            hostIntervalMs?: number | null;
+            /** Format: int64 */
+            engineIntervalMs?: number | null;
+            /** @default null */
+            keys: components["schemas"]["ResearchKeySettings"][] | null;
         };
         /** @description A page of a research line's rounds. */
         DraftProcessPage: {
@@ -6425,6 +6563,80 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GateKindPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    createResearchRuns: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResearchRunAsk"];
+            };
+        };
+        responses: {
+            /** @description Answered. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResearchRun"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            503: components["responses"]["NoLoginOpen"];
+        };
+    };
+    getResearchSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResearchSettings"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    putResearchSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResearchSettingsChange"];
+            };
+        };
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResearchSettings"];
                 };
             };
             400: components["responses"]["BadRequest"];

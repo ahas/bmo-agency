@@ -76,6 +76,22 @@ link = "deploy"
 data_root = "~/.local/share/bmo/data"
 units = ["deploy/*.service"]
 
+# The worker plugin is the skills repository's worker bundle, placed over the copy the release carries by
+# that repository's own placer (docs/launch-lines.md, the skills handed over as a plugin directory): from
+# the skills checkout beside agency's in the workspace the checkout stands in, or the one BMO_SKILLS_DIR
+# names, built into the shared Cargo target.
+[[deploy.step]]
+id = "place-worker-skills"
+phase = "before-flip"
+command = '''
+set -eu
+common="$(git rev-parse --path-format=absolute --git-common-dir)"
+skills="${BMO_SKILLS_DIR:-$(dirname "$common")/../../resources/skills}"
+target="${BMO_CARGO_TARGET_DIR:-$HOME/.local/share/bmo/cargo-target}"
+cargo build --quiet --release --manifest-path "$skills/Cargo.toml" --bin bmo-skills --target-dir "$target"
+"$target/release/bmo-skills" place --bundle worker --into prompts/agents/worker/plugin --from "$skills"
+'''
+
 # Each tool is placed in its folder's .placed/, the folder the tool host reads (docs/tools.md, 「A tool's
 # folder」): the executable the release's bin/ holds, its manifest and the schemas beside it.
 [[deploy.step]]

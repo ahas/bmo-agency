@@ -166,7 +166,11 @@
   token (the tool host's `mcp-host.md`), which is where the chat agent's own tools stand — sending, filing
   a TODO item, its brain's memory tools, the web's search and page fetch, and the gate's translator among
   them; the job service's harness plugin, `job`, which leases an item
-  from a queue; and the agency's own, `agency`, which assigns a worker and launches the item's job. A
+  from a queue, started on the chat's own caller token where the deployment names one (`BMO_JOB_CHAT_TOKEN`,
+  or the file `BMO_JOB_CHAT_TOKEN_FILE` names), so the job service records what the chat does — an
+  approval among it, which it keeps as the chat's recommendation rather than the owner's approval — under
+  the chat's name, and on the deployment's shared token otherwise; and the agency's own, `agency`, which
+  assigns a worker, launches the item's job and sends a research out. A
   hosted tool those namespaces do not show is reached with `bmo use`.
   The tools shown are exactly Bash, Read, Write, Edit and the CLI's two MCP resource tools, the list
   and the read, in every run of every chat (none when the owner has turned tools off in that chat),
@@ -252,7 +256,12 @@
   machine's own CLAUDE.md, which every checkout under the home directory would walk up to, is named
   in the worker settings' `claudeMdExcludes`, the user scope this machine
   registers its own skills, Claude Code subagent definitions and MCP servers in is shut off on the
-  line, and in its place the line hands over the skills as a plugin directory, the five co-worker
+  line, and in its place the line hands over the skills as a plugin directory — the skills
+  repository's `worker` bundle, `prompts/agents/worker/plugin/` of the release, which every deployment
+  places afresh with that repository's own placer (`bmo-skills place --bundle worker`) from the skills
+  checkout that stands beside agency's in its workspace, or the one `BMO_SKILLS_DIR` names, before the
+  deploy tree flips, so a skill the skills repository gains reaches the next job after the next
+  deployment; the copy a checkout of this repository carries stands for a tree no deployment placed — the five co-worker
   definitions as JSON with the model and the effort each type runs at and the plugin skills a
   type is started with, the settings the worker is
   held to — which is also where the Bash tool's wait for a job's command is set, a minute by
@@ -349,8 +358,9 @@
   the messages the turn answers and whether each is the owner's stand in the place's run as its own
   variables. On a registered model it goes out as every run on one does, the thinking its agent row
   names or else the registration's, with its generation settings as the run's sampling.
-- **Search runner**: the model and the effort its depth's tier assignment names on the first
-  enabled provider whose program carries the search line — Frontier at every depth to start with —
+- **Search runner**: the model and the effort its depth's tier assignment names on the road the road
+  resolution answers for the depth's key, the first provider of its walk whose program carries the search
+  line and that can answer now (`research-runs.md`, 「The road」) — Frontier at every depth to start with —
   refused rather than launched where that model does not list the effort
   (`research-runs.md`) — don't-ask mode, no built-in tool shown, the web MCP server's tools and the brain's
   `bmo` namespace, and nothing else allowed; any other hosted tool it holds is reached with `bmo use`; no
@@ -451,7 +461,7 @@
   among them — about a memory directory of its own under the login's records and how to write
   it: some seven hundred tokens in a worker's prefix, and more where the file tools make it offer
   writing as well. No agent of the system's keeps anything there: what a job learns goes into its
-  checkout's documents (the `docs-conventions` skill), and an agent's long-term memory is its brain.
+  checkout's documents (the `bmo-docs-conventions` skill), and an agent's long-term memory is its brain.
   To turn it back on, remove the variable and let the commit go live;
   it moves the worker's prefix like any change to the line. A variable adds nothing to a cached prefix,
     but it is part of the command a pane's program was started with, so the change starts each

@@ -250,6 +250,94 @@ async fn each_account_s_view_carries_its_own_headline_windows_and_an_endpoint_ac
   assert_eq!(of("paid")["week"], serde_json::Value::Null);
 }
 
+// An account's reported windows are its answering login's alone: none read at or before its unread mark or
+// its mark of waiting for a person, its own back once a reading follows, and none kept once its home is
+// pointed elsewhere (docs/usage-windows.md, 「What reads the windows」).
+#[tokio::test]
+async fn an_account_reports_only_the_windows_of_the_login_answering_for_it() {
+  let scratch = Scratch::new().await;
+  let db = scratch.db();
+  let now = now_ms() / 1000;
+  let windows = Keeping::new(db.clone(), vec![Arc::new(HalfHour)]);
+  let judging = Judging {
+    db,
+    windows: &windows,
+  };
+  let week = |used: f64| Window {
+    name: "seven_day".into(),
+    utilization: used,
+    resets_at: Some(now + 86_400),
+    duration_minutes: None,
+    limit_name: None,
+  };
+  let reported = || async {
+    views(judging)
+      .await
+      .unwrap()
+      .into_iter()
+      .map(|view| (view["id"].as_str().unwrap_or_default().to_owned(), view["week"]["utilization"].clone()))
+      .collect::<Vec<_>>()
+  };
+  let slot = |account| Slot {
+    mode: "claude-code",
+    account,
+  };
+
+  scratch.run(r#"DELETE FROM "claude_accounts""#, vec![]).await;
+  scratch
+    .run(
+      r#"INSERT INTO "claude_accounts" ("id", "name", "place", "enabled", "credential_kind", "credential_path", "added_at", "needs_login_at")
+         VALUES ('main', 'main', 1, 1, 'directory', '/logins/main', 0, NULL),
+                ('sub', 'sub', 2, 1, 'directory', '/logins/sub', 0, $1)"#,
+      vec![(now - 60).into()],
+    )
+    .await;
+  windows.replace(slot("main"), &[week(0.97)], now - 120).await.unwrap();
+  windows.replace(slot("sub"), &[week(0.2)], now - 120).await.unwrap();
+  windows.mark_unread("main", now - 90).await.unwrap();
+
+  assert_eq!(
+    reported().await,
+    vec![
+      ("main".to_owned(), serde_json::Value::Null),
+      ("sub".to_owned(), serde_json::Value::Null)
+    ],
+    "a token found expired and a login waiting for a person each hide what was read before"
+  );
+
+  windows.replace(slot("main"), &[week(0.5)], now - 10).await.unwrap();
+  windows.lift_unread("main").await.unwrap();
+
+  assert_eq!(
+    reported().await[0],
+    ("main".to_owned(), serde_json::json!(0.5)),
+    "its own reading comes back"
+  );
+
+  // Pointed at another home, the account keeps none of the windows the login before it was read with.
+  let elsewhere = tempfile::tempdir().unwrap();
+
+  agency_server::control::claude_account_changes::update(
+    db,
+    "main",
+    None,
+    Some(&agency_server::control::claude_account_changes::CredentialGiven {
+      kind: None,
+      path: Some(elsewhere.path().to_string_lossy().into_owned()),
+      endpoint: None,
+      key_file: None,
+      models: None,
+    }),
+    None,
+    agency_server::control::claude_account_changes::BasePromptGiven::Keep,
+  )
+  .await
+  .unwrap();
+
+  assert!(windows.read(slot("main")).await.unwrap().windows.is_empty());
+  assert_eq!(windows.read(slot("sub")).await.unwrap().windows.len(), 1, "another account's stay");
+}
+
 #[test]
 fn a_setting_reads_as_parseint_would() {
   assert_eq!(leading_integer("1790000000"), Some(1_790_000_000));

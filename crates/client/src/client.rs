@@ -963,6 +963,21 @@ impl AgencyClient {
     Self::answered(self.request(Method::POST, &["jobs"]).json(body)).await
   }
 
+  /// `POST /research-runs`: Run a research on a research key: a search at a depth, or a browse.
+  pub async fn create_research_runs(&self, body: &ResearchRunAsk) -> Answer<ResearchRun> {
+    Self::answered(self.request(Method::POST, &["research-runs"]).json(body)).await
+  }
+
+  /// `GET /research-settings`: The settings every research run is held to, and the search engines' state.
+  pub async fn get_research_settings(&self) -> Answer<ResearchSettings> {
+    Self::answered(self.request(Method::GET, &["research-settings"])).await
+  }
+
+  /// `PUT /research-settings`: Change the research settings; a field left out keeps what it holds.
+  pub async fn put_research_settings(&self, body: &ResearchSettingsChange) -> Answer<ResearchSettings> {
+    Self::answered(self.request(Method::PUT, &["research-settings"]).json(body)).await
+  }
+
   /// `GET /jobs/{jobId}`: One job and the tokens its model has spent.
   pub async fn read_jobs_by_job_id(&self, job_id: i64) -> Answer<Job> {
     Self::answered(self.request(Method::GET, &["jobs", &job_id.to_string()])).await

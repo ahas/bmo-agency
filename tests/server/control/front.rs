@@ -41,6 +41,6 @@ fn the_harness_plugin_lists_exactly_the_document_s_tools() {
     .map(|tool| tool["name"].as_str().expect("a tool has a name"))
     .collect();
 
-  assert_eq!(listed, ["assign_worker", "run_job"]);
+  assert_eq!(listed, ["assign_worker", "run_job", "run_research"]);
   assert_eq!(listed, stated);
 }

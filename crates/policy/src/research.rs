@@ -14,7 +14,39 @@ pub struct Research {
   pub opens: BTreeMap<String, String>,
   pub search: Search,
   pub draft: Draft,
+  pub settings: Settings,
 }
+
+/// The research settings a run is held to where the owner changed none.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Settings {
+  /// The co-worker role a search's pooled branches go out on.
+  pub branch_role: String,
+  /// How a page is read: `direct-then-browser`, `browser-first` or `direct-only`.
+  pub strategy: String,
+  /// The gap between two direct requests to one host, in milliseconds; none where the web tools' own stands.
+  #[serde(default)]
+  pub host_interval_ms: Option<i64>,
+  /// The gap between two requests to one search engine, in milliseconds; none where the web tools' own
+  /// stands.
+  #[serde(default)]
+  pub engine_interval_ms: Option<i64>,
+  /// Each research key's own: its branches and its clock.
+  pub keys: BTreeMap<String, KeySettings>,
+}
+
+/// One research key's settings: how many pooled branches a run of it may open, and how many minutes its
+/// web tools stay open from its start.
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct KeySettings {
+  pub branches: i64,
+  pub minutes: i64,
+}
+
+/// The fetch strategies the web tools read.
+pub const STRATEGIES: [&str; 3] = ["direct-then-browser", "browser-first", "direct-only"];
 
 /// The rounds a research line asks after its first answer, and the questions they ask by name.
 #[derive(Debug, Deserialize)]

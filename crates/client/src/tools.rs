@@ -15,7 +15,7 @@ pub struct Tool {
 }
 
 /// The tools the agency's MCP server lists.
-pub const TOOLS: [Tool; 2] = [
+pub const TOOLS: [Tool; 3] = [
   Tool {
     name: "assign_worker",
     description: "Assign a worker to an item for the harness holding it: the agency picks the worker from the item's content and the assignee it names, and holds it until the job starts or the hold runs out.",
@@ -29,5 +29,12 @@ pub const TOOLS: [Tool; 2] = [
     input: "RunJob",
     output: "Job",
     route: "POST /jobs",
+  },
+  Tool {
+    name: "run_research",
+    description: "Send a web research out on a research key: a search at a depth, or a browse. Answered at once with the run and the road it went out on; its result is queued for the room as the run ends.",
+    input: "ResearchRunAsk",
+    output: "ResearchRun",
+    route: "POST /research-runs",
   },
 ];

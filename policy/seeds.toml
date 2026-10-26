@@ -118,7 +118,8 @@ tier = "Simple"
 provider = "openrouter"
 model = "google/gemma-4-31b-it:free"
 
-# The work keys no profile declares, each with the tier it starts on: the co-worker roles and the research lines.
+# The work keys no profile declares, each with the tier it starts on: the co-worker roles and the search
+# runner's own key, which its keepalive warms the search line on.
 [[key]]
 key = "role:builder"
 tier = "Frontier"
@@ -141,22 +142,6 @@ tier = "Light"
 
 [[key]]
 key = "search"
-tier = "Frontier"
-
-[[key]]
-key = "search:basic"
-tier = "Frontier"
-
-[[key]]
-key = "search:thorough"
-tier = "Frontier"
-
-[[key]]
-key = "search:exhaustive"
-tier = "Frontier"
-
-[[key]]
-key = "browse"
 tier = "Frontier"
 
 # The first mappings of a provider declared after the store was first seeded: the models its tiers start

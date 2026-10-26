@@ -31,6 +31,7 @@ use indexmap::IndexMap;
 use policy::companion_runner::COMPANION_RUNNER;
 use policy::fill_marks;
 use policy::gate_places::GATE_PLACES;
+use policy::handoff::HANDOFF;
 use policy::resident_turn::RESIDENT_TURN;
 use serde::Serialize;
 use serde_json::Value;
@@ -835,6 +836,30 @@ impl HerdrSessions {
     }
   }
 
+  // The handoff asked for where a chat-line turn is about to open a fresh session in place of one the agent's
+  // program still stands on, and what came of it said in the turn's run log (docs/sessions.md, 「A restart
+  // hands the session over」); a turn that resumes its session, or an agent whose pane holds no program, asks
+  // nothing.
+  async fn handed_off(
+    &self,
+    log: &mut RunLog,
+    agent: &str,
+    room: Option<i64>,
+    resuming: bool,
+    reason: &str,
+  ) {
+    let ground = self.ground();
+    let standing = crate::lines::place::Place::of(&ground.roots.data, agent).program_alive().is_some();
+
+    if !crate::handoff::replaces(false, resuming, standing) {
+      return;
+    }
+
+    let handed = crate::handoff::asked(ground.vars(), agent, reason, room).await;
+
+    log.write(&ground.db, Line::note(handed.said())).await;
+  }
+
   // One turn of a companion in a room, carried by its resident program on its room's session.
   async fn room_turn(
     &self,
@@ -923,6 +948,12 @@ impl HerdrSessions {
     drop(keeping);
 
     let started = Instant::now();
+
+    // A fresh generation in place of one the companion's program still stands on asks for its handoff first.
+    self
+      .handed_off(&mut log, agent, Some(chat_id), session.harness.is_some(), &HANDOFF.reasons.replaced)
+      .await;
+
     let mut asked = self
       .room_run(
         &mut log,
@@ -945,6 +976,7 @@ impl HerdrSessions {
       && said.contains(LOST_SESSION)
     {
       session = sessions::open_generation(&db, agent, chat_id).await.map_err(store_fault)?;
+      self.handed_off(&mut log, agent, Some(chat_id), false, &HANDOFF.reasons.lost).await;
       asked = self
         .room_run(
           &mut log,
@@ -1198,6 +1230,9 @@ impl HerdrSessions {
       Ok(Some(reply)) => Ok(reply),
       Err(no) => Err(no),
       Ok(None) => {
+        // A fresh session in place of one the agent's program still stands on asks for its handoff first.
+        self.handed_off(&mut log, agent, None, held.is_some(), &HANDOFF.reasons.replaced).await;
+
         let mut asked =
           self.agent_run(&mut log, agent, room, context, prompt, held.clone(), began, shown).await;
 
@@ -1206,6 +1241,7 @@ impl HerdrSessions {
           && said.contains(LOST_SESSION)
         {
           keep_agent_session(&db, agent, None).await.map_err(store_fault)?;
+          self.handed_off(&mut log, agent, None, false, &HANDOFF.reasons.lost).await;
           asked = self
             .agent_run(&mut log, agent, room, context, &aside::carried(run, prompt), None, began, shown)
             .await;

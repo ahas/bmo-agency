@@ -49,10 +49,14 @@ all read them from here (`docs/cache-fallback.md`, 「The account judgement」, 
   kept as its fraction, and each `resets_at` is an RFC 3339 moment kept in epoch seconds. A window with
   no figure is left out rather than written as nought, and an answer with no usable window is a
   failure.
-- **It passes every five minutes, and a reading stands for six passes,** thirty minutes: long enough to
+- **It passes every minute, and a reading stands for thirty passes,** thirty minutes: long enough to
   ride out a passing failure of the endpoint, short enough that a full window that names no reset, a
   quota that may have come back unread, stops closing its login. A full window that names its reset
   closes its login until that reset however old its reading is (「What reads the windows」).
+- **It never asks faster than the endpoint accepts.** An account the endpoint refuses for asking too
+  often, an HTTP 429, is not asked again until the moment the refusal names in its `Retry-After`, or for
+  five minutes where it names none; the passes in between leave its last reading as it stands and say
+  the pause once as the account's failure.
 - **An account that cannot be asked keeps its last reading.** A failure is said once when it starts,
   on the server's error output, naming the account and its reason (the credential file unreadable, no
   token, the token expired, the endpoint's HTTP status, no answer in time, no usable window), and its
@@ -122,5 +126,18 @@ all read them from here (`docs/cache-fallback.md`, 「The account judgement」, 
 - **The accounts list** reads each directory and token account's two headline windows too
   (`docs/api.md`, 「accounts, rest and usage」), each with the moment it was seen, so its reader judges
   how old it is.
+- **An account's reported windows are its answering login's alone.** A window is the login's that was
+  read, not the account id's, so what the fallback's view, the quota source and the accounts list report
+  of an account leaves out every window seen at or before the account's unread mark (its token found
+  expired or refused, 「The Claude account reader」) or its mark of waiting for a person
+  (`docs/cache-fallback.md`, 「A login that is about to end」): neither login answers the reader, so what
+  was read before is no current window of the account. A window seen after both stands, and the next
+  reading after the login answers again brings the account's own windows back. The account judgement
+  still reads every kept window as 「What reads the windows」 says, so an account can rest until a reset
+  the list no longer shows; its `restUntil` says until when.
+- **A login changed under an account takes its windows with it.** Pointing an account at another home,
+  token file or endpoint, and a login waiting for a person signed in again, each drop the account's kept
+  windows and its unread mark, since the login that answers next may not be the one read before; the
+  account has no windows until its new login is read.
 - **A keeping that cannot be read is a fault, said with its cause,** never read as an account with no
   windows.

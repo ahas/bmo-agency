@@ -29,6 +29,9 @@ const NOW: i64 = NOW_MS / 1000;
 // The token the stand-in endpoint refuses as unauthorised.
 const REFUSED: &str = "sk-refused";
 
+// The token the stand-in endpoint refuses for asking too often, naming two minutes.
+const BUSY: &str = "sk-busy";
+
 struct Fixed(Vec<Login>);
 
 impl Logins for Fixed {
@@ -58,6 +61,10 @@ async fn usage_endpoint() -> (String, Arc<Mutex<Vec<String>>>) {
 
       if said == format!("Bearer {REFUSED}") {
         return StatusCode::UNAUTHORIZED.into_response();
+      }
+
+      if said == format!("Bearer {BUSY}") {
+        return (StatusCode::TOO_MANY_REQUESTS, [("retry-after", "120")]).into_response();
       }
 
       axum::Json(json!({
@@ -121,11 +128,35 @@ fn an_answer_is_read_into_the_windows_the_parity_cases_record() {
 }
 
 #[test]
-fn a_reading_stands_six_five_minute_passes() {
+fn a_reading_stands_thirty_one_minute_passes() {
   let reader = ClaudeAccounts::new("http://127.0.0.1:9/", Arc::new(Fixed(vec![])));
 
-  assert_eq!(reader.cadence(), Duration::from_secs(300));
+  assert_eq!(reader.cadence(), Duration::from_secs(60));
   assert_eq!(reader.fresh(), Duration::from_secs(1800));
+}
+
+// An account the endpoint refuses for asking too often is not asked again until the moment the refusal's
+// Retry-After names, and is asked again after it (docs/usage-windows.md, 「The Claude account reader」).
+#[tokio::test]
+async fn an_account_refused_for_asking_too_often_is_left_unasked_until_the_moment_its_refusal_names() {
+  let scratch = Scratch::new().await;
+  let dir = tempfile::tempdir().unwrap();
+  let token = dir.path().join("token");
+
+  std::fs::write(&token, format!("{BUSY}\n")).unwrap();
+
+  let (url, asked) = usage_endpoint().await;
+  let reader = Arc::new(ClaudeAccounts::new(url, Arc::new(Fixed(vec![token_login("busy", token)]))));
+  let keeping = Keeping::new(scratch.db().clone(), vec![reader.clone()]);
+
+  reader.pass(&keeping, NOW_MS).await;
+  reader.pass(&keeping, NOW_MS + 60_000).await;
+
+  assert_eq!(asked.lock().unwrap().len(), 1, "the refusal's two minutes have not passed");
+
+  reader.pass(&keeping, NOW_MS + 121_000).await;
+
+  assert_eq!(asked.lock().unwrap().len(), 2, "asked again once the moment it named has passed");
 }
 
 #[tokio::test]

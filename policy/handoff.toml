@@ -1,0 +1,11 @@
+# The handoff a chat agent's session going away is asked for before a fresh session replaces it
+# (docs/sessions.md, 「A restart hands the session over」): the receiver's own bound on a handoff, the margin
+# past it agency waits for the answer, how long it waits before asking again while one is under way, and
+# the reasons it names, each by what makes the session go.
+bound_seconds = 300
+margin_seconds = 30
+retry_seconds = 5
+
+[reasons]
+lost = "the kept session is gone: the program no longer holds it"
+replaced = "a fresh session replaces the one the agent had"

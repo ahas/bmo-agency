@@ -74,5 +74,5 @@ async fn the_mcp_server_starts_and_lists_exactly_the_document_s_tools() {
     .expect("the plugin answers")
     .expect("the reader runs");
 
-  assert_eq!(names, ["assign_worker", "run_job"]);
+  assert_eq!(names, ["assign_worker", "run_job", "run_research"]);
 }

@@ -410,6 +410,12 @@ pub async fn update(
     .await?;
   }
 
+  // Another home, token file or endpoint is another login: the windows read of the one before are not this
+  // account's any more (docs/usage-windows.md, 「What reads the windows」).
+  if credential.as_ref().is_some_and(|credential| *credential != account.credential) {
+    super::claude_accounts::forget_windows(db, id).await?;
+  }
+
   let_choice_go_if_off(db).await
 }
 

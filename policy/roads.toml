@@ -28,6 +28,8 @@ head = "No provider of the order can answer now."
 provider = "{provider}: {reason}"
 reopens = "The first road reopens on its own at {at}."
 person = "To reopen {provider} now: {command}"
+# The providers on whose program a key's line cannot go out, where some are: the line and what it needs.
+uncarried = "{providers}: no program of theirs carries the {line} line, which needs {needs}."
 
 [job]
 # The line a job's prompt is opened with as it goes out again on the next road, ahead of its own words.

@@ -620,9 +620,27 @@ async fn needs_login(db: &DatabaseConnection, account: &Account, now: i64) -> Re
     vec![account.id.clone().into()],
   )
   .await?;
+  // The login signed in again may be another one than the login read before it went.
+  forget_windows(db, &account.id).await?;
   eprintln!("claude account {}: its login is standing again", account.id);
 
   Ok(false)
+}
+
+/// An account's kept windows and its unread mark let go, as its login changes under it: the login that
+/// answers next is read afresh before the account reports a window again (docs/usage-windows.md, 「What
+/// reads the windows」).
+pub async fn forget_windows(db: &DatabaseConnection, account: &str) -> Result<(), Refused> {
+  let keeping = Keeping::new(db.clone(), vec![]);
+  let slot = Slot {
+    mode: CLAUDE_CODE_MODE,
+    account,
+  };
+
+  keeping.replace(slot, &[], now_ms().div_euclid(1000)).await?;
+  keeping.lift_unread(account).await?;
+
+  Ok(())
 }
 
 // The logins that are on, in the order the road takes them: the account the owner chose where one was

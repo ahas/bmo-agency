@@ -383,8 +383,9 @@ When a demotion first catches — when a healthy session first drops — two thi
   — the next run goes out on it; a run already going finishes where it went out.
 - **What moves, and when.** The choice changes the head of the walk and nothing else, so everything that
   already happens when the head moves happens at the next run, not at the click: a run already going
-  finishes on the login it went out on; the next chat round closes its old session and opens a
-  fresh one on the chosen login; the next gate and research branch go out on the chosen
+  finishes on the login it went out on; the next chat round asks the receiver for the old session's
+  handoff, then closes it and opens a fresh one on the chosen login (`docs/sessions.md`, 「A restart
+  hands the session over」); the next gate and research branch go out on the chosen
   account; the next job resumes the worker's session kept under that login, or opens one. A turn on a
   session already held stays on that session's own login, since no other login can reach it.
 - **A key pinned to an account is not moved** — the choice decides where automatic keys go.

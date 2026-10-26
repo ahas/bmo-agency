@@ -45,3 +45,28 @@ past_ceiling = "final"
 rounds = ["what", "sources", "facts", "coverage", "establish", "final"]
 ceiling_seconds = 900
 past_ceiling = "final"
+
+# The research settings every run is held to where the owner changed none (docs/research-runs.md, 「What a
+# run is held to: the research settings」): the co-worker role a search's pooled branches go out on, how a
+# page is read, the gaps between two requests to one host and to one engine — none where the web tools' own
+# default stands — and, for each research key, how many pooled branches a run of it may open and for how
+# many minutes its web tools stay open.
+[settings]
+branch_role = "scout"
+strategy = "direct-then-browser"
+
+[settings.keys."search:basic"]
+branches = 0
+minutes = 5
+
+[settings.keys."search:thorough"]
+branches = 2
+minutes = 15
+
+[settings.keys."search:exhaustive"]
+branches = 5
+minutes = 30
+
+[settings.keys.browse]
+branches = 0
+minutes = 15

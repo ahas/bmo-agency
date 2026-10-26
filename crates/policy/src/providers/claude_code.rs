@@ -27,6 +27,9 @@ pub struct Usage {
   pub ask_seconds: u64,
   pub pass_seconds: u64,
   pub fresh_passes: u32,
+  /// How long an account the endpoint refused for asking too often is left unasked, in seconds, where the
+  /// refusal names no moment of its own.
+  pub refused_pause_seconds: u64,
   pub windows: Vec<String>,
 }
 

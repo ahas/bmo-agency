@@ -9,7 +9,7 @@ consumer's, decided above this boundary and handed in; agency supplies, carries 
 none of it.
 
 `docs/openapi.json` is the machine contract: every route's parameters, bodies, answers and codes, the
-events, the two tools of the harness plugin, and the removed and moved-out members. It is generated from
+events, the three tools of the harness plugin, and the removed and moved-out members. It is generated from
 the service's own types by `bmo-agency openapi`, and a test fails where the committed document differs
 from what the code generates. This document states what the routes are for and how the pieces fit; where
 a field's exact shape matters, the OpenAPI document is the one to read.
@@ -28,7 +28,7 @@ a field's exact shape matters, the OpenAPI document is the one to read.
 ## Versioning
 
 - The contract carries the repository's one version, in semver; the workspace manifest is its source. Before
-  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.72`.
+  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.73`.
 - A change to this document and a change to the boundary go in one commit. A change to a route, an event, a
   hook or a shared table's contract repairs this document in the same commit.
 - The major moves on a removed or renamed route, field or event, the minor on an addition, the patch on
@@ -498,6 +498,30 @@ them; a notice that holds nothing is withdrawn.
   An empty declaration, or one whose kind stands in no turn part, is refused 400 `bad-request`. A gate
   the address does not answer leaves the declaration already kept as it stands.
 
+### research runs and settings
+
+| Method | Path | Does |
+|---|---|---|
+| POST | `/research-runs` | Run a research on a research key: a search at a depth, or a browse. |
+| GET | `/research-settings` | The settings every research run is held to, and the search engines' state. |
+| PUT | `/research-settings` | Change the settings; a field left out keeps what it holds. |
+
+- **A research run** (`docs/research-runs.md`) is asked with `key` — `search:basic`, `search:thorough`,
+  `search:exhaustive` or `browse` — `query`, and `asker`, `options` and `roomId` where they are known. A key
+  that is no research key, or an empty query, is 400 `bad-request`. Its road is the road resolution's
+  answer for the key; where nothing can carry it the answer is 503 `no-login-open`, its sentence naming every
+  provider's reason. Otherwise the answer is 202 at once: `runId`, the ledger's run, `key`, `provider`,
+  `model`, `account` and `closesAt`, in epoch milliseconds. The result is queued for the room through the
+  receiver's `POST /instructions` once the run ends, under the event `research-ended:<runId>`.
+- **The settings** answer `branchRole`, `strategy`, `hostIntervalMs` and `engineIntervalMs` (null where the
+  web tools' default stands), `keys`, each research key's `branches` and `minutes`, `source` (`default`
+  where the policy's values stand, `set` where the owner changed one), and `engines`: the search engines'
+  state as the web tools answer it, each `name`, `category`, `state` and, where it has them, `reason`,
+  `observedAt` and `suspendedUntil`, or null with `enginesUnread`, why it could not be read. A `PUT` takes
+  any of the owner's fields and answers the settings; a strategy outside the three, a gap below 0, a
+  branch count below 0, a clock of no minutes, a key that is no research key or a role that is no
+  co-worker role is 400 `bad-request`, and nothing is written.
+
 ### research drafts
 
 | Method | Path | Does |
@@ -540,7 +564,9 @@ family words to the endpoint's model ids. It may also name a base prompt that a 
 with. The list reports each account's kind, its home and, for an endpoint account, its base URL, key-file
 path and model map; a key's content is never reported. Each directory and token account carries its
 two headline windows, `session` and `week`, as the usage-window store holds them under the account
-(`docs/usage-windows.md`): each a window's `name`, `utilization` (0 to 1), `resetsAt` and `seenAt` in
+for the login answering for it — none read at or before the account's unread mark or its mark of waiting
+for a person, and none read before its home was pointed elsewhere (`docs/usage-windows.md`, 「What reads
+the windows」): each a window's `name`, `utilization` (0 to 1), `resetsAt` and `seenAt` in
 epoch seconds, `durationMinutes` and `limitName`, or null where the account holds no such window; an
 endpoint account holds none. An endpoint account whose endpoint is a provider's that offers a balance
 carries `balance`, what it has left as its balance reader last read it (`docs/usage-windows.md`,
@@ -785,6 +811,7 @@ tool is a thin call of one route through the agency's own client.
 
 - `assign_worker` calls `POST /assignments`.
 - `run_job` calls `POST /jobs`.
+- `run_research` calls `POST /research-runs`.
 
 ## The clients
 
@@ -803,12 +830,15 @@ route. A caller uses one of them and writes no client of its own.
 
 Agency reaches upstreams through what their repositories publish: brain, graph, node, arbiter,
 pocket, testbed, gate and chat through their clients, and cache-warmer through the schedule library
-`bmo-cache-warmer-schedule`. Two routes below it are called: as a job ends, the job service's lease is given
-back and the receiver's `POST /instructions` is handed the report for the room's chat agent; and after a
+`bmo-cache-warmer-schedule`. Three routes below it are called: as a job ends, the job service's lease is
+given back and the receiver's `POST /instructions` is handed the report for the room's chat agent; after a
 chat program's first turn, that same route is handed one fact for each of the session's servers its
-program did not attach (`docs/agent-control.md`, 「dsh's providers: OpenRouter and DeepSeek」). Both are
-the documented routes of the units that hold what must reach them; agency keeps no client of either and
-no store of their rows.
+program did not attach (`docs/agent-control.md`, 「dsh's providers: OpenRouter and DeepSeek」), and the end of
+a research run is queued there too (`docs/research-runs.md`); and before a chat agent's turn opens a fresh
+session in place of one it had, the receiver's `POST /handoffs/{agentName}` is asked for the old session's
+handoff, with `reason` and `room` where the turn names one, and waited on (`docs/sessions.md`, 「A restart
+hands the session over」). Each is the documented route of the unit that holds what must reach it; agency
+keeps no client of either unit and no store of their rows.
 Of the brain it asks an agent's own brain made as the agent is registered, found by the agent's key,
 let go whole or only found for a preview, the discipline a chat launch's system prompt carries, and the
 base layer of the agent's persona that prompt ends with. Of the tool host it asks, on its control socket
