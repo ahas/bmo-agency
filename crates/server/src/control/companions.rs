@@ -33,19 +33,9 @@ use store::{all, one, run};
 /// The settings fields a save may change, by the names a save marks as saved.
 const FIELDS: [&str; 2] = ["referenceOn", "persona"];
 
-/// Every field a save's body may name: the companion, who saves, its settings, its pin and its thinking; and
-/// `pieces` and `ownPieces`, which are no setting: a body naming them changes nothing.
-const BODY_FIELDS: [&str; 9] = [
-  "agent",
-  "by",
-  "referenceOn",
-  "ownPieces",
-  "pieces",
-  "persona",
-  "registration",
-  "generation",
-  "thinking",
-];
+/// Every field a save's body may name: the companion, who saves, its settings, its pin and its thinking.
+const BODY_FIELDS: [&str; 7] =
+  ["agent", "by", "referenceOn", "persona", "registration", "generation", "thinking"];
 
 /// One companion's settings as its row holds them, every default where it holds none.
 #[derive(Clone, Debug)]

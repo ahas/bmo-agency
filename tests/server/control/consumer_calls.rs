@@ -129,6 +129,13 @@ async fn a_running_server_answers_the_calls_a_room_holder_makes_beside_its_turns
     patch(port, token, "/companions/companion-a", json!({ "recollectorModel": "local-model" })).await;
 
   assert_eq!((status, refused["field"].as_str()), (400, Some("recollectorModel")), "{refused}");
+
+  for retired in ["pieces", "ownPieces"] {
+    let (status, refused) = patch(port, token, "/companions/companion-a", json!({ retired: [] })).await;
+
+    assert_eq!((status, refused["field"].as_str()), (400, Some(retired)), "{refused}");
+  }
+
   assert_eq!(
     scratch
       .count(r#"SELECT count(*) FROM "companion_settings" WHERE "agent" = 'companion-a'"#, vec![])

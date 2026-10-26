@@ -54,6 +54,9 @@ a field's exact shape matters, the OpenAPI document is the one to read.
   asked with `after` or `before` and `limit`.
 - A route that changes state takes a PATCH with the field it changes; an action that leaves a record is a
   POST creating it; a computation that keeps nothing is a POST named for its result.
+- **A field a body may leave out is optional in the document and the clients,** and a body that leaves it out
+  asks nothing of it: a change leaves it as it stands, an ask takes its default. A caller sends only what it
+  means; where a route reads `null` as a value of its own — clearing a field, `auto` — the route says so.
 - No path carries a version. A gateway mounts the service under `/api/agency/` and passes the path on
   unchanged.
 
@@ -673,7 +676,8 @@ yesterday to now where none is given.
 A companion's settings are its reference switch, its persona, its generation settings, its pin and its
 thinking; its system prompt is its base prompt, every companion's role whole and its persona, and no section
 of it is chosen per companion (`docs/companions.md`, 「What a turn is given」). `pieces` and `ownPieces` are no
-setting: a change naming them changes nothing, and the settings a companion is answered with name neither.
+setting: a change naming them is refused 400 as naming no field, and the settings a companion is answered
+with name neither.
 
 ### workers, prefix-checks and room-holdings
 

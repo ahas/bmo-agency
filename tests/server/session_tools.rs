@@ -108,7 +108,7 @@ async fn the_servers_a_session_reached_are_read_from_the_tool_host_and_none_reac
       };
 
       axum::Json(json!({
-        "holderName": "agent-a", "namespaces": ["bmo", "web", "gate"], "capabilities": [], "grants": [],
+        "id": "0f", "holderName": "agent-a", "namespaces": ["bmo", "web", "gate"], "capabilities": [], "grants": [],
         "shown": [], "variables": [], "labels": {}, "expiresAt": null, "createdAt": 1, "connected": connected,
       }))
     }),

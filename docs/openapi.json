@@ -6363,8 +6363,7 @@
           }
         },
         "required": [
-          "url",
-          "token"
+          "url"
         ],
         "description": "The body that registers a hook's address at a point."
       },
@@ -6549,17 +6548,7 @@
         "required": [
           "name",
           "label",
-          "kind",
-          "role",
-          "ownerAccount",
-          "icon",
-          "thinking",
-          "effort",
-          "provider",
-          "model",
-          "worker",
-          "cwd",
-          "nodeName"
+          "kind"
         ],
         "description": "The body that registers an agent: its key, label, kind, role and owner, and the fields its kind\ncarries."
       },
@@ -6576,12 +6565,6 @@
           },
           "voice": true
         },
-        "required": [
-          "gates",
-          "reasoning",
-          "role",
-          "voice"
-        ],
         "description": "The body that changes an agent's gates, reasoning, role or voice."
       },
       "PromptDocumentPage": {
@@ -6691,15 +6674,6 @@
             ]
           }
         },
-        "required": [
-          "action",
-          "name",
-          "label",
-          "text",
-          "agent",
-          "prompt",
-          "by"
-        ],
         "description": "The body that creates, saves, removes or chooses a prompt document."
       },
       "Rulebooks": {
@@ -6807,11 +6781,7 @@
           }
         },
         "required": [
-          "paths",
-          "roomIds",
-          "rooms",
-          "now",
-          "agent"
+          "paths"
         ],
         "description": "The body that words which session documents moved."
       },
@@ -7021,18 +6991,7 @@
           }
         },
         "required": [
-          "agentName",
-          "agent",
-          "scope",
-          "roomId",
-          "boundMs",
-          "promptDocumentName",
-          "options",
-          "provider",
-          "model",
-          "cwd",
-          "todo",
-          "role"
+          "scope"
         ],
         "description": "The body that starts a session: the agent, the scope, the room and the options, with the older\ntop-level names read where the options name none."
       },
@@ -7118,13 +7077,6 @@
             ]
           }
         },
-        "required": [
-          "provider",
-          "model",
-          "options",
-          "holder",
-          "prefixChangeReason"
-        ],
         "description": "The body that moves a conversation's or a throwaway session's provider and model, or hands a worker's\nsession over."
       },
       "SessionChangeOptions": {
@@ -7366,30 +7318,7 @@
           "variables": true
         },
         "required": [
-          "prompt",
-          "context",
-          "room",
-          "via",
-          "basePersona",
-          "privileged",
-          "answers",
-          "began",
-          "round",
-          "job",
-          "item",
-          "provider",
-          "model",
-          "mapping",
-          "resume",
-          "cwd",
-          "name",
-          "title",
-          "chat",
-          "unit",
-          "user",
-          "workKey",
-          "hearsWords",
-          "variables"
+          "prompt"
         ],
         "description": "The body that sends a turn: its prompt, the context around it, and a job turn's parts."
       },
@@ -7430,9 +7359,6 @@
             ]
           }
         },
-        "required": [
-          "state"
-        ],
         "description": "The body that interrupts a turn."
       },
       "TurnInput": {
@@ -7504,8 +7430,6 @@
           "answer": true
         },
         "required": [
-          "questionId",
-          "question",
           "answer"
         ],
         "description": "The body that answers a question a turn stands on."
@@ -7807,13 +7731,9 @@
         },
         "required": [
           "agent",
-          "chatId",
           "unit",
           "depth",
-          "capMs",
-          "startedAt",
-          "startedBy",
-          "searchId"
+          "startedAt"
         ],
         "description": "The body that opens a run in the ledger."
       },
@@ -7871,15 +7791,6 @@
             "description": "The older name for `contextTokens`, read where that is absent."
           }
         },
-        "required": [
-          "messageId",
-          "finishedAt",
-          "outcome",
-          "contextTokens",
-          "state",
-          "finished_at",
-          "context_tokens"
-        ],
         "description": "The body that closes a run."
       },
       "LogLinePage": {
@@ -8075,19 +7986,7 @@
           }
         },
         "required": [
-          "agent",
-          "agentName",
-          "run",
-          "runId",
-          "chat",
-          "chatId",
-          "job",
-          "jobId",
-          "text",
-          "kind",
-          "at",
-          "source",
-          "state"
+          "text"
         ],
         "description": "The body that writes a note into a run's log."
       },
@@ -8161,7 +8060,6 @@
           }
         },
         "required": [
-          "runId",
           "title",
           "agent",
           "command"
@@ -8305,10 +8203,7 @@
           }
         },
         "required": [
-          "ask",
-          "verdict",
-          "minutes",
-          "why"
+          "verdict"
         ],
         "description": "The body that answers an overtime request."
       },
@@ -8530,15 +8425,7 @@
           "requestKey",
           "owner",
           "role",
-          "selection",
-          "tier",
-          "provider",
-          "workKey",
-          "generation",
-          "yielding",
-          "token",
-          "placeKey",
-          "source"
+          "selection"
         ],
         "description": "The body that asks for a co-worker seat."
       },
@@ -8576,13 +8463,6 @@
             ]
           }
         },
-        "required": [
-          "state",
-          "action",
-          "childId",
-          "outcome",
-          "cancel"
-        ],
         "description": "The body that moves a seat request."
       },
       "ReservationPage": {
@@ -8699,9 +8579,6 @@
           "source",
           "role",
           "selection",
-          "tier",
-          "provider",
-          "workKey",
           "count"
         ],
         "description": "The body that reserves seats for an owner."
@@ -8716,9 +8593,6 @@
             ]
           }
         },
-        "required": [
-          "outcome"
-        ],
         "description": "The body that releases a reservation."
       },
       "RolePage": {
@@ -8864,9 +8738,7 @@
         "required": [
           "cwd",
           "selection",
-          "role",
-          "tier",
-          "held"
+          "role"
         ],
         "description": "The body that takes a branch place."
       },
@@ -8953,21 +8825,6 @@
           },
           "lastWrite": true
         },
-        "required": [
-          "state",
-          "source",
-          "cwd",
-          "slot",
-          "role",
-          "mode",
-          "model",
-          "effort",
-          "upstream",
-          "used",
-          "held",
-          "provider",
-          "lastWrite"
-        ],
         "description": "The body that prepares, remembers or retires a place, or records its last write."
       },
       "ProviderPage": {
@@ -9035,9 +8892,6 @@
             ]
           }
         },
-        "required": [
-          "enabled"
-        ],
         "description": "The body that throws a provider's switch."
       },
       "ModelPage": {
@@ -9178,21 +9032,6 @@
             ]
           }
         },
-        "required": [
-          "action",
-          "name",
-          "label",
-          "model",
-          "contextTokens",
-          "answerTokens",
-          "waitSeconds",
-          "thinking",
-          "walked",
-          "keepsResearch",
-          "node",
-          "url",
-          "key"
-        ],
         "description": "The body that saves or removes a registration, or sets or removes one of its addresses."
       },
       "ModelCatalogueView": {
@@ -9640,15 +9479,7 @@
           }
         },
         "required": [
-          "action",
-          "tier",
-          "key",
-          "acceptConflicts",
-          "provider",
-          "model",
-          "thinking",
-          "effort",
-          "answerTokens"
+          "action"
         ],
         "description": "The body that assigns a tier to a work key or sets a tier's mapping on a provider."
       },
@@ -10158,23 +9989,6 @@
             "description": "The registration a work key runs on at the registry's provider in place of its tier's cell, `auto`\nor null to read the cell again."
           }
         },
-        "required": [
-          "action",
-          "order",
-          "provider",
-          "enabled",
-          "account",
-          "name",
-          "kind",
-          "path",
-          "endpoint",
-          "keyFile",
-          "models",
-          "basePrompt",
-          "key",
-          "mode",
-          "registration"
-        ],
         "description": "The body that changes the fallback screen's routes, providers and accounts."
       },
       "ItemFiled": {
@@ -10440,8 +10254,7 @@
         },
         "required": [
           "selection",
-          "until",
-          "reason"
+          "until"
         ],
         "description": "The body that blocks a selection's road."
       },
@@ -10489,8 +10302,7 @@
           }
         },
         "required": [
-          "held",
-          "reasons"
+          "held"
         ],
         "description": "The body that tells the launcher what holds launches."
       },
@@ -10649,10 +10461,6 @@
           "usage": true,
           "window": true
         },
-        "required": [
-          "usage",
-          "window"
-        ],
         "description": "The body that reports a login's session usage."
       },
       "Rest": {
@@ -10719,12 +10527,6 @@
             ]
           }
         },
-        "required": [
-          "clearPassed",
-          "until",
-          "kind",
-          "account"
-        ],
         "description": "The body that writes a rest down."
       },
       "StandIn": {
@@ -10794,10 +10596,6 @@
             ]
           }
         },
-        "required": [
-          "keepaliveStopped",
-          "stopped"
-        ],
         "description": "The body that throws the warming switch."
       },
       "CompanionPage": {
@@ -10924,15 +10722,6 @@
             ]
           }
         },
-        "required": [
-          "agent",
-          "by",
-          "referenceOn",
-          "persona",
-          "registration",
-          "generation",
-          "thinking"
-        ],
         "description": "The body that changes a companion."
       },
       "CompanionReset": {
@@ -10982,13 +10771,7 @@
           }
         },
         "required": [
-          "agent",
-          "conversation",
-          "person",
-          "alone",
-          "shared",
-          "dryRun",
-          "by"
+          "agent"
         ],
         "description": "The body that asks for a companion reset."
       },
@@ -11145,18 +10928,11 @@
             "items": {
               "type": "string"
             },
-            "description": "The documents its session's prefix carries, in order.",
-            "default": null
+            "description": "The documents its session's prefix carries, in order."
           }
         },
         "required": [
-          "name",
-          "label",
-          "cwd",
-          "icon",
-          "role",
-          "nodeName",
-          "prefixDocuments"
+          "name"
         ],
         "description": "The body that adds a worker."
       },
@@ -11220,22 +10996,9 @@
             "items": {
               "type": "string"
             },
-            "description": "The documents its session's prefix carries, in order, the list whole; an empty list clears it.",
-            "default": null
+            "description": "The documents its session's prefix carries, in order, the list whole; an empty list clears it."
           }
         },
-        "required": [
-          "sampling",
-          "nodeName",
-          "node",
-          "label",
-          "cwd",
-          "icon",
-          "role",
-          "stand",
-          "bench",
-          "prefixDocuments"
-        ],
         "description": "The body that changes a worker."
       },
       "WorkerDefinition": {
@@ -11433,9 +11196,7 @@
         "required": [
           "itemId",
           "holderName",
-          "item",
-          "assigneeName",
-          "holdMs"
+          "item"
         ],
         "description": "The body that asks for a worker to be assigned to an item."
       },
@@ -11546,10 +11307,6 @@
             "format": "int64"
           }
         },
-        "required": [
-          "state",
-          "holdMs"
-        ],
         "description": "The body that releases an assignment or holds it longer."
       },
       "JobPage": {
@@ -11790,8 +11547,7 @@
                 "type": "null"
               }
             ],
-            "description": "The job's small-model instruction, over any its item carries.",
-            "default": null
+            "description": "The job's small-model instruction, over any its item carries."
           }
         },
         "required": [
@@ -11799,8 +11555,7 @@
           "itemId",
           "leaseId",
           "holderName",
-          "item",
-          "instruction"
+          "item"
         ],
         "description": "The body that hands an item and its lease over to be run."
       },
@@ -11830,11 +11585,6 @@
             ]
           }
         },
-        "required": [
-          "state",
-          "outcome",
-          "report"
-        ],
         "description": "The body that ends or stops a job."
       },
       "JobPrompt": {
@@ -11909,9 +11659,6 @@
             "format": "int64"
           }
         },
-        "required": [
-          "itemId"
-        ],
         "description": "The body that records the item a session serves."
       },
       "SessionLoads": {
@@ -12170,31 +11917,25 @@
             "type": [
               "string",
               "null"
-            ],
-            "default": null
+            ]
           },
           "options": {
             "type": [
               "string",
               "null"
-            ],
-            "default": null
+            ]
           },
           "roomId": {
             "type": [
               "integer",
               "null"
             ],
-            "format": "int64",
-            "default": null
+            "format": "int64"
           }
         },
         "required": [
           "key",
-          "query",
-          "asker",
-          "options",
-          "roomId"
+          "query"
         ],
         "description": "ResearchRunAsk: a research asked of the agency: its research key, its question, and who asked, the options and\nthe room its result is for, where they are known."
       },
@@ -12364,15 +12105,13 @@
             "type": [
               "string",
               "null"
-            ],
-            "default": null
+            ]
           },
           "strategy": {
             "type": [
               "string",
               "null"
-            ],
-            "default": null
+            ]
           },
           "hostIntervalMs": {
             "type": [
@@ -12395,15 +12134,9 @@
             ],
             "items": {
               "$ref": "#/components/schemas/ResearchKeySettings"
-            },
-            "default": null
+            }
           }
         },
-        "required": [
-          "branchRole",
-          "strategy",
-          "keys"
-        ],
         "description": "ResearchSettingsChange: a change to the research settings; a field left out keeps what it holds, and a gap given\nas null returns to the web tools' default."
       },
       "DraftProcessPage": {
@@ -12487,11 +12220,6 @@
             ]
           }
         },
-        "required": [
-          "rounds",
-          "ceilingSeconds",
-          "pastCeiling"
-        ],
         "description": "A change to one line's rounds; a field left out keeps what the line holds."
       },
       "DraftQuestionPage": {

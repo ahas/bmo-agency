@@ -566,33 +566,33 @@ pub struct ModelCatalogueView {
 pub struct ModelCatalogueChange {
   pub action: String,
   pub name: String,
-  #[serde(skip_serializing_if = "Option::is_none")]
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub label: Option<String>,
-  #[serde(skip_serializing_if = "Option::is_none")]
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub file: Option<String>,
-  #[serde(skip_serializing_if = "Option::is_none")]
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub bytes: Option<i64>,
-  #[serde(skip_serializing_if = "Option::is_none")]
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub sha256: Option<String>,
-  #[serde(skip_serializing_if = "Option::is_none")]
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub source: Option<String>,
-  #[serde(skip_serializing_if = "Option::is_none")]
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub engine: Option<String>,
-  #[serde(skip_serializing_if = "Option::is_none")]
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub registration: Option<String>,
-  #[serde(skip_serializing_if = "Option::is_none")]
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub note: Option<String>,
-  #[serde(skip_serializing_if = "Option::is_none")]
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub thinking: Option<bool>,
-  #[serde(skip_serializing_if = "Option::is_none")]
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub temperature: Option<f64>,
-  #[serde(skip_serializing_if = "Option::is_none")]
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub top_p: Option<f64>,
-  #[serde(skip_serializing_if = "Option::is_none")]
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub presence_penalty: Option<f64>,
-  #[serde(skip_serializing_if = "Option::is_none")]
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub max_tokens: Option<i64>,
-  #[serde(skip_serializing_if = "Option::is_none")]
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub by: Option<String>,
 }
 
@@ -1381,7 +1381,9 @@ pub struct AssignWorker {
   pub item_id: i64,
   pub holder_name: String,
   pub item: JobItem,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub assignee_name: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub hold_ms: Option<i64>,
 }
 
@@ -1389,7 +1391,9 @@ pub struct AssignWorker {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct AssignmentChange {
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub state: Option<AssignmentState>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub hold_ms: Option<i64>,
 }
 
@@ -1403,7 +1407,7 @@ pub struct RunJob {
   pub holder_name: String,
   pub item: JobItem,
   /// The job's small-model instruction, over any its item carries.
-  #[serde(default)]
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub instruction: Option<JobInstruction>,
 }
 
@@ -1411,8 +1415,11 @@ pub struct RunJob {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct JobChange {
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub state: Option<JobState>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub outcome: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub report: Option<String>,
 }
 
@@ -1420,6 +1427,7 @@ pub struct JobChange {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionWorkChange {
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub item_id: Option<i64>,
 }
 
@@ -1428,6 +1436,7 @@ pub struct SessionWorkChange {
 #[serde(rename_all = "camelCase")]
 pub struct HookRegistration {
   pub url: String,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub token: Option<String>,
 }
 
@@ -1435,9 +1444,13 @@ pub struct HookRegistration {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentChange {
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub gates: Option<Value>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub reasoning: Option<Value>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub role: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub voice: Option<Value>,
 }
 
@@ -1449,21 +1462,31 @@ pub struct AgentAsk {
   pub name: String,
   pub label: String,
   pub kind: String,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub role: Option<String>,
   /// the id of the login account that owns it, none for the administrator's
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub owner_account: Option<i64>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub icon: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub thinking: Option<bool>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub effort: Option<String>,
   /// the `chat` kind's pinned provider
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub provider: Option<String>,
   /// the `chat` kind's pinned model
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub model: Option<String>,
   /// the worker a `chat` agent's items go to
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub worker: Option<String>,
   /// a `worker`'s checkout
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub cwd: Option<String>,
   /// the node a `worker` stands on
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub node_name: Option<String>,
 }
 
@@ -1489,12 +1512,19 @@ pub struct AgentCreated {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct PromptDocumentChange {
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub action: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub name: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub label: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub text: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub agent: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub prompt: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub by: Option<String>,
 }
 
@@ -1503,9 +1533,13 @@ pub struct PromptDocumentChange {
 #[serde(rename_all = "camelCase")]
 pub struct DocumentMoveAsk {
   pub paths: Vec<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub room_ids: Option<Vec<i64>>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub rooms: Option<Vec<i64>>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub now: Option<bool>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub agent: Option<String>,
 }
 
@@ -1526,17 +1560,28 @@ pub struct SessionOptions {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionStart {
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub agent_name: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub agent: Option<String>,
   pub scope: Value,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub room_id: Option<i64>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub bound_ms: Option<i64>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub prompt_document_name: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub options: Option<SessionOptions>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub provider: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub model: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub cwd: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub todo: Option<i64>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub role: Option<String>,
 }
 
@@ -1555,10 +1600,15 @@ pub struct SessionChangeOptions {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionChange {
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub provider: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub model: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub options: Option<SessionChangeOptions>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub holder: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub prefix_change_reason: Option<String>,
 }
 
@@ -1596,29 +1646,52 @@ pub struct WorkPartsAsk {
 pub struct TurnSend {
   pub prompt: String,
   /// The context as the answer echoes it; the parts below are what the turn reads.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub context: Option<Value>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub room: Option<RoomBlockAsk>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub via: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub base_persona: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub privileged: Option<bool>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub answers: Option<Vec<i64>>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub began: Option<i64>,
   /// The round of the room the turn belongs to, which the turn's run keeps.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub round: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub job: Option<i64>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub item: Option<i64>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub provider: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub model: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub mapping: Option<Value>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub resume: Option<Value>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub cwd: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub name: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub title: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub chat: Option<i64>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub unit: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub user: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub work_key: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub hears_words: Option<bool>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub variables: Option<Value>,
 }
 
@@ -1626,6 +1699,7 @@ pub struct TurnSend {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct TurnInterrupt {
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub state: Option<String>,
 }
 
@@ -1640,7 +1714,9 @@ pub struct TurnWords {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct AnswerAsk {
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub question_id: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub question: Option<String>,
   pub answer: Value,
 }
@@ -1655,12 +1731,16 @@ pub struct FoldAsk {}
 #[serde(rename_all = "camelCase")]
 pub struct RunOpen {
   pub agent: String,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub chat_id: Option<i64>,
   pub unit: String,
   pub depth: u32,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub cap_ms: Option<i64>,
   pub started_at: i64,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub started_by: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub search_id: Option<Value>,
 }
 
@@ -1670,16 +1750,21 @@ pub struct RunOpen {
 pub struct RunClose {
   /// The message the run's answer went out as; named alone, it is attached and the closing left as it
   /// stands.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub message_id: Option<i64>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub finished_at: Option<i64>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub outcome: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub context_tokens: Option<i64>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub state: Option<String>,
   /// The older name for `finishedAt`, read where that is absent.
-  #[serde(rename = "finished_at")]
+  #[serde(default, rename = "finished_at", skip_serializing_if = "Option::is_none")]
   pub finished_at_legacy: Option<i64>,
   /// The older name for `contextTokens`, read where that is absent.
-  #[serde(rename = "context_tokens")]
+  #[serde(default, rename = "context_tokens", skip_serializing_if = "Option::is_none")]
   pub context_tokens_legacy: Option<i64>,
 }
 
@@ -1687,18 +1772,30 @@ pub struct RunClose {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct LogLineAsk {
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub agent: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub agent_name: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub run: Option<Value>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub run_id: Option<Value>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub chat: Option<i64>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub chat_id: Option<i64>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub job: Option<i64>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub job_id: Option<i64>,
   pub text: String,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub kind: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub at: Option<i64>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub source: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub state: Option<String>,
 }
 
@@ -1716,6 +1813,7 @@ pub struct ProgramAsk {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ExecutionLaunch {
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub run_id: Option<i64>,
   pub title: String,
   pub agent: String,
@@ -1731,9 +1829,12 @@ pub struct ExecutionChange {}
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct OvertimeAnswer {
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub ask: Option<i64>,
   pub verdict: String,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub minutes: Option<i64>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub why: Option<String>,
 }
 
@@ -1763,13 +1864,21 @@ pub struct SeatRequestAsk {
   pub owner: String,
   pub role: String,
   pub selection: String,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub tier: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub provider: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub work_key: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub generation: Option<i64>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub yielding: Option<bool>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub token: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub place_key: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub source: Option<String>,
 }
 
@@ -1777,10 +1886,15 @@ pub struct SeatRequestAsk {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct SeatRequestChange {
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub state: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub action: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub child_id: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub outcome: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub cancel: Option<bool>,
 }
 
@@ -1793,8 +1907,11 @@ pub struct ReservationAsk {
   pub source: String,
   pub role: String,
   pub selection: String,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub tier: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub provider: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub work_key: Option<String>,
   pub count: i64,
 }
@@ -1803,6 +1920,7 @@ pub struct ReservationAsk {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ReservationChange {
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub outcome: Option<String>,
 }
 
@@ -1813,7 +1931,9 @@ pub struct PlaceAsk {
   pub cwd: String,
   pub selection: String,
   pub role: String,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub tier: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub held: Option<Vec<Value>>,
 }
 
@@ -1821,18 +1941,31 @@ pub struct PlaceAsk {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct PlaceChange {
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub state: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub source: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub cwd: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub slot: Option<i64>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub role: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub mode: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub model: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub effort: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub upstream: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub used: Option<Vec<i64>>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub held: Option<Vec<Value>>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub provider: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub last_write: Option<Value>,
 }
 
@@ -1840,6 +1973,7 @@ pub struct PlaceChange {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ProviderChange {
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub enabled: Option<bool>,
 }
 
@@ -1847,18 +1981,31 @@ pub struct ProviderChange {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelChange {
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub action: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub name: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub label: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub model: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub context_tokens: Option<i64>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub answer_tokens: Option<i64>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub wait_seconds: Option<i64>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub thinking: Option<bool>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub walked: Option<bool>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub keeps_research: Option<bool>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub node: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub url: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub key: Option<String>,
 }
 
@@ -1867,13 +2014,21 @@ pub struct ModelChange {
 #[serde(rename_all = "camelCase")]
 pub struct TierChange {
   pub action: String,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub tier: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub key: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub accept_conflicts: Option<bool>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub provider: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub model: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub thinking: Option<bool>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub effort: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub answer_tokens: Option<i64>,
 }
 
@@ -1881,26 +2036,41 @@ pub struct TierChange {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct FallbackChange {
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub action: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub order: Option<Value>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub provider: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub enabled: Option<bool>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub account: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub name: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub kind: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub path: Option<String>,
   /// An endpoint account's base URL.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub endpoint: Option<String>,
   /// An endpoint account's key file.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub key_file: Option<String>,
   /// An endpoint account's model ids by family word.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub models: Option<EndpointModels>,
   /// The base prompt the account names, `none` or null to let it go.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub base_prompt: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub key: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub mode: Option<String>,
   /// The registration a work key runs on at the registry's provider in place of its tier's cell, `auto`
   /// or null to read the cell again.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub registration: Option<String>,
 }
 
@@ -1910,6 +2080,7 @@ pub struct FallbackChange {
 pub struct RoadBlockAsk {
   pub selection: String,
   pub until: i64,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub reason: Option<String>,
 }
 
@@ -1918,6 +2089,7 @@ pub struct RoadBlockAsk {
 #[serde(rename_all = "camelCase")]
 pub struct LaunchHeldAsk {
   pub held: bool,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub reasons: Option<Vec<String>>,
 }
 
@@ -1925,7 +2097,9 @@ pub struct LaunchHeldAsk {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct AccountUsage {
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub usage: Option<Value>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub window: Option<Value>,
 }
 
@@ -1933,9 +2107,13 @@ pub struct AccountUsage {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct RestAsk {
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub clear_passed: Option<bool>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub until: Option<f64>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub kind: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub account: Option<String>,
 }
 
@@ -1943,7 +2121,9 @@ pub struct RestAsk {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct SettingsAsk {
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub keepalive_stopped: Option<bool>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub stopped: Option<bool>,
 }
 
@@ -1962,12 +2142,19 @@ pub struct CompanionAsk {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CompanionChange {
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub agent: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub by: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub reference_on: Option<bool>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub persona: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub registration: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub generation: Option<Value>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub thinking: Option<bool>,
 }
 
@@ -1976,11 +2163,17 @@ pub struct CompanionChange {
 #[serde(rename_all = "camelCase")]
 pub struct CompanionResetAsk {
   pub agent: String,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub conversation: Option<Value>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub person: Option<Value>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub alone: Option<Value>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub shared: Option<Value>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub dry_run: Option<bool>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub by: Option<String>,
 }
 
@@ -1989,13 +2182,18 @@ pub struct CompanionResetAsk {
 #[serde(rename_all = "camelCase")]
 pub struct WorkerAdd {
   pub name: String,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub label: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub cwd: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub icon: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub role: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub node_name: Option<String>,
   /// The documents its session's prefix carries, in order.
-  #[serde(default)]
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub prefix_documents: Option<Vec<String>>,
 }
 
@@ -2003,17 +2201,26 @@ pub struct WorkerAdd {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkerChange {
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub sampling: Option<Value>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub node_name: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub node: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub label: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub cwd: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub icon: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub role: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub stand: Option<bool>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub bench: Option<bool>,
   /// The documents its session's prefix carries, in order, the list whole; an empty list clears it.
-  #[serde(default)]
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub prefix_documents: Option<Vec<String>>,
 }
 
@@ -2084,11 +2291,11 @@ pub struct ResearchRunAsk {
   /// `search:basic`, `search:thorough`, `search:exhaustive` or `browse`.
   pub key: String,
   pub query: String,
-  #[serde(default)]
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub asker: Option<String>,
-  #[serde(default)]
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub options: Option<String>,
-  #[serde(default)]
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub room_id: Option<i64>,
 }
 
@@ -2170,15 +2377,15 @@ fn present<'de, D: serde::Deserializer<'de>>(given: D) -> Result<Option<Option<i
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ResearchSettingsChange {
-  #[serde(default)]
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub branch_role: Option<String>,
-  #[serde(default)]
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub strategy: Option<String>,
   #[serde(default, deserialize_with = "present", skip_serializing_if = "Option::is_none")]
   pub host_interval_ms: Option<Option<i64>>,
   #[serde(default, deserialize_with = "present", skip_serializing_if = "Option::is_none")]
   pub engine_interval_ms: Option<Option<i64>>,
-  #[serde(default)]
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub keys: Option<Vec<ResearchKeySettings>>,
 }
 
@@ -2186,8 +2393,11 @@ pub struct ResearchSettingsChange {
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct DraftProcessChange {
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub rounds: Option<Vec<String>>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub ceiling_seconds: Option<i64>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub past_ceiling: Option<String>,
 }
 

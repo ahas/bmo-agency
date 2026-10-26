@@ -1638,7 +1638,7 @@ export interface components {
         /** @description The body that registers a hook's address at a point. */
         HookRegistration: {
             url: string;
-            token: string | null;
+            token?: string | null;
         };
         /** @description AgentPage: */
         AgentPage: {
@@ -1683,32 +1683,32 @@ export interface components {
             name: string;
             label: string;
             kind: string;
-            role: string | null;
+            role?: string | null;
             /**
              * Format: int64
              * @description the id of the login account that owns it, none for the administrator's
              */
-            ownerAccount: number | null;
-            icon: string | null;
-            thinking: boolean | null;
-            effort: string | null;
+            ownerAccount?: number | null;
+            icon?: string | null;
+            thinking?: boolean | null;
+            effort?: string | null;
             /** @description the `chat` kind's pinned provider */
-            provider: string | null;
+            provider?: string | null;
             /** @description the `chat` kind's pinned model */
-            model: string | null;
+            model?: string | null;
             /** @description the worker a `chat` agent's items go to */
-            worker: string | null;
+            worker?: string | null;
             /** @description a `worker`'s checkout */
-            cwd: string | null;
+            cwd?: string | null;
             /** @description the node a `worker` stands on */
-            nodeName: string | null;
+            nodeName?: string | null;
         };
         /** @description The body that changes an agent's gates, reasoning, role or voice. */
         AgentChange: {
-            gates: unknown;
-            reasoning: unknown;
-            role: string | null;
-            voice: unknown;
+            gates?: unknown;
+            reasoning?: unknown;
+            role?: string | null;
+            voice?: unknown;
         };
         /** @description PromptDocumentPage: */
         PromptDocumentPage: {
@@ -1730,13 +1730,13 @@ export interface components {
         PromptDocumentKind: "base" | "rulebook" | "persona" | "agent" | "system";
         /** @description The body that creates, saves, removes or chooses a prompt document. */
         PromptDocumentChange: {
-            action: string | null;
-            name: string | null;
-            label: string | null;
-            text: string | null;
-            agent: string | null;
-            prompt: string | null;
-            by: string | null;
+            action?: string | null;
+            name?: string | null;
+            label?: string | null;
+            text?: string | null;
+            agent?: string | null;
+            prompt?: string | null;
+            by?: string | null;
         };
         /** @description Rulebooks: */
         Rulebooks: {
@@ -1761,10 +1761,10 @@ export interface components {
         /** @description The body that words which session documents moved. */
         DocumentMoveAsk: {
             paths: string[];
-            roomIds: number[] | null;
-            rooms: number[] | null;
-            now: boolean | null;
-            agent: string | null;
+            roomIds?: number[] | null;
+            rooms?: number[] | null;
+            now?: boolean | null;
+            agent?: string | null;
         };
         /** @description SessionPage: */
         SessionPage: {
@@ -1812,21 +1812,21 @@ export interface components {
          *     top-level names read where the options name none.
          */
         SessionStart: {
-            agentName: string | null;
-            agent: string | null;
+            agentName?: string | null;
+            agent?: string | null;
             scope: unknown;
             /** Format: int64 */
-            roomId: number | null;
+            roomId?: number | null;
             /** Format: int64 */
-            boundMs: number | null;
-            promptDocumentName: string | null;
-            options: components["schemas"]["SessionOptions"] | null;
-            provider: string | null;
-            model: string | null;
-            cwd: string | null;
+            boundMs?: number | null;
+            promptDocumentName?: string | null;
+            options?: components["schemas"]["SessionOptions"] | null;
+            provider?: string | null;
+            model?: string | null;
+            cwd?: string | null;
             /** Format: int64 */
-            todo: number | null;
-            role: string | null;
+            todo?: number | null;
+            role?: string | null;
         };
         /**
          * @description What a session's start options name: the provider, the model and the folder a throwaway or a
@@ -1845,11 +1845,11 @@ export interface components {
          *     session over.
          */
         SessionChange: {
-            provider: string | null;
-            model: string | null;
-            options: components["schemas"]["SessionChangeOptions"] | null;
-            holder: string | null;
-            prefixChangeReason: string | null;
+            provider?: string | null;
+            model?: string | null;
+            options?: components["schemas"]["SessionChangeOptions"] | null;
+            holder?: string | null;
+            prefixChangeReason?: string | null;
         };
         /** @description What a session's change names besides its model and holder. */
         SessionChangeOptions: {
@@ -1880,34 +1880,34 @@ export interface components {
         TurnSend: {
             prompt: string;
             /** @description The context as the answer echoes it; the parts below are what the turn reads. */
-            context: unknown;
-            room: components["schemas"]["RoomBlockAsk"] | null;
-            via: string | null;
-            basePersona: string | null;
-            privileged: boolean | null;
-            answers: number[] | null;
+            context?: unknown;
+            room?: components["schemas"]["RoomBlockAsk"] | null;
+            via?: string | null;
+            basePersona?: string | null;
+            privileged?: boolean | null;
+            answers?: number[] | null;
             /** Format: int64 */
-            began: number | null;
+            began?: number | null;
             /** @description The round of the room the turn belongs to, which the turn's run keeps. */
-            round: string | null;
+            round?: string | null;
             /** Format: int64 */
-            job: number | null;
+            job?: number | null;
             /** Format: int64 */
-            item: number | null;
-            provider: string | null;
-            model: string | null;
-            mapping: unknown;
-            resume: unknown;
-            cwd: string | null;
-            name: string | null;
-            title: string | null;
+            item?: number | null;
+            provider?: string | null;
+            model?: string | null;
+            mapping?: unknown;
+            resume?: unknown;
+            cwd?: string | null;
+            name?: string | null;
+            title?: string | null;
             /** Format: int64 */
-            chat: number | null;
-            unit: string | null;
-            user: string | null;
-            workKey: string | null;
-            hearsWords: boolean | null;
-            variables: unknown;
+            chat?: number | null;
+            unit?: string | null;
+            user?: string | null;
+            workKey?: string | null;
+            hearsWords?: boolean | null;
+            variables?: unknown;
         };
         /** @description A room's block as a turn's body names it. */
         RoomBlockAsk: {
@@ -1918,7 +1918,7 @@ export interface components {
         };
         /** @description The body that interrupts a turn. */
         TurnInterrupt: {
-            state: string | null;
+            state?: string | null;
         };
         /** @description TurnInput: */
         TurnInput: {
@@ -1941,8 +1941,8 @@ export interface components {
         };
         /** @description The body that answers a question a turn stands on. */
         AnswerAsk: {
-            questionId: string | null;
-            question: string | null;
+            questionId?: string | null;
+            question?: string | null;
             answer: unknown;
         };
         /** @description Fold: */
@@ -2054,16 +2054,16 @@ export interface components {
         RunOpen: {
             agent: string;
             /** Format: int64 */
-            chatId: number | null;
+            chatId?: number | null;
             unit: string;
             /** Format: uint32 */
             depth: number;
             /** Format: int64 */
-            capMs: number | null;
+            capMs?: number | null;
             /** Format: int64 */
             startedAt: number;
-            startedBy: string | null;
-            searchId: unknown;
+            startedBy?: string | null;
+            searchId?: unknown;
         };
         /** @description The body that closes a run. */
         RunClose: {
@@ -2072,23 +2072,23 @@ export interface components {
              * @description The message the run's answer went out as; named alone, it is attached and the closing left as it
              *     stands.
              */
-            messageId: number | null;
+            messageId?: number | null;
             /** Format: int64 */
-            finishedAt: number | null;
-            outcome: string | null;
+            finishedAt?: number | null;
+            outcome?: string | null;
             /** Format: int64 */
-            contextTokens: number | null;
-            state: string | null;
+            contextTokens?: number | null;
+            state?: string | null;
             /**
              * Format: int64
              * @description The older name for `finishedAt`, read where that is absent.
              */
-            finished_at: number | null;
+            finished_at?: number | null;
             /**
              * Format: int64
              * @description The older name for `contextTokens`, read where that is absent.
              */
-            context_tokens: number | null;
+            context_tokens?: number | null;
         };
         /** @description LogLinePage: */
         LogLinePage: {
@@ -2142,24 +2142,24 @@ export interface components {
         };
         /** @description The body that writes a note into a run's log. */
         LogLineAsk: {
-            agent: string | null;
-            agentName: string | null;
-            run: unknown;
-            runId: unknown;
+            agent?: string | null;
+            agentName?: string | null;
+            run?: unknown;
+            runId?: unknown;
             /** Format: int64 */
-            chat: number | null;
+            chat?: number | null;
             /** Format: int64 */
-            chatId: number | null;
+            chatId?: number | null;
             /** Format: int64 */
-            job: number | null;
+            job?: number | null;
             /** Format: int64 */
-            jobId: number | null;
+            jobId?: number | null;
             text: string;
-            kind: string | null;
+            kind?: string | null;
             /** Format: int64 */
-            at: number | null;
-            source: string | null;
-            state: string | null;
+            at?: number | null;
+            source?: string | null;
+            state?: string | null;
         };
         /** @description ExecutionPage: */
         ExecutionPage: {
@@ -2179,7 +2179,7 @@ export interface components {
         /** @description The body that launches a run's runner. */
         ExecutionLaunch: {
             /** Format: int64 */
-            runId: number | null;
+            runId?: number | null;
             title: string;
             agent: string;
             command: components["schemas"]["ProgramAsk"];
@@ -2224,11 +2224,11 @@ export interface components {
         /** @description The body that answers an overtime request. */
         OvertimeAnswer: {
             /** Format: int64 */
-            ask: number | null;
+            ask?: number | null;
             verdict: string;
             /** Format: int64 */
-            minutes: number | null;
-            why: string | null;
+            minutes?: number | null;
+            why?: string | null;
         };
         /** @description StopMark: */
         StopMark: {
@@ -2285,23 +2285,23 @@ export interface components {
             owner: string;
             role: string;
             selection: string;
-            tier: string | null;
-            provider: string | null;
-            workKey: string | null;
+            tier?: string | null;
+            provider?: string | null;
+            workKey?: string | null;
             /** Format: int64 */
-            generation: number | null;
-            yielding: boolean | null;
-            token: string | null;
-            placeKey: string | null;
-            source: string | null;
+            generation?: number | null;
+            yielding?: boolean | null;
+            token?: string | null;
+            placeKey?: string | null;
+            source?: string | null;
         };
         /** @description The body that moves a seat request. */
         SeatRequestChange: {
-            state: string | null;
-            action: string | null;
-            childId: string | null;
-            outcome: string | null;
-            cancel: boolean | null;
+            state?: string | null;
+            action?: string | null;
+            childId?: string | null;
+            outcome?: string | null;
+            cancel?: boolean | null;
         };
         /** @description ReservationPage: */
         ReservationPage: {
@@ -2331,15 +2331,15 @@ export interface components {
             source: string;
             role: string;
             selection: string;
-            tier: string | null;
-            provider: string | null;
-            workKey: string | null;
+            tier?: string | null;
+            provider?: string | null;
+            workKey?: string | null;
             /** Format: int64 */
             count: number;
         };
         /** @description The body that releases a reservation. */
         ReservationChange: {
-            outcome: string | null;
+            outcome?: string | null;
         };
         /** @description RolePage: */
         RolePage: {
@@ -2379,25 +2379,25 @@ export interface components {
             cwd: string;
             selection: string;
             role: string;
-            tier: string | null;
-            held: unknown[] | null;
+            tier?: string | null;
+            held?: unknown[] | null;
         };
         /** @description The body that prepares, remembers or retires a place, or records its last write. */
         PlaceChange: {
-            state: string | null;
-            source: string | null;
-            cwd: string | null;
+            state?: string | null;
+            source?: string | null;
+            cwd?: string | null;
             /** Format: int64 */
-            slot: number | null;
-            role: string | null;
-            mode: string | null;
-            model: string | null;
-            effort: string | null;
-            upstream: string | null;
-            used: number[] | null;
-            held: unknown[] | null;
-            provider: string | null;
-            lastWrite: unknown;
+            slot?: number | null;
+            role?: string | null;
+            mode?: string | null;
+            model?: string | null;
+            effort?: string | null;
+            upstream?: string | null;
+            used?: number[] | null;
+            held?: unknown[] | null;
+            provider?: string | null;
+            lastWrite?: unknown;
         };
         /** @description ProviderPage: */
         ProviderPage: {
@@ -2423,7 +2423,7 @@ export interface components {
         };
         /** @description The body that throws a provider's switch. */
         ProviderChange: {
-            enabled: boolean | null;
+            enabled?: boolean | null;
         };
         /** @description ModelPage: */
         ModelPage: {
@@ -2440,22 +2440,22 @@ export interface components {
         };
         /** @description The body that saves or removes a registration, or sets or removes one of its addresses. */
         ModelChange: {
-            action: string | null;
-            name: string | null;
-            label: string | null;
-            model: string | null;
+            action?: string | null;
+            name?: string | null;
+            label?: string | null;
+            model?: string | null;
             /** Format: int64 */
-            contextTokens: number | null;
+            contextTokens?: number | null;
             /** Format: int64 */
-            answerTokens: number | null;
+            answerTokens?: number | null;
             /** Format: int64 */
-            waitSeconds: number | null;
-            thinking: boolean | null;
-            walked: boolean | null;
-            keepsResearch: boolean | null;
-            node: string | null;
-            url: string | null;
-            key: string | null;
+            waitSeconds?: number | null;
+            thinking?: boolean | null;
+            walked?: boolean | null;
+            keepsResearch?: boolean | null;
+            node?: string | null;
+            url?: string | null;
+            key?: string | null;
         };
         /** @description ModelCatalogueView: */
         ModelCatalogueView: {
@@ -2556,15 +2556,15 @@ export interface components {
         /** @description The body that assigns a tier to a work key or sets a tier's mapping on a provider. */
         TierChange: {
             action: string;
-            tier: string | null;
-            key: string | null;
-            acceptConflicts: boolean | null;
-            provider: string | null;
-            model: string | null;
-            thinking: boolean | null;
-            effort: string | null;
+            tier?: string | null;
+            key?: string | null;
+            acceptConflicts?: boolean | null;
+            provider?: string | null;
+            model?: string | null;
+            thinking?: boolean | null;
+            effort?: string | null;
             /** Format: int64 */
-            answerTokens: number | null;
+            answerTokens?: number | null;
         };
         /** @description FoldRatioPage: */
         FoldRatioPage: {
@@ -2701,29 +2701,29 @@ export interface components {
         };
         /** @description The body that changes the fallback screen's routes, providers and accounts. */
         FallbackChange: {
-            action: string | null;
-            order: unknown;
-            provider: string | null;
-            enabled: boolean | null;
-            account: string | null;
-            name: string | null;
-            kind: string | null;
-            path: string | null;
+            action?: string | null;
+            order?: unknown;
+            provider?: string | null;
+            enabled?: boolean | null;
+            account?: string | null;
+            name?: string | null;
+            kind?: string | null;
+            path?: string | null;
             /** @description An endpoint account's base URL. */
-            endpoint: string | null;
+            endpoint?: string | null;
             /** @description An endpoint account's key file. */
-            keyFile: string | null;
+            keyFile?: string | null;
             /** @description An endpoint account's model ids by family word. */
-            models: components["schemas"]["EndpointModels"] | null;
+            models?: components["schemas"]["EndpointModels"] | null;
             /** @description The base prompt the account names, `none` or null to let it go. */
-            basePrompt: string | null;
-            key: string | null;
-            mode: string | null;
+            basePrompt?: string | null;
+            key?: string | null;
+            mode?: string | null;
             /**
              * @description The registration a work key runs on at the registry's provider in place of its tier's cell, `auto`
              *     or null to read the cell again.
              */
-            registration: string | null;
+            registration?: string | null;
         };
         /** @description ItemFiled: the item as the job service raised it. */
         ItemFiled: {
@@ -2810,7 +2810,7 @@ export interface components {
             selection: string;
             /** Format: int64 */
             until: number;
-            reason: string | null;
+            reason?: string | null;
         };
         /** @description LaunchRoom: */
         LaunchRoom: {
@@ -2824,7 +2824,7 @@ export interface components {
         /** @description The body that tells the launcher what holds launches. */
         LaunchHeldAsk: {
             held: boolean;
-            reasons: string[] | null;
+            reasons?: string[] | null;
         };
         /** @description AccountPage: */
         AccountPage: {
@@ -2873,8 +2873,8 @@ export interface components {
         };
         /** @description The body that reports a login's session usage. */
         AccountUsage: {
-            usage: unknown;
-            window: unknown;
+            usage?: unknown;
+            window?: unknown;
         };
         /** @description Rest: */
         Rest: {
@@ -2889,11 +2889,11 @@ export interface components {
         };
         /** @description The body that writes a rest down. */
         RestAsk: {
-            clearPassed: boolean | null;
+            clearPassed?: boolean | null;
             /** Format: double */
-            until: number | null;
-            kind: string | null;
-            account: string | null;
+            until?: number | null;
+            kind?: string | null;
+            account?: string | null;
         };
         /** @description StandIn: whether a stand-in answers the agent named now. */
         StandIn: {
@@ -2920,8 +2920,8 @@ export interface components {
         };
         /** @description The body that throws the warming switch. */
         SettingsAsk: {
-            keepaliveStopped: boolean | null;
-            stopped: boolean | null;
+            keepaliveStopped?: boolean | null;
+            stopped?: boolean | null;
         };
         /** @description CompanionPage: */
         CompanionPage: {
@@ -2947,13 +2947,13 @@ export interface components {
         };
         /** @description The body that changes a companion. */
         CompanionChange: {
-            agent: string | null;
-            by: string | null;
-            referenceOn: boolean | null;
-            persona: string | null;
-            registration: string | null;
-            generation: unknown;
-            thinking: boolean | null;
+            agent?: string | null;
+            by?: string | null;
+            referenceOn?: boolean | null;
+            persona?: string | null;
+            registration?: string | null;
+            generation?: unknown;
+            thinking?: boolean | null;
         };
         /** @description CompanionReset: */
         CompanionReset: {
@@ -2966,12 +2966,12 @@ export interface components {
         /** @description The body that asks for a companion reset. */
         CompanionResetAsk: {
             agent: string;
-            conversation: unknown;
-            person: unknown;
-            alone: unknown;
-            shared: unknown;
-            dryRun: boolean | null;
-            by: string | null;
+            conversation?: unknown;
+            person?: unknown;
+            alone?: unknown;
+            shared?: unknown;
+            dryRun?: boolean | null;
+            by?: string | null;
         };
         /** @description WorkerPage: */
         WorkerPage: {
@@ -3012,33 +3012,27 @@ export interface components {
         /** @description The body that adds a worker. */
         WorkerAdd: {
             name: string;
-            label: string | null;
-            cwd: string | null;
-            icon: string | null;
-            role: string | null;
-            nodeName: string | null;
-            /**
-             * @description The documents its session's prefix carries, in order.
-             * @default null
-             */
-            prefixDocuments: string[] | null;
+            label?: string | null;
+            cwd?: string | null;
+            icon?: string | null;
+            role?: string | null;
+            nodeName?: string | null;
+            /** @description The documents its session's prefix carries, in order. */
+            prefixDocuments?: string[] | null;
         };
         /** @description The body that changes a worker. */
         WorkerChange: {
-            sampling: unknown;
-            nodeName: string | null;
-            node: string | null;
-            label: string | null;
-            cwd: string | null;
-            icon: string | null;
-            role: string | null;
-            stand: boolean | null;
-            bench: boolean | null;
-            /**
-             * @description The documents its session's prefix carries, in order, the list whole; an empty list clears it.
-             * @default null
-             */
-            prefixDocuments: string[] | null;
+            sampling?: unknown;
+            nodeName?: string | null;
+            node?: string | null;
+            label?: string | null;
+            cwd?: string | null;
+            icon?: string | null;
+            role?: string | null;
+            stand?: boolean | null;
+            bench?: boolean | null;
+            /** @description The documents its session's prefix carries, in order, the list whole; an empty list clears it. */
+            prefixDocuments?: string[] | null;
         };
         /** @description WorkerDefinition: */
         WorkerDefinition: {
@@ -3107,9 +3101,9 @@ export interface components {
             itemId: number;
             holderName: string;
             item: components["schemas"]["JobItem"];
-            assigneeName: string | null;
+            assigneeName?: string | null;
             /** Format: int64 */
-            holdMs: number | null;
+            holdMs?: number | null;
         };
         /** @description JobItem: The item's content as the harness read it from the job service; the agency reads nothing there. */
         JobItem: {
@@ -3145,9 +3139,9 @@ export interface components {
         };
         /** @description The body that releases an assignment or holds it longer. */
         AssignmentChange: {
-            state: components["schemas"]["AssignmentState"] | null;
+            state?: components["schemas"]["AssignmentState"] | null;
             /** Format: int64 */
-            holdMs: number | null;
+            holdMs?: number | null;
         };
         /** @description JobPage: */
         JobPage: {
@@ -3239,17 +3233,14 @@ export interface components {
             leaseId: number;
             holderName: string;
             item: components["schemas"]["JobItem"];
-            /**
-             * @description The job's small-model instruction, over any its item carries.
-             * @default null
-             */
-            instruction: components["schemas"]["JobInstruction"] | null;
+            /** @description The job's small-model instruction, over any its item carries. */
+            instruction?: components["schemas"]["JobInstruction"] | null;
         };
         /** @description The body that ends or stops a job. */
         JobChange: {
-            state: components["schemas"]["JobState"] | null;
-            outcome: string | null;
-            report: string | null;
+            state?: components["schemas"]["JobState"] | null;
+            outcome?: string | null;
+            report?: string | null;
         };
         /** @description JobPrompt: */
         JobPrompt: {
@@ -3272,7 +3263,7 @@ export interface components {
         /** @description The body that records the item a session serves. */
         SessionWorkChange: {
             /** Format: int64 */
-            itemId: number | null;
+            itemId?: number | null;
         };
         /** @description SessionLoads: */
         SessionLoads: {
@@ -3361,15 +3352,10 @@ export interface components {
             /** @description `search:basic`, `search:thorough`, `search:exhaustive` or `browse`. */
             key: string;
             query: string;
-            /** @default null */
-            asker: string | null;
-            /** @default null */
-            options: string | null;
-            /**
-             * Format: int64
-             * @default null
-             */
-            roomId: number | null;
+            asker?: string | null;
+            options?: string | null;
+            /** Format: int64 */
+            roomId?: number | null;
         };
         /** @description ResearchSettings: what every research run is held to, and the search engines' state. */
         ResearchSettings: {
@@ -3444,16 +3430,13 @@ export interface components {
          *     as null returns to the web tools' default.
          */
         ResearchSettingsChange: {
-            /** @default null */
-            branchRole: string | null;
-            /** @default null */
-            strategy: string | null;
+            branchRole?: string | null;
+            strategy?: string | null;
             /** Format: int64 */
             hostIntervalMs?: number | null;
             /** Format: int64 */
             engineIntervalMs?: number | null;
-            /** @default null */
-            keys: components["schemas"]["ResearchKeySettings"][] | null;
+            keys?: components["schemas"]["ResearchKeySettings"][] | null;
         };
         /** @description A page of a research line's rounds. */
         DraftProcessPage: {
@@ -3475,10 +3458,10 @@ export interface components {
         };
         /** @description A change to one line's rounds; a field left out keeps what the line holds. */
         DraftProcessChange: {
-            rounds: string[] | null;
+            rounds?: string[] | null;
             /** Format: int64 */
-            ceilingSeconds: number | null;
-            pastCeiling: string | null;
+            ceilingSeconds?: number | null;
+            pastCeiling?: string | null;
         };
         /** @description A page of the questions a research line's rounds name. */
         DraftQuestionPage: {
