@@ -89,7 +89,8 @@ async fn a_chat_turn_s_run_carries_its_room_its_round_and_the_message_it_answers
     },
   )
   .await
-  .unwrap();
+  .unwrap()
+  .runs;
 
   assert_eq!(runs.len(), 1, "{runs:?}");
 
@@ -323,13 +324,14 @@ async fn every_turn_of_a_round_keeps_what_it_spent_and_the_usage_groups_it_by_ro
 
   assert_eq!(status, 200, "{runs}");
   assert_eq!(runs["items"].as_array().unwrap().len(), 3);
+  // Newest first: the run opened last, which reported no figures, first, and the round's first run last.
   assert_eq!(
-    runs["items"][0]["usage"],
+    runs["items"][2]["usage"],
     json!({ "inputTokens": 1000, "outputTokens": 50, "cacheReadTokens": 100, "cacheWriteTokens": 10 })
   );
-  assert_eq!(runs["items"][0]["spentTokens"], 1160);
+  assert_eq!(runs["items"][2]["spentTokens"], 1160);
   assert_eq!(
-    (&runs["items"][2]["usage"], &runs["items"][2]["spentTokens"]),
+    (&runs["items"][0]["usage"], &runs["items"][0]["spentTokens"]),
     (&Value::Null, &Value::Null)
   );
 

@@ -250,48 +250,74 @@ pub async fn of_unit<C: ConnectionTrait>(db: &C, agent: &str, unit: &str) -> Res
   .transpose()
 }
 
-/// What a list of runs is narrowed by: after an id, an agent, a room, a round, and names each matched
-/// against a run's unit and its round; none narrows nothing.
+/// What a list of runs is narrowed by and where its page stands (docs/api.md, 「runs」): before or after a
+/// run's id, open or closed, an agent, a room, a round, and names each matched against a run's unit and its
+/// round; none narrows nothing, and every one named holds at once.
 #[derive(Clone, Debug, Default)]
 pub struct Search {
-  pub after: i64,
+  pub after: Option<i64>,
+  pub before: Option<i64>,
   pub limit: i64,
+  /// True the runs still open, false the closed ones.
+  pub live: Option<bool>,
   pub agent: Option<String>,
   pub room: Option<i64>,
   pub round: Option<String>,
   pub names: Vec<String>,
 }
 
-/// The runs a search names, in id order.
-pub async fn search<C: ConnectionTrait>(db: &C, search: &Search) -> Result<Vec<Run>, Refusal> {
-  let names = serde_json::to_string(&search.names).unwrap_or_else(|_| "[]".to_owned());
+/// One page of runs, newest first, and whether more lie beyond it in the direction it was asked.
+#[derive(Clone, Debug, Default)]
+pub struct Page {
+  pub runs: Vec<Run>,
+  pub more: bool,
+}
 
-  all(
+/// The page of runs a search names: the newest first, before its `before`; with `after`, the ones after it
+/// nearest to it.
+pub async fn search<C: ConnectionTrait>(db: &C, search: &Search) -> Result<Page, Refusal> {
+  let names = serde_json::to_string(&search.names).unwrap_or_else(|_| "[]".to_owned());
+  let limit = search.limit.max(1);
+  // After a cursor the nearest runs are the oldest of the newer ones, so they are read upward.
+  let upward = search.after.is_some();
+  let rows = all(
     db,
     &format!(
       r#"SELECT {RUN_FIELDS} FROM "runs"
-         WHERE "id" > $1
-           AND ($2::text IS NULL OR "agent" = $2)
-           AND ($3::bigint IS NULL OR "chat_id" = $3)
-           AND ($4::text IS NULL OR "round" = $4)
-           AND ($5::jsonb = '[]'::jsonb
-                OR "unit" IN (SELECT jsonb_array_elements_text($5::jsonb))
-                OR "round" IN (SELECT jsonb_array_elements_text($5::jsonb)))
-         ORDER BY "id" LIMIT $6"#
+         WHERE ($1::bigint IS NULL OR "id" > $1)
+           AND ($2::bigint IS NULL OR "id" < $2)
+           AND ($3::boolean IS NULL OR ("finished_at" IS NULL) = $3)
+           AND ($4::text IS NULL OR "agent" = $4)
+           AND ($5::bigint IS NULL OR "chat_id" = $5)
+           AND ($6::text IS NULL OR "round" = $6)
+           AND ($7::jsonb = '[]'::jsonb
+                OR "unit" IN (SELECT jsonb_array_elements_text($7::jsonb))
+                OR "round" IN (SELECT jsonb_array_elements_text($7::jsonb)))
+         ORDER BY "id" {} LIMIT $8"#,
+      if upward { "ASC" } else { "DESC" }
     ),
     vec![
       search.after.into(),
+      search.before.into(),
+      search.live.into(),
       search.agent.clone().into(),
       search.room.into(),
       search.round.clone().into(),
       names.into(),
-      search.limit.into(),
+      (limit + 1).into(),
     ],
   )
-  .await?
-  .iter()
-  .map(Run::of)
-  .collect()
+  .await?;
+  let mut runs = rows.iter().map(Run::of).collect::<Result<Vec<_>, _>>()?;
+  let more = runs.len() as i64 > limit;
+
+  runs.truncate(limit as usize);
+
+  if upward {
+    runs.reverse();
+  }
+
+  Ok(Page { runs, more })
 }
 
 /// What the chat turns' runs started in a span spent, by the round each names: the round, how many turns, what

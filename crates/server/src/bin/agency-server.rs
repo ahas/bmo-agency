@@ -105,10 +105,18 @@ async fn serve(args: Args) -> Result<(), String> {
     eprintln!("agency: the turns left in flight: {}", why.detail);
   }
 
-  // Research runs the last process left under way are closed as cut and told to their rooms.
-  match agency_server::research::sweep_cut(&ground.db, ground.vars(), started_at).await {
-    Ok(0) => {}
-    Ok(closed) => println!("agency: {closed} research runs cut by the restart closed and told"),
+  // Research runs the last process left under way are taken up again where their places stand, and the
+  // rest closed as cut and told to their rooms.
+  match agency_server::research::sweep_cut(&ground, started_at).await {
+    Ok(swept) => {
+      if swept.taken_up > 0 {
+        println!("agency: {} research runs taken up again after the restart", swept.taken_up);
+      }
+
+      if swept.cut > 0 {
+        println!("agency: {} research runs cut by the restart closed and told", swept.cut);
+      }
+    }
     Err(why) => eprintln!("agency: the research runs left under way: {}", why.detail),
   }
 

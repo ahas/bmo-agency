@@ -349,6 +349,22 @@ impl Call {
     self.params.iter().find(|(key, _)| key == name).map(|(_, value)| value.as_str())
   }
 
+  /// The names the request's query gives, each once, in the order first given.
+  pub fn query_names(&self) -> Vec<String> {
+    let Ok(Query(pairs)) = Query::<Vec<(String, String)>>::try_from_uri(self.request.uri()) else {
+      return vec![];
+    };
+    let mut names: Vec<String> = vec![];
+
+    for (name, _) in pairs {
+      if !names.contains(&name) {
+        names.push(name);
+      }
+    }
+
+    names
+  }
+
   /// One query parameter, the first where it is given more than once.
   pub fn query(&self, name: &str) -> Option<String> {
     let Query(pairs) = Query::<Vec<(String, String)>>::try_from_uri(self.request.uri()).ok()?;

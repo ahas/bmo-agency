@@ -48,7 +48,8 @@ same way (`docs/launch-lines.md`, 「Translate runner」).
   - **Each place keeps a record naming the run** while the run stands in it, `research-place.json`, so it
     stands under no agent's row and no sweep of leftovers takes it down.
   - **Both places are ended with the run,** their programs released, their workspaces closed and their
-    folders taken away, records and all.
+    folders taken away, records and all. Until then they outlive agency's restart, and the run with them
+    (「One run, step by step」, step 7).
 
 ## What a run is held to: the research settings
 
@@ -135,13 +136,29 @@ same way (`docs/launch-lines.md`, 「Translate runner」).
    sources or document text in the chat, saying what was found and never how. Where the deployment
    names no artifact service or the filing fails, the instruction carries the result whole instead, and
    the run log says why it was not filed. A run that ended with no answer is told as such.
-7. **A run that is cut** — its pane gone under it, or agency's own restart ending it — is closed in the
-   ledger with the outcome `cut`, and the room is handed what the run had written where its session's
-   record holds anything, as unfinished, and otherwise one line saying the work was cut off (the
-   receiver's `docs/voiced-notices.md`, a stopped run). A run under way is kept in agency's settings,
-   `research_in_flight:<run>`, with its key, question, room, model and the record its session writes;
-   a server that starts closes every run the process before it left there, and every research run the
-   ledger still holds open from before its start, the same way, before the routes stand.
+7. **A run that is cut** — its pane gone under it, the program in its place gone while a turn of it
+   works, or agency's own restart ending a run whose place is gone or that went out in a pane — is closed
+   in the ledger with the outcome `cut`, and the room is handed what the run had written where its
+   session's record holds anything, as unfinished, and otherwise one line saying the work was cut off
+   (the receiver's `docs/voiced-notices.md`, a stopped run).
+   - **A run under way is kept** in agency's settings, `research_in_flight:<run>`, with its key, question,
+     room, model and the record its session writes. A run in places keeps beside them everything it went
+     out with — the ask, the road, the request, the moment its web tools close, its bound and its
+     composed line — and where it stands, written before each of its turns goes in: the place the turn
+     goes into, how many of the run's turns went into that place before it, the round it asks, the moment
+     the rounds began, and the answers so far with what they spent. The place is marked as the run's
+     before it is kept as the one the turn goes into.
+   - **A run in places outlives agency's restart.** Its places are programs of their own, each with its
+     inbox and record, which a restart leaves working; a server that starts takes up every kept run
+     whose place still stands as the run's. The turn under way is read out of that place's record — the
+     turn that went in under the run's name after as many as the kept count says — and waited on, under
+     the place's lock, until its end is there; a turn the restart caught before it went in is put in
+     then. The run then goes on as if nothing had happened: the rest of its rounds, its close in the
+     ledger with what every turn spent, its filing and the room's instruction, and both places ended.
+     Its log goes on under the same run from the moment it is taken up, which it says.
+   - **A server that starts** closes as cut every other run the process before it kept, and every
+     research run the ledger still holds open from before its start but the ones it took up, before the
+     routes stand; a cut run's places that still stand are ended with it.
 
 ## The chat agent's ask
 

@@ -1545,7 +1545,7 @@
         "tags": [
           "runs"
         ],
-        "summary": "Runs by search: live, recent, by agent, room, round, model, job, worker, names; with the tokens spent so far.",
+        "summary": "Runs newest first: open or closed, by agent, room, round, names or the search they carried; with the tokens spent so far.",
         "responses": {
           "200": {
             "description": "Answered.",
@@ -1571,7 +1571,16 @@
             "required": false,
             "schema": {
               "type": "boolean",
-              "description": ""
+              "description": "true the runs still open, false the closed ones"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "the search a run carried; answers every run that carried it, the other filters aside"
             }
           },
           {
@@ -1611,39 +1620,12 @@
             }
           },
           {
-            "name": "model",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "description": ""
-            }
-          },
-          {
-            "name": "jobId",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "description": ""
-            }
-          },
-          {
-            "name": "workerName",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "description": ""
-            }
-          },
-          {
             "name": "after",
             "in": "query",
             "required": false,
             "schema": {
               "type": "integer",
-              "description": "a cursor: an id or a time in epoch milliseconds, as the route states"
+              "description": "a run's id: the runs after it, nearest to it"
             }
           },
           {
@@ -1652,7 +1634,7 @@
             "required": false,
             "schema": {
               "type": "integer",
-              "description": "a cursor: an id or a time in epoch milliseconds, as the route states"
+              "description": "a run's id: the runs before it"
             }
           },
           {
@@ -1661,7 +1643,7 @@
             "required": false,
             "schema": {
               "type": "integer",
-              "description": ""
+              "description": "how many runs a page holds: 50 where none is named, at most 500"
             }
           }
         ]

@@ -100,15 +100,19 @@ impl Route for SearchRuns {
   const PATH: &'static str = "/runs";
 
   async fn answer(&self, call: Call) -> Result<Response, Refused> {
-    let runs = match call.query("search").filter(|search| !search.trim().is_empty()) {
+    if let Some(name) = call.query_names().into_iter().find(|name| !FILTERS.contains(&name.as_str())) {
+      return Err(bad(format!("the runs are not narrowed by {name}")));
+    }
+
+    let page = match call.query("search").filter(|search| !search.trim().is_empty()) {
       Some(search) => {
         let mut runs = Vec::new();
 
-        for id in run_ledger::of_search(call.store(), &SearchId::Text(search)).await? {
+        for id in run_ledger::of_search(call.store(), &SearchId::Text(search)).await?.into_iter().rev() {
           runs.extend(run_ledger::read(call.store(), id).await?);
         }
 
-        runs
+        run_ledger::Page { runs, more: false }
       }
       None => {
         let search = list_search(&call)?;
@@ -116,11 +120,15 @@ impl Route for SearchRuns {
         run_ledger::search(call.store(), &search).await?
       }
     };
-    let items: Vec<Value> = runs.iter().map(member).collect();
+    let items: Vec<Value> = page.runs.iter().map(member).collect();
 
-    Ok(answer(StatusCode::OK, json!({ "items": items, "more": false })))
+    Ok(answer(StatusCode::OK, json!({ "items": items, "more": page.more })))
   }
 }
+
+/// Every name a list of runs is asked by (docs/api.md, 「runs」).
+const FILTERS: [&str; 9] =
+  ["search", "live", "agentName", "roomId", "round", "names", "after", "before", "limit"];
 
 // What a list of runs is narrowed by, as the query names it.
 fn list_search(call: &Call) -> Result<run_ledger::Search, Refused> {
@@ -131,10 +139,19 @@ fn list_search(call: &Call) -> Result<run_ledger::Search, Refused> {
       .map(|value| value.parse::<i64>().map_err(|_| bad(format!("{name} is a whole number"))))
       .transpose()
   };
+  let live = named("live")
+    .map(|value| match value.as_str() {
+      "true" => Ok(true),
+      "false" => Ok(false),
+      _ => Err(bad("live is true or false")),
+    })
+    .transpose()?;
 
   Ok(run_ledger::Search {
-    after: number("after")?.unwrap_or(0),
+    after: number("after")?,
+    before: number("before")?,
     limit: number("limit")?.unwrap_or(50).clamp(1, 500),
+    live,
     agent: named("agentName"),
     room: number("roomId")?,
     round: named("round"),

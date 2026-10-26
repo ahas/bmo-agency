@@ -17,7 +17,9 @@ use serde_json::{Map, Value, json};
 use store::{all, one};
 
 use crate::door::execution::{Row, publish_envelope};
-use crate::door::inbox::{State, provider_named, read_turn_on, record_of, span_named, waiting_in_inbox};
+use crate::door::inbox::{
+  State, provider_named, read_turn_on, record_of, span_named, span_named_after, waiting_in_inbox,
+};
 use crate::door::place_run::end_run;
 use crate::door::record::{Reply, UsageSpent};
 use crate::herdr_backend::{RoadWalked, TurnEnded, close_chat_run, spent_of};
@@ -110,7 +112,30 @@ pub fn standing(place: &Place, turn: &InFlight) -> Standing {
   let Some(span) = span_named(&records, &turn.run) else {
     return if waiting_in_inbox(&place.path, &turn.run) { Standing::Going } else { Standing::Lost };
   };
-  let lines = &records[span];
+
+  standing_in(&records[span])
+}
+
+/// Where a turn put into a place under a name stands, the turns put in under that name before it being
+/// `before`: read from the place's record where the program took it, going where it waits in the inbox, and
+/// lost where neither holds it.
+pub fn standing_after(place: &Place, name: &str, before: usize) -> Standing {
+  let records = record_of(&place.path).1;
+  let Some(span) = span_named_after(&records, name, before) else {
+    let taken = (0..).take_while(|count| span_named_after(&records, name, *count).is_some()).count();
+
+    return if taken == before && waiting_in_inbox(&place.path, name) {
+      Standing::Going
+    } else {
+      Standing::Lost
+    };
+  };
+
+  standing_in(&records[span])
+}
+
+// Where a turn stands, read from its lines of the record.
+fn standing_in(lines: &[Value]) -> Standing {
   let provider = provider_named(lines).unwrap_or_default();
   let (state, error, reply) = read_turn_on(lines, "", &provider);
 
@@ -180,6 +205,30 @@ async fn attach(ground: &Ground, place: Place, turn: InFlight) {
     }
 
     tokio::time::sleep(every).await;
+  }
+}
+
+/// The open execution rows a turn put in under a run left behind, kept as this process's own while it waits on
+/// them, so no pass of the executions reads their collector as gone.
+pub async fn own_rows(ground: &Ground, run: &str) {
+  for row in open_rows(ground, run).await {
+    publish_envelope(&ground.roots.data, row.id(), None);
+  }
+}
+
+/// The open execution rows a turn put in under a run left behind, closed on how the turn came out.
+pub async fn close_rows(ground: &Ground, run: &str, answered: bool) {
+  for mut row in open_rows(ground, run).await {
+    let state = if answered { "exited" } else { "cancelled" };
+
+    publish_envelope(&ground.roots.data, row.id(), Some(state));
+    row.set("state", json!(state));
+    row.set("endedAt", json!(now_ms()));
+    row.set("reconciliationEvidence", json!("picked up again after agency restarted"));
+
+    if let Err(why) = row.save(&ground.db).await {
+      eprintln!("{run}: the execution row was not closed: {}", why.detail);
+    }
   }
 }
 
@@ -276,18 +325,7 @@ pub async fn hand_back(ground: &Ground, place: &Place, turn: &InFlight, came: Ca
     )
     .await;
 
-  for mut row in rows {
-    let state = if answered { "exited" } else { "cancelled" };
-
-    publish_envelope(&ground.roots.data, row.id(), Some(state));
-    row.set("state", json!(state));
-    row.set("endedAt", json!(now_ms()));
-    row.set("reconciliationEvidence", json!("picked up again after agency restarted"));
-
-    if let Err(why) = row.save(db).await {
-      eprintln!("{}: the execution row was not closed: {}", turn.run, why.detail);
-    }
-  }
+  close_rows(ground, &turn.run, answered).await;
 
   let _ = end_run(&place.path, now_ms());
 

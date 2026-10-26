@@ -155,8 +155,12 @@ pub struct ListSessionsQuery {
 #[derive(Debug, Clone, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ListRunsQuery {
+  /// true the runs still open, false the closed ones
   #[serde(skip_serializing_if = "Option::is_none")]
   pub live: Option<bool>,
+  /// the search a run carried; answers every run that carried it, the other filters aside
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub search: Option<String>,
   /// a comma-separated list
   #[serde(skip_serializing_if = "Option::is_none")]
   pub names: Option<String>,
@@ -164,18 +168,16 @@ pub struct ListRunsQuery {
   pub agent_name: Option<String>,
   #[serde(skip_serializing_if = "Option::is_none")]
   pub room_id: Option<i64>,
+  /// the round a chat turn's context named
   #[serde(skip_serializing_if = "Option::is_none")]
-  pub model: Option<String>,
-  #[serde(skip_serializing_if = "Option::is_none")]
-  pub job_id: Option<i64>,
-  #[serde(skip_serializing_if = "Option::is_none")]
-  pub worker_name: Option<String>,
-  /// a cursor: an id or a time in epoch milliseconds, as the route states
+  pub round: Option<String>,
+  /// a run's id: the runs after it, nearest to it
   #[serde(skip_serializing_if = "Option::is_none")]
   pub after: Option<i64>,
-  /// a cursor: an id or a time in epoch milliseconds, as the route states
+  /// a run's id: the runs before it
   #[serde(skip_serializing_if = "Option::is_none")]
   pub before: Option<i64>,
+  /// how many runs a page holds: 50 where none is named, at most 500
   #[serde(skip_serializing_if = "Option::is_none")]
   pub limit: Option<i64>,
 }

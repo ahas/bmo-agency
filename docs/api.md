@@ -280,7 +280,7 @@ Every route that takes a body names the request type it reads, holding only the 
 
 | Method | Path | Does |
 |---|---|---|
-| GET | `/runs` | Runs by search: live, recent, by agent, room, round, model, job, worker, names; with the tokens spent so far. |
+| GET | `/runs` | Runs newest first: open or closed, by agent, room, round, names or the search they carried; with the tokens spent so far. |
 | POST | `/runs` | Open a run in the ledger. |
 | GET | `/runs/{runId}` | One run, its clock bound among its fields. |
 | PATCH | `/runs/{runId}` | Close a run, or stop it, or attach the message its answer went out as. |
@@ -294,9 +294,16 @@ turn answers until then, or null where the turn named neither. A chat turn's run
 what the turn spent once it is closed: `usage`, its `inputTokens`, `outputTokens`, `cacheReadTokens` and
 `cacheWriteTokens` summed over the models that answered, and `spentTokens`, the four together; both are
 null on a run whose road reported no figures, and on an open run. Every turn of a round, each question,
-item and check of the draft process among them, is a run of its own under the round. The list narrows by `agentName`, by
-`roomId`, by `round`, and by `names`, a comma-separated list each matched against a run's unit and its
-round. A change naming `messageId` alone attaches the message, on an open or a closed run alike, and
+item and check of the draft process among them, is a run of its own under the round.
+
+The list answers the newest runs first, `limit` of them (50 where it names none, at most 500), and pages
+by a run's id: with `before`, the runs before that id; with `after`, the runs after it nearest to it; with
+neither, the newest. `more` says whether more runs lie beyond the page in the direction it was asked —
+older ones, or with `after` newer ones. It narrows by `live` — `true` the runs still open, `false` the
+closed ones —, by `agentName`, by `roomId`, by `round`, and by `names`, a comma-separated list each
+matched against a run's unit and its round, every filter named holding at once; `search` answers instead
+every run that carried that search, newest first. A query naming anything else, or a value that does not
+read as its filter's kind, is refused 400. A change naming `messageId` alone attaches the message, on an open or a closed run alike, and
 leaves the run's closing as it stands. A closed run answers `counts.tools`, how many tool calls its log
 lines held as it closed; an open run's `counts` is empty.
 

@@ -78,6 +78,22 @@ pub fn span_named(records: &[Value], name: &str) -> Option<Range<usize>> {
   Some(start..next.map_or(records.len(), |next| start + 1 + next))
 }
 
+/// Where the lines of the record that belong to a turn put in under a name stand, the turns put in under that
+/// name before it being `before`: from its start to the next turn's start.
+pub fn span_named_after(records: &[Value], name: &str, before: usize) -> Option<Range<usize>> {
+  let start = records
+    .iter()
+    .enumerate()
+    .filter(|(_, record)| {
+      kind(record) == Some("start") && record.get("name").and_then(Value::as_str) == Some(name)
+    })
+    .nth(before)?
+    .0;
+  let next = records[start + 1..].iter().position(|record| kind(record) == Some("start"));
+
+  Some(start..next.map_or(records.len(), |next| start + 1 + next))
+}
+
 /// Whether the place's pane program is working on a turn, as its record says: its last turn, the bot's or
 /// a person's, started and has not ended. A place whose program keeps no record says nothing of the kind.
 pub fn turn_working(place: &Path) -> bool {

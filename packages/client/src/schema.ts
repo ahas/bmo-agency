@@ -344,7 +344,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Runs by search: live, recent, by agent, room, round, model, job, worker, names; with the tokens spent so far. */
+        /** Runs newest first: open or closed, by agent, room, round, names or the search they carried; with the tokens spent so far. */
         get: operations["listRuns"];
         put?: never;
         /** Open a run in the ledger. */
@@ -4406,13 +4406,11 @@ export interface operations {
         parameters: {
             query?: {
                 live?: boolean;
+                search?: string;
                 names?: string;
                 agentName?: string;
                 roomId?: number;
                 round?: string;
-                model?: string;
-                jobId?: number;
-                workerName?: string;
                 after?: number;
                 before?: number;
                 limit?: number;

@@ -266,8 +266,8 @@ async fn a_running_server_answers_the_calls_a_room_holder_makes_beside_its_turns
 
   assert_eq!(
     ids,
-    vec![id, numbered["id"].as_i64().unwrap()],
-    "the runs that carried a search, in id order"
+    vec![numbered["id"].as_i64().unwrap(), id],
+    "the runs that carried a search, newest first"
   );
   assert_eq!(get(port, token, "/runs?search=13").await.1["items"], json!([]));
   assert_eq!(get(port, token, "/runs").await.0, 200);

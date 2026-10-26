@@ -121,6 +121,39 @@ fn a_kept_turn_stands_as_its_programs_record_says() {
   assert!(matches!(standing(&place, &turn), Standing::Ended(Came::Answered(_))));
 }
 
+#[test]
+fn a_turn_put_in_after_others_under_the_same_name_stands_as_its_own_lines_say() {
+  let data = tempfile::tempdir().unwrap();
+  let place = Place::of(data.path(), "search-9-rounds");
+
+  started(&place, "a", "research-9");
+  answered(&place, "a", "the first round");
+  assert!(matches!(
+    standing_after(&place, "research-9", 0),
+    Standing::Ended(Came::Answered(reply)) if reply.text == "the first round"
+  ));
+  assert_eq!(standing_after(&place, "research-9", 1), Standing::Lost, "the second never went in");
+
+  std::fs::create_dir_all(place.path.join("inbox")).unwrap();
+  std::fs::write(
+    place.path.join("inbox/000-b.json"),
+    json!({ "id": "b", "name": "research-9" }).to_string(),
+  )
+  .unwrap();
+  assert_eq!(standing_after(&place, "research-9", 1), Standing::Going, "it waits in the inbox");
+  assert_eq!(standing_after(&place, "research-9", 2), Standing::Lost, "no third went in");
+
+  std::fs::remove_file(place.path.join("inbox/000-b.json")).unwrap();
+  started(&place, "b", "research-9");
+  assert_eq!(standing_after(&place, "research-9", 1), Standing::Going, "the program works on it");
+
+  answered(&place, "b", "the final round");
+  assert!(matches!(
+    standing_after(&place, "research-9", 1),
+    Standing::Ended(Came::Answered(reply)) if reply.text == "the final round"
+  ));
+}
+
 #[tokio::test]
 async fn a_job_whose_turn_ended_after_the_restart_ends_with_its_report_and_a_chat_turn_reaches_its_caller()
 {

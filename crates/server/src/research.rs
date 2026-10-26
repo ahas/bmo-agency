@@ -3,7 +3,8 @@
 //! pane of its own, held to the research settings the owner keeps here, asked the line's research rounds
 //! after its first answer, and its result queued for the room as it ends.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -16,8 +17,10 @@ use policy::work_keys::{Profile, WORK_KEYS};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 
+use crate::companion::run::NoAnswer;
 use crate::control::claude_accounts::Account;
 use crate::door::apart::{self, Apart, answered, new_session};
+use crate::door::place_run::end_run;
 use crate::door::record::Reply;
 use crate::door::turn::Watch;
 use crate::job_run::claude::failure::Failure;
@@ -27,11 +30,13 @@ use crate::lines::runner::{Browse, On, PROVIDER, Runner, RunnerRun, Search, runn
 use crate::lines::worker::{effort_of, reasoning_of};
 use crate::lines::{Trees, render};
 use crate::places::Ground;
+use crate::places::locks::{agent_lock_path, hold};
 use crate::queue::settings;
 use crate::road::{self, Ask, Road};
 use crate::run_ledger::{self, Closing, Opening, Spent};
 use crate::run_log::lines::Line;
 use crate::run_log::{RunLog, Target};
+use crate::turn_pickup::{Came, Standing, close_rows, own_rows, standing_after};
 use crate::{Refusal, now_ms};
 
 /// The settings key the owner's research settings stand under.
@@ -354,9 +359,10 @@ pub const IN_FLIGHT_KEY: &str = "research_in_flight:";
 /// The outcome a run is closed with when its pane went away under it or agency's own restart ended it.
 pub const CUT: &str = "cut";
 
-/// A run under way as its settings row keeps it: what the room is told of it if it is cut, and the record
-/// its session writes, where what it had written is read.
-#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+/// A run under way as its settings row keeps it: what the room is told of it if it is cut, the record its
+/// session writes, where what it had written is read, and for a run in places what a server started after
+/// the one that sent it takes it up again by.
+#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct InFlight {
   pub key: String,
@@ -367,6 +373,85 @@ pub struct InFlight {
   pub model: String,
   #[serde(default)]
   pub record: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub placed: Option<Placed>,
+}
+
+/// A run in places as it is kept before each of its turns goes in (docs/research-runs.md, 「One run, step by
+/// step」, step 7): everything it went out with, and where it stands.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Placed {
+  pub ask: ResearchRunAsk,
+  pub taken: Road,
+  /// The run its log and its turns go under.
+  pub unit: String,
+  pub prompt: String,
+  pub closes_at: i64,
+  pub bound_ms: u64,
+  pub run: KeptRun,
+  /// The place the turn under way goes into, and how many of the run's turns went into it before it.
+  pub place: String,
+  pub before: usize,
+  /// The round the turn asks, by its place among the key's rounds; none for the first answer.
+  #[serde(default)]
+  pub round: Option<usize>,
+  /// When the rounds began, in epoch milliseconds.
+  #[serde(default)]
+  pub rounds_began: Option<i64>,
+  /// What the run's turns answered so far, the first answer first, and what they spent.
+  #[serde(default)]
+  pub answers: Vec<String>,
+  #[serde(default)]
+  pub spent: Option<Spent>,
+}
+
+/// A run's composed line as it is kept: all of it but what its runner names of itself.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct KeptRun {
+  pub model: String,
+  pub effort: String,
+  pub tier: String,
+  pub system_prompt: PathBuf,
+  pub mcp_config: PathBuf,
+  pub thinking: bool,
+  pub cwd: PathBuf,
+}
+
+impl KeptRun {
+  fn of(run: &RunnerRun) -> Self {
+    Self {
+      model: run.model.clone(),
+      effort: run.effort.clone(),
+      tier: run.tier.clone(),
+      system_prompt: run.system_prompt.clone(),
+      mcp_config: run.mcp_config.clone(),
+      thinking: run.thinking,
+      cwd: run.cwd.clone(),
+    }
+  }
+
+  // The line again, its runner the one the run's line names.
+  fn run(&self, line: &str) -> RunnerRun {
+    let (name, tools_allowed) = if line == Browse.name() {
+      (Browse.name(), Browse.tools_allowed())
+    } else {
+      (Search.name(), Search.tools_allowed())
+    };
+
+    RunnerRun {
+      line: name,
+      model: self.model.clone(),
+      effort: self.effort.clone(),
+      tier: self.tier.clone(),
+      system_prompt: self.system_prompt.clone(),
+      mcp_config: self.mcp_config.clone(),
+      tools_allowed,
+      thinking: self.thinking,
+      cwd: self.cwd.clone(),
+    }
+  }
 }
 
 async fn keep_in_flight(db: &sea_orm::DatabaseConnection, ledger: i64, kept: &InFlight) {
@@ -548,15 +633,23 @@ fn key_of(line: &str, depth: i64) -> String {
   }
 }
 
-/// A server's start: every run the process before it kept under way, and every research run the ledger
-/// still holds open from before `started_at` (seconds), closed as cut and told to its room. Answers how
-/// many were closed.
-pub async fn sweep_cut(
-  db: &sea_orm::DatabaseConnection,
-  vars: &BTreeMap<String, String>,
-  started_at: i64,
-) -> Result<usize, Refusal> {
+/// What a server's start did with the runs the process before it left: how many it closed as cut, and how
+/// many it took up again.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Swept {
+  pub cut: usize,
+  pub taken_up: usize,
+}
+
+/// A server's start (docs/research-runs.md, 「One run, step by step」, step 7): every run in places the process
+/// before it kept under way whose place still stands taken up again, and every other kept run, and every
+/// research run the ledger still holds open from before `started_at` (epoch milliseconds) but those, closed as
+/// cut and told to its room.
+pub async fn sweep_cut(ground: &Arc<Ground>, started_at: i64) -> Result<Swept, Refusal> {
+  let db = &ground.db;
+  let vars = ground.vars();
   let mut closed = 0;
+  let mut taken_up = BTreeSet::new();
   let closing = Closing {
     finished_at: now_ms(),
     outcome: CUT.to_owned(),
@@ -580,11 +673,34 @@ pub async fn sweep_cut(
   for name in settings::named(db, IN_FLIGHT_KEY).await? {
     let Ok(ledger) = name.parse::<i64>() else { continue };
     let kept = in_flight(db, ledger).await.unwrap_or_default();
+
+    if let Some(placed) =
+      kept.placed.as_ref().filter(|placed| is_run_place(&ground.roots.data, &placed.place))
+      && let Some(going) = going_of(ground, ledger, placed).await
+    {
+      let placed = placed.clone();
+
+      taken_up.insert(ledger);
+      tokio::spawn(async move { going.go(Some(placed)).await });
+      continue;
+    }
+
     let written = kept.record.as_deref().and_then(|record| written_so_far(std::path::Path::new(record)));
     let body = cut_instruction(ledger, &kept.key, Some(&kept.query), kept.room, written.as_deref());
 
     if tell(ledger, body).await? {
       closed += 1;
+    }
+
+    // A cut run's places are ended with it, where any of them still stands.
+    if let Some(placed) = &kept.placed {
+      let first = placed.place.trim_end_matches(ROUNDS_PLACE).to_owned();
+
+      for place in [format!("{first}{ROUNDS_PLACE}"), first] {
+        if is_run_place(&ground.roots.data, &place) {
+          end_place(ground, &place).await;
+        }
+      }
     }
 
     settings::forget(db, &format!("{IN_FLIGHT_KEY}{name}")).await?;
@@ -602,6 +718,11 @@ pub async fn sweep_cut(
     let (Ok(ledger), Ok(line)) = (row.try_get::<i64>("", "id"), row.try_get::<String>("", "agent")) else {
       continue;
     };
+
+    if taken_up.contains(&ledger) {
+      continue;
+    }
+
     let depth = row.try_get::<i64>("", "depth").unwrap_or_default();
     let room = row.try_get::<Option<i64>>("", "chat_id").ok().flatten();
 
@@ -610,7 +731,39 @@ pub async fn sweep_cut(
     }
   }
 
-  Ok(closed)
+  Ok(Swept {
+    cut: closed,
+    taken_up: taken_up.len(),
+  })
+}
+
+// A kept run in places as it went out, on the road it went out on, for a server that takes it up again: none
+// where its key is no research key any more or the research settings cannot be read.
+async fn going_of(ground: &Arc<Ground>, ledger: i64, placed: &Placed) -> Option<Going> {
+  let line = research_profile(&placed.ask.key)?.line.clone();
+  let (settings, _) = settings(&ground.db).await.ok()?;
+  let vars = variables(
+    &settings,
+    &placed.ask.key,
+    &line,
+    placed.ask.asker.as_deref(),
+    placed.ask.room_id,
+    placed.closes_at,
+  );
+
+  Some(Going {
+    ground: ground.clone(),
+    taken: placed.taken.clone(),
+    ask: placed.ask.clone(),
+    run: placed.run.run(&line),
+    line,
+    unit: placed.unit.clone(),
+    ledger,
+    vars,
+    prompt: placed.prompt.clone(),
+    closes_at: placed.closes_at,
+    bound: Duration::from_millis(placed.bound_ms),
+  })
 }
 
 /// The variables a run's rounds go out with: its own, its branches, images and rulebooks closed, so a round
@@ -774,10 +927,11 @@ pub async fn launch(ground: Arc<Ground>, ask: ResearchRunAsk) -> Result<Research
     run,
     vars,
     prompt,
+    closes_at,
     bound: Duration::from_secs(u64::try_from(kept.minutes * 60).unwrap_or(300)) + WRITING_MARGIN,
   };
 
-  tokio::spawn(async move { going.go().await });
+  tokio::spawn(async move { going.go(None).await });
 
   Ok(launched)
 }
@@ -847,8 +1001,33 @@ struct Going {
   run: RunnerRun,
   vars: BTreeMap<String, String>,
   prompt: String,
+  /// When its web tools close, in epoch milliseconds.
+  closes_at: i64,
   bound: Duration,
 }
+
+// Where a run in places stands as a turn of it goes in: how many of its turns went into the place before it,
+// the round it asks and when the rounds began, and what the turns before it answered and spent.
+struct At<'a> {
+  before: usize,
+  round: Option<usize>,
+  rounds_began: Option<i64>,
+  answers: &'a [String],
+  spent: Option<Spent>,
+}
+
+// Where the rounds of a run in places go from: the round, how many turns went into their place before it,
+// when they began, and whether its turn is one a server before this one put in, to be taken up.
+struct RoundsFrom {
+  round: usize,
+  before: usize,
+  began: i64,
+  taking_up: bool,
+}
+
+// Why a run taken up again ends with no answer when its place's program went away under the turn waited on.
+const PLACE_GONE: &str =
+  "the program in the run's place went away while the run was taken up again after agency restarted";
 
 // A run's pane watched for nothing but its end.
 struct Quiet;
@@ -977,7 +1156,42 @@ impl Going {
       room: self.ask.room_id,
       model: self.run.model.clone(),
       record: None,
+      placed: None,
     }
+  }
+
+  // Where the run stands kept before a turn goes into a place, the place marked as the run's first, so a server
+  // started after this one finds the place and the turn that went into it.
+  async fn keep_placed(&self, place: &str, at: At<'_>) -> Result<(), NoAnswer> {
+    mark_place(&self.ground, place, self.ledger).map_err(NoAnswer::Failed)?;
+
+    let placed = Placed {
+      ask: self.ask.clone(),
+      taken: self.taken.clone(),
+      unit: self.unit.clone(),
+      prompt: self.prompt.clone(),
+      closes_at: self.closes_at,
+      bound_ms: u64::try_from(self.bound.as_millis()).unwrap_or(u64::MAX),
+      run: KeptRun::of(&self.run),
+      place: place.to_owned(),
+      before: at.before,
+      round: at.round,
+      rounds_began: at.rounds_began,
+      answers: at.answers.to_vec(),
+      spent: at.spent,
+    };
+
+    keep_in_flight(
+      &self.ground.db,
+      self.ledger,
+      &InFlight {
+        placed: Some(placed),
+        ..self.in_flight()
+      },
+    )
+    .await;
+
+    Ok(())
   }
 
   async fn note(&self, log: &mut RunLog, text: String) {
@@ -986,7 +1200,9 @@ impl Going {
 
   // The run to its end: its first answer on the logins its key's walk offers, then each of the line's rounds
   // on the same session and login, then its ledger run closed and its result queued for the room.
-  async fn go(self) {
+  //
+  // A run in places a server before this one sent is taken up again where it stood.
+  async fn go(self, taken_up: Option<Placed>) {
     let ground = self.ground.clone();
     let mut log = RunLog::new(Target {
       agent: self.line.clone(),
@@ -995,20 +1211,27 @@ impl Going {
       job_id: None,
     });
 
-    self
-      .note(
-        &mut log,
-        format!("Research on {} · {}: {}", self.ask.key, self.run.model, self.ask.query.trim()),
-      )
-      .await;
-
-    keep_in_flight(&ground.db, self.ledger, &self.in_flight()).await;
-
-    let (outcome, result, spent) = if crate::chat_stand_in::inbox_declared(&self.taken.provider) {
-      self.on_places(&mut log).await
+    if taken_up.is_some() {
+      self
+        .note(&mut log, "The research was taken up again after agency restarted.".to_owned())
+        .await;
     } else {
-      self.on_claude(&mut log).await
-    };
+      self
+        .note(
+          &mut log,
+          format!("Research on {} · {}: {}", self.ask.key, self.run.model, self.ask.query.trim()),
+        )
+        .await;
+
+      keep_in_flight(&ground.db, self.ledger, &self.in_flight()).await;
+    }
+
+    let (outcome, result, spent) =
+      if taken_up.is_some() || crate::chat_stand_in::inbox_declared(&self.taken.provider) {
+        self.on_places(&mut log, taken_up.as_ref()).await
+      } else {
+        self.on_claude(&mut log).await
+      };
 
     self.ended(outcome, result, spent, &mut log).await;
   }
@@ -1042,20 +1265,59 @@ impl Going {
   }
 
   // The run on a program that carries its own turns (docs/research-runs.md, 「The road」): its first answer in a
-  // place of the run's own, each of the line's rounds in a second, both ended with the run.
-  async fn on_places(&self, log: &mut RunLog) -> (&'static str, Result<String, String>, Option<Spent>) {
+  // place of the run's own, each of the line's rounds in a second, both ended with the run. A run taken up again
+  // goes on from the turn it stood on.
+  async fn on_places(
+    &self,
+    log: &mut RunLog,
+    taken_up: Option<&Placed>,
+  ) -> (&'static str, Result<String, String>, Option<Spent>) {
     let first_place = format!("{}-{}", self.line, self.ledger);
-    let rounds_place = format!("{first_place}-rounds");
-    let first = self.in_place(&first_place, &self.prompt, &self.vars, log).await;
-    let ended = match first {
-      Err(crate::companion::run::NoAnswer::Cut(why)) => (CUT, Err(why), None),
-      Err(no) => ("failed", Err(crate::herdr_backend::failure_of(no).0), None),
-      Ok(reply) => {
-        let mut spent = crate::herdr_backend::spent_of(&reply.spend);
-        let mut answers = vec![reply.text.clone()];
+    let rounds_place = format!("{first_place}{ROUNDS_PLACE}");
+    let ended = match taken_up.and_then(|placed| placed.round.map(|round| (placed, round))) {
+      Some((placed, round)) => {
+        let mut answers = placed.answers.clone();
+        let mut spent = placed.spent;
+        let from = RoundsFrom {
+          round,
+          before: placed.before,
+          began: placed.rounds_began.unwrap_or_else(now_ms),
+          taking_up: true,
+        };
 
-        self.place_rounds(&rounds_place, &mut answers, &mut spent, log).await;
+        self.place_rounds(&rounds_place, from, &mut answers, &mut spent, log).await;
         ("answered", Ok(answers.pop().unwrap_or_default()), spent)
+      }
+      None => {
+        let at = At {
+          before: 0,
+          round: None,
+          rounds_began: None,
+          answers: &[],
+          spent: None,
+        };
+        let first = match self.keep_placed(&first_place, at).await {
+          Ok(()) => self.turn(&first_place, 0, taken_up.is_some(), &self.prompt, &self.vars, log).await,
+          Err(no) => Err(no),
+        };
+
+        match first {
+          Err(NoAnswer::Cut(why)) => (CUT, Err(why), None),
+          Err(no) => ("failed", Err(crate::herdr_backend::failure_of(no).0), None),
+          Ok(reply) => {
+            let mut spent = crate::herdr_backend::spent_of(&reply.spend);
+            let mut answers = vec![reply.text.clone()];
+            let from = RoundsFrom {
+              round: 0,
+              before: 0,
+              began: now_ms(),
+              taking_up: false,
+            };
+
+            self.place_rounds(&rounds_place, from, &mut answers, &mut spent, log).await;
+            ("answered", Ok(answers.pop().unwrap_or_default()), spent)
+          }
+        }
       }
     };
 
@@ -1066,6 +1328,92 @@ impl Going {
     ended
   }
 
+  // A turn of the run in a place: where it is being taken up, the turn a server before this one put in waited on,
+  // or put in now where that server never put it in; otherwise put in.
+  async fn turn(
+    &self,
+    place: &str,
+    before: usize,
+    taking_up: bool,
+    prompt: &str,
+    vars: &BTreeMap<String, String>,
+    log: &mut RunLog,
+  ) -> Result<crate::companion::run::Reply, NoAnswer> {
+    if taking_up && let Some(came) = self.taken_up(place, before).await {
+      return came;
+    }
+
+    self.in_place(place, prompt, vars, log).await
+  }
+
+  // The turn a server before this one put into a place, after as many of the run's turns as `before`, waited on
+  // under the place's lock until the place's record holds its end; none where the place holds no such turn, it
+  // never having gone in.
+  async fn taken_up(
+    &self,
+    place: &str,
+    before: usize,
+  ) -> Option<Result<crate::companion::run::Reply, NoAnswer>> {
+    let ground = &self.ground;
+    let data = &ground.roots.data;
+    let _held = match hold(agent_lock_path(data, place)).await {
+      Ok(held) => held,
+      Err(why) => return Some(Err(NoAnswer::Failed(why.to_string()))),
+    };
+    let at = crate::lines::place::Place::of(data, place);
+    let every = Duration::from_millis(policy::resident_turn::RESIDENT_TURN.inbox_poll_ms);
+    let mut unseen = 0u32;
+
+    own_rows(ground, &self.unit).await;
+
+    loop {
+      let came = match standing_after(&at, &self.unit, before) {
+        Standing::Lost => {
+          close_rows(ground, &self.unit, false).await;
+
+          return None;
+        }
+        Standing::Ended(came) => came,
+        Standing::Going => {
+          unseen = if at.program_alive().is_some() { 0 } else { unseen + 1 };
+
+          if unseen < 40 {
+            tokio::time::sleep(every).await;
+            continue;
+          }
+
+          Came::Failed(PLACE_GONE.to_owned())
+        }
+      };
+      let answered = matches!(came, Came::Answered(_));
+
+      close_rows(ground, &self.unit, answered).await;
+
+      let _ = end_run(&at.path, now_ms());
+
+      return Some(match came {
+        Came::Answered(reply) => Ok(self.reply_of(*reply)),
+        Came::Failed(why) if why == PLACE_GONE => Err(NoAnswer::Cut(why)),
+        Came::Failed(why) => Err(NoAnswer::Failed(why)),
+      });
+    }
+  }
+
+  // A turn's end as a place's record holds it, as a turn put in answers it.
+  fn reply_of(&self, reply: Reply) -> crate::companion::run::Reply {
+    crate::companion::run::Reply {
+      text: reply.text,
+      session_id: reply.session_id.unwrap_or_default(),
+      mode: reply.mode,
+      model: reply.model.unwrap_or_else(|| self.taken.model.clone()),
+      effort: None,
+      spend: reply.spend,
+      context_ratio: reply.context_ratio,
+      context_tokens: reply.context_tokens,
+      account: None,
+    }
+  }
+
   // One turn of the run in a place of its own: the line's standing instructions, the run's MCP servers and no
   // tool of the program's own, on the road the run went out on.
   async fn in_place(
@@ -1074,11 +1422,11 @@ impl Going {
     prompt: &str,
     vars: &BTreeMap<String, String>,
     log: &mut RunLog,
-  ) -> Result<crate::companion::run::Reply, crate::companion::run::NoAnswer> {
+  ) -> Result<crate::companion::run::Reply, NoAnswer> {
     let ground = &self.ground;
     let mut env = ground.env().clone();
 
-    mark_place(ground, place, self.ledger).map_err(crate::companion::run::NoAnswer::Failed)?;
+    mark_place(ground, place, self.ledger).map_err(NoAnswer::Failed)?;
     env.extend(vars.iter().map(|(name, value)| (name.clone(), value.clone())));
 
     let run = crate::lines::chat::ChatRun {
@@ -1117,10 +1465,12 @@ impl Going {
 
   // The line's rounds in their own place, each a turn of the same session there: as on Claude Code, past the
   // line's ceiling the final one asked at once or the run returning what it has, and a round that does not
-  // answer leaving the last answer standing.
+  // answer leaving the last answer standing. Each round is kept before it goes in; a round taken up again is
+  // waited on whatever the ceiling.
   async fn place_rounds(
     &self,
     place: &str,
+    from: RoundsFrom,
     answers: &mut Vec<String>,
     spent: &mut Option<Spent>,
     log: &mut RunLog,
@@ -1130,14 +1480,15 @@ impl Going {
       return;
     };
     let rounds_vars = rounds_variables(&self.vars);
-    let began = std::time::Instant::now();
-    let mut asking = 0;
+    let mut asking = from.round;
+    let mut put = from.before;
+    let mut taking_up = from.taking_up;
 
     while asking < process.rounds.len() {
       let name = process.rounds[asking].clone();
-      let past = began.elapsed().as_secs() as i64 >= process.ceiling_seconds;
+      let past = (now_ms() - from.began) / 1000 >= process.ceiling_seconds;
 
-      if past && name.as_str() != policy::research::Draft::FINAL {
+      if past && !taking_up && name.as_str() != policy::research::Draft::FINAL {
         match process.past_ceiling {
           policy::research::PastCeiling::Last => return,
           policy::research::PastCeiling::Final => {
@@ -1154,11 +1505,26 @@ impl Going {
 
       let Ok(Some(question)) = crate::research_draft::question_of(db, &name).await else {
         asking += 1;
+        taking_up = false;
         continue;
       };
       let prompt = crate::research_draft::prompt(&question, &self.prompt, answers);
+      let at = At {
+        before: put,
+        round: Some(asking),
+        rounds_began: Some(from.began),
+        answers: answers.as_slice(),
+        spent: *spent,
+      };
+      let turn = match self.keep_placed(place, at).await {
+        Ok(()) => self.turn(place, put, taking_up, &prompt, &rounds_vars, log).await,
+        Err(no) => Err(no),
+      };
 
-      match self.in_place(place, &prompt, &rounds_vars, log).await {
+      taking_up = false;
+      put += 1;
+
+      match turn {
         Ok(reply) => {
           if let Some(more) = crate::herdr_backend::spent_of(&reply.spend) {
             *spent = sum(spent.take(), more);
@@ -1415,6 +1781,9 @@ async fn end_place(ground: &Ground, name: &str) {
 
   let _ = std::fs::remove_dir_all(&place.path);
 }
+
+// What the place a run's rounds go into is named by after the run's first place.
+const ROUNDS_PLACE: &str = "-rounds";
 
 /// The record a research run's own place keeps while the run stands in it, naming the run, so a turn into the
 /// place stands under no agent's row (docs/research-runs.md, 「The road」).
