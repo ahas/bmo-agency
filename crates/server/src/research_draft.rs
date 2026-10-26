@@ -173,13 +173,14 @@ pub async fn refusal(
 }
 
 /// The prompt one question of a research process is asked with: the question, the task as the run was
-/// given it, and the answers the run has written so far.
+/// given it, and the answer the run wrote last. The session holds the earlier answers, so none of them is
+/// carried again.
 pub fn prompt(question: &str, task: &str, so_far: &[String]) -> String {
   let mut text = format!("{question}\n\n## The task\n\n{task}");
 
-  if !so_far.is_empty() {
-    text.push_str("\n\n## What you have written so far\n\n");
-    text.push_str(&so_far.join("\n\n---\n\n"));
+  if let Some(last) = so_far.last() {
+    text.push_str("\n\n## What you wrote last\n\n");
+    text.push_str(last);
   }
 
   text

@@ -550,16 +550,63 @@ fn prompt_of(item: &Value, instruction: Option<&Value>) -> String {
   }
 
   if let Some(notes) = item.get("notes").and_then(Value::as_array).filter(|notes| !notes.is_empty()) {
+    let texts: Vec<&str> = notes
+      .iter()
+      .map(|note| note.get("text").and_then(Value::as_str).or_else(|| note.as_str()).unwrap_or_default())
+      .collect();
+
     prompt.push_str("\n## Notes\n\n");
-    for note in notes {
-      let text = note.get("text").and_then(Value::as_str).or_else(|| note.as_str()).unwrap_or_default();
-      prompt.push_str("- ");
-      prompt.push_str(text);
-      prompt.push('\n');
-    }
+    prompt.push_str(&notes_within(&texts, policy::job_prompt::JOB_PROMPT.notes.most_bytes));
   }
 
   prompt
+}
+
+/// An item's notes as a job's prompt carries them: the newest that fit `most` bytes, in their order, after a
+/// line saying how many older ones were left out where any were.
+pub fn notes_within(notes: &[&str], most: usize) -> String {
+  let mut kept = Vec::new();
+  let mut bytes = 0;
+
+  for note in notes.iter().rev() {
+    let mut line = format!("- {note}\n");
+
+    // The newest note alone past the bytes is cut at them rather than left out whole.
+    if kept.is_empty() && line.len() > most {
+      let mut cut = most.saturating_sub(5);
+
+      while !line.is_char_boundary(cut) {
+        cut -= 1;
+      }
+
+      line.truncate(cut);
+      line.push_str(" …\n");
+    }
+
+    if bytes + line.len() > most && !kept.is_empty() {
+      break;
+    }
+
+    bytes += line.len();
+    kept.push(line);
+  }
+
+  let left = notes.len() - kept.len();
+  let mut text = String::new();
+
+  if left > 0 {
+    text.push_str(&policy::fill_marks(
+      &policy::job_prompt::JOB_PROMPT.notes.left_out,
+      &[("n", &left.to_string())],
+    ));
+    text.push('\n');
+  }
+
+  for line in kept.into_iter().rev() {
+    text.push_str(&line);
+  }
+
+  text
 }
 
 /// Run an item on its assigned worker.
@@ -639,6 +686,7 @@ impl Route for CreateJob {
     )
     .await?;
     let (member, _) = job(db, id).await?;
+    crate::watches::queue_idle::job_started(db).await;
     publish(call.ground(), "job.created", member.clone());
 
     let ground = call.shared_ground();

@@ -28,7 +28,7 @@ a field's exact shape matters, the OpenAPI document is the one to read.
 ## Versioning
 
 - The contract carries the repository's one version, in semver; the workspace manifest is its source. Before
-  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.73`.
+  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.74`.
 - A change to this document and a change to the boundary go in one commit. A change to a route, an event, a
   hook or a shared table's contract repairs this document in the same commit.
 - The major moves on a removed or renamed route, field or event, the minor on an addition, the patch on
@@ -534,7 +534,7 @@ them; a notice that holds nothing is withdrawn.
 
 - **A research run keeps no receiver, so agency asks its rounds** (`docs/launch-lines.md`, 「A research
   run's rounds」): after the answer to the task, the line's questions go to the same session one turn
-  each, over the task and the answers already written, and the last answer is the run's result.
+  each, carrying the task and the answer written last, and the last answer is the run's result.
 - **The rows are in the receiver's draft-process shape,** keyed by the line rather than by a provider, a
   tier and an agent: `line`, `rounds`, `ceilingSeconds`, `pastCeiling` (`final` or `last`) and `source`
   (`default` where the policy's row stands, `set` where the console's does). A question is `name`, `text`
@@ -682,6 +682,10 @@ are the ones a job's end states below.
   small-model instruction」); one that lacks a field is refused 400 naming it. The job keeps it, answers
   it, and its prompt renders it under the item's title. `POST /instruction-texts` answers `text`, the
   one line a work-order step is written as, composed from an instruction.
+- **A job's prompt carries its item's newest notes, as many as fit the policy's bytes**
+  (`policy/job-prompt.toml`, `[notes]`): the notes that do not fit are left out from the oldest, and one
+  line says how many were left out and that they stand on the item. The report trailer every job is held
+  to is no part of the prompt; it stands in the worker's cached prefix (`docs/launch-lines.md`).
 - **A job's first prompt carries the reference its instruction calls for.** As the job is launched, its
   instruction is handed to the gate's reference selection (`POST /reference/selected` of the gate), and
   the entries the gate picks from the chat agent's brain — knowledge, rules and documents — are attached
@@ -830,15 +834,17 @@ route. A caller uses one of them and writes no client of its own.
 
 Agency reaches upstreams through what their repositories publish: brain, graph, node, arbiter,
 pocket, testbed, gate and chat through their clients, and cache-warmer through the schedule library
-`bmo-cache-warmer-schedule`. Three routes below it are called: as a job ends, the job service's lease is
+`bmo-cache-warmer-schedule`. These routes below it are called: as a job ends, the job service's lease is
 given back and the receiver's `POST /instructions` is handed the report for the room's chat agent; after a
 chat program's first turn, that same route is handed one fact for each of the session's servers its
 program did not attach (`docs/agent-control.md`, 「dsh's providers: OpenRouter and DeepSeek」), and the end of
 a research run is queued there too (`docs/research-runs.md`); and before a chat agent's turn opens a fresh
 session in place of one it had, the receiver's `POST /handoffs/{agentName}` is asked for the old session's
 handoff, with `reason` and `room` where the turn names one, and waited on (`docs/sessions.md`, 「A restart
-hands the session over」). Each is the documented route of the unit that holds what must reach it; agency
-keeps no client of either unit and no store of their rows.
+hands the session over」); and every minute the job service's `GET /items` with `state` `open` is read, and
+an idle queue is told once through the receiver's `POST /owner/notices` with the code `queue-idle`
+(`docs/agent-control.md`, 「An idle queue is told to the owner」). Each is the documented route of the unit
+that holds what must reach it; agency keeps no client of either unit and no store of their rows.
 Of the brain it asks an agent's own brain made as the agent is registered, found by the agent's key,
 let go whole or only found for a preview, the discipline a chat launch's system prompt carries, and the
 base layer of the agent's persona that prompt ends with. Of the tool host it asks, on its control socket

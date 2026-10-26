@@ -47,6 +47,7 @@ mod control {
   mod harness;
   mod job_end;
   mod job_log;
+  mod job_notes;
   mod job_reaper;
   mod job_roads;
   mod jobs;
@@ -198,6 +199,7 @@ mod watches {
   mod links;
   mod machine;
   mod pressure;
+  mod queue_idle;
 }
 mod wording;
 

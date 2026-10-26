@@ -2727,9 +2727,13 @@ them run a browser, and whose a place is.
 
 ### The limits
 
-- **The six limits are rows of agency's settings table**, keyed `machine_limit:<name>`; a missing row,
-  or one that is not a positive number, reads as the default. The four judged over the machine's
-  reading are agency's: the node service reports the standing and judges only the alerts it tells.
+- **The six limits are rows of agency's settings table**, keyed `machine_limit:<name>`; for the four
+  judged over the machine's reading a missing row, or one that is not a positive number, reads as the
+  default, and the two job counts have none: no fixed number of jobs holds a launch, so a count holds
+  only where the owner wrote one, and otherwise how many jobs run is bounded by the workers that are free,
+  the machine's own room and each road's capacity (`docs/coworker-pool.md`). The four judged over the
+  machine's reading are agency's: the node service reports the standing and judges only the alerts it
+  tells.
 - **What holds a launch,** any one of them met:
 
   | Name | Default | Met when |
@@ -2738,8 +2742,8 @@ them run a browser, and whose a place is.
   | `launch_memory_available_gb` | 4 | `MemAvailable` is under it |
   | `launch_load_per_thread` | 2 | the one-minute load divided by the thread count is at or above it |
   | `launch_disk_free_gb` | 20 | the free space of the data root's disk is under it, in gigabytes |
-  | `launch_jobs` | 5 | the jobs at work number at least this many |
-  | `launch_browser_jobs` | 3 | the jobs with a browser running number at least this many |
+  | `launch_jobs` | none | the jobs at work number at least the owner's count |
+  | `launch_browser_jobs` | none | the jobs with a browser running number at least the owner's count |
 
 - **The reasons are written with each figure whole:** `memory pressure <value>% >= <limit>%`,
   `available memory <value>GB < <limit>GB`, `load <value> >= <threads> threads x <limit>`,
@@ -2775,6 +2779,24 @@ them run a browser, and whose a place is.
   limits met, so the chat agent does not launch on it. Both are the launcher's.
 - **The start of a work order is held the same way;** the stages its runner launches after it are
   the runner's own.
+
+### An idle queue is told to the owner
+
+- **Approved work a free worker could take, with no job started, is an idle queue.** Every minute agency
+  reads the job service's open items — approved and waiting for a lease (the job service's `GET /items`,
+  `state` `open`) — and its queues (`GET /queues`) beside its own jobs. An item waits on a free worker
+  where its queue is open and holds nothing, and its assignee is a worker that is not resting and has no
+  job at work, or it names no assignee while such a worker stands. Where one item waits so and no job has
+  started on this machine for the idle minutes (`policy/queue-idle.toml`, five, or the owner's own row
+  `queue_idle_minutes` of the settings table), the queue is idle.
+- **The owner is told once, through the receiver.** Agency queues one owner notice, `POST /owner/notices`
+  of the receiver with the code `queue-idle`: the waiting items by number, title and assignee, the free
+  workers, the idle minutes and when the last job started, and that the chat agent picks the next item for
+  a free worker or says why it does not. The receiver hands it to the chat agent in the owner's private chat, which
+  voices it (the receiver's `docs/voiced-notices.md`). It is told once for each idle stretch: the moment it
+  was told is kept, and nothing more is said until a job starts again.
+- **A switch silences it,** the settings row `queue_idle_alarm` set to `off`; the next job that starts turns
+  it on again. A deployment that names no job service or no receiver tells nothing.
 
 ### Pressure told as a fact
 

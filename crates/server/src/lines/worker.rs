@@ -112,12 +112,29 @@ pub struct StandingRules {
   pub file: PathBuf,
 }
 
-/// Every worker's rules, the worker's own after them and the documents its row names for its prefix last,
-/// as one file.
+/// The report trailer every job is held to, its graph text, the worker plugin's skills and the plain-writing
+/// rulebook filled in as the deployment shows them (docs/launch-lines.md): `shown` is the code root by the
+/// deployment's link, the documents being read out of `trees`.
+pub fn job_trailer(trees: &Trees, shown: &Trees) -> Result<String, Refusal> {
+  let documents = trees.agent_dir(LINE);
+  let graph = read_required(&documents.join("graph.md"))?;
+  let skills = shown.agent_dir(LINE).join("plugin").join("skills").to_string_lossy().into_owned();
+  let plain = shown.rulebook_path("plain-writing").to_string_lossy().into_owned();
+
+  Ok(super::render(
+    &read_required(&documents.join("trailer.md"))?,
+    &[("graph", graph.trim()), ("skills", &skills), ("plainWriting", &plain)],
+  ))
+}
+
+/// Every worker's rules, the worker's own after them, the job's report trailer after those where the rules
+/// are a worker's, and the documents its row names for its prefix last, as one file: the session's cached
+/// prefix, paid for once.
 pub fn standing_rules(
   trees: &Trees,
   named: Option<&str>,
   worker: Option<&str>,
+  trailer: Option<&str>,
   documents: Option<&str>,
 ) -> Result<StandingRules, Refusal> {
   let own_path = named.map(|named| trees.agent_dir(named).join("own-rules.md"));
@@ -134,6 +151,7 @@ pub fn standing_rules(
 
   let shared = parts.join("\n\n");
 
+  parts.extend(trailer.map(str::to_owned));
   parts.extend(documents.map(str::to_owned));
 
   let text = parts.join("\n\n");
@@ -436,11 +454,19 @@ pub async fn worker_run(
     Some(worker) => prefix_documents(ground, worker, cwd).await?,
     None => None,
   };
+  let shown = Trees {
+    code: ground.shown_code_root(),
+    ..trees.clone()
+  };
+  let trailer = match worker {
+    Some(_) => Some(job_trailer(trees, &shown)?),
+    None => None,
+  };
   let StandingRules {
     shared,
     text: rules_text,
     file: rules,
-  } = standing_rules(trees, named.as_deref(), worker, documents.as_deref())?;
+  } = standing_rules(trees, named.as_deref(), worker, trailer.as_deref(), documents.as_deref())?;
   let above = match worker {
     Some(worker) => crate::conversational::role_of(&ground.db, worker)
       .await

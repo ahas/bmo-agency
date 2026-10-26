@@ -35,11 +35,13 @@ composed into a system prompt, and what the chat agent's own prompt is made of.
   `library-knowledge/instructions.md`, `voice-polish/instructions.md`,
   `voice-reading/instructions.md`, `search/task.md` and `request.md`, `browse/task.md` and
   `request.md` with its `.mcp.json`, and `worker/trailer.md`.
-- **A job's documents are handed to the job service,** which composes a job's prompt: `worker/graph.md`,
-  what a job is told of the code graph; `worker/trailer.md`, the trailer every job is held to, with the
-  graph text, the path of the worker plugin's skills and the path of `plain-writing.md` filled in as
-  the deployment shows them; and `handoff.md` in a worker's own folder — its base's for a support worker
-  — the instruction it writes its own handoff note by, where it holds one (`docs/api.md`, 「Workers」).
+- **A job's documents:** `worker/graph.md`, what a job is told of the code graph; `worker/trailer.md`,
+  the trailer every job is held to, with the graph text, the path of the worker plugin's skills and the
+  path of `plain-writing.md` filled in as the deployment shows them, which stands in the worker's prefix
+  — the rules file its line appends to the program's own prompt (`docs/launch-lines.md`) — so a session
+  pays for it once rather than on every turn; and `handoff.md` in a worker's own folder — its base's for
+  a support worker — the instruction it writes its own handoff note by, where it holds one. The
+  worker's definition route answers all three (`docs/api.md`, 「Workers」).
 
 ## The web reaches agents through the tool host
 

@@ -21,15 +21,13 @@ held = "load {value} >= {threads} threads x {limit}"
 default = 20
 held = "disk free {value}GB < {limit}GB"
 
-# Each job-count limit: its default, which a row of the settings table keyed `machine_limit:<name>`
-# replaces where it holds a positive number, and the reason a launch held by it is written as, beside the
-# machine's own; {jobs} is the count and {limit} the limit.
+# Each job-count limit: no fixed count holds a launch, so it stands only where the owner wrote a positive
+# number in a row of the settings table keyed `machine_limit:<name>`; and the reason a launch held by it is
+# written as, beside the machine's own; {jobs} is the count and {limit} the limit.
 [launch_jobs]
-default = 5
 held = "jobs {jobs} >= {limit}"
 
 [launch_browser_jobs]
-default = 3
 held = "browser jobs {jobs} >= {limit}"
 
 [clocks]

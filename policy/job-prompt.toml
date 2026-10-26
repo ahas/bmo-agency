@@ -6,3 +6,9 @@
 [workbench]
 scratch = "items"
 item_database = "bmo_item_"
+
+# How much of its item's notes a job's prompt carries (docs/api.md, 「assignments and jobs」): the newest notes
+# that fit these bytes, and the line saying how many older ones were left out, with `{n}` their count.
+[notes]
+most_bytes = 4096
+left_out = "{n} older notes are left out of this prompt; they stand on the item."

@@ -259,8 +259,9 @@ session on the owner's ask is `docs/session-resets.md`.
   the boundary, naming the session where it has one (`docs/api.md`, 「Workers」).
 - **What a job's change moved of the prefix is read by the files a session's prefix is built from:** the
   instructions and the tool declaration at a checkout's head, the worker's settings, standing rules,
-  plugin and co-worker definitions, the self-preservation rulebook, and a worker's own rules. A runner
-  asks which of its own commits' files those are, to say why it hands its session over.
+  report trailer and the graph text it carries, plugin and co-worker definitions, the self-preservation
+  rulebook, and a worker's own rules. A runner asks which of its own commits' files those are, to say why
+  it hands its session over.
 - **Which model and which session a job's turn goes on are its runner's.** The turn names the model its
   record is kept under, the mapping it goes out on and whether it resumes the kept session, opens a
   fresh one or continues one it names; agency carries that choice through the rules above and judges

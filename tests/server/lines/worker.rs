@@ -179,3 +179,40 @@ async fn a_worker_s_prefix_documents_stand_last_in_its_rules_and_its_co_workers_
   assert!(!rules.contains("docs/gone.md"), "{rules}");
   assert!(!run.agents_json.contains("Its canonical statement."));
 }
+
+// A worker's rules file, the session's cached prefix, carries the report trailer every job is held to, its
+// marks filled, after the worker's own rules and before its prefix documents; a co-work branch's carries
+// none (docs/launch-lines.md, the job worker's rules file).
+#[tokio::test]
+async fn a_worker_s_rules_carry_the_report_trailer_before_its_documents_and_a_branch_s_carry_none() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let checkout = home.path().join("checkout");
+
+  std::fs::create_dir_all(checkout.join("docs")).unwrap();
+  std::fs::write(checkout.join("docs").join("area.md"), "# The area\n").unwrap();
+
+  scratch
+    .run(
+      r#"INSERT INTO "agents" ("name", "kind", "cwd", "prefix_documents")
+         VALUES ('helper', 'worker', $1, '["docs/area.md"]')"#,
+      vec![Value::from(checkout.to_string_lossy().into_owned())],
+    )
+    .await;
+
+  let ground = ground(&scratch, &home).await;
+  let trees = Trees::of(&ground);
+  let cwd = checkout.to_string_lossy().into_owned();
+  let worker = worker_run(&ground, &trees, Some("helper"), None, "claude-opus-5", &cwd).await.unwrap();
+  let rules = std::fs::read_to_string(&worker.rules).unwrap();
+  let opening = "Rules a job needs only in some situations stand in the worker's own skills";
+  let trailer_at = rules.find(opening).unwrap_or_else(|| panic!("no trailer in {rules}"));
+
+  assert!(trailer_at < rules.find("DOCUMENT docs/area.md:").unwrap(), "{rules}");
+  assert!(!rules.contains("{{"), "every mark of the trailer is filled: {rules}");
+  assert!(rules.contains("plain-writing.md"), "{rules}");
+
+  let branch = worker_run(&ground, &trees, None, None, "claude-opus-5", &cwd).await.unwrap();
+
+  assert!(!std::fs::read_to_string(&branch.rules).unwrap().contains(opening));
+}

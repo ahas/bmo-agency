@@ -6,6 +6,17 @@ use serde::Deserialize;
 #[serde(deny_unknown_fields)]
 pub struct JobPrompt {
   pub workbench: Workbench,
+  pub notes: Notes,
+}
+
+/// How much of its item's notes a job's prompt carries.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Notes {
+  /// The most bytes of notes a prompt carries, the newest first.
+  pub most_bytes: usize,
+  /// The line saying how many older notes were left out, with `{n}`.
+  pub left_out: String,
 }
 
 /// The names under a worker's workbench.

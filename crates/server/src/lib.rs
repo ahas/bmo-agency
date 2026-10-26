@@ -86,6 +86,7 @@ pub mod watches {
   pub mod links;
   pub mod machine;
   pub mod pressure;
+  pub mod queue_idle;
 }
 pub mod wording;
 pub mod worker_session;

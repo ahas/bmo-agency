@@ -92,13 +92,14 @@ async fn the_rounds_must_end_in_the_final_question_hold_it_once_and_name_questio
 }
 
 #[test]
-fn a_question_is_asked_over_the_task_and_the_answers_already_written() {
+fn a_question_is_asked_over_the_task_and_the_answer_written_last() {
   let alone = research_draft::prompt("what must be found", "the task", &[]);
 
   assert!(alone.starts_with("what must be found\n\n## The task\n\nthe task"));
-  assert!(!alone.contains("## What you have written so far"));
+  assert!(!alone.contains("## What you wrote last"));
 
   let later = research_draft::prompt("which sources", "the task", &["first".into(), "second".into()]);
 
-  assert!(later.ends_with("## What you have written so far\n\nfirst\n\n---\n\nsecond"));
+  assert!(later.ends_with("## What you wrote last\n\nsecond"));
+  assert!(!later.contains("first"));
 }

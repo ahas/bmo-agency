@@ -116,15 +116,15 @@ pub async fn at_work(db: &DatabaseConnection) -> Result<Vec<AtWork>, Refusal> {
 }
 
 // A job-count limit as the settings table holds it, its default where the row is missing or no positive
-// number.
-async fn count_limit(db: &DatabaseConnection, name: &str, of: &CountLimit) -> Result<u64, Refusal> {
+// number, and none where the policy sets no default either.
+async fn count_limit(db: &DatabaseConnection, name: &str, of: &CountLimit) -> Result<Option<u64>, Refusal> {
   let held = settings::get(db, &format!("{LIMIT_PREFIX}{name}")).await?;
 
   Ok(
     held
       .and_then(|value| value.trim().parse::<u64>().ok())
       .filter(|value| *value > 0)
-      .unwrap_or(of.default),
+      .or(of.default),
   )
 }
 
@@ -226,7 +226,7 @@ pub async fn room(db: &DatabaseConnection, nodes: &dyn NodeService) -> Result<Ro
     ("launch_jobs", &MACHINE_ROOM.launch_jobs, jobs),
     ("launch_browser_jobs", &MACHINE_ROOM.launch_browser_jobs, browser_jobs),
   ] {
-    let limit = count_limit(db, name, of).await?;
+    let Some(limit) = count_limit(db, name, of).await? else { continue };
 
     if count >= limit {
       held.push(fill_marks(&of.held, &[("jobs", &count.to_string()), ("limit", &limit.to_string())]));

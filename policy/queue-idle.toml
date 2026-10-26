@@ -1,0 +1,7 @@
+# The idle queue's alarm (docs/agent-control.md, 「An idle queue is told to the owner」): how long no job may
+# start while approved work waits and a worker is free before the owner is told, how often it is looked
+# for, the code the owner's notice carries, and what the chat agent is asked to do about it.
+idle_minutes = 5
+check_seconds = 60
+code = "queue-idle"
+ask = "Pick the next open item for a free worker and launch it, or tell the owner why none is launched."

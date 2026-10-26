@@ -323,10 +323,11 @@ fn every_candidate_carries_its_release_successor_selling_state_and_discount() {
   holds(
     &read_once_it_applies("product-search"),
     &[
-      "\"RELEASED: <when it came out>\"",
-      "\"NEWER: <the successor or the newest model>\"",
-      "\"STOCK: <the state> :: <when it was read> :: <the page it was read on>\"",
-      "\"DEAL: <the price now> :: <the usual price> :: <whether the discount is real>\"",
+      "the four lines prompts/rules/product-search.md sets, RELEASED, NEWER, STOCK and DEAL",
+      "`RELEASED: <when it came out>`",
+      "`NEWER: <the successor or the newest model>`",
+      "`STOCK: <the state> :: <when it was read> :: <the page it was read on>`",
+      "`DEAL: <the price now> :: <the usual price> :: <whether the discount is real>`",
       "unconfirmed",
       // The state is the page's own words, read on the page, not a verdict off a listing.
       "the product page's own words",

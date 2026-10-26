@@ -12,15 +12,18 @@ fn a_commit_moves_the_prefix_through_a_memory_file_a_worker_s_own_rules_or_a_pro
     "prompts/agents/companion/own-rules.md",
     "prompts/agents/worker/plugin/skills/x/SKILL.md",
     "prompts/agents/worker/trailer.md",
+    "prompts/agents/worker/request.md",
   ]
   .map(str::to_owned);
 
+  // The report trailer stands in the worker's rules file, so it moves the prefix like the rules do.
   assert_eq!(
     touches_prefix(&paths),
     [
       "AGENTS.md",
       "prompts/agents/companion/own-rules.md",
-      "prompts/agents/worker/plugin/skills/x/SKILL.md"
+      "prompts/agents/worker/plugin/skills/x/SKILL.md",
+      "prompts/agents/worker/trailer.md"
     ]
     .map(str::to_owned)
   );

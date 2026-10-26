@@ -17,8 +17,10 @@ pub struct MachineLimit {
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CountLimit {
-  /// The limit where the settings table holds no positive number for it.
-  pub default: u64,
+  /// The limit where the settings table holds no positive number for it; none where only the owner's own
+  /// setting sets one.
+  #[serde(default)]
+  pub default: Option<u64>,
   /// The reason, with `{jobs}` and `{limit}` marked.
   pub held: String,
 }

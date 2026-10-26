@@ -232,9 +232,12 @@
   then the rulebook against destroying the system, then that worker's own rules where it has a
   document of its own, `prompts/agents/<worker>/own-rules.md` (a support
   worker takes its base's, and a co-work branch in a standing checkout, which is no worker's, takes
-  none), then the documents its row names as its prefix documents (`docs/worker-bench.md`, 「Prefix
-  documents」) — and the job prompt ends with the report trailer. A worker that chooses a base prompt
-  (`docs/base-prompts.md`) is handed the default prompt's place instead: the chosen prompt with the
+  none), then the report trailer every job is held to, `prompts/agents/worker/trailer.md` filled in as
+  the deployment shows it (a co-work branch takes none), then the documents its row names as its prefix
+  documents (`docs/worker-bench.md`, 「Prefix documents」). The trailer stands in this file, the
+  session's cached prefix, so a session pays for it once; the job's prompt carries no trailer, and of
+  its item's notes only as many as fit the policy's bytes (`docs/api.md`, 「assignments and jobs」). A
+  worker that chooses a base prompt (`docs/base-prompts.md`) is handed the default prompt's place instead: the chosen prompt with the
   same rules after it, as one file named by what it holds, given as the whole system prompt; on
   Codex as its instructions file, with the checkout's `AGENTS.md` still read, and on OpenRouter and
   DeepSeek as dsh's persona prefix. A run that goes out on a Claude account naming a base prompt of its own
@@ -388,8 +391,10 @@
     when its research closes are its prompt, so every branch shares one prefix.
   - **A research run's rounds.** A run on a research line keeps no receiver, so agency asks the
     line's questions itself after the run's first answer (`docs/api.md`, 「research drafts」): each
-    question goes to the same session as one more turn, over the task it was given and the answers it
-    has already written, and the last answer is the run's result. The policy holds the questions and
+    question goes to the same session as one more turn, carrying the task it was given and the answer
+    it wrote last, and the last answer is the run's result. The session already holds every earlier
+    answer, so a round carries none of them again; the task and the latest answer are what a round needs
+    where it reaches a session that does not hold them. The policy holds the questions and
     each line's list in `policy/research.toml` — what the task must establish, the sources the answer
     needs, whether every fact was checked against a second source, whether the answer covers the
     question, whether the facts it rests on were established, and finally the answer itself — and the

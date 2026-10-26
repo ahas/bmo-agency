@@ -180,12 +180,7 @@ impl Route for JobDocuments {
       code: ground.shown_code_root(),
       ..trees.clone()
     };
-    let skills = shown.agent_dir("worker").join("plugin").join("skills").to_string_lossy().into_owned();
-    let plain = shown.rulebook_path("plain-writing").to_string_lossy().into_owned();
-    let trailer = render(
-      &read_required(&documents.join("trailer.md"))?,
-      &[("graph", &graph), ("skills", &skills), ("plainWriting", &plain)],
-    );
+    let trailer = crate::lines::worker::job_trailer(&trees, &shown)?;
     let own = trees.agent_dir(&documents_of(ground, &worker).await?).join("handoff.md");
     let handoff = std::fs::read_to_string(own).ok().map(|text| text.trim().to_owned());
 

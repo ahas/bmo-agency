@@ -82,7 +82,9 @@ Each job worker holds three things beside the work of its jobs:
   3. the job's text
   4. the knowledge its item calls for, where the knowledge gate picked any (the reference unit's
      `reference-selection.md`, 「Work beyond a turn」)
-  5. the trailer
+
+  The report trailer is no part of it: it stands in the worker's prefix, after its rules
+  (`docs/launch-lines.md`).
 - **Reshape requests:** a request to reshape repeats the whole job prompt, so the preamble goes along
   inside it.
 - **Editing the field:** the new text stands from the next job prompt handed over.
@@ -105,7 +107,7 @@ Each job worker holds three things beside the work of its jobs:
 ### It is attached outside sanitising
 
 - **Why:** the preamble is agency's setting, not something someone sent.
-- **When:** like the trailer, it is attached after the job's text has been sanitised.
+- **When:** it is attached after the job's text has been sanitised.
 - **No cross-effects:**
   - A verdict on the job's text never alters this field's text.
   - Editing this field never revokes a verdict remembered for the job's text.
@@ -123,7 +125,7 @@ Each job worker holds three things beside the work of its jobs:
     that is down, failing or serving stale code and carries on, rather than leaving it as unfinished
 - **Below it** stands the owner's text as written.
 - **None present:** a worker with none of the three has no bundle at all in its job prompt.
-- **Language:** the header, like the trailer, is the deployment speaking to the worker, so it is
+- **Language:** the header, like the report trailer, is the deployment speaking to the worker, so it is
   written in English.
 - **Its lines** are the job unit's, which composes the job's prompt; agency keeps what it is composed
   from: the worker's preamble and dev-server command on its row, and its workbench folder

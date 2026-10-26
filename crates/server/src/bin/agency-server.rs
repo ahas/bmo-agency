@@ -179,6 +179,19 @@ fn clocks(ground: &Arc<Ground>) {
   tokio::spawn(agency_server::order_run::clocks::keep_warm(ground.clone()));
   tokio::spawn(agency_server::order_run::clocks::keep_usage_windows(ground.clone()));
 
+  let idle = ground.clone();
+
+  tokio::spawn(async move {
+    let period = Duration::from_secs(policy::queue_idle::QUEUE_IDLE.check_seconds);
+
+    every("idle queue's alarm", period, period, move || {
+      let ground = idle.clone();
+
+      async move { agency_server::watches::queue_idle::pass(&ground.db, ground.vars()).await }
+    })
+    .await
+  });
+
   let reconciled = ground.clone();
 
   tokio::spawn(async move {
