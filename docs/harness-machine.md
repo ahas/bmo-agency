@@ -79,13 +79,13 @@ flowchart TD
 ## A companion's system prompt
 
 - **Composed exactly as a turn sends it** (`docs/companions.md`, 「What a turn is given」): the base
-  prompt it chooses at the head, the self-preservation rulebook, then the pieces its settings list in
-  their order, joined by a blank line.
+  prompt it chooses at the head, then the companion role whole in its fixed order, then its persona, joined
+  by a blank line.
 - **Read out of the asset root for every call:** the rulebooks under `prompts/rules/`, the companion
   frame, turn and hands under `prompts/agents/companion/`, and the `persona.md` of the companion's own
   prompt folder.
 - **What the caller hands it:** the companion's name, the prompt folder its agent row names under
-  `prompts/agents/` or none, its settings' pieces, own pieces and persona, the text of the base prompt
+  `prompts/agents/` or none, the persona its settings hold or none, the text of the base prompt
   it chooses or none, and the model it is pinned to. The crate never derives a prompt folder from the
   name, and a folder that is not one plain name is refused.
 - **The base prompt's values are filled in here** (`docs/base-prompts.md`, 「Values filled in as a run

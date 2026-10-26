@@ -185,7 +185,7 @@ flowchart TD
   | Setting | What it says | The chat agent | A companion added on the console |
   |---|---|---|---|
   | `session_scope` | `agent`: one session across every room it answers, each turn carrying its room's block; `room`: one session in each room | `agent` | `room` |
-  | `turn_shape` | `window`: the chat documents as its system prompt, the window's round prompt and the re-asks after an answer (`bmo-window.md`); `pieces`: its settings' pieces as its system prompt, the companion blocks as its turn and no re-ask (`docs/companions.md`, 「What a turn is given」) | `window` | `pieces` |
+  | `turn_shape` | `window`: the chat documents as its system prompt, the window's round prompt and the re-asks after an answer (`bmo-window.md`); `pieces`: its base prompt, the companion role and its persona as its system prompt, its new words as its turn and no re-ask (`docs/companions.md`, 「What a turn is given」) | `window` | `pieces` |
   | `default_answerer` | whether it answers every room that names no answerer | yes | no |
 
 - **The scope and the shape go together:** a turn of the window shape goes on in the one session of the

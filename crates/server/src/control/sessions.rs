@@ -19,6 +19,7 @@ use serde_json::{Value, json};
 
 use policy::control_words::CONTROL_WORDS;
 use policy::fill_marks;
+use policy::roles::ROLES;
 use store::{all, one, run};
 
 use super::{Call, Refused, Route, answer, canonical_agent, whole};
@@ -402,7 +403,9 @@ async fn view_of<C: ConnectionTrait>(
   }
 
   let label: Option<String> = row.as_ref().map(|row| row.try_get("", "label")).transpose()?.flatten();
-  let icon: Option<String> = row.as_ref().map(|row| row.try_get("", "icon")).transpose()?.flatten();
+  let kind: Option<String> = row.as_ref().map(|row| row.try_get("", "kind")).transpose()?.flatten();
+  let own: Option<String> = row.as_ref().map(|row| row.try_get("", "icon")).transpose()?.flatten();
+  let icon = kind.as_deref().and_then(|kind| ROLES.icon(kind)).map(str::to_owned).or(own);
 
   Ok(SessionView {
     label: label.unwrap_or_else(|| session.agent.clone()),

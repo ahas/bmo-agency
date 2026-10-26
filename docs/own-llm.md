@@ -71,7 +71,7 @@ never the model's name.
 - **On the chat line it is the chat agent.** A chat round on a registered model is handed the chat
   agent's system prompt exactly as that agent is, with nothing of a worker's or a companion's in it.
 - **As a companion,** on the chat line, what a turn is given is the companion's own to say: its base
-  prompt, then the pieces of its settings and its persona, in place of a harness's own prompt
+  prompt, then the companion role whole and its persona, in place of a harness's own prompt
   (`docs/companions.md`). Nothing of the chat agent's prompt or of the worker's rules is among them.
 - **The rule against destroying the system is on every line that acts,** since every agent that acts is
   given the self-preservation rule (`prompts/rules/self-preservation.md`): the worker and chat lines,

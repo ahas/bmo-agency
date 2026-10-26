@@ -7,6 +7,8 @@ use sea_orm::QueryResult;
 use serde_json::{Value, json};
 use store::{all, one, run};
 
+use policy::roles::ROLES;
+
 use super::agent_sampling;
 use super::fault::Fault;
 use super::{Call, Refused, Route, answer};
@@ -79,7 +81,7 @@ async fn member_of(db: &sea_orm::DatabaseConnection, row: &QueryResult) -> Resul
     "name": name,
     "label": row.try_get::<Option<String>>("", "label")?.unwrap_or_else(|| row.try_get::<String>("", "name").unwrap_or_default()),
     "cwd": row.try_get::<Option<String>>("", "cwd")?.unwrap_or_default(),
-    "icon": row.try_get::<Option<String>>("", "icon")?,
+    "icon": ROLES.icon("worker").map(str::to_owned).or(row.try_get::<Option<String>>("", "icon")?),
     "builtin": row.try_get::<i64>("", "builtin")? != 0,
     "nodeName": row.try_get::<Option<String>>("", "node")?.filter(|node| !node.is_empty()),
     "role": row.try_get::<Option<String>>("", "role")?,

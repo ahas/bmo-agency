@@ -11,7 +11,8 @@
   for another harness, pasted in whole — with nothing of the harness or the gateway rewritten.
 - **None is the harness's own:** a worker that chooses none runs on its harness's own prompt with
   the worker's rules appended (`docs/launch-lines.md`), unless its run goes out on an account that
-  names a base prompt; a companion that chooses none is sent its pieces alone (`docs/companions.md`,
+  names a base prompt; a companion that chooses none has its program's own prompt as its harness
+  (`docs/companions.md`,
   「What a turn is given」).
 - **An account's base is the account's answer, not the agent's.** An endpoint account
   (`docs/cache-fallback.md`, 「The Claude Code road is a list of accounts」) runs Claude Code against a
@@ -28,8 +29,8 @@
     account's base wins, since it answers for the model the run reaches.
   - A support worker takes its base's choice, as it takes its base's own rules.
   - Its co-workers' prompts are as on any worker: the role's own, closed by the same rules.
-- **A companion** that chooses one is sent the chosen prompt, then the self-preservation rulebook,
-  then the pieces its settings list (`docs/companions.md`, 「What a turn is given」).
+- **A companion** that chooses one is sent the chosen prompt as its harness, then the companion role whole,
+  then its persona (`docs/companions.md`, 「What a turn is given」).
 - **The other lines read no base prompt:** the chat agent's harness is its program's own prompt, which
   its role and persona follow (`docs/agent-documents.md`, 「The chat agent」); the gates, the runners and
   batch runs are composed as they are on any account, since each replaces the program's whole prompt with
@@ -40,7 +41,7 @@ flowchart TD
   F[Account's base prompt] -- worker on that account --> C
   A[Chosen base prompt] --> B{Agent}
   B -- worker --> C[+ worker rules]
-  B -- companion --> D[+ self-preservation + pieces]
+  B -- companion --> D[+ companion role + persona]
   C --> E[One file, whole system prompt]
   D --> E
 ```

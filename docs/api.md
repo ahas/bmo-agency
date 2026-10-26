@@ -99,6 +99,10 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
 
 - **Every agent is a registration row** (`docs/agents.md`), and these routes add, change and end any of
   them: the chat agent and the companions, a worker, a gate and a runner alike.
+- **An agent is shown with its kind's mark,** `icon`: the mark agency's policy names for its kind
+  (`policy/roles.toml`, `[icons]`), so every chat agent, every worker, every runner and every gate looks
+  alike wherever an agent is answered — its row, a companion, a session, a worker. A row's own `icon` is kept
+  as written and answered only for a kind the policy names no mark for.
 - **An agent is owned by a login account,** `ownerAccount`: the id of the user it belongs to, the same id
   an account's `user_id` names (`docs/store.md`). None means the administrator's, and every agent
   registered without an owner reads so. `GET /agents` and `GET /agents/{agentName}` answer it on every
@@ -665,6 +669,11 @@ yesterday to now where none is given.
 | PATCH | `/companions/{companionName}` | Change a companion and the rooms it answers in. |
 | DELETE | `/companions/{companionName}` | Remove a companion from the deployment. |
 | POST | `/companion-resets` | Reset a companion's person ranges and rooms; `dryRun` counts it first. |
+
+A companion's settings are its reference switch, its persona, its generation settings, its pin and its
+thinking; its system prompt is its base prompt, every companion's role whole and its persona, and no section
+of it is chosen per companion (`docs/companions.md`, 「What a turn is given」). `pieces` and `ownPieces` are no
+setting: a change naming them changes nothing, and the settings a companion is answered with name neither.
 
 ### workers, prefix-checks and room-holdings
 

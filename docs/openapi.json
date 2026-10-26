@@ -10904,8 +10904,6 @@
               "null"
             ]
           },
-          "ownPieces": true,
-          "pieces": true,
           "persona": {
             "type": [
               "string",
@@ -10930,8 +10928,6 @@
           "agent",
           "by",
           "referenceOn",
-          "ownPieces",
-          "pieces",
           "persona",
           "registration",
           "generation",

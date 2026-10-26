@@ -1,7 +1,6 @@
-//! A companion's system prompt: the pieces in order, the base prompt's values, and the persona read
+//! A companion's system prompt: the role whole and the persona, the base prompt's values, and the persona read
 //! out of the prompt folder its row names rather than one named after it.
 
-use std::collections::BTreeMap;
 use std::path::Path;
 
 use harness_machine::companion_prompt::*;
@@ -81,13 +80,13 @@ fn every_policy_piece_has_its_own_text() {
   let dir = tempfile::tempdir().unwrap();
   let roots = roots(dir.path());
 
-  for name in &COMPANIONS.pieces {
+  for name in COMPANIONS.role.iter().map(String::as_str).chain(["persona"]) {
     assert!(piece(&roots, PAL, name, &Composition::default()).is_ok(), "{name}");
   }
 }
 
 #[test]
-fn the_default_prompt_is_the_rulebook_then_the_five_pieces() {
+fn the_prompt_is_the_rulebook_the_role_whole_then_the_persona() {
   let dir = tempfile::tempdir().unwrap();
   let composed = system(&roots(dir.path()), PAL, &Composition::default(), None).unwrap();
   let home = dir.path().join("data/companion-homes/tester-pal").display().to_string();
@@ -102,12 +101,10 @@ fn the_default_prompt_is_the_rulebook_then_the_five_pieces() {
 }
 
 #[test]
-fn own_pieces_stand_where_the_settings_place_them_and_the_tools_name_the_folder() {
+fn the_base_prompt_is_the_harness_and_the_settings_persona_closes_the_prompt() {
   let dir = tempfile::tempdir().unwrap();
   let roots = roots(dir.path());
   let settings = Composition {
-    pieces: Some(vec!["greeting".into(), "gone".into(), "frame".into(), "persona".into()]),
-    own_pieces: BTreeMap::from([("greeting".into(), "  Greet the owner first.\n".into())]),
     persona: Some("short".into()),
   };
   let base = Base {
@@ -120,7 +117,7 @@ fn own_pieces_stand_where_the_settings_place_them_and_the_tools_name_the_folder(
   assert_eq!(
     system(&roots, PAL, &settings, Some(&base)).unwrap(),
     format!(
-      "Run in {home} on model-0-1 for {{{{nobody}}}}.\n\nRULEBOOK prompts/rules/self-preservation.md:\nkeep the system\n\nGreet the owner first.\n\nframe\ntools at {home}, verbs in {tree}\n{{{{unknown}}}}\n\nshort"
+      "Run in {home} on model-0-1 for {{{{nobody}}}}.\n\nRULEBOOK prompts/rules/self-preservation.md:\nkeep the system\n\nABSOLUTE RULES\n\nframe\ntools at {home}, verbs in {tree}\n{{{{unknown}}}}\n\nturn\n\nRULEBOOK prompts/rules/agent-words.md:\nagent words\n\nshort"
     )
   );
 }

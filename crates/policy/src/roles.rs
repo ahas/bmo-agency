@@ -40,11 +40,18 @@ pub struct Roles {
   pub send: String,
   /// The role a row of each kind holds where its writer names none, by the kind.
   pub kinds: BTreeMap<String, String>,
+  /// The mark a screen shows beside every agent of each kind, by the kind.
+  pub icons: BTreeMap<String, String>,
   pub bundles: Vec<Bundle>,
   pub roles: Vec<Role>,
 }
 
 impl Roles {
+  /// The mark every agent of a kind is shown with, where the policy names one for it.
+  pub fn icon(&self, kind: &str) -> Option<&str> {
+    self.icons.get(kind).map(String::as_str)
+  }
+
   pub fn role(&self, name: &str) -> Option<&Role> {
     self.roles.iter().find(|role| role.name == name)
   }

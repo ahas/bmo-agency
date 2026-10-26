@@ -32,7 +32,7 @@ reads the same owner column. `docs/companions.md` is what a companion's session 
 | `window_seconds` | how long a room it answered keeps it listening without a call, or none | the conversation window it has now | none |
 | `wake_words` | the words that call it, beside its label | the deployment's trigger keywords | its aliases |
 | `session_scope` | one session across its rooms (`agent`) or one in each room (`room`) | `agent` | `room` |
-| `turn_shape` | the shape of its turns: the chat agent's window (`window`) or its settings' pieces (`pieces`) | `window` | `pieces` |
+| `turn_shape` | the shape of its turns: the chat agent's window (`window`) or a companion's (`pieces`) | `window` | `pieces` |
 | `default_answerer` | whether it answers every room that names nobody | yes | no |
 | `prompts` | the folder under `prompts/agents/` a companion's system prompt and persona are read from, one plain name, or none | none: the chat line reads its own documents | none, or the folder its seed names |
 | `owner_account` | the id of the login account that owns it, or none | none | the one its registration names, or none |

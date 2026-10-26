@@ -2950,8 +2950,6 @@ export interface components {
             agent: string | null;
             by: string | null;
             referenceOn: boolean | null;
-            ownPieces: unknown;
-            pieces: unknown;
             persona: string | null;
             registration: string | null;
             generation: unknown;

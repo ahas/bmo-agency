@@ -276,6 +276,13 @@ async fn agents_of_every_kind_are_registered_owned_given_a_brain_and_ended() {
     .collect();
 
   assert!(owners.contains(&("companion-a".into(), json!(42))));
+
+  // Every agent of a kind is shown with its kind's mark, whatever its row holds.
+  for agent in list["items"].as_array().unwrap() {
+    if let Some(mark) = policy::roles::ROLES.icon(agent["kind"].as_str().unwrap_or_default()) {
+      assert_eq!(agent["icon"], mark, "{agent}");
+    }
+  }
   assert!(owners.contains(&("gate-b".into(), json!(7))));
   assert!(owners.contains(&("helper".into(), Value::Null)));
 

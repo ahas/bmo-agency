@@ -1965,8 +1965,6 @@ pub struct CompanionChange {
   pub agent: Option<String>,
   pub by: Option<String>,
   pub reference_on: Option<bool>,
-  pub own_pieces: Option<Value>,
-  pub pieces: Option<Value>,
   pub persona: Option<String>,
   pub registration: Option<String>,
   pub generation: Option<Value>,

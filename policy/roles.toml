@@ -21,6 +21,14 @@ worker = "worker"
 runner = "searcher"
 gate = "gate"
 
+# [icons]: the mark a screen shows beside every agent of each kind, by the kind; an agent row's own mark is not
+# read, so every agent of one kind looks alike.
+[icons]
+chat = "i-material-symbols-chat-bubble-outline"
+worker = "i-material-symbols-construction"
+runner = "i-material-symbols-search"
+gate = "i-material-symbols-verified-user-outline"
+
 [[bundles]]
 name = "room.chat"
 label = "Memory, notes and TODO"

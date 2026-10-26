@@ -256,7 +256,7 @@ async fn agent_view(judging: Judging<'_>, machine: &Machine, agent: &Agent) -> R
   put("awake", json!(agent.awake));
   put("brainFolder", json!(agent.brain_folder));
   put("aliases", json!(agent.aliases));
-  put("icon", json!(agent.icon));
+  put("icon", json!(ROLES.icon(&agent.kind).map(str::to_owned).or_else(|| agent.icon.clone())));
   put("cwd", json!(agent.cwd));
 
   if agent.is_worker() {

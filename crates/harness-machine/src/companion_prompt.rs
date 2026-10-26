@@ -33,10 +33,6 @@ pub fn render(template: &str, values: &BTreeMap<&str, String>) -> String {
 #[derive(Clone, Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Composition {
-  /// Its pieces in order, or none for every companion's in their default order.
-  pub pieces: Option<Vec<String>>,
-  /// Its own pieces' texts, by name.
-  pub own_pieces: BTreeMap<String, String>,
   /// The persona its settings hold, or none for its own file.
   pub persona: Option<String>,
 }
@@ -228,8 +224,8 @@ pub fn piece(
   }
 }
 
-/// The whole system prompt. A piece name that is neither every companion's nor one of its own adds
-/// nothing; the rulebook is no piece, so no setting leaves it out.
+/// The whole system prompt: the base prompt it chooses as its harness, then every companion's role whole — the
+/// rulebook against destroying the system and the role's parts in their fixed order — then its persona.
 pub fn system(
   roots: &Roots,
   companion: Companion,
@@ -244,13 +240,11 @@ pub fn system(
 
   parts.push(roots.rulebook(SELF_PRESERVATION)?);
 
-  for name in settings.pieces.as_ref().unwrap_or(&COMPANIONS.pieces) {
-    if COMPANIONS.is_piece(name) {
-      parts.extend(Some(piece(roots, companion, name, settings)?).filter(|text| !text.is_empty()));
-    } else if let Some(own) = settings.own_pieces.get(name) {
-      parts.push(own.trim().to_owned());
-    }
+  for name in &COMPANIONS.role {
+    parts.extend(Some(piece(roots, companion, name, settings)?).filter(|text| !text.is_empty()));
   }
+
+  parts.extend(Some(piece(roots, companion, "persona", settings)?).filter(|text| !text.is_empty()));
 
   Ok(parts.join("\n\n"))
 }

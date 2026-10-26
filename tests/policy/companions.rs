@@ -1,9 +1,8 @@
 use policy::companions::*;
 
 #[test]
-fn the_pieces_read_in_their_default_order() {
-  assert_eq!(COMPANIONS.pieces.last().map(String::as_str), Some("persona"));
-  assert!(COMPANIONS.is_piece("frame") && !COMPANIONS.is_piece("greeting"));
+fn the_role_reads_in_its_fixed_order_and_the_persona_is_no_part_of_it() {
+  assert_eq!(COMPANIONS.role, ["absolute-rules", "frame", "turn", "agent-words"]);
 }
 
 #[test]

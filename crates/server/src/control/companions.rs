@@ -5,15 +5,13 @@
 //! (docs/harness-machine.md, 「A companion's system prompt」), its persona read from the prompt folder its
 //! row names.
 
-use std::sync::LazyLock;
-
 use axum::http::{Method, StatusCode};
 use axum::response::Response;
 use harness_machine::companion_prompt::{self, Base, Companion, Composition, Roots};
 use policy::companions::{COMPANIONS, GENERATION, GenerationSetting};
 use policy::control_words::CONTROL_WORDS;
 use policy::fill_marks;
-use regex::Regex;
+use policy::roles::ROLES;
 use sea_orm::{ConnectionTrait, DatabaseConnection, DatabaseTransaction, QueryResult, TransactionTrait};
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
@@ -32,14 +30,11 @@ use crate::places::follow::RoomTitle;
 use crate::text::{grouped, length};
 use store::{all, one, run};
 
-static OWN_PIECE: LazyLock<Regex> = LazyLock::new(|| {
-  Regex::new(&COMPANIONS.own_piece_pattern).expect("the policy's own piece pattern reads")
-});
-
 /// The settings fields a save may change, by the names a save marks as saved.
-const FIELDS: [&str; 4] = ["referenceOn", "pieces", "ownPieces", "persona"];
+const FIELDS: [&str; 2] = ["referenceOn", "persona"];
 
-/// Every field a save's body may name: the companion, who saves, its settings, its pin and its thinking.
+/// Every field a save's body may name: the companion, who saves, its settings, its pin and its thinking; and
+/// `pieces` and `ownPieces`, which are no setting: a body naming them changes nothing.
 const BODY_FIELDS: [&str; 9] = [
   "agent",
   "by",
@@ -57,8 +52,6 @@ const BODY_FIELDS: [&str; 9] = [
 pub struct Settings {
   agent: String,
   pub reference_on: bool,
-  pieces: Option<Vec<String>>,
-  own_pieces: Map<String, Value>,
   persona: Option<String>,
   generation: Map<String, Value>,
   // The names of every setting a save or the seed has ever written on the row.
@@ -80,8 +73,6 @@ impl Settings {
       return Ok(Self {
         agent: agent.to_owned(),
         reference_on: COMPANIONS.reference_on,
-        pieces: None,
-        own_pieces: Map::new(),
         persona: None,
         generation: Map::new(),
         saved: vec![],
@@ -90,11 +81,6 @@ impl Settings {
       });
     };
     let text = |column: &str| row.try_get::<Option<String>>("", column);
-    let pieces = parsed(text("pieces")?).and_then(|read| {
-      read
-        .as_array()
-        .map(|pieces| pieces.iter().filter_map(|piece| piece.as_str().map(str::to_owned)).collect())
-    });
     let object = |read: Option<Value>, keep: fn(&Value) -> bool| -> Map<String, Value> {
       match read {
         Some(Value::Object(read)) => read.into_iter().filter(|(_, value)| keep(value)).collect(),
@@ -107,8 +93,6 @@ impl Settings {
       reference_on: row
         .try_get::<Option<i64>>("", "reference_on")?
         .map_or(COMPANIONS.reference_on, |on| on != 0),
-      pieces,
-      own_pieces: object(parsed(text("own_pieces")?), Value::is_string),
       persona: text("persona")?,
       generation: object(parsed(text("generation")?), |value| value.is_number() || value.is_boolean()),
       saved: parsed(text("saved_settings")?)
@@ -123,8 +107,6 @@ impl Settings {
     json!({
       "agent": self.agent,
       "referenceOn": self.reference_on,
-      "pieces": self.pieces,
-      "ownPieces": self.own_pieces,
       "persona": self.persona,
       "generation": self.generation,
       "updatedAt": self.updated_at,
@@ -144,12 +126,6 @@ impl Settings {
 
   pub fn composition(&self) -> Composition {
     Composition {
-      pieces: self.pieces.clone(),
-      own_pieces: self
-        .own_pieces
-        .iter()
-        .filter_map(|(name, text)| Some((name.clone(), text.as_str()?.to_owned())))
-        .collect(),
       persona: self.persona.clone(),
     }
   }
@@ -160,7 +136,7 @@ fn compared(value: &Value) -> Option<String> {
   (!value.is_null()).then(|| value.to_string())
 }
 
-/// The row of an agent whose turns its settings' pieces make, where it is one.
+/// The row of an agent of the companion's shape of turn, where it is one.
 async fn companion_row<C: ConnectionTrait>(db: &C, agent: &str) -> Result<QueryResult, Fault> {
   let row = agent_row(db, agent).await?;
   let pieces = |row: &QueryResult| {
@@ -400,7 +376,7 @@ async fn view<C: ConnectionTrait>(
   Ok(json!({
     "agent": agent,
     "label": label.unwrap_or_else(|| agent.to_owned()),
-    "icon": row.try_get::<Option<String>>("", "icon")?,
+    "icon": ROLES.icon("chat").map(str::to_owned).or(row.try_get::<Option<String>>("", "icon")?),
     "builtin": row.try_get::<i64>("", "builtin")? == 1,
     "registration": registration_name,
     "registrations": offered,
@@ -415,7 +391,6 @@ async fn view<C: ConnectionTrait>(
     "settings": settings.shown(),
     "generationSettings": generation_settings(window),
     "thinking": thinking_of(&row)?,
-    "pieces": COMPANIONS.pieces,
     "personaFile": roots.persona(prompts.as_deref(), None).unwrap_or_default(),
     "basePrompt": base_prompt,
     "basePrompts": base_prompts,
@@ -538,86 +513,6 @@ async fn checked<C: ConnectionTrait>(
 
   let held = Settings::of(db, agent).await?;
 
-  if let Some(own) = body.get("ownPieces") {
-    let Some(own) = own.as_object() else {
-      return refused("ownPieces", CONTROL_WORDS.companions.own_pairs.as_str());
-    };
-
-    for (name, text) in own {
-      if !OWN_PIECE.is_match(name) || COMPANIONS.is_piece(name) {
-        return refused(
-          "ownPieces",
-          fill_marks(
-            &CONTROL_WORDS.companions.own_name,
-            &[("name", name), ("pieces", &COMPANIONS.pieces.join(", "))],
-          ),
-        );
-      }
-
-      if !text
-        .as_str()
-        .is_some_and(|text| !text.trim().is_empty() && length(text) <= COMPANIONS.own_piece_most)
-      {
-        return refused(
-          "ownPieces",
-          fill_marks(
-            &CONTROL_WORDS.companions.own_size,
-            &[("name", name), ("most", &grouped(COMPANIONS.own_piece_most))],
-          ),
-        );
-      }
-    }
-
-    change.set("ownPieces", Value::Object(own.clone()));
-  }
-
-  let own_names: Vec<String> = match change.get("ownPieces") {
-    Some(Value::Object(own)) => own.keys().cloned().collect(),
-    _ => held.own_pieces.keys().cloned().collect(),
-  };
-  let known = |piece: &str| COMPANIONS.is_piece(piece) || own_names.iter().any(|own| own == piece);
-
-  match body.get("pieces") {
-    Some(Value::Null) => change.set("pieces", Value::Null),
-    Some(pieces) => {
-      let Some(listed) = pieces
-        .as_array()
-        .filter(|listed| listed.iter().all(|piece| piece.as_str().is_some_and(known)))
-      else {
-        let mut offered = COMPANIONS.pieces.clone();
-
-        offered.extend(own_names.iter().cloned());
-
-        return refused(
-          "pieces",
-          fill_marks(&CONTROL_WORDS.companions.pieces, &[("offered", &offered.join(", "))]),
-        );
-      };
-      let mut seen = std::collections::HashSet::new();
-
-      if !listed.iter().all(|piece| seen.insert(piece.as_str())) {
-        return refused("pieces", CONTROL_WORDS.companions.pieces_twice.as_str());
-      }
-
-      change.set("pieces", pieces.clone());
-    }
-    None => {
-      // An own piece taken away leaves the order with it.
-      if let (Some(_), Some(pieces)) = (change.get("ownPieces"), &held.pieces) {
-        let kept: Vec<&String> = pieces.iter().filter(|piece| known(piece)).collect();
-
-        if kept.len() != pieces.len() {
-          change.set("pieces", json!(kept));
-        }
-      }
-    }
-  }
-
-  // A run on a harness always carries a system prompt, since its tools are taught there.
-  if change.get("pieces").and_then(Value::as_array).is_some_and(Vec::is_empty) {
-    return refused("pieces", CONTROL_WORDS.companions.pieces_none.as_str());
-  }
-
   if let Some(persona) = body.get("persona") {
     match persona {
       Value::Null => change.set("persona", Value::Null),
@@ -730,7 +625,6 @@ async fn write(
     .collect();
 
   if !changed.is_empty() || !generation.is_empty() {
-    let json_text = |value: Value| (!value.is_null()).then(|| value.to_string());
     let mut marked: Vec<String> = held.saved.clone();
 
     marked.extend(changed.iter().map(|field| (*field).to_owned()));
@@ -747,8 +641,8 @@ async fn write(
       vec![
         agent.into(),
         i64::from(next("referenceOn") != Value::Bool(false)).into(),
-        json_text(next("pieces")).into(),
-        next("ownPieces").to_string().into(),
+        Option::<String>::None.into(),
+        "{}".to_owned().into(),
         next("persona").as_str().map(str::to_owned).into(),
         Value::Object(next_generation.clone()).to_string().into(),
         json!(marked).to_string().into(),

@@ -18,7 +18,8 @@ are the companion unit's, not agency's. This document covers only what agency ho
   - the provider carries a companion's answers, and the model has an address where that provider
     answers only a registration;
   - the worker its items go to is a worker.
-- **The row it writes:** the kind `chat`, the chat role, the `room` scope, the `pieces` shape, not the
+- **The row it writes:** the kind `chat`, the chat role, the `room` scope, the `pieces` shape — the shape the
+  console's added agents go by — not the
   default answerer, the label, the console's mark from the companions policy, the pinned provider and
   model, the worker, the brain folder `agents/<name>`, no prompt folder and not seeded. Its gate options
   are the gate's. Nothing is restarted: the runner reads the row and its settings for every turn, and
@@ -262,6 +263,19 @@ are the companion unit's, not agency's. This document covers only what agency ho
   engine and which item's job holds it, from the moment it starts waiting until the turn begins. The
   turn sends a progress of its own in a waiting phase naming the job and its item, and stands in the
   bot's picture with the job it waits on, so a screen opened mid-wait reads the same line.
+
+## What a turn is given
+
+- **Its system prompt is three layers, each whole, in this order:** the harness, the companion's role and its
+  persona, as every agent's is (`docs/agent-documents.md`, 「The chat agent」). No section of it is chosen or
+  ordered per companion.
+  - **The harness** is the base prompt the companion chooses (`docs/base-prompts.md`), its values filled in;
+    a companion that chooses none has its program's own prompt as the harness.
+  - **The role** is every companion's, the same for each: the rulebook against destroying the system, the
+    absolute rules, the companion frame with its tools, the companion turn, and the rulebook on another
+    agent's words, in that order (`policy/companions.toml`, `role`).
+  - **The persona** closes it: the persona its settings hold, else its own prompt folder's `persona.md`.
+- **Its turn** is its new words alone, as the session it goes on in keeps the conversation (「The session」).
 
 ## What a turn shows
 
