@@ -403,3 +403,18 @@ fn each_depth_holds_its_budget_and_the_run_is_told_it_as_a_ceiling() {
 
   assert_eq!((record["pages"].as_i64(), record["branchPages"].as_i64()), (Some(8), Some(4)));
 }
+
+#[test]
+fn a_research_run_s_place_is_its_own_by_its_record_and_none_without_it() {
+  let data = tempfile::tempdir().unwrap();
+  let place = data.path().join("agent-places").join("search-7");
+
+  assert!(!is_run_place(data.path(), "search-7"));
+
+  std::fs::create_dir_all(&place).unwrap();
+  std::fs::write(place.join(RUN_PLACE), json!({ "place": "search-7", "run": 7 }).to_string()).unwrap();
+  std::fs::create_dir_all(data.path().join("agent-places").join("a-worker")).unwrap();
+
+  assert!(is_run_place(data.path(), "search-7"));
+  assert_eq!(run_places(data.path()), ["search-7"]);
+}

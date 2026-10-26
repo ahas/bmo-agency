@@ -353,10 +353,14 @@ pub async fn run_turn(
   shown: Option<OutputWatch<'_>>,
 ) -> Result<Reply, NoAnswer> {
   let failure = |why: String| NoAnswer::Failed(why);
-  // A gate place stands under no agent's row, by its own name (docs/agent-control.md, 「A gate's places」).
+  // A gate place and a research run's own place stand under no agent's row, by their own names
+  // (docs/agent-control.md, 「A gate's places」; docs/research-runs.md, 「The road」).
   let home = match AgentRow::named(&ground.db, agent).await.map_err(|why| failure(why.detail))? {
     Some(row) => ground.home_of_row(&row).await.map_err(|why| failure(why.detail))?,
-    None if crate::places::gate_places::recorded_place(&ground.roots.data, agent) => {
+    None
+      if crate::places::gate_places::recorded_place(&ground.roots.data, agent)
+        || crate::research::is_run_place(&ground.roots.data, agent) =>
+    {
       ground.home_of(agent, agent)
     }
     None => return Err(failure(format!("no agent is named {agent}"))),

@@ -1078,6 +1078,7 @@ impl Going {
     let ground = &self.ground;
     let mut env = ground.env().clone();
 
+    mark_place(ground, place, self.ledger).map_err(crate::companion::run::NoAnswer::Failed)?;
     env.extend(vars.iter().map(|(name, value)| (name.clone(), value.clone())));
 
     let run = crate::lines::chat::ChatRun {
@@ -1403,9 +1404,45 @@ async fn end_place(ground: &Ground, name: &str) {
     return eprintln!("research place {name}: a turn still holds it, so it was not ended");
   };
 
-  crate::lines::place::Place::of(data, name).release().await;
+  let place = crate::lines::place::Place::of(data, name);
+
+  place.release().await;
 
   if let Some(home) = ground.home_of(name, name) {
     let _ = home.close().await;
   }
+
+  let _ = std::fs::remove_file(place.path.join(RUN_PLACE));
+}
+
+/// The record a research run's own place keeps while the run stands in it, naming the run, so a turn into the
+/// place stands under no agent's row (docs/research-runs.md, 「The road」).
+pub const RUN_PLACE: &str = "research-place.json";
+
+/// Whether a name is a research run's own place, as its record says.
+pub fn is_run_place(data: &std::path::Path, name: &str) -> bool {
+  agent_host::disk::read_json::<Value>(&crate::lines::place::Place::of(data, name).path.join(RUN_PLACE))
+    .is_some_and(|record| record["place"] == name)
+}
+
+/// Every research run's own place standing now, by its name, which no sweep of leftovers takes down.
+pub fn run_places(data: &std::path::Path) -> Vec<String> {
+  let Ok(entries) = std::fs::read_dir(crate::lines::place::places_dir(data)) else {
+    return vec![];
+  };
+
+  entries
+    .filter_map(|entry| entry.ok())
+    .map(|entry| entry.file_name().to_string_lossy().into_owned())
+    .filter(|name| is_run_place(data, name))
+    .collect()
+}
+
+// A research run's place made ready for its turns: its folder and the record that names it.
+fn mark_place(ground: &Ground, name: &str, ledger: i64) -> Result<(), String> {
+  let path = crate::lines::place::Place::of(&ground.roots.data, name).path;
+
+  std::fs::create_dir_all(&path).map_err(|why| format!("{}: {why}", path.display()))?;
+  std::fs::write(path.join(RUN_PLACE), json!({ "place": name, "run": ledger }).to_string())
+    .map_err(|why| format!("{}: {why}", path.display()))
 }

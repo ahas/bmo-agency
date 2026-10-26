@@ -45,7 +45,10 @@ same way (`docs/launch-lines.md`, 「Translate runner」).
     its answer is read back out of the place's record.
   - **What it spent** is the record's own figures for each turn, the input, output and cache-read tokens
     DeepSeek's API answered, summed over the run's turns as the ledger keeps them.
-  - **Both places are ended with the run,** their programs released and their workspaces closed.
+  - **Each place keeps a record naming the run** while the run stands in it, `research-place.json`, so it
+    stands under no agent's row and no sweep of leftovers takes it down.
+  - **Both places are ended with the run,** their programs released, their workspaces closed and their
+    records taken away.
 
 ## What a run is held to: the research settings
 
