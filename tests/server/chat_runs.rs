@@ -134,6 +134,7 @@ async fn the_routes_answer_a_chat_run_by_its_room_and_round_and_its_lines_by_its
 
   std::fs::create_dir_all(&data).unwrap();
 
+  // Begun just now, so the server's start leaves them open rather than closing them as left behind.
   let id = run_ledger::open(
     scratch.db(),
     &run_ledger::Opening {
@@ -142,7 +143,7 @@ async fn the_routes_answer_a_chat_run_by_its_room_and_round_and_its_lines_by_its
       unit: "chat:-5:1000".into(),
       depth: 0,
       cap_ms: None,
-      started_at: 1,
+      started_at: agency_server::now_ms(),
       started_by: None,
       search_id: None,
       round: Some("round:-5:1000:1".into()),
@@ -160,7 +161,7 @@ async fn the_routes_answer_a_chat_run_by_its_room_and_round_and_its_lines_by_its
       unit: "chat:-6:1000".into(),
       depth: 0,
       cap_ms: None,
-      started_at: 1,
+      started_at: agency_server::now_ms(),
       started_by: None,
       search_id: None,
       round: Some("round:-6:1000:2".into()),

@@ -36,8 +36,8 @@ item for the worker, and a merge lets the item that waited on the pull request g
 
 ## The review item
 
-- **One item per pull request.** An open pull request a worker holds is filed in the job service as an item for
-  that worker (`POST /items`), the worker whose checkout's repository the pull request belongs to named as its
+- **One item per pull request and head.** An open pull request a worker holds is filed in the job service as an
+  item for that worker (`POST /items`), the worker whose checkout's repository the pull request belongs to named as its
   `assigneeName`, so only that worker takes it and the idle queue's alarm tells the chat agent once it waits a
   minute on that worker while the worker is free (`docs/agent-control.md`, 「An idle queue is told to the
   owner」): its title names the repository and the pull request's number and title, and its
@@ -47,11 +47,18 @@ item for the worker, and a merge lets the item that waited on the pull request g
   reason as a review comment on the pull request, and tell the owner's room what became of it in one line.
   The words stand in `policy/pull-requests.toml`.
 - **Its labels:** `pr`, the pull request's address, by which a second delivery or the fallback finds it filed
-  and files nothing; and `lane`, `pr-review`, the job service's unattended lane, which opens an item of that
-  lane without an approval and says so in the item's note where the deployment's job service holds it. Until
-  then the item is a draft, approved as any other.
-- **A pull request pushed again** (`synchronize`) whose item stands is told on it as a note naming the new
-  head, and nothing more is filed.
+  and files nothing; `head`, the head commit it was filed for where the delivery names one; and `lane`,
+  `pr-review`, the job service's unattended lane, which opens an item of that lane without an approval and
+  says so in the item's note where the deployment's job service holds it. Until then the item is a draft,
+  approved as any other.
+- **Filed once for a head.** An opening, a reopening or the fallback files nothing while a review item of the
+  pull request stands, nor where one was filed for the head it names — the fallback, which names no head,
+  where any was filed; an item filed before items named their head counts as filed for every head.
+- **A pull request pushed again** (`synchronize`): a review item that still stands — a draft, open or
+  running — is told as a note naming the new head, and the worker reads that head in its review; nothing
+  more is filed. Where none stands and the latest review item of the pull request is `done` — the worker
+  sent it back — a new review item is filed for the new head, as an opening files one; a latest item
+  dropped files nothing.
 
 ## After the pull request
 

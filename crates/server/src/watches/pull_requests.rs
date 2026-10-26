@@ -115,13 +115,19 @@ pub fn review_item(request: &PullRequest, worker: &str) -> Value {
     ("url", request.url.as_str()),
   ];
 
+  let mut labels = json!({ "pr": request.url, "lane": PULL_REQUESTS.lane });
+
+  if let Some(head) = &request.head {
+    labels["head"] = json!(head);
+  }
+
   json!({
     "title": fill_marks(&PULL_REQUESTS.title, &marks),
     "brief": fill_marks(&PULL_REQUESTS.brief, &marks),
     "queueName": PULL_REQUESTS.queue,
     "assigneeName": worker,
     "requesterName": PULL_REQUESTS.requester,
-    "labels": { "pr": request.url, "lane": PULL_REQUESTS.lane },
+    "labels": labels,
   })
 }
 
@@ -202,22 +208,28 @@ impl Jobs {
     }
   }
 
-  // The items labelled with a pull request's address that still stand.
-  async fn standing(&self, url: &str) -> Result<Vec<Value>, String> {
+  // Every item labelled with a pull request's address, standing or ended.
+  async fn labelled(&self, url: &str) -> Result<Vec<Value>, String> {
     let label = format!("pr={url}");
     let page = self
       .send(reqwest::Method::GET, "/items", &[("label", &label), ("limit", "100")], None)
       .await?;
 
-    Ok(
-      page["items"]
-        .as_array()
-        .into_iter()
-        .flatten()
-        .filter(|item| !matches!(item["state"].as_str(), Some("done" | "dropped" | "merged")))
-        .cloned()
-        .collect(),
-    )
+    Ok(page["items"].as_array().cloned().unwrap_or_default())
+  }
+
+  // The items labelled with a pull request's address that still stand.
+  async fn standing(&self, url: &str) -> Result<Vec<Value>, String> {
+    Ok(self.labelled(url).await?.into_iter().filter(stands).collect())
+  }
+
+  async fn file(&self, request: &PullRequest, worker: &str) -> Result<(), String> {
+    self
+      .send(reqwest::Method::POST, "/items", &[], Some(&review_item(request, worker)))
+      .await?;
+    println!("pull requests: {} filed for {worker}", request.url);
+
+    Ok(())
   }
 
   async fn note(&self, item: &Value, text: &str) -> Result<(), String> {
@@ -239,8 +251,33 @@ fn is_review(item: &Value) -> bool {
   item["labels"]["lane"].as_str() == Some(PULL_REQUESTS.lane.as_str())
 }
 
-/// One delivery acted on: an open pull request a worker holds filed once for that worker, a push told on its
-/// item, a merge opening the items that waited on it, a close told.
+// Whether an item still stands: neither done, dropped nor merged.
+fn stands(item: &Value) -> bool {
+  !matches!(item["state"].as_str(), Some("done" | "dropped" | "merged"))
+}
+
+/// Whether a review item was filed for a head (docs/pull-request-reviews.md, 「The review item」): one labelled
+/// with that head, or one that names no head; where the head is not known, any.
+pub fn filed_for(reviews: &[&Value], head: Option<&str>) -> bool {
+  reviews.iter().any(|item| match (head, item["labels"]["head"].as_str()) {
+    (Some(head), Some(filed)) => head == filed,
+    _ => true,
+  })
+}
+
+/// Whether a push files a new review item: none of the pull request's review items stands, the latest of them
+/// is done — the worker sent it back — and none was labelled with the pushed head.
+pub fn push_files(reviews: &[&Value], head: Option<&str>) -> bool {
+  let latest = reviews.iter().max_by_key(|item| item["id"].as_i64().unwrap_or_default());
+
+  !reviews.iter().any(|item| stands(item))
+    && latest.is_some_and(|item| item["state"].as_str() == Some("done"))
+    && !reviews.iter().any(|item| head.is_some() && item["labels"]["head"].as_str() == head)
+}
+
+/// One delivery acted on: an open pull request a worker holds filed once for that worker and head, a push told on
+/// its standing item or filed afresh where its item was sent back, a merge opening the items that waited on it, a
+/// close told.
 pub async fn act(
   vars: &BTreeMap<String, String>,
   held: &BTreeMap<String, String>,
@@ -250,21 +287,30 @@ pub async fn act(
 
   match delivered {
     Delivered::Open(request) => {
-      // A repository no worker holds is let be, and a pull request already filed is filed once.
-      if let Some(worker) = held.get(&request.repository.to_lowercase())
-        && !jobs.standing(&request.url).await?.iter().any(is_review)
-      {
-        jobs
-          .send(reqwest::Method::POST, "/items", &[], Some(&review_item(request, worker)))
-          .await?;
-        println!("pull requests: {} filed for {worker}", request.url);
+      // A repository no worker holds is let be, and a pull request already filed for its head is filed once.
+      if let Some(worker) = held.get(&request.repository.to_lowercase()) {
+        let items = jobs.labelled(&request.url).await?;
+        let reviews: Vec<&Value> = items.iter().filter(|item| is_review(item)).collect();
+
+        if !reviews.iter().any(|item| stands(item)) && !filed_for(&reviews, request.head.as_deref()) {
+          jobs.file(request, worker).await?;
+        }
       }
     }
     Delivered::Pushed(request) => {
       let head = request.head.as_deref().unwrap_or_default();
+      let items = jobs.labelled(&request.url).await?;
+      let reviews: Vec<&Value> = items.iter().filter(|item| is_review(item)).collect();
 
-      for item in jobs.standing(&request.url).await?.iter().filter(|item| is_review(item)) {
+      for item in reviews.iter().filter(|item| stands(item)) {
         jobs.note(item, &fill_marks(&PULL_REQUESTS.pushed, &[("head", head)])).await?;
+      }
+
+      // A review the worker sent back is filed again for the head pushed after it.
+      if let Some(worker) = held.get(&request.repository.to_lowercase())
+        && push_files(&reviews, request.head.as_deref())
+      {
+        jobs.file(request, worker).await?;
       }
     }
     Delivered::Merged(request) => {

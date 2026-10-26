@@ -764,6 +764,11 @@ async fn work_parts(
 static CARRYING: std::sync::LazyLock<std::sync::Mutex<std::collections::HashSet<i64>>> =
   std::sync::LazyLock::new(Default::default);
 
+/// Whether this process carries a turn of the job now.
+pub fn is_carrying(id: i64) -> bool {
+  carrying().contains(&id)
+}
+
 fn carrying() -> std::sync::MutexGuard<'static, std::collections::HashSet<i64>> {
   CARRYING.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
 }
@@ -1331,7 +1336,7 @@ impl Carrier for OnSession<'_> {
     )
     .await
     .map_err(|why| why.detail)?;
-    run(
+    let marked = run(
       &ground.db,
       r#"UPDATE "jobs" SET "state" = 'running', "session_id" = $1, "run_name" = $2, "model" = $3, "run_id" = $5
          WHERE "id" = $4"#,
@@ -1343,8 +1348,14 @@ impl Carrier for OnSession<'_> {
         ledger.into(),
       ],
     )
-    .await
-    .map_err(|why| why.detail)?;
+    .await;
+
+    // A run opened for a turn that never goes out is closed with it.
+    if let Err(why) = marked {
+      closed(ground, ledger, "failed", None, None).await;
+      return Err(why.detail);
+    }
+
     if let Ok((member, _)) = job(&ground.db, id).await {
       publish(ground, "job.changed", member);
     }

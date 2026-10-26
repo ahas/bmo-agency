@@ -89,6 +89,13 @@ about a message is not agency's: the judgement records belong to the units that 
   turn goes out: its agent the worker, its unit the job's run name, the one its log lines are written
   under, and its room the job's. It is closed as the turn ends, with how it ended, the tokens its context
   carried and what it spent, as a chat turn's is, and the job keeps the run and the same four figures.
+- **A run whose turn has ended without closing it is closed as `cut`.** A turn can end with nothing left to
+  close its run: a job ended or stopped from outside while its turn went, its turn then lost to agency's
+  restart, or a chat turn whose process went away before a server picked turns up again. A pass at agency's
+  start and on the executions' clock closes every such run, writing in its log the line that says why: a
+  job's run whose job has ended, no turn of it carried by this process nor kept in flight; and a chat turn's
+  run begun more than two minutes ago with no turn kept in flight under its unit, which every turn going
+  is. A research run's is left to its own sweep (`docs/research-runs.md`, 「One run, step by step」).
 - **Every turn of a round is a run of its own:** the round's own turn and each question, item and
   check of the receiver's draft process go out as turns naming the same round, so each opens its run
   under that round and keeps its own spend. A round's usage is the sum of its runs', and how it divides

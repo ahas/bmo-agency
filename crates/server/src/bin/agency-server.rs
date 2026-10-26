@@ -130,6 +130,13 @@ async fn serve(args: Args) -> Result<(), String> {
     eprintln!("agency: the jobs left running: {}", why.error);
   }
 
+  // A run whose turn ended without closing it is closed as cut; the same pass runs on the executions' clock.
+  match agency_server::run_sweep::pass(&ground).await {
+    Ok(0) => {}
+    Ok(closed) => println!("agency: {closed} runs left open by turns that had ended closed as cut"),
+    Err(why) => eprintln!("agency: the runs left open: {}", why.detail),
+  }
+
   clocks(&ground);
   tokio::spawn(agency_server::order_run::clocks::keep_bound(
     ground.db.clone(),
@@ -236,7 +243,11 @@ fn clocks(ground: &Arc<Ground>) {
         agency_server::control::work::reap_stale(&ground)
           .await
           .map(|_| ())
-          .map_err(|refusal| refusal.error)
+          .map_err(|refusal| refusal.error)?;
+        agency_server::run_sweep::pass(&ground)
+          .await
+          .map(|_| ())
+          .map_err(|refusal| refusal.detail)
       }
     })
     .await

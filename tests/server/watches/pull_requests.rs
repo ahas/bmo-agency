@@ -119,7 +119,7 @@ fn the_fallback_reads_every_open_pull_request_of_the_search_and_the_item_names_i
   assert_eq!(item["queueName"], PULL_REQUESTS.queue.as_str());
   assert_eq!(
     item["labels"],
-    json!({ "pr": "https://github.com/org/base-ui/pull/7", "lane": PULL_REQUESTS.lane })
+    json!({ "pr": "https://github.com/org/base-ui/pull/7", "lane": PULL_REQUESTS.lane, "head": "abc123" })
   );
   assert!(item["title"].as_str().unwrap().contains("#7 of org/base-ui"));
   assert!(item["brief"].as_str().unwrap().contains("base-library rule"));
@@ -219,4 +219,110 @@ async fn a_merge_opens_the_held_item_that_waited_on_it_and_tells_the_review_item
   assert_eq!((made[2].0.as_str(), made[2].1.as_str()), ("PATCH", "/items/6"));
   assert_eq!(made[2].2, json!({ "state": "open" }));
   assert_eq!(made.len(), 3, "an item that was not held is left as it stands: {made:?}");
+}
+
+// A review item of the test's pull request, by its id, state and the head it was filed for.
+fn review(id: i64, state: &str, head: Option<&str>) -> Value {
+  let mut labels = json!({ "pr": request().url, "lane": PULL_REQUESTS.lane });
+
+  if let Some(head) = head {
+    labels["head"] = json!(head);
+  }
+
+  json!({ "id": id, "state": state, "labels": labels })
+}
+
+// The calls a delivery made past its read of the items: method, path and body.
+fn made(calls: &Calls) -> Vec<(String, String, Value)> {
+  calls
+    .lock()
+    .unwrap()
+    .iter()
+    .filter(|(method, ..)| method != "GET")
+    .map(|(method, path, _, body)| (method.clone(), path.clone(), body.clone()))
+    .collect()
+}
+
+#[tokio::test]
+async fn a_push_after_the_review_was_sent_back_files_a_new_review_for_the_new_head() {
+  let held = BTreeMap::from([("org/base-ui".to_owned(), "base-ui".to_owned())]);
+  let pushed = PullRequest {
+    head: Some("def456".into()),
+    ..request()
+  };
+  let (calls, vars) = stand(json!([review(5, "done", None)])).await;
+
+  act(&vars, &held, &Delivered::Pushed(pushed.clone())).await.unwrap();
+
+  let filed = made(&calls);
+
+  assert_eq!(filed.len(), 1, "{filed:?}");
+  assert_eq!((filed[0].0.as_str(), filed[0].1.as_str()), ("POST", "/items"));
+  assert_eq!(filed[0].2["labels"]["head"], "def456");
+  assert_eq!(filed[0].2["assigneeName"], "base-ui");
+
+  // A second delivery of the same push finds that head filed.
+  let (again, vars) = stand(json!([review(5, "done", None), review(9, "done", Some("def456"))])).await;
+
+  act(&vars, &held, &Delivered::Pushed(pushed.clone())).await.unwrap();
+  assert!(made(&again).is_empty(), "{:?}", made(&again));
+}
+
+#[tokio::test]
+async fn a_push_on_a_review_still_standing_is_told_on_it_and_one_on_a_dropped_review_files_nothing() {
+  let held = BTreeMap::from([("org/base-ui".to_owned(), "base-ui".to_owned())]);
+  let pushed = PullRequest {
+    head: Some("def456".into()),
+    ..request()
+  };
+
+  for state in ["draft", "open", "running"] {
+    let (calls, vars) = stand(json!([review(4, "done", None), review(5, state, Some("abc123"))])).await;
+
+    act(&vars, &held, &Delivered::Pushed(pushed.clone())).await.unwrap();
+
+    let told = made(&calls);
+
+    assert_eq!(told.len(), 1, "{state}: {told:?}");
+    assert_eq!(told[0].1, "/items/5/notes", "{state}");
+    assert!(told[0].2["text"].as_str().unwrap().contains("def456"), "{state}");
+  }
+
+  let (dropped, vars) = stand(json!([review(5, "done", None), review(6, "dropped", Some("abc123"))])).await;
+
+  act(&vars, &held, &Delivered::Pushed(pushed)).await.unwrap();
+  assert!(made(&dropped).is_empty(), "{:?}", made(&dropped));
+}
+
+#[tokio::test]
+async fn an_opening_files_again_only_for_a_head_no_review_was_filed_for() {
+  let held = BTreeMap::from([("org/base-ui".to_owned(), "base-ui".to_owned())]);
+
+  // Reopened on the head its sent-back review was filed for, or on any head where that review names none.
+  for filed in [review(5, "done", Some("abc123")), review(5, "done", None)] {
+    let (calls, vars) = stand(json!([filed])).await;
+
+    act(&vars, &held, &Delivered::Open(request())).await.unwrap();
+    assert!(made(&calls).is_empty(), "{:?}", made(&calls));
+  }
+
+  // The fallback names no head: any review filed counts.
+  let (fallback, vars) = stand(json!([review(5, "done", Some("old"))])).await;
+  let searched = PullRequest {
+    head: None,
+    ..request()
+  };
+
+  act(&vars, &held, &Delivered::Open(searched)).await.unwrap();
+  assert!(made(&fallback).is_empty(), "{:?}", made(&fallback));
+
+  // Reopened on a head no review was filed for.
+  let (calls, vars) = stand(json!([review(5, "done", Some("old"))])).await;
+
+  act(&vars, &held, &Delivered::Open(request())).await.unwrap();
+
+  let filed = made(&calls);
+
+  assert_eq!(filed.len(), 1, "{filed:?}");
+  assert_eq!(filed[0].2["labels"]["head"], "abc123");
 }

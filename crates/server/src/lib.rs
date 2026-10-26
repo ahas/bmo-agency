@@ -70,6 +70,7 @@ pub mod rooms;
 pub mod run_clock;
 pub mod run_ledger;
 pub mod run_log;
+pub mod run_sweep;
 pub mod seeds;
 pub mod session_output;
 pub mod session_questions;
