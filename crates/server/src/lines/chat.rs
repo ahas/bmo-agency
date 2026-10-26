@@ -520,6 +520,27 @@ pub async fn compose_turn(
   compose_prepared(ground, machine, &run, prompt, log.run(), answers, began).await
 }
 
+/// The folder a chat run's Claude Code program stands in (docs/sessions.md, 「A restart hands the session
+/// over」): the caller's where it named one; for the chat's own launches, which name none, the agent's own home
+/// under the data root, made where it is not there yet. Claude Code names a session's records after the
+/// folder's real path, which the deploy tree's link changes with every release, so a real folder of the agent's
+/// own is what lets the session be resumed after a deploy.
+pub fn claude_folder(ground: &Ground, run: &ChatRun) -> Result<String, Refusal> {
+  if Path::new(&run.cwd) != ground.roots.deploy {
+    return Ok(run.cwd.clone());
+  }
+
+  let roots = harness_machine::companion_prompt::Roots {
+    assets: ground.code_root(),
+    data: ground.roots.data.clone(),
+  };
+  let home = harness_machine::companion_prompt::folder(&roots, &run.agent);
+
+  std::fs::create_dir_all(&home).map_err(|why| fault(format!("{}: {why}", home.display())))?;
+
+  Ok(home.to_string_lossy().into_owned())
+}
+
 /// A run already composed, its turn on Claude Code's chat line: the login the walk offers its agent, the
 /// place its program stands in, the turn's variables and its run's name.
 pub async fn compose_prepared(
@@ -537,9 +558,10 @@ pub async fn compose_prepared(
     Some(home) => home.to_path_buf(),
     None => ClaudeCode::machine_config_dir(machine),
   };
+  let cwd = claude_folder(ground, run)?;
 
   if let Some(id) = &run.resume
-    && !ClaudeCode::records_under(&home, Path::new(&run.cwd), id)
+    && !ClaudeCode::records_under(&home, Path::new(&cwd), id)
       .iter()
       .any(|record| record.exists())
   {
@@ -565,7 +587,7 @@ pub async fn compose_prepared(
 
   let command = Command {
     args: resident_args(run, &settings, &opened)?,
-    cwd: run.cwd.clone(),
+    cwd: cwd.clone(),
     env,
   };
   let env = line_environment(&command, run_name, login.as_ref());
@@ -574,7 +596,7 @@ pub async fn compose_prepared(
     system_path: run.system_path.clone(),
     command: ResidentCommand {
       args: command.args,
-      cwd: PathBuf::from(&run.cwd),
+      cwd: PathBuf::from(&cwd),
       env,
     },
     session: run.resume.clone().unwrap_or(opened),
@@ -1025,11 +1047,13 @@ pub async fn compose_stand_in(
     }
     Door::Gateway { placement } => {
       let held = registration_named(ground, &step.model).await?;
+      // Claude Code on the gateway names its records after its folder's real path as on its own road.
+      let cwd = claude_folder(ground, run)?;
       let on = OnGateway {
         agent: &run.agent,
         model: &step.model,
         effort: &step.effort,
-        cwd: &run.cwd,
+        cwd: &cwd,
         settings: serde_json::Map::new(),
         compose_typed: RUN_LINES.composes_typed_lines(run.line),
         shell_guard: true,

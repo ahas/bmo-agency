@@ -1891,7 +1891,9 @@ An interactive run has no print-mode `result` frame, yet there is no scraping of
   project folder after the directory it runs in as the system resolves it, every link followed, so a run
   started in a folder that is a link — the deployment's `deploy`, which points at the release it runs —
   writes under the release's own name; agency reads the record in the folder the real path names, and
-  the folder a link's own name would give is none Claude Code writes.
+  the folder a link's own name would give is none Claude Code writes. A program that must resume its
+  session across releases therefore stands in a real folder of its own, the chat's agent home among them
+  (`docs/sessions.md`, 「A restart hands the session over」).
 - **Usage is read from that transcript.** Each assistant line of the record carries `message.usage`, with
   `cache_read_input_tokens`, `cache_creation_input_tokens`, `input_tokens` and `output_tokens` — the
   very values the print-mode `result` frame carried. The model name is in `message.model`, the effort in

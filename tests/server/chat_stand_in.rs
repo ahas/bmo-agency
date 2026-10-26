@@ -11,7 +11,7 @@ use agency_server::chat_stand_in::{FallbackEnded, fallback_ended, stand_in_turn}
 use agency_server::companion::run::NoAnswer;
 use agency_server::config::Config;
 use agency_server::control::harness::{OrderEntry, set_provider_order};
-use agency_server::lines::chat::{ChatRun, Door, RoomContext, compose_stand_in};
+use agency_server::lines::chat::{ChatRun, Door, RoomContext, claude_folder, compose_stand_in};
 use agency_server::lines::worker::Reasoning;
 use agency_server::places::Ground;
 use agency_server::run_log::{RunLog, Target};
@@ -369,4 +369,28 @@ async fn claude_answering_again_clears_a_standing_fallback_and_publishes_its_end
 
   fallback_ended(&ground).await;
   assert_eq!(ended.ready(), None);
+}
+
+#[test]
+fn the_chat_s_own_launch_stands_on_claude_code_in_its_agent_s_home_and_a_named_folder_in_that_folder() {
+  let home = tempfile::tempdir().unwrap();
+  let ground = ground_on(DatabaseConnection::Disconnected, home.path(), &[]);
+  let named = chat_run(home.path());
+
+  // A caller's folder is the caller's.
+  assert_eq!(claude_folder(&ground, &named).unwrap(), named.cwd);
+
+  // The chat's own launch names the deploy tree's link, which on Claude Code is the agent's own home instead, a
+  // real folder made as it is first needed.
+  let own = ChatRun {
+    cwd: ground.roots.deploy.to_string_lossy().into_owned(),
+    ..named
+  };
+  let folder = claude_folder(&ground, &own).unwrap();
+
+  assert_eq!(
+    std::path::PathBuf::from(&folder),
+    ground.roots.data.join("companion-homes").join("chat-agent")
+  );
+  assert!(std::path::Path::new(&folder).is_dir());
 }

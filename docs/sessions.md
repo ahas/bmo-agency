@@ -14,13 +14,21 @@ session on the owner's ask is `docs/session-resets.md`.
 
 ## A restart hands the session over
 
-- **The chat works in the deploy tree's link,** whose path is the same while its target moves from
-  release to release. The program records the session it stands in under its place with that folder; a
-  program stood again on the same folder takes the session up again rather than opening a fresh one
-  beside it.
-- **A deploy moves the link's target, not its path,** so a program stood after it on the same folder
-  resumes the conversation it held. The relaunch instruction a consumer writes at a deploy is the
-  deployment briefing, not the notice of a closed session.
+- **The chat works in a folder whose name a release does not change.** Each program keeps the session
+  it stands in by the folder it was stood in, and a program stood again on the same folder takes the
+  session up again rather than opening a fresh one beside it:
+  - on a program that keeps its session by the folder's path as given — dsh, whose screen records the
+    session with the folder in its place — the chat works in the deploy tree's link, whose path is the
+    same while its target moves from release to release;
+  - on Claude Code, which names a session's records after the folder's real path, every link followed,
+    the link would be a new folder with each release, so the chat works in its agent's own home under
+    the data root, `companion-homes/<agent>`, a real folder, as a companion does; its prompt, its
+    configuration, its settings and its MCP servers are handed by absolute path, so nothing of the
+    launch reads the folder it stands in.
+- **A deploy moves the link's target, not the chat's folder,** so a program stood after it resumes the
+  conversation it held, on Claude Code by `--resume` in the same project folder. The relaunch
+  instruction a consumer writes at a deploy is the deployment briefing, not the notice of a closed
+  session.
 - **Agency is a session relay, and its own restart is no session event.** It opens a model session
   where none stands and relays turns into the one that stands; a turn in flight across agency's restart
   is picked up again, not lost:
@@ -52,7 +60,7 @@ session on the owner's ask is `docs/session-resets.md`.
   folder's record is what tells a program which session that is, so no second one is opened while the
   first stands.
 - **A caller that names a folder works in it,** as a conversation opened on one does; only the chat's
-  own launches, which name none, stand in the link.
+  own launches, which name none, stand in the folder above.
 - **A fresh session of a chat agent is never opened without the handoff.** Where a chat-line turn — the
   chat agent's across rooms, or a companion's in a room — is about to open a fresh session for an agent
   that had one, agency first asks the receiver for the agent's handoff (`POST /handoffs/{agentName}` of
