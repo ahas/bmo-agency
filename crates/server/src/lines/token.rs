@@ -152,6 +152,25 @@ pub async fn facts(ground: &Ground, namespace: &str) -> Option<Value> {
   }
 }
 
+/// The namespaces the tool host saw a client of this session token reach since the token was issued, or none
+/// where it saw none, which a host started since then answers as well, or does not answer.
+pub async fn connected(ground: &Ground, token: &str) -> Option<Vec<String>> {
+  let socket = host_socket(ground);
+  let issuer = issuer_token(ground)?;
+
+  match pocket(ground, issuer).tool_session(token).await {
+    Ok(session) => {
+      let reached: Vec<String> = session.connected.into_iter().map(|reached| reached.namespace).collect();
+
+      (!reached.is_empty()).then_some(reached)
+    }
+    Err(why) => {
+      eprintln!("mcp-host at {}: the session's servers were not read: {why}", socket.display());
+      None
+    }
+  }
+}
+
 /// The tool host's paragraph on finding and using tools, as it words it, or why the host gave none: the
 /// issuer token is not there, the socket does not answer, or the host refused.
 pub async fn discipline(ground: &Ground) -> Result<String, String> {

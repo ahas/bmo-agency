@@ -106,6 +106,9 @@ seeds. The other crates and the server reach the store only through it.
     `claude_account_in_use`;
   - a session's record, `agent_session:*`, and the sessions a worker set aside on other models,
     `agent_session_shelf:*`;
+  - a turn in flight, `turn_in_flight:*` by its run, as JSON: the session, the turn's id, the agent, the
+    room, the chat turn's run in the ledger, the job and when it began, kept while the turn goes and read
+    by the next server's start (`docs/sessions.md`, 「A restart hands the session over」);
   - a companion's reset point, `reset_point:*` (`docs/companions.md`, 「What the reset cuts off」);
   - the machine watch's notes: `doctor_standing_failure`, `herdr_leftovers_told`,
     `dev_server_max_age_minutes`;

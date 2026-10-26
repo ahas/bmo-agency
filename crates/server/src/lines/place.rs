@@ -52,6 +52,81 @@ const RELEASE_WAIT_MS: u64 = 50;
 const TURN_VARIABLES: [&str; 3] = ["BMO_RUN_NAME", "BMO_TASK_LOCKED", "BMO_WORK_ORDER_STEP"];
 const TURN_PREFIX: &str = "BMO_TURN_";
 
+/// The variable a resident program's command opts into the shell's carried variables with
+/// (docs/agent-control.md, 「dsh's providers: OpenRouter and DeepSeek」): a program whose own harness starts
+/// its shell on a scrubbed environment carries a copy of each `BMO_` variable beside it under a name of its
+/// own, and its shell's start-up file puts each back.
+pub const CARRY_VARIABLE: &str = "BMO_SHELL_CARRY";
+/// The name a carried copy stands under: this prefix and the variable's name in upper-case hexadecimal,
+/// whose letters spell none of the words a scrub drops a variable by.
+pub const CARRIER_PREFIX: &str = "BMO_CARRIED_";
+/// The variable bash reads the start-up file of every non-interactive shell from.
+pub const SHELL_START: &str = "BASH_ENV";
+// The prefix of the variables a program carries.
+const CARRIED_PREFIX: &str = "BMO_";
+
+// The shell start-up file that puts each carried variable back under its own name.
+const CARRY_SCRIPT: &str = r#"# Written by agency (docs/agent-control.md): each variable a harness drops from its shell by its name,
+# put back from the copy the program carries under a name it keeps.
+for bmo_carried in "${!BMO_CARRIED_@}"; do
+  bmo_hex=${bmo_carried#BMO_CARRIED_}
+  bmo_name=
+  for ((bmo_at = 0; bmo_at < ${#bmo_hex}; bmo_at += 2)); do
+    printf -v bmo_char "\x${bmo_hex:bmo_at:2}"
+    bmo_name+=$bmo_char
+  done
+  if [[ $bmo_name =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] && [[ -z ${!bmo_name+set} ]]; then
+    export "$bmo_name=${!bmo_carried}"
+  fi
+done
+unset bmo_carried bmo_hex bmo_name bmo_at bmo_char
+"#;
+
+/// The carrier name a variable's copy stands under.
+pub fn carrier_of(name: &str) -> String {
+  let hex: String = name.bytes().map(|byte| format!("{byte:02X}")).collect();
+
+  format!("{CARRIER_PREFIX}{hex}")
+}
+
+/// A command's environment with its carried copies made afresh, where it opts in: every `BMO_` variable
+/// beside it under its carrier name, and none of the copies an earlier composition left.
+pub fn carry(env: &mut BTreeMap<String, String>) {
+  if env.get(CARRY_VARIABLE).map(String::as_str) != Some("1") {
+    return;
+  }
+
+  env.retain(|name, _| !name.starts_with(CARRIER_PREFIX));
+
+  let copies: Vec<(String, String)> = env
+    .iter()
+    .filter(|(name, _)| name.starts_with(CARRIED_PREFIX) && name.as_str() != CARRY_VARIABLE)
+    .map(|(name, value)| (carrier_of(name), value.clone()))
+    .collect();
+
+  env.extend(copies);
+}
+
+/// The shell start-up file that puts carried variables back, written under the data root where it is not
+/// there as it stands.
+pub fn carry_script(data_root: &Path) -> Result<PathBuf, Refusal> {
+  let dir = data_root.join("shell");
+  let path = dir.join("carry.sh");
+
+  if std::fs::read_to_string(&path).ok().as_deref() != Some(CARRY_SCRIPT) {
+    std::fs::create_dir_all(&dir).map_err(|why| fault(format!("{}: {why}", dir.display())))?;
+    agent_host::disk::publish_bytes(&path, CARRY_SCRIPT.as_bytes())
+      .map_err(|why| fault(format!("{}: {why}", path.display())))?;
+  }
+
+  Ok(path)
+}
+
+/// Where a place keeps its program's error stream, for a program whose command names it.
+pub fn stderr_file(place: &Path) -> PathBuf {
+  place.join("stderr.log")
+}
+
 /// Where every agent's place stands under a data root.
 pub fn places_dir(data_root: &Path) -> PathBuf {
   data_root.join("agent-places")
@@ -409,7 +484,14 @@ impl Place {
     agent_host::disk::private_dir(&self.path)
       .map_err(|why| fault(format!("{}: {why}", self.path.display())))?;
 
-    let mut bytes = serde_json::to_vec(program).map_err(|why| fault(why.to_string()))?;
+    // The carried copies are made from the command as it is written, the session token among it.
+    let mut program = program.clone();
+
+    for command in std::iter::once(&mut program.command).chain(program.restart.as_mut()) {
+      carry(&mut command.env);
+    }
+
+    let mut bytes = serde_json::to_vec(&program).map_err(|why| fault(why.to_string()))?;
 
     bytes.push(b'\n');
     agent_host::disk::publish_bytes(&self.program_file(), &bytes)

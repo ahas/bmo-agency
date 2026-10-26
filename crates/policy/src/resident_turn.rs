@@ -30,6 +30,8 @@ pub struct ResidentTurn {
   /// looked at.
   pub inbox_ready_seconds: u64,
   pub inbox_poll_ms: u64,
+  /// The most lines of a pane program's error stream one turn's run log takes.
+  pub stderr_lines: usize,
   pub gone_looks: u32,
   pub gone_gap_ms: u64,
   pub end_wait_ms: u64,

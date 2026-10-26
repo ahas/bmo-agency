@@ -419,6 +419,11 @@ in the provider's own terms:
   - Any difference — provider, model, effort, login, the system-prompt file, the working directory
     — means the program is ended between turns and started again in the same pane on the new
     command. The pane stays.
+  - **Between turns is read off the program's own record** where it keeps one, as bmo-tui's
+    `loop.jsonl` does: while its last turn — the bot's or one a person typed — has a start and no end,
+    the program is not ended. The turn that found the command changed goes into it as it stands, waiting
+    in its inbox behind the working one, and the next turn's stand, the working turn over, replaces it
+    (`docs/sessions.md`, 「A restart hands the session over」).
   - The settings file the command hands the program counts by the status command it names now and
     every guard the place's own verb stands before a tool call, not by its path alone: a program
     keeps the status line and hooks it started with, so one whose settings came to call another
@@ -638,7 +643,9 @@ in the provider's own terms:
     stood in before and then sets the model and effort the new command names, so a changed model
     carries the conversation over rather than opening an empty session beside it.
   - **The system prompt is agency's.** The overlay sets dsh's `system-prompt` persona prefix to the run's
-    composed system prompt, the same file the Claude Code line is handed, each `{{` in it broken by a
+    composed system prompt, the one the Claude Code line is handed but for the chat's tools paragraph,
+    which names dsh's own tools in place of Claude Code's (`docs/agent-documents.md`, 「The chat
+    agent」), each `{{` in it broken by a
     word joiner since dsh refuses a prompt naming a variable it does not hold, and switches off dsh's
     instruction-file reader and its title call, as the retired loop's overlay did. A worker keeps the
     instruction-file reader, since the checkout's documents are its work's, and its rules follow dsh's
@@ -651,12 +658,38 @@ in the provider's own terms:
     turn ends with its answer. A line shown no tools, a gate's among them, has every tool row off. A
     worker takes the whole working set but the web, as a job always has.
   - **The MCP servers are agency's.** They are read from the same configuration file the Claude Code
-    line is handed and mounted in the overlay as dsh's own MCP clients, each one that cannot open left
-    out rather than failing the session: dsh ends a session whole on a server handed to it over the
-    protocol that does not open, and a tool host namespace with nothing placed for the session answers
-    not found. bmo-tui hands the session none of its own, so no server stands twice. A server's bearer
-    and every variable it is given are read from dsh's own environment as the overlay loads, never
-    written into the overlay's file.
+    line is handed and mounted in the overlay as dsh's own MCP clients. The profile holds no row of
+    those ids, so the clients stand in one `insert` entry of the overlay: an entry naming an id the
+    profile does not hold is read by dsh as a change to a row that is not there, and mounts nothing. A
+    standing session's client that cannot open fails its own activation, which dsh writes to its error
+    stream with the cause and goes on without it; a headless run's is let go in silence. Either way the
+    session stands: dsh ends a session whole on a server handed to it over the protocol that does not
+    open, and a tool host namespace with nothing placed for the session answers not found. bmo-tui hands
+    the session none of its own, so no server stands twice. A server's bearer and every variable it is
+    given are read from dsh's own environment as the overlay loads, never written into the overlay's
+    file.
+  - **The shell keeps the variables dsh drops.** dsh starts every child, its shell among them, on an
+    environment scrubbed of each variable whose name holds `KEY`, `PASSWORD`, `SECRET` or `TOKEN`, and
+    names no exception to that rule. So the program's command opts into carrying: as its program is
+    written into the place, every `BMO_` variable of its environment — the tool session token `bmo use`
+    reads among them, issued after the command is composed — gains a copy under a carrier name the rule
+    keeps, `BMO_CARRIED_` and the variable's name in upper-case hexadecimal, and the command names the
+    shell start-up file agency writes under the data root's `shell` in `BASH_ENV`, which puts each carried
+    variable the shell lacks back under its own name in every shell dsh starts.
+  - **What dsh says on its error stream is kept.** The program's command names a file in its place,
+    `stderr.log`, in the variable the pane head reads, and the head points the program's error stream
+    there as it starts it, so neither bmo-tui's own last words nor what dsh says of a client that did not
+    activate draws over the screen or is lost. After each turn the lines the file gained since the last
+    look are written into that turn's run log, a few hundred at most (`policy/resident-turn.toml`).
+  - **A chat session hears which of its servers is absent.** After the first turn a chat program stands
+    on, agency reads which of the line's servers did not attach: a tool host namespace of the line
+    (`policy/run-lines.toml`) the tool host saw no client of this session's token reach, where it saw some
+    other one reach it (the host's `connected` on `GET /tool-sessions/{token}`; a host that saw none since
+    it started says nothing), and every server whose client dsh's error stream says did not activate. Each
+    absent server is one fact queued for the session in the turn's room through the receiver's
+    `POST /instructions`, of the kind `session-tools:<server>`, saying the server is absent from this
+    session, why, and that its tools are reached with `bmo use`; and one line of the turn's run log. The
+    session goes on; nothing fails for it. One look is taken per program started.
   - **The overlay is the route.** Before the program is stood, agency composes the same dsh overlay a
     headless run on the road takes: the prompt, the tool rows and sandbox above, and the provider's API
     as dsh's one route with the model and, where the agent chose one, its reasoning level. The key is

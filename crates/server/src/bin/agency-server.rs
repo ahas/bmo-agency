@@ -96,6 +96,12 @@ async fn serve(args: Args) -> Result<(), String> {
   // The gate's kinds read before the routes stand, so an agent's switches list its gates from the
   // gate's own declaration and not from a copy agency would keep.
   agency_server::gate_kinds::refresh(&ground).await;
+  // A turn the last process left in flight is handed back where its program's record holds its end, and
+  // waited on where the program goes on with it, before anything else reads what that process left.
+  if let Err(why) = agency_server::turn_pickup::at_start(&ground).await {
+    eprintln!("agency: the turns left in flight: {}", why.detail);
+  }
+
   // Execution rows the last process left open are closed on what they left, and a job whose process
   // went away with the last one is ended before the routes stand. The same pass runs on its clock.
   if let Err(why) = agency_server::queue::reconcile::pass(&ground.db, &ground.roots.data).await {

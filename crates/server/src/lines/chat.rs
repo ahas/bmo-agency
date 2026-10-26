@@ -99,6 +99,9 @@ pub struct ChatRun {
   /// Whether the run thinks: the deployment's own choice, or yes.
   pub thinking: bool,
   pub system_path: PathBuf,
+  /// What the chat's system prompt was composed of, where the run is the chat's, so a road on another
+  /// program composes it with that program's tools named; none for a run handed its prompt whole.
+  pub system_parts: Option<SystemParts>,
   pub room: RoomContext,
   pub tools_shown: String,
   pub tools_allowed: String,
@@ -116,15 +119,16 @@ pub struct ChatRun {
   pub env: BTreeMap<String, String>,
 }
 
-/// The chat's system prompt: its opening document, the absolute rules bare, its manual and the rulebooks it
-/// reads, each named, the brain's discipline where the brain answered one, the tool host's paragraph on
-/// finding and using tools where the host answered one, with the base persona after them all under its
-/// header where one is handed.
+/// The chat's system prompt: its opening document, the absolute rules bare, its manual, the tools paragraph
+/// for the program the session runs on where one is composed, and the rulebooks it reads, each named, the
+/// brain's discipline where the brain answered one, the tool host's paragraph on finding and using tools
+/// where the host answered one, with the base persona after them all under its header where one is handed.
 pub fn chat_system(
   trees: &Trees,
   base_persona: Option<&str>,
   discipline: Option<&str>,
   tool_discipline: Option<&str>,
+  tools: Option<&str>,
 ) -> Result<String, Refusal> {
   let system = &CHAT_LINE.system;
   let chat = trees.agent_dir("chat");
@@ -133,6 +137,10 @@ pub fn chat_system(
     read_required(&trees.code.join("prompts").join("rules").join(&system.absolute_rules))?,
     read_required(&chat.join(&system.manual))?,
   ];
+
+  if let Some(tools) = tools.map(str::trim).filter(|text| !text.is_empty()) {
+    parts.push(tools.to_owned());
+  }
 
   for name in &system.rulebooks {
     parts.push(rulebook(trees, name)?);
@@ -149,6 +157,58 @@ pub fn chat_system(
     Some(persona) => format!("{system}\n\n{}\n{persona}", CHAT_LINE.persona.header),
     None => system,
   })
+}
+
+/// The chat's tools paragraph (docs/agent-documents.md, 「The chat agent」): the program's own tools by name,
+/// the servers the line's MCP configuration hands the session, and the tool host's entries the line shows by
+/// name, each as a program calls it, in the words the chat line's policy holds.
+pub fn tools_paragraph(program: &[&str], servers: &[String], shown: &[String]) -> String {
+  let shown: Vec<String> = shown
+    .iter()
+    .map(|entry| match entry.split_once('/') {
+      Some((namespace, tool)) => format!("mcp__{namespace}__{tool}"),
+      None => entry.clone(),
+    })
+    .collect();
+
+  policy::fill_marks(
+    &CHAT_LINE.tools.paragraph,
+    &[
+      ("program", &program.join(", ")),
+      ("servers", &servers.join(", ")),
+      ("shown", &shown.join(", ")),
+    ],
+  )
+}
+
+/// What a chat run's system prompt is composed of beside the documents, kept so a road whose program is
+/// not Claude Code's composes the same prompt with its own program's tools named.
+#[derive(Clone, Debug, Default)]
+pub struct SystemParts {
+  pub above: Option<String>,
+  pub persona: Option<String>,
+  pub discipline: Option<String>,
+  pub tool_discipline: Option<String>,
+  pub servers: Vec<String>,
+}
+
+impl SystemParts {
+  /// The chat's system prompt for a program whose own tools are these.
+  pub fn compose(&self, trees: &Trees, program: &[&str]) -> Result<String, Refusal> {
+    let tools = tools_paragraph(program, &self.servers, RUN_LINES.shown(LINE));
+    let system = chat_system(
+      trees,
+      self.persona.as_deref(),
+      self.discipline.as_deref(),
+      self.tool_discipline.as_deref(),
+      Some(&tools),
+    )?;
+
+    Ok(match &self.above {
+      Some(above) => format!("{above}\n\n{system}"),
+      None => system,
+    })
+  }
 }
 
 /// The digest of what the deployment's own server shows, where the tool host says it.
@@ -304,14 +364,27 @@ pub async fn chat_run(
     launch.base_persona,
   )
   .await;
-  let mut system =
-    chat_system(&trees, persona.text.as_deref(), discipline.as_deref(), tool_discipline.as_deref())?;
   let role = crate::conversational::role_of(&ground.db, agent).await.ok().flatten();
-
-  if let Some(above) = role.as_deref().and_then(|role| super::role_prompt(&trees, role)) {
-    system = format!("{above}\n\n{system}");
-  }
-
+  let parts = SystemParts {
+    above: role.as_deref().and_then(|role| super::role_prompt(&trees, role)),
+    persona: persona.text.clone(),
+    discipline,
+    tool_discipline,
+    servers: harness_servers(ground)
+      .entries()
+      .into_iter()
+      .flatten()
+      .map(|(name, _)| name.clone())
+      .collect(),
+  };
+  let shown: Vec<&str> = CHAT_LINE
+    .tools
+    .shown
+    .split(',')
+    .map(str::trim)
+    .filter(|tool| !tool.is_empty())
+    .collect();
+  let system = parts.compose(&trees, &shown)?;
   let system_path = system_prompt_file(&trees, agent, &system)?;
   let mcp = mcp_config(ground, &trees)?;
   let mut env: BTreeMap<String, String> = ground.env().clone();
@@ -344,6 +417,7 @@ pub async fn chat_run(
     reasoning,
     thinking,
     system_path,
+    system_parts: Some(parts),
     room: launch.room.clone(),
     tools_shown: CHAT_LINE.tools.shown.clone(),
     tools_allowed: CHAT_LINE.tools.allowed.clone(),
@@ -367,6 +441,18 @@ pub async fn chat_run(
 }
 
 impl ChatRun {
+  /// The system prompt file of the run on a program whose own tools are these, under the program's name:
+  /// the chat's composed afresh with them named, or the run's own file where it was handed its prompt whole.
+  pub fn system_on(&self, ground: &Ground, program: &str, tools: &[&str]) -> Result<PathBuf, Refusal> {
+    let Some(parts) = &self.system_parts else {
+      return Ok(self.system_path.clone());
+    };
+    let trees = Trees::of(ground);
+    let system = parts.compose(&trees, tools)?;
+
+    system_prompt_file(&trees, &format!("{}.{program}", self.agent), &system)
+  }
+
   /// The run's log told why its system prompt does not end with the brain's base persona, where it does not.
   pub async fn note_persona(&self, ground: &Ground, log: &mut RunLog) {
     if let Some(why) = &self.persona_unused {
@@ -511,6 +597,7 @@ pub fn gate_run(
     },
     thinking,
     system_path,
+    system_parts: None,
     room: RoomContext {
       chat_id: 0,
       text: String::new(),
@@ -858,10 +945,12 @@ pub async fn compose_stand_in(
       })
     }
     Door::Inbox { provider } => {
+      // The program in the pane is dsh, so the chat's tools paragraph names dsh's own tools.
+      let system = run.system_on(ground, "dsh", &super::dsh::SESSION_TOOLS)?;
       let laid = Composed {
         line: run.line,
         provider,
-        system: Some(&run.system_path),
+        system: Some(&system),
         rules: None,
         shown: Some(&run.tools_shown),
         allowed: Some(&run.tools_allowed),

@@ -70,8 +70,10 @@ fn the_tool_hosts_paragraph_stands_right_after_the_brains_discipline_and_before_
   };
   let header = &CHAT_LINE.persona.header;
   let carried =
-    chat_system(&trees, Some("the persona"), Some("the brain's discipline"), Some(PARAGRAPH)).unwrap();
-  let without = chat_system(&trees, Some("the persona"), Some("the brain's discipline"), None).unwrap();
+    chat_system(&trees, Some("the persona"), Some("the brain's discipline"), Some(PARAGRAPH), None)
+      .unwrap();
+  let without =
+    chat_system(&trees, Some("the persona"), Some("the brain's discipline"), None, None).unwrap();
 
   assert!(
     carried.ends_with(&format!("the brain's discipline\n\n{PARAGRAPH}\n\n{header}\nthe persona")),
@@ -157,7 +159,7 @@ fn composed() -> String {
     home: home.path().to_path_buf(),
   };
 
-  chat_system(&trees, None, None, None).unwrap()
+  chat_system(&trees, None, None, None, None).unwrap()
 }
 
 // The section of the composed prompt under a heading, up to the next heading of the manual's shape.
@@ -298,4 +300,42 @@ async fn a_chat_with_no_folder_of_its_own_works_in_the_deploy_link() {
 
   assert_eq!(run.cwd, at(&deploy));
   assert_ne!(run.cwd, at(&home.path().join("a-release")));
+}
+
+#[test]
+fn the_tools_paragraph_names_the_programs_own_tools_the_servers_and_the_entries_shown() {
+  let paragraph = tools_paragraph(
+    &["bash", "read"],
+    &["bmo".to_owned(), "job".to_owned()],
+    &["bmo/say".to_owned(), "web/web_fetch".to_owned()],
+  );
+
+  assert!(paragraph.contains("bash, read"), "{paragraph}");
+  assert!(paragraph.contains("bmo, job"), "{paragraph}");
+  assert!(paragraph.contains("mcp__bmo__say, mcp__web__web_fetch"), "{paragraph}");
+  assert!(paragraph.contains("bmo use --tools") && paragraph.contains("bmo use <tool> --describe"));
+}
+
+#[test]
+fn the_chats_prompt_names_the_tools_of_the_program_it_is_composed_for_and_the_manual_names_none() {
+  let home = tempfile::tempdir().unwrap();
+  let trees = Trees {
+    code: tree(),
+    agents: home.path().join("agents"),
+    source: home.path().to_path_buf(),
+    data: home.path().join("data"),
+    home: home.path().to_path_buf(),
+  };
+  let parts = SystemParts {
+    servers: vec!["bmo".to_owned(), "web".to_owned()],
+    ..SystemParts::default()
+  };
+  let on_claude = parts.compose(&trees, &["Bash", "ListMcpResourcesTool"]).unwrap();
+  let on_dsh = parts.compose(&trees, &agency_server::lines::dsh::SESSION_TOOLS).unwrap();
+  let manual = std::fs::read_to_string(tree().join("prompts/agents/chat/manual.md")).unwrap();
+
+  assert!(on_claude.contains("own tools are Bash, ListMcpResourcesTool."), "{on_claude}");
+  assert!(on_dsh.contains("own tools are bash, read, write, edit"), "{on_dsh}");
+  assert!(!on_dsh.contains("ListMcpResourcesTool"));
+  assert!(!manual.contains("ListMcpResourcesTool") && !manual.contains("Your tools are Bash"));
 }

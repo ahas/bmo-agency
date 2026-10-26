@@ -56,3 +56,12 @@ the one it has now, its label and aliases as the row was seeded and as it reads 
 places moved by. The store's settling renames the rows by it, and the side that keeps the agents'
 places closes the old name's workspace and moves a renamed worker's checkout by it
 (`docs/agent-control.md`, `docs/worker-slots.md`).
+
+## A line's shown entries
+
+A line's `shown` in `policy/run-lines.toml` names tool host entries by their full names, and each must be
+an entry the tool host's registry holds: the record a run's token is issued for shows what it names, and a
+name the registry does not hold shows nothing and is written into the chat's tools paragraph as a tool
+that is not there. The registry is the tool host's own, placed while the host runs, so no test of this
+repository can read it and the build does not check the names; an entry the host stops serving is taken
+out of every line's list in the same change that notices it, against what `bmo tool list` lists.

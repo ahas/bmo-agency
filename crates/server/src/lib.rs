@@ -69,8 +69,10 @@ pub mod run_log;
 pub mod seeds;
 pub mod session_output;
 pub mod session_questions;
+pub mod session_tools;
 pub mod stand_in;
 pub mod text;
+pub mod turn_pickup;
 pub mod usage_windows;
 
 pub mod verbs;

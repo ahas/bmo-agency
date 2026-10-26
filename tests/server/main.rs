@@ -89,6 +89,7 @@ mod door {
   mod place_run;
   mod record;
   mod rollout;
+  mod stand;
 }
 mod events;
 mod ground;
@@ -169,7 +170,9 @@ mod run_clock;
 mod seeds;
 mod session_output;
 mod session_questions;
+mod session_tools;
 mod stand_in;
+mod turn_pickup;
 mod usage_balances;
 
 mod run_log {

@@ -95,6 +95,16 @@ composed into a system prompt, and what the chat agent's own prompt is made of.
   approval, the worker's run and its close, host work, the fast track, images, the response protocol
   with its sentinels, the language an answer is written in, what the room hears of the agent's tools,
   the draft process, the answer rules, promises, and a turn past its clock. It is how the chat agent works at all, and it says when to act.
+  It names no tool of the program the session runs on, since one manual serves every program the chat
+  stands on.
+- **The tools paragraph follows the manual,** composed at each launch for the program the session runs
+  on, in the words `policy/chat-line.toml` holds for it: that program's own tools by their names — on
+  Claude Code the tools the line shows, on dsh the tools the overlay leaves its session —, the servers
+  the line's MCP configuration hands the session by name, the tool host's entries the line shows by name
+  (`policy/run-lines.toml`, `shown`), and that every other hosted tool is found with `bmo use --tools`,
+  read with `bmo use <tool> --describe` and called with `bmo use <tool>`. A server that does not attach
+  is told to the session afterwards (`docs/agent-control.md`, 「dsh's providers: OpenRouter and
+  DeepSeek」).
 - **Only the chat line answers in a speaker's language.** The chat agent and every companion, answering
   people in rooms, write in the language of the person they answer. Every other line writes English: a
   worker's and a co-worker's reports, notes and questions, a runner's result, a gate's verdict, and the

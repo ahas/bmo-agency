@@ -155,7 +155,8 @@
   being answered with a default (`docs/model-tiers.md`). The console is the one place they are
   chosen, and the line, the record of the session, the keepalive's cache policy and the check for
   a runtime downgrade all read that one answer. The system prompt is the chat agent's
-  documents, the three answer rulebooks, the rulebook against destroying the system
+  documents with the tools paragraph composed for the program the session runs on
+  (`docs/agent-documents.md`, 「The chat agent」), the three answer rulebooks, the rulebook against destroying the system
   (`prompts/rules/self-preservation.md`), the brain's discipline, the tool host's paragraph on finding
   and using tools (`docs/api.md`, 「Calls agency makes」) and the persona — the base layer of the
   agent's brain, or the one the turn hands in where the brain gives none (`docs/sessions.md`, 「Document reload」) — handed
@@ -298,7 +299,9 @@
   prefix, so the line itself is the same line. A keepalive that brings a session up goes out on
   the login a job's walk offers now, named on its line, so the job resuming that session finds the
   program the keepalive left standing. A model or a login changing is a command changing,
-  and the program is started again on the new one in the same pane, between turns. A session whose
+  and the program is started again on the new one in the same pane, between turns: a program whose own
+  record says a turn of it is working is never ended for a changed command, and the next stand after
+  that turn's end replaces it (`docs/sessions.md`, 「A restart hands the session over」). A session whose
   context has filled is folded by `/compact` typed into that same program, so the fold stands on
   the prefix the jobs stand on. Each job's turn goes into the program under the run name its runner
   gives it, carried as `BMO_RUN_NAME` beside `BMO_TURN_AGENT`, the worker, and `BMO_TASK_LOCKED=1`

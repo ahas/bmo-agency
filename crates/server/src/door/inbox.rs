@@ -18,9 +18,11 @@ use super::record::{ModelSpend, Reply};
 use super::stand::{interrupt_program, stand_resident};
 use super::surface::{Execution, Run, SurfaceEnding, SurfaceTurn, interrupt_of};
 use super::turn::Watch;
+use crate::lines::dsh;
 use crate::lines::place::{Place, Program, command_digest, is_turn_variable};
 use crate::now_ms;
 use crate::places::Ground;
+use crate::session_tools;
 
 const RUN_NAME: &str = "BMO_RUN_NAME";
 /// The gateway address a turn's tap stands at, which travels with the turn rather than the pane program.
@@ -65,6 +67,51 @@ fn kind(record: &Value) -> Option<&str> {
   record.get("kind").and_then(Value::as_str)
 }
 
+/// Where the lines of the record that belong to the last turn put in under a name stand: from its start to
+/// the next turn's start.
+pub fn span_named(records: &[Value], name: &str) -> Option<Range<usize>> {
+  let start = records.iter().rposition(|record| {
+    kind(record) == Some("start") && record.get("name").and_then(Value::as_str) == Some(name)
+  })?;
+  let next = records[start + 1..].iter().position(|record| kind(record) == Some("start"));
+
+  Some(start..next.map_or(records.len(), |next| start + 1 + next))
+}
+
+/// Whether the place's pane program is working on a turn, as its record says: its last turn, the bot's or
+/// a person's, started and has not ended. A place whose program keeps no record says nothing of the kind.
+pub fn turn_working(place: &Path) -> bool {
+  let records = read_record(place);
+
+  records
+    .iter()
+    .rposition(|record| kind(record) == Some("start"))
+    .is_some_and(|start| read_turn_on(&records[start..], "", "").0 == State::Working)
+}
+
+/// Whether a turn put in under a name still waits in the inbox, the program not having taken it yet.
+pub fn waiting_in_inbox(place: &Path, name: &str) -> bool {
+  std::fs::read_dir(inbox_dir(place)).into_iter().flatten().flatten().any(|entry| {
+    std::fs::read(entry.path())
+      .ok()
+      .and_then(|bytes| serde_json::from_slice::<Value>(&bytes).ok())
+      .is_some_and(|turn| turn.get("name").and_then(Value::as_str) == Some(name))
+  })
+}
+
+/// The provider a turn's answer names in its model choice, `[provider, model]`, where it names one.
+pub fn provider_named(records: &[Value]) -> Option<String> {
+  let choice = records
+    .iter()
+    .rev()
+    .find(|record| kind(record) == Some("answer"))?
+    .get("model")?
+    .as_str()?
+    .to_owned();
+
+  serde_json::from_str::<Vec<String>>(&choice).ok()?.into_iter().next()
+}
+
 /// Where the lines of the record that belong to one turn stand: from its start to the next turn's start.
 pub fn span_of(records: &[Value], id: &str) -> Option<Range<usize>> {
   let start = records.iter().position(|record| {
@@ -106,6 +153,12 @@ pub enum State {
 /// works, so nothing is ever left queued; the record carries the answer's words and model and no figures,
 /// so a turn read from it reports no tokens, money or window.
 pub fn read_turn(records: &[Value], run: &Run, provider: &str) -> (State, Option<String>, Reply) {
+  read_turn_on(records, &run.model, provider)
+}
+
+/// A turn of the pane program out of the lines its record holds of it, as `read_turn` reads one, with the
+/// model a reply names where the record names none.
+pub fn read_turn_on(records: &[Value], model: &str, provider: &str) -> (State, Option<String>, Reply) {
   let turn = records
     .iter()
     .rposition(|record| kind(record) == Some("start"))
@@ -118,7 +171,7 @@ pub fn read_turn(records: &[Value], run: &Run, provider: &str) -> (State, Option
     .and_then(|answer| answer.get("model").and_then(Value::as_str))
     .filter(|choice| !choice.is_empty())
     .map_or_else(
-      || run.model.clone(),
+      || model.to_owned(),
       |choice| {
         serde_json::from_str::<Vec<String>>(choice)
           .ok()
@@ -230,9 +283,35 @@ pub async fn turn<W: Watch>(
 
   let ended = put(ground, provider, resident, turn, &place, &program, &mut execution, watch).await;
 
+  kept_errors(ground, turn, &place, watch).await;
+
   let _ = end_run(&place.path, now_ms());
   execution.close(ground, turn, ended.is_err()).await;
   ended
+}
+
+// What the program's kept error stream gained during the turn, written into its run log; and, on a chat
+// line, the servers its harness said did not activate, with the ones the tool host saw no client reach,
+// told to the session once per program started.
+async fn kept_errors<W: Watch>(ground: &Ground, turn: &SurfaceTurn, place: &Place, watch: &mut W) {
+  let news = session_tools::error_news(&place.path, RESIDENT_TURN.stderr_lines);
+
+  for line in &news {
+    watch.note(&session_tools::error_line(line)).await;
+  }
+
+  let room = turn.run.env.get("BMO_TURN_CHAT").and_then(|chat| chat.trim().parse::<i64>().ok());
+
+  session_tools::look(
+    ground,
+    place,
+    &turn.home.agent,
+    &turn.run.line,
+    room,
+    &dsh::inactive_servers(&news),
+    watch,
+  )
+  .await;
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -303,6 +382,9 @@ async fn put<W: Watch>(
   let prompted_at = now_ms();
   let id = uuid::Uuid::new_v4().to_string();
   let mut run = turn.given.clone();
+
+  // The turn as the record will name it, so a server started after this one finds the row it closes.
+  execution.set("inboxTurn", json!({ "id": id, "name": turn.name }));
 
   run["env"] = json!(env);
   run["resident"] = Value::Null;

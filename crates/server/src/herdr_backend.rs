@@ -476,8 +476,8 @@ impl Came {
   }
 }
 
-// What a turn's models spent, each figure summed over them; none where they reported nothing.
-fn spent_of(spend: &[ModelSpend]) -> Option<run_ledger::Spent> {
+/// What a turn's models spent, each figure summed over them; none where they reported nothing.
+pub fn spent_of(spend: &[ModelSpend]) -> Option<run_ledger::Spent> {
   (!spend.is_empty()).then(|| {
     spend.iter().fold(run_ledger::Spent::default(), |sum, one| run_ledger::Spent {
       input_tokens: sum.input_tokens + one.input_tokens,
@@ -1858,6 +1858,7 @@ impl HerdrSessions {
       reasoning: line.reasoning.clone().unwrap_or_default(),
       thinking: line.thinking,
       system_path,
+      system_parts: None,
       room: RoomContext {
         chat_id: 0,
         text: String::new(),
@@ -2166,6 +2167,23 @@ impl Sessions for HerdrSessions {
       self.deaf().insert(turn.session.clone());
     }
 
+    // The turn is kept while it goes, so a server started after this one goes down hands its end back to
+    // the caller (docs/sessions.md, 「A restart hands the session over」).
+    crate::turn_pickup::keep(
+      &self.ground().db,
+      &crate::turn_pickup::InFlight {
+        session: turn.session.0.clone(),
+        turn: turn_id,
+        run: run.clone(),
+        agent: agent.clone(),
+        chat_id: room.as_deref().and_then(|room| room.parse().ok()),
+        ledger,
+        job: turn.context.job.as_ref().map(|job| job.job),
+        started_at: at,
+      },
+    )
+    .await;
+
     self.ground().events.publish(TurnStarted {
       session: turn.session.0.clone(),
       run: run.clone(),
@@ -2229,6 +2247,7 @@ impl Sessions for HerdrSessions {
     };
 
     self.ended(&turn.session, &run);
+    crate::turn_pickup::forget(&self.ground().db, &run).await;
 
     // A turn refused once its start was published still ends, failed with the refusal.
     match came {
@@ -2761,8 +2780,8 @@ pub fn turn_spent(end: &TurnEnd) -> Option<run_ledger::Spent> {
   })
 }
 
-// A chat turn's run closed as its turn ended: how it ended, the tokens its context carried and what it spent.
-async fn close_chat_run(
+/// A chat turn's run closed as its turn ended: how it ended, the tokens its context carried and what it spent.
+pub async fn close_chat_run(
   db: &sea_orm::DatabaseConnection,
   ledger: Option<i64>,
   end: &TurnEnd,

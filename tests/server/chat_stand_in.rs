@@ -58,6 +58,7 @@ fn chat_run(home: &std::path::Path) -> ChatRun {
     reasoning: Reasoning::default(),
     thinking: true,
     system_path: home.join("system.md"),
+    system_parts: None,
     room: RoomContext {
       chat_id: -5,
       text: "the room's block".into(),
@@ -202,10 +203,32 @@ async fn an_openrouter_step_stands_bmo_tui_on_a_dsh_session_over_its_inbox() {
   let overlay: Vec<serde_json::Value> = serde_json::from_str(&text.replace("!!js ", "")).unwrap();
   let row = |id: &str| overlay.iter().find(|row| row["id"] == id);
 
-  // The tool host's server is a client the session may go without, its bearer read from dsh's environment.
-  let bmo = row("mcp-bmo").unwrap_or_else(|| panic!("no tool host server in {text}"));
+  // The profile holds no row of a client's id, so the clients stand in one insert entry rather than as
+  // changes to rows that are not there; the tool host's server is one, its bearer read from dsh's
+  // environment, and a client that cannot open says why on the error stream while the session stands.
+  assert!(row("mcp-bmo").is_none(), "{text}");
 
-  assert_eq!(bmo["config"]["failOnStartupError"], false);
+  let inserted: Vec<&serde_json::Value> =
+    overlay.iter().filter_map(|entry| entry["insert"].as_array()).flatten().collect();
+  let bmo = inserted
+    .iter()
+    .find(|row| row["id"] == "mcp-bmo")
+    .unwrap_or_else(|| panic!("no tool host server in {text}"));
+
+  assert_eq!(bmo["config"]["failOnStartupError"], true);
+
+  // The shell is handed back what dsh's own start-up drops, and the error stream is kept in the place.
+  let env = &composed.command.env;
+
+  assert_eq!(env.get("BMO_SHELL_CARRY").map(String::as_str), Some("1"));
+  assert!(
+    env.get("BASH_ENV").is_some_and(|script| std::path::Path::new(script).is_file()),
+    "{env:?}"
+  );
+  assert_eq!(
+    env.get("BMO_PANE_STDERR").map(String::as_str),
+    Some(format!("{place}/stderr.log").as_str())
+  );
   assert!(text.contains("!!js \"`Bearer ${process.env.BMO_MCP_TOKEN}`\""), "{text}");
   let disabled = |id: &str| row(id).is_some_and(|row| row["disabled"] == true);
 

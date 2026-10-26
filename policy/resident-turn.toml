@@ -72,6 +72,10 @@ node_patience_seconds = 600
 inbox_ready_seconds = 60
 inbox_poll_ms = 250
 
+# The most lines of a pane program's error stream one turn's run log takes (docs/run-records.md, 「Agent
+# log」): a client that did not activate writes its cause with its stack, a few dozen lines a server.
+stderr_lines = 300
+
 # How a pane found missing is confirmed gone: looks in a row, each herdr answering without it, this far
 # apart.
 gone_looks = 3

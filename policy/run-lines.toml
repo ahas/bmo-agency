@@ -15,6 +15,8 @@
 #   tools.
 # shown: the placed tool entries, by full name, every run of the line is shown by name in their namespace
 #   whatever its agent's role, where it holds them; every other entry it holds is reached with `bmo use`.
+#   Each must be an entry the tool host's registry holds, which no build can read (docs/policy.md, 「A
+#   line's shown entries」).
 # variables: the deployment's variables every run of the line hands its record, each where the deployment
 #   sets it, for the placed tools that read them: a record's variable wins over the tool host's own.
 
@@ -26,9 +28,8 @@ capabilities = ["room.tools", "web.read", "gate.translate"]
 namespaces = ["bmo", "web", "gate"]
 shown = [
   "bmo/brain_fold", "bmo/brain_consolidated", "bmo/brain_episode", "bmo/brain_learn", "bmo/brain_list",
-  "bmo/brain_move", "bmo/brain_similar", "bmo/brain_unconsolidated", "bmo/running", "bmo/say", "bmo/task",
-  "bmo/todo_add", "bmo/todo_append", "bmo/todo_approve", "bmo/todo_show", "web/web_fetch", "web/web_search",
-  "gate/translate",
+  "bmo/brain_move", "bmo/brain_similar", "bmo/brain_unconsolidated", "bmo/say", "web/web_fetch",
+  "web/web_search", "gate/translate",
 ]
 # The gate's address and the path of its token file, which the gate's translate tool calls it with.
 variables = ["BMO_GATE_URL", "BMO_GATE_TOKEN_FILE"]

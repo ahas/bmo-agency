@@ -120,8 +120,9 @@ async fn rebuild(place: &Place, home: &Home, pane: Option<&str>) -> bool {
   true
 }
 
-/// The program the turn needs, standing. A place already running it is left as it is. A different
-/// program is written and the one standing ended, which the loop answers by starting the new one in the
+/// The program the turn needs, standing. A place already running it is left as it is, and so is one
+/// running another program while its record says a turn of it works. A different program is written and
+/// the one standing ended, which the loop answers by starting the new one in the
 /// same pane; a pane that is not there is stood up. The turn then waits, bounded, for the program to be
 /// up. A program in a start loop, or one that does not come up in that wait, has its place rebuilt and
 /// is waited on once more. A program about to be written is handed its session token first, and a tool
@@ -135,6 +136,23 @@ pub async fn stand_resident(
   wait: Duration,
   poll: Duration,
 ) -> Result<Stood, Fault> {
+  // A program is stood afresh only between its turns: one whose own record says a turn works is left
+  // standing, the turn asking for it going in as it stands, and the next stand after that turn replaces it.
+  if let Some(up) = place.program_alive()
+    && up.identity != program.identity
+    && super::inbox::turn_working(&place.path)
+  {
+    let pane = match up.pane_id {
+      Some(pane) => pane,
+      None => home.stand().await?.head_pane,
+    };
+
+    return Ok(Stood {
+      pane,
+      restarted: false,
+    });
+  }
+
   let standing = place.program();
   let mut written = program.clone();
 

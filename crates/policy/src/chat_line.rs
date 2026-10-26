@@ -17,6 +17,10 @@ pub struct System {
 pub struct Tools {
   pub shown: String,
   pub allowed: String,
+  pub paragraph: String,
+  pub absent: String,
+  pub absent_summary: String,
+  pub unreached: String,
 }
 
 #[derive(Debug, Deserialize)]

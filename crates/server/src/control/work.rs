@@ -750,6 +750,28 @@ async fn work_parts(
 // its assignment released, and an end that is no answer noted in the job's log.
 async fn launch(ground: Arc<Ground>, sessions: Option<crate::herdr_backend::Shared>, id: i64) {
   let ended = launched(&ground, sessions, id).await;
+
+  finish(&ground, id, ended).await;
+}
+
+/// A job's turn that ended after the process that launched it went away, ended as the launch would have
+/// ended it (docs/api.md, 「assignments and jobs」): its run closed with the turn's end, the job ended with
+/// its report, its assignment released, its lease returned and its end told to the room.
+pub async fn job_turn_ended(ground: &Ground, id: i64, end: agent_session::TurnEnd) {
+  let ledger = match job(&ground.db, id).await {
+    Ok((member, _)) => member["runId"].as_i64().unwrap_or_default(),
+    Err(why) => {
+      eprintln!("job {id}: its turn's end was not written: {}", why.error);
+      return;
+    }
+  };
+  let ended = ended_of(ground, ledger, end).await;
+
+  finish(ground, id, Ok(ended)).await;
+}
+
+// A job's end written whole, however its turn came to it.
+async fn finish(ground: &Ground, id: i64, ended: Result<Ended, String>) {
   let (state, outcome, report, spent) = match ended {
     Ok(end) => end,
     Err(why) => ("stopped".to_owned(), Some("failed".to_owned()), Some(why), None),
@@ -757,7 +779,7 @@ async fn launch(ground: Arc<Ground>, sessions: Option<crate::herdr_backend::Shar
   let now = now_ms();
 
   if let Some(outcome) = &outcome {
-    noted(&ground, id, outcome, report.as_deref()).await;
+    noted(ground, id, outcome, report.as_deref()).await;
   }
 
   if let Err(why) = run(
@@ -790,8 +812,8 @@ async fn launch(ground: Arc<Ground>, sessions: Option<crate::herdr_backend::Shar
       eprintln!("job {id}: its assignment {assignment_id} was not released: {}", why.error);
     }
 
-    crate::job_end::delivered(&ground, &member).await;
-    publish(&ground, if state == "ended" { "job.ended" } else { "job.changed" }, member);
+    crate::job_end::delivered(ground, &member).await;
+    publish(ground, if state == "ended" { "job.ended" } else { "job.changed" }, member);
   }
 }
 
@@ -835,7 +857,7 @@ pub async fn reap_stale(ground: &Ground) -> Result<usize, Refused> {
   let now = now_ms();
   let rows = all(
     &ground.db,
-    r#"SELECT "id", "worker_name", "assignment_id", "run_id", "started_at", "state"
+    r#"SELECT "id", "worker_name", "assignment_id", "run_id", "run_name", "started_at", "state"
        FROM "jobs" WHERE "state" IN ('starting', 'running') ORDER BY "id""#,
     vec![],
   )
@@ -865,6 +887,15 @@ pub async fn reap_stale(ground: &Ground) -> Result<usize, Refused> {
 
     if node.is_some() {
       println!("job {id}: left {state}: its worker {worker} stands on {}", node.unwrap_or_default());
+      continue;
+    }
+
+    // A turn kept in flight is the pickup's: it hands the job its end once the turn's record holds one.
+    let run_name: Option<String> = row.try_get("", "run_name").ok().flatten();
+
+    if let Some(run_name) = run_name.filter(|name| !name.is_empty())
+      && crate::turn_pickup::kept(&ground.db, &run_name).await
+    {
       continue;
     }
 
@@ -1033,6 +1064,11 @@ async fn launched(
     }
   };
 
+  Ok(ended_of(ground, ledger, end).await)
+}
+
+// What a job's turn's end makes of the job, its run closed with it.
+async fn ended_of(ground: &Ground, ledger: i64, end: agent_session::TurnEnd) -> Ended {
   let outcome = match end.outcome {
     agent_session::Outcome::Answered => None,
     other => Some(format!("{other:?}").to_lowercase()),
@@ -1053,7 +1089,7 @@ async fn launched(
     Some(_) => end.answer.or(end.reason),
   };
 
-  Ok(("ended".to_owned(), outcome, report, spent))
+  ("ended".to_owned(), outcome, report, spent)
 }
 
 // A job turn's run closed in the ledger as the turn ended, with what it spent.

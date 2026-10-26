@@ -72,7 +72,9 @@ function workerRun(overrides: Partial<HarnessRun> = {}): HarnessRun {
 }
 
 function rowsById(run: HarnessRun): Map<string, OverlayRow> {
-  return new Map(dshOverlay(run).map((row) => [row.id, row]));
+  const rows = dshOverlay(run).flatMap((entry) => ("insert" in entry ? entry.insert : [entry]));
+
+  return new Map(rows.map((row) => [row.id, row]));
 }
 
 describe("the overlay one run is configured by", () => {
@@ -254,6 +256,12 @@ describe("the overlay one run is configured by", () => {
         failOnStartupError: false,
       },
     });
+
+    // The profile holds no row of a client's id, so a client is inserted rather than named as a change.
+    const overlay = dshOverlay(runFor({ mcpConfigPath: configPath }));
+
+    expect(overlay.some((entry) => "id" in entry && entry.id.startsWith("mcp-"))).toBe(false);
+    expect(overlay.filter((entry) => "insert" in entry).map((entry) => ("insert" in entry ? entry.insert.map((row) => row.id) : []))).toEqual([["mcp-web"]]);
   });
 
   test("a server on the tool host becomes a Streamable HTTP client, its bearer read from dsh's own environment and its wait past the host's longest call", async () => {

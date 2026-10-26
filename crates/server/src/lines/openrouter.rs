@@ -10,7 +10,7 @@ use agent_host::place::ResidentCommand;
 use harness_providers::Machine;
 
 use super::dsh::{self, Composed};
-use super::place::is_turn_variable;
+use super::place::{CARRY_VARIABLE, SHELL_START, carry_script, is_turn_variable, stderr_file};
 use super::stand_in::Taking;
 use crate::Refusal;
 use crate::places::Ground;
@@ -88,6 +88,19 @@ pub fn resident_command(
     }
   }
   let patch = dsh::session_patch(run, &env, &ground.roots.data, route)?;
+
+  // dsh starts its shell on an environment scrubbed of every variable whose name says it holds a
+  // secret, the tool session token among them, so the program carries each `BMO_` variable under a name
+  // the scrub keeps and names the start-up file that puts them back in every shell it starts; the copies
+  // are made as the program is written, the token being issued after this command is composed.
+  env.insert(CARRY_VARIABLE.to_owned(), "1".to_owned());
+  env.insert(SHELL_START.to_owned(), carry_script(&ground.roots.data)?.to_string_lossy().into_owned());
+  // What dsh says on its error stream — a client that did not activate among it — is kept in the place
+  // rather than drawn over bmo-tui's screen.
+  env.insert(
+    agent_host::place::STDERR_VARIABLE.to_owned(),
+    stderr_file(place).to_string_lossy().into_owned(),
+  );
   let mut args = vec![
     program_word(machine, program),
     "dsh".to_owned(),

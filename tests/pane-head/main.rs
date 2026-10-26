@@ -257,6 +257,27 @@ fn the_program_takes_the_heads_own_process_with_the_panes_terminal_over_its_envi
 }
 
 #[test]
+fn a_program_whose_command_names_an_error_file_writes_its_error_stream_there_and_is_not_handed_the_name() {
+  let root = Root::new();
+  let errors = root.data.path().join("stderr.log");
+  let said = root.data.path().join("said");
+
+  fs::write(&errors, "an earlier start\n").unwrap();
+  root.program(
+    "chat",
+    &format!("echo ${{BMO_PANE_STDERR:-unnamed}} > {}; echo the cause >&2", said.display()),
+    json!({ "command": { "args": [SH, "-c", format!("echo ${{BMO_PANE_STDERR:-unnamed}} > {}; echo the cause >&2", said.display())], "cwd": root.data.path(), "env": { "PATH": std::env::var("PATH").unwrap(), "BMO_PANE_STDERR": errors } } }),
+  );
+
+  let ended = root.run("chat", "p1", &[]);
+
+  assert!(ended.status.success(), "{ended:?}");
+  assert!(String::from_utf8_lossy(&ended.stderr).is_empty(), "{ended:?}");
+  assert_eq!(fs::read_to_string(&said).unwrap(), "unnamed\n");
+  assert_eq!(fs::read_to_string(&errors).unwrap(), "an earlier start\nthe cause\n");
+}
+
+#[test]
 fn a_head_record_and_a_start_left_by_a_process_that_is_gone_read_as_absent() {
   let root = Root::new();
   let mut gone = Command::new("true").spawn().unwrap();

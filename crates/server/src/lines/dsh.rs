@@ -117,8 +117,9 @@ fn bearer_variable(headers: &IndexMap<String, String>) -> Option<String> {
 
 // The MCP servers the run may reach, each a client of its own under the name its tools are called by: a
 // server on the tool host as a Streamable HTTP row with its bearer header read from dsh's environment, any
-// other as the command it is spawned on.
-fn mcp_rows(path: Option<&Path>, cwd: &str) -> Result<Vec<Ordered>, Refusal> {
+// other as the command it is spawned on. A loud client that cannot open fails its own activation, which dsh
+// writes to its error stream with the cause; a quiet one is let go without a word.
+fn mcp_rows(path: Option<&Path>, cwd: &str, loud: bool) -> Result<Vec<Ordered>, Refusal> {
   let Some(path) = path.filter(|path| !path.as_os_str().is_empty()) else {
     return Ok(vec![]);
   };
@@ -158,7 +159,7 @@ fn mcp_rows(path: Option<&Path>, cwd: &str) -> Result<Vec<Ordered>, Refusal> {
             ("serverName", Ordered::Text(name.clone())),
             ("url", text(url)),
             ("headers", map(said)),
-            ("failOnStartupError", Ordered::Flag(false)),
+            ("failOnStartupError", Ordered::Flag(loud)),
           ]),
         ),
       ]));
@@ -191,7 +192,7 @@ fn mcp_rows(path: Option<&Path>, cwd: &str) -> Result<Vec<Ordered>, Refusal> {
             ("args", args),
             ("env", env),
             ("cwd", text(cwd)),
-            ("failOnStartupError", Ordered::Flag(false)),
+            ("failOnStartupError", Ordered::Flag(loud)),
           ]),
         ),
       ]));
@@ -373,11 +374,84 @@ fn overlay_of_with(
 
   rows.extend(route_rows(run.provider, run.model, level, env, route));
 
+  // The clients are rows the profile does not hold, so they stand in one insert entry: a row naming an id
+  // the profile lacks is a change to nothing, which dsh mounts nothing for. A standing session's clients
+  // say why one did not open; a headless run's go quietly, its error stream being its failure's account.
   if mcp {
-    rows.extend(mcp_rows(run.mcp, run.cwd)?);
+    let servers = mcp_rows(run.mcp, run.cwd, tools == Tools::Session)?;
+
+    if !servers.is_empty() {
+      rows.push(map(vec![("insert", Ordered::List(servers))]));
+    }
   }
 
   Ok(Ordered::List(rows))
+}
+
+/// The tools a standing session keeps of dsh's own, as the pinned version names them to the model: every row
+/// a line that grants tools leaves on, the MCP resource readers its clients bring among them.
+pub const SESSION_TOOLS: [&str; 23] = [
+  "bash",
+  "read",
+  "write",
+  "edit",
+  "glob",
+  "grep",
+  "read_image",
+  "working_directory",
+  "skill",
+  "todo_write",
+  "workflow",
+  "subagent",
+  "subagent_fork",
+  "send_message",
+  "interrupt_agent",
+  "list_agents",
+  "job_list",
+  "job_output",
+  "job_kill",
+  "exit_plan_mode",
+  "list_mcp_resources",
+  "list_mcp_resource_templates",
+  "read_mcp_resource",
+];
+
+// The package an MCP client row is mounted from, which a failed activation names beside its row.
+const MCP_CLIENT: &str = "@deepseek-ai/dsh-mcp-client";
+
+/// The servers whose clients dsh's error stream says did not activate, each with the cause it gave: a
+/// failed row is written as its id and its package before the error, and the error's own cause follows
+/// below its stack where the first line only says the connection failed.
+pub fn inactive_servers(lines: &[String]) -> Vec<(String, String)> {
+  let mut found: Vec<(String, String)> = vec![];
+  let marker = format!(" ({MCP_CLIENT}): ");
+  let mut open: Option<usize> = None;
+
+  for line in lines {
+    let trimmed = line.trim();
+
+    if let Some((id, said)) = trimmed.split_once(&marker)
+      && let Some(server) = id.strip_prefix("mcp-")
+    {
+      found.retain(|(named, _)| named != server);
+      found.push((server.to_owned(), said.trim().to_owned()));
+      open = Some(found.len() - 1);
+      continue;
+    }
+
+    let Some(at) = open else { continue };
+
+    if trimmed.is_empty() || trimmed.starts_with("at ") {
+      continue;
+    }
+
+    // The first line under a failure's stack is the cause it was thrown for; anything after it is
+    // another entry's or the harness's own.
+    found[at].1 = format!("{}: {trimmed}", found[at].1);
+    open = None;
+  }
+
+  found
 }
 
 // The overlay for one worker's run.

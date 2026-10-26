@@ -25,14 +25,15 @@ fn only_the_worker_research_and_chat_lines_show_their_most_called_entries_by_nam
   assert!(RUN_LINES.shows("worker", "worker/todo_show"));
   assert!(!RUN_LINES.shows("worker", "worker/graph_list"));
   assert!(!RUN_LINES.shows("editor", "fragments/fragment_write"), "no editor line stands");
-  assert!(RUN_LINES.shows("chat", "bmo/todo_show"));
+  assert!(!RUN_LINES.shows("chat", "bmo/todo_show"), "the registry holds no such entry");
   assert!(!RUN_LINES.shows("chat", "bmo/todo_list"));
   assert!(RUN_LINES.shows("chat", "bmo/brain_learn"));
   assert!(RUN_LINES.shows("chat", "bmo/brain_similar"));
   assert!(!RUN_LINES.shows("chat", "bmo/memory_add"));
   assert!(RUN_LINES.shows("chat", "bmo/say"));
-  assert!(RUN_LINES.shows("chat", "bmo/task"));
-  assert!(RUN_LINES.shows("chat", "bmo/running"));
+  for gone in ["bmo/task", "bmo/running", "bmo/todo_add", "bmo/todo_append", "bmo/todo_approve"] {
+    assert!(!RUN_LINES.shows("chat", gone), "{gone}: the registry holds no such entry");
+  }
   assert!(!RUN_LINES.shows("chat", "bmo/jobs"));
   assert!(!RUN_LINES.shows("chat", "bmo/digest_now"));
   assert!(!RUN_LINES.shows("chat", "bmo/sticker"));

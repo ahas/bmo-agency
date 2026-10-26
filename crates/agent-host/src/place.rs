@@ -11,6 +11,10 @@ use crate::disk::{publish, read_json};
 use crate::identity::ProcessIdentity;
 use crate::layout::name_component;
 
+/// The variable a command names the file its program's error stream is appended to in: the head points
+/// the program's error stream there as it starts it and hands the program its environment without it.
+pub const STDERR_VARIABLE: &str = "BMO_PANE_STDERR";
+
 /// A command as the launcher hands it to a pane.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ResidentCommand {

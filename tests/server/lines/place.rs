@@ -149,3 +149,86 @@ fn a_place_whose_line_guards_its_shell_reads_every_bash_call_first() {
     format!("'/deploy/bin/bmo-agency' 'agent-status' 'shell' '--place' '{}'", place.display())
   );
 }
+
+#[test]
+fn a_command_that_opts_in_carries_each_bmo_variable_under_a_name_no_scrub_drops() {
+  let mut env = BTreeMap::from([
+    (CARRY_VARIABLE.to_owned(), "1".to_owned()),
+    ("BMO_MCP_TOKEN".to_owned(), "the token".to_owned()),
+    ("PATH".to_owned(), "/bin".to_owned()),
+    (format!("{CARRIER_PREFIX}00"), "left from before".to_owned()),
+  ]);
+
+  carry(&mut env);
+
+  assert_eq!(carrier_of("BMO_MCP_TOKEN"), "BMO_CARRIED_424D4F5F4D43505F544F4B454E");
+  assert_eq!(env.get(&carrier_of("BMO_MCP_TOKEN")).map(String::as_str), Some("the token"));
+  assert!(!env.contains_key(&format!("{CARRIER_PREFIX}00")), "an old copy is dropped");
+  assert!(!env.contains_key(&carrier_of("PATH")) && !env.contains_key(&carrier_of(CARRY_VARIABLE)));
+
+  for word in ["KEY", "PASSWORD", "SECRET", "TOKEN"] {
+    assert!(
+      env
+        .keys()
+        .filter(|name| name.starts_with(CARRIER_PREFIX))
+        .all(|name| !name.contains(word)),
+      "{env:?}"
+    );
+  }
+
+  let mut plain = BTreeMap::from([("BMO_MCP_TOKEN".to_owned(), "the token".to_owned())]);
+
+  carry(&mut plain);
+  assert_eq!(plain.len(), 1, "a command that does not opt in carries nothing");
+}
+
+#[test]
+fn the_shell_start_up_file_puts_a_carried_variable_back_where_the_shell_lacks_it() {
+  let data = tempfile::tempdir().unwrap();
+  let script = carry_script(data.path()).unwrap();
+  let shell = std::process::Command::new("bash")
+    .args(["-c", r#"printf '%s|%s' "$BMO_MCP_TOKEN" "$BMO_DATA_DIR""#])
+    .env_clear()
+    .env("PATH", "/usr/bin:/bin")
+    .env("BASH_ENV", &script)
+    .env(carrier_of("BMO_MCP_TOKEN"), "a token with spaces")
+    .env(carrier_of("BMO_DATA_DIR"), "the copy")
+    .env("BMO_DATA_DIR", "the shell's own")
+    .stdin(std::process::Stdio::null())
+    .output()
+    .unwrap();
+
+  assert_eq!(String::from_utf8_lossy(&shell.stdout), "a token with spaces|the shell's own");
+  assert_eq!(carry_script(data.path()).unwrap(), script, "the same file is written once");
+}
+
+#[tokio::test]
+async fn a_program_written_into_its_place_carries_the_token_it_was_handed() {
+  let data = tempfile::tempdir().unwrap();
+  let place = Place::of(data.path(), "agent-a");
+  let env = BTreeMap::from([
+    (CARRY_VARIABLE.to_owned(), "1".to_owned()),
+    ("BMO_MCP_TOKEN".to_owned(), "issued".to_owned()),
+  ]);
+  let command = ResidentCommand {
+    args: vec!["bmo-tui".into()],
+    cwd: data.path().to_path_buf(),
+    env,
+  };
+  let program = Program {
+    identity: command_digest(&command),
+    command,
+    restart: None,
+    opened: None,
+  };
+
+  place.replace(&program).await.unwrap();
+
+  let written = place.program().unwrap();
+
+  assert_eq!(written.identity, program.identity, "the copies are no part of the program's identity");
+  assert_eq!(
+    written.command.env.get(&carrier_of("BMO_MCP_TOKEN")).map(String::as_str),
+    Some("issued")
+  );
+}

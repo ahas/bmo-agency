@@ -21,6 +21,17 @@ rulebooks = ["answer-content", "answer-shape", "plain-writing", "agent-words", "
 [tools]
 shown = "Bash,Read,Write,Edit,ListMcpResourcesTool,ReadMcpResourceTool"
 allowed = "Bash,Read,Write,Edit,ListMcpResourcesTool,ReadMcpResourceTool,mcp__bmo,mcp__web,mcp__gate,mcp__job,mcp__agency"
+# The tools paragraph after the manual, composed at each launch for the program the session runs on
+# (docs/agent-documents.md, 「The chat agent」): {program} is the program's own tools by name, {servers} the
+# servers the line's MCP configuration hands the session, and {shown} the tool host's entries the line shows
+# by name, each as the program calls it.
+paragraph = "TOOLS: Your program's own tools are {program}. Your MCP servers are {servers}, and of the tool host's tools they show you {shown} by name. Every other hosted tool is found with `bmo use --tools`, read with `bmo use <tool> --describe` and called with `bmo use <tool>`. A tool none of these names or lists does not exist here."
+# The fact a chat session is told of a server its program did not attach (docs/agent-control.md, 「dsh's
+# providers: OpenRouter and DeepSeek」): {server} is the server and {why} what kept it out.
+absent = "The {server} server is absent from this session: {why}. Its tools are not among yours; reach any of them with `bmo use` — find it with `bmo use --tools`, read it with `bmo use <tool> --describe` and call it with `bmo use <tool>`. Nothing needs saying in the room."
+absent_summary = "The {server} server is absent from the session"
+# What kept a tool host namespace out where nothing but the host's own account says so.
+unreached = "the tool host saw no client of this session reach it"
 
 # The persona's layers. The base persona after the system prompt is the agent's brain's layer named here, or
 # the caller's where the brain gives none; the room's tone layer and its own persona in the room's block are

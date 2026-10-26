@@ -28,7 +28,7 @@ a field's exact shape matters, the OpenAPI document is the one to read.
 ## Versioning
 
 - The contract carries the repository's one version, in semver; the workspace manifest is its source. Before
-  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.70`.
+  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.71`.
 - A change to this document and a change to the boundary go in one commit. A change to a route, an event, a
   hook or a shared table's contract repairs this document in the same commit.
 - The major moves on a removed or renamed route, field or event, the minor on an addition, the patch on
@@ -237,7 +237,11 @@ tier matches the session by the tier the agency reads it at.
 
 A turn sent is carried to its end whether or not its sender still waits on the send: a sender that lets
 go of the request, or goes down while the turn works, leaves the turn running, and the turn ends as it
-would have, its run closed and its end published as `turn.ended`.
+would have, its run closed and its end published as `turn.ended`. Agency's own restart is no end of a
+turn either: a turn whose program keeps its record in its place is picked up by the server that starts
+next, and its end is published as `turn.ended` under the same `turnId`, a job's turn ending its job; a
+turn no record names ends failed (`docs/sessions.md`, 「A restart hands the session over」). The progress
+read of a turn picked up after a restart answers `unknown-turn`.
 
 A turn is named from its start: `turn.created` carries its `turnId`, and the send answers with that same
 id once the turn ends. The progress read answers the turn named, on every scope that carries turns, with
@@ -628,10 +632,16 @@ are the ones a job's end states below.
   room; the item a harness hands over carries that `scope` with it, so a job launched from a room is told
   back in that room.
 
+- **A job whose turn goes on across agency's restart ends as its turn does.** Its turn is kept in flight
+  while it goes, and the server that starts next picks it up (「sessions」 above): a turn whose program's
+  record holds its end, or comes to hold it, ends the job `ended` with the turn's answer as its report,
+  as its launch would have, its run closed, its assignment released, its lease returned and its end told
+  to the room. The pass below leaves a job whose turn is kept in flight to it.
 - **A job left running with no live execution ends as stopped on the pass.** The process that ran it can
-  go away with agency's own restart before the run writes its end. On start, and on the reconcile pass that
-  keeps the execution rows, a job still `starting` or `running` is read against the records the store
-  already keeps: an open execution row of its worker's on the worker line begun at the job's start is a live
+  go away with agency's own restart before the run writes its end, on a program that keeps no record the
+  next server can read it from. On start, after the turns in flight are picked up, and on the reconcile
+  pass that keeps the execution rows, a job still `starting` or `running` whose turn is not kept in flight
+  is read against the records the store already keeps: an open execution row of its worker's on the worker line begun at the job's start is a live
   execution, and an open run in the ledger is a live run. A job with neither — or whose run is already
   closed — ends as `stopped` with a report saying the process that ran it went away, its open run is closed,
   its assignment released, and its lease returned and its report told to the room through the same delivery
@@ -764,16 +774,19 @@ route. A caller uses one of them and writes no client of its own.
 
 Agency reaches upstreams through what their repositories publish: brain, graph, node, arbiter,
 pocket, testbed, gate and chat through their clients, and cache-warmer through the schedule library
-`bmo-cache-warmer-schedule`. Two calls go below it, both as a job ends: the job service's lease is given
-back, and the receiver's `POST /instructions` is handed the report for the room's chat agent. Both are the
-documented routes of the units that hold what the end must reach; agency keeps no client of either and no
-store of their rows.
+`bmo-cache-warmer-schedule`. Two routes below it are called: as a job ends, the job service's lease is given
+back and the receiver's `POST /instructions` is handed the report for the room's chat agent; and after a
+chat program's first turn, that same route is handed one fact for each of the session's servers its
+program did not attach (`docs/agent-control.md`, 「dsh's providers: OpenRouter and DeepSeek」). Both are
+the documented routes of the units that hold what must reach them; agency keeps no client of either and
+no store of their rows.
 Of the brain it asks an agent's own brain made as the agent is registered, found by the agent's key,
 let go whole or only found for a preview, the discipline a chat launch's system prompt carries, and the
 base layer of the agent's persona that prompt ends with. Of the tool host it asks, on its control socket
 with the issuer token, a session token for each program and run that holds a capability, which it takes
-back, a namespace's listing and facts, and the paragraph on finding and using tools that a chat launch's
-system prompt carries. Of the gate it asks the reference a job's or a research run's instruction calls
+back, a namespace's listing and facts, the paragraph on finding and using tools that a chat launch's
+system prompt carries, and, after a chat program's first turn, the servers its session token's clients
+reached (`GET /tool-sessions/{token}`, its `connected`), where a host that saw none says nothing. Of the gate it asks the reference a job's or a research run's instruction calls
 for, picked over the chat agent's brain, and attaches the picked entries to the run's first prompt; and it
 reads the gate kinds and their order as the gate publishes them, so no copy of the gate order stands here.
 
@@ -812,8 +825,8 @@ Each surface is a crate of its own repository, declared in the workspace manifes
 `tests/dependencies.rs`; every other crate of another repository, a downstream's client among them,
 stays outside the boundary.
 
-It calls no downstream but the two calls a job's end makes: the lease returned to the job service, and the
-report handed to the receiver's instruction route. The gate and the receiver reach it through the hook point
+It calls no downstream but the job service's lease route and the receiver's instruction route: the lease
+returned and the report handed over as a job ends, and a chat session told of a server it lacks. The gate and the receiver reach it through the hook point
 above for everything else.
 
 ## What the redesign took out

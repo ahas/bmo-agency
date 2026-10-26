@@ -92,20 +92,39 @@ async fn tell_room(vars: &BTreeMap<String, String>, member: &Value) {
   ) else {
     return;
   };
-  let body = instruction_body(member);
+  if let Err(why) = post_instruction(&url, &token, &instruction_body(member)).await {
+    eprintln!("job {}: its end was not told to the room: {why}", id_of(member));
+  }
+}
+
+// One instruction handed to the receiver's instruction route.
+async fn post_instruction(url: &str, token: &str, body: &Value) -> Result<(), String> {
   let answer = reqwest::Client::new()
     .post(format!("{url}/instructions"))
     .bearer_auth(token)
-    .json(&body)
+    .json(body)
     .timeout(ANSWER_WITHIN)
     .send()
     .await;
 
   match answer {
-    Ok(answer) if answer.status().is_success() => {}
-    Ok(answer) => eprintln!("job {}: its end was not told to the room: {}", id_of(member), answer.status()),
-    Err(why) => eprintln!("job {}: its end was not told to the room: {why}", id_of(member)),
+    Ok(answer) if answer.status().is_success() => Ok(()),
+    Ok(answer) => Err(answer.status().to_string()),
+    Err(why) => Err(why.to_string()),
   }
+}
+
+/// An instruction queued for a room's session through the receiver's instruction route, with the address and
+/// token the deployment names; a deployment that carries no receiver queues nothing.
+pub async fn instruct(vars: &BTreeMap<String, String>, body: &Value) -> Result<(), String> {
+  let (Some(url), Some(token)) = (
+    address(vars, "BMO_RECEIVER_URL"),
+    token(vars, "BMO_RECEIVER_TOKEN", "BMO_RECEIVER_TOKEN_FILE"),
+  ) else {
+    return Err("no receiver is named".to_owned());
+  };
+
+  post_instruction(&url, &token, body).await
 }
 
 fn id_of(member: &Value) -> i64 {

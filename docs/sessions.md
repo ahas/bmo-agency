@@ -21,11 +21,36 @@ session on the owner's ask is `docs/session-resets.md`.
 - **A deploy moves the link's target, not its path,** so a program stood after it on the same folder
   resumes the conversation it held. The relaunch instruction a consumer writes at a deploy is the
   deployment briefing, not the notice of a closed session.
-- **A program stood afresh while a turn runs resumes the same session.** The turn in flight is the
-  caller's to ask again from its own round, which holds the item, the message it answers and the
-  report in hand; the session keeps everything before it. One session answers a room: the folder's
-  record is what tells a program which session that is, so no second one is opened while the first
-  stands.
+- **Agency is a session relay, and its own restart is no session event.** It opens a model session
+  where none stands and relays turns into the one that stands; a turn in flight across agency's restart
+  is picked up again, not lost:
+  - every turn sent is kept in agency's settings while it goes, under its run (`turn_in_flight:<run>`,
+    `docs/store.md`), with what its end needs to reach its caller: the session and the turn's id, the
+    agent, the room, the chat turn's run in the ledger and the job;
+  - a server that starts reads each turn the process before it left there against the record of the
+    agent's pane program, `loop.jsonl` in its place, by the run's name, before it reads anything else that
+    process left;
+  - a turn whose end the record holds is handed back through the path a live turn's end takes: what of
+    its record the run log lacks is filed there with its end, its execution row and the place's run are
+    closed, a chat turn's road, spend and ledger run are written, its end is published as `turn.ended`
+    under the turn's own id, and a job's turn ends its job with its report as the job's launch would have
+    (`docs/api.md`, 「assignments and jobs」);
+  - a turn the program is still working on, or still holds in its inbox, is attached to: the server
+    holds the agent's program, so no turn of its own goes in meanwhile, waits on the record, and hands
+    the end back once it is written; a program that goes away meanwhile ends the turn failed;
+  - a turn no record names — one on a program that keeps no such record — is ended failed for its
+    caller, and a job's is left to the pass that ends a job left running.
+  The progress read of a turn picked up this way answers `unknown-turn`; its caller reads its end on the
+  event stream.
+- **A program is stood afresh only between turns** (`docs/launch-lines.md`, 「What is fixed」). A
+  program whose command changed while one of its turns works — a deployment that moved its line, its
+  prompt or its environment — is left standing until the record says that turn ended: the turn that
+  found it changed goes into the program as it stands, waiting in its inbox behind the working turn, and
+  the next turn's stand replaces it. A program that goes down while a turn runs and is stood again
+  resumes the same session; the turn it was on is the caller's to ask again from its own round, which
+  holds the item, the message it answers and the report in hand. One session answers a room: the
+  folder's record is what tells a program which session that is, so no second one is opened while the
+  first stands.
 - **A caller that names a folder works in it,** as a conversation opened on one does; only the chat's
   own launches, which name none, stand in the link.
 

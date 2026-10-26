@@ -38,7 +38,9 @@ test("its runs go through dsh on DeepSeek's own route, the key named by variable
   expect(deepSeekRoute.keyEnv).toBe("DEEPSEEK_API_KEY");
   expect(deepSeekRoute.keyFile?.().endsWith("/env/deepseek.key")).toBe(true);
 
-  const rows = new Map(dshOverlay(run("deepseek-flash", false), deepSeekRoute).map((row) => [row.id, row]));
+  const rows = new Map(
+    dshOverlay(run("deepseek-flash", false), deepSeekRoute).flatMap((entry) => ("insert" in entry ? entry.insert : [entry])).map((row) => [row.id, row]),
+  );
 
   expect(rows.get("llm-pi-ai")?.config).toMatchObject({
     providers: { deepseek: { apiKeyEnv: "DEEPSEEK_API_KEY", baseURL: "https://api.deepseek.com/v1", reasoning: "off" } },

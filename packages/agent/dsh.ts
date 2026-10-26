@@ -139,6 +139,9 @@ export interface OverlayRow {
   config?: Record<string, unknown>;
 }
 
+// An entry of the overlay: a change to a row the profile holds, or rows it inserts beside them.
+export type OverlayEntry = OverlayRow | { insert: OverlayRow[] };
+
 interface McpServerEntry {
   command?: unknown;
   args?: unknown;
@@ -198,8 +201,8 @@ export function dshPermissionMode(run: HarnessRun): string | null {
 // No secret is in it. The route names the environment variable the key is read from and never
 // the key, so the file may be read by anyone who can read the directory and still say nothing;
 // the key itself travels in the run's environment.
-export function dshOverlay(run: HarnessRun, route: DshRoute = openRouterRoute): OverlayRow[] {
-  const rows: OverlayRow[] = [];
+export function dshOverlay(run: HarnessRun, route: DshRoute = openRouterRoute): OverlayEntry[] {
+  const rows: OverlayEntry[] = [];
 
   if (run.systemPromptPath !== null) {
     rows.push({ id: "system-prompt", config: { personaPrefix: dshLiteral(readFileSync(run.systemPromptPath, "utf8")) } });
@@ -283,8 +286,12 @@ export function dshOverlay(run: HarnessRun, route: DshRoute = openRouterRoute): 
 
   rows.push({ id: "agent-default-model", config: { provider: route.provider, model: run.model } });
 
-  for (const row of mcpRows(run)) {
-    rows.push(row);
+  // The clients are rows the profile does not hold, so they stand in one insert entry: a row naming an id
+  // the profile lacks is a change to nothing, which dsh mounts nothing for.
+  const servers = mcpRows(run);
+
+  if (servers.length > 0) {
+    rows.push({ insert: servers });
   }
 
   return rows;

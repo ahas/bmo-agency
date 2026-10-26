@@ -42,6 +42,11 @@ about a message is not agency's: the judgement records belong to the units that 
     that names no call by an id is matched first in, first out: each settling answers the oldest call
     still open, the two sharing a reference made of the turn's id and the call's place in the turn, and
     a call reported as asked and then as under way is one call.
+- **A pane program's error stream is filed too.** Where the program's command keeps its error stream in
+  its place, as bmo-tui's does (`docs/agent-control.md`, 「dsh's providers: OpenRouter and DeepSeek」),
+  the lines the file gained since the last look are written into the run log of the turn that just
+  ended, each a note, at most the number `policy/resident-turn.toml` names a turn; and where a chat
+  session's server did not attach, one note naming the server and why.
 - A line is committed the moment it arrives, so a run killed from outside leaves everything up to
   the kill, and the ids run forward, so a finished run is scrolled back rather than only tailed.
 - It is bounded three ways — a per-line cut, the last few thousand lines per agent, and an age —
@@ -73,8 +78,10 @@ about a message is not agency's: the judgement records belong to the units that 
 - **A chat turn's run is opened by agency** as a turn into a room's or an agent's session starts, the
   turn naming its room and carrying no work parts: its unit is the name the turn's log lines are written
   under, its room the room the turn answers, its round the round the turn's context names, and its message
-  the latest message the turn answers. It is closed as the turn ends, with how the turn ended, the
-  tokens its context carried and what the turn spent: its input, output, cache-read and cache-write
+  the latest message the turn answers. It is closed as the turn ends — by the server that picks the turn
+  up where agency restarted while it went (`docs/sessions.md`, 「A restart hands the session over」),
+  which also files the lines of the program's record the log does not yet hold — with how the turn ended,
+  the tokens its context carried and what the turn spent: its input, output, cache-read and cache-write
   tokens, each summed over the models that answered it, and none where its road reported no figures.
 - **A job's turn is a run opened by agency's job runner** (`docs/api.md`, 「assignments and jobs」) as the
   turn goes out: its agent the worker, its unit the job's run name, the one its log lines are written

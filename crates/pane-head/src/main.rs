@@ -4,7 +4,9 @@
 //! so whatever ends it before its `exec` is an end like any other, and the loop asks again.
 
 use std::collections::BTreeMap;
+use std::fs::{File, OpenOptions};
 use std::io;
+use std::os::unix::fs::OpenOptionsExt;
 use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
@@ -13,6 +15,7 @@ use std::time::Duration;
 
 use agent_host::ask::{Answer, Request, ask};
 use agent_host::layout::Layout;
+use agent_host::place::STDERR_VARIABLE;
 
 /// The one exit the pane's loop does not start the head again on.
 const HEAD_STOPPED: u8 = 3;
@@ -43,6 +46,14 @@ fn program_environment(mut env: BTreeMap<String, String>) -> BTreeMap<String, St
   }
 
   env
+}
+
+/// The file a command names its program's error stream to go to, opened to append and private to its
+/// owner; none where it names none or the file cannot be opened, and then the stream stays the pane's.
+fn error_stream(env: &mut BTreeMap<String, String>) -> Option<File> {
+  let path = env.remove(STDERR_VARIABLE).filter(|path| !path.is_empty())?;
+
+  OpenOptions::new().create(true).append(true).mode(0o600).open(path).ok()
 }
 
 /// What a start that failed says, naming the executable and the path it was looked for on.
@@ -103,9 +114,18 @@ fn main() -> ExitCode {
         thread::sleep(Duration::from_millis(wait_ms));
       }
 
-      let env = program_environment(env);
+      let mut env = program_environment(env);
+      let errors = error_stream(&mut env);
       let path = env.get("PATH").cloned().unwrap_or_default();
-      let why = Command::new(program).args(rest).current_dir(&cwd).env_clear().envs(&env).exec();
+      let mut command = Command::new(program);
+
+      command.args(rest).current_dir(&cwd).env_clear().envs(&env);
+
+      if let Some(errors) = errors {
+        command.stderr(errors);
+      }
+
+      let why = command.exec();
       let reason = start_failure(program, &cwd, &path, &why);
       let report = Request::Failed {
         agent: agent.clone(),
