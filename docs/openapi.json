@@ -3611,6 +3611,33 @@
         }
       }
     },
+    "/work-keys": {
+      "get": {
+        "operationId": "listWorkKeys",
+        "tags": [
+          "work-keys"
+        ],
+        "summary": "Every work key with the tier it is assigned, the tiers it may be, and what it resolves to on each provider.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkKeyAssignmentPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "x-codes": [
+          "unauthorized"
+        ]
+      }
+    },
     "/work-keys/{workKey}": {
       "get": {
         "operationId": "getWorkKey",
@@ -8912,6 +8939,16 @@
           "name": {
             "type": "string"
           },
+          "code": {
+            "type": "string",
+            "description": "The kebab-case word a screen words the provider by: its name.",
+            "default": ""
+          },
+          "label": {
+            "type": "string",
+            "description": "The English name a log keeps.",
+            "default": ""
+          },
           "enabled": {
             "type": "boolean"
           },
@@ -8924,6 +8961,8 @@
         },
         "required": [
           "name",
+          "code",
+          "label",
           "enabled",
           "registered",
           "coworker"
@@ -10081,6 +10120,60 @@
           "registration"
         ],
         "description": "The body that changes the fallback screen's routes, providers and accounts."
+      },
+      "WorkKeyAssignmentPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkKeyAssignment"
+            }
+          },
+          "more": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "items",
+          "more"
+        ],
+        "description": "WorkKeyAssignmentPage:"
+      },
+      "WorkKeyAssignment": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "tier": {
+            "type": "string"
+          },
+          "choices": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "conflicts": {
+            "type": "array",
+            "items": true,
+            "description": "Each `provider`, `previous` and `accepted`."
+          },
+          "effective": {
+            "type": "array",
+            "items": true,
+            "description": "Each `provider`, `selection`, `error` and `errorCode`."
+          }
+        },
+        "required": [
+          "key",
+          "tier",
+          "choices",
+          "conflicts",
+          "effective"
+        ],
+        "description": "WorkKeyAssignment: one work key's tier, the tiers it may be assigned, the owner's choices from before the\ntiers kept for review, and what it resolves to on each provider of the registry's archive."
       },
       "WorkKey": {
         "type": "object",

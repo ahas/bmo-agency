@@ -14,7 +14,7 @@ use sea_orm::DatabaseConnection;
 use serde_json::{Map, Value, json};
 
 use super::claude_accounts::Judging;
-use super::harness::{named, offered, offered_reason, provider_enabled};
+use super::harness::{named, offered, offered_reason};
 use super::tiers::{
   Mapping, assign, assignable, assignments, conflicts, mappings, resolve_execution, set_mapping,
 };
@@ -109,56 +109,40 @@ async fn effective(
   Ok(views)
 }
 
-/// Every provider's mapping of every tier, and every work key's tier with what it resolves to.
-pub struct TierSettings;
+/// Every work key with its tier, the tiers it may be assigned, its conflicts and what it resolves to on each
+/// provider.
+pub struct WorkKeyList;
 
-impl Route for TierSettings {
+impl Route for WorkKeyList {
   const METHOD: Method = Method::GET;
-  const PATH: &'static str = "/model-tiers";
+  const PATH: &'static str = "/work-keys";
 
   async fn answer(&self, call: Call) -> Result<Response, Refused> {
     let db = call.store();
     let machine = call.machine();
     let held = mappings(db).await?;
-    let mut providers = Vec::new();
-
-    for provider in ARCHIVE_PROVIDERS {
-      let declared = named(provider)?.declared();
-      let efforts: Vec<Option<String>> =
-        declared.effort.vocabulary().into_iter().map(|word| word.map(str::to_owned)).collect();
-
-      providers.push(json!({
-        "provider": provider,
-        "label": declared.label,
-        "capsAnswerTokens": declared.caps_answer_tokens,
-        "efforts": efforts_json(&efforts),
-        "enabled": provider_enabled(db, provider).await?,
-      }));
-    }
-
-    let mut rows = Vec::new();
+    let standing = conflicts(db).await?;
+    let mut items = Vec::new();
 
     for row in assignments(db).await? {
-      rows.push(json!({
+      items.push(json!({
         "key": row.key,
         "tier": row.tier,
         "choices": assignable(db, &row.key).await?,
+        "conflicts": standing
+          .iter()
+          .filter(|one| one.key == row.key)
+          .map(|one| json!({ "provider": one.provider, "previous": one.previous, "accepted": one.accepted }))
+          .collect::<Vec<_>>(),
         "effective": effective(db, machine, &held, &row.key, &row.tier).await?,
       }));
     }
 
-    Ok(answer(
-      StatusCode::OK,
-      json!({
-        "tiers": TIERS.ladder,
-        "providers": providers,
-        "mappings": held,
-        "conflicts": conflicts(db).await?,
-        "assignments": rows,
-      }),
-    ))
+    Ok(answer(StatusCode::OK, json!({ "items": items, "more": false })))
   }
 }
+
+crate::moved!(WorkKeyList);
 
 /// One provider's catalogue, for a new mapping to be chosen from.
 pub struct TierModels;

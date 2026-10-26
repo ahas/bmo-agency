@@ -146,6 +146,7 @@ impl OfferedRoad {
   pub fn view(&self) -> Value {
     json!({
       "name": self.name,
+      "code": self.name,
       "label": self.label,
       "reason": self.reason.as_ref().map(|reason| &reason.text),
       "reasonCode": self.reason.as_ref().map(|reason| &reason.code),

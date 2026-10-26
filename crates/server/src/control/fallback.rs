@@ -316,6 +316,7 @@ async fn order_view(db: &DatabaseConnection, machine: &Machine) -> Result<Vec<Va
 
     views.push(json!({
       "name": one.name,
+      "code": one.name,
       "enabled": one.enabled,
       "label": provider.declared().label,
       "reason": reason.as_ref().map(|reason| &reason.text),
@@ -344,6 +345,7 @@ impl Route for FallbackView {
       if provider.unregistered().is_some() {
         services.push(json!({
           "name": provider.name(),
+          "code": provider.name(),
           "label": provider.declared().label,
           "shortLabel": provider.declared().label,
           "present": missing(db, machine, provider).await?.is_none(),

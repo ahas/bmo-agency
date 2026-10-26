@@ -38,6 +38,8 @@ impl Route for ListProviders {
 
       listed.push(json!({
         "name": entry.name,
+        "code": entry.name,
+        "label": declared.label,
         "enabled": entry.enabled,
         "registered": provider.unregistered().is_some(),
         "coworker": declared.lends_coworkers,
@@ -67,6 +69,8 @@ impl Route for ProviderRoute {
       StatusCode::OK,
       json!({
         "name": name,
+        "code": name,
+        "label": provider.declared().label,
         "enabled": enabled,
         "registered": provider.unregistered().is_some(),
         "coworker": provider.declared().lends_coworkers,
@@ -119,6 +123,8 @@ impl Route for ChangeProvider {
       StatusCode::OK,
       json!({
         "name": name,
+        "code": name,
+        "label": provider.declared().label,
         "enabled": enabled,
         "registered": provider.unregistered().is_some(),
         "coworker": provider.declared().lends_coworkers,

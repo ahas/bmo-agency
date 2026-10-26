@@ -412,7 +412,7 @@ never the model's name.
   provider that does not carry its line is refused on save.
 - **What the row does not hold:** the model on any other provider, the answer size and thinking — the
   tier settings decide them (「Settings per tier」 below, `docs/model-tiers.md`) — and a gate's time
-  limit, which is a separate table (「Per-gate time limit」 below).
+  limit, which is the gate unit's (「Per-gate time limit」 below).
 - **A key with no row** reads the profile's initial values.
 
 ### A key's own registration
@@ -953,46 +953,17 @@ bmo-agency agent --route <work key> --provider <auto|claude-code|codex|openroute
 
 ## Per-gate time limit
 
-- **Each gate has its own time limit, and the table is the only place it is set.** In the store's gate
-  options table, one gate is one row, and every row holds a time limit. No code that calls a gate names a
-  wait of its own, and no code carries a default a gate would fall back to.
-- **The seed is one value for every gate.** The seed refresh, at every settling of the file and at every
-  start of the bot on a server database, gives a gate with no row, or a row with no time limit, the seed,
-  and leaves every time limit already written as it stands. So a gate new to the code has its row from
-  the first start that knows it.
-- **A missing time limit fails aloud and breaks no turn.** A gate asked to run where its row holds none —
-  a process that installed no store, a store nobody settled, or a row taken away under a bot still running
-  the code that names the gate — is never run on a wait nobody chose: the journal names the gate and why,
-  and the run ends as a gate with no answer, so its caller goes its own way. Reading the gate's route
-  never asks for the wait, so none of that fails on it either.
-- **Where to choose:** the gate's row in the gate tab of the agent management screen, which shows every
-  gate's time limit and offers only real values; a row cannot be emptied.
-- **The table's thinking and answer-size columns are not read:** those come from the gate's tier.
-- **The same row holds the switch of a gate that may be switched off:** only a gate whose profile
-  declares it has one (`gates.md`), empty means on, and a gate switched off is not asked — its caller
-  goes its own way without it. The gate tab shows the switch for such a gate and a dash for every other,
-  and the bot refuses a switch for a gate that has none.
-- **The same row holds the gate's classifier mode and threshold,** empty for the profile default
-  (`laya.md`). The time limit is also how long the gate waits for the classifier, its wait in the
-  classifier's line included; a gate whose provider is the classifier waits that alone, a shadow mode
-  does not wait for it at all, and a filtering mode still gives the road its whole time limit after the
-  classifier has passed the question on.
+- **A gate's time limit is the gate unit's.** Each gate's wait stands in the gate unit's options, one value a
+  gate and an agent, set on the console's gate tab and read back with the gate's route (the gate unit's
+  `docs/api.md`, 「options」). Agency keeps no gate wait, no table of them and no default a gate would fall
+  back to.
+- **The gate waits it on the turn it sends.** A gate's question goes to agency as a turn of the gate's
+  conversation, and the gate unit waits that turn for its own time limit. Agency carries the turn until it
+  answers or its caller interrupts it, and names no wait of its own.
+- **Its thinking and answer size are not the gate's options:** those come from the gate's tier on its
+  road (「Settings per tier」 above).
 
-### The time limit is all a gate waits for an answer
-
-- **It decides the verdict.** With no road after it, this value is where the gate gets or loses its
-  verdict: short, the gate does not hang on a busy service and moves on without a verdict; long, the room
-  is held until the busy spell passes.
-- **Every run of the gate waits the same.** A turn's run, a keepalive ping and a test from the console
-  all read the one row, so no caller waits longer or shorter than the gate's own value.
-- **The waits are set against what a failure costs, not against the answer:** a gate a turn waits on, with
-  a local stand-in for its verdict, waits less; a gate nothing stands in for and nobody in a room waits on
-  is given the whole limit.
-- **What one slot carries:** the bulk gates fill a single engine's slot for minutes at a time, and the
-  gates behind them reach their limits, so they stand on Claude instead, with any gate whose readings a
-  small model gets wrong where Claude gets them right.
-
-### Who does not read the gate table
+### Who waits by another clock
 
 - **Runs with tools** (Claude Code on a registered model) and non-gate keys: their time is the time their
   walk gives them, and each request of theirs waits the registration's request wait.

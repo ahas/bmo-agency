@@ -81,6 +81,25 @@ async fn a_running_server_answers_the_walk_s_providers_tiers_routes_and_pins() {
     (&providers[1]["registered"], &providers[1]["coworker"], &providers[3]["registered"]),
     (&json!(false), &json!(true), &json!(true))
   );
+  assert_eq!(
+    (&providers[3]["code"], &providers[3]["label"]),
+    (&json!("registered"), &json!("Registered models"))
+  );
+
+  // Every work key with its tier, the tiers it may be, and what it resolves to on each provider.
+  let (status, keys) = get(port, token, "/work-keys").await;
+  let job = keys["items"].as_array().unwrap().iter().find(|one| one["key"] == "job-worker").cloned();
+
+  assert_eq!(status, 200, "{keys}");
+  let job = job.unwrap_or_else(|| panic!("the job key is listed: {keys}"));
+  assert!(job["tier"].as_str().is_some_and(|tier| !tier.is_empty()), "{job}");
+  assert!(job["choices"].as_array().is_some_and(|choices| !choices.is_empty()), "{job}");
+  assert!(
+    job["effective"]
+      .as_array()
+      .is_some_and(|cells| cells.iter().all(|cell| cell.get("errorCode").is_some())),
+    "{job}"
+  );
 
   // The tier ladder, with the tiers a co-worker is borrowed at.
   let (_, tiers) = get(port, token, "/tiers").await;

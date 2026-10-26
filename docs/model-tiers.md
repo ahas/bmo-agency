@@ -1,7 +1,7 @@
 # Model tier configuration
 
 The execution integration uses the tier store for primary launches and fallback attempts.
-Co-work schemas and execution resolve configured tiers. The agents console edits shared mappings and work-key assignments through `/model-tiers`.
+Co-work schemas and execution resolve configured tiers. The agents console reads the shared mappings through `GET /tiers` and the work-key assignments through `GET /work-keys`, and edits both through `PATCH /tiers/{tierName}`.
 `Archive.modelTiers()` explicitly opens/migrates the new configuration; merely opening an
 archive does not change live model settings.
 

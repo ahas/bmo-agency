@@ -831,6 +831,23 @@ export interface paths {
         patch: operations["changeFallback"];
         trace?: never;
     };
+    "/work-keys": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every work key with the tier it is assigned, the tiers it may be, and what it resolves to on each provider. */
+        get: operations["listWorkKeys"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/work-keys/{workKey}": {
         parameters: {
             query?: never;
@@ -2373,6 +2390,16 @@ export interface components {
         /** @description Provider: */
         Provider: {
             name: string;
+            /**
+             * @description The kebab-case word a screen words the provider by: its name.
+             * @default
+             */
+            code: string;
+            /**
+             * @description The English name a log keeps.
+             * @default
+             */
+            label: string;
             enabled: boolean;
             registered: boolean;
             coworker: boolean;
@@ -2680,6 +2707,24 @@ export interface components {
              *     or null to read the cell again.
              */
             registration: string | null;
+        };
+        /** @description WorkKeyAssignmentPage: */
+        WorkKeyAssignmentPage: {
+            items: components["schemas"]["WorkKeyAssignment"][];
+            more: boolean;
+        };
+        /**
+         * @description WorkKeyAssignment: one work key's tier, the tiers it may be assigned, the owner's choices from before the
+         *     tiers kept for review, and what it resolves to on each provider of the registry's archive.
+         */
+        WorkKeyAssignment: {
+            key: string;
+            tier: string;
+            choices: string[];
+            /** @description Each `provider`, `previous` and `accepted`. */
+            conflicts: unknown[];
+            /** @description Each `provider`, `selection`, `error` and `errorCode`. */
+            effective: unknown[];
         };
         /** @description WorkKey: */
         WorkKey: {
@@ -5437,6 +5482,27 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Fallback"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    listWorkKeys: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkKeyAssignmentPage"];
                 };
             };
             401: components["responses"]["Unauthorized"];

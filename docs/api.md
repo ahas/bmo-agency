@@ -460,12 +460,24 @@ reads it; no session is folded by the set itself.
 
 | Method | Path | Does |
 |---|---|---|
+| GET | `/work-keys` | Every work key with the tier it is assigned, the tiers it may be, and what it resolves to on each provider. |
 | GET | `/work-keys/{workKey}` | Where a work key goes: provider, model, effort, answer tokens, run bound, run mode. |
 | GET | `/road-blocks` | Roads blocked now, by model or worker; none means open. |
 | POST | `/road-blocks` | Block a road until a time. |
 | DELETE | `/road-blocks/{blockId}` | Open a road again. |
 | GET | `/launch-room` | Whether a launch may start, why not, and the jobs and browsers running. |
 | PATCH | `/launch-room` | Record that launches are held, and why. |
+
+The work keys' list is what a tier screen shows beside the ladder `GET /tiers` answers: each member's `key`,
+its `tier`, `choices`, the tiers it may be assigned, `conflicts`, each `provider`, `previous` and `accepted`
+for an owner's choice from before the tiers kept for review (`docs/model-tiers.md`), and `effective`, for
+each provider of the registry's archive its `provider`, `selection`, the mapping the key resolves to there,
+and `error` with `errorCode` where it cannot go there. A key is assigned a tier by `PATCH /tiers/{tierName}`
+with the action `assign`.
+
+A provider is answered with its `label`, the English name a log keeps, and its `code`, the kebab-case word
+a screen words it by, which is its name: `GET /providers`, the fallback's roads and order, a work key's
+offered roads and the tier screens alike.
 
 A work key's read that names no `provider` walks the road resolution's walk for the key
 (`docs/cache-fallback.md`, 「One road resolution」): the provider the key's route is set to first, then the

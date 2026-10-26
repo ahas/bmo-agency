@@ -778,6 +778,11 @@ impl AgencyClient {
     Self::answered(self.request(Method::PATCH, &["fallback"]).json(body)).await
   }
 
+  /// `GET /work-keys`: Every work key with the tier it is assigned, the tiers it may be, and what it resolves to on each provider.
+  pub async fn list_work_keys(&self) -> Answer<WorkKeyAssignmentPage> {
+    Self::answered(self.request(Method::GET, &["work-keys"])).await
+  }
+
   /// `GET /work-keys/{workKey}`: Where a work key goes: provider, model, effort, answer tokens, run bound, run mode.
   pub async fn get_work_key(&self, work_key: &str, query: &GetWorkKeyQuery) -> Answer<WorkKey> {
     Self::answered(self.request(Method::GET, &["work-keys", work_key]).query(query)).await

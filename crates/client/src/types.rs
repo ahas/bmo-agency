@@ -491,6 +491,12 @@ pub struct Place {
 #[serde(rename_all = "camelCase")]
 pub struct Provider {
   pub name: String,
+  /// The kebab-case word a screen words the provider by: its name.
+  #[serde(default)]
+  pub code: String,
+  /// The English name a log keeps.
+  #[serde(default)]
+  pub label: String,
   pub enabled: bool,
   pub registered: bool,
   pub coworker: bool,
@@ -683,6 +689,28 @@ pub struct Balance {
   pub currency: String,
   /// epoch seconds
   pub seen_at: i64,
+}
+
+/// WorkKeyAssignment: one work key's tier, the tiers it may be assigned, the owner's choices from before the
+/// tiers kept for review, and what it resolves to on each provider of the registry's archive.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkKeyAssignment {
+  pub key: String,
+  pub tier: String,
+  pub choices: Vec<String>,
+  /// Each `provider`, `previous` and `accepted`.
+  pub conflicts: Vec<Value>,
+  /// Each `provider`, `selection`, `error` and `errorCode`.
+  pub effective: Vec<Value>,
+}
+
+/// WorkKeyAssignmentPage:
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkKeyAssignmentPage {
+  pub items: Vec<WorkKeyAssignment>,
+  pub more: bool,
 }
 
 /// WorkKey:
