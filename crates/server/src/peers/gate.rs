@@ -120,8 +120,6 @@ impl PublishedGate {
       round: None,
       people_spoke: false,
       answered: None,
-      off_gates: vec![],
-      lore: Some(true),
       records: false,
     };
 
