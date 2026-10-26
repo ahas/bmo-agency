@@ -194,6 +194,9 @@
       "name": "gate-kinds"
     },
     {
+      "name": "pull-request-reviews"
+    },
+    {
       "name": "translations"
     },
     {
@@ -5721,6 +5724,46 @@
               "schema": {
                 "$ref": "#/components/schemas/GateKindDeclaration"
               }
+            }
+          }
+        }
+      }
+    },
+    "/github/deliveries": {
+      "post": {
+        "operationId": "createGithubDeliveries",
+        "tags": [
+          "pull-request-reviews"
+        ],
+        "summary": "One GitHub delivery of a pull request event, checked against the webhook secret and acted on after the answer.",
+        "responses": {
+          "202": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GithubDeliveryTaken"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/BadSignature"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-signature",
+          "no-webhook-secret"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": true
             }
           }
         }
@@ -11777,6 +11820,18 @@
         ],
         "description": "One gate of the gate's declaration, as the gate publishes it."
       },
+      "GithubDeliveryTaken": {
+        "type": "object",
+        "properties": {
+          "taken": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "taken"
+        ],
+        "description": "GithubDeliveryTaken: a GitHub delivery taken, to be acted on after the answer."
+      },
       "TranslationRun": {
         "type": "object",
         "properties": {
@@ -12258,6 +12313,16 @@
           }
         }
       },
+      "BadSignature": {
+        "description": "bad-signature",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
       "Conflict": {
         "description": "conflict",
         "content": {
@@ -12300,6 +12365,16 @@
       },
       "NoLoginOpen": {
         "description": "no-login-open",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "NoWebhookSecret": {
+        "description": "no-webhook-secret",
         "content": {
           "application/json": {
             "schema": {

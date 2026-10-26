@@ -963,6 +963,12 @@ impl AgencyClient {
     Self::answered(self.request(Method::POST, &["jobs"]).json(body)).await
   }
 
+  /// `POST /github/deliveries`: One GitHub delivery of a pull request event, its body as GitHub sent it; the
+  /// gateway hands its `X-GitHub-Event` and `X-Hub-Signature-256` headers on with it.
+  pub async fn create_github_deliveries(&self, body: &serde_json::Value) -> Answer<GithubDeliveryTaken> {
+    Self::answered(self.request(Method::POST, &["github", "deliveries"]).json(body)).await
+  }
+
   /// `POST /translation-runs`: Translate one text on the translator runner's road, answered whole.
   pub async fn create_translation_runs(&self, body: &TranslationRunAsk) -> Answer<TranslationRun> {
     Self::answered(self.request(Method::POST, &["translation-runs"]).json(body)).await

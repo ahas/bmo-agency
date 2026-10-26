@@ -523,6 +523,20 @@ them; a notice that holds nothing is withdrawn.
   branch count below 0, a clock of no minutes, a key that is no research key or a role that is no
   co-worker role is 400 `bad-request`, and nothing is written.
 
+### pull request reviews
+
+| Method | Path | Does |
+|---|---|---|
+| POST | `/github/deliveries` | One GitHub delivery of a `pull_request` event, its body as GitHub sent it, handed on by the console's gateway with its `X-GitHub-Event` and `X-Hub-Signature-256` headers; answers 202 `{taken}` at once and acts after (`docs/pull-request-reviews.md`). |
+
+- **Signed or refused:** the signature is checked against the deployment's webhook secret
+  (`BMO_GITHUB_WEBHOOK_SECRET` or `BMO_GITHUB_WEBHOOK_SECRET_FILE`); one that does not match is 401
+  `bad-signature`, and a deployment naming no secret answers 503 `no-webhook-secret`. An event or an action it
+  does not act on is answered 202 as well.
+- **What it does after:** an open pull request a worker holds is filed once as a review item in the job service;
+  a push is told on that item; a merge opens the held items labelled with the same pull request, and a close is
+  told on them.
+
 ### translations
 
 | Method | Path | Does |
@@ -863,8 +877,10 @@ an idle queue is told once through the receiver's `POST /owner/notices` with the
 (`docs/agent-control.md`, 「An idle queue is told to the owner」); and a research run's result is filed in
 bmo-artifact's `POST /documents` and given a link by its `POST /shares`, at the address and with the token
 `BMO_ARTIFACT_URL` and `BMO_ARTIFACT_TOKEN` (or `BMO_ARTIFACT_TOKEN_FILE`) name (`docs/research-runs.md`,
-「One run, step by step」). Each is the documented route of the unit that holds what must reach it; agency
-keeps no client of these units and no store of their rows.
+「One run, step by step」); and for pull request reviews the job service's `GET /items` by the `pr` label,
+`POST /items`, `POST /items/{itemId}/notes` and `PATCH /items/{itemId}`, and once an hour GitHub's search through
+`gh api search/issues` (`docs/pull-request-reviews.md`). Each is the documented route of the unit that holds what
+must reach it; agency keeps no client of these units and no store of their rows.
 Of the brain it asks an agent's own brain made as the agent is registered, found by the agent's key,
 let go whole or only found for a preview, the discipline a chat launch's system prompt carries, and the
 base layer of the agent's persona that prompt ends with. Of the tool host it asks, on its control socket

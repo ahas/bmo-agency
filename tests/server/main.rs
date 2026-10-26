@@ -202,6 +202,7 @@ mod watches {
   mod links;
   mod machine;
   mod pressure;
+  mod pull_requests;
   mod queue_idle;
 }
 mod wording;

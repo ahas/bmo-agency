@@ -32,6 +32,8 @@ license = "MIT"
 bmo-agency-client = { path = "crates/client" }
 axum = "0.8.4"
 base64 = "0.22.1"
+hex = "0.4.3"
+hmac = "0.12.1"
 bmo-brain-client = { path = "../brain/crates/client" }
 bmo-cache-warmer-schedule = { path = "../cache-warmer/schedule" }
 bmo-chat = { path = "../../base/chat/provider" }

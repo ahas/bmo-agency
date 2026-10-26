@@ -1376,6 +1376,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/github/deliveries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** One GitHub delivery of a pull request event, checked against the webhook secret and acted on after the answer. */
+        post: operations["createGithubDeliveries"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/translation-runs": {
         parameters: {
             query?: never;
@@ -3208,6 +3225,10 @@ export interface components {
             /** Format: int64 */
             answerTokens: number | null;
         };
+        /** @description GithubDeliveryTaken: a GitHub delivery taken, to be acted on after the answer. */
+        GithubDeliveryTaken: {
+            taken: boolean;
+        };
         /** @description TranslationRun: a translation as it came back, whole, with the road it went out on. */
         TranslationRun: {
             text: string;
@@ -3290,6 +3311,20 @@ export interface components {
             branches: number;
             /** Format: int64 */
             minutes: number;
+            /**
+             * Format: int64
+             * @description The most pages the first answer fetches; none for no ceiling. Left out of a change, it keeps what the
+             *     key holds.
+             * @default null
+             */
+            pages: number | null;
+            /**
+             * Format: int64
+             * @description The most pages each branch fetches; none for no ceiling. Left out of a change, it keeps what the key
+             *     holds.
+             * @default null
+             */
+            branchPages: number | null;
         };
         /** @description One search engine's state, as the web tools answer it. */
         SearchEngineState: {
@@ -3378,6 +3413,15 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /** @description bad-signature */
+        BadSignature: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
         /** @description conflict */
         Conflict: {
             headers: {
@@ -3416,6 +3460,15 @@ export interface components {
         };
         /** @description no-login-open */
         NoLoginOpen: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description no-webhook-secret */
+        NoWebhookSecret: {
             headers: {
                 [name: string]: unknown;
             };
@@ -6608,6 +6661,32 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
+        };
+    };
+    createGithubDeliveries: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": unknown;
+            };
+        };
+        responses: {
+            /** @description Answered. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GithubDeliveryTaken"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            422: components["responses"]["BadSignature"];
         };
     };
     createTranslationRuns: {

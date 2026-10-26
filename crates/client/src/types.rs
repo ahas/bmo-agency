@@ -1963,6 +1963,13 @@ pub struct DraftProcessPage {
   pub more: bool,
 }
 
+/// GithubDeliveryTaken: a GitHub delivery taken, to be acted on after the answer.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct GithubDeliveryTaken {
+  pub taken: bool,
+}
+
 /// TranslationRunAsk: one text to translate on the `translate` road: what it is for (`document`, `worker` or
 /// `record`), the language to render it in and the text.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]

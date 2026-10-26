@@ -20,6 +20,7 @@ mod executions;
 pub mod fallback;
 pub mod fault;
 pub mod fold_ratios;
+pub mod github_deliveries;
 pub mod harness;
 mod health;
 mod hook_routes;
@@ -352,6 +353,24 @@ impl Call {
     let Query(pairs) = Query::<Vec<(String, String)>>::try_from_uri(self.request.uri()).ok()?;
 
     pairs.into_iter().find(|(key, _)| key == name).map(|(_, value)| value)
+  }
+
+  /// One header of the request, where it is given and reads as text.
+  pub fn header(&self, name: &str) -> Option<String> {
+    self
+      .request
+      .headers()
+      .get(name)
+      .and_then(|value| value.to_str().ok())
+      .map(str::to_owned)
+  }
+
+  /// The body as the bytes it came in, for a route that checks them before it reads them. A route reads it
+  /// once.
+  pub async fn raw_body(&mut self) -> Result<axum::body::Bytes, Refused> {
+    let body = std::mem::take(self.request.body_mut());
+
+    axum::body::to_bytes(body, BODY_LIMIT).await.map_err(Refused::failed)
   }
 
   /// The body read as JSON, whatever its shape; a body that is not JSON is refused. A route reads it once.

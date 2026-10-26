@@ -11,6 +11,8 @@ agent-host = { path = "../agent-host" }
 agent-session = { path = "../agent-session" }
 axum.workspace = true
 base64.workspace = true
+hex.workspace = true
+hmac.workspace = true
 bmo-agency-client.workspace = true
 bmo-brain-client.workspace = true
 bmo-cache-warmer-schedule.workspace = true

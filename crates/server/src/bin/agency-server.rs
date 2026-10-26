@@ -189,6 +189,19 @@ fn clocks(ground: &Arc<Ground>) {
   tokio::spawn(agency_server::order_run::clocks::keep_warm(ground.clone()));
   tokio::spawn(agency_server::order_run::clocks::keep_usage_windows(ground.clone()));
 
+  let watched = ground.clone();
+
+  tokio::spawn(async move {
+    let period = Duration::from_secs(policy::pull_requests::PULL_REQUESTS.fallback_seconds);
+
+    every("pull requests' fallback", period, period, move || {
+      let ground = watched.clone();
+
+      async move { agency_server::watches::pull_requests::fallback(&ground.db, ground.vars()).await }
+    })
+    .await
+  });
+
   let idle = ground.clone();
 
   tokio::spawn(async move {

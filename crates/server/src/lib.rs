@@ -88,6 +88,7 @@ pub mod watches {
   pub mod links;
   pub mod machine;
   pub mod pressure;
+  pub mod pull_requests;
   pub mod queue_idle;
 }
 pub mod wording;

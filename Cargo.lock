@@ -69,6 +69,8 @@ dependencies = [
  "harness-machine",
  "harness-providers",
  "herdr",
+ "hex",
+ "hmac",
  "http-body-util",
  "hyper",
  "hyper-util",

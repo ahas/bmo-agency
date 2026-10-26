@@ -1,0 +1,26 @@
+# A pull request's review item and what is told on the items around it (docs/pull-request-reviews.md):
+# `{repository}`, `{number}`, `{title}`, `{url}` and `{head}` mark what each line carries.
+
+# How often the fallback search runs, in seconds, and how many pull requests one page of it holds.
+fallback_seconds = 3600
+page = 100
+
+# The job service's queue the item stands in, the lane label that opens it without an approval where the job
+# service holds that lane, and who files it.
+queue = "todo"
+lane = "pr-review"
+requester = "agency"
+
+title = "Review pull request #{number} of {repository}: {title}"
+brief = """Review pull request #{number} of {repository}, {url}, and finish it: merge it or send it back.
+
+1. Read the change whole. Where {repository} is a base library, hold it to the base-library rule: the general case only, covered by the base's own tests, and nothing that belongs to one asker.
+2. Check out the pull request's branch and run the repository's checks on it, the way its CLAUDE.md sets them.
+3. Use bmo-review where a second reading helps.
+4. Merge it where it holds, or send it back with the reason as a review comment on the pull request.
+5. Tell the owner's room in one line what became of it."""
+
+pushed = "The pull request was pushed again: its head is now {head}."
+merged = "The pull request {url} merged; the work that waited on it goes on."
+merged_elsewhere = "The pull request {url} merged without this review."
+closed = "The pull request {url} was closed without a merge."
