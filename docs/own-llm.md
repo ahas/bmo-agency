@@ -196,9 +196,11 @@ never the model's name.
   - `bmo-agency agent --register <name> [--label <label>] [--model <model>] [--context <tokens>]
     [--answer <tokens>] [--wait <seconds>] [--thinking on|off] [--walked on|off] [--research on|off]`
     makes a registration, every field but the label named, or changes the named fields of one.
-  - `bmo-agency agent --register-address <name> <node label> <address> [--key-stdin | --no-key]` adds
-    an address or changes one; `--key-stdin` reads the key from standing input, and a key is never
-    taken on the command line.
+  - `bmo-agency agent --register-address <name> <node label> <address> [--key-stdin | --no-key]
+    [--role-files on|off]` adds an address or changes one; `--key-stdin` reads the key from standing
+    input, and a key is never taken on the command line; `--role-files` says whether the instance behind
+    it keeps role files (「Role files」 below), left as it stands where it is not named. The list marks
+    such an address.
   - `bmo-agency agent --unregister <name> [<node label>]` removes a registration, or one of its
     addresses.
 - **What a removal is refused for:** a registration a tier mapping, an agent's pin — a worker's or a

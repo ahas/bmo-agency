@@ -599,6 +599,47 @@ async fn a_registration_is_made_given_an_address_and_a_key_listed_without_it_and
     format!("{key}\n")
   );
 
+  // Whether the address's instance keeps role files, named on its own and left as it stands otherwise.
+  let kept = bench
+    .run(&[
+      "--register-address",
+      "local",
+      "a",
+      "http://127.0.0.1:9/v1/chat/completions",
+      "--role-files",
+      "on",
+    ])
+    .await;
+
+  assert_eq!(ended(&kept), (0, ""));
+  assert!(
+    printed(&kept).contains(&format!("{}, role files", VERB_WORDS.agents.key_usable)),
+    "{kept:?}"
+  );
+  assert!(
+    printed(
+      &bench
+        .run(&["--register-address", "local", "a", "http://127.0.0.1:9/v1/chat/completions"])
+        .await
+    )
+    .contains("role files")
+  );
+  assert_eq!(
+    ended(
+      &bench
+        .run(&[
+          "--register-address",
+          "local",
+          "a",
+          "http://127.0.0.1:9/v1/chat/completions",
+          "--role-files",
+          "yes"
+        ])
+        .await
+    ),
+    (1, fill_marks(&VERB_WORDS.agents.on_off, &[("flag", "--role-files")]).as_str())
+  );
+
   bench
     .scratch
     .run(

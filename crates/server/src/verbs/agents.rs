@@ -61,6 +61,9 @@ pub struct AgentsArgs {
   pub key_stdin: bool,
   #[arg(long)]
   pub no_key: bool,
+  /// Whether the address's instance keeps role files, on or off.
+  #[arg(long)]
+  pub role_files: Option<String>,
   /// The registration's name, and the node of the one address to take away.
   #[arg(long, num_args = 1..=2, value_names = ["NAME", "NODE"])]
   pub unregister: Option<Vec<String>>,
@@ -482,6 +485,12 @@ async fn registry_change(stand: &Stand<'_>, args: &AgentsArgs) -> Result<Said, V
       body["key"] = Value::Null;
     }
 
+    match on_off(args.role_files.as_deref(), "--role-files") {
+      Ok(Some(on)) => body["roleFiles"] = json!(on),
+      Ok(None) => {}
+      Err(why) => return Ok(said.refused(why)),
+    }
+
     Some(body)
   } else {
     args
@@ -527,7 +536,9 @@ async fn registry_change(stand: &Stand<'_>, args: &AgentsArgs) -> Result<Said, V
         _ => &VERB_WORDS.agents.key_unusable,
       };
 
-      said.line(format!("  {} {} {key}", text(&address["node"]), text(&address["url"])));
+      let kept = if address["roleFiles"].as_bool().unwrap_or_default() { ", role files" } else { "" };
+
+      said.line(format!("  {} {} {key}{kept}", text(&address["node"]), text(&address["url"])));
     }
 
     let naming: Vec<String> = one["referrers"].as_array().into_iter().flatten().map(text).collect();
