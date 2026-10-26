@@ -2719,11 +2719,15 @@ export interface components {
          */
         WorkKeyAssignment: {
             key: string;
+            /** @description The key in kebab case, the word a screen words it by. */
+            code: string;
+            /** @description The English name its profile gives, none for a key no profile declares. */
+            label: string | null;
             tier: string;
             choices: string[];
             /** @description Each `provider`, `previous` and `accepted`. */
             conflicts: unknown[];
-            /** @description Each `provider`, `selection`, `error` and `errorCode`. */
+            /** @description Each `provider`, `selection`, `error` (one short clause), `detail` (the whole of why) and `errorCode`. */
             effective: unknown[];
         };
         /** @description WorkKey: */

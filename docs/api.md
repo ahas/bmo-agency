@@ -469,10 +469,14 @@ reads it; no session is folded by the set itself.
 | PATCH | `/launch-room` | Record that launches are held, and why. |
 
 The work keys' list is what a tier screen shows beside the ladder `GET /tiers` answers: each member's `key`,
-its `tier`, `choices`, the tiers it may be assigned, `conflicts`, each `provider`, `previous` and `accepted`
-for an owner's choice from before the tiers kept for review (`docs/model-tiers.md`), and `effective`, for
-each provider of the registry's archive its `provider`, `selection`, the mapping the key resolves to there,
-and `error` with `errorCode` where it cannot go there. A key is assigned a tier by `PATCH /tiers/{tierName}`
+its `code`, the key in kebab case a screen words it by (`search:basic` is `search-basic`), its `label`, the
+English name its profile gives or null for a key no profile declares, its `tier`, `choices`, the tiers it
+may be assigned, `conflicts`, each `provider`, `previous` and `accepted` for an owner's choice from before the
+tiers kept for review (`docs/model-tiers.md`), and `effective`, for each provider of the registry's archive
+its `provider`, `selection`, the mapping the key resolves to there, and where it cannot go there `error`,
+one short clause, `detail`, the whole of why, and `errorCode`, the kebab-case code every such error
+carries: `provider-off`, `tier-migration-unsettled`, `line-not-carried`, a provider's own presence codes,
+or `tier-unresolved` for a mapping its tier does not give. The fallback's work keys carry the same `code`. A key is assigned a tier by `PATCH /tiers/{tierName}`
 with the action `assign`.
 
 A provider is answered with its `label`, the English name a log keeps, and its `code`, the kebab-case word
@@ -518,8 +522,8 @@ them; a notice that holds nothing is withdrawn.
   the one standing whole: a kind the gate no longer names is no kind of a turn.
 - **What a turn reads.** An agent's gate switches (`GET /agents/{agentName}`) and whether its own thinking
   and effort reach its runs are read from the declared kinds: a gate named there owns no reasoning, and an
-  agent whose turns answer in no room has no gates to switch. A companion's gates are agency's own subset
-  of the same kinds (`policy/companion-turn.toml`).
+  agent whose turns answer in no room has no gates to switch. Every conversational agent's turn passes the
+  declared kinds; agency keeps no subset of its own.
 - **A declaration names its gates,** each as the gate publishes it: `gateName`, `part` (`pre`, `post` or
   `apart`), `step`, `condition` or null, `switchable`, `layaProbe`, `defaultLayaMode` and `answerTokens`.
   An empty declaration, or one whose kind stands in no turn part, is refused 400 `bad-request`. A gate

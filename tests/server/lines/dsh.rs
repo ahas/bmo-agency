@@ -70,6 +70,13 @@ fn a_session_granting_tools_keeps_dsh_s_defaults_but_the_web_and_the_loops() {
   }
 
   assert_eq!(overlay[0]["id"], "system-prompt");
+
+  // The chat's role and persona follow dsh's own prompt whole.
+  assert_eq!(
+    overlay[0]["config"]["personaPrefix"],
+    "You are a coding agent powered by the {{model}} model."
+  );
+  assert_eq!(overlay[0]["config"]["personaSuffix"], "You are the agent.\n");
   assert!(disabled("agent-instructions"));
   assert!(disabled("session-title-llm"));
 }
@@ -99,16 +106,14 @@ fn a_worker_s_session_on_deepseek_writes_its_rules_after_the_opening_line_on_dee
     session_patch(&run, &BTreeMap::new(), dir.path(), DEEPSEEK.declared.dsh.as_ref().unwrap()).unwrap();
   let overlay: Vec<Value> = serde_json::from_str(&std::fs::read_to_string(&patch).unwrap()).unwrap();
   let row = |id: &str| overlay.iter().find(|row| row["id"] == id).unwrap();
-  let persona = row("system-prompt")["config"]["personaPrefix"].as_str().unwrap();
+  let config = &row("system-prompt")["config"];
 
-  // dsh reads a `{{name}}` as its own variable and refuses the prompt on one it does not hold, so the
-  // rules' braces reach it broken and the opening line's own variable stands.
-  assert!(
-    persona.starts_with("You are a coding agent powered by the {{model}} model."),
-    "{persona}"
-  );
-  assert!(persona.ends_with("Keep the {\u{2060}{name}} mark as it stands.\n"), "{persona}");
-  assert!(row("system-prompt")["config"].get("persona").is_none());
+  // dsh's own prompt stands whole, its opening line as the profile writes it, and the rules follow its
+  // guidance as the persona suffix. dsh reads a `{{name}}` as its own variable and refuses the prompt on one it
+  // does not hold, so the rules' braces reach it broken.
+  assert_eq!(config["personaPrefix"], "You are a coding agent powered by the {{model}} model.");
+  assert_eq!(config["personaSuffix"], "Keep the {\u{2060}{name}} mark as it stands.\n");
+  assert!(config.get("persona").is_none());
 
   let route = &row("llm-pi-ai")["config"]["providers"]["deepseek"];
 

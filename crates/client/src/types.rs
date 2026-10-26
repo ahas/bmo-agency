@@ -697,11 +697,15 @@ pub struct Balance {
 #[serde(rename_all = "camelCase")]
 pub struct WorkKeyAssignment {
   pub key: String,
+  /// The key in kebab case, the word a screen words it by.
+  pub code: String,
+  /// The English name its profile gives, none for a key no profile declares.
+  pub label: Option<String>,
   pub tier: String,
   pub choices: Vec<String>,
   /// Each `provider`, `previous` and `accepted`.
   pub conflicts: Vec<Value>,
-  /// Each `provider`, `selection`, `error` and `errorCode`.
+  /// Each `provider`, `selection`, `error` (one short clause), `detail` (the whole of why) and `errorCode`.
   pub effective: Vec<Value>,
 }
 

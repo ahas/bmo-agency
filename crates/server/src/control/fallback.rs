@@ -282,6 +282,7 @@ async fn profile_view(
   let codex = choices.get("codex");
   let view = json!({
     "key": key,
+    "code": super::model_tiers::key_code(key),
     "label": profile.label,
     "kind": profile.kind,
     "line": profile.line,

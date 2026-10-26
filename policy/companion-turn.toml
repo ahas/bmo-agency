@@ -1,4 +1,0 @@
-# The gates a companion's turn passes: none. No gate picks what a turn reads — the agent reads the brain's
-# index in its own draft step — and the sanitiser is shelved, asked by no turn (the gate's `docs/gates.md`).
-pre = []
-post = []

@@ -94,11 +94,31 @@ async fn a_running_server_answers_the_walk_s_providers_tiers_routes_and_pins() {
   let job = job.unwrap_or_else(|| panic!("the job key is listed: {keys}"));
   assert!(job["tier"].as_str().is_some_and(|tier| !tier.is_empty()), "{job}");
   assert!(job["choices"].as_array().is_some_and(|choices| !choices.is_empty()), "{job}");
+  assert_eq!((&job["code"], &job["label"]), (&json!("job-worker"), &json!("Job worker")), "{job}");
+
+  // Every cell that cannot be taken says so in a short clause, with the whole of why and its code beside it.
+  for cell in job["effective"].as_array().unwrap() {
+    assert_eq!(cell["error"].is_null(), cell["errorCode"].is_null(), "{cell}");
+    assert_eq!(cell["error"].is_null(), cell["detail"].is_null(), "{cell}");
+  }
+
+  let codex = job["effective"]
+    .as_array()
+    .unwrap()
+    .iter()
+    .find(|cell| cell["provider"] == "codex")
+    .unwrap();
+
+  assert_eq!(
+    (&codex["errorCode"], &codex["error"]),
+    (&json!("provider-off"), &json!("Switched off.")),
+    "{codex}"
+  );
   assert!(
-    job["effective"]
-      .as_array()
-      .is_some_and(|cells| cells.iter().all(|cell| cell.get("errorCode").is_some())),
-    "{job}"
+    codex["detail"]
+      .as_str()
+      .is_some_and(|detail| detail.starts_with("Codex is switched off")),
+    "{codex}"
   );
 
   // The tier ladder, with the tiers a co-worker is borrowed at.

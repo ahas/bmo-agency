@@ -643,14 +643,14 @@ in the provider's own terms:
     the run names one. A program started again on the same place and folder takes up the session it
     stood in before and then sets the model and effort the new command names, so a changed model
     carries the conversation over rather than opening an empty session beside it.
-  - **The system prompt is agency's.** The overlay sets dsh's `system-prompt` persona prefix to the run's
-    composed system prompt, the one the Claude Code line is handed but for the chat's tools paragraph,
-    which names dsh's own tools in place of Claude Code's (`docs/agent-documents.md`, 「The chat
-    agent」), each `{{` in it broken by a
-    word joiner since dsh refuses a prompt naming a variable it does not hold, and switches off dsh's
-    instruction-file reader and its title call, as the retired loop's overlay did. A worker keeps the
-    instruction-file reader, since the checkout's documents are its work's, and its rules follow dsh's
-    opening line rather than replacing it.
+  - **dsh's own prompt is the harness, and agency's follows it.** The overlay sets dsh's `system-prompt`
+    persona suffix to the run's role and persona — the chat's the one the Claude Code line is handed,
+    but for the chat's tools paragraph, which names dsh's own tools in place of Claude Code's
+    (`docs/agent-documents.md`, 「The chat agent」); a worker's its rules — so dsh's identity line, its
+    profile's opening line and its guidance stand whole before it. Each `{{` in agency's text is broken
+    by a word joiner, since dsh refuses a prompt naming a variable it does not hold. The overlay switches
+    off dsh's instruction-file reader and its title call; a worker keeps the instruction-file reader,
+    since the checkout's documents are its work's.
   - **The web is agency's, and the rest of the tools are dsh's.** A line that grants tools keeps the
     rows dsh ships — the shell, the files, the search, jobs, sub-agents, workflows, todo, the editor, the
     working-directory tool, plan mode and the user question — and switches off the web row, since the web

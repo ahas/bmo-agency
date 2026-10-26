@@ -28,6 +28,12 @@ pub struct FallbackWords {
   pub no_laya: String,
   pub laya_unset: String,
   pub not_offered: String,
+  pub cell_off: String,
+  pub cell_off_detail: String,
+  pub cell_not_carried_detail: String,
+  pub cell_unsettled: String,
+  pub cell_unsettled_detail: String,
+  pub cell_unresolved: String,
 }
 
 /// The Claude accounts.

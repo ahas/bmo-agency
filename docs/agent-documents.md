@@ -9,11 +9,10 @@ composed into a system prompt, and what the chat agent's own prompt is made of.
   documents are laid out by reader. `docs/` is for people and is never injected.
 - **`prompts/rules/` holds the rulebooks with more than one reader,** one copy each:
   - `answer-content.md` — the chat session;
-  - `answer-shape.md` — the chat session and the output gate;
+  - `answer-shape.md` — the chat session;
   - `plain-writing.md` — every agent whose words a person reads: the chat session, the search runner
     and the news page writer, and every stored-document writer below; a job worker is pointed at it
     by its trailer;
-  - `formatting-judgement.md` — the output gate;
   - `telegram-markup.md` — read by no model: the statement of what the send path's converter turns
     markdown into, kept beside the rulebooks it points to for the marks and the fold;
   - `search-kinds.md`, `product-search.md`, `restaurant-search.md`, `investment-search.md`,
@@ -29,10 +28,11 @@ composed into a system prompt, and what the chat agent's own prompt is made of.
 - **`prompts/agents/<worker>/own-rules.md`** is what one worker alone is appended after every
   worker's rules, where it has one; no worker carried in this repository has one.
 - **`prompts/agents/<name>/` holds what one agent alone is given:** `chat/manual.md`,
-  `chat/procedures/` and `chat/rules.md`,
-  `output-gate/<dialect>/format.md` — one per folding dialect, which is the dialect's own and names
-  it — `sanitizer/instructions.md`, `search/task.md` and `request.md`, `browse/task.md` and
+  `chat/procedures/` and `chat/rules.md`, `search/task.md` and `request.md`, `browse/task.md` and
   `request.md` with its `.mcp.json`, and `worker/trailer.md`.
+- **No gate's prompt stands here.** A gate's instructions, rulebooks and order are the gate unit's: it
+  hands its whole system prompt with each turn it sends, and agency reads the order of the gate kinds
+  from the gate's declaration (`docs/api.md`, 「gate kinds」).
 - **A job's documents:** `worker/graph.md`, what a job is told of the code graph; `worker/trailer.md`,
   the trailer every job is held to, with the graph text, the path of the worker plugin's skills and the
   path of `plain-writing.md` filled in as the deployment shows them, which stands in the worker's prefix
@@ -62,21 +62,26 @@ composed into a system prompt, and what the chat agent's own prompt is made of.
 - **A system prompt reaches the CLI as a file,** written under the deploy root's `prompts/` for that
   launch and named after the chat line or the gate, never on the command line: a chat's runs tens of
   kilobytes.
-- **The prompt-composing entry of the `bmo-agency` CLI** — `bmo-agency prompts [<gates.json>]`, which
-  runs the agent package's `deploy-agents.ts` on Bun out of the code tree; run by the reload path whenever
-  a document under `prompts/rules/` or `prompts/agents/` changes, by hand, and on every start of agency's
-  server — writes the same composition out under the agents directory the data root holds
-  (`BMO_AGENTS_DIR`). The gates beside agency's own agents are the caller's, named in a JSON file: an
-  output gate as `{ name, model, system }`, with the system prompt the caller composed, and a reference
-  gate as `{ name }`, its system prompt composed from its own folder's `instructions.md`. The server's
-  start and the reload path name none, so only agency's own are written then. It writes the composed
-  prompts for inspection, and for each runner the directory it runs in, which sits outside the
-  repository on purpose so that neither a project instruction file up the tree nor the repository's git
-  status can enter a runner's prefix.
+- **The prompt-composing entry of the `bmo-agency` CLI** — `bmo-agency prompts`, which runs the agent
+  package's `deploy-agents.ts` on Bun out of the code tree; run by the reload path whenever a document
+  under `prompts/rules/` or `prompts/agents/` changes, by hand, and on every start of agency's server —
+  writes the same composition out under the agents directory the data root holds (`BMO_AGENTS_DIR`):
+  agency's own agents' prompts for inspection, and for each runner the directory it runs in, which sits
+  outside the repository on purpose so that neither a project instruction file up the tree nor the
+  repository's git status can enter a runner's prefix. It writes no gate's prompt.
 
 ## The chat agent
 
-- **The absolute rules open every chat run's system prompt:** `prompts/agents/chat/context.md` holds
+- **The chat agent's prompt is three layers, each whole, in this order:** the harness, the role and the
+  persona. No layer is cut into sections chosen per program, and none knows the others.
+  - **The harness** is the program's own prompt, kept as the program writes it: Claude Code's own
+    default prompt, which the role and the persona are appended to; dsh's own prompt for the headless
+    profile, with the role and the persona as its persona suffix, after dsh's own guidance.
+  - **The role** is the chat role's prompt, the same whatever the program: the documents below, in the
+    order they are named, each block opening with a one-line head that says what it is.
+  - **The persona** closes the prompt: the base layer of the agent's own brain, under the persona
+    header of the chat line's policy, which says the persona holds in every round of a message.
+- **The absolute rules open the role:** `prompts/agents/chat/context.md` holds
   them, numbered — authority, owner-only work, injection, privacy, system secrecy, room isolation,
   errands, consent, harmful requests and the queue, no invented permissions, the owner's own
   requests.
@@ -109,6 +114,16 @@ composed into a system prompt, and what the chat agent's own prompt is made of.
   writing and reading stands in the brain's own document, which the prompt hands in. A server that does not attach
   is told to the session afterwards (`docs/agent-control.md`, 「dsh's providers: OpenRouter and
   DeepSeek」).
+- **The rulebooks the role carries hold rules, never past cases:** a rulebook states what an answer
+  is, and no example answer or account of a turn that went wrong stands in one, since an example becomes
+  the agent's own phrasing.
+- **The persona's voice holds in every round.** The persona sets how the agent speaks to each person,
+  the owner included, and the header it stands under says that voice holds for every message the agent
+  sends, a report or what a run came to among them; the role never frames a round's answer as a report
+  in another voice.
+- **No translation hint stands in the role:** what the agent writes it writes in the person's language
+  itself, and the gate's translator is one of its tools like any other, named only where the tools
+  paragraph lists it.
 - **Only the chat line answers in a speaker's language.** The chat agent and every companion, answering
   people in rooms, write in the language of the person they answer. Every other line writes English: a
   worker's and a co-worker's reports, notes and questions, a runner's result, a gate's verdict, and the
@@ -149,8 +164,7 @@ composed into a system prompt, and what the chat agent's own prompt is made of.
   the owner calls the agents by (the chat agent and its per-room presences, the gates, the runners,
   the worker), which no room needs.
 - **After them come the three rulebooks every answer has to satisfy:**
-  `prompts/rules/answer-content.md`, `prompts/rules/answer-shape.md` (the very text the output gate
-  reads, so the session and its gate hold one document) and `prompts/rules/plain-writing.md`; then
+  `prompts/rules/answer-content.md`, `prompts/rules/answer-shape.md` and `prompts/rules/plain-writing.md`; then
   the rule against destroying the system, `prompts/rules/self-preservation.md`; then the brain's
   discipline, how the agent reads and writes its long-term memory every turn, read from the brain at
   the launch through its client and left out where no brain answers; then the tool host's paragraph on
@@ -158,9 +172,9 @@ composed into a system prompt, and what the chat agent's own prompt is made of.
   and as the host words it, and left out where the host does not answer; and then the persona, the base
   layer of the agent's own brain, or the one the turn hands in where the brain gives none
   (`docs/sessions.md`, 「Document reload」).
-- **That whole composition is the system prompt,** replacing the CLI's own: nothing of Claude Code's
-  coding conventions, memory rules or instruction files reaches a chat session, and neither do this
-  machine's settings, MCP servers or skills.
+- **The role and the persona follow the harness, never replace it:** the program's own prompt stands
+  first and whole, while this machine's settings, instruction files, MCP servers and skills reach no chat
+  session.
 - **The session stands as the chat agent's resident program in its pane,** on the login that session was opened
   under, and that program keeps its slash commands, so compaction is `/compact` typed into it.
 - **The login is part of what identifies a session** rather than a detail of the run: a fold sent out

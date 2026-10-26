@@ -97,9 +97,10 @@ async fn a_chat_turn_reads_the_declared_pre_and_post_parts_once_each_in_their_st
       ("post", "output-format".to_owned()),
     ]
   );
-  assert!(
-    turn_gates_of(db, Some(Shape::Pieces)).await.unwrap().unwrap().is_empty(),
-    "no gate picks for it"
+  assert_eq!(
+    turn_gates_of(db, Some(Shape::Pieces)).await.unwrap(),
+    turn_gates_of(db, Some(Shape::Window)).await.unwrap(),
+    "every conversational agent's turn passes the declared kinds"
   );
   assert!(turn_gates_of(db, None).await.unwrap().is_none());
 }

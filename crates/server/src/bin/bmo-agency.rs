@@ -206,7 +206,7 @@ enum Verb {
   },
   /// The agents' documents composed and written under the agents directory, with the caller's gate agents
   /// named in a JSON file.
-  Prompts { gates: Option<PathBuf> },
+  Prompts,
   /// One turn put into an agent's standing program through the door its provider declares, from a request
   /// file, and what it came to printed: what a check carries a turn through.
   ResidentTurn {
@@ -581,7 +581,7 @@ async fn run(verb: Verb) -> ExitCode {
     Verb::Machine { what } => ended(match what {
       MachineVerb::Memory(asked) => Ok(process_memory::machine_memory(&asked)),
     }),
-    Verb::Prompts { gates } => ended(prompts(&data_root, gates).await),
+    Verb::Prompts => ended(prompts(&data_root).await),
     Verb::ResidentTurn {
       request,
       data_root: named,
@@ -732,15 +732,11 @@ async fn verdict(data_root: &std::path::Path, asked: &OvertimeAsked) -> Result<A
   overtime::overtime(&ground, asked).await
 }
 
-async fn prompts(data_root: &std::path::Path, gates: Option<PathBuf>) -> Result<Answer, VerbError> {
+async fn prompts(data_root: &std::path::Path) -> Result<Answer, VerbError> {
   let ground = agency_server::verbs::ground(data_root).await?;
   let mut command = std::process::Command::new(&ground.roots.bun);
 
   command.arg(reload::DEPLOY_AGENTS).current_dir(code_tree());
-
-  if let Some(gates) = gates {
-    command.arg(gates);
-  }
 
   let status = command
     .status()

@@ -14,11 +14,16 @@ use sea_orm::DatabaseConnection;
 use serde_json::{Map, Value, json};
 
 use super::claude_accounts::Judging;
-use super::harness::{named, offered, offered_reason};
+use super::harness::{named, offered, offered_reason, provider_enabled};
 use super::tiers::{
-  Mapping, assign, assignable, assignments, conflicts, mappings, resolve_execution, set_mapping,
+  Mapping, assign, assignable, assignments, conflicts, mappings, resolve_execution, set_mapping, unsettled,
 };
 use super::{Call, Refused, Route, answer};
+
+/// A work key as a screen words it: the key in kebab case, `search:basic` as `search-basic`.
+pub fn key_code(key: &str) -> String {
+  key.to_lowercase().replace([':', '.', '_', ' '], "-")
+}
 
 /// The line a work key's run goes out on, which is what decides whether a provider carries it.
 pub fn line_of(key: &str) -> &str {
@@ -76,6 +81,18 @@ pub async fn tier_catalogue(
   Ok(catalogue_entries(provider, &offered(judging, machine, asked).await?))
 }
 
+// One cell of a tier screen where the key cannot go out on the provider: a short clause, the whole of why and
+// the code a screen words it by.
+fn refused_cell(provider: &str, selection: Value, code: &str, error: &str, detail: &str) -> Value {
+  json!({
+    "provider": provider,
+    "selection": selection,
+    "error": error,
+    "detail": detail,
+    "errorCode": code,
+  })
+}
+
 async fn effective(
   db: &DatabaseConnection,
   machine: &Machine,
@@ -83,26 +100,42 @@ async fn effective(
   key: &str,
   tier: &str,
 ) -> Result<Vec<Value>, Refused> {
+  let words = &CONTROL_WORDS.fallback;
   let mut views = Vec::new();
 
   for provider in ARCHIVE_PROVIDERS {
-    views.push(match resolve_execution(db, key, provider, None).await {
-      Ok(selection) => {
-        let reason = offered_reason(db, machine, named(provider)?, line_of(key)).await?;
+    let label = named(provider)?.declared().label.clone();
+    let marks = [("provider", label.as_str()), ("line", line_of(key))];
+    let held_cell = || json!(held.iter().find(|one| one.provider == provider && one.tier == tier));
 
-        json!({
-          "provider": provider,
-          "selection": selection,
-          "error": reason.as_ref().map(|reason| &reason.text),
-          "errorCode": reason.as_ref().map(|reason| &reason.code),
-        })
-      }
-      Err(error) => json!({
-        "provider": provider,
-        "selection": held.iter().find(|one| one.provider == provider && one.tier == tier),
-        "error": error,
-        "errorCode": null,
-      }),
+    views.push(match resolve_execution(db, key, provider, None).await {
+      Ok(selection) => match offered_reason(db, machine, named(provider)?, line_of(key)).await? {
+        None => json!({ "provider": provider, "selection": selection, "error": null, "detail": null, "errorCode": null }),
+        Some(reason) => {
+          let detail = if reason.code == super::harness::NOT_CARRIED {
+            fill_marks(&words.cell_not_carried_detail, &marks)
+          } else {
+            reason.text.clone()
+          };
+
+          refused_cell(provider, json!(selection), &reason.code, &reason.text, &detail)
+        }
+      },
+      Err(_) if !provider_enabled(db, provider).await? => refused_cell(
+        provider,
+        held_cell(),
+        "provider-off",
+        &words.cell_off,
+        &fill_marks(&words.cell_off_detail, &marks),
+      ),
+      Err(_) if unsettled(db, key, provider).await? => refused_cell(
+        provider,
+        held_cell(),
+        "tier-migration-unsettled",
+        &words.cell_unsettled,
+        &fill_marks(&words.cell_unsettled_detail, &marks),
+      ),
+      Err(error) => refused_cell(provider, held_cell(), "tier-unresolved", &words.cell_unresolved, &error),
     });
   }
 
@@ -126,6 +159,8 @@ impl Route for WorkKeyList {
 
     for row in assignments(db).await? {
       items.push(json!({
+        "code": key_code(&row.key),
+        "label": WORK_KEYS.profile(&row.key).map(|profile| profile.label.clone()),
         "key": row.key,
         "tier": row.tier,
         "choices": assignable(db, &row.key).await?,

@@ -23,6 +23,14 @@ unknown_action = "Unknown fallback action."
 no_laya = "Laya cannot be asked, so this gate sends only its default. Check BMO_LAYA_URL."
 laya_unset = "Laya cannot be asked: BMO_LAYA_URL is not set."
 not_offered = "The {key} key cannot be put on {mode}."
+# What a tier screen's cell says where a work key cannot go out on a provider: one short clause, and the whole
+# of why beside it, {provider} the provider's label and {line} the key's line.
+cell_off = "Switched off."
+cell_off_detail = "{provider} is switched off in the provider order, so the key goes out on it only once it is turned on."
+cell_not_carried_detail = "{provider}'s program does not carry the {line} line the key runs on, so the key never goes out on it."
+cell_unsettled = "A choice to review."
+cell_unsettled_detail = "An owner's choice for this key on {provider} from before the tiers waits for review on the tier screen."
+cell_unresolved = "No mapping."
 
 # The Claude accounts: what a change to one names wrongly, an {id} or a {name} not known or already
 # taken, a name longer than its {most} characters, a credential kind that is none of {kinds}, a credential

@@ -9,7 +9,7 @@
   - So the one place HTML is made is the converter, which also makes the same text as plain text
     with the marks removed, held as the fallback.
 - Which marks the writer has and when to use them are the writer's rules, in `answer-shape.md`;
-  whether a message is folded is `formatting-judgement.md`.
+  whether a message is folded is the output gate's own rulebook.
 - Where and how these rules are used, and surrounding facts such as the difference from MarkdownV2
   and link previews, are in `docs/telegram-formatting.md`.
 
@@ -124,7 +124,7 @@
 - **An HTML tag** written in an answer is escaped and shown as the characters written.
 - **The one-bold rule** is `answer-shape.md`'s (「When to use formatting」). Code measures it after
   conversion, and a leading `•` or number does not count against a bold taking its whole line.
-- **A quote in the folded part** loses its quote tag (`formatting-judgement.md`, rule 7).
+- **A quote in the folded part** loses its quote tag.
 
 ### What counts as a loss
 

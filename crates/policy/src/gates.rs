@@ -1,5 +1,5 @@
-//! The gates one kind of turn passes (docs/gates.md): a companion's part of the gate order, which the
-//! gate declares for a chat turn. Agency keeps no order of its own; the gate's declaration is its.
+//! The shape of the gates a turn passes, as the gate declares them for a chat turn (docs/api.md, 「gate
+//! kinds」). Agency keeps no order of its own; the gate's declaration is its.
 
 use serde::Deserialize;
 
@@ -45,5 +45,3 @@ impl TurnGates {
       .collect()
   }
 }
-
-crate::part!(pub COMPANION_TURN: TurnGates = "companion-turn.toml");

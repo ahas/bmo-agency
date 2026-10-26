@@ -318,6 +318,7 @@ pub async fn compose(
         shown: &CHAT_LINE.tools.shown,
         allowed: &CHAT_LINE.tools.allowed,
         host_commands: true,
+        appended: false,
       },
       settings,
       &session,

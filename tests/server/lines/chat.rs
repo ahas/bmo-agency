@@ -23,6 +23,7 @@ fn line<'a>(dir: &'a Path, system: &'a Path) -> Words<'a> {
     shown: "Bash,Read",
     allowed: "Bash,Read,mcp__bmo",
     host_commands: false,
+    appended: false,
   }
 }
 
@@ -51,6 +52,19 @@ fn every_conversational_agent_stands_on_the_chat_line_with_its_own_prompt_and_se
   assert_eq!(opened[opened.len() - 2..], ["--session-id".to_owned(), "s-1".to_owned()]);
   assert_eq!(resumed[resumed.len() - 2..], ["--resume".to_owned(), "s-1".to_owned()]);
   assert_eq!(opened[..opened.len() - 2], resumed[..resumed.len() - 2]);
+
+  // The chat agent's role and persona follow the program's own prompt rather than standing in its place.
+  let appended = agency_server::lines::chat::words(&Words {
+    appended: true,
+    ..line(dir.path(), &system)
+  })
+  .unwrap();
+
+  assert_eq!(
+    at(&appended, "--append-system-prompt-file"),
+    Some(system.to_string_lossy().into_owned())
+  );
+  assert!(!appended.iter().any(|word| word == "--system-prompt-file"));
 }
 
 // The tree this checkout is, which the chat's documents and rulebooks are read out of.
@@ -361,4 +375,48 @@ fn the_chats_prompt_names_the_tools_of_the_program_it_is_composed_for_and_the_ma
   assert!(on_dsh.contains("own tools are bash, read, write, edit"), "{on_dsh}");
   assert!(!on_dsh.contains("ListMcpResourcesTool"));
   assert!(!manual.contains("ListMcpResourcesTool") && !manual.contains("Your tools are Bash"));
+}
+
+#[test]
+fn every_program_s_chat_prompt_is_the_role_then_the_persona_whose_voice_holds_in_every_round() {
+  let home = tempfile::tempdir().unwrap();
+  let trees = Trees {
+    code: tree(),
+    agents: home.path().join("agents"),
+    source: home.path().to_path_buf(),
+    data: home.path().join("data"),
+    home: home.path().to_path_buf(),
+  };
+  let parts = SystemParts {
+    persona: Some("To the owner, the persona's own voice.".to_owned()),
+    servers: vec!["bmo".to_owned()],
+    ..SystemParts::default()
+  };
+  let programs: [(&str, &[&str]); 2] = [
+    ("Claude Code", &["Bash", "ListMcpResourcesTool"]),
+    ("dsh", &agency_server::lines::dsh::SESSION_TOOLS),
+  ];
+
+  for (program, tools) in programs {
+    let system = parts.compose(&trees, tools).unwrap();
+    let persona = system
+      .find(&CHAT_LINE.persona.header)
+      .unwrap_or_else(|| panic!("{program}: no persona"));
+
+    // The role opens with the chat's own opening and its absolute rules, the persona closes it, and its header
+    // says the voice it sets holds for every message, a report among them.
+    assert!(system.find("ABSOLUTE RULES").is_some_and(|rules| rules < persona), "{program}");
+    assert!(system.trim_end().ends_with("To the owner, the persona's own voice."), "{program}");
+    assert!(CHAT_LINE.persona.header.contains("in every round"), "{program}");
+    assert!(CHAT_LINE.persona.header.contains("the owner included"), "{program}");
+    assert!(CHAT_LINE.persona.header.contains("a report"), "{program}");
+
+    // No past case, no translation hint and no gate's rulebook stands in the role.
+    for gone in ["real case", "translate it through gate/translate", "formatting gate reads"] {
+      assert!(!system.contains(gone), "{program}: {gone}");
+    }
+
+    // What the room hears of the tools: never that a thing is written or recorded.
+    assert!(system.contains("Never say that something is written, recorded"), "{program}");
+  }
 }

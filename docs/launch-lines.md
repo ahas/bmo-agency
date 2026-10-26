@@ -81,7 +81,7 @@
   in its fixed order.
 - **dsh — the DeepSeek Harness — is the second** (`packages/agent/dsh.ts`): it takes no flags to
   speak of, so a run becomes a patch overlay written fresh for it, naming rows of dsh's own
-  composition — the system prompt as the persona prefix, the model and the provider's API it runs on as
+  composition — the run's own prompt as the persona suffix after dsh's own, the model and the provider's API it runs on as
   a route, the tools it may have — and the command is the pinned `@deepseek-ai/dsh` at its headless profile with
   the task standing in the line. The task stands there as words headless joins back with one space,
   each short of the kernel's limit on one argument, and it reaches dsh out of a file of its own
@@ -154,13 +154,16 @@
   a mapping the owner deleted, or a migration the owner has not settled, refuses the launch rather than
   being answered with a default (`docs/model-tiers.md`). The console is the one place they are
   chosen, and the line, the record of the session, the keepalive's cache policy and the check for
-  a runtime downgrade all read that one answer. The system prompt is the chat agent's
-  documents with the tools paragraph composed for the program the session runs on
-  (`docs/agent-documents.md`, 「The chat agent」), the three answer rulebooks, the rulebook against destroying the system
-  (`prompts/rules/self-preservation.md`), the brain's discipline, the tool host's paragraph on finding
-  and using tools (`docs/api.md`, 「Calls agency makes」) and the persona — the base layer of the
-  agent's brain, or the one the turn hands in where the brain gives none (`docs/sessions.md`, 「Document reload」) — handed
-  over as a file and replacing the CLI's own. No settings sources, no skills, no Chrome, and five MCP servers, named in `chat.mcp.json`
+  a runtime downgrade all read that one answer. The system prompt is the harness, the role and the
+  persona, each whole (`docs/agent-documents.md`, 「The chat agent」): the program's own prompt; then
+  the chat role's documents with the tools paragraph composed for the program the session runs on, the
+  three answer rulebooks, the rulebook against destroying the system
+  (`prompts/rules/self-preservation.md`), the brain's discipline and the tool host's paragraph on finding
+  and using tools (`docs/api.md`, 「Calls agency makes」); then the persona — the base layer of the
+  agent's brain, or the one the turn hands in where the brain gives none (`docs/sessions.md`, 「Document
+  reload」). On Claude Code the role and the persona are handed over as a file appended to the CLI's own
+  prompt (`--append-system-prompt-file`), and on dsh as the persona suffix of its system prompt. No
+  settings sources, no skills, no Chrome, and five MCP servers, named in `chat.mcp.json`
   beside the strict flag that keeps every other server out: the tool host's namespaces the chat line
   names, `bmo`, `web` and `gate`, each a streamable HTTP server behind the run's session
   token (the tool host's `mcp-host.md`), which is where the chat agent's own tools stand — sending, filing
@@ -186,12 +189,10 @@
   so the program's own record of its session is taken up again after a restart (docs/sessions.md, 「A
   restart hands the session over」). A turn that finds no pane to stand the program in, herdr down,
   fails as a transport failure and is run in no other shape.
-- **Gate runs**, which the gate unit carries: the output gate, whose judgements keep a fixed shape in
-  and out; the translator, for the gate's own translations route, until that route hands each part to
-  agency's translate runner (「Translate runner」 below); and the sanitiser, which is shelved and asked by
-  no turn. Each at medium effort, with its own
-  instructions and rulebooks as the whole system prompt, handed over as a file named by its content; the
-  rulebook against destroying the system is not among them, since a gate holds no tool to act with. No
+- **Gate runs**, which the gate unit carries, each at medium effort with the system prompt the gate hands
+  with its turn as the whole system prompt, handed over as a file named by its content; agency holds no
+  gate's instructions, rulebooks or order of its own, and the rulebook against destroying the system is
+  not among a gate's, since a gate holds no tool to act with. No
   tools at all, no settings but the pool slot's own status line and hooks, no MCP, no Chrome, and no
   session named: the program opens its own, and `/clear` opens the next after every judgement
   (`gates.md`, 「A gate on Claude Code」). No gate picks what a turn reads: the chat agent reads the
@@ -240,8 +241,8 @@
   the same file in the place that program keeps beside its own default prompt, never in place of
   it: on Codex as the run's developer instructions (`developer_instructions`), with Codex's own
   coding-agent prompt and the checkout's `AGENTS.md` left as they are; on OpenRouter and DeepSeek as the
-  persona prefix of dsh's system prompt, after the headless profile's own opening line, with dsh's other
-  sections and its instruction-file row left as they are. A worker run handed no such file is
+  persona suffix of dsh's system prompt, after dsh's own prompt whole, with its instruction-file row left
+  as it is. A worker run handed no such file is
   refused on every provider rather than started without it. A worker the deployment gives rules of its own
   names them in that document (`docs/own-llm.md`, 「The own model and the engine behind it」). What
   the run is shown beyond the prompt comes from this repository and not from the machine: the
@@ -336,7 +337,7 @@
   own (`docs/own-llm.md`, 「A worker on a registered model is composed as on Claude」).
 - **A job worker on a DeepSeek model**: bmo-tui on a dsh session in the worker's pane, as a worker on
   OpenRouter stands (`docs/agent-control.md`, 「dsh's providers: OpenRouter and DeepSeek」): the worker's
-  rules after the headless profile's opening line as dsh's persona prefix, every tool row but the web,
+  rules as dsh's persona suffix after its own prompt, every tool row but the web,
   the deployment's MCP servers, and DeepSeek's own API as dsh's one route on the model the pin or the
   worker key's tier names, thinking off where the run does not think. The road's key file is read as the
   program is stood and handed to it in the variable the route names; no login of the Claude road goes

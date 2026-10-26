@@ -7,7 +7,6 @@ use axum::http::{Method, StatusCode};
 use axum::response::Response;
 use policy::control_words::CONTROL_WORDS;
 use policy::fill_marks;
-use policy::gates::COMPANION_TURN;
 use policy::reasoning::REASONING;
 use policy::roles::ROLES;
 use sea_orm::DatabaseConnection;
@@ -85,11 +84,11 @@ pub async fn turn_gates_of(
   db: &DatabaseConnection,
   shape: Option<Shape>,
 ) -> Result<Option<Vec<(&'static str, String)>>, Refused> {
-  let turn = match shape {
-    None => return Ok(None),
-    Some(Shape::Window) => crate::gate_kinds::turn(&crate::gate_kinds::declared(db).await?),
-    Some(Shape::Pieces) => COMPANION_TURN.clone(),
-  };
+  if shape.is_none() {
+    return Ok(None);
+  }
+
+  let turn = crate::gate_kinds::turn(&crate::gate_kinds::declared(db).await?);
 
   Ok(Some(turn.gates().into_iter().map(|(part, key)| (part, key.to_owned())).collect()))
 }

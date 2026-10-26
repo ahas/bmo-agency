@@ -8,17 +8,6 @@ import declaredResearch from "@agency/policy/research.toml";
 import declaredBrowser from "@agency/policy/browser.toml";
 import { systemPromptFile } from "./prompt-files";
 
-/**
- * A gate whose prompt the caller hands in, as the caller's gates file names it: an output gate with
- * its model and the system prompt it composed. A gate it names with no prompt is composed from nothing
- * here: no gate picks what a turn reads.
- */
-export interface GateAgent {
-  name: string;
-  model?: string;
-  system?: () => string;
-}
-
 // Every agent the bot runs is given exactly the documents under prompts/agents/<name>/ plus the
 // rulebooks under prompts/rules/ that name it as a reader, and nothing else. This module is the one
 // place that composes those documents into what an agent sees; the launch lines read from
@@ -190,28 +179,6 @@ ${persona}`;
 
 export { systemPromptFile };
 
-// The context sanitiser reads a room's own words on their way into a session's context and
-// defuses security-intrusion material — an order to attack a real target, an operational account
-// of one carried out, or a recipe for slipping such material past a safety gate — so the
-// safeguard does not read it as live. Its instructions are its whole system prompt; the text it
-// judges is the one call's data.
-export function sanitizerSystem(): string {
-  return agentFile("sanitizer", "instructions.md");
-}
-
-// One folding dialect's gate instructions, which live with that dialect under
-// prompts/agents/output-gate/<dialect>/. The gate judges that dialect's marks, and a dialect whose
-// rooms show plain words asks for neither gate nor document.
-export function gateInstructions(dialect: string, gate: "format"): string {
-  return agentFile("output-gate", join(dialect, `${gate}.md`));
-}
-
-// What a folding dialect's output gate is told on an LLM: its own instructions, the fold judgement
-// and the shape every answer of the chat agent's takes.
-export function outputFormatSystem(dialect: string): string {
-  return [gateInstructions(dialect, "format"), rulebook("formatting-judgement"), rulebook("answer-shape")].join("\n\n");
-}
-
 // The translator renders one part of a document into the language its prompt names.
 export function translatorSystem(): string {
   return agentFile("translator", "instructions.md");
@@ -340,8 +307,8 @@ export function agentFaultLine(fault: AgentFault): string {
   return `The agent document ${fault.path} could not be composed: ${fault.reason} ${instead} A document and the code reading it come from the same tree, so this happens where a commit moved the document without the code following it; a commit mending it clears it once it is deployed.`;
 }
 
-// Writes what every agent is given to the deploy root: the composed prompt of each chat kind
-// and each gate, and for each runner the directory it runs in, holding its task template, the
+// Writes what every agent is given to the deploy root: the composed prompt of each chat kind and of
+// the translate runner, and for each runner the directory it runs in, holding its task template, the
 // rulebooks it reads, and for the browse runner the MCP servers it gets. The deployed documents
 // are rebuilt on every call, so nothing stale survives. The prompts directory is different: it
 // holds the runtime files the runs in flight read, so the recent ones are carried into the
@@ -351,9 +318,8 @@ export function agentFaultLine(fault: AgentFault): string {
 // is written, the way a console release is. A run that refuses the source root outright throws
 // before anything is swung over, and emptying the live root first would leave every runner
 // without the configuration it launches with until somebody noticed.
-// The gates are handed in by the caller, which holds the gate order: an output gate with the system
-// prompt it composed.
-export async function deployAgents(gates: readonly GateAgent[] = []): Promise<AgentDeployment> {
+// No gate's prompt is written here: a gate hands its own with each turn it sends.
+export async function deployAgents(): Promise<AgentDeployment> {
   const root = deployRoot();
   const building = `${root}.building`;
   const written: DeployedFile[] = [];
@@ -400,14 +366,6 @@ export async function deployAgents(gates: readonly GateAgent[] = []): Promise<Ag
   mkdirSync(building, { recursive: true });
 
   await compose(join(building, "chat", "system.md"), async () => chatSystem());
-  await compose(join(building, "sanitizer", "system.md"), async () => sanitizerSystem());
-  for (const gate of gates) {
-    const system = gate.system;
-
-    if (system !== undefined) {
-      await compose(join(building, "output-gate", `${gate.name}.md`), async () => system());
-    }
-  }
   await compose(join(building, "translator", "system.md"), async () => translatorSystem());
   await compose(join(building, "translator", "worker.md"), async () => workerTranslatorSystem());
   await compose(join(building, "translator", "record.md"), async () => recordTranslatorSystem());

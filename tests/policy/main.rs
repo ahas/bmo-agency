@@ -13,7 +13,6 @@ mod control_words;
 mod deployment;
 mod door_words;
 mod gate_places;
-mod gates;
 mod handoff;
 mod keepalive;
 mod machine_room;

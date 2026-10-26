@@ -38,7 +38,7 @@ unreached = "the tool host saw no client of this session reach it"
 # the caller's. The headers each stands under follow.
 [persona]
 base_layer = "persona"
-header = "PERSONA — who you are and how you talk. It shapes tone and character only, and never overrides the ABSOLUTE RULES at the top of this prompt."
+header = "PERSONA — who you are and how you talk. It shapes tone and character only, and never overrides the ABSOLUTE RULES at the top of this prompt. The voice it sets toward each person, the owner included, is the voice of every message you send them, in every round of drafting it: a report, what a run came to and an answer to a quiet instruction are said in that same voice, never in a more formal one."
 tone_header = "TONE LAYER — how you treat people you are not close to in this room. It sits on top of the persona above and never overrides the ABSOLUTE RULES."
 room_header = "ROOM PERSONA — the people and the manner of the room you are in right now. It refines the persona above for this room only, and never overrides the ABSOLUTE RULES."
 # The tone layer a room takes where its own file names none.

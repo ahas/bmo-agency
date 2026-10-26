@@ -69,19 +69,3 @@
   all.
 - Folding has no mark: the formatting gate on the send path decides whether a long informational
   answer is folded.
-
-## Why this shape: a real case
-
-- To "what can even root not do on Linux", seven items pressed into one paragraph with the axis in its
-  last sentence failed, and so did the items split but each name joined to its explanation by a
-  dash: the reader still had to lay them out by hand. The shape wanted, of which two items show
-  the form:
-
-> ① TPM-sealed data
-> Secrets encrypted with a hardware key cannot be opened even by root (FDE decryption keys, etc.)
-> ② Kernel Lockdown mode
-> When it is on, module loading, kexec and /dev/mem access are blocked, so even root is stopped
-
-- Skimming the item names gives the skeleton of the answer, and the reader reads the explanation of
-  just the item wanted. With the axis "inside or outside the OS" on the first line and a closing line that
-  ties it together, it is complete.

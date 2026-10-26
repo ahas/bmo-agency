@@ -100,7 +100,7 @@ pub async fn conflicts(db: &DatabaseConnection) -> Result<Vec<Conflict>, Refused
   .collect()
 }
 
-async fn unsettled(db: &DatabaseConnection, key: &str, provider: &str) -> Result<bool, Refused> {
+pub async fn unsettled(db: &DatabaseConnection, key: &str, provider: &str) -> Result<bool, Refused> {
   Ok(
     one(
       db,

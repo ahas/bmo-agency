@@ -644,11 +644,14 @@ pub struct Words<'a> {
   pub shown: &'a str,
   pub allowed: &'a str,
   pub host_commands: bool,
+  /// Whether the composed prompt follows the program's own, the chat agent's role and persona, rather than
+  /// standing in its place, as a gate's instructions and a companion's base prompt do.
+  pub appended: bool,
 }
 
-/// The line's words for the interactive program: the model and effort, the composed prompt in place of the
-/// program's own, nothing of this machine but the one configuration handed, the program's own commands off
-/// where they are not reachable, and what it is shown and allowed.
+/// The line's words for the interactive program: the model and effort, the composed prompt after the
+/// program's own or in its place, nothing of this machine but the one configuration handed, the program's own
+/// commands off where they are not reachable, and what it is shown and allowed.
 pub fn words(line: &Words<'_>) -> Result<Vec<String>, Refusal> {
   let mut args: Vec<String> = vec!["claude".to_owned()];
 
@@ -658,7 +661,9 @@ pub fn words(line: &Words<'_>) -> Result<Vec<String>, Refusal> {
     "--effort".to_owned(),
     line.effort.to_owned(),
   ]);
-  args.extend(["--system-prompt-file".to_owned(), line.system.to_string_lossy().into_owned()]);
+  let flag = if line.appended { "--append-system-prompt-file" } else { "--system-prompt-file" };
+
+  args.extend([flag.to_owned(), line.system.to_string_lossy().into_owned()]);
   args.extend(["--setting-sources", "", "--strict-mcp-config", "--mcp-config"].map(str::to_owned));
   args.push(handed(LINE, line.mcp)?);
 
@@ -708,6 +713,8 @@ impl ChatRun {
       shown: &self.tools_shown,
       allowed: &self.tools_allowed,
       host_commands: true,
+      // The chat agent's own run carries its parts; a gate's is handed its whole prompt.
+      appended: self.system_parts.is_some(),
     }
   }
 }

@@ -32,9 +32,9 @@ const VERSION: &str = "0.2.1-rc.2";
 // The profile that runs one task and prints the answer.
 const PROFILE: &str = "headless";
 
-// The persona prefix the headless profile of the pinned version opens its system prompt with, which the
-// worker's rules are written after; `{{model}}` is dsh's own prompt variable, and the working directory is
-// dsh's own runtime context rather than a variable of the persona.
+// The persona prefix the profiles of the pinned version open their system prompt with, written again beside a
+// run's persona suffix so the profile's own opening stands whatever the overlay's row replaces; `{{model}}` is
+// dsh's own prompt variable, and the working directory is dsh's own runtime context.
 const HEADLESS_OPENER: &str = "You are a coding agent powered by the {{model}} model.";
 
 // The one row of the pinned profile's tools a worker goes without, every other one on: the web reaches it
@@ -359,19 +359,24 @@ fn overlay_of_with(
   route: &Dsh,
 ) -> Result<Ordered, Refusal> {
   let mut rows = vec![];
-  let persona = match (run.system, run.rules) {
-    (Some(system), _) => Some(literal(&read(system)?)),
-    (None, Some(rules)) if run.worker() => Some(format!("{HEADLESS_OPENER}\n\n{}", literal(&read(rules)?))),
-    _ => None,
+  // dsh's own prompt is the harness and stands whole: its identity line, the profile's opening line and its
+  // guidance. A run's role and persona, or a worker's rules, follow the guidance as the persona suffix; a
+  // worker's chosen base prompt alone stands in the opening line's place, since it is a harness of its own.
+  let (prefix, suffix) = match (run.system, run.rules) {
+    (Some(system), _) if run.worker() => (literal(&read(system)?), None),
+    (Some(system), _) => (HEADLESS_OPENER.to_owned(), Some(literal(&read(system)?))),
+    (None, Some(rules)) if run.worker() => (HEADLESS_OPENER.to_owned(), Some(literal(&read(rules)?))),
+    _ => (String::new(), None),
   };
 
-  // The persona prefix is the one place in dsh's system prompt a run writes: it stands after dsh's own
-  // identity line and before its guidance, in place of the profile's own opening line.
-  if let Some(persona) = persona {
-    rows.push(map(vec![
-      ("id", text("system-prompt")),
-      ("config", map(vec![("personaPrefix", Ordered::Text(persona))])),
-    ]));
+  if !prefix.is_empty() {
+    let mut config = vec![("personaPrefix", Ordered::Text(prefix))];
+
+    if let Some(suffix) = suffix {
+      config.push(("personaSuffix", Ordered::Text(suffix)));
+    }
+
+    rows.push(map(vec![("id", text("system-prompt")), ("config", map(config))]));
   }
 
   // The worker keeps the instruction-file reader, since the checkout's documents are its work's.

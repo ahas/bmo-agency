@@ -10146,6 +10146,17 @@
           "key": {
             "type": "string"
           },
+          "code": {
+            "type": "string",
+            "description": "The key in kebab case, the word a screen words it by."
+          },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The English name its profile gives, none for a key no profile declares."
+          },
           "tier": {
             "type": "string"
           },
@@ -10163,11 +10174,13 @@
           "effective": {
             "type": "array",
             "items": true,
-            "description": "Each `provider`, `selection`, `error` and `errorCode`."
+            "description": "Each `provider`, `selection`, `error` (one short clause), `detail` (the whole of why) and `errorCode`."
           }
         },
         "required": [
           "key",
+          "code",
+          "label",
           "tier",
           "choices",
           "conflicts",
