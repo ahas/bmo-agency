@@ -28,7 +28,7 @@ a field's exact shape matters, the OpenAPI document is the one to read.
 ## Versioning
 
 - The contract carries the repository's one version, in semver; the workspace manifest is its source. Before
-  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.74`.
+  the first release the version is `0.1.0` plus `-rev.N`, and the current version is `0.1.0-rev.75`.
 - A change to this document and a change to the boundary go in one commit. A change to a route, an event, a
   hook or a shared table's contract repairs this document in the same commit.
 - The major moves on a removed or renamed route, field or event, the minor on an addition, the patch on
@@ -841,7 +841,8 @@ program did not attach (`docs/agent-control.md`, 「dsh's providers: OpenRouter 
 a research run is queued there too (`docs/research-runs.md`); and before a chat agent's turn opens a fresh
 session in place of one it had, the receiver's `POST /handoffs/{agentName}` is asked for the old session's
 handoff, with `reason` and `room` where the turn names one, and waited on (`docs/sessions.md`, 「A restart
-hands the session over」); and every minute the job service's `GET /items` with `state` `open` is read, and
+hands the session over」); and every minute the job service's `GET /queues`, `GET /items` with `state`
+`open` and its port's `GET /items?open=1`, whose `approved` says which items are approved, are read, and
 an idle queue is told once through the receiver's `POST /owner/notices` with the code `queue-idle`
 (`docs/agent-control.md`, 「An idle queue is told to the owner」). Each is the documented route of the unit
 that holds what must reach it; agency keeps no client of either unit and no store of their rows.

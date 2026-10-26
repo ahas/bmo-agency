@@ -2629,6 +2629,12 @@ enters the prefix.
   `TERM_PROGRAM` and `TERM_PROGRAM_VERSION` over the program's environment, where the pane has them. A
   program started without them reads as a terminal with no colour. They are not part of the program's
   identity: the same program in another terminal is the same program.
+- **The pane's herdr variables are the head's to hand on too.** herdr sets every `HERDR_` variable per
+  pane — the pane, its tab and workspace, herdr's socket, its binary and the mark that the program runs
+  inside herdr — and a program reports its own state to herdr by them, so it shows in herdr's agent list
+  as idle or working. The head lays every `HERDR_` variable of its own environment over the program's, as
+  it does the terminal's. They carry no secret, and they are not part of the program's identity either:
+  the same program in another pane is the same program.
 
 - **Measured side by side** (worker cwd, Opus 5, pinging on a store copy then launching a job continuing
   that session at once):
@@ -2783,10 +2789,11 @@ them run a browser, and whose a place is.
 ### An idle queue is told to the owner
 
 - **Approved work a free worker could take, with no job started, is an idle queue.** Every minute agency
-  reads the job service's open items — approved and waiting for a lease (the job service's `GET /items`,
-  `state` `open`) — and its queues (`GET /queues`) beside its own jobs. An item waits on a free worker
-  where its queue is open and holds nothing, and its assignee is a worker that is not resting and has no
-  job at work, or it names no assignee while such a worker stands. Where one item waits so and no job has
+  reads the job service's items waiting for a lease (its `GET /items`, `state` `open`), which of them are
+  approved (its port's `GET /items?open=1`, `approved`: an approval of the kind `approval`, which the state
+  alone does not say) and its queues (`GET /queues`), beside its own jobs. An item waits on a free worker
+  where it is approved, its queue is open and holds nothing, and its assignee is a worker that is not
+  resting and has no job at work, or it names no assignee while such a worker stands. Where one item waits so and no job has
   started on this machine for the idle minutes (`policy/queue-idle.toml`, five, or the owner's own row
   `queue_idle_minutes` of the settings table), the queue is idle.
 - **The owner is told once, through the receiver.** Agency queues one owner notice, `POST /owner/notices`

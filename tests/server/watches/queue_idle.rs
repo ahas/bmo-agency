@@ -108,11 +108,20 @@ async fn stand_in(State(calls): State<Calls>, uri: Uri, body: Bytes) -> impl Int
       ],
       "more": false,
     })),
+    "/items" if uri.query().is_some_and(|query| query.contains("open=1")) => axum::Json(json!({
+      "items": [
+        { "id": 11, "approved": true, "status": "open", "title": "for the free worker", "worker": "w1" },
+        { "id": 12, "approved": true, "status": "open", "title": "for the busy worker", "worker": "w2" },
+        { "id": 13, "approved": true, "status": "open", "title": "in a paused queue", "worker": "w1" },
+        { "id": 14, "approved": false, "status": "open", "title": "not approved", "worker": "w1" },
+      ],
+    })),
     "/items" => axum::Json(json!({
       "items": [
         { "id": 11, "title": "for the free worker", "state": "open", "queueName": "todo", "assigneeName": "w1" },
         { "id": 12, "title": "for the busy worker", "state": "open", "queueName": "todo", "assigneeName": "w2" },
         { "id": 13, "title": "in a paused queue", "state": "open", "queueName": "later", "assigneeName": "w1" },
+        { "id": 14, "title": "not approved", "state": "open", "queueName": "todo", "assigneeName": "w1" },
       ],
       "more": false,
     })),

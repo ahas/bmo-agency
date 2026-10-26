@@ -27,6 +27,11 @@ const HOST_HEAD: &str = "BMO_HOST_HEAD";
 // on this pane's terminal, which nothing that wrote the program knows.
 const TERMINAL_VARIABLES: [&str; 4] = ["TERM", "COLORTERM", "TERM_PROGRAM", "TERM_PROGRAM_VERSION"];
 
+// The prefix of what herdr sets for its pane — the pane, tab and workspace, its socket and binary, and the
+// mark of running inside it — laid over the program's own environment, so the program reports its state
+// to herdr.
+const HERDR_PREFIX: &str = "HERDR_";
+
 // How much of the view a follower shows as it starts.
 const VIEW_LINES: &str = "200";
 
@@ -37,11 +42,17 @@ fn data_root() -> Option<PathBuf> {
     .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".local/share/bmo/data")))
 }
 
-/// The program's environment, with the pane's terminal over it.
+/// The program's environment, with the pane's terminal and herdr's variables for the pane over it.
 fn program_environment(mut env: BTreeMap<String, String>) -> BTreeMap<String, String> {
   for name in TERMINAL_VARIABLES {
     if let Some(value) = std::env::var(name).ok().filter(|value| !value.is_empty()) {
       env.insert(name.to_owned(), value);
+    }
+  }
+
+  for (name, value) in std::env::vars() {
+    if name.starts_with(HERDR_PREFIX) && !value.is_empty() {
+      env.insert(name, value);
     }
   }
 

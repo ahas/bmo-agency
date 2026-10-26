@@ -238,14 +238,25 @@ fn the_program_takes_the_heads_own_process_with_the_panes_terminal_over_its_envi
 
   root.program(
     "chat",
-    &format!("echo $$ $TERM $OWN ${{LEAKED:-none}} > {}; sleep 30", said.display()),
+    &format!(
+      "echo $$ $TERM $OWN ${{LEAKED:-none}} $HERDR_PANE_ID $HERDR_SOCKET_PATH > {}; sleep 30",
+      said.display()
+    ),
     json!({}),
   );
 
-  let head = root.spawn("chat", "p1", &[("TERM", "xterm-test"), ("LEAKED", "pane")]);
+  let head = root.spawn(
+    "chat",
+    "p1",
+    &[("TERM", "xterm-test"), ("LEAKED", "pane"), ("HERDR_SOCKET_PATH", "/run/herdr.sock")],
+  );
 
+  // The pane's terminal and herdr's variables for the pane are handed on; nothing else of the pane's.
   assert!(within(3_000, || fs::read_to_string(&said).is_ok_and(|text| text.ends_with('\n'))));
-  assert_eq!(fs::read_to_string(&said).unwrap(), format!("{} xterm-test program none\n", head.pid()));
+  assert_eq!(
+    fs::read_to_string(&said).unwrap(),
+    format!("{} xterm-test program none p1 /run/herdr.sock\n", head.pid())
+  );
 
   let running = root.read("chat", "running.json");
 

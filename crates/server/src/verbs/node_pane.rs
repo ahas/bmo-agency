@@ -60,6 +60,18 @@ fn draw(node: &NodeRow) {
 
 /// The pane run until its node leaves the list.
 pub async fn node_pane(data_root: &Path, name: &str) -> Result<Answer, VerbError> {
+  // A pane named no node service would read an empty list and close as if its node were gone.
+  if std::env::var(crate::peers::node::ADDRESS.url)
+    .ok()
+    .filter(|url| !url.is_empty())
+    .is_none()
+  {
+    return Err(VerbError::Refused(format!(
+      "no node service is named: set {} for the pane",
+      crate::peers::node::ADDRESS.url
+    )));
+  }
+
   let service = service(data_root).await?;
   let nodes = service.peers.node.clone();
   let gone = || Answer {

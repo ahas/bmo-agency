@@ -281,12 +281,15 @@ impl Home {
       return Err(fault);
     }
 
-    let _ = self
+    if let Err(fault) = self
       .call(
         "workspace.report_metadata",
         json!({ "workspace_id": workspace, "source": METADATA_SOURCE, "tokens": self.tokens() }),
       )
-      .await;
+      .await
+    {
+      eprintln!("{}: the workspace {workspace} took no token: {fault}", self.label);
+    }
 
     let settled = match self.herdr.snapshot().await {
       Ok(again) => self.candidates(&again).into_iter().next().unwrap_or_else(|| workspace.clone()),
@@ -320,13 +323,15 @@ impl Home {
         .await;
     }
 
-    if !self.marks(workspace) {
-      let _ = self
+    if !self.marks(workspace)
+      && let Err(fault) = self
         .call(
           "workspace.report_metadata",
           json!({ "workspace_id": workspace_id, "source": METADATA_SOURCE, "tokens": self.tokens() }),
         )
-        .await;
+        .await
+    {
+      eprintln!("{}: the workspace {workspace_id} took no token: {fault}", self.label);
     }
 
     let mut head: Option<(String, String)> = None;

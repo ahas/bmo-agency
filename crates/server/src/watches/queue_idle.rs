@@ -147,8 +147,9 @@ async fn read_job(url: &str, token: &str, path: &str, query: &[(&str, &str)]) ->
   answer.json().await.map_err(|why| why.to_string())
 }
 
-// The job service's open items in the queues that take leases — open, holding nothing; none where the
-// deployment names no job service.
+// The job service's approved open items in the queues that take leases — open, holding nothing; none
+// where the deployment names no job service. Approved is the port's `approved`, an approval of the kind
+// `approval`, which an item's state does not say.
 async fn open_items(vars: &BTreeMap<String, String>) -> Result<Option<Vec<Open>>, String> {
   let (Some(url), Some(token)) =
     (address(vars, "BMO_JOB_URL"), token(vars, "BMO_JOB_TOKEN", "BMO_JOB_TOKEN_FILE"))
@@ -165,6 +166,14 @@ async fn open_items(vars: &BTreeMap<String, String>) -> Result<Option<Vec<Open>>
     })
     .filter_map(|queue| queue["name"].as_str())
     .collect();
+  let port = read_job(&url, &token, "/items", &[("open", "1")]).await?;
+  let approved: Vec<i64> = port["items"]
+    .as_array()
+    .into_iter()
+    .flatten()
+    .filter(|item| item["approved"] == true)
+    .filter_map(|item| item["id"].as_i64())
+    .collect();
   let page = read_job(&url, &token, "/items", &[("state", "open"), ("limit", "100")]).await?;
 
   Ok(Some(
@@ -173,6 +182,7 @@ async fn open_items(vars: &BTreeMap<String, String>) -> Result<Option<Vec<Open>>
       .into_iter()
       .flatten()
       .filter(|item| item["queueName"].as_str().is_some_and(|queue| taking.contains(&queue)))
+      .filter(|item| item["id"].as_i64().is_some_and(|id| approved.contains(&id)))
       .filter_map(|item| {
         Some(Open {
           id: item["id"].as_i64()?,

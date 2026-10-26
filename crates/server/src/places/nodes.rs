@@ -67,6 +67,14 @@ pub fn label(node: &NodeRow) -> String {
 fn pane(ground: &Ground, node: &NodeRow) -> Launch {
   let root = ground.code_root();
   let mark = format!("bmo-node-{}", node.node);
+  let mut env = ground.run_env(&mark);
+
+  // The verb reads the node list itself, so it is handed the node service as the server reaches it.
+  for name in [crate::peers::node::ADDRESS.url, crate::peers::node::ADDRESS.token] {
+    if let Some(value) = ground.vars().get(name) {
+      env.insert(name.to_owned(), value.clone());
+    }
+  }
 
   Launch {
     command: vec![
@@ -81,7 +89,7 @@ fn pane(ground: &Ground, node: &NodeRow) -> Launch {
       node.node.clone(),
     ],
     cwd: root.to_string_lossy().into_owned(),
-    env: ground.run_env(&mark),
+    env,
   }
 }
 
@@ -139,13 +147,16 @@ async fn make(herdr: &Herdr, ground: &Ground, node: &NodeRow) -> bool {
     return false;
   }
 
-  let _ = herdr
+  if let Err(fault) = herdr
     .call(
       "workspace.report_metadata",
       json!({ "workspace_id": workspace, "source": METADATA_SOURCE, "tokens": { NODE_TOKEN: node.node } }),
       None,
     )
-    .await;
+    .await
+  {
+    eprintln!("node workspaces: {}'s workspace {workspace} took no token: {fault}", node.node);
+  }
 
   true
 }
