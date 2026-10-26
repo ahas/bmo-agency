@@ -32,12 +32,12 @@ license = "MIT"
 bmo-agency-client = { path = "crates/client" }
 axum = "0.8.4"
 base64 = "0.22.1"
-bmo-brain-client = { path = "../brain/crates/client", version = "=0.1.0-rev.30" }
-bmo-cache-warmer-schedule = { path = "../cache-warmer/schedule", version = "=0.1.0-rev.5" }
+bmo-brain-client = { path = "../brain/crates/client" }
+bmo-cache-warmer-schedule = { path = "../cache-warmer/schedule" }
 bmo-chat = { path = "../../base/chat/provider" }
-bmo-gate-client = { path = "../gate/crates/client", version = "=0.18.2" }
-bmo-node-client = { path = "../node/crates/client", version = "=0.1.0-rev.2" }
-bmo-pocket-client = { path = "../pocket/client", version = "=0.1.0-rev.9" }
+bmo-gate-client = { path = "../gate/crates/client" }
+bmo-node-client = { path = "../node/crates/client" }
+bmo-pocket-client = { path = "../pocket/client" }
 brush-parser = "0.4.0"
 chrono = { version = "0.4.41", default-features = false, features = ["std"] }
 clap = { version = "4.5.40", features = ["derive", "env", "string"] }

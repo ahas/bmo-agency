@@ -85,5 +85,6 @@ is the caller's decision; agency supplies it.
 - Review: `cargo fmt --all --check` (108 columns, 2-space indentation, as `rustfmt.toml` sets) and
   `cargo clippy --workspace --all-targets -- -D warnings`.
 - Tests: `cargo test --workspace`, and `bun test` for `tests/packages/`.
-- The version is the workspace's, in semver. The major moves on a change to the boundary API or to a
-  table's contract, the minor on an addition to either, the patch on anything else.
+- The version is the workspace's, and it moves only at a release the owner declares by name (bmo-chat's
+  `docs/conventions.md`, 「Versions」): a commit, a deploy, a fix or a contract change moves none, and a
+  deployment is told apart by its commit. A sibling is a path dependency and is never pinned to a version.
