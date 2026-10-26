@@ -44,9 +44,12 @@ impl ClaudeCode {
   }
 
   /// The folder the program keeps a working directory's sessions in under a configuration directory: named
-  /// after the working directory with every character but a letter or a digit turned into a hyphen.
+  /// after the working directory's real path, every link followed as the program's own working directory is,
+  /// with every character but a letter or a digit turned into a hyphen; the path as given where it does not
+  /// stand.
   pub fn project_folder(config_dir: &Path, cwd: &Path) -> PathBuf {
-    let project: String = cwd
+    let real = std::fs::canonicalize(cwd).unwrap_or_else(|_| cwd.to_path_buf());
+    let project: String = real
       .to_string_lossy()
       .chars()
       .map(|one| if one.is_ascii_alphanumeric() { one } else { '-' })

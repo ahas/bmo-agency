@@ -239,3 +239,32 @@ fn the_prompts_of_a_folder_leave_the_history_and_every_other_line_stays_as_it_st
   assert!(!dir.path().join(format!("{HISTORY}.lock")).exists());
   assert_eq!(ClaudeCode::forget_prompts_under(&dir.path().join("none"), home, None).unwrap(), 0);
 }
+
+#[test]
+fn a_working_directory_that_is_a_link_keeps_its_sessions_under_its_real_path() {
+  let home = tempfile::tempdir().unwrap();
+  let release = home.path().join("releases").join("abc123");
+  let link = home.path().join("deploy");
+
+  std::fs::create_dir_all(&release).unwrap();
+  std::os::unix::fs::symlink(&release, &link).unwrap();
+
+  let config = Path::new("/config");
+  let named = |path: &Path| -> String {
+    let real = std::fs::canonicalize(path).unwrap();
+
+    real
+      .to_string_lossy()
+      .chars()
+      .map(|one| if one.is_ascii_alphanumeric() { one } else { '-' })
+      .collect()
+  };
+
+  assert_eq!(ClaudeCode::project_folder(config, &link), config.join("projects").join(named(&release)));
+  assert_eq!(ClaudeCode::project_folder(config, &link), ClaudeCode::project_folder(config, &release));
+  assert_eq!(
+    ClaudeCode::project_folder(config, Path::new("/no/such/place")),
+    config.join("projects").join("-no-such-place"),
+    "a path that does not stand is named as given"
+  );
+}
