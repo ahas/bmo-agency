@@ -10,6 +10,12 @@ name = "agency"
 languages = ["cargo", "bun"]
 # A release runs the TypeScript half of agency, so its packages are installed in every fresh tree.
 setup = ["cd packages && bun install --frozen-lockfile"]
+# The root package's test group is every integration binary this repository keeps, and several of them
+# run a server against the test database; as one unit it needs more than the testbed's default guard on a
+# machine carrying other work, so the guards stand above that group's measured time here (the testbed's
+# docs/suite.md, 「The guards」).
+guard_seconds = 600
+file_guard_seconds = 300
 
 # The tests make their own scratch databases on the server, so no template is named.
 [test.database]
