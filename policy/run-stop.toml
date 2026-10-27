@@ -14,3 +14,8 @@ grace_seconds = 120
 # How long a stopped resident turn's collector is given to end it — a job's grace for its stop words
 # and a margin for the interrupt — before the stop reaches the program itself.
 resident_backstop_seconds = 150
+
+# How long a job's stop (docs/api.md, 「assignments and jobs」) waits for the job's turn to end once its run
+# is cancelled, before it answers that the stop stands and the turn still goes: the door's look and its
+# settle after the interrupt, with a margin.
+job_wait_seconds = 30

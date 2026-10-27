@@ -58,15 +58,23 @@ fn prefix_documents(body: &Value) -> Result<Option<sea_orm::Value>, Refused> {
   )))
 }
 
-async fn member(db: &sea_orm::DatabaseConnection, name: &str) -> Result<Value, Refused> {
+async fn member(
+  db: &sea_orm::DatabaseConnection,
+  sessions: Option<crate::herdr_backend::Shared>,
+  name: &str,
+) -> Result<Value, Refused> {
   let sql = format!(r#"SELECT {COLUMNS} FROM "agents" WHERE "name" = $1 AND "kind" = 'worker'"#);
   let row = one(db, &sql, vec![name.into()])
     .await?
     .ok_or_else(|| Refused::new(StatusCode::NOT_FOUND, format!("no worker is named {name}")))?;
-  member_of(db, &row).await
+  member_of(db, sessions.as_ref(), &row).await
 }
 
-async fn member_of(db: &sea_orm::DatabaseConnection, row: &QueryResult) -> Result<Value, Refused> {
+async fn member_of(
+  db: &sea_orm::DatabaseConnection,
+  sessions: Option<&crate::herdr_backend::Shared>,
+  row: &QueryResult,
+) -> Result<Value, Refused> {
   let name: String = row.try_get("", "name")?;
   let resting: Option<i64> = row.try_get("", "resting_since")?;
   let sampling = match agent_sampling::sampling_owner(db, &name).await {
@@ -77,7 +85,8 @@ async fn member_of(db: &sea_orm::DatabaseConnection, row: &QueryResult) -> Resul
     Err(_) => Value::Null,
   };
 
-  // A worker is working while a job of its is starting or running, a restart under the job among them.
+  // A worker is working while a job of its is starting or running, a restart under the job among them, and
+  // while its program carries a turn no such job names: one this process carries, or one kept in flight.
   let working = one(
     db,
     r#"SELECT "id", "item_id" FROM "jobs" WHERE "worker_name" = $1 AND "state" IN ('starting', 'running')
@@ -87,10 +96,13 @@ async fn member_of(db: &sea_orm::DatabaseConnection, row: &QueryResult) -> Resul
   .await?;
   let job = working.as_ref().and_then(|row| row.try_get::<i64>("", "id").ok());
   let item = working.as_ref().and_then(|row| row.try_get::<i64>("", "item_id").ok());
-  let state = match (resting, job) {
+  let carried = job.is_some()
+    || sessions.is_some_and(|sessions| sessions.worker_in_turn(&name))
+    || crate::turn_pickup::carried_for(db, &name).await;
+  let state = match (resting, carried) {
     (Some(_), _) => "resting",
-    (None, Some(_)) => "working",
-    (None, None) => "idle",
+    (None, true) => "working",
+    (None, false) => "idle",
   };
 
   Ok(json!({
@@ -126,10 +138,11 @@ impl Route for ListWorkers {
   async fn answer(&self, call: Call) -> Result<Response, Refused> {
     let sql = format!(r#"SELECT {COLUMNS} FROM "agents" WHERE "kind" = 'worker' ORDER BY "name""#);
     let rows = all(call.store(), &sql, vec![]).await?;
+    let sessions = call.sessions();
     let mut items = Vec::with_capacity(rows.len());
 
     for row in &rows {
-      items.push(member_of(call.store(), row).await?);
+      items.push(member_of(call.store(), sessions.as_ref(), row).await?);
     }
 
     Ok(answer(StatusCode::OK, json!({ "items": items, "more": false })))
@@ -179,7 +192,7 @@ impl Route for AddWorker {
     )
     .await?;
 
-    Ok(answer(StatusCode::CREATED, member(call.store(), name).await?))
+    Ok(answer(StatusCode::CREATED, member(call.store(), call.sessions(), name).await?))
   }
 }
 
@@ -195,7 +208,7 @@ impl Route for WorkerRoute {
   async fn answer(&self, call: Call) -> Result<Response, Refused> {
     Ok(answer(
       StatusCode::OK,
-      member(call.store(), call.param("workerName").unwrap_or_default()).await?,
+      member(call.store(), call.sessions(), call.param("workerName").unwrap_or_default()).await?,
     ))
   }
 }
@@ -296,7 +309,7 @@ impl Route for ChangeWorker {
       let _ = std::fs::remove_file(bench.join("dev-server.wanted"));
     }
 
-    Ok(answer(StatusCode::OK, member(db, &name).await?))
+    Ok(answer(StatusCode::OK, member(db, call.sessions(), &name).await?))
   }
 }
 

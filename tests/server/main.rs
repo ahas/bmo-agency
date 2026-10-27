@@ -51,6 +51,7 @@ mod control {
   mod job_notes;
   mod job_reaper;
   mod job_roads;
+  mod job_stops;
   mod jobs;
   mod mcp;
   mod model_tiers;

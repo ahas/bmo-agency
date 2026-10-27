@@ -745,6 +745,33 @@ pub struct ItemFiled {
   pub labels: Value,
 }
 
+/// JobStopAsk: a job a chat agent stops for the turn it carries now, by its id or by its item; the agent is the
+/// one its harness plugin was started for, and whether the owner asked for the stop is agency's to read.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct JobStopAsk {
+  pub agent_name: String,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub job_id: Option<i64>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub item_id: Option<i64>,
+  pub reason: String,
+}
+
+/// StopJob: a job to stop as the chat agent asks it, everything but the agent its plugin was started for.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct StopJob {
+  /// The job, where the stop names it by its id.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub job_id: Option<i64>,
+  /// The item whose starting or running job is stopped, where the stop names it by its item.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub item_id: Option<i64>,
+  /// Why, in a short line: the job's report.
+  pub reason: String,
+}
+
 /// WorkKeyAssignment: one work key's tier, the tiers it may be assigned, the owner's choices from before the
 /// tiers kept for review, and what it resolves to on each provider of the registry's archive.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]

@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use bmo_agency_client::{
   AgencyClient, Answer, AssignWorker, Assignment, ClientFailure, FileItem, ItemFiled, ItemFilingAsk, Job,
-  ResearchRun, ResearchRunAsk, RunJob,
+  JobStopAsk, ResearchRun, ResearchRunAsk, RunJob, STOP_JOB, StopJob,
 };
 use rmcp::model::{
   CallToolRequestParams, CallToolResponse, CallToolResult, ContentBlock, Implementation, InitializeResult,
@@ -23,7 +23,8 @@ use serde_json::{Map, Value, json};
 
 /// What the server tells a harness of itself when it starts.
 const INSTRUCTIONS: &str = "Files items and runs them on the agency's workers. An item is filed with file_item, \
-  which files it for the turn being carried now. A harness holding an item asks for a worker \
+  which files it for the turn being carried now, and a running job is stopped on the owner's word with stop_job. \
+  A harness holding an item asks for a worker \
   with assign_worker, hands the item and its lease over with run_job, and reads the job's progress, questions \
   and outcome from the job's events and fields; the harness renews its lease and reports and closes the item \
   in the job service. A web research goes out with run_research, its result queued for the room as it ends. A \
@@ -122,12 +123,14 @@ where
   }
 }
 
-/// The tools the server lists, and the document states under `x-tools`: `file_item` where the server was started
-/// for an agent, whose turn its items are filed for.
+/// The tools the server lists, and the document states under `x-tools`: `file_item` and `stop_job` where the
+/// server was started for an agent, whose turn its items are filed and its stops asked for.
 pub fn tools(agent: Option<&str>) -> Vec<AgencyTool> {
   let mut tools = vec![];
 
   if let Some(agent) = agent.map(str::to_owned) {
+    let stopper = agent.clone();
+
     tools.push(tool::<FileItem, ItemFiled, _, _>(
       "file_item",
       "File an item in the job service: the room it was asked in and whether the owner asked for it are the turn's, which the agency reads; an item the owner asked for himself opens at once, any other waits as a draft for his approval.",
@@ -145,6 +148,22 @@ pub fn tools(agent: Option<&str>) -> Vec<AgencyTool> {
         };
 
         async move { client.create_item_filings(&ask).await }
+      },
+    ));
+
+    tools.push(tool::<StopJob, Job, _, _>(
+      "stop_job",
+      STOP_JOB,
+      "POST /job-stops",
+      move |client, stop: StopJob| {
+        let ask = JobStopAsk {
+          agent_name: stopper.clone(),
+          job_id: stop.job_id,
+          item_id: stop.item_id,
+          reason: stop.reason,
+        };
+
+        async move { client.create_job_stops(&ask).await }
       },
     ));
   }

@@ -795,6 +795,11 @@ impl AgencyClient {
     Self::answered(self.request(Method::POST, &["item-filings"]).json(body)).await
   }
 
+  /// `POST /job-stops`: Stop a job, by its id or by its item, for the turn an agent is carrying now.
+  pub async fn create_job_stops(&self, body: &JobStopAsk) -> Answer<Job> {
+    Self::answered(self.request(Method::POST, &["job-stops"]).json(body)).await
+  }
+
   /// `GET /work-keys`: Every work key with the tier it is assigned, the tiers it may be, and what it resolves to on each provider.
   pub async fn list_work_keys(&self) -> Answer<WorkKeyAssignmentPage> {
     Self::answered(self.request(Method::GET, &["work-keys"])).await

@@ -11,6 +11,8 @@ pub struct RunStop {
   pub grace_seconds: u64,
   /// How long a stopped resident turn's collector is given before the stop reaches the program.
   pub resident_backstop_seconds: u64,
+  /// How long a job's stop waits for the job's turn to end before it answers that the stop stands.
+  pub job_wait_seconds: u64,
 }
 
 crate::part!(pub RUN_STOP: RunStop = "run-stop.toml");

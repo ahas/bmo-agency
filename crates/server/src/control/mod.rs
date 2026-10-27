@@ -25,6 +25,7 @@ pub mod harness;
 mod health;
 mod hook_routes;
 pub mod item_filings;
+pub mod job_stops;
 mod keepalive;
 mod machine;
 pub mod model_tiers;

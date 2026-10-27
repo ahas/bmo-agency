@@ -802,13 +802,25 @@ pub async fn job_turn_ended(ground: &Ground, id: i64, end: agent_session::TurnEn
   finish(ground, id, Ok(Some(ended))).await;
 }
 
-// A job's end written whole, however its turn came to it; nothing where it was ended from outside while it
-// waited for a road.
+// A job's end written whole, however its turn came to it: a job a stop marked ends stopped with the stop's
+// reason, and nothing is written where the job was ended from outside, while it waited for a road or after.
 async fn finish(ground: &Ground, id: i64, ended: Result<Option<Ended>, String>) {
-  let (state, outcome, report, spent) = match ended {
-    Ok(Some(end)) => end,
-    Ok(None) => return,
-    Err(why) => ("stopped".to_owned(), Some("failed".to_owned()), Some(why), None),
+  let stop = crate::queue::stops::job_stop_reason(&ground.db, id).await.ok().flatten();
+  let _ = crate::queue::stops::clear_job_stop(&ground.db, id).await;
+
+  if ended_outside(ground, id).await {
+    return;
+  }
+
+  let (state, outcome, report, spent) = match (stop, ended) {
+    (Some(why), ended) => {
+      let spent = ended.ok().flatten().and_then(|(_, _, _, spent)| spent);
+
+      ("stopped".to_owned(), Some("stopped".to_owned()), Some(why), spent)
+    }
+    (None, Ok(Some(end))) => end,
+    (None, Ok(None)) => return,
+    (None, Err(why)) => ("stopped".to_owned(), Some("failed".to_owned()), Some(why), None),
   };
   let now = now_ms();
 
@@ -854,6 +866,9 @@ async fn finish(ground: &Ground, id: i64, ended: Result<Option<Ended>, String>) 
 /// How long after it began a job is old enough to be read as gone when no live execution stands behind it:
 /// past any launch window, so a launch still placing its turn is never mistaken for one the process lost.
 pub const REAP_GRACE_MS: i64 = 2 * 60 * 1000;
+
+/// What a stopped job's report says where its stop named no reason.
+pub const STOPPED: &str = "The job was stopped from outside before it finished.";
 
 /// What a job with no live execution behind it is told: the process that ran it went away.
 pub const REAPED: &str = "The agency process that ran this job went away before the job could write its own end (a restart), so the job is stopped.";
@@ -1184,8 +1199,15 @@ async fn ended_outside(ground: &Ground, id: i64) -> bool {
     .is_ok_and(|(member, _)| matches!(member["state"].as_str(), Some("ended" | "stopped")))
 }
 
+// Whether a job stopped from outside, or asked to stop, is to go no further while it waits.
+async fn called_off(ground: &Ground, id: i64) -> bool {
+  ended_outside(ground, id).await
+    || crate::queue::stops::job_stop_reason(&ground.db, id).await.ok().flatten().is_some()
+}
+
 // A job waiting for a road: held with the closed road's sentence and asked again on the policy's clock until
-// a provider of its walk can answer. False where the job was ended from outside while it waited.
+// a provider of its walk can answer. False where the job was ended from outside, or asked to stop, while it
+// waited.
 async fn wait_for_road(
   ground: &Ground,
   job: &Carried<'_>,
@@ -1200,7 +1222,7 @@ async fn wait_for_road(
   loop {
     tokio::time::sleep(std::time::Duration::from_secs(policy::roads::ROADS.job.wait_seconds)).await;
 
-    if ended_outside(ground, job.id).await {
+    if called_off(ground, job.id).await {
       held_for(ground, job.id, None).await;
 
       return Ok(false);
@@ -1269,8 +1291,10 @@ pub async fn carry_job<C: Carrier>(
       Some(_) => end.answer.clone().or_else(|| end.reason.clone()),
     };
 
-    let Some(stopped) = road_stopped(&end) else {
-      return Ok(Some(("ended".to_owned(), outcome, with_roads(report, &roads), spent)));
+    // A job asked to stop goes out on no further road, whatever its turn came to.
+    let stopped = match road_stopped(&end) {
+      Some(stopped) if !called_off(ground, job.id).await => stopped,
+      _ => return Ok(Some(("ended".to_owned(), outcome, with_roads(report, &roads), spent))),
     };
 
     noted_line(
@@ -1639,7 +1663,102 @@ impl Route for ReadJob {
 
 crate::moved!(ReadJob);
 
-/// End a job with its outcome, or stop it.
+// How often a stop looks again whether the job's turn has ended.
+const STOP_LOOK: std::time::Duration = std::time::Duration::from_millis(250);
+
+/// A job stopped by cutting its turn short (docs/api.md, 「assignments and jobs」): the reason kept as its stop
+/// mark and its run cancelled, then waited on until the turn's end has written the job stopped with that
+/// reason. A job no turn carries is written stopped at once. Refused 409 `stop-pending` where the turn still
+/// goes once the wait runs out; the stop stands, and the turn's end writes it.
+pub async fn stop_job(
+  ground: &Ground,
+  stops: &crate::queue::stops::Stops,
+  id: i64,
+  reason: &str,
+) -> Result<Value, Refused> {
+  let db = &ground.db;
+  let (member, _) = job(db, id).await?;
+  let state = member["state"].as_str().unwrap_or_default();
+
+  if state != "starting" && state != "running" {
+    return Err(Refused::new(StatusCode::CONFLICT, format!("job {id} is {state}")));
+  }
+
+  let run_name = member["runName"].as_str().filter(|name| !name.is_empty()).map(str::to_owned);
+  let kept = match &run_name {
+    Some(name) => crate::turn_pickup::kept(db, name).await,
+    None => false,
+  };
+
+  crate::queue::stops::mark_job_stopped(db, id, reason).await?;
+
+  if let Some(name) = &run_name {
+    stops.cancel(name).await?;
+  }
+
+  if is_carrying(id) || kept {
+    let wait = std::time::Duration::from_secs(policy::run_stop::RUN_STOP.job_wait_seconds);
+    let until = tokio::time::Instant::now() + wait;
+
+    // The turn has ended once the job's end is written and nothing carries or keeps the turn any more, so
+    // the worker reads idle by the time the stop answers.
+    loop {
+      let (member, _) = job(db, id).await?;
+      let held = match &run_name {
+        Some(name) => is_carrying(id) || crate::turn_pickup::kept(db, name).await,
+        None => is_carrying(id),
+      };
+
+      if !held && !matches!(member["state"].as_str(), Some("starting" | "running")) {
+        if let Some(name) = &run_name {
+          let _ = crate::queue::cancels::take_back(db, name).await;
+        }
+
+        return Ok(member);
+      }
+
+      if tokio::time::Instant::now() >= until {
+        return Err(
+          Refused::new(
+            StatusCode::CONFLICT,
+            format!(
+              "job {id} was asked to stop and its turn still goes; it ends stopped the moment its turn does"
+            ),
+          )
+          .with_code("stop-pending"),
+        );
+      }
+
+      tokio::time::sleep(STOP_LOOK).await;
+    }
+  }
+
+  // No turn carries it: the stop is written here, as the turn's end would have written it.
+  let _ = crate::queue::stops::clear_job_stop(db, id).await;
+  let now = now_ms();
+
+  run(
+    db,
+    r#"UPDATE "jobs" SET "state" = 'stopped', "outcome" = 'stopped', "report" = $1, "ended_at" = $2
+       WHERE "id" = $3 AND "state" IN ('starting', 'running')"#,
+    vec![reason.into(), now.into(), id.into()],
+  )
+  .await?;
+  release(db, member["assignmentId"].as_i64().unwrap_or_default()).await?;
+
+  if let Some(name) = &run_name {
+    let _ = crate::queue::cancels::take_back(db, name).await;
+  }
+
+  let (member, _) = job(db, id).await?;
+
+  crate::job_end::delivered(ground, &member).await;
+  publish(ground, "job.changed", member.clone());
+
+  Ok(member)
+}
+
+/// End a job with its outcome, or stop it, its turn cut short first.
 pub struct ChangeJob;
 
 impl Route for ChangeJob {
@@ -1672,6 +1791,12 @@ impl Route for ChangeJob {
       .unwrap_or("ended");
     let outcome = asked.get("outcome").and_then(Value::as_str).map(str::to_owned);
     let report = asked.get("report").and_then(Value::as_str).map(str::to_owned);
+
+    if wanted == "stopped" {
+      let reason = report.unwrap_or_else(|| STOPPED.to_owned());
+
+      return Ok(answer(StatusCode::OK, stop_job(call.ground(), &call.stops(), id, &reason).await?));
+    }
 
     run(
       db,

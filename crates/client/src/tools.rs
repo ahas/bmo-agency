@@ -14,14 +14,24 @@ pub struct Tool {
   pub route: &'static str,
 }
 
+/// What `stop_job` does, as its server and the document both say it.
+pub const STOP_JOB: &str = "Stop a running job on the owner's word, by its job id or by its item, with a short reason that becomes the job's report: only a turn whose every message is the owner's stops one. The job's turn is cut short first, and the answer is the job once its turn has ended, stopped; a turn still going after the wait is refused stop-pending, and the job ends stopped when it does.";
+
 /// The tools the agency's MCP server lists.
-pub const TOOLS: [Tool; 4] = [
+pub const TOOLS: [Tool; 5] = [
   Tool {
     name: "file_item",
     description: "File an item in the job service: the room it was asked in and whether the owner asked for it are the turn's, which the agency reads; an item the owner asked for himself opens at once, any other waits as a draft for his approval.",
     input: "FileItem",
     output: "ItemFiled",
     route: "POST /item-filings",
+  },
+  Tool {
+    name: "stop_job",
+    description: STOP_JOB,
+    input: "StopJob",
+    output: "Job",
+    route: "POST /job-stops",
   },
   Tool {
     name: "assign_worker",

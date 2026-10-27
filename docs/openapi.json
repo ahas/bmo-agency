@@ -3620,7 +3620,7 @@
           "400": {
             "$ref": "#/components/responses/BadRequest"
           },
-          "422": {
+          "409": {
             "$ref": "#/components/responses/NoTurn"
           },
           "502": {
@@ -3639,6 +3639,58 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/ItemFilingAsk"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/job-stops": {
+      "post": {
+        "operationId": "createJobStops",
+        "tags": [
+          "assignments-and-jobs"
+        ],
+        "summary": "Stop a job, by its id or by its item, for the turn an agent is carrying now, only where every message of that turn is the owner's: its turn cut short first, and the job answered once that turn has ended.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "409": {
+            "$ref": "#/components/responses/NoTurn"
+          },
+          "404": {
+            "$ref": "#/components/responses/NoJob"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "no-turn",
+          "not-owner",
+          "no-job",
+          "conflict",
+          "stop-pending"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JobStopAsk"
               }
             }
           }
@@ -5295,7 +5347,7 @@
         "tags": [
           "jobs"
         ],
-        "summary": "End a job with its outcome, or stop it; its assignment is released, and the harness gives the lease back or closes the item in the job service.",
+        "summary": "End a job with its outcome, or stop it, its turn cut short first and the job answered once that turn has ended; its assignment is released, and the harness gives the lease back or closes the item in the job service.",
         "responses": {
           "200": {
             "description": "Answered.",
@@ -5324,7 +5376,8 @@
           "unauthorized",
           "bad-request",
           "not-found",
-          "conflict"
+          "conflict",
+          "stop-pending"
         ],
         "parameters": [
           {
@@ -10087,6 +10140,258 @@
         ],
         "description": "ItemFilingAsk: an item a chat agent files for the turn it carries now; the agent is the one its harness\nplugin was started for, and the item's room and whether the owner asked it are agency's to read."
       },
+      "Job": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "itemId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "leaseId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "holderName": {
+            "type": "string"
+          },
+          "assignmentId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "workerName": {
+            "type": "string"
+          },
+          "sessionId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "runId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "runName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "state": {
+            "$ref": "#/components/schemas/JobState"
+          },
+          "outcome": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "report": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tokenCount": {
+            "type": "integer",
+            "format": "int64",
+            "description": "What the job's turn spent, the four figures of `usage` together; 0 until it ends or where its road\nreported no figures."
+          },
+          "usage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RunUsage"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What the job's turn spent, apart; none until it ends or where its road reported no figures.",
+            "default": null
+          },
+          "instruction": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/JobInstruction"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The small-model instruction the job carries, where it carries one.",
+            "default": null
+          },
+          "roads": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/JobRoad"
+            },
+            "description": "Every road the job's turns went out on, in order, each with why the road before it was left.",
+            "default": []
+          },
+          "heldFor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why the job waits, where no provider of its order can answer now; none whenever a turn is out.",
+            "default": null
+          },
+          "startedAt": {
+            "type": "integer",
+            "format": "int64",
+            "description": "epoch milliseconds"
+          },
+          "endedAt": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "epoch milliseconds"
+          }
+        },
+        "required": [
+          "id",
+          "itemId",
+          "leaseId",
+          "holderName",
+          "assignmentId",
+          "workerName",
+          "sessionId",
+          "runId",
+          "runName",
+          "state",
+          "outcome",
+          "report",
+          "tokenCount",
+          "usage",
+          "instruction",
+          "roads",
+          "heldFor",
+          "startedAt",
+          "endedAt"
+        ],
+        "description": "Job: itemId and leaseId are the harness's references, kept as given: the harness renews the lease, and reports and closes the item in the job service from report and outcome."
+      },
+      "JobState": {
+        "type": "string",
+        "enum": [
+          "starting",
+          "running",
+          "ended",
+          "stopped"
+        ],
+        "description": "One of the values the API accepts."
+      },
+      "JobInstruction": {
+        "type": "object",
+        "properties": {
+          "repository": {
+            "type": "string"
+          },
+          "documents": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "sentences": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "checks": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "repository",
+          "documents",
+          "sentences",
+          "checks"
+        ],
+        "description": "JobInstruction: the whole of a small-model instruction: the checkout the change is made in, the\ncanonical documents it answers to, the sentences it must make or keep true and the commands whose\npassing says it is done; every one present and none empty."
+      },
+      "JobRoad": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "account": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The login it went out on, where its provider holds logins."
+          },
+          "at": {
+            "type": "integer",
+            "format": "int64",
+            "description": "epoch milliseconds"
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why the road before it was left; none on the first."
+          }
+        },
+        "required": [
+          "provider",
+          "model",
+          "account",
+          "at",
+          "reason"
+        ],
+        "description": "JobRoad: one road a job's turn went out on."
+      },
+      "JobStopAsk": {
+        "type": "object",
+        "properties": {
+          "agentName": {
+            "type": "string"
+          },
+          "jobId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "itemId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "agentName",
+          "reason"
+        ],
+        "description": "JobStopAsk: a job a chat agent stops for the turn it carries now, by its id or by its item; the agent is the\none its harness plugin was started for, and whether the owner asked for the stop is agency's to read."
+      },
       "WorkKeyAssignmentPage": {
         "type": "object",
         "properties": {
@@ -11290,39 +11595,6 @@
         ],
         "description": "JobItem: The item's content as the harness read it from the job service; the agency reads nothing there."
       },
-      "JobInstruction": {
-        "type": "object",
-        "properties": {
-          "repository": {
-            "type": "string"
-          },
-          "documents": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "sentences": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "checks": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          }
-        },
-        "required": [
-          "repository",
-          "documents",
-          "sentences",
-          "checks"
-        ],
-        "description": "JobInstruction: the whole of a small-model instruction: the checkout the change is made in, the\ncanonical documents it answers to, the sentences it must make or keep true and the commands whose\npassing says it is done; every one present and none empty."
-      },
       "AssignmentChange": {
         "type": "object",
         "properties": {
@@ -11364,195 +11636,6 @@
           "more"
         ],
         "description": "JobPage:"
-      },
-      "Job": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "itemId": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "leaseId": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "holderName": {
-            "type": "string"
-          },
-          "assignmentId": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "workerName": {
-            "type": "string"
-          },
-          "sessionId": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "runId": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64"
-          },
-          "runName": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "state": {
-            "$ref": "#/components/schemas/JobState"
-          },
-          "outcome": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "report": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "tokenCount": {
-            "type": "integer",
-            "format": "int64",
-            "description": "What the job's turn spent, the four figures of `usage` together; 0 until it ends or where its road\nreported no figures."
-          },
-          "usage": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/RunUsage"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "What the job's turn spent, apart; none until it ends or where its road reported no figures.",
-            "default": null
-          },
-          "instruction": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/JobInstruction"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "The small-model instruction the job carries, where it carries one.",
-            "default": null
-          },
-          "roads": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/JobRoad"
-            },
-            "description": "Every road the job's turns went out on, in order, each with why the road before it was left.",
-            "default": []
-          },
-          "heldFor": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Why the job waits, where no provider of its order can answer now; none whenever a turn is out.",
-            "default": null
-          },
-          "startedAt": {
-            "type": "integer",
-            "format": "int64",
-            "description": "epoch milliseconds"
-          },
-          "endedAt": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64",
-            "description": "epoch milliseconds"
-          }
-        },
-        "required": [
-          "id",
-          "itemId",
-          "leaseId",
-          "holderName",
-          "assignmentId",
-          "workerName",
-          "sessionId",
-          "runId",
-          "runName",
-          "state",
-          "outcome",
-          "report",
-          "tokenCount",
-          "usage",
-          "instruction",
-          "roads",
-          "heldFor",
-          "startedAt",
-          "endedAt"
-        ],
-        "description": "Job: itemId and leaseId are the harness's references, kept as given: the harness renews the lease, and reports and closes the item in the job service from report and outcome."
-      },
-      "JobState": {
-        "type": "string",
-        "enum": [
-          "starting",
-          "running",
-          "ended",
-          "stopped"
-        ],
-        "description": "One of the values the API accepts."
-      },
-      "JobRoad": {
-        "type": "object",
-        "properties": {
-          "provider": {
-            "type": "string"
-          },
-          "model": {
-            "type": "string"
-          },
-          "account": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "The login it went out on, where its provider holds logins."
-          },
-          "at": {
-            "type": "integer",
-            "format": "int64",
-            "description": "epoch milliseconds"
-          },
-          "reason": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Why the road before it was left; none on the first."
-          }
-        },
-        "required": [
-          "provider",
-          "model",
-          "account",
-          "at",
-          "reason"
-        ],
-        "description": "JobRoad: one road a job's turn went out on."
       },
       "RunJob": {
         "type": "object",
@@ -12363,6 +12446,35 @@
           "labels"
         ],
         "description": "FileItem: an item to file as the chat agent asks it, everything but the agent its plugin was started for."
+      },
+      "StopJob": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The job, where the stop names it by its id."
+          },
+          "itemId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The item whose starting or running job is stopped, where the stop names it by its item."
+          },
+          "reason": {
+            "type": "string",
+            "description": "Why, in a short line: the job's report."
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "description": "StopJob: a job to stop as the chat agent asks it, everything but the agent its plugin was started for."
       }
     },
     "responses": {
@@ -12426,6 +12538,16 @@
           }
         }
       },
+      "NoJob": {
+        "description": "no-job",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
       "NoLoginOpen": {
         "description": "no-login-open",
         "content": {
@@ -12476,6 +12598,16 @@
           }
         }
       },
+      "NotOwner": {
+        "description": "not-owner",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
       "Running": {
         "description": "running",
         "content": {
@@ -12488,6 +12620,16 @@
       },
       "Seeded": {
         "description": "seeded",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "StopPending": {
+        "description": "stop-pending",
         "content": {
           "application/json": {
             "schema": {
@@ -12546,6 +12688,17 @@
         "$ref": "#/components/schemas/ItemFiled"
       },
       "route": "POST /item-filings"
+    },
+    {
+      "name": "stop_job",
+      "description": "Stop a running job on the owner's word, by its job id or by its item, with a short reason that becomes the job's report: only a turn whose every message is the owner's stops one. The job's turn is cut short first, and the answer is the job once its turn has ended, stopped; a turn still going after the wait is refused stop-pending, and the job ends stopped when it does.",
+      "input": {
+        "$ref": "#/components/schemas/StopJob"
+      },
+      "output": {
+        "$ref": "#/components/schemas/Job"
+      },
+      "route": "POST /job-stops"
     },
     {
       "name": "assign_worker",

@@ -848,6 +848,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/job-stops": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Stop a job, by its id or by its item, for the turn an agent is carrying now, only where every message of that turn is the owner's: its turn cut short first, and the job answered once that turn has ended. */
+        post: operations["createJobStops"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/work-keys": {
         parameters: {
             query?: never;
@@ -1283,7 +1300,7 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** End a job with its outcome, or stop it; its assignment is released, and the harness gives the lease back or closes the item in the job service. */
+        /** End a job with its outcome, or stop it, its turn cut short first and the job answered once that turn has ended; its assignment is released, and the harness gives the lease back or closes the item in the job service. */
         patch: operations["changeJobsByJobId"];
         trace?: never;
     };
@@ -2755,6 +2772,104 @@ export interface components {
                 [key: string]: string;
             };
         };
+        /** @description Job: itemId and leaseId are the harness's references, kept as given: the harness renews the lease, and reports and closes the item in the job service from report and outcome. */
+        Job: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            itemId: number;
+            /** Format: int64 */
+            leaseId: number;
+            holderName: string;
+            /** Format: int64 */
+            assignmentId: number;
+            workerName: string;
+            sessionId: string | null;
+            /** Format: int64 */
+            runId: number | null;
+            runName: string | null;
+            state: components["schemas"]["JobState"];
+            outcome: string | null;
+            report: string | null;
+            /**
+             * Format: int64
+             * @description What the job's turn spent, the four figures of `usage` together; 0 until it ends or where its road
+             *     reported no figures.
+             */
+            tokenCount: number;
+            /**
+             * @description What the job's turn spent, apart; none until it ends or where its road reported no figures.
+             * @default null
+             */
+            usage: components["schemas"]["RunUsage"] | null;
+            /**
+             * @description The small-model instruction the job carries, where it carries one.
+             * @default null
+             */
+            instruction: components["schemas"]["JobInstruction"] | null;
+            /**
+             * @description Every road the job's turns went out on, in order, each with why the road before it was left.
+             * @default []
+             */
+            roads: components["schemas"]["JobRoad"][];
+            /**
+             * @description Why the job waits, where no provider of its order can answer now; none whenever a turn is out.
+             * @default null
+             */
+            heldFor: string | null;
+            /**
+             * Format: int64
+             * @description epoch milliseconds
+             */
+            startedAt: number;
+            /**
+             * Format: int64
+             * @description epoch milliseconds
+             */
+            endedAt: number | null;
+        };
+        /**
+         * @description One of the values the API accepts.
+         * @enum {string}
+         */
+        JobState: "starting" | "running" | "ended" | "stopped";
+        /**
+         * @description JobInstruction: the whole of a small-model instruction: the checkout the change is made in, the
+         *     canonical documents it answers to, the sentences it must make or keep true and the commands whose
+         *     passing says it is done; every one present and none empty.
+         */
+        JobInstruction: {
+            repository: string;
+            documents: string[];
+            sentences: string[];
+            checks: string[];
+        };
+        /** @description JobRoad: one road a job's turn went out on. */
+        JobRoad: {
+            provider: string;
+            model: string;
+            /** @description The login it went out on, where its provider holds logins. */
+            account: string | null;
+            /**
+             * Format: int64
+             * @description epoch milliseconds
+             */
+            at: number;
+            /** @description Why the road before it was left; none on the first. */
+            reason: string | null;
+        };
+        /**
+         * @description JobStopAsk: a job a chat agent stops for the turn it carries now, by its id or by its item; the agent is the
+         *     one its harness plugin was started for, and whether the owner asked for the stop is agency's to read.
+         */
+        JobStopAsk: {
+            agentName: string;
+            /** Format: int64 */
+            jobId?: number | null;
+            /** Format: int64 */
+            itemId?: number | null;
+            reason: string;
+        };
         /** @description WorkKeyAssignmentPage: */
         WorkKeyAssignmentPage: {
             items: components["schemas"]["WorkKeyAssignment"][];
@@ -3141,17 +3256,6 @@ export interface components {
              */
             instruction: components["schemas"]["JobInstruction"] | null;
         };
-        /**
-         * @description JobInstruction: the whole of a small-model instruction: the checkout the change is made in, the
-         *     canonical documents it answers to, the sentences it must make or keep true and the commands whose
-         *     passing says it is done; every one present and none empty.
-         */
-        JobInstruction: {
-            repository: string;
-            documents: string[];
-            sentences: string[];
-            checks: string[];
-        };
         /** @description The body that releases an assignment or holds it longer. */
         AssignmentChange: {
             state?: components["schemas"]["AssignmentState"] | null;
@@ -3162,81 +3266,6 @@ export interface components {
         JobPage: {
             items: components["schemas"]["Job"][];
             more: boolean;
-        };
-        /** @description Job: itemId and leaseId are the harness's references, kept as given: the harness renews the lease, and reports and closes the item in the job service from report and outcome. */
-        Job: {
-            /** Format: int64 */
-            id: number;
-            /** Format: int64 */
-            itemId: number;
-            /** Format: int64 */
-            leaseId: number;
-            holderName: string;
-            /** Format: int64 */
-            assignmentId: number;
-            workerName: string;
-            sessionId: string | null;
-            /** Format: int64 */
-            runId: number | null;
-            runName: string | null;
-            state: components["schemas"]["JobState"];
-            outcome: string | null;
-            report: string | null;
-            /**
-             * Format: int64
-             * @description What the job's turn spent, the four figures of `usage` together; 0 until it ends or where its road
-             *     reported no figures.
-             */
-            tokenCount: number;
-            /**
-             * @description What the job's turn spent, apart; none until it ends or where its road reported no figures.
-             * @default null
-             */
-            usage: components["schemas"]["RunUsage"] | null;
-            /**
-             * @description The small-model instruction the job carries, where it carries one.
-             * @default null
-             */
-            instruction: components["schemas"]["JobInstruction"] | null;
-            /**
-             * @description Every road the job's turns went out on, in order, each with why the road before it was left.
-             * @default []
-             */
-            roads: components["schemas"]["JobRoad"][];
-            /**
-             * @description Why the job waits, where no provider of its order can answer now; none whenever a turn is out.
-             * @default null
-             */
-            heldFor: string | null;
-            /**
-             * Format: int64
-             * @description epoch milliseconds
-             */
-            startedAt: number;
-            /**
-             * Format: int64
-             * @description epoch milliseconds
-             */
-            endedAt: number | null;
-        };
-        /**
-         * @description One of the values the API accepts.
-         * @enum {string}
-         */
-        JobState: "starting" | "running" | "ended" | "stopped";
-        /** @description JobRoad: one road a job's turn went out on. */
-        JobRoad: {
-            provider: string;
-            model: string;
-            /** @description The login it went out on, where its provider holds logins. */
-            account: string | null;
-            /**
-             * Format: int64
-             * @description epoch milliseconds
-             */
-            at: number;
-            /** @description Why the road before it was left; none on the first. */
-            reason: string | null;
         };
         /** @description The body that hands an item and its lease over to be run. */
         RunJob: {
@@ -3516,6 +3545,21 @@ export interface components {
                 [key: string]: string;
             };
         };
+        /** @description StopJob: a job to stop as the chat agent asks it, everything but the agent its plugin was started for. */
+        StopJob: {
+            /**
+             * Format: int64
+             * @description The job, where the stop names it by its id.
+             */
+            jobId?: number | null;
+            /**
+             * Format: int64
+             * @description The item whose starting or running job is stopped, where the stop names it by its item.
+             */
+            itemId?: number | null;
+            /** @description Why, in a short line: the job's report. */
+            reason: string;
+        };
     };
     responses: {
         /** @description bad-request */
@@ -3572,6 +3616,15 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /** @description no-job */
+        NoJob: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
         /** @description no-login-open */
         NoLoginOpen: {
             headers: {
@@ -3617,6 +3670,15 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /** @description not-owner */
+        NotOwner: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
         /** @description running */
         Running: {
             headers: {
@@ -3628,6 +3690,15 @@ export interface components {
         };
         /** @description seeded */
         Seeded: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description stop-pending */
+        StopPending: {
             headers: {
                 [name: string]: unknown;
             };
@@ -5605,8 +5676,36 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
-            422: components["responses"]["NoTurn"];
+            409: components["responses"]["NoTurn"];
             502: components["responses"]["UpstreamFailed"];
+        };
+    };
+    createJobStops: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JobStopAsk"];
+            };
+        };
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Job"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NoJob"];
+            409: components["responses"]["NoTurn"];
         };
     };
     listWorkKeys: {

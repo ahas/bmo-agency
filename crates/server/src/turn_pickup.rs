@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 use store::{all, one};
 
-use crate::door::execution::{Row, publish_envelope};
+use crate::door::execution::{Row, cancelled, publish_envelope};
 use crate::door::inbox::{
   State, provider_named, read_turn_on, record_of, span_named, span_named_after, waiting_in_inbox,
 };
@@ -27,6 +27,7 @@ use crate::lines::place::Place;
 use crate::places::Ground;
 use crate::places::locks::{agent_lock_path, hold};
 use crate::queue::settings;
+use crate::queue::stops::Stops;
 use crate::run_log::lines::Line;
 use crate::run_log::{RunLog, Target};
 use crate::worker_session::records::{note_answer, slot_account};
@@ -70,6 +71,11 @@ pub async fn forget(db: &sea_orm::DatabaseConnection, run: &str) {
 /// Whether a run's turn is kept in flight, which the pass ending a job left running leaves to this one.
 pub async fn kept(db: &sea_orm::DatabaseConnection, run: &str) -> bool {
   settings::get(db, &format!("{PREFIX}{run}")).await.ok().flatten().is_some()
+}
+
+/// Whether a turn of an agent's is kept in flight, its program carrying it whoever waits on it.
+pub async fn carried_for(db: &sea_orm::DatabaseConnection, agent: &str) -> bool {
+  in_flight(db).await.is_ok_and(|turns| turns.iter().any(|turn| turn.agent == agent))
 }
 
 /// The turns kept in flight, as the store holds them.
@@ -181,11 +187,14 @@ pub async fn at_start(ground: &Arc<Ground>) -> Result<usize, Refusal> {
 }
 
 // A turn the program goes on with, waited on with the agent's program held, so no turn of this process
-// goes into it meanwhile, and handed back once the record says it ended; a program gone is a turn gone.
+// goes into it meanwhile, and handed back once the record says it ended; a program gone is a turn gone. A
+// cancellation of its run cuts it short with its surface's interrupt, as the door carrying a live turn
+// does, and the record's end of it is handed back as any other.
 async fn attach(ground: &Ground, place: Place, turn: InFlight) {
   let _held = hold(agent_lock_path(&ground.roots.data, &turn.agent)).await;
   let every = Duration::from_millis(RESIDENT_TURN.inbox_poll_ms);
   let mut unseen = 0u32;
+  let mut cut = false;
 
   for row in open_rows(ground, &turn.run).await {
     publish_envelope(&ground.roots.data, row.id(), None);
@@ -198,6 +207,11 @@ async fn attach(ground: &Ground, place: Place, turn: InFlight) {
       Standing::Going => {}
     }
 
+    if !cut && cancelled(&ground.db, &[turn.run.as_str()]).await.unwrap_or(false) {
+      cut = true;
+      interrupt(ground, &turn.run).await;
+    }
+
     unseen = if place.program_alive().is_some() { 0 } else { unseen + 1 };
 
     if unseen >= 40 {
@@ -205,6 +219,18 @@ async fn attach(ground: &Ground, place: Place, turn: InFlight) {
     }
 
     tokio::time::sleep(every).await;
+  }
+}
+
+// A kept turn cut short: its surface's interrupt typed into the pane of each open row it put in, at once.
+async fn interrupt(ground: &Ground, run: &str) {
+  let Some(herdr) = &ground.herdr else { return };
+
+  for row in open_rows(ground, run).await {
+    let directory = ground.roots.data.join("executions").join(row.id());
+    let body = Value::Object(row.body);
+
+    Stops::interrupt_resident(&ground.db, herdr, &body, &directory, Duration::ZERO).await;
   }
 }
 

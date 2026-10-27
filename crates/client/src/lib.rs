@@ -6,5 +6,5 @@ mod tools;
 mod types;
 
 pub use client::{AgencyClient, Answer, ClientFailure};
-pub use tools::{TOOLS, Tool};
+pub use tools::{STOP_JOB, TOOLS, Tool};
 pub use types::*;

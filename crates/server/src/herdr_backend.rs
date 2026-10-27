@@ -658,6 +658,12 @@ impl HerdrSessions {
     self.going().get(session).is_some_and(|runs| !runs.is_empty())
   }
 
+  /// Whether a worker's own session carries a turn of this process's now, whatever job does or does not
+  /// name it.
+  pub fn worker_in_turn(&self, worker: &str) -> bool {
+    worker_session_id(worker).is_ok_and(|session| self.in_turn(&session))
+  }
+
   // A run let go of its session's turns as it ends, and the words pushed into it with it.
   fn ended(&self, session: &SessionId, run: &str) {
     aside::forget(run);

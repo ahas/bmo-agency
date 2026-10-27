@@ -25,8 +25,9 @@ const PANE_GRACE: Duration = Duration::from_secs(5);
 /// How long a stop waits for what it asked to be seen gone.
 const CONFIRM_WAIT: Duration = Duration::from_secs(8);
 const LOOK_EVERY: Duration = Duration::from_secs(1);
-/// How long the server is given to take a job's stop, before the verb writes it where it stands.
-const SERVER_WAIT: Duration = Duration::from_secs(2);
+/// How long the server is given to take a job's stop past its own wait for the turn to end, before the verb
+/// writes it where it stands.
+const SERVER_MARGIN: Duration = Duration::from_secs(5);
 
 /// What `bmo-agency run stop` is asked.
 #[derive(Parser, Debug, Default)]
@@ -242,10 +243,15 @@ async fn stop_job(ground: &Ground, job: &JobRow, why: &str) -> Result<bool, Verb
       reqwest::Method::PATCH,
       &format!("/jobs/{}", job.id),
       Some(&body),
-      SERVER_WAIT,
+      Duration::from_secs(policy::run_stop::RUN_STOP.job_wait_seconds) + SERVER_MARGIN,
     )
     .await
-    .is_ok_and(|(status, _)| (200..300).contains(&status))
+    .is_ok_and(|(status, answer)| {
+      // A stop the server keeps while the job's turn still goes is taken all the same.
+      let pending = answer.as_ref().and_then(|answer| answer["code"].as_str()) == Some("stop-pending");
+
+      (200..300).contains(&status) || pending
+    })
   {
     return Ok(true);
   }

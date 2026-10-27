@@ -364,7 +364,7 @@ line carries no arguments and its result's text says how long the call ran (`doc
 | Method | Path | Does |
 |---|---|---|
 | GET | `/stop-marks/{jobId}` | Why a job is to stop, if it is. |
-| PUT | `/stop-marks/{jobId}` | Mark a job to stop. |
+| PUT | `/stop-marks/{jobId}` | Mark a job to stop: its turn's end writes it `stopped` with the mark's reason, and it goes out on no further road. |
 | DELETE | `/stop-marks/{jobId}` | Clear a job's stop mark. |
 
 ### pool, seat-requests, reservations and roles
@@ -709,8 +709,10 @@ with name neither.
 | DELETE | `/workers/{workerName}` | Remove a worker. |
 | GET | `/workers/{workerName}/definition` | The worker's agent definition: graph, trailer, handoff. |
 
-A worker's `state` is `resting` while it rests, `working` while a job of its is `starting` or `running` —
-`jobId` naming that job and `itemId` its item — and `idle` otherwise, `jobId` and `itemId` null.
+A worker's `state` is `resting` while it rests; `working` while a job of its is `starting` or `running` —
+`jobId` naming that job and `itemId` its item — or while its program still carries a turn no such job
+names, one going on in this process or one kept in flight across a restart, `jobId` and `itemId` then null;
+and `idle` otherwise, `jobId` and `itemId` null. A worker reads `idle` only where a launch on it can go in.
 
 A worker carries `prefixDocuments`, the paths of the documents its session's prefix carries, in order
 (`docs/worker-bench.md`, 「Prefix documents」); `POST /workers` and `PATCH /workers/{workerName}` take
@@ -738,10 +740,11 @@ nothing of its placement.
 | GET | `/jobs` | Jobs newest first: by state or running, by item, room, worker or holder. |
 | POST | `/jobs` | Run an item on its assigned worker: the harness hands over the item's content and the lease it holds, and the agency launches the worker's session on it; refused only while no provider of the order can answer. |
 | GET | `/jobs/{jobId}` | One job and what its turn spent, `usage`. |
-| PATCH | `/jobs/{jobId}` | End a job with its outcome, or stop it; its assignment is released. |
+| PATCH | `/jobs/{jobId}` | End a job with its outcome, or stop it, its turn cut short first; its assignment is released. |
 | GET | `/jobs/{jobId}/prompt` | The prompt the job was launched with. |
 | POST | `/instruction-texts` | The work-order step's line composed from an instruction. |
 | POST | `/item-filings` | File an item in the job service for the turn an agent is carrying now: its room as the item's `scope`, and `asked-by=owner` where every message of that turn is the owner's. |
+| POST | `/job-stops` | Stop a job, by its id or by its item, for the turn an agent is carrying now, only where every message of that turn is the owner's. |
 
 The list answers the newest jobs first, `limit` of them (50 where it names none, at most 500), and pages by a
 job's id as the runs' list does: with `before`, the jobs before that id; with `after`, the jobs after it nearest
@@ -776,6 +779,29 @@ and the filing of an item.
   - an agent carrying no turn now files no item: 409 `no-turn`.
   It answers 201 with the item's `id`, `state`, `scope` and `labels`, as the job service answered them; a
   refusal of the job service's is 502 `upstream-failed` with its sentence.
+
+- **A chat agent stops a job on the owner's word,** `POST /job-stops`. It takes the `agentName` its harness
+  plugin was started for, never one the model names; exactly one of `jobId`, the job, and `itemId`, the item
+  whose `starting` or `running` job it stops; and `reason`, a short line that becomes the job's report. The
+  turn's privilege decides, as it does for a filing, so no one else in a room stops a job through the chat
+  agent:
+  - an agent carrying no turn now stops nothing: 409 `no-turn`;
+  - a turn the receiver did not mark privileged stops nothing: 409 `not-owner`;
+  - an item with no job `starting` or `running` is 404 `no-job`, and a job already ended or stopped 409.
+  The stop is the one below, and its answer is that stop's.
+
+- **A job is stopped by cutting its turn short.** `PATCH /jobs/{jobId}` with `state` `stopped` and
+  `POST /job-stops` stop a job alike:
+  - the reason, the `report` the stop names, is kept as the job's stop mark, and the job's run is cancelled:
+    the cancellation the turn's door reads in the worker's program, cutting the turn short with its surface's
+    interrupt, a turn picked up across a restart included;
+  - the answer waits for that turn to end, up to `job_wait_seconds` of `policy/run-stop.toml`. The turn's end
+    writes the job `stopped`, outcome `stopped`, with the reason as its report, releases its assignment,
+    returns its lease and tells its room, so the worker takes the next launch as soon as the stop answers;
+  - a job no turn carries is written so at once;
+  - a turn still going once the wait runs out is refused 409 `stop-pending`: the stop stands, and the job ends
+    stopped the moment its turn does.
+  A job's end never writes over a job already ended or stopped.
 
 - **A job's end reaches the room and gives its lease back.** However a job ends — its run finishing, failing,
   or the harness ending or stopping it — the agency returns the item's lease to the job service as the end is
@@ -946,6 +972,8 @@ tool is a thin call of one route through the agency's own client.
 - `file_item` calls `POST /item-filings`, naming the agent its server was started for (`bmo-agency mcp
   --agent <name>`); it is the chat line's one road for filing an item: the job plugin is started without its own
   item creation on every program, and no prompt names it.
+- `stop_job` calls `POST /job-stops` the same way, naming the agent its server was started for, and is
+  listed beside `file_item` only where the server was started for one.
 - `assign_worker` calls `POST /assignments`.
 - `run_job` calls `POST /jobs`.
 - `run_research` calls `POST /research-runs`.

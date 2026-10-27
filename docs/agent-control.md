@@ -1786,6 +1786,12 @@ Two calls do it. What launches into which workspace is set by "What goes where" 
     the stop interrupts the program itself by its surface's interrupt. The row a resident turn
     opens says it is one, and names the program's record and the process the program was, which
     is what its collector and the reconciliation both close it on.
+  - **A job stopped through agency's routes** — `PATCH /jobs/{jobId}`, and the chat agent's `stop_job`
+    on the owner's word (`docs/api.md`, 「assignments and jobs」) — is the same cancellation of the job's
+    run, read by the door carrying its turn or by the pass that picked the turn up across a restart, each
+    of which cuts the turn short with its surface's interrupt. The route answers once the turn has ended,
+    so the job's worker reads idle, and takes the next launch, only when its program no longer carries
+    the turn.
   - **A work order** is named by its item, and the item's stop is its stop (the job unit's
     `work-orders.md`, 「The owner stops an item now」): it reaches every run the order holds, each by the reach that run's own kind
     has. A skipped or folded branch is stopped the same way.
