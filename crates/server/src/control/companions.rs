@@ -758,6 +758,10 @@ impl Route for CompanionChange {
 
     written.commit().await?;
 
+    // A pin moved under a standing program lets it go, so the next turn stands the pin's own model and
+    // address (docs/companions.md, 「The program on an ended session」).
+    crate::places::standby::release_stale_companion(call.ground(), &agent).await;
+
     if tell {
       carry_out_waiting(&call).await;
     }

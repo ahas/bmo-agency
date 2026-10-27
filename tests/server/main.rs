@@ -2,6 +2,7 @@
 
 #[path = "../support/binary.rs"]
 mod binary;
+mod pin_model;
 #[path = "../support/scratch.rs"]
 mod scratch;
 #[path = "../support/standing.rs"]

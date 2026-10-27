@@ -19,13 +19,14 @@ use policy::fill_marks;
 use policy::place_words::PLACE_WORDS;
 use policy::providers::Turns;
 use serde_json::{Value, json};
-use store::run;
+use store::{all, one, run};
 
 use super::locks::{Held, hold_within, lock_path, pane_lock_path, try_hold};
 use super::trust::trust_worker_folder;
 use super::{AgentRow, Ground};
 use crate::control::fallback::fallback_provider;
 use crate::control::harness::provider_enabled;
+use crate::control::registry;
 use crate::lines::place::{Place, Program, token_of};
 use crate::lines::standing::{Standing, claim_standby, claude_program, inbox_program, registered_program};
 use crate::lines::token;
@@ -440,6 +441,65 @@ pub async fn compose(ground: &Ground, worker: &str) -> Result<Option<Standing>, 
   match pin.as_ref().filter(|(pinned, _)| pinned != CLAUDE_CODE) {
     Some((pinned, model)) => pinned_program(ground, &machine, worker, &cwd, pinned, model.as_deref()).await,
     None => Ok(Some(claude_program(ground, &machine, worker, &cwd).await?)),
+  }
+}
+
+/// A companion's program let go where its pin or its registration moved under it: a program on another
+/// model than the pin names now, or on an address its registration no longer holds, is taken down so the
+/// next turn stands the pin's own (docs/companions.md, 「The program on an ended session」). A program on
+/// the pin's model and an address it holds is left as it stands.
+pub async fn release_stale_companion(ground: &Ground, agent: &str) {
+  let place = Place::of(&ground.roots.data, agent);
+  let Some(program) = place.program() else { return };
+  let Some(model) = program
+    .command
+    .args
+    .windows(2)
+    .find_map(|pair| (pair[0] == "--model").then(|| pair[1].clone()))
+  else {
+    return;
+  };
+  let pin: Option<String> = one(
+    &ground.db,
+    r#"SELECT "pinned_model" FROM "agents" WHERE "name" = $1 AND "pinned_provider" = 'registered'"#,
+    vec![agent.into()],
+  )
+  .await
+  .ok()
+  .flatten()
+  .and_then(|row| row.try_get::<Option<String>>("", "pinned_model").ok().flatten())
+  .filter(|pin| !pin.trim().is_empty());
+  let Some(pin) = pin else { return };
+  let (name, node) =
+    model.split_once('@').map_or((model.as_str(), None), |(name, node)| (name, Some(node)));
+  let held = registry::registration(&ground.db, &pin).await.ok().flatten();
+  let address_held = node.is_none_or(|node| {
+    held
+      .as_ref()
+      .is_some_and(|held| held.addresses.iter().any(|address| address.node == node))
+  });
+
+  if name != pin || !address_held {
+    let before = place.release().await;
+
+    if before.is_some() {
+      println!("companion {agent}: its program stood on {model}, not its pin {pin}; it was let go");
+    }
+  }
+}
+
+/// Every companion's standing program checked against its pin, as a pin or a registration changes: one on
+/// another model, or on an address its registration lost, is let go.
+pub async fn release_stale_companions(ground: &Ground) {
+  let Ok(rows) = all(&ground.db, r#"SELECT "name" FROM "agents" WHERE "kind" = 'chat'"#, vec![]).await
+  else {
+    return;
+  };
+
+  for row in rows {
+    if let Ok(name) = row.try_get::<String>("", "name") {
+      release_stale_companion(ground, &name).await;
+    }
   }
 }
 

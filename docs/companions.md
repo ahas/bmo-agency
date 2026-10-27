@@ -150,6 +150,11 @@ are the companion unit's, not agency's. This document covers only what agency ho
   the new generation, is still carried out by the next turn.
 - **The turn that carries it out** settles the ask and says so in its log.
 
+- **The program's model is the pin's,** resolved to the registration its model names and an address
+  that registration holds now, never the row's `last_model`. A pin moved to another registration, or a
+  registration that lost the address the program stood on, lets the old program go; the next turn
+  stands the pin's own on an address the registration has.
+
 ### The program on an ended session
 
 - **The resident program stands only on a session one of the companion's rooms goes on in.** A turn

@@ -177,6 +177,25 @@ impl RoadWalked {
 // The provider a turn across rooms goes out on: the chat line is mapped on Claude Code alone.
 const CHAT_PROVIDER: &str = "claude-code";
 
+/// The model a worker's pin names now, or none where the worker is unpinned. A program and a turn stand
+/// on this model, never on the row's `last_model`, which is only where a program ran before the pin moved.
+pub async fn pinned_worker_model(
+  db: &sea_orm::DatabaseConnection,
+  worker: &str,
+) -> Result<Option<String>, store::Fault> {
+  Ok(
+    one(
+      db,
+      r#"SELECT "pinned_model" FROM "agents"
+         WHERE "name" = $1 AND "pinned_provider" IS NOT NULL AND "pinned_model" IS NOT NULL"#,
+      vec![worker.into()],
+    )
+    .await?
+    .and_then(|row| row.try_get::<Option<String>>("", "pinned_model").ok().flatten())
+    .filter(|model| !model.trim().is_empty()),
+  )
+}
+
 /// The harness session an agent's row keeps across rooms, where it keeps one.
 pub async fn agent_session(
   db: &sea_orm::DatabaseConnection,
@@ -766,14 +785,20 @@ impl HerdrSessions {
     Ok(())
   }
 
-  // The worker's session a turn goes on: the model of the one it answered on last, under a login that
-  // answers now, and that session where it may still be resumed; the model its row last ran on otherwise.
+  // The worker's session a turn goes on: the model its pin names now, or the model its row last ran on
+  // where it is unpinned; a held session on another model than the pin is left for the pin's fresh one,
+  // since the registration it named may no longer hold the address the program stood on.
   async fn worker_session(&self, worker: &str) -> Result<(String, Option<String>), Fault> {
     let ground = self.ground();
+    let pinned = pinned_worker_model(&ground.db, worker).await.map_err(|why| store_fault(why.into()))?;
     let held = records::sessions(&ground.db, worker).await.map_err(store_fault)?;
     let now = now_ms();
 
     for session in held.iter().rev() {
+      if pinned.as_ref().is_some_and(|pin| pin != &session.model) {
+        continue;
+      }
+
       let open = account_open(Judging::of(ground), &session.account, now)
         .await
         .map_err(|refused| fault(FaultKind::Unreachable, refused.error))?;
@@ -796,8 +821,9 @@ impl HerdrSessions {
     .await
     .map_err(|why| store_fault(why.into()))?
     .and_then(|row| row.try_get::<Option<String>>("", "last_model").ok().flatten());
+    let model = pinned.or(last);
 
-    match last {
+    match model {
       Some(model) => Ok((model, None)),
       None => Err(fault(FaultKind::Refused, format!("{worker} has run on no model to open a session on"))),
     }

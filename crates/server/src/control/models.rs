@@ -828,6 +828,17 @@ impl Route for CatalogueChange {
 
 crate::moved!(CatalogueChange);
 
+// A model changed, so every program standing on a pin that names it is checked against the pin and the
+// registration's addresses now.
+fn restand(call: &crate::control::Call) {
+  if let Some(places) = call.places().cloned() {
+    tokio::spawn(async move {
+      crate::places::standby::restand_all(&places.ground, None).await;
+      crate::places::standby::release_stale_companions(&places.ground).await;
+    });
+  }
+}
+
 fn faulted(fault: Fault) -> Refused {
   match fault {
     Fault::Field(field, error) => Refused::new(StatusCode::BAD_REQUEST, format!("{field}: {error}")),
@@ -934,6 +945,8 @@ impl Route for CreateModel {
       Err(sentence) => return Err(Refused::new(StatusCode::BAD_REQUEST, sentence)),
     }
 
+    restand(&call);
+
     match super::registry::registered_model(db, &data_root, &name).await? {
       Some(view) => Ok(answer(StatusCode::CREATED, view)),
       None => Err(Refused::failed("the model was made but not read")),
@@ -977,6 +990,7 @@ impl Route for ChangeModel {
     }
 
     super::registry::change_model(db, &name, &model).await.map_err(faulted)?;
+    restand(&call);
 
     match super::registry::registered_model(db, &data_root, &name).await? {
       Some(view) => Ok(answer(StatusCode::OK, view)),
@@ -1013,7 +1027,11 @@ impl Route for DeleteModel {
     }
 
     match super::registry::change(db, &data_root, &json!({ "action": "remove", "name": name })).await? {
-      Ok(()) => Ok(StatusCode::NO_CONTENT.into_response()),
+      Ok(()) => {
+        restand(&call);
+
+        Ok(StatusCode::NO_CONTENT.into_response())
+      }
       Err(sentence) => Err(Refused::new(StatusCode::BAD_REQUEST, sentence)),
     }
   }
