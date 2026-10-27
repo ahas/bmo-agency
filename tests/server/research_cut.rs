@@ -377,13 +377,23 @@ async fn a_run_whose_place_still_stands_is_taken_up_and_finished_and_one_whose_p
     ["first-token", "rounds-token"],
     "their session tokens are taken back with them"
   );
-  assert!(
-    agency_server::queue::settings::get(db, &format!("{IN_FLIGHT_KEY}9"))
+  // The run is let go as it closes; the key's removal may stand a moment behind the two calls.
+  let mut let_go = false;
+
+  for _ in 0..200 {
+    if agency_server::queue::settings::get(db, &format!("{IN_FLIGHT_KEY}9"))
       .await
       .unwrap()
-      .is_none(),
-    "the run under way is let go"
-  );
+      .is_none()
+    {
+      let_go = true;
+      break;
+    }
+
+    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+  }
+
+  assert!(let_go, "the run under way is let go");
 }
 
 async fn scratch_outcome(db: &sea_orm::DatabaseConnection, id: i64) -> Option<String> {

@@ -20,6 +20,11 @@ file_guard_seconds = 300
 # The tests make their own scratch databases on the server, so no template is named.
 [test.database]
 
+# A test server reaches no peer of the deployment's. It is started with an environment built for it — no
+# address or token inherited from the worker that runs the suite — and marked a test's, so every peer
+# call is refused and logged; a test that needs a stand-in calls the call itself with a map of its own
+# (docs/api.md, 「Calls agency makes」).
+
 [projects]
 # packages/ is the Bun workspace; its type check covers the tests under tests/packages as well.
 check_script = "check:types"

@@ -2,6 +2,7 @@
 //! order the room's chat agent is handed, and the two calls the job runner makes as a job ends.
 
 use std::collections::BTreeMap;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
 use agency_server::job_end::{delivered_with, instruction_body, order};
@@ -11,6 +12,9 @@ use axum::http::{HeaderMap, Method, StatusCode, Uri};
 use axum::response::IntoResponse;
 use serde_json::{Value, json};
 use tokio::net::TcpListener;
+
+use crate::scratch::Scratch;
+use crate::standing;
 
 fn member(report: Option<&str>, outcome: Option<&str>) -> Value {
   json!({
@@ -122,4 +126,80 @@ async fn a_job_s_end_gives_its_lease_back_and_queues_its_report_in_the_room() {
   assert_eq!(told.body["room"], 90000001);
   assert_eq!(told.body["events"], json!(["job-ended:#2224"]));
   assert!(told.body["said"]["order"].as_str().unwrap().contains("The work is done."));
+}
+
+/// A stand-in no call should reach, counting every request it is sent.
+async fn unheard() -> (String, Arc<AtomicUsize>) {
+  let calls: Arc<AtomicUsize> = Arc::default();
+  let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+  let address = format!("http://{}", listener.local_addr().unwrap());
+  let counted = calls.clone();
+  let app = axum::Router::new().fallback(move || {
+    let counted = counted.clone();
+
+    async move {
+      counted.fetch_add(1, Ordering::SeqCst);
+
+      StatusCode::NO_CONTENT
+    }
+  });
+
+  tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+
+  (address, calls)
+}
+
+#[tokio::test]
+async fn a_test_ground_reaches_no_peer_even_one_it_names() {
+  let scratch = Scratch::new().await;
+  let (address, calls) = unheard().await;
+  let vars: BTreeMap<String, String> = [
+    ("BMO_JOB_URL".to_owned(), address.clone()),
+    ("BMO_JOB_TOKEN".to_owned(), "job-token".to_owned()),
+    ("BMO_RECEIVER_URL".to_owned(), address.clone()),
+    ("BMO_RECEIVER_TOKEN".to_owned(), "receiver-token".to_owned()),
+    ("BMO_ARTIFACT_URL".to_owned(), address.clone()),
+    ("BMO_ARTIFACT_TOKEN".to_owned(), "artifact-token".to_owned()),
+    ("BMO_TEST_GROUND".to_owned(), "1".to_owned()),
+  ]
+  .into();
+
+  delivered_with(&vars, &member(Some("The work is done."), None)).await;
+  assert!(agency_server::job_leases::pass(scratch.db(), &vars).await.unwrap().is_empty());
+  agency_server::watches::queue_idle::pass(scratch.db(), &vars).await.unwrap();
+
+  assert_eq!(calls.load(Ordering::SeqCst), 0, "a test ground made a peer call");
+}
+
+#[tokio::test]
+async fn a_test_server_s_environment_carries_no_peer_of_the_deployment() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let data = home.path().join("data");
+
+  std::fs::create_dir_all(&data).unwrap();
+
+  let server = standing::stand_server(home.path(), &data, &scratch.address(), "secret");
+  let environment = std::fs::read(format!("/proc/{}/environ", server.pid())).unwrap();
+  let held: Vec<String> = environment
+    .split(|byte| *byte == 0)
+    .map(|entry| String::from_utf8_lossy(entry).into_owned())
+    .collect();
+
+  for name in [
+    "BMO_RECEIVER_URL",
+    "BMO_RECEIVER_TOKEN",
+    "BMO_RECEIVER_TOKEN_FILE",
+    "BMO_JOB_URL",
+    "BMO_JOB_TOKEN",
+    "BMO_JOB_TOKEN_FILE",
+    "AGENCY_BRAIN_URL",
+    "BMO_GATE_URL",
+    "BMO_ARTIFACT_URL",
+  ] {
+    assert!(
+      !held.iter().any(|entry| entry.starts_with(&format!("{name}="))),
+      "the test server inherited {name}"
+    );
+  }
 }

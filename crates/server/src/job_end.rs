@@ -21,8 +21,18 @@ fn setting<'a>(vars: &'a BTreeMap<String, String>, name: &str) -> Option<&'a str
   vars.get(name).map(String::as_str).map(str::trim).filter(|value| !value.is_empty())
 }
 
+/// Whether these settings stand a test's server: a ground a test stands reaches no peer, whatever its
+/// environment names, so a test never posts into a room or a queue a person holds.
+pub(crate) fn test_ground(vars: &BTreeMap<String, String>) -> bool {
+  setting(vars, "BMO_TEST_GROUND").is_some_and(|set| set == "1")
+}
+
 /// The token a peer is called with: a value the deployment names, or the file it names.
 pub(crate) fn token(vars: &BTreeMap<String, String>, variable: &str, file: &str) -> Option<String> {
+  if test_ground(vars) {
+    return None;
+  }
+
   if let Some(token) = setting(vars, variable) {
     return Some(token.to_owned());
   }
@@ -34,17 +44,35 @@ pub(crate) fn token(vars: &BTreeMap<String, String>, variable: &str, file: &str)
 }
 
 pub(crate) fn address(vars: &BTreeMap<String, String>, variable: &str) -> Option<String> {
+  if test_ground(vars) {
+    eprintln!("{variable}: a test ground reaches no peer; the call is not made");
+
+    return None;
+  }
+
   setting(vars, variable).map(|url| url.trim_end_matches('/').to_owned())
 }
 
 /// A job's end delivered: its lease given back to the job service, and its report queued for the room's
 /// chat agent. Each call stands on its own, and a call that fails is said and never fails the job.
 pub async fn delivered(ground: &Ground, member: &Value) {
+  if ground.testing() {
+    eprintln!("job {}: its end was not delivered: the ground is a test's", id_of(member));
+
+    return;
+  }
+
   delivered_with(ground.vars(), member).await;
 }
 
 /// The same, kept from the settings the deployment names, so a test reaches it with a map of its own.
 pub async fn delivered_with(vars: &BTreeMap<String, String>, member: &Value) {
+  if test_ground(vars) {
+    eprintln!("job {}: its end was not delivered: the ground is a test's", id_of(member));
+
+    return;
+  }
+
   return_lease(vars, member).await;
   tell_room(vars, member).await;
 }
@@ -90,6 +118,8 @@ async fn tell_room(vars: &BTreeMap<String, String>, member: &Value) {
     address(vars, "BMO_RECEIVER_URL"),
     token(vars, "BMO_RECEIVER_TOKEN", "BMO_RECEIVER_TOKEN_FILE"),
   ) else {
+    eprintln!("job {}: its end was not told to the room: no receiver is named", id_of(member));
+
     return;
   };
   if let Err(why) = post_instruction(&url, &token, &instruction_body(member)).await {
@@ -117,10 +147,18 @@ async fn post_instruction(url: &str, token: &str, body: &Value) -> Result<(), St
 /// An instruction queued for a room's session through the receiver's instruction route, with the address and
 /// token the deployment names; a deployment that carries no receiver queues nothing.
 pub async fn instruct(vars: &BTreeMap<String, String>, body: &Value) -> Result<(), String> {
+  if test_ground(vars) {
+    eprintln!("an instruction was not queued: a test ground reaches no receiver");
+
+    return Err("a test ground reaches no receiver".to_owned());
+  }
+
   let (Some(url), Some(token)) = (
     address(vars, "BMO_RECEIVER_URL"),
     token(vars, "BMO_RECEIVER_TOKEN", "BMO_RECEIVER_TOKEN_FILE"),
   ) else {
+    eprintln!("no receiver is named; no instruction was queued");
+
     return Err("no receiver is named".to_owned());
   };
 

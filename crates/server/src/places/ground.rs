@@ -196,6 +196,13 @@ impl Ground {
     Self::new(service, &machine, herdr)
   }
 
+  /// Whether this ground stands a test's server: it reaches no deployment's peer, whatever its process
+  /// environment carried, and the calls that would reach one are not made (docs/api.md, 「Calls agency
+  /// makes」).
+  pub fn testing(&self) -> bool {
+    self.vars.get("BMO_TEST_GROUND").is_some_and(|set| set.trim() == "1")
+  }
+
   /// The ground with one variable of its environment set to the value given, or taken out where none is.
   pub fn with_var(mut self, name: &str, value: Option<&str>) -> Self {
     match value {

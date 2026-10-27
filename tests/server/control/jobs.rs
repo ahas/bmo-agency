@@ -3,9 +3,12 @@
 //! fails ending the job with why, written into its log; and the end releasing the
 //! assignment, so the worker is held again for the next item.
 
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
 use agency_server::control::harness::{OrderEntry, set_provider_order};
+use axum::http::StatusCode;
 use harness_providers::ARCHIVE_PROVIDERS;
 use serde_json::{Value, json};
 
@@ -78,6 +81,29 @@ async fn a_job_waits_for_a_login_ends_with_why_and_frees_its_worker() {
   let resting = chrono::Utc::now().timestamp() + 3600;
 
   std::fs::create_dir_all(&data).unwrap();
+
+  // The server is handed the receiver's address and token as a test names them, as a worker's environment
+  // would have handed it a live one. A test ground still makes no call: a job ending here must not post a
+  // real job-ended instruction into a room.
+  let heard: Arc<AtomicUsize> = Arc::default();
+  let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+  let leaked_address = format!("http://{}", listener.local_addr().unwrap());
+  let counted = heard.clone();
+
+  tokio::spawn(async move {
+    let routes = axum::Router::new().fallback(move || {
+      let counted = counted.clone();
+
+      async move {
+        counted.fetch_add(1, Ordering::SeqCst);
+
+        StatusCode::NO_CONTENT
+      }
+    });
+
+    axum::serve(listener, routes).await.unwrap();
+  });
+
   std::fs::create_dir_all(&login).unwrap();
   scratch
     .run(r#"INSERT INTO "agents" ("name", "kind") VALUES ('helper', 'worker')"#, vec![])
@@ -110,7 +136,13 @@ async fn a_job_waits_for_a_login_ends_with_why_and_frees_its_worker() {
   .await
   .unwrap();
 
-  let server = standing::stand_server(home.path(), &data, &scratch.address(), token);
+  let server = standing::stand_server_with(
+    home.path(),
+    &data,
+    &scratch.address(),
+    token,
+    &[("BMO_RECEIVER_URL", leaked_address.as_str()), ("BMO_RECEIVER_TOKEN", "leaked")],
+  );
   let port = server.port;
 
   // Nothing in the order can answer: nothing is launched, the worker stays held for the item, and the
@@ -174,6 +206,8 @@ async fn a_job_waits_for_a_login_ends_with_why_and_frees_its_worker() {
   // The end released the assignment, so the same worker is held for the next item.
   assert_eq!(get(port, token, &format!("/assignments/{assignment}")).await.1["state"], "released");
   assigned(port, token, 42).await;
+
+  assert_eq!(heard.load(Ordering::SeqCst), 0, "the test server posted to the leaked receiver");
 }
 
 #[tokio::test(flavor = "multi_thread")]

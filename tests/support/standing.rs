@@ -17,6 +17,13 @@ pub struct Standing {
   pub port: u16,
 }
 
+impl Standing {
+  /// The process the server runs as, for a test that reads what its environment came to.
+  pub fn pid(&self) -> u32 {
+    self.child.id()
+  }
+}
+
 impl Drop for Standing {
   fn drop(&mut self) {
     let _ = self.child.kill();
@@ -37,19 +44,26 @@ pub fn stand_server_with(
   token: &str,
   variables: &[(&str, &str)],
 ) -> Standing {
+  // The test server's environment is built here, not inherited: the worker runs the suite with the
+  // deployment's own peer addresses and tokens in its environment, and a test must reach none of them. A
+  // test that needs a stand-in names it in `variables`; the marker keeps even that from being called.
+  let path = std::env::var("PATH").unwrap_or_else(|_| "/usr/bin:/bin".to_owned());
   let mut child = Command::new(binary::built("agency-server", "agency-server"))
-    .envs(variables.iter().copied())
+    .env_clear()
+    .env("PATH", path)
     .arg("--data-root")
     .arg(data)
     .current_dir(home)
     .env("HOME", home)
     .env("XDG_CONFIG_HOME", home.join(".config"))
+    .env("LANG", "C.UTF-8")
     .env("BMO_DEPLOY_DIR", env!("CARGO_MANIFEST_DIR"))
-    .env_remove("CLAUDE_CONFIG_DIR")
     .env("BMO_ARCHIVE_URL", store)
     .env("AGENCY_CONTROL_PORT", "0")
     .env("AGENCY_QUOTA_PORT", "0")
     .env("AGENCY_CONTROL_TOKEN", token)
+    .envs(variables.iter().copied())
+    .env("BMO_TEST_GROUND", "1")
     .stdin(Stdio::null())
     .stdout(Stdio::piped())
     .stderr(Stdio::null())

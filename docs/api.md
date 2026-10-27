@@ -1066,6 +1066,14 @@ It calls no downstream but the job service's lease route and the receiver's inst
 returned and the report handed over as a job ends, and a chat session told of a server it lacks. The gate and the receiver reach it through the hook point
 above for everything else.
 
+- **A test's ground reaches no peer.** A server a test stands is handed an environment built for it, with
+  no deployment's peer address or token inherited from the worker that runs the suite; it names a peer
+  only where the test itself names one, and it marks itself a test's. Every call in this section — the
+  job service's lease, the receiver's instruction, notice and handoff, the artifact's documents and
+  shares, the job service's queue reads — is then not made, and the line saying so is logged. A test
+  that wants a stand-in calls the call itself with a map of its own, never through a test server's
+  ground.
+
 ## What the redesign took out
 
 `GET/POST /digests`, `GET/POST /searches`, `GET /searches/{searchId}` and `GET/PATCH /research-settings`,
