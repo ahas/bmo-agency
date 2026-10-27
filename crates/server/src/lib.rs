@@ -32,6 +32,7 @@ pub mod herdr_backend;
 pub mod hooks;
 pub mod host_run;
 pub mod job_end;
+pub mod job_leases;
 
 /// What a job's Claude turn comes to (docs/run-records.md, 「Why a run died」), the walk of the logins that
 /// carries it, the reset a worker's sessions are carried out by, and the OpenRouter tap and what it read.

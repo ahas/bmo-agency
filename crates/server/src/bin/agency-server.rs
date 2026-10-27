@@ -130,6 +130,12 @@ async fn serve(args: Args) -> Result<(), String> {
     eprintln!("agency: the jobs left running: {}", why.error);
   }
 
+  // A running job keeps its item's lease, whatever the harness that took it does; the same pass runs on its own
+  // clock.
+  if let Err(why) = agency_server::job_leases::pass(&ground.db, ground.vars()).await {
+    eprintln!("agency: the running jobs' leases: {}", why.detail);
+  }
+
   // A run whose turn ended without closing it is closed as cut; the same pass runs on the executions' clock.
   match agency_server::run_sweep::pass(&ground).await {
     Ok(0) => {}
@@ -213,6 +219,24 @@ fn clocks(ground: &Arc<Ground>) {
       let ground = watched.clone();
 
       async move { agency_server::watches::pull_requests::fallback(&ground.db, ground.vars()).await }
+    })
+    .await
+  });
+
+  let leased = ground.clone();
+
+  tokio::spawn(async move {
+    let period = Duration::from_secs(policy::job_leases::JOB_LEASES.renew_seconds);
+
+    every("running jobs' leases", period, period, move || {
+      let ground = leased.clone();
+
+      async move {
+        agency_server::job_leases::pass(&ground.db, ground.vars())
+          .await
+          .map(|_| ())
+          .map_err(|why| why.detail)
+      }
     })
     .await
   });

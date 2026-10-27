@@ -51,6 +51,10 @@ session on the owner's ask is `docs/session-resets.md`.
   - a turn the program is still working on, or still holds in its inbox, is attached to: the server
     holds the agent's program, so no turn of its own goes in meanwhile, waits on the record, and hands
     the end back once it is written; a program that goes away meanwhile ends the turn failed;
+  - a job's turn picked up this way keeps everything its running job holds until the job ends: the job
+    stays `running`, so its worker reads as working on it and is offered no other item, its item's lease
+    is kept on the harness's behalf as every running job's is, and no launch notice is told for its item
+    (`docs/api.md`, 「assignments and jobs」);
   - a turn no record names — one on a program that keeps no such record — is ended failed for its
     caller, and a job's is left to the pass that ends a job left running.
   The progress read of a turn picked up this way answers `unknown-turn`; its caller reads its end on the

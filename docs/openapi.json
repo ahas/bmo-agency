@@ -10844,7 +10844,26 @@
             ]
           },
           "state": {
-            "type": "string"
+            "type": "string",
+            "description": "resting, working while a job of its is starting or running, or idle"
+          },
+          "jobId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The job it is working on, where it is working.",
+            "default": null
+          },
+          "itemId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "That job's item.",
+            "default": null
           },
           "sampling": true,
           "restingSince": {
@@ -10891,6 +10910,8 @@
           "nodeName",
           "role",
           "state",
+          "jobId",
+          "itemId",
           "sampling",
           "restingSince",
           "sessionId",

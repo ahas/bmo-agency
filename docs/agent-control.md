@@ -2810,7 +2810,8 @@ them run a browser, and whose a place is.
   raised with one of the job service's unattended labels — a pull request's review among them — so its
   state is the whole of whether it may be launched. An item waits on a free worker where it is open, its
   queue is open and holds nothing, and its assignee is a worker that is not resting and has no job at
-  work, or it names no assignee while such a worker stands. Where one item waits so and no job has
+  work, or it names no assignee while such a worker stands. An item a job of agency's is still at work on
+  — its lease run out, or a restart of agency under the job — waits on nothing and is told to nobody. Where one item waits so and no job has
   started on this machine for the idle minutes (`policy/queue-idle.toml`, five, or the owner's own row
   `queue_idle_minutes` of the settings table), the queue is idle.
 - **The owner is told once, through the receiver.** Agency queues one owner notice, `POST /owner/notices`

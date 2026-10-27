@@ -231,6 +231,14 @@ async fn setting_number(db: &DatabaseConnection, key: &str) -> Result<Option<i64
 
 /// What agency itself holds of the queue's standing: its workers, its jobs and the alarm's own rows.
 pub async fn held(db: &DatabaseConnection, open: Vec<Open>) -> Result<Standing, Refusal> {
+  // An item a job of agency's is still at work on waits on nothing, its lease run out or not.
+  let working: Vec<i64> =
+    all(db, r#"SELECT "item_id" FROM "jobs" WHERE "state" IN ('starting', 'running')"#, vec![])
+      .await?
+      .iter()
+      .filter_map(|row| row.try_get::<i64>("", "item_id").ok())
+      .collect();
+  let open = open.into_iter().filter(|item| !working.contains(&item.id)).collect();
   let free = all(
     db,
     r#"SELECT a."name" FROM "agents" a

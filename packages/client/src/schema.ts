@@ -2989,7 +2989,20 @@ export interface components {
             builtin: boolean;
             nodeName: string | null;
             role: string | null;
+            /** @description resting, working while a job of its is starting or running, or idle */
             state: string;
+            /**
+             * Format: int64
+             * @description The job it is working on, where it is working.
+             * @default null
+             */
+            jobId: number | null;
+            /**
+             * Format: int64
+             * @description That job's item.
+             * @default null
+             */
+            itemId: number | null;
             sampling: unknown;
             /**
              * Format: int64

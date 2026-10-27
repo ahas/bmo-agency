@@ -77,6 +77,22 @@ async fn member_of(db: &sea_orm::DatabaseConnection, row: &QueryResult) -> Resul
     Err(_) => Value::Null,
   };
 
+  // A worker is working while a job of its is starting or running, a restart under the job among them.
+  let working = one(
+    db,
+    r#"SELECT "id", "item_id" FROM "jobs" WHERE "worker_name" = $1 AND "state" IN ('starting', 'running')
+       ORDER BY "id" DESC LIMIT 1"#,
+    vec![name.clone().into()],
+  )
+  .await?;
+  let job = working.as_ref().and_then(|row| row.try_get::<i64>("", "id").ok());
+  let item = working.as_ref().and_then(|row| row.try_get::<i64>("", "item_id").ok());
+  let state = match (resting, job) {
+    (Some(_), _) => "resting",
+    (None, Some(_)) => "working",
+    (None, None) => "idle",
+  };
+
   Ok(json!({
     "name": name,
     "label": row.try_get::<Option<String>>("", "label")?.unwrap_or_else(|| row.try_get::<String>("", "name").unwrap_or_default()),
@@ -85,7 +101,9 @@ async fn member_of(db: &sea_orm::DatabaseConnection, row: &QueryResult) -> Resul
     "builtin": row.try_get::<i64>("", "builtin")? != 0,
     "nodeName": row.try_get::<Option<String>>("", "node")?.filter(|node| !node.is_empty()),
     "role": row.try_get::<Option<String>>("", "role")?,
-    "state": if resting.is_some() { "resting" } else { "idle" },
+    "state": state,
+    "jobId": job,
+    "itemId": item,
     "sampling": sampling,
     "restingSince": resting,
     "sessionId": row.try_get::<Option<String>>("", "session_id")?,

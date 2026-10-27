@@ -709,6 +709,9 @@ with name neither.
 | DELETE | `/workers/{workerName}` | Remove a worker. |
 | GET | `/workers/{workerName}/definition` | The worker's agent definition: graph, trailer, handoff. |
 
+A worker's `state` is `resting` while it rests, `working` while a job of its is `starting` or `running` —
+`jobId` naming that job and `itemId` its item — and `idle` otherwise, `jobId` and `itemId` null.
+
 A worker carries `prefixDocuments`, the paths of the documents its session's prefix carries, in order
 (`docs/worker-bench.md`, 「Prefix documents」); `POST /workers` and `PATCH /workers/{workerName}` take
 the list whole, an empty list clearing it, and refuse an empty path or one that climbs with `..`.
@@ -747,9 +750,18 @@ state or several comma-separated; by `running`, `true` the jobs starting or runn
 by `itemId`; by `roomId`; by `workerName`; and by `holderName`, every filter named holding at once. A query
 naming anything else, or a value that does not read as its filter's kind, is refused 400.
 
-A job's `itemId` and `leaseId` are the harness's references, kept as given. The harness renews the lease,
-reads the job's progress, questions and outcome from its fields and events, and reports and closes the item
-in the job service. Agency keeps no job store; the calls it makes there are the ones a job's end states below,
+A job's `itemId` and `leaseId` are the harness's references, kept as given. The harness reads the job's
+progress, questions and outcome from its fields and events, and reports and closes the item in the job
+service.
+
+- **A running job keeps its item's lease, whoever launched it.** While a job is `starting` or `running`,
+  agency renews its item's lease in the job service on the harness's behalf on its own clock
+  (`policy/job-leases.toml`), so the lease holds however long the job runs and whether or not the harness
+  that took it still stands — its session replaced, its plugin restarted, agency itself restarted under the
+  job. A lease the job service no longer holds, run out before a renewal reached it, is taken again on the
+  same item for the same holder and assignee, and the job keeps the new lease's id, which its end gives
+  back. An item another holder leased meanwhile, or one no longer open, is left as it stands and said in
+  agency's log. The harness may renew the lease as well; a renewal of either holds it. Agency keeps no job store; the calls it makes there are the ones a job's end states below,
 and the filing of an item.
 
 - **An item a chat agent files goes through agency,** `POST /item-filings`, so what the item says of where it

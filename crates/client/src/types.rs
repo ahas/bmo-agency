@@ -942,7 +942,14 @@ pub struct Worker {
   pub builtin: bool,
   pub node_name: Option<String>,
   pub role: Option<String>,
+  /// resting, working while a job of its is starting or running, or idle
   pub state: String,
+  /// The job it is working on, where it is working.
+  #[serde(default)]
+  pub job_id: Option<i64>,
+  /// That job's item.
+  #[serde(default)]
+  pub item_id: Option<i64>,
   pub sampling: Value,
   /// epoch milliseconds
   pub resting_since: Option<i64>,
