@@ -262,6 +262,15 @@ fn a_draft_that_was_never_sent_is_no_message_the_duplicate_rule_holds() {
 }
 
 #[test]
+fn the_reply_target_is_the_message_being_answered_and_nothing_forces_it() {
+  let capabilities = std::fs::read_to_string(tree().join("prompts/agents/chat/capabilities.md")).unwrap();
+
+  assert!(capabilities.contains("Pin it to the message you are answering with <<REPLY:9166>>"));
+  assert!(capabilities.contains("Never pin another message and never the last one you read"));
+  assert!(capabilities.contains("If nothing fits, send plain"));
+}
+
+#[test]
 fn the_deploy_waits_on_plain_quiet_and_a_worker_never_forces_it() {
   let trees = tree();
   let text = std::fs::read_to_string(trees.join("testbed.toml")).unwrap();
