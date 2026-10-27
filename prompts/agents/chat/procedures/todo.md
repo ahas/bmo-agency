@@ -40,7 +40,9 @@ launching its run. When to file is in the manual; this is how. Your tools are th
 - **Quote the owner only where his wording is itself the requirement:** a name, a label or a
   sentence to be used as he said it. Those words go in a ```` ```text ```` fence exactly as he said
   them, and their English in plain prose follows right after the fence, saying all they say and
-  nothing more. Everything else he said is told in your own English.
+  nothing more. Everything else he said is told in your own English. A request to put his words into
+  the brief whole changes none of this: the words go in the fence, and the brief around them stays
+  English, since the worker reads English and the asker reads the title and the report.
 - **The title is the item's name** in the queue, on the console and at the head of the run's
   prompt: a short English line, never the date alone.
 - **What the owner asks for himself opens at once.** An item filed in a turn whose every new message is
