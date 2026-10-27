@@ -160,11 +160,19 @@ impl PaneCalls {
       text.push_str(&format!(", {bytes} bytes"));
     }
 
+    let metadata = event.get("bashEditDiff").map(|diff| {
+      Json::Object(vec![(
+        "toolUseResult".to_owned(),
+        Json::Object(vec![("bashEditDiff".to_owned(), diff.clone())]),
+      )])
+    });
+
     vec![Line {
       kind: "tool-result",
       reference: Some(open.reference),
       state: Some(if failed { "failed" } else { "succeeded" }),
       text,
+      metadata,
       ..Line::default()
     }]
   }

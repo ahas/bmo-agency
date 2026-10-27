@@ -67,6 +67,14 @@ async fn a_running_server_reads_a_job_s_lines_and_keeps_its_notes_and_turn_recor
   scratch
     .run(r#"SELECT setval(pg_get_serial_sequence('agent_log', 'id'), 100)"#, vec![])
     .await;
+  scratch
+    .run(
+      r#"UPDATE "agent_log" SET "metadata" =
+           '{"toolUseResult":{"bashEditDiff":{"files":[],"moreFiles":0,"changedFiles":["/work/notes.txt"]}}}'
+         WHERE "id" = 2"#,
+      vec![],
+    )
+    .await;
 
   let (status, lines) = get(port, token, "/log-lines?jobId=12&limit=2").await;
 
@@ -77,6 +85,12 @@ async fn a_running_server_reads_a_job_s_lines_and_keeps_its_notes_and_turn_recor
   assert_eq!(lines["items"][0]["jobId"], json!(12));
   assert_eq!(lines["items"][0]["kind"], json!("tool"));
   assert_eq!(lines["items"][1]["id"], json!(2));
+  assert_eq!(lines["items"][1]["metadata"]["toolUseResult"]["bashEditDiff"]["moreFiles"], json!(0));
+  assert_eq!(
+    lines["items"][1]["metadata"]["toolUseResult"]["bashEditDiff"]["changedFiles"][0],
+    json!("/work/notes.txt")
+  );
+  assert_eq!(lines["items"][0]["metadata"], Value::Null);
 
   // A job with no line: nothing held.
   assert_eq!(get(port, token, "/log-lines").await.0, 400);
@@ -157,6 +171,14 @@ async fn an_agent_s_log_reads_across_its_runs_newest_before_after_and_at_a_momen
       vec![now.into()],
     )
     .await;
+  scratch
+    .run(
+      r#"UPDATE "agent_log" SET "metadata" =
+           '{"toolUseResult":{"bashEditDiff":{"files":[],"moreFiles":0,"changedFiles":["/work/b5.txt"]}}}'
+         WHERE "id" = 11"#,
+      vec![],
+    )
+    .await;
 
   // The newest page: the last three lines, oldest first, with another page older.
   let (status, newest) = get(port, token, "/log/agents/worker/lines?limit=3").await;
@@ -174,6 +196,10 @@ async fn an_agent_s_log_reads_across_its_runs_newest_before_after_and_at_a_momen
   assert_eq!(newest["hasMore"], json!(true));
   assert_eq!(newest["hasOlder"], json!(false));
   assert_eq!(newest["items"][0]["fields"]["run"], json!("unit-b"));
+  assert_eq!(
+    newest["items"][2]["metadata"]["toolUseResult"]["bashEditDiff"]["changedFiles"][0],
+    json!("/work/b5.txt")
+  );
 
   // The page before the oldest of those: three more, oldest first, still across the next run.
   let (status, older) = get(port, token, "/log/agents/worker/lines?limit=3&before=9").await;

@@ -35,7 +35,10 @@ about a message is not agency's: the judgement records belong to the units that 
     the record keeps — redacted and cut by bmo-tui, the line marked cut upstream where the record says
     `inputCut` — and one saying the call settled as the `tool-result` line that answers it, succeeded
     or failed, its text saying how many milliseconds the call ran and how many bytes its result held
-    where the record gives `resultBytes`.
+    where the record gives `resultBytes`. A settling line carrying `bashEditDiff` — bmo-tui's record
+    of the files a shell call changed — has it kept as the result line's
+    `metadata.toolUseResult.bashEditDiff`, the place a Claude Code tool result's `toolUseResult`
+    stands.
   - **A call is matched by its id.** A record line naming its call by `toolCallId` is that call's: its
     first line opens it, a later one of the same id that is not a settling changes nothing, and its
     settling answers it, whatever else is open; the two lines share the id as their reference. A record
@@ -51,6 +54,9 @@ about a message is not agency's: the judgement records belong to the units that 
   the kill, and the ids run forward, so a finished run is scrolled back rather than only tailed.
 - **A line's moment is in epoch milliseconds,** whichever writer filed it and whatever program the run
   is on: the store keeps it so, and every route answers it as kept.
+- **A job's lines keep the metadata their writer filed.** The run log's line shape answers it as
+  `metadata`, the JSON object itself or null where none was kept; a pane program's shell call carries
+  Claude Code's `toolUseResult.bashEditDiff` there (`docs/api.md`, 「log-lines」).
 - It is bounded three ways — a per-line cut, the last few thousand lines per agent, and an age —
   pruned by the writer as it goes, and over the whole table by agency's own clock: by its server as
   it starts and once a day after.

@@ -2129,6 +2129,8 @@ export interface components {
              */
             at: number;
             fields: unknown;
+            /** @description The metadata the writer kept beside the line, the JSON object itself or null where it kept none. */
+            metadata: unknown;
             /**
              * Format: int64
              * @description The room of the ledger's run the line was written under, where the ledger holds it.

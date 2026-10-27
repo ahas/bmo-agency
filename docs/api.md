@@ -333,6 +333,11 @@ road whose program carries its own turns has them too, read off that program's r
 line carries no arguments and its result's text says how long the call ran (`docs/run-records.md`,
 「Agent log」).
 
+A line's `metadata` is the JSON object the writer kept beside it, null where it kept none. A job's lines
+keep the metadata their writer filed, and a pane program's shell call carries Claude Code's
+`toolUseResult.bashEditDiff` there, with the files, their hunks, the count of files whose hunks were left
+out and the paths the call changed.
+
 - **One agent's log across its runs** is `GET /log/agents/{agentName}/lines`, in the same line shape:
   - no cursor reads the newest page, oldest line first, and `hasMore` says older lines wait;
   - `before` reads the page before that line id, oldest line first, and `hasMore` says older lines wait;

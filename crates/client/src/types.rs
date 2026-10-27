@@ -378,6 +378,8 @@ pub struct LogLine {
   /// epoch milliseconds
   pub at: i64,
   pub fields: Value,
+  /// The metadata the writer kept beside the line, the JSON object itself or null where it kept none.
+  pub metadata: Value,
   /// The room of the ledger's run the line was written under, where the ledger holds it.
   #[serde(default)]
   pub room_id: Option<i64>,

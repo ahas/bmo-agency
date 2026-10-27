@@ -33,7 +33,7 @@ const CALLED: &str = r#"COALESCE("detail", "text")"#;
 
 // One line as every log route reads it.
 const LINE_COLUMNS: &str = r#""id", "agent", "run", "chat_id", "at", "kind", "name", "parent", "ref",
-  "text", "job_id", "state", "truncated", "detail""#;
+  "text", "job_id", "state", "truncated", "detail", "metadata""#;
 
 /// One line of the log in the shape every read answers: its own fields, and the ledger's run it was
 /// written under where the ledger holds one.
@@ -77,6 +77,9 @@ async fn line_of(
       "truncated": row.try_get::<i64>("", "truncated")? != 0,
       "detail": text("detail")?,
     },
+    "metadata": text("metadata")?
+      .and_then(|held| serde_json::from_str::<Value>(&held).ok())
+      .unwrap_or(Value::Null),
   }))
 }
 
@@ -112,13 +115,13 @@ impl Route for RunLogLines {
     let (sql, values) = match (run, job) {
       (Some(run), _) => (
         r#"SELECT "id", "agent", "run", "chat_id", "at", "kind", "name", "parent", "ref", "text", "job_id", "state",
-             "truncated", "detail"
+             "truncated", "detail", "metadata"
            FROM "agent_log" WHERE "run" IN ($1, $4) AND "id" > $2 ORDER BY "id" LIMIT $3"#,
         vec![run.clone().into(), after.into(), limit.into(), unit.unwrap_or(run).into()],
       ),
       (None, Some(job)) => (
         r#"SELECT "id", "agent", "run", "chat_id", "at", "kind", "name", "parent", "ref", "text", "job_id", "state",
-             "truncated", "detail"
+             "truncated", "detail", "metadata"
            FROM "agent_log" WHERE "job_id" = $1 AND "id" > $2 ORDER BY "id" LIMIT $3"#,
         vec![job.into(), after.into(), limit.into()],
       ),

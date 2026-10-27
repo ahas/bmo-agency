@@ -7907,6 +7907,9 @@
             "description": "epoch milliseconds"
           },
           "fields": true,
+          "metadata": {
+            "description": "The metadata the writer kept beside the line, the JSON object itself or null where it kept none."
+          },
           "roomId": {
             "type": [
               "integer",
@@ -7943,6 +7946,7 @@
           "text",
           "at",
           "fields",
+          "metadata",
           "roomId",
           "round",
           "messageId"

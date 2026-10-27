@@ -160,6 +160,39 @@ fn an_older_record_with_no_ids_is_matched_first_in_first_out() {
 }
 
 #[test]
+fn a_settling_shell_call_keeps_its_changed_files_in_the_tool_use_result() {
+  let mut calls = PaneCalls::default();
+  let diff = json!({
+    "files": [{ "filePath": "/work/notes.txt", "hunks": [{ "oldStart": 1, "oldLines": 1,
+      "newStart": 1, "newLines": 1, "lines": ["-one", "+two"] }] }],
+    "moreFiles": 0,
+    "changedFiles": ["/work/notes.txt"],
+  });
+  calls.lines(&progress(
+    1_100,
+    json!({ "phase": "tool", "tool": "bash", "toolCallId": "a", "state": "in_progress",
+            "input": "{\"command\":\"printf two > notes.txt\"}", "inputCut": false }),
+  ));
+  let lines = calls.lines(&progress(
+    1_200,
+    json!({ "phase": "tool", "toolCallId": "a", "state": "completed", "bashEditDiff": diff }),
+  ));
+  let result = lines.iter().find(|line| line.kind == "tool-result").unwrap();
+  let metadata = result.metadata.as_ref().expect("the result carries its metadata");
+  let diff = metadata
+    .get("toolUseResult")
+    .and_then(|result| result.get("bashEditDiff"))
+    .expect("the diff stands where Claude Code puts it");
+
+  assert_eq!(diff.get("files").unwrap().as_array().unwrap().len(), 1);
+  assert_eq!(diff.get("moreFiles").unwrap(), &Json::parse("0").unwrap());
+  assert_eq!(
+    diff.get("changedFiles").unwrap().as_array().unwrap()[0].as_str(),
+    Some("/work/notes.txt")
+  );
+}
+
+#[test]
 fn a_settling_with_no_call_open_and_an_unnamed_start_file_nothing() {
   let mut calls = PaneCalls::default();
 
