@@ -244,10 +244,21 @@ fn the_manual_tells_what_an_answer_to_each_round_of_the_draft_process_is() {
     "opens with <<SEND>> is the message",
     "<<SKIP>> anywhere in an answer ends it with nothing sent",
     "In the last round you write the message",
+    "Only a message actually sent to the room counts as said",
+    "where an answer was drafted and not sent, the next turn says it",
   ] {
     assert!(drafting.contains(said), "{said}: {drafting}");
   }
   assert_eq!(drafting.trim().lines().count(), 1, "one paragraph: {drafting}");
+}
+
+#[test]
+fn a_draft_that_was_never_sent_is_no_message_the_duplicate_rule_holds() {
+  let rulebook = std::fs::read_to_string(tree().join("prompts/rules/answer-content.md")).unwrap();
+
+  assert!(rulebook.contains("Only a message actually sent to the room counts as said"));
+  assert!(rulebook.contains("Where an\n    answer was drafted and not sent, the next turn says it"));
+  assert!(rulebook.contains("Do not do again what was already done"));
 }
 
 #[test]

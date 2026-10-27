@@ -67,6 +67,9 @@
   - Never hand out a line each for being in the room, or for having talked with the chat agent earlier.
   - What is meant for the whole room is said in one line.
 - **Do not do again what was already done.**
+  - Only a message actually sent to the room counts as said. A draft, a round's note, a situation
+    note or the chat agent's own reasoning is never a message and never a reason to skip. Where an
+    answer was drafted and not sent, the next turn says it.
   - Never repeat a greeting, an introduction or an answer already given when nobody asked for it
     anew, and never report having done it (such as saying the greeting was already given): the chat agent's own doings that nobody asked
     about are not an answer.
