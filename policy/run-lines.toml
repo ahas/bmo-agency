@@ -25,7 +25,7 @@ needs = []
 keeps_session = true
 composes_typed_lines = true
 capabilities = ["room.tools", "web.read", "gate.translate", "gate.reference"]
-namespaces = ["bmo", "web", "gate"]
+namespaces = ["bmo", "web", "gate", "eye"]
 shown = [
   "bmo/brain_fold", "bmo/brain_consolidated", "bmo/brain_episode", "bmo/brain_learn", "bmo/brain_list",
   "bmo/brain_move", "bmo/brain_similar", "bmo/brain_unconsolidated", "bmo/say", "bmo/worker_ask",
