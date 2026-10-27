@@ -144,6 +144,7 @@ set -eu
 rm -rf tools/worker_ask/.placed
 mkdir -p tools/worker_ask/.placed
 cp bin/worker-ask-tool tools/worker_ask/tool.toml tools/worker_ask/worker_ask.json tools/worker_ask/.placed/
+bmo-pocket put tools/worker_ask/.placed --placed --service agency --allow room.tools
 '''
 
 [[deploy.step]]
