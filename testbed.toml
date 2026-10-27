@@ -119,6 +119,21 @@ mkdir -p tools/procedures/.placed
 cp bin/procedures-tool tools/procedures/tool.toml tools/procedures/.placed/
 '''
 
+# The worker tools are placed by the operations deploy tree, not built here: the tool host is handed them
+# under the worker namespace at every agency deployment, so a dsh worker's `worker` server has entries to
+# open and its session starts without an mcp-worker failure (docs/worker-mcp.md).
+[[deploy.step]]
+id = "place-worker-tools"
+phase = "after-flip"
+command = '''
+set -eu
+tools="$HOME/.local/share/bmo/deploy/tools"
+if [ -d "$tools/todo" ]; then
+  bmo-pocket put "$tools/todo" --placed --service agency \
+    --allow queue.read --allow room.chat --allow room.tools --allow approve --allow file_todo
+fi
+'''
+
 [[deploy.step]]
 id = "place-read-rulebook"
 phase = "before-flip"
