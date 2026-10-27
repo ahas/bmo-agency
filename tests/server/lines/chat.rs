@@ -251,6 +251,22 @@ fn the_manual_tells_what_an_answer_to_each_round_of_the_draft_process_is() {
 }
 
 #[test]
+fn the_deploy_waits_on_plain_quiet_and_a_worker_never_forces_it() {
+  let trees = tree();
+  let text = std::fs::read_to_string(trees.join("testbed.toml")).unwrap();
+  let declaration: toml::Value = toml::from_str(&text).unwrap();
+  let quiet = declaration["deploy"]["quiet"].as_str().unwrap();
+
+  assert!(quiet.contains(" quiet"), "{quiet}");
+  assert!(!quiet.contains("--with-jobs"), "the deploy counts no job: {quiet}");
+  assert!(
+    std::fs::read_to_string(trees.join("prompts/agents/worker/standing-rules.md"))
+      .unwrap()
+      .contains("never passes `--force-live`")
+  );
+}
+
+#[test]
 fn a_result_for_a_person_is_in_the_asker_s_language_and_what_agents_read_of_each_other_is_english() {
   let language = section(&composed(), "THE LANGUAGE YOU ANSWER IN");
   let prompt = |path: &str| std::fs::read_to_string(tree().join("prompts").join(path)).unwrap();

@@ -30,6 +30,11 @@ says.
   `bmo job land` refuse a commit or a reason line holding any other Hangul and name the commit, so it
   is reworded and closed again.
 
+## Deploying
+
+- **A job deploys only where its task says so,** with `bmo-testbed deploy` and the declared quiet. It
+  never passes `--force-live`: a deploy the gate refuses is reported, not forced.
+
 ## What never goes in a document or a comment
 
 - **No change history, and no rationale told through a past design.** A document states what is true
