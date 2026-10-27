@@ -107,21 +107,42 @@ async fn the_log_is_held_to_its_age_but_an_agents_newest_system_prompt_and_a_job
   insert("pal", "text", None, Some(9)).await;
   insert("other", "text", None, None).await;
 
-  // A writer's prune takes every line past the age, whoever wrote it, but its own agent's newest system
-  // prompt and a job's lines.
-  assert_eq!(agent_run_log(scratch.db(), "pal", now).await.unwrap(), 3);
+  // A writer's prune takes its own agent's lines past the age, but its newest system prompt and a job's
+  // lines; another agent's old lines are the clock's sweep.
+  assert_eq!(agent_run_log(scratch.db(), "pal", now).await.unwrap(), 2);
 
   let left = |agent: &'static str| {
     scratch.count(r#"SELECT COUNT(*) FROM "agent_log" WHERE "agent" = $1"#, vec![agent.into()])
   };
 
   assert_eq!(left("pal").await, 2, "its newest system prompt and the job's line stay");
-  assert_eq!(left("other").await, 0);
+  assert_eq!(left("other").await, 1, "another agent's old line waits for the sweep");
 
   // The sweep over the whole table keeps every agent's newest system prompt.
   insert("other", "prompt", Some("system"), None).await;
   insert("other", "text", None, None).await;
 
-  assert_eq!(run_log(scratch.db(), now).await.unwrap(), 1);
+  assert_eq!(run_log(scratch.db(), now).await.unwrap(), 2);
   assert_eq!((left("pal").await, left("other").await), (2, 1));
+}
+
+#[tokio::test]
+async fn a_pass_takes_the_old_lines_in_batches_and_finishes() {
+  let scratch = Scratch::new().await;
+  let now = 2_000_000_000_000;
+  let old = now - LOG_MOST_AGE_MS - 60_000;
+
+  scratch
+    .run(
+      r#"INSERT INTO "agent_log" ("agent", "run", "at", "kind", "text", "job_id")
+         SELECT 'pal', 'r', $1, 'text', 'line', NULL FROM generate_series(1, 1200)"#,
+      vec![old.into()],
+    )
+    .await;
+
+  assert_eq!(run_log(scratch.db(), now).await.unwrap(), 1200);
+  assert_eq!(
+    scratch.count(r#"SELECT COUNT(*) FROM "agent_log" WHERE "agent" = 'pal'"#, vec![]).await,
+    0
+  );
 }

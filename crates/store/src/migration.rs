@@ -35,6 +35,7 @@ mod m20261110_000002_pickers_retired;
 mod m20261111_000001_moments_in_milliseconds;
 mod m20261111_000002_picker_keys_retired;
 mod m20261112_000001_role_files;
+mod m20261113_000001_agent_log_prune;
 
 use sea_orm_migration::prelude::*;
 
@@ -149,6 +150,7 @@ impl MigratorTrait for Migrator {
       Box::new(m20261111_000001_moments_in_milliseconds::Migration),
       Box::new(m20261111_000002_picker_keys_retired::Migration),
       Box::new(m20261112_000001_role_files::Migration),
+      Box::new(m20261113_000001_agent_log_prune::Migration),
     ]
   }
 

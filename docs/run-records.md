@@ -60,6 +60,10 @@ about a message is not agency's: the judgement records belong to the units that 
 - It is bounded three ways — a per-line cut, the last few thousand lines per agent, and an age —
   pruned by the writer as it goes, and over the whole table by agency's own clock: by its server as
   it starts and once a day after.
+- The prune reads one agent's lines newest first only as far as its bounds reach, then deletes the
+  lines past them in short batches; each delete statement has a statement timeout, so no pass holds
+  one long transaction on the table. Partial indexes on the lines no job wrote carry both the
+  per-agent pages and the age.
 - The per-line cut falls only on what a machine leaves behind: a tool's arguments, what a tool
   handed back, and a prompt handed to a model are cut, while what a run or the bot wrote in its own
   words — a job's report, a failure reason, a gate's verdict — is kept whole, since those are the
