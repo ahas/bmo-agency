@@ -5090,7 +5090,7 @@
         "tags": [
           "jobs"
         ],
-        "summary": "Jobs: recent, by room, by worker, by holder, running.",
+        "summary": "Jobs newest first: by state or running, by item, room, worker or holder.",
         "responses": {
           "200": {
             "description": "Answered.",
@@ -5114,6 +5114,24 @@
           "bad-request"
         ],
         "parameters": [
+          {
+            "name": "running",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "true the jobs starting or running, false every other"
+            }
+          },
+          {
+            "name": "itemId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "description": ""
+            }
+          },
           {
             "name": "roomId",
             "in": "query",
@@ -5147,7 +5165,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "description": ""
+              "description": "one state, or several comma-separated"
             }
           },
           {
@@ -5156,7 +5174,16 @@
             "required": false,
             "schema": {
               "type": "integer",
-              "description": "a cursor: an id or a time in epoch milliseconds, as the route states"
+              "description": "a job's id: the jobs after it, nearest to it"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "description": "a job's id: the jobs before it"
             }
           },
           {
@@ -5165,7 +5192,7 @@
             "required": false,
             "schema": {
               "type": "integer",
-              "description": ""
+              "description": "how many jobs a page holds: 50 where none is named, at most 500"
             }
           }
         ]

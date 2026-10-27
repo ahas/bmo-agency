@@ -732,13 +732,20 @@ nothing of its placement.
 | POST | `/assignments` | Assign a worker to an item for the harness holding it, and hold it until the job starts or the hold runs out. |
 | GET | `/assignments/{assignmentId}` | One assignment. |
 | PATCH | `/assignments/{assignmentId}` | Release an assignment, or hold it longer. |
-| GET | `/jobs` | Jobs: recent, by room, by worker, by holder, running. |
+| GET | `/jobs` | Jobs newest first: by state or running, by item, room, worker or holder. |
 | POST | `/jobs` | Run an item on its assigned worker: the harness hands over the item's content and the lease it holds, and the agency launches the worker's session on it; refused only while no provider of the order can answer. |
 | GET | `/jobs/{jobId}` | One job and what its turn spent, `usage`. |
 | PATCH | `/jobs/{jobId}` | End a job with its outcome, or stop it; its assignment is released. |
 | GET | `/jobs/{jobId}/prompt` | The prompt the job was launched with. |
 | POST | `/instruction-texts` | The work-order step's line composed from an instruction. |
 | POST | `/item-filings` | File an item in the job service for the turn an agent is carrying now: its room as the item's `scope`, and `asked-by=owner` where every message of that turn is the owner's. |
+
+The list answers the newest jobs first, `limit` of them (50 where it names none, at most 500), and pages by a
+job's id as the runs' list does: with `before`, the jobs before that id; with `after`, the jobs after it nearest
+to it; `more` says whether more lie beyond the page in the direction it was asked. It narrows by `state`, one
+state or several comma-separated; by `running`, `true` the jobs starting or running and `false` every other;
+by `itemId`; by `roomId`; by `workerName`; and by `holderName`, every filter named holding at once. A query
+naming anything else, or a value that does not read as its filter's kind, is refused 400.
 
 A job's `itemId` and `leaseId` are the harness's references, kept as given. The harness renews the lease,
 reads the job's progress, questions and outcome from its fields and events, and reports and closes the item

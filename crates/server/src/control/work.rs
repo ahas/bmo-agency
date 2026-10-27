@@ -1502,37 +1502,120 @@ impl Route for ListJobs {
 
   async fn answer(&self, call: Call) -> Result<Response, Refused> {
     let db = &call.ground().db;
-    let after = call.query("after").and_then(|after| after.parse::<i64>().ok()).unwrap_or(0);
-    let limit = limit(&call);
-    let room = call.query("roomId").and_then(|room| room.parse::<i64>().ok());
-    let worker = call.query("workerName").unwrap_or_default();
-    let holder = call.query("holderName").unwrap_or_default();
-    let state = call.query("state").unwrap_or_default();
+    let asked = job_search(&call)?;
+    // After a cursor the nearest jobs are the oldest of the newer ones, so they are read upward.
+    let upward = asked.after.is_some();
     let sql = format!(
       r#"SELECT {JOB_COLUMNS} FROM "jobs"
-         WHERE "id" > $1 AND ($2 = '' OR "worker_name" = $2) AND ($3 = '' OR "holder_name" = $3)
-           AND ($4 = '' OR "state" = $4) AND ($5::bigint IS NULL OR "room_id" = $5)
-         ORDER BY "id" LIMIT $6"#
+         WHERE ($1::bigint IS NULL OR "id" > $1) AND ($2::bigint IS NULL OR "id" < $2)
+           AND ($3::text IS NULL OR "worker_name" = $3) AND ($4::text IS NULL OR "holder_name" = $4)
+           AND ($5::jsonb = '[]'::jsonb OR "state" IN (SELECT jsonb_array_elements_text($5::jsonb)))
+           AND ($6::boolean IS NULL OR ("state" IN ('starting', 'running')) = $6)
+           AND ($7::bigint IS NULL OR "room_id" = $7) AND ($8::bigint IS NULL OR "item_id" = $8)
+         ORDER BY "id" {} LIMIT $9"#,
+      if upward { "ASC" } else { "DESC" }
     );
+    let states = serde_json::to_string(&asked.states).unwrap_or_else(|_| "[]".to_owned());
     let rows = all(
       db,
       &sql,
       vec![
-        after.into(),
-        worker.into(),
-        holder.into(),
-        state.into(),
-        room.map(Into::into).unwrap_or(DbValue::BigInt(None)),
-        ((limit + 1) as i64).into(),
+        asked.after.into(),
+        asked.before.into(),
+        asked.worker.into(),
+        asked.holder.into(),
+        states.into(),
+        asked.running.into(),
+        asked.room.into(),
+        asked.item.into(),
+        ((asked.limit + 1) as i64).into(),
       ],
     )
     .await?;
     let mut items: Vec<Value> = rows.iter().map(job_value).collect::<Result<_, _>>()?;
-    let more = items.len() > limit;
-    items.truncate(limit);
+    let more = items.len() > asked.limit;
+
+    items.truncate(asked.limit);
+
+    if upward {
+      items.reverse();
+    }
 
     Ok(answer(StatusCode::OK, page(items, more)))
   }
+}
+
+/// Every name the jobs' list is asked by (docs/api.md, 「assignments and jobs」).
+const JOB_FILTERS: [&str; 9] = [
+  "running",
+  "itemId",
+  "roomId",
+  "workerName",
+  "holderName",
+  "state",
+  "after",
+  "before",
+  "limit",
+];
+
+// What the jobs' list is narrowed by and where its page stands, as the query names it.
+struct JobSearch {
+  after: Option<i64>,
+  before: Option<i64>,
+  limit: usize,
+  running: Option<bool>,
+  states: Vec<String>,
+  item: Option<i64>,
+  room: Option<i64>,
+  worker: Option<String>,
+  holder: Option<String>,
+}
+
+fn job_search(call: &Call) -> Result<JobSearch, Refused> {
+  if let Some(name) = call.query_names().into_iter().find(|name| !JOB_FILTERS.contains(&name.as_str())) {
+    return Err(bad(format!("the jobs are not narrowed by {name}")));
+  }
+
+  let named =
+    |name: &str| call.query(name).map(|value| value.trim().to_owned()).filter(|value| !value.is_empty());
+  let number = |name: &str| {
+    named(name)
+      .map(|value| value.parse::<i64>().map_err(|_| bad(format!("{name} is a whole number"))))
+      .transpose()
+  };
+  let running = named("running")
+    .map(|value| match value.as_str() {
+      "true" => Ok(true),
+      "false" => Ok(false),
+      _ => Err(bad("running is true or false")),
+    })
+    .transpose()?;
+  let limit = match number("limit")? {
+    Some(limit) if limit < 1 => return Err(bad("limit is a whole number of at least 1")),
+    Some(limit) => usize::try_from(limit).unwrap_or(500).min(500),
+    None => 50,
+  };
+
+  Ok(JobSearch {
+    after: number("after")?,
+    before: number("before")?,
+    limit,
+    running,
+    states: named("state")
+      .map(|states| {
+        states
+          .split(',')
+          .map(str::trim)
+          .filter(|state| !state.is_empty())
+          .map(str::to_owned)
+          .collect()
+      })
+      .unwrap_or_default(),
+    item: number("itemId")?,
+    room: number("roomId")?,
+    worker: named("workerName"),
+    holder: named("holderName"),
+  })
 }
 
 crate::moved!(ListJobs);

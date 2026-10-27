@@ -1258,7 +1258,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Jobs: recent, by room, by worker, by holder, running. */
+        /** Jobs newest first: by state or running, by item, room, worker or holder. */
         get: operations["listJobs"];
         put?: never;
         /** Run an item on its assigned worker: the harness hands over the item's content and the lease it holds, and the agency launches the worker's session on it; as the job ends the agency gives the lease back and queues the report in the room. */
@@ -6453,11 +6453,14 @@ export interface operations {
     listJobs: {
         parameters: {
             query?: {
+                running?: boolean;
+                itemId?: number;
                 roomId?: number;
                 workerName?: string;
                 holderName?: string;
                 state?: string;
                 after?: number;
+                before?: number;
                 limit?: number;
             };
             header?: never;

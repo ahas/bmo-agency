@@ -356,17 +356,27 @@ pub struct ListAssignmentsQuery {
 #[derive(Debug, Clone, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ListJobsQuery {
+  /// true the jobs starting or running, false every other
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub running: Option<bool>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub item_id: Option<i64>,
   #[serde(skip_serializing_if = "Option::is_none")]
   pub room_id: Option<i64>,
   #[serde(skip_serializing_if = "Option::is_none")]
   pub worker_name: Option<String>,
   #[serde(skip_serializing_if = "Option::is_none")]
   pub holder_name: Option<String>,
+  /// one state, or several comma-separated
   #[serde(skip_serializing_if = "Option::is_none")]
   pub state: Option<String>,
-  /// a cursor: an id or a time in epoch milliseconds, as the route states
+  /// a job's id: the jobs after it, nearest to it
   #[serde(skip_serializing_if = "Option::is_none")]
   pub after: Option<i64>,
+  /// a job's id: the jobs before it
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub before: Option<i64>,
+  /// how many jobs a page holds: 50 where none is named, at most 500
   #[serde(skip_serializing_if = "Option::is_none")]
   pub limit: Option<i64>,
 }

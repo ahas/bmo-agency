@@ -102,6 +102,7 @@ mod hooks;
 mod host_run;
 
 // The job run members built so far; the reset stands beside this and is declared with its module.
+mod job_list;
 mod job_run {
   mod claude {
     mod failure;
