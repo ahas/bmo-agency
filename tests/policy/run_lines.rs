@@ -12,7 +12,7 @@ fn the_worker_line_keeps_its_session_and_leaves_its_tools_to_its_agents_role() {
     RUN_LINES.capabilities("chat"),
     ["room.tools", "web.read", "gate.translate", "gate.reference"]
   );
-  assert_eq!(RUN_LINES.namespaces("chat"), ["bmo", "web", "gate"]);
+  assert_eq!(RUN_LINES.namespaces("chat"), ["bmo", "web", "gate", "eye"]);
   assert!(RUN_LINES.capabilities("gate").is_empty());
 }
 
