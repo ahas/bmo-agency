@@ -124,7 +124,7 @@ cp bin/procedures-tool tools/procedures/tool.toml tools/procedures/.placed/
 # open and its session starts without an mcp-worker failure (docs/worker-mcp.md).
 [[deploy.step]]
 id = "place-worker-tools"
-phase = "after-flip"
+phase = "after-health"
 command = '''
 set -eu
 tools="$HOME/.local/share/bmo/deploy/tools"
