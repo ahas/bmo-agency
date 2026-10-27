@@ -96,7 +96,9 @@ composed into a system prompt, and what the chat agent's own prompt is made of.
 - **`prompts/agents/chat/manual.md` is the operating manual** — long work, the queue and the owner's
   approval, the worker's run and its close, host work, the fast track, images, the response protocol
   with its sentinels, the language an answer is written in, what the room hears of the agent's tools,
-  the draft process, the answer rules, promises, and a turn past its clock. It is how the chat agent works at all, and it says when to act.
+  the draft process, the answer rules, promises, and a turn past its clock. It says how a message of each kind reaches the
+  agent, a voice note among them arriving as what was said in it rather than as a placeholder it cannot open. It is how
+  the chat agent works at all, and it says when to act.
   It names no tool of the program the session runs on, since one manual serves every program the chat
   stands on.
 - **The tools paragraph follows the manual,** composed at each launch for the program the session runs
