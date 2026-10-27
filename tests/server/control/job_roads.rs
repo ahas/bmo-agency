@@ -5,6 +5,8 @@
 
 use std::collections::{HashMap, VecDeque};
 use std::os::unix::fs::PermissionsExt;
+use std::path::{Path, PathBuf};
+use std::process::Command;
 
 use agency_server::Service;
 use agency_server::config::Config;
@@ -212,4 +214,157 @@ fn a_job_launched_again_is_told_it_continues_the_work_in_the_checkout() {
   assert!(prompt.contains("its balance is spent"), "{prompt}");
   assert!(prompt.contains("checkout"), "{prompt}");
   assert!(prompt.ends_with("# An item"), "{prompt}");
+}
+
+// A git command in a directory, with the identity a machine without one configured still commits under.
+fn git(path: &Path, args: &[&str]) -> String {
+  let done = Command::new("git")
+    .arg("-C")
+    .arg(path)
+    .args(args)
+    .env("GIT_AUTHOR_NAME", "tester")
+    .env("GIT_AUTHOR_EMAIL", "tester@example.com")
+    .env("GIT_COMMITTER_NAME", "tester")
+    .env("GIT_COMMITTER_EMAIL", "tester@example.com")
+    .output()
+    .unwrap();
+
+  assert!(done.status.success(), "{}", String::from_utf8_lossy(&done.stderr));
+
+  String::from_utf8_lossy(&done.stdout).trim().to_owned()
+}
+
+fn at(path: &Path) -> String {
+  path.to_string_lossy().into_owned()
+}
+
+// A base worker in a repository of its own and a support worker whose worktree is not there: the base
+// stands on main, and the first road that can answer is the pane program's.
+async fn support_standing(scratch: &Scratch, home: &Path) -> (Ground, PathBuf, PathBuf, String) {
+  let env = home.join("data").join("env");
+  let key = env.join(&DEEPSEEK.presence.key_file);
+
+  std::fs::create_dir_all(&env).unwrap();
+  std::fs::write(&key, "a key\n").unwrap();
+  std::fs::set_permissions(&key, std::fs::Permissions::from_mode(0o600)).unwrap();
+
+  let order: Vec<OrderEntry> = ["deepseek", "claude-code", "codex", "openrouter", "registered"]
+    .iter()
+    .map(|name| OrderEntry {
+      name: (*name).to_owned(),
+      enabled: true,
+    })
+    .collect();
+  let ground = ground_on(scratch.db().clone(), home);
+
+  store::seed::settle(scratch.db(), &deployment(&ground.machine())).await.unwrap();
+  set_provider_order(scratch.db(), &order).await.unwrap();
+
+  let base = home.join("web");
+  let cwd = home.join("web-w2");
+  let mut init = Command::new("git");
+
+  init.args(["init", "-q", "-b", "main"]).arg(&base);
+
+  let done = init.output().unwrap();
+
+  assert!(done.status.success(), "{}", String::from_utf8_lossy(&done.stderr));
+
+  std::fs::write(base.join("README.md"), "# The base\n").unwrap();
+  std::fs::write(
+    base.join("package.json"),
+    r#"{"name":"support-test","scripts":{"worktree:setup":"touch setup-ran"}}"#,
+  )
+  .unwrap();
+  git(&base, &["add", "-A"]);
+  git(&base, &["commit", "-q", "-m", "the base"]);
+
+  let head = git(&base, &["rev-parse", "HEAD"]);
+
+  scratch
+    .run(
+      r#"INSERT INTO "agents" ("name", "kind", "cwd") VALUES ('web', 'worker', $1)"#,
+      vec![at(&base).into()],
+    )
+    .await;
+  scratch
+    .run(
+      r#"INSERT INTO "agents" ("name", "kind", "cwd", "support_of", "support_slot")
+         VALUES ('web-w2', 'worker', $1, 'web', 2)"#,
+      vec![at(&cwd).into()],
+    )
+    .await;
+  scratch
+    .run(
+      r#"INSERT INTO "jobs" ("id", "item_id", "lease_id", "holder_name", "assignment_id", "worker_name", "state",
+           "token_count", "started_at", "prompt")
+         VALUES (8, 80, 1, 'harness', 1, 'web-w2', 'running', 0, 0, '# An item')"#,
+      vec![],
+    )
+    .await;
+
+  (ground, base, cwd, head)
+}
+
+// A stand-in for the session: it takes the turn only where the worktree already stands at the base's head.
+struct Standing {
+  at: PathBuf,
+  head: String,
+  providers: Vec<String>,
+  stood: bool,
+}
+
+impl Carrier for Standing {
+  async fn carry(&mut self, taken: &Road, _prompt: &str) -> Result<TurnEnd, String> {
+    self.providers.push(taken.provider.clone());
+    self.stood = self.at.join(".git").exists() && git(&self.at, &["rev-parse", "HEAD"]) == self.head;
+
+    Ok(TurnEnd::answered("job-8", "Done."))
+  }
+}
+
+// A first launch on a fresh support makes its worktree from the base's main, sets it up by the
+// repository's own script, and only then stands the pane program the first road goes through
+// (docs/worker-slots.md, 「Names and places」); a worktree gone is made again at the next launch.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_first_launch_on_a_fresh_support_makes_its_worktree_before_the_pane_road_takes_the_turn() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let (ground, base, cwd, head) = support_standing(&scratch, home.path()).await;
+  let job = || Carried {
+    id: 8,
+    worker: "web-w2",
+    prompt: "# An item\n\nDo the work.",
+  };
+  let mut carrier = Standing {
+    at: cwd.clone(),
+    head: head.clone(),
+    providers: vec![],
+    stood: false,
+  };
+  let (state, outcome, _, _) = carry_job(&ground, &job(), &mut carrier).await.unwrap().expect("an end");
+
+  assert_eq!((state.as_str(), outcome), ("ended", None));
+  assert_eq!(carrier.providers, vec!["deepseek"], "the first road is the pane program's");
+  assert!(carrier.stood, "the worktree stood before the pane road's turn was taken");
+  assert!(cwd.join(".git").exists());
+  assert!(cwd.join("setup-ran").exists(), "the repository's own setup ran in it");
+  assert_eq!(git(&cwd, &["rev-parse", "HEAD"]), head, "detached at the base's main");
+
+  // The worktree gone, the next launch makes it again by the same cut.
+  git(&base, &["worktree", "remove", "--force", &at(&cwd)]);
+  assert!(!cwd.exists());
+
+  let mut again = Standing {
+    at: cwd.clone(),
+    head: head.clone(),
+    providers: vec![],
+    stood: false,
+  };
+
+  carry_job(&ground, &job(), &mut again).await.unwrap().expect("an end");
+
+  assert!(again.stood, "a missing worktree is made again at the next launch");
+  assert!(cwd.join(".git").exists());
+  assert_eq!(git(&cwd, &["rev-parse", "HEAD"]), head);
 }

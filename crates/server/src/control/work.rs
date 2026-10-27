@@ -1247,6 +1247,11 @@ pub async fn carry_job<C: Carrier>(
   job: &Carried<'_>,
   carrier: &mut C,
 ) -> Result<Option<Ended>, String> {
+  // A support worker's worktree stands before any road takes its turn, since the turn's program is stood
+  // in it and a program handed a folder that is not there never starts (docs/worker-slots.md, 「Names and
+  // places」).
+  crate::places::checkouts::ensure_support_checkout(ground, job.worker).await?;
+
   let mut left: Vec<Closed> = vec![];
   let mut roads: Vec<(Road, Option<String>)> = vec![];
   let mut values: Vec<Value> = vec![];

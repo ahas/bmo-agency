@@ -39,11 +39,12 @@
   own: the directory is part of every Claude session's prefix, and a session is kept under its
   directory's name, so a path that moved per job would cold-start every session and could resume
   none of them.
-- **The worktree is made the first time a job lands on it,** from the base's main branch, and the
-  repository's own setup is then run in it: the script named `worktree:setup` in its
-  `package.json`, where there is one. What it installs and links is that repository's own; the operations repository's
-  installs its workspace from its lockfiles and links its env files, the way the base checkout has
-  them.
+- **The worktree is made at the launch, before the worker's program is stood, the first time a job
+  lands on it** — on whichever road the launch takes. It is detached at the base's main branch, read
+  off the base checkout, and the repository's own setup is then run in it: the script named
+  `worktree:setup` in its `package.json`, where there is one. What it installs and links is that
+  repository's own; the operations repository's installs its workspace from its lockfiles and links
+  its env files, the way the base checkout has them.
   - **The submodules come first,** in every repository and before its script: each submodule the
     commit pins is cloned where it is missing and put on the pinned commit, so a project kept in a
     repository of its own stands in every checkout as it does in the base. A folder an older commit
@@ -51,6 +52,10 @@
     which would refuse the clone, so it is emptied first. What is open inside a submodule is left
     as it stands, and a submodule git will not move over it fails the setup. A repository's own
     script may bring them the same way before it installs, so a checkout set up by hand has them too.
+- **A support row whose worktree is missing gets it made again at its next launch,** by the same
+  cut: detached at the base's main, the submodules first and the repository's setup after them. A
+  directory holding anything that is not a checkout is somebody's and is refused rather than taken
+  over, and a worktree whose setup failed is taken away so that the next launch starts it afresh.
 - **The setup is run again every time a checkout's files may have moved under its installs:**
   whenever the runner, a work order or a borrowing puts a checkout on a job's branch — a support
   worktree or a base checkout alike — and whenever a close has rebased a branch onto main. Main

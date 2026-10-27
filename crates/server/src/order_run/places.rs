@@ -760,74 +760,13 @@ async fn rewind(source: &Path, commit: &str, cwd: &Path) -> Result<(), Fault> {
   bring_submodules(cwd).await
 }
 
-// A place's submodules forced onto the commit's pins, as the place itself is.
+// A place's submodules brought onto the commit's pins, as the place itself is.
 async fn bring_submodules(cwd: &Path) -> Result<(), Fault> {
   let place = cwd.to_path_buf();
 
-  tokio::task::spawn_blocking(move || submodules_to_pins(&place))
+  tokio::task::spawn_blocking(move || crate::places::checkouts::bring_submodules(&place, true))
     .await
     .map_err(|why| why.to_string())?
-}
-
-// Git in a place, asked nothing on its terminal and handed no editor: whether it worked, and what it said.
-fn git_here(cwd: &Path, args: &[&str]) -> (bool, String) {
-  let ran = std::process::Command::new("git")
-    .args(args)
-    .current_dir(cwd)
-    .env("GIT_EDITOR", "true")
-    .env("GIT_TERMINAL_PROMPT", "0")
-    .stdin(Stdio::null())
-    .output();
-
-  match ran {
-    Ok(done) => (done.status.success(), String::from_utf8_lossy(&done.stdout).trim().to_owned()),
-    Err(_) => (false, String::new()),
-  }
-}
-
-// Every submodule of a place brought onto the commit's pins, what is open in one thrown away, since nobody
-// works in a place. A pinned submodule that is not checked out where it now stands keeps only what git
-// ignored in it, which would refuse the clone, so it is emptied first.
-fn submodules_to_pins(cwd: &Path) -> Result<(), Fault> {
-  let (declared, paths) =
-    git_here(cwd, &["config", "--file", ".gitmodules", "--get-regexp", r"^submodule\..*\.path$"]);
-
-  // No `.gitmodules`, or one declaring nothing: git answers no, and there is nothing to bring.
-  if !declared {
-    return Ok(());
-  }
-
-  for path in paths.lines().filter_map(|line| line.split_once(' ').map(|(_, path)| path)) {
-    let pinned = git_here(cwd, &["ls-files", "--stage", "--", path]).1.starts_with("160000 ");
-    let at = cwd.join(path);
-
-    if pinned
-      && !at.join(".git").exists()
-      && let Ok(entries) = std::fs::read_dir(&at)
-    {
-      for entry in entries.flatten() {
-        let gone = if entry.file_type().is_ok_and(|kind| kind.is_dir()) {
-          std::fs::remove_dir_all(entry.path())
-        } else {
-          std::fs::remove_file(entry.path())
-        };
-
-        if let Err(why) = gone {
-          return Err(format!("{}: {why}", entry.path().display()));
-        }
-      }
-    }
-  }
-
-  if !git_here(cwd, &["submodule", "sync", "--quiet", "--recursive"]).0 {
-    return Err("could not read the submodules' addresses".to_owned());
-  }
-
-  if !git_here(cwd, &["submodule", "update", "--quiet", "--init", "--recursive", "--force"]).0 {
-    return Err(format!("could not bring the submodules of {} to their pins", cwd.display()));
-  }
-
-  Ok(())
 }
 
 /// What a finished branch leaves in the list, as the consumer names it — the checkout its order works in,
