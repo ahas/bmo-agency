@@ -39,7 +39,7 @@ use sha2::{Digest, Sha256};
 use store::{all, one, run as written};
 
 use crate::chat_stand_in::{fallback_ended, stand_in_turn};
-use crate::companion::guard::spent_out;
+use crate::companion::guard::{Spent, spent_out};
 use crate::companion::handoff::{Companion, Due, hand_over};
 use crate::companion::overtaken;
 use crate::companion::run::{NoAnswer, Reply, Tally, let_go, run_turn};
@@ -925,6 +925,22 @@ impl HerdrSessions {
       return;
     }
 
+    // A failed run asks for a fresh session no more than once a minute: a turn that keeps failing must not
+    // leave the room in a handoff loop of a row every ten seconds (docs/companions.md, 「A turn that goes
+    // nowhere」).
+    let key = format!("handoff_asked:{agent}:{}", room.unwrap_or(0));
+    let now = now_ms();
+    let asked_at = crate::queue::settings::get(&ground.db, &key)
+      .await
+      .ok()
+      .flatten()
+      .and_then(|at| at.parse::<i64>().ok());
+
+    if asked_at.is_some_and(|at| now - at < 60_000) {
+      return;
+    }
+
+    let _ = crate::queue::settings::set(&ground.db, &key, &now.to_string()).await;
     let handed = crate::handoff::asked(ground.vars(), agent, reason, room).await;
 
     log.write(&ground.db, Line::note(handed.said())).await;
@@ -987,6 +1003,16 @@ impl HerdrSessions {
       .room_session(agent, chat_id, provider, &model)
       .await
       .map_err(|why| fault(FaultKind::Refused, detail(why)))?;
+    let limits = &COMPANION_RUNNER.limits;
+    let guarded = provider.declared().resident.as_ref().is_some_and(|resident| resident.turn_limits);
+
+    // A room session carried over its bound by a turn that never ended opens a fresh generation rather
+    // than judging every new turn over the bound at once.
+    if guarded && (session.spent.ms >= limits.ms() || session.spent.calls >= limits.calls) {
+      session = sessions::open_generation(&db, agent, chat_id).await.map_err(store_fault)?;
+      log.write(&db, Line::note(COMPANION_RUNNER.log.cleared.clone())).await;
+    }
+
     let hash = format!("{:x}", Sha256::digest(system.as_bytes()));
 
     if session.system_hash.as_deref() != Some(hash.as_str()) {
@@ -1013,7 +1039,6 @@ impl HerdrSessions {
       _ => prompt.to_owned(),
     };
     let generation = generation_of(&settings);
-    let guarded = provider.declared().resident.as_ref().is_some_and(|resident| resident.turn_limits);
 
     drop(keeping);
 
@@ -1070,6 +1095,7 @@ impl HerdrSessions {
       Ok(_) | Err(NoAnswer::Overtaken) => return Ok(Came::Stopped),
       Err(no) => {
         let (reason, engine) = failure_of(no);
+        let _ = sessions::mark_spent(&db, agent, chat_id, Spent::default()).await;
 
         ground.events.publish(RoadWalked::of(
           chat_id,

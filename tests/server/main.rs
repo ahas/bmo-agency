@@ -24,6 +24,7 @@ mod companion {
   mod guard;
   mod reset;
   mod run;
+  mod sessions;
 }
 mod config;
 mod control {

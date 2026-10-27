@@ -106,7 +106,8 @@ pub async fn open_generation(
     db,
     "INSERT INTO room_sessions (agent, chat_id, generation, opened_at) VALUES ($1, $2, 1, $3)
      ON CONFLICT (agent, chat_id) DO UPDATE SET generation = room_sessions.generation + 1, opened_at = excluded.opened_at,
-       harness_session = NULL, harness_road = NULL, placement = NULL, handoff_note = NULL
+       harness_session = NULL, harness_road = NULL, placement = NULL, handoff_note = NULL,
+       spent_calls = 0, spent_ms = 0
      RETURNING *",
     vec![agent.into(), chat_id.into(), now().into()],
   )
@@ -127,7 +128,7 @@ pub async fn hand_over(
   let row = one(
     db,
     "UPDATE room_sessions SET generation = generation + 1, opened_at = $1, harness_session = NULL,
-       harness_road = NULL, placement = NULL, handoff_note = $2
+       harness_road = NULL, placement = NULL, handoff_note = $2, spent_calls = 0, spent_ms = 0
      WHERE agent = $3 AND chat_id = $4 RETURNING *",
     vec![now().into(), note.into(), agent.into(), chat_id.into()],
   )
