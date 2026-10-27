@@ -124,6 +124,17 @@ cp bin/procedures-tool tools/procedures/tool.toml tools/procedures/.placed/
 # The worker tools are placed by the operations deploy tree, not built here: the tool host is handed them
 # under the worker namespace at every agency deployment, so a dsh worker's `worker` server has entries to
 # open and its session starts without an mcp-worker failure (docs/worker-mcp.md).
+# The graph reads are the graph service's own MCP server, registered as an external server under the
+# worker namespace beside the queue tools (docs/worker-mcp.md): the host lists its tools for a worker's
+# dsh session, so the namespace is never empty.
+[[deploy.step]]
+id = "place-worker-graph"
+phase = "after-health"
+command = '''
+set -eu
+bmo-pocket put --mcp deploy/worker-graph.server.toml --allow graph.read --service agency
+'''
+
 [[deploy.step]]
 id = "place-worker-tools"
 phase = "after-health"

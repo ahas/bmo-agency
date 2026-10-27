@@ -45,6 +45,17 @@
 - The scripts keep every verb they had. They are what a person types and what a chat session calls,
   and the reading verbs answer there exactly as they answer here.
 
+## How the host serves them
+
+- **Two registrations stand under the `worker` namespace.** The queue's `todo_list` and `todo_show` are
+  the operations deploy tree's placed `todo` tool, registered by agency's deployment. The graph's
+  `graph_search`, `graph_get`, `graph_list` and `graph_impact` are the graph service's own MCP server,
+  registered as an external server under `worker` with `graph.read`. Agency's deployment registers both,
+  so a dsh worker's `worker` server opens with entries.
+- **The dsh worker overlay names a namespace only where the host serves it.** The worker line's
+  `web` and `worker` namespaces are the host's; a namespace with no entry would answer not-found and
+  dsh would log an `mcp-worker` failure rather than start.
+
 ## Why they are the worker's alone
 
 - **They are shown under the `worker` namespace to a session holding `graph.read` and `queue.read`,**
