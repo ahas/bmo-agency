@@ -107,3 +107,50 @@ async fn a_worker_carries_its_prefix_documents_and_a_change_writes_what_it_names
     1
   );
 }
+
+// A worker with runs behind it and a job of its starting or running reads working, so the queue sends no
+// second launch into the program already carrying the first; once the job is over it reads idle again
+// (docs/agent-control.md, 「A worker's pane lock」). The defect that made a launch sit silent in a busy
+// program was a worker reading idle while its job still ran.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_worker_with_a_running_job_reads_working_and_one_without_reads_idle() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let data = home.path().join("data");
+  let token = "secret";
+
+  std::fs::create_dir_all(&data).unwrap();
+  scratch
+    .run(
+      r#"INSERT INTO "agents" ("name", "kind", "cwd", "runs") VALUES ('worker-a', 'worker', '/work/worker-a', 5)"#,
+      vec![],
+    )
+    .await;
+  scratch
+    .run(
+      r#"INSERT INTO "jobs" ("item_id", "lease_id", "holder_name", "assignment_id", "worker_name", "state",
+           "started_at", "prompt")
+         VALUES (80, 1, 'harness', 1, 'worker-a', 'running', $1, '# An item')"#,
+      vec![agency_server::now_ms().into()],
+    )
+    .await;
+
+  let server = standing::stand_server(home.path(), &data, &scratch.address(), token);
+  let port = server.port;
+  let worker = ask(port, token, reqwest::Method::GET, "/workers/worker-a", None).await.1;
+
+  assert_eq!(worker["state"], "working", "{worker}");
+  assert_eq!(worker["runCount"], 5);
+  assert_eq!(worker["itemId"], 80);
+
+  scratch
+    .run(
+      r#"UPDATE "jobs" SET "state" = 'ended', "outcome" = 'succeeded' WHERE "worker_name" = 'worker-a'"#,
+      vec![],
+    )
+    .await;
+
+  let worker = ask(port, token, reqwest::Method::GET, "/workers/worker-a", None).await.1;
+
+  assert_eq!(worker["state"], "idle", "{worker}");
+}

@@ -368,3 +368,45 @@ async fn a_first_launch_on_a_fresh_support_makes_its_worktree_before_the_pane_ro
   assert!(cwd.join(".git").exists());
   assert_eq!(git(&cwd, &["rev-parse", "HEAD"]), head);
 }
+
+// A worker with runs behind it gets its launch's turn: the carrier the launch hands it writes `start`
+// rather than the launch sitting silently in a program already carrying another turn
+// (docs/agent-control.md, 「A worker's pane lock」).
+struct Starts {
+  lines: std::sync::Arc<std::sync::Mutex<Vec<String>>>,
+}
+
+impl Carrier for Starts {
+  async fn carry(&mut self, _taken: &Road, _prompt: &str) -> Result<TurnEnd, String> {
+    self.lines.lock().unwrap().push("start".to_owned());
+
+    Ok(TurnEnd::answered("job-7", "Done."))
+  }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_launch_on_a_worker_with_runs_writes_start() {
+  use std::sync::{Arc, Mutex};
+  use std::time::{Duration, Instant};
+
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = standing(&scratch, home.path()).await;
+
+  scratch.run(r#"UPDATE "agents" SET "runs" = 3 WHERE "name" = 'helper'"#, vec![]).await;
+
+  let started = Arc::new(Mutex::new(Vec::new()));
+  let mut carrier = Starts {
+    lines: started.clone(),
+  };
+
+  carry_job(&ground, &job(), &mut carrier).await.unwrap().expect("an end");
+
+  let began = Instant::now();
+
+  while started.lock().unwrap().is_empty() && began.elapsed() < Duration::from_secs(60) {
+    tokio::time::sleep(Duration::from_millis(50)).await;
+  }
+
+  assert_eq!(&*started.lock().unwrap(), &["start".to_owned()]);
+}

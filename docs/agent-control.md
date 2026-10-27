@@ -267,6 +267,11 @@ The owner's words:
   and nothing else: while one runs a job there, a word to the other goes into the other's own pane at
   once, and the two programs work in the one directory side by side. The owner tells a worker something on
   its screen to have it done now, which is why the checkout is not what a word waits on.
+- **A worker reads working while a turn is its.** It reads working while a job of its is starting or
+  running, or while its program carries a turn no such job names — one this process carries, or one
+  kept in flight — and idle only where a launch on it can go in. The queue reads that state, so a
+  second launch is never written into a program already carrying a turn: bmo-tui would take the
+  inbox file and its dsh session would start nothing, leaving the job silently running.
 - **No cycle.** The job lock is always taken before the pane lock, and the word takes no job lock.
 
 ### A gate's pool
