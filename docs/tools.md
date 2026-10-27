@@ -89,3 +89,20 @@ belongs to no one service is a repository of its own, not a folder here.
 - **Which rulebooks are the run's** is its record's `research.rulebooks`. A name the run was not handed
   is refused with the ones it was, and a rulebook that cannot be read is refused with why. A run past
   its research close still reads one, since reading searches nothing.
+
+
+## The worker ask
+
+- **`tools/worker_ask`** declares `bmo/worker_ask` to a session holding `room.tools`: a chat agent hands a
+  resident worker a small coding task as a turn into the worker's session, with no queue item, lease or
+  report.
+- **Its arguments** are the worker's name, the words, an optional folder and an optional time bound. The
+  folder is the asking agent's scratch workspace under the data root where none is named, made on first
+  use; a worker's own checkout may be named only in the owner's turn. The bound is ten minutes where none
+  is named, and never more.
+- **Its answer** is the turn's answer text and the paths of the files the turn created or changed in the
+  folder, read from the run's recorded edit diffs. The exchange is a turn of the worker's like any other,
+  written to its log, so the console shows it.
+- **It refuses** a worker that is not free (`409`), a worker that stands on a node where the folder is not,
+  an unknown worker, and a checkout named outside the owner's turn. A task worth keeping and reviewing is
+  a queue item, filed with `file_item`, not asked this way.

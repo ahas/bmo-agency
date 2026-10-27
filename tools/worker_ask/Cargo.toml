@@ -1,0 +1,19 @@
+[package]
+name = "worker-ask-tool"
+description = "Asks a resident worker a small coding task as a turn into its session, with no queue item, and answers with the words it wrote and the files it changed."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[[bin]]
+name = "worker-ask-tool"
+path = "src/main.rs"
+test = false
+
+[dependencies]
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tool-call = { path = "../../crates/tool-call" }

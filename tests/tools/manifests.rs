@@ -30,7 +30,7 @@ fn every_folder_under_tools_is_a_tool_named_after_it_whose_executable_is_its_cra
 
   folders.sort();
 
-  assert_eq!(folders, ["procedures", "read_rulebook"]);
+  assert_eq!(folders, ["procedures", "read_rulebook", "worker_ask"]);
 
   for folder in &folders {
     let manifest = read(&tools().join(folder).join("tool.toml"));
@@ -83,4 +83,23 @@ fn the_rulebook_readers_entry_is_declared_as_its_tool_answers_it() {
   assert_eq!(schema["required"], serde_json::json!(["name"]));
   assert_eq!(schema["properties"]["name"]["type"], "string");
   assert_eq!(schema["properties"]["name"]["minLength"], 1);
+}
+
+#[test]
+fn the_worker_ask_entry_is_declared_as_its_tool_answers_it() {
+  let folder = tools().join("worker_ask");
+  let manifest = read(&folder.join("tool.toml"));
+  let entry = &manifest["entry"].as_array().unwrap()[0];
+
+  assert_eq!(text(entry, &["namespace"]), worker_ask_tool::NAMESPACE);
+  assert_eq!(text(entry, &["name"]), worker_ask_tool::NAME);
+  assert_eq!(text(entry, &["title"]), worker_ask_tool::TITLE);
+  assert_eq!(text(entry, &["description"]), worker_ask_tool::DESCRIPTION);
+  assert_eq!(words(&entry["capabilities"]), worker_ask_tool::CAPABILITIES);
+
+  let schema: serde_json::Value =
+    serde_json::from_str(&std::fs::read_to_string(folder.join(text(entry, &["input"]))).unwrap()).unwrap();
+
+  assert_eq!(schema["required"], serde_json::json!(["worker", "words"]));
+  assert_eq!(schema["properties"]["timeBoundSeconds"]["maximum"], 600);
 }

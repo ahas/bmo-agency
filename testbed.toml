@@ -74,6 +74,7 @@ binaries = [
   "llm-gateway",
   "procedures-tool",
   "read-rulebook-tool",
+  "worker-ask-tool",
 ]
 
 # Agency's own deploy tree, which every unit, tool and document of agency names and which holds nothing
@@ -133,6 +134,16 @@ if [ -d "$tools/todo" ]; then
   bmo-pocket put "$tools/todo" --placed --service agency \
     --allow queue.read --allow room.chat --allow room.tools --allow approve --allow file_todo
 fi
+'''
+
+[[deploy.step]]
+id = "place-worker-ask"
+phase = "before-flip"
+command = '''
+set -eu
+rm -rf tools/worker_ask/.placed
+mkdir -p tools/worker_ask/.placed
+cp bin/worker-ask-tool tools/worker_ask/tool.toml tools/worker_ask/worker_ask.json tools/worker_ask/.placed/
 '''
 
 [[deploy.step]]

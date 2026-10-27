@@ -28,7 +28,8 @@ capabilities = ["room.tools", "web.read", "gate.translate", "gate.reference"]
 namespaces = ["bmo", "web", "gate"]
 shown = [
   "bmo/brain_fold", "bmo/brain_consolidated", "bmo/brain_episode", "bmo/brain_learn", "bmo/brain_list",
-  "bmo/brain_move", "bmo/brain_similar", "bmo/brain_unconsolidated", "bmo/say", "web/web_fetch",
+  "bmo/brain_move", "bmo/brain_similar", "bmo/brain_unconsolidated", "bmo/say", "bmo/worker_ask",
+  "web/web_fetch",
   "web/web_search", "gate/translate", "gate/reference_index", "gate/reference_piece", "gate/reference_search",
 ]
 # The gate's address and the path of its token file, which the gate's translate tool calls it with.

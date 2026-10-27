@@ -103,6 +103,17 @@ launching its run. When to file is in the manual; this is how. Your tools are th
 - **The lease is the guard.** An item already leased is not taken again, and one lease stands on
   an item at a time.
 
+## A small task without an item
+
+- **`worker_ask`** hands a free resident worker a small coding task as a turn and answers with its words
+  and the files it changed. Use it for a task that is done when the worker answers and needs no review:
+  a one-file change, a question about a checkout, a quick experiment in a scratch folder.
+- **A task worth keeping and reviewing is an item.** File it with `file_item` when it needs a record, a
+  report, a holder's approval, more than one worker or a run that outlasts the turn. `worker_ask` writes
+  no item, takes no lease and leaves no report.
+- **The folder** is the asking agent's scratch workspace where none is named; a worker's own checkout may
+  be named only in the owner's turn. A worker that is busy is refused unless the turn is the owner's.
+
 ## Choosing the item and the worker
 
 - **When a worker is free, you choose what it runs.** A free worker takes the first item of the

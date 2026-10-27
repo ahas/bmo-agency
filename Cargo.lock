@@ -42,6 +42,7 @@ dependencies = [
  "tokio",
  "toml",
  "tool-call",
+ "worker-ask-tool",
 ]
 
 [[package]]
@@ -4376,6 +4377,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "df79d97927682d2fd8adb29682d1140b343be4ac0f08fd68b7765d9c059d3945"
 dependencies = [
  "memchr",
+]
+
+[[package]]
+name = "worker-ask-tool"
+version = "0.1.0-rev.81"
+dependencies = [
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tool-call",
 ]
 
 [[package]]

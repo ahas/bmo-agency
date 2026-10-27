@@ -898,6 +898,20 @@ The owner's words:
   - A person's turn still working when a job arrives is waited out before the job touches the program
     (「Runs and sessions in one pane」).
 
+### Asking a worker directly
+
+- **A chat agent may hand a free worker a small coding task as a turn, with no item.** `worker_ask` names
+  the worker, the words, an optional folder and an optional bound; agency puts the words into the worker's
+  session on its usual road and answers with the turn's answer and the files it changed in the folder.
+- **The folder** is the asking agent's scratch workspace under the data root where none is named, made on
+  first use. A worker's own checkout may be named only in the owner's turn.
+- **A free worker only.** A worker that is working, queued or carrying a turn is refused with `409`; only
+  the owner's turn may queue behind it. The ask counts against the same one turn at a time and the same
+  concurrency cap as a job.
+- **A worker that stands on a node** is refused unless the folder is on that node.
+- **The exchange is a turn of the worker's**, written to its log like any other, so the console shows it.
+  No item, lease or report is written. A task worth keeping and reviewing is filed as an item.
+
 ### Words that arrive while a turn is working
 
 The owner's words:
