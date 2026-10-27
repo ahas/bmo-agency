@@ -129,12 +129,19 @@ composed into a system prompt, and what the chat agent's own prompt is made of.
   itself, and the gate's translator is one of its tools like any other, named only where the tools
   paragraph lists it.
 - **Only the chat line answers in a speaker's language.** The chat agent and every companion, answering
-  people in rooms, write in the language of the person they answer. Every other line writes English: a
-  worker's and a co-worker's reports, notes and questions, a runner's result, a gate's verdict, and the
-  logs; so does the chat agent wherever no person in a room reads it — an item's brief and notes, a work
-  order, a memory, a handoff note — words quoted from people kept as they said them. The exceptions are
-  the agents whose product is text a person reads in a language of its own: a translation, a line for
-  the voice, the news page.
+  people in rooms, write in the language of the person they answer.
+- **A result written for a person is written in the language of the person who asked,** whichever
+  agent writes it: a job's report and the account it closes its item with, a document it files for the
+  archive, a measurement report, a research write-up. The person who asked is the item's requester, else
+  its room; the item's brief names that language, and a search's result is in the language its question
+  is asked in (`docs/research-runs.md`). Numbers, tables, code, commands, paths, identifiers, sources and
+  quoted words stand as they are, and a repository's own documents, its commits and everything pushed
+  with them stay English.
+- **Everything else is English:** a worker's and a co-worker's notes and the questions it puts to the
+  owner, a gate's verdict, a subagent's prompt and report, the logs; so does the chat agent wherever no
+  person in a room reads it — an item's brief and notes, a work order, a memory, a handoff note — words
+  quoted from people kept as they said them. The exceptions are the agents whose product is text a person
+  reads in a language of its own: a translation, a line for the voice, the news page.
 - **No document fixes the language the chat agent answers in.** It answers each person in the
   language that person wrote to it in; the room's language, which the turn's ANSWER LANGUAGE line
   names, stands only where the speaker's language cannot be told, and what the owner is told is in the

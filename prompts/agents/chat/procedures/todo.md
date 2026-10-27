@@ -35,7 +35,8 @@ launching its run. When to file is in the manual; this is how. Your tools are th
   owner's approval; it reads the item's brief, its work order and its notes, so the brief carries
   the whole instruction and the notes carry the record and the conditions added later. Write it in
   English, self-contained, and keep identifiers, paths, commands and product names exactly as
-  written.
+  written. Name in it, on a line of its own, the language the run writes its results for a person in:
+  the language of the person who asked, the item's requester, else the room's (`Results in: <language>`).
 - **Quote the owner only where his wording is itself the requirement:** a name, a label or a
   sentence to be used as he said it. Those words go in a ```` ```text ```` fence exactly as he said
   them, and their English in plain prose follows right after the fence, saying all they say and

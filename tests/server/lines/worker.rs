@@ -210,6 +210,15 @@ async fn a_worker_s_rules_carry_the_report_trailer_before_its_documents_and_a_br
 
   assert!(trailer_at < rules.find("DOCUMENT docs/area.md:").unwrap(), "{rules}");
   assert!(!rules.contains("{{"), "every mark of the trailer is filled: {rules}");
+  // A job's result for a person is written in the language its brief names (docs/worker-language.md).
+  assert!(
+    rules.contains("A result written for a person is written in the language of the person who asked"),
+    "{rules}"
+  );
+  assert!(
+    rules.contains("in the language the item's brief names for the person who asked"),
+    "{rules}"
+  );
   assert!(rules.contains("plain-writing.md"), "{rules}");
 
   let branch = worker_run(&ground, &trees, None, None, "claude-opus-5", &cwd).await.unwrap();

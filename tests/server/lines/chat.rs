@@ -251,15 +251,29 @@ fn the_manual_tells_what_an_answer_to_each_round_of_the_draft_process_is() {
 }
 
 #[test]
-fn only_the_chat_line_writes_in_a_speaker_s_language_and_every_other_line_writes_english() {
+fn a_result_for_a_person_is_in_the_asker_s_language_and_what_agents_read_of_each_other_is_english() {
   let language = section(&composed(), "THE LANGUAGE YOU ANSWER IN");
   let prompt = |path: &str| std::fs::read_to_string(tree().join("prompts").join(path)).unwrap();
+  let rule = "A result written for a person is written in the language of the person who asked";
 
   assert!(
-    language.contains("Only you, answering people in rooms, write in a speaker's language"),
+    language.contains("You, answering people in rooms, write in a speaker's language"),
     "{language}"
   );
-  assert!(prompt("agents/worker/standing-rules.md").contains("Everything a job writes is English"));
+  // A result written for a person is in the asker's language, which the item's brief names for a run
+  // (docs/agent-documents.md, docs/worker-language.md).
+  assert!(language.contains(rule), "{language}");
+  assert!(
+    language.contains("every brief names the language of the person who asked"),
+    "{language}"
+  );
+  assert!(prompt("agents/chat/procedures/todo.md").contains("(`Results in: <language>`)"));
+  assert!(prompt("agents/worker/standing-rules.md").contains(rule));
+  assert!(prompt("agents/worker/standing-rules.md").contains("Everything else a job writes is English"));
+  assert!(
+    prompt("agents/worker/plugin/skills/bmo-closing-a-job/SKILL.md")
+      .contains("written in the language of the\nperson who asked, as the item's brief names it")
+  );
   assert!(prompt("agents/companion/handoff.md").contains("Write it in English"));
 
   for runner in ["agents/search/branch.md", "agents/browse/task.md"] {

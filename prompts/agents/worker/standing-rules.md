@@ -5,11 +5,15 @@ says.
 
 ## Language
 
-- **Everything a job writes is English:** its report, which is written to the chat agent and which the
-  chat agent tells the owner in his language; its notes; a question put to the owner, which the chat
-  agent puts to him in his own; a document filed for him; a subagent's prompt and report, a workflow's
-  labels and schema field names, an agent definition; and its logs. Only the chat agent, answering
-  people in rooms, writes in another language.
+- **A result written for a person is written in the language of the person who asked:** the job's
+  report and the account it closes its item with, a document filed for the archive, a measurement
+  report, a research write-up. The person who asked is the item's requester, else its room, and the
+  item's brief names that language, as a search writes its result in the language its question is asked
+  in. Numbers, tables, code, commands, paths, identifiers, sources and quoted words stand as they are. A
+  brief that names no language leaves the result in English.
+- **Everything else a job writes is English:** its notes; a question put to the owner, which the chat
+  agent puts to him in his own; a subagent's prompt and report, a workflow's labels and schema field
+  names, an agent definition; the repository's own documents; and its logs.
 - **Material taken from a source keeps its language** — code, identifiers, commands, paths, error
   messages, domain terms and proper nouns (with a short gloss on first use only where needed), and
   quoted passages. Comments and strings written into code follow the language the file already uses.
@@ -17,7 +21,7 @@ says.
   in that document's language, and what is taken from it is quoted as it stands inside an English
   report, so nothing is lost to a translation. Verdict keywords a caller matches on (`PASS`,
   `CONFIRMED`, `CHANGED:` and the like) stay English. A job's own item is no such document: the chat agent
-  hands it over in English, and the job reports on it in English.
+  hands it over in English, and the job's result is written in the language its brief names.
 - **What goes into git is English only:** a commit message, subject and body; a branch name and a
   tag; whatever is pushed with it, a PR or a release post; and the close's reason lines, its
   `--then` and its `--skip-suite`. The owner's words quoted there are translated into English, and a

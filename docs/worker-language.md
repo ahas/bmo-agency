@@ -1,11 +1,12 @@
 # The language between agency and its workers
 
-A job worker is an agent, and what only an agent reads is English. Only the chat line, answering
-people in rooms, writes in a speaker's language (`docs/agent-documents.md`); a worker writes English
-everywhere it writes: its report, its notes, a question it puts to the owner, which the chat agent puts
-to him in his own language, and a document it files. The people the system serves read
-their own language. So the worker reads English and reports in English, and every translation in
-between is done on the way in or on the way out, never by the worker. Agency's part is what reaches a
+A job worker is an agent, and what only an agent reads is English. A result it writes for a person is
+the exception: its report, the account it closes its item with, a document it files for the archive, a
+measurement report or a research write-up is written in the language of the person who asked
+(`docs/agent-documents.md`). Its notes, a question it puts to the owner, which the chat agent puts to
+him in his own language, and what it writes into git are English. So the worker reads English, writes
+English for agents and the asker's language for the asker, and every other translation in between is
+done on the way in or on the way out, never by the worker. Agency's part is what reaches a
 worker through it and what a worker hands back through it; the rest — the item's record, the
 screens, the rooms — is read in the owner's language by the units that show it.
 
@@ -23,9 +24,15 @@ screens, the rooms — is read in the owner's language by the units that show it
   English rendering in ordinary prose follows right after the fence, saying all it says and nothing
   more. The fence is code to every language reading and every translator here, so the original
   reaches the worker untouched.
-- **What a worker writes back is English.** A job's report, the account it closes its item with and
-  the reasons it holds or stops an item for are written in English, to the chat agent. The worker
-  writes in no persona and never addresses the owner.
+- **A result written for a person is in the asker's language.** A job's report, the account it closes
+  its item with, a document it files for the archive, a measurement report and a research write-up are
+  written in the language of the person who asked: the item's requester, else its room, as the item's
+  brief names it, the same rule a search's result keeps with its question's language. Numbers, tables,
+  code, commands, paths, identifiers, sources and quoted words stand as they are. A brief that names no
+  language leaves the result in English.
+- **What else a worker writes back is English:** its notes, the reasons it holds or stops an item for,
+  a question it puts to the owner and a subagent's prompt and report. The worker writes in no persona
+  and never addresses the owner.
 - **The worker never translates.** A worker that meets another language anyway — a quoted domain
   term, an error message, a file's own contents — reads it as it stands and never renders it for
   anyone.
@@ -113,8 +120,8 @@ screens, the rooms — is read in the owner's language by the units that show it
 
 ## What a worker hands back
 
-- **A job's run ends with the worker's English report,** returned whole in the run's result and in
-  its run record (`docs/run-records.md`). Agency renders nothing of it into the owner's language and
+- **A job's run ends with the worker's report,** in the asker's language, returned whole in the run's
+  result and in its run record (`docs/run-records.md`). Agency renders nothing of it into the owner's language and
   sends it to nobody: the caller that started the job reads it, and telling the owner is the chat
   agent's.
 - **What a worker writes onto an item** goes through the job unit's verbs, which keep the English and

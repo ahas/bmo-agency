@@ -44,6 +44,11 @@ made of is `docs/companions.md`.
   `prompts/roles/translator.md`, stands before the instructions of the purpose it is asked for. It holds
   no bundle: no web, no tool.
 
+- **Whatever role writes it, a result written for a person is written in the language of the person
+  who asked** (`docs/agent-documents.md`): a worker's report and the documents it files, in the language
+  the item's brief names for its requester, else its room; a searcher's result, in its question's
+  language. The worker role's standing rules and the job-end report rule say so; what agents read of
+  each other stays English.
 - **A role with no bundle of its own still names what the agent is for.** A gate's runs hold what
   their line declares (`docs/launch-lines.md`) and nothing of a role.
 - **A role may name a prompt its agents are given before their own,** `prompt`, a file under
