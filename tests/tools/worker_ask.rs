@@ -17,13 +17,14 @@ struct Stub {
   folder: String,
 }
 
-async fn worker(State(_stub): State<Stub>, Path(name): Path<String>) -> (StatusCode, Json<Value>) {
+async fn worker(State(stub): State<Stub>, Path(name): Path<String>) -> (StatusCode, Json<Value>) {
   let body = match name.as_str() {
     "helper" => json!({ "kind": "worker", "state": "idle", "sessionId": "s1", "cwd": "/work/helper" }),
     "busy" => json!({ "kind": "worker", "state": "working", "sessionId": "s1", "cwd": "/work/busy" }),
     "node" => {
       json!({ "kind": "worker", "state": "idle", "sessionId": "s1", "cwd": "/work/node", "nodeName": "n1" })
     }
+    "own" => json!({ "kind": "worker", "state": "idle", "sessionId": "s1", "cwd": stub.folder }),
     _ => return (StatusCode::NOT_FOUND, Json(json!({ "error": "no worker" }))),
   };
 
@@ -112,7 +113,12 @@ async fn a_busy_unknown_or_noded_worker_is_refused() {
     time_bound_seconds: Some(30),
   };
 
-  for (worker, said) in [("busy", "busy"), ("ghost", "no worker"), ("node", "stands on a node")] {
+  for (worker, said) in [
+    ("busy", "busy"),
+    ("ghost", "no worker"),
+    ("node", "stands on a node"),
+    ("own", "own checkout"),
+  ] {
     let answer = serde_json::to_string(
       &ask_with(&Api { port, token: None }, &session(home.path()), asked(worker)).await,
     )
