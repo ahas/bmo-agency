@@ -244,6 +244,16 @@ session on the owner's ask is `docs/session-resets.md`.
     (`docs/api.md`, 「Events」); a fold that never reached it, held off by a busy pane or a session too
     short to fold, publishes nothing.
 
+## A turn whose program dies
+
+- **A turn whose program is gone is closed by the queue's pass.** Every kept turn is read against the
+  execution rows its run put in; where a row's recorded pid and birth are gone and the run has no end,
+  the pass closes the run with the moment and a reason naming the room, run, pid and that it died
+  silent, and hands its end back as a finished turn does. The room's one turn is freed, so the next
+  instruction opens at once and the words the dead turn did not answer come to that next turn.
+- **No replacement session is started where a pane is kept:** the pane is left as it stands, and the
+  next turn opens the session it needs.
+
 ## A worker's session per model
 
 - **A worker keeps its last Claude Code session on each model.** The session its last turn answered

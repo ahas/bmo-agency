@@ -264,6 +264,7 @@ fn clocks(ground: &Arc<Ground>) {
         agency_server::queue::reconcile::pass(&ground.db, &ground.roots.data)
           .await
           .map_err(|refusal| refusal.detail)?;
+        agency_server::turn_pickup::reap_dead(&ground).await;
         agency_server::control::work::reap_stale(&ground)
           .await
           .map(|_| ())

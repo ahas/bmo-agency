@@ -392,6 +392,51 @@ pub async fn hand_back(ground: &Ground, place: &Place, turn: &InFlight, came: Ca
   forget(db, &turn.run).await;
 }
 
+/// A turn whose program died with its run still open: closed with the moment and the reason, as the
+/// program's own end would close it, so the room's turn is free and the words it did not answer wait for
+/// the next turn. A pane that is still standing but whose turn's collector is gone is left alone.
+pub async fn reap_dead(ground: &Ground) -> usize {
+  let mut closed = 0;
+
+  for turn in in_flight(&ground.db).await.unwrap_or_default() {
+    let place = Place::of(&ground.roots.data, &turn.agent);
+    let Some(run) = crate::door::place_run::read_run(&place.path) else { continue };
+
+    if run.ended_at.is_some() {
+      forget(&ground.db, &turn.run).await;
+      continue;
+    }
+
+    let rows = open_rows(ground, &turn.run).await;
+    let dead = rows.iter().any(|row| crate::queue::reconcile::resident_gone(&row.body));
+
+    if !dead {
+      continue;
+    }
+
+    let (pid, birth) = rows
+      .iter()
+      .find_map(|row| {
+        let resident = row.body.get("resident")?;
+        Some((
+          resident.get("pid").and_then(Value::as_i64),
+          resident.get("birth").and_then(Value::as_str).map(str::to_owned),
+        ))
+      })
+      .unwrap_or((None, None));
+    let reason = format!(
+      "The turn died silent: run {} in room {:?} on pid {:?} birth {:?} had no end.",
+      turn.run, turn.chat_id, pid, birth
+    );
+
+    crate::door::place_run::end_run(&place.path, now_ms()).ok();
+    hand_back(ground, &place, &turn, Came::Failed(reason)).await;
+    closed += 1;
+  }
+
+  closed
+}
+
 // The road a picked-up chat turn walked, from its start to now.
 fn road_walked(chat_id: i64, turn: &InFlight, provider: &str, reply: Option<&Reply>) -> RoadWalked {
   let spend = reply.map_or(&[][..], |reply| reply.spend.as_slice());

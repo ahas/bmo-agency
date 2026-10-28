@@ -356,3 +356,47 @@ async fn a_turn_still_working_is_waited_on_and_one_no_record_names_ends_failed()
   let _ = program.kill();
   let _ = program.wait();
 }
+
+#[tokio::test]
+async fn a_turn_whose_program_died_is_closed_and_its_room_freed() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = ground(&scratch, home.path());
+  let place = Place::of(&ground.roots.data, "agent-dead");
+  let turn = in_flight("chat:7:1", "agent-dead", 7, Some(7), None, None);
+  let mut ended = ground.events.subscribe::<TurnEnded>();
+
+  std::fs::create_dir_all(&place.path).unwrap();
+  std::fs::write(
+    place.path.join("run.json"),
+    json!({ "name": "chat:7:1", "title": "a turn", "person": false,
+            "startedAt": now_ms() - 1_000, "endedAt": null })
+    .to_string(),
+  )
+  .unwrap();
+  let _ = store::run(
+    scratch.db(),
+    r#"INSERT INTO "agent_executions" ("id", "body") VALUES ('dead-execution', $1)"#,
+    vec![
+      json!({
+        "id": "dead-execution", "agent": "agent-dead", "line": "chat", "provider": "deepseek",
+        "startedAt": now_ms() - 1_000, "endedAt": null,
+        "inboxTurn": { "name": "chat:7:1" },
+        "resident": { "place": place.path.to_string_lossy(), "pid": 99999999, "birth": "gone" }
+      })
+      .to_string()
+      .into(),
+    ],
+  )
+  .await;
+  keep(scratch.db(), &turn).await;
+
+  assert_eq!(reap_dead(&ground).await, 1);
+  assert!(in_flight_turns(&scratch).await.is_empty(), "the room's turn is freed");
+  let run = agency_server::door::place_run::read_run(&place.path).unwrap();
+  assert!(run.ended_at.is_some(), "the run carries its end");
+  let end = ended.ready().expect("the turn's end is published");
+  assert_eq!(end.session, "agent-dead@worker");
+  assert!(matches!(end.end.outcome, agent_session::Outcome::Failed));
+  assert!(end.end.reason.unwrap_or_default().contains("died silent"));
+}

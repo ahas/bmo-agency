@@ -84,6 +84,11 @@ pub const NEVER_PLACED: &str = "interrupted: no start acknowledged and no pane a
 pub const ENDED_BY_ITS_HOOKS: &str = "its collector gone, the program's own hooks ended its turn";
 pub const PROGRAM_GONE: &str = "interrupted: its collector and its program are both gone";
 
+/// Whether a row's resident program is gone, by the pid and birth it recorded.
+pub fn resident_gone(body: &Map<String, Value>) -> bool {
+  body.get("resident").is_some_and(|resident| gone(Some(resident)))
+}
+
 // A resident turn whose collector is gone — agency's server restarting under it, among others — on what its program
 // says of it, since the program outlives the turn: ended where the program's hooks wrote a turn's end in its place
 // since the turn began, interrupted where the program the row names is gone. A program still standing that wrote
