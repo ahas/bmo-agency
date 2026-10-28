@@ -277,7 +277,13 @@ pub fn endpoint_launch(account: &Account, model: &str, effort: &str) -> Result<C
           .join(",")
       ))
     })?;
-  let env = account_env(Some(account), &Runs::Here)?;
+  let mut env = account_env(Some(account), &Runs::Here)?;
+  // An Endpoint account's environment names no `PATH` of its own, and a program stood with an
+  // empty `PATH` finds none of the binaries the deployment keeps under the home; the launching
+  // process's own is carried over so the CLI is found where this machine keeps it.
+  if let Some(path) = std::env::var_os("PATH").filter(|path| !path.is_empty()) {
+    env.insert("PATH".to_owned(), Some(path.to_string_lossy().into_owned()));
+  }
 
   Ok(Command {
     args: vec![
