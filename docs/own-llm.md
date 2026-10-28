@@ -277,6 +277,22 @@ never the model's name.
 - **How the gateway is handed the registrations' keys:** its launcher reads each file into its child's
   environment alone (「The gateway」 below).
 
+## The gateway's members
+
+- **A deployment may serve providers of its own beside the registry.** `llm-gateway/members.json` under
+  the data root names each member: the model name the selector shows, its LiteLLM provider (`deepseek`,
+  `openrouter`, `anthropic`, `openai`), the provider's model id and API base, and the key file under
+  `env/` — never a key. The launcher adds one `model_list` entry per member beside the registrations.
+- **A member's model name is what Claude Code's `/model` asks for.** The gateway still listens on its
+  loopback port alone; health, a streamed answer and a tool call are asked through the Messages API at
+  `/v1/messages`.
+- **The gateway's `/health` is LiteLLM's own and can fail on a LiteLLM installation with no Prisma
+  database;** `/v1/models` with the gateway key is the health of the table. A member whose provider
+  refuses its key is named by its provider's error, never answered by another member.
+- **Claude's subscription OAuth and a local Qwen endpoint are stage 2.** They need a token file (or an
+  Anthropic API-compatible address) and the Qwen server's address; the member file has no entry for
+  either until those exist.
+
 ## The gateway
 
 - **What it is:** a LiteLLM proxy behind a front of agency's, standing as its own user unit on loopback

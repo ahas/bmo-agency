@@ -14,7 +14,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use llm_gateway::child::{Place, start, write_private};
 use llm_gateway::front::{Front, Status, router};
 use llm_gateway::keys::{read_key, usable_secret_file};
-use llm_gateway::table::{HOOKS, Table, gateway_table, table_digest};
+use llm_gateway::table::{HOOKS, Member, Table, gateway_table_with_members, table_digest};
 use sqlx::Connection;
 use store::open_read;
 use store::registry::registrations;
@@ -59,7 +59,25 @@ fn store_address(data_root: &Path) -> Option<String> {
 /// The registry as it stands, read without a write: the store is opened read-only each time, so the
 /// gateway never holds a lock the bot waits on. A registry not settled yet — the gateway coming up
 /// before the bot — reads as nothing to serve for now.
-async fn registry_table(address: &str) -> Option<Table> {
+/// The members the deployment serves besides the registry, from the file BMO_LLM_GATEWAY_MEMBERS names
+/// or `<data root>/llm-gateway/members.json`; a file that does not read leaves the registry alone and is
+/// said.
+fn members(data_root: &Path) -> Vec<Member> {
+  let path = named("BMO_LLM_GATEWAY_MEMBERS")
+    .map(PathBuf::from)
+    .unwrap_or_else(|| data_root.join("llm-gateway").join("members.json"));
+  let Ok(text) = std::fs::read_to_string(&path) else { return vec![] };
+
+  match serde_json::from_str::<Vec<Member>>(&text) {
+    Ok(members) => members,
+    Err(why) => {
+      eprintln!("llm-gateway: the members file {} does not read: {why}", path.display());
+      vec![]
+    }
+  }
+}
+
+async fn registry_table(address: &str, members: &[Member]) -> Option<Table> {
   let read = async {
     let mut store = open_read(address).await?;
     let read = registrations(&mut store).await;
@@ -67,7 +85,7 @@ async fn registry_table(address: &str) -> Option<Table> {
     read
   };
   match read.await {
-    Ok(registry) => Some(gateway_table(&registry)),
+    Ok(registry) => Some(gateway_table_with_members(&registry, members)),
     Err(fault) => {
       eprintln!("llm-gateway: the registry could not be read: {fault}");
       None
@@ -83,8 +101,8 @@ fn write_status(path: &Path, status: &Status) {
   let _ = write_private(path, &format!("{written}\n"));
 }
 
-async fn refresh(front: &Front, place: &Place, store: &str) {
-  let Some(table) = registry_table(store).await else {
+async fn refresh(front: &Front, place: &Place, store: &str, members: &[Member]) {
+  let Some(table) = registry_table(store, members).await else {
     return;
   };
   let digest = table_digest(&table, |key_file| read_key(&place.env_dir, key_file), &place.hook_texts());
@@ -111,6 +129,7 @@ async fn main() -> ExitCode {
     );
     return ExitCode::FAILURE;
   };
+  let members = members(&data_root);
   let hooks_dir = code_root().join("crates/llm-gateway/hooks");
   let place = Arc::new(Place {
     folder: data_root.join("llm-gateway"),
@@ -164,7 +183,7 @@ async fn main() -> ExitCode {
       beat.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
       loop {
         beat.tick().await;
-        refresh(&front, &place, &store).await;
+        refresh(&front, &place, &store, &members).await;
       }
     }
   });

@@ -3,7 +3,7 @@
 
 use std::collections::{BTreeMap, HashMap};
 
-use llm_gateway::table::{HOOKS, Table, gateway_table, table_digest};
+use llm_gateway::table::{HOOKS, Member, Table, gateway_table, gateway_table_with_members, table_digest};
 use serde_json::{Value, json};
 use store::registry::{RegisteredAddress, Registration};
 
@@ -201,5 +201,41 @@ fn an_address_that_keeps_role_files_says_so_on_every_entry_it_stands_behind_and_
       .as_array()
       .unwrap()
       .contains(&"roles.handler".into())
+  );
+}
+
+#[test]
+fn members_are_served_under_their_own_names_on_their_providers() {
+  let members = [
+    Member {
+      name: "deepseek-flash".into(),
+      provider: "deepseek".into(),
+      model: "deepseek-flash".into(),
+      api_base: Some("https://api.deepseek.com/v1".into()),
+      key_file: "deepseek.key".into(),
+      wait_seconds: 300,
+    },
+    Member {
+      name: "openrouter-deepseek-flash".into(),
+      provider: "openrouter".into(),
+      model: "deepseek/deepseek-v4.1-flash-1017".into(),
+      api_base: Some("https://openrouter.ai/api/v1".into()),
+      key_file: "openrouter.key".into(),
+      wait_seconds: 300,
+    },
+  ];
+  let table = gateway_table_with_members(&[], &members);
+  let config: Value = serde_json::from_str(&table.text).unwrap();
+  let entries = config["model_list"].as_array().unwrap();
+
+  assert_eq!(entries.len(), 2);
+  assert_eq!(entries[0]["model_name"], "deepseek-flash");
+  assert_eq!(entries[0]["litellm_params"]["model"], "deepseek/deepseek-flash");
+  assert_eq!(entries[1]["model_name"], "openrouter-deepseek-flash");
+  assert_eq!(entries[1]["litellm_params"]["model"], "openrouter/deepseek/deepseek-v4.1-flash-1017");
+  assert_eq!(entries[1]["litellm_params"]["api_key"], "os.environ/BMO_KEY_OPENROUTER_KEY");
+  assert_eq!(
+    table.key_files.get("BMO_KEY_OPENROUTER_KEY").map(String::as_str),
+    Some("openrouter.key")
   );
 }

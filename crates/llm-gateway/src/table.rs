@@ -6,7 +6,7 @@
 
 use std::collections::BTreeMap;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use store::registry::Registration;
 
@@ -75,7 +75,8 @@ struct Info {
 #[derive(Clone, Serialize)]
 struct Params {
   model: String,
-  api_base: String,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  api_base: Option<String>,
   /// An address that takes no key is still handed one, since the OpenAI client will not go without;
   /// the backend reads none.
   api_key: String,
@@ -110,7 +111,35 @@ struct General {
   master_key: String,
 }
 
+/// One member a deployment serves besides the registry: a provider's own API behind a model name the
+/// selector shows. Its key is named by its file and never written here.
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+pub struct Member {
+  /// The model name a caller asks for.
+  pub name: String,
+  /// The LiteLLM provider: `deepseek`, `openrouter`, `anthropic` or `openai`.
+  pub provider: String,
+  /// The model id the provider's API knows.
+  pub model: String,
+  /// The provider's API base, where it has one.
+  #[serde(default)]
+  pub api_base: Option<String>,
+  /// The key file under the data root's `env/`.
+  pub key_file: String,
+  /// The request wait in seconds.
+  #[serde(default = "default_wait")]
+  pub wait_seconds: i64,
+}
+
+fn default_wait() -> i64 {
+  300
+}
+
 pub fn gateway_table(registrations: &[Registration]) -> Table {
+  gateway_table_with_members(registrations, &[])
+}
+
+pub fn gateway_table_with_members(registrations: &[Registration], members: &[Member]) -> Table {
   let mut key_files = BTreeMap::new();
   let mut models = Vec::new();
 
@@ -122,7 +151,7 @@ pub fn gateway_table(registrations: &[Registration]) -> Table {
       }
       let params = Params {
         model: format!("openai/{}", registration.model),
-        api_base: api_base(&address.url),
+        api_base: Some(api_base(&address.url)),
         api_key: variable.map_or_else(|| "no-key".to_owned(), |variable| format!("os.environ/{variable}")),
         timeout: registration.wait_seconds,
         stream_timeout: registration.wait_seconds,
@@ -150,6 +179,29 @@ pub fn gateway_table(registrations: &[Registration]) -> Table {
         });
       }
     }
+  }
+
+  for member in members {
+    let variable = key_variable(&member.key_file);
+    key_files.insert(variable.clone(), member.key_file.clone());
+    let provider = match member.provider.as_str() {
+      "anthropic" | "deepseek" | "openrouter" | "openai" => member.provider.as_str(),
+      _ => continue,
+    };
+    models.push(Entry {
+      model_name: member.name.clone(),
+      litellm_params: Params {
+        model: format!("{provider}/{}", member.model),
+        api_base: member.api_base.clone(),
+        api_key: format!("os.environ/{variable}"),
+        timeout: member.wait_seconds,
+        stream_timeout: member.wait_seconds,
+        chat_template_kwargs: TemplateSettings {
+          enable_thinking: false,
+        },
+      },
+      model_info: None,
+    });
   }
 
   let config = Config {
