@@ -341,7 +341,13 @@ fn harness_servers(ground: &Ground, agent: &str) -> Ordered {
           )),
         ]),
       ),
-      ("env", Ordered::map([("BMO_ARTIFACT_SERVER__TOKEN", Ordered::text(token))])),
+      (
+        "env",
+        Ordered::map([
+          ("BMO_ARTIFACT_SERVER__TOKEN", Ordered::text(token)),
+          ("HOME", Ordered::text(std::env::var("HOME").unwrap_or_else(|_| "/".to_owned()))),
+        ]),
+      ),
     ];
 
     servers.push(("artifact".to_owned(), Ordered::map(fields)));
