@@ -677,6 +677,13 @@ pub async fn gateway_command(
     env.insert("MAX_THINKING_TOKENS".to_owned(), Some("0".to_owned()));
   }
 
+  // The program's own error stream goes to the place, where the pane's loop and a person both read it. A
+  // program that ends before its prompt leaves its reason there rather than on a pane that is gone.
+  env.insert(
+    agent_host::place::STDERR_VARIABLE.to_owned(),
+    Some(place.path.join("stderr.log").to_string_lossy().into_owned()),
+  );
+
   let env: BTreeMap<String, String> =
     env.into_iter().filter_map(|(name, value)| Some((name, value?))).collect();
   let command = agent_host::place::ResidentCommand {
