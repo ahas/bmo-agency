@@ -314,6 +314,33 @@ fn harness_servers(ground: &Ground, agent: &str) -> Ordered {
     servers.push(("job".to_owned(), Ordered::map(fields)));
   }
 
+  // The explorer service's harness plugin, first-class beside the artifact and job plugins: its six page
+  // and search tools are not reached through the tool host's placed copies. The deployment names the
+  // program and the data root its store reads; where it names neither, the server is left out.
+  if let (Some(program), Some(root)) = (
+    env.get("BMO_EXPLORER_PLUGIN").filter(|program| !program.trim().is_empty()),
+    env.get("BMO_DATA_DIR").filter(|root| !root.trim().is_empty()),
+  ) {
+    let fields = vec![
+      ("type", Ordered::text("stdio")),
+      ("command", Ordered::text(program.clone())),
+      (
+        "args",
+        Ordered::List(vec![
+          Ordered::text("mcp"),
+          Ordered::text("--data-root"),
+          Ordered::text(root.clone()),
+        ]),
+      ),
+      (
+        "env",
+        Ordered::map([("HOME", Ordered::text(std::env::var("HOME").unwrap_or_else(|_| "/".to_owned())))]),
+      ),
+    ];
+
+    servers.push(("explorer".to_owned(), Ordered::map(fields)));
+  }
+
   // The artifact service's harness plugin, which files a document and answers its permanent share link.
   // Its address and its token are the deployment's, read from the environment the chat inherits; a
   // deployment that names neither leaves it out.

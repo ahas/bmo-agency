@@ -907,6 +907,17 @@ The owner's words:
 - **The count and the memory are visible** at `GET /panes`: each standing pane's agent, process, the
   memory its process tree holds, whether it is known and whether it is still at work.
 
+### The chat line's main tools
+
+- **The artifact and explorer services are servers of the chat line itself,** started beside the job
+  and agency plugins as `bmo-artifact mcp` and `bmo-explorer mcp`. They are not reached through the tool
+  host's pocket entries; where the tool host carries an entry of the same tool name, the main server's
+  tool is the one the chat sees and calls, and the pocket copy is reached with `bmo use` alone.
+- **A newly named server becomes reachable when the chat program is stood again.** A console session
+  reset closes the conversation but the running dsh program keeps its MCP list; the program must be
+  replaced for the new server to appear. Where the deployment names no artifact address or token, or no
+  explorer program or data root, that server is left out.
+
 ### A pane that dies
 
 - **A head pane's loop reports every end but letting go.** A program that ends with any code but the

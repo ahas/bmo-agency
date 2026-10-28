@@ -486,6 +486,8 @@ async fn the_chat_s_servers_file_items_for_its_agent_and_the_job_plugin_serves_n
       ("BMO_JOB_PLUGIN".to_owned(), "/opt/bmo-job".to_owned()),
       ("BMO_JOB_URL".to_owned(), "http://127.0.0.1:1".to_owned()),
       ("BMO_AGENCY_URL".to_owned(), "http://127.0.0.1:2".to_owned()),
+      ("BMO_EXPLORER_PLUGIN".to_owned(), "/opt/bmo-explorer".to_owned()),
+      ("BMO_DATA_DIR".to_owned(), at(&home.path().join("data"))),
     ],
     home.path().join("data"),
   );
@@ -505,8 +507,12 @@ async fn the_chat_s_servers_file_items_for_its_agent_and_the_job_plugin_serves_n
   };
   let job = args("job");
   let agency = args("agency");
+  let explorer = args("explorer");
 
   assert!(path.ends_with("chat.chat-agent.mcp.json"), "{}", path.display());
+  let root = at(&home.path().join("data"));
+  assert_eq!(explorer, vec!["mcp".to_owned(), "--data-root".to_owned(), root]);
+  assert_eq!(config["mcpServers"]["explorer"]["command"].as_str(), Some("/opt/bmo-explorer"));
   assert!(job.windows(2).any(|pair| pair == ["--without", "job_item_create"]), "{job:?}");
   assert!(agency.windows(2).any(|pair| pair == ["--agent", "chat-agent"]), "{agency:?}");
 }
