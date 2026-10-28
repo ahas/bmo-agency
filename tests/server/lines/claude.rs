@@ -195,7 +195,7 @@ fn the_pane_is_handed_the_lines_variables_by_name_and_never_the_launchers_whole_
 }
 
 #[test]
-fn an_endpoint_launch_maps_the_agent_model_to_its_family_and_refuses_an_unknown_one() {
+fn an_endpoint_launch_names_the_model_in_the_environment_and_refuses_an_unknown_one() {
   let dir = tempfile::tempdir().unwrap();
   let key = dir.path().join("gateway.key");
   std::fs::write(&key, "sk-gateway\n").unwrap();
@@ -214,9 +214,12 @@ fn an_endpoint_launch_maps_the_agent_model_to_its_family_and_refuses_an_unknown_
   );
   let command = endpoint_launch(&gateway, "deepseek-flash", "high").unwrap();
 
-  assert_eq!(command.args, ["claude", "--model", "opus", "--effort", "high"]);
+  assert_eq!(command.args, ["claude", "--effort", "high", "--dangerously-skip-permissions"]);
   assert_eq!(command.env["ANTHROPIC_BASE_URL"].as_deref(), Some("http://127.0.0.1:18030"));
   assert_eq!(command.env["ANTHROPIC_AUTH_TOKEN"].as_deref(), Some("sk-gateway"));
+  // The CLI checks `--model` against the names it ships with, so the endpoint's own id travels in the
+  // environment and the family map is read only to refuse an id it does not hold.
+  assert_eq!(command.env["ANTHROPIC_MODEL"].as_deref(), Some("deepseek-flash"));
   assert_eq!(command.env["ANTHROPIC_DEFAULT_OPUS_MODEL"].as_deref(), Some("deepseek-flash"));
   assert_eq!(
     command.env["ANTHROPIC_DEFAULT_SONNET_MODEL"].as_deref(),

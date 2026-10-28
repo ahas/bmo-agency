@@ -52,7 +52,7 @@ use crate::door::turn::{AsideOutcome, Quiet, Watch};
 use crate::events::Event;
 use crate::job_run::claude::turn::{Shows, WorkAsked, WorkSeat, carry, continues};
 use crate::lines::chat::{ChatLaunch, RoomContext, compose_prepared, compose_turn, gate_run};
-use crate::lines::companion::{CompanionTurn, LOST_SESSION, compose, pinned_provider, registration_named};
+use crate::lines::companion::{CompanionTurn, compose, lost_session, pinned_provider, registration_named};
 use crate::places::gate_places;
 use crate::places::locks::{pane_lock_path, try_hold};
 use crate::places::{AgentRow, Ground, Places};
@@ -1065,10 +1065,11 @@ impl HerdrSessions {
       )
       .await;
 
-    // A session its harness no longer holds is let go, and the turn is asked again once on a fresh one.
+    // A session its harness no longer holds or cannot continue is let go, and the turn is asked again once
+    // on a fresh one.
     if let Err(NoAnswer::Failed(said)) = &asked
       && session.harness.is_some()
-      && said.contains(LOST_SESSION)
+      && lost_session(said)
     {
       session = sessions::open_generation(&db, agent, chat_id).await.map_err(store_fault)?;
       self.handed_off(&mut log, agent, Some(chat_id), false, &HANDOFF.reasons.lost).await;
@@ -1345,7 +1346,7 @@ impl HerdrSessions {
 
         if let Err(NoAnswer::Failed(said)) = &asked
           && held.is_some()
-          && said.contains(LOST_SESSION)
+          && lost_session(said)
         {
           keep_agent_session(&db, agent, None).await.map_err(store_fault)?;
           self.handed_off(&mut log, agent, None, false, &HANDOFF.reasons.lost).await;
@@ -1469,7 +1470,7 @@ impl HerdrSessions {
 
     if let Err(NoAnswer::Failed(said)) = &asked
       && held.is_some()
-      && said.contains(LOST_SESSION)
+      && lost_session(said)
     {
       let fresh =
         launch_on(agent, &room, &turn.context, None, Some(&conversation.model), Some(&conversation.cwd));

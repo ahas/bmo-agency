@@ -49,7 +49,7 @@ use crate::worker_session::fold::{fold, worker_fold_ratio, worker_session_full};
 use crate::worker_session::held::{self, SessionRun};
 use crate::worker_session::records::{self, fallen_model, heal, launch_model, note_carried, record};
 use crate::worker_session::{
-  Composed, PROVIDER, UNKNOWN_SESSION, compose, compose_at, compose_own, evidence,
+  Composed, PROVIDER, compose, compose_at, compose_own, evidence, unknown_session,
 };
 
 /// The variable the agent a turn's program is a turn of goes by, so what the verbs it runs file stands
@@ -140,7 +140,7 @@ pub enum Unanswered {
 
 /// What a turn that left no answer comes to, by the session it went on and what it left.
 pub fn after_unanswered(resume: &Resume, went_on: Option<&str>, evidence: &str) -> Unanswered {
-  if went_on.is_none() || !evidence.contains(UNKNOWN_SESSION) {
+  if went_on.is_none() || !unknown_session(evidence) {
     return Unanswered::Failed;
   }
 

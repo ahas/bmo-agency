@@ -42,6 +42,16 @@ const REGISTERED_PROVIDER: &str = "registered";
 /// What the program says of a session it is asked to resume and holds no record of.
 pub const LOST_SESSION: &str = "No conversation found with session ID";
 
+/// The words the program says when the session it was asked to resume cannot be continued: the record
+/// stands, but the state it ends on is one the program will not take up.
+pub const STALE_SESSION: &str = "No deferred tool marker found in the resumed session";
+
+/// Whether an error line says the session the turn named is gone or cannot be continued. Either way the
+/// session is let go and the turn is asked again once on a fresh one.
+pub fn lost_session(said: &str) -> bool {
+  said.contains(LOST_SESSION) || said.contains(STALE_SESSION)
+}
+
 /// One turn's run as its runner asks for it.
 pub struct CompanionTurn<'a> {
   pub agent: &'a str,

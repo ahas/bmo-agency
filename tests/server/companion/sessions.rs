@@ -35,3 +35,16 @@ async fn a_fresh_generation_clears_the_spent_figures() {
 
   assert_eq!((handed.spent.calls, handed.spent.ms), (0, 0));
 }
+
+// A session the program cannot resume is let go like one it no longer holds: the CLI names both cases,
+// and a turn is asked again once on a fresh session either way.
+#[test]
+fn a_session_the_program_cannot_continue_is_read_as_lost() {
+  use agency_server::lines::companion::{LOST_SESSION, STALE_SESSION, lost_session};
+
+  assert!(lost_session(&format!("Error: {LOST_SESSION} abc")));
+  assert!(lost_session(&format!(
+    "Error: {STALE_SESSION}. Provide a prompt to continue the conversation."
+  )));
+  assert!(!lost_session("the pane went away before it answered"));
+}

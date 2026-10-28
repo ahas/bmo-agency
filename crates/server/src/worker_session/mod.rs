@@ -43,6 +43,16 @@ pub const PROVIDER: &str = "claude-code";
 /// The words the program says when it is asked to resume a session it no longer holds.
 pub const UNKNOWN_SESSION: &str = "No conversation found with session ID";
 
+/// The words the program says when the session it was asked to resume cannot be continued: the record
+/// stands, but the state it ends on is one the program will not take up.
+pub const STALE_SESSION: &str = "No deferred tool marker found in the resumed session";
+
+/// Whether an error line says the session the turn named is gone or cannot be continued. Either way the
+/// record goes and the next turn opens a fresh session.
+pub fn unknown_session(said: &str) -> bool {
+  said.contains(UNKNOWN_SESSION) || said.contains(STALE_SESSION)
+}
+
 /// What kept a turn from the session: a question a person has to answer, the folder-trust question that
 /// would not clear, a prompt that never became a turn, a stop, Claude Code switched off, a session the
 /// program no longer holds, or a ping with no prefix to warm, which is never put in.
@@ -321,8 +331,8 @@ pub fn evidence(ending: &Ending) -> &str {
 }
 
 fn failure_line(ending: &Ending) -> String {
-  if evidence(ending).contains(UNKNOWN_SESSION) {
-    return "the CLI no longer holds the session".to_owned();
+  if unknown_session(evidence(ending)) {
+    return "the CLI cannot continue the session".to_owned();
   }
 
   match ending {
@@ -479,9 +489,9 @@ pub async fn turn<W: Watch>(side: &Side<'_>, asked: Asked<'_>, watch: &mut W) ->
 
       eprintln!("{label} {worker} {model}: {}", failure_line(&other));
 
-      // A session the program no longer holds is one the words never reached; anything else came apart
-      // after they went in, and saying them again would repeat the work.
-      return Ok(if evidence(&other).contains(UNKNOWN_SESSION) {
+      // A session the program no longer holds or cannot continue is one the words never reached; anything
+      // else came apart after they went in, and saying them again would repeat the work.
+      return Ok(if unknown_session(evidence(&other)) {
         Turned::missed(Missed::Lost)
       } else {
         Turned::reached(None)

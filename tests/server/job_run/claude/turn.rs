@@ -26,8 +26,8 @@ use agency_server::job_run::claude::turn::{
 };
 use agency_server::places::{Ground, Places};
 use agency_server::seeds::deployment;
-use agency_server::worker_session::UNKNOWN_SESSION;
 use agency_server::worker_session::records::{self, generation, note_carried, record};
+use agency_server::worker_session::{STALE_SESSION, UNKNOWN_SESSION};
 use agent_session::{
   self as contract, Context, EngineError, JobMark, Mapping, Outcome, Resume, SessionId, Sessions, Span,
   WentOut, WorkParts,
@@ -104,8 +104,10 @@ fn the_session_a_turn_goes_on_is_the_one_its_resume_names_or_the_turn_goes_back(
 #[test]
 fn a_lost_session_is_asked_again_once_under_auto_and_put_back_where_the_runner_named_it() {
   let lost = format!("Error: {UNKNOWN_SESSION} harness-1");
+  let stale = format!("Error: {STALE_SESSION}. Provide a prompt to continue the conversation.");
 
   assert_eq!(after_unanswered(&Resume::Auto, Some("harness-1"), &lost), Unanswered::Again);
+  assert_eq!(after_unanswered(&Resume::Auto, Some("harness-1"), &stale), Unanswered::Again);
   assert_eq!(
     after_unanswered(
       &Resume::Session {
