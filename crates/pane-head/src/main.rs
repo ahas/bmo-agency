@@ -80,6 +80,29 @@ fn start_failure(program: &str, cwd: &Path, path: &str, why: &io::Error) -> Stri
   }
 }
 
+/// What the host answered this head, under the agent's place: a pane whose program never stands leaves its
+/// answer behind rather than on a screen that is gone. A program's environment is never written.
+fn note_answer(root: &Path, agent: &str, answer: &Answer) {
+  let note = match answer {
+    Answer::Program {
+      identity,
+      args,
+      wait_ms,
+      ..
+    } => format!(
+      "program {} {identity} wait_ms={wait_ms}",
+      args.first().map(String::as_str).unwrap_or("")
+    ),
+    Answer::View { path } => format!("view {}", path.display()),
+    Answer::LetGo { reason } => format!("let-go {reason}"),
+    Answer::Refused { reason } => format!("refused {reason}"),
+    Answer::Recorded => "recorded".to_owned(),
+  };
+  let path = root.join("agent-places").join(agent).join("head-answer.txt");
+
+  let _ = std::fs::write(path, format!("{} {note}\n", std::process::id()));
+}
+
 fn main() -> ExitCode {
   let Some(agent) = std::env::args().nth(1).filter(|agent| !agent.is_empty()) else {
     eprintln!("usage: pane-head <agent>");
@@ -106,6 +129,8 @@ fn main() -> ExitCode {
       return ExitCode::SUCCESS;
     }
   };
+
+  note_answer(&root, &agent, &answer);
 
   match answer {
     Answer::Program {
