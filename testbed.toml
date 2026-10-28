@@ -127,15 +127,19 @@ cp bin/procedures-tool tools/procedures/tool.toml tools/procedures/.placed/
 # The graph reads are the graph service's own MCP server, registered as an external server under the
 # worker namespace beside the queue tools (docs/worker-mcp.md): the host lists its tools for a worker's
 # dsh session, so the namespace is never empty.
-# The gateway's members: the provider APIs it serves beside the registry, each with the key file under
-# the data root's env/ that holds its credential. The gateway restarts with the deployment and reads this.
+# The gateway's members: the seed of the deployment's own file, the provider APIs it serves beside the
+# registry, each with the key file under the data root's env/ that holds its credential. The deployment
+# places the seed only where the file is absent; a file it already holds is the deployment's and is not
+# overwritten. The gateway reads the file again on each beat.
 [[deploy.step]]
 id = "place-gateway-members"
 phase = "before-flip"
 command = '''
 set -eu
 mkdir -p "$HOME/.local/share/bmo/data/llm-gateway"
-cp deploy/llm-gateway-members.json "$HOME/.local/share/bmo/data/llm-gateway/members.json"
+if [ ! -e "$HOME/.local/share/bmo/data/llm-gateway/members.json" ]; then
+  cp deploy/llm-gateway-members.json "$HOME/.local/share/bmo/data/llm-gateway/members.json"
+fi
 '''
 
 [[deploy.step]]

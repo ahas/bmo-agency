@@ -15,6 +15,7 @@ test = false
 [dependencies]
 axum.workspace = true
 futures-util.workspace = true
+harness-machine = { path = "../harness-machine" }
 http-body-util.workspace = true
 hyper.workspace = true
 hyper-util.workspace = true

@@ -1886,6 +1886,7 @@ version = "0.1.0-rev.81"
 dependencies = [
  "axum",
  "futures-util",
+ "harness-machine",
  "http-body-util",
  "hyper",
  "hyper-util",

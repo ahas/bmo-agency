@@ -4,11 +4,13 @@
 //! alone, so a session placed on a node asks that node only. The table names each key by a variable
 //! and never a key; the launcher sets the variables from the key files in its child's environment.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use sha2::{Digest, Sha256};
 use store::registry::Registration;
+
+pub use harness_machine::members::Member;
 
 /// The hooks LiteLLM loads, each from a file of its name beside the table: the one that carries a
 /// Messages request's thinking to the chat template, the one that writes a run's sampling settings
@@ -111,37 +113,27 @@ struct General {
   master_key: String,
 }
 
-/// One member a deployment serves besides the registry: a provider's own API behind a model name the
-/// selector shows. Its key is named by its file and never written here.
-#[derive(Clone, Debug, Deserialize, PartialEq)]
-pub struct Member {
-  /// The model name a caller asks for.
-  pub name: String,
-  /// The LiteLLM provider: `deepseek`, `openrouter`, `anthropic` or `openai`.
-  pub provider: String,
-  /// The model id the provider's API knows.
-  pub model: String,
-  /// The provider's API base, where it has one.
-  #[serde(default)]
-  pub api_base: Option<String>,
-  /// The key file under the data root's `env/`.
-  pub key_file: String,
-  /// The request wait in seconds.
-  #[serde(default = "default_wait")]
-  pub wait_seconds: i64,
-}
-
-fn default_wait() -> i64 {
-  300
-}
-
+/// The table of the registry alone: no member of a deployment's own.
 pub fn gateway_table(registrations: &[Registration]) -> Table {
-  gateway_table_with_members(registrations, &[])
+  gateway_table_with_members(registrations, &[]).expect("registrations hold unique names")
 }
 
-pub fn gateway_table_with_members(registrations: &[Registration], members: &[Member]) -> Table {
+/// The table of the registry and the members beside it. A name a registration or another member already
+/// holds refuses the whole table, so nothing answers under a name that would stand for another model.
+pub fn gateway_table_with_members(
+  registrations: &[Registration],
+  members: &[Member],
+) -> Result<Table, String> {
   let mut key_files = BTreeMap::new();
   let mut models = Vec::new();
+  let mut names: BTreeSet<String> = BTreeSet::new();
+
+  for registration in registrations {
+    names.insert(registration.name.clone());
+    for address in &registration.addresses {
+      names.insert(format!("{}@{}", registration.name, address.node));
+    }
+  }
 
   for registration in registrations {
     for address in &registration.addresses {
@@ -182,11 +174,20 @@ pub fn gateway_table_with_members(registrations: &[Registration], members: &[Mem
   }
 
   for member in members {
+    if !names.insert(member.name.clone()) {
+      return Err(format!("the model name {} is held by a registration or another member", member.name));
+    }
+
     let variable = key_variable(&member.key_file);
     key_files.insert(variable.clone(), member.key_file.clone());
     let provider = match member.provider.as_str() {
       "anthropic" | "deepseek" | "openrouter" | "openai" => member.provider.as_str(),
-      _ => continue,
+      other => {
+        return Err(format!(
+          "the member {} names the provider {other}, which is no member provider",
+          member.name
+        ));
+      }
     };
     models.push(Entry {
       model_name: member.name.clone(),
@@ -217,10 +218,11 @@ pub fn gateway_table_with_members(registrations: &[Registration], members: &[Mem
     },
   };
   let text = serde_json::to_string_pretty(&config).expect("the table is plain data");
-  Table {
+
+  Ok(Table {
     text: format!("{text}\n"),
     key_files,
-  }
+  })
 }
 
 fn hex(bytes: &[u8]) -> String {

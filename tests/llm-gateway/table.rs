@@ -209,22 +209,32 @@ fn members_are_served_under_their_own_names_on_their_providers() {
   let members = [
     Member {
       name: "deepseek-flash".into(),
+      road: Some("deepseek".into()),
+      label: Some("DeepSeek V4.1 Flash".into()),
       provider: "deepseek".into(),
       model: "deepseek-flash".into(),
       api_base: Some("https://api.deepseek.com/v1".into()),
       key_file: "deepseek.key".into(),
       wait_seconds: 300,
+      context_tokens: Some(1_048_576),
+      answer_tokens: Some(32_768),
+      thinking: Some(true),
     },
     Member {
       name: "openrouter-deepseek-flash".into(),
+      road: Some("openrouter".into()),
+      label: Some("DeepSeek V4.1 Flash on OpenRouter".into()),
       provider: "openrouter".into(),
       model: "deepseek/deepseek-v4.1-flash-1017".into(),
       api_base: Some("https://openrouter.ai/api/v1".into()),
       key_file: "openrouter.key".into(),
       wait_seconds: 300,
+      context_tokens: Some(1_048_576),
+      answer_tokens: Some(32_768),
+      thinking: Some(true),
     },
   ];
-  let table = gateway_table_with_members(&[], &members);
+  let table = gateway_table_with_members(&[], &members).unwrap();
   let config: Value = serde_json::from_str(&table.text).unwrap();
   let entries = config["model_list"].as_array().unwrap();
 
@@ -238,4 +248,24 @@ fn members_are_served_under_their_own_names_on_their_providers() {
     table.key_files.get("BMO_KEY_OPENROUTER_KEY").map(String::as_str),
     Some("openrouter.key")
   );
+}
+
+#[test]
+fn a_member_naming_a_registration_refuses_the_table() {
+  let member = Member {
+    name: "taken".into(),
+    road: None,
+    label: None,
+    provider: "deepseek".into(),
+    model: "taken-model".into(),
+    api_base: None,
+    key_file: "deepseek.key".into(),
+    wait_seconds: 300,
+    context_tokens: None,
+    answer_tokens: None,
+    thinking: None,
+  };
+  let refused = gateway_table_with_members(&[registration("taken", vec![])], &[member]);
+
+  assert!(refused.is_err());
 }

@@ -6,6 +6,7 @@
   `harness-machine` crate for every side that needs it:
   - the registered models' key files, written, taken away and checked;
   - the gateway's status, as its launcher last wrote it;
+  - the gateway's members, read and validated, with the road each belongs to;
   - an engine's health, asked at a registration's addresses;
   - a model's use on its engine: the unit it runs in, the engine's installer and its log;
   - a companion's system prompt, composed out of the agent documents.
@@ -47,6 +48,22 @@ flowchart TD
   「The gateway」).
 - **A file missing or unreadable is no status,** and a field missing reads as none, nothing starting,
   no child finishing and time zero.
+
+## The members
+
+- **Where the file lives:** `<data root>/llm-gateway/members.json`, or the path `BMO_LLM_GATEWAY_MEMBERS`
+  names. The deployment seeds it once and owns it afterwards (`docs/own-llm.md`, 「The gateway's
+  members」).
+- **What a member is held to:** its name and model match the registry's model pattern, its key file the
+  registry's key-file pattern, and its road the registry's name pattern; its wait and its window and
+  answer ceiling, where it names them, stand within the registry's bounds; its label fits the
+  registry's length. A name two members hold is refused.
+- **A missing file is no members.** A file that does not read, or a member that fails its rules, is a
+  refusal naming the file and the member, and the caller decides whether the last good list stands.
+- **By road:** a member names the agent provider it belongs to, and a caller asks for the members of
+  one road. A member with no road belongs to no provider and is served by the gateway alone.
+- **A member of a road holds its window, its answer ceiling and whether it thinks by default;** a
+  caller that runs one refuses a member missing any of them rather than sizing it at a guess.
 
 ## An engine's health
 
