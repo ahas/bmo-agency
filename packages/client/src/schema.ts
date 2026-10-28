@@ -1285,23 +1285,6 @@ export interface paths {
         patch: operations["changeAssignmentsByAssignmentId"];
         trace?: never;
     };
-    "/panes": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** The panes standing on this machine: each agent, its process, the memory its tree holds, whether it is known and whether a turn or job is live. */
-        get: operations["listPanes"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/pane-deaths": {
         parameters: {
             query?: never;
@@ -6635,25 +6618,6 @@ export interface operations {
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
             410: components["responses"]["Gone"];
-        };
-    };
-    listPanes: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Answered. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            401: components["responses"]["Unauthorized"];
         };
     };
     tellPaneDeath: {

@@ -900,12 +900,9 @@ The owner's words:
 
 ### A pane nobody uses
 
-- **A pane with no turn and no job is closed.** On the heads' clock each standing program whose agent
-  has no live turn and no running job is ended through its place, one at a time, and the line says
-  what closed and why. A pane with a live turn or job is left alone; a name the agents table does not
-  know is left for the owner and listed as unknown.
-- **The count and the memory are visible** at `GET /panes`: each standing pane's agent, process, the
-  memory its process tree holds, whether it is known and whether it is still at work.
+- **No automatic close stands.** A pane with no turn or job is left as it stands: no criteria for
+  judging a pane idle were ever settled, so the closing pass and its `GET /panes` listing were removed
+  rather than corrected. A pane is closed only by a person's own action.
 
 ### The chat line's main tools
 

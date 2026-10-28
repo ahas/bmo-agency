@@ -2104,17 +2104,6 @@ pub const OPERATIONS: &[Operation] = &[
     codes: &["bad-request", "not-found", "conflict", "gone"],
   },
   Operation {
-    method: "GET",
-    path: "/panes",
-    id: "listPanes",
-    tag: "jobs",
-    summary: "The panes standing on this machine: each agent, its process, the memory its tree holds, whether it is known and whether a turn or job is live.",
-    params: &[],
-    body: None,
-    answers: &[(200, None, false)],
-    codes: &[],
-  },
-  Operation {
     method: "POST",
     path: "/pane-deaths",
     id: "tellPaneDeath",

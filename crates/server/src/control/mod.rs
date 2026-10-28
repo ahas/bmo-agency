@@ -32,7 +32,6 @@ pub mod model_tiers;
 pub mod models;
 mod node_reads;
 pub mod own_llm;
-mod panes;
 pub mod pool;
 pub mod pool_board;
 mod pool_routes;
