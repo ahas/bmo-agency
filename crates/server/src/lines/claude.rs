@@ -292,6 +292,9 @@ pub fn endpoint_launch(account: &Account, model: &str, effort: &str) -> Result<C
       family.to_owned(),
       "--effort".to_owned(),
       effort.to_owned(),
+      // A pane carries no person to answer a permission prompt, and a turn that stops on one
+      // never opens: the run's own tools are the ones the launch line grants.
+      "--dangerously-skip-permissions".to_owned(),
     ],
     cwd: account.credential.path().to_string_lossy().into_owned(),
     env,
