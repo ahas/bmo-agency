@@ -57,12 +57,14 @@ flowchart TD
 
 ## A session boundary is what applies a new chat tool
 
-- **A restart is not a session boundary.** A deployment or a receiver restart leaves the standing
-  chat session as it is, so a tool server named for the first time in the chat's configuration is
-  not in the running session's tool list until the session is replaced.
-- **What replaces it:** the console's reset of that chat session (`POST /session-reset`), which the
-  owner asks from the agent settings' session list. The next round closes the old session and opens
-  a new one, and the new program reads the configuration and lists the server's tools.
+- **A restart is not a tool-list boundary.** A deployment or a receiver restart leaves the standing
+  chat session as it is. The console's reset of that chat session (`POST /session-reset`) closes the
+  conversation and opens a new one, but a program already standing in the pane keeps the MCP servers
+  it was started with; on dsh the tool list belongs to that program.
+- **What really applies a newly named server is the chat program stood again:** its pane process
+  ends and the next turn stands a new one from the configuration. A session reset alone does not
+  replace the program, and neither does restarting the receiver; the program is what reads the
+  server list.
 
 ## Where it is asked
 
