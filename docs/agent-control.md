@@ -447,9 +447,9 @@ in the provider's own terms:
 | Provider | Resident program | A turn goes in by | Words mid-turn | Turn end, answer, tokens | Money and windows | Interrupt | Fold and clear |
 |---|---|---|---|---|---|---|---|
 | claude-code | Claude Code's interactive screen | `agent.prompt` | Taken, measured | Transcript, and the `Stop` or `StopFailure` hook | Status line | Escape, measured | `/compact` and `/clear`, measured |
-| codex | Codex's interactive screen, resumed by its thread id | `agent.prompt` | Taken, measured | Rollout file | Rollout file: tokens and windows, no money | Escape, measured | A new thread, nothing carried over |
-| openrouter | bmo-tui on a dsh session over the Agent Client Protocol | The pane program's inbox, or a line typed at its screen | Not taken | bmo-tui's `loop.jsonl`: the answer's words and model, no tokens | None | Escape cancels the session's working turn | dsh's own session; agency folds nothing |
-| deepseek | bmo-tui on a dsh session over the Agent Client Protocol | The pane program's inbox, or a line typed at its screen | Not taken | bmo-tui's `loop.jsonl`: the answer's words and model, no tokens | None | Escape cancels the session's working turn | dsh's own session; agency folds nothing |
+| codex | Claude Code's interactive screen on the gateway under the member's name, its records under `claude-roads/codex/<member>` | `agent.prompt` | Taken | Transcript | None | Escape | `/compact` and `/clear`; a conversation is handed over by a turn asking for its note |
+| openrouter | Claude Code's interactive screen on the gateway under the member's name, its records under `claude-roads/openrouter/<member>` | `agent.prompt` | Taken | Transcript | None | Escape | `/compact` and `/clear`; a conversation is handed over by a turn asking for its note |
+| deepseek | Claude Code's interactive screen on the gateway under the member's name, its records under `claude-roads/deepseek/<member>` | `agent.prompt` | Taken | Transcript | None | Escape | `/compact` and `/clear`; a conversation is handed over by a turn asking for its note |
 | registered | Claude Code's interactive screen on the gateway under the registration's name, its records under a home of the registration's own | `agent.prompt`; words said to a worker on the session the program stands on, a conversational agent's turn on its scope's session, every other turn on a session of its own | Not taken: they wait for the next turn | Transcript | None | Escape | `/compact` and `/clear`; a conversation is handed over by a turn asking for its note rather than folded, the program folds itself before the registration's window, and a turn at the limit fails |
 
 ### What a resident turn reads
@@ -630,8 +630,9 @@ in the provider's own terms:
     settings pass it.
   - A worker's program on a registered model is the worker line a Claude run takes, the model and
     endpoint aside (`docs/own-llm.md`, 「A worker on a registered model is composed as on Claude」).
-- **dsh's providers: OpenRouter and DeepSeek.**
-  - Both providers' programs are dsh, and everything below holds for either; they differ in dsh's one
+- **dsh's providers are kept for a rollback; no provider of this build names dsh.** The statements below
+  hold for the dsh harness a deployment may return to.
+  - Both providers' programs were dsh, and everything below holds for either; they differed in dsh's one
     route alone — OpenRouter's gateway, or DeepSeek's own OpenAI-compatible API.
   - dsh has no terminal conversation of its own. Its `headless` profile answers one task and exits,
     its `web` profile serves a browser, and its `acp` profile speaks the Agent Client Protocol. The
@@ -2573,8 +2574,9 @@ pane. So the earlier investigation's conclusion holds under herdr too.
 | Provider | The road to put words into a running run |
 |---|---|
 | claude-code | **Works** — the resident program takes them with `agent.prompt` at the next tool result (measured) |
-| codex | **Works** — the resident program takes them with `agent.prompt` inside the working task, after its next tool call or once its response ends (measured); `codex exec` reads input once to EOF and not after |
-| OpenRouter | **No** — the pane program declares that it takes none mid-turn; the words wait for the next turn |
+| codex | **Works** — Claude Code's resident program takes them with `agent.prompt` at the next tool result |
+| openrouter | **Works** — Claude Code's resident program takes them with `agent.prompt` at the next tool result |
+| deepseek | **Works** — Claude Code's resident program takes them with `agent.prompt` at the next tool result |
 | registered | **No** — the program on the gateway could take them, but this road's surface declares that it takes none mid-turn, so the words wait for the next turn |
 
 - **Headless (`-p`) cannot use this channel.** Two things both block it. herdr does not see it as an agent,

@@ -119,6 +119,14 @@ impl Bench {
     service.peers.node = nodes.clone();
 
     let ground = Ground::new(&service, &machine, None);
+    let members = data.path().join("llm-gateway");
+
+    std::fs::create_dir_all(&members).unwrap();
+    std::fs::write(
+      members.join("members.json"),
+      r#"[{"name":"deepseek-flash","road":"deepseek","provider":"deepseek","model":"deepseek-flash","api_base":"https://api.deepseek.com/v1","key_file":"deepseek.key","wait_seconds":300,"context_tokens":1048576,"answer_tokens":32768,"thinking":true}]"#,
+    )
+    .unwrap();
 
     scratch.run(r#"DELETE FROM "claude_accounts""#, vec![]).await;
 

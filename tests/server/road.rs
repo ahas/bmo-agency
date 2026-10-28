@@ -238,12 +238,25 @@ fn ground_on(db: DatabaseConnection, home: &std::path::Path) -> Ground {
 }
 
 fn deepseek_key(home: &std::path::Path) {
-  let env = home.join("data").join("env");
-  let file = env.join(&DEEPSEEK.presence.key_file);
+  let data = home.join("data");
+  let env = data.join("env");
 
   std::fs::create_dir_all(&env).unwrap();
-  std::fs::write(&file, "a key\n").unwrap();
-  std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o600)).unwrap();
+  for (name, key) in [("deepseek.key", "a key\n"), ("llm-gateway.key", "a key\n")] {
+    let file = env.join(name);
+
+    std::fs::write(&file, key).unwrap();
+    std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o600)).unwrap();
+  }
+
+  let members = data.join("llm-gateway");
+
+  std::fs::create_dir_all(&members).unwrap();
+  std::fs::write(
+    members.join("members.json"),
+    r#"[{"name":"deepseek-flash","road":"deepseek","provider":"deepseek","model":"deepseek-flash","api_base":"https://api.deepseek.com/v1","key_file":"deepseek.key","wait_seconds":300,"context_tokens":1048576,"answer_tokens":32768,"thinking":true}]"#,
+  )
+  .unwrap();
 }
 
 async fn order(db: &DatabaseConnection, names: &[(&str, bool)]) {

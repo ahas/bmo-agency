@@ -6,6 +6,7 @@ import { allowsWhatItShows, handedRules } from "./harness";
 import { agentsRoot } from "@agency/support/roots";
 import { openRouterApiBase, openRouterKeyEnv, openRouterModels } from "./openrouter";
 import { levelReasoning, levelsIn } from "./reasoning";
+import { memberProvider } from "./member-provider";
 import { MCP_TOKEN_VARIABLE, TOOL_HOST_WAIT_SECONDS, bearerVariable, httpServerEntry } from "./tool-host";
 import { missingOnMachine } from "./provider-facts";
 import { providerDeclaration } from "./provider-declaration";
@@ -575,24 +576,8 @@ const openRouterEfforts = declared.efforts;
 const openRouterLevels = levelsIn(openRouterEfforts);
 
 // The public gateway, reached with the key in the environment, is the one road this program carries.
-export const openRouterProvider: AgentProvider = {
+export const openRouterProvider: AgentProvider = memberProvider({
   name: "openrouter",
-  label: declared.label,
-  adapter: dsh,
-  // The key the asking configuration holds is the machine's key, handed to the question as such.
-  unavailable: async (context) => await missingOnMachine("openrouter", { [openRouterKeyEnv]: context.config.openrouterKey ?? "" }),
-  models: () => openRouterModels(),
-  efforts: openRouterEfforts,
-  // A tier mapping names no effort: which levels a routed model offers is that model's, never the
-  // tier's, so a resolved mapping naming one is refused.
-  effortFault: declared.effortFault,
-  // An agent's level is sent as the request's `reasoning.effort`, up to the highest OpenRouter names,
-  // and its thinking off is reasoning off.
+  policy: declaredOpenRouter,
   reasoning: levelReasoning(async () => openRouterLevels),
-  capsAnswerTokens: declared.capsAnswerTokens,
-  lendsCoworkers: declared.lendsCoworkers,
-  logins: null,
-  // Its resident pane is the deployment's bmo-tui on a dsh session, which the server composes; this
-  // program carries its headless runs alone.
-  resident: null,
-};
+});

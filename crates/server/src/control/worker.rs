@@ -370,7 +370,7 @@ async fn update(
   // The one provider the worker is pinned to, or `auto` for none, as the providers that would run it
   // read it; a pin naming nothing that could is refused with the reason.
   if let Some(choice) = body.get("pinnedProvider").and_then(Value::as_str) {
-    let pin = pins::pin_choice(db, choice).await?.map_err(bad)?;
+    let pin = pins::pin_choice(db, &hands.ground.machine(), choice).await?.map_err(bad)?;
 
     changes.pinned = Some((pin.provider, pin.model));
   }

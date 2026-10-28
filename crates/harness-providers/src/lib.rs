@@ -15,6 +15,7 @@ pub mod balance;
 pub mod claude_code;
 pub mod codex;
 pub mod deepseek;
+pub mod member;
 pub mod openrouter;
 pub mod registered;
 pub mod toolbook;
@@ -178,6 +179,12 @@ pub trait Provider: Sync {
     None
   }
 
+  /// Whether its models are served by agency's gateway: the registry's registrations, or the members of a
+  /// road of its own. A gate on such a provider is one request through the gateway, never a program.
+  fn models_on_gateway(&self) -> bool {
+    self.unregistered().is_some()
+  }
+
   /// Where a run, or a worker's pin, may name one of its models — the registry's registrations, or a
   /// model its own policy declares — the sentence it says of a name it holds no address for, the name
   /// following it. Nothing for a provider that takes no model of its own.
@@ -187,8 +194,8 @@ pub trait Provider: Sync {
 
   /// Whether one of its models is held by that name, where its models are its own rather than the
   /// registry's: a pin or a job naming one of them is taken.
-  fn holds_model(&self, model: &str) -> bool {
-    let _ = model;
+  fn holds_model(&self, machine: &Machine, model: &str) -> bool {
+    let _ = (machine, model);
 
     false
   }
@@ -309,6 +316,14 @@ pub trait Provider: Sync {
       Some(level) if levels.iter().any(|one| one == level) => Some(level.to_owned()),
       _ => mapped.map(str::to_owned),
     }
+  }
+
+  /// The Claude Code effort word a run of the backend word goes out with, where the provider's words and
+  /// Claude Code's differ; none where the launch keeps its own word for whether the run thinks.
+  fn claude_effort(&self, word: &str) -> Option<&'static str> {
+    let _ = word;
+
+    None
   }
 
   /// The files and folders its program keeps of one session it ran in `cwd` on `model`, wherever they

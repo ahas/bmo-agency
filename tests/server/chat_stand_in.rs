@@ -5,6 +5,7 @@
 //! Claude Code; and a standing fallback cleared and its end published once Claude Code answers again.
 
 use std::collections::{BTreeMap, HashMap};
+use std::os::unix::fs::PermissionsExt;
 
 use agency_server::Service;
 use agency_server::chat_stand_in::{FallbackEnded, fallback_ended, stand_in_turn};
@@ -12,6 +13,7 @@ use agency_server::companion::run::NoAnswer;
 use agency_server::config::Config;
 use agency_server::control::harness::{OrderEntry, set_provider_order};
 use agency_server::lines::chat::{ChatRun, Door, RoomContext, claude_folder, compose_stand_in};
+use agency_server::lines::standing::GatewayModel;
 use agency_server::lines::worker::Reasoning;
 use agency_server::places::Ground;
 use agency_server::run_log::{RunLog, Target};
@@ -156,16 +158,35 @@ async fn a_codex_step_with_no_kept_thread_opens_one() {
 }
 
 #[tokio::test]
-async fn an_openrouter_step_stands_bmo_tui_on_a_dsh_session_over_its_inbox() {
+async fn an_openrouter_member_step_stands_claude_code_on_the_gateway() {
   let home = tempfile::tempdir().unwrap();
   let ground = ground_on(DatabaseConnection::Disconnected, home.path(), &[]);
+  let home_dir = ground.roots.data.join("claude-roads/openrouter/vendor-model");
+  let key = ground.roots.data.join("env/llm-gateway.key");
+
+  std::fs::create_dir_all(key.parent().unwrap()).unwrap();
+  std::fs::write(&key, "sk-gateway\n").unwrap();
+  std::fs::set_permissions(&key, std::fs::Permissions::from_mode(0o600)).unwrap();
+
+  let held = GatewayModel {
+    name: "vendor/model".into(),
+    label: "Vendor Model".into(),
+    home: home_dir.clone(),
+    context_tokens: 131_072,
+    answer_tokens: 16_384,
+    wait_seconds: 300,
+    thinking: true,
+    registration: None,
+    road: Some("openrouter"),
+  };
   let composed = compose_stand_in(
     &ground,
     &ground.machine(),
     &chat_run(home.path()),
     &step("openrouter", "vendor/model"),
-    &Door::Inbox {
-      provider: "openrouter".to_owned(),
+    &Door::Gateway {
+      held: Box::new(held),
+      placement: None,
     },
     &[3],
     1,
@@ -173,115 +194,17 @@ async fn an_openrouter_step_stands_bmo_tui_on_a_dsh_session_over_its_inbox() {
   .await
   .unwrap();
   let args = &composed.command.args;
-  let choice = r#"["openrouter","vendor/model"]"#;
-
-  assert_eq!(&args[..2], ["bmo-tui", "dsh"], "{args:?}");
-  assert!(args.windows(2).any(|pair| pair == ["--program", "dsh"]), "{args:?}");
-  assert!(args.windows(2).any(|pair| pair == ["--model", choice]), "{args:?}");
-  assert!(args.windows(2).any(|pair| pair == ["--effort", "medium"]), "{args:?}");
-  assert!(args.windows(2).any(|pair| pair == ["--agent", "chat-agent"]), "{args:?}");
-  let place = ground.roots.place("chat-agent");
-  let place = place.to_string_lossy().into_owned();
-
-  assert!(args.windows(2).any(|pair| pair[0] == "--place" && pair[1] == place), "{args:?}");
-
-  // The MCP servers stand in the overlay, so bmo-tui hands the session none of its own.
-  assert!(!args.iter().any(|arg| arg == "--mcp-config"), "{args:?}");
-
-  // The session is handed the permission mode its sandbox row pairs with, as dsh resolves both ends of it.
-  assert_eq!(
-    composed.command.env.get("DSH_PERMISSION_MODE").map(String::as_str),
-    Some("workspace-write")
-  );
-
-  let patch = args
-    .windows(2)
-    .find(|pair| pair[0] == "--patch")
-    .map(|pair| pair[1].clone())
-    .unwrap_or_else(|| panic!("no overlay in {args:?}"));
-  let text = std::fs::read_to_string(&patch).unwrap();
-  let overlay: Vec<serde_json::Value> = serde_json::from_str(&text.replace("!!js ", "")).unwrap();
-  let row = |id: &str| overlay.iter().find(|row| row["id"] == id);
-
-  // The profile holds no row of a client's id, so the clients stand in one insert entry rather than as
-  // changes to rows that are not there; the tool host's server is one, its bearer read from dsh's
-  // environment, and a client that cannot open says why on the error stream while the session stands.
-  assert!(row("mcp-bmo").is_none(), "{text}");
-
-  let inserted: Vec<&serde_json::Value> =
-    overlay.iter().filter_map(|entry| entry["insert"].as_array()).flatten().collect();
-  let bmo = inserted
-    .iter()
-    .find(|row| row["id"] == "mcp-bmo")
-    .unwrap_or_else(|| panic!("no tool host server in {text}"));
-
-  assert_eq!(bmo["config"]["failOnStartupError"], true);
-
-  // The shell is handed back what dsh's own start-up drops, and the error stream is kept in the place.
   let env = &composed.command.env;
 
-  assert_eq!(env.get("BMO_SHELL_CARRY").map(String::as_str), Some("1"));
-  assert!(
-    env.get("BASH_ENV").is_some_and(|script| std::path::Path::new(script).is_file()),
-    "{env:?}"
-  );
+  assert_eq!(args.first().map(String::as_str), Some("claude"));
+  assert_eq!(env.get("ANTHROPIC_MODEL").map(String::as_str), Some("vendor/model"));
+  assert_eq!(env.get("ANTHROPIC_BASE_URL").map(String::as_str), Some("http://127.0.0.1:18030"));
   assert_eq!(
-    env.get("BMO_PANE_STDERR").map(String::as_str),
-    Some(format!("{place}/stderr.log").as_str())
+    env.get("CLAUDE_CONFIG_DIR").map(String::as_str),
+    Some(home_dir.to_string_lossy().as_ref())
   );
-  assert!(text.contains("!!js \"`Bearer ${process.env.BMO_MCP_TOKEN}`\""), "{text}");
-  let disabled = |id: &str| row(id).is_some_and(|row| row["disabled"] == true);
-
-  // dsh's own prompt rows are off, and the whole system prompt is the one the chat line composed.
-  // dsh's own prompt stands whole and the chat's follows it.
-  assert_eq!(
-    row("system-prompt").unwrap()["config"]["personaPrefix"],
-    "You are a coding agent powered by the {{model}} model."
-  );
-  assert_eq!(row("system-prompt").unwrap()["config"]["personaSuffix"], "You are the chat agent.\n");
-  assert!(disabled("agent-instructions"));
-  assert!(disabled("session-title-llm"));
-
-  // dsh's own tools stand on a line that grants tools; the web the deployment replaces with the servers its
-  // MCP configuration hands the session, and the goal row stands off so no turn outlives its answer.
-  for id in ["tool-web", "tool-goal"] {
-    assert!(disabled(id), "{id}");
-  }
-
-  for id in [
-    "tool-bash",
-    "tool-pwsh",
-    "tool-jobs",
-    "tool-fs",
-    "tool-fs-search",
-    "tool-skill",
-    "tool-subagent-control",
-    "tool-subagent-list-agents",
-    "tool-subagent",
-    "tool-subagent-fork",
-    "tool-workflow",
-    "tool-todo",
-    "tool-str-replace-editor",
-    "plan-mode",
-    "user-questions",
-  ] {
-    assert!(!disabled(id), "{id}");
-  }
-
-  let route = &row("llm-pi-ai").unwrap()["config"]["providers"]["openrouter"];
-
-  assert_eq!(route["apiKeyEnv"], "BMO_OPENROUTER_KEY");
-  assert_eq!(route["baseURL"], "https://openrouter.ai/api/v1");
-  assert_eq!(route["models"][0]["id"], "vendor/model");
-
-  let dsh_home = ground.roots.data.join("dsh").to_string_lossy().into_owned();
-
-  assert_eq!(composed.command.env.get("DSH_HOME"), Some(&dsh_home));
-  assert!(!composed.command.env.contains_key("BMO_DSH_LOCAL_URL"));
-  assert_eq!(composed.effort, None);
-  assert_eq!(composed.given.unwrap()["prompt"], "what is new");
+  assert_eq!(composed.window.map(|window| window.context_tokens), Some(131_072));
 }
-
 // A store whose provider order holds the stand-ins alone, or Claude Code beside them, for the chat agent.
 async fn store_with(order: &[(&str, bool)]) -> Scratch {
   let scratch = Scratch::new().await;

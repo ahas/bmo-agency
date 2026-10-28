@@ -12,13 +12,12 @@ use policy::providers::registered::REGISTERED;
 use serde::Serialize;
 
 use crate::companion::run::{NoAnswer, Reply, run_turn};
-use crate::control::claude_accounts::{self, Credential};
 use crate::control::harness::provider_enabled;
 use crate::control::registry;
 use crate::events::Event;
 use crate::lines::chat::{ChatLaunch, ChatRun, Door, chat_run, compose_stand_in};
 use crate::lines::codex::lost_thread;
-use crate::lines::standing::place_registered;
+use crate::lines::standing::{GatewayModel, member_model, place_registered};
 use crate::places::Ground;
 use crate::queue::settings;
 use crate::road::{self, Closed};
@@ -30,13 +29,21 @@ use crate::{Refusal, now_ms};
 use store::{one, run as written};
 
 const CODEX: &str = "codex";
-const DEEPSEEK_NAME: &str = "deepseek";
 
 // Whether a provider's turns go through its pane program's inbox, as its declaration says.
 pub(crate) fn inbox_declared(provider: &str) -> bool {
   harness_providers::provider(provider)
     .and_then(|declared| declared.declared().resident.as_ref())
     .is_some_and(|resident| resident.turns == Turns::Inbox)
+}
+
+// Whether a provider's turns are Claude Code on the gateway under a member of its own road. The registry's
+// provider is Claude Code too, but its models are registrations, not members.
+pub(crate) fn member_declared(provider: &str) -> bool {
+  provider != registry::PROVIDER
+    && harness_providers::provider(provider)
+      .and_then(|declared| declared.declared().resident.as_ref())
+      .is_some_and(|resident| resident.turns == Turns::Endpoint)
 }
 
 // The variable the owner's id stands in, which the fallback's events carry.
@@ -124,9 +131,11 @@ pub async fn stand_in_turn(
       }
     };
     let outcome = match taken.provider.as_str() {
-      CODEX => codex_road(ground, &machine, run, &step, log, answers, began, shown).await?,
       name if inbox_declared(name) => {
         inbox_road(ground, &machine, run, &step, log, answers, began, shown).await?
+      }
+      name if member_declared(name) => {
+        member_road(ground, &machine, run, &step, name, log, answers, began, shown).await?
       }
       _ => registered_road(ground, &machine, run, &step, log, answers, began, shown).await?,
     };
@@ -209,9 +218,11 @@ pub async fn job_turn_on(
   run.note_persona(ground, log).await;
 
   let outcome = match taken.provider.as_str() {
-    CODEX => codex_road(ground, &machine, run, &step, log, &[], began, shown).await?,
     name if inbox_declared(name) => {
       inbox_road(ground, &machine, run, &step, log, &[], began, shown).await?
+    }
+    name if member_declared(name) => {
+      member_road(ground, &machine, run, &step, name, log, &[], began, shown).await?
     }
     _ => registered_road(ground, &machine, run, &step, log, &[], began, shown).await?,
   };
@@ -290,44 +301,6 @@ async fn carried_on(
   let machine = ground.machine();
 
   match step.provider.as_str() {
-    CODEX => {
-      let kept = run.resume.clone();
-      let on = |thread: Option<String>| Door::Codex { thread };
-      let mut outcome =
-        deliver(ground, &machine, run, step, &on(kept.clone()), log, answers, began, shown).await?;
-
-      if let (Err(why), Some(_)) = (&outcome, &kept)
-        && lost_thread(why)
-      {
-        outcome = deliver(ground, &machine, run, step, &on(None), log, answers, began, shown).await?;
-      }
-
-      outcome.map_err(NoAnswer::Failed)
-    }
-    "deepseek" | "openrouter" => {
-      let account = claude_accounts::accounts(&ground.db)
-        .await
-        .map_err(|why| NoAnswer::Failed(why.error))?
-        .into_iter()
-        .find(|account| matches!(account.credential, Credential::Endpoint { .. }))
-        .ok_or_else(|| NoAnswer::Failed("no Endpoint account stands for the deepseek road".to_owned()))?;
-      let outcome = deliver(
-        ground,
-        &machine,
-        run,
-        step,
-        &Door::Endpoint {
-          account: Box::new(account),
-        },
-        log,
-        answers,
-        began,
-        shown,
-      )
-      .await?;
-
-      outcome.map_err(NoAnswer::Failed)
-    }
     name if inbox_declared(name) => {
       let outcome = deliver(
         ground,
@@ -349,27 +322,15 @@ async fn carried_on(
 
       Ok(reply)
     }
+    name if member_declared(name) => {
+      let outcome = member_road(ground, &machine, run, step, name, log, answers, began, shown).await?;
+
+      outcome.map_err(NoAnswer::Failed)
+    }
     _ => {
-      let Some(service) = registry::service_of(&ground.db, &step.model)
-        .await
-        .map_err(|why| NoAnswer::Failed(why.error))?
-      else {
-        return Err(NoAnswer::Failed(format!("{}: {}", REGISTERED.presence.not_registered, step.model)));
-      };
+      let outcome = registered_road(ground, &machine, run, step, log, answers, began, shown).await?;
 
-      if let Err(why) = listed(ground, &service, &step.model).await {
-        return Err(NoAnswer::Failed(why));
-      }
-
-      let placement = place_registered(ground, &step.model).await.map_err(refusal)?;
-      let outcome =
-        deliver(ground, &machine, run, step, &Door::Gateway { placement }, log, answers, began, shown)
-          .await?;
-      let mut reply = outcome.map_err(NoAnswer::Failed)?;
-
-      reply.effort = step.thinking.then(|| "thinking".to_owned());
-
-      Ok(reply)
+      outcome.map_err(NoAnswer::Failed)
     }
   }
 }
@@ -384,12 +345,13 @@ async fn step_on(
   reasoning: &crate::lines::worker::Reasoning,
 ) -> Result<Step, NoAnswer> {
   if provider != registry::PROVIDER {
-    let thinking = reasoning.thinking.unwrap_or(true);
-    let effort = if provider == DEEPSEEK_NAME && !thinking {
-      "none".to_owned()
-    } else {
-      reasoning.level.clone().unwrap_or_default()
-    };
+    let held = harness_providers::member::road_members(&ground.machine(), provider)
+      .map_err(|why| failed(format!("{provider}: {why}")))?
+      .into_iter()
+      .find(|one| one.member.name == model)
+      .ok_or_else(|| failed(format!("{provider}: {model} is no member of its road")))?;
+    let thinking = reasoning.thinking.unwrap_or(held.thinking);
+    let effort = if !thinking { "none".to_owned() } else { reasoning.level.clone().unwrap_or_default() };
 
     return Ok(Step {
       provider: provider.to_owned(),
@@ -471,6 +433,7 @@ async fn deliver(
 }
 
 // The agent's kept Codex thread for the step's model and effort, where one is kept.
+#[allow(dead_code)]
 async fn kept_thread(ground: &Ground, agent: &str, step: &Step) -> Result<Option<String>, Refusal> {
   Ok(
     one(
@@ -497,6 +460,7 @@ async fn forget_thread(ground: &Ground, agent: &str, step: &Step) -> Result<(), 
 // One turn on the Codex road: on the agent's kept thread, or one opened afresh where Codex no longer holds
 // it; the thread that answered kept with the run it is resumed and warmed by.
 #[allow(clippy::too_many_arguments)]
+#[allow(dead_code)]
 async fn codex_road(
   ground: &Ground,
   machine: &Machine,
@@ -605,11 +569,48 @@ async fn registered_road(
   }
 
   let placement = place_registered(ground, &step.model).await.map_err(refusal)?;
-  let outcome =
-    deliver(ground, machine, run, step, &Door::Gateway { placement }, log, answers, began, shown).await?;
+  let held = crate::lines::companion::registration_named(ground, &step.model)
+    .await
+    .map_err(refusal)?;
+  let door = Door::Gateway {
+    held: Box::new(GatewayModel::registration(machine, &held)),
+    placement,
+  };
+  let outcome = deliver(ground, machine, run, step, &door, log, answers, began, shown).await?;
   let Ok(mut reply) = outcome else { return Ok(outcome) };
 
   reply.effort = step.thinking.then(|| "thinking".to_owned());
+
+  Ok(Ok(reply))
+}
+
+// A turn on a member of a provider's own road: Claude Code on the gateway, its home, window and wait the
+// member's, and its session the one the run resumes where one stands.
+#[allow(clippy::too_many_arguments)]
+async fn member_road(
+  ground: &Ground,
+  machine: &Machine,
+  run: &ChatRun,
+  step: &Step,
+  road: &str,
+  log: &mut RunLog,
+  answers: &[i64],
+  began: i64,
+  shown: Option<OutputWatch<'_>>,
+) -> Result<Result<Reply, String>, NoAnswer> {
+  let Some(provider) = harness_providers::provider(road) else {
+    return Ok(Err(format!("{road} is no provider of this build")));
+  };
+  let held =
+    member_model(machine, provider.name(), &step.model).map_err(|refused| failed(refused.detail))?;
+  let door = Door::Gateway {
+    held: Box::new(held),
+    placement: None,
+  };
+  let outcome = deliver(ground, machine, run, step, &door, log, answers, began, shown).await?;
+  let Ok(mut reply) = outcome else { return Ok(outcome) };
+
+  reply.effort = (!step.effort.is_empty()).then(|| step.effort.clone());
 
   Ok(Ok(reply))
 }

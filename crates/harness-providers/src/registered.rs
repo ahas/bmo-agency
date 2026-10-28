@@ -31,20 +31,29 @@ impl Registered {
   }
 }
 
+/// The road a program's configuration home names, where it stands under `claude-roads/<road>/`.
+pub fn road_home(machine: &Machine, env: &BTreeMap<String, String>) -> Option<String> {
+  let root = format!("{}/", machine.data_root().join("claude-roads").display());
+  let rest = env.get("CLAUDE_CONFIG_DIR")?.strip_prefix(&root)?;
+  let road = rest.split('/').next().filter(|road| !road.is_empty())?;
+
+  Some(road.to_owned())
+}
+
 /// Whether an environment stands a program on a registration's road: its records home is a registration's,
 /// or its base URL is agency's gateway (docs/agent-control.md, 「The registered models through Claude Code
 /// on the gateway」). Any other endpoint of its own — a Claude account's, such as a DeepSeek one — leaves the
 /// program on the Claude Code road.
 pub fn registered_road(machine: &Machine, env: &BTreeMap<String, String>) -> bool {
-  let homes = format!("{}/", Registered::homes(machine).display());
-  let under_home = env.get("CLAUDE_CONFIG_DIR").is_some_and(|dir| dir.starts_with(&homes));
-  let at_gateway = env.get("ANTHROPIC_BASE_URL").is_some_and(|url| {
+  if let Some(road) = road_home(machine, env) {
+    return road == "registered";
+  }
+
+  env.get("ANTHROPIC_BASE_URL").is_some_and(|url| {
     let url = url.trim_end_matches('/');
 
     !url.is_empty() && url == harness_machine::gateway::url(machine.var("BMO_LLM_GATEWAY_URL"))
-  });
-
-  under_home || at_gateway
+  })
 }
 
 /// Whether a secret file may be used: a file of its own, private to its owner, not empty.

@@ -183,6 +183,7 @@ impl Provider for ClaudeCode {
   // stands for that road, while an account's own endpoint does not take a program off this one.
   fn owns_program(&self, machine: &Machine, args: &[String], env: &BTreeMap<String, String>) -> bool {
     args.first().is_some_and(|program| program == Self::PROGRAM)
+      && crate::registered::road_home(machine, env).is_none()
       && !crate::registered::registered_road(machine, env)
   }
 

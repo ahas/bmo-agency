@@ -1,8 +1,9 @@
-//! Codex: present where its executable stands on the asking process's PATH, and its catalogue the one
-//! bundled with that executable (docs/provider-presence.md).
+//! Codex: present where the gateway's key file and its members' key files stand private under the data
+//! root, and its models the members of its road (docs/provider-presence.md). Its program is Claude Code on
+//! agency's gateway. The installed CLI's catalogue is still read for the chooser that declares a member.
 
 use std::collections::BTreeMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::time::Duration;
 
@@ -12,9 +13,9 @@ use serde::Serialize;
 use serde_json::{Value, json};
 use tokio::process::Command;
 
-use crate::{
-  Headline, Machine, Offered, OfferedModel, Offering, PlaceCache, Provider, Reading, Reason, Window,
-};
+use crate::claude_code::ClaudeCode;
+use crate::member;
+use crate::{Machine, Offered, OfferedModel, Offering, PlaceCache, Provider, Reading, Reason};
 
 pub struct Codex;
 
@@ -23,96 +24,65 @@ impl Provider for Codex {
     "codex"
   }
 
-  // Codex names the thread it opened once, on the event that opens it.
+  // Its runs are Claude Code's, whose events name their session as Claude Code's do.
   fn session_of_event(&self, event: &serde_json::Value) -> Option<String> {
-    (event.get("type").and_then(serde_json::Value::as_str) == Some("thread.started"))
-      .then(|| event.get("thread_id").and_then(serde_json::Value::as_str).map(str::to_owned))
-      .flatten()
+    ClaudeCode.session_of_event(event)
   }
 
-  // What it said, and the commands it ran.
   fn progress_of(&self, line: &str) -> Option<String> {
-    let event: serde_json::Value = serde_json::from_str(line.trim()).ok()?;
-    let item = event
-      .get("item")
-      .filter(|_| event.get("type").and_then(serde_json::Value::as_str) == Some("item.completed"))?;
-    let text = |key: &str| item.get(key).and_then(serde_json::Value::as_str).map(str::to_owned);
-
-    match item.get("type").and_then(serde_json::Value::as_str)? {
-      "agent_message" => text("text"),
-      "command_execution" => text("command").map(|command| format!("$ {command}")),
-      _ => None,
-    }
+    ClaudeCode.progress_of(line)
   }
 
   fn declared(&self) -> &'static Declared {
     &CODEX.declared
   }
 
-  fn owns_program(&self, _machine: &Machine, args: &[String], _env: &BTreeMap<String, String>) -> bool {
-    args.first().is_some_and(|program| *program == CODEX.presence.program)
+  // Its program is Claude Code under one of its road's homes.
+  fn owns_program(&self, machine: &Machine, args: &[String], env: &BTreeMap<String, String>) -> bool {
+    member::owns(machine, args, env, self.name())
   }
 
-  fn spends_by_last_request(&self) -> bool {
-    true
-  }
-
-  fn cache_minutes(&self, model: &str) -> Option<i64> {
-    CODEX.cache.of(model).map(|entry| entry.ttl_minutes)
-  }
-
-  fn place_cache(&self, model: &str, _upstream: Option<&str>) -> Result<PlaceCache, String> {
-    CODEX
-      .cache
-      .of(model)
-      .map(|entry| PlaceCache {
-        ttl_minutes: entry.ttl_minutes,
-        idle_minutes: entry.keepalive_idle_minutes,
-      })
-      .ok_or_else(|| format!("Codex publishes no cache lifetime for {model}."))
+  // No member publishes a cache lifetime, so nothing keeps a place warm.
+  fn place_cache(&self, _model: &str, _upstream: Option<&str>) -> Result<PlaceCache, String> {
+    Err("Codex's members publish no cache lifetime, so there is no clock to keep one warm by.".to_owned())
   }
 
   fn missing(&self, machine: &Machine) -> Option<Reason> {
-    machine
-      .program(&CODEX.presence.program)
-      .is_none()
-      .then(|| Reason::new(&CODEX.presence.missing_code, &CODEX.presence.missing))
+    member::missing(machine, self.name(), &CODEX.presence.missing_code, &CODEX.presence.missing)
+  }
+
+  fn not_registered(&self) -> Option<&'static str> {
+    Some(&CODEX.presence.not_held)
+  }
+
+  fn models_on_gateway(&self) -> bool {
+    true
+  }
+
+  fn holds_model(&self, machine: &Machine, model: &str) -> bool {
+    member::member_named(machine, self.name(), model).ok().flatten().is_some()
   }
 
   fn catalogue<'a>(&'a self, machine: &'a Machine, _config_dir: Option<&'a Path>) -> Reading<'a> {
-    Box::pin(async move { Ok(json!({ "models": models(machine).await? })) })
-  }
-
-  // The standard windows where any is held, the legacy ones otherwise; each slot is the window of its
-  // length, or the one named for it where the reading gave no length.
-  fn headline(&self, windows: &[Window]) -> Headline {
-    let under = |prefix: &str| -> Vec<usize> {
-      (0..windows.len()).filter(|&at| windows[at].name.starts_with(prefix)).collect()
-    };
-    let standard = under("codex:codex:");
-    let held = if standard.is_empty() { under("codex:default:") } else { standard };
-    let preferred = |slot: &str, minutes: i64| {
-      let named = format!(":{slot}");
-
-      held
+    Box::pin(async move {
+      let held = member::road_members(machine, self.name())?;
+      let models: Vec<Value> = held
         .iter()
-        .copied()
-        .find(|&at| windows[at].duration_minutes == Some(minutes))
-        .or_else(|| {
-          held
-            .iter()
-            .copied()
-            .find(|&at| windows[at].duration_minutes.is_none() && windows[at].name.ends_with(&named))
+        .map(|one| {
+          json!({
+            "id": one.member.name,
+            "name": one.member.label.clone().unwrap_or_else(|| one.member.name.clone()),
+            "contextLength": one.context_tokens,
+            "defaultReasoningEffort": if one.thinking { "medium" } else { "none" },
+            "supportedReasoningEfforts": &CODEX.declared.effort.words,
+          })
         })
-    };
+        .collect();
 
-    Headline {
-      session: preferred("primary", 5 * 60),
-      week: preferred("secondary", 7 * 24 * 60),
-    }
+      Ok(json!({ "models": models }))
+    })
   }
 
-  // A mapping of a model takes the efforts the catalogue says it supports.
   fn offered<'a>(
     &'a self,
     machine: &'a Machine,
@@ -120,11 +90,18 @@ impl Provider for Codex {
     _now_ms: f64,
   ) -> Offering<'a> {
     Box::pin(async move {
-      let models = models(machine).await?.into_iter().map(|model| OfferedModel {
-        efforts: model.supported_reasoning_efforts.into_iter().map(Some).collect(),
-        id: model.id,
+      let efforts: Vec<Option<String>> = CODEX
+        .declared
+        .effort
+        .vocabulary()
+        .into_iter()
+        .map(|word| word.map(str::to_owned))
+        .collect();
+      let models = member::road_members(machine, self.name())?.into_iter().map(|one| OfferedModel {
+        id: one.member.name,
+        efforts: efforts.clone(),
         free: None,
-        in_service: None,
+        in_service: Some(true),
       });
 
       Ok(Offered {
@@ -132,6 +109,22 @@ impl Provider for Codex {
         stale_read_at: None,
       })
     })
+  }
+
+  fn claude_effort(&self, word: &str) -> Option<&'static str> {
+    CODEX.claude.as_ref().and_then(|claude| claude.word(word))
+  }
+
+  fn session_records(&self, machine: &Machine, cwd: &Path, session: &str, model: &str) -> Vec<PathBuf> {
+    member::session_records(machine, self.name(), cwd, session, model)
+  }
+
+  fn home_records(&self, machine: &Machine, cwd: &Path) -> Vec<PathBuf> {
+    member::home_records(machine, self.name(), cwd)
+  }
+
+  fn forget_prompts(&self, machine: &Machine, cwd: &Path, session: Option<&str>) -> Result<usize, String> {
+    member::forget_prompts(machine, self.name(), cwd, session)
   }
 }
 
@@ -212,7 +205,9 @@ pub fn failure(stdout: &str, stderr: &str, status: Option<i32>) -> String {
 
 /// Every model the installed executable offers, asked within the seconds the policy gives it.
 pub async fn models(machine: &Machine) -> Result<Vec<Model>, String> {
-  let program = machine.program(&CODEX.presence.program).ok_or_else(|| CODEX.presence.missing.clone())?;
+  let program = machine
+    .program(&CODEX.catalogue.program)
+    .ok_or_else(|| CODEX.presence.missing.clone())?;
   let mut command = Command::new(program);
 
   command

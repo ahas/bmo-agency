@@ -1,14 +1,15 @@
-# The owner's Codex subscription, reached through the installed CLI (docs/cache-fallback.md, 「The Codex
-# substitute is the Codex CLI」). Read by this provider's own declaration on each side.
+# The Codex models, reached by Claude Code through agency's gateway member on an OpenAI API key
+# (docs/own-llm.md, 「The gateway's members」). Read by this provider's own declaration on each side.
 
 # The provider's name as a screen shows it.
 label = "Codex"
 
-# The lines its program carries.
+# The lines its program carries. Its runs are Claude Code's on the gateway, which carries the chat, a worker's
+# job and a gate's one-request judgement.
 lines = ["chat", "gate", "worker"]
 
-# A mapping of it carries no ceiling on the answer's tokens: the provider publishes none.
-caps_answer_tokens = false
+# A mapping of it carries a ceiling on the answer's tokens: its member names one.
+caps_answer_tokens = true
 
 # Codex serves a catalogue of models, so its co-workers each take their own tier's.
 lends_coworkers = true
@@ -16,24 +17,31 @@ lends_coworkers = true
 [effort]
 # Every effort word a mapping of it may hold.
 words = ["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"]
-# A mapping may also name no effort: it is held, and the launch refuses it.
+# A mapping may also name no effort: it is held, and the member's default word stands.
 none_held = true
-# What a launch makes of the mapping's word: one is required.
-launch = "required"
-fault = "This harness requires explicit effort"
+# What a launch makes of the mapping's word: either is taken.
+launch = "either"
 
 [presence]
-# The executable is the whole of what this machine holds for it: the account is signed in once,
-# outside agency. It is looked up on the process's PATH.
-program = "codex"
-# What it says where the executable is not found: the kebab-case code a screen words in its own language,
-# and the English sentence the log keeps.
-missing_code = "codex-missing"
-missing = "The Codex executable is missing."
+# The member's key file under the data root's env directory, private to its owner.
+key_file = "openai.key"
+# What it says where the key file or the gateway's key file is not usable: the kebab-case code a screen words
+# in its own language, and the English sentence the log keeps.
+missing_code = "codex-key-unusable"
+missing = "Codex cannot be chosen: its member's key file (openai.key) or the gateway's key file is missing or its mode is not 0600."
+# What a pin or a job naming a model this provider does not serve says; the name follows it.
+not_held = "Not a Codex model"
+
+[claude]
+# The Claude Code effort word a run goes out with, by the word its tier mapping or its agent named.
+effort = { none = "low", minimal = "low", low = "low", medium = "medium", high = "high", xhigh = "xhigh", max = "max", ultra = "max" }
+
 
 [catalogue]
 # The catalogue bundled with the installed executable, which needs neither a network request nor a
-# model run, and how long it is given to answer.
+# model run, and how long it is given to answer. The executable is read by the chooser that declares a
+# member; no run of this build goes out on it.
+program = "codex"
 args = ["debug", "models", "--bundled"]
 seconds = 15
 
@@ -72,14 +80,17 @@ app_server_args = [
 ]
 
 [resident]
-# The keys typed into the pane of its standing program, Codex's own screen, that cut a working turn
-# short (docs/agent-control.md, 「Stopping」).
+# The keys typed into the pane of its standing program, Claude Code, that cut a working turn short
+# (docs/agent-control.md, 「Stopping」).
 interrupt = ["escape"]
-# Its surface carries its own turns, read out of the thread's rollout (docs/agent-control.md, 「What a
-# resident turn reads」).
-turns = "rollout"
-# Words put in while a turn works are held on its screen and taken inside the same task (measured).
+# Its surface carries its own turns: put into Claude Code's transcript door and read back out of its record.
+turns = "endpoint"
+# Words put in while a turn works are taken into that turn.
 words_mid_turn = true
-# The folder-trust question its screen shows before its input box, which herdr reads as idle: only the
-# screen says it stands, and a turn finding it leaves it for a person.
-trust_question = "Do you trust the contents of this directory?"
+# A conversation grown to its mark is handed over by a turn asking it for its note, which a new session
+# opens with.
+handover = "handoff"
+# A conversation's turn is watched for going nowhere and cut at the conversation limits.
+turn_limits = true
+# No engine of its own holds a slot; every request goes to the member's API.
+waits_for_engine = false

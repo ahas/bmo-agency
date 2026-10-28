@@ -4,6 +4,9 @@ How a chat session is kept and resumed, told of documents that changed under it,
 folded when its window fills and replaced when its memory stops being worth its price. Clearing a
 session on the owner's ask is `docs/session-resets.md`.
 
+**Every agent session of this build is Claude Code.** No provider names dsh or the Codex CLI; the
+statements below about either are kept for a rollback to the road a deployment left.
+
 ## One session per chat
 
 - One Claude session per chat is kept and resumed, so the chat agent remembers previous exchanges. Every chat

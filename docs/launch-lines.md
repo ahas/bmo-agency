@@ -75,64 +75,59 @@
 
 ### The harnesses this build carries
 
-- **Claude Code is one implementation of it** (`packages/agent/claude-code.ts`), and every flag the
-  CLI is spoken to with is written in that one file — the five lines (a chat round, a gate's
-  judgement, a job, a search, a browse) and the two folds are its answers, each
-  in its fixed order.
-- **dsh — the DeepSeek Harness — is the second** (`packages/agent/dsh.ts`): it takes no flags to
-  speak of, so a run becomes a patch overlay written fresh for it, naming rows of dsh's own
-  composition — the run's own prompt as the persona suffix after dsh's own, the model and the provider's API it runs on as
-  a route, the tools it may have — and the command is the pinned `@deepseek-ai/dsh` at its headless profile with
-  the task standing in the line. The task stands there as words headless joins back with one space,
-  each short of the kernel's limit on one argument, and it reaches dsh out of a file of its own
-  rather than through the string npx hands a shell, because a task can run to hundreds of kilobytes
-  and that string is refused whole long before then.
-- **dsh reads every `{{name}}` in a persona as a variable of its own** and refuses the whole prompt on a
-  name it does not hold, so each `{{` of the text agency hands it is broken by a word joiner, which the
-  model reads past; the headless opening line's own `{{model}}` is left for dsh to fill.
-- **What a run may do to the files around it is not one of those rows alone**: dsh keeps how far a
-  write may reach and whether the run stops to ask as two knobs, and names only the pairs they make
-  together, so a run that set the reach and left the asking behind would be a composition dsh
-  refuses outright — before a word goes anywhere.
-- The mode therefore travels in the run's environment as the one name dsh resolves both ends of, as
-  well as on the row that states it.
-- **Codex is the third** (`packages/agent/codex.ts`): `codex exec` on the machine's own login, its
-  JSON events read back into the same reply, a thread id kept per scope, model and effort.
-- **A harness after those three is one more file.** What it has to write is the whole of the
-  interface: a name to be registered under, the lines it can really carry, the word its own program
-  folds a session with, a command for each of those lines, a reader, and — where its program has
-  them — the session one of its streamed events names, what those events say about the children a
-  run opened, and the tail of the record it kept for a session it keeps.
-- What it does not write is everything above it — it composes no documents, decides no policy about
-  who may use which tool, records no usage, judges nothing about the account, and never reads the
-  route that chose it.
-- **What a harness cannot answer it says so about rather than pretending**: dsh's own prompt
-  preamble stands in front of whatever prompt it is given, its tools are its own and can be had
-  whole or not at all rather than by name, it keeps no session agency could resume, and it reports
-  nothing about what a run cost — so a reply off it names no session and carries no figures, and
-  nothing downstream is told a number that was never reported.
+- **Claude Code is the one harness every provider's runs go out on** (`packages/agent/claude-code.ts`), and
+  every flag the CLI is spoken to with is written in that one file — the five lines (a chat round, a gate's
+  judgement, a job, a search, a browse) and the two folds are its answers, each in its fixed order.
+- **dsh — the DeepSeek Harness — remains in the build** (`packages/agent/dsh.ts`) for a rollback to the road
+  this deployment left, and no provider of this build names it. Its program takes no flags to speak of, so a
+  run becomes a patch overlay written fresh for it, naming rows of dsh's own composition — the run's own prompt
+  as the persona suffix after dsh's own, the model and the provider's API it runs on as a route, the tools it
+  may have — and the command is the pinned `@deepseek-ai/dsh` at its headless profile with the task standing in
+  the line. The task stands there as words headless joins back with one space, each short of the kernel's limit
+  on one argument, and it reaches dsh out of a file of its own rather than through the string npx hands a shell,
+  because a task can run to hundreds of kilobytes and that string is refused whole long before then.
+- **dsh reads every `{{name}}` in a persona as a variable of its own** and refuses the whole prompt on a name
+  it does not hold, so each `{{` of the text agency hands it is broken by a word joiner, which the model reads
+  past; the headless opening line's own `{{model}}` is left for dsh to fill.
+- **What a run may do to the files around it is not one of those rows alone**: dsh keeps how far a write may
+  reach and whether the run stops to ask as two knobs, and names only the pairs they make together, so a run
+  that set the reach and left the asking behind would be a composition dsh refuses outright — before a word
+  goes anywhere. The mode therefore travels in the run's environment as the one name dsh resolves both ends
+  of, as well as on the row that states it.
+- **The Codex CLI remains in the build** (`packages/agent/codex.ts`) for a rollback, and no provider of this
+  build names it: `codex exec` on the machine's own login, its JSON events read back into the same reply, a
+  thread id kept per scope, model and effort.
+- **A harness after those is one more file.** What it has to write is the whole of the interface: a name to be
+  registered under, the lines it can really carry, the word its own program folds a session with, a command
+  for each of those lines, a reader, and — where its program has them — the session one of its streamed events
+  names, what those events say about the children a run opened, and the tail of the record it kept for a
+  session it keeps.
+- What it does not write is everything above it — it composes no documents, decides no policy about who may
+  use which tool, records no usage, judges nothing about the account, and never reads the route that chose it.
+- **What a harness cannot answer it says so about rather than pretending**: dsh's own prompt preamble stands in
+  front of whatever prompt it is given, its tools are its own and can be had whole or not at all rather than by
+  name, it keeps no session agency could resume, and it reports nothing about what a run cost — so a reply off
+  it names no session and carries no figures, and nothing downstream is told a number that was never reported.
 
 ### Providers and what a route may promise
 
-- **The owner chooses a provider, never a harness.** The providers are Claude Code, Codex,
-  OpenRouter, the registry's and DeepSeek.
-- Each is declared beside the program that carries it and answers for itself whether it can be used
-  on this machine right now and why not, where its models come from, which effort words a mapping of
-  it may hold and whether one of its runs may go out with an effort or without, whether a mapping of
-  it carries a ceiling on the answer's tokens, whether agency chooses the login it goes out under, and
-  how its own reply reports what one turn cost — so whoever wants one of those facts asks the
-  provider, and no file outside those programs writes the providers' names out to answer it.
-- `packages/agent/harnesses.ts` is the one file that names the providers this build carries: it composes
-  them into the agent base's provider registry (`packages/agent/agent-providers.ts`), and every
-  other file reaches a provider through that registry.
-- Claude Code is carried by Claude Code, Codex by Codex, OpenRouter and DeepSeek by dsh, and the
-  registry's by Claude Code pointed at agency's gateway, with a request that needs no tools asked of the
-  gateway directly; the models it offers are the registrations, which the owner adds and changes with no
-  commit (`docs/own-llm.md`). OpenRouter and DeepSeek differ only in dsh's one route: OpenRouter's
-  gateway with its key in the process's environment, or DeepSeek's own OpenAI-compatible API with the
-  road's key file handed to the program as the variable the route reads. On every line their program in
-  the agent's pane is bmo-tui on a dsh session, which each provider's declaration names as its resident
-  program, and a headless run of either is dsh's headless profile on the same route.
+- **The owner chooses a provider, never a harness.** The providers are Claude Code, Codex, OpenRouter, the
+  registry's and DeepSeek.
+- Each is declared beside the program that carries it and answers for itself whether it can be used on this
+  machine right now and why not, where its models come from, which effort words a mapping of it may hold and
+  whether one of its runs may go out with an effort or without, whether a mapping of it carries a ceiling on
+  the answer's tokens, whether agency chooses the login it goes out under, and how its own reply reports what
+  one turn cost — so whoever wants one of those facts asks the provider, and no file outside those programs
+  writes the providers' names out to answer it.
+- `packages/agent/harnesses.ts` is the one file that names the providers this build carries: it composes them
+  into the agent base's provider registry (`packages/agent/agent-providers.ts`), and every other file reaches
+  a provider through that registry.
+- Claude Code is carried by Claude Code, Codex, OpenRouter and DeepSeek by Claude Code pointed at agency's
+  gateway under a member of their road (`packages/agent/member-provider.ts`), and the registry's by Claude Code
+  pointed at the gateway under a registration, with a request that needs no tools asked of the gateway
+  directly. The models of each member road are the members the deployment names, which the owner adds and
+  changes with no commit (`docs/own-llm.md`). On every line their program in the agent's pane is Claude Code,
+  and a headless run of any of them is the same program on the same gateway.
 - Which provider runs a piece of work is that work key's row in the route table (`docs/own-llm.md`),
   so a program is picked in exactly one place.
 - **What a route may promise is what the program really carries.** Each harness says what its
@@ -343,13 +338,12 @@
   under a home of the registration's own, and the gateway's key is read from its file by the
   settings' key helper. Each job is a turn of that program in the worker's pane on a session of its
   own (`docs/own-llm.md`, 「A worker on a registered model is composed as on Claude」).
-- **A job worker on a DeepSeek model**: bmo-tui on a dsh session in the worker's pane, as a worker on
-  OpenRouter stands (`docs/agent-control.md`, 「dsh's providers: OpenRouter and DeepSeek」): the worker's
-  rules as dsh's persona suffix after its own prompt, every tool row but the web,
-  the deployment's MCP servers, and DeepSeek's own API as dsh's one route on the model the pin or the
-  worker key's tier names, thinking off where the run does not think. The road's key file is read as the
-  program is stood and handed to it in the variable the route names; no login of the Claude road goes
-  with it.
+- **A job worker on a DeepSeek, OpenRouter or Codex model**: Claude Code on the gateway under the member the
+  pin or the worker key's tier names, exactly as a worker on a registration stands (`docs/own-llm.md`): the
+  worker line whole — its rules appended to the CLI's prompt or its base prompt with them after it, its
+  plugin, its co-workers, the worker MCP server, its settings and hooks — with the member's home, window,
+  answer ceiling and request wait, and the gateway's key read from its file by the settings' key helper. The
+  member's effort word goes out in the effort header; no login of the Claude road goes with it.
 - **A companion's turn** (agency's server's companion turn): a turn of the companion's resident program,
   which stands on the chat line above as the chat agent's does (`docs/agents.md`, 「Conversational agents」) —
   the same tools shown and allowed, the same configuration, the same mode and the same shell guard —

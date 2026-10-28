@@ -714,32 +714,23 @@ When a demotion first catches — when a healthy session first drops — two thi
   session's record is left in place, and re-enabling a provider judges the next warming from the time
   that record names.
 
-### The Codex substitute is the Codex CLI
+### The Codex road is a member of the gateway
 
-- **How it runs:** `codex exec` non-interactively, using the `codex login` already done on this machine;
-  agency stores and passes no OpenAI API key, and does not load Codex's user settings or exec rules.
-- **Chat and gates** replace the default coding-agent instruction with an agency-made system prompt file
-  via Codex's official `model_instructions_file`, and turn off project instructions, web search, apps,
-  memory, goals and Codex subagents. The prompt body is passed via stdin so a large document does not
-  stand in the process list; gates have no shell, and chat holds a shell only when the original run held
-  tools. A privileged chat allowed all tools uses `--dangerously-bypass-approvals-and-sandbox` so it
-  makes no sandbox and reaches agency's loopback scripts.
-- **A job worker** reads Codex's coding-agent default instruction and the checkout's `AGENTS.md`,
-  attaches the MCP the repository hands it, and with the same bypass rights as the primary worker
-  finishes commits, pushes and deploys. The worker's rules go in as Codex's `developer_instructions`,
-  standing beside the default instruction rather than replacing it.
-- **The system prompt file** is written freshly by the launch that builds the run, just before running;
-  a running run is never cut off by a file-not-found, and a file no launch uses any more disappears with
-  the old document tree on the next deployment.
+- **How it runs:** Claude Code on agency's gateway under the member named for the Codex model, on an OpenAI
+  API key kept in the member's key file under the data root's `env/`. The Codex CLI remains in the build for a
+  rollback, and no provider of this build names it.
+- **The models:** the members the deployment names for the Codex road, each with its window, answer ceiling,
+  thinking default and request wait. A member road serves no subscription window, and no run of it is warmed.
+- **Gates:** a gate on it is one request through the gateway, on the model its tier names.
 
-### The OpenRouter substitute is the dsh road
+### The OpenRouter road is a member of the gateway
 
-- **When:** in the default order, dsh headless is launched only when the Codex process is absent, ends
-  with an auth, limit or model error, or gives an empty answer.
-- **Only when:** this road stands only when an OpenRouter model is registered for that work key and the
-  OpenRouter environment key is present. The key is in the run environment only and reaches neither the
-  store, the temporary overlay, logs, the control API nor the browser, so the other substitutes are
-  usable even without OpenRouter configured.
+- **How it runs:** Claude Code on agency's gateway under the member named for the OpenRouter model, with the
+  key its key file holds. The public listing is still read for the chooser that declares a member.
+- **The models:** the members the deployment names for the OpenRouter road, each with its window, answer
+  ceiling, thinking default and request wait. The road publishes no cache lifetime, and no run of it is
+  warmed.
+- **Gates:** a gate on it is one request through the gateway, on the model its tier names.
 
 ### The registered models are the last road of the default order
 
@@ -749,29 +740,25 @@ When a demotion first catches — when a healthy session first drops — two thi
   (`docs/own-llm.md`). Whether thinking is on and the ceiling of answer tokens are saved on the registry's
   mapping of the key's tier.
 
-### The DeepSeek road
+### The DeepSeek road is a member of the gateway
 
-- **A provider of its own.** DeepSeek's two models, `deepseek-flash` and `deepseek-v4-pro`, are served
-  by the `deepseek` provider rather than by the registry, and so take their own tier mappings, their own
-  place in the provider order and their own co-worker limits. The road's key file, `env/deepseek.key`
-  under the data root, is the road's key; it is read as a program is stood and handed to it in the
-  variable dsh's route names, and it reaches neither the overlay, the turn's own variables nor a log.
-- **How a run goes out.** Through dsh, as OpenRouter's runs do, with DeepSeek's own OpenAI-compatible API
-  as dsh's one route: a chat, a worker or a companion stands bmo-tui on a dsh session in its pane, its
-  turns put into bmo-tui's inbox and read back out of its record (`docs/agent-control.md`, 「dsh's
-  providers: OpenRouter and DeepSeek」). The session stands in the pane across turns, agency stores no id
-  for it, and its record carries no tokens, so what a turn spent is not reported. A gate is carried: its
-  judgements stand in places kept for the programs its asks compose (`docs/agent-control.md`, 「A gate's
-  places」), so a gate's key may be set to this provider and the walk of a gate's key asks it.
-- **Thinking and effort.** The provider's words are `none`, `low`, `medium`, `high` and `max`. `none` is
-  a run without thinking, and so is an agent's own thinking switch turned off: the route is asked with
-  reasoning off. An agent's level reaches the run as dsh's reasoning level where it is one of the
-  scale's levels; a run that thinks at no level an agent chose is left at the model's own.
-- **The split.** A fresh store maps the heavy tiers, BMO and Frontier, to the pro model and the rest to
-  the flash model, the Light and Simple tiers with the low effort. The mapping is the owner's to change
-  in the tier settings, and the co-worker limits are the pool's as on every provider that lends them.
-- **What the provider is not.** Its models are not registrations, and the gateway does not serve them;
-  nothing on this road is placed on a work node.
+- **A provider of its own.** DeepSeek's models are served by the `deepseek` provider rather than by the
+  registry, and so take their own tier mappings, their own place in the provider order and their own
+  co-worker limits. The members the deployment names for the road carry its key file, `env/deepseek.key`,
+  and its window, answer ceiling, thinking default and request wait.
+- **How a run goes out.** Claude Code on the gateway under the member the run names: a chat, a worker or a
+  companion stands it in its pane, its turns put into the program and read back out of its transcript. The
+  session is kept and resumed like any Claude Code session, and what a turn spent is reported off the
+  transcript. A gate is one request through the gateway, on the model its tier names.
+- **Thinking and effort.** The provider's words are `none`, `low`, `medium`, `high` and `max`. `none` is a run
+  without thinking, and so is an agent's own thinking switch turned off. The word goes out in the effort
+  header, which the gateway writes into the request its backend reads; the Claude Code effort word a run is
+  launched with is the provider's own mapping of it.
+- **The split.** A fresh store maps the heavy tiers, BMO and Frontier, to the pro model and the rest to the
+  flash model, the Light and Simple tiers with the low effort. The mapping is the owner's to change in the
+  tier settings, and the co-worker limits are the pool's as on every provider that lends them.
+- **What the provider is not.** Its models are not registrations, but its runs reach them through the model
+  gateway; nothing on this road is placed on a work node.
 
 ### The default substitute models
 

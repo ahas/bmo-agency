@@ -20,22 +20,20 @@ use sha2::{Digest, Sha256};
 
 use agent_host::place::ResidentCommand;
 use harness_providers::claude_code::ClaudeCode;
-use harness_providers::registered::Registered;
 use policy::run_lines::RUN_LINES;
 
-use super::claude::{Command, Runs, Session, command_env, endpoint_launch, handed, line_environment};
+use super::claude::{Command, Runs, Session, command_env, handed, line_environment};
 use super::codex::{Shape, resident_command_of};
-use super::companion::{ComposedTurn, LOST_SESSION, Window, registration_named, walked_login};
+use super::companion::{ComposedTurn, LOST_SESSION, Window, walked_login};
 use super::dsh::Composed;
 use super::openrouter::resident_command;
 use super::ordered::Ordered;
 use super::place::{Holds, Place, write_place_settings};
-use super::standing::{OnGateway, Placing, gateway_command, status_root};
+use super::standing::{GatewayModel, OnGateway, Placing, gateway_command, status_root};
 use super::token::facts;
 use super::worker::{Reasoning, effort_of, reasoning_of, rulebook, system_prompt_file};
 use super::{Trees, fault, publish_text, read_required};
 use crate::Refusal;
-use crate::control::claude_accounts::Account;
 use crate::control::tiers;
 use crate::places::Ground;
 use crate::run_log::RunLog;
@@ -999,10 +997,11 @@ pub enum Door {
   Codex { thread: Option<String> },
   /// A provider whose turns go through the pane program's inbox, on the dsh session it keeps.
   Inbox { provider: String },
-  /// Claude Code on the gateway, its session placed where the registration places it.
-  Gateway { placement: Option<String> },
-  /// Claude Code on an Endpoint account, its family mapping naming the run's model.
-  Endpoint { account: Box<Account> },
+  /// Claude Code on the gateway, under the model whose home, window and wait the run is sized to.
+  Gateway {
+    held: Box<GatewayModel>,
+    placement: Option<String>,
+  },
 }
 
 /// The chat's turn composed for one stand-in step: the agent's own program on the step's road, on the chat
@@ -1113,29 +1112,17 @@ pub async fn compose_stand_in(
         ..composed(command, opened, None)
       })
     }
-    Door::Endpoint { account } => {
-      let launched = endpoint_launch(account.as_ref(), &step.model, &step.effort)?;
-      let env = launched
-        .env
-        .into_iter()
-        .filter_map(|(name, value)| Some((name, value?)))
-        .collect::<BTreeMap<_, _>>();
-      let command = ResidentCommand {
-        args: launched.args,
-        cwd: std::path::PathBuf::from(launched.cwd),
-        env: env.clone(),
-      };
-
-      Ok(ComposedTurn {
-        account: Some(account.id.clone()),
-        run_env: Some(env),
-        ..composed(command, opened, None)
-      })
-    }
-    Door::Gateway { placement } => {
-      let held = registration_named(ground, &step.model).await?;
+    Door::Gateway { held, placement } => {
       // Claude Code on the gateway names its records after its folder's real path as on its own road.
       let cwd = claude_folder(ground, run)?;
+      let (claude_effort, backend_effort, thinking) = match held.road {
+        Some(road) => (
+          harness_providers::provider(road).and_then(|provider| provider.claude_effort(&step.effort)),
+          Some(step.effort.as_str()),
+          Some(step.thinking),
+        ),
+        None => (None, None, None),
+      };
       let on = OnGateway {
         agent: &run.agent,
         model: &step.model,
@@ -1149,10 +1136,14 @@ pub async fn compose_stand_in(
         role: policy::work_keys::WORK_KEYS
           .profile(&run.agent)
           .and_then(|profile| profile.prefix_role.as_deref()),
+        thinking,
+        claude_effort,
+        backend_effort,
       };
-      let (mut command, name) = gateway_command(
+      let (mut command, _) = gateway_command(
         ground,
         machine,
+        held,
         on,
         step.answer_tokens,
         Placing::At(placement.clone()),
@@ -1175,7 +1166,7 @@ pub async fn compose_stand_in(
         placement: placement.clone(),
         window: Some(Window {
           context_tokens: held.context_tokens,
-          home: Registered::home(machine, &name),
+          home: held.home.clone(),
         }),
         ..composed(command, opened.clone(), effort)
       })

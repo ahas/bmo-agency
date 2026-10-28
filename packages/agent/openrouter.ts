@@ -27,8 +27,10 @@ export function openRouterApiBase(): string {
   return process.env[declaredGateway.api_env] || declaredGateway.api;
 }
 
-/** The one place the key is kept: an environment variable, which its policy file names. */
-export const openRouterKeyEnv: string = declaredOpenRouter.presence.key_env;
+/** The one place the dormant dsh road's key was kept: the variable its route names. A member road reads
+ * its key file instead. */
+export const openRouterKeyEnv: string =
+  (declaredOpenRouter as { dsh?: { key_env?: string } }).dsh?.key_env ?? "BMO_OPENROUTER_KEY";
 
 // Every model OpenRouter offers, for a screen to choose a stand-in from: a `:free` id priced at
 // zero is free. The listing needs no key at all, so the console can show the choice on a machine

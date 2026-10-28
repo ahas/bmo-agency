@@ -1,19 +1,19 @@
-# DeepSeek's own API, reached by the dsh harness through bmo-tui on its OpenAI-compatible route, with the
-# key the road's key file holds (docs/cache-fallback.md, 「The DeepSeek road」). Read by this provider's own
-# declaration on each side.
+# DeepSeek's own API, reached by Claude Code through agency's gateway member, with the key the gateway's
+# member names (docs/own-llm.md, 「The gateway's members」). Read by this provider's own declaration on each
+# side.
 
 # The provider's name as a screen shows it.
 label = "DeepSeek"
 
-# The lines its program carries. A gate's judgements stand in places of their own on it, and so does a search,
-# dsh standing with every tool row of its own off so the run's MCP servers are its only tools; the browse line
-# needs Claude Code's program.
-lines = ["chat", "gate", "worker", "search"]
+# The lines its program carries. Its runs are Claude Code's on the gateway, which carries the chat, a worker's
+# job and a gate's one-request judgement. A search's run apart is not carried here yet; its key walks to the
+# provider that carries it.
+lines = ["chat", "gate", "worker"]
 
-# A mapping of it carries no ceiling on the answer's tokens: the provider publishes none.
-caps_answer_tokens = false
+# A mapping of it carries a ceiling on the answer's tokens: its member names one.
+caps_answer_tokens = true
 
-# It serves two models, so its co-workers each take their own tier's.
+# It serves several models, so its co-workers each take their own tier's.
 lends_coworkers = true
 
 # The share of a model's window a session may fill before it is folded, at a tier the fold-ratio table
@@ -30,46 +30,38 @@ none_held = true
 launch = "either"
 
 [presence]
-# The road's key file under the data root's env directory, private to its owner.
+# The member's key file under the data root's env directory, private to its owner.
 key_file = "deepseek.key"
-# What it says where the key file is not usable: the kebab-case code a screen words in its own language,
-# and the English sentence the log keeps.
+# What it says where the key file or the gateway's key file is not usable: the kebab-case code a screen words
+# in its own language, and the English sentence the log keeps.
 missing_code = "deepseek-key-unusable"
-missing = "DeepSeek cannot be chosen: the key file (deepseek.key) is missing or its mode is not 0600."
+missing = "DeepSeek cannot be chosen: its member's key file (deepseek.key) or the gateway's key file is missing or its mode is not 0600."
 # What a pin or a job naming a model this provider does not serve says; the name follows it.
 not_held = "Not a DeepSeek model"
 
-# The models this provider serves, in the order a screen offers them. An id is the model's name on the
-# wire, and the window and answer ceiling are the run's own.
-[[model]]
-id = "deepseek-flash"
-label = "DeepSeek V4.1 Flash"
-context_tokens = 1048576
-answer_tokens = 32768
-thinking = true
-
-[[model]]
-id = "deepseek-v4-pro"
-label = "DeepSeek V4 Pro"
-context_tokens = 1048576
-answer_tokens = 32768
-thinking = true
+[claude]
+# The Claude Code effort word a run goes out with, by the word its tier mapping or its agent named. A word
+# this table does not hold leaves the launch at Claude Code's own word for whether the run thinks.
+effort = { none = "low", low = "low", medium = "medium", high = "high", max = "max" }
 
 [resident]
-# The keys typed into the pane of its standing program, bmo-tui, that cut a working turn short
+# The keys typed into the pane of its standing program, Claude Code, that cut a working turn short
 # (docs/agent-control.md, 「Stopping」).
 interrupt = ["escape"]
-# The program that stands in the agent's pane: bmo-tui, which starts dsh and keeps its screen open on
-# the session.
-program = "bmo-tui"
-dsh = "dsh"
-# Its surface carries its own turns: put into bmo-tui's inbox and read back out of its record.
-turns = "inbox"
-# A turn holds the session until dsh has ended it; words typed mid-turn are not taken into that turn.
-words_mid_turn = false
+# Its surface carries its own turns: put into Claude Code's transcript door and read back out of its record.
+turns = "endpoint"
+# Words put in while a turn works are taken into that turn.
+words_mid_turn = true
+# A conversation grown to its mark is handed over by a turn asking it for its note, which a new session
+# opens with.
+handover = "handoff"
+# A conversation's turn is watched for going nowhere and cut at the conversation limits.
+turn_limits = true
+# No engine of its own holds a slot; every request goes to DeepSeek's API.
+waits_for_engine = false
 
-# How its turns go through dsh: its own OpenAI-compatible API as dsh's one route and the variable its key
-# is read from, which the program carries from the road's key file.
+# The dsh route the road no longer uses; kept for a rollback to the dsh harness, which no run of this build
+# names.
 [dsh]
 api = "https://api.deepseek.com/v1"
 api_env = "BMO_DEEPSEEK_DSH_API_URL"

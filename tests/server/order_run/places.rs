@@ -8,27 +8,16 @@ use std::collections::HashSet;
 use agency_server::order_run::places::{Agent, CAP, Held, KEEP_MS, busy_slots, choose, prunable, ttl_ms};
 use policy::pool_warm::POOL_WARM;
 use policy::providers::claude_code::CLAUDE_CODE;
-use policy::providers::codex::CODEX;
 
 #[test]
 fn a_lines_life_is_the_published_lifetime_less_the_one_margin_and_none_where_none_is_published() {
   let margin = POOL_WARM.margin_minutes * 60_000;
-  let codex = CODEX.cache.of("gpt-5.6").unwrap().ttl_minutes * 60_000;
 
   assert_eq!(
     ttl_ms("claude-code", "opus", None),
     Some(CLAUDE_CODE.cache.ttl_minutes * 60_000 - margin)
   );
-  assert_eq!(
-    ttl_ms("codex", "gpt-5.6-sol", None),
-    Some(codex - margin),
-    "the same margin on every provider"
-  );
-  assert_eq!(
-    ttl_ms("codex", "gpt-4", None),
-    None,
-    "a model with no published lifetime leaves no line"
-  );
+  assert_eq!(ttl_ms("codex", "gpt-5.6-sol", None), None, "a member road publishes no lifetime");
   assert_eq!(ttl_ms("openrouter", "anthropic/model", None), None, "nor does an unrecorded upstream");
 }
 

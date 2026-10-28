@@ -17,7 +17,6 @@ use agency_server::road::Road;
 use agency_server::seeds::deployment;
 use agent_session::{EngineError, Failure, Outcome, TurnEnd};
 use harness_providers::Machine;
-use policy::providers::deepseek::DEEPSEEK;
 use sea_orm::DatabaseConnection;
 
 use crate::scratch::Scratch;
@@ -61,12 +60,25 @@ impl Carrier for Ends {
 // A store whose order is DeepSeek, its key in place, then Claude Code on its one seeded login, and a job of a
 // worker on it; every other provider is missing on a machine with nothing on its path.
 async fn standing(scratch: &Scratch, home: &std::path::Path) -> Ground {
-  let env = home.join("data").join("env");
-  let key = env.join(&DEEPSEEK.presence.key_file);
+  let data = home.join("data");
+  let env = data.join("env");
 
   std::fs::create_dir_all(&env).unwrap();
-  std::fs::write(&key, "a key\n").unwrap();
-  std::fs::set_permissions(&key, std::fs::Permissions::from_mode(0o600)).unwrap();
+  for (name, key) in [("deepseek.key", "a key\n"), ("llm-gateway.key", "a key\n")] {
+    let file = env.join(name);
+
+    std::fs::write(&file, key).unwrap();
+    std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o600)).unwrap();
+  }
+
+  let members = data.join("llm-gateway");
+
+  std::fs::create_dir_all(&members).unwrap();
+  std::fs::write(
+    members.join("members.json"),
+    r#"[{"name":"deepseek-flash","road":"deepseek","provider":"deepseek","model":"deepseek-flash","api_base":"https://api.deepseek.com/v1","key_file":"deepseek.key","wait_seconds":300,"context_tokens":1048576,"answer_tokens":32768,"thinking":true}]"#,
+  )
+  .unwrap();
 
   let order: Vec<OrderEntry> = ["deepseek", "claude-code", "codex", "openrouter", "registered"]
     .iter()
@@ -241,12 +253,25 @@ fn at(path: &Path) -> String {
 // A base worker in a repository of its own and a support worker whose worktree is not there: the base
 // stands on main, and the first road that can answer is the pane program's.
 async fn support_standing(scratch: &Scratch, home: &Path) -> (Ground, PathBuf, PathBuf, String) {
-  let env = home.join("data").join("env");
-  let key = env.join(&DEEPSEEK.presence.key_file);
+  let data = home.join("data");
+  let env = data.join("env");
 
   std::fs::create_dir_all(&env).unwrap();
-  std::fs::write(&key, "a key\n").unwrap();
-  std::fs::set_permissions(&key, std::fs::Permissions::from_mode(0o600)).unwrap();
+  for (name, key) in [("deepseek.key", "a key\n"), ("llm-gateway.key", "a key\n")] {
+    let file = env.join(name);
+
+    std::fs::write(&file, key).unwrap();
+    std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o600)).unwrap();
+  }
+
+  let members = data.join("llm-gateway");
+
+  std::fs::create_dir_all(&members).unwrap();
+  std::fs::write(
+    members.join("members.json"),
+    r#"[{"name":"deepseek-flash","road":"deepseek","provider":"deepseek","model":"deepseek-flash","api_base":"https://api.deepseek.com/v1","key_file":"deepseek.key","wait_seconds":300,"context_tokens":1048576,"answer_tokens":32768,"thinking":true}]"#,
+  )
+  .unwrap();
 
   let order: Vec<OrderEntry> = ["deepseek", "claude-code", "codex", "openrouter", "registered"]
     .iter()

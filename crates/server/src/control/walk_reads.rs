@@ -42,6 +42,7 @@ impl Route for ListProviders {
         "label": declared.label,
         "enabled": entry.enabled,
         "registered": provider.unregistered().is_some(),
+        "gateway": provider.models_on_gateway(),
         "coworker": declared.lends_coworkers,
         "lines": declared.lines,
       }));
@@ -73,6 +74,7 @@ impl Route for ProviderRoute {
         "label": provider.declared().label,
         "enabled": enabled,
         "registered": provider.unregistered().is_some(),
+        "gateway": provider.models_on_gateway(),
         "coworker": provider.declared().lends_coworkers,
       }),
     ))
@@ -127,6 +129,7 @@ impl Route for ChangeProvider {
         "label": provider.declared().label,
         "enabled": enabled,
         "registered": provider.unregistered().is_some(),
+        "gateway": provider.models_on_gateway(),
         "coworker": provider.declared().lends_coworkers,
       }),
     ))
@@ -306,7 +309,7 @@ impl Route for CheckPin {
   async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
     let asked: PinValue =
       serde_json::from_value(call.body().await?).map_err(|error| bad(format!("a pin's value: {error}")))?;
-    let pin = pin_choice(call.store(), &asked.value).await?.map_err(bad)?;
+    let pin = pin_choice(call.store(), &call.ground().machine(), &asked.value).await?.map_err(bad)?;
 
     Ok(answer(
       StatusCode::OK,

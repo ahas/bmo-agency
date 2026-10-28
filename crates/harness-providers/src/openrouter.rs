@@ -1,8 +1,9 @@
-//! OpenRouter: present where its key is in the environment, and its catalogue the public listing,
-//! which needs no key (docs/provider-presence.md).
+//! OpenRouter: present where the gateway's key file and its members' key files stand private under the data
+//! root, and its models the members of its road (docs/provider-presence.md). Its program is Claude Code on
+//! agency's gateway. The public listing is still read for the chooser that declares a member.
 
 use std::collections::BTreeMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use policy::providers::Declared;
@@ -10,23 +11,22 @@ use policy::providers::openrouter::OPENROUTER;
 use serde::Serialize;
 use serde_json::{Value, json};
 
-use crate::balance::{Balance, OffersBalance, figure};
+use crate::balance::{Balance, OffersBalance, figure, key_in_file};
+use crate::claude_code::ClaudeCode;
+use crate::member;
 use crate::{Machine, Offered, OfferedModel, Offering, PlaceCache, Provider, Reading, Reason};
 
 pub struct OpenRouter;
 
-// OpenRouter's balance: asked with the key in its key variable, the credits bought less the credits used,
-// in the currency its policy names.
+// OpenRouter's balance: asked with the member's key file, the credits bought less the credits used, in the
+// currency its policy names.
 impl OffersBalance for OpenRouter {
   fn declared(&self) -> &'static policy::providers::Balance {
     &OPENROUTER.balance
   }
 
   fn key(&self, machine: &Machine) -> Result<String, String> {
-    machine
-      .var(&OPENROUTER.presence.key_env)
-      .map(str::to_owned)
-      .ok_or_else(|| format!("{} is not set", OPENROUTER.presence.key_env))
+    key_in_file(&machine.data_root().join("env").join(&OPENROUTER.presence.key_file))
   }
 
   fn read(&self, answer: &Value) -> Result<Balance, String> {
@@ -54,40 +54,55 @@ impl Provider for OpenRouter {
     &OPENROUTER.declared
   }
 
-  // A routed model's cache belongs to the upstream that took the turn, so a place is warmed only on that
-  // upstream's published lifetime.
-  fn place_cache(&self, model: &str, upstream: Option<&str>) -> Result<PlaceCache, String> {
-    let Some(upstream) = upstream else {
-      return Err("No OpenRouter upstream was recorded as taking that prefix.".to_owned());
-    };
-
-    OPENROUTER
-      .cache
-      .of(upstream, model)
-      .map(|entry| PlaceCache {
-        ttl_minutes: entry.ttl_minutes,
-        idle_minutes: entry.keepalive_idle_minutes,
-      })
-      .ok_or_else(|| format!("{upstream} publishes no cache lifetime for {model}."))
+  // No member publishes a cache lifetime, so nothing keeps a place warm.
+  fn place_cache(&self, _model: &str, _upstream: Option<&str>) -> Result<PlaceCache, String> {
+    Err(
+      "OpenRouter's members publish no cache lifetime, so there is no clock to keep one warm by."
+        .to_owned(),
+    )
   }
 
-  // Its program is bmo-tui standing this provider's dsh session.
-  fn owns_program(&self, _machine: &Machine, args: &[String], _env: &BTreeMap<String, String>) -> bool {
-    crate::stands_dsh_session(self, args)
+  // Its program is Claude Code under one of its road's homes.
+  fn owns_program(&self, machine: &Machine, args: &[String], env: &BTreeMap<String, String>) -> bool {
+    member::owns(machine, args, env, self.name())
   }
 
   fn missing(&self, machine: &Machine) -> Option<Reason> {
-    machine
-      .var(&OPENROUTER.presence.key_env)
-      .is_none()
-      .then(|| Reason::new(&OPENROUTER.presence.missing_code, &OPENROUTER.presence.missing))
+    member::missing(machine, self.name(), &OPENROUTER.presence.missing_code, &OPENROUTER.presence.missing)
+  }
+
+  fn not_registered(&self) -> Option<&'static str> {
+    Some(&OPENROUTER.presence.not_held)
+  }
+
+  fn models_on_gateway(&self) -> bool {
+    true
+  }
+
+  fn holds_model(&self, machine: &Machine, model: &str) -> bool {
+    member::member_named(machine, self.name(), model).ok().flatten().is_some()
   }
 
   fn catalogue<'a>(&'a self, machine: &'a Machine, _config_dir: Option<&'a Path>) -> Reading<'a> {
-    Box::pin(async move { Ok(json!({ "models": models(machine).await? })) })
+    Box::pin(async move {
+      let held = member::road_members(machine, self.name())?;
+      let models: Vec<Value> = held
+        .iter()
+        .map(|one| {
+          json!({
+            "id": one.member.name,
+            "name": one.member.label.clone().unwrap_or_else(|| one.member.name.clone()),
+            "contextLength": one.context_tokens,
+            "defaultReasoningEffort": if one.thinking { "medium" } else { "none" },
+            "supportedReasoningEfforts": &OPENROUTER.declared.effort.words,
+          })
+        })
+        .collect();
+
+      Ok(json!({ "models": models }))
+    })
   }
 
-  // A mapping names no effort: which levels a routed model offers is that model's, never the tier's.
   fn offered<'a>(
     &'a self,
     machine: &'a Machine,
@@ -95,11 +110,18 @@ impl Provider for OpenRouter {
     _now_ms: f64,
   ) -> Offering<'a> {
     Box::pin(async move {
-      let models = models(machine).await?.into_iter().map(|model| OfferedModel {
-        id: model.id,
-        efforts: vec![None],
-        free: Some(model.free),
-        in_service: None,
+      let efforts: Vec<Option<String>> = OPENROUTER
+        .declared
+        .effort
+        .vocabulary()
+        .into_iter()
+        .map(|word| word.map(str::to_owned))
+        .collect();
+      let models = member::road_members(machine, self.name())?.into_iter().map(|one| OfferedModel {
+        id: one.member.name,
+        efforts: efforts.clone(),
+        free: None,
+        in_service: Some(true),
       });
 
       Ok(Offered {
@@ -107,6 +129,30 @@ impl Provider for OpenRouter {
         stale_read_at: None,
       })
     })
+  }
+
+  fn claude_effort(&self, word: &str) -> Option<&'static str> {
+    OPENROUTER.claude.as_ref().and_then(|claude| claude.word(word))
+  }
+
+  fn session_of_event(&self, event: &serde_json::Value) -> Option<String> {
+    ClaudeCode.session_of_event(event)
+  }
+
+  fn progress_of(&self, line: &str) -> Option<String> {
+    ClaudeCode.progress_of(line)
+  }
+
+  fn session_records(&self, machine: &Machine, cwd: &Path, session: &str, model: &str) -> Vec<PathBuf> {
+    member::session_records(machine, self.name(), cwd, session, model)
+  }
+
+  fn home_records(&self, machine: &Machine, cwd: &Path) -> Vec<PathBuf> {
+    member::home_records(machine, self.name(), cwd)
+  }
+
+  fn forget_prompts(&self, machine: &Machine, cwd: &Path, session: Option<&str>) -> Result<usize, String> {
+    member::forget_prompts(machine, self.name(), cwd, session)
   }
 }
 

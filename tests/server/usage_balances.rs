@@ -56,6 +56,20 @@ async fn the_road_and_each_endpoint_account_on_the_provider_s_origin_are_asked_w
   std::fs::write(&road_key, "sk-road").unwrap();
   std::fs::set_permissions(&road_key, std::fs::Permissions::from_mode(0o600)).unwrap();
 
+  let gateway = dir.path().join("env").join("llm-gateway.key");
+
+  std::fs::write(&gateway, "sk-gateway\n").unwrap();
+  std::fs::set_permissions(&gateway, std::fs::Permissions::from_mode(0o600)).unwrap();
+
+  let members = dir.path().join("llm-gateway");
+
+  std::fs::create_dir_all(&members).unwrap();
+  std::fs::write(
+    members.join("members.json"),
+    r#"[{"name":"deepseek-flash","road":"deepseek","provider":"deepseek","model":"deepseek-flash","api_base":"https://api.deepseek.com/v1","key_file":"deepseek.key","wait_seconds":300,"context_tokens":1048576,"answer_tokens":32768,"thinking":true}]"#,
+  )
+  .unwrap();
+
   let asks = asked(balances.asks().await.unwrap());
 
   assert_eq!(asks.len(), 2);

@@ -3,7 +3,7 @@
 //! its own. Each provider answers for itself which lines it carries and whether it takes a model; the
 //! registrations a model names are read from the store here.
 
-use harness_providers::ARCHIVE_PROVIDERS;
+use harness_providers::{ARCHIVE_PROVIDERS, Machine};
 use policy::fill_marks;
 use policy::queue_words::QUEUE_WORDS;
 use sea_orm::ConnectionTrait;
@@ -23,6 +23,7 @@ pub struct Pin {
 /// The pin a value names, or the sentence saying why nothing could run on it.
 pub async fn pin_choice<C: ConnectionTrait>(
   archive: &C,
+  machine: &Machine,
   value: &str,
 ) -> Result<Result<Pin, String>, Refused> {
   if value == "auto" {
@@ -69,7 +70,7 @@ pub async fn pin_choice<C: ConnectionTrait>(
     if held.is_none_or(|held| held.addresses.is_empty()) {
       return Ok(Err(format!("{not_registered}: {model}")));
     }
-  } else if !provider.holds_model(model) {
+  } else if !provider.holds_model(machine, model) {
     return Ok(Err(format!("{not_registered}: {model}")));
   }
 

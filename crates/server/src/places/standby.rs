@@ -28,7 +28,9 @@ use crate::control::fallback::fallback_provider;
 use crate::control::harness::provider_enabled;
 use crate::control::registry;
 use crate::lines::place::{Place, Program, token_of};
-use crate::lines::standing::{Standing, claim_standby, claude_program, inbox_program, registered_program};
+use crate::lines::standing::{
+  Standing, claim_standby, claude_program, inbox_program, member_program, registered_program,
+};
 use crate::lines::token;
 use crate::queue::routes::{JOB_WORK_KEY, worker_pin_held};
 use crate::road::{self, Ask};
@@ -155,6 +157,13 @@ async fn pinned_program(
 ) -> Result<Option<Standing>, Refusal> {
   match pin {
     "registered" => Ok(Some(registered_program(ground, machine, worker, cwd, model).await?)),
+    road if crate::chat_stand_in::member_declared(road) => {
+      let Some(provider) = provider(road) else {
+        return Ok(None);
+      };
+
+      Ok(Some(member_program(ground, machine, worker, cwd, provider.name(), model).await?))
+    }
     _ => {
       let resident = provider(pin).and_then(|provider| provider.declared().resident.as_ref());
       let program = resident.and_then(|resident| resident.program.clone());

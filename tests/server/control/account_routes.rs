@@ -202,7 +202,7 @@ async fn the_fallback_s_view_answers_the_active_slot_s_balance_and_each_account_
     assert_eq!(road["reason"].is_null(), road["reasonCode"].is_null(), "{road}");
 
     if road["name"] == "openrouter" && !road["reason"].is_null() {
-      assert_eq!(road["reasonCode"], "openrouter-key-unset", "{road}");
+      assert_eq!(road["reasonCode"], "openrouter-key-unusable", "{road}");
     }
   }
   assert_eq!(fallback["active"]["session"], Value::Null);

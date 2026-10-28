@@ -10,7 +10,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use harness_providers::Machine;
-use harness_providers::registered::registered_road;
+use harness_providers::registered::{registered_road, road_home};
 use policy::door_words::DOOR_WORDS;
 use sea_orm::DatabaseConnection;
 
@@ -142,7 +142,10 @@ pub async fn turn_refusal(
   work_key: &str,
   env: &BTreeMap<String, String>,
 ) -> Option<String> {
-  if !registered_road(machine, env) && !provider_enabled(db, "claude-code").await.unwrap_or(false) {
+  if road_home(machine, env).is_none()
+    && !registered_road(machine, env)
+    && !provider_enabled(db, "claude-code").await.unwrap_or(false)
+  {
     return Some(format!(
       "{work_key}: selected claude-code route did not answer: {}",
       DOOR_WORDS.provider_off

@@ -338,13 +338,96 @@ pub async fn registered_program(
   })
 }
 
-/// Where a run's session on a registration stands as its command is composed.
-pub enum Placing {
-  /// Placed as the command is composed, after the place's settings are written: a program stood with
-  /// nothing put in, whose picker names the registration alone.
-  Composed,
-  /// Placed before, on the node named or on none in particular, which the picker names too.
-  At(Option<String>),
+/// Claude Code on the gateway for a worker pinned to a member road: the worker's line on the member, with
+/// the place's settings and its home's first-run questions answered, on a session it opens itself.
+pub async fn member_program(
+  ground: &Ground,
+  machine: &Machine,
+  worker: &str,
+  cwd: &str,
+  road: &'static str,
+  model: Option<&str>,
+) -> Result<Standing, Refusal> {
+  let trees = Trees::of(ground);
+  let (run, answer_tokens) = pinned_run(ground, machine, &trees, worker, cwd, road, model).await?;
+  let held = member_model(machine, road, &run.model)?;
+  let command =
+    member_command(ground, machine, worker, road, &run, &held, answer_tokens, Placing::Composed, None)
+      .await?;
+
+  Ok(Standing {
+    program: Program {
+      identity: command_digest(&command),
+      command,
+      restart: None,
+      opened: None,
+    },
+    standby: None,
+    on: held.name,
+  })
+}
+
+/// The member a road holds by a name, or the refusal naming it.
+pub fn member_model(machine: &Machine, road: &'static str, name: &str) -> Result<GatewayModel, Refusal> {
+  let members = harness_providers::member::road_members(machine, road).map_err(fault)?;
+  let held = members.into_iter().find(|one| one.member.name == name).ok_or_else(|| {
+    let not_held = harness_providers::provider(road)
+      .and_then(|provider| provider.not_registered())
+      .unwrap_or("Not a model of that provider");
+
+    fault(format!("{not_held}: {name}"))
+  })?;
+
+  Ok(GatewayModel::member(machine, road, &held))
+}
+
+/// Claude Code on the gateway for a run of the worker's line on a member: the line on the member's name,
+/// the member's home, and the window, the answer ceiling, the wait and the thinking the member names.
+#[allow(clippy::too_many_arguments)]
+pub async fn member_command(
+  ground: &Ground,
+  machine: &Machine,
+  worker: &str,
+  road: &'static str,
+  run: &WorkerRun,
+  held: &GatewayModel,
+  answer_tokens: Option<i64>,
+  placing: Placing,
+  session: Option<&Session>,
+) -> Result<agent_host::place::ResidentCommand, Refusal> {
+  let sampling = worker_sampling(ground, worker)
+    .await?
+    .map(|sampling| serde_json::to_string(&sampling))
+    .transpose()
+    .map_err(|why| fault(why.to_string()))?;
+  let claude_effort =
+    harness_providers::provider(road).and_then(|provider| provider.claude_effort(&run.effort));
+  let on = OnGateway {
+    agent: worker,
+    model: &run.model,
+    effort: &run.effort,
+    cwd: &run.cwd,
+    settings: read_settings(&run.settings),
+    compose_typed: RUN_LINES.composes_typed_lines(LINE),
+    shell_guard: false,
+    sampling,
+    role: None,
+    thinking: Some(run.thinking),
+    claude_effort,
+    backend_effort: Some(&run.effort),
+  };
+
+  gateway_command(ground, machine, held, on, answer_tokens, placing, |name, effort, thinking, settings| {
+    let mut sent = run.clone();
+
+    sent.model = name.to_owned();
+    sent.effort = effort.to_owned();
+    sent.thinking = thinking;
+
+    claude::worker_args(&sent, settings, session)
+  })
+  .await
+  .map(|(command, _)| command)
 }
 
 /// Claude Code on the gateway for a run of the worker's line on a registration: the line on the
@@ -360,6 +443,12 @@ pub async fn registered_command(
   placing: Placing,
   session: Option<&Session>,
 ) -> Result<(agent_host::place::ResidentCommand, String), Refusal> {
+  let held = registry::registration(&ground.db, &run.model)
+    .await
+    .map_err(|refused| fault(refused.error))?
+    .filter(|held| !held.addresses.is_empty())
+    .ok_or_else(|| fault(format!("{}: {}", REGISTERED.presence.not_registered, run.model)))?;
+  let model = GatewayModel::registration(machine, &held);
   let sampling = worker_sampling(ground, worker)
     .await?
     .map(|sampling| serde_json::to_string(&sampling))
@@ -375,18 +464,99 @@ pub async fn registered_command(
     shell_guard: false,
     sampling,
     role: None,
+    thinking: None,
+    claude_effort: None,
+    backend_effort: None,
   };
 
-  gateway_command(ground, machine, on, answer_tokens, placing, |name, effort, thinking, settings| {
-    let mut sent = run.clone();
+  gateway_command(
+    ground,
+    machine,
+    &model,
+    on,
+    answer_tokens,
+    placing,
+    |name, effort, thinking, settings| {
+      let mut sent = run.clone();
 
-    sent.model = name.to_owned();
-    sent.effort = effort.to_owned();
-    sent.thinking = thinking;
+      sent.model = name.to_owned();
+      sent.effort = effort.to_owned();
+      sent.thinking = thinking;
 
-    claude::worker_args(&sent, settings, session)
-  })
+      claude::worker_args(&sent, settings, session)
+    },
+  )
   .await
+}
+
+/// Where a run's session on the gateway stands as its command is composed.
+pub enum Placing {
+  /// Placed as the command is composed, after the place's settings are written: a program stood with
+  /// nothing put in, whose picker names the model alone.
+  Composed,
+  /// Placed before, on the node named or on none in particular, which the picker names too.
+  At(Option<String>),
+}
+
+/// The model a run on the gateway goes out on: a registration, or a member of an external provider's road.
+/// The home, the window, the answer ceiling, the wait and the thinking default are the model's own.
+#[derive(Clone, Debug)]
+pub struct GatewayModel {
+  /// The name the run is sent under.
+  pub name: String,
+  /// What the program shows in its picker.
+  pub label: String,
+  /// The home Claude Code keeps the model's records under.
+  pub home: PathBuf,
+  pub context_tokens: i64,
+  pub answer_tokens: i64,
+  pub wait_seconds: i64,
+  /// Whether a run on it thinks where its effort names neither thinking nor no thinking.
+  pub thinking: bool,
+  /// The registration behind it, where it is one; none for a member.
+  pub registration: Option<registry::Registration>,
+  /// The road it belongs to, where it is a member; none for a registration.
+  pub road: Option<&'static str>,
+}
+
+impl GatewayModel {
+  /// A registration's model, its home under the registry's homes.
+  pub fn registration(machine: &Machine, held: &registry::Registration) -> Self {
+    Self {
+      name: held.name.clone(),
+      label: held.label.clone(),
+      home: Registered::home(machine, &held.name),
+      context_tokens: held.context_tokens,
+      answer_tokens: held.answer_tokens,
+      wait_seconds: held.wait_seconds,
+      thinking: held.thinking,
+      registration: Some(held.clone()),
+      road: None,
+    }
+  }
+
+  /// A member of a road, its home under the road's homes.
+  pub fn member(machine: &Machine, road: &'static str, held: &harness_providers::member::Road) -> Self {
+    Self {
+      name: held.member.name.clone(),
+      label: held.member.label.clone().unwrap_or_else(|| held.member.name.clone()),
+      home: harness_providers::member::home(machine, road, &held.member.name),
+      context_tokens: held.context_tokens,
+      answer_tokens: held.answer_tokens,
+      wait_seconds: held.member.wait_seconds,
+      thinking: held.thinking,
+      registration: None,
+      road: Some(road),
+    }
+  }
+
+  /// The name the run is sent under, on the node it is placed on where it is a registration's.
+  pub fn placed(&self, node: &Option<String>) -> String {
+    match (&self.registration, node) {
+      (Some(_), Some(node)) => format!("{}@{node}", self.name),
+      _ => self.name.clone(),
+    }
+  }
 }
 
 /// A line's run on a registered model's road, as its place stands it: the registration it names, the effort
@@ -403,49 +573,48 @@ pub struct OnGateway<'a> {
   pub sampling: Option<String>,
   /// The role whose saved prefix the run's requests start from on an engine that keeps role files.
   pub role: Option<&'a str>,
+  /// Whether the run thinks, where its caller knows it otherwise than by the effort word.
+  pub thinking: Option<bool>,
+  /// The Claude Code effort word the run goes out with, where the provider's words differ from Claude
+  /// Code's.
+  pub claude_effort: Option<&'a str>,
+  /// The backend effort word the gateway is asked with, where the provider has one.
+  pub backend_effort: Option<&'a str>,
 }
 
-/// The command Claude Code stands on for a line on a registered model's road: the registration's home
-/// settled, the place's settings with the model's row in the program's picker, the words the line makes of
-/// the name the run is sent under and its thinking — the place's settings handed through the home's own —
-/// and the gateway's variables; with the registration's name.
+/// The command Claude Code stands on for a line on a model of the gateway: the model's home settled, the
+/// place's settings with the model's row in the program's picker, the words the line makes of the name the
+/// run is sent under and its thinking — the place's settings handed through the home's own — and the
+/// gateway's variables; with the model's name.
 pub async fn gateway_command(
   ground: &Ground,
   machine: &Machine,
+  held: &GatewayModel,
   on: OnGateway<'_>,
   answer_tokens: Option<i64>,
   placing: Placing,
   words: impl FnOnce(&str, &str, bool, &Path) -> Result<Vec<String>, Refusal>,
 ) -> Result<(agent_host::place::ResidentCommand, String), Refusal> {
   let trees = Trees::of(ground);
-  let not_registered = || fault(format!("{}: {}", REGISTERED.presence.not_registered, on.model));
-  let held = registry::registration(&ground.db, on.model)
-    .await
-    .map_err(|refused| fault(refused.error))?
-    .filter(|held| !held.addresses.is_empty())
-    .ok_or_else(not_registered)?;
-  let home = Registered::home(machine, &held.name);
-  let thinking = match on.effort {
+  let home = held.home.clone();
+  let thinking = on.thinking.unwrap_or(match on.effort {
     "thinking" => true,
     "no-thinking" => false,
     _ => held.thinking,
-  };
+  });
 
   std::fs::create_dir_all(&home).map_err(|why| fault(format!("{}: {why}", home.display())))?;
   mark_onboarded(&config_file(&home));
   trust_folder(&config_file(&home), on.cwd);
 
   let place = Place::of(&trees.data, on.agent);
-  let on_node = |node: &Option<String>| {
-    node.as_ref().map_or_else(|| held.name.clone(), |node| format!("{}@{node}", held.name))
-  };
   // The model's row in the program's picker, whose label the program shows at the top of its screen in
   // place of the name the run is sent under (docs/own-llm.md, 「Claude Code in the pane」): the run as it
   // is placed when the settings are written.
   let mut picked = on.settings;
   let shown = match &placing {
     Placing::Composed => held.name.clone(),
-    Placing::At(node) => on_node(node),
+    Placing::At(node) => held.placed(node),
   };
 
   picked.insert(
@@ -464,11 +633,15 @@ pub async fn gateway_command(
     },
   )?;
   let placement = match placing {
-    Placing::Composed => place_registration(ground, &held).await?,
+    Placing::Composed => match &held.registration {
+      Some(registration) => place_registration(ground, registration).await?,
+      None => None,
+    },
     Placing::At(node) => node,
   };
-  let name = on_node(&placement);
-  let mut args = words(&name, if thinking { "medium" } else { "low" }, thinking, &settings)?;
+  let name = held.placed(&placement);
+  let claude_word = on.claude_effort.unwrap_or(if thinking { "medium" } else { "low" });
+  let mut args = words(&name, claude_word, thinking, &settings)?;
 
   if let Some(at) = args.iter().position(|arg| arg == "--settings")
     && let Some(given) = args.get(at + 1).cloned()
@@ -477,7 +650,12 @@ pub async fn gateway_command(
   }
 
   let wait_ms = held.wait_seconds * 1_000;
-  let headers = gateway_headers(wait_ms, on.sampling.as_deref(), ClaudeCode.long_tools(), on.role);
+  let mut headers = gateway_headers(wait_ms, on.sampling.as_deref(), ClaudeCode.long_tools(), on.role);
+
+  if let Some(word) = on.backend_effort {
+    headers.push(format!("x-bmo-effort: {word}"));
+  }
+
   let mut env: BTreeMap<String, Option<String>> =
     ground.env().iter().map(|(name, value)| (name.clone(), Some(value.clone()))).collect();
 
@@ -490,7 +668,7 @@ pub async fn gateway_command(
   );
 
   for (variable, value) in
-    gateway_variables(ground, &held, &home, &name, answer_tokens.unwrap_or(held.answer_tokens), &headers)
+    gateway_variables(ground, held, &home, &name, answer_tokens.unwrap_or(held.answer_tokens), &headers)
   {
     env.insert(variable.to_owned(), value);
   }
@@ -507,7 +685,7 @@ pub async fn gateway_command(
     env,
   };
 
-  Ok((command, held.name))
+  Ok((command, held.name.clone()))
 }
 
 /// Where a new session on the registration a model names stands, recorded as given now; nowhere in
@@ -653,7 +831,7 @@ pub fn fold_share(window: i64, answer: i64) -> String {
 /// headers given.
 pub(crate) fn gateway_variables(
   ground: &Ground,
-  held: &registry::Registration,
+  held: &GatewayModel,
   home: &Path,
   name: &str,
   answer_tokens: i64,

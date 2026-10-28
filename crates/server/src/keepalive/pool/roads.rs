@@ -37,6 +37,11 @@ const CLAUDE_CODE: &str = "claude-code";
 
 /// One place pinged on its provider's program.
 pub async fn ping(ground: &Ground, place: &WarmPlace) -> Result<Pinged, Refusal> {
+  // A model on the gateway publishes no cache lifetime, so its places are never due.
+  if harness_providers::provider(&place.provider).is_some_and(|provider| provider.models_on_gateway()) {
+    return Ok(Pinged::Failed(POOL_WARM.pings.no_prefix.clone()));
+  }
+
   match place.provider.as_str() {
     CLAUDE_CODE => claude(ground, place).await,
     codex::PROVIDER => codex_ping(ground, place).await,
@@ -178,6 +183,16 @@ struct OpenRouterPing<'k> {
   tap: &'k str,
 }
 
+// The variable the dormant dsh road read its key from; a member road reads its key file and is never warmed.
+fn openrouter_key_env() -> &'static str {
+  OPENROUTER
+    .declared
+    .dsh
+    .as_ref()
+    .map(|dsh| dsh.key_env.as_str())
+    .unwrap_or("BMO_OPENROUTER_KEY")
+}
+
 impl StandIn for OpenRouterPing<'_> {
   fn mode(&self) -> &'static str {
     openrouter::PROVIDER
@@ -190,7 +205,7 @@ impl StandIn for OpenRouterPing<'_> {
   fn command(&self, ground: &Ground, run: &StandInRun) -> Result<Command, Refusal> {
     let mut env = ground.env().clone();
 
-    env.insert(OPENROUTER.presence.key_env.clone(), self.key.to_owned());
+    env.insert(openrouter_key_env().to_owned(), self.key.to_owned());
     env.insert(openrouter::LOCAL_URL.to_owned(), self.tap.to_owned());
     dsh::command(run, &KEEPALIVE.prompt, &env, &Trees::of(ground).data)
   }
@@ -294,7 +309,7 @@ async fn codex_ping(ground: &Ground, place: &WarmPlace) -> Result<Pinged, Refusa
 // A ping another upstream answers warms a cache nobody will read, so it goes to the upstream that took the
 // place's last turn and nowhere else, and counts only where that upstream answered it.
 async fn openrouter_ping(ground: &Ground, place: &WarmPlace) -> Result<Pinged, Refusal> {
-  let variable = &OPENROUTER.presence.key_env;
+  let variable = openrouter_key_env();
   let Some(key) = ground.vars().get(variable).cloned() else {
     return Ok(Pinged::Failed(fill_marks(&POOL_WARM.pings.no_key, &[("variable", variable)])));
   };

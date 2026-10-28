@@ -138,7 +138,8 @@ fn readers(db: &DatabaseConnection, machine: &Machine) -> Vec<Arc<dyn Reader>> {
     }
   }
 
-  let codex = harness_providers::provider(CODEX).filter(|codex| codex.missing(machine).is_none());
+  let codex = harness_providers::provider(CODEX)
+    .filter(|codex| !codex.models_on_gateway() && codex.missing(machine).is_none());
 
   if codex.is_some() {
     let sessions = PathBuf::from(machine.var("HOME").unwrap_or_default()).join(".codex").join("sessions");

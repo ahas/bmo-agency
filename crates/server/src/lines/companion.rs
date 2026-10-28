@@ -13,7 +13,6 @@ use agent_host::place::ResidentCommand;
 use harness_machine::companion_prompt;
 use harness_providers::Machine;
 use harness_providers::claude_code::ClaudeCode;
-use harness_providers::registered::Registered;
 use indexmap::IndexMap;
 use policy::chat_line::CHAT_LINE;
 use policy::companion_runner::COMPANION_RUNNER;
@@ -25,7 +24,7 @@ use serde_json::Value;
 use super::chat::{Words, standing_words};
 use super::claude::{Command, Runs, Session, command_env, line_environment};
 use super::place::{Holds, Place, write_place_settings};
-use super::standing::{OnGateway, Placing, gateway_command, status_root};
+use super::standing::{GatewayModel, OnGateway, Placing, gateway_command, status_root};
 use super::worker::{effort_of, reasoning_of, system_prompt_file};
 use super::{Trees, fault};
 use crate::Refusal;
@@ -289,22 +288,30 @@ pub async fn compose(
     });
   }
 
-  let held = match turn.provider {
-    REGISTERED_PROVIDER => Some(registration_named(ground, turn.model).await?),
+  let gateway = match turn.provider {
+    REGISTERED_PROVIDER => {
+      Some(GatewayModel::registration(machine, &registration_named(ground, turn.model).await?))
+    }
+    road if crate::chat_stand_in::member_declared(road) => {
+      let provider = harness_providers::provider(road)
+        .ok_or_else(|| fault(format!("{road} is no provider of this build")))?;
+
+      Some(super::standing::member_model(machine, provider.name(), turn.model)?)
+    }
     _ => None,
   };
   // On Claude Code's own road the program goes out on the login the walk offers the companion now, as every
   // Claude run does, and never on one that cannot answer: where none answers, the turn is not run.
-  let login = match held {
+  let login = match gateway {
     Some(_) => None,
     None => walked_login(ground, turn.agent).await?,
   };
   // A program asked to resume a session it keeps no record of ends before it reads a word: such a session
   // is refused in the program's own words, which the turn reads as a session gone and opens a new one
-  // for. The record stands under the home the program keeps its records in: the registration's, the
-  // login's directory, or the machine's own.
-  let home = match (&held, login.as_ref().and_then(|login| login.credential.own_home())) {
-    (Some(held), _) => Registered::home(machine, &held.name),
+  // for. The record stands under the home the program keeps its records in: the model's, the login's
+  // directory, or the machine's own.
+  let home = match (&gateway, login.as_ref().and_then(|login| login.credential.own_home())) {
+    (Some(gateway), _) => gateway.home.clone(),
     (None, Some(home)) => home.to_path_buf(),
     (None, None) => ClaudeCode::machine_config_dir(machine),
   };
@@ -336,7 +343,7 @@ pub async fn compose(
       &session,
     )
   };
-  let Some(held) = held else {
+  let Some(gateway) = gateway else {
     let place = Place::of(&trees.data, turn.agent);
     let settings =
       write_place_settings(&place.path, serde_json::Map::new(), &status_root(ground), holds())?;
@@ -373,12 +380,13 @@ pub async fn compose(
   };
 
   // A session it resumes stands where it stood; a fresh one is placed where the registration places it and
-  // kept as standing there. A resumed one that stood nowhere in particular is placed for its requests
-  // alone.
-  let (placement, kept) = match turn.resume {
-    Some((_, Some(node))) => (Some(node.to_owned()), Some(node.to_owned())),
-    Some((_, None)) => (super::standing::place_registered(ground, turn.model).await?, None),
-    None => {
+  // kept as standing there. A member road is placed nowhere: its home is the member's alone.
+  let registration = gateway.registration.as_ref();
+  let (placement, kept) = match (registration, turn.resume) {
+    (None, _) => (None, None),
+    (Some(_), Some((_, Some(node)))) => (Some(node.to_owned()), Some(node.to_owned())),
+    (Some(_), Some((_, None))) => (super::standing::place_registered(ground, turn.model).await?, None),
+    (Some(_), None) => {
       let node = super::standing::place_registered(ground, turn.model).await?;
 
       (node.clone(), node)
@@ -386,11 +394,12 @@ pub async fn compose(
   };
 
   if let Some(node) = &placement
-    && !held.addresses.iter().any(|address| &address.node == node)
+    && let Some(registration) = registration
+    && !registration.addresses.iter().any(|address| &address.node == node)
   {
     return Err(fault(fill_marks(
       &REGISTERED.presence.node_missing,
-      &[("name", &held.name), ("node", node)],
+      &[("name", &registration.name), ("node", node)],
     )));
   }
 
@@ -398,6 +407,11 @@ pub async fn compose(
     .then(|| serde_json::to_string(&sampling))
     .transpose()
     .map_err(|why| fault(why.to_string()))?;
+  let model = gateway;
+  let member_thinking = reasoning.thinking.unwrap_or(model.thinking);
+  let claude_effort = model.road.and_then(|road| {
+    harness_providers::provider(road).and_then(|provider| provider.claude_effort(&effort))
+  });
   let on = OnGateway {
     agent: turn.agent,
     model: turn.model,
@@ -408,12 +422,20 @@ pub async fn compose(
     shell_guard: true,
     sampling: sampled,
     role: None,
+    thinking: model.road.map(|_| member_thinking),
+    claude_effort,
+    backend_effort: model.road.map(|_| effort.as_str()),
   };
-  let (mut command, _) =
-    gateway_command(ground, machine, on, ceiling, Placing::At(placement), |name, effort, _, settings| {
-      line(name, effort, settings)
-    })
-    .await?;
+  let (mut command, _) = gateway_command(
+    ground,
+    machine,
+    &model,
+    on,
+    ceiling,
+    Placing::At(placement),
+    |name, effort, _, settings| line(name, effort, settings),
+  )
+  .await?;
 
   command.env.extend(variables.map(|(name, value)| (name.to_owned(), value)));
 
@@ -426,8 +448,8 @@ pub async fn compose(
     effort: (!effort.is_empty()).then_some(effort),
     placement: kept,
     window: Some(Window {
-      context_tokens: held.context_tokens,
-      home,
+      context_tokens: model.context_tokens,
+      home: model.home,
     }),
     account: None,
     began: turn.began,

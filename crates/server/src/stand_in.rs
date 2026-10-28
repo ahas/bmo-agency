@@ -77,16 +77,21 @@ pub async fn step_of(
       .unwrap_or_default();
 
   if provider != registry::PROVIDER {
+    let held = harness_providers::member::road_members(machine, provider)
+      .map_err(|why| format!("{provider}: {why}"))?
+      .into_iter()
+      .find(|one| one.member.name == mapping.model)
+      .ok_or_else(|| format!("{provider}: {} is no member of its road", mapping.model))?;
     let thinking = mapping
       .thinking
-      .unwrap_or_else(|| if provider == "deepseek" { effort != "none" } else { effort == "thinking" });
+      .unwrap_or_else(|| if effort.is_empty() { held.thinking } else { effort != "none" });
 
     return Ok(Step {
       provider: provider.to_owned(),
       model: mapping.model,
       thinking,
       effort,
-      answer_tokens: None,
+      answer_tokens: mapping.answer_tokens,
     });
   }
 

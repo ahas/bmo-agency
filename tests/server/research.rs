@@ -224,8 +224,8 @@ async fn a_search_key_goes_out_on_a_program_that_carries_the_line_and_its_closed
   let open = resolve(&ground, &Ask::key("search:thorough")).await.unwrap();
 
   assert_eq!(open.road().map(|road| road.provider.as_str()), Some("claude-code"), "{open:?}");
-  // DeepSeek's program carries the search line, so it is a step of the walk; Codex's does not.
-  assert!(!open.uncarried.contains(&"deepseek".to_owned()), "{open:?}");
+  // DeepSeek's program does not carry the search line, and neither does Codex's.
+  assert!(open.uncarried.contains(&"deepseek".to_owned()), "{open:?}");
   assert!(open.uncarried.contains(&"codex".to_owned()), "{open:?}");
 
   scratch

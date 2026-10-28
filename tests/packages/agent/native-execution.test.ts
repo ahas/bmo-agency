@@ -38,14 +38,3 @@ test("Claude transcript structured results distinguish synchronous completion an
   expect(tracker.children.get("sync")).toMatchObject({ nativeState: "completed", exitCode: 0 });
   expect(tracker.children.get("async")).toMatchObject({ nativeState: "unresolved", endedAt: null });
 });
-test("Codex collaboration completion does not complete pending receivers; terminal evidence survives replay", async () => {
-  const { tracker } = await fixture("codex");
-  const event = (status: string) => ({ type: "item.completed", item: { type: "collab_agent_tool_call", receiver_thread_ids: ["child"], agents_states: { child: { status } } } });
-  await tracker.observe(event("pending_init"));
-  expect(tracker.children.get("child")?.nativeState).toBe("requested");
-  await tracker.observe(event("running"));
-  await tracker.observe(event("completed"));
-  await tracker.observe(event("pending_init"));
-  await tracker.finish();
-  expect(tracker.children.get("child")).toMatchObject({ nativeState: "completed", exitCode: 0, sessionId: "child" });
-});

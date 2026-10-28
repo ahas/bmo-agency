@@ -5,6 +5,7 @@ import { codexResidentHome, codexRolloutWindows } from "./codex-local";
 import { commandDigest } from "./resident";
 import { PLACE_VARIABLE, withoutTurnVariables } from "./agent-place";
 import { levelReasoning, levelsIn } from "./reasoning";
+import { memberProvider } from "./member-provider";
 import { TOOL_HOST_WAIT_SECONDS, bearerVariable, httpServerEntry } from "./tool-host";
 import { machineCatalogue, missingOnMachine } from "./provider-facts";
 import { providerDeclaration } from "./provider-declaration";
@@ -613,20 +614,9 @@ export const codex: AgentAdapter = {
   },
 };
 
-// The owner's Codex subscription, reached through the installed CLI. The executable is the whole
-// of what this machine has to hold for it: the account is signed in once, outside agency.
-export const codexProvider: AgentProvider = {
+// The owner's Codex models, reached by Claude Code through agency's gateway member on an OpenAI API key.
+export const codexProvider: AgentProvider = memberProvider({
   name: "codex",
-  label: declared.label,
-  adapter: codex,
-  unavailable: async () => await missingOnMachine("codex"),
-  models: () => codexModels(),
-  efforts: codexEfforts,
-  effortFault: declared.effortFault,
-  // An agent's level is `model_reasoning_effort`, and its thinking off is `low`.
+  policy: declaredCodex,
   reasoning: levelReasoning(async () => levelsIn(codexEfforts)),
-  capsAnswerTokens: declared.capsAnswerTokens,
-  lendsCoworkers: declared.lendsCoworkers,
-  logins: null,
-  resident: codexResident,
-};
+});

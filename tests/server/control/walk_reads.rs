@@ -24,6 +24,15 @@ fn keys_in(data: &std::path::Path) {
     std::fs::write(&file, "a key\n").unwrap();
     std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o600)).unwrap();
   }
+
+  let members = data.join("llm-gateway");
+
+  std::fs::create_dir_all(&members).unwrap();
+  std::fs::write(
+    members.join("members.json"),
+    r#"[{"name":"deepseek-flash","road":"deepseek","provider":"deepseek","model":"deepseek-flash","api_base":"https://api.deepseek.com/v1","key_file":"deepseek.key","wait_seconds":300,"context_tokens":1048576,"answer_tokens":32768,"thinking":true}]"#,
+  )
+  .unwrap();
 }
 
 async fn get(port: u16, token: &str, path: &str) -> (u16, Value) {

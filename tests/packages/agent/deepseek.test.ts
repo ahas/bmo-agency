@@ -1,51 +1,51 @@
 import "@agency/test-support/setup";
 
 import { expect, test } from "bun:test";
+import { chmodSync, mkdirSync, writeFileSync } from "node:fs";
 
-import { dshOverlay } from "@agency/agent/dsh";
-import { deepSeekProvider, deepSeekRoute } from "@agency/agent/deepseek";
-import { scratchArchive } from "@agency/test-support/store";
+import { dataPath } from "@agency/support/roots";
+import { deepSeekProvider } from "@agency/agent/deepseek";
 
-import type { HarnessRun } from "@agency/agent/harness";
+// DeepSeek's road (docs/own-llm.md, 「The gateway's members」): its members, its program Claude Code on the
+// gateway, its key files, and the words a run's thinking and effort go out with.
 
-// DeepSeek's road (docs/cache-fallback.md, 「The DeepSeek road」): its two models, its route through dsh,
-// and the words a run's thinking and effort go out with.
-
-const run = (model: string, thinking = true): HarnessRun => ({
-  line: "chat",
-  model,
-  effort: "",
-  systemPromptPath: null,
-  toolsShown: "",
-  toolsAllowed: "",
-  toolsDenied: null,
-  mcpConfigPath: null,
-  prompt: "hello",
-  promptDelivery: "argument",
-  resumeSessionId: null,
-  keepSession: false,
-  hostCommands: false,
-  thinking,
-  answerShape: "text",
-  cwd: "/work",
-  env: {},
+const member = (name: string, label: string) => ({
+  name,
+  road: "deepseek",
+  label,
+  provider: "deepseek",
+  model: name,
+  api_base: "https://api.deepseek.com/v1",
+  key_file: "deepseek.key",
+  wait_seconds: 300,
+  context_tokens: 1_048_576,
+  answer_tokens: 32_768,
+  thinking: true,
 });
 
-test("its runs go through dsh on DeepSeek's own route, the key named by variable and read from the road's file", () => {
-  expect(deepSeekProvider.adapter.name).toBe("dsh:deepseek");
-  expect(deepSeekProvider.resident).toBeNull();
-  expect(deepSeekRoute.apiBase()).toBe("https://api.deepseek.com/v1");
-  expect(deepSeekRoute.keyEnv).toBe("DEEPSEEK_API_KEY");
-  expect(deepSeekRoute.keyFile?.().endsWith("/env/deepseek.key")).toBe(true);
-
-  const rows = new Map(
-    dshOverlay(run("deepseek-flash", false), deepSeekRoute).flatMap((entry) => ("insert" in entry ? entry.insert : [entry])).map((row) => [row.id, row]),
+function withMembers() {
+  mkdirSync(dataPath("llm-gateway"), { recursive: true });
+  mkdirSync(dataPath("env"), { recursive: true });
+  writeFileSync(
+    dataPath("llm-gateway", "members.json"),
+    JSON.stringify([member("deepseek-flash", "DeepSeek V4.1 Flash"), member("deepseek-v4-pro", "DeepSeek V4 Pro")]),
   );
 
-  expect(rows.get("llm-pi-ai")?.config).toMatchObject({
-    providers: { deepseek: { apiKeyEnv: "DEEPSEEK_API_KEY", baseURL: "https://api.deepseek.com/v1", reasoning: "off" } },
-  });
-  expect(rows.get("agent-default-model")?.config).toEqual({ provider: "deepseek", model: "deepseek-flash" });
+  for (const name of ["llm-gateway.key", "deepseek.key"]) {
+    const file = dataPath("env", name);
+
+    writeFileSync(file, "a key\n", { mode: 0o600 });
+    chmodSync(file, 0o600);
+  }
+}
+
+test("its runs stand Claude Code on the gateway under the members of its road", async () => {
+  withMembers();
+
+  expect(deepSeekProvider.adapter.name).toBe("claude-code:deepseek");
+  expect(deepSeekProvider.resident).not.toBeNull();
+  expect(await deepSeekProvider.models()).toEqual([{ id: "deepseek-flash" }, { id: "deepseek-v4-pro" }]);
+  expect(await deepSeekProvider.unavailable({ config: { openrouterKey: null } } as never)).toBeNull();
 });
 
 test("an agent's thinking off is DeepSeek's own none, and a level the run takes stands", async () => {
@@ -53,13 +53,13 @@ test("an agent's thinking off is DeepSeek's own none, and a level the run takes 
   expect(await deepSeekProvider.reasoning.effort("high", { thinking: true, effort: "max" }, "deepseek-flash")).toBe("max");
   expect(await deepSeekProvider.reasoning.effort("low", { thinking: null, effort: null }, "deepseek-flash")).toBe("low");
   expect(deepSeekProvider.efforts).toEqual([null, "none", "low", "medium", "high", "max"]);
-  expect(deepSeekProvider.lines).toEqual(["chat", "gate", "worker", "search"]);
+  expect(deepSeekProvider.lines).toEqual(["chat", "gate", "worker"]);
   expect(deepSeekProvider.lendsCoworkers).toBe(true);
 });
 
-test("a pin naming one of its models is taken and another is refused", async () => {
-  const archive = await scratchArchive();
+test("a pin naming one of its members is taken and another is refused", async () => {
+  withMembers();
 
-  expect(await deepSeekProvider.namedModelFault?.("deepseek-v4-pro", archive)).toBeNull();
-  expect(await deepSeekProvider.namedModelFault?.("someone-else", archive)).toContain("Not a DeepSeek model");
+  expect(await deepSeekProvider.namedModelFault?.("deepseek-v4-pro", null as never)).toBeNull();
+  expect(await deepSeekProvider.namedModelFault?.("someone-else", null as never)).toContain("Not a DeepSeek model");
 });

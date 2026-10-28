@@ -1,37 +1,26 @@
-//! DeepSeek: present on this machine where the road's key file stands private under the data root, and
-//! its models the two its policy declares (docs/provider-presence.md). Its program is bmo-tui standing a
-//! dsh session on DeepSeek's own API.
+//! DeepSeek: present on this machine where the gateway's key file and the key files of its members stand
+//! private under the data root, and its models the members of its road (docs/provider-presence.md). Its
+//! program is Claude Code on agency's gateway.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use policy::providers::Declared;
-use policy::providers::deepseek::{DEEPSEEK, Model as DeclaredModel};
+use policy::providers::deepseek::DEEPSEEK;
 use serde_json::json;
 
 use crate::balance::{Balance, OffersBalance, figure, key_in_file};
+use crate::claude_code::ClaudeCode;
+use crate::member;
 use crate::{Machine, Offered, OfferedModel, Offering, PlaceCache, Provider, Reading, Reason};
 
 pub struct DeepSeek;
 
 impl DeepSeek {
-  /// Where the road's key file stands.
+  /// Where the road's key file stands, for the balance's reading.
   pub fn key_file(machine: &Machine) -> PathBuf {
     machine.data_root().join("env").join(&DEEPSEEK.presence.key_file)
   }
-
-  /// The model one id names, where this provider serves it.
-  pub fn model(id: &str) -> Option<&'static DeclaredModel> {
-    DEEPSEEK.held(id)
-  }
-}
-
-/// Whether a secret file may be used: a file of its own, private to its owner, not empty.
-fn usable_secret(path: &Path) -> bool {
-  use std::os::unix::fs::PermissionsExt;
-
-  std::fs::metadata(path)
-    .is_ok_and(|meta| meta.is_file() && meta.permissions().mode() & 0o777 == 0o600 && meta.len() > 0)
 }
 
 // DeepSeek's balance: asked with the road's key file, the first of the answer's balances the reading.
@@ -78,32 +67,35 @@ impl Provider for DeepSeek {
   }
 
   fn missing(&self, machine: &Machine) -> Option<Reason> {
-    (!usable_secret(&Self::key_file(machine)))
-      .then(|| Reason::new(&DEEPSEEK.presence.missing_code, &DEEPSEEK.presence.missing))
+    member::missing(machine, self.name(), &DEEPSEEK.presence.missing_code, &DEEPSEEK.presence.missing)
   }
 
   fn not_registered(&self) -> Option<&'static str> {
     Some(&DEEPSEEK.presence.not_held)
   }
 
-  fn holds_model(&self, model: &str) -> bool {
-    Self::model(model).is_some()
+  fn models_on_gateway(&self) -> bool {
+    true
   }
 
-  // Its catalogue is the models its policy declares: its API's listing needs the key, and the
-  // models are a fact of the deployment rather than of the answer.
-  fn catalogue<'a>(&'a self, _machine: &'a Machine, _config_dir: Option<&'a Path>) -> Reading<'a> {
+  fn holds_model(&self, machine: &Machine, model: &str) -> bool {
+    member::member_named(machine, self.name(), model).ok().flatten().is_some()
+  }
+
+  // Its catalogue is the members its road holds: the window and the answer are the member's, and its
+  // efforts are the words the deployment gives the road.
+  fn catalogue<'a>(&'a self, machine: &'a Machine, _config_dir: Option<&'a Path>) -> Reading<'a> {
     Box::pin(async move {
-      let models: Vec<serde_json::Value> = DEEPSEEK
-        .model
+      let held = member::road_members(machine, self.name())?;
+      let models: Vec<serde_json::Value> = held
         .iter()
-        .map(|model| {
+        .map(|one| {
           json!({
-            "id": model.id,
-            "name": model.label,
-            "contextLength": model.context_tokens,
-            "defaultReasoningEffort": if model.thinking { "high" } else { "none" },
-            "supportedReasoningEfforts": ["none", "low", "medium", "high", "max"],
+            "id": one.member.name,
+            "name": one.member.label.clone().unwrap_or_else(|| one.member.name.clone()),
+            "contextLength": one.context_tokens,
+            "defaultReasoningEffort": if one.thinking { "high" } else { "none" },
+            "supportedReasoningEfforts": &DEEPSEEK.declared.effort.words,
           })
         })
         .collect();
@@ -114,7 +106,7 @@ impl Provider for DeepSeek {
 
   fn offered<'a>(
     &'a self,
-    _machine: &'a Machine,
+    machine: &'a Machine,
     _config_dir: Option<&'a Path>,
     _now_ms: f64,
   ) -> Offering<'a> {
@@ -126,8 +118,8 @@ impl Provider for DeepSeek {
         .into_iter()
         .map(|word| word.map(str::to_owned))
         .collect();
-      let models = DEEPSEEK.model.iter().map(|model| OfferedModel {
-        id: model.id.clone(),
+      let models = member::road_members(machine, self.name())?.into_iter().map(|one| OfferedModel {
+        id: one.member.name,
         efforts: efforts.clone(),
         free: None,
         in_service: Some(true),
@@ -164,8 +156,32 @@ impl Provider for DeepSeek {
     }
   }
 
-  // Its program is bmo-tui standing this provider's dsh session.
-  fn owns_program(&self, _machine: &Machine, args: &[String], _env: &BTreeMap<String, String>) -> bool {
-    crate::stands_dsh_session(self, args)
+  fn claude_effort(&self, word: &str) -> Option<&'static str> {
+    DEEPSEEK.claude.as_ref().and_then(|claude| claude.word(word))
+  }
+
+  // Its program is Claude Code under one of its road's homes.
+  fn owns_program(&self, machine: &Machine, args: &[String], env: &BTreeMap<String, String>) -> bool {
+    member::owns(machine, args, env, self.name())
+  }
+
+  fn session_of_event(&self, event: &serde_json::Value) -> Option<String> {
+    ClaudeCode.session_of_event(event)
+  }
+
+  fn progress_of(&self, line: &str) -> Option<String> {
+    ClaudeCode.progress_of(line)
+  }
+
+  fn session_records(&self, machine: &Machine, cwd: &Path, session: &str, model: &str) -> Vec<PathBuf> {
+    member::session_records(machine, self.name(), cwd, session, model)
+  }
+
+  fn home_records(&self, machine: &Machine, cwd: &Path) -> Vec<PathBuf> {
+    member::home_records(machine, self.name(), cwd)
+  }
+
+  fn forget_prompts(&self, machine: &Machine, cwd: &Path, session: Option<&str>) -> Result<usize, String> {
+    member::forget_prompts(machine, self.name(), cwd, session)
   }
 }

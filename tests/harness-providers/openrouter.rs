@@ -1,6 +1,7 @@
 //! OpenRouter: its listing, its presence by the key, and its pane program told by its name and model choice.
 
 use std::collections::BTreeMap;
+use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
@@ -9,7 +10,6 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::routing::get;
 use harness_providers::openrouter::*;
 use harness_providers::{Machine, Provider};
-use policy::providers::openrouter::OPENROUTER;
 use serde_json::{Value, json};
 
 // A stand-in listing on the loopback, answering with a status and a body and keeping the accept
@@ -105,43 +105,61 @@ async fn a_listing_that_did_not_arrive_says_its_status() {
 }
 
 #[test]
-fn the_key_in_the_environment_is_the_whole_of_its_presence() {
+fn the_gateway_and_member_key_files_are_the_whole_of_its_presence() {
   let dir = tempfile::tempdir().unwrap();
+  let machine = Machine::with_env([], dir.path());
 
-  assert_eq!(
-    OpenRouter.missing(&Machine::with_env([], dir.path())).unwrap().code,
-    "openrouter-key-unset"
-  );
-  assert!(
-    OpenRouter
-      .missing(&Machine::with_env([("BMO_OPENROUTER_KEY".into(), String::new())], dir.path()))
-      .is_some()
-  );
-  assert_eq!(
-    OpenRouter.missing(&Machine::with_env([("BMO_OPENROUTER_KEY".into(), "k".into())], dir.path())),
-    None
-  );
+  assert_eq!(OpenRouter.missing(&machine).unwrap().code, "openrouter-key-unusable");
+
+  let private = |path: &Path, text: &str| {
+    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+    std::fs::write(path, text).unwrap();
+    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600)).unwrap();
+  };
+  private(&dir.path().join("env").join("llm-gateway.key"), "gateway\n");
+  private(&dir.path().join("env").join("openrouter.key"), "secret\n");
+  std::fs::create_dir_all(dir.path().join("llm-gateway")).unwrap();
+  std::fs::write(
+    dir.path().join("llm-gateway").join("members.json"),
+    json!([{
+      "name": "vendor-model",
+      "road": "openrouter",
+      "provider": "openrouter",
+      "model": "vendor/model",
+      "api_base": "https://openrouter.ai/api/v1",
+      "key_file": "openrouter.key",
+      "wait_seconds": 300,
+      "context_tokens": 131072,
+      "answer_tokens": 16384,
+      "thinking": true
+    }])
+    .to_string(),
+  )
+  .unwrap();
+
+  assert_eq!(OpenRouter.missing(&machine), None);
+
+  std::fs::set_permissions(
+    dir.path().join("env").join("openrouter.key"),
+    std::fs::Permissions::from_mode(0o644),
+  )
+  .unwrap();
+  assert!(OpenRouter.missing(&machine).is_some());
 }
 
 #[test]
-fn a_pane_program_is_its_own_by_its_file_name_and_the_model_choice_it_carries() {
+fn claude_code_under_its_road_s_home_is_its_own_and_another_road_s_is_not() {
   let dir = tempfile::tempdir().unwrap();
   let machine = Machine::with_env([], dir.path());
-  let owns = |program: &str, choice: &str| {
-    let args =
-      [program, "dsh", "--program", "dsh", "--place", "/place", "--model", choice].map(str::to_owned);
+  let owns = |home: &str| {
+    let env = BTreeMap::from([("CLAUDE_CONFIG_DIR".to_owned(), home.to_owned())]);
 
-    OpenRouter.owns_program(&machine, &args, &BTreeMap::new())
+    OpenRouter.owns_program(&machine, &["claude".to_owned()], &env)
   };
-  let declared = OPENROUTER.declared.resident.as_ref().and_then(|resident| resident.program.as_deref());
+  let homes = dir.path().join("claude-roads");
 
-  assert_eq!(declared, Some("bmo-tui"));
-
-  for program in ["/deploy/bin/bmo-tui", "/checkout/bin/bmo-tui"] {
-    assert!(owns(program, r#"["openrouter","vendor/model"]"#), "{program}");
-  }
-
-  assert!(!owns("/deploy/bin/bmo-tui", r#"["codex","gpt-x"]"#));
-  assert!(!owns("/deploy/bin/other-tui", r#"["openrouter","vendor/model"]"#));
-  assert!(!owns("/deploy/bin/bmo-tui", "vendor/model"));
+  assert!(owns(&homes.join("openrouter").join("vendor-model").to_string_lossy()));
+  assert!(!owns(&homes.join("deepseek").join("deepseek-flash").to_string_lossy()));
+  assert!(!owns("/somewhere/else"));
+  assert!(!OpenRouter.owns_program(&machine, &["bmo-tui".to_owned()], &BTreeMap::new()));
 }

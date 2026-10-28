@@ -425,6 +425,11 @@ the shadow the node's link keeps of that checkout instead.
 | GET | `/fallback` | The fallback roads, the Claude accounts and whether the fallback is answering. |
 | PATCH | `/fallback` | Change the fallback roads and the Claude accounts. |
 
+Each provider answers `name`, `label`, `enabled`, `registered`, `gateway`, `coworker` and its `lines`. `gateway`
+says its models are served by agency's model gateway — the registry's registrations and the member roads of
+Codex, OpenRouter and DeepSeek — so a gate on it is one request through the gateway; `registered` says the
+models are the registry's registrations alone. |
+
 The fallback's view answers, beside the roads and the work keys, `active`, the agent serving the chat
 now: the `provider` its road answers on, the `account` it walks to where the provider holds logins, its
 `accountName`, how many `accounts` are on, that slot's two headline windows, `session` and `week`, and

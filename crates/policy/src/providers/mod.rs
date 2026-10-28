@@ -62,6 +62,22 @@ pub struct Declared {
   pub dsh: Option<Dsh>,
 }
 
+/// The Claude Code effort word a run goes out with, by the word its tier mapping or its agent named, where
+/// the provider's words and Claude Code's differ.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Claude {
+  pub effort: std::collections::BTreeMap<String, String>,
+}
+
+impl Claude {
+  /// The Claude Code word a run of the backend word goes out with, or nothing where the table does not hold
+  /// it and the launch keeps its own word.
+  pub fn word(&self, backend: &str) -> Option<&str> {
+    self.effort.get(backend).map(String::as_str)
+  }
+}
+
 /// Where a provider's dsh route answers, and the variable its key is read from.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]

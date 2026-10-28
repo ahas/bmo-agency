@@ -1,15 +1,16 @@
-# The public OpenRouter gateway, reached by the dsh harness with the key in the environment
-# (docs/cache-fallback.md, 「The OpenRouter substitute is the dsh road」). Read by this provider's own
-# declaration on each side.
+# The public OpenRouter gateway, reached by Claude Code through agency's gateway member, with the key the
+# member names (docs/own-llm.md, 「The gateway's members」). Read by this provider's own declaration on each
+# side.
 
 # The provider's name as a screen shows it.
 label = "OpenRouter"
 
-# The lines its program carries.
+# The lines its program carries. Its runs are Claude Code's on the gateway, which carries the chat, a worker's
+# job and a gate's one-request judgement.
 lines = ["chat", "gate", "worker"]
 
-# A mapping of it carries no ceiling on the answer's tokens: the provider publishes none.
-caps_answer_tokens = false
+# A mapping of it carries a ceiling on the answer's tokens: its member names one.
+caps_answer_tokens = true
 
 # OpenRouter routes to many models, so its co-workers each take their own tier's.
 lends_coworkers = true
@@ -23,19 +24,25 @@ fold_ratio = 0.5
 words = ["none", "minimal", "low", "medium", "high", "xhigh"]
 # A mapping may also name no effort.
 none_held = true
-# What a launch makes of the mapping's word: none is taken. Which levels a routed model offers is that
-# model's, never the tier's, so a mapping naming one is refused rather than launched with a word
-# nobody chose for the model behind it.
-launch = "refused"
-fault = "OpenRouter dsh does not support explicit effort"
+# What a launch makes of the mapping's word: either is taken. Which levels a routed model offers is that
+# model's, never the tier's, so a level the member's backend refuses is clamped to the member's allowed word.
+launch = "either"
 
 [presence]
-# The environment variable the key is read from; its value is never held anywhere else.
-key_env = "BMO_OPENROUTER_KEY"
-# What it says where the key is not set: the kebab-case code a screen words in its own language, and the
-# English sentence the log keeps.
-missing_code = "openrouter-key-unset"
-missing = "OpenRouter cannot be chosen: BMO_OPENROUTER_KEY is not set."
+# The member's key file under the data root's env directory, private to its owner; its value is never held
+# anywhere else.
+key_file = "openrouter.key"
+# What it says where the key file or the gateway's key file is not usable: the kebab-case code a screen words
+# in its own language, and the English sentence the log keeps.
+missing_code = "openrouter-key-unusable"
+missing = "OpenRouter cannot be chosen: its member's key file (openrouter.key) or the gateway's key file is missing or its mode is not 0600."
+# What a pin or a job naming a model this provider does not serve says; the name follows it.
+not_held = "Not an OpenRouter model"
+
+[claude]
+# The Claude Code effort word a run goes out with, by the word its tier mapping or its agent named.
+effort = { none = "low", minimal = "low", low = "low", medium = "medium", high = "high", xhigh = "xhigh" }
+
 
 [gateway]
 # Where its API answers: the chat completions dsh's route asks under, and the listing of a model's
@@ -61,21 +68,23 @@ url_env = "BMO_OPENROUTER_LISTING_URL"
 seconds = 15
 
 [resident]
-# The keys typed into the pane of its standing program, bmo-tui, which cuts the dsh session's working turn
-# short (docs/agent-control.md, 「Stopping」).
+# The keys typed into the pane of its standing program, Claude Code, that cut a working turn short
+# (docs/agent-control.md, 「Stopping」).
 interrupt = ["escape"]
-# The program that stands in the agent's pane: bmo-tui, which starts the harness below and keeps its screen
-# open on the session (docs/agent-control.md, 「dsh's providers: OpenRouter and DeepSeek」).
-program = "bmo-tui"
-# The harness program bmo-tui starts on its dsh subcommand, at `--profile acp`, which owns the agent loop
-# and the session.
-dsh = "dsh"
-# Its surface carries its own turns: put into bmo-tui's inbox and read back out of its record.
-turns = "inbox"
-# A turn holds the session until dsh has ended it; words typed mid-turn are not taken into that turn.
-words_mid_turn = false
+# Its surface carries its own turns: put into Claude Code's transcript door and read back out of its record.
+turns = "endpoint"
+# Words put in while a turn works are taken into that turn.
+words_mid_turn = true
+# A conversation grown to its mark is handed over by a turn asking it for its note, which a new session
+# opens with.
+handover = "handoff"
+# A conversation's turn is watched for going nowhere and cut at the conversation limits.
+turn_limits = true
+# No engine of its own holds a slot; every request goes to OpenRouter's API.
+waits_for_engine = false
 
-# How its turns go through dsh: the gateway as dsh's one route and the variable its key is read from.
+# The dsh route the road no longer uses; kept for a rollback to the dsh harness, which no run of this build
+# names.
 [dsh]
 api = "https://openrouter.ai/api/v1"
 api_env = "BMO_OPENROUTER_API_URL"

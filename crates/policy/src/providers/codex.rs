@@ -12,6 +12,9 @@ pub struct Codex {
   pub catalogue: Catalogue,
   pub cache: Cache,
   pub usage: Usage,
+  /// The Claude Code effort word a run of each Codex word goes out with.
+  #[serde(default)]
+  pub claude: Option<super::Claude>,
 }
 
 /// How the subscription's windows are read on a clock (docs/usage-windows.md, 「The Codex reader」).
@@ -56,19 +59,21 @@ impl Cache {
   }
 }
 
-/// The executable this machine holds for it, looked up on the asking process's PATH.
+/// The key file its member names, under the data root's env directory.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Presence {
-  pub program: String,
+  pub key_file: String,
   pub missing_code: String,
   pub missing: String,
+  pub not_held: String,
 }
 
 /// How the catalogue bundled with the executable is asked for, and how long it is given.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Catalogue {
+  pub program: String,
   pub args: Vec<String>,
   pub seconds: u64,
 }

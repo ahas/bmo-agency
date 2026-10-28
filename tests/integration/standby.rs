@@ -65,11 +65,21 @@ impl Bench {
       std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o600)).unwrap();
     }
 
+    let members = machine.data_root().join("llm-gateway");
+
+    std::fs::create_dir_all(&members).unwrap();
+    std::fs::write(
+      members.join("members.json"),
+      r#"[{"name":"deepseek-flash","road":"deepseek","provider":"deepseek","model":"deepseek-flash","api_base":"https://api.deepseek.com/v1","key_file":"deepseek.key","wait_seconds":300,"context_tokens":1048576,"answer_tokens":32768,"thinking":true}]"#,
+    )
+    .unwrap();
+
     for sql in [
       r#"DELETE FROM "agents""#,
       r#"DELETE FROM "coworker_pool_roles""#,
       r#"INSERT INTO "model_tier_assignments" ("key", "tier") VALUES ('job-worker', 'Frontier')"#,
       r#"INSERT INTO "model_tier_mappings" ("provider", "tier", "model", "effort") VALUES ('claude-code', 'Frontier', 'claude-opus-5', 'high')"#,
+      r#"INSERT INTO "model_tier_mappings" ("provider", "tier", "model", "effort") VALUES ('deepseek', 'Frontier', 'deepseek-flash', 'high')"#,
       r#"INSERT INTO "registered_models" ("name", "label", "model", "context_tokens", "answer_tokens", "wait_seconds", "thinking", "walked", "keeps_research", "added_at")
          VALUES ('member', 'Member', 'member-model', 32768, 4096, 60, 1, 0, 0, 1)"#,
       r#"INSERT INTO "registered_model_addresses" ("registration", "node", "position", "url", "key_file", "key_owned")
@@ -279,13 +289,13 @@ async fn a_pinned_workers_pane_holding_another_providers_program_has_its_pins_pr
 }
 
 #[tokio::test]
-async fn a_dsh_pins_own_program_whose_words_changed_is_stood_afresh_and_a_current_one_is_left() {
+async fn a_member_pins_own_program_is_stood_as_claude_code_and_a_current_one_is_left() {
   let bench = Bench::new().await;
-  bench.worker("dsh-worker", Some(("deepseek", Some("deepseek-flash")))).await;
+  bench.worker("member-worker", Some(("deepseek", Some("deepseek-flash")))).await;
 
-  let place = bench.place("dsh-worker").path.to_string_lossy().into_owned();
+  let place = bench.place("member-worker").path.to_string_lossy().into_owned();
   let (_, mut old) = bench.standing(
-    "dsh-worker",
+    "member-worker",
     &[
       "bmo-tui",
       "dsh",
@@ -301,25 +311,30 @@ async fn a_dsh_pins_own_program_whose_words_changed_is_stood_afresh_and_a_curren
 
   standby::restand_all(&bench.ground, None).await;
 
-  let program = bench.place("dsh-worker").program().unwrap();
+  let program = bench.place("member-worker").program().unwrap();
 
   assert_ne!(program.identity, "standing-bmo-tui");
-  assert!(
-    program.command.args.iter().any(|arg| arg == r#"["deepseek","deepseek-flash"]"#),
-    "{:?}",
-    program.command.args
-  );
+  assert_eq!(program.command.args.first().map(String::as_str), Some("claude"));
+  assert_eq!(program.command.env.get("ANTHROPIC_MODEL").map(String::as_str), Some("deepseek-flash"));
   assert_eq!(
-    program.command.env.get("DSH_PERMISSION_MODE").map(String::as_str),
-    Some("danger-full-access")
+    program.command.env.get("CLAUDE_CONFIG_DIR").map(String::as_str),
+    Some(
+      bench
+        .ground
+        .roots
+        .data
+        .join("claude-roads/deepseek/deepseek-flash")
+        .to_string_lossy()
+        .as_ref()
+    )
   );
   assert!(ended(&mut old));
 
   // Composed again on the same words, the program is the same one, and nothing is stood twice.
   standby::restand_all(&bench.ground, None).await;
 
-  assert_eq!(bench.place("dsh-worker").program().unwrap().identity, program.identity);
-  assert_eq!(bench.notes("dsh-worker").await.len(), 1);
+  assert_eq!(bench.place("member-worker").program().unwrap().identity, program.identity);
+  assert_eq!(bench.notes("member-worker").await.len(), 1);
 }
 
 #[tokio::test]

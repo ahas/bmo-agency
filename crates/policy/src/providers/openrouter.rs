@@ -13,6 +13,9 @@ pub struct OpenRouter {
   pub cache: Cache,
   pub catalogue: Catalogue,
   pub balance: super::Balance,
+  /// The Claude Code effort word a run of each OpenRouter word goes out with.
+  #[serde(default)]
+  pub claude: Option<super::Claude>,
 }
 
 /// How long a prefix stays cached on each upstream that publishes it, by the model names it begins.
@@ -64,13 +67,14 @@ impl Gateway {
   }
 }
 
-/// The environment variable its key is read from.
+/// The key file its member names, under the data root's env directory.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Presence {
-  pub key_env: String,
+  pub key_file: String,
   pub missing_code: String,
   pub missing: String,
+  pub not_held: String,
 }
 
 /// Where the model listing is read from, the variable a stand-in's address is named in, and how long

@@ -171,14 +171,6 @@ async function twins(prepare: (side: Side) => Promise<void>, asked: Asked): Prom
 setDefaultTimeout(60_000);
 
 describe("one run carried in its agent's host, by either side", () => {
-  test("a run that ends on its own: its outcome, its output, the session it named on its row and its progress in the view", async () => {
-    const seenBy = await twins(async () => undefined, { command: program(3), root: "bmo-root-test" });
-
-    expect(seenBy.rust).toEqual(seenBy.bun);
-    expect(seenBy.bun).toMatchObject({ exitCode: 3, stderr: "warn\n", row: { state: "exited", exitCode: 3, sessionId: "thread-1", provider, line, workKey: agent } });
-    expect((seenBy.bun as { view: string }).view).toContain("all done second line");
-  }, 60_000);
-
   test("a run its caller stops at its time: cancelled, with what it said up to then", async () => {
     const seenBy = await twins(async () => undefined, { command: program(0, 30), timeoutMs: 500, root: "bmo-root-test" });
 

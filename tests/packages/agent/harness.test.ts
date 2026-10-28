@@ -112,17 +112,17 @@ describe("the providers there are, and the programs that carry them", () => {
     expect(providerImplementations().map((one) => [one.name, one.label, one.adapter.name])).toEqual([
       ["claude-code", "Claude Code", "claude-code"],
       ["registered", "Registered models", "claude-code:registered"],
-      ["codex", "Codex", "codex"],
-      ["openrouter", "OpenRouter", "dsh"],
-      ["deepseek", "DeepSeek", "dsh:deepseek"],
+      ["codex", "Codex", "claude-code:codex"],
+      ["openrouter", "OpenRouter", "claude-code:openrouter"],
+      ["deepseek", "DeepSeek", "claude-code:deepseek"],
     ]);
-    // Claude Code carries the registry on the gateway, and dsh carries DeepSeek on its own route, each as
-    // a program of its own.
+    // The registry, Codex, OpenRouter and DeepSeek are each Claude Code on the gateway under a model of
+    // their own.
     expect(harnessImplementations()).toEqual([
       claudeCode,
       provider("registered").adapter,
-      codex,
-      dsh,
+      provider("codex").adapter,
+      provider("openrouter").adapter,
       provider("deepseek").adapter,
     ]);
     expect(provider("codex")).toBe(providerImplementations()[2]!);
@@ -141,7 +141,8 @@ describe("the providers there are, and the programs that carry them", () => {
     const carried = (harness: typeof claudeCode) => runLines.filter((line) => carriesRunLine(harness, line)).toSorted();
 
     expect(carried(claudeCode)).toEqual([...runLines].toSorted());
-    expect(carried(codex)).toEqual(["chat", "gate", "worker"]);
+    expect(carried(provider("codex").adapter)).toEqual([...runLines].toSorted());
+    expect(carried(provider("openrouter").adapter)).toEqual([...runLines].toSorted());
     expect(carried(dsh)).toEqual(["chat", "gate", "worker"]);
   });
 
@@ -152,9 +153,9 @@ describe("the providers there are, and the programs that carry them", () => {
     expect(providerImplementations().map((one) => [one.name, one.capsAnswerTokens, one.logins !== null])).toEqual([
       ["claude-code", false, true],
       ["registered", true, false],
-      ["codex", false, false],
-      ["openrouter", false, false],
-      ["deepseek", false, false],
+      ["codex", true, false],
+      ["openrouter", true, false],
+      ["deepseek", true, false],
     ]);
     expect(provider("registered").efforts).toEqual([null, "thinking", "no-thinking"]);
     expect(provider("claude-code").efforts).toEqual([null, "low", "medium", "high", "xhigh", "max"]);
@@ -186,15 +187,14 @@ describe("the providers there are, and the programs that carry them", () => {
 
     expect(provider("claude-code").effortFault(null)).toBe("This harness requires explicit effort");
     expect(provider("codex").effortFault("low")).toBeNull();
-    expect(provider("openrouter").effortFault("low")).toContain("does not support explicit effort");
+    expect(provider("openrouter").effortFault("low")).toBeNull();
     expect(provider("registered").effortFault(null)).toBeNull();
   });
 
   test("OpenRouter is shut on a machine that holds no key for it", async () => {
     const openrouter = provider("openrouter");
 
-    expect(await openrouter.unavailable({ config: { openrouterKey: null } })).toContain("BMO_OPENROUTER_KEY");
-    expect(await openrouter.unavailable({ config: { openrouterKey: "k" } })).toBeNull();
+    expect(await openrouter.unavailable({ config: { openrouterKey: null } })).toContain("openrouter.key");
   });
 
   // Which login's catalogue answers matters: the CLI refreshes the file as it is used, so a login

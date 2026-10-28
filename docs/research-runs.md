@@ -24,18 +24,16 @@ same way (`docs/launch-lines.md`, 「Translate runner」).
   answer now carries the run, on its first open login.
 - **Only a program that carries the line is a road of it.** A research line reaches the web and the brain
   through the run's MCP servers alone (`policy/run-lines.toml`). Claude Code carries the search and browse
-  lines; DeepSeek carries the search line, its program dsh standing with every tool row of its own off so
-  the run's servers are its only tools. Every other provider is no road of a research key. Where nothing
-  can carry the run — every provider of it off, its key missing, or every login of it closed — the run is
-  refused, and the refusal names each provider's reason and says that no other provider's program carries
-  the line, with what it needs.
+  lines. No provider of this build carries a research line but Claude Code; a key whose tier maps to another
+  provider walks on to the first provider that carries it. Where nothing can carry the run — every provider
+  of it off, its key missing, or every login of it closed — the run is refused, and the refusal names each
+  provider's reason and says that no other provider's program carries the line, with what it needs.
 - **On Claude Code a run goes out in a pane of its own** as a run apart (`docs/agents.md`, 「Runs apart」):
   the runner's line as `docs/launch-lines.md` 「Search runner」 and 「Browse runner」 compose it, its
   standing instructions as the system prompt and the request as its words.
-- **On DeepSeek a run goes out in places of its own,** as any turn of a program that carries its own turns
-  does (`docs/agent-control.md`, 「dsh's providers: OpenRouter and DeepSeek」): the first answer in a place
-  named after the ledger's run, `search-<runId>`, and the rounds in a second, `search-<runId>-rounds`, so
-  the rounds read a session of their own.
+- **The dsh places are kept for a rollback,** and no run of this build enters them: the first answer stood in
+  a place named after the ledger's run, `search-<runId>`, and the rounds in a second, `search-<runId>-rounds`,
+  so the rounds read a session of their own.
   - **Its program** is bmo-tui on a dsh session, its overlay writing the search's standing instructions
     as the persona suffix after dsh's own prompt, every dsh tool row off, and the run's MCP servers — the
     tool host's `bmo` and `web` namespaces — on a session token issued for that place, whose record

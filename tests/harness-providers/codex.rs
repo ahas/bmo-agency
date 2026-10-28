@@ -1,35 +1,53 @@
-//! Codex: its headline windows, its catalogue as the executable on the PATH prints it, and its failures.
+//! Codex: its member road, the CLI catalogue a chooser still reads, and its failures.
+
+use std::collections::BTreeMap;
+use std::os::unix::fs::PermissionsExt;
+use std::path::Path;
 
 use harness_providers::codex::*;
-use harness_providers::{Headline, Machine, Provider, Reason, Window};
+use harness_providers::{Headline, Machine, Provider, Window};
+use serde_json::{Value, json};
+
+fn private(path: &Path, text: &str) {
+  std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+  std::fs::write(path, text).unwrap();
+  std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600)).unwrap();
+}
+
+fn member(name: &str, label: &str) -> Value {
+  json!({
+    "name": name,
+    "road": "codex",
+    "label": label,
+    "provider": "openai",
+    "model": name,
+    "api_base": "https://api.openai.com/v1",
+    "key_file": "openai.key",
+    "wait_seconds": 300,
+    "context_tokens": 400000,
+    "answer_tokens": 32768,
+    "thinking": true
+  })
+}
+
+fn machine_with_members(dir: &Path, members: Value) -> Machine {
+  let machine = Machine::with_env([], dir);
+  private(&dir.join("env").join("llm-gateway.key"), "gateway\n");
+  private(&dir.join("env").join("openai.key"), "secret\n");
+  std::fs::create_dir_all(dir.join("llm-gateway")).unwrap();
+  std::fs::write(dir.join("llm-gateway").join("members.json"), members.to_string()).unwrap();
+
+  machine
+}
 
 #[test]
-fn the_headline_is_the_standard_windows_by_length_then_by_slot() {
+fn a_member_road_reads_no_window() {
   let window = |name, duration_minutes| Window {
     name,
     duration_minutes,
   };
-  let standard = [
-    window("codex:default:primary", Some(300)),
-    window("codex:codex:secondary", None),
-    window("codex:codex:primary", Some(300)),
-  ];
-  let legacy = [window("codex:default:secondary", Some(10_080))];
 
-  assert_eq!(
-    Codex.headline(&standard),
-    Headline {
-      session: Some(2),
-      week: Some(1)
-    }
-  );
-  assert_eq!(
-    Codex.headline(&legacy),
-    Headline {
-      session: None,
-      week: Some(0)
-    }
-  );
+  assert_eq!(Codex.headline(&[window("codex:codex:primary", Some(300))]), Headline::default());
   assert_eq!(Codex.headline(&[]), Headline::default());
 }
 
@@ -88,9 +106,7 @@ fn a_failure_names_the_last_error_reported_then_the_last_word_said() {
 }
 
 #[tokio::test]
-async fn the_catalogue_is_the_one_the_executable_on_the_path_prints() {
-  use std::os::unix::fs::PermissionsExt;
-
+async fn the_cli_catalogue_is_read_for_the_chooser_that_declares_a_member() {
   let dir = tempfile::tempdir().unwrap();
   let program = dir.path().join("codex");
 
@@ -99,10 +115,63 @@ async fn the_catalogue_is_the_one_the_executable_on_the_path_prints() {
 
   let machine = Machine::with_env([("PATH".to_owned(), dir.path().display().to_string())], dir.path());
 
-  assert_eq!(Codex.missing(&machine), None);
   assert_eq!(models(&machine).await.unwrap()[0].id, "gpt-5.6-sol");
-  assert_eq!(
-    Codex.missing(&Machine::with_env([], dir.path())),
-    Some(Reason::new("codex-missing", "The Codex executable is missing."))
+}
+
+#[tokio::test]
+async fn the_catalogue_is_the_members_its_road_holds() {
+  let dir = tempfile::tempdir().unwrap();
+  let machine = machine_with_members(
+    dir.path(),
+    json!([member("gpt-5.6-sol", "GPT-5.6 Sol"), member("gpt-5.6-terra", "GPT-5.6 Terra")]),
   );
+  let catalogue = Codex.catalogue(&machine, None).await.unwrap();
+  let ids: Vec<&str> = catalogue["models"]
+    .as_array()
+    .unwrap()
+    .iter()
+    .filter_map(|one| one["id"].as_str())
+    .collect();
+
+  assert_eq!(ids, ["gpt-5.6-sol", "gpt-5.6-terra"]);
+}
+
+#[test]
+fn the_key_files_answer_only_while_they_are_private_and_hold_keys() {
+  let dir = tempfile::tempdir().unwrap();
+  let machine = Machine::with_env([], dir.path());
+
+  assert_eq!(Codex.missing(&machine).unwrap().code, "codex-key-unusable");
+
+  private(&dir.path().join("env").join("llm-gateway.key"), "gateway\n");
+  private(&dir.path().join("env").join("openai.key"), "secret\n");
+  std::fs::create_dir_all(dir.path().join("llm-gateway")).unwrap();
+  std::fs::write(
+    dir.path().join("llm-gateway").join("members.json"),
+    json!([member("gpt-5.6-sol", "GPT-5.6 Sol")]).to_string(),
+  )
+  .unwrap();
+
+  assert_eq!(Codex.missing(&machine), None);
+
+  std::fs::set_permissions(
+    dir.path().join("env").join("openai.key"),
+    std::fs::Permissions::from_mode(0o644),
+  )
+  .unwrap();
+  assert!(Codex.missing(&machine).is_some());
+}
+
+#[test]
+fn claude_code_under_its_road_s_home_is_its_own() {
+  let dir = tempfile::tempdir().unwrap();
+  let machine = Machine::with_env([], dir.path());
+  let homes = dir.path().join("claude-roads");
+  let env = BTreeMap::from([(
+    "CLAUDE_CONFIG_DIR".to_owned(),
+    homes.join("codex").join("gpt-5.6-sol").to_string_lossy().into_owned(),
+  )]);
+
+  assert!(Codex.owns_program(&machine, &["claude".to_owned()], &env));
+  assert!(!Codex.owns_program(&machine, &["codex".to_owned()], &BTreeMap::new()));
 }

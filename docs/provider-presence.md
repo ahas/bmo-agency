@@ -36,9 +36,9 @@ flowchart TD
 
 - **Claude Code** always can: whether one of its logins answers is the account walk's judgement
   (`docs/cache-fallback.md`, 「The Claude Code road is a list of accounts」).
-- **Codex** can where its executable stands on the asking process's `PATH`.
-- **OpenRouter** can where its key is in the environment. The bun side hands the binary the key its
-  configuration holds, so a caller that asks with no key is answered as a machine with none.
+- **Codex, OpenRouter and DeepSeek** can where the gateway's key file and at least one member of their road
+  stand, and every member's own key file under the data root's `env` directory is private to its owner and
+  not empty. A member road holds no login of its own.
 - **The registered models** can where the gateway's key file stands private under the data root's
   `env` directory: a file of its own, mode 0600, not empty.
   - Past that, each side asks agency's store for a registration with an address, and says the policy
@@ -56,28 +56,16 @@ flowchart TD
 
 ## Which models a provider offers
 
-- **Codex:** the catalogue bundled with the installed executable, asked with the arguments and
-  within the seconds its policy file names.
-  - A model the CLI hides is left out, so the choice offered is the one the CLI offers a person.
-  - Each model carries its id, name, description, context length, default effort and the efforts it
-    takes.
-  - A run that fails is a refusal naming the last error the CLI reported, or else the last line it
-    wrote to its standard error, or else its exit status.
-- **OpenRouter:** the public listing at the address its policy file names, which needs no key.
-  - Each model carries its id, name, context length and whether it is free: a `:free` id priced at
-    zero for both prompt and completion.
-  - An answer that is not a success is a refusal naming its status.
-- **Claude Code:** the catalogue the CLI keeps under the configuration directory of the login the
-  caller names (`docs/model-tiers.md`, 「The Claude catalogue」).
-  - The newest fetch among the files of the surface answers, and an unreadable neighbour is passed
-    over.
+- **Codex, OpenRouter and DeepSeek:** the members of their road, each with its window, answer ceiling and
+  thinking default. The installed Codex CLI's catalogue and the public OpenRouter listing are still read for
+  the chooser that declares a member; neither is what a run is offered.
+- **Claude Code:** the catalogue the CLI keeps under the configuration directory of the login the caller
+  names (`docs/model-tiers.md`, 「The Claude catalogue」).
+  - The newest fetch among the files of the surface answers, and an unreadable neighbour is passed over.
   - A directory with no such file, nothing that parses, or a catalogue naming no model is a refusal.
-  - Each model carries its id, whether the CLI serves it or has superseded it, and the efforts its
-    entry names; the catalogue carries when it was fetched and when the CLI holds it stale.
+  - Each model carries its id, whether the CLI serves it or has superseded it, and the efforts its entry
+    names; the catalogue carries when it was fetched and when the CLI holds it stale.
 - **The registered models:** the registrations with an address, out of the archive.
-- **DeepSeek:** the two models its policy declares, `deepseek-flash` and `deepseek-v4-pro`, with the
-  name a screen shows each and its window. The listing is the deployment's, so it needs no key and no
-  request; each model names the efforts it takes, `none`, `low`, `medium`, `high` and `max`.
 
 ## The binary
 

@@ -85,23 +85,19 @@ fn a_stand_in_s_address_wins_and_an_endpoint_on_its_origin_is_the_provider_s() {
 #[test]
 fn each_road_asks_with_its_own_key() {
   let dir = tempfile::tempdir().unwrap();
-  let machine = Machine::with_env([("BMO_OPENROUTER_KEY".to_owned(), "sk-or".to_owned())], dir.path());
+  let machine = Machine::with_env([], dir.path());
   let key = DeepSeek::key_file(&machine);
+  let openrouter = dir.path().join("env").join("openrouter.key");
 
   assert!(DeepSeek.balance().unwrap().key(&machine).is_err());
+  assert!(provider("openrouter").unwrap().balance().unwrap().key(&machine).is_err());
 
   std::fs::create_dir_all(key.parent().unwrap()).unwrap();
   std::fs::write(&key, "sk-deep\n").unwrap();
   std::fs::set_permissions(&key, std::fs::Permissions::from_mode(0o600)).unwrap();
+  std::fs::write(&openrouter, "sk-or\n").unwrap();
+  std::fs::set_permissions(&openrouter, std::fs::Permissions::from_mode(0o600)).unwrap();
 
   assert_eq!(DeepSeek.balance().unwrap().key(&machine), Ok("sk-deep".into()));
   assert_eq!(provider("openrouter").unwrap().balance().unwrap().key(&machine), Ok("sk-or".into()));
-  assert!(
-    provider("openrouter")
-      .unwrap()
-      .balance()
-      .unwrap()
-      .key(&Machine::with_env([], dir.path()))
-      .is_err()
-  );
 }

@@ -4,20 +4,13 @@
 
 use agency_server::worker_session::warmth::{lifetime_ms, set_aside_lifetime_ms};
 use policy::providers::claude_code::CLAUDE_CODE;
-use policy::providers::codex::CODEX;
 
 #[test]
 fn the_lifetime_is_the_one_the_provider_declares_for_the_model() {
   let declared = CLAUDE_CODE.cache.ttl_minutes * 60_000;
-  let codex = CODEX.cache.of("gpt-5.6").map(|entry| entry.ttl_minutes * 60_000);
 
   assert_eq!(lifetime_ms("claude-code", "model-a"), Some(declared));
-  assert_eq!(lifetime_ms("codex", "gpt-5.6-sol"), codex);
-  assert_eq!(
-    lifetime_ms("codex", "gpt-4"),
-    None,
-    "a model its provider declares nothing for has none"
-  );
+  assert_eq!(lifetime_ms("codex", "gpt-5.6-sol"), None, "a member road declares none");
   assert_eq!(lifetime_ms("no-such-provider", "model-a"), None);
 }
 

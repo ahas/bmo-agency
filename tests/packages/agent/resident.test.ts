@@ -61,8 +61,8 @@ const surfaceOf = (provider: AgentProvider): ResidentSurface => {
 describe("resident or host", () => {
   const surface = surfaceOf(claudeCodeProvider);
 
-  test("every provider declares its surface, and the dsh providers' resident pane is the server's", () => {
-    expect(providerImplementations().filter((provider) => provider.resident === null).map((provider) => provider.name)).toEqual(["openrouter", "deepseek"]);
+  test("every provider stands a resident program, and none is left to the host alone", () => {
+    expect(providerImplementations().filter((provider) => provider.resident === null).map((provider) => provider.name)).toEqual([]);
   });
 
   test("the resolution names no provider", () => {
@@ -375,113 +375,4 @@ describe("a Claude Code resident turn", () => {
   });
 });
 
-describe("Codex's resident program", () => {
-  const surface = surfaceOf(codexProvider);
-  const codexRun = (overrides: Partial<HarnessRun> = {}) => run({ model: "gpt-5.6-luna", effort: "high", ...overrides });
-
-  test("takes words mid-turn, and Escape interrupts it", () => {
-    expect(surface.door).toBe("agent-prompt");
-    expect(surface.takesWordsMidTurn).toBe(true);
-    expect(surface.interrupt).toEqual({ keys: ["escape"] });
-    expect(surface.fold).toBeNull();
-    expect(surface.clear).toBeNull();
-  });
-
-  test("starts the interactive program with the update offer and the hooks review switched off", async () => {
-    const command = await surface.command(codexRun());
-
-    expect(command.args[0]).toBe("codex");
-    expect(command.args).not.toContain("exec");
-    expect(command.args).not.toContain("--ignore-user-config");
-    expect(command.args).not.toContain("-");
-    expect(command.args).toContain("check_for_update_on_startup=false");
-    expect(command.args).toContain("features.hooks=false");
-    expect(command.stdin).toBeNull();
-    // Under a home of agency's own, since the program cannot be told to leave the user's configuration out.
-    expect(command.env.CODEX_HOME).toEndWith("codex-home");
-  });
-
-  test("resumes the agent's thread by its id", async () => {
-    const args = (await surface.command(codexRun({ resumeSessionId: "019-thread" }))).args;
-
-    expect(args.slice(1, 3)).toEqual(["resume", "019-thread"]);
-  });
-
-  // Codex's turns are carried by its own surface, so whoever hands one a turn asks the surface rather
-  // than naming the program; Claude Code's lines run their own turns.
-  test("carries its own turns, where Claude Code's lines run theirs", () => {
-    expect(surface.turn).toBeFunction();
-    expect(surfaceOf(claudeCodeProvider).turn).toBeUndefined();
-  });
-
-  test("reads a turn out of the rollout: its answer, its tokens and its windows", () => {
-    const lines = [
-      { type: "session_meta", payload: { id: "019-thread" } },
-      { type: "turn_context", payload: { model: "gpt-5.6-luna" } },
-      { type: "event_msg", payload: { type: "task_started" } },
-      { type: "event_msg", payload: { type: "agent_message", message: "hello" } },
-      {
-        type: "event_msg",
-        payload: {
-          type: "token_count",
-          info: { last_token_usage: { input_tokens: 100, cached_input_tokens: 60, output_tokens: 7 } },
-          rate_limits: { primary: { used_percent: 12, window_minutes: 10080, resets_at: 1790000000 }, secondary: null },
-        },
-      },
-      { type: "event_msg", payload: { type: "task_complete", last_agent_message: "hello" } },
-    ];
-    const going = readCodexRollout({ lines: lines.slice(0, 4) }, codexRun());
-    const done = readCodexRollout({ lines }, codexRun());
-
-    expect(going.state).toBe("working");
-    expect(done.state).toBe("ended");
-    expect(done.reply.text).toBe("hello");
-    expect(done.reply.sessionId).toBe("019-thread");
-    expect(done.reply.spend).toEqual([
-      { mode: "codex", model: "gpt-5.6-luna", tokens: 107, inputTokens: 40, outputTokens: 7, cacheReadTokens: 60, cacheWriteTokens: 0, cost: 0 },
-    ]);
-    // Named the way the account reading names the same window.
-    expect(done.reply.windows).toEqual([{ name: "codex:default:primary", utilization: 0.12, resetsAt: 1790000000, durationMinutes: 10080, limitName: null }]);
-    expect(done.reply.lastRequestUsage).toEqual({ inputTokens: 40, cacheReadTokens: 60, cacheWriteTokens: 0, outputTokens: 7 });
-  });
-
-  // The shapes a measured rollout wrote: words put in mid-turn taken inside the one task, and Escape
-  // aborting the task — with words held, a new task opened on them at once.
-  test("reads words taken mid-turn as the same task, and an Escape as an interruption", () => {
-    const started = { type: "event_msg", payload: { type: "task_started" } };
-    const said = (text: string, role: "user" | "assistant") => ({ type: "response_item", payload: { type: "message", role, content: [{ type: "input_text", text }] } });
-    const steered = readCodexRollout(
-      {
-        lines: [
-          started, said("Run four commands, then reply ALPHA.", "user"), said("Also add BRAVO.", "user"),
-          { type: "event_msg", payload: { type: "task_complete", last_agent_message: "ALPHA BRAVO" } },
-        ],
-      },
-      codexRun(),
-    );
-    const aborted = [started, { type: "event_msg", payload: { type: "turn_aborted", reason: "interrupted" } }];
-
-    expect(steered.state).toBe("ended");
-    expect(steered.queued).toBe(0);
-    expect(steered.reply.text).toBe("ALPHA BRAVO");
-    expect(readCodexRollout({ lines: aborted }, codexRun()).state).toBe("interrupted");
-    expect(readCodexRollout({ lines: [...aborted, started, said("Also add GOLF.", "user")] }, codexRun()).state).toBe("working");
-  });
-
-  test("a turn that ended on the program's error answers nothing", () => {
-    const reading = readCodexRollout(
-      {
-        lines: [
-          { type: "event_msg", payload: { type: "task_started" } },
-          { type: "event_msg", payload: { type: "task_complete", error: { codex_error_info: "usage_limit_exceeded" } } },
-        ],
-      },
-      codexRun(),
-    );
-
-    expect(reading.state).toBe("ended");
-    expect(reading.error).toContain("usage_limit_exceeded");
-    expect(reading.reply.text).toBe("");
-  });
-});
 
