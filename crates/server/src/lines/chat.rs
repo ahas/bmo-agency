@@ -314,6 +314,33 @@ fn harness_servers(ground: &Ground, agent: &str) -> Ordered {
     servers.push(("job".to_owned(), Ordered::map(fields)));
   }
 
+  // The artifact service's harness plugin, which files a document and answers its permanent share link.
+  // Its address and its token are the deployment's, read from the environment the chat inherits; a
+  // deployment that names neither leaves it out.
+  if let (Some(url), Some(token_file)) = (
+    env.get("BMO_ARTIFACT_URL").filter(|url| !url.trim().is_empty()),
+    env.get("BMO_ARTIFACT_TOKEN_FILE").filter(|file| !file.trim().is_empty()),
+  ) && let Some(token) = std::fs::read_to_string(token_file).ok().map(|token| token.trim().to_owned())
+    && !token.is_empty()
+  {
+    let program = env
+      .get("BMO_ARTIFACT_PLUGIN")
+      .filter(|program| !program.trim().is_empty())
+      .cloned()
+      .unwrap_or_else(|| "bmo-artifact".to_owned());
+    let fields = vec![
+      ("type", Ordered::text("stdio")),
+      ("command", Ordered::text(program)),
+      (
+        "args",
+        Ordered::List(vec![Ordered::text("mcp"), Ordered::text("--address"), Ordered::text(url.as_str())]),
+      ),
+      ("env", Ordered::map([("BMO_ARTIFACT_SERVER__TOKEN", Ordered::text(token))])),
+    ];
+
+    servers.push(("artifact".to_owned(), Ordered::map(fields)));
+  }
+
   if let (Ok(server), Some(url)) = (std::env::current_exe(), env.get("BMO_AGENCY_URL")) {
     // The MCP server is the repository's CLI, which stands beside the server in the release's bin.
     let program = server
