@@ -304,7 +304,7 @@ async fn carried_on(
 
       outcome.map_err(NoAnswer::Failed)
     }
-    "deepseek" => {
+    "deepseek" | "openrouter" => {
       let account = claude_accounts::accounts(&ground.db)
         .await
         .map_err(|why| NoAnswer::Failed(why.error))?
