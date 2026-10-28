@@ -393,6 +393,17 @@ pub const OPERATIONS: &[Operation] = &[
     codes: &[],
   },
   Operation {
+    method: "POST",
+    path: "/session-reset",
+    id: "resetSession",
+    tag: "sessions",
+    summary: "Ask to clear one agent's session in a room, answered with the session as it stands after; the next round opens a new one.",
+    params: &[],
+    body: None,
+    answers: &[(200, Some("Session"), false)],
+    codes: &["bad-request"],
+  },
+  Operation {
     method: "GET",
     path: "/sessions/{sessionId}",
     id: "getSession",

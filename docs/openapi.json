@@ -1050,6 +1050,37 @@
         }
       }
     },
+    "/session-reset": {
+      "post": {
+        "operationId": "resetSession",
+        "tags": [
+          "sessions"
+        ],
+        "summary": "Ask to clear one agent's session in a room, answered with the session as it stands after; the next round opens a new one.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request"
+        ]
+      }
+    },
     "/sessions/{sessionId}": {
       "get": {
         "operationId": "getSession",
