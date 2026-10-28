@@ -209,6 +209,20 @@ pub async fn agent_session(
   )
 }
 
+/// The provider an agent's last answer went out on, where it answered: the road of the session its row
+/// keeps, so a stand-in's session is resumed on the same road and never handed to another.
+pub async fn agent_last_mode(
+  db: &sea_orm::DatabaseConnection,
+  agent: &str,
+) -> Result<Option<String>, Refusal> {
+  Ok(
+    one(db, r#"SELECT "last_mode" FROM "agents" WHERE "name" = $1"#, vec![agent.into()])
+      .await?
+      .and_then(|row| row.try_get::<Option<String>>("", "last_mode").ok().flatten())
+      .filter(|mode| !mode.is_empty()),
+  )
+}
+
 /// The harness session an agent keeps across rooms written on its row, with the room its last turn
 /// answered; none lets it go.
 pub async fn keep_agent_session(
@@ -1304,6 +1318,10 @@ impl HerdrSessions {
       job_id: None,
     });
     let mut held = agent_session(&db, agent).await.map_err(store_fault)?;
+    let last_mode = agent_last_mode(&db, agent).await.map_err(store_fault)?;
+    // A session the last answer left on a stand-in is resumed on that road; one left on Claude Code is
+    // Claude's, and the stand-in opens a session of its own.
+    let stand_in_resume = if last_mode.as_deref() == Some(CHAT_PROVIDER) { None } else { held.clone() };
 
     // A reset the owner asked of the chat agent's one session closes it before this turn opens a new one.
     if sessions::reset_waiting_agent(&db, agent).await.map_err(store_fault)? {
@@ -1322,7 +1340,7 @@ impl HerdrSessions {
     let line_run = match crate::lines::chat::chat_run(
       ground,
       &ground.machine(),
-      &launch_of(agent, room, context, None),
+      &launch_of(agent, room, context, stand_in_resume),
       prompt,
       false,
     )
@@ -1407,10 +1425,13 @@ impl HerdrSessions {
     ));
     self.record_usage(agent, &reply, run).await;
 
-    if on_claude {
+    if !reply.session_id.is_empty() {
       keep_agent_session(&db, agent, Some((&reply.session_id, room.chat_id)))
         .await
         .map_err(store_fault)?;
+    }
+
+    if on_claude {
       fallback_ended(ground).await;
     }
 

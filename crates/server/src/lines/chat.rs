@@ -1115,6 +1115,21 @@ pub async fn compose_stand_in(
     Door::Gateway { held, placement } => {
       // Claude Code on the gateway names its records after its folder's real path as on its own road.
       let cwd = claude_folder(ground, run)?;
+      // A session the road no longer holds is no session to resume: the turn opens one of its own, as a
+      // fresh session would. This is how a session left on another road or a deleted one is let go.
+      let kept = run.resume.as_ref().is_some_and(|id| {
+        ClaudeCode::records_under(&held.home, Path::new(&cwd), id)
+          .iter()
+          .any(|record| record.exists())
+      });
+      let sent_run = if run.resume.is_some() && !kept {
+        ChatRun {
+          resume: None,
+          ..run.clone()
+        }
+      } else {
+        run.clone()
+      };
       let (claude_effort, backend_effort, thinking) = match held.road {
         Some(road) => (
           harness_providers::provider(road).and_then(|provider| provider.claude_effort(&step.effort)),
@@ -1124,17 +1139,17 @@ pub async fn compose_stand_in(
         None => (None, None, None),
       };
       let on = OnGateway {
-        agent: &run.agent,
+        agent: &sent_run.agent,
         model: &step.model,
         effort: &step.effort,
         cwd: &cwd,
         settings: serde_json::Map::new(),
-        compose_typed: RUN_LINES.composes_typed_lines(run.line),
+        compose_typed: RUN_LINES.composes_typed_lines(sent_run.line),
         shell_guard: true,
         sampling: None,
         // The chat agent's and a gate's runs are asked as the role their work key names, where it names one.
         role: policy::work_keys::WORK_KEYS
-          .profile(&run.agent)
+          .profile(&sent_run.agent)
           .and_then(|profile| profile.prefix_role.as_deref()),
         thinking,
         claude_effort,
@@ -1152,7 +1167,7 @@ pub async fn compose_stand_in(
             model: name.to_owned(),
             effort: effort.to_owned(),
             thinking,
-            ..run.clone()
+            ..sent_run.clone()
           };
 
           resident_args(&sent, settings, &opened)
@@ -1168,7 +1183,7 @@ pub async fn compose_stand_in(
           context_tokens: held.context_tokens,
           home: held.home.clone(),
         }),
-        ..composed(command, opened.clone(), effort)
+        ..composed(command, sent_run.resume.clone().unwrap_or_else(|| opened.clone()), effort)
       })
     }
   }
