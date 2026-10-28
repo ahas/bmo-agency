@@ -1763,6 +1763,61 @@ pub async fn stop_job(
   Ok(member)
 }
 
+/// A head pane that died: every job its worker is running ends failed with the pane's exit code and last
+/// stderr line as its report; its lease is given back by the ordinary end.
+pub async fn pane_died(ground: &Ground, worker: &str, code: i32, last: &str) -> Result<Vec<i64>, String> {
+  let rows = all(
+    &ground.db,
+    r#"SELECT "id" FROM "jobs" WHERE "worker_name" = $1 AND "state" IN ('starting', 'running') ORDER BY "id""#,
+    vec![worker.into()],
+  )
+  .await
+  .map_err(|why| why.to_string())?;
+  let mut ended = vec![];
+  let reason = format!(
+    "The pane for {worker} died with exit code {code}. Its last stderr line: {}",
+    if last.trim().is_empty() { "none" } else { last.trim() }
+  );
+
+  for row in rows {
+    let Ok(id) = row.try_get::<i64>("", "id") else { continue };
+
+    job_turn_ended(ground, id, agent_session::TurnEnd::failed("pane-death", &reason, None)).await;
+    ended.push(id);
+  }
+
+  Ok(ended)
+}
+
+/// A pane's death told to agency: the worker, its exit code and the last line it wrote on stderr.
+pub struct PaneDeath;
+
+impl Route for PaneDeath {
+  const METHOD: Method = Method::POST;
+  const PATH: &'static str = "/pane-deaths";
+
+  async fn answer(&self, call: Call) -> Result<Response, Refused> {
+    let worker = call.query("agent").unwrap_or_default();
+    let code: i32 = call
+      .query("code")
+      .unwrap_or_default()
+      .parse()
+      .map_err(|_| bad("code is a whole number"))?;
+    let last = call.query("last").unwrap_or_default();
+
+    if worker.trim().is_empty() {
+      return Err(bad("agent is required"));
+    }
+
+    match pane_died(call.ground(), &worker, code, &last).await {
+      Ok(jobs) => Ok(answer(StatusCode::ACCEPTED, json!({ "jobs": jobs }))),
+      Err(why) => Err(Refused::failed(why)),
+    }
+  }
+}
+
+crate::moved!(PaneDeath);
+
 /// End a job with its outcome, or stop it, its turn cut short first.
 pub struct ChangeJob;
 

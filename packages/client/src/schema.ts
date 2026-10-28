@@ -1285,6 +1285,23 @@ export interface paths {
         patch: operations["changeAssignmentsByAssignmentId"];
         trace?: never;
     };
+    "/pane-deaths": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** A head pane died: every job its worker is running ends failed with the exit code and last stderr line as its report. */
+        post: operations["tellPaneDeath"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/jobs": {
         parameters: {
             query?: never;
@@ -6601,6 +6618,30 @@ export interface operations {
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
             410: components["responses"]["Gone"];
+        };
+    };
+    tellPaneDeath: {
+        parameters: {
+            query: {
+                agent: string;
+                code: number;
+                last?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
         };
     };
     listJobs: {

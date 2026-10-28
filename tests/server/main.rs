@@ -59,6 +59,7 @@ mod control {
   mod model_tiers;
   mod models;
   mod own_llm;
+  mod pane_death;
   mod pool_board;
   mod pool_bound;
   mod pool_reads;

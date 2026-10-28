@@ -120,14 +120,7 @@ impl Bench {
   }
 
   fn head(&self, agent: &str) -> Vec<String> {
-    words(&[
-      "/bin/sh",
-      "-c",
-      r#"while :; do "$1" "$2"; case $? in 3) exit 0;; esac; sleep 1; done"#,
-      &format!("bmo-head-{agent}"),
-      &self.deploy().join("bin/pane-head").to_string_lossy(),
-      agent,
-    ])
+    self.ground().head_command(agent, &self.deploy())
   }
 
   fn bun_head(&self, agent: &str) -> Vec<String> {

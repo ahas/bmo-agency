@@ -5167,6 +5167,59 @@
         }
       }
     },
+    "/pane-deaths": {
+      "post": {
+        "operationId": "tellPaneDeath",
+        "tags": [
+          "jobs"
+        ],
+        "summary": "A head pane died: every job its worker is running ends failed with the exit code and last stderr line as its report.",
+        "responses": {
+          "202": {
+            "description": "Answered."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request"
+        ],
+        "parameters": [
+          {
+            "name": "agent",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": ""
+            }
+          },
+          {
+            "name": "code",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "description": ""
+            }
+          },
+          {
+            "name": "last",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": ""
+            }
+          }
+        ]
+      }
+    },
     "/jobs": {
       "get": {
         "operationId": "listJobs",

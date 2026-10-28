@@ -898,6 +898,19 @@ The owner's words:
   - A person's turn still working when a job arrives is waited out before the job touches the program
     (「Runs and sessions in one pane」).
 
+### A pane that dies
+
+- **A head pane's loop reports every end but letting go.** A program that ends with any code but the
+  deliberate 3 sends that code and the last line of its stderr to agency's `POST /pane-deaths`; agency
+  ends every job that worker is running failed, with the code and the line whole in its report, and the
+  ordinary end releases the lease and leaves the report on the item.
+- **A job is not silently reborn.** Restarting the pane is the loop's business; the job it was running
+  stays failed and its item stays open.
+- **Three deaths inside a minute stop the loop,** which says why on the pane and ends; the same report
+  path has already carried each death's code and last line.
+- **The job's record carries the pane's stderr at death** in its report, so a failed run names what the
+  pane said as it went, not only that it restarted.
+
 ### Asking a worker directly
 
 - **A chat agent may hand a free worker a small coding task as a turn, with no item.** `worker_ask` names
