@@ -327,13 +327,19 @@ fn harness_servers(ground: &Ground, agent: &str) -> Ordered {
       .get("BMO_ARTIFACT_PLUGIN")
       .filter(|program| !program.trim().is_empty())
       .cloned()
-      .unwrap_or_else(|| "bmo-artifact".to_owned());
+      .unwrap_or_else(|| "sh".to_owned());
     let fields = vec![
       ("type", Ordered::text("stdio")),
       ("command", Ordered::text(program)),
       (
         "args",
-        Ordered::List(vec![Ordered::text("mcp"), Ordered::text("--address"), Ordered::text(url.as_str())]),
+        Ordered::List(vec![
+          Ordered::text("-c"),
+          Ordered::text(format!(
+            "cd \"$HOME/.local/share/bmo-artifact/deploy\" && exec bmo-artifact mcp --address '{}'",
+            url.replace('\'', "'\\''"),
+          )),
+        ]),
       ),
       ("env", Ordered::map([("BMO_ARTIFACT_SERVER__TOKEN", Ordered::text(token))])),
     ];
