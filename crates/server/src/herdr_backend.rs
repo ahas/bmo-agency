@@ -1302,7 +1302,18 @@ impl HerdrSessions {
       chat_id: Some(room.chat_id),
       job_id: None,
     });
-    let held = agent_session(&db, agent).await.map_err(store_fault)?;
+    let mut held = agent_session(&db, agent).await.map_err(store_fault)?;
+
+    // A reset the owner asked of the chat agent's one session closes it before this turn opens a new one.
+    if sessions::reset_waiting_agent(&db, agent).await.map_err(store_fault)? {
+      keep_agent_session(&db, agent, None).await.map_err(store_fault)?;
+      sessions::settle_reset_agent(&db, agent).await.map_err(store_fault)?;
+      held = None;
+      log
+        .write(&db, Line::note(policy::companion_runner::COMPANION_RUNNER.log.cleared.clone()))
+        .await;
+    }
+
     let started = Instant::now();
     // The agent's key walked first: a stand-in that answers carries the turn, and Claude Code's session
     // stays as it stands for its next turn. The run is the chat line's; the fallback walk and roads are

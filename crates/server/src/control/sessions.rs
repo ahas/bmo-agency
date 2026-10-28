@@ -297,8 +297,54 @@ impl SessionHolder for Companion {
   }
 }
 
+/// The chat agent: the one session every room's rounds go on in, when its row gives it the agent scope.
+struct Chat;
+
+impl SessionHolder for Chat {
+  fn sessions<'a>(
+    &'a self,
+    db: &'a DatabaseTransaction,
+    _running: &'a Running,
+  ) -> Holding<'a, Vec<AgentSession>> {
+    Box::pin(async move {
+      let names = all(
+        db,
+        r#"SELECT "name" FROM "agents"
+           WHERE "kind" = 'chat' AND "session_scope" = 'agent' ORDER BY "name""#,
+        vec![],
+      )
+      .await?;
+      let models = Vec::new();
+
+      Ok(
+        names
+          .iter()
+          .filter_map(|row| row.try_get::<String>("", "name").ok())
+          .map(|agent| AgentSession {
+            agent,
+            chat_id: None,
+            kind: "chat",
+            title: None,
+            generation: None,
+            models: models.clone(),
+            running: false,
+          })
+          .collect(),
+      )
+    })
+  }
+
+  fn clear<'a>(
+    &'a self,
+    _db: &'a DatabaseTransaction,
+    _session: &'a AgentSession,
+  ) -> Holding<'a, Clearing> {
+    Box::pin(async { Ok(Clearing::Waits) })
+  }
+}
+
 // Every holder, in the order they are asked.
-const HOLDERS: [&dyn SessionHolder; 2] = [&Worker, &Companion];
+const HOLDERS: [&dyn SessionHolder; 3] = [&Worker, &Companion, &Chat];
 
 /// An ask to clear a session, waiting or carried out.
 #[derive(Debug, Serialize)]
@@ -702,8 +748,9 @@ impl Route for SessionResetAsk {
     for holder in HOLDERS {
       let held = holder.sessions(&written, &running).await?;
 
-      if let Some(session) =
-        held.into_iter().find(|one| one.agent == asked.agent && one.chat_id == asked.chat_id)
+      if let Some(session) = held
+        .into_iter()
+        .find(|one| one.agent == asked.agent && (one.chat_id == asked.chat_id || one.chat_id.is_none()))
       {
         let clearing =
           ask(&written, holder, &session, &asked_by(&body), &CONTROL_WORDS.sessions.asked).await?;

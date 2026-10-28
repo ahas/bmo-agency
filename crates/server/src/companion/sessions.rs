@@ -294,6 +294,31 @@ pub async fn reset_waiting(db: &DatabaseConnection, agent: &str, chat_id: i64) -
   )
 }
 
+/// Whether a reset waits for the agent's one session across rooms (the `agent` scope).
+pub async fn reset_waiting_agent(db: &DatabaseConnection, agent: &str) -> Result<bool, Refusal> {
+  Ok(
+    one(
+      db,
+      "SELECT id FROM session_resets WHERE agent = $1 AND chat_id IS NULL AND done_at IS NULL ORDER BY id LIMIT 1",
+      vec![agent.into()],
+    )
+    .await?
+    .is_some(),
+  )
+}
+
+/// The agent's one session reset settled as carried out now.
+pub async fn settle_reset_agent(db: &DatabaseConnection, agent: &str) -> Result<(), Refusal> {
+  run(
+    db,
+    "UPDATE session_resets SET done_at = $1 WHERE agent = $2 AND chat_id IS NULL AND done_at IS NULL",
+    vec![now().into(), agent.into()],
+  )
+  .await
+  .map(drop)
+  .map_err(Refusal::from)
+}
+
 /// Every reset waiting for the room's session settled as carried out now.
 pub async fn settle_reset(db: &DatabaseConnection, agent: &str, chat_id: i64) -> Result<(), Refusal> {
   run(
