@@ -1226,12 +1226,14 @@ impl Going {
       keep_in_flight(&ground.db, self.ledger, &self.in_flight()).await;
     }
 
-    let (outcome, result, spent) =
-      if taken_up.is_some() || crate::chat_stand_in::inbox_declared(&self.taken.provider) {
-        self.on_places(&mut log, taken_up.as_ref()).await
-      } else {
-        self.on_claude(&mut log).await
-      };
+    let (outcome, result, spent) = if taken_up.is_some()
+      || crate::chat_stand_in::inbox_declared(&self.taken.provider)
+      || crate::chat_stand_in::member_declared(&self.taken.provider)
+    {
+      self.on_places(&mut log, taken_up.as_ref()).await
+    } else {
+      self.on_claude(&mut log).await
+    };
 
     self.ended(outcome, result, spent, &mut log).await;
   }

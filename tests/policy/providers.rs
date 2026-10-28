@@ -33,9 +33,8 @@ fn a_launch_rule_holds_what_each_provider_declares() {
 }
 
 #[test]
-fn deepseek_carries_the_chat_gate_and_worker_lines_and_claude_code_alone_the_browse_line() {
-  assert!(deepseek::DEEPSEEK.declared.carries("chat"));
-  assert!(!deepseek::DEEPSEEK.declared.carries("search"));
+fn deepseek_carries_the_search_line_and_claude_code_alone_the_browse_line() {
+  assert!(deepseek::DEEPSEEK.declared.carries("search"));
   assert!(!deepseek::DEEPSEEK.declared.carries("browse"));
   assert!(claude_code::CLAUDE_CODE.declared.carries("browse"));
 }

@@ -4,6 +4,7 @@
 //! carry now.
 
 use std::collections::HashMap;
+use std::os::unix::fs::PermissionsExt;
 use std::time::Duration;
 
 use agency_server::Service;
@@ -192,12 +193,32 @@ fn ground_on(scratch: &Scratch, home: &std::path::Path) -> Ground {
   let variables: HashMap<String, String> = HashMap::new();
   let service =
     Service::new(scratch.db().clone(), Config::read(|name| variables.get(name).cloned()).unwrap());
+  let data = home.join("data");
+  let env_dir = data.join("env");
+
+  std::fs::create_dir_all(&env_dir).unwrap();
+  for (name, key) in [("llm-gateway.key", "a key\n"), ("deepseek.key", "a key\n")] {
+    let file = env_dir.join(name);
+
+    std::fs::write(&file, key).unwrap();
+    std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o600)).unwrap();
+  }
+
+  let members = data.join("llm-gateway");
+
+  std::fs::create_dir_all(&members).unwrap();
+  std::fs::write(
+    members.join("members.json"),
+    r#"[{"name":"deepseek-flash","road":"deepseek","provider":"deepseek","model":"deepseek-flash","api_base":"https://api.deepseek.com/v1","key_file":"deepseek.key","wait_seconds":300,"context_tokens":1048576,"answer_tokens":32768,"thinking":true}]"#,
+  )
+  .unwrap();
+
   let env = vec![
     ("HOME".to_owned(), home.to_string_lossy().into_owned()),
     ("PATH".to_owned(), "/nowhere".to_owned()),
   ];
 
-  Ground::new(&service, &Machine::with_env(env, home.join("data")), None)
+  Ground::new(&service, &Machine::with_env(env, data), None)
 }
 
 async fn every_on(scratch: &Scratch) {
@@ -220,12 +241,22 @@ async fn a_search_key_goes_out_on_a_program_that_carries_the_line_and_its_closed
 
   store::seed::settle(scratch.db(), &deployment(&ground.machine())).await.unwrap();
   every_on(&scratch).await;
+  // DeepSeek at the head of the walk, so its program's carrying the search line is what the run takes.
+  let order: Vec<OrderEntry> = ["deepseek", "claude-code", "codex", "openrouter", "registered"]
+    .iter()
+    .map(|name| OrderEntry {
+      name: (*name).to_owned(),
+      enabled: true,
+    })
+    .collect();
+
+  set_provider_order(scratch.db(), &order).await.unwrap();
 
   let open = resolve(&ground, &Ask::key("search:thorough")).await.unwrap();
 
-  assert_eq!(open.road().map(|road| road.provider.as_str()), Some("claude-code"), "{open:?}");
-  // DeepSeek's program does not carry the search line, and neither does Codex's.
-  assert!(open.uncarried.contains(&"deepseek".to_owned()), "{open:?}");
+  assert_eq!(open.road().map(|road| road.provider.as_str()), Some("deepseek"), "{open:?}");
+  // DeepSeek's program carries the search line, so it is a step of the walk; Codex's does not.
+  assert!(!open.uncarried.contains(&"deepseek".to_owned()), "{open:?}");
   assert!(open.uncarried.contains(&"codex".to_owned()), "{open:?}");
 
   scratch
@@ -234,6 +265,17 @@ async fn a_search_key_goes_out_on_a_program_that_carries_the_line_and_its_closed
       vec![(now_ms() / 1000 + 3600).to_string().into()],
     )
     .await;
+
+  // With the Claude accounts resting, DeepSeek turned off closes the last road that carries the line.
+  let order: Vec<OrderEntry> = ["deepseek", "claude-code", "codex", "openrouter", "registered"]
+    .iter()
+    .map(|name| OrderEntry {
+      name: (*name).to_owned(),
+      enabled: *name != "deepseek",
+    })
+    .collect();
+
+  set_provider_order(scratch.db(), &order).await.unwrap();
 
   let closed = resolve(&ground, &Ask::key("search:thorough")).await.unwrap();
   let sentence = closed.sentence();
