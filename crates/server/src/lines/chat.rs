@@ -327,7 +327,15 @@ fn harness_servers(ground: &Ground, agent: &str) -> Ordered {
       .get("BMO_ARTIFACT_PLUGIN")
       .filter(|program| !program.trim().is_empty())
       .cloned()
-      .unwrap_or_else(|| ground.roots.deploy.join("artifact-mcp.sh").to_string_lossy().into_owned());
+      .unwrap_or_else(|| {
+        ground
+          .roots
+          .deploy
+          .join("deploy")
+          .join("artifact-mcp.sh")
+          .to_string_lossy()
+          .into_owned()
+      });
     let fields = vec![
       ("type", Ordered::text("stdio")),
       ("command", Ordered::text(program)),
