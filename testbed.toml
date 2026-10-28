@@ -91,7 +91,7 @@ units = ["deploy/*.service"]
 # own plain `quiet` command, by its deployed path, waited on before the flip (the testbed's docs/deploy.md).
 # A running job is not counted: its turn in flight is kept across the restart and the lease pass takes its
 # item again (docs/sessions.md, 「A restart hands the session over」).
-quiet = "~/.local/share/bmo-receiver/deploy/bin/bmo-receiver --config ~/.local/share/bmo-receiver/deploy/settings.toml quiet"
+quiet = "sh deploy/quiet"
 
 # The worker plugin is the skills repository's worker bundle, placed over the copy the release carries by
 # that repository's own placer (docs/launch-lines.md, the skills handed over as a plugin directory): from
