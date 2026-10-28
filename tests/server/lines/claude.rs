@@ -193,3 +193,44 @@ fn the_pane_is_handed_the_lines_variables_by_name_and_never_the_launchers_whole_
   assert!(!env.contains_key("BMO_TASK_LOCKED"));
   assert!(!env.contains_key("MAX_THINKING_TOKENS"));
 }
+
+#[test]
+fn an_endpoint_launch_maps_the_agent_model_to_its_family_and_refuses_an_unknown_one() {
+  let dir = tempfile::tempdir().unwrap();
+  let key = dir.path().join("gateway.key");
+  std::fs::write(&key, "sk-gateway\n").unwrap();
+  let gateway = account(
+    "gateway-members",
+    Credential::Endpoint {
+      home: dir.path().join("home"),
+      url: "http://127.0.0.1:18030".into(),
+      key_file: key,
+      models: EndpointModels {
+        opus: Some("deepseek-flash".into()),
+        sonnet: Some("openrouter-deepseek-flash".into()),
+        haiku: None,
+      },
+    },
+  );
+  let command = endpoint_launch(&gateway, "deepseek-flash", "high").unwrap();
+
+  assert_eq!(command.args, ["claude", "--model", "opus", "--effort", "high"]);
+  assert_eq!(command.env["ANTHROPIC_BASE_URL"].as_deref(), Some("http://127.0.0.1:18030"));
+  assert_eq!(command.env["ANTHROPIC_AUTH_TOKEN"].as_deref(), Some("sk-gateway"));
+  assert_eq!(command.env["ANTHROPIC_DEFAULT_OPUS_MODEL"].as_deref(), Some("deepseek-flash"));
+  assert_eq!(
+    command.env["ANTHROPIC_DEFAULT_SONNET_MODEL"].as_deref(),
+    Some("openrouter-deepseek-flash")
+  );
+  assert_eq!(command.cwd, dir.path().join("home").to_string_lossy());
+
+  let unknown = endpoint_launch(&gateway, "not-in-the-map", "high").unwrap_err();
+  assert!(unknown.detail.contains("maps no family"), "{}", unknown.detail);
+  let directory = account(
+    "a-directory",
+    Credential::Directory {
+      home: dir.path().into(),
+    },
+  );
+  assert!(endpoint_launch(&directory, "deepseek-flash", "high").is_err());
+}

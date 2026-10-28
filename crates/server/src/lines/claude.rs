@@ -252,6 +252,46 @@ pub fn account_env(
 
 /// The program's environment: the launching process's with the line's own variables, the login's over
 /// it as handed where the program runs, and thinking turned off where the run thinks not.
+/// The launch line for an Endpoint account and an agent's configured model: Claude Code on the
+/// account's endpoint, the model id mapped to the family word the account's model map names, and the
+/// environment that carries the endpoint, its key and its family defaults. An id the map does not name
+/// is refused rather than sent as a model the endpoint never heard of.
+pub fn endpoint_launch(account: &Account, model: &str, effort: &str) -> Result<Command, Refusal> {
+  let (url, key_file, models) = account.credential.endpoint_parts();
+  let (Some(_url), Some(_key_file), Some(models)) = (url, key_file, models) else {
+    return Err(fault(format!("Account {} is not an endpoint account.", account.id)));
+  };
+  let family = models
+    .families()
+    .into_iter()
+    .find_map(|(family, id)| (id == Some(model)).then_some(family))
+    .ok_or_else(|| {
+      fault(format!(
+        "Account {} maps no family to the model {model}; its map is {}.",
+        account.id,
+        models
+          .families()
+          .into_iter()
+          .filter_map(|(family, id)| id.map(|id| format!("{family}={id}")))
+          .collect::<Vec<_>>()
+          .join(",")
+      ))
+    })?;
+  let env = account_env(Some(account), &Runs::Here)?;
+
+  Ok(Command {
+    args: vec![
+      ClaudeCode::PROGRAM.to_owned(),
+      "--model".to_owned(),
+      family.to_owned(),
+      "--effort".to_owned(),
+      effort.to_owned(),
+    ],
+    cwd: account.credential.path().to_string_lossy().into_owned(),
+    env,
+  })
+}
+
 pub fn command_env(
   process: &BTreeMap<String, String>,
   account: Option<&Account>,
