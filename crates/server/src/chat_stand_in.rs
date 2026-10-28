@@ -210,6 +210,29 @@ pub async fn job_turn_on(
 
   let outcome = match taken.provider.as_str() {
     CODEX => codex_road(ground, &machine, run, &step, log, &[], began, shown).await?,
+    "deepseek" | "openrouter" => {
+      let account = claude_accounts::accounts(&ground.db)
+        .await
+        .map_err(|why| failed(why.error))?
+        .into_iter()
+        .find(|account| matches!(account.credential, Credential::Endpoint { .. }))
+        .ok_or_else(|| failed("no Endpoint account stands for the road".to_owned()))?;
+
+      deliver(
+        ground,
+        &machine,
+        run,
+        &step,
+        &Door::Endpoint {
+          account: Box::new(account),
+        },
+        log,
+        &[],
+        began,
+        shown,
+      )
+      .await?
+    }
     name if inbox_declared(name) => {
       inbox_road(ground, &machine, run, &step, log, &[], began, shown).await?
     }
