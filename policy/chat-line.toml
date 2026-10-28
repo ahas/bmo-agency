@@ -20,7 +20,7 @@ rulebooks = ["answer-content", "answer-shape", "plain-writing", "agent-words", "
 # reached with `bmo use`, as the tool host's paragraph says.
 [tools]
 shown = "Bash,Read,Write,Edit,ListMcpResourcesTool,ReadMcpResourceTool"
-allowed = "Bash,Read,Write,Edit,ListMcpResourcesTool,ReadMcpResourceTool,mcp__bmo,mcp__web,mcp__gate,mcp__job,mcp__agency,mcp__artifact,mcp__explorer"
+allowed = "Bash,Read,Write,Edit,ListMcpResourcesTool,ReadMcpResourceTool,mcp__bmo,mcp__gate,mcp__job,mcp__agency,mcp__artifact,mcp__explorer"
 # What the line keeps from the chat: the job plugin's own item creation, since an item is filed through the
 # agency's file_item, which reads the turn's room and whether the owner asked it (docs/api.md, 「assignments and
 # jobs」). Claude Code is told it as disallowed tools, and the job plugin is started without each of its own

@@ -24,14 +24,16 @@
 needs = []
 keeps_session = true
 composes_typed_lines = true
-capabilities = ["room.tools", "web.read", "gate.translate", "gate.reference"]
-namespaces = ["bmo", "web", "gate", "eye"]
+capabilities = ["room.tools", "gate.translate", "gate.reference"]
+namespaces = ["bmo", "gate", "eye"]
 shown = [
   "bmo/brain_fold", "bmo/brain_consolidated", "bmo/brain_episode", "bmo/brain_learn", "bmo/brain_list",
   "bmo/brain_move", "bmo/brain_similar", "bmo/brain_unconsolidated", "bmo/say", "bmo/worker_ask",
-  "web/web_fetch",
-  "web/web_search", "gate/translate", "gate/reference_index", "gate/reference_piece", "gate/reference_search",
+  "gate/translate", "gate/reference_index", "gate/reference_piece", "gate/reference_search",
 ]
+# The CLI's own web search and fetch, and its Artifact tools, are never shown to the chat: explorer and
+# artifact are the chat line's own servers.
+tools_denied = ["WebSearch", "WebFetch", "Artifact", "ArtifactCheck", "ArtifactComments", "ArtifactData"]
 # The gate's address and the path of its token file, which the gate's translate tool calls it with.
 variables = ["BMO_GATE_URL", "BMO_GATE_TOKEN_FILE"]
 

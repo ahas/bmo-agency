@@ -163,12 +163,13 @@
   agent's brain, or the one the turn hands in where the brain gives none (`docs/sessions.md`, 「Document
   reload」). On Claude Code the role and the persona are handed over as a file appended to the CLI's own
   prompt (`--append-system-prompt-file`), and on dsh as the persona suffix of its system prompt. No
-  settings sources, no skills, no Chrome, and five MCP servers, named in `chat.mcp.json`
+  settings sources, no skills, no Chrome, and the chat line's MCP servers, named in `chat.mcp.json`
   beside the strict flag that keeps every other server out: the tool host's namespaces the chat line
-  names, `bmo`, `web` and `gate`, each a streamable HTTP server behind the run's session
+  names, `bmo`, `gate` and `eye`, each a streamable HTTP server behind the run's session
   token (the tool host's `mcp-host.md`), which is where the chat agent's own tools stand — sending, its
-  brain's memory tools, the web's search and page fetch, and the gate's translator among
-  them; the job service's harness plugin, `job`, which leases an item
+  brain's memory tools, and the gate's translator among them; the artifact and explorer services as
+  first-class servers of the line, `artifact` and `explorer`, which publish a document and read a page;
+  the job service's harness plugin, `job`, which leases an item
   from a queue, started on the chat's own caller token where the deployment names one (`BMO_JOB_CHAT_TOKEN`,
   or the file `BMO_JOB_CHAT_TOKEN_FILE` names), so the job service records what the chat does — an
   approval among it, which it keeps as the chat's recommendation rather than the owner's approval — under
@@ -177,11 +178,14 @@
   composed for (`--agent`, one configuration a chat agent), which files an item through agency
   (`docs/api.md`, 「assignments and jobs」), assigns a worker, launches the item's job and sends a research
   out. A
-  hosted tool those namespaces do not show is reached with `bmo use`.
+  hosted tool those namespaces do not show is reached with `bmo use`. The chat line no longer names the
+  tool host's `web`: its own `WebSearch` and `WebFetch` are denied, and the explorer server is the
+  search and page reader of the line. The research lines keep their `web` tools, since a search or a
+  browse is the open web's work and they have no explorer server of their own.
   The tools shown are exactly Bash, Read, Write, Edit and the CLI's two MCP resource tools, the list
   and the read, in every run of every chat (none when the owner has turned tools off in that chat),
-  with the four servers' tools beside them; the permission mode is don't-ask, and the allow list is
-  those same six and the whole of the four servers by their prefixes in every run, whoever wrote the
+  with the line's servers' tools beside them; the permission mode is don't-ask, and the allow list is
+  those same six and the whole of the line's servers by their prefixes in every run, whoever wrote the
   turn's messages. A line that names fewer servers than these leaves the chat agent with no tool of
   its own: a configuration that drops the tool host drops sending and memory with it. What is the owner's alone —
   approving, launching or finishing work, deploying, reading another room — is held by the
