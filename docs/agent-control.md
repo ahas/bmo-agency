@@ -898,6 +898,15 @@ The owner's words:
   - A person's turn still working when a job arrives is waited out before the job touches the program
     (「Runs and sessions in one pane」).
 
+### A pane nobody uses
+
+- **A pane with no turn and no job is closed.** On the heads' clock each standing program whose agent
+  has no live turn and no running job is ended through its place, one at a time, and the line says
+  what closed and why. A pane with a live turn or job is left alone; a name the agents table does not
+  know is left for the owner and listed as unknown.
+- **The count and the memory are visible** at `GET /panes`: each standing pane's agent, process, the
+  memory its process tree holds, whether it is known and whether it is still at work.
+
 ### A pane that dies
 
 - **A head pane's loop reports every end but letting go.** A program that ends with any code but the

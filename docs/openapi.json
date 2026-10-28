@@ -5167,6 +5167,26 @@
         }
       }
     },
+    "/panes": {
+      "get": {
+        "operationId": "listPanes",
+        "tags": [
+          "jobs"
+        ],
+        "summary": "The panes standing on this machine: each agent, its process, the memory its tree holds, whether it is known and whether a turn or job is live.",
+        "responses": {
+          "200": {
+            "description": "Answered."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "x-codes": [
+          "unauthorized"
+        ]
+      }
+    },
     "/pane-deaths": {
       "post": {
         "operationId": "tellPaneDeath",

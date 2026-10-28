@@ -18,6 +18,7 @@ pub mod home;
 pub mod item_sweep;
 pub mod locks;
 pub mod nodes;
+pub mod panes;
 pub mod servers;
 pub mod standby;
 pub mod trust;
@@ -128,6 +129,7 @@ impl Places {
         }
 
         places.stand_heads().await;
+        panes::reap(&places.ground).await;
         retire_idle(&places.ground).await;
         places.kept.gate_places.fold_idle(&places.ground).await;
 
