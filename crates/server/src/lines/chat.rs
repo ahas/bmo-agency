@@ -23,7 +23,7 @@ use harness_providers::claude_code::ClaudeCode;
 use harness_providers::registered::Registered;
 use policy::run_lines::RUN_LINES;
 
-use super::claude::{Command, Runs, Session, command_env, handed, line_environment};
+use super::claude::{Command, Runs, Session, command_env, endpoint_launch, handed, line_environment};
 use super::codex::{Shape, resident_command_of};
 use super::companion::{ComposedTurn, LOST_SESSION, Window, registration_named, walked_login};
 use super::dsh::Composed;
@@ -35,6 +35,7 @@ use super::token::facts;
 use super::worker::{Reasoning, effort_of, reasoning_of, rulebook, system_prompt_file};
 use super::{Trees, fault, publish_text, read_required};
 use crate::Refusal;
+use crate::control::claude_accounts::Account;
 use crate::control::tiers;
 use crate::places::Ground;
 use crate::run_log::RunLog;
@@ -1000,6 +1001,8 @@ pub enum Door {
   Inbox { provider: String },
   /// Claude Code on the gateway, its session placed where the registration places it.
   Gateway { placement: Option<String> },
+  /// Claude Code on an Endpoint account, its family mapping naming the run's model.
+  Endpoint { account: Box<Account> },
 }
 
 /// The chat's turn composed for one stand-in step: the agent's own program on the step's road, on the chat
@@ -1106,6 +1109,25 @@ pub async fn compose_stand_in(
 
       Ok(ComposedTurn {
         given: Some(serde_json::json!({ "prompt": run.prompt })),
+        run_env: Some(env),
+        ..composed(command, opened, None)
+      })
+    }
+    Door::Endpoint { account } => {
+      let launched = endpoint_launch(account.as_ref(), &step.model, &step.effort)?;
+      let env = launched
+        .env
+        .into_iter()
+        .filter_map(|(name, value)| Some((name, value?)))
+        .collect::<BTreeMap<_, _>>();
+      let command = ResidentCommand {
+        args: launched.args,
+        cwd: std::path::PathBuf::from(launched.cwd),
+        env: env.clone(),
+      };
+
+      Ok(ComposedTurn {
+        account: Some(account.id.clone()),
         run_env: Some(env),
         ..composed(command, opened, None)
       })

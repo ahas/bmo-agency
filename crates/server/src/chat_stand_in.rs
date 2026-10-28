@@ -12,6 +12,7 @@ use policy::providers::registered::REGISTERED;
 use serde::Serialize;
 
 use crate::companion::run::{NoAnswer, Reply, run_turn};
+use crate::control::claude_accounts::{self, Credential};
 use crate::control::harness::provider_enabled;
 use crate::control::registry;
 use crate::events::Event;
@@ -300,6 +301,30 @@ async fn carried_on(
       {
         outcome = deliver(ground, &machine, run, step, &on(None), log, answers, began, shown).await?;
       }
+
+      outcome.map_err(NoAnswer::Failed)
+    }
+    "deepseek" => {
+      let account = claude_accounts::accounts(&ground.db)
+        .await
+        .map_err(|why| NoAnswer::Failed(why.error))?
+        .into_iter()
+        .find(|account| matches!(account.credential, Credential::Endpoint { .. }))
+        .ok_or_else(|| NoAnswer::Failed("no Endpoint account stands for the deepseek road".to_owned()))?;
+      let outcome = deliver(
+        ground,
+        &machine,
+        run,
+        step,
+        &Door::Endpoint {
+          account: Box::new(account),
+        },
+        log,
+        answers,
+        began,
+        shown,
+      )
+      .await?;
 
       outcome.map_err(NoAnswer::Failed)
     }
