@@ -285,11 +285,16 @@ pub fn endpoint_launch(account: &Account, model: &str, effort: &str) -> Result<C
     env.insert("PATH".to_owned(), Some(path.to_string_lossy().into_owned()));
   }
 
+  // The model id goes over the environment rather than `--model`: the CLI checks a `--model`
+  // name against the names it ships with, and an endpoint's own id is not one of them, so the
+  // pane died before it could stand. The family word is what the map is read by, and the id is
+  // what the endpoint answers to.
+  let _ = family;
+  env.insert("ANTHROPIC_MODEL".to_owned(), Some(model.to_owned()));
+
   Ok(Command {
     args: vec![
       ClaudeCode::PROGRAM.to_owned(),
-      "--model".to_owned(),
-      family.to_owned(),
       "--effort".to_owned(),
       effort.to_owned(),
       // A pane carries no person to answer a permission prompt, and a turn that stops on one
