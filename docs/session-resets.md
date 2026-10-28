@@ -55,6 +55,15 @@ flowchart TD
     and on a script's `session-resets` word, every waiting ask of a companion's room session has
     the program on that session taken down.
 
+## A session boundary is what applies a new chat tool
+
+- **A restart is not a session boundary.** A deployment or a receiver restart leaves the standing
+  chat session as it is, so a tool server named for the first time in the chat's configuration is
+  not in the running session's tool list until the session is replaced.
+- **What replaces it:** the console's reset of that chat session (`POST /session-reset`), which the
+  owner asks from the agent settings' session list. The next round closes the old session and opens
+  a new one, and the new program reads the configuration and lists the server's tools.
+
 ## Where it is asked
 
 - **The console:** the agent settings' session list holds every session there is, one row each, and

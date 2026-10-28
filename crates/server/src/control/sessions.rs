@@ -726,3 +726,5 @@ impl Route for SessionResetAsk {
     Ok(Json(view_of(db, &call.ground().hooks, session).await?).into_response())
   }
 }
+
+crate::moved!(SessionResetAsk);
