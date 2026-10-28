@@ -277,8 +277,10 @@ fn the_deploy_waits_on_plain_quiet_and_a_worker_never_forces_it() {
   let declaration: toml::Value = toml::from_str(&text).unwrap();
   let quiet = declaration["deploy"]["quiet"].as_str().unwrap();
 
-  assert!(quiet.contains(" quiet"), "{quiet}");
   assert!(!quiet.contains("--with-jobs"), "the deploy counts no job: {quiet}");
+  let script = std::fs::read_to_string(trees.join("deploy/quiet")).unwrap();
+  assert!(script.contains(" quiet"), "{script}");
+  assert!(script.contains("grep -v ':chat:'"), "a chat turn is not spared: {script}");
   assert!(
     std::fs::read_to_string(trees.join("prompts/agents/worker/standing-rules.md"))
       .unwrap()
