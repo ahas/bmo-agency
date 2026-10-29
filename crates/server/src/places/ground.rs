@@ -309,7 +309,7 @@ impl Ground {
       "/bin/sh".to_owned(),
       "-c".to_owned(),
       format!(
-        r#"deaths=0; window=$(date +%s); while :; do "$2" "$3"; code=$?; case $code in {HEAD_STOPPED}) exit 0;; esac; if [ -n "$AGENCY_CONTROL_TOKEN" ]; then data="${{BMO_DATA_DIR:-$HOME/.local/share/bmo/data}}"; last=$(tail -n 1 "$data/agent-places/$3/stderr.log" 2>/dev/null); curl -s -m 3 -X POST --get --data-urlencode "agent=$3" --data-urlencode "code=$code" --data-urlencode "last=$last" -H "Authorization: Bearer $AGENCY_CONTROL_TOKEN" "http://127.0.0.1:$AGENCY_CONTROL_PORT/pane-deaths" >/dev/null 2>&1; fi; now=$(date +%s); if [ $((now-window)) -le 60 ]; then deaths=$((deaths+1)); else deaths=1; window=$now; fi; if [ "$deaths" -ge 3 ]; then echo "pane $3: $deaths deaths inside a minute; the loop stops (last exit $code)"; exit 1; fi; sleep 1; done"#
+        r#"deaths=0; window=$(date +%s); while :; do "$1" "$2"; code=$?; case $code in {HEAD_STOPPED}) exit 0;; esac; if [ -n "$AGENCY_CONTROL_TOKEN" ]; then data="${{BMO_DATA_DIR:-$HOME/.local/share/bmo/data}}"; last=$(tail -n 1 "$data/agent-places/$2/stderr.log" 2>/dev/null); curl -s -m 3 -X POST --get --data-urlencode "agent=$2" --data-urlencode "code=$code" --data-urlencode "last=$last" -H "Authorization: Bearer $AGENCY_CONTROL_TOKEN" "http://127.0.0.1:$AGENCY_CONTROL_PORT/pane-deaths" >/dev/null 2>&1; fi; now=$(date +%s); if [ $((now-window)) -le 60 ]; then deaths=$((deaths+1)); else deaths=1; window=$now; fi; if [ "$deaths" -ge 3 ]; then echo "pane $2: $deaths deaths inside a minute; the loop stops (last exit $code)"; exit 1; fi; sleep 1; done"#
       ),
       format!("{HEAD_MARK}{agent}"),
       root.join("bin").join("pane-head").to_string_lossy().into_owned(),
