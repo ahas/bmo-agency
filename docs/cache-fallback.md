@@ -851,7 +851,9 @@ When a demotion first catches — when a healthy session first drops — two thi
     list, on a session of its own placed where the registration places it.
 
   A stand-in that does not answer passes the turn to the next provider of the walk, a key set to one
-  provider among them. Where no provider of the walk answered, the road is closed and told once
+  provider among them. A turn whose words never became a turn — a pane left in a dialog somebody opened,
+  the words unsubmitted — is not a road that did not answer: the walk ends there, nothing is read as
+  closed, and the session the turn would have gone on is left as it stands. Where no provider of the walk answered, the road is closed and told once
   (`road-closed`); with Claude Code on, though it cannot answer now, the turn then goes to Claude Code,
   whose own failure — the limit its logins rest on — ends it as the chat has always read one, and with
   Claude Code off the turn fails with the sentence the resolution gives for a closed road: every

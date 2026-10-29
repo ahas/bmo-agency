@@ -193,7 +193,12 @@ pub async fn hand_over(ground: &Ground, hold: &ResetHold, companion: &Companion,
 
       return println!("companion {} in chat {chat_id}: its reset overtook the handoff", companion.name);
     }
-    Err(NoAnswer::Cut(reason) | NoAnswer::Failed(reason) | NoAnswer::Errored { error: reason, .. }) => {
+    Err(
+      NoAnswer::Cut(reason)
+      | NoAnswer::Failed(reason)
+      | NoAnswer::Unsubmitted(reason)
+      | NoAnswer::Errored { error: reason, .. },
+    ) => {
       log.write(&db, end(reason.clone(), "failed")).await;
       return eprintln!("companion {} in chat {chat_id}: the handoff failed: {reason}", companion.name);
     }

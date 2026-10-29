@@ -428,6 +428,9 @@ async fn deliver(
   {
     Ok(reply) => Ok(Ok(reply)),
     Err(NoAnswer::Overtaken) => Err(NoAnswer::Overtaken),
+    // A pane that left the words unsubmitted is no road's failure: the next road would put the same words
+    // before a program of its own, on a session of its own, for a dialog somebody left open.
+    Err(NoAnswer::Unsubmitted(why)) => Err(NoAnswer::Unsubmitted(why)),
     Err(NoAnswer::Cut(why) | NoAnswer::Failed(why) | NoAnswer::Errored { error: why, .. }) => Ok(Err(why)),
   }
 }

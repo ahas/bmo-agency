@@ -545,7 +545,7 @@ pub fn spent_of(spend: &[ModelSpend]) -> Option<run_ledger::Spent> {
 pub fn failure_of(no: NoAnswer) -> (String, Option<EngineError>) {
   match no {
     NoAnswer::Errored { error, kind } => (error, Some(EngineError { kind })),
-    NoAnswer::Cut(why) | NoAnswer::Failed(why) => (why, None),
+    NoAnswer::Cut(why) | NoAnswer::Failed(why) | NoAnswer::Unsubmitted(why) => (why, None),
     NoAnswer::Overtaken => ("the companion's reset overtook the turn".to_owned(), None),
   }
 }
