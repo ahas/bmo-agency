@@ -117,6 +117,7 @@ pub async fn turn<W: Watch>(
     ))),
     Ending::Stopped { .. } => SurfaceEnding::Stopped(format!("{}: the turn was stopped", asked.name)),
     Ending::Errored { error, kind } => SurfaceEnding::Errored { error, kind },
+    Ending::Unsubmitted { why, .. } => SurfaceEnding::Unsubmitted(why),
     other => SurfaceEnding::Error(format!(
       "Claude Code's turn ended {} with no answer",
       serde_json::to_value(&other)

@@ -21,6 +21,7 @@ pub struct Notes {
   pub herdr_silent_ready: String,
   pub enter_pressed: String,
   pub unsubmitted: String,
+  pub record_carried: String,
   pub overrun_unasked: String,
   pub herdr_silent: String,
   pub herdr_gave_up: String,

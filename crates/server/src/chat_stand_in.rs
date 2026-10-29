@@ -412,7 +412,7 @@ async fn deliver(
     _ => None,
   };
 
-  match run_turn(
+  let asked = run_turn(
     ground,
     &run.agent,
     run.line,
@@ -424,10 +424,51 @@ async fn deliver(
     None,
     shown,
   )
-  .await
+  .await;
+
+  // A session the program keeps no record of is let go and the turn asked again once on a fresh one, as the
+  // chat line's own turn is (docs/sessions.md, 「Session replacement」).
+  if let Err(NoAnswer::Cut(why) | NoAnswer::Failed(why) | NoAnswer::Errored { error: why, .. }) = &asked
+    && run.resume.is_some()
+    && crate::lines::companion::lost_session(why)
   {
+    let fresh = ChatRun {
+      resume: None,
+      ..run.clone()
+    };
+    let composed = compose_stand_in(ground, machine, &fresh, step, door, answers, began)
+      .await
+      .map_err(|why| NoAnswer::Failed(why.detail))?;
+
+    return match run_turn(
+      ground,
+      &run.agent,
+      run.line,
+      &step.provider,
+      &composed,
+      None,
+      log,
+      false,
+      None,
+      shown,
+    )
+    .await
+    {
+      Ok(reply) => Ok(Ok(reply)),
+      Err(NoAnswer::Overtaken) => Err(NoAnswer::Overtaken),
+      Err(NoAnswer::Unsubmitted(why)) => Err(NoAnswer::Unsubmitted(why)),
+      Err(NoAnswer::Cut(why) | NoAnswer::Failed(why) | NoAnswer::Errored { error: why, .. }) => {
+        Ok(Err(why))
+      }
+    };
+  }
+
+  match asked {
     Ok(reply) => Ok(Ok(reply)),
     Err(NoAnswer::Overtaken) => Err(NoAnswer::Overtaken),
+    // A pane that left the words unsubmitted is no road's failure: the next road would put the same words
+    // before a program of its own, on a session of its own, for a dialog somebody left open.
+    Err(NoAnswer::Unsubmitted(why)) => Err(NoAnswer::Unsubmitted(why)),
     Err(NoAnswer::Cut(why) | NoAnswer::Failed(why) | NoAnswer::Errored { error: why, .. }) => Ok(Err(why)),
   }
 }

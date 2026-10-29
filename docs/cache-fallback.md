@@ -218,8 +218,8 @@ When a demotion first catches — when a healthy session first drops — two thi
 - **The session's held state follows it:** the model and prefix held for the session are those of the
   model that answered, so the next turn on the fallen model is read as the same road and resumes rather
   than being replaced.
-- **A fresh session carries no mark:** where a session is opened anew — a job's handover, a lost or
-  expired record, a prefix that moved — it is launched on its own model again and falls only if the
+- **A fresh session carries no mark:** where a session is opened anew — a job's handover, or a record
+  lost or past its cache lifetime — it is launched on its own model again and falls only if the
   safeguard refuses it afresh.
 - **Heal on ignores the mark:** a worker whose heal is on launches on its own model whatever a record
   says, and a fall there drops the session as before.
@@ -851,7 +851,9 @@ When a demotion first catches — when a healthy session first drops — two thi
     list, on a session of its own placed where the registration places it.
 
   A stand-in that does not answer passes the turn to the next provider of the walk, a key set to one
-  provider among them. Where no provider of the walk answered, the road is closed and told once
+  provider among them. A turn whose words never became a turn — a pane left in a dialog somebody opened,
+  the words unsubmitted — is not a road that did not answer: the walk ends there, nothing is read as
+  closed, and the session the turn would have gone on is left as it stands. Where no provider of the walk answered, the road is closed and told once
   (`road-closed`); with Claude Code on, though it cannot answer now, the turn then goes to Claude Code,
   whose own failure — the limit its logins rest on — ends it as the chat has always read one, and with
   Claude Code off the turn fails with the sentence the resolution gives for a closed road: every

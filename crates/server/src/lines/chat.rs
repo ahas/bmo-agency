@@ -1115,21 +1115,10 @@ pub async fn compose_stand_in(
     Door::Gateway { held, placement } => {
       // Claude Code on the gateway names its records after its folder's real path as on its own road.
       let cwd = claude_folder(ground, run)?;
-      // A session the road no longer holds is no session to resume: the turn opens one of its own, as a
-      // fresh session would. This is how a session left on another road or a deleted one is let go.
-      let kept = run.resume.as_ref().is_some_and(|id| {
-        ClaudeCode::records_under(&held.home, Path::new(&cwd), id)
-          .iter()
-          .any(|record| record.exists())
-      });
-      let sent_run = if run.resume.is_some() && !kept {
-        ChatRun {
-          resume: None,
-          ..run.clone()
-        }
-      } else {
-        run.clone()
-      };
+      // The session the run names is resumed wherever its record stands: a record in another road's home is
+      // carried into this one as the turn goes in (`door::turn::carry_record`), and a record no home holds is
+      // the program's own word, which the turn reads as a session gone and asks again on a fresh one.
+      let sent_run = run.clone();
       let (claude_effort, backend_effort, thinking) = match held.road {
         Some(road) => (
           harness_providers::provider(road).and_then(|provider| provider.claude_effort(&step.effort)),
