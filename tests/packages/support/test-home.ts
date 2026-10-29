@@ -131,6 +131,13 @@ for (const name of ["AGENCY_NODE_URL", "AGENCY_BRAIN_URL"]) {
   process.env[name] = "";
 }
 
+// The deployment's own roots are not the test's either: they name where the running services keep the
+// brain and the persona's values, and a server a test starts would read them instead of the home. Set
+// empty rather than removed, as with the token, so the checkout's .env cannot hand one back.
+for (const name of ["AGENCY_BRAIN_ROOT", "AGENCY_PERSONA_VALUES"]) {
+  process.env[name] = "";
+}
+
 // The machine's turn for heavy commands is held by the run this file stands in, so a run, a close or a
 // testbed command a test starts takes its turn in this home instead and never waits on its own parent,
 // and the holder's mark the run handed down names nothing here.
