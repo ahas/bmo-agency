@@ -177,6 +177,10 @@ seeds. The other crates and the server reach the store only through it.
 - **The store's address** is the one `BMO_ARCHIVE_URL` names: in the process's own environment, else in
   the server's environment file, the data root's `env/agency.env`, else the one the data root's
   `env/archive-url` holds; a process with none of them names no store.
+- **The address stays with agency's own processes.** A program agency starts is not handed it: the
+  variable names agency's store, not the archive that program reads. A program reads its own archive
+  from the data root's setting, and a command of agency's that runs inside a program's session finds
+  the store in `env/agency.env`, which the deployment keeps and the session does not replace.
 - **The server's store is the canonical one.** The server reads `env/agency.env` as its unit's
   environment, and the command and the model gateway, which run without it, read the address out of the
   same file, so the registry the command writes, the one the gateway serves and the one the server runs on

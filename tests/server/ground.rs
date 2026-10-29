@@ -1,13 +1,20 @@
 //! What every handler stands on: the refusal and how it answers, the store's place, the clock's now,
 //! and the text measures.
 
+use agency_server::Service;
+use agency_server::config::Config;
 use agency_server::peers::PeerFault;
+use agency_server::places::Ground;
 use agency_server::text::{grouped, length, within};
 use agency_server::{Refusal, archive_place, now_ms};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
+use harness_providers::Machine;
 use http_body_util::BodyExt;
 use serde_json::{Value, json};
+use store::place::VARIABLE as STORE_ADDRESS;
+
+use crate::scratch::Scratch;
 
 async fn answered(refusal: Refusal) -> (StatusCode, Value) {
   let response = refusal.into_response();
@@ -105,6 +112,32 @@ fn the_stores_place_is_the_variables_else_the_servers_environment_file_else_the_
   let expected = named.map_or("postgres:///agency".to_owned(), |value| value.trim().to_owned());
 
   assert_eq!(archive_place(root.path()).as_deref(), Some(expected.as_str()));
+}
+
+// A program agency starts reads its own archive from the data root's setting: the store's address names
+// agency's own database, and handing it on would point every archive read in that program at the wrong one
+// (docs/store.md, 「Connecting」).
+#[tokio::test]
+async fn a_program_a_run_starts_is_not_handed_the_stores_address() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let at = |path: &std::path::Path| path.to_string_lossy().into_owned();
+  let machine = Machine::with_env(
+    [
+      ("HOME".to_owned(), at(home.path())),
+      ("PATH".to_owned(), "/usr/bin:/bin".to_owned()),
+      (STORE_ADDRESS.to_owned(), scratch.address()),
+    ],
+    home.path().join("data"),
+  );
+  let service = Service::new(scratch.db().clone(), Config::read(|_| None).unwrap());
+  let ground = Ground::new(&service, &machine, None);
+
+  // Agency's own process still knows where its store is.
+  assert_eq!(ground.vars().get(STORE_ADDRESS).map(String::as_str), Some(scratch.address().as_str()));
+  // No program it starts is handed it, so that program's archive reads stay its own.
+  assert!(!ground.env().contains_key(STORE_ADDRESS));
+  assert!(!ground.run_env("bmo-a-run").contains_key(STORE_ADDRESS));
 }
 
 #[test]

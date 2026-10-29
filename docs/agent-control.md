@@ -2677,12 +2677,13 @@ enters the prefix.
   environment, and a runner of the `bmo` binary finds its data root, its trees and its Claude logins
   under the home it is handed; one started without it reads them under the filesystem root and fails
   at its first read. Nothing else of the launcher's own environment is handed beyond `PATH` and the
-  `BMO_` variables. A resident program is not handed it: herdr lays its own on, and the program's
-  identity stays the same whichever side composed it.
-- **The environment passed to the resident program is only what is given by name** — `PATH`, `BMO_*`, the
-  agent's name, and the variables the line sets for its part (the variable removing git status from the
-  prompt is one), with the agent's place named beside them. A program's environment is fixed when it
-  starts, so what belongs to one run is not in it — the run's name, the job runner's marker, whether
+  `BMO_` variables, and the store's address is never among them: it names agency's own store, not the
+  archive the program reads (`docs/store.md`, 「Connecting」). A resident program is not handed it:
+  herdr lays its own on, and the program's identity stays the same whichever side composed it.
+- **The environment passed to the resident program is only what is given by name** — `PATH`, `BMO_*` but
+  the store's address (`docs/store.md`, 「Connecting」), the agent's name, and the variables the line sets
+  for its part (the variable removing git status from the prompt is one), with the agent's place named
+  beside them. A program's environment is fixed when it starts, so what belongs to one run is not in it — the run's name, the job runner's marker, whether
   the run is a middle step of a work order, and every variable under the turn prefix `BMO_TURN_`, where
   a launch names what else its run is about (the chat names its room and road there,
   `chat-mcp.md`). Every resident surface — Claude's, Codex's and bmo-tui's — writes those into the

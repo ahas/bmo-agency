@@ -450,7 +450,8 @@
   at its own default (`docs/sessions.md`, 「Session compaction」), and only a run on a registered
   model's road carries `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`, at the share its registration leaves for
   the answer (`docs/own-llm.md`, 「A turn at the input limit」); nothing else is added beyond the
-  switches below.
+  switches below, and the store's address is never carried: it names agency's own store, not the
+  archive a program reads from the data root's setting (`docs/store.md`, 「Connecting」).
   An account's variables are handed to a line by name rather than inherited, because the job
   line rebuilds its environment from a few names and would otherwise drop them. They add
   nothing to a cached prefix — the flags, their order, the system prompt and the files it

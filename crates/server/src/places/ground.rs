@@ -29,6 +29,11 @@ use crate::{Refusal, Service};
 const RUN_NAME: &str = "BMO_RUN_NAME";
 const JOB_RUNNER_MARKER: &str = "BMO_TASK_LOCKED";
 
+// The address of agency's own store, which no program it starts is handed (docs/store.md, 「Connecting」):
+// the variable names agency's store, and a program reads the archive it works on from the data root's own
+// setting. A command of agency's that a session runs finds the store in `env/agency.env`.
+const STORE_ADDRESS: &str = store::place::VARIABLE;
+
 /// The variable naming the tree a process reads its code out of: the deploy tree, or the release a
 /// process is pinned to (docs/agent-control.md, 「The job's release」).
 pub const DEPLOY_VARIABLE: &str = "BMO_DEPLOY_DIR";
@@ -173,7 +178,11 @@ impl Ground {
       herdr,
       source: trees.source_root(),
       vars: machine.vars().map(|(name, value)| (name.to_owned(), value.to_owned())).collect(),
-      env: machine.every_var().map(|(name, value)| (name.to_owned(), value.to_owned())).collect(),
+      env: machine
+        .every_var()
+        .filter(|(name, _)| *name != STORE_ADDRESS)
+        .map(|(name, value)| (name.to_owned(), value.to_owned()))
+        .collect(),
     };
 
     if machine.var(DEPLOY_VARIABLE).is_none() {
@@ -270,14 +279,16 @@ impl Ground {
   }
 
   /// What a run apart is started with: the search path, the home this process stands under, every
-  /// `BMO_` variable this process carries but the job runner's marker, and the run's own name, which
-  /// wins. The host starts a run on an emptied environment, and a runner of this binary finds its data
-  /// root, its trees and its logins under the home it is handed.
+  /// `BMO_` variable this process carries but the job runner's marker and the store's address, and the
+  /// run's own name, which wins. The host starts a run on an emptied environment, and a runner of this
+  /// binary finds its data root, its trees and its logins under the home it is handed.
   pub fn run_env(&self, name: &str) -> BTreeMap<String, String> {
     let mut env = BTreeMap::from([("PATH".to_owned(), self.roots.path.clone())]);
 
     for (variable, value) in &self.vars {
-      if variable == "HOME" || variable.starts_with("BMO_") && variable != JOB_RUNNER_MARKER {
+      if variable != STORE_ADDRESS
+        && (variable == "HOME" || variable.starts_with("BMO_") && variable != JOB_RUNNER_MARKER)
+      {
         env.insert(variable.clone(), value.clone());
       }
     }
@@ -296,8 +307,8 @@ impl Ground {
     &self.vars
   }
 
-  /// The environment as this process holds it, a variable set to nothing among it: what a launch
-  /// composes a program's environment from.
+  /// The environment as this process holds it, a variable set to nothing among it but for the store's
+  /// address, which no launched program is handed: what a launch composes a program's environment from.
   pub fn env(&self) -> &BTreeMap<String, String> {
     &self.env
   }
