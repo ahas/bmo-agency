@@ -144,11 +144,12 @@ composed into a system prompt, and what the chat agent's own prompt is made of.
   person in a room reads it — an item's brief and notes, a work order, a memory, a handoff note — words
   quoted from people kept as they said them. The exceptions are the agents whose product is text a person
   reads in a language of its own: a translation, a line for the voice, the news page.
-- **No document fixes the language the chat agent answers in.** It answers each person in the
-  language that person wrote to it in; the room's language, which the turn's ANSWER LANGUAGE line
-  names, stands only where the speaker's language cannot be told, and what the owner is told is in the
-  owner's language. A rule about Korean wording holds for an answer written in Korean. The documents
-  carry rules, never example sentences, since an example becomes the agent's own phrasing.
+- **No document fixes the language the chat agent answers in.** It answers each person in the language it
+  knows for that person — what the brain holds of them, their country and the language they usually speak, and
+  how the conversation has gone — never a language read off a message's words: commands, paths or code a
+  message carries do not decide it, and what the owner is told is in the owner's language. A rule about Korean
+  wording holds for an answer written in Korean. The documents carry rules, never example sentences, since an
+  example becomes the agent's own phrasing.
 - **The room never hears of the agent's tools.** No message names a tool, a search, the translator or
   any other part of the system, or says one is being called; where a wait wants explaining, the agent
   says in its own words that it will look something up, look into it or translate it. The owner's own

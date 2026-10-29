@@ -204,8 +204,9 @@ fn no_document_of_the_chat_fixes_the_language_it_answers_in() {
   for text in [&system, &todo] {
     assert!(!fixed.is_match(text), "{:?}", fixed.find(text).map(|found| found.as_str()));
   }
-  assert!(language.contains("the language they wrote to you in"), "{language}");
-  assert!(language.contains("ANSWER LANGUAGE"), "{language}");
+  assert!(language.contains("is your own judgement"), "{language}");
+  assert!(language.contains("never make its writer an English speaker"), "{language}");
+  assert!(!language.contains("ANSWER LANGUAGE"), "{language}");
   assert!(system.find("THE LANGUAGE YOU ANSWER IN:") < system.find("RESPONSE PROTOCOL:"));
 }
 
