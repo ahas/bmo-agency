@@ -163,6 +163,40 @@ export interface paths {
         patch: operations["changePromptDocument"];
         trace?: never;
     };
+    "/chat-documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The chat agent's own documents the owner may keep, each as it stands now. */
+        get: operations["listChatDocuments"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/chat-documents/{documentName}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Save the owner's text of one chat document, or reset it to its file. */
+        patch: operations["changeChatDocument"];
+        trace?: never;
+    };
     "/rulebooks": {
         parameters: {
             query?: never;
@@ -1789,6 +1823,30 @@ export interface components {
             prompt?: string | null;
             by?: string | null;
         };
+        /** @description ChatDocumentPage: */
+        ChatDocumentPage: {
+            items: components["schemas"]["ChatDocument"][];
+            more: boolean;
+        };
+        /** @description ChatDocument: one of the chat agent's own documents, as it stands now. */
+        ChatDocument: {
+            name: string;
+            kind: string;
+            /** @description `stored` where the owner's text stands, `file` where the deployed file does. */
+            source: string;
+            /**
+             * Format: int64
+             * @description When the stored text was last saved, in seconds; null on a document standing as its file.
+             */
+            version: number | null;
+            text: string;
+        };
+        /** @description ChatDocumentChange: */
+        ChatDocumentChange: {
+            action?: string | null;
+            text?: string | null;
+            by?: string | null;
+        };
         /** @description Rulebooks: */
         Rulebooks: {
             rulebooks: components["schemas"]["Rulebook"][];
@@ -2486,10 +2544,17 @@ export interface components {
         /** @description Model: */
         Model: {
             key: string;
+            /** @description The registration's own name, which is the model a supervisor's fixed pin holds. */
+            name: string;
             provider: string;
             model: string;
             tier: string | null;
             healthy: boolean | null;
+            /**
+             * Format: int64
+             * @description When the engine behind it last answered a health probe, in unix seconds, where it ever has.
+             */
+            lastAnsweredAt: number | null;
         };
         /** @description The body that saves or removes a registration, or sets or removes one of its addresses. */
         ModelChange: {
@@ -4152,6 +4217,55 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PromptDocument"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listChatDocuments: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatDocumentPage"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    changeChatDocument: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                documentName: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChatDocumentChange"];
+            };
+        };
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatDocument"];
                 };
             };
             401: components["responses"]["Unauthorized"];
