@@ -112,9 +112,9 @@ pub async fn store(db: &sea_orm::DatabaseConnection, gates: &[Declared]) -> Resu
     run(
       &tx,
       r#"INSERT INTO "gate_kinds"
-           ("key", "part", "step", "position", "condition", "switchable", "laya_probe",
-            "default_laya_mode", "answer_tokens", "declared_at")
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)"#,
+           ("key", "part", "step", "position", "condition", "switchable",
+            "answer_tokens", "declared_at")
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)"#,
       vec![
         gate.gate_name.clone().into(),
         gate.part.clone().into(),
@@ -122,8 +122,6 @@ pub async fn store(db: &sea_orm::DatabaseConnection, gates: &[Declared]) -> Resu
         i64::try_from(position).unwrap_or(i64::MAX).into(),
         gate.condition.clone().into(),
         if gate.switchable { 1 } else { 0 }.into(),
-        if gate.laya_probe { 1 } else { 0 }.into(),
-        gate.default_laya_mode.clone().into(),
         gate.answer_tokens.into(),
         now.into(),
       ],

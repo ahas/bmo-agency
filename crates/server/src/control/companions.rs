@@ -278,16 +278,29 @@ async fn system<C: ConnectionTrait>(
   Ok(companion_prompt::system(roots, companion, &settings.composition(), base.as_ref()).unwrap_or_default())
 }
 
+// The provider and model the supervisor route answers now, for a companion that keeps no fixed model.
+async fn route_of(db: &DatabaseConnection) -> Option<(String, String)> {
+  let key = crate::road::supervisor_key()?;
+  let provider = crate::control::roads::road_provider(db, key).await.ok()?;
+  let model = crate::control::tiers::resolve(db, key, &provider)
+    .await
+    .map(|mapping| mapping.model)
+    .unwrap_or_default();
+
+  Some((provider, model))
+}
+
 /// One companion as a screen shows it, each room by the title the room's owner answers.
-async fn view<C: ConnectionTrait>(
-  db: &C,
-  hooks: &Hooks,
-  roots: &Roots,
-  agent: &str,
-) -> Result<Value, Fault> {
+async fn view(db: &DatabaseConnection, hooks: &Hooks, roots: &Roots, agent: &str) -> Result<Value, Fault> {
   let row = companion_row(db, agent).await?;
   let prompts = prompt_folder(db, agent).await?;
   let registration_name = pinned_registration(&row)?;
+  let pinned_provider: Option<String> = row.try_get("", "pinned_provider")?;
+  let method = if pinned_provider.is_some() { "fixed" } else { "route" };
+  let route = match method {
+    "route" => route_of(db).await,
+    _ => None,
+  };
   let health = match &registration_name {
     Some(name) => registration_health(db, &roots.data, name).await?,
     None => None,
@@ -315,15 +328,11 @@ async fn view<C: ConnectionTrait>(
     None => None,
   };
   let pinned_model: Option<String> = row.try_get("", "pinned_model")?;
-  let text = system(
-    db,
-    roots,
-    agent,
-    prompts.as_deref(),
-    &settings,
-    pinned_model.as_deref().unwrap_or_default(),
-  )
-  .await?;
+  let model_now = match &route {
+    Some((_, model)) => model.clone(),
+    None => pinned_model.clone().unwrap_or_default(),
+  };
+  let text = system(db, roots, agent, prompts.as_deref(), &settings, &model_now).await?;
   let mut sessions = vec![];
 
   for session in
@@ -368,6 +377,17 @@ async fn view<C: ConnectionTrait>(
     "label": label.unwrap_or_else(|| agent.to_owned()),
     "icon": ROLES.icon("chat").map(str::to_owned).or(row.try_get::<Option<String>>("", "icon")?),
     "builtin": row.try_get::<i64>("", "builtin")? == 1,
+    "method": method,
+    "provider": match (&pinned_provider, &route) {
+      (Some(provider), _) => Some(provider.as_str()),
+      (None, Some((provider, _))) => Some(provider.as_str()),
+      (None, None) => None,
+    },
+    "model": match (&pinned_model, &route) {
+      (Some(model), _) => Some(model.clone()),
+      (None, Some((_, model))) => Some(model.clone()),
+      (None, None) => None,
+    },
     "registration": registration_name,
     "registrations": offered,
     "entries": behind.iter().map(|one| json!({
@@ -394,8 +414,8 @@ async fn view<C: ConnectionTrait>(
 }
 
 /// Every companion, in the agent list's order.
-pub async fn companions<C: ConnectionTrait>(
-  db: &C,
+pub async fn companions(
+  db: &DatabaseConnection,
   hooks: &Hooks,
   roots: &Roots,
 ) -> Result<Vec<Value>, Fault> {
@@ -474,7 +494,8 @@ fn generation_change(
 /// sets. Nothing is written until every part has passed.
 struct Checked {
   change: Change,
-  registration: Option<String>,
+  /// What the save does to the pin: kept where it names none, cleared by a null, set by a registration.
+  pin: Option<Option<String>>,
   thinking: Option<bool>,
 }
 
@@ -519,13 +540,20 @@ async fn checked<C: ConnectionTrait>(
   }
 
   let mut pinned = pinned_registration(row)?;
+  let mut pin: Option<Option<String>> = None;
 
   if let Some(named) = body.get("registration") {
-    let Some(name) = offered(db, named).await? else {
-      return refused("registration", CONTROL_WORDS.companions.registration.as_str());
-    };
+    if named.is_null() {
+      pinned = None;
+      pin = Some(None);
+    } else {
+      let Some(name) = offered(db, named).await? else {
+        return refused("registration", CONTROL_WORDS.companions.registration.as_str());
+      };
 
-    pinned = Some(name);
+      pinned = Some(name.clone());
+      pin = Some(Some(name));
+    }
   }
 
   if let Some(generation) = body.get("generation") {
@@ -546,7 +574,7 @@ async fn checked<C: ConnectionTrait>(
 
   Ok(Checked {
     change,
-    registration: pinned,
+    pin,
     thinking,
   })
 }
@@ -566,15 +594,26 @@ async fn write(
   let pinned_model: Option<String> = row.try_get("", "pinned_model")?;
   let pinned_provider: Option<String> = row.try_get("", "pinned_provider")?;
 
-  if let Some(registration) = &saved.registration
-    && (pinned_provider.as_deref() != Some(PROVIDER) || pinned_model.as_ref() != Some(registration))
-  {
-    run(
-      db,
-      "UPDATE agents SET pinned_provider = $1, pinned_model = $2 WHERE name = $3",
-      vec![PROVIDER.into(), registration.clone().into(), row.try_get::<String>("", "name")?.into()],
-    )
-    .await?;
+  match &saved.pin {
+    Some(Some(registration))
+      if pinned_provider.as_deref() != Some(PROVIDER) || pinned_model.as_ref() != Some(registration) =>
+    {
+      run(
+        db,
+        "UPDATE agents SET pinned_provider = $1, pinned_model = $2 WHERE name = $3",
+        vec![PROVIDER.into(), registration.clone().into(), row.try_get::<String>("", "name")?.into()],
+      )
+      .await?;
+    }
+    Some(None) if pinned_provider.is_some() || pinned_model.is_some() => {
+      run(
+        db,
+        r#"UPDATE "agents" SET "pinned_provider" = NULL, "pinned_model" = NULL WHERE "name" = $1"#,
+        vec![row.try_get::<String>("", "name")?.into()],
+      )
+      .await?;
+    }
+    _ => {}
   }
 
   if saved.thinking != thinking_of(row)? {

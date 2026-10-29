@@ -433,16 +433,40 @@ async fn pinned(ground: &Ground, agent: &str) -> Result<Option<Pinned>, Fault> {
   }))
 }
 
-// The provider a companion's row pins it to (`lines::companion::pinned_provider`).
-async fn provider_of(
+// The provider and model a companion's turn goes out on: its own fixed model where its row pins one, else
+// the supervisor route — the supervisor key's road as it stands now (docs/model-tiers.md, 「A supervisor's
+// own model」). Every supervisor chooses its model the same two ways.
+async fn choice_of(
   ground: &Ground,
   pinned: &Pinned,
-) -> Result<&'static dyn harness_providers::Provider, String> {
-  pinned_provider(ground, pinned.provider.as_deref(), pinned.companion.pinned_model.as_deref()).await
+) -> Result<(&'static dyn harness_providers::Provider, String), String> {
+  if pinned.provider.is_some() {
+    let provider =
+      pinned_provider(ground, pinned.provider.as_deref(), pinned.companion.pinned_model.as_deref()).await?;
+
+    return Ok((provider, pinned.companion.pinned_model.clone().unwrap_or_default()));
+  }
+
+  let key = crate::road::supervisor_key().ok_or_else(|| "no supervisor work key is declared".to_owned())?;
+  let resolution = crate::road::resolve(ground, &crate::road::Ask::key(key)).await?;
+
+  let Some(road) = resolution.road() else {
+    return Err(resolution.sentence());
+  };
+  let provider = harness_providers::provider(&road.provider)
+    .ok_or_else(|| format!("{} is no provider of this build", road.provider))?;
+
+  Ok((provider, road.model.clone()))
 }
 
-// The system prompt a companion's settings compose, out of the documents of the tree the process runs.
-async fn system_of(ground: &Ground, pinned: &Pinned, settings: &Settings) -> Result<String, String> {
+// The system prompt a companion's settings compose, out of the documents of the tree the process runs, for
+// the model it answers on.
+async fn system_of(
+  ground: &Ground,
+  pinned: &Pinned,
+  settings: &Settings,
+  model: &str,
+) -> Result<String, String> {
   let chosen = one(
     &ground.db,
     "SELECT p.text FROM agent_base_prompts c JOIN base_prompts p ON p.name = c.prompt WHERE c.agent = $1",
@@ -453,7 +477,7 @@ async fn system_of(ground: &Ground, pinned: &Pinned, settings: &Settings) -> Res
   .and_then(|row| row.try_get::<String>("", "text").ok());
   let base = chosen.map(|text| harness_machine::companion_prompt::Base {
     text,
-    model: pinned.companion.pinned_model.clone().unwrap_or_default(),
+    model: model.to_owned(),
   });
   let roots = harness_machine::companion_prompt::Roots {
     assets: ground.code_root(),
@@ -977,8 +1001,8 @@ impl HerdrSessions {
     let Some(pinned) = pinned(ground, agent).await? else {
       return Err(fault(FaultKind::Unknown, format!("no agent is named {agent}")));
     };
-    let provider = match provider_of(ground, &pinned).await {
-      Ok(provider) => provider,
+    let (provider, model) = match choice_of(ground, &pinned).await {
+      Ok(choice) => choice,
       Err(why) => return failed(why),
     };
     let began = context.began.unwrap_or_else(now_ms);
@@ -989,11 +1013,10 @@ impl HerdrSessions {
       return Ok(Came::Stopped);
     }
 
-    let model = pinned.companion.pinned_model.clone().unwrap_or_default();
     let settings = Settings::of(&db, agent)
       .await
       .map_err(|refused| fault(FaultKind::Refused, refused.error))?;
-    let system = match system_of(ground, &pinned, &settings).await {
+    let system = match system_of(ground, &pinned, &settings, &model).await {
       Ok(system) => system,
       Err(why) => return failed(why),
     };
@@ -1068,6 +1091,7 @@ impl HerdrSessions {
         &mut log,
         &pinned.companion,
         provider,
+        &model,
         &session,
         &system,
         &prompt,
@@ -1092,6 +1116,7 @@ impl HerdrSessions {
           &mut log,
           &pinned.companion,
           provider,
+          &model,
           &session,
           &system,
           &aside::carried(run, &prompt),
@@ -1205,6 +1230,7 @@ impl HerdrSessions {
     if let Some(ratio) = reply.context_ratio.filter(|ratio| hands_off && *ratio >= mark) {
       let due = Due {
         provider,
+        model,
         system,
         generation,
         session: reply.session_id.clone(),
@@ -1225,6 +1251,7 @@ impl HerdrSessions {
     log: &mut RunLog,
     companion: &Companion,
     provider: &'static dyn harness_providers::Provider,
+    model: &str,
     session: &RoomSession,
     system: &str,
     prompt: &str,
@@ -1244,7 +1271,6 @@ impl HerdrSessions {
       .harness
       .as_ref()
       .map(|harness| (harness.id.as_str(), harness.placement.as_deref()));
-    let model = companion.pinned_model.clone().unwrap_or_default();
     let run = log.run().to_owned();
     let composed = compose(
       ground,
@@ -1253,7 +1279,7 @@ impl HerdrSessions {
         agent: &companion.name,
         chat_id: session.chat_id,
         provider: provider.name(),
-        model: &model,
+        model,
         system,
         prompt,
         privileged: context.privileged,
@@ -2486,9 +2512,10 @@ impl Sessions for HerdrSessions {
         let (provider, model) = match road.and_then(|road| road.split_once("::")) {
           Some((provider, model)) => (provider.to_owned(), model.to_owned()),
           None => match pinned(ground, &agent).await? {
-            Some(pinned) => {
-              (pinned.provider.unwrap_or_default(), pinned.companion.pinned_model.unwrap_or_default())
-            }
+            Some(pinned) => match choice_of(ground, &pinned).await {
+              Ok((provider, model)) => (provider.name().to_owned(), model),
+              Err(_) => Default::default(),
+            },
             None => Default::default(),
           },
         };
@@ -2683,7 +2710,8 @@ impl Sessions for HerdrSessions {
         let Some(pinned) = pinned(ground, &agent).await? else {
           return Err(fault(FaultKind::Unknown, format!("no agent is named {agent}")));
         };
-        let provider = provider_of(ground, &pinned).await.map_err(|why| fault(FaultKind::Refused, why))?;
+        let (provider, model) =
+          choice_of(ground, &pinned).await.map_err(|why| fault(FaultKind::Refused, why))?;
         let held = sessions::session(&ground.db, &agent, chat_id).await.map_err(store_fault)?;
         let Some(harness) = held.and_then(|held| held.harness) else {
           return Err(fault(FaultKind::Unknown, format!("{session} holds no harness session to fold")));
@@ -2691,11 +2719,12 @@ impl Sessions for HerdrSessions {
         let settings = Settings::of(&ground.db, &agent)
           .await
           .map_err(|refused| fault(FaultKind::Refused, refused.error))?;
-        let system = system_of(ground, &pinned, &settings)
+        let system = system_of(ground, &pinned, &settings, &model)
           .await
           .map_err(|why| fault(FaultKind::Refused, why))?;
         let due = Due {
           provider,
+          model,
           system,
           generation: generation_of(&settings),
           session: harness.id,

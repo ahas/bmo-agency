@@ -9,6 +9,7 @@ pub mod agent_switches;
 pub mod agents;
 mod base_prompts;
 mod catalogues;
+mod chat_documents;
 pub mod claude_account_changes;
 pub mod claude_accounts;
 pub mod companion_reset;

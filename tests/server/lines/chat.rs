@@ -84,11 +84,24 @@ fn the_tool_hosts_paragraph_stands_right_after_the_brains_discipline_and_before_
     home: home.path().to_path_buf(),
   };
   let header = &CHAT_LINE.persona.header;
-  let carried =
-    chat_system(&trees, Some("the persona"), Some("the brain's discipline"), Some(PARAGRAPH), None)
-      .unwrap();
-  let without =
-    chat_system(&trees, Some("the persona"), Some("the brain's discipline"), None, None).unwrap();
+  let carried = chat_system(
+    &trees,
+    &ChatDocuments::default(),
+    Some("the persona"),
+    Some("the brain's discipline"),
+    Some(PARAGRAPH),
+    None,
+  )
+  .unwrap();
+  let without = chat_system(
+    &trees,
+    &ChatDocuments::default(),
+    Some("the persona"),
+    Some("the brain's discipline"),
+    None,
+    None,
+  )
+  .unwrap();
 
   assert!(
     carried.ends_with(&format!("the brain's discipline\n\n{PARAGRAPH}\n\n{header}\nthe persona")),
@@ -174,7 +187,7 @@ fn composed() -> String {
     home: home.path().to_path_buf(),
   };
 
-  chat_system(&trees, None, None, None, None).unwrap()
+  chat_system(&trees, &ChatDocuments::default(), None, None, None, None).unwrap()
 }
 
 // The section of the composed prompt under a heading, up to the next heading of the manual's shape.

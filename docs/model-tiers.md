@@ -231,6 +231,23 @@ Branch prefix digests include effective effort. A co-work reservation for a task
 - **Seeds.** As the two columns arrive, the agents the deployment's configuration names are given
   thinking on, and every other agent stands at default.
 
+## A supervisor's own model
+
+- **A supervisor's model is chosen one of two ways, and every supervisor chooses the same two ways.** A
+  supervisor is any agent that answers in a room — the chat agent and every companion alike
+  (`docs/companions.md`) — and each answers on either the supervisor route or a fixed model, changed in
+  the console's supervisor settings (`docs/api.md`, 「Agents」 and 「companions」) with no restart, reached
+  from the next turn.
+- **The supervisor route** is the model the supervisor key resolves to on the provider its road reaches
+  now (`docs/cache-fallback.md`, 「One road resolution」), changed on the routes screen. The key is the
+  policy's key of the chat agent's kind, and every supervisor that keeps no fixed model answers on it.
+- **A fixed model** is a registration of the registry, kept as the agent's own pin: `pinned_provider` the
+  registry's provider and `pinned_model` the registration. It stands at the head of the walk: the turn
+  answers on the registration first and moves along the walk where it cannot answer, so a fixed model
+  that is down does not silence the room.
+- **The screen shows the method that stands:** a pinned agent is shown on its model, an unpinned one on
+  the model the supervisor route resolves to.
+
 ## Research runs
 
 - **A depth chooses a tier.** Each search depth and the browse runner has its own work key, and that

@@ -122,9 +122,50 @@ async fn tell_room(vars: &BTreeMap<String, String>, member: &Value) {
 
     return;
   };
-  if let Err(why) = post_instruction(&url, &token, &instruction_body(member)).await {
+  // The job's end is queued for the agent that filed the item and no other (the receiver's `docs/api.md`,
+  // 「Instructions」), so its requester is read from the job service where the item names one.
+  let requester = requester(vars, member).await;
+
+  if let Err(why) = post_instruction(&url, &token, &instruction_body(member, requester.as_deref())).await {
     eprintln!("job {}: its end was not told to the room: {why}", id_of(member));
   }
+}
+
+/// The agent that filed the item, read from the job service: the row's `requesterName`, none where the item
+/// names the job service no requester or cannot be read.
+async fn requester(vars: &BTreeMap<String, String>, member: &Value) -> Option<String> {
+  let item = member["itemId"].as_i64().filter(|id| *id > 0)?;
+  let (Some(url), Some(token)) =
+    (address(vars, "BMO_JOB_URL"), token(vars, "BMO_JOB_TOKEN", "BMO_JOB_TOKEN_FILE"))
+  else {
+    return None;
+  };
+  let answer = reqwest::Client::new()
+    .get(format!("{url}/items/{item}"))
+    .bearer_auth(token)
+    .timeout(ANSWER_WITHIN)
+    .send()
+    .await;
+
+  let said: Value = match answer {
+    Ok(answer) if answer.status().is_success() => answer.json().await.ok()?,
+    Ok(answer) => {
+      eprintln!("job {item}: its requester was not read: {}", answer.status());
+
+      return None;
+    }
+    Err(why) => {
+      eprintln!("job {item}: its requester was not read: {why}");
+
+      return None;
+    }
+  };
+
+  said["requesterName"]
+    .as_str()
+    .map(str::trim)
+    .filter(|name| !name.is_empty())
+    .map(str::to_owned)
 }
 
 // One instruction handed to the receiver's instruction route.
@@ -195,16 +236,19 @@ pub fn order(member: &Value) -> String {
   text
 }
 
-/// The instruction queued for the room: the order, the item it names as news of the queue, the room the
-/// job answers where it names one, and the run it was.
-pub fn instruction_body(member: &Value) -> Value {
+/// The instruction queued for the room: the order, the item it names as news of the queue, the agent that
+/// filed the item where the job service named one, the room the job answers where it names one, and the run
+/// it was. It is a job's status notice, an order under the sort `job`, so the receiver queues it for the
+/// requester rather than for whoever answers the room.
+pub fn instruction_body(member: &Value, requester: Option<&str>) -> Value {
   let item = member["itemId"].as_i64().unwrap_or_default();
   let room = member["roomId"].as_i64().filter(|room| *room != 0);
   let run = member["runId"].as_i64().filter(|run| *run != 0);
   json!({
     "room": room,
     "said": { "order": order(member) },
-    "sort": "notice",
+    "agentName": requester,
+    "sort": "job",
     "kind": format!("job-ended:{item}"),
     "summary": format!("The job of item #{item} ended"),
     "events": [format!("job-ended:#{item}")],

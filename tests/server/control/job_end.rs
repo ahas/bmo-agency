@@ -55,10 +55,11 @@ fn a_job_that_left_no_report_says_so_and_a_stop_carries_its_outcome() {
 
 #[test]
 fn the_instruction_names_the_item_as_queue_news_and_the_room_the_job_answers() {
-  let body = instruction_body(&member(Some("done"), None));
+  let body = instruction_body(&member(Some("done"), None), Some("agent-a"));
 
   assert_eq!(body["room"], 90000001);
-  assert_eq!(body["sort"], "notice");
+  assert_eq!(body["sort"], "job");
+  assert_eq!(body["agentName"], "agent-a");
   assert_eq!(body["kind"], "job-ended:2224");
   assert_eq!(body["events"], json!(["job-ended:#2224"]));
   assert_eq!(body["run"], 5938);
@@ -83,6 +84,9 @@ async fn stand_in(
   headers: HeaderMap,
   body: Bytes,
 ) -> impl IntoResponse {
+  // The item the job is a run of, which names the agent that filed it.
+  let asked_for_item = method == Method::GET && uri.path() == "/items/2224";
+
   calls.lock().unwrap().push(Call {
     method,
     path: uri.path().to_owned(),
@@ -90,7 +94,11 @@ async fn stand_in(
     body: serde_json::from_slice(&body).unwrap_or(Value::Null),
   });
 
-  StatusCode::NO_CONTENT
+  if asked_for_item {
+    return (StatusCode::OK, axum::Json(json!({ "id": 2224, "requesterName": "agent-a" }))).into_response();
+  }
+
+  StatusCode::NO_CONTENT.into_response()
 }
 
 #[tokio::test]
@@ -124,6 +132,8 @@ async fn a_job_s_end_gives_its_lease_back_and_queues_its_report_in_the_room() {
   assert_eq!(told.method, Method::POST);
   assert_eq!(told.authorization.as_deref(), Some("Bearer receiver-token"));
   assert_eq!(told.body["room"], 90000001);
+  assert_eq!(told.body["sort"], "job");
+  assert_eq!(told.body["agentName"], "agent-a");
   assert_eq!(told.body["events"], json!(["job-ended:#2224"]));
   assert!(told.body["said"]["order"].as_str().unwrap().contains("The work is done."));
 }

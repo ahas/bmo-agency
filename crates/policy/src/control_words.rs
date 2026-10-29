@@ -113,6 +113,10 @@ pub struct AgentsWords {
   pub owner: String,
   pub seeded: String,
   pub running: String,
+  pub model_method: String,
+  pub model_registration: String,
+  pub model_registration_missing: String,
+  pub model_route_only: String,
 }
 
 /// The base prompts.

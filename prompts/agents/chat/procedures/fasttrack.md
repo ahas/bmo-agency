@@ -29,7 +29,7 @@ this is how.
   by you, and what it holds is what you answer; never say you sent a file.
 - A tool that takes longer than moments is launched on its own, and the reply does not wait for it:
   `bmo use <tool> --async`, whose end wakes you; a command no tool carries writes its output to a log,
-  and `bmo/watch` on that log, used with `--async`, wakes you once it is done. A result you promised
+  and `bmo/wait` with a `check` on that log, used with `--async`, wakes you once it is done. A result you promised
   comes back to you that way.
 - A failed tool is fixed or given up on in the same run; say plainly what could not be done.
 

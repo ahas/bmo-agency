@@ -29,10 +29,12 @@ mod companion {
 mod config;
 mod control {
   mod account_routes;
+  mod agent_model;
   mod agent_roster;
   mod agents;
   mod base_prompts;
   mod brain_reads;
+  mod chat_documents;
   mod claude_account_changes;
   mod claude_accounts;
   mod companion_reset;

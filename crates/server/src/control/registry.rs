@@ -116,7 +116,9 @@ pub async fn registration<C: ConnectionTrait>(db: &C, name: &str) -> Result<Opti
 }
 
 /// The health of the engine behind a registration, asked at its addresses, or none where none
-/// answers or the registry holds no such registration.
+/// answers or the registry holds no such registration. An engine that answers at all is written down as
+/// having answered now, so a screen shows when it last did even after it stops answering
+/// (docs/own-llm.md, 「The registry」).
 pub async fn registration_health<C: ConnectionTrait>(
   db: &C,
   data_root: &Path,
@@ -133,8 +135,18 @@ pub async fn registration_health<C: ConnectionTrait>(
       key_file: address.key_file,
     })
     .collect();
+  let health = engine_health::health(data_root, &addresses).await;
 
-  Ok(engine_health::health(data_root, &addresses).await)
+  if health.is_some() {
+    let _ = run(
+      db,
+      r#"UPDATE "registered_models" SET "last_answered_at" = $1 WHERE "name" = $2"#,
+      vec![(now_ms() / 1000).into(), name.into()],
+    )
+    .await;
+  }
+
+  Ok(health)
 }
 
 /// The tiers the registry's provider maps a registration at, in the ladder's order: a tier mapping
@@ -171,13 +183,23 @@ pub async fn registered_model<C: ConnectionTrait>(
   let healthy = registration_health(db, data_root, name)
     .await?
     .is_some_and(|health| health.aside.is_none());
+  // The probe above wrote an answer down; the row read now carries the moment it last stood at.
+  let last_answered_at = one(
+    db,
+    r#"SELECT "last_answered_at" FROM "registered_models" WHERE "name" = $1"#,
+    vec![name.into()],
+  )
+  .await?
+  .and_then(|row| row.try_get::<Option<i64>>("", "last_answered_at").ok().flatten());
 
   Ok(Some(json!({
     "key": format!("{PROVIDER}::{name}"),
+    "name": name,
     "provider": PROVIDER,
     "model": model,
     "tier": tier,
     "healthy": healthy,
+    "lastAnsweredAt": last_answered_at,
   })))
 }
 

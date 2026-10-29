@@ -477,8 +477,9 @@ When a demotion first catches — when a healthy session first drops — two thi
   the provider holds logins, the account — together with every provider it passed ahead of that one and
   why each could not answer. Where nothing in the order can answer, it answers so, with every provider's
   reason and what a person must do.
-- **The setting is automatic or a pin.** The pin is a worker's own pin where it has one, else the key's
-  row (「The per-key choice is automatic or one provider」); a worker's pin may name one model of its
+- **The setting is automatic or a pin.** The pin is a worker's own pin where it has one, a chat agent's
+  own fixed model where its key names one (`docs/model-tiers.md`, 「A supervisor's own model」), else the
+  key's row (「The per-key choice is automatic or one provider」); a pin may name one model of its
   provider.
 - **The walk.** Automatic begins at the top of the owner's order. A pin begins at its provider, then takes
   the providers after it in the order, then those before it. A pin is the head of the walk and never a

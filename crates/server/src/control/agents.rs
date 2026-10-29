@@ -286,6 +286,11 @@ async fn agent_view(judging: Judging<'_>, machine: &Machine, agent: &Agent) -> R
     put("supportKeepalive", json!(agent.support_keepalive));
     put("supportOf", json!(agent.support_of));
     put("supportSlot", json!(agent.support_slot));
+  }
+
+  // The pin a fixed model stands on: a worker's, and a conversational agent's, which is a supervisor's own
+  // model where the road leaves it (docs/model-tiers.md, 「A supervisor's own model」).
+  if agent.is_worker() || agent.conversation.is_some() {
     put("pinnedProvider", json!(agent.pinned_provider));
     put("pinnedModel", json!(agent.pinned_model));
   }
@@ -318,6 +323,7 @@ pub async fn configured(db: &DatabaseConnection, agent: &Agent) -> Option<Config
         laya: false,
       })
     }
+    _ if agent.conversation.is_some() => supervisor_choice(db).await,
     _ => match roads::profile(&agent.name).map(|profile| profile.line.as_str()) {
       Some("chat" | "gate") => road_choice(db, &agent.name).await.ok(),
       _ if agent.kind == "runner" && (agent.name == "search" || agent.name == "browse") => {
@@ -326,6 +332,14 @@ pub async fn configured(db: &DatabaseConnection, agent: &Agent) -> Option<Config
       _ => None,
     },
   }
+}
+
+// The supervisor route a supervisor that keeps no fixed model answers on: what the chat agent's work key
+// resolves to now.
+async fn supervisor_choice(db: &DatabaseConnection) -> Option<Configured> {
+  let key = crate::road::supervisor_key()?;
+
+  road_choice(db, key).await.ok()
 }
 
 // One key's road: the provider it begins on and what its tier resolves to there.

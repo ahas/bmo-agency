@@ -64,6 +64,11 @@ impl WorkKeys {
   pub fn profile(&self, key: &str) -> Option<&Profile> {
     self.profile.iter().find(|one| one.key == key)
   }
+
+  /// The supervisor key: the profile of the chat agent's kind, whose road every supervisor's route is.
+  pub fn supervisor(&self) -> Option<&Profile> {
+    self.profile.iter().find(|one| one.kind == "bmo")
+  }
 }
 
 crate::part!(pub WORK_KEYS: WorkKeys = "work-keys.toml");

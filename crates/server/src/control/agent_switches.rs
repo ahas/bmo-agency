@@ -13,6 +13,7 @@ use sea_orm::DatabaseConnection;
 use serde_json::{Value, json};
 
 use super::{Call, Refused, Route, answer, canonical_agent, set_setting, setting};
+use crate::control::registry;
 use crate::conversational::{Settings, Shape};
 use store::{one, run};
 
@@ -357,6 +358,12 @@ impl Route for ChangeAgent {
       .await?;
     }
 
+    if let Some(model) = body.get("model").filter(|model| model.is_object())
+      && let Err(fault) = set_model(db, &name, model).await?
+    {
+      return Err(Refused::new(StatusCode::BAD_REQUEST, fault));
+    }
+
     let db = call.store().clone();
     let ground = call.shared_ground();
     let machine = call.machine().clone();
@@ -366,3 +373,60 @@ impl Route for ChangeAgent {
 }
 
 crate::moved!(ChangeAgent);
+
+/// An agent's model method (docs/model-tiers.md, 「A supervisor's own model」): `route` answers on the
+/// supervisor key's road, its pin cleared, and `fixed` keeps the agent on a registered model. Every chat
+/// agent is a supervisor and selects its model either way; any other agent takes no model of its own.
+pub async fn set_model(
+  db: &DatabaseConnection,
+  name: &str,
+  asked: &Value,
+) -> Result<Result<(), String>, Refused> {
+  let Some(agent) = Agent::find(db, name).await? else {
+    return Ok(Err(not_found(name)));
+  };
+
+  match asked.get("method").and_then(Value::as_str) {
+    Some("route") => {
+      if agent.kind != "chat" {
+        return Ok(Err(fill_marks(
+          &CONTROL_WORDS.agents.model_route_only,
+          &[("agent", agent.called(name))],
+        )));
+      }
+
+      run(
+        db,
+        r#"UPDATE "agents" SET "pinned_provider" = NULL, "pinned_model" = NULL WHERE "name" = $1"#,
+        vec![agent.name.clone().into()],
+      )
+      .await?;
+
+      Ok(Ok(()))
+    }
+    Some("fixed") => {
+      let Some(registration) = asked
+        .get("registration")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+      else {
+        return Ok(Err(CONTROL_WORDS.agents.model_registration_missing.clone()));
+      };
+
+      if registry::registration(db, registration).await?.is_none() {
+        return Ok(Err(fill_marks(&CONTROL_WORDS.agents.model_registration, &[("name", registration)])));
+      }
+
+      run(
+        db,
+        r#"UPDATE "agents" SET "pinned_provider" = $1, "pinned_model" = $2 WHERE "name" = $3"#,
+        vec![registry::PROVIDER.into(), registration.to_owned().into(), agent.name.clone().into()],
+      )
+      .await?;
+
+      Ok(Ok(()))
+    }
+    _ => Ok(Err(CONTROL_WORDS.agents.model_method.clone())),
+  }
+}

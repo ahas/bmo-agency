@@ -922,8 +922,6 @@ fn declared_gates() -> Vec<bmo_gate_client::Gate> {
     step,
     condition: None,
     switchable: false,
-    laya_probe: false,
-    default_laya_mode: None,
     answer_tokens: None,
   };
 

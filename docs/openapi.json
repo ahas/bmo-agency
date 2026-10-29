@@ -86,6 +86,9 @@
       "name": "prompt-documents"
     },
     {
+      "name": "chat-documents"
+    },
+    {
       "name": "document-moves"
     },
     {
@@ -870,6 +873,85 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/PromptDocumentChange"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/chat-documents": {
+      "get": {
+        "operationId": "listChatDocuments",
+        "tags": [
+          "chat-documents"
+        ],
+        "summary": "The chat agent's own documents the owner may keep, each as it stands now.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatDocumentPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "x-codes": [
+          "unauthorized"
+        ]
+      }
+    },
+    "/chat-documents/{documentName}": {
+      "patch": {
+        "operationId": "changeChatDocument",
+        "tags": [
+          "chat-documents"
+        ],
+        "summary": "Save the owner's text of one chat document, or reset it to its file.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatDocument"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "not-found"
+        ],
+        "parameters": [
+          {
+            "name": "documentName",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": ""
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatDocumentChange"
               }
             }
           }
@@ -6822,6 +6904,83 @@
         },
         "description": "The body that creates, saves, removes or chooses a prompt document."
       },
+      "ChatDocumentPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChatDocument"
+            }
+          },
+          "more": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "items",
+          "more"
+        ],
+        "description": "ChatDocumentPage:"
+      },
+      "ChatDocument": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "description": "`stored` where the owner's text stands, `file` where the deployed file does."
+          },
+          "version": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "When the stored text was last saved, in seconds; null on a document standing as its file."
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "kind",
+          "source",
+          "version",
+          "text"
+        ],
+        "description": "ChatDocument: one of the chat agent's own documents, as it stands now."
+      },
+      "ChatDocumentChange": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "text": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "description": "ChatDocumentChange:"
+      },
       "Rulebooks": {
         "type": "object",
         "properties": {
@@ -9069,6 +9228,10 @@
           "key": {
             "type": "string"
           },
+          "name": {
+            "type": "string",
+            "description": "The registration's own name, which is the model a supervisor's fixed pin holds."
+          },
           "provider": {
             "type": "string"
           },
@@ -9086,14 +9249,24 @@
               "boolean",
               "null"
             ]
+          },
+          "lastAnsweredAt": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "When the engine behind it last answered a health probe, in unix seconds, where it ever has."
           }
         },
         "required": [
           "key",
+          "name",
           "provider",
           "model",
           "tier",
-          "healthy"
+          "healthy",
+          "lastAnsweredAt"
         ],
         "description": "Model:"
       },

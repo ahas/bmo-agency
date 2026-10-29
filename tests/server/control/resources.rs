@@ -466,10 +466,12 @@ async fn the_model_resource_is_one_record() {
     page["items"],
     json!([{
       "key": "registered::mine",
+      "name": "mine",
       "provider": "registered",
       "model": "old-model",
       "tier": Value::Null,
       "healthy": false,
+      "lastAnsweredAt": Value::Null,
     }])
   );
 

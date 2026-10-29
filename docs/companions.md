@@ -21,9 +21,10 @@ are the companion unit's, not agency's. This document covers only what agency ho
 - **The row it writes:** the kind `chat`, the chat role, the `room` scope, the `pieces` shape — the shape the
   console's added agents go by — not the
   default answerer, the label, the console's mark from the companions policy, the pinned provider and
-  model, the worker, the brain folder `agents/<name>`, no prompt folder and not seeded. Its gate options
-  are the gate's. Nothing is restarted: the runner reads the row and its settings for every turn, and
-  its place and program are stood by its first turn.
+  model it is added on, the worker, the brain folder `agents/<name>`, no prompt folder and not seeded. The
+  pin is its fixed model, and the console changes it to the supervisor route when the owner asks. Its
+  gate options are the gate's. Nothing is restarted: the runner reads the row and its settings for every
+  turn, and its place and program are stood by its first turn.
 - **Then its brain is made.** Once the row is written, the brain is asked whether it keeps a brain
   under the agent's name, and to make one where it keeps none, filed under the deployment's account key
   (`docs/api.md`, 「Calls agency makes」). The companion is added whatever the brain answers: a brain
@@ -150,10 +151,12 @@ are the companion unit's, not agency's. This document covers only what agency ho
   the new generation, is still carried out by the next turn.
 - **The turn that carries it out** settles the ask and says so in its log.
 
-- **The program's model is the pin's,** resolved to the registration its model names and an address
-  that registration holds now, never the row's `last_model`. A pin moved to another registration, or a
-  registration that lost the address the program stood on, lets the old program go; the next turn
-  stands the pin's own on an address the registration has.
+- **The program's model is the one the companion answers on:** its pin's where it keeps a fixed model,
+  resolved to the registration its model names and an address that registration holds now, never the
+  row's `last_model`; else the supervisor route's, read as the supervisor key's road stands
+  (`docs/model-tiers.md`, 「A supervisor's own model」). A pin moved, a route moved or a registration that
+  lost the address the program stood on lets the old program go; the next turn stands the model the
+  companion answers on now.
 
 ### The program on an ended session
 

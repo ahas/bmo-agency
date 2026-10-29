@@ -391,3 +391,37 @@ async fn a_key_set_to_one_provider_goes_out_on_it_while_it_can_and_walks_on_whil
   assert_eq!(off.head().map(|head| head.provider), Some("deepseek".to_owned()));
   assert_eq!(off.passed().len(), 1);
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_chat_agents_fixed_model_heads_its_keys_walk_and_its_clearing_returns_the_key_its_road() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = ground_on(scratch.db().clone(), home.path());
+
+  store::seed::settle(scratch.db(), &deployment(&ground.machine())).await.unwrap();
+  order(scratch.db(), &[("claude-code", true), ("registered", true)]).await;
+  scratch
+    .run(
+      r#"INSERT INTO "agents" ("name", "kind", "turn_shape", "pinned_provider", "pinned_model")
+         VALUES ('bmo', 'chat', 'window', 'registered', 'local-model')"#,
+      vec![],
+    )
+    .await;
+
+  let fixed = resolve(&ground, &Ask::key("bmo")).await.unwrap();
+
+  assert_eq!(fixed.pinned.as_deref(), Some("registered"), "{fixed:?}");
+  assert_eq!(
+    fixed.head().map(|head| (head.provider, head.model)),
+    Some(("registered".to_owned(), "local-model".to_owned()))
+  );
+
+  // Its fixed model let go, the supervisor answers on its key's road again.
+  scratch
+    .run(r#"UPDATE "agents" SET "pinned_provider" = NULL, "pinned_model" = NULL"#, vec![])
+    .await;
+
+  let route = resolve(&ground, &Ask::key("bmo")).await.unwrap();
+
+  assert_eq!(route.pinned, None, "{route:?}");
+}

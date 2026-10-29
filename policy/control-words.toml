@@ -104,6 +104,10 @@ kind = "A kind is one of {kinds}."
 owner = "The owner is the id of a login account, or none for the administrator's."
 seeded = "{label} is an agent the deployment seeds, so its registration cannot be ended."
 running = "{label} is running a turn now. End it once the turn is over, or force it."
+model_method = "A model is selected by its key's route or kept as a fixed model."
+model_registration = "There is no registered model {name}."
+model_registration_missing = "A fixed model names a registered model."
+model_route_only = "{agent} takes no model of its own: only a chat agent selects one."
 
 # The base prompts: a {name} not known, already taken or out of its shape, a label or a text past its
 # {most} characters, a prompt the {agents} still choose or the {accounts} still name, an {agent} that

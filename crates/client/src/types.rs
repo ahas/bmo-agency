@@ -509,10 +509,14 @@ pub struct Provider {
 #[serde(rename_all = "camelCase")]
 pub struct Model {
   pub key: String,
+  /// The registration's own name, which is the model a supervisor's fixed pin holds.
+  pub name: String,
   pub provider: String,
   pub model: String,
   pub tier: Option<String>,
   pub healthy: Option<bool>,
+  /// When the engine behind it last answered a health probe, in unix seconds, where it ever has.
+  pub last_answered_at: Option<i64>,
 }
 
 /// ModelCatalogueEntry:
@@ -1071,6 +1075,39 @@ pub struct AgentPage {
 pub struct PromptDocumentPage {
   pub items: Vec<PromptDocument>,
   pub more: bool,
+}
+
+/// ChatDocument: one of the chat agent's own documents, as it stands now.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ChatDocument {
+  pub name: String,
+  pub kind: String,
+  /// `stored` where the owner's text stands, `file` where the deployed file does.
+  pub source: String,
+  /// When the stored text was last saved, in seconds; null on a document standing as its file.
+  pub version: Option<i64>,
+  pub text: String,
+}
+
+/// ChatDocumentPage:
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ChatDocumentPage {
+  pub items: Vec<ChatDocument>,
+  pub more: bool,
+}
+
+/// ChatDocumentChange:
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ChatDocumentChange {
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub action: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub text: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub by: Option<String>,
 }
 
 /// Rulebook:

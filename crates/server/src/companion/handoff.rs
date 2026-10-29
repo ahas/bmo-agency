@@ -41,6 +41,8 @@ impl Companion {
 /// so the handoff turn after it goes out on the very session and prompt.
 pub struct Due {
   pub provider: &'static dyn harness_providers::Provider,
+  /// The model the turn it hands over ran on, which the handoff turn goes out on.
+  pub model: String,
   pub system: String,
   pub generation: IndexMap<String, Value>,
   pub session: String,
@@ -103,7 +105,7 @@ pub async fn hand_over(ground: &Ground, hold: &ResetHold, companion: &Companion,
       return eprintln!("companion {} in chat {chat_id}: the handoff instruction: {why}", companion.name);
     }
   };
-  let model = companion.pinned_model.clone().unwrap_or_default();
+  let model = due.model.clone();
   let run_name = log.run().to_owned();
   let machine = harness_providers::Machine::of_process(ground.roots.data.clone());
   let composed = compose(

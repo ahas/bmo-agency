@@ -118,12 +118,61 @@ pub struct ChatRun {
   pub env: BTreeMap<String, String>,
 }
 
+/// The owner's own text of each of the chat's documents, by the name the store keeps (`chat_documents`): the
+/// opening, the absolute rules and the manual, each standing in place of its file where one is kept
+/// (docs/agent-documents.md, 「The chat agent」).
+#[derive(Clone, Debug, Default)]
+pub struct ChatDocuments {
+  pub opening: Option<String>,
+  pub absolute_rules: Option<String>,
+  pub manual: Option<String>,
+}
+
+impl ChatDocuments {
+  /// What the owner keeps under one document's name, or none.
+  pub fn of(&self, name: &str) -> Option<&str> {
+    match name {
+      "opening" => self.opening.as_deref(),
+      "absolute-rules" => self.absolute_rules.as_deref(),
+      "manual" => self.manual.as_deref(),
+      _ => None,
+    }
+  }
+}
+
+/// The chat's documents as the store keeps them, in one read; a store that cannot be read leaves every
+/// document as its file stands.
+pub async fn documents(db: &impl sea_orm::ConnectionTrait) -> ChatDocuments {
+  let Ok(rows) = store::all(db, r#"SELECT "name", "text" FROM "chat_documents""#, vec![]).await else {
+    return ChatDocuments::default();
+  };
+  let mut kept = ChatDocuments::default();
+
+  for row in rows {
+    let (Ok(name), Ok(text)) = (row.try_get::<String>("", "name"), row.try_get::<String>("", "text"))
+    else {
+      continue;
+    };
+
+    match name.as_str() {
+      "opening" => kept.opening = Some(text),
+      "absolute-rules" => kept.absolute_rules = Some(text),
+      "manual" => kept.manual = Some(text),
+      _ => {}
+    }
+  }
+
+  kept
+}
+
 /// The chat's system prompt: its opening document, the absolute rules bare, its manual, the tools paragraph
 /// for the program the session runs on where one is composed, and the rulebooks it reads, each named, the
 /// brain's discipline where the brain answered one, the tool host's paragraph on finding and using tools
 /// where the host answered one, with the base persona after them all under its header where one is handed.
+/// A document the owner keeps a text of stands as that text, and its file stands where none is kept.
 pub fn chat_system(
   trees: &Trees,
+  documents: &ChatDocuments,
   base_persona: Option<&str>,
   discipline: Option<&str>,
   tool_discipline: Option<&str>,
@@ -131,10 +180,16 @@ pub fn chat_system(
 ) -> Result<String, Refusal> {
   let system = &CHAT_LINE.system;
   let chat = trees.agent_dir("chat");
+  let document = |name: &str, path: PathBuf| -> Result<String, Refusal> {
+    match documents.of(name) {
+      Some(text) => Ok(text.to_owned()),
+      None => read_required(&path),
+    }
+  };
   let mut parts = vec![
-    read_required(&chat.join(&system.opening))?,
-    read_required(&trees.code.join("prompts").join("rules").join(&system.absolute_rules))?,
-    read_required(&chat.join(&system.manual))?,
+    document("opening", chat.join(&system.opening))?,
+    document("absolute-rules", trees.code.join("prompts").join("rules").join(&system.absolute_rules))?,
+    document("manual", chat.join(&system.manual))?,
   ];
 
   if let Some(tools) = tools.map(str::trim).filter(|text| !text.is_empty()) {
@@ -189,6 +244,8 @@ pub struct SystemParts {
   pub discipline: Option<String>,
   pub tool_discipline: Option<String>,
   pub servers: Vec<String>,
+  /// The owner's texts of the chat's own documents, which stand in place of their files where kept.
+  pub documents: ChatDocuments,
 }
 
 impl SystemParts {
@@ -197,6 +254,7 @@ impl SystemParts {
     let tools = tools_paragraph(program, &self.servers, RUN_LINES.shown(LINE));
     let system = chat_system(
       trees,
+      &self.documents,
       self.persona.as_deref(),
       self.discipline.as_deref(),
       self.tool_discipline.as_deref(),
@@ -465,11 +523,13 @@ pub async fn chat_run(
   )
   .await;
   let role = crate::conversational::role_of(&ground.db, agent).await.ok().flatten();
+  let documents = documents(&ground.db).await;
   let parts = SystemParts {
     above: role.as_deref().and_then(|role| super::role_prompt(&trees, role)),
     persona: persona.text.clone(),
     discipline,
     tool_discipline,
+    documents,
     servers: harness_servers(ground, agent)
       .entries()
       .into_iter()

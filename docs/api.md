@@ -97,7 +97,7 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
 | GET | `/agents` | Every agent, each with the login account that owns it. |
 | POST | `/agents` | Register an agent of any kind; one that converses is given its brain. |
 | GET | `/agents/{agentName}` | One agent: role, gates, reasoning, voice, reset point, stand-in. |
-| PATCH | `/agents/{agentName}` | Change an agent's gates, reasoning, role or voice. |
+| PATCH | `/agents/{agentName}` | Change an agent's gates, reasoning, role, voice or model. |
 | DELETE | `/agents/{agentName}` | End an agent's registration; `forgetBrain` lets its brain go with it. |
 
 - **Every agent is a registration row** (`docs/agents.md`), and these routes add, change and end any of
@@ -144,6 +144,12 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
 - **An agent of the `chat` kind, or holding the chat role, is given its brain as it is registered,**
   through the brain (「Calls agency makes」): filed under its owner's id as the account key where it names
   an owner, and under `AGENCY_BRAIN_ACCOUNT` where it names none.
+- **`PATCH /agents/{agentName}` changes the fields the body names:** `gates`, `reasoning`, `role`,
+  `voice`, and `model`, a supervisor's model method (`docs/model-tiers.md`, 「A supervisor's own model」):
+  `{"method": "route"}` lets the supervisor key's road carry it and clears its pin, and `{"method":
+  "fixed", "registration": <name>}` pins it to a registered model. Every chat agent — the chat agent and
+  every companion alike — takes either; a route is refused 400 for an agent that is no supervisor, and so
+  is a name the registry holds no registration under.
 - **`DELETE /agents/{agentName}` ends a registration,** taking `force`, `forgetBrain` and `rooms` in its
   query:
   - 404 `not-found` for no agent of the name;
@@ -169,6 +175,23 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
 | GET | `/prompt-documents/{documentName}` | One prompt document with its version. |
 | PATCH | `/prompt-documents/{documentName}` | Change a base prompt or its chooser. |
 | GET | `/rulebooks` | The shared rulebooks named, as the deploy tree holds them. |
+
+### chat-documents
+
+| Method | Path | Does |
+|---|---|---|
+| GET | `/chat-documents` | The chat agent's own documents the owner may keep — its opening, the absolute rules and the manual — each with the text it stands as, where that text comes from, and its version. |
+| PATCH | `/chat-documents/{documentName}` | Save the owner's text of one document, or reset it to its file. |
+
+- **A document stands as the owner's text where one is saved,** and as its file under the deploy tree
+  where none is; `source` says which, and `version` is the moment the stored text was last saved.
+- **The three names** are `opening`, `absolute-rules` and `manual`; any other name is refused 404.
+- **A save** takes `text` of 1 to the bound the base prompts' policy states, and `by`, the caller's
+  name; an empty or oversized text is refused 400. **A reset** takes no text and lets the file stand
+  again.
+- **The chat line reads them afresh at every launch,** so a save reaches the next turn with no
+  restart, and a turn keeps its conversation under the changed system prompt as any change of it does
+  (`docs/agent-documents.md`, 「The chat agent」).
 
 ### document-moves
 
@@ -461,11 +484,15 @@ provider names that registration as its model, `GET /work-keys/{workKey}` among 
 A model is one registration of the registry's provider: the list, the create, the read, the change and the
 take-away all read or write the registrations, so the list holds exactly what can be changed and removed. A
 model's key names its provider and the model apart — `provider::model`, or the provider as a query and the
-model in the path. `provider` names the registry's provider alone, since every other provider's models are
-its own catalogue and no route changes them; `tier` narrows the list to the registrations that tier maps to.
+model in the path. Each answer carries `name` beside its `key`, the registration's own name, which is what
+a supervisor's fixed model holds (`docs/model-tiers.md`, 「A supervisor's own model」). `provider` names the
+registry's provider alone, since every other provider's models are its own catalogue and no route changes
+them; `tier` narrows the list to the registrations that tier maps to.
 A create starts a registration under its own name as its label, at the registry's smallest window, answer
-and wait and with no address, and is refused where the name already stands. `tier` and `healthy` are read
-back; the model behind a registration is what the change edits. A registration's addresses are the
+and wait and with no address, and is refused where the name already stands. `tier`, `healthy` and
+`lastAnsweredAt` are read back: `healthy` is whether the engine answers now, and `lastAnsweredAt` the
+moment it last answered a probe, in seconds, so a screen tells a model that is down from one that has
+never answered; the model behind a registration is what the change edits. A registration's addresses are the
 registry's: each carries `roleFiles`, whether the instance behind it keeps role files
 (`docs/own-llm.md`, 「Role files」), set with `bmo-agency agent --register-address … --role-files on|off`
 (`docs/own-llm.md`, 「Where it is set」), left as it stands where the command names none and off on a new
@@ -702,11 +729,16 @@ yesterday to now where none is given.
 | DELETE | `/companions/{companionName}` | Remove a companion from the deployment. |
 | POST | `/companion-resets` | Reset a companion's person ranges and rooms; `dryRun` counts it first. |
 
-A companion's settings are its reference switch, its persona, its generation settings, its pin and its
-thinking; its system prompt is its base prompt, every companion's role whole and its persona, and no section
-of it is chosen per companion (`docs/companions.md`, 「What a turn is given」). `pieces` and `ownPieces` are no
-setting: a change naming them is refused 400 as naming no field, and the settings a companion is answered
-with name neither.
+A companion's settings are its reference switch, its persona, its generation settings, its model method and
+its thinking; its system prompt is its base prompt, every companion's role whole and its persona, and no
+section of it is chosen per companion (`docs/companions.md`, 「What a turn is given」). `pieces` and
+`ownPieces` are no setting: a change naming them is refused 400 as naming no field, and the settings a
+companion is answered with name neither.
+
+A companion is answered with the model method it stands on, `method`: `fixed` on a registration, or `route`
+on the supervisor key's road (`docs/model-tiers.md`, 「A supervisor's own model」), with `provider` and `model`
+the ones it answers on now. A change takes `registration` as a registered model's name, or null to clear the
+pin and answer on the route.
 
 ### workers, prefix-checks and room-holdings
 
@@ -815,12 +847,13 @@ and the filing of an item.
 
 - **A job's end reaches the room and gives its lease back.** However a job ends — its run finishing, failing,
   or the harness ending or stopping it — the agency returns the item's lease to the job service as the end is
-  written, so the item is open again the moment no run holds it, and queues the job's report in the room's
-  chat agent through the receiver's `POST /instructions`: an order carrying the item, the worker, the
-  outcome and the report whole, under the event `job-ended:#<item>`. The receiver keeps the instruction until
-  a turn takes it, so a chat session being replaced when the job ended loses nothing; the chat agent reads
-  the report and relays the job's end in a few lines in that room, as its own manual says, the report itself
-  staying whole on the item. A job with no room is queued for the owner's
+  written, so the item is open again the moment no run holds it, and queues the job's report for the agent
+  that filed the item through the receiver's `POST /instructions`: an order under the sort `job`, naming the
+  requester its item names, and carrying the item, the worker, the outcome and the report whole, under the
+  event `job-ended:#<item>`. The receiver keeps the instruction until a turn takes it, so a chat session
+  being replaced when the job ended loses nothing, and it queues the notice for that requester and no other
+  agent. The requester reads the report and relays the job's end in a few lines in that room, as its own
+  manual says, the report itself staying whole on the item. A job with no room is queued for the owner's
   private room, which is the room the receiver gives an instruction that names none. The room a job answers is
   `roomId` from the launch, or the item's own `roomId`, or the item's `scope` where the item was filed from a
   room; the item a harness hands over carries that `scope` with it, so a job launched from a room is told

@@ -74,6 +74,10 @@ composed into a system prompt, and what the chat agent's own prompt is made of.
 
 - **The chat agent's prompt is three layers, each whole, in this order:** the harness, the role and the
   persona. No layer is cut into sections chosen per program, and none knows the others.
+  - **The owner's text of three of the role's documents stands in the store:** the opening, the
+    absolute rules and the manual are read from `chat_documents` where the owner saved one and from
+    the files named here otherwise (`docs/api.md`, 「chat-documents」); the rulebooks and the room's
+    documents are files alone.
   - **The harness** is the program's own prompt, kept as the program writes it: Claude Code's own
     default prompt, which the role and the persona are appended to; dsh's own prompt for the headless
     profile, with the role and the persona as its persona suffix, after dsh's own guidance.

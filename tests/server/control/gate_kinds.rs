@@ -16,8 +16,6 @@ fn gate(name: &str, part: &str, step: i64) -> Gate {
     step,
     condition: None,
     switchable: false,
-    laya_probe: false,
-    default_laya_mode: None,
     answer_tokens: None,
   }
 }

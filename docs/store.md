@@ -24,6 +24,9 @@ seeds. The other crates and the server reach the store only through it.
     worker, each kept until a turn has taken it;
   - the base prompts: `base_prompts`, `agent_base_prompts`, and `base_prompt_seeded`, the name of
     every seed the store has been given (`docs/base-prompts.md`, 「The seeds」);
+  - the chat agent's own documents the owner keeps a text of: `chat_documents`, one row a document's
+    name and its text, with when and by whom it was last saved (`docs/agent-documents.md`,
+    「The chat agent」);
   - the accounts: `claude_accounts`, one row an account of the Claude Code road — its id, name,
     place, on/off, when it was added and when its login was found gone; its `credential_kind`,
     `directory`, `token` or `endpoint`, and its `credential_path`, the configuration directory, the

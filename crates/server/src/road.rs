@@ -1,6 +1,7 @@
 //! The one road resolution (docs/cache-fallback.md, 「One road resolution」): the one place that decides where
-//! a work key's work goes out now. The key's setting — a worker's own pin, else the key's row, else
-//! automatic — is the head of a walk through the owner's provider order; every provider of that walk answers
+//! a work key's work goes out now. The key's setting — a worker's own pin, a chat agent's own fixed model,
+//! else the key's row, else automatic — is the head of a walk through the owner's provider order; every
+//! provider of that walk answers
 //! for itself whether it can answer now (「Availability: whether a provider can answer now」), each out of
 //! its own member, and the first that can carries the work, on the pinned model where the pin names one and
 //! the key's tier mapping everywhere else, on the first login the account judgement offers where the
@@ -24,6 +25,8 @@ use crate::now_ms;
 use crate::places::Ground;
 use crate::queue::routes::worker_pin_held;
 use crate::queue::settings;
+use sea_orm::DatabaseConnection;
+use store::one;
 
 /// What the resolution is asked: the work key, the worker a job goes out on where it is a job's, the user a
 /// run is made for, and the providers a job already left in this job with why, which its walk counts as
@@ -251,8 +254,9 @@ impl Resolution {
   }
 }
 
-// The head a key's setting gives its walk: a worker's own pin where the ask names a worker that has one,
-// else the key's row where it names one provider; a gate on Laya and an automatic key walk from the top.
+// The head a key's setting gives its walk: a worker's own pin where the ask names a worker that has one, a
+// chat agent's own fixed model where its key names one, else the key's row where it names one provider; a
+// gate on Laya and an automatic key walk from the top.
 async fn pin_of(ground: &Ground, ask: &Ask<'_>) -> Result<Option<Pin>, String> {
   let db = &ground.db;
 
@@ -262,12 +266,50 @@ async fn pin_of(ground: &Ground, ask: &Ask<'_>) -> Result<Option<Pin>, String> {
     return Ok(Some(Pin { provider, model }));
   }
 
+  if ask.worker.is_none()
+    && let Some((provider, model)) = chat_fixed_model(db, ask.key).await?
+  {
+    return Ok(Some(Pin {
+      provider,
+      model: Some(model),
+    }));
+  }
+
   let mode = roads::selected_mode(db, ask.key).await.map_err(|refused| refused.error)?;
 
   Ok((mode != AUTO && mode != LAYA && harness::named(&mode).is_ok()).then_some(Pin {
     provider: mode,
     model: None,
   }))
+}
+
+// The provider and model a chat agent's own fixed model names, for the key that is the agent's own name:
+// none where the agent keeps no fixed model or no agent of that name answers rooms across a window. A fixed
+// model stands ahead of the key's row, so a supervisor the owner set on a local model answers on it first.
+async fn chat_fixed_model(db: &DatabaseConnection, key: &str) -> Result<Option<(String, String)>, String> {
+  let row = one(
+    db,
+    r#"SELECT "pinned_provider", "pinned_model" FROM "agents"
+       WHERE "name" = $1 AND "kind" = 'chat' AND "turn_shape" = 'window'
+         AND "pinned_provider" IS NOT NULL AND "pinned_model" IS NOT NULL"#,
+    vec![key.into()],
+  )
+  .await
+  .map_err(|why| why.to_string())?;
+  let Some(row) = row else { return Ok(None) };
+  let provider: Option<String> = row.try_get("", "pinned_provider").map_err(|why| why.to_string())?;
+  let model: Option<String> = row.try_get("", "pinned_model").map_err(|why| why.to_string())?;
+
+  Ok(
+    provider
+      .filter(|provider| !provider.trim().is_empty())
+      .zip(model.filter(|model| !model.trim().is_empty())),
+  )
+}
+
+/// The work key every supervisor's route is: the policy's key of the chat agent's kind.
+pub fn supervisor_key() -> Option<&'static str> {
+  WORK_KEYS.supervisor().map(|profile| profile.key.as_str())
 }
 
 /// Where a key's work goes out now (docs/cache-fallback.md, 「One road resolution」).
