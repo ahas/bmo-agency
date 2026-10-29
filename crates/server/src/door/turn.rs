@@ -805,86 +805,6 @@ enum Submit {
   Unsent,
 }
 
-/// The session's record carried into the configuration home the turn's program reads it under, where it
-/// stands in another road's home: the transcript and the folder beside it copied whole, so a road that moved
-/// continues the session it had rather than opening another beside it (docs/sessions.md, 「Session
-/// replacement」). Nothing is copied where the home already holds the record, where no home holds it — a
-/// fresh session, whose id is new — or where the copy fails, which the turn then reads as a session gone.
-pub fn carry_record(
-  data: &Path,
-  machine_config: &Path,
-  records_dir: &Path,
-  cwd: &Path,
-  session: &str,
-) -> bool {
-  let target = ClaudeCode::records_under(records_dir, cwd, session);
-
-  if target[0].exists() {
-    return false;
-  }
-
-  let mut homes: Vec<PathBuf> = Vec::new();
-
-  for parent in ["claude-roads", "claude-endpoints"] {
-    let Ok(firsts) = std::fs::read_dir(data.join(parent)) else { continue };
-
-    for first in firsts.flatten() {
-      homes.push(first.path());
-
-      if let Ok(seconds) = std::fs::read_dir(first.path()) {
-        homes.extend(seconds.flatten().map(|second| second.path()));
-      }
-    }
-  }
-
-  homes.push(machine_config.to_path_buf());
-
-  for home in homes {
-    if home == records_dir {
-      continue;
-    }
-
-    let found = ClaudeCode::records_under(&home, cwd, session);
-
-    if !found[0].exists() {
-      continue;
-    }
-
-    let Some(project) = target[0].parent() else { return false };
-
-    if std::fs::create_dir_all(project).is_err() || std::fs::copy(&found[0], &target[0]).is_err() {
-      return false;
-    }
-
-    if found[1].is_dir() {
-      let _ = copy_tree(&found[1], &target[1]);
-    }
-
-    return true;
-  }
-
-  false
-}
-
-/// A folder copied whole under another, its files and folders with it: what a session keeps beside its
-/// transcript — the line folders a large tool answer and a child run's transcript go to.
-fn copy_tree(from: &Path, to: &Path) -> std::io::Result<()> {
-  std::fs::create_dir_all(to)?;
-
-  for entry in std::fs::read_dir(from)? {
-    let entry = entry?;
-    let target = to.join(entry.file_name());
-
-    if entry.file_type()?.is_dir() {
-      copy_tree(&entry.path(), &target)?;
-    } else {
-      std::fs::copy(entry.path(), &target)?;
-    }
-  }
-
-  Ok(())
-}
-
 /// One turn, start to finish, in the agent's standing program or in a pane of its own opened for it. An
 /// error is a turn that never got under way or was thrown out of — cancelled before it went in, refused by
 /// the guard, a pane herdr would not take — and its row says so.
@@ -902,13 +822,7 @@ pub async fn put<W: Watch>(ground: &Ground, turn: &Turn, watch: &mut W) -> Resul
     .get("CLAUDE_CONFIG_DIR")
     .filter(|dir| !dir.is_empty())
     .map_or_else(|| machine_config.clone(), PathBuf::from);
-  let moved =
-    carry_record(&ground.roots.data, &machine_config, &records_dir, Path::new(&turn.cwd), &turn.session);
   let record = ClaudeCode::records_under(&records_dir, Path::new(&turn.cwd), &turn.session).swap_remove(0);
-
-  if moved {
-    let _ = watch.note(&DOOR_WORDS.notes.record_carried).await;
-  }
   let trust_config = config_file(
     &turn
       .env

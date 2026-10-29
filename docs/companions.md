@@ -77,11 +77,10 @@ are the companion unit's, not agency's. This document covers only what agency ho
 - **A new generation is a new harness session,** opened by the turn that finds:
   - no session held in the room yet;
   - a reset of the session asked for in the room and not yet carried out (「Clearing it」 below);
-  - the held one no longer there to resume: no home the program reads holds its record, which the turn
-    says in the program's own words before anything is stood. That turn is asked again once on a fresh
-    session. A pin moved to another provider, model or place is not this: the record is carried to the
-    home the turn's program reads and the session is resumed (`docs/sessions.md`, 「Session
-    replacement」).
+  - the held one opened on another provider or model than the pin names now, or on a place its
+    registration no longer has;
+  - the held one no longer there to resume: its program keeps no record of it, which the turn says in
+    the program's own words before anything is stood. That turn is asked again once on a fresh session.
 - **What each turn was given and how it answered is kept,** generation by generation, in the room
   session turns table: the user turn exactly as it went out and the answer as the run wrote it. The
   follow pane and the console read it; no run is built from it.

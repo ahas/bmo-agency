@@ -84,8 +84,7 @@ impl SurfaceTurn {
 
 /// How the turn came out: an answer, or the reason there is none in the words a failed step of the
 /// fallback walk is carried in, or the program's own error a failed request ended the turn with, beside its
-/// kind where the program names one, the pane leaving the turn's words unsubmitted in a dialog somebody
-/// opened, with why, or the turn stopped from outside.
+/// kind where the program names one, or the turn stopped from outside.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum SurfaceEnding {
@@ -97,7 +96,6 @@ pub enum SurfaceEnding {
     error: String,
     kind: Option<String>,
   },
-  Unsubmitted(String),
   Stopped(String),
 }
 

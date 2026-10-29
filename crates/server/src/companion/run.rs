@@ -52,15 +52,13 @@ pub struct Reply {
 }
 
 /// Why a run gave no answer: its guard cut it, with why, it failed, with the harness's own words, its engine
-/// ended it with an error, with the program's words and the error's kind where it names one, the pane left the
-/// turn's words unsubmitted in a dialog somebody opened, with why, or the companion's reset overtook it, and
-/// nothing of it is kept (docs/companions.md, 「What the reset cuts off」).
+/// ended it with an error, with the program's words and the error's kind where it names one, or the companion's
+/// reset overtook it, and nothing of it is kept (docs/companions.md, 「What the reset cuts off」).
 #[derive(Debug)]
 pub enum NoAnswer {
   Cut(String),
   Failed(String),
   Errored { error: String, kind: Option<String> },
-  Unsubmitted(String),
   Overtaken,
 }
 
@@ -423,7 +421,6 @@ pub async fn run_turn(
     put(ground, &turn, &mut watched).await.map(|ending| match ending {
       Ending::Answered { reply, .. } => Ok(*reply),
       Ending::Errored { error, kind } => Err(NoAnswer::Errored { error, kind }),
-      Ending::Unsubmitted { why, .. } => Err(NoAnswer::Unsubmitted(why)),
       other => Err(failure(failed(&other))),
     })
   } else {
@@ -454,7 +451,6 @@ pub async fn run_turn(
       .map(|ending| match ending {
         SurfaceEnding::Reply(reply) => Ok(*reply),
         SurfaceEnding::Errored { error, kind } => Err(NoAnswer::Errored { error, kind }),
-        SurfaceEnding::Unsubmitted(why) => Err(NoAnswer::Unsubmitted(why)),
         SurfaceEnding::Error(why) | SurfaceEnding::Stopped(why) => Err(failure(why)),
       })
   };

@@ -52,7 +52,7 @@ use crate::door::turn::{AsideOutcome, Quiet, Watch};
 use crate::events::Event;
 use crate::job_run::claude::turn::{Shows, WorkAsked, WorkSeat, carry, continues};
 use crate::lines::chat::{ChatLaunch, RoomContext, compose_prepared, compose_turn, gate_run};
-use crate::lines::companion::{CompanionTurn, compose, lost_session, pinned_provider};
+use crate::lines::companion::{CompanionTurn, compose, lost_session, pinned_provider, registration_named};
 use crate::places::gate_places;
 use crate::places::locks::{pane_lock_path, try_hold};
 use crate::places::{AgentRow, Ground, Places};
@@ -545,7 +545,7 @@ pub fn spent_of(spend: &[ModelSpend]) -> Option<run_ledger::Spent> {
 pub fn failure_of(no: NoAnswer) -> (String, Option<EngineError>) {
   match no {
     NoAnswer::Errored { error, kind } => (error, Some(EngineError { kind })),
-    NoAnswer::Cut(why) | NoAnswer::Failed(why) | NoAnswer::Unsubmitted(why) => (why, None),
+    NoAnswer::Cut(why) | NoAnswer::Failed(why) => (why, None),
     NoAnswer::Overtaken => ("the companion's reset overtook the turn".to_owned(), None),
   }
 }
@@ -883,19 +883,41 @@ impl HerdrSessions {
   }
 
   // The companion's session in the room its turn goes on in: the one it holds, or a new generation where it
-  // holds none and a generation that kept turns holds no harness session either — a record lost, which the
-  // turn's first message tells as one. A road, model or place that moved resumes the session it had, its
-  // record carried to the home the turn's program reads (docs/sessions.md, 「Session replacement」).
-  async fn room_session(&self, agent: &str, chat_id: i64) -> Result<RoomSession, Refusal> {
+  // holds none, where the harness session it holds was opened on another provider or model or stands on a
+  // place its registration no longer has, or where a generation that kept turns holds no harness session.
+  async fn room_session(
+    &self,
+    agent: &str,
+    chat_id: i64,
+    provider: &'static dyn harness_providers::Provider,
+    model: &str,
+  ) -> Result<RoomSession, Refusal> {
     let ground = self.ground();
     let db = &ground.db;
     let Some(held) = sessions::session(db, agent, chat_id).await? else {
       return sessions::open_generation(db, agent, chat_id).await;
     };
+    let moved = match &held.harness {
+      None => false,
+      Some(harness) => {
+        harness.road != harness_road(provider.name(), model)
+          || match (&harness.placement, provider.not_registered()) {
+            (Some(node), Some(_)) => registration_named(ground, model)
+              .await
+              .map(|held| !held.addresses.iter().any(|address| &address.node == node))
+              .unwrap_or(false),
+            _ => false,
+          }
+      }
+    };
     let unresumable =
       held.harness.is_none() && sessions::keeps_turns(db, agent, chat_id, held.generation).await?;
 
-    if unresumable { sessions::open_generation(db, agent, chat_id).await } else { Ok(held) }
+    if moved || unresumable {
+      sessions::open_generation(db, agent, chat_id).await
+    } else {
+      Ok(held)
+    }
   }
 
   // The handoff asked for where a chat-line turn is about to open a fresh session in place of one the agent's
@@ -992,7 +1014,7 @@ impl HerdrSessions {
     }
 
     let mut session = self
-      .room_session(agent, chat_id)
+      .room_session(agent, chat_id, provider, &model)
       .await
       .map_err(|why| fault(FaultKind::Refused, detail(why)))?;
     let limits = &COMPANION_RUNNER.limits;

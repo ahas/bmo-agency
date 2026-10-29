@@ -1,8 +1,8 @@
 # A chat session's life
 
 How a chat session is kept and resumed, told of documents that changed under it, paced at a start,
-folded when its window fills and replaced only when its cache has gone cold or its context has reached its
-mark. Clearing a session on the owner's ask is `docs/session-resets.md`.
+folded when its window fills and replaced when its memory stops being worth its price. Clearing a
+session on the owner's ask is `docs/session-resets.md`.
 
 **Every agent session of this build is Claude Code.** No provider names dsh or the Codex CLI; the
 statements below about either are kept for a rollback to the road a deployment left.
@@ -325,26 +325,27 @@ statements below about either are kept for a rollback to the road a deployment l
 
 ## Session replacement
 
-- **A chat session is replaced only when its cache has gone cold or its context has reached its mark.**
-  Two things make a new session, and nothing else does: the cache lifetime its provider declares passed, or
-  a full session its provider hands over by its own note rather than folding it (`docs/provider-presence.md`
-  names each provider's declaration; the receiver makes the second call, its `docs/unified-bmo.md`,
-  「Replacing the session」). A session replaced for either reason is opened on the next run; the room hears
-  nothing. A reset the owner asks is the owner's own command and stands as one (`docs/session-resets.md`).
-- **Nothing else replaces it.** A road that moved (another provider, model, effort or login), a node that
-  moved, a prompt document written under the session, a downgrade, and a session with no record of its
-  prefix all resume the one session: the turn is appended to what it remembers, and the moved head is
-  written again on that turn. Where the session's record is not in the home the turn's program reads, it is
-  carried there — the CLI's transcript and its folder copied into that home's folder for the turn's
-  directory — and the turn resumes it.
-- **A record that is gone is a loss, not a replacement.** Where no home holds the session's record, the
-  turn opens a new session and the loss is told as one, with the handoff the receiver keeps for a fresh
-  session (the receiver's `docs/unified-bmo.md`, 「Replacing the session」).
-- **A replaced session hands nothing over.** No summary of a session is made or kept anywhere: the old
+- Folding a session is what happens when its window fills. Replacing one is what happens when its
+  memory has stopped being worth its price. A write to a document in the system prompt costs every
+  session holding it its cached prefix, so the next turn in each of those rooms writes that room's
+  whole context again — and a room that has been talking for a day carries hundreds of thousands of
+  tokens.
+- At the head of a turn, and only there, agency checks whether a prompt document was written after this
+  session last answered. If one was, this turn is paying for the whole context whatever happens, so
+  the two prices are compared (`packages/agent/freshstart.ts`): resuming costs what the session's last run
+  reported it was carrying, which the archive keeps on the chat's `agents` row and which every round
+  that got an answer writes, an unfinished `<<WAIT>>` round included; starting fresh costs the
+  system prompt alone, since the round's own messages are sent either way. A size
+  nothing has recorded, and a size a fold has just made meaningless, both read as unknown, and an
+  unknown session is never cut.
+- A fresh start is taken only when it saves at least a hundred thousand tokens **and** resuming
+  would write at least four times what it writes — a room a little over the line keeps its memory,
+  one carrying several times its own weight does not.
+- **A closed session hands nothing over.** No summary of a session is made or kept anywhere: the old
   session's record is not read, and the new session opens on its turn's words alone. A chat agent's
   session carries only the note the receiver hands in with its own turn, which is the receiver's.
+- The session id is cleared and a new session opens on the next run; the room hears nothing.
 - Who the people are reaches the new session by the brain's index, whose people group its first turn
   walks, and the person books, as on every turn.
-- A session is never replaced inside a turn: a replacement is judged between rounds, with nothing in
-  flight.
+- A session is never replaced inside a turn: the check runs between rounds, with nothing in flight.
 

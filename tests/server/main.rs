@@ -87,7 +87,6 @@ mod doctor;
 mod door {
   mod apart;
   mod aside;
-  mod carry;
   mod confirm;
   mod endpoint;
   mod execution;
