@@ -239,6 +239,9 @@ pub fn write_place_settings(
 
   settings.insert("statusLine".to_owned(), json!({ "type": "command", "command": call("status", &[]) }));
   settings.insert("hooks".to_owned(), Value::Object(hooks));
+  // The program runs with permissions bypassed, so its warning dialog would hold a fresh program at its
+  // start until a person answered it; the setting tells it the answer.
+  settings.insert("skipDangerousModePermissionPrompt".to_owned(), Value::Bool(true));
 
   let path = place.join("settings.json");
   let text = serde_json::to_string_pretty(&settings).map_err(|why| fault(why.to_string()))?;
