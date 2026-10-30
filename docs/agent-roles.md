@@ -92,6 +92,12 @@ made of is `docs/companions.md`.
 - **The chat line holds `gate.reference` too:** the gate's `gate/reference_index`, `gate/reference_piece`
   and `gate/reference_search`, shown by name, which read the brain's index, one piece of it and a search
   over its documents, rules and knowledge.
+- **The chat line holds `deploy`:** the testbed's `testbed/deploy`, booked rather than shown, which puts
+  one commit of a repository live through the tool host (the testbed's `docs/deploy.md`, 「The hosted deploy
+  tool」). The chat agent is the one that puts a closed job's commit live: a worker's close hands its commit
+  over as waiting to go live and never deploys, and the testbed's own verb refuses a harness's shell, so the
+  tool is the chat agent's one road to a deployment. The call is asynchronous; its outcome comes back to the
+  room as an instruction, which the agent relays.
 
 ## The worker role's bundles
 
