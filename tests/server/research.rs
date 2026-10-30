@@ -1,22 +1,27 @@
 //! Research runs (docs/research-runs.md): the research keys and their settings, the variables a run carries into
-//! its tool session's record, a research key's road on the one resolution — Claude Code alone carries the
-//! search line, and a closed road says so — a run asked on a named road alone, and the routes refusing what is
-//! no research or what nothing can carry now.
+//! its tool session's record, a research key's road on the one resolution — only a program that carries the
+//! search line is a road of it, and a closed road says so — a run asked on a named road alone, a run on the
+//! registry's provider composed in places on the registration's road, and the routes refusing what is no
+//! research or what nothing can carry now.
 
 use std::collections::HashMap;
 use std::os::unix::fs::PermissionsExt;
 use std::time::Duration;
 
 use agency_server::Service;
+use agency_server::chat_stand_in::{carries_own_turns, registered_door, road_step};
 use agency_server::config::Config;
 use agency_server::control::harness::{OrderEntry, set_provider_order};
+use agency_server::lines::chat::compose_stand_in;
+use agency_server::lines::runner::RunnerRun;
 use agency_server::lines::token::research_record;
 use agency_server::now_ms;
 use agency_server::places::Ground;
 use agency_server::research::*;
-use agency_server::road::{Ask, Named, resolve};
+use agency_server::road::{Ask, Named, Road, resolve};
 use agency_server::seeds::deployment;
 use bmo_agency_client::{ResearchKeySettings, ResearchRunAsk, ResearchSettingsChange};
+use harness_providers::registered::Registered;
 use harness_providers::{ARCHIVE_PROVIDERS, Machine};
 use serde_json::{Value, json};
 
@@ -435,6 +440,91 @@ async fn a_run_asked_on_a_named_road_goes_out_on_it_alone_or_is_refused_with_why
 
   assert_eq!(resting.road(), None);
   assert!(resting.sentence().contains("no login of it is open"), "{}", resting.sentence());
+}
+
+// A run on the registry's provider stands in places of its own as a member road's does, never on Claude
+// Code's logins: its first turn's program is Claude Code on the gateway under the registration's own home,
+// its model the registration's name (docs/research-runs.md, 「The road」).
+#[tokio::test(flavor = "multi_thread")]
+async fn a_run_on_the_registry_s_provider_goes_out_in_places_on_the_registration_s_road() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = ground_on(&scratch, home.path());
+  let machine = ground.machine();
+
+  store::seed::settle(scratch.db(), &deployment(&machine)).await.unwrap();
+  scratch
+    .run(
+      r#"INSERT INTO "registered_models" ("name", "label", "model", "context_tokens", "answer_tokens",
+            "wait_seconds", "thinking", "walked", "added_at", "keeps_research")
+         VALUES ('flash-next', 'Flash Next', 'served', 200000, 8000, 600, 1, 1, 1, 0)"#,
+      vec![],
+    )
+    .await;
+  scratch
+    .run(
+      r#"INSERT INTO "registered_model_addresses"
+           ("registration", "node", "position", "url", "key_file", "key_owned")
+         VALUES ('flash-next', 'n1', 1, 'http://127.0.0.1:9/v1/chat/completions', NULL, 0)"#,
+      vec![],
+    )
+    .await;
+  // The search keys' tier maps the registration on the registry, naming no thinking word of its own.
+  scratch
+    .run(
+      r#"INSERT INTO "model_tier_mappings" ("provider", "tier", "model", "effort")
+         VALUES ('registered', 'Frontier', 'flash-next', NULL)"#,
+      vec![],
+    )
+    .await;
+
+  // The registry's provider and a member road carry their own turns; Claude Code's are its logins'.
+  assert!(carries_own_turns("registered"));
+  assert!(carries_own_turns("deepseek"));
+  assert!(!carries_own_turns("claude-code"));
+
+  std::fs::write(home.path().join("search.md"), "You search.\n").unwrap();
+  std::fs::write(home.path().join("search.mcp.json"), r#"{"mcpServers":{}}"#).unwrap();
+
+  let line = RunnerRun {
+    line: "search",
+    model: "flash-next".into(),
+    effort: String::new(),
+    tier: "basic".into(),
+    system_prompt: home.path().join("search.md"),
+    mcp_config: home.path().join("search.mcp.json"),
+    tools_allowed: "",
+    thinking: true,
+    cwd: home.path().to_path_buf(),
+  };
+  let taken = Road {
+    provider: "registered".into(),
+    model: "flash-next".into(),
+    account: None,
+  };
+  let run = place_run(&line, &taken.model, None, "search-7", "what is open now", ground.env().clone());
+  let step = road_step(&ground, &machine, "search:basic", &taken, &run.reasoning).await.unwrap();
+  let door = registered_door(&ground, &machine, &taken.model).await.unwrap();
+  let composed = compose_stand_in(&ground, &machine, &run, &step, &door, &[], 1).await.unwrap();
+  let args = &composed.command.args;
+  let env = &composed.command.env;
+  let registration_home = Registered::home(&machine, "flash-next");
+
+  assert_eq!(step.provider, "registered");
+  assert_eq!(args.first().map(String::as_str), Some("claude"), "{args:?}");
+  assert!(args.windows(2).any(|pair| pair == ["--model", "flash-next"]), "{args:?}");
+  assert_eq!(
+    env.get("CLAUDE_CONFIG_DIR").map(String::as_str),
+    Some(registration_home.to_string_lossy().as_ref())
+  );
+  assert_eq!(env.get("ANTHROPIC_BASE_URL").map(String::as_str), Some("http://127.0.0.1:18030"));
+  assert_eq!(env.get("ANTHROPIC_MODEL").map(String::as_str), Some("flash-next"));
+  // No login of Claude Code's own rides along.
+  assert!(!env.contains_key("CLAUDE_CODE_OAUTH_TOKEN"), "{env:?}");
+  assert!(composed.account.is_none());
+  // Neither the line nor the mapping names a thinking word, so the registration's own default stands: on.
+  assert!(!env.contains_key("MAX_THINKING_TOKENS"), "{env:?}");
+  assert_eq!(composed.window.map(|window| window.context_tokens), Some(200_000));
 }
 
 async fn call(

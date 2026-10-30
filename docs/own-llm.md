@@ -794,10 +794,11 @@ bmo-agency agent --route <work key> --provider <auto|claude-code|codex|openroute
 - **Runs with tools go to Claude Code,** the program every line was written for, pointed at the gateway
   under the registration's name (「The gateway」 above). The line is the one a Claude run of it takes — the
   chat's, the worker's, a companion's (「A worker on a registered model is composed as on
-  Claude」 below). Its program carries the search and browse lines as Claude Code does, and a research run
-  goes out on it only as `research-runs.md` says, since a registration's window decides whether the
-  runner's instructions fit at all. The road changes only what follows, each value read from the
-  registration the run's model names as the run is started.
+  Claude」 below). Its program carries the search line, and a research run on it goes out in places of its
+  own as a member road's does, its program composed as a worker's job on the registration is
+  (`research-runs.md`, 「The road」); a research run reaches it only as that document says, since a
+  registration's window decides whether the runner's instructions fit at all. The road changes only what
+  follows, each value read from the registration the run's model names as the run is started.
   - **The endpoint:** the Anthropic base URL is the gateway, and every model Claude Code asks for a call
     of its own — its Opus, Sonnet and Haiku defaults and the subagent model — is the registration's
     gateway name, with its node where the run is placed on one (「Nodes and sessions」 above), so nothing
@@ -910,8 +911,9 @@ bmo-agency agent --route <work key> --provider <auto|claude-code|codex|openroute
   Claude's, which never passes the gateway. The gateway rewrites no prompt.
 - **What stays in the host:** a gate with no tool is one request and one answer, asked in the agent's
   host (「How requests go」 above). A gate on a registration stays a host agent; only a gate on Claude Code
-  stands programs of its own (`gates.md`). A runner's run on a registration is a run
-  apart (`docs/agents.md`, 「Runs apart」).
+  stands programs of its own (`gates.md`). A research run on a registration goes out in places of its own
+  (`research-runs.md`, 「The road」); any other runner's run on a registration is a run apart
+  (`docs/agents.md`, 「Runs apart」).
 - **Standing with nothing to do:** a worker pinned to a registered model has the program written into its
   place by the standing pass where the place holds no program, on the job line's run for the registration
   and a fresh session, so its pane shows Claude Code's input box before any job has run

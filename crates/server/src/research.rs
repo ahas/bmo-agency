@@ -1051,6 +1051,50 @@ async fn composed(
   }
 }
 
+/// One turn of a research run in a place of its own as the place's program is handed it
+/// (docs/research-runs.md, 「The road」): the line's standing instructions, the run's MCP servers and no tool
+/// of the program's own, on the model the road names. Whether it thinks is the line's own switch where it
+/// names one and the road's mapping otherwise; its effort is the road's mapping alone.
+pub fn place_run(
+  run: &RunnerRun,
+  model: &str,
+  thinking: Option<bool>,
+  place: &str,
+  prompt: &str,
+  env: BTreeMap<String, String>,
+) -> crate::lines::chat::ChatRun {
+  crate::lines::chat::ChatRun {
+    line: run.line,
+    agent: place.to_owned(),
+    model: model.to_owned(),
+    effort: run.effort.clone(),
+    tier: Some(run.tier.clone()),
+    reasoning: crate::lines::worker::Reasoning {
+      thinking,
+      level: None,
+    },
+    thinking: run.thinking,
+    system_path: run.system_prompt.clone(),
+    system_parts: None,
+    room: crate::lines::chat::RoomContext {
+      chat_id: 0,
+      text: String::new(),
+      mark: String::new(),
+    },
+    tools_shown: String::new(),
+    tools_allowed: String::new(),
+    mcp_config: run.mcp_config.clone(),
+    mcp_tools: None,
+    prompt: prompt.to_owned(),
+    persona_unused: None,
+    fold: false,
+    ping: false,
+    resume: None,
+    cwd: run.cwd.to_string_lossy().into_owned(),
+    env,
+  }
+}
+
 // A run under way: everything it was launched with.
 struct Going {
   ground: Arc<Ground>,
@@ -1288,14 +1332,12 @@ impl Going {
       keep_in_flight(&ground.db, self.ledger, &self.in_flight()).await;
     }
 
-    let (outcome, result, spent) = if taken_up.is_some()
-      || crate::chat_stand_in::inbox_declared(&self.taken.provider)
-      || crate::chat_stand_in::member_declared(&self.taken.provider)
-    {
-      self.on_places(&mut log, taken_up.as_ref()).await
-    } else {
-      self.on_claude(&mut log).await
-    };
+    let (outcome, result, spent) =
+      if taken_up.is_some() || crate::chat_stand_in::carries_own_turns(&self.taken.provider) {
+        self.on_places(&mut log, taken_up.as_ref()).await
+      } else {
+        self.on_claude(&mut log).await
+      };
 
     self.ended(outcome, result, spent, &mut log).await;
   }
@@ -1478,8 +1520,8 @@ impl Going {
     }
   }
 
-  // One turn of the run in a place of its own: the line's standing instructions, the run's MCP servers and no
-  // tool of the program's own, on the road the run went out on.
+  // One turn of the run in a place of its own, on the road the run went out on, its program composed as a
+  // worker's job on that road is.
   async fn in_place(
     &self,
     place: &str,
@@ -1493,36 +1535,11 @@ impl Going {
     mark_place(ground, place, self.ledger).map_err(NoAnswer::Failed)?;
     env.extend(vars.iter().map(|(name, value)| (name.clone(), value.clone())));
 
-    let run = crate::lines::chat::ChatRun {
-      line: self.run.line,
-      agent: place.to_owned(),
-      model: self.taken.model.clone(),
-      effort: self.run.effort.clone(),
-      tier: Some(self.run.tier.clone()),
-      reasoning: crate::lines::worker::Reasoning {
-        thinking: Some(self.run.thinking),
-        level: None,
-      },
-      thinking: self.run.thinking,
-      system_path: self.run.system_prompt.clone(),
-      system_parts: None,
-      room: crate::lines::chat::RoomContext {
-        chat_id: 0,
-        text: String::new(),
-        mark: String::new(),
-      },
-      tools_shown: String::new(),
-      tools_allowed: String::new(),
-      mcp_config: self.run.mcp_config.clone(),
-      mcp_tools: None,
-      prompt: prompt.to_owned(),
-      persona_unused: None,
-      fold: false,
-      ping: false,
-      resume: None,
-      cwd: self.run.cwd.to_string_lossy().into_owned(),
-      env,
-    };
+    let thinking = crate::lines::worker::reasoning_of(ground, &self.line)
+      .await
+      .map_err(|why| NoAnswer::Failed(why.detail))?
+      .thinking;
+    let run = place_run(&self.run, &self.taken.model, thinking, place, prompt, env);
 
     crate::chat_stand_in::job_turn_on(ground, log, &run, &self.ask.key, &self.taken, now_ms(), None).await
   }

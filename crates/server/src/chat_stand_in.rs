@@ -37,6 +37,15 @@ pub(crate) fn inbox_declared(provider: &str) -> bool {
     .is_some_and(|resident| resident.turns == Turns::Inbox)
 }
 
+/// Whether a provider's program carries its own turns, as its declaration says: a surface of its own puts a
+/// turn in and reads it back, so a run on it stands in a place of its own rather than walking Claude Code's
+/// logins — an inbox's, a member road's and the registry's provider's alike.
+pub fn carries_own_turns(provider: &str) -> bool {
+  harness_providers::provider(provider)
+    .and_then(|declared| declared.declared().resident.as_ref())
+    .is_some_and(|resident| resident.turns != Turns::Transcript)
+}
+
 // Whether a provider's turns are Claude Code on the gateway under a member of its own road. The registry's
 // provider is Claude Code too, but its models are registrations, not members.
 pub(crate) fn member_declared(provider: &str) -> bool {
@@ -548,6 +557,23 @@ async fn inbox_road(
   Ok(Ok(reply))
 }
 
+/// The door a turn on a registration goes out through: Claude Code on the gateway under the registration's
+/// own home, its address and key the gateway's and its model the registration's name, placed on the node a
+/// new session on it is given.
+pub async fn registered_door(
+  ground: &Ground,
+  machine: &Machine,
+  registration: &str,
+) -> Result<Door, Refusal> {
+  let placement = place_registered(ground, registration).await?;
+  let held = crate::lines::companion::registration_named(ground, registration).await?;
+
+  Ok(Door::Gateway {
+    held: Box::new(GatewayModel::registration(machine, &held)),
+    placement,
+  })
+}
+
 // One turn on a registered model's road: Claude Code on the gateway in the agent's pane, the registration
 // first held to the gateway's list, on a session of its own placed where the registration places it.
 #[allow(clippy::too_many_arguments)]
@@ -571,14 +597,7 @@ async fn registered_road(
     return Ok(Err(why));
   }
 
-  let placement = place_registered(ground, &step.model).await.map_err(refusal)?;
-  let held = crate::lines::companion::registration_named(ground, &step.model)
-    .await
-    .map_err(refusal)?;
-  let door = Door::Gateway {
-    held: Box::new(GatewayModel::registration(machine, &held)),
-    placement,
-  };
+  let door = registered_door(ground, machine, &step.model).await.map_err(refusal)?;
   let outcome = deliver(ground, machine, run, step, &door, log, answers, began, shown).await?;
   let Ok(mut reply) = outcome else { return Ok(outcome) };
 

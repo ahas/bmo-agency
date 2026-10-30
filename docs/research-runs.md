@@ -24,10 +24,12 @@ same way (`docs/launch-lines.md`, 「Translate runner」).
   row heads the walk, and the first provider that can answer now carries the run, on its first open login.
 - **Only a program that carries the line is a road of it.** A research line reaches the web and the brain
   through the run's MCP servers alone (`policy/run-lines.toml`). Claude Code carries the search and browse
-  lines. No provider of this build carries a research line but Claude Code; a key whose tier maps to another
-  provider walks on to the first provider that carries it. Where nothing can carry the run — every provider
-  of it off, its key missing, or every login of it closed — the run is refused, and the refusal names each
-  provider's reason and says that no other provider's program carries the line, with what it needs.
+  lines; DeepSeek's member road and the registry's provider carry the search line, each as Claude Code on
+  the gateway; no other provider's program carries a research line. A key whose tier maps to a provider
+  that does not carry its line walks on to the first provider that does. Where nothing can carry the run —
+  every provider of it off, its key missing, or every login of it closed — the run is refused, and the
+  refusal names each provider's reason and says that no other provider's program carries the line, with
+  what it needs.
 - **A run may be asked on a named road.** The caller names a provider, a model or both, and the run goes
   out on that road alone: the road resolution's walk restricted to it (`docs/cache-fallback.md`, 「One road
   resolution」), never moved off it. The provider named; where only the model is named, the providers of
@@ -42,18 +44,27 @@ same way (`docs/launch-lines.md`, 「Translate runner」).
 - **On Claude Code a run goes out in a pane of its own** as a run apart (`docs/agents.md`, 「Runs apart」):
   the runner's line as `docs/launch-lines.md` 「Search runner」 and 「Browse runner」 compose it, its
   standing instructions as the system prompt and the request as its words.
-- **A run on a member road goes out in places of its own,** as the dsh road's did: the first answer in a
-  place named after the ledger's run, `search-<runId>`, and the rounds in a second,
+- **A run on a road whose program carries its own turns goes out in places of its own:** a member road's
+  and the registry's provider's, as their declarations say, never Claude Code's logins. The first answer
+  goes in a place named after the ledger's run, `search-<runId>`, and the rounds in a second,
   `search-<runId>-rounds`, so the rounds read a session of their own.
-  - **Its program** is Claude Code on the gateway under the member, with the member's home, window, answer
-    ceiling and wait: the search line's standing instructions as the system prompt, the run's MCP servers —
-    the tool host's `bmo` and `web` namespaces — on a session token issued for that place, whose record
-    carries the run's research settings as a Claude Code run's does (「What a run is held to」). The dsh
-    overlay the same place stands on a rollback is the dormant road's, not this one's.
+  - **Its program** is Claude Code on the gateway, composed as a worker's job on that road is: on a member
+    road under the member, with the member's home, window, answer ceiling and wait; on the registry's
+    provider under the registration the run names, with the registration's own home, the gateway's address
+    and key, the registration's name as the model, its window, answer ceiling and wait. A registration takes
+    no effort level, only whether it thinks: the search line's own thinking setting where that names one,
+    the key's tier mapping on the registry where it names a word, and the registration's default otherwise
+    (`docs/own-llm.md`, 「How requests go」). On either road the search line's standing instructions are the
+    system prompt, and the run's MCP servers — the tool host's `bmo` and `web` namespaces — go on a session
+    token issued for that place, whose record carries the run's research settings as a Claude Code run's
+    does (「What a run is held to」). The dsh overlay the same place stands on a rollback is the dormant
+    road's, not this one's.
   - **Its words** are one turn of the place's Claude Code session, the request first and each round's
     question after, and its answer is read back out of the transcript.
   - **What it spent** is the transcript's own figures for each turn, the input, output and cache-read
-    tokens the member's backend answered, summed over the run's turns as the ledger keeps them.
+    tokens the member's backend or the registration's engine answered, summed over the run's turns as the
+    ledger keeps them. A run whose turns' records carry no figures — a registration whose engine answers
+    none — is closed in the ledger with none.
   - **Each place keeps a record naming the run** while the run stands in it, `research-place.json`, so it
     stands under no agent's row and no sweep of leftovers takes it down.
   - **Both places are ended with the run,** however it ends — answered, cut or stopped — their programs
