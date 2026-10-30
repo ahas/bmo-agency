@@ -20,9 +20,10 @@ use super::place::{
   Holds, Place, Program, Standby, command_digest, read_settings, resident_of, write_place_settings,
 };
 use super::prefix::{PrefixReading, prefix_digest};
-use super::worker::{self, LINE, WorkerRun, configured, effort_of, worker_run};
+use super::worker::{self, LINE, WorkerRun, configured, effort_of, worker_run, worker_run_on};
 use super::{Trees, fault};
 use crate::control::claude_accounts::{self, Account, SEED_ACCOUNT};
+use crate::control::pool::native_provider;
 use crate::control::registry;
 use crate::places::Ground;
 use crate::places::trust::{config_file, mark_onboarded, trust_folder};
@@ -289,7 +290,7 @@ pub(crate) async fn pinned_run(
   provider: &str,
   model: Option<&str>,
 ) -> Result<(WorkerRun, Option<i64>), Refusal> {
-  let base = worker_run(ground, trees, Some(worker), None, WORKER_MODEL, cwd).await?;
+  let base = worker_run_on(ground, trees, Some(worker), None, WORKER_MODEL, cwd, provider).await?;
   let Some(model) = model else {
     return Ok((configured(ground, machine, base, provider).await?, None));
   };
@@ -415,6 +416,7 @@ pub async fn member_command(
     thinking: Some(run.thinking),
     claude_effort,
     backend_effort: Some(&run.effort),
+    own_coworkers: native_provider(road) == road,
   };
 
   gateway_command(ground, machine, held, on, answer_tokens, placing, |name, effort, thinking, settings| {
@@ -467,6 +469,7 @@ pub async fn registered_command(
     thinking: None,
     claude_effort: None,
     backend_effort: None,
+    own_coworkers: native_provider(Registered.name()) == Registered.name(),
   };
 
   gateway_command(
@@ -580,6 +583,10 @@ pub struct OnGateway<'a> {
   pub claude_effort: Option<&'a str>,
   /// The backend effort word the gateway is asked with, where the provider has one.
   pub backend_effort: Option<&'a str>,
+  /// Whether the run's co-worker definitions were resolved on the run's own provider, each naming the
+  /// model its role maps to there, which leaves the subagent model unset so each definition's own
+  /// governs; otherwise the subagent model is the run's own name.
+  pub own_coworkers: bool,
 }
 
 /// The command Claude Code stands on for a line on a model of the gateway: the model's home settled, the
@@ -667,9 +674,15 @@ pub async fn gateway_command(
       .map(|(name, value)| (name.clone(), Some(value.clone()))),
   );
 
-  for (variable, value) in
-    gateway_variables(ground, held, &home, &name, answer_tokens.unwrap_or(held.answer_tokens), &headers)
-  {
+  for (variable, value) in gateway_variables(
+    ground,
+    held,
+    &home,
+    &name,
+    (!on.own_coworkers).then_some(name.as_str()),
+    answer_tokens.unwrap_or(held.answer_tokens),
+    &headers,
+  ) {
     env.insert(variable.to_owned(), value);
   }
 
@@ -832,15 +845,17 @@ pub fn fold_share(window: i64, answer: i64) -> String {
 }
 
 /// What Claude Code is pointed at the gateway with for a run on a registration, under the name the run is
-/// sent as (docs/own-llm.md, 「The gateway」): no login of its own, the registration's home, the gateway's
-/// address, the name in every model slot, the window and answer it is sized to and the fold that leaves the
-/// answer room, and how long a request is waited for, by the program and by the runtime under it, with the
-/// headers given.
+/// sent as (docs/own-llm.md, 「How requests go」): no login of its own, the registration's home, the
+/// gateway's address, the name in every model slot of the run's own and `subagent` in the subagent slot,
+/// left unset where it is none so each co-worker definition's own model governs, the window and answer it
+/// is sized to and the fold that leaves the answer room, and how long a request is waited for, by the
+/// program and by the runtime under it, with the headers given.
 pub(crate) fn gateway_variables(
   ground: &Ground,
   held: &GatewayModel,
   home: &Path,
   name: &str,
+  subagent: Option<&str>,
   answer_tokens: i64,
   headers: &[String],
 ) -> Vec<(&'static str, Option<String>)> {
@@ -861,7 +876,7 @@ pub(crate) fn gateway_variables(
     ("ANTHROPIC_DEFAULT_OPUS_MODEL", Some(name.to_owned())),
     ("ANTHROPIC_DEFAULT_SONNET_MODEL", Some(name.to_owned())),
     ("ANTHROPIC_DEFAULT_HAIKU_MODEL", Some(name.to_owned())),
-    ("CLAUDE_CODE_SUBAGENT_MODEL", Some(name.to_owned())),
+    ("CLAUDE_CODE_SUBAGENT_MODEL", subagent.map(str::to_owned)),
     ("CLAUDE_CODE_ATTRIBUTION_HEADER", Some("0".to_owned())),
     ("CLAUDE_CODE_MAX_CONTEXT_TOKENS", Some(held.context_tokens.to_string())),
     ("CLAUDE_CODE_MAX_OUTPUT_TOKENS", Some(answer_tokens.to_string())),

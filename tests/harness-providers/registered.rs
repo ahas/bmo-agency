@@ -57,3 +57,12 @@ fn the_gateway_program_is_the_registrys_and_a_deepseek_accounts_is_claude_codes(
   // A registration's home names its road whichever endpoint it is pointed at.
   assert_eq!(owner(&machine, &registration, Some("https://api.deepseek.com/anthropic")), "registered");
 }
+
+// A registration's effort words say whether it thinks, which Claude Code says as `medium` and `low`; a word
+// that is no registration's has no Claude Code word (docs/own-llm.md, 「How requests go」).
+#[test]
+fn a_registrations_thinking_words_are_claude_codes_medium_and_low() {
+  assert_eq!(Registered.claude_effort("thinking"), Some("medium"));
+  assert_eq!(Registered.claude_effort("no-thinking"), Some("low"));
+  assert_eq!(Registered.claude_effort("high"), None);
+}

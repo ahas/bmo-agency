@@ -800,9 +800,17 @@ bmo-agency agent --route <work key> --provider <auto|claude-code|codex|openroute
   registration's window decides whether the runner's instructions fit at all. The road changes only what
   follows, each value read from the registration the run's model names as the run is started.
   - **The endpoint:** the Anthropic base URL is the gateway, and every model Claude Code asks for a call
-    of its own — its Opus, Sonnet and Haiku defaults and the subagent model — is the registration's
-    gateway name, with its node where the run is placed on one (「Nodes and sessions」 above), so nothing
-    the run does asks a model the gateway does not serve and no request of one session leaves its node.
+    of the run's own — its Opus, Sonnet and Haiku defaults — is the registration's gateway name, with its
+    node where the run is placed on one (「Nodes and sessions」 above), so nothing the run itself does
+    asks a model the gateway does not serve and no request of the run's own session leaves its node.
+  - **Its co-workers' requests go where their tier maps:** a worker's run carries co-worker definitions
+    resolved on the registry's provider, each naming the registration its role's tier maps to there, and
+    its subagent model is left unset, so a native co-worker asks the gateway for its own definition's
+    registration under its name alone. Those requests are spread over that registration's addresses,
+    which may stand on other nodes than the run's (「A worker on a registered model is composed as on
+    Claude」 below). Where every tier maps to the run's own registration, its co-workers are that
+    registration again. A run that carries no co-worker definitions — a chat's, a companion's — has its
+    subagent model set to the registration's gateway name like the defaults.
   - **No login of the Claude road:** the run's records go under a configuration home of the
     registration's own under the data root, which holds no login, and no account's token or directory is
     handed over. It is the data root's since a session resumed across a deployment needs its record
@@ -936,10 +944,13 @@ bmo-agency agent --route <work key> --provider <auto|claude-code|codex|openroute
 - **What the road changes is the model and the endpoint alone:** the gateway's address and key, the
   registration's name, window, answer ceiling and request wait (「How requests go」 above), beside the
   effort word and the records home every run on a registration has.
-- **Its co-workers are the registry's:** the registry's provider lends co-workers, so a native agent
-  call of a run on a registration takes its seat on the registry, at the registration the role's tier
-  maps to there, held to the registry's limit of that tier (`docs/model-tiers.md`, 「Common co-worker
-  capacity」; `docs/coworker-pool.md`, 「Native co-worker places」).
+- **Its co-workers are the registry's:** the registry's provider lends co-workers, so the co-worker
+  definitions a run on a registration is handed are resolved on the registry — each role's definition
+  names the registration its `role:<name>` key maps to there, with the Claude Code effort word of that
+  mapping's thinking — and a native agent call of the run takes its seat on the registry, at that
+  registration, held to the registry's limit of that tier (`docs/model-tiers.md`, 「Common co-worker
+  capacity」; `docs/coworker-pool.md`, 「Native co-worker places」). The child runs on its definition's
+  registration, which is its parent's only where its tier maps there (「How requests go」 above).
 - **Its first request** is the whole line — the tool definitions, the MCP server among them, the system
   prompt, and the opening lines that carry the checkout's `CLAUDE.md` and the skill listing — plus a
   job's prompt where there is one, read by the engine before its first byte. A job writes nothing to its

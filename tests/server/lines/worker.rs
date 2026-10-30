@@ -12,6 +12,7 @@ use agency_server::lines::Trees;
 use agency_server::lines::claude::{
   COMPACT_SHARE, Command, Runs, command_env, line_environment, worker_args,
 };
+use agency_server::lines::standing::registered_program;
 use agency_server::lines::worker::worker_run;
 use agency_server::places::Ground;
 use harness_providers::Machine;
@@ -263,4 +264,85 @@ async fn a_worker_s_rules_carry_the_report_trailer_before_its_documents_and_a_br
   let branch = worker_run(&ground, &trees, None, None, "claude-opus-5", &cwd).await.unwrap();
 
   assert!(!std::fs::read_to_string(&branch.rules).unwrap().contains(opening));
+}
+
+// A worker's co-worker definitions are resolved where its program's native calls take their seats: on
+// Claude Code each role names the Claude model and effort its tier maps to there, and on the registry the
+// registration its tier maps to there, with that mapping's thinking in Claude Code's effort word. A worker
+// standing on the registry leaves the subagent model to those definitions, while every model of its own run
+// stays its own registration (docs/model-tiers.md, 「Common co-worker capacity」; docs/own-llm.md, 「How
+// requests go」).
+#[tokio::test]
+async fn a_worker_s_co_workers_are_defined_on_the_provider_its_program_stands_on() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+
+  for sql in [
+    r#"INSERT INTO "coworker_pool_roles" ("name", "description", "prompt", "tools", "skills", "enabled", "pooled", "set_at")
+       VALUES ('tracer', 'Traces a road', 'Trace the road.', '', '', 1, 1, 0) ON CONFLICT DO NOTHING"#,
+    r#"INSERT INTO "model_tier_assignments" ("key", "tier") VALUES ('role:tracer', 'Light')
+       ON CONFLICT ("key") DO UPDATE SET "tier" = excluded."tier""#,
+    r#"INSERT INTO "model_tier_mappings" ("provider", "tier", "model", "effort") VALUES ('claude-code', 'Light', 'claude-sonnet-5', 'low')
+       ON CONFLICT ("provider", "tier") DO UPDATE SET "model" = excluded."model", "effort" = excluded."effort""#,
+    r#"INSERT INTO "registered_models" ("name", "label", "model", "context_tokens", "answer_tokens",
+          "wait_seconds", "thinking", "walked", "added_at", "keeps_research")
+       VALUES ('run-registration', 'Run', 'served', 200000, 8000, 600, 1, 1, 1, 0)"#,
+    r#"INSERT INTO "registered_model_addresses" ("registration", "node", "position", "url", "key_file", "key_owned")
+       VALUES ('run-registration', 'n1', 1, 'http://127.0.0.1:9/v1/chat/completions', NULL, 0)"#,
+  ] {
+    scratch.run(sql, vec![]).await;
+  }
+
+  // Every tier on the registry maps to the run's own registration but Light, the tracer's, which maps to
+  // another.
+  for (tier, model, effort) in [
+    ("Frontier", "run-registration", None),
+    ("Reliable", "run-registration", None),
+    ("Fine", "run-registration", None),
+    ("Light", "coder-registration", Some("thinking")),
+    ("Simple", "run-registration", None),
+  ] {
+    scratch
+      .run(
+        r#"INSERT INTO "model_tier_mappings" ("provider", "tier", "model", "effort") VALUES ('registered', $1, $2, $3)
+           ON CONFLICT ("provider", "tier") DO UPDATE SET "model" = excluded."model", "effort" = excluded."effort""#,
+        vec![Value::from(tier), Value::from(model), Value::from(effort.map(str::to_owned))],
+      )
+      .await;
+  }
+
+  let ground = ground(&scratch, &home).await;
+  let trees = Trees::of(&ground);
+  let on_claude = worker_run(&ground, &trees, Some("worker"), None, "claude-opus-5", "/work")
+    .await
+    .unwrap();
+  let on_claude: serde_json::Value = serde_json::from_str(&on_claude.agents_json).unwrap();
+
+  assert_eq!(on_claude["tracer"]["model"], "claude-sonnet-5");
+  assert_eq!(on_claude["tracer"]["effort"], "low");
+
+  let standing =
+    registered_program(&ground, &ground.machine(), "worker", "/work", Some("run-registration"))
+      .await
+      .unwrap();
+  let command = standing.program.command;
+  let at = command.args.iter().position(|arg| arg == "--agents").unwrap();
+  let on_registry: serde_json::Value = serde_json::from_str(&command.args[at + 1]).unwrap();
+
+  assert_eq!(on_registry["tracer"]["model"], "coder-registration");
+  assert_eq!(on_registry["tracer"]["effort"], "medium");
+  assert!(
+    !command.env.contains_key("CLAUDE_CODE_SUBAGENT_MODEL"),
+    "the subagent model is left to the definitions: {:?}",
+    command.env
+  );
+
+  for slot in [
+    "ANTHROPIC_MODEL",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+  ] {
+    assert_eq!(command.env.get(slot).map(String::as_str), Some("run-registration"), "{slot}");
+  }
 }

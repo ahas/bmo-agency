@@ -116,6 +116,16 @@ impl Provider for Registered {
     }
   }
 
+  // A registration's words say whether it thinks, which Claude Code says as `medium` for thinking and `low`
+  // for none (docs/own-llm.md, 「How requests go」).
+  fn claude_effort(&self, word: &str) -> Option<&'static str> {
+    match word {
+      "thinking" => Some("medium"),
+      "no-thinking" => Some("low"),
+      _ => None,
+    }
+  }
+
   // A run on a registration that carries tools is Claude Code on the gateway, whose events name its session as
   // Claude Code's do.
   fn session_of_event(&self, event: &serde_json::Value) -> Option<String> {

@@ -148,6 +148,12 @@ Branch prefix digests include effective effort. A co-work reservation for a task
   lends co-workers, at the tier the role's `role:<type>` mapping gives on it — a worker on the registry
   takes its children's seats on the registry, at the registration each child's tier maps to there. A
   program no provider owns is Claude Code's, and its children's seats are Claude Code's.
+- **A native co-worker runs on the model its seat names.** The co-worker definitions a worker's program
+  is handed are resolved on the same provider as its seats, each naming the model and effort its role's
+  `role:<type>` mapping gives there, and the program asks for that model rather than its own: a child of
+  a worker on the registry runs on the registration its tier maps to, wherever that registration's
+  addresses stand, and a child of a worker on Claude Code on the Claude model its tier maps to. A worker
+  on a provider that lends none is handed Claude Code's definitions, and the gate refuses their calls.
 - **The limit.** `coworker_pool_tier_limits` answers how many children of one co-worker tier may be
   alive on one provider. A limit is keyed by provider and tier, never by the model the tier currently
   resolves to, so editing a mapping or a role's assignment never leaves a request without a limit, and

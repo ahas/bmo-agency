@@ -1227,6 +1227,7 @@ pub async fn compose_stand_in(
         thinking,
         claude_effort,
         backend_effort,
+        own_coworkers: false,
       };
       let (mut command, _) = gateway_command(
         ground,

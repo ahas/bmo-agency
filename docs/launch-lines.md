@@ -271,7 +271,9 @@
   checkout that stands beside agency's in its workspace, or the one `BMO_SKILLS_DIR` names, before the
   deploy tree flips, so a skill the skills repository gains reaches the next job after the next
   deployment; the copy a checkout of this repository carries stands for a tree no deployment placed — the five co-worker
-  definitions as JSON with the model and the effort each type runs at and the plugin skills a
+  definitions as JSON with the model and the effort each type runs at, as its role's mapping gives them
+  on the provider the worker's program stands on where it lends co-workers and on Claude Code otherwise,
+  and the plugin skills a
   type is started with, the settings the worker is
   held to — which is also where the Bash tool's wait for a job's command is set, a minute by
   default and ten at most, and where the hook stands that reads every shell command a job runs

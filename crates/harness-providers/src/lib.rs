@@ -319,7 +319,7 @@ pub trait Provider: Sync {
   }
 
   /// The Claude Code effort word a run of the backend word goes out with, where the provider's words and
-  /// Claude Code's differ; none where the launch keeps its own word for whether the run thinks.
+  /// Claude Code's differ; none where its words are Claude Code's own.
   fn claude_effort(&self, word: &str) -> Option<&'static str> {
     let _ = word;
 

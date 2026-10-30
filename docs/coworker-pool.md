@@ -27,7 +27,9 @@ warming and standing checkouts, is agency's.
 - **A worker line's native `Agent`:** the child runs inside the worker's own program, so the worker
   settings' hook puts the request into the provider that program stands on and the tier the
   `role:<name>` mapping gives on it before the call, and sends the call only after taking a place
-  (「Native co-worker places」 below).
+  (「Native co-worker places」 below). The role definition the line was handed was resolved on the same
+  provider and names the model and effort that mapping gives there, so the child runs on the model its
+  seat is counted under.
 - **Refused:** a type not in a stored role (a CLI default type like `general-purpose`) follows the
   parent model, and a call re-invoked inside a co-worker spreads one more level outside the pool, so
   both are refused. A native call on a line that is not a worker line is refused too.

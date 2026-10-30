@@ -20,6 +20,7 @@ use super::{Trees, fault, publish_text, read_required};
 use crate::Refusal;
 use crate::control::claude_accounts::Account;
 use crate::control::harness::{levels, named};
+use crate::control::pool::{NATIVE_PROVIDER, native_provider};
 use crate::control::tiers;
 use crate::places::Ground;
 use crate::queue::routes::JOB_WORK_KEY;
@@ -410,15 +411,18 @@ fn plugin_skills(plugin_dir: &Path) -> Result<Vec<String>, Refusal> {
   )
 }
 
-/// The co-worker definitions a job is handed whole: every enabled role, on the model and effort its
-/// own key maps to on Claude Code, its prompt — which stands in the place of the subagent's own — opened by
-/// the platform's harness and closed by the worker's rules, and only the skills the plugin carries.
+/// The co-worker definitions a job is handed whole: every enabled role, on the model its own key maps to
+/// on `provider` — the one its native calls take their seats on — and that mapping's effort in Claude
+/// Code's word, its prompt — which stands in the place of the subagent's own — opened by the platform's
+/// harness and closed by the worker's rules, and only the skills the plugin carries.
 pub async fn coworkers_json(
   ground: &Ground,
   trees: &Trees,
   plugin_dir: &Path,
   rules: &str,
+  provider: &str,
 ) -> Result<String, Refusal> {
+  let words = named(provider).map_err(|refused| fault(refused.error))?;
   let carried = plugin_skills(plugin_dir)?;
   let harness = read_required(&trees.harness_path())?;
   let rows = all(
@@ -434,9 +438,11 @@ pub async fn coworkers_json(
   for row in rows {
     let name: String = row.try_get("", "name")?;
     let prompt: String = row.try_get("", "prompt")?;
-    let mapping = tiers::resolve(&ground.db, &format!("role:{name}"), "claude-code")
-      .await
-      .map_err(fault)?;
+    let mapping = tiers::resolve(&ground.db, &format!("role:{name}"), provider).await.map_err(fault)?;
+    let effort = mapping
+      .effort
+      .map(|word| words.claude_effort(&word).map_or(word, str::to_owned))
+      .unwrap_or_default();
 
     definitions.push((
       name,
@@ -449,7 +455,7 @@ pub async fn coworkers_json(
           .filter(|skill| carried.contains(skill))
           .collect(),
         model: mapping.model,
-        effort: mapping.effort.unwrap_or_default(),
+        effort,
       },
     ));
   }
@@ -467,9 +473,10 @@ pub fn mcp_config(ground: &Ground, trees: &Trees) -> Result<PathBuf, Refusal> {
   })
 }
 
-/// The worker's run on its line: `worker` names the worker whose own documents, thinking, level and
-/// base prompt it carries, none for a run that is no worker's in particular, and `account` the login it
-/// goes out on, whose base prompt stands where the line's own choice would.
+/// The worker's run on its line in Claude Code's own program: `worker` names the worker whose own
+/// documents, thinking, level and base prompt it carries, none for a run that is no worker's in
+/// particular, and `account` the login it goes out on, whose base prompt stands where the line's own
+/// choice would.
 pub async fn worker_run(
   ground: &Ground,
   trees: &Trees,
@@ -477,6 +484,21 @@ pub async fn worker_run(
   account: Option<&Account>,
   model: &str,
   cwd: &str,
+) -> Result<WorkerRun, Refusal> {
+  worker_run_on(ground, trees, worker, account, model, cwd, NATIVE_PROVIDER).await
+}
+
+/// The worker's run on its line in a program standing on `provider`, whose co-worker definitions are
+/// resolved where that program's native calls take their seats (docs/model-tiers.md, 「Common co-worker
+/// capacity」).
+pub async fn worker_run_on(
+  ground: &Ground,
+  trees: &Trees,
+  worker: Option<&str>,
+  account: Option<&Account>,
+  model: &str,
+  cwd: &str,
+  provider: &str,
 ) -> Result<WorkerRun, Refusal> {
   let named = match worker {
     Some(worker) => Some(documents_of(ground, worker).await?),
@@ -537,7 +559,7 @@ pub async fn worker_run(
     rules,
     mcp_config: mcp_config(ground, trees)?,
     settings: worker_dir.join("settings.json"),
-    agents_json: coworkers_json(ground, trees, &plugin_dir, &shared).await?,
+    agents_json: coworkers_json(ground, trees, &plugin_dir, &shared, native_provider(provider)).await?,
     plugin_dir,
     tools_denied: RUN_LINES.line(LINE).map(|line| line.tools_denied.join(",")).unwrap_or_default(),
     cwd: cwd.to_owned(),

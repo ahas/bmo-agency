@@ -12,6 +12,19 @@ use super::Refused;
 use super::harness::{named, provider_order};
 use store::{all, one, run};
 
+/// The provider a native co-worker's seat and model stand on where its program stands on no provider that
+/// lends co-workers of its own: Claude Code, whose program a native call runs inside.
+pub const NATIVE_PROVIDER: &str = "claude-code";
+
+/// The provider the native co-workers of a program standing on `provider` take their seats and models on:
+/// that provider where it lends co-workers, Claude Code where it lends none or is not one of this build.
+pub fn native_provider(provider: &str) -> &'static str {
+  named(provider)
+    .ok()
+    .filter(|one| one.declared().lends_coworkers)
+    .map_or(NATIVE_PROVIDER, |one| one.name())
+}
+
 /// One co-worker role as the pool holds it.
 #[derive(Clone, Debug)]
 pub struct Role {

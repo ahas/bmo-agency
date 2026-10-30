@@ -13,7 +13,7 @@ use serde_json::{Value, json};
 
 use super::VerbError;
 use crate::control::harness::named;
-use crate::control::pool::roles;
+use crate::control::pool::{NATIVE_PROVIDER, roles};
 use crate::control::tiers::{self, Mapping};
 use crate::now_ms;
 use crate::order_run::dispatch::{
@@ -32,10 +32,6 @@ pub const SINGLE_MODEL_REFUSAL: &str = "The co-worker gate refused this: this ru
 pub const NATIVE_WAIT: Duration = Duration::from_secs(4 * 60);
 const POLL: Duration = Duration::from_millis(500);
 const RECLAIM_EVERY: Duration = Duration::from_secs(5);
-
-/// The provider a native call's seat stands on where its program stands on no provider that lends
-/// co-workers of its own: Claude Code, whose program a native call runs inside.
-const NATIVE_PROVIDER: &str = "claude-code";
 
 /// The usage the reservation verb answers a wrong line with.
 pub const USAGE: &str =
