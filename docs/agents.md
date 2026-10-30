@@ -15,7 +15,9 @@ program is spoken to is `docs/agent-control.md`.
   - its kind: the machinery that carries its turns — a conversation in rooms, a worker's jobs, a gate's
     judgements, a runner line's runs;
   - its role: the function bundles its turns are given (`docs/agent-roles.md`);
-  - its pin: the provider its turns go out on and that provider's model or registration;
+  - its pin, its own fixed model: a provider and one model of it — a catalogue model, a road's member or a
+    registration — at the head of the walk its turns go out on, a worker's jobs, standing program and
+    direct turns among them (`docs/model-tiers.md`, 「An agent's own model」);
   - its own prompt: the documents and settings its system prompt is composed from;
   - its folder, the worker its TODO items go to, its thinking and effort;
   - for a conversational agent, its session's scope, its turn's shape and whether it answers the rooms

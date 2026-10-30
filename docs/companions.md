@@ -154,7 +154,7 @@ are the companion unit's, not agency's. This document covers only what agency ho
 - **The program's model is the one the companion answers on:** its pin's where it keeps a fixed model,
   resolved to the registration its model names and an address that registration holds now, never the
   row's `last_model`; else the supervisor route's, read as the supervisor key's road stands
-  (`docs/model-tiers.md`, 「A supervisor's own model」). A pin moved, a route moved or a registration that
+  (`docs/model-tiers.md`, 「An agent's own model」). A pin moved, a route moved or a registration that
   lost the address the program stood on lets the old program go; the next turn stands the model the
   companion answers on now.
 

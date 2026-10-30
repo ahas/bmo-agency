@@ -201,7 +201,7 @@ pub const OPERATIONS: &[Operation] = &[
     path: "/agents/{agentName}",
     id: "changeAgent",
     tag: "agents",
-    summary: "Change an agent's gates, reasoning, role or voice.",
+    summary: "Change an agent's gates, reasoning, role, voice or own model.",
     params: &[Param {
       name: "agentName",
       place: "path",
@@ -211,7 +211,7 @@ pub const OPERATIONS: &[Operation] = &[
     }],
     body: Some("AgentChange"),
     answers: &[(200, Some("Agent"), false)],
-    codes: &["not-found"],
+    codes: &["bad-request", "not-found"],
   },
   Operation {
     method: "DELETE",

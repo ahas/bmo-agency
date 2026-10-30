@@ -426,3 +426,64 @@ async fn a_chat_agents_fixed_model_heads_its_keys_walk_and_its_clearing_returns_
 
   assert_eq!(route.pinned, None, "{route:?}");
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_claude_pin_keeps_its_model_at_the_head_of_a_workers_jobs_and_a_runners_key() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = ground_on(scratch.db().clone(), home.path());
+
+  store::seed::settle(scratch.db(), &deployment(&ground.machine())).await.unwrap();
+  order(scratch.db(), &[("claude-code", true), ("registered", true)]).await;
+  scratch
+    .run(
+      r#"INSERT INTO "agents" ("name", "kind", "pinned_provider", "pinned_model", "support_of")
+         VALUES ('helper', 'worker', 'claude-code', 'claude-fable-5-1', NULL),
+                ('helper-support', 'worker', NULL, NULL, 'helper'),
+                ('plain', 'worker', NULL, NULL, NULL),
+                ('search', 'runner', 'claude-code', 'claude-fable-5-1', NULL)"#,
+      vec![],
+    )
+    .await;
+
+  // A runner's agent keeps its fixed model at the head of the key named after it, as any agent does.
+  let runner = resolve(&ground, &Ask::key("search")).await.unwrap();
+
+  assert_eq!(
+    runner.head().map(|head| (head.provider, head.model)),
+    Some(("claude-code".to_owned(), "claude-fable-5-1".to_owned())),
+    "{runner:?}"
+  );
+
+  // The pin's provider and model head the job's walk, and the job's selection names them.
+  for worker in ["helper", "helper-support"] {
+    let ask = Ask {
+      worker: Some(worker),
+      ..Ask::key("job-worker")
+    };
+    let pinned = resolve(&ground, &ask).await.unwrap();
+
+    assert_eq!(pinned.pinned.as_deref(), Some("claude-code"), "{worker}: {pinned:?}");
+    assert_eq!(
+      pinned.road().map(|road| (road.provider.as_str(), road.model.as_str())),
+      Some(("claude-code", "claude-fable-5-1")),
+      "{worker}: {pinned:?}"
+    );
+    assert_eq!(
+      agency_server::queue::routes::resolve_job_model(scratch.db(), None, Some(worker))
+        .await
+        .unwrap(),
+      "claude-code::claude-fable-5-1"
+    );
+  }
+
+  // A worker with no pin goes out on the job key's tier mapping.
+  let ask = Ask {
+    worker: Some("plain"),
+    ..Ask::key("job-worker")
+  };
+  let plain = resolve(&ground, &ask).await.unwrap();
+
+  assert_eq!(plain.pinned, None, "{plain:?}");
+  assert_ne!(plain.road().map(|road| road.model.as_str()), Some("claude-fable-5-1"), "{plain:?}");
+}

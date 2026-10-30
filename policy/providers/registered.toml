@@ -55,9 +55,9 @@ interrupt = ["escape"]
 # Its surface carries its own turns: Claude Code's transcript door, each turn on a session of its own
 # unless it goes on in the one the program stands on (docs/own-llm.md, 「Claude Code in the pane」).
 turns = "endpoint"
-# Words said while a turn works wait for the next turn: a registration's window is too small to carry
-# them into one already going.
-words_mid_turn = false
+# Words put in while a turn works are taken into that turn: its pane's Claude Code takes them as the
+# claude-code provider's does, and a registration's window carries them.
+words_mid_turn = true
 # A conversation grown to its mark is handed over by a turn asking it for its note, which a new session opens
 # with: the program's own fold goes out on a request of its own shape the engine holds no saved state for, and
 # reads the whole conversation again (docs/companions.md, 「Its limit」).

@@ -117,6 +117,9 @@ pub struct AgentsWords {
   pub model_registration: String,
   pub model_registration_missing: String,
   pub model_route_only: String,
+  pub model_provider: String,
+  pub model_line: String,
+  pub model_none: String,
 }
 
 /// The roles an agent may hold, as the owner adds, changes and removes them.

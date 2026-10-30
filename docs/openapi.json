@@ -620,7 +620,7 @@
         "tags": [
           "agents"
         ],
-        "summary": "Change an agent's gates, reasoning, role or voice.",
+        "summary": "Change an agent's gates, reasoning, role, voice or own model.",
         "responses": {
           "200": {
             "description": "Answered.",
@@ -635,12 +635,16 @@
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
           "404": {
             "$ref": "#/components/responses/NotFound"
           }
         },
         "x-codes": [
           "unauthorized",
+          "bad-request",
           "not-found"
         ],
         "parameters": [
@@ -6685,9 +6689,50 @@
               "null"
             ]
           },
-          "voice": true
+          "voice": true,
+          "model": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AgentModel"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "the agent's own model"
+          }
         },
-        "description": "The body that changes an agent's gates, reasoning, role or voice."
+        "description": "The body that changes an agent's gates, reasoning, role, voice or own model."
+      },
+      "AgentModel": {
+        "type": "object",
+        "properties": {
+          "method": {
+            "type": "string"
+          },
+          "provider": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "registration": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "method"
+        ],
+        "description": "An agent's own model: `fixed` on a provider and one model of it, or on a registration by its name\nalone; `route` on the supervisor key's road, a chat agent's alone."
       },
       "AgentRoleList": {
         "type": "object",

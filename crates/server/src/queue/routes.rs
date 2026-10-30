@@ -73,9 +73,9 @@ pub fn job_line() -> &'static str {
   WORK_KEYS.profile(JOB_WORK_KEY).map_or("", |profile| profile.line.as_str())
 }
 
-// What a worker is pinned to: a provider, and one model of it where the provider's models are named
-// one by one — the registry. A support worker is on its base's pin, and a pin to a provider the owner
-// turned off reads as none.
+// What a worker is pinned to: a provider, and one model of it where a pin may name one of the provider's
+// models (docs/model-tiers.md, 「An agent's own model」). A support worker is on its base's pin, and a pin to
+// a provider the owner turned off reads as none.
 pub async fn worker_pin(
   db: &DatabaseConnection,
   worker: &str,
@@ -92,8 +92,8 @@ pub async fn worker_pin(
 }
 
 /// What a worker is pinned to, whether or not the owner has its provider on: the head of the worker's walk
-/// (docs/cache-fallback.md, 「One road resolution」), a provider this build carries and, where its models
-/// are named one by one, the model. A support worker is on its base's pin.
+/// (docs/cache-fallback.md, 「One road resolution」), a provider this build carries and, where a pin may name
+/// one of its models, the model. A support worker is on its base's pin.
 pub async fn worker_pin_held(
   db: &DatabaseConnection,
   worker: &str,
@@ -115,8 +115,7 @@ pub async fn worker_pin_held(
   else {
     return Ok(None);
   };
-  let names_models =
-    named(&provider).map_err(|refused| Unrouted(refused.error))?.not_registered().is_some();
+  let names_models = named(&provider).map_err(|refused| Unrouted(refused.error))?.pins_models();
   let model = if names_models { row.try_get::<Option<String>>("", "model")? } else { None };
 
   Ok(Some((provider, model)))

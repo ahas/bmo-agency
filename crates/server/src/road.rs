@@ -1,7 +1,7 @@
 //! The one road resolution (docs/cache-fallback.md, 「One road resolution」): the one place that decides where
-//! a work key's work goes out now. The key's setting — a worker's own pin, a chat agent's own fixed model,
-//! else the key's row, else automatic — is the head of a walk through the owner's provider order; every
-//! provider of that walk answers
+//! a work key's work goes out now. The key's setting — a worker's own pin, the fixed model of the agent the
+//! key is named after, else the key's row, else automatic — is the head of a walk through the owner's
+//! provider order; every provider of that walk answers
 //! for itself whether it can answer now (「Availability: whether a provider can answer now」), each out of
 //! its own member, and the first that can carries the work, on the pinned model where the pin names one and
 //! the key's tier mapping everywhere else, on the first login the account judgement offers where the
@@ -267,9 +267,9 @@ impl Resolution {
   }
 }
 
-// The head a key's setting gives its walk: a worker's own pin where the ask names a worker that has one, a
-// chat agent's own fixed model where its key names one, else the key's row where it names one provider; a
-// gate on Laya and an automatic key walk from the top.
+// The head a key's setting gives its walk: a worker's own pin where the ask names a worker that has one, the
+// fixed model of the agent the key is named after where it keeps one, else the key's row where it names one
+// provider; a gate on Laya and an automatic key walk from the top.
 async fn pin_of(ground: &Ground, ask: &Ask<'_>) -> Result<Option<Pin>, String> {
   let db = &ground.db;
 
@@ -280,7 +280,7 @@ async fn pin_of(ground: &Ground, ask: &Ask<'_>) -> Result<Option<Pin>, String> {
   }
 
   if ask.worker.is_none()
-    && let Some((provider, model)) = chat_fixed_model(db, ask.key).await?
+    && let Some((provider, model)) = agent_fixed_model(db, ask.key).await?
   {
     return Ok(Some(Pin {
       provider,
@@ -296,14 +296,15 @@ async fn pin_of(ground: &Ground, ask: &Ask<'_>) -> Result<Option<Pin>, String> {
   }))
 }
 
-// The provider and model a chat agent's own fixed model names, for the key that is the agent's own name:
-// none where the agent keeps no fixed model or no agent of that name answers rooms across a window. A fixed
-// model stands ahead of the key's row, so a supervisor the owner set on a local model answers on it first.
-async fn chat_fixed_model(db: &DatabaseConnection, key: &str) -> Result<Option<(String, String)>, String> {
+// The provider and model an agent's own fixed model names, for the key that is the agent's own name
+// (docs/model-tiers.md, 「An agent's own model」): none where no agent of that name keeps one. A worker's is
+// read as its pin, for the job key its work goes out on. A fixed model stands ahead of the key's row, so an
+// agent the owner set on a model of its own answers on it first.
+async fn agent_fixed_model(db: &DatabaseConnection, key: &str) -> Result<Option<(String, String)>, String> {
   let row = one(
     db,
     r#"SELECT "pinned_provider", "pinned_model" FROM "agents"
-       WHERE "name" = $1 AND "kind" = 'chat' AND "turn_shape" = 'window'
+       WHERE "name" = $1 AND "kind" <> 'worker'
          AND "pinned_provider" IS NOT NULL AND "pinned_model" IS NOT NULL"#,
     vec![key.into()],
   )

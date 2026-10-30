@@ -1605,7 +1605,7 @@ pub struct HookRegistration {
   pub token: Option<String>,
 }
 
-/// The body that changes an agent's gates, reasoning, role or voice.
+/// The body that changes an agent's gates, reasoning, role, voice or own model.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentChange {
@@ -1617,6 +1617,23 @@ pub struct AgentChange {
   pub role: Option<String>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub voice: Option<Value>,
+  /// the agent's own model
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub model: Option<AgentModel>,
+}
+
+/// An agent's own model: `fixed` on a provider and one model of it, or on a registration by its name
+/// alone; `route` on the supervisor key's road, a chat agent's alone.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentModel {
+  pub method: String,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub provider: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub model: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub registration: Option<String>,
 }
 
 /// The body that registers an agent: its key, label, kind, role and owner, and the fields its kind

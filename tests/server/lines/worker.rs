@@ -8,12 +8,13 @@ use std::path::PathBuf;
 use agency_server::Service;
 use agency_server::config::Config;
 use agency_server::control::claude_accounts::{Account, Credential, EndpointModels};
+use agency_server::control::harness::{OrderEntry, set_provider_order};
 use agency_server::lines::Trees;
 use agency_server::lines::claude::{
   COMPACT_SHARE, Command, Runs, command_env, line_environment, worker_args,
 };
 use agency_server::lines::standing::registered_program;
-use agency_server::lines::worker::worker_run;
+use agency_server::lines::worker::{configured_pinned, pinned_model_on, worker_run};
 use agency_server::places::Ground;
 use harness_providers::Machine;
 use sea_orm::Value;
@@ -345,4 +346,67 @@ async fn a_worker_s_co_workers_are_defined_on_the_provider_its_program_stands_on
   ] {
     assert_eq!(command.env.get(slot).map(String::as_str), Some("run-registration"), "{slot}");
   }
+}
+
+// A worker's own turn and its standing program on Claude Code go out on the model its pin names there
+// (docs/model-tiers.md, 「An agent's own model」), a support worker's on its base's, and an unpinned worker's
+// on the job key's mapping; a pin to Claude Code that the owner turned off reads as none.
+#[tokio::test]
+async fn a_worker_s_claude_run_goes_out_on_the_model_its_pin_names() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = ground(&scratch, &home).await;
+
+  store::seed::settle(scratch.db(), &agency_server::seeds::deployment(&ground.machine()))
+    .await
+    .unwrap();
+  scratch
+    .run(
+      r#"INSERT INTO "agents" ("name", "kind", "pinned_provider", "pinned_model", "support_of")
+         VALUES ('helper', 'worker', 'claude-code', 'claude-fable-5-1', NULL),
+                ('helper-support', 'worker', NULL, NULL, 'helper'),
+                ('plain', 'worker', NULL, NULL, NULL)"#,
+      vec![],
+    )
+    .await;
+
+  let on = |enabled: bool| {
+    vec![
+      OrderEntry {
+        name: "claude-code".to_owned(),
+        enabled,
+      },
+      OrderEntry {
+        name: "registered".to_owned(),
+        enabled: true,
+      },
+    ]
+  };
+
+  set_provider_order(scratch.db(), &on(true)).await.unwrap();
+
+  let trees = Trees::of(&ground);
+  let machine = ground.machine();
+  let mapped =
+    agency_server::control::tiers::resolve_execution(scratch.db(), "job-worker", "claude-code", None)
+      .await
+      .unwrap();
+
+  assert_ne!(mapped.model, "claude-fable-5-1");
+
+  for (worker, model) in [
+    ("helper", "claude-fable-5-1"),
+    ("helper-support", "claude-fable-5-1"),
+    ("plain", mapped.model.as_str()),
+  ] {
+    let run = worker_run(&ground, &trees, Some(worker), None, model, "/work").await.unwrap();
+    let laid = configured_pinned(&ground, &machine, run, worker, "claude-code").await.unwrap();
+
+    assert_eq!(laid.model, model, "{worker}");
+    assert_eq!(laid.tier.as_deref(), Some(mapped.tier.as_str()), "{worker}");
+  }
+
+  set_provider_order(scratch.db(), &on(false)).await.unwrap();
+
+  assert_eq!(pinned_model_on(scratch.db(), "helper", "claude-code").await.unwrap(), None);
 }

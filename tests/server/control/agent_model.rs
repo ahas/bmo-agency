@@ -1,6 +1,7 @@
-//! A supervisor's model method (docs/model-tiers.md, 「A supervisor's own model」): a chat agent's model
-//! kept on a registered model, its key's road stood on the pin's clearing, a companion returned to the
-//! same route, and an agent that is no supervisor refused one.
+//! An agent's own model (docs/model-tiers.md, 「An agent's own model」): a chat agent's model kept on a
+//! registered model, its key's road stood on the pin's clearing, a companion returned to the same route, an
+//! agent that is no supervisor refused the route, and any agent kept on a provider's model its catalogue
+//! names, refused one its provider does not hold or a provider agency does not carry.
 
 use serde_json::{Value, json};
 
@@ -91,7 +92,11 @@ async fn a_chat_agents_model_is_kept_on_a_registration_and_returned_to_its_key_r
     patch(port, token, "/agents/helper", json!({ "model": { "method": "route" } })).await;
 
   assert_eq!(status, 400);
-  assert!(refused["error"].as_str().unwrap_or_default().contains("no model"), "{refused}");
+  assert_eq!(refused["field"], "model.method", "{refused}");
+  assert!(
+    refused["error"].as_str().unwrap_or_default().contains("no supervisor route"),
+    "{refused}"
+  );
 
   let (status, refused) = patch(
     port,
@@ -148,4 +153,148 @@ async fn a_companions_pin_is_cleared_and_it_answers_on_the_supervisor_route_agai
 
   assert_eq!(status, 200, "{agent}");
   assert_eq!(agent["pinnedProvider"], Value::Null, "{agent}");
+}
+
+// A catalogue the Claude CLI would keep under the machine's configuration directory, naming the models given.
+fn claude_catalogue(home: &std::path::Path, models: &[&str]) {
+  let place = home.join(".claude/cache/model-catalog");
+  let models: Vec<Value> = models
+    .iter()
+    .map(|id| json!({ "id": id, "section": "main", "thinking": { "type": "none" } }))
+    .collect();
+  let file = json!({ "version": 2, "fetchedAt": 1_000, "staleAt": 3_601_000, "catalog": { "surface": "cc",
+    "config": { "id": "cc", "models": models } } });
+
+  std::fs::create_dir_all(&place).unwrap();
+  std::fs::write(place.join("test-cc.json"), file.to_string()).unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn any_agent_keeps_a_providers_model_its_catalogue_names_and_is_refused_one_it_does_not_hold() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let data = home.path().join("data");
+  let token = "secret";
+
+  std::fs::create_dir_all(&data).unwrap();
+  claude_catalogue(home.path(), &["claude-opus-5-5", "claude-fable-5-1"]);
+
+  let server = standing::stand_server(home.path(), &data, &scratch.address(), token);
+  let port = server.port;
+
+  scratch
+    .run(
+      r#"INSERT INTO "agents" ("name", "kind", "label", "builtin", "session_scope", "turn_shape", "default_answerer")
+         VALUES ('helper', 'worker', 'Helper', 0, NULL, NULL, 0),
+                ('search', 'runner', 'Search', 0, NULL, NULL, 0)"#,
+      vec![],
+    )
+    .await;
+  scratch
+    .run(
+      r#"INSERT INTO "registered_models" ("name", "label", "model", "context_tokens", "answer_tokens",
+            "wait_seconds", "thinking", "walked", "added_at", "keeps_research")
+         VALUES ('local-model', 'Local', 'served', 100000, 4000, 60, 1, 1, 1, 0)"#,
+      vec![],
+    )
+    .await;
+
+  // A worker is kept on a Claude model its CLI's catalogue names, and a runner's agent likewise.
+  for agent in ["helper", "search"] {
+    let (status, fixed) = patch(
+      port,
+      token,
+      &format!("/agents/{agent}"),
+      json!({ "model": { "method": "fixed", "provider": "claude-code", "model": "claude-fable-5-1" } }),
+    )
+    .await;
+
+    assert_eq!(status, 200, "{agent}: {fixed}");
+    assert_eq!(fixed["pinnedProvider"], "claude-code", "{fixed}");
+    assert_eq!(fixed["pinnedModel"], "claude-fable-5-1", "{fixed}");
+  }
+
+  // The registration form is taken by a worker as well.
+  let (status, fixed) = patch(
+    port,
+    token,
+    "/agents/helper",
+    json!({ "model": { "method": "fixed", "registration": "local-model" } }),
+  )
+  .await;
+
+  assert_eq!(status, 200, "{fixed}");
+  assert_eq!(fixed["pinnedProvider"], "registered", "{fixed}");
+
+  // A provider agency does not carry, a model the catalogue reads without naming, and a registration with no
+  // address are each refused by their field, the pin left as it stood.
+  let refusals = [
+    (
+      json!({ "provider": "nowhere", "model": "claude-fable-5-1" }),
+      "model.provider",
+      "nowhere",
+    ),
+    (
+      json!({ "provider": "claude-code", "model": "claude-nowhere-1" }),
+      "model.model",
+      "claude-nowhere-1",
+    ),
+    (
+      json!({ "provider": "registered", "model": "local-model" }),
+      "model.model",
+      "local-model",
+    ),
+  ];
+
+  for (asked, field, named) in refusals {
+    let mut model = asked.clone();
+
+    model["method"] = json!("fixed");
+
+    let (status, refused) = patch(port, token, "/agents/helper", json!({ "model": model })).await;
+
+    assert_eq!(status, 400, "{asked}: {refused}");
+    assert_eq!(refused["code"], "bad-request", "{refused}");
+    assert_eq!(refused["field"], field, "{refused}");
+
+    if field == "model.model" {
+      assert!(refused["error"].as_str().unwrap_or_default().contains(named), "{refused}");
+    }
+  }
+
+  let (_, agent) = get(port, token, "/agents/helper").await;
+
+  assert_eq!(agent["pinnedProvider"], "registered", "{agent}");
+  assert_eq!(agent["pinnedModel"], "local-model", "{agent}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_pin_to_a_claude_model_is_kept_where_the_catalogue_cannot_be_read() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let data = home.path().join("data");
+  let token = "secret";
+
+  std::fs::create_dir_all(&data).unwrap();
+
+  let server = standing::stand_server(home.path(), &data, &scratch.address(), token);
+  let port = server.port;
+
+  scratch
+    .run(
+      r#"INSERT INTO "agents" ("name", "kind", "label", "builtin") VALUES ('helper', 'worker', 'Helper', 0)"#,
+      vec![],
+    )
+    .await;
+
+  let (status, fixed) = patch(
+    port,
+    token,
+    "/agents/helper",
+    json!({ "model": { "method": "fixed", "provider": "claude-code", "model": "claude-fable-5-1" } }),
+  )
+  .await;
+
+  assert_eq!(status, 200, "{fixed}");
+  assert_eq!(fixed["pinnedModel"], "claude-fable-5-1", "{fixed}");
 }

@@ -477,10 +477,10 @@ When a demotion first catches — when a healthy session first drops — two thi
   the provider holds logins, the account — together with every provider it passed ahead of that one and
   why each could not answer. Where nothing in the order can answer, it answers so, with every provider's
   reason and what a person must do.
-- **The setting is automatic or a pin.** The pin is a worker's own pin where it has one, a chat agent's
-  own fixed model where its key names one (`docs/model-tiers.md`, 「A supervisor's own model」), else the
-  key's row (「The per-key choice is automatic or one provider」); a pin may name one model of its
-  provider.
+- **The setting is automatic or a pin.** The pin is the agent's own fixed model where it keeps one
+  (`docs/model-tiers.md`, 「An agent's own model」) — a worker's for its job, its standing program and a
+  turn put to it directly, any other agent's for the key named after it — else the key's row (「The per-key choice is
+  automatic or one provider」); a pin may name one model of its provider, Claude Code's included.
 - **The walk.** Automatic begins at the top of the owner's order. A pin begins at its provider, then takes
   the providers after it in the order, then those before it. A pin is the head of the walk and never a
   wall: the work goes out on the pinned provider whenever it can answer now, whichever provider leads the
@@ -497,7 +497,7 @@ When a demotion first catches — when a healthy session first drops — two thi
   named, and hold a tier mapping for the key; one that does not cannot answer, for that reason, and the walk
   never moves outside the named road. Such work is no move of the key's road and publishes no fact.
 - **Every line asks it, and none keeps a walk of its own:** the chat's turn, a job's launch and its
-  relaunch, a worker's standing program, a work key's read (`GET /work-keys/{workKey}`, which the runners
+  relaunch, a worker's standing program, a turn put to a worker directly, a work key's read (`GET /work-keys/{workKey}`, which the runners
   and the gates resolve their road by), and the warming, which warms no provider that cannot answer now.
   The resolution knows no provider by name: every provider's answer is its own member's, and the
   resolution only walks.

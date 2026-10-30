@@ -145,11 +145,22 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
   through the brain (「Calls agency makes」): filed under its owner's id as the account key where it names
   an owner, and under `AGENCY_BRAIN_ACCOUNT` where it names none.
 - **`PATCH /agents/{agentName}` changes the fields the body names:** `gates`, `reasoning`, `role`,
-  `voice`, and `model`, a supervisor's model method (`docs/model-tiers.md`, 「A supervisor's own model」):
-  `{"method": "route"}` lets the supervisor key's road carry it and clears its pin, and `{"method":
-  "fixed", "registration": <name>}` pins it to a registered model. Every chat agent — the chat agent and
-  every companion alike — takes either; a route is refused 400 for an agent that is no supervisor, and so
-  is a name the registry holds no registration under. A `role` the store does not hold is refused 400.
+  `voice`, and `model`, the agent's own model (`docs/model-tiers.md`, 「An agent's own model」):
+  - `{"method": "fixed", "provider": <provider>, "model": <model>}` pins an agent of any kind to one model
+    of a provider: a model the Claude CLI's catalogue names on `claude-code`, a member of a provider's own
+    road, a registration with an address on `registered`;
+  - `{"method": "fixed", "registration": <name>}` pins it to a registered model by the registration's
+    name alone;
+  - `{"method": "route"}` lets the supervisor key's road carry it and clears its pin, and is taken by a
+    chat agent alone — the chat agent and every companion alike.
+  - A refusal of the model is 400 `bad-request` with `field` beside `error`: `model.method` for a method
+    that is neither or a route asked for an agent that is no supervisor, `model.provider` for a provider
+    agency does not carry or one whose program does not carry the agent's line, `model.model` for a
+    model the provider does not hold — a catalogue that reads and does not name it, a member its road does
+    not hold, a registration with no address — and `model.registration` for a name the registry holds no
+    registration under. A catalogue that cannot be read refuses nothing. A worker's standing program is
+    stood again on a new pin.
+  - A `role` the store does not hold is refused 400.
 - **`DELETE /agents/{agentName}` ends a registration,** taking `force`, `forgetBrain` and `rooms` in its
   query:
   - 404 `not-found` for no agent of the name;
@@ -574,7 +585,7 @@ A model is one registration of the registry's provider: the list, the create, th
 take-away all read or write the registrations, so the list holds exactly what can be changed and removed. A
 model's key names its provider and the model apart — `provider::model`, or the provider as a query and the
 model in the path. Each answer carries `name` beside its `key`, the registration's own name, which is what
-a supervisor's fixed model holds (`docs/model-tiers.md`, 「A supervisor's own model」). `provider` names the
+an agent's fixed model holds on the registry's provider (`docs/model-tiers.md`, 「An agent's own model」). `provider` names the
 registry's provider alone, since every other provider's models are its own catalogue and no route changes
 them; `tier` narrows the list to the registrations that tier maps to.
 A create starts a registration under its own name as its label, at the registry's smallest window, answer
@@ -778,7 +789,7 @@ section of it is chosen per companion (`docs/companions.md`, 「What a turn is g
 companion is answered with name neither.
 
 A companion is answered with the model method it stands on, `method`: `fixed` on a registration, or `route`
-on the supervisor key's road (`docs/model-tiers.md`, 「A supervisor's own model」), with `provider` and `model`
+on the supervisor key's road (`docs/model-tiers.md`, 「An agent's own model」), with `provider` and `model`
 the ones it answers on now. A change takes `registration` as a registered model's name, or null to clear the
 pin and answer on the route.
 

@@ -31,7 +31,7 @@ use crate::door::turn::{Ending, Seat, Timings, Turn, Watch, pasted_lead, put};
 use crate::lines::claude::{self, Command, Session};
 use crate::lines::place::{Holds, Place, Standby, read_settings, write_place_settings};
 use crate::lines::standing::{status_root, worker_prefix_digest};
-use crate::lines::worker::{LINE, WorkerRun, configured, worker_run};
+use crate::lines::worker::{LINE, WorkerRun, configured_pinned, worker_run};
 use crate::lines::{Trees, fault};
 use crate::places::{AgentRow, Ground};
 use crate::queue::routes::JOB_WORK_KEY;
@@ -385,10 +385,13 @@ pub async fn turn<W: Watch>(side: &Side<'_>, asked: Asked<'_>, watch: &mut W) ->
   }
 
   let machine = ground.machine();
-  let line = configured(
+  // The model the worker's pin names on Claude Code is the one its turn goes out on (docs/model-tiers.md,
+  // 「An agent's own model」), the job key's mapping there otherwise.
+  let line = configured_pinned(
     ground,
     &machine,
     worker_run(ground, &trees, Some(worker), account.as_ref(), model, &cwd).await?,
+    worker,
     PROVIDER,
   )
   .await?;

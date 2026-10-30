@@ -307,8 +307,8 @@ async fn job_road(ground: &Ground) -> Result<String, Refusal> {
 }
 
 // The road a pinned worker's pane stands on now: its pin where the pin can answer, the next road of its walk
-// that can where it cannot (docs/cache-fallback.md, 「One road resolution」), with the model where that
-// road's provider names its models one by one; its pin as it stands where nothing of the walk can answer.
+// that can where it cannot (docs/cache-fallback.md, 「One road resolution」), with the model where a pin may
+// name one of that road's provider's models; its pin as it stands where nothing of the walk can answer.
 // None for a worker with no pin.
 async fn pinned_road(ground: &Ground, worker: &str) -> Result<Option<(String, Option<String>)>, Refusal> {
   let Some(pin) = worker_pin_held(&ground.db, worker)
@@ -323,7 +323,7 @@ async fn pinned_road(ground: &Ground, worker: &str) -> Result<Option<(String, Op
   };
   let resolution = road::resolve(ground, &ask).await.map_err(crate::lines::fault)?;
   let Some(taken) = resolution.road() else { return Ok(Some(pin)) };
-  let names_models = provider(&taken.provider).is_some_and(|one| one.not_registered().is_some());
+  let names_models = provider(&taken.provider).is_some_and(|one| one.pins_models());
 
   Ok(Some((taken.provider.clone(), names_models.then(|| taken.model.clone()))))
 }

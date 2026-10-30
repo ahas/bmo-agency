@@ -577,27 +577,63 @@ pub async fn configured(
   configured_for(ground, machine, run, JOB_WORK_KEY, provider).await
 }
 
+/// The run with the job key's tier mapping on a provider laid on it, on the model the worker's pin names
+/// there where it names one (docs/model-tiers.md, 「An agent's own model」): that model at the mapping's
+/// tier, with the effort word the provider makes for it of the mapping's word and the worker's own choice.
+pub async fn configured_pinned(
+  ground: &Ground,
+  machine: &Machine,
+  run: WorkerRun,
+  worker: &str,
+  provider: &str,
+) -> Result<WorkerRun, Refusal> {
+  let pinned = pinned_model_on(&ground.db, worker, provider).await?;
+
+  lay(ground, machine, run, JOB_WORK_KEY, provider, pinned).await
+}
+
+/// The model a worker's pin names on a provider: where the worker — or its base, for a support worker — is
+/// pinned to that provider, the owner has it on and the pin names one of its models.
+pub async fn pinned_model_on(
+  db: &sea_orm::DatabaseConnection,
+  worker: &str,
+  provider: &str,
+) -> Result<Option<String>, Refusal> {
+  let pin = crate::queue::routes::worker_pin(db, worker)
+    .await
+    .map_err(|unrouted| fault(unrouted.0))?;
+
+  Ok(pin.filter(|(pinned, _)| pinned == provider).and_then(|(_, model)| model))
+}
+
 /// The run with a work key's tier mapping on a provider laid on it, as a job's run takes the job key's.
 pub async fn configured_for(
+  ground: &Ground,
+  machine: &Machine,
+  run: WorkerRun,
+  key: &str,
+  provider: &str,
+) -> Result<WorkerRun, Refusal> {
+  lay(ground, machine, run, key, provider, None).await
+}
+
+// The mapping laid on the run, on the model named where one is, the mapping's own otherwise.
+async fn lay(
   ground: &Ground,
   machine: &Machine,
   mut run: WorkerRun,
   key: &str,
   provider: &str,
+  model: Option<String>,
 ) -> Result<WorkerRun, Refusal> {
   let mapping = tiers::resolve_execution(&ground.db, key, provider, None).await.map_err(fault)?;
+  let model = model.unwrap_or(mapping.model);
 
-  run.effort = effort_of(
-    ground,
-    machine,
-    provider,
-    &mapping.model,
-    mapping.effort.as_deref(),
-    run.reasoning.as_ref(),
-  )
-  .await?
-  .unwrap_or_default();
-  run.model = mapping.model;
+  run.effort =
+    effort_of(ground, machine, provider, &model, mapping.effort.as_deref(), run.reasoning.as_ref())
+      .await?
+      .unwrap_or_default();
+  run.model = model;
   run.tier = Some(mapping.tier);
 
   Ok(run)

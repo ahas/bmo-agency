@@ -29,12 +29,13 @@ keepalive_count = "The keepalive count is a whole number of 0 or more."
 keepalive_over = "The keepalive count ({keepalive}) cannot exceed the support worker count ({count})."
 support_name_long = "{name}'s name is too long to name its support worker ({last})."
 
-# Why a worker's pin names nothing that could run: the {providers} this build carries, and a provider's
-# {label}.
+# Why a worker's pin names nothing that could run: the {providers} this build carries, a provider's
+# {label}, and a {model} its catalogue reads without naming.
 [pins]
 unknown = "A pinned provider is auto or one of {providers}."
 no_line = "Workers cannot run on {label}."
 no_model = "{label} takes no model of its own to pin."
+unlisted = "{label}'s catalogue names no model {model}."
 
 # Why a job's model names nothing that could run: the {selection} it asked for.
 [routes]

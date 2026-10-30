@@ -179,6 +179,11 @@ impl Provider for ClaudeCode {
     true
   }
 
+  // A pin names one model its CLI's catalogue names.
+  fn pins_models(&self) -> bool {
+    true
+  }
+
   // A login's own program only: one standing on a registration's road — its home, or the gateway's address —
   // stands for that road, while an account's own endpoint does not take a program off this one.
   fn owns_program(&self, machine: &Machine, args: &[String], env: &BTreeMap<String, String>) -> bool {

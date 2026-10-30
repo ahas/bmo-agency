@@ -712,7 +712,7 @@ fn job_ask<'a>(worker: &'a str, left: &'a [Closed]) -> Ask<'a> {
 
 /// The work parts a job's turn is carried with, on the road the resolution answered for it: its provider
 /// and model, and the effort and tier the job key maps to there.
-async fn work_parts(
+pub(crate) async fn work_parts(
   ground: &Ground,
   worker_name: &str,
   room: i64,

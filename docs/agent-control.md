@@ -450,7 +450,7 @@ in the provider's own terms:
 | codex | Claude Code's interactive screen on the gateway under the member's name, its records under `claude-roads/codex/<member>` | `agent.prompt` | Taken | Transcript | None | Escape | `/compact` and `/clear`; a conversation is handed over by a turn asking for its note |
 | openrouter | Claude Code's interactive screen on the gateway under the member's name, its records under `claude-roads/openrouter/<member>` | `agent.prompt` | Taken | Transcript | None | Escape | `/compact` and `/clear`; a conversation is handed over by a turn asking for its note |
 | deepseek | Claude Code's interactive screen on the gateway under the member's name, its records under `claude-roads/deepseek/<member>` | `agent.prompt` | Taken | Transcript | None | Escape | `/compact` and `/clear`; a conversation is handed over by a turn asking for its note |
-| registered | Claude Code's interactive screen on the gateway under the registration's name, its records under a home of the registration's own | `agent.prompt`; words said to a worker on the session the program stands on, a conversational agent's turn on its scope's session, every other turn on a session of its own | Not taken: they wait for the next turn | Transcript | None | Escape | `/compact` and `/clear`; a conversation is handed over by a turn asking for its note rather than folded, the program folds itself before the registration's window, and a turn at the limit fails |
+| registered | Claude Code's interactive screen on the gateway under the registration's name, its records under a home of the registration's own | `agent.prompt`; words said to a worker on the session the program stands on, a conversational agent's turn on its scope's session, every other turn on a session of its own | Taken | Transcript | None | Escape | `/compact` and `/clear`; a conversation is handed over by a turn asking for its note rather than folded, the program folds itself before the registration's window, and a turn at the limit fails |
 
 ### What a resident turn reads
 
@@ -824,8 +824,9 @@ The owner's words:
   program, the standing pass writes the program the worker's next job would start and nothing is put
   into it, so the pane shows Claude Code's own input box rather than the host's resting line, and a
   person attached to herdr can type the worker's first request there.
-  - The program is the job's own line: the configured job model and effort, the login the job's walk
-    offers now, the worker's checkout as its directory and the place's settings, so its status line and
+  - The program is the job's own line: the configured job model and effort — the model the worker's pin
+    names on Claude Code where it names one, the job key's mapping there otherwise — the login the job's
+    walk offers now, the worker's checkout as its directory and the place's settings, so its status line and
     hooks write into the place exactly as a job's program does.
   - It stands on the worker's kept session for that model and login where one is recorded and
     resumable, and opens a fresh session under a name it chose otherwise.
@@ -934,6 +935,12 @@ The owner's words:
 - **A chat agent may hand a free worker a small coding task as a turn, with no item.** `worker_ask` names
   the worker, the words, an optional folder and an optional bound; agency puts the words into the worker's
   session on its usual road and answers with the turn's answer and the files it changed in the folder.
+- **The road is the one the worker's next job would take** (`docs/cache-fallback.md`, 「One road
+  resolution」): its own fixed model at the head of its walk where it keeps one (`docs/model-tiers.md`,
+  「An agent's own model」), the job key's road where it keeps none. On Claude Code the turn goes into the
+  worker's session on that road's model, the pin's model where the pin names one; on any other road it
+  crosses over on the stand-in walk a job's turn takes there, composing the worker's own line. A
+  keepalive ping is no such turn: it warms only the Claude session it stands on.
 - **The folder** is the asking agent's scratch workspace under the data root where none is named, made on
   first use. A worker's own checkout may be named only in the owner's turn.
 - **A free worker only.** A worker that is working, queued or carrying a turn is refused with `409`; only
@@ -2578,7 +2585,7 @@ pane. So the earlier investigation's conclusion holds under herdr too.
 | codex | **Works** — Claude Code's resident program takes them with `agent.prompt` at the next tool result |
 | openrouter | **Works** — Claude Code's resident program takes them with `agent.prompt` at the next tool result |
 | deepseek | **Works** — Claude Code's resident program takes them with `agent.prompt` at the next tool result |
-| registered | **No** — the program on the gateway could take them, but this road's surface declares that it takes none mid-turn, so the words wait for the next turn |
+| registered | **Works** — Claude Code's resident program on the gateway takes them with `agent.prompt` at the next tool result |
 
 - **Headless (`-p`) cannot use this channel.** Two things both block it. herdr does not see it as an agent,
   so `agent.list` answers with an empty array, and `-p` does not read input in a pty at all —

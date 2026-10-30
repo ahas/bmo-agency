@@ -124,7 +124,7 @@ export interface paths {
         delete: operations["deleteAgent"];
         options?: never;
         head?: never;
-        /** Change an agent's gates, reasoning, role or voice. */
+        /** Change an agent's gates, reasoning, role, voice or own model. */
         patch: operations["changeAgent"];
         trace?: never;
     };
@@ -1737,12 +1737,24 @@ export interface components {
             /** @description the node a `worker` stands on */
             nodeName?: string | null;
         };
-        /** @description The body that changes an agent's gates, reasoning, role or voice. */
+        /** @description The body that changes an agent's gates, reasoning, role, voice or own model. */
         AgentChange: {
             gates?: unknown;
             reasoning?: unknown;
             role?: string | null;
             voice?: unknown;
+            /** @description the agent's own model */
+            model?: components["schemas"]["AgentModel"] | null;
+        };
+        /**
+         * @description An agent's own model: `fixed` on a provider and one model of it, or on a registration by its name
+         *     alone; `route` on the supervisor key's road, a chat agent's alone.
+         */
+        AgentModel: {
+            method: string;
+            provider?: string | null;
+            model?: string | null;
+            registration?: string | null;
         };
         /** @description AgentRoleList: every role an agent may hold, and every bundle a role may give. */
         AgentRoleList: {
@@ -4031,6 +4043,7 @@ export interface operations {
                     "application/json": components["schemas"]["Agent"];
                 };
             };
+            400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
         };

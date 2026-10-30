@@ -759,7 +759,9 @@ bmo-agency agent --route <work key> --provider <auto|claude-code|codex|openroute
   thinking default, unless the worker key's tier maps to that same registration, whose mapping then
   stands; a pin to a registration the registry does not hold, or one with no address, is refused. A pin
   to a provider alone takes the model, effort and answer size from the worker key's tier mapping on that
-  provider (`docs/model-tiers.md`). Every other provider takes the provider alone.
+  provider (`docs/model-tiers.md`). Claude Code takes one its CLI's catalogue names, and a provider
+  with a road of its own one of that road's members; the run goes out on the model named, at the effort
+  the worker key's tier mapping on that provider gives, read for that model.
 - **What runs on it:**
   - Automatic jobs of the worker run on the pin alone, and recovery tries no other; a job that names its
     own `<provider>::<model>` still asks that first.
@@ -780,8 +782,9 @@ bmo-agency agent --route <work key> --provider <auto|claude-code|codex|openroute
 - **A pin to a provider that is switched off** reads as no pin, as a key set to one does.
 - **A support worker** runs its base's jobs and is on its base's pin; its own row carries none.
 - **Where it is set:** the provider field of the worker's settings dialog, which lists every
-  registration beside the providers, or `bmo-agency agent --set <worker> --provider
-  <auto|provider|registered::<registration>>`, where `auto` takes the pin away.
+  registration beside the providers, `bmo-agency agent --set <worker> --provider
+  <auto|provider|provider::model>`, where `auto` takes the pin away, or the agent's own model on
+  `PATCH /agents/{agentName}` (`docs/model-tiers.md`, 「An agent's own model」).
 - **What shows it:** the worker's configured provider and model in the agent list and the `bmo-agency
   agent` listing are its pin's, and the answered road beside them is what last answered.
 
@@ -910,8 +913,8 @@ bmo-agency agent --route <work key> --provider <auto|claude-code|codex|openroute
   window that may hold tens of thousands of tokens; so are words that find no session to go on in, and
   words after a turn on the held session that gave no answer. A person's lines typed after a turn go on
   in its session, on its node.
-- **Words mid-turn are not taken:** words for the agent that arrive while a turn works wait for the next
-  turn.
+- **Words mid-turn are taken:** words for the agent that arrive while a turn works go into that turn, as
+  Claude Code's pane takes them on the claude-code provider; a registration's window carries them.
 - **A line a person types into the chat agent's program is composed by the program, not the gateway:**
   the chat's submit hook hands it what a round of the owner's chat would carry, on this road as on
   Claude's, which never passes the gateway. The gateway rewrites no prompt.

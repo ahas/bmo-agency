@@ -192,6 +192,12 @@ pub trait Provider: Sync {
     None
   }
 
+  /// Whether an agent's pin may name one of its models, which the pin's runs then go out on: a provider
+  /// that names its models one by one, and one whose catalogue lists them.
+  fn pins_models(&self) -> bool {
+    self.not_registered().is_some()
+  }
+
   /// Whether one of its models is held by that name, where its models are its own rather than the
   /// registry's: a pin or a job naming one of them is taken.
   fn holds_model(&self, machine: &Machine, model: &str) -> bool {

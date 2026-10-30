@@ -39,6 +39,7 @@ pub struct PinWords {
   pub unknown: String,
   pub no_line: String,
   pub no_model: String,
+  pub unlisted: String,
 }
 
 /// Why a job's model names nothing that could run.

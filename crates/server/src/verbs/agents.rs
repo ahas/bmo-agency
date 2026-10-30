@@ -1383,7 +1383,7 @@ async fn set_worker(
   };
 
   if let Some(pin) = &args.provider {
-    match pins::pin_choice(&stand.ground.db, &stand.ground.machine(), pin).await.map_err(failed)? {
+    match pins::pin_choice(stand.ground, pin).await.map_err(failed)? {
       Ok(pin) => changes.pinned = Some((pin.provider, pin.model)),
       Err(fault) => return Ok(said.refused(fault)),
     }

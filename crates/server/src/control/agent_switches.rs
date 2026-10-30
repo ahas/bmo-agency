@@ -1,19 +1,26 @@
-//! An agent's own gate switches, its own thinking and effort, and its role (docs/model-tiers.md, 「An
-//! agent's own thinking and effort」; docs/agent-roles.md, 「Changing an agent's role」). Agency keeps an
-//! agent's switches; whether a turn heeds a gate's is its consumer's. Which gates a turn passes, which
-//! agents run as gates and the scale an effort is named on are the policy's (docs/policy.md).
+//! An agent's own gate switches, its own thinking and effort, its own model and its role
+//! (docs/model-tiers.md, 「An agent's own thinking and effort」 and 「An agent's own model」;
+//! docs/agent-roles.md, 「Changing an agent's role」). Agency keeps an agent's switches; whether a turn
+//! heeds a gate's is its consumer's. Which gates a turn passes, which agents run as gates and the scale an
+//! effort is named on are the policy's (docs/policy.md).
 
 use axum::http::{Method, StatusCode};
 use axum::response::Response;
+use harness_providers::ARCHIVE_PROVIDERS;
 use policy::control_words::CONTROL_WORDS;
 use policy::fill_marks;
 use policy::reasoning::REASONING;
+use policy::work_keys::WORK_KEYS;
 use sea_orm::DatabaseConnection;
 use serde_json::{Value, json};
 
 use super::{Call, Refused, Route, answer, canonical_agent, set_setting, setting};
+use crate::control::harness::named;
 use crate::control::registry;
 use crate::conversational::{Settings, Shape};
+use crate::places::Ground;
+use crate::queue::pins;
+use crate::queue::routes::job_line;
 use store::{one, run};
 
 /// An agent's row, as far as its switches read it.
@@ -63,6 +70,18 @@ impl Agent {
   /// The gates the agent's turn passes, once each.
   fn turn_gates(&self) -> Option<Vec<String>> {
     self.gates.as_ref().map(|gates| gates.iter().map(|(_, key)| key.clone()).collect())
+  }
+
+  /// The line its runs go out on: a worker's job line, the line its own work key's profile names, and a
+  /// conversational agent's the chat line; none for an agent that runs on no line of its own.
+  fn line(&self) -> Option<&'static str> {
+    match self.kind.as_str() {
+      "worker" => Some(job_line()),
+      kind => WORK_KEYS
+        .profile(&self.name)
+        .map(|profile| profile.line.as_str())
+        .or((kind == "chat").then_some(crate::lines::chat::LINE)),
+    }
   }
 
   fn owns_reasoning(&self) -> bool {
@@ -313,7 +332,7 @@ impl Route for AgentRole {
   }
 }
 
-/// An agent's gates, reasoning, role or voice changed, answered as the agent then stands.
+/// An agent's gates, reasoning, role, voice or own model changed, answered as the agent then stands.
 pub struct ChangeAgent;
 
 impl Route for ChangeAgent {
@@ -363,10 +382,22 @@ impl Route for ChangeAgent {
       .await?;
     }
 
-    if let Some(model) = body.get("model").filter(|model| model.is_object())
-      && let Err(fault) = set_model(db, &name, model).await?
-    {
-      return Err(Refused::new(StatusCode::BAD_REQUEST, fault));
+    if let Some(model) = body.get("model").filter(|model| model.is_object()) {
+      match set_model(call.ground(), &name, model).await? {
+        Err((field, error)) => {
+          return Ok(answer(
+            StatusCode::BAD_REQUEST,
+            json!({ "code": "bad-request", "error": error, "field": field }),
+          ));
+        }
+        // A worker's standing program is stood again on its new pin, not waited on.
+        Ok(kind) if kind == "worker" => {
+          if let Some(places) = call.places().cloned() {
+            tokio::spawn(async move { crate::places::standby::restand_all(&places.ground, None).await });
+          }
+        }
+        Ok(_) => {}
+      }
     }
 
     let db = call.store().clone();
@@ -379,24 +410,30 @@ impl Route for ChangeAgent {
 
 crate::moved!(ChangeAgent);
 
-/// An agent's model method (docs/model-tiers.md, 「A supervisor's own model」): `route` answers on the
-/// supervisor key's road, its pin cleared, and `fixed` keeps the agent on a registered model. Every chat
-/// agent is a supervisor and selects its model either way; any other agent takes no model of its own.
+/// What a model method is refused with: the body's field it names and why.
+pub type ModelFault = (&'static str, String);
+
+/// An agent's own model (docs/model-tiers.md, 「An agent's own model」): `fixed` keeps any agent on one
+/// model of a provider, named as the provider and the model or as a registration of the registry, and
+/// `route` clears a supervisor's pin so it answers on the supervisor key's road, which a chat agent alone
+/// does. The agent's kind where it was set, or the field and the sentence refusing it.
 pub async fn set_model(
-  db: &DatabaseConnection,
+  ground: &Ground,
   name: &str,
   asked: &Value,
-) -> Result<Result<(), String>, Refused> {
+) -> Result<Result<String, ModelFault>, Refused> {
+  let db = &ground.db;
   let Some(agent) = Agent::find(db, name).await? else {
-    return Ok(Err(not_found(name)));
+    return Ok(Err(("model", not_found(name))));
   };
-
-  match asked.get("method").and_then(Value::as_str) {
+  let text =
+    |field: &str| asked.get(field).and_then(Value::as_str).map(str::trim).filter(|text| !text.is_empty());
+  let (provider, model) = match asked.get("method").and_then(Value::as_str) {
     Some("route") => {
       if agent.kind != "chat" {
-        return Ok(Err(fill_marks(
-          &CONTROL_WORDS.agents.model_route_only,
-          &[("agent", agent.called(name))],
+        return Ok(Err((
+          "model.method",
+          fill_marks(&CONTROL_WORDS.agents.model_route_only, &[("agent", agent.called(name))]),
         )));
       }
 
@@ -407,31 +444,81 @@ pub async fn set_model(
       )
       .await?;
 
-      Ok(Ok(()))
+      return Ok(Ok(agent.kind));
     }
-    Some("fixed") => {
-      let Some(registration) = asked
-        .get("registration")
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .filter(|name| !name.is_empty())
-      else {
-        return Ok(Err(CONTROL_WORDS.agents.model_registration_missing.clone()));
-      };
+    Some("fixed") => match (text("provider"), text("model"), text("registration")) {
+      (Some(provider), Some(model), _) => {
+        if let Err(fault) = fixed_held(ground, &agent, name, provider, model).await? {
+          return Ok(Err(fault));
+        }
 
-      if registry::registration(db, registration).await?.is_none() {
-        return Ok(Err(fill_marks(&CONTROL_WORDS.agents.model_registration, &[("name", registration)])));
+        (provider.to_owned(), model.to_owned())
       }
+      (None, None, Some(registration)) => {
+        if registry::registration(db, registration).await?.is_none() {
+          return Ok(Err((
+            "model.registration",
+            fill_marks(&CONTROL_WORDS.agents.model_registration, &[("name", registration)]),
+          )));
+        }
 
-      run(
-        db,
-        r#"UPDATE "agents" SET "pinned_provider" = $1, "pinned_model" = $2 WHERE "name" = $3"#,
-        vec![registry::PROVIDER.into(), registration.to_owned().into(), agent.name.clone().into()],
-      )
-      .await?;
+        (registry::PROVIDER.to_owned(), registration.to_owned())
+      }
+      _ => return Ok(Err(("model", CONTROL_WORDS.agents.model_registration_missing.clone()))),
+    },
+    _ => return Ok(Err(("model.method", CONTROL_WORDS.agents.model_method.clone()))),
+  };
 
-      Ok(Ok(()))
-    }
-    _ => Ok(Err(CONTROL_WORDS.agents.model_method.clone())),
+  run(
+    db,
+    r#"UPDATE "agents" SET "pinned_provider" = $1, "pinned_model" = $2 WHERE "name" = $3"#,
+    vec![provider.into(), model.into(), agent.name.clone().into()],
+  )
+  .await?;
+
+  Ok(Ok(agent.kind))
+}
+
+// Whether a provider and a model may be the agent's fixed model: a provider agency carries whose program
+// carries the line the agent's runs go out on, which a pin may name a model of, and that holds the model.
+async fn fixed_held(
+  ground: &Ground,
+  agent: &Agent,
+  asked: &str,
+  provider: &str,
+  model: &str,
+) -> Result<Result<(), ModelFault>, Refused> {
+  if !ARCHIVE_PROVIDERS.contains(&provider) {
+    return Ok(Err((
+      "model.provider",
+      fill_marks(&CONTROL_WORDS.agents.model_provider, &[("providers", &ARCHIVE_PROVIDERS.join(", "))]),
+    )));
   }
+
+  let found = named(provider)?;
+  let label = &found.declared().label;
+
+  if let Some(line) = agent.line()
+    && !found.declared().carries(line)
+  {
+    return Ok(Err((
+      "model.provider",
+      fill_marks(
+        &CONTROL_WORDS.agents.model_line,
+        &[("label", label), ("agent", agent.called(asked)), ("line", line)],
+      ),
+    )));
+  }
+
+  if !found.pins_models() {
+    return Ok(Err((
+      "model.provider",
+      fill_marks(&CONTROL_WORDS.agents.model_none, &[("label", label)]),
+    )));
+  }
+
+  Ok(match pins::model_refusal(ground, found, model).await? {
+    Some(refusal) => Err(("model.model", refusal)),
+    None => Ok(()),
+  })
 }

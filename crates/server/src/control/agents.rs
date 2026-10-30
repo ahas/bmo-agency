@@ -291,12 +291,10 @@ async fn agent_view(judging: Judging<'_>, machine: &Machine, agent: &Agent) -> R
     put("supportSlot", json!(agent.support_slot));
   }
 
-  // The pin a fixed model stands on: a worker's, and a conversational agent's, which is a supervisor's own
-  // model where the road leaves it (docs/model-tiers.md, 「A supervisor's own model」).
-  if agent.is_worker() || agent.conversation.is_some() {
-    put("pinnedProvider", json!(agent.pinned_provider));
-    put("pinnedModel", json!(agent.pinned_model));
-  }
+  // The pin a fixed model stands on, which any agent may keep (docs/model-tiers.md, 「An agent's own
+  // model」).
+  put("pinnedProvider", json!(agent.pinned_provider));
+  put("pinnedModel", json!(agent.pinned_model));
 
   put("reasoning", reasoning_view(judging, machine, agent, configured.as_ref()).await);
   put("gates", gates_view(db, agent).await?);
@@ -313,19 +311,17 @@ async fn agent_view(judging: Judging<'_>, machine: &Machine, agent: &Agent) -> R
 
 // What an agent begins on, read the one way every screen reads it: out of the shared tier settings for its
 // work key (docs/model-tiers.md). A worker is the worker key on the provider it is pinned to or the first
-// its walk asks; a conversational agent pinned to a provider its pin; the deployment's chat and a gate
+// its walk asks; any other agent that keeps a fixed model its pin; the deployment's chat and a gate
 // their key's road; each runner line's agent its key on the first provider carrying its line. Anything
 // the settings refuse to answer leaves the agent with none.
 pub async fn configured(db: &DatabaseConnection, agent: &Agent) -> Option<Configured> {
   match agent.kind.as_str() {
     "worker" => worker_choice(db, &agent.name).await.ok().flatten(),
-    _ if agent.conversation.is_some() && agent.pinned_provider.is_some() => {
-      agent.pinned_provider.clone().map(|provider| Configured {
-        provider,
-        model: agent.pinned_model.clone(),
-        laya: false,
-      })
-    }
+    _ if agent.pinned_provider.is_some() => agent.pinned_provider.clone().map(|provider| Configured {
+      provider,
+      model: agent.pinned_model.clone(),
+      laya: false,
+    }),
     _ if agent.conversation.is_some() => supervisor_choice(db).await,
     _ => match roads::profile(&agent.name).map(|profile| profile.line.as_str()) {
       Some("chat" | "gate") => road_choice(db, &agent.name).await.ok(),
@@ -416,7 +412,7 @@ async fn worker_choice(db: &DatabaseConnection, worker: &str) -> Result<Option<C
 }
 
 // What a worker is pinned to, a support worker by its base's pin: a provider the owner has on, and the
-// one model of it where its models are registrations named one by one.
+// one model of it where a pin may name one of its models.
 async fn worker_pin(
   db: &DatabaseConnection,
   worker: &str,
@@ -444,7 +440,7 @@ async fn worker_pin(
     return Ok(None);
   }
 
-  let model = if named(&provider)?.not_registered().is_some() {
+  let model = if named(&provider)?.pins_models() {
     owner.try_get::<Option<String>>("", "pinned_model")?
   } else {
     None

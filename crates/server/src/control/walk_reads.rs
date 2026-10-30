@@ -309,7 +309,7 @@ impl Route for CheckPin {
   async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
     let asked: PinValue =
       serde_json::from_value(call.body().await?).map_err(|error| bad(format!("a pin's value: {error}")))?;
-    let pin = pin_choice(call.store(), &call.ground().machine(), &asked.value).await?.map_err(bad)?;
+    let pin = pin_choice(call.ground(), &asked.value).await?.map_err(bad)?;
 
     Ok(answer(
       StatusCode::OK,

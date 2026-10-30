@@ -20,7 +20,10 @@ use super::place::{
   Holds, Place, Program, Standby, command_digest, read_settings, resident_of, write_place_settings,
 };
 use super::prefix::{PrefixReading, prefix_digest};
-use super::worker::{self, LINE, WorkerRun, configured, effort_of, worker_run, worker_run_on};
+use super::worker::{
+  self, LINE, WorkerRun, configured, configured_pinned, effort_of, pinned_model_on, worker_run,
+  worker_run_on,
+};
 use super::{Trees, fault};
 use crate::control::claude_accounts::{self, Account, SEED_ACCOUNT};
 use crate::control::pool::native_provider;
@@ -165,9 +168,10 @@ pub async fn worker_prefix_digest(
   }))
 }
 
-/// Claude Code's standing program for a worker: the job's line on the configured job model and the
-/// login the walk offers now, on the worker's kept session where one is resumable and on a fresh one
-/// otherwise, its settings the worker's own with the place's status line and hooks.
+/// Claude Code's standing program for a worker: the job's line on the configured job model — its pin's
+/// where it names one on Claude Code — and the login the walk offers now, on the worker's kept session
+/// where one is resumable and on a fresh one otherwise, its settings the worker's own with the place's
+/// status line and hooks.
 pub async fn claude_program(
   ground: &Ground,
   machine: &Machine,
@@ -190,10 +194,17 @@ pub async fn claude_program(
   {
     return Err(fault(format!("{worker}: no login answers now, so no program is stood")));
   }
-  let model = crate::control::tiers::resolve_execution(&ground.db, JOB_WORK_KEY, "claude-code", None)
-    .await
-    .map_err(fault)?
-    .model;
+  // The model the worker's pin names on Claude Code where it names one (docs/model-tiers.md, 「An agent's
+  // own model」), the job key's mapping there otherwise.
+  let model = match pinned_model_on(&ground.db, worker, "claude-code").await? {
+    Some(model) => model,
+    None => {
+      crate::control::tiers::resolve_execution(&ground.db, JOB_WORK_KEY, "claude-code", None)
+        .await
+        .map_err(fault)?
+        .model
+    }
+  };
   let held = resumable_session(ground, worker, &model, &recorded(walked.as_ref())).await?;
   let account = match &held {
     None => walked.clone(),
@@ -203,10 +214,11 @@ pub async fn claude_program(
       .into_iter()
       .find(|one| &one.id == account),
   };
-  let mut line = configured(
+  let mut line = configured_pinned(
     ground,
     machine,
     worker_run(ground, &trees, Some(worker), account.as_ref(), &model, cwd).await?,
+    worker,
     "claude-code",
   )
   .await?;

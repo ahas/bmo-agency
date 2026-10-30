@@ -885,6 +885,26 @@ impl HerdrSessions {
     }
   }
 
+  // The road other than Claude Code's a turn put to a worker directly crosses over on: the road
+  // resolution's answer for the worker's next job, where it can answer and is another provider's. None for
+  // a turn that goes into the worker's Claude session, and for a keepalive ping, which warms only that
+  // session.
+  async fn direct_road(&self, worker: &str, prompt: &str) -> Result<Option<crate::road::Road>, Fault> {
+    if prompt == policy::keepalive::KEEPALIVE.prompt {
+      return Ok(None);
+    }
+
+    let ask = crate::road::Ask {
+      worker: Some(worker),
+      ..crate::road::Ask::key(crate::queue::routes::JOB_WORK_KEY)
+    };
+    let resolution = crate::road::resolve(self.ground(), &ask)
+      .await
+      .map_err(|why| fault(FaultKind::Refused, why))?;
+
+    Ok(resolution.road().filter(|road| road.provider != worker_session::PROVIDER).cloned())
+  }
+
   async fn worker_turn(
     &self,
     row: &AgentRow,
@@ -2460,7 +2480,19 @@ impl Sessions for HerdrSessions {
           Some(work) => {
             self.worker_stand_in(&agent, work, &turn.prompt, began, turn.context.job, shown).await
           }
-          None => self.worker_turn(row, &run, &turn.prompt, &turn.session, turn_id).await,
+          // A turn put to the worker directly goes out on the road its next job would take: its pin at the
+          // head of its walk, else the job key's road (docs/agent-control.md, 「Asking a worker directly」).
+          None => match self.direct_road(&agent, &turn.prompt).await? {
+            Some(road) => {
+              let title = format!("{agent}: a turn");
+              let work = crate::control::work::work_parts(self.ground(), &agent, 0, &run, &title, &road)
+                .await
+                .map_err(|why| fault(FaultKind::Refused, why))?;
+
+              self.worker_stand_in(&agent, &work, &turn.prompt, began, turn.context.job, shown).await
+            }
+            None => self.worker_turn(row, &run, &turn.prompt, &turn.session, turn_id).await,
+          },
         };
 
         keep_worker_job(db, &agent, None).await;

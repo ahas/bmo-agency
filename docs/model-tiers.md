@@ -12,13 +12,14 @@ A `role:<name>` key is a co-worker role's or an agent role's (`docs/agent-roles.
 two kinds of role share no name. An agent role's key is assigned when the role is given a tier, takes any
 tier of the ladder, and is removed with the role or when the role's tier is cleared.
 Workers share `job-worker`; runtime agent observations are never configuration seeds.
-An agent's row in the `agents` table carries no model. One choice of a model stands outside the tiers,
-and the route listing shows it: a work key may name a registration of its own on the registry's provider
-in place of its tier's cell there (`docs/own-llm.md`, 「A key's own registration」). What an agent is
-configured to run on is
+An agent's row in the `agents` table carries no model but its own fixed model (「An agent's own model」
+below). Two choices of a model stand outside the tiers: that fixed model, and — shown by the route
+listing — a registration of its own a work key may name on the registry's provider in place of its tier's
+cell there (`docs/own-llm.md`, 「A key's own registration」). What an agent is configured to run on is
 read as the tier store's answer — by agency's agent routes — for the agent's work key on
 the provider its road begins on, the head of its walk: the chat agent and each gate on its own key's road, every
-worker on `job-worker` on the provider it is pinned to or else first in the provider order, and the searcher and the browser on their own
+worker on `job-worker` on the provider it is pinned to, on the model its pin names where it names one, or
+else first in the provider order, and the searcher and the browser on their own
 keys on the first enabled provider carrying their line. Where work goes out now, while that head cannot
 answer, is the road resolution's answer rather than the configuration (`docs/cache-fallback.md`, 「One road
 resolution」): the first provider of the walk that can answer now, on the key's tier there. Agency's agent list (`docs/api.md`, 「Agents」), the console
@@ -248,22 +249,33 @@ Branch prefix digests include effective effort. A co-work reservation for a task
 - **Seeds.** As the two columns arrive, the agents the deployment's configuration names are given
   thinking on, and every other agent stands at default.
 
-## A supervisor's own model
+## An agent's own model
 
-- **A supervisor's model is chosen one of two ways, and every supervisor chooses the same two ways.** A
-  supervisor is any agent that answers in a room — the chat agent and every companion alike
-  (`docs/companions.md`) — and each answers on either the supervisor route or a fixed model, changed in
-  the console's supervisor settings (`docs/api.md`, 「Agents」 and 「companions」) with no restart, reached
-  from the next turn.
-- **The supervisor route** is the model the supervisor key resolves to on the provider its road reaches
-  now (`docs/cache-fallback.md`, 「One road resolution」), changed on the routes screen. The key is the
-  policy's key of the chat agent's kind, and every supervisor that keeps no fixed model answers on it.
-- **A fixed model** is a registration of the registry, kept as the agent's own pin: `pinned_provider` the
-  registry's provider and `pinned_model` the registration. It stands at the head of the walk: the turn
-  answers on the registration first and moves along the walk where it cannot answer, so a fixed model
-  that is down does not silence the room.
+- **Any agent may keep a fixed model of its own,** whatever its kind: a chat agent, a companion, a worker,
+  a runner's agent or a gate's. It is set through `PATCH /agents/{agentName}` (`docs/api.md`, 「Agents」)
+  with no restart, and reached from the agent's next turn, job or standing program.
+- **A fixed model is a provider and one model of it,** kept as the agent's own pin: `pinned_provider` the
+  provider and `pinned_model` the model. The model is one the provider holds: a model the Claude CLI's
+  catalogue names on Claude Code (「The Claude catalogue」 below), a member of a provider's own road, or a
+  registration with an address on the registry's provider. Where the provider's catalogue cannot be read
+  at the moment the pin is set, the pin is kept rather than refused, since a catalogue that cannot be
+  read says nothing against the name; where it reads and does not name the model, the pin is refused.
+- **It stands at the head of the agent's walk** (`docs/cache-fallback.md`, 「One road resolution」): the
+  work answers on the pinned provider and model first and moves along the walk only while the pin cannot
+  answer, so a fixed model that is down does not stop the agent. Everywhere else in the walk the work goes
+  out on its key's tier mapping.
+- **A worker's fixed model carries everything the worker runs:** its jobs, its standing program and a
+  turn put to it directly (`docs/agent-control.md`, 「Asking a worker directly」). On Claude Code the pin's
+  model is the model the run goes out on, its effort the tier's or the worker's own as that model takes
+  it, and the session kept for it is the one kept on that model. A support worker runs on its base's pin.
+- **A supervisor chooses between two methods.** A supervisor is any agent that answers in a room — the
+  chat agent and every companion alike (`docs/companions.md`) — and each answers either on a fixed model
+  or on the supervisor route, the model the supervisor key resolves to on the provider its road reaches
+  now, changed on the routes screen. The key is the policy's key of the chat agent's kind, and every
+  supervisor that keeps no fixed model answers on it. The route is a supervisor's alone: an agent of
+  another kind that keeps no fixed model goes out on its own work key's road.
 - **The screen shows the method that stands:** a pinned agent is shown on its model, an unpinned one on
-  the model the supervisor route resolves to.
+  the model its route or its key resolves to.
 
 ## Runner line keys
 
