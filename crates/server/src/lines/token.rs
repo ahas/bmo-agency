@@ -206,6 +206,16 @@ pub async fn issue(
 
   variables.extend(line_variables(ground, line));
 
+  // A thrown-away session's place stands no agent row, so its calls name the agent its line's brain tools
+  // write for, the chat agent, as a run of the line does (docs/agent-roles.md, 「The searcher role's bundles」).
+  if crate::apart_places::session_agent(&ground.roots.data, agent).is_some()
+    && RUN_LINES.writes_agent_brain(line)
+  {
+    let chat = crate::conversational::default_answerer(&ground.db, &DEPLOYMENT.agent_key).await?;
+
+    variables.insert("BMO_TURN_AGENT".to_owned(), chat);
+  }
+
   let mut labels = Map::new();
 
   labels.insert("line".to_owned(), json!(line));
