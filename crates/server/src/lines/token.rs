@@ -137,8 +137,13 @@ async fn capabilities(
   agent: &str,
   checkout: &str,
 ) -> Result<(Option<String>, Vec<String>), Refusal> {
+  // A thrown-away session's place holds its session's agent's role; a branch place the co-workers'.
+  let named = match crate::apart_places::session_agent(&ground.roots.data, agent) {
+    Some(of_session) => of_session,
+    None => agent.to_owned(),
+  };
   let role =
-    match one(&ground.db, r#"SELECT "role" FROM "agents" WHERE "name" = $1"#, vec![agent.into()]).await? {
+    match one(&ground.db, r#"SELECT "role" FROM "agents" WHERE "name" = $1"#, vec![named.into()]).await? {
       Some(row) => row.try_get::<Option<String>>("", "role")?,
       None => crate::places::branch::place_of(&ground.roots.data, checkout).map(|_| ROLES.coworker.clone()),
     };

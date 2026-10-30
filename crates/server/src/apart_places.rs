@@ -38,6 +38,22 @@ pub fn is_apart_place(data: &Path, name: &str) -> bool {
     .is_some_and(|record| record["place"] == name)
 }
 
+/// The agent whose thrown-away session a place is, as its record names the session: the name before the
+/// session's `@`; none for a name that is no such place.
+pub fn session_agent(data: &Path, name: &str) -> Option<String> {
+  let record = agent_host::disk::read_json::<Value>(&Place::of(data, name).path.join(PLACE_RECORD))?;
+
+  if record["place"] != name {
+    return None;
+  }
+
+  record["session"]
+    .as_str()
+    .and_then(|session| session.split('@').next())
+    .filter(|agent| !agent.is_empty())
+    .map(str::to_owned)
+}
+
 /// Every thrown-away session's place standing now, by its name.
 pub fn apart_places(data: &Path) -> Vec<String> {
   let Ok(entries) = std::fs::read_dir(places_dir(data)) else {

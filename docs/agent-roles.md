@@ -201,7 +201,8 @@ made of is `docs/companions.md`.
     otherwise the agent the launcher runs it for — the worker whose standing program it is, the agent
     a run is recorded under.
   - An agent the archive holds no row of holds no role, but for a co-worker's place, which holds the
-    co-workers' role.
+    co-workers' role, and a thrown-away session's place, which holds the role of the agent whose session
+    it is.
 - **The catalogue a call is served.** The system's own MCP server serves a record the whole catalogue where it
   holds `room.tools`, and otherwise the chat catalogue's tools whose bundles it holds.
 - **The send guard,** for every sending tool and script.
