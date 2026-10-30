@@ -22,11 +22,13 @@ const root = scratchDir("bmo-claude-endpoint-");
 const home = join(root, "deepseek-home");
 const keyFile = join(root, "deepseek.key");
 const base = join(root, "base.md");
+const harnessed = join(root, "harnessed.md");
 
 mkdirSync(home, { recursive: true });
 mkdirSync(join(root, "plugin"), { recursive: true });
 writeFileSync(keyFile, "  sk-not-a-real-key\n");
 writeFileSync(base, "the dsh prompt\n");
+writeFileSync(harnessed, "the harness, then the rules\n");
 for (const name of ["settings.json", "mcp.json", "rules.md"]) writeFileSync(join(root, name), name === "rules.md" ? "the rules\n" : "{}");
 
 function workerRun(overrides: Partial<HarnessRun> = {}): HarnessRun {
@@ -53,6 +55,7 @@ function workerRun(overrides: Partial<HarnessRun> = {}): HarnessRun {
       pluginDir: join(root, "plugin"),
       agentsJson: "{}",
       rulesPath: join(root, "rules.md"),
+      harnessedPath: harnessed,
     },
     ...overrides,
   };
@@ -113,7 +116,7 @@ describe("the environment an endpoint account's run is handed", () => {
     await expect(claudeCode.command(workerRun({ account }))).rejects.toThrow("The key file of account deepseek cannot be read.");
   });
 
-  test("a base the run carries replaces the program's prompt, and the rules are appended only without one", async () => {
+  test("a base the run carries is the whole prompt, and the harnessed file is without one", async () => {
     const account = endpointAccount({ opus: "deepseek-v4-pro" });
     const withBase = await claudeCode.command(workerRun({ account, systemPromptPath: base }));
     const without = await claudeCode.command(workerRun({ account }));
@@ -121,8 +124,9 @@ describe("the environment an endpoint account's run is handed", () => {
     expect(withBase.args).toContain("--system-prompt-file");
     expect(withBase.args).not.toContain("--append-system-prompt-file");
     expect(withBase.args[withBase.args.indexOf("--system-prompt-file") + 1]).toBe(base);
-    expect(without.args).toContain("--append-system-prompt-file");
-    expect(without.args).not.toContain("--system-prompt-file");
+    expect(without.args).toContain("--system-prompt-file");
+    expect(without.args).not.toContain("--append-system-prompt-file");
+    expect(without.args[without.args.indexOf("--system-prompt-file") + 1]).toBe(harnessed);
   });
 });
 

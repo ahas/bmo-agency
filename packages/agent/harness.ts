@@ -191,8 +191,11 @@ export interface RunExtensions {
   pluginDir: string;
   // The co-worker definitions, as the one JSON object the program takes them in.
   agentsJson: string;
-  // A document appended to the program's own system prompt, which it keeps as its own.
+  // The rules every job is held to, which close the worker's prompt.
   rulesPath: string;
+  // The whole system prompt a worker with no base prompt is handed: the platform's harness opening with
+  // the rules after it; absent in a kept run written before it was composed.
+  harnessedPath?: string | null;
 }
 
 export interface ResidentPlace {

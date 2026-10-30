@@ -211,6 +211,18 @@ function programHead(run: HarnessRun): string[] {
 // A job is run as a person runs it: it holds its terminal and can be spoken to while it works, and
 // the session it answers in is named on the way in because nothing will print it back. Its fold is
 // the same program's `/compact`, so it stands on the same prefix.
+// The flag and the file a worker's prompt is handed as: a decided base or the harnessed file whole, or
+// the rules alone appended for a kept run written before the harnessed file was composed.
+function wholePrompt(run: HarnessRun): string[] {
+  if (run.systemPromptPath !== null) return ["--system-prompt-file", handedPath(run.line, run.systemPromptPath)];
+
+  const harnessed = extensionsOf(run).harnessedPath ?? null;
+
+  if (harnessed !== null) return ["--system-prompt-file", handedPath(run.line, harnessed)];
+
+  return ["--append-system-prompt-file", handedPath(run.line, extensionsOf(run).rulesPath)];
+}
+
 function workerLine(run: HarnessRun): string[] {
   const args = programHead(run);
 
@@ -223,14 +235,12 @@ function workerLine(run: HarnessRun): string[] {
     "bypassPermissions",
     "--disallowedTools",
     run.toolsDenied ?? "",
-    // The owner's standing rules for every job, appended to the CLI's own prompt rather than replacing
-    // it, so they reach a job in whichever checkout it works. A worker whose base prompt is decided —
-    // its account's where the account names one, which wins over the agent's own choice, and the
-    // agent's otherwise — is handed that base with the same rules after it as its whole prompt
-    // instead, and the base arrives as the run's system prompt file (docs/base-prompts.md).
-    ...(run.systemPromptPath === null
-      ? ["--append-system-prompt-file", handedPath(run.line, extensionsOf(run).rulesPath)]
-      : ["--system-prompt-file", handedPath(run.line, run.systemPromptPath)]),
+    // The whole system prompt, never the CLI's own: a worker whose base prompt is decided — its
+    // account's where the account names one, which wins over the agent's own choice, and the agent's
+    // otherwise — is handed that base with the rules after it; one with none is handed the platform's
+    // harness opening with the same rules after it (docs/base-prompts.md). A kept run written before
+    // the harnessed file was composed still carries only its rules, appended as it was started.
+    ...wholePrompt(run),
     // What this machine's own configuration used to supply, supplied from the repository
     // instead. User scope is shut off, so a skill, a co-worker definition or an MCP server the
     // machine happens to carry is no longer loaded beside the one that moved here — exactly one
