@@ -159,10 +159,16 @@ export function absoluteRules(): string {
   return readRequired(join(rulesDir, chatLine.system.absolute_rules));
 }
 
+// The platform's harness opening, the first layer of every whole prompt a line hands Claude Code
+// (docs/base-prompts.md, 「The harness layer」).
+export function harness(): string {
+  return readRequired(join(assetRoot(), "prompts", "harness.md"));
+}
+
 // The chat's documents around the absolute rules and the rulebooks it reads, as the chat line's policy
-// names them for both sides.
+// names them for both sides, opened by the harness.
 export function chatSystemStatic(_kind?: ChatKind): string {
-  return [agentFile("chat", chatLine.system.opening), absoluteRules(), agentFile("chat", chatLine.system.manual),
+  return [harness(), agentFile("chat", chatLine.system.opening), absoluteRules(), agentFile("chat", chatLine.system.manual),
     ...(chatLine.system.rulebooks as string[]).map((name) => rulebook(name))].join("\n\n");
 }
 
@@ -210,7 +216,7 @@ export const searchRulebooks: readonly string[] = declaredSearch.rulebooks;
 // branch's are composed by agency's server for each run, with the site tools the tool host lists.
 
 export function browseSystem(): string {
-  return [agentFile("browse", "task.md"), rulebook(selfPreservation)].join("\n\n");
+  return [harness(), agentFile("browse", "task.md"), rulebook(selfPreservation)].join("\n\n");
 }
 
 // How to ask the code dependency graph, in the one wording every agent that reads this code is
