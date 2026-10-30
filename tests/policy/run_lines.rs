@@ -10,9 +10,9 @@ fn the_worker_line_keeps_its_session_and_leaves_its_tools_to_its_agents_role() {
   assert!(RUN_LINES.capabilities("worker").is_empty());
   assert_eq!(
     RUN_LINES.capabilities("chat"),
-    ["room.tools", "gate.translate", "gate.reference", "deploy"]
+    ["room.tools", "gate.translate", "gate.reference", "deploy", "research.ask", "research.owner"]
   );
-  assert_eq!(RUN_LINES.namespaces("chat"), ["bmo", "gate", "eye", "ear", "testbed", "voice"]);
+  assert_eq!(RUN_LINES.namespaces("chat"), ["bmo", "gate", "eye", "ear", "testbed", "voice", "research"]);
   assert!(RUN_LINES.capabilities("gate").is_empty());
 }
 

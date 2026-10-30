@@ -50,7 +50,7 @@ fn a_server_is_absent_where_dsh_says_so_or_the_host_saw_other_servers_reached_bu
   assert_eq!(named(absent("chat", &inactive, None)), ["job"]);
   assert_eq!(
     named(absent("chat", &inactive, Some(&reached))),
-    ["job", "bmo", "gate", "eye", "ear", "testbed", "voice"]
+    ["job", "bmo", "gate", "eye", "ear", "testbed", "voice", "research"]
   );
   // A host that saw no client since it started knows nothing either way.
   assert_eq!(named(absent("chat", &[], Some(&[]))), Vec::<String>::new());
@@ -65,7 +65,8 @@ fn a_server_is_absent_where_dsh_says_so_or_the_host_saw_other_servers_reached_bu
         "eye".into(),
         "ear".into(),
         "testbed".into(),
-        "voice".into()
+        "voice".into(),
+        "research".into()
       ])
     )),
     Vec::<String>::new()
