@@ -98,6 +98,10 @@ made of is `docs/companions.md`.
   over as waiting to go live and never deploys, and the testbed's own verb refuses a harness's shell, so the
   tool is the chat agent's one road to a deployment. The call is asynchronous; its outcome comes back to the
   room as an instruction, which the agent relays.
+- **The chat line holds the voice namespace** under `room.tools`: the voice service's `voice/servers`, booked,
+  which reads the voice node list and whether each node's server answers (the voice's `docs/boundary-api.md`,
+  「The hosted tool」). The agent's shell is kept off every unit's port, so the list is read through the tool
+  host and never from the voice's store or its address.
 
 ## The worker role's bundles
 
