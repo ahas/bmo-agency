@@ -195,6 +195,8 @@ fn carries_every_rulebook_or_its_deciding_section() {
       "RULEBOOK prompts/rules/investment-search.md (sections: Whether this rulebook applies at all):",
       "RULEBOOK prompts/rules/deep-dives.md (sections: Whether this rulebook applies at all):",
       "RULEBOOK prompts/rules/research.md (sections: Whether this rulebook applies at all):",
+      "RULEBOOK prompts/rules/security-advisory.md (sections: Whether this rulebook applies at all):",
+      "RULEBOOK prompts/rules/economy-brief.md (sections: Whether this rulebook applies at all):",
       "read it whole with the read_rulebook tool before searching",
     ],
   );
