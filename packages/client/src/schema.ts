@@ -1538,7 +1538,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Run a research on a research key: a search at a depth, or a browse; answered at once, its result queued for the room as it ends. */
+        /** Run a research on a research key: a search at a depth, or a browse, on the road the ask names where it names a provider or a model; answered at once, its result queued for the room as it ends. */
         post: operations["createResearchRuns"];
         delete?: never;
         options?: never;
@@ -3499,7 +3499,7 @@ export interface components {
         };
         /**
          * @description ResearchRunAsk: a research asked of the agency: its research key, its question, and who asked, the options and
-         *     the room its result is for, where they are known.
+         *     the room its result is for, where they are known; and the road it goes out on, where the caller names one.
          */
         ResearchRunAsk: {
             /** @description `search:basic`, `search:thorough`, `search:exhaustive` or `browse`. */
@@ -3509,6 +3509,13 @@ export interface components {
             options?: string | null;
             /** Format: int64 */
             roomId?: number | null;
+            /** @description The provider the run goes out on, where the caller names one; its program must carry the key's line. */
+            provider?: string | null;
+            /**
+             * @description The model the run goes out on, where the caller names one: as Claude Code's `/model` names it, a gateway
+             *     member among them. Named alone, it goes out on whichever program that carries the key's line lists it.
+             */
+            model?: string | null;
         };
         /** @description ResearchSettings: what every research run is held to, and the search engines' state. */
         ResearchSettings: {

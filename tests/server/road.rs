@@ -62,6 +62,7 @@ fn resolution(pinned: Option<&str>, steps: Vec<Step>) -> Resolution {
     steps,
     line: Some("worker".into()),
     uncarried: vec![],
+    named: false,
   }
 }
 

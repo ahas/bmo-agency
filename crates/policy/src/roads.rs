@@ -21,6 +21,10 @@ pub struct Reasons {
   pub balance: String,
   /// No login of a provider that holds logins is open.
   pub no_login: String,
+  /// A provider on a named road whose program does not carry the key's line, with `{line}`.
+  pub uncarried: String,
+  /// A provider on a named road that does not list the model named, with `{model}`.
+  pub unlisted: String,
 }
 
 /// Why one login cannot answer now, each with `{account}`.
@@ -40,6 +44,8 @@ pub struct Logins {
 #[serde(deny_unknown_fields)]
 pub struct Closed {
   pub head: String,
+  /// The head where the caller named the road.
+  pub named: String,
   /// With `{provider}` and `{reason}`.
   pub provider: String,
   /// With `{at}`.

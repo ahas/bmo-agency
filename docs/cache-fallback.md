@@ -489,6 +489,13 @@ When a demotion first catches — when a healthy session first drops — two thi
   key's tier mapping on that provider. So automatic work goes out on its key's own tier of the first
   provider that can answer — a job's on `job-worker`'s, the Frontier tier.
 - **The account.** Where the provider holds logins, the first login the account judgement offers the key.
+- **A named road.** Work whose caller names the road it goes out on — a research run asked on a provider,
+  a model or both (`docs/research-runs.md`, 「The road」) — has the walk restricted to that road: the
+  provider named alone, or where only the model is named every provider of the order whose program carries
+  the key's line; each on the model named, or on the key's tier mapping where only the provider is named.
+  A provider asked there answers for itself as on any walk, and besides must carry the line, list the model
+  named, and hold a tier mapping for the key; one that does not cannot answer, for that reason, and the walk
+  never moves outside the named road. Such work is no move of the key's road and publishes no fact.
 - **Every line asks it, and none keeps a walk of its own:** the chat's turn, a job's launch and its
   relaunch, a worker's standing program, a work key's read (`GET /work-keys/{workKey}`, which the runners
   and the gates resolve their road by), and the warming, which warms no provider that cannot answer now.

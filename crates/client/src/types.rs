@@ -2368,7 +2368,7 @@ pub struct TranslationRun {
 }
 
 /// ResearchRunAsk: a research asked of the agency: its research key, its question, and who asked, the options and
-/// the room its result is for, where they are known.
+/// the room its result is for, where they are known; and the road it goes out on, where the caller names one.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ResearchRunAsk {
@@ -2381,6 +2381,13 @@ pub struct ResearchRunAsk {
   pub options: Option<String>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub room_id: Option<i64>,
+  /// The provider the run goes out on, where the caller names one; its program must carry the key's line.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub provider: Option<String>,
+  /// The model the run goes out on, where the caller names one: as Claude Code's `/model` names it, a gateway
+  /// member among them. Named alone, it goes out on whichever program that carries the key's line lists it.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub model: Option<String>,
 }
 
 /// ResearchRun: a research run as it was launched: its run in the ledger, its key and the road it went out on.

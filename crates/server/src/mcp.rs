@@ -183,7 +183,7 @@ pub fn tools(agent: Option<&str>) -> Vec<AgencyTool> {
     ),
     tool::<ResearchRunAsk, ResearchRun, _, _>(
       "run_research",
-      "Send a web research out: key search:basic, search:thorough or search:exhaustive for a search at that depth, or browse for a browse, with the question; answered at once with the run's id, the road it went out on and when its web tools close, or why nothing can carry it now. Its result is queued for the room as an instruction once the run ends.",
+      "Send a web research out: key search:basic, search:thorough or search:exhaustive for a search at that depth, or browse for a browse, with the question; answered at once with the run's id, the road it went out on and when its web tools close, or why nothing can carry it now. A run may be asked on a named model — model as Claude Code's /model names it, a gateway member among them, and provider where one is meant — and is refused where nothing that carries the research line lists that model or can answer on it now; with neither named, the key's own road carries it. Its result is queued for the room as an instruction once the run ends.",
       "POST /research-runs",
       |client, body| async move { client.create_research_runs(&body).await },
     ),

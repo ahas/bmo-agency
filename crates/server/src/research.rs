@@ -32,7 +32,7 @@ use crate::lines::{Trees, render};
 use crate::places::Ground;
 use crate::places::locks::{agent_lock_path, hold};
 use crate::queue::settings;
-use crate::road::{self, Ask, Road};
+use crate::road::{self, Ask, Named, Road};
 use crate::run_ledger::{self, Closing, Opening, Spent};
 use crate::run_log::lines::Line;
 use crate::run_log::{RunLog, Target};
@@ -347,7 +347,8 @@ pub fn variables(
   set
 }
 
-/// Why a research ask is refused before anything is looked up: a key that is no research key, or no question.
+/// Why a research ask is refused before anything is looked up: a key that is no research key, no question, or a
+/// provider agency does not know.
 pub fn ask_fault(ask: &ResearchRunAsk) -> Option<String> {
   if research_profile(&ask.key).is_none() {
     let keys: Vec<&str> = research_keys().map(|profile| profile.key.as_str()).collect();
@@ -355,7 +356,31 @@ pub fn ask_fault(ask: &ResearchRunAsk) -> Option<String> {
     return Some(format!("{} is no research key: {}", ask.key, keys.join(", ")));
   }
 
+  if let Some(provider) = named_of(ask).and_then(|named| named.provider)
+    && harness_providers::provider(provider).is_none()
+  {
+    let known: Vec<&str> = harness_providers::providers().iter().map(|one| one.name()).collect();
+
+    return Some(format!("{provider} is no provider: {}", known.join(", ")));
+  }
+
   ask.query.trim().is_empty().then(|| "a research asks a question".to_owned())
+}
+
+// A value the ask says, none where it is left out or blank.
+fn said(value: &Option<String>) -> Option<&str> {
+  value.as_deref().map(str::trim).filter(|said| !said.is_empty())
+}
+
+/// The road a research ask names (docs/research-runs.md, 「The road」): its provider, its model or both, none
+/// where it names neither and the road resolution answers for its key.
+pub fn named_of(ask: &ResearchRunAsk) -> Option<Named<'_>> {
+  let named = Named {
+    provider: said(&ask.provider),
+    model: said(&ask.model),
+  };
+
+  (named != Named::default()).then_some(named)
 }
 
 /// Why a research run cannot be launched now, refused before anything stands: the road resolution's sentence
@@ -877,8 +902,9 @@ fn request(trees: &Trees, line: &str, ask: &ResearchRunAsk, kept: Kept) -> Resul
   })
 }
 
-/// One research run launched (docs/research-runs.md, 「One run, step by step」): its road resolved, its ledger
-/// run opened, and the run itself sent on in the background; what it was launched on answered at once.
+/// One research run launched (docs/research-runs.md, 「One run, step by step」): its road resolved, on the road
+/// the ask names where it names one, its ledger run opened, and the run itself sent on in the background; what
+/// it was launched on answered at once.
 pub async fn launch(ground: Arc<Ground>, ask: ResearchRunAsk) -> Result<ResearchRun, Refused> {
   if let Some(why) = ask_fault(&ask) {
     return Err(Refused::Ask(why));
@@ -886,14 +912,25 @@ pub async fn launch(ground: Arc<Ground>, ask: ResearchRunAsk) -> Result<Research
 
   let profile = research_profile(&ask.key).expect("a research key has its profile");
   let line = profile.line.clone();
-  let resolution = road::resolve(&ground, &Ask::key(&ask.key)).await.map_err(Refused::Failed)?;
+  let named = named_of(&ask);
+  let asked = Ask {
+    named,
+    ..Ask::key(&ask.key)
+  };
+  let resolution = road::resolve(&ground, &asked).await.map_err(Refused::Failed)?;
+  // A run on a named road is no move of its key's road, and tells none.
+  let told = named.is_none();
   let Some(taken) = resolution.road().cloned() else {
-    road::went(&ground, &resolution, None, &[]).await;
+    if told {
+      road::went(&ground, &resolution, None, &[]).await;
+    }
 
     return Err(Refused::Closed(resolution.sentence()));
   };
 
-  road::went(&ground, &resolution, Some(&taken), &[]).await;
+  if told {
+    road::went(&ground, &resolution, Some(&taken), &[]).await;
+  }
 
   let (settings, _) = settings(&ground.db).await.map_err(|why| Refused::Failed(why.detail))?;
   let kept = settings.keys.get(&ask.key).copied().unwrap_or(Kept {

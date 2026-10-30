@@ -706,6 +706,7 @@ fn job_ask<'a>(worker: &'a str, left: &'a [Closed]) -> Ask<'a> {
     worker: Some(worker),
     user: None,
     left,
+    named: None,
   }
 }
 

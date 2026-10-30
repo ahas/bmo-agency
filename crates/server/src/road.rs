@@ -5,9 +5,9 @@
 //! for itself whether it can answer now (「Availability: whether a provider can answer now」), each out of
 //! its own member, and the first that can carries the work, on the pinned model where the pin names one and
 //! the key's tier mapping everywhere else, on the first login the account judgement offers where the
-//! provider holds logins. The resolution knows no provider by name. A move off the head of the walk, a
-//! return to it and an order that cannot answer at all are each published once, as the facts of
-//! `road.changed` (docs/api.md, 「Events」).
+//! provider holds logins. Work whose caller names its road walks that road alone. The resolution knows no
+//! provider by name. A move off the head of the walk, a return to it and an order that cannot answer at all
+//! are each published once, as the facts of `road.changed` (docs/api.md, 「Events」).
 
 use cache_siren::Slot;
 use harness_providers::{Machine, Provider};
@@ -29,14 +29,25 @@ use sea_orm::DatabaseConnection;
 use store::one;
 
 /// What the resolution is asked: the work key, the worker a job goes out on where it is a job's, the user a
-/// run is made for, and the providers a job already left in this job with why, which its walk counts as
-/// unable to answer.
+/// run is made for, the providers a job already left in this job with why, which its walk counts as
+/// unable to answer, and the road the caller named where it names one.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Ask<'a> {
   pub key: &'a str,
   pub worker: Option<&'a str>,
   pub user: Option<i64>,
   pub left: &'a [Closed],
+  pub named: Option<Named<'a>>,
+}
+
+/// The road a caller names for its work (docs/cache-fallback.md, 「One road resolution」): a provider, a
+/// model, or both. The walk is that road alone — the provider named, or where only the model is named every
+/// provider of the order whose program carries the key's line — each on the model named, or on the key's
+/// tier mapping where only the provider is named.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Named<'a> {
+  pub provider: Option<&'a str>,
+  pub model: Option<&'a str>,
 }
 
 impl<'a> Ask<'a> {
@@ -132,6 +143,8 @@ pub struct Resolution {
   /// cannot carry it, which the walk passes as no road of the key.
   pub line: Option<String>,
   pub uncarried: Vec<String>,
+  /// Whether the caller named the road, so the walk was that road alone.
+  pub named: bool,
 }
 
 /// The walk over the owner's order: automatic from the top; a pin from its provider, then the providers
@@ -220,7 +233,7 @@ impl Resolution {
   /// road that waits for one reopens, and what a person does to reopen the first a person can.
   pub fn sentence(&self) -> String {
     let words = &ROADS.closed;
-    let mut lines = vec![words.head.clone()];
+    let mut lines = vec![if self.named { words.named.clone() } else { words.head.clone() }];
 
     for closed in self.closed() {
       lines.push(fill_marks(
@@ -317,19 +330,38 @@ pub async fn resolve(ground: &Ground, ask: &Ask<'_>) -> Result<Resolution, Strin
   let db = &ground.db;
   let machine = ground.machine();
   let order = provider_order(db).await.map_err(|refused| refused.error)?;
-  let pin = pin_of(ground, ask).await?;
+  // A named road is the head of its own walk: no setting of the key's is read for it.
+  let pin = match ask.named {
+    Some(_) => None,
+    None => pin_of(ground, ask).await?,
+  };
   let names: Vec<String> = order.iter().map(|entry| entry.name.clone()).collect();
   let line = WORK_KEYS.profile(ask.key).map(|profile| profile.line.clone());
+  let walked = match ask.named.and_then(|named| named.provider) {
+    Some(provider) => vec![provider.to_owned()],
+    None => walk(&names, pin.as_ref().map(|pin| pin.provider.as_str())),
+  };
   let mut steps = vec![];
   let mut uncarried = vec![];
 
-  for name in walk(&names, pin.as_ref().map(|pin| pin.provider.as_str())) {
+  for name in walked {
     let provider = harness::named(&name).map_err(|refused| refused.error)?;
+    let carries = line.as_deref().is_none_or(|line| provider.declared().carries(line));
+
+    // A road named by its model alone is every provider whose program carries the line, and no other.
+    if ask.named.is_some_and(|named| named.provider.is_none()) && !carries {
+      continue;
+    }
+
     let enabled = order.iter().any(|entry| entry.name == name && entry.enabled);
-    let pinned = pin.as_ref().filter(|pin| pin.provider == name);
+    let named = ask.named.map(|named| Pin {
+      provider: name.clone(),
+      model: named.model.map(str::to_owned),
+    });
+    let pinned = named.as_ref().or_else(|| pin.as_ref().filter(|pin| pin.provider == name));
     let mut asked = step(ground, &machine, ask, provider, enabled, pinned).await?;
 
-    if enabled && line.as_deref().is_some_and(|line| !provider.declared().carries(line)) {
+    if ask.named.is_none() && enabled && !carries {
       uncarried.push(name.clone());
     }
 
@@ -345,16 +377,20 @@ pub async fn resolve(ground: &Ground, ask: &Ask<'_>) -> Result<Resolution, Strin
 
   Ok(Resolution {
     key: ask.key.to_owned(),
-    pinned: pin.map(|pin| pin.provider),
+    pinned: match ask.named {
+      Some(named) => named.provider.map(str::to_owned),
+      None => pin.map(|pin| pin.provider),
+    },
     steps,
     line,
     uncarried,
+    named: ask.named.is_some(),
   })
 }
 
 // One provider of the walk asked whether it can answer for the key now, every part of the answer its own
 // member's: whether its program carries the key's line, its presence on this machine, the balance it offers
-// and the logins it holds.
+// and the logins it holds; on a named road also whether it lists the model named and maps the key's tier.
 async fn step(
   ground: &Ground,
   machine: &Machine,
@@ -373,8 +409,18 @@ async fn step(
     answer,
   };
   let refused = |refused: crate::control::Refused| refused.error;
+  let uncarried = line.filter(|line| !provider.declared().carries(line));
 
-  if line.is_some_and(|line| !provider.declared().carries(line)) || (pin.is_none() && !enabled) {
+  // On a named road a program that does not carry the line is a reason, told, rather than no road.
+  if let Some(line) = uncarried
+    && ask.named.is_some()
+  {
+    let reason = fill_marks(&ROADS.reasons.uncarried, &[("line", line)]);
+
+    return Ok(step(None, Answer::Cannot(Closed::plain(name, reason))));
+  }
+
+  if uncarried.is_some() || (pin.is_none() && !enabled) {
     return Ok(step(None, Answer::NoRoad));
   }
 
@@ -409,6 +455,17 @@ async fn step(
     return cannot(closed);
   }
 
+  // A model named goes out on the effort the key's tier maps on the provider, so the mapping must stand.
+  if ask.named.is_some_and(|named| named.model.is_some()) {
+    if let Err(why) = tiers::resolve_execution(db, ask.key, name, None).await {
+      return cannot(Closed::plain(name, why));
+    }
+
+    if let Some(why) = unlisted(ground, machine, provider, &model).await {
+      return cannot(Closed::plain(name, why));
+    }
+  }
+
   let account = if provider.holds_logins() {
     match logins(ground, ask, name).await? {
       Ok(account) => account,
@@ -426,6 +483,21 @@ async fn step(
       account,
     }),
   ))
+}
+
+// Why a provider does not take a model a named road names, out of what it offers a tier mapping, or none where
+// it lists it: the words for a model it does not list, or the refusal its catalogue gave where it cannot be read.
+async fn unlisted(
+  ground: &Ground,
+  machine: &Machine,
+  provider: &dyn Provider,
+  model: &str,
+) -> Option<String> {
+  match harness::offered(Judging::of(ground), machine, provider).await {
+    Ok(offered) if offered.models.iter().any(|one| one.id == model) => None,
+    Ok(_) => Some(fill_marks(&ROADS.reasons.unlisted, &[("model", model)])),
+    Err(why) => Some(why),
+  }
 }
 
 // A provider that offers a balance and whose own road's last reading is at or below zero: closed, with

@@ -12,6 +12,10 @@ balance = "its balance is spent ({amount} {currency} left)"
 # A provider that holds logins, none of the logins the key may go out on open; each login's own reason
 # follows it.
 no_login = "no login of it is open"
+# A provider on the road a caller named whose program does not carry the key's line.
+uncarried = "its program does not carry the {line} line"
+# A provider on the road a caller named that does not list the model named.
+unlisted = "it lists no model {model}"
 
 [logins]
 # One login's own reason, by what closes it.
@@ -22,9 +26,12 @@ key = "{account} has no key in its key file"
 balance = "{account} has spent its balance"
 
 [closed]
-# The sentence a closed road is refused or held with: its head, one line for each provider, the moment
-# the first road that waits for a window reopens, and what a person does to reopen the first a person can.
+# The sentence a closed road is refused or held with: its head, the order's or a named road's, one line for
+# each provider, the moment the first road that waits for a window reopens, and what a person does to reopen
+# the first a person can.
 head = "No provider of the order can answer now."
+# The head where the caller named the road the work goes out on.
+named = "Nothing can carry the work on the road it was asked on."
 provider = "{provider}: {reason}"
 reopens = "The first road reopens on its own at {at}."
 person = "To reopen {provider} now: {command}"

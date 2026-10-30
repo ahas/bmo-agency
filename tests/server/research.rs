@@ -1,7 +1,7 @@
 //! Research runs (docs/research-runs.md): the research keys and their settings, the variables a run carries into
 //! its tool session's record, a research key's road on the one resolution — Claude Code alone carries the
-//! search line, and a closed road says so — and the routes refusing what is no research or what nothing can
-//! carry now.
+//! search line, and a closed road says so — a run asked on a named road alone, and the routes refusing what is
+//! no research or what nothing can carry now.
 
 use std::collections::HashMap;
 use std::os::unix::fs::PermissionsExt;
@@ -14,7 +14,7 @@ use agency_server::lines::token::research_record;
 use agency_server::now_ms;
 use agency_server::places::Ground;
 use agency_server::research::*;
-use agency_server::road::{Ask, resolve};
+use agency_server::road::{Ask, Named, resolve};
 use agency_server::seeds::deployment;
 use bmo_agency_client::{ResearchKeySettings, ResearchRunAsk, ResearchSettingsChange};
 use harness_providers::{ARCHIVE_PROVIDERS, Machine};
@@ -216,6 +216,46 @@ fn an_ask_names_a_research_key_and_a_question() {
   assert!(ask_fault(&ask("browse", "  ")).is_some());
 }
 
+#[test]
+fn an_ask_may_name_its_road_and_a_provider_it_names_is_one_agency_knows() {
+  let ask = |provider: Option<&str>, model: Option<&str>| ResearchRunAsk {
+    key: "search:basic".into(),
+    query: "what is open now".into(),
+    provider: provider.map(str::to_owned),
+    model: model.map(str::to_owned),
+    ..ResearchRunAsk::default()
+  };
+
+  assert_eq!(named_of(&ask(None, None)), None);
+  assert_eq!(named_of(&ask(Some(" "), Some(""))), None, "a blank name names nothing");
+  assert_eq!(
+    named_of(&ask(None, Some("deepseek-flash"))),
+    Some(Named {
+      provider: None,
+      model: Some("deepseek-flash"),
+    })
+  );
+  assert_eq!(
+    named_of(&ask(Some("claude-code"), Some("claude-opus-5-5"))),
+    Some(Named {
+      provider: Some("claude-code"),
+      model: Some("claude-opus-5-5"),
+    })
+  );
+  assert!(ask_fault(&ask(Some("claude-code"), None)).is_none());
+  assert!(ask_fault(&ask(Some("nobody"), Some("x"))).is_some_and(|why| why.contains("no provider")));
+
+  let read: ResearchRunAsk = serde_json::from_value(
+    json!({ "key": "browse", "query": "a page", "provider": "deepseek", "model": "deepseek-flash" }),
+  )
+  .unwrap();
+
+  assert_eq!(
+    (read.provider.as_deref(), read.model.as_deref()),
+    (Some("deepseek"), Some("deepseek-flash"))
+  );
+}
+
 fn ground_on(scratch: &Scratch, home: &std::path::Path) -> Ground {
   let variables: HashMap<String, String> = HashMap::new();
   let service =
@@ -310,6 +350,91 @@ async fn a_search_key_goes_out_on_a_program_that_carries_the_line_and_its_closed
   assert_eq!(closed.road(), None);
   assert!(sentence.contains("carries the search line"), "{sentence}");
   assert!(sentence.contains("tool-gate"), "{sentence}");
+}
+
+// A Claude catalogue under the configuration directory the machine's login keeps, naming one model.
+fn claude_catalogue(home: &std::path::Path, model: &str) {
+  let place = home.join(".claude/cache/model-catalog");
+  let file = json!({
+    "version": 2,
+    "fetchedAt": now_ms(),
+    "staleAt": now_ms() + 3_600_000,
+    "catalog": { "surface": "cc", "config": { "id": "cc", "models": [{ "id": model, "section": "main" }] } },
+  });
+
+  std::fs::create_dir_all(&place).unwrap();
+  std::fs::write(place.join("a-cc.json"), file.to_string()).unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_run_asked_on_a_named_road_goes_out_on_it_alone_or_is_refused_with_why() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = ground_on(&scratch, home.path());
+
+  store::seed::settle(scratch.db(), &deployment(&ground.machine())).await.unwrap();
+  every_on(&scratch).await;
+  claude_catalogue(home.path(), "claude-opus-5-5");
+
+  let on = |provider: Option<&'static str>, model: Option<&'static str>| Ask {
+    named: Some(Named { provider, model }),
+    ..Ask::key("search:thorough")
+  };
+
+  // Claude Code heads the order, yet a gateway member named alone goes out on its member road.
+  let member = resolve(&ground, &on(None, Some("deepseek-flash"))).await.unwrap();
+  let road = member.road().unwrap();
+
+  assert_eq!(
+    (road.provider.as_str(), road.model.as_str()),
+    ("deepseek", "deepseek-flash"),
+    "{member:?}"
+  );
+  assert!(
+    member.steps.iter().all(|step| step.provider != "codex"),
+    "only carriers are asked: {member:?}"
+  );
+
+  // A Claude model named on Claude Code goes out there, on its first open login.
+  let claude = resolve(&ground, &on(Some("claude-code"), Some("claude-opus-5-5"))).await.unwrap();
+  let road = claude.road().unwrap();
+
+  assert_eq!(
+    (road.provider.as_str(), road.model.as_str()),
+    ("claude-code", "claude-opus-5-5"),
+    "{claude:?}"
+  );
+  assert!(road.account.is_some(), "{claude:?}");
+  assert_eq!(claude.steps.len(), 1, "the walk is the named provider alone: {claude:?}");
+
+  // A model no program that carries the line lists is refused, each provider asked saying so.
+  let unlisted = resolve(&ground, &on(None, Some("no-such-model"))).await.unwrap();
+  let sentence = unlisted.sentence();
+
+  assert_eq!(unlisted.road(), None);
+  assert!(sentence.contains("on the road it was asked on"), "{sentence}");
+  assert!(sentence.contains("claude-code: it lists no model no-such-model"), "{sentence}");
+  assert!(sentence.contains("deepseek: it lists no model no-such-model"), "{sentence}");
+
+  // A provider whose program does not carry the line is refused for that, never walked past.
+  let uncarried = resolve(&ground, &on(Some("codex"), Some("gpt-5"))).await.unwrap();
+  let sentence = uncarried.sentence();
+
+  assert_eq!(uncarried.road(), None);
+  assert!(sentence.contains("codex: its program does not carry the search line"), "{sentence}");
+
+  // A named road whose provider's logins all rest is refused with the logins' reasons.
+  scratch
+    .run(
+      r#"INSERT INTO "settings" ("key", "value") SELECT 'rest_until:' || "id", $1 FROM "claude_accounts""#,
+      vec![(now_ms() / 1000 + 3600).to_string().into()],
+    )
+    .await;
+
+  let resting = resolve(&ground, &on(Some("claude-code"), Some("claude-opus-5-5"))).await.unwrap();
+
+  assert_eq!(resting.road(), None);
+  assert!(resting.sentence().contains("no login of it is open"), "{}", resting.sentence());
 }
 
 async fn call(
@@ -412,6 +537,35 @@ async fn the_routes_keep_the_settings_and_refuse_what_is_no_research_or_what_not
   assert_eq!((status, closed["code"].as_str()), (503, Some("no-login-open")), "{closed}");
   assert!(closed["error"].as_str().unwrap_or_default().contains("search line"), "{closed}");
   assert_eq!(scratch.count(r#"SELECT COUNT(*) FROM "runs""#, vec![]).await, 0);
+
+  // A run asked on a model nothing that carries the line lists is refused with why, and a provider agency
+  // does not know is no ask at all.
+  let (status, unlisted) = call(
+    port,
+    token,
+    reqwest::Method::POST,
+    "/research-runs",
+    Some(json!({ "key": "search:basic", "query": "what is open now", "model": "no-such-model" })),
+  )
+  .await;
+
+  assert_eq!((status, unlisted["code"].as_str()), (503, Some("no-login-open")), "{unlisted}");
+  assert!(
+    unlisted["error"].as_str().unwrap_or_default().contains("on the road it was asked on"),
+    "{unlisted}"
+  );
+  assert_eq!(scratch.count(r#"SELECT COUNT(*) FROM "runs""#, vec![]).await, 0);
+
+  let (status, unknown) = call(
+    port,
+    token,
+    reqwest::Method::POST,
+    "/research-runs",
+    Some(json!({ "key": "search:basic", "query": "what is open now", "provider": "nobody" })),
+  )
+  .await;
+
+  assert_eq!((status, unknown["code"].as_str()), (400, Some("bad-request")), "{unknown}");
 
   let (_, fallback) = call(port, token, reqwest::Method::GET, "/fallback", None).await;
   let lines: Vec<&str> = fallback["profiles"]

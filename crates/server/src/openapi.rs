@@ -2489,7 +2489,7 @@ pub const OPERATIONS: &[Operation] = &[
     path: "/research-runs",
     id: "createResearchRuns",
     tag: "research-drafts",
-    summary: "Run a research on a research key: a search at a depth, or a browse; answered at once, its result queued for the room as it ends.",
+    summary: "Run a research on a research key: a search at a depth, or a browse, on the road the ask names where it names a provider or a model; answered at once, its result queued for the room as it ends.",
     params: &[],
     body: Some("ResearchRunAsk"),
     answers: &[(202, Some("ResearchRun"), false)],

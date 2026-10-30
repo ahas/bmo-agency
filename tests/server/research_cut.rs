@@ -231,6 +231,7 @@ fn placed(ledger: i64, place: &str, round: usize) -> InFlight {
         asker: None,
         options: None,
         room_id: Some(5),
+        ..Default::default()
       },
       taken: agency_server::road::Road {
         provider: "deepseek".into(),

@@ -630,10 +630,16 @@ them; a notice that holds nothing is withdrawn.
 
 - **A research run** (`docs/research-runs.md`) is asked with `key` — `search:basic`, `search:thorough`,
   `search:exhaustive` or `browse` — `query`, and `asker`, `options` and `roomId` where they are known. A key
-  that is no research key, or an empty query, is 400 `bad-request`. Its road is the road resolution's
-  answer for the key; where nothing can carry it the answer is 503 `no-login-open`, its sentence naming every
-  provider's reason. Otherwise the answer is 202 at once: `runId`, the ledger's run, `key`, `provider`,
-  `model`, `account` and `closesAt`, in epoch milliseconds. The result is queued for the room through the
+  that is no research key, an empty query, or a `provider` agency does not know is 400 `bad-request`. Its
+  road is the road resolution's answer for the key, unless the ask names `provider`, `model` or both: then
+  it goes out on that road alone (「The road」 there) — the provider named, or where only the model is
+  named the providers whose program carries the key's line, Claude Code and its member roads, each on the
+  model named as Claude Code's `/model` names it or as a gateway member such as `deepseek-flash`; on the
+  key's tier mapping where only the provider is named. Where nothing can carry it the answer is 503
+  `no-login-open`, its sentence naming every provider's reason: on a named road, a provider whose program
+  does not carry the line, a model it does not list, a tier that maps nothing on it, or no login of it
+  open. Otherwise the answer is 202 at once: `runId`, the ledger's run, `key`, `provider`, `model`,
+  `account` and `closesAt`, in epoch milliseconds, the road named or resolved. The result is queued for the room through the
   receiver's `POST /instructions` once the run ends, under the event `research-ended:<runId>`.
 - **The settings** answer `branchRole`, `strategy`, `hostIntervalMs` and `engineIntervalMs` (null where the
   web tools' default stands), `keys`, each research key's `branches` and `minutes`, `source` (`default`

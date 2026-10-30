@@ -20,14 +20,25 @@ same way (`docs/launch-lines.md`, 「Translate runner」).
 ## The road
 
 - **A research run's road is the road resolution's answer for its key** (`docs/cache-fallback.md`, 「One
-  road resolution」), like every other key's: the key's row heads the walk, and the first provider that can
-  answer now carries the run, on its first open login.
+  road resolution」), like every other key's, unless the run is asked on a named road (below): the key's
+  row heads the walk, and the first provider that can answer now carries the run, on its first open login.
 - **Only a program that carries the line is a road of it.** A research line reaches the web and the brain
   through the run's MCP servers alone (`policy/run-lines.toml`). Claude Code carries the search and browse
   lines. No provider of this build carries a research line but Claude Code; a key whose tier maps to another
   provider walks on to the first provider that carries it. Where nothing can carry the run — every provider
   of it off, its key missing, or every login of it closed — the run is refused, and the refusal names each
   provider's reason and says that no other provider's program carries the line, with what it needs.
+- **A run may be asked on a named road.** The caller names a provider, a model or both, and the run goes
+  out on that road alone: the road resolution's walk restricted to it (`docs/cache-fallback.md`, 「One road
+  resolution」), never moved off it. The provider named; where only the model is named, the providers of
+  the owner's order whose program carries the line — Claude Code, with its member road where the model is
+  a gateway member such as `deepseek-flash` — the first that lists the model and can answer. The model is
+  the one named, as Claude Code's `/model` or the gateway's members name it, or the key's tier mapping on
+  the provider where only the provider is named; the effort is the key's tier mapping on that provider;
+  the login is the provider's first open one for the key, as the resolution offers it. A provider whose
+  program does not carry the line, a model it does not list, a tier that maps nothing on it, or no login
+  of it open refuses the run, and the refusal names that reason for each provider asked. A run on a named
+  road is no move of its key's road and tells no `road.changed` fact.
 - **On Claude Code a run goes out in a pane of its own** as a run apart (`docs/agents.md`, 「Runs apart」):
   the runner's line as `docs/launch-lines.md` 「Search runner」 and 「Browse runner」 compose it, its
   standing instructions as the system prompt and the request as its words.
@@ -184,5 +195,6 @@ same way (`docs/launch-lines.md`, 「Translate runner」).
 ## The chat agent's ask
 
 - **agency's plugin serves `run_research`,** which calls `POST /research-runs`: the chat agent names the
-  depth and the question, and is told the run's id, its road and when its web tools close, or why the run
+  depth and the question, and the model where the owner named one for the research (「The road」), and is
+  told the run's id, its road and when its web tools close, or why the run
   was refused. The result comes back to the room as an instruction once the run ends.

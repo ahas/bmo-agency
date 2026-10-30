@@ -49,7 +49,7 @@ pub const TOOLS: [Tool; 5] = [
   },
   Tool {
     name: "run_research",
-    description: "Send a web research out on a research key: a search at a depth, or a browse. Answered at once with the run and the road it went out on; its result is queued for the room as the run ends.",
+    description: "Send a web research out on a research key: a search at a depth, or a browse. A run may be asked on a named model, as Claude Code's /model names it, a gateway member among them, and on a named provider; it is refused where nothing that carries the research line lists that model or can answer on it now. Answered at once with the run and the road it went out on; its result is queued for the room as the run ends.",
     input: "ResearchRunAsk",
     output: "ResearchRun",
     route: "POST /research-runs",
