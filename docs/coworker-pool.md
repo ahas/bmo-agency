@@ -14,7 +14,9 @@ warming and standing checkouts, is agency's.
 - A co-work work order's builder turn also launches a job after taking a place in the same pool.
 - **Branches:** the caller gives a role and instruction to the common dispatcher, which reads the
   provider order and the `role:<name>` tier assignment and picks the actual `(provider, model,
-  effort)` independently of the parent.
+  effort)` independently of the parent. A native `Agent` call is the exception: its provider is the
+  parent's where the parent stands on a provider that lends co-workers, and the pool's order decides
+  for every other branch.
 - **A branch's source and work key are the caller's.** A seat is asked under the source label its
   caller sends — `cowork` for a co-work branch, a research run's own label for its branches — and a
   builder turn's place under `turn`; the label is kept as sent and only `turn` is a builder turn's. A
@@ -22,10 +24,10 @@ warming and standing checkouts, is agency's.
   `role:<name>` where it names none. The key a request or a reservation was resolved under is the one
   kept on it, and every later reading of it — the request asked again, a reservation's seats — reads
   that key rather than building it again.
-- **A worker line's native `Agent`:** the role definition that line was handed already set model and
-  effort by the `role:<name>` Claude Code mapping, so the worker settings' hook puts the request into
-  that provider and tier before the call and sends the call only after taking a place (「Native
-  co-worker places」 below).
+- **A worker line's native `Agent`:** the child runs inside the worker's own program, so the worker
+  settings' hook puts the request into the provider that program stands on and the tier the
+  `role:<name>` mapping gives on it before the call, and sends the call only after taking a place
+  (「Native co-worker places」 below).
 - **Refused:** a type not in a stored role (a CLI default type like `general-purpose`) follows the
   parent model, and a call re-invoked inside a co-worker spreads one more level outside the pool, so
   both are refused. A native call on a line that is not a worker line is refused too.
@@ -40,8 +42,9 @@ warming and standing checkouts, is agency's.
   reservation at either one, and a plan's side task naming either one falls back to its role's tier.
 - **The limit** is the `(provider, tier)` row of the co-worker pool tier-limit table, one row for
   every provider and co-worker tier. Only a provider turned on that lends co-workers is counted,
-  admitted on and shown; a single model lends none (`docs/model-tiers.md`, 「Common co-worker
-  capacity」).
+  admitted on and shown (`docs/model-tiers.md`, 「Common co-worker capacity」). A native call's seat
+  counts against the row of the provider its parent stands on, so the registry's rows are what hold
+  the native co-workers of a worker on a registration.
 - **The limit attaches to the tier** regardless of which model the tier currently resolves to, so
   changing a tier mapping or a role's tier does not lose the limit row, and two tiers resolving to one
   model still count their own limits.
@@ -230,15 +233,17 @@ Per provider:
 
 The worker settings' hook takes the place for one native `Agent` call.
 
-- **A run on a single model:** a program standing on a provider that lends no co-workers — read off the
-  environment it hands its hook — has its call refused at once, taking no place, and does that part
-  itself (`docs/model-tiers.md`, 「Common co-worker capacity」). The reservation command below refuses
-  such a program the same way.
+- **The provider a call stands on** is read off the environment the program hands its hook: the
+  provider that owns the program, and Claude Code where none does.
+- **A run on a provider that lends none:** its call is refused at once, taking no place, and the
+  program does that part itself (`docs/model-tiers.md`, 「Common co-worker capacity」). The
+  reservation command below refuses such a program the same way.
 - **Before the call:** the pre-call hook reads the type as a role, sets model and tier by the
-  `role:<type>` Claude Code mapping, puts in a request keyed by the session and tool-use id, and waits
-  for a place FIFO. The wait is a few minutes, shorter than the hook limit, and if no place comes in
-  it, the request is cancelled and the call refused with a reason. The refused call's work is done by
-  the caller with its own tools. A call that got a place is allowed while its input is edited: the
+  `role:<type>` mapping on the provider the program stands on — the registry's for a worker on a
+  registration, Claude Code's for one on Claude Code — puts in a request on that provider keyed by the
+  session and tool-use id, and waits for a place FIFO. The wait is a few minutes, shorter than the
+  hook limit, and if no place comes in it, the request is cancelled and the call refused with a reason.
+  The refused call's work is done by the caller with its own tools. A call that got a place is allowed while its input is edited: the
   caller's prompt is appended the way to read the code dependency graph, so whatever role it is called
   as, and whether the caller mentioned the graph or not, the co-worker receives that text.
 - **The call ends:** a call that received its result releases the lease. If it answers that it handed
@@ -253,8 +258,9 @@ The worker settings' hook takes the place for one native `Agent` call.
   pool's own clock, every five seconds, reclaim — cancelling a waiting request and releasing an active
   lease. Not reclaimed for time passing.
 - **Pre-reserving:** a job can pre-reserve places for native calls it will soon make.
-  `bmo-agency coworker pool reserve --role <role> [--tier <tier>] --count <count>` sets a reservation,
-  and the same command's `release` releases it.
+  `bmo-agency coworker pool reserve --role <role> [--tier <tier>] --count <count>` sets a reservation
+  on the provider the calling program stands on, as the pre-call hook reads it, and the same command's
+  `release` releases it.
   - The reservation's owner is the CLI process that called that command, with pid and start time. The
     pre-call hook, if the calling CLI is that process, takes over that reservation's places without
     requeuing. With evidence the CLI process ended, a later hook or co-work runner tick releases the

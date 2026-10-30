@@ -33,6 +33,10 @@ pub const NATIVE_WAIT: Duration = Duration::from_secs(4 * 60);
 const POLL: Duration = Duration::from_millis(500);
 const RECLAIM_EVERY: Duration = Duration::from_secs(5);
 
+/// The provider a native call's seat stands on where its program stands on no provider that lends
+/// co-workers of its own: Claude Code, whose program a native call runs inside.
+const NATIVE_PROVIDER: &str = "claude-code";
+
 /// The usage the reservation verb answers a wrong line with.
 pub const USAGE: &str =
   "usage: bmo-agency coworker pool reserve --role <role> [--tier <tier>] --count <n> | release";
@@ -194,19 +198,37 @@ pub fn refusal(reason: &str) -> String {
   .to_string()
 }
 
-/// Whether the run this process stands on lends co-workers: a run on a single model has none apart from
-/// itself. A program no provider owns is Claude Code's, which lends them.
-pub fn caller_lends_coworkers(machine: &harness_providers::Machine) -> bool {
-  let env: BTreeMap<String, String> = std::env::vars().collect();
+/// The provider owning the program the run on this machine stands on, read off the environment it hands
+/// its hook; none where no provider owns it, which makes it Claude Code's.
+fn caller_provider(
+  machine: &harness_providers::Machine,
+) -> Option<&'static dyn harness_providers::Provider> {
+  let env: BTreeMap<String, String> =
+    machine.vars().map(|(name, value)| (name.to_owned(), value.to_owned())).collect();
 
   harness_providers::standing_provider(machine, &["claude".to_owned()], &env)
     .and_then(|provider| named(provider.name()).ok())
-    .is_none_or(|provider| provider.declared().lends_coworkers)
 }
 
-/// The provider, tier and model a pooled role's native calls run on.
+/// Whether the run this process stands on lends co-workers: a run on a provider that lends none has none
+/// apart from itself. A program no provider owns is Claude Code's, which lends them.
+pub fn caller_lends_coworkers(machine: &harness_providers::Machine) -> bool {
+  caller_provider(machine).is_none_or(|provider| provider.declared().lends_coworkers)
+}
+
+/// The provider a native co-worker of the run this process stands on takes its seat on: the run's own,
+/// where that provider lends co-workers; none where it lends none or no provider owns the program, which
+/// leaves the seat on Claude Code.
+pub fn coworker_provider(machine: &harness_providers::Machine) -> Option<&'static str> {
+  caller_provider(machine)
+    .filter(|provider| provider.declared().lends_coworkers)
+    .map(|provider| provider.name())
+}
+
+/// The provider, tier and model a pooled role's native calls run on where the calling program stands on no
+/// provider of its own.
 pub async fn role_mapping(db: &DatabaseConnection, role: &str) -> Result<(String, String, String), String> {
-  let mapping = tiers::resolve(db, &format!("role:{role}"), "claude-code").await?;
+  let mapping = tiers::resolve(db, &format!("role:{role}"), NATIVE_PROVIDER).await?;
 
   Ok((mapping.provider, mapping.tier, mapping.model))
 }
@@ -229,13 +251,15 @@ pub enum Admission {
   Refused(String),
 }
 
-/// A native call admitted to the pool: its role held to the pooled ones and resolved to its Claude tier,
-/// its request put in the line — counted under a reservation the calling CLI holds for that tier, where it
-/// holds one — and waited on until it is let in, ended, or the wait runs out. `waiting` hears the request's
-/// token once it stands, so a stopped hook can end it.
+/// A native call admitted to the pool: its role held to the pooled ones and resolved to its tier on `on`,
+/// the provider its program stands on (Claude Code where none is named), its request put in the line on
+/// that provider — counted under a reservation the calling CLI holds for that tier, where it holds one —
+/// and waited on until it is let in, ended, or the wait runs out. `waiting` hears the request's token once
+/// it stands, so a stopped hook can end it.
 pub async fn admit(
   db: &DatabaseConnection,
   input: &HookInput,
+  on: Option<&str>,
   waiter: &ProcessMark,
   owner: &ProcessMark,
   wait: Duration,
@@ -272,11 +296,12 @@ pub async fn admit(
       "The co-worker gate refused this: {named} is not a role of the common spawning pool, and a type outside it would run on the parent's model. Name one of: {roles}; or do this part yourself."
     )));
   };
-  let mapping = match tiers::resolve(db, &format!("role:{role}"), "claude-code").await {
+  let provider = on.unwrap_or(NATIVE_PROVIDER);
+  let mapping = match tiers::resolve(db, &format!("role:{role}"), provider).await {
     Ok(mapping) => mapping,
     Err(why) => {
       return Ok(Admission::Refused(format!(
-        "The co-worker gate refused this: the {role} role resolves to no Claude model ({why})."
+        "The co-worker gate refused this: the {role} role resolves to no model on {provider} ({why})."
       )));
     }
   };
@@ -296,7 +321,7 @@ pub async fn admit(
       role,
       selection: "",
       requested_tier: None,
-      provider: None,
+      provider: on,
       work_key: None,
     },
     generation: 1,
@@ -476,11 +501,13 @@ pub async fn give_back(db: &DatabaseConnection, input: &HookInput) -> Result<(),
   }
 }
 
-/// Seats held for the native calls one CLI is about to make, on the Claude Code tier its role — or the tier
-/// it names — resolves to; the line saying how many are held and how many still wait for a place.
+/// Seats held for the native calls one CLI is about to make, on the tier its role — or the tier it names —
+/// resolves to on `on`, the provider the CLI stands on (Claude Code where none is named); the line saying
+/// how many are held and how many still wait for a place.
 pub async fn reserve(
   db: &DatabaseConnection,
   owner: &ProcessMark,
+  on: Option<&str>,
   role: &str,
   tier: Option<&str>,
   count: i64,
@@ -498,9 +525,10 @@ pub async fn reserve(
     )));
   }
 
+  let provider = on.unwrap_or(NATIVE_PROVIDER);
   let mapping = match tier {
-    None => tiers::resolve(db, &format!("role:{role}"), "claude-code").await,
-    Some(tier) => tiers::resolve_tier(db, tier, "claude-code").await,
+    None => tiers::resolve(db, &format!("role:{role}"), provider).await,
+    Some(tier) => tiers::resolve_tier(db, tier, provider).await,
   }
   .map_err(failed)?;
   let key = cli_owner(owner);
@@ -512,7 +540,7 @@ pub async fn reserve(
       role,
       selection: "",
       requested_tier: None,
-      provider: None,
+      provider: on,
       work_key: None,
     },
     count,
@@ -601,11 +629,15 @@ async fn judged(data_root: &std::path::Path, text: &str) -> Result<Vec<String>, 
     return Ok(vec![]);
   }
 
-  // A run on a single model has no co-worker apart from itself, so its call takes no place and goes
-  // nowhere: the worker does that part itself.
-  if !caller_lends_coworkers(&harness_providers::Machine::of_process(data_root)) {
+  // A run on a provider that lends no co-workers has none apart from itself, so its call takes no place
+  // and goes nowhere: the worker does that part itself.
+  let machine = harness_providers::Machine::of_process(data_root);
+
+  if !caller_lends_coworkers(&machine) {
     return Ok(vec![refusal(SINGLE_MODEL_REFUSAL)]);
   }
+
+  let on = coworker_provider(&machine);
 
   // SAFETY: getppid has no preconditions.
   let parent = i64::from(unsafe { libc::getppid() });
@@ -618,7 +650,7 @@ async fn judged(data_root: &std::path::Path, text: &str) -> Result<Vec<String>, 
   let mut terminate = signal(SignalKind::terminate()).map_err(|why| why.to_string())?;
   let mut heard = |token: &str| *waiting.borrow_mut() = Some(token.to_owned());
   let admitted = tokio::select! {
-    admitted = admit(&db, &input, &waiter, &owner, NATIVE_WAIT, &mut heard) => Some(admitted?),
+    admitted = admit(&db, &input, on, &waiter, &owner, NATIVE_WAIT, &mut heard) => Some(admitted?),
     _ = interrupt.recv() => None,
     _ = terminate.recv() => None,
   };

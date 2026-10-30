@@ -128,19 +128,26 @@ Branch prefix digests include effective effort. A co-work reservation for a task
   co-workers are borrowed on it; no list of providers is kept for the pool.
   - A provider offering several models — Claude Code, Codex, OpenRouter, DeepSeek — lends them, each
     at its own tier.
-  - A provider that is a single model on its own engine lends none, since nothing on it is a
-    co-worker apart from the run itself: the registry's provider, every registration of which is one
-    such model (the deployment's own engine among them).
+  - The registry's provider lends them as well: each registration is one model on its own engine, and
+    a child on the registry takes the registration its tier maps to there. Where the registry holds
+    more than one registration and the tier maps to another than the run's, the child is a model apart
+    from its parent. Nothing compares a child's registration with its parent's: a registry of one
+    registration maps every tier to that one, so a child on it is the run's own model again, and only
+    the tier's mapping keeps a child off its parent's registration.
   - The pool shows, counts, admits and warms only the providers that are turned on and lend
     co-workers. A turned-off provider's limits are kept and hold once it is on again.
-- **A child never lands on a single model.** A selection naming one is passed over for a child
-  exactly as a turned-off provider is, and the child takes the first enabled provider in the order
-  that lends co-workers; a caller naming one outright is refused. A worker's own turn is the worker
-  itself, not a child, and stands on whatever its selection names.
-- **A run on a single model opens no co-worker.** A worker pinned to one does that part itself: the
-  native co-worker gate refuses its `Agent` call and the reservation command refuses its reservation
-  (`docs/coworker-pool.md`, 「Native co-worker places」), as a research run set off on a registration
-  searches more itself instead of opening branches (`research-runs.md`).
+- **A child never lands on a provider that lends none.** A selection naming one is passed over for a
+  child exactly as a turned-off provider is, and the child takes the first enabled provider in the
+  order that lends co-workers; a caller naming one outright is refused. A worker's own turn is the
+  worker itself, not a child, and stands on whatever its selection names.
+- **A run on a provider that lends none opens no co-worker.** A worker pinned to one does that part
+  itself: the native co-worker gate refuses its `Agent` call and the reservation command refuses its
+  reservation (`docs/coworker-pool.md`, 「Native co-worker places」).
+- **A native co-worker stays on its parent's provider.** A worker's native `Agent` call runs inside
+  the worker's own program, so its seat is on the provider that program stands on where that provider
+  lends co-workers, at the tier the role's `role:<type>` mapping gives on it — a worker on the registry
+  takes its children's seats on the registry, at the registration each child's tier maps to there. A
+  program no provider owns is Claude Code's, and its children's seats are Claude Code's.
 - **The limit.** `coworker_pool_tier_limits` answers how many children of one co-worker tier may be
   alive on one provider. A limit is keyed by provider and tier, never by the model the tier currently
   resolves to, so editing a mapping or a role's assignment never leaves a request without a limit, and
@@ -155,9 +162,10 @@ Branch prefix digests include effective effort. A co-work reservation for a task
   requests. A request admitted under a model its tier no longer resolves to stays counted under its
   tier, and the status names the model and capacity it holds, until it is terminal.
 - **Independent resolution.** A pooled request never inherits the parent run's model or reads the
-  `job-worker` mapping to choose its provider; shared provider order and the role's own work key are
-  the two independent inputs, and an explicit task tier replaces the role's assignment for both the
-  model and the count.
+  `job-worker` mapping to choose its provider. A branch the dispatcher places takes its provider from
+  the shared provider order and its model from the role's own work key, the two independent inputs; a
+  native call takes the provider its parent's program stands on and still the role's own work key on
+  it. An explicit task tier replaces the role's assignment for both the model and the count.
 - **Roles.** `coworker_pool_roles` is the role catalogue. Its initial rows come from
   `prompts/agents/worker/coworkers/*.md`; after migration, edits survive reopening. The role row contains no
   model field: its `role:<name>` assignment and the provider/tier mapping are the only model source,

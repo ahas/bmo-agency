@@ -936,10 +936,10 @@ bmo-agency agent --route <work key> --provider <auto|claude-code|codex|openroute
 - **What the road changes is the model and the endpoint alone:** the gateway's address and key, the
   registration's name, window, answer ceiling and request wait (「How requests go」 above), beside the
   effort word and the records home every run on a registration has.
-- **It opens no co-workers:** a registration is a single model on its own engine, so the registry's
-  provider lends none. The co-worker gate refuses a native agent call of a run on it and the reservation
-  command refuses its reservation, and the worker does that part itself (`docs/model-tiers.md`, 「Common
-  co-worker capacity」).
+- **Its co-workers are the registry's:** the registry's provider lends co-workers, so a native agent
+  call of a run on a registration takes its seat on the registry, at the registration the role's tier
+  maps to there, held to the registry's limit of that tier (`docs/model-tiers.md`, 「Common co-worker
+  capacity」; `docs/coworker-pool.md`, 「Native co-worker places」).
 - **Its first request** is the whole line — the tool definitions, the MCP server among them, the system
   prompt, and the opening lines that carry the checkout's `CLAUDE.md` and the skill listing — plus a
   job's prompt where there is one, read by the engine before its first byte. A job writes nothing to its

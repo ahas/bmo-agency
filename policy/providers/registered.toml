@@ -12,9 +12,9 @@ lines = ["chat", "gate", "worker", "translate", "search"]
 # A mapping of it carries a ceiling on the answer's tokens beside its model and effort.
 caps_answer_tokens = true
 
-# Each registration is one model on its own engine, and a run on it has no co-worker apart from
-# itself.
-lends_coworkers = false
+# Each registration is one model on its own engine, and a co-worker on the registry is the registration
+# its tier maps to there: a model apart from the run's own where the tier maps to another registration.
+lends_coworkers = true
 
 [effort]
 # Every effort word a mapping of it may hold: whether the registration thinks.

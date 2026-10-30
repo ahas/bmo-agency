@@ -38,3 +38,16 @@ fn deepseek_carries_the_search_line_and_claude_code_alone_the_browse_line() {
   assert!(!deepseek::DEEPSEEK.declared.carries("browse"));
   assert!(claude_code::CLAUDE_CODE.declared.carries("browse"));
 }
+
+#[test]
+fn every_provider_lends_coworkers_the_registry_among_them() {
+  for declared in [
+    &claude_code::CLAUDE_CODE.declared,
+    &codex::CODEX.declared,
+    &openrouter::OPENROUTER.declared,
+    &deepseek::DEEPSEEK.declared,
+    &registered::REGISTERED.declared,
+  ] {
+    assert!(declared.lends_coworkers, "{} lends co-workers", declared.label);
+  }
+}

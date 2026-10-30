@@ -667,8 +667,11 @@ async fn coworker(data_root: &std::path::Path, what: CoworkerVerb) -> Result<Ans
 
   match action.as_deref() {
     Some("reserve") => {
-      // A run on a single model has no co-worker apart from itself, so there is nothing to hold.
-      if !coworker_pool::caller_lends_coworkers(&Machine::of_process(data_root)) {
+      // A run on a provider that lends no co-workers has none apart from itself, so there is nothing to
+      // hold.
+      let machine = Machine::of_process(data_root);
+
+      if !coworker_pool::caller_lends_coworkers(&machine) {
         return Err(failed(
           "this run stands on a single model, which has no co-workers apart from the run itself; do the work yourself",
         ));
@@ -683,7 +686,9 @@ async fn coworker(data_root: &std::path::Path, what: CoworkerVerb) -> Result<Ans
         return Err(failed(&format!("unknown tier: {tier}")));
       }
 
-      coworker_pool::reserve(&db, &caller, &role, tier.as_deref(), count)
+      let on = coworker_pool::coworker_provider(&machine);
+
+      coworker_pool::reserve(&db, &caller, on, &role, tier.as_deref(), count)
         .await
         .map(Answer::from)
     }

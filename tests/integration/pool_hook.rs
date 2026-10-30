@@ -123,6 +123,10 @@ async fn the_pool_admits_waits_gives_back_and_reclaims_native_calls() {
   a_type_outside_the_pool_and_a_call_from_inside_a_coworker_are_refused_without_a_request(scratch).await;
   reclaim_ends_a_place_only_on_evidence_that_its_process_is_gone_never_for_its_age(scratch).await;
   a_clis_reserved_seats_let_its_native_calls_in_without_waiting_and_go_back_when_it_releases(scratch).await;
+  a_worker_on_a_lending_provider_takes_its_native_seats_there_and_one_on_none_takes_them_on_claude_code(
+    scratch,
+  )
+  .await;
 }
 
 // The hook and the reservation verb as the worker's settings and a job's shell run them, on one store.
@@ -166,7 +170,7 @@ async fn admitted(
   owner: &ProcessMark,
   wait: Duration,
 ) -> Admission {
-  admit(scratch.db(), input, waiter, owner, wait, &mut |_| {}).await.unwrap()
+  admit(scratch.db(), input, None, waiter, owner, wait, &mut |_| {}).await.unwrap()
 }
 
 fn token(admission: &Admission) -> String {
@@ -478,7 +482,7 @@ async fn a_clis_reserved_seats_let_its_native_calls_in_without_waiting_and_go_ba
   let mapping = fixture(scratch, 1).await;
   let cli = own();
   let other = gone();
-  let held = coworker_pool::reserve(scratch.db(), &cli, "scout", None, 1).await.unwrap();
+  let held = coworker_pool::reserve(scratch.db(), &cli, None, "scout", None, 1).await.unwrap();
 
   assert_eq!(
     held,
@@ -520,6 +524,84 @@ async fn a_clis_reserved_seats_let_its_native_calls_in_without_waiting_and_go_ba
       .await,
     0
   );
+}
+
+// "a worker on a lending provider takes its native seats there, at its role's tier on it, and one on none
+// takes them on Claude Code"
+async fn a_worker_on_a_lending_provider_takes_its_native_seats_there_and_one_on_none_takes_them_on_claude_code(
+  scratch: &Scratch,
+) {
+  reset(scratch).await;
+  let claude = fixture(scratch, 2).await;
+
+  for sql in [
+    r#"INSERT INTO "model_tier_mappings" ("provider", "tier", "model") VALUES ('registered', 'Light', 'coder-registration')
+       ON CONFLICT ("provider", "tier") DO UPDATE SET "model" = 'coder-registration'"#,
+    r#"INSERT INTO "coworker_pool_tier_limits" ("provider", "tier", "capacity", "set_at") VALUES ('registered', 'Light', 1, 1)
+       ON CONFLICT ("provider", "tier") DO UPDATE SET "capacity" = 1"#,
+  ] {
+    scratch.run(sql, vec![]).await;
+  }
+
+  let seat = async |on: Option<&str>, tool_use_id: &str| {
+    let admitted = admit(
+      scratch.db(),
+      &call(tool_use_id, Some("scout"), None),
+      on,
+      &own(),
+      &own(),
+      Duration::from_secs(5),
+      &mut |_| {},
+    )
+    .await
+    .unwrap();
+    let request = agency_server::order_run::dispatch::request(scratch.db(), &token(&admitted))
+      .await
+      .unwrap()
+      .unwrap();
+
+    (request.provider, request.tier, request.model)
+  };
+
+  assert_eq!(
+    seat(Some("registered"), "toolu_registered").await,
+    ("registered".to_owned(), "Light".to_owned(), "coder-registration".to_owned())
+  );
+  assert_eq!(seat(None, "toolu_claude").await, (claude.provider, claude.tier, claude.model));
+
+  // The registry's one Light place is taken, so its reservation holds none and waits; Claude Code's are
+  // untouched by it.
+  let cli = own();
+
+  assert_eq!(
+    coworker_pool::reserve(scratch.db(), &cli, Some("registered"), "scout", None, 1)
+      .await
+      .unwrap(),
+    ["registered/Light coder-registration: 0 of 1 seats held, 1 waiting for a place"]
+  );
+
+  coworker_pool::release(scratch.db(), &cli).await.unwrap();
+}
+
+// "the provider a native co-worker's seat stands on is read off the program's environment: a registration's
+// road names the registry, a plain Claude Code program names Claude Code"
+#[test]
+fn a_native_coworkers_provider_is_read_off_the_programs_environment() {
+  let root = tempfile::tempdir().unwrap();
+  let machine = |vars: &[(&str, String)]| {
+    harness_providers::Machine::with_env(
+      vars.iter().map(|(name, value)| ((*name).to_owned(), value.clone())),
+      root.path(),
+    )
+  };
+  let registration_home = root.path().join("claude-roads").join("registered").join("a-registration");
+  let on_registry = machine(&[("CLAUDE_CONFIG_DIR", registration_home.display().to_string())]);
+  let on_claude_code = machine(&[]);
+
+  assert!(coworker_pool::caller_lends_coworkers(&on_registry));
+  assert_eq!(coworker_pool::coworker_provider(&on_registry), Some("registered"));
+  assert!(coworker_pool::caller_lends_coworkers(&on_claude_code));
+  assert_eq!(coworker_pool::coworker_provider(&on_claude_code), Some("claude-code"));
 }
 
 // "hook input is read for the four events the worker settings send"
