@@ -155,12 +155,20 @@ impl Route for WorkKeyList {
     let machine = call.machine();
     let held = mappings(db).await?;
     let standing = conflicts(db).await?;
+    let roles = crate::agent_roles::every(db).await?;
     let mut items = Vec::new();
 
     for row in assignments(db).await? {
+      // A key's label is its profile's, or for an agent role's key the role's own.
+      let label = WORK_KEYS.profile(&row.key).map(|profile| profile.label.clone()).or_else(|| {
+        let role = row.key.strip_prefix("role:")?;
+
+        roles.iter().find(|one| one.name == role).map(|one| one.label.clone())
+      });
+
       items.push(json!({
         "code": key_code(&row.key),
-        "label": WORK_KEYS.profile(&row.key).map(|profile| profile.label.clone()),
+        "label": label,
         "key": row.key,
         "tier": row.tier,
         "choices": assignable(db, &row.key).await?,

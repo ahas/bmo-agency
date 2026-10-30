@@ -1,7 +1,7 @@
 ---
 name: "bmo-tools-researching-and-benching"
 bundle: worker
-version: "1.2.0"
+version: "1.3.0"
 description: "How a job researches, benches or tunes something the lab runs — an engine, a model, a library, a card, a setting: the maker's own material first, then what the lab can do with it, then measurement; every option tried until none the job can try is left, with none handed back to the owner and no interim report; one final document in the deployment's 아카이브, reported once its narration is spoken; and the bench lock released before the report. Use before the first step of any item that measures, compares, tunes or researches something to run on the lab's machines."
 ---
 
@@ -32,9 +32,10 @@ flowchart TD
   restore was proved — for the measurement this skill is for. Read both before the first step.
 - **2. What our lab can do with it.** The lab's machines and cards are read from the brain's chunk on
   the compute nodes, `knowledge/compute-nodes-gpu.md`, never from memory. GPU work goes on the GPU node
-  pool through each node's card arbiter: a card is taken by its hold, never by stopping
+  pool through each node's card arbiter: a card is taken by its ticket, never by stopping
   another's service by hand.
-- **3. Measure.** Every figure stands beside the maker's own for the same measure, with the
+- **3. Measure.** The lab is taken for a measurement through the arbiter alone (「Taking the lab」
+  below). Every figure stands beside the maker's own for the same measure, with the
   conditions of each; a run is repeated and its spread written; raw logs stay where the repository
   keeps its measurements. A value that cannot be measured now is a calculation shown whole.
 - **4. Every option, until none is left.** The job raises its own options out of what 1 to 3 found,
@@ -48,6 +49,19 @@ flowchart TD
   under the workbench, which outlives the job, each option's order, measurement, verdict and reason
   added as it ends. A repository that keeps measurements in its own documents has them
   written there too.
+
+## Taking the lab
+
+- **The job is the occupant `bench`.** Before a measurement it asks the node's card arbiter for a ticket
+  as `bench` and waits until its turn is given; every process it starts for the measurement carries
+  `BMO_CARD_SERVICE=bench` in its environment, so the arbiter knows whose it is.
+- **The arbiter alone makes room.** The job never stops, starts or restarts another service by hand to
+  free a card; what has to give way, the arbiter moves.
+- **The ticket goes back when the measurement ends,** whatever it came to, before the next step of the
+  work.
+- **A ticket told to give way ends the measurement at its next boundary:** the job stops at the end of the
+  step it is in, gives the ticket back, and asks for a new one. A measurement cut this way is run again
+  whole once the turn comes back; no figure of the cut run is kept.
 
 ## A capability nobody has confirmed
 
@@ -85,10 +99,10 @@ flowchart TD
 
 ## The bench lock
 
-- **A bench lock is whatever the job took so a measurement owns the lab:** a service stopped and its
-  requests refused, an engine emptied, a card held through its arbiter.
-- **The job releases it before it reports:** the best configuration brought back up and its health
-  read through its own checks, requests let through again, every card hold let go. The report says
+- **A bench lock is whatever the job took so a measurement owns the lab:** the arbiter's ticket it holds
+  as `bench`, and the requests it asked a service of its own to refuse.
+- **The job releases it before it reports:** the best configuration in place and its health read
+  through its own checks, requests let through again, every ticket given back. The report says
   what was released and at what time.
 - **Work set aside for the bench is the chat agent's to resume.** A job never takes a hold off: the report names
   each item set aside for the bench as ready to start now, and a hold carrying the bench's item as

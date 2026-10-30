@@ -119,6 +119,23 @@ pub struct AgentsWords {
   pub model_route_only: String,
 }
 
+/// The roles an agent may hold, as the owner adds, changes and removes them.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentRolesWords {
+  pub name: String,
+  pub taken: String,
+  pub coworker: String,
+  pub unknown: String,
+  pub label: String,
+  pub bundles: String,
+  pub bound: String,
+  pub prompt: String,
+  pub tier: String,
+  pub held: String,
+  pub kind_default: String,
+}
+
 /// The base prompts.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -290,6 +307,7 @@ pub struct ControlWords {
   pub accounts: AccountsWords,
   pub workers: WorkersWords,
   pub agents: AgentsWords,
+  pub agent_roles: AgentRolesWords,
   pub base_prompts: BasePromptsWords,
   pub sessions: SessionsWords,
   pub companions: CompanionsWords,

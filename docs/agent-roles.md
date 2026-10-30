@@ -8,7 +8,7 @@ made of is `docs/companions.md`.
 ## What a role is
 
 - **One role to an agent,** the `role` column of its row in the `agents` table. It is the owner's to
-  change, on the console or through the control port (「Changing a role」 below).
+  change, on the console or through the control port (「Changing an agent's role」 below).
 - **A role is what an agent is for; its kind is how it runs.** The kind names the machinery that
   carries the agent — a conversation in rooms, a worker's jobs, a gate's judgements. The role names
   what the agent is given to do. The chat agent and every companion are of the kind `chat`, carried by the one runner
@@ -24,26 +24,40 @@ made of is `docs/companions.md`.
 
 ## The roles
 
-- **Declared in agency's policy,** `policy/roles.toml`, one table to a role, read by the bun side and
-  the Rust side alike: its label, an English word a screen translates through its own language pack,
-  and the bundles it gives. A screen is handed each role and bundle with its kebab-case code beside the
-  label (`docs/api.md`, 「agents」), and words the code; the label is the English the log keeps.
+- **Kept in agency's store,** the `agent_roles` table (`docs/store.md`), one row a role: its name, its
+  label, the bundles it gives, the bound on how many of its agents run at once and the prompt its agents
+  are given before their own. The owner adds, changes and removes roles on the control port (「Changing
+  the roles」 below), and every reader takes a change at its next read, with no deployment and no
+  restart.
+- **The policy seeds them,** `policy/roles.toml`: every role it declares under `[[roles]]` is given to
+  the store once by its name, the first time the store is settled with it, its prompt the text of the
+  file the declaration names under `prompts/roles/`. A role the store holds is never touched by the policy
+  again, and one the owner removed stays removed. A role whose prompt file cannot be read is not given and
+  waits for the next settling that can read it.
+- **The policy keeps what is not a role's own,** read by the bun side and the Rust side alike: the bundles
+  a role may give, `[[bundles]]`, each with its label; the role each kind holds (「Where a role comes
+  from」); the role a co-worker holds; the bundle that opens sending; each kind's mark; and the shape of a
+  role's name.
+- **A label is an English word** a screen translates through its own language pack. A screen is handed
+  each role and bundle with its kebab-case code beside the label (`docs/api.md`, 「agents」 and
+  「agent-roles」), and words the code; the label is the English the log keeps.
+- **The roles the policy seeds:**
 
-  | Role | Label | Bundles |
-  |---|---|---|
-  | `chat` | Chat | `room.chat`, `room.send`, `web.read` |
-  | `worker` | Worker | `graph.read`, `queue.read`, `web.read` |
-  | `searcher` | Searcher | `web.read`, `web.sites`, `web.branches`, `web.rulebooks` |
-  | `translator` | Translator | none |
-  | `video` | Video producer | `queue.read`, `web.read`, `room.send` |
-  | `gate` | Gate | none |
+  | Role | Label | Bundles | Bound | Prompt |
+  |---|---|---|---|---|
+  | `chat` | Chat | `room.chat`, `room.send`, `web.read` | 8 | none |
+  | `worker` | Worker | `graph.read`, `queue.read`, `web.read` | 8 | none |
+  | `searcher` | Searcher | `web.read`, `web.sites`, `web.branches`, `web.rulebooks` | 4 | none |
+  | `translator` | Translator | none | 4 | `translator.md` |
+  | `video` | Video producer | `queue.read`, `web.read`, `room.send` | 2 | `video.md` |
+  | `gate` | Gate | none | 8 | none |
 
 - **The translator is a runner, not a gate.** A gate judges a turn in the chain around it, its input and
   answer fixed; a translation is work asked on demand — a document's part, a text a job worker reads, a
   record the owner reads — and goes out on a road of its own (`docs/launch-lines.md`, 「Translate
   runner」). Its agent, `translator`, is a row of kind `runner` holding the `translator` role, whose prompt,
-  `prompts/roles/translator.md`, stands before the instructions of the purpose it is asked for. It holds
-  no bundle: no web, no tool.
+  seeded from `prompts/roles/translator.md`, stands before the instructions of the purpose it is asked for.
+  It holds no bundle: no web, no tool.
 
 - **Whatever role writes it, a result written for a person is written in the language of the person
   who asked** (`docs/agent-documents.md`): a worker's report and the documents it files, in the language
@@ -52,13 +66,22 @@ made of is `docs/companions.md`.
   each other stays English.
 - **A role with no bundle of its own still names what the agent is for.** A gate's runs hold what
   their line declares (`docs/launch-lines.md`) and nothing of a role.
-- **A role may name a prompt its agents are given before their own,** `prompt`, a file under
-  `prompts/roles/`: the role's instruction stands for every agent holding it, and the agent's own
-  documents follow it. A role naming none gives none.
-- **A role may bound how many of its agents run at once,** `max_concurrent`: a turn beyond the bound
-  waits for a place and none is refused. A role naming none runs unbounded. The bound is on turns
-  running at that moment, never on how many sessions stand.
-- **A role the policy does not declare gives nothing,** and the control port refuses to set one.
+- **A role may carry a prompt its agents are given before their own,** the row's `prompt`, written in
+  English: the role's instruction stands for every agent holding it, and the agent's own documents follow
+  it. A role carrying none gives none. A changed prompt reaches an agent's next launch.
+- **A role may bound how many of its agents run at once,** the row's `max_concurrent`: a turn beyond the
+  bound waits for a place and none is refused. A role carrying none runs unbounded. The bound is on turns
+  running at that moment, never on how many sessions stand. It is read as every turn begins, so a changed
+  bound holds from the next turn on, and a turn already running finishes under the bound it began under;
+  none is cut.
+- **A role may have a tier,** the tier its work key `role:<name>` is assigned in the tier settings
+  (`docs/model-tiers.md`). It is given as the role is made or changed; a role given none has none, and its
+  key stands in the tier settings once it is given one. Agency's own launches go out on their line's work
+  key — a worker's jobs on `job-worker`, the translator on `translate` — and read no role's key: the
+  role's tier is for a caller that runs work under the role by its name.
+- **A role's name is its key,** kebab-case as the policy's pattern says, and is neither another role's nor
+  a co-worker role's (`docs/coworker-pool.md`): both name their tier by `role:<name>`.
+- **A role the store does not hold gives nothing,** and the control port refuses to set one.
 - **A co-worker holds the role the policy names for co-workers,** the worker role: a co-worker is a
   sub-agent for a worker's use alone, and the place it works in, a standing branch checkout, has no row
   to name a role of its own (`docs/coworker-pool.md`, 「Standing branch checkouts and their list」).
@@ -68,6 +91,7 @@ made of is `docs/companions.md`.
   declaration lists what its sessions are shown.
 - **The bundle that opens sending is named once,** as `send` in `roles.toml`, and every guard of a
   send reads it there.
+- **A role gives only bundles the policy declares,** and the control port refuses a role naming another.
 
 ## The chat role's bundles
 
@@ -118,7 +142,7 @@ made of is `docs/companions.md`.
 
 - **The video producer is a worker whose items make videos.** Its agent is a row of kind `worker` holding the
   `video` role, standing in a repository of its own where its projects and its studio live; its line is the
-  worker line, and its role prompt, `prompts/roles/video.md`, stands first in every turn: what the studio is
+  worker line, and its role prompt, seeded from `prompts/roles/video.md`, stands first in every turn: what the studio is
   (the video-shotcraft skill bundle driving Remotion, CPU rendering), how an item is made, how the file goes
   out and the studio's licence rules. The worker plugin's `ahas-video-shotcraft` skill carries the setup, the
   render and the checks.
@@ -171,7 +195,7 @@ made of is `docs/companions.md`.
 ## Where the role is read
 
 - **The session record.** Every record is issued for the agent whose run it is, and holds its line's
-  capabilities with the bundles that agent's role gives, read as the record is issued
+  capabilities with the bundles that agent's role gives, read from the store as the record is issued
   (`mcp-host.md`, 「The session record」).
   - The agent is the one the turn names, for a turn that names one — the chat agent's and each companion's;
     otherwise the agent the launcher runs it for — the worker whose standing program it is, the agent
@@ -181,25 +205,42 @@ made of is `docs/companions.md`.
 - **The catalogue a call is served.** The system's own MCP server serves a record the whole catalogue where it
   holds `room.tools`, and otherwise the chat catalogue's tools whose bundles it holds.
 - **The send guard,** for every sending tool and script.
-- **The console's agent list,** which shows each agent's role and lets the owner change it.
+- **The turn's places,** the bound of the agent's role, read from the store as every turn begins.
+- **The launch,** which reads the role's prompt from the store as it composes the agent's prompt.
+- **The console's agent list,** which shows each agent's role and lets the owner change it, and its
+  roles screen, which lists, adds, changes and removes the roles themselves.
 
-## Changing a role
+## Changing an agent's role
 
 - **The console's general tab** shows every agent's role and saves a new one as it is picked, through
-  the role route below.
-- **`POST /agent-role` on the control port** takes the agent and the role, and refuses an agent the
-  archive does not hold or a role the policy does not declare, each with a status code and one English
-  sentence (`docs/api.md`, 「Agents」).
+  `PATCH /agents/{agentName}` with `role` (`docs/api.md`, 「agents」), which refuses an agent the store
+  does not hold or a role it does not hold, each with a status code and one English sentence.
 - **A change reaches an agent's next record:** a companion's next turn, a worker's next run on
   another road, a runner's next run, and a standing program's next placement. Nothing running is
   stopped for it.
+
+## Changing the roles
+
+- **`GET /agent-roles`** lists every role the store holds, in the order a screen lists them, each with its
+  bundles by name and label, its bound, its prompt, its tier, how many agents hold it and whether it is a
+  kind's own; beside them, every bundle a role may give (`docs/api.md`, 「agent-roles」).
+- **`POST /agent-roles`** adds a role, and refuses a name out of the pattern or already taken, a bundle the
+  policy does not declare and a tier the ladder does not hold. A tier given is written as the role's key's
+  assignment in the same write.
+- **`PATCH /agent-roles/{roleName}`** changes its label, bundles, bound, prompt or tier. A bound or a
+  prompt given as null is cleared, and a tier given as null takes the key's assignment away.
+- **`DELETE /agent-roles/{roleName}`** removes a role and its key's assignment in one write, and is refused
+  while an agent holds the role or a kind's own is it.
+- **A role added or changed is read at its next use,** each reader as 「Where the role is read」 says;
+  nothing running is stopped for it.
 
 ## Where a role comes from
 
 - **The role each kind is for** is declared in `policy/roles.toml` under `kinds`: the chat role for the
   `chat` kind, the worker role for `worker`, the searcher role for `runner` and the gate role for
   `gate`. Agency's own processes register it as they load, so a row
-  the store makes for a kind with no role named holds its kind's.
+  the store makes for a kind with no role named holds its kind's. A role a kind holds is seeded with the
+  rest and is never removed from the store, so every kind's own always stands.
 - **Every row added names its role:** a row written for a kind holds its kind's role unless the writer
   names another; a worker added by the owner holds the worker role; a companion's seed names its own,
   and one that names none holds the chat role.

@@ -46,7 +46,10 @@ impl Route for Agents {
       agents.push(agent_view(judging, call.machine(), &Agent::of(row)?).await?);
     }
 
-    Ok(answer(StatusCode::OK, json!({ "items": agents, "roles": roles_view(), "more": false })))
+    Ok(answer(
+      StatusCode::OK,
+      json!({ "items": agents, "roles": roles_view(db).await?, "more": false }),
+    ))
   }
 }
 
@@ -96,12 +99,12 @@ impl Route for AgentRoute {
 
 crate::moved!(AgentRoute);
 
-/// Every role an agent may hold, with the bundles each gives by name and label, as the screen offers
-/// them (docs/agent-roles.md).
-fn roles_view() -> Value {
-  json!(
-    ROLES
-      .roles
+/// Every role an agent may hold, as the store holds them, with the bundles each gives by name and label, as
+/// the screen offers them (docs/agent-roles.md).
+async fn roles_view(db: &DatabaseConnection) -> Result<Value, Refused> {
+  Ok(json!(
+    crate::agent_roles::every(db)
+      .await?
       .iter()
       .map(|role| json!({
         "name": role.name,
@@ -114,7 +117,7 @@ fn roles_view() -> Value {
           .collect::<Vec<_>>(),
       }))
       .collect::<Vec<_>>()
-  )
+  ))
 }
 
 /// One agent's row as the store's `agents` table holds it.

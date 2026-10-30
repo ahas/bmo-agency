@@ -306,6 +306,33 @@ impl Route for PoolRoles {
 
 crate::moved!(PoolRoles);
 
+/// How many children of one co-worker tier may be alive on one provider, written, and the places it frees
+/// let in at once (docs/coworker-pool.md, 「Concurrency limits」). A capacity that is no whole number is
+/// handed on as one below nothing, so the refusal is the one the limit's own range gives.
+pub struct PoolLimitChange;
+
+impl Route for PoolLimitChange {
+  const METHOD: Method = Method::PATCH;
+  const PATH: &'static str = "/pool/limits";
+
+  async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
+    let body = call.body().await?;
+    let provider = optional(&body, "provider").unwrap_or_default();
+    let tier = optional(&body, "tier").unwrap_or_default();
+    let capacity = body.get("capacity").and_then(whole).unwrap_or(-1);
+
+    match pool::set_limit(call.store(), provider, tier, capacity, now_ms()).await? {
+      Ok(()) => Ok(answer(
+        StatusCode::OK,
+        json!({ "provider": provider, "tier": tier, "capacity": capacity }),
+      )),
+      Err(refusal) => Err(Refused::new(StatusCode::UNPROCESSABLE_ENTITY, refusal.0)),
+    }
+  }
+}
+
+crate::moved!(PoolLimitChange);
+
 /// What a place's line was last written with, the place keeping the latest moment.
 pub struct PlaceWrite;
 

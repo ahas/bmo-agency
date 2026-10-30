@@ -425,7 +425,8 @@
 - **Translate runner**: one translation asked through agency's `POST /translation-runs` (`docs/api.md`,
   「translations」), on the road the road resolution answers for the work key `translate`, whose profile
   starts on the registry's provider, so the registered translation model answers first and the walk
-  after. Its system prompt is the translator role's prompt (`prompts/roles/translator.md`) and then the
+  after. Its system prompt is the translator role's prompt as the store holds it (`docs/agent-roles.md`)
+  and then the
   instructions of the purpose asked — `prompts/agents/translator/instructions.md` for a document's part,
   `worker.md` for a text a job worker reads, `record.md` for a worker's record the owner reads, that
   one after the plain-writing rulebook — and its input is one line naming the target language and then

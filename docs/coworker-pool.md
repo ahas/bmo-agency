@@ -51,6 +51,10 @@ warming and standing checkouts, is agency's.
   changing a tier mapping or a role's tier does not lose the limit row, and two tiers resolving to one
   model still count their own limits.
 - There is no operation to delete a row, and a limit of zero blocks that tier on that provider.
+- **A limit is changed on the control port,** `PATCH /pool/limits` with the provider, the tier and the
+  capacity (`docs/api.md`, 「pool, seat-requests, reservations and roles」): a provider agency does not
+  carry, a tier no co-worker is borrowed at and a capacity outside 0 to the research policy's
+  `pool_capacity_most` are refused, and a written limit raises at once the head places it frees.
 - **Builder turns have no limit of their own.** A worker's turn waits only on its checkout, so as many
   builder turns run at once as there are workers.
 - Role, tier assignment, mapping and capacity are all store rows, so a value the owner changed stays

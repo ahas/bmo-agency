@@ -44,13 +44,23 @@ fn a_translation_s_prompt_is_the_role_s_then_its_purpose_s() {
     let own =
       std::fs::read_to_string(format!("{}/prompts/agents/translator/{file}", env!("CARGO_MANIFEST_DIR")))
         .unwrap();
-    let system = system_prompt(&trees(), purpose).unwrap();
+    let system = system_prompt(&trees(), Some(&role), purpose).unwrap();
 
     assert!(system.starts_with(role.trim()), "{purpose:?}");
     assert!(system.contains(own.trim()), "{purpose:?}");
   }
 
-  assert!(system_prompt(&trees(), Purpose::Record).unwrap().contains("Plain writing"));
+  assert!(system_prompt(&trees(), None, Purpose::Record).unwrap().contains("Plain writing"));
+  assert!(
+    system_prompt(&trees(), None, Purpose::Document).unwrap().starts_with(
+      std::fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/prompts/agents/translator/instructions.md"
+      ))
+      .unwrap()
+      .trim()
+    )
+  );
   assert_eq!(Purpose::read("document"), Some(Purpose::Document));
   assert_eq!(Purpose::read("gate"), None);
   assert_eq!(input(" Korean ", None, "the text"), "Translate into Korean.\n\nthe text");

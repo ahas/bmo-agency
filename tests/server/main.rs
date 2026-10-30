@@ -8,6 +8,7 @@ mod scratch;
 #[path = "../support/standing.rs"]
 mod standing;
 
+mod agent_roles;
 mod apart_session;
 mod chat_runs;
 mod chat_stand_in;
@@ -30,6 +31,7 @@ mod config;
 mod control {
   mod account_routes;
   mod agent_model;
+  mod agent_roles;
   mod agent_roster;
   mod agents;
   mod base_prompts;

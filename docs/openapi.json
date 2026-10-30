@@ -83,6 +83,9 @@
       "name": "agents"
     },
     {
+      "name": "agent-roles"
+    },
+    {
       "name": "prompt-documents"
     },
     {
@@ -726,6 +729,165 @@
             "schema": {
               "type": "string",
               "description": "a comma-separated list of the rooms a companion answers"
+            }
+          }
+        ]
+      }
+    },
+    "/agent-roles": {
+      "get": {
+        "operationId": "listAgentRoles",
+        "tags": [
+          "agent-roles"
+        ],
+        "summary": "Every role an agent may hold, and every bundle a role may give.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentRoleList"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "x-codes": [
+          "unauthorized"
+        ]
+      },
+      "post": {
+        "operationId": "createAgentRoles",
+        "tags": [
+          "agent-roles"
+        ],
+        "summary": "Add a role.",
+        "responses": {
+          "201": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentRole"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "unprocessable-entity"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentRoleAsk"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agent-roles/{roleName}": {
+      "patch": {
+        "operationId": "changeAgentRole",
+        "tags": [
+          "agent-roles"
+        ],
+        "summary": "Change a role's label, bundles, bound, prompt or tier.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentRole"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "not-found",
+          "unprocessable-entity"
+        ],
+        "parameters": [
+          {
+            "name": "roleName",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": ""
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentRoleChange"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteAgentRole",
+        "tags": [
+          "agent-roles"
+        ],
+        "summary": "Remove a role no agent holds and no kind is for.",
+        "responses": {
+          "204": {
+            "description": "Answered."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "not-found",
+          "conflict"
+        ],
+        "parameters": [
+          {
+            "name": "roleName",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": ""
             }
           }
         ]
@@ -2867,6 +3029,47 @@
         "x-codes": [
           "unauthorized"
         ]
+      }
+    },
+    "/pool/limits": {
+      "patch": {
+        "operationId": "changePoolLimit",
+        "tags": [
+          "pool"
+        ],
+        "summary": "Set how many children of one co-worker tier may be alive on one provider.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PoolLimit"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "unprocessable-entity"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PoolLimit"
+              }
+            }
+          }
+        }
       }
     },
     "/places": {
@@ -6795,6 +6998,187 @@
         },
         "description": "The body that changes an agent's gates, reasoning, role or voice."
       },
+      "AgentRoleList": {
+        "type": "object",
+        "properties": {
+          "roles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentRole"
+            }
+          },
+          "bundles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentRoleBundle"
+            }
+          }
+        },
+        "required": [
+          "roles",
+          "bundles"
+        ],
+        "description": "AgentRoleList: every role an agent may hold, and every bundle a role may give."
+      },
+      "AgentRole": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "bundles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentRoleBundle"
+            }
+          },
+          "maxConcurrent": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The most of its agents that run a turn at once; null where it is unbounded."
+          },
+          "prompt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The prompt its agents are given before their own; null where it carries none."
+          },
+          "tier": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The tier its work key `role:<name>` is assigned; null where none is."
+          },
+          "agents": {
+            "type": "integer",
+            "format": "int64",
+            "description": "How many agent rows hold it."
+          },
+          "kindDefault": {
+            "type": "boolean",
+            "description": "Whether a kind's own is it, which keeps it from being removed."
+          }
+        },
+        "required": [
+          "name",
+          "label",
+          "bundles",
+          "maxConcurrent",
+          "prompt",
+          "tier",
+          "agents",
+          "kindDefault"
+        ],
+        "description": "AgentRole: one role an agent may hold, as the store keeps it."
+      },
+      "AgentRoleBundle": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "label"
+        ],
+        "description": "AgentRoleBundle: a bundle a role may give, by its name and the label a screen writes it by."
+      },
+      "AgentRoleAsk": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "kebab-case, held by no role and no co-worker role"
+          },
+          "label": {
+            "type": "string"
+          },
+          "bundles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "bundle names the policy declares"
+          },
+          "maxConcurrent": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "prompt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tier": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "label",
+          "bundles"
+        ],
+        "description": "AgentRoleAsk: the body that adds a role."
+      },
+      "AgentRoleChange": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "bundles": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "maxConcurrent": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "prompt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tier": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "description": "AgentRoleChange: a change to a role; a field left out keeps what it holds, and a bound, a prompt or a\ntier given as null is cleared."
+      },
       "PromptDocumentPage": {
         "type": "object",
         "properties": {
@@ -8959,6 +9343,28 @@
           "pooled"
         ],
         "description": "Role:"
+      },
+      "PoolLimit": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string"
+          },
+          "tier": {
+            "type": "string"
+          },
+          "capacity": {
+            "type": "integer",
+            "format": "int64",
+            "description": "from 0, which closes the tier on the provider"
+          }
+        },
+        "required": [
+          "provider",
+          "tier",
+          "capacity"
+        ],
+        "description": "PoolLimit: how many children of one co-worker tier may be alive on one provider."
       },
       "PlacePage": {
         "type": "object",
@@ -12942,6 +13348,16 @@
       },
       "Unauthorized": {
         "description": "unauthorized",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "UnprocessableEntity": {
+        "description": "unprocessable-entity",
         "content": {
           "application/json": {
             "schema": {

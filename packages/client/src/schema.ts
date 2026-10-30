@@ -128,6 +128,42 @@ export interface paths {
         patch: operations["changeAgent"];
         trace?: never;
     };
+    "/agent-roles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every role an agent may hold, and every bundle a role may give. */
+        get: operations["listAgentRoles"];
+        put?: never;
+        /** Add a role. */
+        post: operations["createAgentRoles"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agent-roles/{roleName}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove a role no agent holds and no kind is for. */
+        delete: operations["deleteAgentRole"];
+        options?: never;
+        head?: never;
+        /** Change a role's label, bundles, bound, prompt or tier. */
+        patch: operations["changeAgentRole"];
+        trace?: never;
+    };
     "/prompt-documents": {
         parameters: {
             query?: never;
@@ -651,6 +687,23 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/pool/limits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Set how many children of one co-worker tier may be alive on one provider. */
+        patch: operations["changePoolLimit"];
         trace?: never;
     };
     "/places": {
@@ -1795,6 +1848,62 @@ export interface components {
             role?: string | null;
             voice?: unknown;
         };
+        /** @description AgentRoleList: every role an agent may hold, and every bundle a role may give. */
+        AgentRoleList: {
+            roles: components["schemas"]["AgentRole"][];
+            bundles: components["schemas"]["AgentRoleBundle"][];
+        };
+        /** @description AgentRole: one role an agent may hold, as the store keeps it. */
+        AgentRole: {
+            name: string;
+            label: string;
+            bundles: components["schemas"]["AgentRoleBundle"][];
+            /**
+             * Format: int64
+             * @description The most of its agents that run a turn at once; null where it is unbounded.
+             */
+            maxConcurrent: number | null;
+            /** @description The prompt its agents are given before their own; null where it carries none. */
+            prompt: string | null;
+            /** @description The tier its work key `role:<name>` is assigned; null where none is. */
+            tier: string | null;
+            /**
+             * Format: int64
+             * @description How many agent rows hold it.
+             */
+            agents: number;
+            /** @description Whether a kind's own is it, which keeps it from being removed. */
+            kindDefault: boolean;
+        };
+        /** @description AgentRoleBundle: a bundle a role may give, by its name and the label a screen writes it by. */
+        AgentRoleBundle: {
+            name: string;
+            label: string;
+        };
+        /** @description AgentRoleAsk: the body that adds a role. */
+        AgentRoleAsk: {
+            /** @description kebab-case, held by no role and no co-worker role */
+            name: string;
+            label: string;
+            /** @description bundle names the policy declares */
+            bundles: string[];
+            /** Format: int64 */
+            maxConcurrent?: number | null;
+            prompt?: string | null;
+            tier?: string | null;
+        };
+        /**
+         * @description AgentRoleChange: a change to a role; a field left out keeps what it holds, and a bound, a prompt or a
+         *     tier given as null is cleared.
+         */
+        AgentRoleChange: {
+            label?: string | null;
+            bundles?: string[] | null;
+            /** Format: int64 */
+            maxConcurrent?: number | null;
+            prompt?: string | null;
+            tier?: string | null;
+        };
         /** @description PromptDocumentPage: */
         PromptDocumentPage: {
             items: components["schemas"]["PromptDocument"][];
@@ -2470,6 +2579,16 @@ export interface components {
             name: string;
             tier: string;
             pooled: boolean;
+        };
+        /** @description PoolLimit: how many children of one co-worker tier may be alive on one provider. */
+        PoolLimit: {
+            provider: string;
+            tier: string;
+            /**
+             * Format: int64
+             * @description from 0, which closes the tier on the provider
+             */
+            capacity: number;
         };
         /** @description PlacePage: */
         PlacePage: {
@@ -3840,6 +3959,15 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /** @description unprocessable-entity */
+        UnprocessableEntity: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
         /** @description upstream-failed */
         UpstreamFailed: {
             headers: {
@@ -4159,6 +4287,105 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
+        };
+    };
+    listAgentRoles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentRoleList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    createAgentRoles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentRoleAsk"];
+            };
+        };
+        responses: {
+            /** @description Answered. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentRole"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            422: components["responses"]["UnprocessableEntity"];
+        };
+    };
+    deleteAgentRole: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roleName: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    changeAgentRole: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roleName: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentRoleChange"];
+            };
+        };
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentRole"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["UnprocessableEntity"];
         };
     };
     listPromptDocuments: {
@@ -5321,6 +5548,32 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
+        };
+    };
+    changePoolLimit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PoolLimit"];
+            };
+        };
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PoolLimit"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            422: components["responses"]["UnprocessableEntity"];
         };
     };
     listPlaces: {

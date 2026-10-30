@@ -8,6 +8,9 @@ archive does not change live model settings.
 The six tiers are Supervisor (the chat agents' tier), Frontier, Reliable, Fine, Light and Simple.
 Provider routing and provider enablement remain independent. A tier mapping contains one provider,
 model, thinking and nullable effort. Work keys (including `role:<name>` and runner depth keys) select a tier.
+A `role:<name>` key is a co-worker role's or an agent role's (`docs/agent-roles.md`), never both, since the
+two kinds of role share no name. An agent role's key is assigned when the role is given a tier, takes any
+tier of the ladder, and is removed with the role or when the role's tier is cleared.
 Workers share `job-worker`; runtime agent observations are never configuration seeds.
 An agent's row in the `agents` table carries no model. One choice of a model stands outside the tiers,
 and the route listing shows it: a work key may name a registration of its own on the registry's provider
@@ -188,8 +191,8 @@ Branch prefix digests include effective effort. A co-work reservation for a task
   Supervisor or Frontier for it, and the pool refuses a child request or a reservation at either tier
   whatever asked for it. Removing a side role removes its live `role:<name>` assignment in the same
   transaction; queued and completed requests retain their snapshots.
-- **The console** edits the limits and the reset through agency's pool routes (`docs/api.md`,
-  「Co-worker pool」), on
+- **The console** edits the limits through `PATCH /pool/limits` and the reset through agency's pool
+  routes (`docs/api.md`, 「pool, seat-requests, reservations and roles」), on
   the providers the pool shows and on no other; it never edits a role's model through the pool. The reset sets every limit back to its starting value
   and removes nothing, and admitted snapshots are untouched.
 - **The older table.** The store also holds `coworker_pool_limits`, keyed by provider, model and

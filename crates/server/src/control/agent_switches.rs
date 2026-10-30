@@ -1,14 +1,13 @@
 //! An agent's own gate switches, its own thinking and effort, and its role (docs/model-tiers.md, 「An
-//! agent's own thinking and effort」; docs/agent-roles.md, 「Changing a role」). Agency keeps an agent's
-//! switches; whether a turn heeds a gate's is its consumer's. Which gates a turn passes, which agents run
-//! as gates and the scale an effort is named on are the policy's (docs/policy.md).
+//! agent's own thinking and effort」; docs/agent-roles.md, 「Changing an agent's role」). Agency keeps an
+//! agent's switches; whether a turn heeds a gate's is its consumer's. Which gates a turn passes, which
+//! agents run as gates and the scale an effort is named on are the policy's (docs/policy.md).
 
 use axum::http::{Method, StatusCode};
 use axum::response::Response;
 use policy::control_words::CONTROL_WORDS;
 use policy::fill_marks;
 use policy::reasoning::REASONING;
-use policy::roles::ROLES;
 use sea_orm::DatabaseConnection;
 use serde_json::{Value, json};
 
@@ -274,6 +273,13 @@ pub async fn set_reasoning(
   Ok(Ok(agent.kind))
 }
 
+/// Why a role is refused: it is none the store holds, and these are.
+pub async fn role_refusal(db: &DatabaseConnection) -> Result<String, Refused> {
+  let labels = crate::agent_roles::labels(db).await?;
+
+  Ok(fill_marks(&CONTROL_WORDS.agents.role, &[("roles", &labels.join(", "))]))
+}
+
 /// The role an agent holds from now on. Its next record reads it; nothing running is stopped for it.
 pub struct AgentRole;
 
@@ -290,9 +296,11 @@ impl Route for AgentRole {
     let Some(agent) = Agent::find(db, &name).await? else {
       return refuse(not_found(&name));
     };
-    let Some(role) = body.get("role").and_then(Value::as_str).filter(|role| ROLES.holds(role)) else {
-      return refuse(fill_marks(&CONTROL_WORDS.agents.role, &[("roles", &ROLES.labels().join(", "))]));
-    };
+    let role = body.get("role").and_then(Value::as_str).unwrap_or_default();
+
+    if !crate::agent_roles::holds(db, role).await? {
+      return refuse(role_refusal(db).await?);
+    }
 
     run(
       db,
@@ -335,11 +343,8 @@ impl Route for ChangeAgent {
     }
 
     if let Some(role) = body.get("role").and_then(Value::as_str) {
-      if !ROLES.holds(role) {
-        return Err(Refused::new(
-          StatusCode::BAD_REQUEST,
-          fill_marks(&CONTROL_WORDS.agents.role, &[("roles", &ROLES.labels().join(", "))]),
-        ));
+      if !crate::agent_roles::holds(db, role).await? {
+        return Err(Refused::new(StatusCode::BAD_REQUEST, role_refusal(db).await?));
       }
       run(
         db,

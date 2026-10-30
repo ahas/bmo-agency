@@ -2,9 +2,10 @@
 //! the first seed's mapping of every tier on each provider the store begins with, and every work key at the
 //! tier it starts on, no recollector's among them; given once, so a second settling writes nothing more.
 
-use agency_server::seeds::{base_prompt_seeds, deployment};
+use agency_server::seeds::{base_prompt_seeds, deployment, role_seeds};
 use harness_providers::Machine;
 use policy::base_prompts::BASE_PROMPTS;
+use policy::roles::ROLES;
 use store::seed::settle;
 
 use crate::scratch::Scratch;
@@ -162,4 +163,32 @@ fn every_declared_base_prompt_is_seeded_with_its_files_text() {
 #[test]
 fn a_seed_whose_file_cannot_be_read_is_left_out() {
   assert!(base_prompt_seeds(std::path::Path::new("/nowhere")).is_empty());
+}
+
+#[test]
+fn every_declared_role_is_seeded_with_its_prompt_file_s_text() {
+  let code = std::env::current_dir().unwrap();
+  let seeds = role_seeds(&code);
+
+  assert_eq!(seeds.len(), ROLES.roles.len());
+  for (seed, declared) in seeds.iter().zip(&ROLES.roles) {
+    let prompt = declared
+      .prompt
+      .as_ref()
+      .map(|file| std::fs::read_to_string(code.join("prompts").join("roles").join(file)).unwrap());
+
+    assert_eq!(
+      (&seed.name, &seed.label, &seed.bundles),
+      (&declared.name, &declared.label, &declared.bundles)
+    );
+    assert_eq!(seed.max_concurrent, declared.max_concurrent.map(|most| most as i64));
+    assert_eq!(seed.prompt, prompt);
+  }
+  assert!(seeds.iter().any(|seed| seed.name == "video" && seed.prompt.is_some()));
+
+  // A role whose prompt file cannot be read waits for a settling that can; one naming none is given.
+  let elsewhere: Vec<String> =
+    role_seeds(std::path::Path::new("/nowhere")).into_iter().map(|seed| seed.name).collect();
+
+  assert_eq!(elsewhere, ["chat", "worker", "searcher", "gate"]);
 }

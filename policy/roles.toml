@@ -1,19 +1,27 @@
-# The roles an agent may hold and the function bundles each gives (docs/agent-roles.md), read by every
-# side that issues a turn's record, serves its catalogue, guards its sends or sets and shows a role.
+# The roles an agent may hold and the function bundles a role may give (docs/agent-roles.md). The roles
+# themselves are the store's rows, which the owner adds and changes on the control port; this file seeds
+# them and keeps what is no role's own.
 #
-# [[bundles]]: one function bundle a role may give, a capability of the tool host, with the short name a screen writes it by.
-# [[roles]]: one role, in the order a screen lists them: its name, its label as a screen writes it, the
-#   bundles it gives, and in `shown` the tool entries, by full name, its agents are shown by name whatever
-#   their line; every other entry a session of the role holds is reached with `bmo use` unless the line
-#   lists it. None is listed for now.
+# [[bundles]]: one function bundle a role may give, a capability of the tool host, with the short name a
+#   screen writes it by. A role gives no bundle this file does not declare.
+# [[roles]]: the roles a store is given once by name, in the order a screen lists them: each one's name, its
+#   label as a screen writes it, the bundles it gives, the most of its agents that run at once, the file
+#   under prompts/roles/ whose text is its prompt, and in `shown` the tool entries, by full name, its agents
+#   are shown by name whatever their line; every other entry a session of the role holds is reached with
+#   `bmo use` unless the line lists it. None is listed for now.
 # coworker: the role a co-worker's run holds. A co-worker is a sub-agent for a worker's use alone, and
 #   the place it works in, a standing branch checkout, has no agents row to name a role of its own.
 # send: the bundle that opens sending into a room, which every guard of a send reads here.
+# name_pattern, name_most: the shape of a role's name, kebab-case, and the most characters it holds.
+# label_most: the most characters a role's label holds.
 # [kinds]: the role a row of each kind holds where its writer names none (docs/agent-roles.md, 「Where a
 #   role comes from」).
 
 coworker = "worker"
 send = "room.send"
+name_pattern = "^[a-z][a-z0-9]*(-[a-z0-9]+)*$"
+name_most = 40
+label_most = 60
 
 [kinds]
 chat = "chat"

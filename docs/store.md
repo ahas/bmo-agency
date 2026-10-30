@@ -19,6 +19,10 @@ seeds. The other crates and the server reach the store only through it.
 - **The store names its own tables,** the ones its migration makes, so what reads every table of the
   store — a room forgotten among them — reads them and no other service's beside them in one database.
 - **The tables, by what they keep:**
+  - the roles an agent may hold: `agent_roles`, one row a role — its name, its label, the bundles it gives
+    as a JSON list, its bound or none, its prompt or none, the place a screen lists it at, and when it was
+    made and last changed in epoch milliseconds — and `agent_role_seeded`, the name of every role the
+    policy's seed has given (`docs/agent-roles.md`, 「The roles」);
   - the agents and what they did: `agents`, `agent_log`, `agent_executions`, `execution_attempts`,
     `branch_agents`, `worker_sessions`, `session_resets`, and `worker_words`, the words said to a
     worker, each kept until a turn has taken it;
@@ -150,9 +154,10 @@ seeds. The other crates and the server reach the store only through it.
   catalogue entries `policy/seeds.toml` declares, of which the repository's own declares none, since a
   model file is a deployment's; the base prompts `policy/base-prompts.toml` declares, each with the
   text of its seed file under the code tree's `prompts/base/`; the tiers DeepSeek maps to, declared
-  after the first seed in the same file; and every provider's fold ratio, the default its own
-  declaration under `policy/providers/` names, else the one `policy/resident-turn.toml` names. The
-  registry's provider is given its mappings by the owner.
+  after the first seed in the same file; the roles `policy/roles.toml` declares, each with the text of
+  the prompt file it names under the code tree's `prompts/roles/`; and every provider's fold ratio, the
+  default its own declaration under `policy/providers/` names, else the one `policy/resident-turn.toml`
+  names. The registry's provider is given its mappings by the owner.
 - **The settling** runs the migrations and then writes every seed in one transaction.
 - **The account:** a store holding no account is given the one the seed names, the login the machine
   already has; a list the owner has written to is left alone.
@@ -167,6 +172,9 @@ seeds. The other crates and the server reach the store only through it.
   never touched, and a tier the ladder gains later reads its provider's default until one is set.
 - **The model catalogue:** its entries are written once, as its table is made (`docs/model-catalogue.md`,
   「Where it is kept」).
+- **The roles:** each is given once by its name and recorded as given, a role of its name already held
+  left as it stands and one the owner removed left removed; the order the policy declares them in is the
+  order a screen lists them, and a role added later is listed after them.
 - **The base prompts:** each is given once by its name and recorded as given, a prompt of its name
   already kept left as it stands and one the owner removed left removed; the agents its declaration
   names are given the choice of it only where its prompt is written (`docs/base-prompts.md`, 「The

@@ -270,7 +270,7 @@ pub struct HerdrSessions {
   // What each session's latest job turn wrote of its answer.
   outputs: Outputs,
   // The places each bounded role holds for its running turns, by the role's name.
-  role_places: Mutex<BTreeMap<String, Arc<tokio::sync::Semaphore>>>,
+  role_places: crate::agent_roles::RolePlaces,
   // The thrown-away sessions whose first prompt has been handed the gate's reference, so a research
   // run's later rounds are asked over it and not over it again.
   referenced: Mutex<HashSet<SessionId>>,
@@ -603,7 +603,7 @@ impl HerdrSessions {
       questions: Questions::default(),
       deaf: Mutex::default(),
       outputs: Outputs::default(),
-      role_places: Mutex::default(),
+      role_places: crate::agent_roles::RolePlaces::default(),
       referenced: Mutex::default(),
       left: Mutex::default(),
     }
@@ -635,28 +635,20 @@ impl HerdrSessions {
     self.referenced.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
   }
 
-  // The role's places: a role the policy bounds holds one for the turn's length, so its agents run at
-  // most that many at once. A turn beyond the bound waits; none is refused.
+  // The role's places: a role the store bounds holds one for the turn's length, so its agents run at most
+  // that many at once. The bound is read as the turn begins, so a changed one holds from the next turn. A
+  // turn beyond the bound waits; none is refused.
   async fn role_turn(&self, agent: &str) -> Result<Option<tokio::sync::OwnedSemaphorePermit>, Fault> {
-    let role = crate::conversational::role_of(&self.ground().db, agent).await.map_err(store_fault)?;
-    let Some(limit) = role
-      .as_deref()
-      .and_then(|role| policy::roles::ROLES.role(role))
-      .and_then(|role| role.max_concurrent)
-    else {
+    let bounded = crate::agent_roles::bound_of_agent(&self.ground().db, agent)
+      .await
+      .map_err(|fault| store_fault(fault.into()))?;
+    let Some((role, bound)) = bounded else {
       return Ok(None);
     };
-    let place = {
-      let mut held = self.role_places.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
 
-      held
-        .entry(role.unwrap_or_default())
-        .or_insert_with(|| Arc::new(tokio::sync::Semaphore::new(limit)))
-        .clone()
-    };
-
-    place
-      .acquire_owned()
+    self
+      .role_places
+      .take(&role, bound)
       .await
       .map(Some)
       .map_err(|_| fault(FaultKind::Unknown, format!("{agent}: its role's places closed")))

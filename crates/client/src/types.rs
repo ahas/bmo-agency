@@ -1077,6 +1077,85 @@ pub struct AgentPage {
   pub more: bool,
 }
 
+/// AgentRoleBundle: a bundle a role may give, by its name and the label a screen writes it by.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentRoleBundle {
+  pub name: String,
+  pub label: String,
+}
+
+/// AgentRole: one role an agent may hold, as the store keeps it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentRole {
+  pub name: String,
+  pub label: String,
+  pub bundles: Vec<AgentRoleBundle>,
+  /// The most of its agents that run a turn at once; null where it is unbounded.
+  pub max_concurrent: Option<i64>,
+  /// The prompt its agents are given before their own; null where it carries none.
+  pub prompt: Option<String>,
+  /// The tier its work key `role:<name>` is assigned; null where none is.
+  pub tier: Option<String>,
+  /// How many agent rows hold it.
+  pub agents: i64,
+  /// Whether a kind's own is it, which keeps it from being removed.
+  pub kind_default: bool,
+}
+
+/// AgentRoleList: every role an agent may hold, and every bundle a role may give.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentRoleList {
+  pub roles: Vec<AgentRole>,
+  pub bundles: Vec<AgentRoleBundle>,
+}
+
+/// AgentRoleAsk: the body that adds a role.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentRoleAsk {
+  /// kebab-case, held by no role and no co-worker role
+  pub name: String,
+  pub label: String,
+  /// bundle names the policy declares
+  pub bundles: Vec<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub max_concurrent: Option<i64>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub prompt: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub tier: Option<String>,
+}
+
+/// AgentRoleChange: a change to a role; a field left out keeps what it holds, and a bound, a prompt or a
+/// tier given as null is cleared.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentRoleChange {
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub label: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub bundles: Option<Vec<String>>,
+  #[serde(default, deserialize_with = "present", skip_serializing_if = "Option::is_none")]
+  pub max_concurrent: Option<Option<i64>>,
+  #[serde(default, deserialize_with = "present", skip_serializing_if = "Option::is_none")]
+  pub prompt: Option<Option<String>>,
+  #[serde(default, deserialize_with = "present", skip_serializing_if = "Option::is_none")]
+  pub tier: Option<Option<String>>,
+}
+
+/// PoolLimit: how many children of one co-worker tier may be alive on one provider.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PoolLimit {
+  pub provider: String,
+  pub tier: String,
+  /// from 0, which closes the tier on the provider
+  pub capacity: i64,
+}
+
 /// PromptDocumentPage:
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -2459,8 +2538,10 @@ pub struct ResearchSettings {
   pub engines_unread: Option<String>,
 }
 
-fn present<'de, D: serde::Deserializer<'de>>(given: D) -> Result<Option<Option<i64>>, D::Error> {
-  Option::<i64>::deserialize(given).map(Some)
+fn present<'de, D: serde::Deserializer<'de>, T: Deserialize<'de>>(
+  given: D,
+) -> Result<Option<Option<T>>, D::Error> {
+  Option::<T>::deserialize(given).map(Some)
 }
 
 /// ResearchSettingsChange: a change to the research settings; a field left out keeps what it holds, and a gap given

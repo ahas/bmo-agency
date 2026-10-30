@@ -201,10 +201,13 @@ async fn capabilities(
       Some(row) => row.try_get::<Option<String>>("", "role")?,
       None => crate::places::branch::place_of(&ground.roots.data, checkout).map(|_| ROLES.coworker.clone()),
     };
-  let bundles = role.as_deref().map_or(&[][..], |role| ROLES.bundles_of(role));
+  let bundles = match role.as_deref() {
+    Some(role) => crate::agent_roles::bundles_of(&ground.db, role).await?,
+    None => vec![],
+  };
   let mut held: Vec<String> = Vec::new();
 
-  for capability in RUN_LINES.capabilities(line).iter().chain(bundles) {
+  for capability in RUN_LINES.capabilities(line).iter().chain(&bundles) {
     if !held.contains(capability) && !withheld.contains(&capability.as_str()) {
       held.push(capability.clone());
     }

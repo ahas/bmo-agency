@@ -21,7 +21,6 @@ pub mod worker;
 use std::path::{Path, PathBuf};
 
 use axum::http::StatusCode;
-use policy::roles::ROLES;
 
 use crate::Refusal;
 use crate::places::Ground;
@@ -108,12 +107,14 @@ pub fn render(template: &str, values: &[(&str, &str)]) -> String {
     .into_owned()
 }
 
-/// The prompt a role's agents are given before their own (docs/agent-roles.md): the file the policy's
-/// role names under `prompts/roles/`, where it names one and the file stands.
-pub fn role_prompt(trees: &Trees, role: &str) -> Option<String> {
-  let named = ROLES.role(role)?.prompt.as_deref()?;
+/// The prompt a role's agents are given before their own (docs/agent-roles.md): the one its row in the
+/// store carries, where it carries one. A store that cannot be read gives none, and says so.
+pub async fn role_prompt<C: sea_orm::ConnectionTrait>(db: &C, role: &str) -> Option<String> {
+  crate::agent_roles::prompt_of(db, role).await.unwrap_or_else(|fault| {
+    eprintln!("agency: the prompt of the role {role} could not be read: {}", fault.detail);
 
-  std::fs::read_to_string(trees.code.join("prompts").join("roles").join(named)).ok()
+    None
+  })
 }
 
 /// A text written where a line hands it over, published whole by a rename, ending with a newline.

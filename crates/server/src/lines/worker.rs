@@ -521,12 +521,12 @@ pub async fn worker_run_on(
     text: rules_text,
     file: rules,
   } = standing_rules(trees, named.as_deref(), worker, trailer.as_deref(), documents.as_deref())?;
-  let above = match worker {
-    Some(worker) => crate::conversational::role_of(&ground.db, worker)
-      .await
-      .ok()
-      .flatten()
-      .and_then(|role| super::role_prompt(trees, &role)),
+  let role = match worker {
+    Some(worker) => crate::conversational::role_of(&ground.db, worker).await.ok().flatten(),
+    None => None,
+  };
+  let above = match role {
+    Some(role) => super::role_prompt(&ground.db, &role).await,
     None => None,
   };
   let system_prompt = worker_system_prompt(

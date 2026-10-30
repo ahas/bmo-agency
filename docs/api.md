@@ -110,8 +110,8 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
   an account's `user_id` names (`docs/store.md`). None means the administrator's, and every agent
   registered without an owner reads so. `GET /agents` and `GET /agents/{agentName}` answer it on every
   agent.
-- **`GET /agents` answers `roles` beside the agents:** every role the policy declares, each with its
-  `name`, its `code`, its English `label` and its `bundles`, each bundle with its `name`, its `code` and its
+- **`GET /agents` answers `roles` beside the agents:** every role the store holds (「agent-roles」), each
+  with its `name`, its `code`, its English `label` and its `bundles`, each bundle with its `name`, its `code` and its
   `label`. A code is the kebab-case word a screen words the role or bundle by in its own language: a role's
   is its name, and a bundle's its name with each dot a hyphen, so `room.chat` is `room-chat`.
 - **Who may register or end which agent is the caller's to judge.** The agent screen is the
@@ -123,7 +123,7 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
     characters at most (the companions policy's `name_pattern`), and held by no agent yet;
   - `label`, given;
   - `kind`, one the roles policy names a role for: `chat`, `worker`, `runner` or `gate`;
-  - `role`, a role the policy declares, the kind's own where none is given (`docs/agent-roles.md`);
+  - `role`, a role the store holds, the kind's own where none is given (`docs/agent-roles.md`);
   - `ownerAccount`, none where the caller gives none;
   - for any kind, `icon`, `thinking`, and `effort`, a level the reasoning policy holds;
   - for the `chat` kind, its pin and its worker, judged as a companion's are (`docs/companions.md`,
@@ -149,7 +149,7 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
   `{"method": "route"}` lets the supervisor key's road carry it and clears its pin, and `{"method":
   "fixed", "registration": <name>}` pins it to a registered model. Every chat agent — the chat agent and
   every companion alike — takes either; a route is refused 400 for an agent that is no supervisor, and so
-  is a name the registry holds no registration under.
+  is a name the registry holds no registration under. A `role` the store does not hold is refused 400.
 - **`DELETE /agents/{agentName}` ends a registration,** taking `force`, `forgetBrain` and `rooms` in its
   query:
   - 404 `not-found` for no agent of the name;
@@ -166,6 +166,42 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
   - **Its brain is data and stays,** unless `forgetBrain` is true: then the brain is let go whole, with
     the harness records kept in its folder.
   - The answer is 204.
+
+### agent-roles
+
+| Method | Path | Does |
+|---|---|---|
+| GET | `/agent-roles` | Every role an agent may hold, and every bundle a role may give. |
+| POST | `/agent-roles` | Add a role. |
+| PATCH | `/agent-roles/{roleName}` | Change a role's label, bundles, bound, prompt or tier. |
+| DELETE | `/agent-roles/{roleName}` | Remove a role no agent holds and no kind is for. |
+
+- **The roles are the store's rows** (`docs/agent-roles.md`, 「The roles」), and these routes are the one
+  way to change them; `GET /roles` is the co-worker pool's and lists the co-worker roles, not these.
+- **`GET /agent-roles` answers `roles` and `bundles`.** Each role, in the order a screen lists them, is
+  `name`; `label`; `bundles`, each `name` and `label`; `maxConcurrent`, its bound or null; `prompt`, its
+  text or null; `tier`, the assignment of its work key `role:<name>` or null where none is assigned;
+  `agents`, how many agent rows hold it; and `kindDefault`, whether a kind's own is it. `bundles` beside
+  them is every bundle the policy declares, each `name` and `label`, in the policy's order.
+- **`POST /agent-roles` takes `name`, `label` and `bundles`,** and may add `maxConcurrent`, `prompt` and
+  `tier`, and answers 201 with the role as the listing answers it. It is refused 422
+  `unprocessable-entity`, with one English sentence and nothing written, for:
+  - a name out of the roles policy's pattern or past its length, or one a role or a co-worker role holds;
+  - an empty label, or one past the policy's length;
+  - `bundles` that is no list of names, or a bundle the policy does not declare;
+  - a bound that is no whole number of one or more;
+  - a prompt that is not text;
+  - a tier the ladder does not hold.
+- **A tier given is the role's key's assignment,** written in the same write as the role, as the tier
+  settings write one (「work-keys, road-blocks and launch-room」), so the key stands in `GET /work-keys` from
+  then on and is changed there as well as here.
+- **`PATCH /agent-roles/{roleName}` changes the fields the body names** and answers 200 with the role: any
+  of `label`, `bundles`, `maxConcurrent`, `prompt` and `tier`, each judged as `POST` judges it. A
+  `maxConcurrent` or a `prompt` given as null clears it, and a `tier` given as null takes the key's
+  assignment away. 404 `not-found` for a role the store does not hold.
+- **`DELETE /agent-roles/{roleName}`** answers 204, the role and its key's assignment gone in one write;
+  404 `not-found` for a role the store does not hold, and 409 `conflict` while an agent row holds it or a
+  kind's own is it.
 
 ### prompt-documents
 
@@ -425,6 +461,7 @@ out and the paths the call changed.
 | POST | `/reservations` | Reserve seats for an owner. |
 | PATCH | `/reservations/{token}` | Release a reservation with its outcome. |
 | GET | `/roles` | The roles the pool can lend. |
+| PATCH | `/pool/limits` | Set how many children of one co-worker tier may be alive on one provider. |
 
 A seat request answers its `state` — `waiting` in its bucket's line, `reserved` under a reservation,
 `active` once let in, and `released` or `cancelled` once given back — and the `provider`, `model`,
@@ -436,6 +473,12 @@ again. A `PATCH` with `{ "state": "bound", "childId": … }`
 binds an active seat to the unit it launched and answers the seat. A seat is given back with `{ "state":
 "finished", "outcome": … }`, and cancelled, where it never ran, with `{ "state": "finished", "cancel":
 true, "outcome": … }`; either answers `{ "held": <bool> }`, whether the seat was still held.
+
+`PATCH /pool/limits` takes `provider`, `tier` and `capacity` and answers 200 with the three as written
+(`docs/coworker-pool.md`, 「Concurrency limits」). It is refused 422 `unprocessable-entity`, with one English
+sentence, for a provider agency does not carry, a tier the ladder does not hold or one no co-worker is
+borrowed at, and a capacity that is no whole number from 0 to the most the research policy allows. The
+written limit lets in at once the waiting places it frees.
 
 A seat request carries its `session` where it stands for a project's own turn: the session that turn
 continues, or null where the worker's earlier session was cold or past its model's context

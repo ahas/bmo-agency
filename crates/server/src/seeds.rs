@@ -1,20 +1,21 @@
 //! The seeds agency's server settles its store with (docs/store.md, 「Its seeds」): the values agency's
 //! policy declares — the account, the ladder, the first seed's mapping of every tier, every work key with
-//! the tier it starts on, every provider's fold ratio, the catalogue's entries and the base prompts — with the account's credential
-//! the machine's own Claude Code login directory and each base prompt's text its seed file in the code
-//! tree.
+//! the tier it starts on, every provider's fold ratio, the catalogue's entries, the base prompts and the
+//! agents' roles — with the account's credential the machine's own Claude Code login directory, and each
+//! base prompt's text and each role's prompt its seed file in the code tree.
 
 use std::path::Path;
 
 use harness_providers::Machine;
 use harness_providers::claude_code::ClaudeCode;
 use policy::base_prompts::BASE_PROMPTS;
+use policy::roles::ROLES;
 use policy::seeds::SEEDS;
 use policy::tiers::TIERS;
 use policy::work_keys::WORK_KEYS;
 use store::seed::{
-  AccountSeed, BasePromptSeed, CatalogueSeed, CoworkerTier, FoldRatioSeed, LaterSeed, Seeds, TierMapping,
-  TierPlan, WorkKey,
+  AccountSeed, BasePromptSeed, CatalogueSeed, CoworkerTier, FoldRatioSeed, LaterSeed, RoleSeed, Seeds,
+  TierMapping, TierPlan, WorkKey,
 };
 
 use crate::control::claude_accounts::Credential;
@@ -115,7 +116,42 @@ pub fn deployment(machine: &Machine) -> Seeds {
       })
       .collect(),
     base_prompts: base_prompt_seeds(&machine_code_root(machine)),
+    roles: role_seeds(&machine_code_root(machine)),
   }
+}
+
+/// The roles the policy declares, each with the text of the prompt file it names under the code tree. One
+/// whose file cannot be read is said and left out, so it is given by the first settling that can read it.
+pub fn role_seeds(code: &Path) -> Vec<RoleSeed> {
+  ROLES
+    .roles
+    .iter()
+    .filter_map(|role| {
+      let prompt = match &role.prompt {
+        None => None,
+        Some(file) => {
+          let file = code.join("prompts").join("roles").join(file);
+
+          match std::fs::read_to_string(&file) {
+            Ok(text) => Some(text),
+            Err(why) => {
+              eprintln!("agency: the role seed {} is not given: {}: {why}", role.name, file.display());
+
+              return None;
+            }
+          }
+        }
+      };
+
+      Some(RoleSeed {
+        name: role.name.clone(),
+        label: role.label.clone(),
+        bundles: role.bundles.clone(),
+        max_concurrent: role.max_concurrent.map(|most| most as i64),
+        prompt,
+      })
+    })
+    .collect()
 }
 
 /// The base prompts the policy declares, each with its seed file's text under the code tree. One whose

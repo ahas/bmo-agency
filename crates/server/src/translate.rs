@@ -79,11 +79,12 @@ impl Purpose {
   }
 }
 
-/// A translation's system prompt: the translator role's prompt, then the purpose's instructions.
-pub fn system_prompt(trees: &Trees, purpose: Purpose) -> Result<String, String> {
+/// A translation's system prompt: the translator role's prompt, where the store's role carries one, then
+/// the purpose's instructions.
+pub fn system_prompt(trees: &Trees, role: Option<&str>, purpose: Purpose) -> Result<String, String> {
   let instructions = purpose.instructions(trees)?;
 
-  Ok(match role_prompt(trees, ROLE) {
+  Ok(match role {
     Some(role) => format!("{}\n\n{instructions}", role.trim()),
     None => instructions,
   })
@@ -153,7 +154,8 @@ pub async fn translate(
   road::went(ground, &resolution, Some(&taken), &[]).await;
 
   let trees = Trees::of(ground);
-  let system = system_prompt(&trees, purpose).map_err(Refused::NoAnswer)?;
+  let role = role_prompt(&ground.db, ROLE).await;
+  let system = system_prompt(&trees, role.as_deref(), purpose).map_err(Refused::NoAnswer)?;
   let input = input(language, note, text);
   let answer = if taken.provider == crate::control::registry::PROVIDER {
     on_gateway(ground, &taken.model, &system, &input).await

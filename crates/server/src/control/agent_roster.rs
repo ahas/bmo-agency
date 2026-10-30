@@ -126,8 +126,10 @@ async fn checked(written: &DatabaseTransaction, ground: &Ground, asked: &Asked) 
     return refused("kind", fill_marks(&words.kind, &[("kinds", &kinds)]));
   }
 
-  if !ROLES.holds(&asked.role) {
-    return refused("role", fill_marks(&words.role, &[("roles", &ROLES.labels().join(", "))]));
+  if !crate::agent_roles::holds(written, &asked.role).await? {
+    let labels = crate::agent_roles::labels(written).await?;
+
+    return refused("role", fill_marks(&words.role, &[("roles", &labels.join(", "))]));
   }
 
   if !asked.effort.is_empty() && !REASONING.holds(&asked.effort) {

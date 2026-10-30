@@ -109,6 +109,23 @@ model_registration = "There is no registered model {name}."
 model_registration_missing = "A fixed model names a registered model."
 model_route_only = "{agent} takes no model of its own: only a chat agent selects one."
 
+# The roles an agent may hold: a {name} out of its shape of at most {most} characters, one a role or a
+# co-worker role already holds, or none the store holds; a label past its {most} characters, {bundles} the
+# policy declares, a bound, a prompt and one of the {tiers}; and a role that stays, held by its {agents} or
+# the role of its {kind}.
+[agent_roles]
+name = "A role's name is lowercase letters and digits in words joined by single hyphens, starting with a letter, at most {most} characters."
+taken = "There is already a role {name}."
+coworker = "{name} is a co-worker role's name, and the two would share the work key role:{name}."
+unknown = "There is no role {name}."
+label = "A role's label is 1 to {most} characters."
+bundles = "A role gives a list of bundles, each one of {bundles}."
+bound = "A role's bound is a whole number of one or more, or null for none."
+prompt = "A role's prompt is text, or null for none."
+tier = "A role's tier is one of {tiers}, or null for none."
+held = "{name} is held by {agents}. Give them another role first."
+kind_default = "{name} is the role every {kind} agent holds where none is named, so it stays."
+
 # The base prompts: a {name} not known, already taken or out of its shape, a label or a text past its
 # {most} characters, a prompt the {agents} still choose or the {accounts} still name, an {agent} that
 # chooses none, and the reason the resets a changed prompt reaches are kept under.

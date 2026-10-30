@@ -443,6 +443,26 @@ impl AgencyClient {
     Self::nothing(self.request(Method::DELETE, &["agents", agent_name]).query(query)).await
   }
 
+  /// `GET /agent-roles`: Every role an agent may hold, and every bundle a role may give.
+  pub async fn list_agent_roles(&self) -> Answer<AgentRoleList> {
+    Self::answered(self.request(Method::GET, &["agent-roles"])).await
+  }
+
+  /// `POST /agent-roles`: Add a role.
+  pub async fn create_agent_roles(&self, body: &AgentRoleAsk) -> Answer<AgentRole> {
+    Self::answered(self.request(Method::POST, &["agent-roles"]).json(body)).await
+  }
+
+  /// `PATCH /agent-roles/{roleName}`: Change a role's label, bundles, bound, prompt or tier.
+  pub async fn change_agent_role(&self, role_name: &str, body: &AgentRoleChange) -> Answer<AgentRole> {
+    Self::answered(self.request(Method::PATCH, &["agent-roles", role_name]).json(body)).await
+  }
+
+  /// `DELETE /agent-roles/{roleName}`: Remove a role no agent holds and no kind is for.
+  pub async fn delete_agent_role(&self, role_name: &str) -> Answer<()> {
+    Self::nothing(self.request(Method::DELETE, &["agent-roles", role_name])).await
+  }
+
   /// `GET /prompt-documents`: Deployed prompt documents: base prompts, rulebooks, personas, agent definitions, system prompts.
   pub async fn list_prompt_documents(
     &self,
@@ -677,6 +697,11 @@ impl AgencyClient {
   /// `GET /roles`: The roles the pool can lend.
   pub async fn list_roles(&self) -> Answer<RolePage> {
     Self::answered(self.request(Method::GET, &["roles"])).await
+  }
+
+  /// `PATCH /pool/limits`: Set how many children of one co-worker tier may be alive on one provider.
+  pub async fn change_pool_limit(&self, body: &PoolLimit) -> Answer<PoolLimit> {
+    Self::answered(self.request(Method::PATCH, &["pool", "limits"]).json(body)).await
   }
 
   /// `GET /places`: Branch places, by node and checkout.

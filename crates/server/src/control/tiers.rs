@@ -7,7 +7,7 @@ use policy::answer_ceilings::ANSWER_CEILINGS;
 use policy::queue_words::QUEUE_WORDS;
 use policy::tiers::TIERS;
 use regex::Regex;
-use sea_orm::{DatabaseConnection, QueryResult, TransactionTrait};
+use sea_orm::{ConnectionTrait, DatabaseConnection, QueryResult, TransactionTrait};
 use serde::Serialize;
 use serde_json::Value;
 
@@ -301,7 +301,11 @@ pub async fn set_mapping(
 }
 
 /// A work key assigned a tier, every migration conflict of the key accepted with it.
-pub async fn assign(db: &DatabaseConnection, key: &str, tier: &str) -> Result<(), String> {
+pub async fn assign<C: ConnectionTrait + TransactionTrait>(
+  db: &C,
+  key: &str,
+  tier: &str,
+) -> Result<(), String> {
   let shape = Regex::new(r"^[a-zA-Z0-9][a-zA-Z0-9:._-]{0,200}$").expect("the key pattern compiles");
 
   if !shape.is_match(key) {

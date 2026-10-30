@@ -38,6 +38,7 @@ mod m20261112_000001_role_files;
 mod m20261113_000001_agent_log_prune;
 mod m20261114_000001_chat_documents;
 mod m20261114_000002_registration_last_answered;
+mod m20261115_000001_agent_roles;
 
 use sea_orm_migration::prelude::*;
 
@@ -49,8 +50,10 @@ pub const TABLES: &str = m20261016_000001_store::NAME;
 
 /// Every table the store's migrations make, beside the record of what ran: what reads every table of the
 /// store reads these and no other service's beside them (docs/store.md, 「Its tables」).
-pub const OWN_TABLES: [&str; 62] = [
+pub const OWN_TABLES: [&str; 64] = [
   "agents",
+  "agent_roles",
+  "agent_role_seeded",
   "gate_kinds",
   "chat_documents",
   "agent_log",
@@ -156,6 +159,7 @@ impl MigratorTrait for Migrator {
       Box::new(m20261113_000001_agent_log_prune::Migration),
       Box::new(m20261114_000001_chat_documents::Migration),
       Box::new(m20261114_000002_registration_last_answered::Migration),
+      Box::new(m20261115_000001_agent_roles::Migration),
     ]
   }
 

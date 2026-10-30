@@ -1,7 +1,7 @@
 //! What a store is given beside its tables (docs/store.md, 「Its seeds」): the account, the tiers with
-//! their work keys, the fold ratios, the model catalogue and the base prompts. The values are the deployment's, handed in
-//! by whoever settles the store; this module knows none of them and supplies only when and how each is
-//! written.
+//! their work keys, the fold ratios, the model catalogue, the base prompts and the agents' roles. The
+//! values are the deployment's, handed in by whoever settles the store; this module knows none of them and
+//! supplies only when and how each is written.
 
 use std::collections::BTreeSet;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -24,6 +24,19 @@ pub struct Seeds {
   pub catalogue: Vec<CatalogueSeed>,
   /// The base prompts each given once by its name.
   pub base_prompts: Vec<BasePromptSeed>,
+  /// The roles an agent may hold, each given once by its name, in the order a screen lists them.
+  pub roles: Vec<RoleSeed>,
+}
+
+/// One role a store is given once by its name (docs/agent-roles.md, 「The roles」): its label, the bundles
+/// it gives, the most of its agents that run at once and the text of its prompt.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RoleSeed {
+  pub name: String,
+  pub label: String,
+  pub bundles: Vec<String>,
+  pub max_concurrent: Option<i64>,
+  pub prompt: Option<String>,
 }
 
 /// One base prompt a store is given once by its name (docs/base-prompts.md, 「The seeds」), with the
@@ -156,6 +169,9 @@ pub async fn settle(db: &DatabaseConnection, seeds: &Seeds) -> Result<(), Fault>
   for prompt in &seeds.base_prompts {
     base_prompt_seed(&writing, prompt, now).await?;
   }
+  for (place, role) in seeds.roles.iter().enumerate() {
+    role_seed(&writing, role, place as i64, now * 1000).await?;
+  }
 
   writing.commit().await?;
 
@@ -277,6 +293,47 @@ async fn base_prompt_seed<C: ConnectionTrait>(
     )
     .await?;
   }
+
+  Ok(())
+}
+
+// A role is given once by its name, recorded as given, so one the owner removes stays removed; a role of
+// that name already held stands as it is. Its place is the one the policy declares it at, which a role the
+// owner adds later comes after.
+async fn role_seed<C: ConnectionTrait>(
+  db: &C,
+  role: &RoleSeed,
+  place: i64,
+  at_ms: i64,
+) -> Result<(), Fault> {
+  let given = run(
+    db,
+    r#"INSERT INTO "agent_role_seeded" ("name") VALUES ($1) ON CONFLICT DO NOTHING"#,
+    vec![role.name.clone().into()],
+  )
+  .await?;
+
+  if given == 0 {
+    return Ok(());
+  }
+
+  let bundles = serde_json::to_string(&role.bundles).map_err(|error| Fault::new(error.to_string()))?;
+
+  run(
+    db,
+    r#"INSERT INTO "agent_roles" ("name", "label", "bundles", "max_concurrent", "prompt", "position", "created_at", "updated_at")
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $7) ON CONFLICT DO NOTHING"#,
+    vec![
+      role.name.clone().into(),
+      role.label.clone().into(),
+      bundles.into(),
+      role.max_concurrent.into(),
+      text(&role.prompt),
+      place.into(),
+      at_ms.into(),
+    ],
+  )
+  .await?;
 
   Ok(())
 }

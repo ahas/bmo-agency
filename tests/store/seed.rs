@@ -2,8 +2,8 @@
 //! row the owner removed left removed.
 
 use store::seed::{
-  AccountSeed, BasePromptSeed, CatalogueSeed, CoworkerTier, FoldRatioSeed, LaterSeed, Seeds, TierMapping,
-  TierPlan, WorkKey, settle,
+  AccountSeed, BasePromptSeed, CatalogueSeed, CoworkerTier, FoldRatioSeed, LaterSeed, RoleSeed, Seeds,
+  TierMapping, TierPlan, WorkKey, settle,
 };
 
 use crate::scratch::Scratch;
@@ -94,7 +94,86 @@ fn seeds() -> Seeds {
         agents: vec![],
       },
     ],
+    roles: vec![
+      RoleSeed {
+        name: "talker".into(),
+        label: "Talker".into(),
+        bundles: vec!["room.send".into()],
+        max_concurrent: Some(3),
+        prompt: None,
+      },
+      RoleSeed {
+        name: "maker".into(),
+        label: "Maker".into(),
+        bundles: vec![],
+        max_concurrent: None,
+        prompt: Some("Make things.".into()),
+      },
+    ],
   }
+}
+
+// A role's label, bundles, bound and prompt as the store holds it, with its place in the listing.
+async fn role(scratch: &Scratch, name: &str) -> Option<(String, String, Option<i64>, Option<String>, i64)> {
+  store::one(
+    scratch.db(),
+    r#"SELECT "label", "bundles", "max_concurrent", "prompt", "position" FROM "agent_roles" WHERE "name" = $1"#,
+    vec![name.into()],
+  )
+  .await
+  .unwrap()
+  .map(|row| {
+    (
+      row.try_get("", "label").unwrap(),
+      row.try_get("", "bundles").unwrap(),
+      row.try_get("", "max_concurrent").unwrap(),
+      row.try_get("", "prompt").unwrap(),
+      row.try_get("", "position").unwrap(),
+    )
+  })
+}
+
+#[tokio::test]
+async fn the_roles_are_given_once_and_a_row_the_store_holds_wins_over_the_seed() {
+  let scratch = Scratch::blank().await;
+
+  settle(scratch.db(), &seeds()).await.unwrap();
+
+  assert_eq!(
+    role(&scratch, "talker").await,
+    Some(("Talker".into(), r#"["room.send"]"#.into(), Some(3), None, 0))
+  );
+  assert_eq!(
+    role(&scratch, "maker").await,
+    Some(("Maker".into(), "[]".into(), None, Some("Make things.".into()), 1))
+  );
+
+  // The owner's change stands, and a role the owner removed stays removed.
+  scratch
+    .run(
+      r#"UPDATE "agent_roles" SET "label" = 'Speaker', "max_concurrent" = 1 WHERE "name" = 'talker'"#,
+      vec![],
+    )
+    .await;
+  scratch.run(r#"DELETE FROM "agent_roles" WHERE "name" = 'maker'"#, vec![]).await;
+
+  let mut later = seeds();
+  later.roles[0].label = "Changed in the policy".into();
+  later.roles.push(RoleSeed {
+    name: "late".into(),
+    label: "Late".into(),
+    bundles: vec![],
+    max_concurrent: None,
+    prompt: None,
+  });
+  settle(scratch.db(), &later).await.unwrap();
+
+  assert_eq!(
+    role(&scratch, "talker").await.map(|(label, _, bound, ..)| (label, bound)),
+    Some(("Speaker".into(), Some(1)))
+  );
+  assert_eq!(role(&scratch, "maker").await, None);
+  assert_eq!(role(&scratch, "late").await.map(|(label, ..)| label), Some("Late".into()));
 }
 
 async fn assignment(scratch: &Scratch, key: &str) -> Option<String> {
