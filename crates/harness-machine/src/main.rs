@@ -115,6 +115,10 @@ struct CompanionAsk {
   prompts: Option<String>,
   settings: Composition,
   base: Option<Base>,
+  /// Whether the companion's program is a harness of its own, whose own prompt stands where the platform's
+  /// harness opening would; by default it runs on Claude Code and takes the platform's.
+  #[serde(default, rename = "ownHarness")]
+  own_harness: bool,
 }
 
 fn standing_input() -> Result<String, Fault> {
@@ -218,7 +222,8 @@ async fn answer(cli: Cli) -> Result<Value, Fault> {
         &roots,
         companion,
         &asked.settings,
-        asked.base.as_ref()
+        asked.base.as_ref(),
+        !asked.own_harness
       )?))
     }
     Ask::CompanionPersona { folder } => {

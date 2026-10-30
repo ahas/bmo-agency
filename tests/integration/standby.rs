@@ -242,7 +242,8 @@ async fn a_worker_pinned_to_a_registration_stands_claude_code_on_the_gateway_und
 
   assert_eq!(program.command.args[0], "claude");
   assert!(program.command.args.contains(&"--plugin-dir".to_owned()));
-  assert!(program.command.args.contains(&"--append-system-prompt-file".to_owned()));
+  assert!(program.command.args.contains(&"--system-prompt-file".to_owned()));
+  assert!(!program.command.args.contains(&"--append-system-prompt-file".to_owned()));
   assert!(!program.command.args.contains(&"--session-id".to_owned()));
   assert_eq!(
     program.command.env.get("CLAUDE_CONFIG_DIR"),

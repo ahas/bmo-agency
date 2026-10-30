@@ -1,8 +1,8 @@
 //! The job worker's line (docs/launch-lines.md; docs/agent-control.md, 「A worker standing with nothing
 //! to do」): its model and effort as the job key's tier maps them, the worker's own thinking and level,
-//! its system prompt where the account it runs on names a base prompt or it chooses one, the standing
-//! rules appended to the program's own prompt otherwise, the MCP configuration, the settings, the plugin
-//! and the co-worker definitions it is handed.
+//! its whole system prompt — the base prompt the account it runs on names or it chooses, else the
+//! platform's harness opening, with the standing rules after it — the MCP configuration, the settings, the
+//! plugin and the co-worker definitions it is handed.
 
 use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
@@ -53,7 +53,13 @@ pub struct WorkerRun {
   /// The worker's own choice, which a mapping laid on the run reads; none for a run that is no
   /// worker's.
   pub reasoning: Option<Reasoning>,
+  /// The whole system prompt a base prompt opens, the account's or the worker's own choice, with the rules
+  /// after it; none where no base is chosen.
   pub system_prompt: Option<PathBuf>,
+  /// The whole system prompt Claude Code is handed where no base is chosen: the platform's harness opening
+  /// with the rules after it.
+  pub harnessed: PathBuf,
+  /// The rules alone, which a program that is a harness of its own carries beside its own prompt.
   pub rules: PathBuf,
   pub mcp_config: PathBuf,
   pub settings: PathBuf,
@@ -337,6 +343,26 @@ pub async fn worker_system_prompt(
   )?))
 }
 
+/// The worker's whole system prompt on Claude Code where no base prompt is chosen: the platform's harness
+/// opening, the role's prompt where the worker's role names one, then the worker's rules, as one file named
+/// by what it holds (docs/base-prompts.md).
+pub fn harnessed_system_prompt(
+  trees: &Trees,
+  rules: &str,
+  above: Option<&str>,
+) -> Result<PathBuf, Refusal> {
+  let text = super::harnessed(
+    trees,
+    &match above {
+      Some(above) => format!("{above}\n\n{rules}"),
+      None => rules.to_owned(),
+    },
+  )?;
+  let digest = format!("{:x}", Sha256::digest(text.as_bytes()));
+
+  system_prompt_file(trees, &format!("worker-system-harness-{}", &digest[..12]), &text)
+}
+
 /// One co-worker definition as the program reads it, its fields in the order the line writes them.
 #[derive(Serialize)]
 struct Definition {
@@ -385,10 +411,16 @@ fn plugin_skills(plugin_dir: &Path) -> Result<Vec<String>, Refusal> {
 }
 
 /// The co-worker definitions a job is handed whole: every enabled role, on the model and effort its
-/// own key maps to on Claude Code, its prompt closed by the worker's rules, and only the skills the
-/// plugin carries.
-pub async fn coworkers_json(ground: &Ground, plugin_dir: &Path, rules: &str) -> Result<String, Refusal> {
+/// own key maps to on Claude Code, its prompt — which stands in the place of the subagent's own — opened by
+/// the platform's harness and closed by the worker's rules, and only the skills the plugin carries.
+pub async fn coworkers_json(
+  ground: &Ground,
+  trees: &Trees,
+  plugin_dir: &Path,
+  rules: &str,
+) -> Result<String, Refusal> {
   let carried = plugin_skills(plugin_dir)?;
+  let harness = read_required(&trees.harness_path())?;
   let rows = all(
     &ground.db,
     r#"SELECT "name", "description", "prompt", "tools", "skills" FROM "coworker_pool_roles"
@@ -410,7 +442,7 @@ pub async fn coworkers_json(ground: &Ground, plugin_dir: &Path, rules: &str) -> 
       name,
       Definition {
         description: row.try_get("", "description")?,
-        prompt: format!("{}\n\n{rules}", prompt.trim()),
+        prompt: format!("{harness}\n\n{}\n\n{rules}", prompt.trim()),
         tools: list(row.try_get("", "tools")?),
         skills: list(row.try_get("", "skills")?)
           .into_iter()
@@ -486,6 +518,7 @@ pub async fn worker_run(
     model,
   )
   .await?;
+  let harnessed = harnessed_system_prompt(trees, &rules_text, above.as_deref())?;
   let worker_dir = trees.agent_dir(LINE);
   let plugin_dir = worker_dir.join("plugin");
   let reasoning = match worker {
@@ -500,10 +533,11 @@ pub async fn worker_run(
     thinking: reasoning.as_ref().and_then(|reasoning| reasoning.thinking).unwrap_or(true),
     reasoning,
     system_prompt,
+    harnessed,
     rules,
     mcp_config: mcp_config(ground, trees)?,
     settings: worker_dir.join("settings.json"),
-    agents_json: coworkers_json(ground, &plugin_dir, &shared).await?,
+    agents_json: coworkers_json(ground, trees, &plugin_dir, &shared).await?,
     plugin_dir,
     tools_denied: RUN_LINES.line(LINE).map(|line| line.tools_denied.join(",")).unwrap_or_default(),
     cwd: cwd.to_owned(),

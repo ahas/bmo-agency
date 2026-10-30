@@ -1,7 +1,7 @@
 //! A companion's system prompt, composed out of the agent documents exactly as a turn sends it
 //! (docs/harness-machine.md, 「A companion's system prompt」; docs/companions.md, 「What a turn is
-//! given」): the base prompt it chooses, the self-preservation rulebook, then the pieces its settings
-//! list, joined by a blank line.
+//! given」): its harness — the base prompt it chooses, else the platform's harness opening on a program that
+//! takes it — the self-preservation rulebook, then the pieces its settings list, joined by a blank line.
 
 use std::collections::BTreeMap;
 use std::io;
@@ -96,6 +96,11 @@ impl Roots {
   /// The ABSOLUTE RULES, bare, under their own heading line.
   pub fn absolute_rules(&self) -> io::Result<String> {
     Self::required(self.assets.join("prompts/rules/absolute-rules.md"))
+  }
+
+  /// The platform's harness opening, which a program running on Claude Code is handed as its harness.
+  pub fn harness(&self) -> io::Result<String> {
+    Self::required(self.assets.join("prompts/harness.md"))
   }
 
   /// The persona a companion is sent: its settings' text where they hold one, its prompt folder's file
@@ -224,18 +229,23 @@ pub fn piece(
   }
 }
 
-/// The whole system prompt: the base prompt it chooses as its harness, then every companion's role whole — the
-/// rulebook against destroying the system and the role's parts in their fixed order — then its persona.
+/// The whole system prompt: its harness, then every companion's role whole — the rulebook against destroying
+/// the system and the role's parts in their fixed order — then its persona. The harness is the base prompt it
+/// chooses; where it chooses none, the platform's harness opening when `platform` says its program takes
+/// one, and none for a program whose own prompt is its harness.
 pub fn system(
   roots: &Roots,
   companion: Companion,
   settings: &Composition,
   base: Option<&Base>,
+  platform: bool,
 ) -> io::Result<String> {
   let mut parts = vec![];
 
-  if let Some(base) = base {
-    parts.push(filled_base(roots, companion.name, base));
+  match base {
+    Some(base) => parts.push(filled_base(roots, companion.name, base)),
+    None if platform => parts.push(roots.harness()?),
+    None => {}
   }
 
   parts.push(roots.rulebook(SELF_PRESERVATION)?);

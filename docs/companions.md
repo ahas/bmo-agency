@@ -278,7 +278,11 @@ are the companion unit's, not agency's. This document covers only what agency ho
   persona, as every agent's is (`docs/agent-documents.md`, 「The chat agent」). No section of it is chosen or
   ordered per companion.
   - **The harness** is the base prompt the companion chooses (`docs/base-prompts.md`), its values filled in;
-    a companion that chooses none has its program's own prompt as the harness.
+    a companion that chooses none has the platform's harness opening, `prompts/harness.md`, as the
+    harness. On Claude Code the three layers are one whole system prompt in the program's own place; on
+    a program that is a harness of its own and carries its turns through its inbox, as dsh does, what is
+    composed — the chosen base where there is one, the role and the persona — goes as its persona suffix
+    after its own prompt, and the platform's opening is not sent.
   - **The role** is every companion's, the same for each: the rulebook against destroying the system, the
     absolute rules, the companion frame with its tools, the companion turn, and the rulebook on another
     agent's words, in that order (`policy/companions.toml`, `role`).

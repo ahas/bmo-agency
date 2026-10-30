@@ -245,14 +245,15 @@ pub fn prefix_digest(reading: &PrefixReading) -> String {
 }
 
 // The repository files a commit can name that the prefix is read out of: the memory files and what a
-// pointer among them imports, the MCP configuration, and the worker line's settings, rules and the report
-// trailer with the graph text it carries.
-const PREFIX_FILES: [&str; 10] = [
+// pointer among them imports, the MCP configuration, the platform's harness opening its prompt opens with,
+// and the worker line's settings, rules and the report trailer with the graph text it carries.
+const PREFIX_FILES: [&str; 11] = [
   "CLAUDE.md",
   "CLAUDE.local.md",
   "AGENTS.md",
   "STRUCTURE.md",
   ".mcp.json",
+  "prompts/harness.md",
   "prompts/agents/worker/settings.json",
   "prompts/agents/worker/standing-rules.md",
   "prompts/agents/worker/trailer.md",

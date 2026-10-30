@@ -208,6 +208,13 @@ pub fn carries_answers(provider: &dyn harness_providers::Provider) -> bool {
   provider.declared().lines.iter().any(|line| line == LINE)
 }
 
+/// Whether a companion's program on the provider takes the platform's harness opening where the companion
+/// chooses no base prompt (docs/companions.md, 「What a turn is given」): every program on Claude Code does,
+/// and a program that carries its own turns through its inbox, a harness of its own, keeps its own prompt.
+pub fn takes_harness(provider: &str) -> bool {
+  !crate::chat_stand_in::inbox_declared(provider)
+}
+
 /// The turn of one companion, composed.
 pub async fn compose(
   ground: &Ground,
@@ -337,7 +344,6 @@ pub async fn compose(
         shown: &CHAT_LINE.tools.shown,
         allowed: &CHAT_LINE.tools.allowed,
         host_commands: true,
-        appended: false,
       },
       settings,
       &session,

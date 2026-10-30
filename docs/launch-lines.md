@@ -144,20 +144,28 @@
   every warm session of that line stands on, so what an implementation may not do is move one.
 ## What is fixed
 
+- **Every line on Claude Code is handed one whole system prompt** with `--system-prompt-file`, in the
+  CLI's own place; none appends to the CLI's prompt. The chat session, the job worker, a companion's
+  turn, the search runner with its branches and rounds, and the browse runner each open theirs on the
+  platform's harness opening, `prompts/harness.md` read out of the deploy tree, unless a base prompt
+  stands in its place (`docs/base-prompts.md`); a gate's prompt is the gate's and the translator's is
+  its role's and purpose's, each whole.
 - **Chat session** (`chatArgs`): the model and effort the `bmo` work key's tier names, read out of
   agency's store at every launch. Neither is written in code and no constant stands behind either —
   a mapping the owner deleted, or a migration the owner has not settled, refuses the launch rather than
   being answered with a default (`docs/model-tiers.md`). The console is the one place they are
   chosen, and the line, the record of the session, the keepalive's cache policy and the check for
   a runtime downgrade all read that one answer. The system prompt is the harness, the role and the
-  persona, each whole (`docs/agent-documents.md`, 「The chat agent」): the program's own prompt; then
+  persona, each whole (`docs/agent-documents.md`, 「The chat agent」): the platform's harness opening,
+  `prompts/harness.md`; then
   the chat role's documents with the tools paragraph composed for the program the session runs on, the
   three answer rulebooks, the rulebook against destroying the system
   (`prompts/rules/self-preservation.md`), the brain's discipline and the tool host's paragraph on finding
   and using tools (`docs/api.md`, 「Calls agency makes」); then the persona — the base layer of the
   agent's brain, or the one the turn hands in where the brain gives none (`docs/sessions.md`, 「Document
-  reload」). On Claude Code the role and the persona are handed over as a file appended to the CLI's own
-  prompt (`--append-system-prompt-file`), and on dsh as the persona suffix of its system prompt. No
+  reload」). On Claude Code the three are handed over as one file, the whole system prompt in the CLI's
+  own place (`--system-prompt-file`); on dsh, whose own prompt is its harness, the role and the persona
+  go as the persona suffix of its system prompt and the platform's opening is not sent. No
   settings sources, no skills, no Chrome, and the chat line's MCP servers, named in `chat.mcp.json`
   beside the strict flag that keeps every other server out: the tool host's namespaces the chat line
   names, `bmo`, `gate` and `eye`, each a streamable HTTP server behind the run's session
@@ -217,32 +225,37 @@
   set that key to `false` in `prompts/agents/worker/settings.json` and let the commit go live; it
   moves the worker prefix like any change to the line (「Why a line is held steady」). The Claude
   Docs server stays on the disallowed list either way, so turning the connectors on brings back
-  the others and never the one that publishes. The job worker runs on the CLI's default prompt,
-  in the directory its own worker row names — this
-  repository for the built-in worker, since editing this code is what that one is for. No persona and no system prompt
-  of its own: what is appended to the default prompt is one file the line composes for the worker whose
+  the others and never the one that publishes. The job worker runs in the directory its own worker
+  row names — this
+  repository for the built-in worker, since editing this code is what that one is for. No persona: its
+  whole system prompt, given with `--system-prompt-file` in the CLI's own place, is the platform's
+  harness opening, `prompts/harness.md`, then the worker's rules, as one file named by what it holds.
+  The rules are one file the line composes for the worker whose
   run it is — the owner's standing rules for every job, `prompts/agents/worker/standing-rules.md`,
   then the rulebook against destroying the system, then that worker's own rules where it has a
   document of its own, `prompts/agents/<worker>/own-rules.md` (a support
   worker takes its base's, and a co-work branch in a standing checkout, which is no worker's, takes
   none), then the report trailer every job is held to, `prompts/agents/worker/trailer.md` filled in as
   the deployment shows it (a co-work branch takes none), then the documents its row names as its prefix
-  documents (`docs/worker-bench.md`, 「Prefix documents」). The trailer stands in this file, the
+  documents (`docs/worker-bench.md`, 「Prefix documents」). The trailer stands in the whole prompt, the
   session's cached prefix, so a session pays for it once; the job's prompt carries no trailer, and of
   its item's notes only as many as fit the policy's bytes (`docs/api.md`, 「assignments and jobs」). A
-  worker that chooses a base prompt (`docs/base-prompts.md`) is handed the default prompt's place instead: the chosen prompt with the
+  worker that chooses a base prompt (`docs/base-prompts.md`) is handed it in the harness opening's
+  place: the chosen prompt with the
   same rules after it, as one file named by what it holds, given as the whole system prompt; on
   Codex as its instructions file, with the checkout's `AGENTS.md` still read, and on OpenRouter and
   DeepSeek as dsh's persona prefix. A run that goes out on a Claude account naming a base prompt of its own
   (`docs/cache-fallback.md`, 「The Claude Code road is a list of accounts」) takes the account's base in
-  that place, over the worker's own choice and in place of the default prompt alike, with the same
+  that place, over the worker's own choice and in place of the harness opening alike, with the same
   rules after it, as one file named by what it holds and given with `--system-prompt-file`; so a run
-  on an endpoint account opens on the base its endpoint's harness runs on rather than on a prompt
-  written for Anthropic's models. The base is composed with the account the run goes out on, so the
+  on an endpoint account opens on the base its endpoint's harness runs on rather than on the
+  platform's opening. The base is composed with the account the run goes out on, so the
   line's prefix is the account's as well as the worker's. Every co-worker
-  definition's prompt closes on the same file's text. A job carried by another provider is handed
-  the same file in the place that program keeps beside its own default prompt, never in place of
-  it: on Codex as the run's developer instructions (`developer_instructions`), with Codex's own
+  definition's prompt, which stands as the co-worker's whole system prompt, opens on the platform's
+  harness opening, then the role's own prompt, and closes on the rules every worker shares and the
+  worker's own. A job carried by another provider whose program is a harness of its own is handed
+  the rules file alone, in the place that program keeps beside its own default prompt, never in place of
+  it, and the platform's opening is not sent: on Codex as the run's developer instructions (`developer_instructions`), with Codex's own
   coding-agent prompt and the checkout's `AGENTS.md` left as they are; on OpenRouter and DeepSeek as the
   persona suffix of dsh's system prompt, after dsh's own prompt whole, with its instruction-file row left
   as it is. A worker run handed no such file is
@@ -326,8 +339,8 @@
   the owner's word, a disaster, or a Claude API error — never the passing of time.
 - **A job worker on a registered model**: Claude Code pointed at agency's gateway under the
   registration's name (`docs/own-llm.md`, 「How requests go」), on the job worker line above whole —
-  the CLI's own prompt with the worker's rules appended, or its base prompt with them after it, the
-  plugin, the co-workers, the worker's MCP
+  the platform's harness opening with the worker's rules after it, or its base prompt with them after
+  it, the plugin, the co-workers, the worker's MCP
   server, the project and local setting sources and every tool the line shows — and the settings the
   place writes over the worker's own. What differs is the registration's gateway name, with its node
   where it has several, at `medium` effort with thinking on and `low` with it off — thinking as the
@@ -340,7 +353,7 @@
   own (`docs/own-llm.md`, 「A worker on a registered model is composed as on Claude」).
 - **A job worker on a DeepSeek, OpenRouter or Codex model**: Claude Code on the gateway under the member the
   pin or the worker key's tier names, exactly as a worker on a registration stands (`docs/own-llm.md`): the
-  worker line whole — its rules appended to the CLI's prompt or its base prompt with them after it, its
+  worker line whole — the platform's harness opening or its base prompt with its rules after it, its
   plugin, its co-workers, the worker MCP server, its settings and hooks — with the member's home, window,
   answer ceiling and request wait, and the gateway's key read from its file by the settings' key helper. The
   member's effort word goes out in the effort header; no login of the Claude road goes with it.
@@ -348,7 +361,8 @@
   which stands on the chat line above as the chat agent's does (`docs/agents.md`, 「Conversational agents」) —
   the same tools shown and allowed, the same configuration, the same mode and the same shell guard —
   with the system prompt its own settings compose (`docs/companions.md`, 「What a turn is given」) in
-  place of the chat's, its own folder, the session of the room the turn is for, resumed or opened under
+  place of the chat's — one whole prompt given with `--system-prompt-file`, opening on the base prompt it
+  chooses or else on the platform's harness opening — its own folder, the session of the room the turn is for, resumed or opened under
   the id the turn names, and its program's own commands reachable. The room, the companion, the run,
   the messages the turn answers and whether each is the owner's stand in the place's run as its own
   variables. On a registered model it goes out as every run on one does, the thinking its agent row
@@ -371,16 +385,17 @@
   its own branch verb, with the model and effort of the profile's pooled role, the web tools and
   the picture viewer only, and the parent's research close; no native Claude Code subagent is opened
   by any of them.
-  - **Its system prompt is the search's standing instructions**, handed over as a file and
-    replacing the CLI's own: the search task, the site tools' catalogue, the search rulebooks and
+  - **Its system prompt is the platform's harness opening and then the search's standing
+    instructions**, handed over as one file and replacing the CLI's own: `prompts/harness.md`, then the
+    search task, the site tools' catalogue, the search rulebooks and
     the rulebook against destroying the system. The catalogue is the web namespace's listing, which
     a process that does not serve the web tools itself reads from the tool host (`mcp-host.md`,
     「What a namespace says of itself」), and a line whose listing cannot be had is not composed at all.
     What differs per run — the question, who asked and when, the options, the depth and the branch
     allowance — is the prompt. So nothing of Claude Code's coding conventions reaches a search,
     and the prefix a ping on this line reads is the prefix a search reads.
-  - **A branch's system prompt is the branch instructions** with the same catalogue and the rulebook
-    against destroying the system; its angle and
+  - **A branch's system prompt is the platform's harness opening and then the branch instructions**
+    with the same catalogue and the rulebook against destroying the system; its angle and
     when its research closes are its prompt, so every branch shares one prefix.
   - **A research run's rounds.** A run on a research line keeps no receiver, so agency asks the
     line's questions itself after the run's first answer (`docs/api.md`, 「research drafts」): each
@@ -423,8 +438,9 @@
   nothing else, no settings, no other MCP, no
   Chrome integration, run in its deployed directory. The profile's browser strategy decides
   whether chrome-devtools starts standard Chrome on a virtual display the runner owns — never the
-  desktop session, its D-Bus or its keyring — or headless. Its system prompt is the browse
-  instructions and the rulebook against destroying the system, replacing the CLI's own; the task and the time the run has are the prompt.
+  desktop session, its D-Bus or its keyring — or headless. Its system prompt is the platform's harness
+  opening, `prompts/harness.md`, then the browse instructions and the rulebook against destroying the
+  system, as one file replacing the CLI's own; the task and the time the run has are the prompt.
   chrome-devtools is started without its performance and memory tools — tracing a page's load and
   taking a heap snapshot — since a run that reads what a page says has no use for them.
 - **The web**: no agent of the system's is shown the CLI's WebSearch or WebFetch. Those hand back a

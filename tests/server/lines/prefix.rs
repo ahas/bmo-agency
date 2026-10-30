@@ -9,6 +9,7 @@ fn a_commit_moves_the_prefix_through_a_memory_file_a_worker_s_own_rules_or_a_pro
   let paths = [
     "AGENTS.md",
     "server/bot.ts",
+    "prompts/harness.md",
     "prompts/agents/companion/own-rules.md",
     "prompts/agents/worker/plugin/skills/x/SKILL.md",
     "prompts/agents/worker/trailer.md",
@@ -16,11 +17,13 @@ fn a_commit_moves_the_prefix_through_a_memory_file_a_worker_s_own_rules_or_a_pro
   ]
   .map(str::to_owned);
 
-  // The report trailer stands in the worker's rules file, so it moves the prefix like the rules do.
+  // The report trailer stands in the worker's rules file, so it moves the prefix like the rules do; the
+  // platform's harness opening opens the worker's whole prompt.
   assert_eq!(
     touches_prefix(&paths),
     [
       "AGENTS.md",
+      "prompts/harness.md",
       "prompts/agents/companion/own-rules.md",
       "prompts/agents/worker/plugin/skills/x/SKILL.md",
       "prompts/agents/worker/trailer.md"

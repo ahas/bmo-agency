@@ -315,10 +315,10 @@ When a demotion first catches — when a healthy session first drops — two thi
     authorisation token, and the model ids its map names for each family; every other credential the
     launching process carried goes with it.
   - **The exception:** an account may name a base prompt (`docs/base-prompts.md`), and a worker's run on
-    that account opens its system prompt on that base in place of the program's own, so on the worker
-    line the system-prompt flag is the account's (`docs/launch-lines.md`). An endpoint account names
-    the base its endpoint's own harness runs on, since the program's own prompt is written for
-    Anthropic's models.
+    that account opens its system prompt on that base in place of the platform's harness opening, so on
+    the worker line the file the system-prompt flag names is the account's (`docs/launch-lines.md`). An
+    endpoint account names the base its endpoint's own harness runs on, since that is the opening the
+    endpoint's model runs best on.
 - **An account carries its own everything.** Its sessions, transcripts, usage windows where it has
   them, spend and rest belong to it, because a login is what they belong to: a session opened under one
   account cannot be resumed under another, one account's windows say nothing about another's, and each
@@ -875,6 +875,6 @@ the same. "None" means that program has no such concept, with the reason.
 | Session continuation | Resumes chat and worker sessions | Resumes a thread per run scope, model and effort | The session stands in bmo-tui's pane and carries the next turn; agency stores no id and resumes none | None for a tool-less request; a run with tools is Claude Code's |
 | Context folding | The caller folds with the CLI's compaction | The Codex CLI compacts its own thread | dsh compacts its own session; agency folds nothing | Not applicable |
 | effort · thinking | The effort set per line | Passes effort, thinking-off is low | An agent's own level is the session's reasoning effort; a tier mapping names none, and thinking off passes off | Thinking on or off; a run with tools sends medium or low |
-| System prompt | Replaces the CLI instruction with a file; worker the CLI default with the worker's rules appended | Replaces via `model_instructions_file`; worker the Codex default and `AGENTS.md`, rules as `developer_instructions` | Goes in as one part of the dsh prompt, no replacement | Carries the gate system prompt in the request; a run with tools as on Claude Code |
+| System prompt | Replaces the CLI instruction with one whole file opening on the platform's harness, worker its rules after it | Replaces via `model_instructions_file`; worker the Codex default and `AGENTS.md`, rules as `developer_instructions` | Goes in as one part of the dsh prompt, no replacement | Carries the gate system prompt in the request; a run with tools as on Claude Code |
 | Tool · permission isolation | Tools shown per line and an allow list, settings sources blocked | Moves to a shell and sandbox, loads no user settings | Moves to filesystem/shell rows and the dsh sandbox, no per-command allow list | A run with tools is Claude Code's line |
 | Output schema | None. A structured answer is asked in the prompt and validated by the caller | None, for the same reason: a schema option moves the cached prefix | None | None |

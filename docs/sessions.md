@@ -144,8 +144,9 @@ statements below about either are kept for a rollback to the road a deployment l
   calls `POST /documents/reload` for its own changes whenever a run succeeds, and work that edits one
   by hand runs `bmo-agency reload --path <file> [--path <file>...]` afterwards; with `--now` the
   notice is due at once rather than after the hour.
-- A document that ships with the code — a rulebook under `prompts/rules/` or an agent document under
-  `prompts/agents/` — is read out of the deploy tree, so it is told by the deployment that puts it
+- A document that ships with the code — a rulebook under `prompts/rules/`, an agent document under
+  `prompts/agents/`, or the platform's harness opening `prompts/harness.md`, which is part of the chat
+  session's system prompt and of a worker's prefix — is read out of the deploy tree, so it is told by the deployment that puts it
   live, through the deploy tree's own reload; the same command run from a checkout refuses such a
   document (`deploy.md`, 「What goes live with the documents」).
 - Agency holds no lore and keeps no persona of its own. The base persona a chat session's system prompt
@@ -308,9 +309,10 @@ statements below about either are kept for a rollback to the road a deployment l
   the same, its kept session's record dropped with it. The job's runner asks for each handover across
   the boundary, naming the session where it has one (`docs/api.md`, 「Workers」).
 - **What a job's change moved of the prefix is read by the files a session's prefix is built from:** the
-  instructions and the tool declaration at a checkout's head, the worker's settings, standing rules,
-  report trailer and the graph text it carries, plugin and co-worker definitions, the self-preservation
-  rulebook, and a worker's own rules. A runner asks which of its own commits' files those are, to say why
+  instructions and the tool declaration at a checkout's head, the platform's harness opening the
+  worker's prompt opens with, the worker's settings, standing rules, report trailer and the graph text
+  it carries, plugin and co-worker definitions, the self-preservation rulebook, and a worker's own
+  rules. A runner asks which of its own commits' files those are, to say why
   it hands its session over.
 - **Which model and which session a job's turn goes on are its runner's.** The turn names the model its
   record is kept under, the mapping it goes out on and whether it resumes the kept session, opens a

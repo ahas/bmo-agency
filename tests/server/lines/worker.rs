@@ -1,6 +1,6 @@
 //! The job worker's line: an account naming a base prompt hands the worker a whole system prompt of its
-//! own with the worker's rules after it, and an account naming none leaves the program's own prompt with
-//! the rules appended (docs/base-prompts.md, 「What each agent is sent」).
+//! own with the worker's rules after it, and an account naming none hands the platform's harness opening
+//! with the same rules after it (docs/base-prompts.md, 「What each agent is sent」).
 
 use std::collections::{BTreeMap, HashMap};
 use std::path::PathBuf;
@@ -117,10 +117,36 @@ async fn an_endpoint_accounts_base_stands_where_the_programs_prompt_would_and_th
   assert_eq!(std::fs::read_to_string(&whole).unwrap(), format!("{filled}\n\n{rules}"));
 }
 
+// A worker that chooses no base on an account that names none opens on the platform's harness opening, read
+// out of the tree the line is composed from, with its rules after it, handed whole in the program's own place;
+// its co-workers' prompts open on the same opening and close on the rules every worker shares.
 #[tokio::test]
-async fn a_directory_account_with_no_choice_appends_the_rules_to_the_programs_own_prompt() {
+async fn a_directory_account_with_no_choice_hands_the_harness_and_the_rules_whole() {
   let scratch = Scratch::new().await;
   let home = tempfile::tempdir().unwrap();
+
+  scratch
+    .run(
+      r#"INSERT INTO "coworker_pool_roles" ("name", "description", "prompt", "tools", "skills", "enabled", "pooled", "set_at")
+         VALUES ('tracer', 'Traces a road', 'Trace the road.', '', '', 1, 1, 0) ON CONFLICT DO NOTHING"#,
+      vec![],
+    )
+    .await;
+  scratch
+    .run(
+      r#"INSERT INTO "model_tier_assignments" ("key", "tier") VALUES ('role:tracer', 'Light')
+         ON CONFLICT ("key") DO UPDATE SET "tier" = excluded."tier""#,
+      vec![],
+    )
+    .await;
+  scratch
+    .run(
+      r#"INSERT INTO "model_tier_mappings" ("provider", "tier", "model", "effort") VALUES ('claude-code', 'Light', 'claude-sonnet-5', 'low')
+         ON CONFLICT ("provider", "tier") DO UPDATE SET "model" = excluded."model", "effort" = excluded."effort""#,
+      vec![],
+    )
+    .await;
+
   let ground = ground(&scratch, &home).await;
   let trees = Trees::of(&ground);
   let directory = account(
@@ -135,10 +161,23 @@ async fn a_directory_account_with_no_choice_appends_the_rules_to_the_programs_ow
     .unwrap();
 
   let args = worker_args(&run, &run.settings, None).unwrap();
+  let harness = std::fs::read_to_string(trees.harness_path()).unwrap();
+  let rules = std::fs::read_to_string(&run.rules).unwrap();
 
   assert!(run.system_prompt.is_none());
-  assert!(!args.iter().any(|arg| arg == "--system-prompt-file"));
-  assert_eq!(handed_after(&args, "--append-system-prompt-file"), run.rules);
+  assert!(!args.iter().any(|arg| arg == "--append-system-prompt-file"));
+  assert_eq!(handed_after(&args, "--system-prompt-file"), run.harnessed);
+  assert_eq!(
+    std::fs::read_to_string(&run.harnessed).unwrap(),
+    format!("{}\n\n{rules}", harness.trim())
+  );
+
+  // The co-workers' definitions carry the opening too, as a subagent's whole prompt.
+  let coworkers: serde_json::Value = serde_json::from_str(&run.agents_json).unwrap();
+  let prompt = coworkers["tracer"]["prompt"].as_str().unwrap();
+
+  assert!(prompt.starts_with(&format!("{}\n\nTrace the road.\n\n", harness.trim())), "{prompt}");
+  assert!(prompt.contains("RULEBOOK prompts/rules/self-preservation.md"), "{prompt}");
 }
 
 // A worker's prefix documents stand last in its rules file, in the list's order, each headed by its path

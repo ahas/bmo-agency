@@ -1,6 +1,7 @@
 //! The research runners' lines as a run of each is composed (docs/launch-lines.md, 「Search runner」,
-//! 「Browse runner」), where agency sends one out — the keepalive's ping on the line: the runner's standing
-//! instructions in place of the CLI's own, written where the line hands them over; its standing MCP
+//! 「Browse runner」), where agency sends one out — the keepalive's ping on the line: the platform's harness
+//! opening and then the runner's standing instructions in place of the CLI's own prompt, written where the
+//! line hands them over; its standing MCP
 //! configuration, written where nothing has written it; the tier its key is assigned on Claude Code and its
 //! agent's own thinking and effort laid on it; and the directory it is deployed to. Each runner answers for
 //! what is its own: its instructions, the tools it is allowed, the shape its answer comes back in, and its
@@ -389,7 +390,7 @@ pub async fn runner_run_on<R: Runner>(
     model: on.model,
     effort: on.effort,
     tier: on.tier,
-    system_prompt: system_prompt_file(trees, name, instructions)?,
+    system_prompt: system_prompt_file(trees, name, &super::harnessed(trees, instructions)?)?,
     mcp_config: runner.mcp_config(ground, trees)?,
     tools_allowed: runner.tools_allowed(),
     thinking: on.thinking,
@@ -411,7 +412,8 @@ pub fn search_tools(
 }
 
 /// The research branch line as every branch
-/// is handed it: the branch instructions with the site tools the web namespace lists, the search line's
+/// is handed it: the platform's harness opening, then the branch instructions with the site tools the web
+/// namespace lists, the search line's
 /// tools and its standing configuration and thinking on, on the model, effort and tier
 /// given. What its web server is told goes in the run's own environment, which is handed back. None where
 /// its instructions cannot be had now.
@@ -430,7 +432,7 @@ pub async fn branch_line_run(
     model: model.to_owned(),
     effort: effort.to_owned(),
     tier: tier.to_owned(),
-    system_prompt: system_prompt_file(trees, "search-branch", &instructions)?,
+    system_prompt: system_prompt_file(trees, "search-branch", &super::harnessed(trees, &instructions)?)?,
     mcp_config,
     tools_allowed: Search.tools_allowed(),
     thinking: true,

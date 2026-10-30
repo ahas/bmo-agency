@@ -82,10 +82,11 @@ pub fn worker_args(
     run.tools_denied.clone(),
   ];
 
-  match &run.system_prompt {
-    None => args.extend(["--append-system-prompt-file".to_owned(), handed_path(&run.rules)?]),
-    Some(prompt) => args.extend(["--system-prompt-file".to_owned(), handed_path(prompt)?]),
-  }
+  // One whole system prompt in the program's own place: a base prompt's where one is chosen, the platform's
+  // harness opening's otherwise, the worker's rules after either.
+  let prompt = run.system_prompt.as_ref().unwrap_or(&run.harnessed);
+
+  args.extend(["--system-prompt-file".to_owned(), handed_path(prompt)?]);
 
   args.extend([
     "--setting-sources".to_owned(),
