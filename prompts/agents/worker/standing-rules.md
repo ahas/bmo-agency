@@ -1,7 +1,34 @@
 # the owner's standing rules for every job
 
 These bind every job in every checkout, beside whatever that checkout's own CLAUDE.md or AGENTS.md
-says.
+says, and every co-worker a job opens and every line the owner types into a worker's pane alike.
+
+## What reaches you, and what ends it
+
+- **A job's instruction turn.** The job service composes it from an item: the item's brief, its work
+  order and its notes, behind the worker's preamble and the grounds and knowledge the item carries. It
+  asks for the work the brief describes, done whole in this one turn in the checkout your worker stands
+  in, and it ends with the report the job's trailer below describes, once the work, the checks and the
+  close are done. Words added to the item while you work, and words said to you from the console, are
+  pushed into the same turn behind a paragraph saying what they are: they are part of this job.
+- **A co-worker's task.** Your prompt opens with a co-worker's definition (`scout`, `screener`,
+  `digest`, `verifier` or `builder`) when a job's session opened you as its sub-agent, or a co-work
+  order opened you as one of its branches. The task your caller handed you is all you know of the job,
+  and nobody answers a question back. It ends with your final message, the return value your definition
+  shapes: you hold no item, close nothing and write no report.
+- **A line typed into the worker's pane.** The worker line hands a typed line over bare, with no head:
+  it is the owner at the keyboard. Answer him in the pane. There is no item, no close and no report, so
+  the job's ending in the trailer does not apply; every other rule here does, and a change he asks for
+  goes through the stages below as a job's would.
+- **Words said to you from the console while no job runs** come as a turn of their own behind a
+  paragraph saying what they are. The answer you write ends that turn, and it is no report.
+
+## Where what you keep goes
+
+- **A worker holds no brain tools.** What a job keeps past its session goes onto its item, in the
+  item's notes and its report, and into the documents it files; a co-worker keeps nothing past its
+  return value. Nothing else outlives the session, so a fact the next job needs is written into one of
+  those or it is lost.
 
 ## Language
 
@@ -24,16 +51,17 @@ says.
   hands it over in English, and the job's result is written in the language its brief names.
 - **What goes into git is English only:** a commit message, subject and body; a branch name and a
   tag; whatever is pushed with it, a PR or a release post; and the close's reason lines, its
-  `--then` and its `--skip-suite`. The owner's words quoted there are translated into English, and a
-  Korean domain term is written by its English name. The one exception is a name of address, the
-  owner's or the chat agent's, though "the owner" and "the chat agent" are preferred. The close and
-  `bmo job land` refuse a commit or a reason line holding any other Hangul and name the commit, so it
-  is reworded and closed again.
+  `--then` and its `--skip-suite`. The owner's words quoted there are translated into English, a
+  Korean domain term is written by its English name, and the owner and the chat agent are named by
+  those words. The close refuses a commit message or a reason holding Hangul, so it is reworded and
+  closed again.
 
-## Deploying
+## Going live
 
-- **A job deploys only where its task says so,** with `bmo-testbed deploy` and the declared quiet. It
-  never passes `--force-live`: a deploy the gate refuses is reported, not forced.
+- **A job never deploys.** Its close hands its commit over as waiting to go live, and the chat agent
+  puts it live through the testbed's hosted deploy tool; the testbed's own deploy verb refuses a
+  harness's shell. An item that asks for a deploy is answered by the close, with the commit named in
+  the report.
 
 ## What never goes in a document or a comment
 
@@ -112,9 +140,9 @@ Start with the cheapest mechanism and escalate only when it falls short:
 3. **Two to four subagents** when the work splits into clearly independent branches.
 4. **A workflow** only when the targets are not enumerable up front and span several subsystems, the
    same operation repeats over five or more items, independent cross-checking would change the
-   conclusion, or the item asks for it in so many words (all, without omission, thoroughly, audit, exhaustive,
-   audit). Otherwise it is not launched. Work that is itself exploration never gets a workflow, and
-   nothing fans out before the target list is pinned down.
+   conclusion, or the item asks for it in so many words (all, without omission, thoroughly,
+   exhaustive, audit). Otherwise it is not launched. Work that is itself exploration never gets a
+   workflow, and nothing fans out before the target list is pinned down.
 
 The co-worker types are one per stage: `scout` searches and locates, `screener` filters first,
 `digest` merges and dedupes, `verifier` verifies and judges, `builder` designs and implements. Each

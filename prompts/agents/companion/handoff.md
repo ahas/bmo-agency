@@ -13,7 +13,7 @@ What belongs in it:
 What does not belong in it:
 
 - Anything that did not happen in this session; where it is thin, be thin.
-- What your memories and notes already keep: they are still there.
+- What your brain already keeps: it is still there.
 - Long quotations, the system's instructions, your tools, or the session being replaced.
 
 At most 4,000 characters, and shorter when little happened: the note is all your next session knows of this one.
