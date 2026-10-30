@@ -1,7 +1,7 @@
 //! The gate (docs/api.md, 「Calls agency makes」) through the client it publishes: the reference a job's
-//! or a research run's first prompt is handed, picked over its instruction by the gate's reference road.
-//! The reference is the chat agent's brain's knowledge, rules and documents, chosen by the gate; a worker
-//! and a searcher read the brain only through what the gate hands them here.
+//! or a thrown-away session's first prompt is handed, picked over its instruction by the gate's reference
+//! road. The reference is the chat agent's brain's knowledge, rules and documents, chosen by the gate; a
+//! worker and a searcher read the brain only through what the gate hands them here.
 
 use std::sync::Arc;
 
@@ -53,8 +53,8 @@ impl GateAddress {
 
 /// What agency asks the gate.
 pub trait Gate: Send + Sync {
-  /// The reference the gate picks for a job's or a research run's instruction: the knowledge, rules and
-  /// documents of the chat agent's brain its lines call for, each with its path, text and source. Empty
+  /// The reference the gate picks for a job's or a thrown-away session's instruction: the knowledge, rules
+  /// and documents of the chat agent's brain its lines call for, each with its path, text and source. Empty
   /// where the gate is undeployed or does not answer.
   fn reference<'a>(&'a self, lines: Vec<String>) -> Asking<'a, Vec<Entry>>;
 
@@ -81,7 +81,7 @@ pub fn attach(prompt: &str, entries: &[Entry]) -> String {
   text
 }
 
-/// No gate deployed: nothing is asked, so a job and a research run carry no picked reference.
+/// No gate deployed: nothing is asked, so a job and a thrown-away session carry no picked reference.
 pub struct NoGate;
 
 impl Gate for NoGate {
@@ -108,7 +108,7 @@ impl PublishedGate {
   }
 
   async fn reference_selected(&self, lines: Vec<String>) -> Result<Vec<Entry>, PeerFault> {
-    // A job and a research run carry no room, no speakers and no situation: the road reads the chat
+    // A job and a thrown-away session carry no room, no speakers and no situation: the road reads the chat
     // agent's own libraries, and a turn with no line asks none of them.
     let ask = ReferenceAsk {
       room_id: 0,

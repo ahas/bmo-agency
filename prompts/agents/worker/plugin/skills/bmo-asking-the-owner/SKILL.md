@@ -47,7 +47,7 @@ description: "How a job puts something in front of the owner: a decision that is
   - `--replace <id>` rewrites it under its number as the design moves.
   - A long reading he studies — how something is built, a deep investigation — also takes
     `--narration <file>`: a script for the ear by the rules of a deep dive's, in
-    `~/.local/share/bmo-agency/deploy/prompts/rules/deep-dives.md` 「The narration」, spoken in the chat agent's
+    `~/.local/share/bmo-research/deploy/prompts/rules/deep-dives.md` 「The narration」, spoken in the chat agent's
     voice and kept at the document's head as its 들으며 보세요 band.
   - A document with a narration is handed over only once its sound is kept: `archive-doc` returns
     before the narration is spoken, and the `bmo-tools-researching-and-benching` skill says how to wait for it.

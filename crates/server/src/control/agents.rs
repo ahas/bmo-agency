@@ -314,7 +314,7 @@ async fn agent_view(judging: Judging<'_>, machine: &Machine, agent: &Agent) -> R
 // What an agent begins on, read the one way every screen reads it: out of the shared tier settings for its
 // work key (docs/model-tiers.md). A worker is the worker key on the provider it is pinned to or the first
 // its walk asks; a conversational agent pinned to a provider its pin; the deployment's chat and a gate
-// their key's road; each research runner its key on the first provider carrying its line. Anything
+// their key's road; each runner line's agent its key on the first provider carrying its line. Anything
 // the settings refuse to answer leaves the agent with none.
 pub async fn configured(db: &DatabaseConnection, agent: &Agent) -> Option<Configured> {
   match agent.kind.as_str() {
@@ -330,7 +330,7 @@ pub async fn configured(db: &DatabaseConnection, agent: &Agent) -> Option<Config
     _ => match roads::profile(&agent.name).map(|profile| profile.line.as_str()) {
       Some("chat" | "gate") => road_choice(db, &agent.name).await.ok(),
       _ if agent.kind == "runner" && (agent.name == "search" || agent.name == "browse") => {
-        research_choice(db, &agent.name).await.ok()
+        runner_choice(db, &agent.name).await.ok()
       }
       _ => None,
     },
@@ -361,7 +361,7 @@ async fn road_choice(db: &DatabaseConnection, key: &str) -> Result<Configured, R
   })
 }
 
-async fn research_choice(db: &DatabaseConnection, key: &str) -> Result<Configured, String> {
+async fn runner_choice(db: &DatabaseConnection, key: &str) -> Result<Configured, String> {
   let provider = line_provider(db, key).await?;
   let mapping = tiers::resolve_execution(db, key, &provider, None).await?;
 

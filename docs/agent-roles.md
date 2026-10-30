@@ -154,22 +154,22 @@ made of is `docs/companions.md`.
 ## The searcher role's bundles
 
 - **`web.read`, `web.sites`, `web.branches` and `web.rulebooks` — the whole of the web
-  namespace:** search and fetch, the site tools, the research branch and the rulebooks. The look at a
+  namespace:** search and fetch, the site tools, the branch tool and the rulebooks, the rulebook reader
+  standing in the research unit's namespace. The look at a
   picture is the eye service's `eye/see`, which the search and browse lines hold through their `eye`
   namespace and the `room.tools` capability its entries ask for (`policy/run-lines.toml`). The tools its line does not show are reached with `bmo use` under its own record, which no
   other role holds.
-- **A run's research settings narrow them** (`mcp-host.md`, 「The session record」): a research run
-  holds the branch tool and the rulebooks only where its settings open them, so a
-  search, a browse and a branch are each shown what their own settings ask for, and a run
-  carrying no research setting at all is shown the reading tools alone.
-- **The search and browse lines hold the shared brain's writing tools** (`docs/launch-lines.md`, 「A
-  research run's rounds」): `brain_learn` and `brain_similar` of the `bmo` namespace, on the chat agent's brain —
+- **The session's caller narrows them** (`docs/api.md`, 「sessions」): a thrown-away session on the search or
+  browse line keeps only the capabilities its start's `toolsAllowed` names, so the research unit decides
+  whether a search, a browse, a round or a branch holds the branch tool and the rulebooks.
+- **The search and browse lines hold the shared brain's writing tools** (`docs/launch-lines.md`, 「Search
+  runner」): `brain_learn` and `brain_similar` of the `bmo` namespace, on the chat agent's brain —
   the agent whose row answers every room that names nobody. The line's session record names that agent as the
   turn the brain tools run for, so a
-  research run writes what it establishes into the same brain the chat agent reads, while the run itself
+  run writes what it establishes into the same brain the chat agent reads, while the run itself
   stays the runner's and its work stays the runner work key's.
-- **The search runner and the browse runner hold it,** and so does every run on their behalf: a research
-  branch, and the keepalive pings that warm their lines and their branch places.
+- **The search runner and the browse runner hold it,** and so does every run on their lines: a search, a
+  browse, a round and a branch the research unit sends.
 
 ## Who a send goes out as
 

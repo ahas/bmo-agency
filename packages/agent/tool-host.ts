@@ -46,16 +46,14 @@ export interface ToolRecordRun {
 }
 
 /**
- * What the deployment adds to a record out of the run: its research settings, and what its agent is
- * given.
+ * What the deployment adds to a record out of the run: what its agent is given, and the labels the
+ * deployment names.
  */
 export type ToolRecordReader = (run: ToolRecordRun) => ToolRecordReading | Promise<ToolRecordReading>;
 
 export type ToolRecordReading = {
   // The role of the agent the run is issued for, where it holds one.
   role?: string;
-  // The run's research settings.
-  research?: Record<string, unknown>;
   // The issuer's own values the deployment adds.
   labels?: Record<string, unknown>;
   // The capabilities the run's settings leave out, for a run holding less than it is given.
@@ -169,7 +167,6 @@ export async function toolSessionRecord(line: string, command: ToolRecordRun, de
   if (own.labels !== undefined) Object.assign(labels, own.labels);
   if (own.role !== undefined) labels.role = own.role;
   if (place !== undefined) labels.place = place;
-  if (own.research !== undefined) labels.research = own.research;
 
   variables.BMO_DATA_DIR = root;
 

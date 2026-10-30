@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use bmo_agency_client::{
   AgencyClient, Answer, AssignWorker, Assignment, ClientFailure, FileItem, ItemFiled, ItemFilingAsk, Job,
-  JobStopAsk, ResearchRun, ResearchRunAsk, RunJob, STOP_JOB, StopJob,
+  JobStopAsk, RunJob, STOP_JOB, StopJob,
 };
 use rmcp::model::{
   CallToolRequestParams, CallToolResponse, CallToolResult, ContentBlock, Implementation, InitializeResult,
@@ -27,8 +27,7 @@ const INSTRUCTIONS: &str = "Files items and runs them on the agency's workers. A
   A harness holding an item asks for a worker \
   with assign_worker, hands the item and its lease over with run_job, and reads the job's progress, questions \
   and outcome from the job's events and fields; the harness renews its lease and reports and closes the item \
-  in the job service. A web research goes out with run_research, its result queued for the room as it ends. A \
-  failure comes back as a tool error carrying the route's status, code and sentence.";
+  in the job service. A failure comes back as a tool error carrying the route's status, code and sentence.";
 
 /// What a tool's call came to short of the route's answer.
 #[derive(Debug, Clone, PartialEq)]
@@ -180,12 +179,6 @@ pub fn tools(agent: Option<&str>) -> Vec<AgencyTool> {
       "Run an item on its assigned worker: the harness hands over the item's content and the lease it holds, and the agency launches the worker's session on it; as the job ends the agency gives the lease back and queues the report in the room.",
       "POST /jobs",
       |client, body| async move { client.create_jobs(&body).await },
-    ),
-    tool::<ResearchRunAsk, ResearchRun, _, _>(
-      "run_research",
-      "Send a web research out: key search:basic, search:thorough or search:exhaustive for a search at that depth, or browse for a browse, with the question; answered at once with the run's id, the road it went out on and when its web tools close, or why nothing can carry it now. A run may be asked on a named model — model as Claude Code's /model names it, a gateway member among them, and provider where one is meant — and is refused where nothing that carries the research line lists that model or can answer on it now; with neither named, the key's own road carries it. Its result is queued for the room as an instruction once the run ends.",
-      "POST /research-runs",
-      |client, body| async move { client.create_research_runs(&body).await },
     ),
   ]);
 

@@ -81,10 +81,9 @@ never the model's name.
 - **A worker's session closes with nothing handed over.** As a worker's job ends, the session it ran
   in is handed over — closed — and the next run opens on its own words alone: no note of the closed
   session, the worker's own or any other, is carried (`docs/sessions.md`, 「Session replacement」).
-- **A research run keeps to the registration where its registration keeps its research.** A search or
-  a browse launched by a run on a registration that keeps its research goes out on that registration
-  too, rather than on the research keys' model, and a deeper depth has it search more itself instead of
-  opening co-workers (`research-runs.md`). What any other run sets off is untouched.
+- **Whether a registration keeps its research is a flag for the caller that sends research out.** Agency
+  stores it with the registration and answers it with every read of one; it routes nothing by it, since it
+  sends no search or browse out itself.
 - **Thinking is the only reasoning setting of a registered model:** each registration carries a
   thinking default, which a chat turn on it follows, and an agent's own thinking setting overrides it
   where it names one (`docs/model-tiers.md`). A registered model takes no effort level.
@@ -133,9 +132,8 @@ never the model's name.
   the registration.
 - **Whether it is walked:** whether the automatic walk asks the registry's provider when a key's tier
   maps to it (「Own services in the provider order」 below).
-- **Whether it keeps its research:** whether a search or a browse set off by a run on it runs on it as
-  well, opening no branch and searching more itself as the depth rises (`research-runs.md`). Off, a run
-  on it sets off its research as any other run does.
+- **Whether it keeps its research:** on or off, kept for the caller that sends a search or a browse out and
+  reads it; agency acts on neither.
 - **Nothing of a run's prompt:** what a run on it is told is its line's, and an agent's base prompt is
   the agent's own choice (`docs/base-prompts.md`); the gateway passes every prompt as it stands.
 
@@ -743,8 +741,8 @@ bmo-agency agent --route <work key> --provider <auto|claude-code|codex|openroute
 - **The registry's provider carries every line but the browse:** the chat, the job worker, the
   companions and a search's own run as a Claude Code road, and the gates as requests with no tools
   (「A request with no tools」 above). No search key is offered it by the fallback table's defaults, so a
-  research run reaches a registration where its ask names that road (`docs/research-runs.md`, 「The
-  road」); the browse line, which needs a browser the registration's window does not carry, stays off it.
+  search reaches a registration where its caller names that road for a thrown-away session on the search line
+  (`docs/api.md`, 「sessions」); the browse line, which needs a browser the registration's window does not carry, stays off it.
 - **Jobs:** manual job runs, items and work-order models pick a registered model with
   `registered::<registration>`; automatic jobs go down the provider order as far as the registry's
   provider where the registration the worker key's tier maps to is walked, unless the worker is pinned or
@@ -794,10 +792,10 @@ bmo-agency agent --route <work key> --provider <auto|claude-code|codex|openroute
 - **Runs with tools go to Claude Code,** the program every line was written for, pointed at the gateway
   under the registration's name (「The gateway」 above). The line is the one a Claude run of it takes — the
   chat's, the worker's, a companion's (「A worker on a registered model is composed as on
-  Claude」 below). Its program carries the search line, and a research run on it goes out in places of its
-  own as a member road's does, its program composed as a worker's job on the registration is
-  (`research-runs.md`, 「The road」); a research run reaches it only as that document says, since a
-  registration's window decides whether the runner's instructions fit at all. The road changes only what
+  Claude」 below). Its program carries the search line, and a thrown-away session on that line goes out in a place
+  of its own as a member road's does, its program composed as a worker's job on the registration is
+  (`docs/api.md`, 「sessions」); the session's caller names the registration, since a registration's window
+  decides whether the instructions it hands in fit at all. The road changes only what
   follows, each value read from the registration the run's model names as the run is started.
   - **The endpoint:** the Anthropic base URL is the gateway, and every model Claude Code asks for a call
     of the run's own — its Opus, Sonnet and Haiku defaults — is the registration's gateway name, with its
@@ -850,8 +848,8 @@ bmo-agency agent --route <work key> --provider <auto|claude-code|codex|openroute
     give up its cards at once once an answer calls one of them, and to keep them while a short tool runs.
     A program whose adapter names none sends no such header.
 - **What comes back** is Claude Code's own record — its transcript in a pane, a standing one or one of a
-  run apart's own — read as a Claude run's is. A research run has each line of its
-  record written into their run log as it is written; a gate's run in the host prints one object at its
+  run apart's own — read as a Claude run's is. A thrown-away session's turn has each
+  line of its record written into its run log as it is written; a gate's run in the host prints one object at its
   end, whose answer text is all its log is given; a job's turn in the pane has its transcript written
   into the job's run log as the program writes it, so a long turn on a slow engine is never a job
   standing silent. Each is filed under the registry's provider with the registration's name as its
@@ -919,8 +917,8 @@ bmo-agency agent --route <work key> --provider <auto|claude-code|codex|openroute
   Claude's, which never passes the gateway. The gateway rewrites no prompt.
 - **What stays in the host:** a gate with no tool is one request and one answer, asked in the agent's
   host (「How requests go」 above). A gate on a registration stays a host agent; only a gate on Claude Code
-  stands programs of its own (`gates.md`). A research run on a registration goes out in places of its own
-  (`research-runs.md`, 「The road」); any other runner's run on a registration is a run apart
+  stands programs of its own (`gates.md`). A thrown-away session on a runner line on a registration goes out in a
+  place of its own (`docs/api.md`, 「sessions」); any other runner's run on a registration is a run apart
   (`docs/agents.md`, 「Runs apart」).
 - **Standing with nothing to do:** a worker pinned to a registered model has the program written into its
   place by the standing pass where the place holds no program, on the job line's run for the registration

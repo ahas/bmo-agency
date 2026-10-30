@@ -1,6 +1,7 @@
 //! The runs a turn left open as it ended (docs/run-records.md, 「The run ledger」): a job's run whose job has
 //! ended and a chat turn's run no turn is kept in flight under are closed as cut with a line in their logs saying
-//! why; a run whose turn still goes, a chat run younger than the grace and a research run are left as they stand.
+//! why; a run whose turn still goes, a chat run younger than the grace and a run that is neither are left as they
+//! stand.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -52,7 +53,7 @@ async fn a_run_whose_turn_ended_without_closing_it_is_closed_as_cut_and_its_log_
                 (3, 'chat-agent', -5, 'chat:-5:3', 0, $2, NULL, NULL),
                 (4, 'worker-a', NULL, 'job-41', 0, $1, NULL, NULL),
                 (5, 'worker-a', NULL, 'job-42', 0, $1, NULL, NULL),
-                (6, 'search', -5, 'research-6', 0, $1, NULL, NULL),
+                (6, 'search', -5, 'search-6', 0, $1, NULL, NULL),
                 (7, 'chat-agent', -5, 'chat:-5:7', 0, $1, $1, 'answered')"#,
       vec![old.into(), fresh.into()],
     )
@@ -89,7 +90,11 @@ async fn a_run_whose_turn_ended_without_closing_it_is_closed_as_cut_and_its_log_
   assert_eq!(outcome(&scratch, 3).await, None, "younger than the grace");
   assert_eq!(outcome(&scratch, 4).await.as_deref(), Some(CUT), "its job has ended");
   assert_eq!(outcome(&scratch, 5).await, None, "its job still runs");
-  assert_eq!(outcome(&scratch, 6).await, None, "a research run is its own sweep's");
+  assert_eq!(
+    outcome(&scratch, 6).await,
+    None,
+    "a run that is no job's and no chat turn's is not this sweep's"
+  );
   assert_eq!(
     outcome(&scratch, 7).await.as_deref(),
     Some("answered"),

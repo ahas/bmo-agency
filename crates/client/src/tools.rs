@@ -18,7 +18,7 @@ pub struct Tool {
 pub const STOP_JOB: &str = "Stop a running job on the owner's word, by its job id or by its item, with a short reason that becomes the job's report: only a turn whose every message is the owner's stops one. The job's turn is cut short first, and the answer is the job once its turn has ended, stopped; a turn still going after the wait is refused stop-pending, and the job ends stopped when it does.";
 
 /// The tools the agency's MCP server lists.
-pub const TOOLS: [Tool; 5] = [
+pub const TOOLS: [Tool; 4] = [
   Tool {
     name: "file_item",
     description: "File an item in the job service: the room it was asked in and whether the owner asked for it are the turn's, which the agency reads; an item the owner asked for himself opens at once, any other waits as a draft for his approval.",
@@ -46,12 +46,5 @@ pub const TOOLS: [Tool; 5] = [
     input: "RunJob",
     output: "Job",
     route: "POST /jobs",
-  },
-  Tool {
-    name: "run_research",
-    description: "Send a web research out on a research key: a search at a depth, or a browse. A run may be asked on a named model, as Claude Code's /model names it, a gateway member among them, and on a named provider; it is refused where nothing that carries the research line lists that model or can answer on it now. Answered at once with the run and the road it went out on; its result is queued for the room as the run ends.",
-    input: "ResearchRunAsk",
-    output: "ResearchRun",
-    route: "POST /research-runs",
   },
 ];

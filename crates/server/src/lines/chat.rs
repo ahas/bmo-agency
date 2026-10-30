@@ -1160,7 +1160,8 @@ pub async fn compose_stand_in(
     Door::Inbox { provider } => {
       // The program in the pane is dsh, so the chat's tools paragraph names dsh's own tools.
       let system = run.system_on(ground, "dsh", &super::dsh::SESSION_TOOLS)?;
-      // The chat line's session folds itself at its fold ratio; a research run's place keeps dsh's own.
+      // The chat line's session folds itself at its fold ratio; a thrown-away session's place keeps dsh's
+      // own.
       let compact_at = if run.line == LINE {
         super::dsh::compact_share(ground, &run.agent, provider).await
       } else {

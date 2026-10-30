@@ -221,8 +221,8 @@ The owner's words:
   - A companion keeps a session in each room it answers, and its one program goes on in the session of
     the room its turn is for: a turn for another room changes the command, which starts the program
     again on that room's session in the same pane (「The interactive surface a provider declares」).
-- **A run that keeps no session is a run apart:** the search and browse runs,
-  research branches, the news page's writer and their keepalive pings each stand the interactive
+- **A run that keeps no session is a run apart:** the turns of thrown-away sessions on the search and
+  browse lines and the news page's writer each stand the interactive
   program in a pane of their own, opened for the run and closed with it, so two runs of one agent at
   once are two panes (`docs/agents.md`, 「Runs apart」).
 - **A gate on Claude Code stands a pool of resident programs,** since its judgements are independent
@@ -1130,7 +1130,8 @@ flowchart TD
 - **Which runs carry a clock.** A job's turn and a chat round carry none. A word said to a worker
   while nothing of its own runs carries ten minutes, since the worker's queue waits on its lock while
   it runs; past it the clock asks, as every clocked run's does. The keepalive ping and a fold
-  carry bounds of their own. A browse carries its profile's total time (`research-runs.md`), and a voice run ten minutes for the speaking of
+  carry bounds of their own. A turn of a thrown-away session carries the bound its start named (`docs/api.md`,
+  「sessions」), and a voice run ten minutes for the speaking of
   its line, on this machine's card or a node.
 - **The mechanism is the run's, the policy its caller's.** A pane turn, and a run that is one
   process or one call, may each be handed an overtime policy, asked each time the bound passes with

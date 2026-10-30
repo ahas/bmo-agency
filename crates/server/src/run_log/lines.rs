@@ -38,7 +38,7 @@ impl Line {
   }
 }
 
-/// The tools that open a branch: a co-worker, or a research run's pooled branch.
+/// The tools that open a branch: a co-worker, or a search's pooled branch.
 pub const BRANCH_TOOLS: [&str; 3] = ["Task", "Agent", "mcp__web__research"];
 
 /// A call as the run log records it: the tool it reached and what that tool was handed.

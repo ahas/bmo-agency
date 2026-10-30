@@ -3,7 +3,6 @@
 //! the requests and reservations standing in it, and a limit's change letting in the seats it frees.
 
 use harness_providers::ARCHIVE_PROVIDERS;
-use policy::research::RESEARCH;
 use policy::tiers::TIERS;
 use sea_orm::{ConnectionTrait, DatabaseConnection, QueryResult, TransactionTrait};
 use serde::Serialize;
@@ -543,8 +542,11 @@ pub async fn set_limit(
     ))));
   }
 
-  if !(0..=RESEARCH.pool_capacity_most).contains(&capacity) {
-    return Ok(Err(PoolRefusal("Pool capacity must be a whole number from 0 to 128".into())));
+  if !(0..=TIERS.capacity_most).contains(&capacity) {
+    return Ok(Err(PoolRefusal(format!(
+      "Pool capacity must be a whole number from 0 to {}",
+      TIERS.capacity_most
+    ))));
   }
 
   let written = db.begin().await?;

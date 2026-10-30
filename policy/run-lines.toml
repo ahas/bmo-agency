@@ -64,18 +64,19 @@ tools_denied = [
   "mcp__claude_ai_Claude_Docs", "Monitor", "ScheduleWakeup", "CronCreate", "CronDelete", "CronList",
 ]
 
-# A branch goes out on the search line, its record narrowed to what its research settings open. The research
-# namespace shows a run the research unit's rulebook reader where its record holds web.rulebooks. The eye
-# namespace and the room.tools capability its entries ask for give a search its look at a picture, eye/see.
-# The brain tools it holds are the chat agent's own memory (docs/agent-roles.md, 「The searcher role's
-# bundles」): the record names the chat agent, the default answerer, as the turn its brain tools write, so a research
-# run establishes what it found in the same brain the chat agent reads.
+# A run of the search or browse line goes out with the instructions its caller hands in, its record narrowed
+# to the capabilities that caller lets it keep (docs/api.md, 「sessions」). The research namespace shows a run
+# the research unit's rulebook reader where its record holds web.rulebooks. The eye namespace and the
+# room.tools capability its entries ask for give a run its look at a picture, eye/see. The brain tools it
+# holds are the chat agent's own memory (docs/agent-roles.md, 「The searcher role's bundles」): the record
+# names the chat agent, the default answerer, as the turn its brain tools write, so a run establishes what it
+# found in the same brain the chat agent reads.
 [search]
 needs = ["tool-gate", "mcp-only-tools"]
 keeps_session = false
 capabilities = ["room.chat", "room.tools"]
 namespaces = ["bmo", "web", "eye", "research"]
-shown = ["bmo/brain_learn", "bmo/brain_similar", "research/rulebook", "web/read_rulebook", "web/research", "web/web_fetch", "web/web_search", "eye/see"]
+shown = ["bmo/brain_learn", "bmo/brain_similar", "research/rulebook", "web/research", "web/web_fetch", "web/web_search", "eye/see"]
 brain_agent = true
 
 [browse]
@@ -83,6 +84,6 @@ needs = ["tool-gate", "mcp-only-tools"]
 keeps_session = false
 capabilities = ["room.chat", "room.tools"]
 namespaces = ["bmo", "web", "eye", "research"]
-shown = ["bmo/brain_learn", "bmo/brain_similar", "research/rulebook", "web/read_rulebook", "web/research", "web/web_fetch", "web/web_search", "eye/see"]
+shown = ["bmo/brain_learn", "bmo/brain_similar", "research/rulebook", "web/research", "web/web_fetch", "web/web_search", "eye/see"]
 brain_agent = true
 

@@ -35,18 +35,18 @@ pub enum Scope {
   Room(String),
   /// A worker's session, kept for the work it is given.
   Worker,
-  /// A session thrown away: a co-work branch's or a research run's, every turn on it a fresh one.
+  /// A session thrown away: a co-work branch's or a runner line's, every turn on it a fresh one.
   Apart(Apart),
   /// A conversation the caller opened on a provider and model of its own, kept for it until it ends.
   Conversation(Conversation),
 }
 
 /// What a thrown-away session is started on: the provider, the model and the folder its turns go out on,
-/// the item and role a co-work branch's place labels its run with, none for a research run, the prompt
-/// document naming the runner line its turns go out on, none for the worker line, and how long each of its
-/// turns may take, none for no bound. A session whose caller composes a runner line's instructions itself
-/// names the line and hands them in whole, with the labels its record carries — a JSON object's text — and
-/// the capabilities that record keeps, none keeping every one the line and its agent's role give.
+/// the item and role a co-work branch's place labels its run with, none for any other, and how long each of
+/// its turns may take, none for no bound. A session on a runner line names the line and hands its
+/// instructions in whole, with the labels its record carries — a JSON object's text — and the capabilities
+/// that record keeps, none keeping every one the line and its agent's role give; a session naming no
+/// instructions goes out on the worker line.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct Apart {
   pub provider: String,
@@ -54,7 +54,6 @@ pub struct Apart {
   pub cwd: String,
   pub todo: Option<i64>,
   pub role: Option<String>,
-  pub prompt_document: Option<String>,
   pub bound_ms: Option<i64>,
   pub line: Option<String>,
   pub system_prompt: Option<String>,
@@ -63,10 +62,10 @@ pub struct Apart {
 }
 
 impl Apart {
-  /// Whether its turns go out on a runner line with instructions of their own, a document's or the caller's,
-  /// rather than on the worker line.
+  /// Whether its turns go out on a runner line with the instructions its caller handed in, rather than on
+  /// the worker line.
   pub fn on_runner_line(&self) -> bool {
-    self.prompt_document.is_some() || self.system_prompt.is_some()
+    self.system_prompt.is_some()
   }
 }
 

@@ -2,7 +2,8 @@
 
 The tools agency itself provides to the tool host: each a folder of its own under `tools/`, with its
 `tool.toml`, which the tool host reads as it reads any other tool's. They hand agents the documents
-agency keeps under `prompts/`: the chat agent's procedures and a research run's rulebooks. A tool that
+agency keeps under `prompts/` — the chat agent's procedures — and let a chat agent hand a resident worker a
+small task. A tool that
 belongs to no one service is a repository of its own, not a folder here.
 
 ## A tool's folder
@@ -33,8 +34,9 @@ belongs to no one service is a repository of its own, not a folder here.
 - **The session record** is the tool host's: the holder's name, the session's namespaces,
   capabilities, grants and shown entries, and the variables handed to every call's environment. The
   data root stands in those variables as `BMO_DATA_DIR`. Agency's own values stand under the issuer's
-  `labels`: the line, the store's address, the agent's place where it is a resident program, and a
-  research run's settings under `research`. The turn's own variables stand in `variables`, beside the
+  `labels`: the line, the store's address and the agent's place where it is a resident program; a thrown-away
+  session's caller adds labels of its own beside them (`docs/api.md`, 「sessions」), which agency's tools do
+  not read. The turn's own variables stand in `variables`, beside the
   deployment's variables the run's line names in `policy/run-lines.toml` for the placed tools that read
   them, each where the deployment sets it in agency's environment — the chat line's `BMO_GATE_URL` and
   `BMO_GATE_TOKEN_FILE`, the gate's address and the path of its token file, which the gate's translate
@@ -75,21 +77,6 @@ belongs to no one service is a repository of its own, not a folder here.
 - **A turn a companion's reset overtook** — one naming an agent and a moment at or before that agent's
   reset point in agency's store (`docs/companions.md`, 「What the reset cuts off」) — is listed nothing and
   refused every read, saying the agent was reset after the turn began.
-
-## The rulebook reader
-
-- **`tools/read_rulebook`** declares the entry `web/read_rulebook`, read-only, to a session holding
-  `web.rulebooks`. Its one argument, `name`, a non-empty string, names a rulebook as its file under
-  `prompts/rules/` is named, without `.md`.
-- **It declares a listing line,** so the site-tools paragraph of a search run's instructions names it
-  beside the site tools (`docs/launch-lines.md`, 「Search runner」).
-- **It answers one of the run's rulebooks whole,** headed `RULEBOOK prompts/rules/<name>.md:`. A research
-  run's prompt carries only the section of each rulebook that decides whether it applies to the search;
-  once it does, the run reads the whole here before searching.
-- **Which rulebooks are the run's** is its record's `research.rulebooks`. A name the run was not handed
-  is refused with the ones it was, and a rulebook that cannot be read is refused with why. A run past
-  its research close still reads one, since reading searches nothing.
-
 
 ## The worker ask
 

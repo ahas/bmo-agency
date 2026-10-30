@@ -110,7 +110,7 @@ pub fn worker_args(
   Ok(args)
 }
 
-/// A run of a line Claude Code runs apart from the bot — a research run — as its words
+/// A run of a line Claude Code runs apart from the bot — a runner line's — as its words
 /// are made of it (docs/agents.md, 「Runs apart」): its model and effort, the instructions standing in
 /// place of the CLI's own, the one MCP configuration attached, the tools it is shown and allowed, and
 /// whether the CLI's own commands are reachable.

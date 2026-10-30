@@ -5,8 +5,8 @@ import type { ArchiveSql } from "./archive-sql";
 
 // The models the owner registers for the chat and the workers to run on (docs/own-llm.md,
 // 「Registered models」): each a name, a label, the model its addresses serve, its sizes, its wait,
-// its thinking default, whether the automatic walk asks it and whether the research its runs set off
-// runs on it, with one or more addresses, each a node
+// its thinking default, whether the automatic walk asks it and whether it keeps its research — a flag
+// the caller that sends research out reads — with one or more addresses, each a node
 // the same model is served on. A row holds where a key is kept and never a key. What the rows are
 // read for — the provider that offers them and the gateway that serves them — is the agent base's;
 // this store keeps them and holds them to their shape.
@@ -33,7 +33,7 @@ export interface Registration {
   waitSeconds: number;
   thinking: boolean;
   walked: boolean;
-  // Whether a search or a browse a run on it sets off runs on it as well, opening no branch.
+  // Whether it keeps its research: a flag the caller that sends a search or a browse out reads.
   keepsResearch: boolean;
   addresses: RegisteredAddress[];
 }

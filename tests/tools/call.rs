@@ -27,15 +27,14 @@ fn request(asked: serde_json::Value) -> String {
 #[test]
 fn a_request_reads_as_the_host_writes_it_and_a_field_no_tool_reads_is_passed_over() {
   let call = read_handed(
-    request(json!({ "kind": "call", "entry": "web/read_rulebook", "arguments": { "name": "a" } }))
-      .as_bytes(),
+    request(json!({ "kind": "call", "entry": "bmo/worker_ask", "arguments": { "name": "a" } })).as_bytes(),
   )
   .unwrap();
 
   assert_eq!(
     call.asked,
     Asked::Call {
-      entry: "web/read_rulebook".into(),
+      entry: "bmo/worker_ask".into(),
       arguments: json!({ "name": "a" })
     }
   );

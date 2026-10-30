@@ -5,7 +5,7 @@
 //! the one its agent's row keeps, carried by its resident program on the chat line around the room block,
 //! the road and the base persona, its brain's or else the one the turn's caller hands in, or by a stand-in
 //! where the agent's key walks onto one; a thrown-away session, held in memory from its start to its end,
-//! carries a co-work branch's or a research run's turns, each on a fresh harness session; and a conversation
+//! carries a co-work branch's turns or a runner line's, each on a fresh harness session; and a conversation
 //! the caller opened, held there too, carries ordinary turns on the provider and model it names, resuming the
 //! session its road keeps. A session is known by its agent and its scope — `<agent>@worker`,
 //! `<agent>@<room>`, `<agent>`, `<agent>@apart:<n>`, `<agent>@conversation:<n>` — and stands across the
@@ -54,7 +54,6 @@ use crate::job_run::claude::turn::{Shows, WorkAsked, WorkSeat, carry, continues}
 use crate::lines::Trees;
 use crate::lines::chat::{ChatLaunch, RoomContext, compose_prepared, compose_turn, gate_run};
 use crate::lines::companion::{CompanionTurn, compose, lost_session, pinned_provider, registration_named};
-use crate::lines::runner::line_of_document;
 use crate::places::gate_places;
 use crate::places::locks::{pane_lock_path, try_hold};
 use crate::places::{AgentRow, Ground, Places};
@@ -271,8 +270,8 @@ pub struct HerdrSessions {
   outputs: Outputs,
   // The places each bounded role holds for its running turns, by the role's name.
   role_places: crate::agent_roles::RolePlaces,
-  // The thrown-away sessions whose first prompt has been handed the gate's reference, so a research
-  // run's later rounds are asked over it and not over it again.
+  // The thrown-away sessions whose first prompt has been handed the gate's reference, so their later turns
+  // are asked over it and not over it again.
   referenced: Mutex<HashSet<SessionId>>,
   // The context each room's and agent's session was left with by its last turn that read one.
   left: Mutex<HashMap<SessionId, Context>>,
@@ -1932,97 +1931,6 @@ impl HerdrSessions {
     carry(&asked, &shown).await.map(|end| Came::Ended(Box::new(end)))
   }
 
-  // A research run's rounds (docs/launch-lines.md, 「A research run's rounds」): after the answer to the
-  // task, the key's questions are asked of the same session, each carrying the task and the answer
-  // written last, and the last answer is the run's result. A question whose run does not answer
-  // leaves the last answer standing; past the line's ceiling the final question is asked at once, or
-  // the run returns what it had.
-  async fn research_rounds(
-    &self,
-    turn: &Turn,
-    agent: &str,
-    apart: &Apart,
-    work: &WorkParts,
-    first: Came,
-    turn_id: i64,
-  ) -> Result<Came, Fault> {
-    let db = &self.ground().db;
-    let Some(process) = crate::research_draft::process_of(db, &work.work_key).await.map_err(store_fault)?
-    else {
-      return Ok(first);
-    };
-    let answered =
-      |end: &TurnEnd| (end.outcome == Outcome::Answered).then(|| end.answer.clone().unwrap_or_default());
-    let Came::Ended(first_end) = first else { return Ok(first) };
-    let Some(first_text) = answered(&first_end) else {
-      return Ok(Came::Ended(first_end));
-    };
-    let began = std::time::Instant::now();
-    let mut answers = vec![first_text];
-    let mut last_end = first_end;
-    let mut asking = 0;
-
-    while asking < process.rounds.len() {
-      let name = &process.rounds[asking];
-      let past = began.elapsed().as_secs() as i64 >= process.ceiling_seconds;
-
-      // Past the ceiling the line either asks its final question at once or returns what it has, as
-      // the policy says. The final question is asked once, whichever road reached it.
-      if past && name.as_str() != policy::research::Draft::FINAL {
-        match process.past_ceiling {
-          policy::research::PastCeiling::Last => break,
-          policy::research::PastCeiling::Final => {
-            let Some(final_at) =
-              process.rounds.iter().position(|one| one.as_str() == policy::research::Draft::FINAL)
-            else {
-              break;
-            };
-
-            if final_at < asking {
-              break;
-            }
-
-            asking = final_at;
-            continue;
-          }
-        }
-      }
-
-      let Some(question) = crate::research_draft::question_of(db, name).await.map_err(store_fault)? else {
-        asking += 1;
-        continue;
-      };
-      let mut sub = turn.clone();
-
-      sub.prompt = crate::research_draft::prompt(&question, &turn.prompt, &answers);
-
-      match self.carried(&sub, agent, WorkSeat::Apart(apart), work, turn_id).await {
-        Ok(Came::Ended(end)) => match answered(&end) {
-          Some(text) => {
-            answers.push(text);
-            last_end = end;
-          }
-          None => break,
-        },
-        Ok(_) => break,
-        Err(why) => {
-          eprintln!("research run {name}: the round did not answer: {}", why.message);
-          break;
-        }
-      }
-
-      let asked_final = name.as_str() == policy::research::Draft::FINAL;
-
-      asking += 1;
-
-      if asked_final {
-        break;
-      }
-    }
-
-    Ok(Came::Ended(last_end))
-  }
-
   // A worker's job turn carried on a road other than Claude Code's: the road the job's launch resolved and
   // named in its work parts (`control::work`, the road resolution), on the stand-in roads a chat turn
   // crosses over on, composing the worker's own line — its rules, tools, MCP and checkout. dsh keeps no
@@ -2243,8 +2151,7 @@ impl Sessions for HerdrSessions {
 
         // A session on a runner line naming no folder goes out in that line's own.
         if apart.cwd.trim().is_empty()
-          && let Some(line) =
-            apart.prompt_document.as_deref().and_then(line_of_document).or(apart.line.as_deref())
+          && let Some(line) = apart.line.as_deref()
         {
           apart.cwd = Trees::of(self.ground()).agents.join(line).to_string_lossy().into_owned();
         }
@@ -2439,10 +2346,10 @@ impl Sessions for HerdrSessions {
       ));
     }
 
-    // A research run's first prompt carries the reference the gate picks over its instruction; a
+    // A thrown-away session's first prompt carries the reference the gate picks over its instruction; a
     // co-work branch's prompt is composed by its parent and carries none, and a gate's turn is a
-    // judgement of its own. A run whose pick fails keeps its own words and nothing else, and a later
-    // round of the same run is asked over the reference its first prompt already carries.
+    // judgement of its own. A session whose pick fails keeps its own words and nothing else, and a later
+    // turn of the same session is asked over the reference its first prompt already carries.
     if let Scope::Apart(apart) = &scope
       && !(apart.todo.is_some() && apart.role.is_some())
       && turn.context.gate.is_none()
@@ -2452,7 +2359,7 @@ impl Sessions for HerdrSessions {
 
       match self.ground().peers.gate.reference(lines).await {
         Ok(entries) => turn.prompt = crate::peers::gate::attach(&turn.prompt, &entries),
-        Err(why) => eprintln!("research run: the gate's reference was not picked: {why}"),
+        Err(why) => eprintln!("{}: the gate's reference was not picked: {why}", turn.session),
       }
     }
 
@@ -2570,16 +2477,7 @@ impl Sessions for HerdrSessions {
             .apart_in_place(&turn.session, &agent, apart, work, &turn.prompt, began, shown)
             .await
         }
-        // A run composed outside agency asks its own rounds.
-        (None, Some(work)) if apart.system_prompt.is_some() => {
-          self.carried(&turn, &agent, WorkSeat::Apart(apart), work, turn_id).await
-        }
-        (None, Some(work)) => {
-          match self.carried(&turn, &agent, WorkSeat::Apart(apart), work, turn_id).await {
-            Ok(first) => self.research_rounds(&turn, &agent, apart, work, first, turn_id).await,
-            Err(why) => Err(why),
-          }
-        }
+        (None, Some(work)) => self.carried(&turn, &agent, WorkSeat::Apart(apart), work, turn_id).await,
         (None, None) => Err(apart_refused(&agent)),
       },
       (Scope::Conversation(conversation), _) => match &turn.context.gate {

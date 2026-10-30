@@ -355,14 +355,12 @@ pub async fn run_turn(
   shown: Option<OutputWatch<'_>>,
 ) -> Result<Reply, NoAnswer> {
   let failure = |why: String| NoAnswer::Failed(why);
-  // A gate place, a research run's own place and a thrown-away session's place stand under no agent's row,
-  // by their own names (docs/agent-control.md, 「A gate's places」; docs/research-runs.md, 「The road」;
-  // docs/api.md, 「sessions」).
+  // A gate place and a thrown-away session's place stand under no agent's row, by their own names
+  // (docs/agent-control.md, 「A gate's places」; docs/api.md, 「sessions」).
   let home = match AgentRow::named(&ground.db, agent).await.map_err(|why| failure(why.detail))? {
     Some(row) => ground.home_of_row(&row).await.map_err(|why| failure(why.detail))?,
     None
       if crate::places::gate_places::recorded_place(&ground.roots.data, agent)
-        || crate::research::is_run_place(&ground.roots.data, agent)
         || crate::apart_places::is_apart_place(&ground.roots.data, agent) =>
     {
       ground.home_of(agent, agent)

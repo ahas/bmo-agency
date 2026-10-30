@@ -67,7 +67,7 @@ is the caller's decision; agency supplies it.
 - `crates/`: the Rust crates. `agent-session`, `herdr`, `agent-host`, `pane-head`, `harness-machine`,
   `harness-providers`, `node-link`, `llm-gateway`, `policy`, `store`, `tool-call`, `cache-siren` (the
   accounts' usage windows and the cache-lifetime judgement, `docs/usage-windows.md`) and `server`.
-- `tools/`: the tools agency provides to the tool host, `procedures` and `read_rulebook`, each a folder
+- `tools/`: the tools agency provides to the tool host, `procedures` and `worker_ask`, each a folder
   with its `tool.toml` and the crate of its executable (`docs/tools.md`).
 - `packages/`: the TypeScript packages, `agent`, `archive` and `support`, one Bun workspace.
 - `policy/`: the TOML files agency's fixed numbers and words stand in, read by `crates/policy`.

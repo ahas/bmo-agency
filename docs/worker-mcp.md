@@ -65,7 +65,7 @@
   resident, with `bmo use` otherwise.
 - **They are a namespace of their own rather than more web tools.** The web tools are shared with
   the search and browse runners, whose business is the open web; the graph of this repository and
-  the owner's queue are no part of that, and a research run has no reason to be shown them.
+  the owner's queue are no part of that, and a search or a browse has no reason to be shown them.
 - The distinction is not politeness. Every tool's name, description and argument schema stands in
   the fixed prompt of every run that is shown it, so a tool shown to a line that will never call it
   is a cost that line pays on every turn for nothing.

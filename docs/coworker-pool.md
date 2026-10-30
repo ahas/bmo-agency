@@ -18,9 +18,9 @@ warming and standing checkouts, is agency's.
   parent's where the parent stands on a provider that lends co-workers, and the pool's order decides
   for every other branch.
 - **A branch's source and work key are the caller's.** A seat is asked under the source label its
-  caller sends — `cowork` for a co-work branch, a research run's own label for its branches — and a
+  caller sends — `cowork` for a co-work branch, a runner line's name for a seat the research unit asks — and a
   builder turn's place under `turn`; the label is kept as sent and only `turn` is a builder turn's. A
-  seat is resolved under the work key its caller names, such as a research line's, and under
+  seat is resolved under the work key its caller names, such as a search depth's, and under
   `role:<name>` where it names none. The key a request or a reservation was resolved under is the one
   kept on it, and every later reading of it — the request asked again, a reservation's seats — reads
   that key rather than building it again.
@@ -53,8 +53,8 @@ warming and standing checkouts, is agency's.
 - There is no operation to delete a row, and a limit of zero blocks that tier on that provider.
 - **A limit is changed on the control port,** `PATCH /pool/limits` with the provider, the tier and the
   capacity (`docs/api.md`, 「pool, seat-requests, reservations and roles」): a provider agency does not
-  carry, a tier no co-worker is borrowed at and a capacity outside 0 to the research policy's
-  `pool_capacity_most` are refused, and a written limit raises at once the head places it frees.
+  carry, a tier no co-worker is borrowed at and a capacity outside 0 to the tier policy's
+  `capacity_most` are refused, and a written limit raises at once the head places it frees.
 - **Builder turns have no limit of their own.** A worker's turn waits only on its checkout, so as many
   builder turns run at once as there are workers.
 - Role, tier assignment, mapping and capacity are all store rows, so a value the owner changed stays
@@ -134,7 +134,7 @@ warming and standing checkouts, is agency's.
 - **Where either fails,** the request carries no session and the turn opens a new one as it does today,
   carrying the note the replacement rules already leave (`docs/sessions.md`, 「Session replacement」). The
   session that failed is dropped with its record by the rules those sessions already stand on.
-- **A borrowed child's seat carries no session of its own.** A co-work or research branch keeps no session,
+- **A borrowed child's seat carries no session of its own.** A co-work branch or a search's keeps no session,
   and a native call keeps its parent's, so their seats are unchanged.
 - **Reuse changes which session a seat runs in, never how many run.** A request's session is no part of
   admission: the tier's limit, the line, the place and the yielding rule count exactly as they did, and a
@@ -166,7 +166,7 @@ warming and standing checkouts, is agency's.
   ended, not for time passing.
   - Releasing a reservation cancels the waiting place rows and releases the reserved ones.
   - What proves the owner's end is known by the owner's side: the co-work runner by the work order
-    record, the research runner by the run row and unit, a native reservation by the CLI process that
+    record, the research unit by its own run, a native reservation by the CLI process that
     set it. The pool reads no owner's name and judges nothing; each owner releases its own.
 - **No reservation, no warming.** Only while a reservation stands does the pool keep alive, up to that
   reservation's desired count, the prefix that reservation will use, before the cache cools.
@@ -184,7 +184,7 @@ The warming judgement is split three ways.
     「Hooks」); where it answers none, the reservation's places are not warmed.
   - A native co-worker is a kind that names no place to warm (「Native co-worker places」 below).
   - A reservation whose source neither kind answers — a search or browse run's, whose place is the
-    research branch line's prefix (`research-runs.md`) — holds its places, and agency's pool warms
+    prefix of the instructions the research unit hands that line — holds its places, and agency's pool warms
     nothing for it. What a branch last wrote that line with is kept all the same, by the place key its
     consumer names: the provider, model, effort and upstream, and the latest moment it was written,
     which a later write never moves back (`docs/api.md`, 「Co-worker pool」).
@@ -216,9 +216,9 @@ Per provider:
   announced a lifetime. The ping goes to that one upstream without fallback (`docs/cache-fallback.md`).
   - A co-work branch has the answering upstream recorded in the job record and held by the standing
     checkouts list line, so it warms on that upstream's clock.
-  - A search or browse branch launches only on a provider carrying the research run line, and
-    OpenRouter's program, dsh, does not carry that line, so OpenRouter has no branch place to warm
-    (`research-runs.md`).
+  - A search or browse branch launches only on a provider carrying the search or browse line, and
+    OpenRouter's program, dsh, does not carry either, so OpenRouter has no branch place to warm
+    (`docs/launch-lines.md`, 「Providers and what a route may promise」).
 - **A registered model:** does not warm. The service announces no cache lifetime and a request with no
   tools reports no cache read or write, so there is no clock to keep alive. A registered-model
   reservation only holds the place.

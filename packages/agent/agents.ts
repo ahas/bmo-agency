@@ -4,7 +4,6 @@ import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, r
 import { dirname, join, relative } from "node:path";
 
 import { agentsRoot, assetRoot } from "@agency/support/roots";
-import declaredResearch from "@agency/policy/research.toml";
 import declaredBrowser from "@agency/policy/browser.toml";
 import { systemPromptFile } from "./prompt-files";
 
@@ -64,15 +63,14 @@ export function workerMcpConfigPath(): string {
 // The two namespaces a worker is handed, as its configuration file holds them. The worker's own — the
 // graph's reading verbs and the queue's two — is not folded into the web one because that one is
 // shared with the search and browse runners, and the graph of this repository and the owner's queue
-// are no business of a research run: a tool shown to a line that will never call it is paid for in
+// are no business of a runner line's run: a tool shown to a line that will never call it is paid for in
 // that line's prompt on every turn.
 export async function workerMcpConfig(): Promise<string> {
   return mcpFile({ web: hostServer("web"), worker: hostServer("worker") });
 }
 
-// The search runner's standing MCP configuration: the web namespace, its branch tool and rulebook
-// tool shown by what each run's record holds. Every run and branch is handed it, its research settings
-// in its record.
+// The search runner's standing MCP configuration: the web namespace, its tools shown by what each run's
+// record holds. Every run on the line is handed it, the labels its caller named in its record.
 export function searchMcpConfigPath(): string {
   return linePath("search");
 }
@@ -82,14 +80,14 @@ export function searchMcpConfigPath(): string {
 // (docs/policy.md).
 const browserPolicy = declaredBrowser as { session_variables: string[]; detached_arguments: string[] };
 
-// A research run's MCP configuration: the web namespace alone, what a run's server is told traveling
+// A runner line's MCP configuration: the web namespace alone, what a run's server is told traveling
 // in the run's environment, which its session record is read from. A browse run's sits beside the
 // chrome-devtools server from the browse agent's own document. Its Chrome never reaches a person's
 // session bus or keyring, and on the visible strategy it is shown the private display the runner
 // started instead of its headless flag. The server's environment is laid over the runner's, so a
 // session variable is emptied rather than left out.
-export async function researchMcpConfig(options: {
-  kind: "search" | "branch" | "browse";
+export async function runnerMcpConfig(options: {
+  kind: "search" | "browse";
   browserStrategy?: string;
   display?: { display: string; xauthority: string; runtimeDir: string } | null;
 }): Promise<string> {
@@ -122,7 +120,7 @@ export async function researchMcpConfig(options: {
 
 // The browse runner's standing MCP configuration, as a run on the headless strategy is given it.
 async function browseMcpConfig(): Promise<string> {
-  return researchMcpConfig({ kind: "browse" });
+  return runnerMcpConfig({ kind: "browse" });
 }
 
 function readRequired(path: string): string {
@@ -203,21 +201,9 @@ export function recordTranslatorSystem(): string {
   return [rulebook("plain-writing"), agentFile("translator", "record.md")].join("\n\n");
 }
 
-// The rulebooks a search run is bound by, after its task in this order. The first binds every
-// search and is appended whole. The others bind only some searches, so the task carries the section
-// of each that decides whether it applies, and the run reads the whole of one from its web server
-// once that section says it does.
-const declaredSearch = (declaredResearch as { search: { rulebooks: string[]; on_request: string[]; applies_section: string } }).search;
-export const searchRulebooks: readonly string[] = declaredSearch.rulebooks;
-
-// A research line's instructions are the same for every run on it and stand as its system prompt,
-// in place of the CLI's own; what one run is about is its prompt. So the prefix a warm ping reads
-// on the line is the prefix every run of it reads (docs/launch-lines.md). The search line's and a
-// branch's are composed by agency's server for each run, with the site tools the tool host lists.
-
-export function browseSystem(): string {
-  return [harness(), agentFile("browse", "task.md"), rulebook(selfPreservation)].join("\n\n");
-}
+// A runner line's instructions are handed in whole by whoever starts a session on it, and stand as its
+// system prompt in place of the CLI's own; what one run is about is its prompt (docs/launch-lines.md).
+// Nothing of them is composed here.
 
 // How to ask the code dependency graph, in the one wording every agent that reads this code is
 // given: the job's trailer opens with it, every work-order step closes with it, and a pooled native
@@ -314,8 +300,8 @@ export function agentFaultLine(fault: AgentFault): string {
 }
 
 // Writes what every agent is given to the deploy root: the composed prompt of each chat kind and of
-// the translate runner, and for each runner the directory it runs in, holding its task template, the
-// rulebooks it reads, and for the browse runner the MCP servers it gets. The deployed documents
+// the translate runner, and for each runner line the MCP servers it gets, the browse line's in the
+// directory it runs in. The deployed documents
 // are rebuilt on every call, so nothing stale survives. The prompts directory is different: it
 // holds the runtime files the runs in flight read, so the recent ones are carried into the
 // rebuilt tree rather than erased underneath those runs.
@@ -375,13 +361,12 @@ export async function deployAgents(): Promise<AgentDeployment> {
   await compose(join(building, "translator", "system.md"), async () => translatorSystem());
   await compose(join(building, "translator", "worker.md"), async () => workerTranslatorSystem());
   await compose(join(building, "translator", "record.md"), async () => recordTranslatorSystem());
-  await compose(join(building, "search", "request.md"), async () => agentFile("search", "request.md"));
-  await compose(asHanded(searchMcpConfigPath()), () => researchMcpConfig({ kind: "search" }));
-  for (const name of searchRulebooks) {
-    await compose(join(building, "search", "rules", `${name}.md`), async () => rulebook(name));
+  await compose(asHanded(searchMcpConfigPath()), () => runnerMcpConfig({ kind: "search" }));
+  // Each runner line's run goes out in the directory it is deployed to, which stands even where the line
+  // is handed nothing of its own there.
+  for (const name of runnerNames) {
+    mkdirSync(asHanded(runnerCwd(name)), { recursive: true });
   }
-  await compose(join(building, "browse", "system.md"), async () => browseSystem());
-  await compose(join(building, "browse", "request.md"), async () => agentFile("browse", "request.md"));
   await compose(asHanded(browseMcpConfigPath()), browseMcpConfig);
   await compose(asHanded(workerMcpConfigPath()), workerMcpConfig);
   await compose(join(building, "worker", "trailer.md"), async () => workerTrailer());

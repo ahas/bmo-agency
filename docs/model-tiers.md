@@ -179,7 +179,7 @@ Branch prefix digests include effective effort. A co-work reservation for a task
   `prompts/agents/worker/coworkers/*.md`; after migration, edits survive reopening. The role row contains no
   model field: its `role:<name>` assignment and the provider/tier mapping are the only model source,
   and the assigned tier is the only thing that decides a role's places. The pooled flag says whether a
-  role may be dispatched as a child — a co-work branch, a research branch or a native co-worker.
+  role may be dispatched as a child — a co-work branch, a search's branch or a native co-worker.
 - **The builder role.** `builder` is the required control role that is never dispatched as a child.
   Its assignment may name any tier, since it chooses the worker's own model. A builder task a plan
   puts in a stage before the build is the exception: it runs at the queue policy's
@@ -265,19 +265,18 @@ Branch prefix digests include effective effort. A co-work reservation for a task
 - **The screen shows the method that stands:** a pinned agent is shown on its model, an unpinned one on
   the model the supervisor route resolves to.
 
-## Research runs
+## Runner line keys
 
-- **A depth chooses a tier.** Each search depth and the browse runner has its own work key, and that
-  key's tier assignment is its tier; any tier may be chosen. The model and the effort both come from
-  that tier's mapping on the provider the run launches on — the research profile carries neither
-  (`research-runs.md`).
-- **The provider** is the road resolution's answer for the run's key (`docs/cache-fallback.md`, 「One road
-  resolution」): the first provider of the walk whose program carries the run's line and that can answer
-  now; a provider that cannot carry it, or cannot answer now, is passed over.
-- **The effort is checked before launch** against the resolved provider and model: where the Claude Code
-  catalogue names the efforts a model accepts, an effort outside them refuses the run rather than handing
-  the CLI a value it would silently lower, and where the catalogue names none for that model the
-  harness's own effort words stand.
+- **A depth chooses a tier.** Each search depth and the browse line has its own work key, and that key's
+  tier assignment is its tier; any tier may be chosen. A seat asked under the key (`docs/api.md`, 「pool,
+  seat-requests, reservations and roles」) answers the model and the effort that tier's mapping names on the
+  provider the seat goes out on; the work key's profile carries neither.
+- **The provider** is the one the seat request names, else the road resolution's answer for the key
+  (`docs/cache-fallback.md`, 「One road resolution」): the first provider of the walk whose program carries
+  the key's line and that can answer now; a provider that cannot carry it, or cannot answer now, is passed
+  over.
+- **What goes out on that road is the caller's.** The research unit asks the seat and then a thrown-away
+  session on the line with the provider and model the seat answered (`docs/api.md`, 「sessions」).
 
 ## The Claude catalogue
 

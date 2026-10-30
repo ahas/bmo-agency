@@ -11,9 +11,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
-use bmo_pocket_client::{Failure, NameQuery, Pocket, SessionRequest, ToolCallRequest};
+use bmo_pocket_client::{Failure, Pocket, SessionRequest};
 use policy::deployment::DEPLOYMENT;
-use policy::research::RESEARCH;
 use policy::roles::ROLES;
 use policy::run_lines::RUN_LINES;
 use serde_json::{Map, Value, json};
@@ -73,63 +72,6 @@ fn pocket(ground: &Ground, token: String) -> Pocket {
   Pocket::at(host_socket(ground), token)
 }
 
-/// What a namespace of the tool host lists for a line's instructions: the listing lines its entries
-/// declare, in their order, or none where the namespace writes none or the host does not answer.
-pub async fn listing(ground: &Ground, namespace: &str) -> Option<String> {
-  let socket = host_socket(ground);
-  let Some(token) = issuer_token(ground) else {
-    eprintln!(
-      "mcp-host at {}: no {namespace} listing: the issuer token is not there",
-      socket.display()
-    );
-    return None;
-  };
-  let client = pocket(ground, token);
-  let mut after: Option<String> = None;
-  let mut listed: Vec<(i64, String)> = Vec::new();
-
-  loop {
-    let page = match client
-      .tools(
-        namespace,
-        &NameQuery {
-          after: after.clone(),
-          limit: None,
-        },
-      )
-      .await
-    {
-      Ok(page) => page,
-      Err(Failure::Refused { status, .. }) => {
-        eprintln!("mcp-host at {}: no {namespace} listing ({status})", socket.display());
-        return None;
-      }
-      Err(why) => {
-        eprintln!("mcp-host at {}: no {namespace} listing: {why}", socket.display());
-        return None;
-      }
-    };
-    let mut last = None;
-
-    for tool in page.items {
-      last = Some(tool.name.clone());
-
-      if let Some(listing) = tool.listing {
-        listed.push((listing.order, listing.line));
-      }
-    }
-
-    match (page.more, last) {
-      (true, Some(name)) => after = Some(name),
-      _ => break,
-    }
-  }
-
-  listed.sort_by_key(|(order, _)| *order);
-
-  Some(listed.into_iter().map(|(_, line)| line).collect::<Vec<_>>().join("\n"))
-}
-
 /// What a namespace's owner says of it beside its tools, as the tool host keeps it, or none where it says
 /// nothing or the host does not answer.
 pub async fn facts(ground: &Ground, namespace: &str) -> Option<Value> {
@@ -186,15 +128,14 @@ pub async fn discipline(ground: &Ground) -> Result<String, String> {
 }
 
 /// The role and the capabilities of a record issued for `agent` on `line` (docs/agent-roles.md, 「Where the
-/// role is read」): the line's capabilities, then the bundles the agent's role gives, each once, less what
-/// `withheld` names. An agent the archive holds no row of holds no role, but for a co-worker's place, known
-/// by its checkout, which holds the role the policy names for co-workers.
+/// role is read」): the line's capabilities, then the bundles the agent's role gives, each once. An agent
+/// the archive holds no row of holds no role, but for a co-worker's place, known by its checkout, which
+/// holds the role the policy names for co-workers.
 async fn capabilities(
   ground: &Ground,
   line: &str,
   agent: &str,
   checkout: &str,
-  withheld: &[&str],
 ) -> Result<(Option<String>, Vec<String>), Refusal> {
   let role =
     match one(&ground.db, r#"SELECT "role" FROM "agents" WHERE "name" = $1"#, vec![agent.into()]).await? {
@@ -208,7 +149,7 @@ async fn capabilities(
   let mut held: Vec<String> = Vec::new();
 
   for capability in RUN_LINES.capabilities(line).iter().chain(&bundles) {
-    if !held.contains(capability) && !withheld.contains(&capability.as_str()) {
+    if !held.contains(capability) {
       held.push(capability.clone());
     }
   }
@@ -249,7 +190,7 @@ pub async fn issue(
   place: &Path,
   checkout: &Path,
 ) -> Result<Option<String>, Refusal> {
-  let (role, capabilities) = capabilities(ground, line, agent, &checkout.to_string_lossy(), &[]).await?;
+  let (role, capabilities) = capabilities(ground, line, agent, &checkout.to_string_lossy()).await?;
 
   if capabilities.is_empty() {
     return Ok(None);
@@ -293,155 +234,6 @@ pub fn line_variables(ground: &Ground, line: &str) -> Vec<(String, String)> {
 fn turn_variable(name: &str) -> bool {
   ["BMO_RUN_NAME", "BMO_TASK_LOCKED", "BMO_WORK_ORDER_STEP"].contains(&name)
     || name.starts_with("BMO_TURN_")
-}
-
-// A count a research variable holds: a whole number no smaller than nothing, as a script's `Number` reads
-// it; none for anything else.
-fn count(value: Option<&String>) -> Option<i64> {
-  let read = value.filter(|value| !value.is_empty())?.trim().parse::<f64>().ok()?;
-
-  (read.fract() == 0.0 && (0.0..=9_007_199_254_740_991.0).contains(&read)).then_some(read as i64)
-}
-
-// The number a chat variable leads with, as a script's `parseInt` reads it; nothing read is no chat.
-fn leading_number(value: Option<&String>) -> i64 {
-  let text = value.map_or("", |value| value.trim_start());
-  let (sign, digits) = match text.strip_prefix('-') {
-    Some(rest) => (-1, rest),
-    None => (1, text.strip_prefix('+').unwrap_or(text)),
-  };
-  let digits: String = digits.chars().take_while(char::is_ascii_digit).collect();
-
-  digits.parse::<i64>().map_or(0, |read| sign * read)
-}
-
-/// What a run's session record carries of its research settings,
-/// read out of the run's environment where its runner put them, and the capabilities the policy ties to
-/// those settings that they do not open; no settings and
-/// every such capability left out for a run carrying none. A research run's record names its ledger run as
-/// `run`, and where agency's session service answers and the token it takes as `sessionsAt` and
-/// `sessionsToken`. A research branch's record carries its parent's settings and `run` held to the budget of
-/// one of the parent's branches, opens no branch and names no session service, and names the parent's run as
-/// `branchOf`.
-pub fn research_record(env: &BTreeMap<String, String>) -> (Option<Value>, Vec<&'static str>) {
-  let branch_of = count(env.get(BRANCH_OF)).filter(|run| *run > 0);
-  let narrowed;
-  let env = match branch_of {
-    Some(_) => {
-      narrowed = branch_variables(env);
-      &narrowed
-    }
-    None => env,
-  };
-  let (research, withheld) = settings_record(env);
-
-  match (research, branch_of) {
-    (Some(Value::Object(mut research)), Some(parent)) => {
-      research.insert("branchOf".to_owned(), json!(parent));
-
-      (Some(Value::Object(research)), withheld)
-    }
-    (research, _) => (research, withheld),
-  }
-}
-
-/// The variable that names, on a research branch's run, the ledger's run it is a branch of.
-pub const BRANCH_OF: &str = "BMO_RESEARCH_BRANCH_OF";
-
-/// The variable that names a research run's ledger run, which a branch of it carries as its parent's.
-pub const RUN: &str = "BMO_RESEARCH_RUN";
-
-/// The variable that names where agency's session service answers a research run's tools.
-pub const SESSIONS_AT: &str = "BMO_RESEARCH_SESSIONS_AT";
-
-/// The variable that names the token agency's session service takes from a research run's tools.
-pub const SESSIONS_TOKEN: &str = "BMO_RESEARCH_SESSIONS_TOKEN";
-
-// A branch's variables as its record reads them: its parent's settings, its page budget the one each branch
-// of the parent has, and no branch of its own nor the session service one is opened through.
-fn branch_variables(env: &BTreeMap<String, String>) -> BTreeMap<String, String> {
-  let mut narrowed = env.clone();
-  let budget = narrowed.remove("BMO_RESEARCH_BRANCH_PAGES");
-
-  for opens in ["BMO_RESEARCH_TOOLS", SESSIONS_AT, SESSIONS_TOKEN] {
-    narrowed.remove(opens);
-  }
-
-  narrowed.insert("BMO_RESEARCH_BRANCHES".to_owned(), "0".to_owned());
-
-  match budget {
-    Some(pages) => narrowed.insert("BMO_RESEARCH_PAGES".to_owned(), pages),
-    None => narrowed.remove("BMO_RESEARCH_PAGES"),
-  };
-
-  narrowed
-}
-
-// The research settings a run's variables carry, and the capabilities those settings do not open.
-fn settings_record(env: &BTreeMap<String, String>) -> (Option<Value>, Vec<&'static str>) {
-  let set = |name: &str| env.get(name).filter(|value| !value.is_empty());
-
-  if !env.iter().any(|(name, value)| {
-    (name.starts_with("BMO_RESEARCH_") || name.starts_with("BMO_WEB_")) && !value.is_empty()
-  }) {
-    return (None, RESEARCH.withheld(false, |_| None));
-  }
-
-  let rulebooks: Vec<&str> = set("BMO_RESEARCH_RULEBOOKS")
-    .map(|value| value.split(',').filter(|name| !name.is_empty()).collect())
-    .unwrap_or_default();
-  let mut research = serde_json::Map::new();
-
-  if let Some(at) = count(set("BMO_RESEARCH_CLOSES_AT")) {
-    research.insert("closesAt".to_owned(), json!(at));
-  }
-
-  if let Some(run) = count(set(RUN)).filter(|run| *run > 0) {
-    research.insert("run".to_owned(), json!(run));
-  }
-
-  for (key, variable) in [
-    ("owner", "BMO_RESEARCH_OWNER"),
-    ("source", "BMO_RESEARCH_SOURCE"),
-    ("role", "BMO_RESEARCH_ROLE"),
-    ("sessionsAt", SESSIONS_AT),
-    ("sessionsToken", SESSIONS_TOKEN),
-  ] {
-    let value =
-      set(variable).filter(|value| key != "source" || ["search", "browse"].contains(&value.as_str()));
-
-    if let Some(value) = value {
-      research.insert(key.to_owned(), json!(value));
-    }
-  }
-
-  research.insert("branches".to_owned(), json!(count(set("BMO_RESEARCH_BRANCHES")).unwrap_or(0)));
-
-  for (key, variable) in [("pages", "BMO_RESEARCH_PAGES"), ("branchPages", "BMO_RESEARCH_BRANCH_PAGES")] {
-    if let Some(pages) = count(set(variable)) {
-      research.insert(key.to_owned(), json!(pages));
-    }
-  }
-  research.insert("chat".to_owned(), json!(leading_number(set("BMO_RESEARCH_CHAT"))));
-
-  if let Some(strategy) = set("BMO_WEB_STRATEGY") {
-    research.insert("strategy".to_owned(), json!(strategy));
-  }
-
-  for (key, variable) in [
-    ("hostIntervalMs", "BMO_WEB_HOST_INTERVAL_MS"),
-    ("engineIntervalMs", "BMO_WEB_ENGINE_INTERVAL_MS"),
-  ] {
-    if let Some(interval) = count(set(variable)) {
-      research.insert(key.to_owned(), json!(interval));
-    }
-  }
-
-  research.insert("rulebooks".to_owned(), json!(rulebooks));
-
-  let withheld = RESEARCH.withheld(true, |variable| env.get(variable).map(String::as_str));
-
-  (Some(Value::Object(research)), withheld)
 }
 
 /// The variable a run carries the labels its thrown-away session's caller named in, a JSON object's text,
@@ -494,9 +286,9 @@ fn named_tools(env: &BTreeMap<String, String>) -> Option<Vec<String>> {
 }
 
 /// A token for one run of `line` carried in `agent`'s host, working in `cwd` on `env`, standing until
-/// `deadline` at most; none where the line needs none. Its record carries the run's research settings, and
-/// its line's capabilities with its agent's role's bundles, less the web tools those settings do not open.
-/// The agent is the turn's where the run names one, and the one it is carried for otherwise.
+/// `deadline` at most; none where the line needs none. Its record carries its line's capabilities with its
+/// agent's role's bundles, narrowed to those the run's caller lets it keep, and the labels that caller
+/// named. The agent is the turn's where the run names one, and the one it is carried for otherwise.
 pub async fn issue_for_run(
   ground: &Ground,
   line: &str,
@@ -507,8 +299,7 @@ pub async fn issue_for_run(
 ) -> Result<Option<String>, Refusal> {
   let given = |name: &str| env.get(name).filter(|value| !value.is_empty()).cloned();
   let agent = given("BMO_TURN_AGENT").map_or_else(|| agent.to_owned(), |named| named.trim().to_owned());
-  let (research, withheld) = research_record(env);
-  let (role, mut capabilities) = capabilities(ground, line, &agent, cwd, &withheld).await?;
+  let (role, mut capabilities) = capabilities(ground, line, &agent, cwd).await?;
 
   if let Some(allowed) = named_tools(env) {
     capabilities.retain(|capability| allowed.contains(capability));
@@ -528,7 +319,7 @@ pub async fn issue_for_run(
   variables.insert("BMO_DATA_DIR".to_owned(), data_root);
   variables.extend(line_variables(ground, line));
 
-  // A research line's brain tools write the chat agent's brain, the agent whose row answers every room that
+  // A runner line's brain tools write the chat agent's brain, the agent whose row answers every room that
   // names nobody: the record names that agent as the turn its tools run for, while the run itself stays the
   // runner's (docs/agent-roles.md, 「The searcher role's bundles」).
   if RUN_LINES.writes_agent_brain(line) {
@@ -548,10 +339,6 @@ pub async fn issue_for_run(
 
   if let Some(place) = given("BMO_AGENT_PLACE") {
     labels.insert("place".to_owned(), json!(place));
-  }
-
-  if let Some(research) = research {
-    labels.insert("research".to_owned(), research);
   }
 
   for (key, value) in named_labels(env) {
@@ -599,64 +386,6 @@ fn host_down(socket: &Path, why: impl Into<String>) -> Refusal {
     why.into()
   ))
 }
-
-/// One call of an entry the tool host keeps for the system alone (docs/research-runs.md, 「What a run is held
-/// to: the research settings」), made under a record of its own naming only the entry's namespace and taken
-/// back once the call ends: the tool's structured content, or why there is none.
-pub async fn system_call(
-  ground: &Ground,
-  namespace: &str,
-  name: &str,
-  input: Map<String, Value>,
-) -> Result<Value, String> {
-  let variables =
-    BTreeMap::from([("BMO_DATA_DIR".to_owned(), ground.roots.data.to_string_lossy().into_owned())]);
-  let mut labels = Map::new();
-
-  labels.insert("line".to_owned(), json!("system"));
-
-  let request = SessionRequest {
-    holder_name: "agency".to_owned(),
-    namespaces: BTreeSet::from([namespace.to_owned()]),
-    capabilities: Default::default(),
-    grants: Vec::new(),
-    shown: Default::default(),
-    variables,
-    variables_file: None,
-    labels,
-    ttl_ms: Some(SYSTEM_CALL_TTL_MS),
-  };
-  let token = issue_record(ground, &request).await.map_err(|why| why.detail)?;
-  let called = pocket(ground, token.clone())
-    .call(&ToolCallRequest {
-      namespace: namespace.to_owned(),
-      name: name.to_owned(),
-      input,
-    })
-    .await;
-
-  revoke(ground, &token).await;
-
-  let call = called.map_err(|failure| match failure {
-    Failure::Refused { status, error } => format!("{status} {} ({})", error.error, error.code.as_str()),
-    Failure::Unreadable { status, why } => format!("{status} {why}"),
-    Failure::Unreachable(why) => why.to_string(),
-  })?;
-
-  if call.result.is_error == Some(true) {
-    let said: Vec<&str> = call.result.content.iter().filter_map(|block| block["text"].as_str()).collect();
-
-    return Err(said.join(" "));
-  }
-
-  call
-    .result
-    .structured_content
-    .ok_or_else(|| format!("{namespace}/{name} answered no structured content"))
-}
-
-// How long the record of one system call may stand where nothing takes its token back.
-const SYSTEM_CALL_TTL_MS: u64 = 60_000;
 
 /// A token taken back; a host that does not answer has lost it already.
 pub async fn revoke(ground: &Ground, token: &str) {

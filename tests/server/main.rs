@@ -70,7 +70,6 @@ mod control {
   mod pool_sessions;
   mod pool_sources;
   mod registry;
-  mod research_drafts;
   mod resources;
   mod roads;
   mod room_session_reads;
@@ -178,9 +177,6 @@ mod queue {
 }
 mod readiness;
 mod relay;
-mod research;
-mod research_cut;
-mod research_document;
 mod rest;
 mod road;
 mod rooms;

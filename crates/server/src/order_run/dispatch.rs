@@ -265,8 +265,8 @@ pub async fn enqueue_coworker(
   enqueue_seat(db, asked, COWORK, retain).await
 }
 
-/// A branch's seat asked of the pool under the source its caller labels it with — a co-work branch's, a
-/// research run's — or the one its token already holds.
+/// A branch's seat asked of the pool under the source its caller labels it with — a co-work branch's, or
+/// the one a seat request names — or the one its token already holds.
 pub async fn enqueue_seat(
   db: &DatabaseConnection,
   asked: &Asked<'_>,
@@ -889,8 +889,9 @@ pub async fn finish(
     .map_err(refused)
 }
 
-/// What an owner's seats are held as: under a key the owner names again, by what brought them — a work order's
-/// stage, a research run — for its role on the provider and tier they will be let in under, so many of them.
+/// What an owner's seats are held as: under a key the owner names again, by what brought them — a work
+/// order's stage, a seat request's owner — for its role on the provider and tier they will be let in under,
+/// so many of them.
 pub struct Seats<'a> {
   pub reservation_key: String,
   pub owner: String,

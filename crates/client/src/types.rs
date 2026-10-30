@@ -251,8 +251,6 @@ pub struct Session {
   pub prefix_change_reason: Option<String>,
   pub bound_ms: Option<i64>,
   pub options: Value,
-  /// The prompt document a thrown-away session's turns go out on: the runner line by the name its system prompt is written under, search, search-branch or browse; none for the worker line. A run with a fixed prompt names its document here and carries its own bounds in boundMs and options.
-  pub prompt_document_name: Option<String>,
   /// The share of its model's window the session may fill before it is folded once the turn that crossed it is over: the fold-ratio table's value for the provider it stands on and the tier its agent's work key is assigned, read with the session's state; none in a list, or where the state names no provider.
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub fold_ratio: Option<f64>,
@@ -1129,6 +1127,13 @@ pub struct AgentRoleAsk {
   pub tier: Option<String>,
 }
 
+// A field given, even as null, read as given; a field left out stays none.
+fn present<'de, D: serde::Deserializer<'de>, T: Deserialize<'de>>(
+  given: D,
+) -> Result<Option<Option<T>>, D::Error> {
+  Option::<T>::deserialize(given).map(Some)
+}
+
 /// AgentRoleChange: a change to a role; a field left out keeps what it holds, and a bound, a prompt or a
 /// tier given as null is cleared.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -1729,8 +1734,6 @@ pub struct SessionStart {
   pub room_id: Option<i64>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub bound_ms: Option<i64>,
-  #[serde(default, skip_serializing_if = "Option::is_none")]
-  pub prompt_document_name: Option<String>,
   /// The runner line a thrown-away session goes out on with the instructions its caller hands in whole.
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub line: Option<String>,
@@ -2406,29 +2409,6 @@ pub struct SessionLoadsAsk {
   pub documents: Vec<Value>,
 }
 
-/// One research line's rounds, as the console reads and sets them.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct DraftProcess {
-  /// The line the runs go out on.
-  pub line: String,
-  /// The questions in order, ending in the final one.
-  pub rounds: Vec<String>,
-  pub ceiling_seconds: i64,
-  /// `final` asks the final question at once past the ceiling; `last` returns the answer already written.
-  pub past_ceiling: String,
-  /// `default` where the policy's row stands, `set` where the console's does.
-  pub source: String,
-}
-
-/// A page of a research line's rounds.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct DraftProcessPage {
-  pub items: Vec<DraftProcess>,
-  pub more: bool,
-}
-
 /// GithubDeliveryTaken: a GitHub delivery taken, to be acted on after the answer.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -2456,158 +2436,6 @@ pub struct TranslationRun {
   pub text: String,
   pub provider: String,
   pub model: String,
-}
-
-/// ResearchRunAsk: a research asked of the agency: its research key, its question, and who asked, the options and
-/// the room its result is for, where they are known; and the road it goes out on, where the caller names one.
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct ResearchRunAsk {
-  /// `search:basic`, `search:thorough`, `search:exhaustive` or `browse`.
-  pub key: String,
-  pub query: String,
-  #[serde(default, skip_serializing_if = "Option::is_none")]
-  pub asker: Option<String>,
-  #[serde(default, skip_serializing_if = "Option::is_none")]
-  pub options: Option<String>,
-  #[serde(default, skip_serializing_if = "Option::is_none")]
-  pub room_id: Option<i64>,
-  /// The provider the run goes out on, where the caller names one; its program must carry the key's line.
-  #[serde(default, skip_serializing_if = "Option::is_none")]
-  pub provider: Option<String>,
-  /// The model the run goes out on, where the caller names one: as Claude Code's `/model` names it, a gateway
-  /// member among them. Named alone, it goes out on whichever program that carries the key's line lists it.
-  #[serde(default, skip_serializing_if = "Option::is_none")]
-  pub model: Option<String>,
-}
-
-/// ResearchRun: a research run as it was launched: its run in the ledger, its key and the road it went out on.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct ResearchRun {
-  pub run_id: i64,
-  pub key: String,
-  pub provider: String,
-  pub model: String,
-  /// The login it went out on, where its provider holds logins and one was offered.
-  pub account: Option<String>,
-  /// epoch milliseconds: when its web tools close
-  pub closes_at: i64,
-}
-
-/// One research key's settings: how many pooled branches a run of it may open, and for how many minutes its web
-/// tools stay open.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct ResearchKeySettings {
-  pub key: String,
-  pub branches: i64,
-  pub minutes: i64,
-  /// The most pages the first answer fetches; none for no ceiling. Left out of a change, it keeps what the
-  /// key holds.
-  #[serde(default)]
-  pub pages: Option<i64>,
-  /// The most pages each branch fetches; none for no ceiling. Left out of a change, it keeps what the key
-  /// holds.
-  #[serde(default)]
-  pub branch_pages: Option<i64>,
-}
-
-/// One search engine's state, as the web tools answer it.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct SearchEngineState {
-  pub name: String,
-  #[serde(default)]
-  pub category: Option<String>,
-  pub state: String,
-  #[serde(default)]
-  pub reason: Option<String>,
-  #[serde(default)]
-  pub observed_at: Option<i64>,
-  #[serde(default)]
-  pub suspended_until: Option<i64>,
-}
-
-/// ResearchSettings: what every research run is held to, and the search engines' state.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct ResearchSettings {
-  /// The co-worker role a search's pooled branches go out on.
-  pub branch_role: String,
-  /// `direct-then-browser`, `browser-first` or `direct-only`.
-  pub strategy: String,
-  /// The gap between two direct requests to one host, in milliseconds; null where the web tools' default stands.
-  pub host_interval_ms: Option<i64>,
-  /// The gap between two requests to one search engine, in milliseconds; null where the web tools' default stands.
-  pub engine_interval_ms: Option<i64>,
-  pub keys: Vec<ResearchKeySettings>,
-  /// `default` where the policy's values stand, `set` where the owner changed one.
-  pub source: String,
-  /// The search engines' state; null where it could not be read.
-  pub engines: Option<Vec<SearchEngineState>>,
-  /// Why the engines' state could not be read, where it could not.
-  pub engines_unread: Option<String>,
-}
-
-fn present<'de, D: serde::Deserializer<'de>, T: Deserialize<'de>>(
-  given: D,
-) -> Result<Option<Option<T>>, D::Error> {
-  Option::<T>::deserialize(given).map(Some)
-}
-
-/// ResearchSettingsChange: a change to the research settings; a field left out keeps what it holds, and a gap given
-/// as null returns to the web tools' default.
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct ResearchSettingsChange {
-  #[serde(default, skip_serializing_if = "Option::is_none")]
-  pub branch_role: Option<String>,
-  #[serde(default, skip_serializing_if = "Option::is_none")]
-  pub strategy: Option<String>,
-  #[serde(default, deserialize_with = "present", skip_serializing_if = "Option::is_none")]
-  pub host_interval_ms: Option<Option<i64>>,
-  #[serde(default, deserialize_with = "present", skip_serializing_if = "Option::is_none")]
-  pub engine_interval_ms: Option<Option<i64>>,
-  #[serde(default, skip_serializing_if = "Option::is_none")]
-  pub keys: Option<Vec<ResearchKeySettings>>,
-}
-
-/// A change to one line's rounds; a field left out keeps what the line holds.
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct DraftProcessChange {
-  #[serde(default, skip_serializing_if = "Option::is_none")]
-  pub rounds: Option<Vec<String>>,
-  #[serde(default, skip_serializing_if = "Option::is_none")]
-  pub ceiling_seconds: Option<i64>,
-  #[serde(default, skip_serializing_if = "Option::is_none")]
-  pub past_ceiling: Option<String>,
-}
-
-/// One question of a research line's rounds.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct DraftQuestion {
-  pub name: String,
-  pub text: String,
-  /// `default` where the policy's text stands, `set` where the console's does.
-  pub source: String,
-}
-
-/// A page of the questions a research line's rounds name.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct DraftQuestionPage {
-  pub items: Vec<DraftQuestion>,
-  pub more: bool,
-}
-
-/// A question's text changed, or a question added under a name of the console's own.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct DraftQuestionChange {
-  pub text: String,
 }
 
 /// One gate kind as the gate declares it: its key, the part of a turn it stands in, its step there and

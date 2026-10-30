@@ -25,8 +25,8 @@ flowchart TD
   and code, the release notes and changelog, the model card, the configuration files, the paper in
   full, and the issues and pull requests for what the documentation leaves out. What others write
   comes after and is told apart as theirs. The deep dive's rules bind how it is read and told,
-  `~/.local/share/bmo-agency/deploy/prompts/rules/deep-dives.md`, and the research routine beside it,
-  `~/.local/share/bmo-agency/deploy/prompts/rules/research.md`, is the shape of the document a job
+  `~/.local/share/bmo-research/deploy/prompts/rules/deep-dives.md`, and the research routine beside it,
+  `~/.local/share/bmo-research/deploy/prompts/rules/research.md`, is the shape of the document a job
   writes: a manual where nothing was measured yet, and the verification report — the maker's figures
   against ours, the pass line set before the first run, how it was run, what was kept and how the
   restore was proved — for the measurement this skill is for. Read both before the first step.

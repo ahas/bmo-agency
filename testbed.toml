@@ -73,7 +73,6 @@ binaries = [
   "node-link",
   "llm-gateway",
   "procedures-tool",
-  "read-rulebook-tool",
   "worker-ask-tool",
 ]
 
@@ -87,7 +86,7 @@ root = "~/.local/share/bmo-agency"
 link = "deploy"
 data_root = "~/.local/share/bmo/data"
 units = ["deploy/*.service"]
-# Answers 0 where no chat turn or research run stands under way that the restart would cut: the receiver's
+# Answers 0 where no chat turn stands under way that the restart would cut: the receiver's
 # own plain `quiet` command, by its deployed path, waited on before the flip (the testbed's docs/deploy.md).
 # A running job is not counted: its turn in flight is kept across the restart and the lease pass takes its
 # item again (docs/sessions.md, 「A restart hands the session over」).
@@ -171,14 +170,4 @@ rm -rf tools/worker_ask/.placed
 mkdir -p tools/worker_ask/.placed
 cp bin/worker-ask-tool tools/worker_ask/tool.toml tools/worker_ask/worker_ask.json tools/worker_ask/.placed/
 bmo-pocket put tools/worker_ask/.placed --placed --service agency --allow room.tools
-'''
-
-[[deploy.step]]
-id = "place-read-rulebook"
-phase = "before-flip"
-command = '''
-set -eu
-rm -rf tools/read_rulebook/.placed
-mkdir -p tools/read_rulebook/.placed
-cp bin/read-rulebook-tool tools/read_rulebook/tool.toml tools/read_rulebook/read_rulebook.json tools/read_rulebook/.placed/
 '''

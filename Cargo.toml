@@ -19,7 +19,6 @@ members = [
   "crates/cache-siren",
   "crates/server",
   "tools/procedures",
-  "tools/read_rulebook",
   "tools/worker_ask",
 ]
 resolver = "3"
@@ -108,7 +107,6 @@ llm-gateway = { path = "crates/llm-gateway" }
 node-link = { path = "crates/node-link" }
 policy = { path = "crates/policy" }
 procedures-tool = { path = "tools/procedures" }
-read-rulebook-tool = { path = "tools/read_rulebook" }
 worker-ask-tool = { path = "tools/worker_ask" }
 regex.workspace = true
 reqwest.workspace = true

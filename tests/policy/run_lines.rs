@@ -27,12 +27,11 @@ fn the_worker_line_keeps_its_session_and_leaves_its_tools_to_its_agents_role() {
 }
 
 #[test]
-fn only_the_worker_research_and_chat_lines_show_their_most_called_entries_by_name() {
+fn only_the_worker_runner_and_chat_lines_show_their_most_called_entries_by_name() {
   assert!(RUN_LINES.shows("worker", "worker/graph_impact"));
   assert!(RUN_LINES.shows("worker", "web/web_fetch"));
   assert!(!RUN_LINES.shows("worker", "web/research"));
   assert!(RUN_LINES.shows("search", "web/research"));
-  assert!(RUN_LINES.shows("search", "web/read_rulebook"));
   assert!(RUN_LINES.shows("browse", "web/web_fetch"));
   assert!(!RUN_LINES.shows("search", "web/reddit"), "the site tools stay in the legacy repository");
   assert!(RUN_LINES.shows("browse", "eye/see"));
@@ -64,7 +63,7 @@ fn only_the_worker_research_and_chat_lines_show_their_most_called_entries_by_nam
 }
 
 #[test]
-fn a_research_line_writes_the_deployment_agent_s_brain_and_shows_the_tools_for_it() {
+fn a_runner_line_writes_the_deployment_agent_s_brain_and_shows_the_tools_for_it() {
   for line in ["search", "browse"] {
     assert!(RUN_LINES.capabilities(line).iter().any(|one| one == "room.chat"), "{line}");
     assert!(RUN_LINES.namespaces(line).iter().any(|one| one == "bmo"), "{line}");

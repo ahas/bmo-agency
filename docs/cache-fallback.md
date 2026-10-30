@@ -349,7 +349,7 @@ When a demotion first catches — when a healthy session first drops — two thi
 ### The login in use is used to the end
 
 - **One login is in use, for the whole road.** Every automatic run — a chat round, a job, a gate
-  judgement, a research branch, a session opened after a restart — starts its walk on
+  judgement, a search's branch, a session opened after a restart — starts its walk on
   that login for as long as it can answer, behind the chosen account while that one can answer, and
   ahead of the order.
 - **A login coming back moves nothing, except the chosen one.** An earlier account answering again is no
@@ -385,7 +385,7 @@ When a demotion first catches — when a healthy session first drops — two thi
   already happens when the head moves happens at the next run, not at the click: a run already going
   finishes on the login it went out on; the next chat round asks the receiver for the old session's
   handoff, then closes it and opens a fresh one on the chosen login (`docs/sessions.md`, 「A restart
-  hands the session over」); the next gate and research branch go out on the chosen
+  hands the session over」); the next gate and search's branch go out on the chosen
   account; the next job resumes the worker's session kept under that login, or opens one. A turn on a
   session already held stays on that session's own login, since no other login can reach it.
 - **A key pinned to an account is not moved** — the choice decides where automatic keys go.
@@ -489,8 +489,8 @@ When a demotion first catches — when a healthy session first drops — two thi
   key's tier mapping on that provider. So automatic work goes out on its key's own tier of the first
   provider that can answer — a job's on `job-worker`'s, the Frontier tier.
 - **The account.** Where the provider holds logins, the first login the account judgement offers the key.
-- **A named road.** Work whose caller names the road it goes out on — a research run asked on a provider,
-  a model or both (`docs/research-runs.md`, 「The road」) — has the walk restricted to that road: the
+- **A named road.** Work whose caller names the road it goes out on — a provider, a model or both — has
+  the walk restricted to that road: the
   provider named alone, or where only the model is named every provider of the order whose program carries
   the key's line; each on the model named, or on the key's tier mapping where only the provider is named.
   A provider asked there answers for itself as on any walk, and besides must carry the line, list the model

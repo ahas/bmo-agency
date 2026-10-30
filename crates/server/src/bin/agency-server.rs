@@ -63,9 +63,6 @@ async fn main() -> ExitCode {
 }
 
 async fn serve(args: Args) -> Result<(), String> {
-  // The moment this process started, in seconds as the ledger keeps them: what is open from before it was
-  // left by the process before.
-  let started_at = agency_server::now_ms();
   let token = args
     .token
     .filter(|token| !token.is_empty())
@@ -111,21 +108,6 @@ async fn serve(args: Args) -> Result<(), String> {
 
   if ended > 0 {
     println!("agency: {ended} places of thrown-away sessions the last process left ended");
-  }
-
-  // Research runs the last process left under way are taken up again where their places stand, and the
-  // rest closed as cut and told to their rooms.
-  match agency_server::research::sweep_cut(&ground, started_at).await {
-    Ok(swept) => {
-      if swept.taken_up > 0 {
-        println!("agency: {} research runs taken up again after the restart", swept.taken_up);
-      }
-
-      if swept.cut > 0 {
-        println!("agency: {} research runs cut by the restart closed and told", swept.cut);
-      }
-    }
-    Err(why) => eprintln!("agency: the research runs left under way: {}", why.detail),
   }
 
   // Execution rows the last process left open are closed on what they left, and a job whose process

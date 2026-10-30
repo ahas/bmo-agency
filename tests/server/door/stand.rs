@@ -1,8 +1,7 @@
 //! A program stood afresh only between its turns (docs/agent-control.md, 「The command is the program's
 //! identity」): a program whose command changed while its record says a turn works is left standing, the
 //! turn asking for it going in as it stands, and its record saying the turn ended lets the next stand
-//! replace it. A research place's session token stands until its run's web tools close and a grace past
-//! them (docs/research-runs.md, 「The road」).
+//! replace it.
 
 use std::collections::HashMap;
 use std::time::Duration;
@@ -105,21 +104,4 @@ async fn a_changed_program_is_not_ended_while_its_record_says_a_turn_works() {
 
   let _ = standing.kill();
   let _ = standing.wait();
-}
-
-#[test]
-fn a_research_place_s_token_stands_until_its_web_tools_close_and_a_grace_past_them() {
-  let grace = 30 * 60 * 1_000;
-  let research = json!({ "closesAt": 10_000_000 });
-
-  assert_eq!(
-    agency_server::door::stand::research_token_deadline(&research, 1_000),
-    10_000_000 + grace
-  );
-  assert_eq!(
-    agency_server::door::stand::research_token_deadline(&research, 20_000_000),
-    20_000_000 + grace,
-    "a moment already passed bounds it from its issue"
-  );
-  assert_eq!(agency_server::door::stand::research_token_deadline(&json!({}), 5), 5 + grace);
 }

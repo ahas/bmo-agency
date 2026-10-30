@@ -495,7 +495,7 @@ impl AgencyClient {
     Self::answered(self.request(Method::GET, &["sessions"]).query(query)).await
   }
 
-  /// `POST /sessions`: Start a session for an agent at a scope; a throwaway one is scope apart with boundMs and its own options. A run on a runner line (search, search-branch, browse) is such a session naming its prompt document; it calls the upstreams it needs through their own MCP servers.
+  /// `POST /sessions`: Start a session for an agent at a scope; a throwaway one is scope apart with boundMs and its own options. A run on a runner line (search, browse) is such a session naming the line and handing its instructions in whole as systemPrompt; it calls the upstreams it needs through their own MCP servers.
   pub async fn create_sessions(&self, body: &SessionStart) -> Answer<Session> {
     Self::answered(self.request(Method::POST, &["sessions"]).json(body)).await
   }
@@ -1024,21 +1024,6 @@ impl AgencyClient {
   /// `POST /translation-runs`: Translate one text on the translator runner's road, answered whole.
   pub async fn create_translation_runs(&self, body: &TranslationRunAsk) -> Answer<TranslationRun> {
     Self::answered(self.request(Method::POST, &["translation-runs"]).json(body)).await
-  }
-
-  /// `POST /research-runs`: Run a research on a research key: a search at a depth, or a browse.
-  pub async fn create_research_runs(&self, body: &ResearchRunAsk) -> Answer<ResearchRun> {
-    Self::answered(self.request(Method::POST, &["research-runs"]).json(body)).await
-  }
-
-  /// `GET /research-settings`: The settings every research run is held to, and the search engines' state.
-  pub async fn get_research_settings(&self) -> Answer<ResearchSettings> {
-    Self::answered(self.request(Method::GET, &["research-settings"])).await
-  }
-
-  /// `PUT /research-settings`: Change the research settings; a field left out keeps what it holds.
-  pub async fn put_research_settings(&self, body: &ResearchSettingsChange) -> Answer<ResearchSettings> {
-    Self::answered(self.request(Method::PUT, &["research-settings"]).json(body)).await
   }
 
   /// `GET /jobs/{jobId}`: One job and the tokens its model has spent.

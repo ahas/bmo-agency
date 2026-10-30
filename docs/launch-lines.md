@@ -18,7 +18,7 @@
   start and by `--resume` for every start after it, and `--settings` naming the agent place's
   settings file — the status line and the hooks — placed after the allowed tools so that list flag
   never swallows it. Every turn is words put into that program. A line that keeps no session — a
-  runner's, a research branch's — runs each run apart: the same interactive program in a
+  runner's — runs each run apart: the same interactive program in a
   pane of its own, opened on a session of its own for the run and closed with it (`docs/agents.md`,
   「Runs apart」). A gate's line stands as a pool of the same interactive programs, each cleared between
   the judgements put into it (`gates.md`, 「A gate on Claude Code」); on dsh it stands in places kept
@@ -135,8 +135,7 @@
   — and each line what it needs of its program: Claude Code offers both and so carries every line;
   Codex and dsh offer no gate on a tool call and carry a chat round, a job and a gate, each as a portable
   run the fallback runner hands over; dsh with every tool row of its own off also carries the search line,
-  whose tools are the run's MCP servers alone (`research-runs.md`, 「The road」), and the browse line stays
-  Claude Code's.
+  whose tools are the run's MCP servers alone, and the browse line stays Claude Code's.
 - **A runner line's thrown-away session goes out on any road whose program carries the line.** A consumer
   that composes a runner's instructions itself starts a thrown-away session on the line with them
   (`docs/api.md`, 「sessions」) and names the provider and model: on Claude Code each turn is a run apart in a
@@ -155,7 +154,7 @@
 
 - **Every line on Claude Code is handed one whole system prompt** with `--system-prompt-file`, in the
   CLI's own place; none appends to the CLI's prompt. The chat session, the job worker, a companion's
-  turn, the search runner with its branches and rounds, and the browse runner each open theirs on the
+  turn, and every turn on the search and browse runner lines each open theirs on the
   platform's harness opening, `prompts/harness.md` read out of the deploy tree, unless a base prompt
   stands in its place (`docs/base-prompts.md`); a gate's prompt is the gate's and the translator's is
   its role's and purpose's, each whole.
@@ -188,12 +187,11 @@
   the chat's name, and on the deployment's shared token otherwise, its own item creation left out of what it
   serves (`--without job_item_create`) and, on Claude Code, disallowed as well (`--disallowedTools`); and the agency's own, `agency`, started for the agent the configuration is
   composed for (`--agent`, one configuration a chat agent), which files an item through agency
-  (`docs/api.md`, 「assignments and jobs」), assigns a worker, launches the item's job and sends a research
-  out. A
+  (`docs/api.md`, 「assignments and jobs」), assigns a worker and launches the item's job. A
   hosted tool those namespaces do not show is reached with `bmo use`. The chat line no longer names the
   tool host's `web`: its own `WebSearch` and `WebFetch` are denied, and the explorer server is the
-  search and page reader of the line. The research lines keep their `web` tools, since a search or a
-  browse is the open web's work and they have no explorer server of their own.
+  search and page reader of the line. The search and browse lines keep their `web` tools, since a search or
+  a browse is the open web's work and they have no explorer server of their own.
   The tools shown are exactly Bash, Read, Write, Edit and the CLI's two MCP resource tools, the list
   and the read, in every run of every chat (none when the owner has turned tools off in that chat),
   with the line's servers' tools beside them; the permission mode is don't-ask, and the allow list is
@@ -339,8 +337,8 @@
   a work turn's parts). A co-work branch is a
   turn of the resident program of the standing checkout it works in (`docs/coworker-pool.md`,
   「Standing branch checkouts and their list」), on a thrown-away session of its own that it keeps
-  nowhere; a branch outside every standing checkout, a research run, and a thrown-away session naming
-  its prompt document — which goes out on that runner line rather than this one (`docs/api.md`,
+  nowhere; a branch outside every standing checkout, and a thrown-away session handed a runner line's
+  instructions — which goes out on that runner line rather than this one (`docs/api.md`,
   「sessions」) — go into a pane of their own opened for the turn. There
   may be more than one worker: the owner adds them, names them and points each at a checkout of
   its own, and a worker is that row and nothing more — the line above is the same for all of
@@ -372,7 +370,7 @@
 - **A companion's turn** (agency's server's companion turn): a turn of the companion's resident program,
   which stands on the chat line above as the chat agent's does (`docs/agents.md`, 「Conversational agents」) —
   the same tools shown and allowed, the same configuration but for agency's own plugin, which a
-  companion is not handed, so it files no item and launches no job or research and tells the chat agent
+  companion is not handed, so it files no item and launches no job and tells the chat agent
   in the consult room what needs hands, the same mode and the same shell guard —
   with the system prompt its own settings compose (`docs/companions.md`, 「What a turn is given」) in
   place of the chat's — one whole prompt given with `--system-prompt-file`, opening on the base prompt it
@@ -381,56 +379,30 @@
   the messages the turn answers and whether each is the owner's stand in the place's run as its own
   variables. On a registered model it goes out as every run on one does, the thinking its agent row
   names or else the registration's, with its generation settings as the run's sampling.
-- **Search runner**: the model and the effort its depth's tier assignment names on the road the road
-  resolution answers for the depth's key, the first provider of its walk whose program carries the search
-  line and that can answer now (`research-runs.md`, 「The road」) — Frontier at every depth to start with —
-  refused rather than launched where that model does not list the effort
-  (`research-runs.md`) — don't-ask mode, no built-in tool shown, the web MCP server's tools and the brain's
+- **Search runner**: the line a search goes out on, carried by agency and composed by whoever starts a
+  thrown-away session on it (`docs/api.md`, 「sessions」) — the research unit for its searches, their rounds
+  and their branches. Its instructions are handed in whole by that caller; agency composes none and asks
+  nothing of a run after its answer. On Claude Code: the model the session names and the effort and tier the
+  turn's mapping names, don't-ask mode, no built-in tool shown, the web MCP server's tools and the brain's
   `bmo` namespace, and nothing else allowed; any other hosted tool it holds is reached with `bmo use`; no
-  settings sources, no other MCP, no Chrome, run in its deployed
-  directory. It is handed the standing `search.mcp.json`, and the run's session record holds when
-  research closes, so the web tools know it; the record also names the chat agent — the agent whose row
-  answers every room that names nobody — as the turn its
-  brain tools run for, so a fact the run establishes is written into the chat agent's brain while the run
-  itself stays the runner's. The searcher role's bundles show it bmo-explorer's `research`
-  tool, which opens a branch only after taking a place in the common co-worker pool, and the line's `eye`
-  namespace shows it `eye/see`, which looks at a picture by its address and answers a question about it.
-  A branch is a thrown-away session on the prompt document `search-branch` (`docs/api.md`, 「sessions」),
-  which the research tool opens through the seat and session routes as any consumer does, on the model
-  and effort of the seat the pool gave it, with the web tools and the eye only and the parent's research
-  close (`docs/research-runs.md`, 「Branches」); no native Claude Code subagent is opened by any of them.
-  - **Its system prompt is the platform's harness opening and then the search's standing
-    instructions**, handed over as one file and replacing the CLI's own: `prompts/harness.md`, then the
-    search task, the site tools' catalogue, the search rulebooks and
-    the rulebook against destroying the system. The catalogue is the web namespace's listing, which
-    a process that does not serve the web tools itself reads from the tool host (`mcp-host.md`,
-    「What a namespace says of itself」), and a line whose listing cannot be had is not composed at all.
-    What differs per run — the question, who asked and when, the options, the depth and the branch
-    allowance — is the prompt. So nothing of Claude Code's coding conventions reaches a search,
-    and the prefix a ping on this line reads is the prefix a search reads.
-  - **A branch's system prompt is the platform's harness opening and then the branch instructions**
-    with the same catalogue and the rulebook against destroying the system; its prompt is the research
-    tool's — the angle and when its research closes — so every branch shares one prefix.
-  - **A research run's rounds.** A run on a research line keeps no receiver, so agency asks the
-    line's questions itself after the run's first answer (`docs/api.md`, 「research drafts」): each
-    question goes to a session of the rounds' own, opened fresh by the first round on the same program
-    and road, as one more turn of it, carrying the task it was given and the answer written last, and the
-    last answer is the run's result. The search session is let go after its first answer, so no round
-    reads again the pages and branches it fetched; the rounds' session holds the rounds' own words. Its
-    record withholds the branches, the image viewer and the rulebook reader, so a round that checks a
-    source holds the reading tools alone. The policy holds the questions and each research
-    key's list in `policy/research.toml` — what the task must establish, the sources the answer needs,
-    whether every fact was checked against a second source, whether the answer covers the question,
-    whether the facts it rests on were established, and finally the answer itself. The list is the key's,
-    since the depth decides how hard an answer is checked: `search:basic` asks only the final question
-    after its first answer, `search:thorough`, `search:exhaustive` and `browse` ask every question in
-    turn. The console changes a key's list or a question's text through the agency's routes.
+  settings sources, no other MCP, no Chrome, run in its deployed directory unless the session names a
+  folder. It is handed the standing `search.mcp.json`, and the run's session record carries the labels and
+  keeps the capabilities the session's caller named, so the web tools read what that caller told them; the
+  record also names the chat agent — the agent whose row answers every room that names nobody — as the turn
+  its brain tools run for, so a fact the run establishes is written into the chat agent's brain while the run
+  itself stays the runner's. The searcher role's bundles show it bmo-explorer's `research` tool, which opens
+  a branch through the research unit, and the research unit's `rulebook` reader where the record holds
+  `web.rulebooks`; the line's `eye` namespace shows it `eye/see`, which looks at a picture by its address and
+  answers a question about it. No native Claude Code subagent is opened by any run on it.
+  - **Its system prompt is the platform's harness opening and then the instructions handed in**, as one
+    file replacing the CLI's own, written under a name its text gives, so two sessions handed the same
+    instructions read one prefix. What differs per run is the prompt. So nothing of Claude Code's coding
+    conventions reaches a search.
   - **What a run establishes is written into the shared brain.** The search line holds
     `brain_learn` and `brain_similar` on the chat agent's brain: a fact or a piece of knowledge
     a run establishes is written there with the source it was read from, after the brain's similar rows
     are read, and the brain's write judgement confirms a duplicate, strengthens a version of a row and
-    closes what a row contradicts. The question before the final one asks whether every fact the answer
-    rests on was written.
+    closes what a row contradicts.
 - **Translate runner**: one translation asked through agency's `POST /translation-runs` (`docs/api.md`,
   「translations」), on the road the road resolution answers for the work key `translate`, whose profile
   starts on the registry's provider, so the registered translation model answers first and the walk
@@ -444,25 +416,24 @@
   「A request with no tools」). On Claude Code it is a run apart (`docs/agents.md`, 「Runs apart」): that
   system prompt as the whole of it, no tool shown or allowed, no MCP server, a fresh session, thinking
   off. No other provider carries the line. The answer is the translation whole.
-- **Browse runner**: the model and the effort its tier assignment names (Frontier to start with),
-  don't-ask mode, no built-in tool shown, the chrome-devtools tools, the tool host's web tools and the
-  brain's `bmo` namespace from an MCP configuration written for the run — chrome-devtools started as the profile's strategy
-  asks, the web namespace as every line names it, the run's own values in its session record — and
-  nothing else, no settings, no other MCP, no
-  Chrome integration, run in its deployed directory. The profile's browser strategy decides
-  whether chrome-devtools starts standard Chrome on a virtual display the runner owns — never the
-  desktop session, its D-Bus or its keyring — or headless. Its system prompt is the platform's harness
-  opening, `prompts/harness.md`, then the browse instructions and the rulebook against destroying the
-  system, as one file replacing the CLI's own; the task and the time the run has are the prompt.
-  chrome-devtools is started without its performance and memory tools — tracing a page's load and
-  taking a heap snapshot — since a run that reads what a page says has no use for them.
+- **Browse runner**: the line a browse goes out on, carried by agency and composed, as the search line is, by
+  whoever starts a thrown-away session on it: the model the session names and the effort its turn's mapping
+  names, don't-ask mode, no built-in tool shown, the chrome-devtools tools, the tool host's web tools and the
+  brain's `bmo` namespace from the line's MCP configuration — chrome-devtools started headless, apart from a
+  person's session, its D-Bus and its keyring, the web namespace as every line names it, the run's own values
+  in its session record — and nothing else, no settings, no other MCP, no Chrome integration, run in its
+  deployed directory. Its system prompt is the platform's harness opening, `prompts/harness.md`, then the
+  instructions its caller handed in, as one file replacing the CLI's own; the task and the time the run has
+  are the prompt. chrome-devtools is started without its performance and memory tools — tracing a page's
+  load and taking a heap snapshot — since a run that reads what a page says has no use for them. Claude Code
+  alone carries the line.
 - **The web**: no agent of the system's is shown the CLI's WebSearch or WebFetch. Those hand back a
   model's rendering of a page, and a page can steer that model. The web reaches every agent
   through the tool host's `web` namespace (`mcp-host.md`):
   `web_search` asking the search engines directly (`web-access.md`), `web_fetch` returning
   the page's own text, a GitHub file page as the raw file. The runners get it from a configuration
-  of their own — the search runner's standing `search.mcp.json` and the browse runner's `.mcp.json`,
-  written for each run for its chrome-devtools; the job worker has the two built-ins disallowed on its line and is handed
+  of their own — the search runner's standing `search.mcp.json` and the browse runner's `.mcp.json`
+  beside its chrome-devtools; the job worker has the two built-ins disallowed on its line and is handed
   `worker.mcp.json`, which carries that same server beside the worker's own and which no other
   line is given, since the scope this machine registers the server in is shut off for it.
 - **`bmo use`**: a hosted tool a line holds and its namespaces do not list is reached with the `bmo use`

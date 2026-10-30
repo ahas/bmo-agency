@@ -1,6 +1,6 @@
 //! The ledger's runs whose turn ended without closing them (docs/run-records.md, 「The run ledger」): a job's run
 //! whose job has ended with no turn of it going, and a chat turn's run with no turn kept in flight under its unit,
-//! each closed as cut with a line in its log saying why. A research run's is its own sweep's.
+//! each closed as cut with a line in its log saying why.
 
 use store::all;
 

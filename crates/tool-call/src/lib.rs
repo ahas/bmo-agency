@@ -11,7 +11,6 @@ mod tree;
 pub use answer::Answer;
 pub use handed::{Asked, Handed, PROTOCOL, answer_standard_io, read_handed};
 pub use session::{
-  AGENT_VARIABLE, BEGAN_VARIABLE, CHAT_VARIABLE, DATA_ROOT_VARIABLE, Labels, Research, Session, Turn,
-  VIA_VARIABLE,
+  AGENT_VARIABLE, BEGAN_VARIABLE, CHAT_VARIABLE, DATA_ROOT_VARIABLE, Labels, Session, Turn, VIA_VARIABLE,
 };
 pub use tree::prompts_tree;

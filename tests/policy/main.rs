@@ -27,7 +27,6 @@ mod queue_idle;
 mod queue_words;
 mod reasoning;
 mod registry;
-mod research;
 mod resident_turn;
 mod rest;
 mod roads;

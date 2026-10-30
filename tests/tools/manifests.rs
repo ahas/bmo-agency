@@ -30,7 +30,7 @@ fn every_folder_under_tools_is_a_tool_named_after_it_whose_executable_is_its_cra
 
   folders.sort();
 
-  assert_eq!(folders, ["procedures", "read_rulebook", "worker_ask"]);
+  assert_eq!(folders, ["procedures", "worker_ask"]);
 
   for folder in &folders {
     let manifest = read(&tools().join(folder).join("tool.toml"));
@@ -59,30 +59,6 @@ fn the_procedures_declare_their_resources_and_no_entry() {
   assert_eq!(text(&manifest, &["resources", "namespace"]), "bmo");
   assert_eq!(words(&manifest["resources"]["capabilities"]), ["room.tools"]);
   assert!(procedures_tool::PROCEDURE_PREFIX.starts_with("bmo://"));
-}
-
-#[test]
-fn the_rulebook_readers_entry_is_declared_as_its_tool_answers_it() {
-  let folder = tools().join("read_rulebook");
-  let manifest = read(&folder.join("tool.toml"));
-  let entries = manifest["entry"].as_array().unwrap();
-  let entry = &entries[0];
-
-  assert_eq!(entries.len(), 1);
-  assert_eq!(text(entry, &["namespace"]), read_rulebook_tool::NAMESPACE);
-  assert_eq!(text(entry, &["name"]), read_rulebook_tool::NAME);
-  assert_eq!(text(entry, &["title"]), read_rulebook_tool::TITLE);
-  assert_eq!(text(entry, &["description"]), read_rulebook_tool::DESCRIPTION);
-  assert_eq!(words(&entry["capabilities"]), read_rulebook_tool::CAPABILITIES);
-  assert_eq!(entry["hints"]["read_only"].as_bool(), Some(true));
-
-  let schema: serde_json::Value =
-    serde_json::from_str(&std::fs::read_to_string(folder.join(text(entry, &["input"]))).unwrap()).unwrap();
-
-  assert_eq!(schema["type"], "object");
-  assert_eq!(schema["required"], serde_json::json!(["name"]));
-  assert_eq!(schema["properties"]["name"]["type"], "string");
-  assert_eq!(schema["properties"]["name"]["minLength"], 1);
 }
 
 #[test]

@@ -275,8 +275,7 @@ fn room_id(scope: &Scope) -> Option<i64> {
 }
 
 /// The scope a start's body names: the scope's word and a room's id, or the older object. A thrown-away
-/// session's prompt document is a runner line's, any other refused with the names that are; a session
-/// naming one and no folder is left to go out in that line's own.
+/// session handed a runner line's instructions and naming no folder is left to go out in that line's own.
 pub fn scope_asked(body: &Value) -> Result<Scope, Refused> {
   if let Some(scope) = body.get("scope").and_then(Value::as_str) {
     return match scope {
@@ -298,20 +297,8 @@ pub fn scope_asked(body: &Value) -> Result<Scope, Refused> {
             .and_then(Value::as_str)
             .filter(|value| !value.is_empty())
         };
-        let prompt_document = match body.get("promptDocumentName") {
-          None | Some(Value::Null) => None,
-          Some(Value::String(document)) if runner::line_of_document(document.trim()).is_some() => {
-            Some(document.trim().to_owned())
-          }
-          Some(other) => {
-            return Err(bad(format!(
-              "promptDocumentName names a runner line's document, one of {}, not {other}",
-              runner::DOCUMENTS.join(", ")
-            )));
-          }
-        };
-        let runner = runner_asked(body, prompt_document.is_some())?;
-        let cwd = match (field("cwd"), prompt_document.is_some() || runner.system_prompt.is_some()) {
+        let runner = runner_asked(body)?;
+        let cwd = match (field("cwd"), runner.system_prompt.is_some()) {
           (Some(cwd), _) => cwd.to_owned(),
           (None, true) => String::new(),
           (None, false) => ".".to_owned(),
@@ -323,7 +310,6 @@ pub fn scope_asked(body: &Value) -> Result<Scope, Refused> {
           cwd,
           todo: number(&options, "todo").or_else(|| number(body, "todo")),
           role: field("role").map(str::to_owned),
-          prompt_document,
           bound_ms: number(body, "boundMs").filter(|bound| *bound > 0),
           ..runner
         }))
@@ -355,11 +341,11 @@ pub fn scope_asked(body: &Value) -> Result<Scope, Refused> {
 /// The labels keys agency writes into a record itself, which a start's labels may not name.
 const OWN_LABELS: [&str; 5] = ["line", "checkout", "archive", "role", "place"];
 
-// What a thrown-away session's start names of a runner line whose instructions its caller hands in whole: the
-// line, the instructions, the labels its record carries and the capabilities that record keeps. Instructions
-// beside a prompt document, instructions with no line, a line that is no runner's, labels that are no object
-// or name a key agency writes itself, and capabilities that are no list of names are refused.
-fn runner_asked(body: &Value, documented: bool) -> Result<Apart, Refused> {
+// What a thrown-away session's start names of a runner line whose instructions its caller hands in whole:
+// the line, the instructions, the labels its record carries and the capabilities that record keeps.
+// Instructions with no line, a line that is no runner's, labels that are no object or name a key agency
+// writes itself, and capabilities that are no list of names are refused.
+fn runner_asked(body: &Value) -> Result<Apart, Refused> {
   let line = match body.get("line") {
     None | Some(Value::Null) => None,
     Some(Value::String(line)) if runner::is_runner_line(line.trim()) => Some(line.trim().to_owned()),
@@ -375,10 +361,6 @@ fn runner_asked(body: &Value, documented: bool) -> Result<Apart, Refused> {
     Some(Value::String(text)) if !text.trim().is_empty() => Some(text.clone()),
     Some(_) => return Err(bad("systemPrompt is the line's instructions, a text that is not empty")),
   };
-
-  if system_prompt.is_some() && documented {
-    return Err(bad("a start names systemPrompt or promptDocumentName, not both"));
-  }
 
   if system_prompt.is_some() && line.is_none() {
     return Err(bad("a start handing systemPrompt names the line it goes out on"));
@@ -448,7 +430,6 @@ fn member(session: &Session, state: Option<&State>, body: &Value) -> Value {
     "prefixChangeReason": Value::Null,
     "boundMs": number(body, "boundMs"),
     "options": body.get("options").cloned().unwrap_or_else(|| json!({})),
-    "promptDocumentName": body.get("promptDocumentName").cloned().unwrap_or(Value::Null),
     "context": state
       .and_then(|state| state.context)
       .map(|context| json!({ "carried": context.carried, "window": context.window })),
@@ -526,11 +507,7 @@ pub async fn line_not_carried(
   ground: &crate::places::Ground,
   apart: &Apart,
 ) -> Result<Option<String>, Refused> {
-  let Some(line) = apart
-    .line
-    .as_deref()
-    .or_else(|| apart.prompt_document.as_deref().and_then(runner::line_of_document))
-  else {
+  let Some(line) = apart.line.as_deref() else {
     return Ok(None);
   };
   let provider = apart.provider.as_str();

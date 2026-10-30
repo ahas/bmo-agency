@@ -18,8 +18,8 @@ statements below about either are kept for a rollback to the road a deployment l
 ## A restart hands the session over
 
 - **A deployment waits for quiet before its flip** (`testbed.toml`, `quiet`): the receiver's plain
-  `quiet` command, run by its deployed path, says whether a chat turn or a research run stands under way
-  that the restart of agency would cut, and the testbed waits on it before it flips (the receiver's
+  `quiet` command, run by its deployed path, says whether a chat turn stands under way that the
+  restart of agency would cut, and the testbed waits on it before it flips (the receiver's
   `docs/boundary-api.md`, 「The service and its commands」; the testbed's `docs/deploy.md`).
 - **A running job survives an agency restart.** Its turn in flight is kept across the restart, its run
   goes on, and the lease pass takes the item again under the same worker; the deploy therefore counts no

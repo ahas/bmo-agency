@@ -24,14 +24,6 @@ pub const CHAT_VARIABLE: &str = "BMO_TURN_CHAT";
 /// The turn variable naming the road the turn answers its room on.
 pub const VIA_VARIABLE: &str = "BMO_TURN_VIA";
 
-/// What a search, a browse or a branch is held to, of which agency's tools read the rulebooks alone.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Research {
-  #[serde(default)]
-  pub rulebooks: Vec<String>,
-}
-
 /// The issuer's own values, which the host hands on and never reads, as agency's tools read them.
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -45,9 +37,6 @@ pub struct Labels {
   /// A resident program's place, where each request reads which run is going.
   #[serde(default)]
   pub place: Option<PathBuf>,
-  /// A research run's settings.
-  #[serde(default)]
-  pub research: Option<Research>,
 }
 
 /// One session's record, its field names camel case as the tool host writes them.
@@ -100,11 +89,6 @@ impl Session {
     });
 
     from_place.or_else(|| self.variables.get(name).cloned())
-  }
-
-  /// The rulebooks a research run was handed; none for a session that is no research run's.
-  pub fn rulebooks(&self) -> &[String] {
-    self.labels.research.as_ref().map_or(&[], |research| &research.rulebooks)
   }
 }
 

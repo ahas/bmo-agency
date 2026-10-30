@@ -325,7 +325,7 @@ function assistantLines(blocks: StreamContentBlock[], sourceId: string | null, f
 // opened in the tool's own name; what it was asked to do stays in the arguments with everything
 // else. Which tool opens a branch is the CLI's to name and it answers to more than one name, so
 // both are known here — but nothing depends on this: what ties a line to its branch is the id
-// of the call it came out of, whatever that call was called. A research run's pooled branch is a
+// of the call it came out of, whatever that call was called. A search's pooled branch is a
 // call to its web server's branch tool; that branch runs in a process of its own, so its stream
 // holds the call and the report it returned rather than the branch's own queries.
 export const branchTools = new Set(["Task", "Agent", "mcp__web__research_branch"]);

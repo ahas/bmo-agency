@@ -240,7 +240,7 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
 | Method | Path | Does |
 |---|---|---|
 | GET | `/sessions` | Every session, by agent or scope. |
-| POST | `/sessions` | Start a session for an agent at a scope. A run with a fixed prompt is such a session naming its prompt document. |
+| POST | `/sessions` | Start a session for an agent at a scope. A run on a runner line is a thrown-away session handed that line's instructions. |
 | GET | `/sessions/{sessionId}` | A session's state: provider, model, place, holder, why the prefix changed, the fold ratio. |
 | PATCH | `/sessions/{sessionId}` | Move a conversation's provider and model, or a thrown-away session's model, or hand a worker's session over to another holder. |
 | DELETE | `/sessions/{sessionId}` | End a session, or clear a room's session. |
@@ -264,33 +264,24 @@ parts. A provider whose program keeps a session continues the one its last answe
 keeps its dsh session inside bmo-tui's pane, which carries the next turn although agency stores no id for
 it. The session stands in the server's memory from its start to its end.
 
-A thrown-away session's turn is a co-work branch's or a research run's, or a run on a runner line where
-the session names its prompt document (below). A research run — one whose scope
-names no branch role — carries the reference its instruction calls for, picked by the gate's reference
-selection over the chat agent's brain and attached to the run's first prompt, the same way a job's is
-(「assignments and jobs」); a co-work branch's prompt is composed by its parent and carries none.
+A thrown-away session's turn is a co-work branch's, or a run on a runner line whose instructions the session's
+caller handed in (below). Every thrown-away session but a co-work branch's — one whose scope names no branch
+role — carries the reference its first prompt's instruction calls for, picked by the gate's reference
+selection over the chat agent's brain and attached to that first prompt, the same way a job's is
+(「assignments and jobs」); a later turn of the same session is asked over it and not over it again. A co-work
+branch's prompt is composed by its parent and carries none.
 
-A thrown-away session may name `promptDocumentName` at its start: the runner line its turns go out on, by
-the name that line's system prompt is written under — `search`, the search runner's standing
-instructions; `search-branch`, a research branch's; `browse`, the browse runner's (`docs/launch-lines.md`,
-「Search runner」 and 「Browse runner」). A start naming any other is refused 400 with the names that are.
-A turn into such a session carries work parts as every thrown-away session's turn does, and goes out on
-that line whole — the platform's harness opening and the document's instructions as one system prompt,
-the line's standing MCP configuration and the tools it allows — on the model the scope names and the
-effort and tier the turn's mapping names, in a pane of its own and never in a standing branch checkout
-(`docs/agents.md`, 「Runs apart」). Its folder is the scope's `cwd`, or the line's own deployed directory
-where the start names none. Its prompt is the caller's, whole. The turn's work variables are the run's
-record variables: they stand in the run's environment, where the record its tool session is issued reads
-them, so what they say of research is carried under `labels.research` (`docs/research-runs.md`, 「What a
-run is held to: the research settings」). `boundMs` on the start bounds each of its turns, which is cut
-past it and ends failed. Its answer is the run's reply text; the research rounds follow it only where the
-turn's work key has a draft process (「research drafts」).
-
-A thrown-away session may instead be started on a runner line with its instructions handed in whole, for a
-consumer that composes its own: the start names `line`, the runner line (`search` or `browse`), and
-`systemPrompt`, the instructions, which take the place a prompt document's would — the platform's harness
-opening and then that text, as one system prompt, with the line's standing MCP configuration and the tools it
-allows. Naming both `systemPrompt` and `promptDocumentName`, or `systemPrompt` with no line, is refused 400.
+A thrown-away session goes out on a runner line with its instructions handed in whole, for a consumer that
+composes its own — the research unit, which asks for the seats and the sessions its searches, browses,
+rounds and branches go out in, is one: the start names `line`, the runner line (`search` or `browse`), and
+`systemPrompt`, the instructions — the platform's harness opening and then that text, as one system prompt,
+with the line's standing MCP configuration and the tools it allows (`docs/launch-lines.md`, 「Search runner」
+and 「Browse runner」). `systemPrompt` with no line is refused 400. A turn into such a session carries work
+parts as every thrown-away session's turn does, and goes out on that line whole, on the model the scope
+names and the effort and tier the turn's mapping names, never in a standing branch checkout. Its folder is
+the scope's `cwd`, or the line's own deployed directory where the start names none. Its prompt is the
+caller's, whole, and its answer is the run's reply text. `boundMs` on the start bounds each of its turns,
+which is cut past it and ends failed. A start that hands no instructions goes out on the worker line.
 Beside them the start may name:
 
 - **`provider` and `model`:** the road its turns go out on, any provider agency carries whose program carries
@@ -304,14 +295,14 @@ Beside them the start may name:
 - **`toolsAllowed`:** the capabilities the record keeps, of those the line and its agent's role give it; a
   record keeps them all where the start names none, and the list never widens them.
 
-On Claude Code each turn of such a session goes out as a document's does, in a pane of its own on a session
-of its own. On a road whose program carries its own turns each turn goes into a place of the session's own,
-the program composed as a worker's job on that road is, the line's instructions its system prompt and the
-line's servers its tools; the place is marked as the session's, stands under no agent's row, and is ended
-with the session — its program released, the session token it carried taken back, its workspace closed and
-its folder taken away. A server that starts ends every such place the process before it left, since a
-thrown-away session does not outlive the process that started it. A turn of such a session asks no draft
-rounds: the rounds of a run composed outside agency are its composer's.
+On Claude Code each turn of such a session goes out in a pane of its own on a session of its own
+(`docs/agents.md`, 「Runs apart」). On a road whose program carries its own turns each turn goes into a place of
+the session's own, the program composed as a worker's job on that road is, the line's instructions its system
+prompt and the line's servers its tools; the place is marked as the session's, stands under no agent's row,
+and is ended with the session — its program released, the session token it carried taken back, its workspace
+closed and its folder taken away. A server that starts ends every such place the process before it left, since
+a thrown-away session does not outlive the process that started it. Agency asks nothing of such a session
+after a turn's answer: any further turn, a round among them, is its caller's.
 
 A conversation whose agent is a gate work key carries a gate's one turn: the turn's `gate` part holds the
 gate's instructions as the program's whole system prompt, whether it thinks, and the model, effort and
@@ -504,7 +495,7 @@ true, "outcome": … }`; either answers `{ "held": <bool> }`, whether the seat w
 `PATCH /pool/limits` takes `provider`, `tier` and `capacity` and answers 200 with the three as written
 (`docs/coworker-pool.md`, 「Concurrency limits」). It is refused 422 `unprocessable-entity`, with one English
 sentence, for a provider agency does not carry, a tier the ladder does not hold or one no co-worker is
-borrowed at, and a capacity that is no whole number from 0 to the most the research policy allows. The
+borrowed at, and a capacity that is no whole number from 0 to the most the pool policy allows. The
 written limit lets in at once the waiting places it frees.
 
 A seat request carries its `session` where it stands for a project's own turn: the session that turn
@@ -690,36 +681,6 @@ them; a notice that holds nothing is withdrawn.
   An empty declaration, or one whose kind stands in no turn part, is refused 400 `bad-request`. A gate
   the address does not answer leaves the declaration already kept as it stands.
 
-### research runs and settings
-
-| Method | Path | Does |
-|---|---|---|
-| POST | `/research-runs` | Run a research on a research key: a search at a depth, or a browse. |
-| GET | `/research-settings` | The settings every research run is held to, and the search engines' state. |
-| PUT | `/research-settings` | Change the settings; a field left out keeps what it holds. |
-
-- **A research run** (`docs/research-runs.md`) is asked with `key` — `search:basic`, `search:thorough`,
-  `search:exhaustive` or `browse` — `query`, and `asker`, `options` and `roomId` where they are known. A key
-  that is no research key, an empty query, or a `provider` agency does not know is 400 `bad-request`. Its
-  road is the road resolution's answer for the key, unless the ask names `provider`, `model` or both: then
-  it goes out on that road alone (「The road」 there) — the provider named, or where only the model is
-  named the providers whose program carries the key's line, Claude Code and its member roads, each on the
-  model named as Claude Code's `/model` names it or as a gateway member such as `deepseek-flash`; on the
-  key's tier mapping where only the provider is named. Where nothing can carry it the answer is 503
-  `no-login-open`, its sentence naming every provider's reason: on a named road, a provider whose program
-  does not carry the line, a model it does not list, a tier that maps nothing on it, or no login of it
-  open. Otherwise the answer is 202 at once: `runId`, the ledger's run, `key`, `provider`, `model`,
-  `account` and `closesAt`, in epoch milliseconds, the road named or resolved. The result is queued for the room through the
-  receiver's `POST /instructions` once the run ends, under the event `research-ended:<runId>`.
-- **The settings** answer `branchRole`, `strategy`, `hostIntervalMs` and `engineIntervalMs` (null where the
-  web tools' default stands), `keys`, each research key's `branches` and `minutes`, `source` (`default`
-  where the policy's values stand, `set` where the owner changed one), and `engines`: the search engines'
-  state as the web tools answer it, each `name`, `category`, `state` and, where it has them, `reason`,
-  `observedAt` and `suspendedUntil`, or null with `enginesUnread`, why it could not be read. A `PUT` takes
-  any of the owner's fields and answers the settings; a strategy outside the three, a gap below 0, a
-  branch count below 0, a clock of no minutes, a key that is no research key or a role that is no
-  co-worker role is 400 `bad-request`, and nothing is written.
-
 ### pull request reviews
 
 | Method | Path | Does |
@@ -750,29 +711,6 @@ them; a notice that holds nothing is withdrawn.
   `no-login-open` with the road resolution's sentence where nothing can carry it; 413 `too-large` where the
   model refused the part as longer than its window takes, so the caller cuts it smaller; 502 `no-answer`
   where the road answered with nothing or failed otherwise, naming why.
-
-### research drafts
-
-| Method | Path | Does |
-|---|---|---|
-| GET | `/draft-processes` | Every research key's rounds: its questions in order, its ceiling and what a process past it does. |
-| PUT | `/draft-processes/{line}` | Change one key's rounds; a field left out keeps what the key holds. |
-| DELETE | `/draft-processes/{line}` | Take a key's own rounds back, the policy's row standing again. |
-| GET | `/draft-questions` | Every question the lines' rounds may name, with its text. |
-| PUT | `/draft-questions/{name}` | Change a question's text, or add one under a name of the console's own. |
-
-- **A research run keeps no receiver, so agency asks its rounds** (`docs/launch-lines.md`, 「A research
-  run's rounds」): after the answer to the task, the key's questions go to a session of the rounds' own,
-  opened fresh, one turn each, carrying the task and the answer written last, and the last answer is the
-  run's result.
-- **The rows are in the receiver's draft-process shape,** keyed by the research key whose runs ask them
-  (`search:basic`, `search:thorough`, `search:exhaustive`, `browse`), which `line` names, rather than by a
-  provider, a tier and an agent: `line`, `rounds`, `ceilingSeconds`, `pastCeiling` (`final` or `last`) and `source`
-  (`default` where the policy's row stands, `set` where the console's does). A question is `name`, `text`
-  and `source`.
-- **What a line's rounds must be:** a list that ends in `final` and holds it nowhere else, a ceiling above
-  nothing, and questions the catalogue holds. A change that breaks one is refused 400 `bad-request`, and a
-  line the policy does not declare is 404 `not-found`.
 
 ### accounts, rest and usage
 
@@ -1123,7 +1061,6 @@ tool is a thin call of one route through the agency's own client.
   listed beside `file_item` only where the server was started for one.
 - `assign_worker` calls `POST /assignments`.
 - `run_job` calls `POST /jobs`.
-- `run_research` calls `POST /research-runs`.
 
 ## The clients
 
@@ -1145,17 +1082,13 @@ pocket, testbed, gate and chat through their clients, and cache-warmer through t
 `bmo-cache-warmer-schedule`. These routes below it are called: as a job ends, the job service's lease is
 given back and the receiver's `POST /instructions` is handed the report for the room's chat agent; after a
 chat program's first turn, that same route is handed one fact for each of the session's servers its
-program did not attach (`docs/agent-control.md`, 「dsh's providers: OpenRouter and DeepSeek」), and the end of
-a research run is queued there too (`docs/research-runs.md`); and before a chat agent's turn opens a fresh
+program did not attach (`docs/agent-control.md`, 「dsh's providers: OpenRouter and DeepSeek」); and before a chat agent's turn opens a fresh
 session in place of one it had, the receiver's `POST /handoffs/{agentName}` is asked for the old session's
 handoff, with `reason` and `room` where the turn names one, and waited on (`docs/sessions.md`, 「A restart
 hands the session over」); and every minute the job service's `GET /queues`, `GET /items` with `state`
 `open` and its port's `GET /items?open=1`, whose `approved` says which items are approved, are read, and
 an idle queue is told once through the receiver's `POST /owner/notices` with the code `queue-idle`
-(`docs/agent-control.md`, 「An idle queue is told to the owner」); and a research run's result is filed in
-bmo-artifact's `POST /documents` and given a link by its `POST /shares`, at the address and with the token
-`BMO_ARTIFACT_URL` and `BMO_ARTIFACT_TOKEN` (or `BMO_ARTIFACT_TOKEN_FILE`) name (`docs/research-runs.md`,
-「One run, step by step」); and for pull request reviews the job service's `GET /items` by the `pr` label,
+(`docs/agent-control.md`, 「An idle queue is told to the owner」); and for pull request reviews the job service's `GET /items` by the `pr` label,
 `POST /items`, `POST /items/{itemId}/notes` and `PATCH /items/{itemId}`, and once an hour GitHub's search through
 `gh api search/issues` for the owner's login (`user:`) (`docs/pull-request-reviews.md`). Each is the documented route of the unit that holds what
 must reach it; agency keeps no client of these units and no store of their rows.
@@ -1163,15 +1096,15 @@ Of the brain it asks an agent's own brain made as the agent is registered, found
 let go whole or only found for a preview, the discipline a chat launch's system prompt carries, and the
 base layer of the agent's persona that prompt ends with. Of the tool host it asks, on its control socket
 with the issuer token, a session token for each program and run that holds a capability, which it takes
-back, a namespace's listing and facts, the paragraph on finding and using tools that a chat launch's
+back, a namespace's facts, the paragraph on finding and using tools that a chat launch's
 system prompt carries, and, after a chat program's first turn, the servers its session token's clients
-reached (`GET /tool-sessions/{token}`, its `connected`), where a host that saw none says nothing. Of the gate it asks the reference a job's or a research run's instruction calls
-for, picked over the chat agent's brain, and attaches the picked entries to the run's first prompt; and it
+reached (`GET /tool-sessions/{token}`, its `connected`), where a host that saw none says nothing. Of the gate it asks the reference a job's or a thrown-away session's instruction
+calls for, picked over the chat agent's brain, and attaches the picked entries to the run's first prompt; and it
 reads the gate kinds and their order as the gate publishes them, so no copy of the gate order stands here.
 
 - **Where the gate is.** `BMO_GATE_URL` names its address and `BMO_GATE_TOKEN_FILE` the path of the file
-  its token stands in. With no address, no reference is asked and a job or a research run carries only its
-  own words.
+  its token stands in. With no address, no reference is asked and a job or a thrown-away session carries only
+  its own words.
 - **Where the brain is.** `AGENCY_BRAIN_URL` names its address and `AGENCY_BRAIN_TOKEN` the token it is
   called with. With no address, no agent has a brain: nothing is made, counted or let go.
 - **The account a brain is filed under.** The brain keeps one brain per agent, keyed by an account key
@@ -1211,8 +1144,7 @@ above for everything else.
 - **A test's ground reaches no peer.** A server a test stands is handed an environment built for it, with
   no deployment's peer address or token inherited from the worker that runs the suite; it names a peer
   only where the test itself names one, and it marks itself a test's. Every call in this section — the
-  job service's lease, the receiver's instruction, notice and handoff, the artifact's documents and
-  shares, the job service's queue reads — is then not made, and the line saying so is logged. A test
+  job service's lease, the receiver's instruction, notice and handoff, the job service's queue reads — is then not made, and the line saying so is logged. A test
   that wants a stand-in calls the call itself with a map of its own, never through a test server's
   ground.
 
@@ -1221,8 +1153,8 @@ above for everything else.
 `GET/POST /digests`, `GET/POST /searches`, `GET /searches/{searchId}` and `GET/PATCH /research-settings`,
 with the tools `browse`, `remote_browser`, `research_branch`, `unread_pages`, `song` and `news_due`, are
 gone: each only wrapped a call into an upstream the caller reaches directly. A digest, a research, a
-browse and the morning news are ordinary sessions started with `POST /sessions` and the run's prompt
-document, and the session calls the upstreams it needs through their own MCP servers.
+browse and the morning news are ordinary sessions started with `POST /sessions` and the instructions
+their caller hands in, and the session calls the upstreams it needs through their own MCP servers.
 
 The agency's job client and its lease taking are gone; the harness takes the lease and hands the item's
 content to `POST /jobs`. The hooks the job service and the brain registered here are gone; agency calls

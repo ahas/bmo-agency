@@ -127,9 +127,8 @@ export const registeredEndpoint: ClaudeEndpoint = {
     return homes();
   },
   // The program is Claude Code, which gates each call and withholds its own tools as it does on its
-  // own road. Whether a runner's prompt fits is a registration's window, so no research key is
-  // offered the registry and a research run reaches it only where the registration keeps its
-  // research.
+  // own road. Whether a runner's prompt fits is a registration's window, which the caller that names
+  // a registration for a session on a runner line answers for.
   offers: ["tool-gate", "mcp-only-tools"],
 };
 

@@ -136,8 +136,8 @@ pub async fn enabled_providers(db: &DatabaseConnection) -> Result<Vec<String>, R
   )
 }
 
-/// The first provider the owner has on whose program carries a line, as a research run's line is put on
-/// one.
+/// The first provider the owner has on whose program carries a line, as a runner line's agent is shown
+/// beginning on one.
 pub async fn line_provider(db: &DatabaseConnection, line: &str) -> Result<String, String> {
   for entry in provider_order(db).await.map_err(|refused| refused.error)? {
     if entry.enabled && named(&entry.name).map_err(|refused| refused.error)?.declared().carries(line) {

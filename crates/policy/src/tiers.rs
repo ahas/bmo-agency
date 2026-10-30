@@ -7,6 +7,8 @@ use serde::Deserialize;
 pub struct Tiers {
   /// Every tier, in the order the tiers are shown and compared.
   pub ladder: Vec<String>,
+  /// The most places the pool may offer at one tier on one provider.
+  pub capacity_most: i64,
   /// The tiers a co-worker is borrowed at, in the ladder's order.
   pub coworker: Vec<CoworkerTier>,
 }

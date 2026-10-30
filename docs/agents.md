@@ -13,7 +13,7 @@ program is spoken to is `docs/agent-control.md`.
   - its name and its label, the words that call it and the window it keeps in a room;
   - its owner: the login account it belongs to, or none for the administrator's;
   - its kind: the machinery that carries its turns — a conversation in rooms, a worker's jobs, a gate's
-    judgements, a runner's research;
+    judgements, a runner line's runs;
   - its role: the function bundles its turns are given (`docs/agent-roles.md`);
   - its pin: the provider its turns go out on and that provider's model or registration;
   - its own prompt: the documents and settings its system prompt is composed from;
@@ -91,9 +91,9 @@ flowchart TD
 
 ## Runs apart
 
-A run apart is one run of a line that keeps no session: a search, a browse, a research branch, the
-morning news page's writer, a keepalive ping on one of those lines, a tool probe and a judging batch of
-the gate project's claude road.
+A run apart is one run of a line that keeps no session: a turn of a thrown-away session on the search or
+browse line, the morning news page's writer, a tool probe and a judging batch of the gate project's claude
+road.
 
 ```mermaid
 flowchart TD
@@ -131,9 +131,8 @@ flowchart TD
   record under the registration's home (`docs/own-llm.md`, 「Claude Code in the pane」).
 - **A login's failure is read as a resident turn's:** a full window or a gone login in the program's
   own error is the walk's failure, and the next login the line's key is offered takes the run.
-- **A caller outside agency's server** — the web tools' research branch, the gate project's judging
-  road — runs its run through a verb of the `bmo-agency` binary, which opens the pane, runs the turn and
-  prints what came back (`research-runs.md`, 「One call, step by step」; the gate project's
+- **A caller outside agency's server** — the gate project's judging road — runs its run through a verb of
+  the `bmo-agency` binary, which opens the pane, runs the turn and prints what came back (the gate project's
   `gate-data.md`, 「The claude road」).
 - **herdr down stops runs apart,** as it stops every resident turn: with no pane to open, the run fails
   as a transport failure.
@@ -250,7 +249,7 @@ Each kind of agent comes onto the interface in its own stage; this table is wher
 | Stage | What it moves | State |
 |---|---|---|
 | 1 | Companions onto the chat line, as resident programs in their own pane; the shell guard and the job guard's print-mode refusal; the print-mode check; adding and removing a companion and its room on the console | Done |
-| 2 | The search and browse runners, research branches, the news page's writer, their keepalive pings, the tool probe and the gate project's judging road on Claude: each run apart, an interactive program in a pane of its own read back from its record (「Runs apart」) | Done |
+| 2 | The search and browse runners and their branches, the news page's writer, their keepalive pings, the tool probe and the gate project's judging road on Claude: each run apart, an interactive program in a pane of its own read back from its record (「Runs apart」) | Done |
 | 3 | Gates on Claude Code: a pool of standing interactive programs per gate, a judgement put into a free one and its conversation cleared after it, so overlapping judgements for several rooms are taken at once (`gates.md`, 「A gate on Claude Code」) | Done |
 | 4 | The chat agent's turns and its fold only in its resident program, a turn with no pane failing as a transport failure; the TypeScript lines interactive alone, and a gate a verb under `scripts/` asks on Claude Code handed to the service binary's gate run and its pool | Done |
 | 5 | One runner for every conversational agent, the chat agent's included: its session's scope, its turn's shape and whether it answers unnamed rooms settings of its row, the kinds `chat` and `companion` one kind, no path chosen by the chat agent's name or a kind, a provider's handover, turn limits and engine wait its own declaration, and the results and job endings an agent set going told to that agent (「One runner」) | Done |

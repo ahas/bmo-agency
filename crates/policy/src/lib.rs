@@ -31,7 +31,6 @@ pub mod queue_idle;
 pub mod queue_words;
 pub mod reasoning;
 pub mod registry;
-pub mod research;
 pub mod resident_turn;
 pub mod rest;
 pub mod roads;

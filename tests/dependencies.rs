@@ -118,7 +118,7 @@ fn every_crate_under_crates_and_tools_is_read() {
     "crates outside the workspace, which the boundary does not read: {missing:?}"
   );
 
-  for member in ["tool-call", "procedures-tool", "read-rulebook-tool"] {
+  for member in ["tool-call", "procedures-tool", "worker-ask-tool"] {
     assert!(
       packages(&metadata).iter().any(|package| package["name"] == member),
       "{member} is not read"

@@ -105,7 +105,7 @@ about a message is not agency's: the judgement records belong to the units that 
   start and on the executions' clock closes every such run, writing in its log the line that says why: a
   job's run whose job has ended, no turn of it carried by this process nor kept in flight; and a chat turn's
   run begun more than two minutes ago with no turn kept in flight under its unit, which every turn going
-  is. A research run's is left to its own sweep (`docs/research-runs.md`, 「One run, step by step」).
+  is. A run that is neither a job's nor a chat turn's is left as it stands.
 - **Every turn of a round is a run of its own:** the round's own turn and each question, item and
   check of the receiver's draft process go out as turns naming the same round, so each opens its run
   under that round and keeps its own spend. A round's usage is the sum of its runs', and how it divides
@@ -140,7 +140,7 @@ about a message is not agency's: the judgement records belong to the units that 
   thousand characters from the end, on a line boundary, with a `…` where the head went, and output
   that was decoration and nothing else keeps its own tail rather than leaving the record empty.
 - **One length, everywhere a failure is written down** — the reader of a run's output, a gate run,
-  the warm line and a worker's keepalive, a compaction, a research branch, the
+  the warm line and a worker's keepalive, a compaction, a search's branch, the
   co-worker place ping, a worker session and the job runner — because a record cut to two hundred
   characters in one place and five hundred in another is read as two different failures.
 - None of this decides anything: whether a run failed and which failure it is are read off what was

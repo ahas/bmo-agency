@@ -117,17 +117,11 @@ seeds. The other crates and the server reach the store only through it.
   - a turn in flight, `turn_in_flight:*` by its run, as JSON: the session, the turn's id, the agent, the
     room, the chat turn's run in the ledger, the job and when it began, kept while the turn goes and read
     by the next server's start (`docs/sessions.md`, 「A restart hands the session over」);
-  - a research run under way, `research_in_flight:*` by its ledger run, as JSON: its key, question, room,
-    model and the record its session writes, and for a run in places what it went out with and where it
-    stands, kept while the run goes and read by the next server's start, which takes up a run whose place
-    stands and cuts the rest (`docs/research-runs.md`, 「One run, step by step」);
   - a companion's reset point, `reset_point:*` (`docs/companions.md`, 「What the reset cuts off」);
   - the machine watch's notes: `doctor_standing_failure`, `herdr_leftovers_told`,
     `dev_server_max_age_minutes`;
   - the logins watch's notes: `claude_node_token_gone:*` and its notice keys;
   - a job's road and its stop: `job_route_block:*`, `job_stop:*`;
-  - a research line's rounds and a question's text, `research-draft:*` and `research-question:*`
-    (`docs/api.md`, 「research drafts」);
   - the machine's room: its six limits, `machine_limit:<name>`, the launcher's notice of launches held,
     `machine_launch_held`, its `at` and `held` as JSON; and the job and item a worker's turn named while
     it goes, `worker_job:*` by the worker, as JSON (`docs/agent-control.md`, 「Room on the machine」);

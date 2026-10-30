@@ -1,4 +1,4 @@
-//! A seat asked of the pool under its caller's own source and work key, of a running server: a research line's
+//! A seat asked of the pool under its caller's own source and work key, of a running server: a runner line's
 //! seat enqueued, kept, asked again and answered under its own label and key, a co-work branch's and a builder
 //! turn's as before under the role's key, a reservation held under the key it names or the role's, and a
 //! label that is no label refused.
@@ -77,7 +77,7 @@ async fn a_seat_is_kept_under_its_caller_s_own_source_and_work_key() {
     )
     .await;
 
-  // A research line's seat: kept under its own label and key, and the same one asked again by its token.
+  // A runner line's seat: kept under its own label and key, and the same one asked again by its token.
   let (status, research) =
     post(port, token, "/seat-requests", seat(Some("search"), "research:1:0", Some("search"))).await;
 

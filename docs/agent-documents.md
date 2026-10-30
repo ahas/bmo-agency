@@ -10,35 +10,30 @@ composed into a system prompt, and what the chat agent's own prompt is made of.
 - **`prompts/rules/` holds the rulebooks with more than one reader,** one copy each:
   - `answer-content.md` — the chat session;
   - `answer-shape.md` — the chat session;
-  - `plain-writing.md` — every agent whose words a person reads: the chat session, the search runner
-    and the news page writer, and every stored-document writer below; a job worker is pointed at it
+  - `plain-writing.md` — every agent whose words a person reads: the chat session and the news page
+    writer, and every stored-document writer below; a job worker is pointed at it
     by its trailer;
   - `telegram-markup.md` — read by no model: the statement of what the send path's converter turns
     markdown into, kept beside the rulebooks it points to for the marks and the fold;
-  - `search-kinds.md`, `product-search.md`, `restaurant-search.md`, `investment-search.md`,
-    `study-material.md`, `deep-dives.md`, `research.md`, `security-advisory.md` and `economy-brief.md` —
-    the search runner; `research.md`, the routine a research about a made thing follows and the three
-    shapes its report takes, also binds a job that measures something the lab runs, through the worker's
-    researching-and-benching skill; `security-advisory.md` and `economy-brief.md` are the shapes the
-    research unit's security and economy categories ask for;
   - `document-writing.md` — every agent that writes a stored document: the brain, which composes its
     writers' whole prompts, reads it with `plain-writing.md` and `self-preservation.md` through the
     rulebook read (`docs/api.md`, 「Agents」);
   - `agent-words.md` — every designated agent: the chat session and every companion, for the turns
     another agent's words woke it in;
   - `self-preservation.md` — every agent that acts: the chat session, every job worker and
-    co-worker, the search runner, its branches, the news page
-    writer and the browse runner; never a gate, which holds no tool.
+    co-worker and the news page writer; never a gate, which holds no tool.
 - **`prompts/agents/<worker>/own-rules.md`** is what one worker alone is appended after every
   worker's rules, where it has one; no worker carried in this repository has one.
 - **`prompts/agents/<name>/` holds what one agent alone is given:** `chat/manual.md`,
-  `chat/procedures/` and `chat/rules.md`, `search/task.md` and `request.md`, `browse/task.md` and
-  `request.md` with its `.mcp.json`, and `worker/trailer.md`.
+  `chat/procedures/` and `chat/rules.md`, the browse line's `.mcp.json`, and `worker/trailer.md`.
+  The search and browse lines' instructions are not here: whoever starts a session on either hands them in
+  whole (`docs/api.md`, 「sessions」), and the research unit keeps its own, with the search rulebooks.
 - **`prompts/harness.md` is the platform's harness opening,** agency's own and no program's: what the
   harness around the agent is, how words reach it, where its memory is and what the platform around it
   holds. Every line on Claude Code opens its whole system prompt with it unless a base prompt stands in
   its place — the chat session, every companion that chooses no base, every job worker and co-worker,
-  the search runner, its branches and the browse runner (`docs/base-prompts.md`, 「The harness layer」).
+  and every session on the search and browse lines, before the instructions its caller hands in
+  (`docs/base-prompts.md`, 「The harness layer」).
   No gate and not the translator, whose prompts are handed whole by their caller and their role, and
   not dsh, whose own prompt is its harness.
 - **No gate's prompt stands here.** A gate's instructions, rulebooks and order are the gate unit's: it
@@ -151,7 +146,7 @@ composed into a system prompt, and what the chat agent's own prompt is made of.
   agent writes it: a job's report and the account it closes its item with, a document it files for the
   archive, a measurement report, a research write-up. The person who asked is the item's requester, else
   its room; the item's brief names that language, and a search's result is in the language its question
-  is asked in (`docs/research-runs.md`). Numbers, tables, code, commands, paths, identifiers, sources and
+  is asked in. Numbers, tables, code, commands, paths, identifiers, sources and
   quoted words stand as they are, and a repository's own documents, its commits and everything pushed
   with them stay English.
 - **Everything else is English:** a worker's and a co-worker's notes and the questions it puts to the
