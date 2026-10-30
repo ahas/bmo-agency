@@ -444,6 +444,55 @@ fn settings_record(env: &BTreeMap<String, String>) -> (Option<Value>, Vec<&'stat
   (Some(Value::Object(research)), withheld)
 }
 
+/// The variable a run carries the labels its thrown-away session's caller named in, a JSON object's text,
+/// which its record carries under each key (docs/api.md, 「sessions」).
+pub const RECORD_LABELS: &str = "BMO_RECORD_LABELS";
+
+/// The variable a run carries the capabilities its thrown-away session's caller lets its record keep in, a
+/// JSON list's text.
+pub const RECORD_TOOLS: &str = "BMO_RECORD_TOOLS";
+
+/// The variables a thrown-away session's turn carries of the record its caller named: its labels and the
+/// capabilities it keeps, each where the start named it.
+pub fn record_variables(apart: &agent_session::Apart) -> Vec<(String, String)> {
+  let mut variables = Vec::new();
+
+  if let Some(labels) = &apart.labels {
+    variables.push((RECORD_LABELS.to_owned(), labels.clone()));
+  }
+
+  if let Some(allowed) = &apart.tools_allowed {
+    variables.push((RECORD_TOOLS.to_owned(), json!(allowed).to_string()));
+  }
+
+  variables
+}
+
+/// Whether a run's variables name a record of its caller's: labels or the capabilities it keeps.
+pub fn names_record(env: &BTreeMap<String, String>) -> bool {
+  [RECORD_LABELS, RECORD_TOOLS]
+    .iter()
+    .any(|name| env.get(*name).is_some_and(|value| !value.is_empty()))
+}
+
+// The labels a run's caller named, an object's keys and values; none where it named none or they do not read
+// as an object.
+fn named_labels(env: &BTreeMap<String, String>) -> Map<String, Value> {
+  env
+    .get(RECORD_LABELS)
+    .and_then(|text| serde_json::from_str::<Value>(text).ok())
+    .and_then(|value| match value {
+      Value::Object(labels) => Some(labels),
+      _ => None,
+    })
+    .unwrap_or_default()
+}
+
+// The capabilities a run's caller lets its record keep; none where it named no list, which keeps them all.
+fn named_tools(env: &BTreeMap<String, String>) -> Option<Vec<String>> {
+  env.get(RECORD_TOOLS).and_then(|text| serde_json::from_str::<Vec<String>>(text).ok())
+}
+
 /// A token for one run of `line` carried in `agent`'s host, working in `cwd` on `env`, standing until
 /// `deadline` at most; none where the line needs none. Its record carries the run's research settings, and
 /// its line's capabilities with its agent's role's bundles, less the web tools those settings do not open.
@@ -459,7 +508,11 @@ pub async fn issue_for_run(
   let given = |name: &str| env.get(name).filter(|value| !value.is_empty()).cloned();
   let agent = given("BMO_TURN_AGENT").map_or_else(|| agent.to_owned(), |named| named.trim().to_owned());
   let (research, withheld) = research_record(env);
-  let (role, capabilities) = capabilities(ground, line, &agent, cwd, &withheld).await?;
+  let (role, mut capabilities) = capabilities(ground, line, &agent, cwd, &withheld).await?;
+
+  if let Some(allowed) = named_tools(env) {
+    capabilities.retain(|capability| allowed.contains(capability));
+  }
 
   if capabilities.is_empty() {
     return Ok(None);
@@ -499,6 +552,10 @@ pub async fn issue_for_run(
 
   if let Some(research) = research {
     labels.insert("research".to_owned(), research);
+  }
+
+  for (key, value) in named_labels(env) {
+    labels.entry(key).or_insert(value);
   }
 
   let now = u64::try_from(crate::now_ms()).unwrap_or_default();

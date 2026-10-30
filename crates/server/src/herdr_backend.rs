@@ -394,6 +394,18 @@ fn numbered_scope(id: &SessionId, word: &str) -> bool {
     .is_some_and(|rest| rest.strip_prefix(':').is_some_and(|number| number.parse::<u64>().is_ok()))
 }
 
+// Whether a thrown-away session's turns go into a place of its own: one handing a runner line its
+// instructions on a road whose program carries its own turns and that line (docs/api.md, 「sessions」).
+fn in_places(apart: &Apart) -> bool {
+  let carried = |line: &str| {
+    harness_providers::provider(&apart.provider).is_some_and(|declared| declared.declared().carries(line))
+  };
+
+  apart.system_prompt.is_some()
+    && crate::chat_stand_in::carries_own_turns(&apart.provider)
+    && apart.line.as_deref().is_some_and(carried)
+}
+
 // A thrown-away session asked of what is no thrown-away session's to answer.
 fn apart_refused(agent: &str) -> Fault {
   fault(FaultKind::Refused, format!("{agent}: a thrown-away session keeps no agent's row"))
@@ -778,14 +790,20 @@ impl HerdrSessions {
   // name its turns run under, which is no agent's row.
   async fn admitted(&self, agent: &str, scope: &Scope) -> Result<Option<AgentRow>, Fault> {
     match scope {
-      Scope::Apart(apart) if apart.provider != worker_session::PROVIDER => Err(fault(
+      Scope::Apart(apart) if apart.provider != worker_session::PROVIDER && !in_places(apart) => Err(fault(
         FaultKind::Refused,
         format!(
-          "{agent}: a thrown-away session goes out on {}, not {}",
+          "{agent}: a thrown-away session goes out on {}, not {}, but where it hands a runner line its \
+           instructions on a road whose program carries that line",
           worker_session::PROVIDER,
           apart.provider
         ),
       )),
+      Scope::Apart(apart) if apart.provider != worker_session::PROVIDER => {
+        self.provider_ready(&apart.provider).await?;
+
+        Ok(None)
+      }
       Scope::Apart(_) => Ok(None),
       Scope::Conversation(conversation) => {
         self.provider_ready(&conversation.provider).await?;
@@ -2104,6 +2122,105 @@ impl HerdrSessions {
     }
   }
 
+  // One turn of a thrown-away session in the place of its own (docs/api.md, 「sessions」): the runner line it
+  // names with the instructions its caller handed in, composed as a worker's job on the session's road is, the
+  // line's servers its tools and nothing of the program's own, the record its caller named on its token.
+  #[allow(clippy::too_many_arguments)]
+  async fn apart_in_place(
+    &self,
+    session: &SessionId,
+    agent: &str,
+    apart: &Apart,
+    work: &WorkParts,
+    prompt: &str,
+    began: i64,
+    shown: OutputWatch<'_>,
+  ) -> Result<Came, Fault> {
+    let ground = self.ground();
+    let trees = Trees::of(ground);
+    let place = crate::apart_places::place_name(session);
+    let line = apart.line.as_deref().unwrap_or_default();
+    let instructions = apart.system_prompt.as_deref().unwrap_or_default();
+    let effort = work.mapping.effort.as_deref().unwrap_or_default();
+    let tier = work.mapping.tier.as_deref().unwrap_or_default();
+    let refused = |why: String| fault(FaultKind::Refused, why);
+    let run =
+      crate::lines::runner::given_run(ground, &trees, line, instructions, (&apart.model, effort, tier))
+        .await
+        .map_err(|why| refused(why.detail))?;
+    let thinking = crate::lines::worker::reasoning_of(ground, line)
+      .await
+      .map_err(|why| refused(why.detail))?
+      .thinking;
+    let mut env = ground.env().clone();
+
+    crate::apart_places::mark(ground, &place, session).map_err(refused)?;
+    env.extend(work.variables.iter().map(|(name, value)| (name.clone(), value.clone())));
+    env.extend(crate::lines::token::record_variables(apart));
+
+    let chat_run = crate::lines::chat::ChatRun {
+      line: run.line,
+      agent: place.clone(),
+      model: apart.model.clone(),
+      effort: run.effort.clone(),
+      tier: Some(run.tier.clone()).filter(|tier| !tier.is_empty()),
+      reasoning: crate::lines::worker::Reasoning {
+        thinking,
+        level: None,
+      },
+      thinking: run.thinking,
+      system_path: run.system_prompt.clone(),
+      system_parts: None,
+      room: RoomContext {
+        chat_id: 0,
+        text: String::new(),
+        mark: String::new(),
+      },
+      tools_shown: String::new(),
+      tools_allowed: run.tools_allowed.to_owned(),
+      mcp_config: run.mcp_config.clone(),
+      mcp_tools: None,
+      prompt: prompt.to_owned(),
+      persona_unused: None,
+      fold: false,
+      ping: false,
+      resume: None,
+      cwd: run.cwd.to_string_lossy().into_owned(),
+      env,
+    };
+    let mut log = RunLog::new(Target {
+      agent: agent.to_owned(),
+      run: work.name.clone(),
+      chat_id: (work.chat != 0).then_some(work.chat),
+      job_id: None,
+    });
+    let taken = crate::road::Road {
+      provider: apart.provider.clone(),
+      model: apart.model.clone(),
+      account: None,
+    };
+
+    match crate::chat_stand_in::job_turn_on(
+      ground,
+      &mut log,
+      &chat_run,
+      &work.work_key,
+      &taken,
+      began,
+      Some(shown),
+    )
+    .await
+    {
+      Ok(reply) => Ok(Came::Answered(reply.text.clone(), spent_of(&reply.spend), left(&reply))),
+      Err(NoAnswer::Overtaken) => Ok(Came::Stopped),
+      Err(no) => {
+        let (reason, engine) = failure_of(no);
+
+        Ok(Came::Failed(reason, engine))
+      }
+    }
+  }
+
   // A worker's latest session record, the one a fold or a reading of its state goes by.
   async fn latest_worker(&self, worker: &str) -> Result<Option<records::WorkerSession>, Fault> {
     Ok(records::sessions(&self.ground().db, worker).await.map_err(store_fault)?.pop())
@@ -2126,7 +2243,8 @@ impl Sessions for HerdrSessions {
 
         // A session on a runner line naming no folder goes out in that line's own.
         if apart.cwd.trim().is_empty()
-          && let Some(line) = apart.prompt_document.as_deref().and_then(line_of_document)
+          && let Some(line) =
+            apart.prompt_document.as_deref().and_then(line_of_document).or(apart.line.as_deref())
         {
           apart.cwd = Trees::of(self.ground()).agents.join(line).to_string_lossy().into_owned();
         }
@@ -2223,7 +2341,7 @@ impl Sessions for HerdrSessions {
 
         self.provider_ready(&next.provider).await?;
 
-        if next.provider != worker_session::PROVIDER {
+        if next.provider != worker_session::PROVIDER && !in_places(&next) {
           return Err(fault(
             FaultKind::Refused,
             format!("{session} goes out on {}, not {}", worker_session::PROVIDER, next.provider),
@@ -2444,6 +2562,17 @@ impl Sessions for HerdrSessions {
       (Scope::Apart(apart), _) => match (&turn.context.gate, work) {
         (Some(gate), _) => {
           self.gate_turn(&turn, &agent, &apart.provider, &apart.cwd, gate, &run, shown).await
+        }
+        (None, Some(work)) if apart.provider != worker_session::PROVIDER => {
+          let began = turn.context.began.unwrap_or(at);
+
+          self
+            .apart_in_place(&turn.session, &agent, apart, work, &turn.prompt, began, shown)
+            .await
+        }
+        // A run composed outside agency asks its own rounds.
+        (None, Some(work)) if apart.system_prompt.is_some() => {
+          self.carried(&turn, &agent, WorkSeat::Apart(apart), work, turn_id).await
         }
         (None, Some(work)) => {
           match self.carried(&turn, &agent, WorkSeat::Apart(apart), work, turn_id).await {
@@ -2812,9 +2941,14 @@ impl Sessions for HerdrSessions {
             .map_err(store_fault)?;
         }
       }
-      Scope::Apart(_) => {
+      Scope::Apart(apart) => {
         self.apart().remove(session);
         self.referenced().remove(session);
+
+        // A session in a place of its own ends it.
+        if in_places(apart) {
+          crate::apart_places::end(ground, &crate::apart_places::place_name(session)).await;
+        }
       }
       Scope::Conversation(_) => {
         let harness = self.conversations().remove(session).and_then(|(_, held)| held.harness);

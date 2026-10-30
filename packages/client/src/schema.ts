@@ -2038,6 +2038,16 @@ export interface components {
             /** Format: int64 */
             boundMs?: number | null;
             promptDocumentName?: string | null;
+            /** @description The runner line a thrown-away session goes out on with the instructions its caller hands in whole. */
+            line?: string | null;
+            /** @description The line's instructions, handed in whole after the platform's harness opening; needs `line`. */
+            systemPrompt?: string | null;
+            /** @description What the session's record carries under each key of its labels, for the placed tools that read them. */
+            labels?: {
+                [key: string]: unknown;
+            } | null;
+            /** @description The capabilities the session's record keeps, of those its line and its agent's role give. */
+            toolsAllowed?: string[] | null;
             options?: components["schemas"]["SessionOptions"] | null;
             provider?: string | null;
             model?: string | null;

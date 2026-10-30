@@ -442,6 +442,53 @@ pub async fn branch_line_run(
   Ok(Some((run, env)))
 }
 
+/// The runner lines a thrown-away session may name to go out on with instructions its caller hands in whole
+/// (docs/api.md, 「sessions」).
+pub const LINES: [&str; 2] = ["search", "browse"];
+
+/// Whether a name is a runner line's.
+pub fn is_runner_line(name: &str) -> bool {
+  LINES.contains(&name)
+}
+
+/// A runner line's run with the instructions a thrown-away session's caller handed in whole (docs/api.md,
+/// 「sessions」): the platform's harness opening and then those instructions as one system prompt, written
+/// under a name its text gives so two runs handed the same instructions read one prefix; the line's standing
+/// MCP configuration, the tools it allows and its agent's own thinking; on the model, effort and tier given.
+pub async fn given_run(
+  ground: &Ground,
+  trees: &Trees,
+  line: &str,
+  instructions: &str,
+  mapped: (&str, &str, &str),
+) -> Result<RunnerRun, Refusal> {
+  use sha2::Digest as _;
+
+  let (model, effort, tier) = mapped;
+  let (name, tools_allowed, mcp_config) = match line {
+    "browse" => (Browse.name(), Browse.tools_allowed(), Browse.mcp_config(ground, trees)?),
+    "search" => (Search.name(), Search.tools_allowed(), Search.mcp_config(ground, trees)?),
+    other => {
+      return Err(fault(format!("{other} is no runner line; a session names one of {}", LINES.join(", "))));
+    }
+  };
+  let text = super::harnessed(trees, instructions)?;
+  let digest = sha2::Sha256::digest(text.as_bytes());
+  let named: String = digest.iter().take(8).map(|byte| format!("{byte:02x}")).collect();
+
+  Ok(RunnerRun {
+    line: name,
+    model: model.to_owned(),
+    effort: effort.to_owned(),
+    tier: tier.to_owned(),
+    system_prompt: system_prompt_file(trees, &format!("{name}-given-{named}"), &text)?,
+    mcp_config,
+    tools_allowed,
+    thinking: reasoning_of(ground, name).await?.thinking.unwrap_or(true),
+    cwd: trees.agents.join(name),
+  })
+}
+
 /// The runner lines a thrown-away session may name as its prompt document (docs/api.md, 「sessions」), by
 /// the names their system prompts are written under.
 pub const DOCUMENTS: [&str; 3] = ["search", "search-branch", "browse"];

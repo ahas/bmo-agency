@@ -5,6 +5,7 @@
 //! declare them; and the members of the places and the watches that stand on nothing but this.
 
 pub mod agent_roles;
+pub mod apart_places;
 pub mod chat_stand_in;
 pub mod clock;
 pub mod command_reading;

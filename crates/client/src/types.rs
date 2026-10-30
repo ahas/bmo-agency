@@ -1731,6 +1731,18 @@ pub struct SessionStart {
   pub bound_ms: Option<i64>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub prompt_document_name: Option<String>,
+  /// The runner line a thrown-away session goes out on with the instructions its caller hands in whole.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub line: Option<String>,
+  /// The line's instructions, handed in whole after the platform's harness opening; needs `line`.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub system_prompt: Option<String>,
+  /// What the session's record carries under each key of its labels, for the placed tools that read them.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub labels: Option<serde_json::Map<String, Value>>,
+  /// The capabilities the session's record keeps, of those its line and its agent's role give.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub tools_allowed: Option<Vec<String>>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub options: Option<SessionOptions>,
   #[serde(default, skip_serializing_if = "Option::is_none")]

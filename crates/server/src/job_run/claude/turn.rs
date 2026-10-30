@@ -41,7 +41,7 @@ use crate::keepalive::logins;
 use crate::lines::Trees;
 use crate::lines::claude::{Command, Runs, command_env};
 use crate::lines::place::Place;
-use crate::lines::runner::{RunnerRun, document_run};
+use crate::lines::runner::{RunnerRun, document_run, given_run};
 use crate::lines::standing::{claim_standby, session_ttl_ms, worker_prefix_digest};
 use crate::lines::worker::{WorkerRun, effort_of, worker_run};
 use crate::places::branch::{self, BranchRun};
@@ -99,7 +99,7 @@ pub enum ApartSeat {
 /// document always in a pane of its own; none where it names no standing checkout and this machine names
 /// no herdr to open a pane on.
 pub fn apart_seat(ground: &Ground, apart: &Apart) -> Option<ApartSeat> {
-  if apart.prompt_document.is_some() {
+  if apart.on_runner_line() {
     return ground.herdr.clone().map(ApartSeat::Own);
   }
 
@@ -118,15 +118,15 @@ pub fn apart_seat(ground: &Ground, apart: &Apart) -> Option<ApartSeat> {
   }
 }
 
-/// The runner line a thrown-away session naming its prompt document goes out on, as one login carries it on
-/// the session given: that document's line whole on the scope's model and the effort and tier the turn's
-/// mapping names, in the scope's folder or else the line's own, with the turn's variables in its
-/// environment, where the record its tool session is issued reads them. None where the document's
-/// instructions cannot be had now.
+/// The runner line a thrown-away session on a runner line goes out on, as one login carries it on the
+/// session given: its prompt document's line whole, or the line it names with the instructions its caller
+/// handed in, on the scope's model and the effort and tier the turn's mapping names, in the scope's folder or
+/// else the line's own, with the turn's variables and the record the scope names in its environment, where
+/// the record its tool session is issued reads them. None where the document's instructions cannot be had
+/// now.
 pub async fn document_command(
   ground: &Ground,
   apart: &Apart,
-  document: &str,
   work: &WorkParts,
   account: Option<&Account>,
   session: &str,
@@ -136,14 +136,26 @@ pub async fn document_command(
   let tier = work.mapping.tier.as_deref().unwrap_or_default();
   let told: Vec<(&str, String)> =
     work.variables.iter().map(|(name, value)| (name.as_str(), value.clone())).collect();
-  let Some((run, told)) =
-    document_run(ground, &trees, document, (&apart.model, effort, tier), &told).await?
-  else {
-    return Ok(None);
+  let mapped = (apart.model.as_str(), effort, tier);
+  let (run, told) = match (&apart.system_prompt, &apart.prompt_document) {
+    (Some(instructions), _) => {
+      let line = apart.line.as_deref().unwrap_or_default();
+      let told = told.into_iter().map(|(name, value)| (name.to_owned(), value)).collect::<Vec<_>>();
+
+      (given_run(ground, &trees, line, instructions, mapped).await?, told)
+    }
+    (None, Some(document)) => {
+      let Some(composed) = document_run(ground, &trees, document, mapped, &told).await? else {
+        return Ok(None);
+      };
+
+      composed
+    }
+    (None, None) => return Err(crate::lines::fault("a session on the worker line names no runner line")),
   };
   let mut env = command_env(ground.env(), account, &Runs::Here, run.thinking)?;
 
-  for (name, value) in told {
+  for (name, value) in told.into_iter().chain(crate::lines::token::record_variables(apart)) {
     env.insert(name, Some(value));
   }
 
@@ -607,8 +619,8 @@ impl Attempting<'_, '_> {
     let worker = self.asked.agent;
 
     if let WorkSeat::Apart(apart) = self.asked.seat {
-      if let Some(document) = &apart.prompt_document {
-        return self.on_document(apart, document, account).await;
+      if apart.on_runner_line() {
+        return self.on_document(apart, account).await;
       }
 
       return match self.primary(None, account).await? {
@@ -667,20 +679,17 @@ impl Attempting<'_, '_> {
     }
   }
 
-  // A thrown-away session's turn on the runner line its prompt document is, on a session of its own in a
-  // pane of its own, bounded as its start asked: the run's reply its answer. Nothing is held for it, so
-  // turns of several such sessions under one agent go out side by side.
-  async fn on_document(
-    &mut self,
-    apart: &Apart,
-    document: &str,
-    account: Option<Account>,
-  ) -> Result<Settled, Failure> {
+  // A thrown-away session's turn on its runner line, by its prompt document or with the instructions its
+  // caller handed in, on a session of its own in a pane of its own, bounded as its start asked: the run's
+  // reply its answer. Nothing is held for it, so turns of several such sessions under one agent go out side
+  // by side.
+  async fn on_document(&mut self, apart: &Apart, account: Option<Account>) -> Result<Settled, Failure> {
     let ground = self.asked.ground;
     let work = self.asked.work;
     let worker = self.asked.agent;
     let session = new_session();
-    let (run, command) = document_command(ground, apart, document, work, account.as_ref(), &session)
+    let document = apart.prompt_document.clone().or_else(|| apart.line.clone()).unwrap_or_default();
+    let (run, command) = document_command(ground, apart, work, account.as_ref(), &session)
       .await
       .map_err(refused)?
       .ok_or_else(|| Failure::error(format!("{document}: the line's instructions cannot be had now")))?;

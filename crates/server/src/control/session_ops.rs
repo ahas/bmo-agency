@@ -310,10 +310,11 @@ pub fn scope_asked(body: &Value) -> Result<Scope, Refused> {
             )));
           }
         };
-        let cwd = match (field("cwd"), &prompt_document) {
+        let runner = runner_asked(body, prompt_document.is_some())?;
+        let cwd = match (field("cwd"), prompt_document.is_some() || runner.system_prompt.is_some()) {
           (Some(cwd), _) => cwd.to_owned(),
-          (None, Some(_)) => String::new(),
-          (None, None) => ".".to_owned(),
+          (None, true) => String::new(),
+          (None, false) => ".".to_owned(),
         };
 
         Ok(Scope::Apart(Apart {
@@ -324,6 +325,7 @@ pub fn scope_asked(body: &Value) -> Result<Scope, Refused> {
           role: field("role").map(str::to_owned),
           prompt_document,
           bound_ms: number(body, "boundMs").filter(|bound| *bound > 0),
+          ..runner
         }))
       }
       "conversation" => {
@@ -348,6 +350,70 @@ pub fn scope_asked(body: &Value) -> Result<Scope, Refused> {
   }
 
   scope_read(body)
+}
+
+/// The labels keys agency writes into a record itself, which a start's labels may not name.
+const OWN_LABELS: [&str; 5] = ["line", "checkout", "archive", "role", "place"];
+
+// What a thrown-away session's start names of a runner line whose instructions its caller hands in whole: the
+// line, the instructions, the labels its record carries and the capabilities that record keeps. Instructions
+// beside a prompt document, instructions with no line, a line that is no runner's, labels that are no object
+// or name a key agency writes itself, and capabilities that are no list of names are refused.
+fn runner_asked(body: &Value, documented: bool) -> Result<Apart, Refused> {
+  let line = match body.get("line") {
+    None | Some(Value::Null) => None,
+    Some(Value::String(line)) if runner::is_runner_line(line.trim()) => Some(line.trim().to_owned()),
+    Some(other) => {
+      return Err(bad(format!(
+        "line names a runner line, one of {}, not {other}",
+        runner::LINES.join(", ")
+      )));
+    }
+  };
+  let system_prompt = match body.get("systemPrompt") {
+    None | Some(Value::Null) => None,
+    Some(Value::String(text)) if !text.trim().is_empty() => Some(text.clone()),
+    Some(_) => return Err(bad("systemPrompt is the line's instructions, a text that is not empty")),
+  };
+
+  if system_prompt.is_some() && documented {
+    return Err(bad("a start names systemPrompt or promptDocumentName, not both"));
+  }
+
+  if system_prompt.is_some() && line.is_none() {
+    return Err(bad("a start handing systemPrompt names the line it goes out on"));
+  }
+
+  let labels = match body.get("labels") {
+    None | Some(Value::Null) => None,
+    Some(Value::Object(labels)) => {
+      if let Some(own) = labels.keys().find(|key| OWN_LABELS.contains(&key.as_str())) {
+        return Err(bad(format!("labels may not name {own}, which agency writes itself")));
+      }
+
+      Some(Value::Object(labels.clone()).to_string())
+    }
+    Some(_) => return Err(bad("labels is an object")),
+  };
+  let tools_allowed = match body.get("toolsAllowed") {
+    None | Some(Value::Null) => None,
+    Some(Value::Array(names)) => Some(
+      names
+        .iter()
+        .map(|name| name.as_str().map(str::to_owned))
+        .collect::<Option<Vec<_>>>()
+        .ok_or_else(|| bad("toolsAllowed is a list of capability names"))?,
+    ),
+    Some(_) => return Err(bad("toolsAllowed is a list of capability names")),
+  };
+
+  Ok(Apart {
+    line,
+    system_prompt,
+    labels,
+    tools_allowed,
+    ..Apart::default()
+  })
 }
 
 fn number(body: &Value, field: &str) -> Option<i64> {
@@ -430,6 +496,12 @@ impl Route for SessionStart {
       conversation.cwd = call.ground().source.to_string_lossy().into_owned();
     }
 
+    if let Scope::Apart(apart) = &start.scope
+      && let Some(why) = line_not_carried(call.ground(), apart).await?
+    {
+      return Err(Refused::new(StatusCode::SERVICE_UNAVAILABLE, why).with_code("line-not-carried"));
+    }
+
     let backend = backend(&call)?;
 
     match backend.start(start).await {
@@ -446,6 +518,41 @@ impl Route for SessionStart {
 }
 
 crate::moved!(SessionStart);
+
+/// Why a thrown-away session on a runner line cannot go out on the provider its start names, in one sentence:
+/// a provider this build does not carry, one the owner switched off, or one whose program does not carry the
+/// line; none where it can, and for a session on the worker line, whose provider the backend judges.
+pub async fn line_not_carried(
+  ground: &crate::places::Ground,
+  apart: &Apart,
+) -> Result<Option<String>, Refused> {
+  let Some(line) = apart
+    .line
+    .as_deref()
+    .or_else(|| apart.prompt_document.as_deref().and_then(runner::line_of_document))
+  else {
+    return Ok(None);
+  };
+  let provider = apart.provider.as_str();
+  let Some(declared) = harness_providers::provider(provider) else {
+    return Ok(Some(format!(
+      "{provider} is no provider this build carries, so the {line} line cannot go out on it"
+    )));
+  };
+
+  if !crate::control::harness::provider_enabled(&ground.db, provider)
+    .await
+    .map_err(|why| Refused::new(StatusCode::INTERNAL_SERVER_ERROR, why.error))?
+  {
+    return Ok(Some(format!("{provider} is switched off, so the {line} line cannot go out on it")));
+  }
+
+  Ok((!declared.declared().carries(line)).then(|| {
+    format!(
+      "{provider}'s program does not carry the {line} line: its tools are not the run's MCP servers alone"
+    )
+  }))
+}
 
 /// Work a route answers with, carried to its end on a task of its own: a caller that lets go of the
 /// request, or goes down while it waits, drops only its wait, never the work (docs/api.md, 「sessions」).

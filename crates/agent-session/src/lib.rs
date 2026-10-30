@@ -44,7 +44,9 @@ pub enum Scope {
 /// What a thrown-away session is started on: the provider, the model and the folder its turns go out on,
 /// the item and role a co-work branch's place labels its run with, none for a research run, the prompt
 /// document naming the runner line its turns go out on, none for the worker line, and how long each of its
-/// turns may take, none for no bound.
+/// turns may take, none for no bound. A session whose caller composes a runner line's instructions itself
+/// names the line and hands them in whole, with the labels its record carries — a JSON object's text — and
+/// the capabilities that record keeps, none keeping every one the line and its agent's role give.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct Apart {
   pub provider: String,
@@ -54,6 +56,18 @@ pub struct Apart {
   pub role: Option<String>,
   pub prompt_document: Option<String>,
   pub bound_ms: Option<i64>,
+  pub line: Option<String>,
+  pub system_prompt: Option<String>,
+  pub labels: Option<String>,
+  pub tools_allowed: Option<Vec<String>>,
+}
+
+impl Apart {
+  /// Whether its turns go out on a runner line with instructions of their own, a document's or the caller's,
+  /// rather than on the worker line.
+  pub fn on_runner_line(&self) -> bool {
+    self.prompt_document.is_some() || self.system_prompt.is_some()
+  }
 }
 
 /// What a conversation the caller opened stands on: the provider, the model and the folder its turns go

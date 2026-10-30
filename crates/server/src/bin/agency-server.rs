@@ -105,6 +105,14 @@ async fn serve(args: Args) -> Result<(), String> {
     eprintln!("agency: the turns left in flight: {}", why.detail);
   }
 
+  // A thrown-away session does not outlive the process that started it, so the places such sessions on a
+  // road carrying its own turns left are ended.
+  let ended = agency_server::apart_places::sweep(&ground).await;
+
+  if ended > 0 {
+    println!("agency: {ended} places of thrown-away sessions the last process left ended");
+  }
+
   // Research runs the last process left under way are taken up again where their places stand, and the
   // rest closed as cut and told to their rooms.
   match agency_server::research::sweep_cut(&ground, started_at).await {

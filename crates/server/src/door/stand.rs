@@ -125,6 +125,9 @@ async fn rebuild(place: &Place, home: &Home, pane: Option<&str>) -> bool {
 // road」).
 const RESEARCH_TOKEN_GRACE: Duration = Duration::from_secs(30 * 60);
 
+// How long a thrown-away session's place's session token may stand where nothing takes it back first.
+const RECORD_BACKSTOP: Duration = Duration::from_secs(24 * 3_600);
+
 /// The moment a research place's session token stands until, in epoch milliseconds: its run's web tools
 /// closing, where its research settings name the moment, and the grace past it, but never less than the grace
 /// from `now`.
@@ -179,6 +182,13 @@ pub async fn stand_resident(
     // the runner its line is, whose role gives the research tools (docs/research-runs.md, 「The road」).
     let issued = if let Some(research) = token::research_record(&program.command.env).0 {
       let deadline = research_token_deadline(&research, u64::try_from(now_ms()).unwrap_or_default());
+
+      token::issue_for_run(ground, line, line, &checkout.to_string_lossy(), &program.command.env, deadline)
+        .await
+    } else if token::names_record(&program.command.env) {
+      // A thrown-away session's place holds the record its caller named; the token is taken back as the
+      // session ends, and the backstop past that is a day's.
+      let deadline = u64::try_from(now_ms()).unwrap_or_default() + RECORD_BACKSTOP.as_millis() as u64;
 
       token::issue_for_run(ground, line, line, &checkout.to_string_lossy(), &program.command.env, deadline)
         .await

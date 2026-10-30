@@ -286,6 +286,33 @@ run is held to: the research settings」). `boundMs` on the start bounds each of
 past it and ends failed. Its answer is the run's reply text; the research rounds follow it only where the
 turn's work key has a draft process (「research drafts」).
 
+A thrown-away session may instead be started on a runner line with its instructions handed in whole, for a
+consumer that composes its own: the start names `line`, the runner line (`search` or `browse`), and
+`systemPrompt`, the instructions, which take the place a prompt document's would — the platform's harness
+opening and then that text, as one system prompt, with the line's standing MCP configuration and the tools it
+allows. Naming both `systemPrompt` and `promptDocumentName`, or `systemPrompt` with no line, is refused 400.
+Beside them the start may name:
+
+- **`provider` and `model`:** the road its turns go out on, any provider agency carries whose program carries
+  the line (`docs/launch-lines.md`, 「Providers and what a route may promise」) — Claude Code, a
+  member road such as DeepSeek's, or the registry's provider under a registration's name — Claude Code where
+  the start names no provider. A provider agency does not carry, one the owner switched off, or one whose
+  program does not carry the line is refused 503 `line-not-carried`, the sentence saying which.
+- **`labels`:** an object the session's record carries, each key and its value written under that key of the
+  record's `labels`, for the placed tools that read them; a key agency writes itself — `line`, `checkout`,
+  `archive`, `role` and `place` — is refused 400.
+- **`toolsAllowed`:** the capabilities the record keeps, of those the line and its agent's role give it; a
+  record keeps them all where the start names none, and the list never widens them.
+
+On Claude Code each turn of such a session goes out as a document's does, in a pane of its own on a session
+of its own. On a road whose program carries its own turns each turn goes into a place of the session's own,
+the program composed as a worker's job on that road is, the line's instructions its system prompt and the
+line's servers its tools; the place is marked as the session's, stands under no agent's row, and is ended
+with the session — its program released, the session token it carried taken back, its workspace closed and
+its folder taken away. A server that starts ends every such place the process before it left, since a
+thrown-away session does not outlive the process that started it. A turn of such a session asks no draft
+rounds: the rounds of a run composed outside agency are its composer's.
+
 A conversation whose agent is a gate work key carries a gate's one turn: the turn's `gate` part holds the
 gate's instructions as the program's whole system prompt, whether it thinks, and the model, effort and
 answer room its mapping resolved to. The turn goes out with no tools and no MCP server, and its answer is
@@ -311,8 +338,8 @@ resident's context and that provider's `foldRatio`.
 
 A conversation moves its provider and model on the change route, each left as it stands where the body
 names only the other, and starts its next turn on a fresh session where the road keeps one. A
-thrown-away session's model moves the same way, while its provider stays Claude Code's, where its turns
-go out. A hand-over is a worker's alone: it closes the worker's held
+thrown-away session's provider and model move the same way, onto a provider whose program carries its line;
+one that names no line goes out on Claude Code alone. A hand-over is a worker's alone: it closes the worker's held
 session on the model and drops the record, handing nothing to the next turn, and the holder the body
 names is kept for the session's state; a worker with nothing open keeps the holder alone. An agent's and
 a room's session go out on the provider and model their agent's row names, and that row is where those

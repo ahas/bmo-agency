@@ -330,8 +330,9 @@ pub async fn after_job_end(ground: &Ground) {
 
 /// What a job's end leaves in herdr swept on this machine's herdr, where one stands, and on each ready work
 /// node's whose link the node service reports up. Every agent standing counts, a pane a consumer claims, a
-/// gate place and a research run's own place among them (docs/api.md, 「Hooks」, the pane claims;
-/// docs/agent-control.md, 「A gate's places」; docs/research-runs.md, 「The road」).
+/// gate place, a research run's own place and a thrown-away session's place among them (docs/api.md,
+/// 「Hooks」, the pane claims, and 「sessions」; docs/agent-control.md, 「A gate's places」;
+/// docs/research-runs.md, 「The road」).
 pub async fn sweep_everywhere(ground: &Ground) -> Result<(), Refusal> {
   let db = &ground.db;
   let mut standing = standing_agents(db).await?;
@@ -340,6 +341,7 @@ pub async fn sweep_everywhere(ground: &Ground) -> Result<(), Refusal> {
   standing.extend(ground.hooks.ask::<PaneClaims>(()).await.into_iter().map(|claim| claim.agent));
   standing.extend(crate::places::gate_places::recorded(&ground.roots.data).into_keys());
   standing.extend(crate::research::run_places(&ground.roots.data));
+  standing.extend(crate::apart_places::apart_places(&ground.roots.data));
 
   if let Some(herdr) = &ground.herdr {
     sweep(ground, herdr, &standing, &resting).await?;

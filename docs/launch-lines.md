@@ -137,6 +137,15 @@
   run the fallback runner hands over; dsh with every tool row of its own off also carries the search line,
   whose tools are the run's MCP servers alone (`research-runs.md`, 「The road」), and the browse line stays
   Claude Code's.
+- **A runner line's thrown-away session goes out on any road whose program carries the line.** A consumer
+  that composes a runner's instructions itself starts a thrown-away session on the line with them
+  (`docs/api.md`, 「sessions」) and names the provider and model: on Claude Code each turn is a run apart in a
+  pane of its own; on a road whose program carries its own turns — a member road's, the registry's — each turn
+  goes into a place of the session's own, composed as a worker's job on that road is (the member's or the
+  registration's home, window, answer ceiling and wait), with the line's instructions as its system prompt,
+  the line's MCP servers as its tools and nothing of the program's own, and the session token its place
+  carries issued with the labels and the capabilities the session named. A provider whose program does not
+  carry the line refuses the start.
 - A work key names the one line it runs on, so a provider whose program does not carry that line, or
   that cannot be used here (no Codex executable, no gateway key, no OpenRouter key, no DeepSeek key file), is offered on
   the console as unavailable with the reason beside it and refused by the control API.

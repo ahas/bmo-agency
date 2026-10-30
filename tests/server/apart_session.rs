@@ -3,7 +3,9 @@
 //! named in the list until it ends, refusing a fold and a turn that names no work parts, and gone once
 //! ended; its turn placed in the standing branch checkout its folder is, under the co-work task's label, or
 //! in a pane of its own; the folder a branch's place is taken in, as the take answers it; and a session
-//! naming its prompt document, which goes out on that runner line whole in a pane of its own.
+//! naming its prompt document, which goes out on that runner line whole in a pane of its own; and a session
+//! handing a runner line its instructions whole, with the labels and the capabilities its record keeps, on
+//! any road whose program carries the line.
 
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
@@ -305,7 +307,7 @@ async fn a_session_naming_the_branch_document_goes_out_on_the_branch_line_under_
     ("BMO_RESEARCH_BRANCH_PAGES", "4"),
     ("BMO_RESEARCH_SESSIONS_AT", "http://127.0.0.1:9"),
   ]);
-  let (run, command) = document_command(&ground, &apart, "search-branch", &variables, None, "a-session")
+  let (run, command) = document_command(&ground, &apart, &variables, None, "a-session")
     .await
     .unwrap()
     .expect("the branch line is composed where the web listing can be had");
@@ -393,7 +395,7 @@ async fn a_session_naming_no_runner_s_document_is_refused_with_the_names_that_ar
   let ground = ground(&scratch, &hosted(home.path(), &socket), None);
 
   assert!(
-    document_command(&ground, &on_document(Some("worker"), ""), "worker", &work(&[]), None, "s")
+    document_command(&ground, &on_document(Some("worker"), ""), &work(&[]), None, "s")
       .await
       .is_err()
   );
@@ -428,5 +430,241 @@ async fn a_session_naming_its_document_takes_a_pane_of_its_own_and_its_line_s_fo
   assert_eq!(
     started.scope,
     Scope::Apart(on_document(Some("browse"), &agents.join("browse").to_string_lossy()))
+  );
+}
+
+fn handed(provider: &str, model: &str) -> Apart {
+  Apart {
+    provider: provider.into(),
+    model: model.into(),
+    cwd: String::new(),
+    line: Some("search".into()),
+    system_prompt: Some("THE INSTRUCTIONS HANDED IN".into()),
+    labels: Some(json!({ "research": { "run": 3, "closesAt": 9 } }).to_string()),
+    tools_allowed: Some(vec!["room.tools".into()]),
+    ..Apart::default()
+  }
+}
+
+#[tokio::test]
+async fn a_session_handing_its_runner_line_instructions_reads_its_line_road_labels_and_tools() {
+  let read = scope_asked(&json!({
+    "agentName": "search", "scope": "apart", "provider": "registered", "model": "flash-next",
+    "line": "search", "systemPrompt": "THE INSTRUCTIONS HANDED IN",
+    "labels": { "research": { "run": 3, "closesAt": 9 } }, "toolsAllowed": ["room.tools"],
+  }))
+  .unwrap();
+
+  assert_eq!(read, Scope::Apart(handed("registered", "flash-next")));
+
+  for (body, why) in [
+    (
+      json!({ "systemPrompt": "x", "line": "search", "promptDocumentName": "search" }),
+      "instructions beside a prompt document",
+    ),
+    (json!({ "systemPrompt": "x" }), "instructions with no line"),
+    (json!({ "line": "worker", "systemPrompt": "x" }), "a line that is no runner's"),
+    (
+      json!({ "line": "search", "systemPrompt": "x", "labels": { "line": "chat" } }),
+      "a label agency writes",
+    ),
+    (
+      json!({ "line": "search", "systemPrompt": "x", "labels": ["research"] }),
+      "labels that are no object",
+    ),
+    (
+      json!({ "line": "search", "systemPrompt": "x", "toolsAllowed": "web.read" }),
+      "tools that are no list",
+    ),
+  ] {
+    let mut asked = json!({ "agentName": "search", "scope": "apart", "model": "claude-sonnet-5" });
+
+    for (field, value) in body.as_object().unwrap() {
+      asked[field] = value.clone();
+    }
+
+    assert!(scope_asked(&asked).is_err(), "{why} is refused");
+  }
+}
+
+#[tokio::test]
+async fn a_session_handing_its_instructions_goes_out_on_its_line_with_them_and_the_record_it_named() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let socket = home.path().join("mcp-host.sock");
+
+  web_host(&socket, "issuer");
+
+  let machine = hosted(home.path(), &socket);
+  let ground = ground(&scratch, &machine, None);
+  let trees = Trees::of(&ground);
+  let apart = handed("claude-code", "claude-sonnet-5");
+  let (run, command) = document_command(&ground, &apart, &work(&[]), None, "a-session")
+    .await
+    .unwrap()
+    .expect("a line handed its instructions is always composed");
+  let name = run.system_prompt.file_name().unwrap().to_string_lossy().into_owned();
+
+  assert_eq!(
+    (run.line, run.model.as_str(), run.effort.as_str()),
+    ("search", "claude-sonnet-5", "medium")
+  );
+  assert!(
+    name.starts_with("search-given-"),
+    "{name}: written under a name of its own, never the line's"
+  );
+
+  let system = std::fs::read_to_string(&run.system_prompt).unwrap();
+
+  assert!(system.trim_end().ends_with("THE INSTRUCTIONS HANDED IN"), "{system}");
+  assert!(
+    !system.contains(&search_instructions(&trees, LISTED).unwrap()),
+    "the line's own are not read"
+  );
+  assert_eq!(
+    command.cwd,
+    trees.agents.join("search").to_string_lossy(),
+    "no folder named is the line's"
+  );
+
+  let again = document_command(&ground, &apart, &work(&[]), None, "b-session")
+    .await
+    .unwrap()
+    .unwrap()
+    .0;
+
+  assert_eq!(again.system_prompt, run.system_prompt, "the same instructions read one prefix");
+
+  let env: BTreeMap<String, String> = command
+    .env
+    .iter()
+    .filter_map(|(name, value)| Some((name.clone(), value.clone()?)))
+    .collect();
+
+  assert_eq!(
+    serde_json::from_str::<serde_json::Value>(&env["BMO_RECORD_LABELS"]).unwrap(),
+    json!({ "research": { "run": 3, "closesAt": 9 } })
+  );
+  assert_eq!(env["BMO_RECORD_TOOLS"], r#"["room.tools"]"#);
+  assert!(
+    research_record(&env).0.is_none(),
+    "the record is the caller's, not agency's research settings"
+  );
+}
+
+// A tool host that keeps the record each token is issued for, answering it as issued.
+fn issuing_host(socket: &std::path::Path) -> Arc<std::sync::Mutex<Vec<serde_json::Value>>> {
+  let issued = Arc::new(std::sync::Mutex::new(Vec::new()));
+  let kept = issued.clone();
+  let listener = tokio::net::UnixListener::bind(socket).unwrap();
+  let app = axum::Router::new().route(
+    "/tool-sessions",
+    axum::routing::post(move |axum::Json(mut record): axum::Json<serde_json::Value>| {
+      let kept = kept.clone();
+
+      async move {
+        kept.lock().unwrap().push(record.clone());
+        record["token"] = json!("a-token");
+        record["createdAt"] = json!(1);
+        record["expiresAt"] = serde_json::Value::Null;
+
+        (axum::http::StatusCode::CREATED, axum::Json(record))
+      }
+    }),
+  );
+
+  tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+  issued
+}
+
+#[tokio::test]
+async fn a_run_of_a_session_naming_its_record_is_issued_with_its_labels_and_only_the_tools_it_keeps() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let socket = home.path().join("mcp-host.sock");
+  let issued = issuing_host(&socket);
+  let machine = hosted(home.path(), &socket);
+
+  store::seed::settle(scratch.db(), &deployment(&machine)).await.unwrap();
+
+  let ground = ground(&scratch, &machine, None);
+  let env: BTreeMap<String, String> =
+    agency_server::lines::token::record_variables(&handed("registered", "flash-next"))
+      .into_iter()
+      .collect();
+
+  assert!(agency_server::lines::token::names_record(&env));
+
+  let token =
+    agency_server::lines::token::issue_for_run(&ground, "search", "search", "/tmp", &env, u64::MAX)
+      .await
+      .unwrap();
+
+  assert_eq!(token.as_deref(), Some("a-token"));
+
+  let record = issued.lock().unwrap().pop().expect("a record was issued");
+
+  assert_eq!(
+    record["capabilities"],
+    json!(["room.tools"]),
+    "the list narrows the line's and the role's"
+  );
+  assert_eq!(record["labels"]["research"], json!({ "run": 3, "closesAt": 9 }));
+  assert_eq!(
+    record["labels"]["line"],
+    json!("search"),
+    "agency's own labels stand beside the caller's"
+  );
+}
+
+#[tokio::test]
+async fn a_session_on_a_road_carrying_its_own_turns_stands_only_where_it_hands_its_line_instructions() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let machine = machine(home.path());
+
+  store::seed::settle(scratch.db(), &deployment(&machine)).await.unwrap();
+
+  let sessions = HerdrSessions::new(Places::new(ground(&scratch, &machine, None), Arc::default()));
+  let refused = sessions.start(start("search", apart("registered", "/tmp/run-a"))).await.unwrap_err();
+
+  assert_eq!(refused.kind, FaultKind::Refused, "the worker line goes out on Claude Code alone");
+
+  let placed = sessions.start(start("search", handed("registered", "flash-next"))).await.unwrap();
+
+  assert_eq!(placed.id, SessionId("search@apart:1".into()));
+  assert_eq!(
+    agency_server::apart_places::place_name(&placed.id),
+    "apart-search-apart-1",
+    "its place is named after it"
+  );
+
+  sessions.end(&placed.id).await.unwrap();
+}
+
+#[tokio::test]
+async fn a_start_on_a_road_whose_program_does_not_carry_the_line_says_why() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let machine = machine(home.path());
+
+  store::seed::settle(scratch.db(), &deployment(&machine)).await.unwrap();
+
+  let ground = ground(&scratch, &machine, None);
+  let carried = async |provider: &str| {
+    agency_server::control::session_ops::line_not_carried(&ground, &handed(provider, "a-model"))
+      .await
+      .unwrap()
+  };
+
+  assert_eq!(carried("claude-code").await, None, "Claude Code carries the search line");
+  assert!(carried("nobody").await.unwrap().contains("no provider this build carries"));
+  assert!(carried("codex").await.is_some(), "Codex's program does not carry the search line");
+  assert_eq!(
+    agency_server::control::session_ops::line_not_carried(&ground, &apart("codex", "/tmp"))
+      .await
+      .unwrap(),
+    None,
+    "a session on the worker line is the backend's to judge"
   );
 }
