@@ -92,8 +92,11 @@
 - A job is written Job or work, never a phonetic spelling of Job: Job where it names the unit of work (Job #123, the Job worker,
   the next Job) or where work would read as the TODO item, work where it means the work itself. A voice
   briefing says Job as it is pronounced.
-- `WORDING.md` lists the swaps already caught, and the send path asks for an answer again where it
-  uses one.
+- No English word is dropped into a Korean sentence where a Hangul spelling is in common use.
+  English stays only where none is: code identifiers, commands, file and path names, product and
+  library names.
+- The swaps already caught stand in the wording reference of the brain's index, read where a text
+  turns on which word to use or how to spell it.
 
 ## Translationese in Korean
 

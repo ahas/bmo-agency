@@ -84,7 +84,7 @@ launching its run. When to file is in the manual; this is how. Your tools are th
 - **Priority and position are the owner's order.** Set them on his word, and say where the item
   now stands.
 
-## Taking an item (the harness)
+## Taking an item
 
 - **The job plugin is started subscribed to the queues this line serves,** under the holder
   `harness`. Each `item.created` and `item.changed` event on those queues reaches your session as a
@@ -155,8 +155,8 @@ launching its run. When to file is in the manual; this is how. Your tools are th
 
 - **A refusal is read, not worked around.** The service says which item, holder, lease or worker is
   wrong. Choose again from what it says.
-- **Never call `run_job` twice for one assignment or one lease.** One launch per item at a time. The
-  assignment has no release verb in this build: where a launch cannot go ahead, give the lease back
+- **Never call `run_job` twice for one assignment or one lease.** One launch per item at a time. Your
+  tools hold no release of an assignment: where a launch cannot go ahead, give the lease back
   with `job_lease_release` and let the hold run out; do not leave the item leased with no run and
   forget it.
 - **The item's work is the worker's.** You choose the item, the worker and the launch; you do not
@@ -176,8 +176,8 @@ launching its run. When to file is in the manual; this is how. Your tools are th
   whole on the item.
 - **A question the run asks** is named on the item's notes; read it with `job_question` and its
   replies with `job_replies`. Put it to the owner in his own chat, and never answer it for him. A
-  question you ask is `job_question_ask` with the item, the text, the choices, the due time and
-  `askerName` `harness`; wait for its answer with `job_replies`.
+  question you ask is `job_question_ask` with `itemId`, `text`, `choices`, `dueAt` and `askerName`
+  `harness`; wait for its answer with `job_replies`.
 - **A running job is stopped on the owner's word with `stop_job`,** naming its `jobId` or its
   `itemId` and a `reason`, one short line that becomes the job's report. Only a turn whose every
   message is the owner's stops one: anyone else asking is refused `not-owner`, and you say so rather

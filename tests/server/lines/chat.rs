@@ -258,12 +258,16 @@ fn the_manual_tells_what_an_answer_to_each_round_of_the_draft_process_is() {
     "opens with <<SEND>> is the message",
     "<<SKIP>> anywhere in an answer ends it with nothing sent",
     "In the last round you write the message",
-    "Only a message actually sent to the room counts as said",
-    "where an answer was drafted and not sent, the next turn says it",
   ] {
     assert!(drafting.contains(said), "{said}: {drafting}");
   }
   assert_eq!(drafting.trim().lines().count(), 1, "one paragraph: {drafting}");
+
+  // The duplicate rule is the answer-content rulebook's and the voice of every round the persona header's: each
+  // is said once in the prompt, where it belongs.
+  for elsewhere in ["counts as said", "drafted and not sent", "in the voice the persona sets"] {
+    assert!(!drafting.contains(elsewhere), "{elsewhere}: {drafting}");
+  }
 }
 
 #[test]
@@ -404,20 +408,76 @@ fn the_tools_paragraph_names_the_programs_own_tools_the_servers_and_the_entries_
   assert!(paragraph.contains("bash, read"), "{paragraph}");
   assert!(paragraph.contains("bmo, job"), "{paragraph}");
   assert!(paragraph.contains("mcp__bmo__say, mcp__web__web_fetch"), "{paragraph}");
-  assert!(paragraph.contains("bmo use --tools") && paragraph.contains("bmo use <tool> --describe"));
 
-  // The read path is named exactly, and every other road to what the system knows is shut.
+  // The read path is named exactly, by the names this program calls the tools.
   for named in [
     "mcp__bmo__brain_list with its subject and type",
     "mcp__bmo__brain_similar with the question's own words",
     "mcp__gate__reference_search, then mcp__gate__reference_piece",
-    "never a unit's store, port, database or files",
     "A tool shown to you by name is called as that tool, never through your shell or `bmo use`",
-    "Only a hosted tool not shown to you is found with `bmo use --tools`",
-    "never written to a file, echoed or named in a command",
+    "only a hosted tool not shown to you is reached with `bmo use`, as the opening says",
   ] {
     assert!(paragraph.contains(named), "{named}: {paragraph}");
   }
+  // How `bmo use` finds, reads and calls a tool, the session's token and the units' stores are the harness
+  // opening's to say, once.
+  for opening in ["bmo use --tools", "--describe", "token", "store, port, database or files"] {
+    assert!(!paragraph.contains(opening), "{opening}: {paragraph}");
+  }
+}
+
+// The role follows the harness opening as one prompt: what the opening says (how words reach the session, the
+// deploy tree against a checkout, how a refusal is read, how a hosted tool is found) stands there alone, and no
+// statement the current documents have left behind stays in the role.
+#[test]
+fn the_role_says_nothing_the_opening_says_and_nothing_no_longer_true() {
+  let system = composed();
+  let procedures = ["todo.md", "fasttrack.md", "overtime.md"]
+    .map(|name| std::fs::read_to_string(tree().join("prompts/agents/chat/procedures").join(name)).unwrap());
+  let capabilities = std::fs::read_to_string(tree().join("prompts/agents/chat/capabilities.md")).unwrap();
+
+  for gone in [
+    "headless",
+    "never from the checkout your shell stands in",
+    "never take a tool's name from memory",
+    "A tool call that fails says why in its own words",
+    "Your program's own plan list",
+    "Run privilege line",
+    "run-header lines",
+    "BMO QUEUE",
+    "formatting gate",
+    "WORDING.md",
+    "a separate check",
+    "an item event does, and nothing else does",
+    "is not folded",
+    "toolbook",
+    "the ABSOLUTE RULES at the top",
+    "Put it to the owner in his private chat,",
+    "`bmo.db`",
+  ] {
+    assert!(!system.contains(gone), "{gone}");
+  }
+  for text in procedures.iter().chain([&capabilities]) {
+    for gone in ["no room outbox", "no tool that sends", "docs/agent-control.md", "(the harness)"] {
+      assert!(!text.contains(gone), "{gone}");
+    }
+  }
+  assert!(!CHAT_LINE.persona.header.contains("at the top of this prompt"));
+  assert!(capabilities.contains("SENDING TOOLS ON THIS ROAD"), "{capabilities}");
+
+  // Each of the three kinds of turn says what it asks and what ends it.
+  let turn = section(&system, "THE TURN AND THE ROOM");
+  for said in [
+    "a room's round carries a room's words",
+    "it ends with the process's last answer",
+    "\"Quiet instruction from the system\" block, closed by END OF QUIET INSTRUCTION",
+    "It ends once carried out",
+    "A line the owner types into your pane",
+    "Your answer to it ends it",
+  ] {
+    assert!(turn.contains(said), "{said}: {turn}");
+  }
+  assert!(section(&system, "RESPONSE PROTOCOL").contains("under YOUR QUEUE"));
 }
 
 #[test]

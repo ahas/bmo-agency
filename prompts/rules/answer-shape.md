@@ -1,16 +1,16 @@
 # Answer shape (the shape of an answer)
 
 - This document sets the shape an answer with several items is written in: shape, not manner of
-  speech. How the words themselves read is `plain-writing.md`. It goes as it stands into the system
-  prompts of the chat session and of the formatting gate.
+  speech. How the words themselves read is `plain-writing.md`. It goes as it stands into the chat
+  session's system prompt.
 
 ## Rules
 
 - **This shape belongs to informational answers:** answers to a question asking to be told something,
   and writing that carries knowledge or an explanation.
   - What is said back and forth with people (a greeting, a reaction, small talk, an opinion, a
-    feeling) asks for no title, no conclusion and no list, and is not folded however long it is.
-    Conversation keeps the shape of conversation.
+    feeling) asks for no title, no conclusion and no list, however long it is. Conversation keeps
+    the shape of conversation.
 - **Past roughly three items, split the lines.** Never run several items together in one
   paragraph.
 - **A numbered or named item starts on its own line, and its explanation goes down to the next
@@ -67,5 +67,3 @@
 - Italic and strikethrough are hardly ever used.
 - A short reply, a one-line notice, or words said back and forth with people carry no formatting at
   all.
-- Folding has no mark: the formatting gate on the send path decides whether a long informational
-  answer is folded.
