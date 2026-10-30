@@ -412,7 +412,10 @@ fn the_shell_guard_refuses_a_shell_command_that_starts_claude_code_and_lets_ever
     let reason = shell_refusal(command).unwrap_or_else(|| panic!("let through: {command}"));
 
     assert!(reason.starts_with("refused: it starts the Claude Code CLI"), "{reason}");
-    assert!(reason.contains("hand work to a worker with your task tool"), "{reason}");
+    assert!(
+      reason.contains("file it as an item with file_item and launch it with assign_worker and run_job"),
+      "{reason}"
+    );
   }
 
   for command in ["ls ~/.claude", "echo claude", "git log"] {

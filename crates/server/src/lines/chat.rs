@@ -285,11 +285,21 @@ pub async fn server_digest(ground: &Ground) -> Option<String> {
 /// which leases an item from a queue, and the agency's own, which assigns a worker and launches the item's
 /// job. A hosted tool those namespaces do not show is reached with `bmo use`. The two plugins start as
 /// programs beside the chat and take their bearers from the environment the chat inherits; a deployment
-/// that names neither leaves that server out. Written on every composition, since this line is the one
-/// writer.
-pub fn mcp_config(ground: &Ground, trees: &Trees, agent: &str) -> Result<PathBuf, Refusal> {
+/// that names neither leaves that server out. A companion's configuration carries no agency plugin: a
+/// companion files no item and launches nothing, and tells the chat agent in the consult room what needs
+/// hands (docs/companions.md, 「What a turn is given」). Written on every composition, since this line is
+/// the one writer.
+pub fn mcp_config(
+  ground: &Ground,
+  trees: &Trees,
+  agent: &str,
+  companion: bool,
+) -> Result<PathBuf, Refusal> {
   let path = trees.agents.join(format!("chat.{agent}.mcp.json"));
-  let text = format!("{}\n", Ordered::map([("mcpServers", harness_servers(ground, agent))]).pretty());
+  let text = format!(
+    "{}\n",
+    Ordered::map([("mcpServers", harness_servers(ground, agent, companion))]).pretty()
+  );
 
   agent_host::disk::private_dir(&trees.agents)
     .map_err(|why| fault(format!("{}: {why}", trees.agents.display())))?;
@@ -301,11 +311,11 @@ pub fn mcp_config(ground: &Ground, trees: &Trees, agent: &str) -> Result<PathBuf
 
 // The chat's servers: the tool host's namespaces its line names, then the two the chat starts as programs of
 // its own — the job plugin on its `mcp` verb, told the queues it subscribes to and the holder it takes them
-// under, and the agency's own binary on the same verb.
+// under, and the agency's own binary on the same verb, which a companion is not handed.
 // A value that differs by installation is read from the environment, and each program's bearer is handed to
 // it in the configuration's own environment: a harness starts its children on an environment scrubbed of
 // everything but the entries written there.
-fn harness_servers(ground: &Ground, agent: &str) -> Ordered {
+fn harness_servers(ground: &Ground, agent: &str, companion: bool) -> Ordered {
   let env = ground.env();
   let namespaces: Vec<&str> = RUN_LINES.namespaces(LINE).iter().map(String::as_str).collect();
   let mut servers: Vec<(String, Ordered)> = super::runner::line_servers(ground, &namespaces)
@@ -443,7 +453,7 @@ fn harness_servers(ground: &Ground, agent: &str) -> Ordered {
     servers.push(("artifact".to_owned(), Ordered::map(fields)));
   }
 
-  if let (Ok(server), Some(url)) = (std::env::current_exe(), env.get("BMO_AGENCY_URL")) {
+  if let (false, Ok(server), Some(url)) = (companion, std::env::current_exe(), env.get("BMO_AGENCY_URL")) {
     // The MCP server is the repository's CLI, which stands beside the server in the release's bin.
     let program = server
       .parent()
@@ -537,7 +547,7 @@ pub async fn chat_run(
     discipline,
     tool_discipline,
     documents,
-    servers: harness_servers(ground, agent)
+    servers: harness_servers(ground, agent, false)
       .entries()
       .into_iter()
       .flatten()
@@ -553,7 +563,7 @@ pub async fn chat_run(
     .collect();
   let system = parts.whole(&trees, &shown)?;
   let system_path = system_prompt_file(&trees, agent, &system)?;
-  let mcp = mcp_config(ground, &trees, agent)?;
+  let mcp = mcp_config(ground, &trees, agent, false)?;
   let mut env: BTreeMap<String, String> = ground.env().clone();
 
   for (name, value) in &CLAUDE_CODE.launch.variables {

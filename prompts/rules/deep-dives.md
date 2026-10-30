@@ -67,6 +67,9 @@
 
 ## What the document holds
 
+- **A deep dive about a thing somebody made takes one of the three shapes `research.md` sets** — the
+  investigation, the manual or the verification — and that rulebook names its sections; the rules
+  below hold inside whichever shape it takes.
 - **What the maker states comes first in the middle,** a section of its own: what it says the thing
   supports, its limits and its figures with their conditions, before any section of what others
   found or what we judge.
@@ -86,7 +89,8 @@
 - **It is not the document read out.** It tells a listener what the thing is, the verdict and the
   two or three things deciding it, what is still uncertain and what to try next, in sentences of
   its own.
-- **It is written to be heard:** plain Korean sentences, no persona, no list, table, footnote
-  mark, address, code or structure word; only the few figures that matter, rounded where the exact
-  value adds nothing; a long identifier said by its short name.
-- **About three to five minutes aloud,** some 1,500 to 2,500 Korean characters and never more.
+- **It is written to be heard,** in the question's language: plain sentences, no persona, no list,
+  table, footnote mark, address, code or structure word; only the few figures that matter, rounded
+  where the exact value adds nothing; a long identifier said by its short name.
+- **About three to five minutes aloud,** some 1,500 to 2,500 characters of Korean or 400 to 700
+  words of English, and never more.

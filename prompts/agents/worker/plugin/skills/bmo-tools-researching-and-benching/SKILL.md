@@ -1,7 +1,7 @@
 ---
 name: "bmo-tools-researching-and-benching"
 bundle: worker
-version: "1.1.0"
+version: "1.2.0"
 description: "How a job researches, benches or tunes something the lab runs — an engine, a model, a library, a card, a setting: the maker's own material first, then what the lab can do with it, then measurement; every option tried until none the job can try is left, with none handed back to the owner and no interim report; one final document in the deployment's 아카이브, reported once its narration is spoken; and the bench lock released before the report. Use before the first step of any item that measures, compares, tunes or researches something to run on the lab's machines."
 ---
 
@@ -25,7 +25,11 @@ flowchart TD
   and code, the release notes and changelog, the model card, the configuration files, the paper in
   full, and the issues and pull requests for what the documentation leaves out. What others write
   comes after and is told apart as theirs. The deep dive's rules bind how it is read and told,
-  `~/.local/share/bmo-agency/deploy/prompts/rules/deep-dives.md`.
+  `~/.local/share/bmo-agency/deploy/prompts/rules/deep-dives.md`, and the research routine beside it,
+  `~/.local/share/bmo-agency/deploy/prompts/rules/research.md`, is the shape of the document a job
+  writes: a manual where nothing was measured yet, and the verification report — the maker's figures
+  against ours, the pass line set before the first run, how it was run, what was kept and how the
+  restore was proved — for the measurement this skill is for. Read both before the first step.
 - **2. What our lab can do with it.** The lab's machines and cards are read from the brain's chunk on
   the compute nodes, `knowledge/compute-nodes-gpu.md`, never from memory. GPU work goes on the GPU node
   pool through each node's card arbiter: a card is taken by its hold, never by stopping
@@ -66,9 +70,9 @@ flowchart TD
 ## The final document
 
 - **A deep dive in the deployment's 아카이브,** filed with `archive-doc` and `--narration` as the
-  `bmo-asking-the-owner` skill says: what the maker states first, then the method, the raw material,
-  the tables and figures, the reasoning behind the verdict, the configuration adopted, and the
-  options for later.
+  `bmo-asking-the-owner` skill says, in the verification shape `research.md` sets: the conclusion,
+  what the owner decides, the maker's figures against ours, how it was run, what was kept, the
+  application plan, the open questions and the sources.
 - **What is still open is only what no job can reach now,** each with what puts it there. A value a
   job could have measured is measured, never marked `추정` or `확인 필요`.
 - **The narration** is written by the rules of a deep dive's, `deep-dives.md` 「The narration」.

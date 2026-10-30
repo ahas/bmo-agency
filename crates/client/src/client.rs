@@ -475,7 +475,7 @@ impl AgencyClient {
     Self::answered(self.request(Method::GET, &["sessions"]).query(query)).await
   }
 
-  /// `POST /sessions`: Start a session for an agent at a scope; a throwaway one is scope apart with boundMs and its own options. A run with a fixed prompt (a research, a browse, a narration, the morning news) is such a session naming its prompt document; it calls the upstreams it needs through their own MCP servers.
+  /// `POST /sessions`: Start a session for an agent at a scope; a throwaway one is scope apart with boundMs and its own options. A run on a runner line (search, search-branch, browse) is such a session naming its prompt document; it calls the upstreams it needs through their own MCP servers.
   pub async fn create_sessions(&self, body: &SessionStart) -> Answer<Session> {
     Self::answered(self.request(Method::POST, &["sessions"]).json(body)).await
   }

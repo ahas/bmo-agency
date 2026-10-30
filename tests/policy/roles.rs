@@ -4,10 +4,7 @@ use policy::roles::*;
 fn each_role_gives_its_bundles_and_every_bundle_a_role_names_is_declared() {
   assert_eq!(ROLES.bundles_of("chat"), ["room.chat", "room.send", "web.read"]);
   assert_eq!(ROLES.bundles_of("worker"), ["graph.read", "queue.read", "web.read"]);
-  assert_eq!(
-    ROLES.bundles_of("searcher"),
-    ["web.read", "web.sites", "web.images", "web.branches", "web.rulebooks"]
-  );
+  assert_eq!(ROLES.bundles_of("searcher"), ["web.read", "web.sites", "web.branches", "web.rulebooks"]);
   assert!(ROLES.bundles_of("gate").is_empty());
   assert!(ROLES.bundles_of("nobody").is_empty());
   assert!(!ROLES.holds("companion"));

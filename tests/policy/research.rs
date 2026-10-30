@@ -3,14 +3,13 @@ use policy::research::*;
 #[test]
 fn a_setting_opens_its_capability_where_it_names_something_and_no_setting_opens_none() {
   let set = |name: &str| match name {
-    "BMO_RESEARCH_IMAGES" => Some("1"),
     "BMO_RESEARCH_TOOLS" => Some("0"),
     "BMO_RESEARCH_RULEBOOKS" => Some("a,,b"),
     _ => None,
   };
 
   assert_eq!(RESEARCH.withheld(true, set), ["web.branches"]);
-  assert_eq!(RESEARCH.withheld(false, set), ["web.branches", "web.images", "web.rulebooks"]);
+  assert_eq!(RESEARCH.withheld(false, set), ["web.branches", "web.rulebooks"]);
   assert!(!opens("") && !opens(",0,") && opens("0,goods"));
 }
 

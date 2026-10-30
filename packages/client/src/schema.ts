@@ -241,7 +241,7 @@ export interface paths {
         /** Every session, by agent or scope. */
         get: operations["listSessions"];
         put?: never;
-        /** Start a session for an agent at a scope, readable at once before its first turn; a throwaway one is scope apart with boundMs and its own options. A run with a fixed prompt (a research, a browse, a narration, the morning news) is such a session naming its prompt document; it calls the upstreams it needs through their own MCP servers. */
+        /** Start a session for an agent at a scope, readable at once before its first turn; a throwaway one is scope apart with boundMs and its own options. A run on a runner line (search, search-branch, browse) is such a session naming its prompt document; it calls the upstreams it needs through their own MCP servers. */
         post: operations["createSessions"];
         delete?: never;
         options?: never;
@@ -1897,7 +1897,7 @@ export interface components {
             /** Format: int64 */
             boundMs: number | null;
             options: unknown;
-            /** @description The prompt document the session starts from, one of GET /prompt-documents. A run with a fixed prompt names its document here and carries its own bounds in boundMs and options. */
+            /** @description The prompt document a thrown-away session's turns go out on: the runner line by the name its system prompt is written under, search, search-branch or browse; none for the worker line. A run with a fixed prompt names its document here and carries its own bounds in boundMs and options. */
             promptDocumentName: string | null;
             /**
              * Format: double
@@ -2371,12 +2371,20 @@ export interface components {
             items: components["schemas"]["SeatRequest"][];
             more: boolean;
         };
-        /** @description SeatRequest: */
+        /**
+         * @description SeatRequest: a seat asked of the pool: `waiting` in its bucket's line, `reserved` under a reservation,
+         *     `active` once let in, and `released` or `cancelled` once given back; the provider, model, effort and tier
+         *     its work key resolved to.
+         */
         SeatRequest: {
             token: string;
             source: string;
             owner: string;
             role: string;
+            provider: string;
+            model: string;
+            /** @description None where the mapping it resolved to names no effort. */
+            effort: string | null;
             tier: string;
             workKey: string | null;
             state: components["schemas"]["SeatRequestState"];
@@ -2389,7 +2397,7 @@ export interface components {
          * @description One of the values the API accepts.
          * @enum {string}
          */
-        SeatRequestState: "waiting" | "admitted" | "bound" | "finished";
+        SeatRequestState: "waiting" | "reserved" | "active" | "released" | "cancelled";
         /** @description The body that asks for a co-worker seat. */
         SeatRequestAsk: {
             requestKey: string;

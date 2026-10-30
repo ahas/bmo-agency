@@ -237,7 +237,7 @@ pub async fn compose(
   std::fs::create_dir_all(&folder).map_err(|why| fault(format!("{}: {why}", folder.display())))?;
 
   let cwd = folder.to_string_lossy().into_owned();
-  let mcp = super::chat::mcp_config(ground, &trees, turn.agent)?;
+  let mcp = super::chat::mcp_config(ground, &trees, turn.agent, true)?;
   // The turn's own variables, which the place holds for the run while the program keeps none of them.
   let variables = [
     ("BMO_TURN_CHAT", turn.chat_id.to_string()),

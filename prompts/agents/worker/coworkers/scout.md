@@ -1,7 +1,7 @@
 ---
 name: scout
 description: Locates things in a codebase or on the web and reports raw facts. Use for grep sweeps, finding where a symbol or config lives, enumerating files that match a pattern, and collecting facts that need no judgment. Do not use when the task requires evaluating trade-offs or deciding what to change.
-tools: Read, Grep, Glob, Bash, WebFetch, WebSearch
+tools: Read, Grep, Glob, Bash, mcp__web__web_search, mcp__web__web_fetch
 model: haiku
 effort: low
 ---

@@ -228,10 +228,27 @@ parts. A provider whose program keeps a session continues the one its last answe
 keeps its dsh session inside bmo-tui's pane, which carries the next turn although agency stores no id for
 it. The session stands in the server's memory from its start to its end.
 
-A thrown-away session's turn is a co-work branch's or a research run's. A research run — one whose scope
+A thrown-away session's turn is a co-work branch's or a research run's, or a run on a runner line where
+the session names its prompt document (below). A research run — one whose scope
 names no branch role — carries the reference its instruction calls for, picked by the gate's reference
 selection over the chat agent's brain and attached to the run's first prompt, the same way a job's is
 (「assignments and jobs」); a co-work branch's prompt is composed by its parent and carries none.
+
+A thrown-away session may name `promptDocumentName` at its start: the runner line its turns go out on, by
+the name that line's system prompt is written under — `search`, the search runner's standing
+instructions; `search-branch`, a research branch's; `browse`, the browse runner's (`docs/launch-lines.md`,
+「Search runner」 and 「Browse runner」). A start naming any other is refused 400 with the names that are.
+A turn into such a session carries work parts as every thrown-away session's turn does, and goes out on
+that line whole — the platform's harness opening and the document's instructions as one system prompt,
+the line's standing MCP configuration and the tools it allows — on the model the scope names and the
+effort and tier the turn's mapping names, in a pane of its own and never in a standing branch checkout
+(`docs/agents.md`, 「Runs apart」). Its folder is the scope's `cwd`, or the line's own deployed directory
+where the start names none. Its prompt is the caller's, whole. The turn's work variables are the run's
+record variables: they stand in the run's environment, where the record its tool session is issued reads
+them, so what they say of research is carried under `labels.research` (`docs/research-runs.md`, 「What a
+run is held to: the research settings」). `boundMs` on the start bounds each of its turns, which is cut
+past it and ends failed. Its answer is the run's reply text; the research rounds follow it only where the
+turn's work key has a draft process (「research drafts」).
 
 A conversation whose agent is a gate work key carries a gate's one turn: the turn's `gate` part holds the
 gate's instructions as the program's whole system prompt, whether it thinks, and the model, effort and
@@ -408,6 +425,17 @@ out and the paths the call changed.
 | POST | `/reservations` | Reserve seats for an owner. |
 | PATCH | `/reservations/{token}` | Release a reservation with its outcome. |
 | GET | `/roles` | The roles the pool can lend. |
+
+A seat request answers its `state` — `waiting` in its bucket's line, `reserved` under a reservation,
+`active` once let in, and `released` or `cancelled` once given back — and the `provider`, `model`,
+`effort` and `tier` its work key resolved to, `effort` null where the mapping names none. A seat is asked
+for admission by a `PATCH` naming no `bound` or `finished` state, which answers `{ "request": <seat or
+null> }`: the seat, `active`, where it is let in now or was already, and null where its turn has not come,
+a reservation lets it in rather than its token, or it was given back; a seat still `waiting` is asked
+again. A `PATCH` with `{ "state": "bound", "childId": … }`
+binds an active seat to the unit it launched and answers the seat. A seat is given back with `{ "state":
+"finished", "outcome": … }`, and cancelled, where it never ran, with `{ "state": "finished", "cancel":
+true, "outcome": … }`; either answers `{ "held": <bool> }`, whether the seat was still held.
 
 A seat request carries its `session` where it stands for a project's own turn: the session that turn
 continues, or null where the worker's earlier session was cold or past its model's context

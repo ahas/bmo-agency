@@ -621,10 +621,12 @@ impl Route for Sessions {
       && let Ok(held) = backend.list().await
     {
       for session in held {
-        let (kind, provider, model) = match &session.scope {
-          agent_session::Scope::Apart(apart) => ("apart", &apart.provider, &apart.model),
+        let (kind, provider, model, bound, document) = match &session.scope {
+          agent_session::Scope::Apart(apart) => {
+            ("apart", &apart.provider, &apart.model, apart.bound_ms, apart.prompt_document.as_deref())
+          }
           agent_session::Scope::Conversation(conversation) => {
-            ("conversation", &conversation.provider, &conversation.model)
+            ("conversation", &conversation.provider, &conversation.model, None, None)
           }
           _ => continue,
         };
@@ -652,9 +654,9 @@ impl Route for Sessions {
           "generation": 1,
           "holder": Value::Null,
           "prefixChangeReason": Value::Null,
-          "boundMs": Value::Null,
+          "boundMs": bound,
           "options": {},
-          "promptDocumentName": Value::Null,
+          "promptDocumentName": document,
         }));
       }
     }

@@ -328,8 +328,9 @@
   a work turn's parts). A co-work branch is a
   turn of the resident program of the standing checkout it works in (`docs/coworker-pool.md`,
   「Standing branch checkouts and their list」), on a thrown-away session of its own that it keeps
-  nowhere; a branch outside every standing checkout, and a research run, goes into a pane of its own
-  opened for the turn. There
+  nowhere; a branch outside every standing checkout, a research run, and a thrown-away session naming
+  its prompt document — which goes out on that runner line rather than this one (`docs/api.md`,
+  「sessions」) — go into a pane of their own opened for the turn. There
   may be more than one worker: the owner adds them, names them and points each at a checkout of
   its own, and a worker is that row and nothing more — the line above is the same for all of
   them, and what differs is the directory the run works in, the session it resumes (one per
@@ -359,7 +360,9 @@
   member's effort word goes out in the effort header; no login of the Claude road goes with it.
 - **A companion's turn** (agency's server's companion turn): a turn of the companion's resident program,
   which stands on the chat line above as the chat agent's does (`docs/agents.md`, 「Conversational agents」) —
-  the same tools shown and allowed, the same configuration, the same mode and the same shell guard —
+  the same tools shown and allowed, the same configuration but for agency's own plugin, which a
+  companion is not handed, so it files no item and launches no job or research and tells the chat agent
+  in the consult room what needs hands, the same mode and the same shell guard —
   with the system prompt its own settings compose (`docs/companions.md`, 「What a turn is given」) in
   place of the chat's — one whole prompt given with `--system-prompt-file`, opening on the base prompt it
   chooses or else on the platform's harness opening — its own folder, the session of the room the turn is for, resumed or opened under
@@ -378,13 +381,13 @@
   research closes, so the web tools know it; the record also names the chat agent — the agent whose row
   answers every room that names nobody — as the turn its
   brain tools run for, so a fact the run establishes is written into the chat agent's brain while the run
-  itself stays the runner's. The searcher role's bundles show it the `research_branch`
-  tool, which opens a branch only after taking a place in the common co-worker pool, and the
-  `view_image` tool, which shows the run a picture by its address.
-  A branch is a run apart on the same line, which the web server opens through
-  its own branch verb, with the model and effort of the profile's pooled role, the web tools and
-  the picture viewer only, and the parent's research close; no native Claude Code subagent is opened
-  by any of them.
+  itself stays the runner's. The searcher role's bundles show it bmo-explorer's `research`
+  tool, which opens a branch only after taking a place in the common co-worker pool, and the line's `eye`
+  namespace shows it `eye/see`, which looks at a picture by its address and answers a question about it.
+  A branch is a thrown-away session on the prompt document `search-branch` (`docs/api.md`, 「sessions」),
+  which the research tool opens through the seat and session routes as any consumer does, on the model
+  and effort of the seat the pool gave it, with the web tools and the eye only and the parent's research
+  close (`docs/research-runs.md`, 「Branches」); no native Claude Code subagent is opened by any of them.
   - **Its system prompt is the platform's harness opening and then the search's standing
     instructions**, handed over as one file and replacing the CLI's own: `prompts/harness.md`, then the
     search task, the site tools' catalogue, the search rulebooks and
@@ -395,8 +398,8 @@
     allowance — is the prompt. So nothing of Claude Code's coding conventions reaches a search,
     and the prefix a ping on this line reads is the prefix a search reads.
   - **A branch's system prompt is the platform's harness opening and then the branch instructions**
-    with the same catalogue and the rulebook against destroying the system; its angle and
-    when its research closes are its prompt, so every branch shares one prefix.
+    with the same catalogue and the rulebook against destroying the system; its prompt is the research
+    tool's — the angle and when its research closes — so every branch shares one prefix.
   - **A research run's rounds.** A run on a research line keeps no receiver, so agency asks the
     line's questions itself after the run's first answer (`docs/api.md`, 「research drafts」): each
     question goes to a session of the rounds' own, opened fresh by the first round on the same program
@@ -417,8 +420,6 @@
     are read, and the brain's write judgement confirms a duplicate, strengthens a version of a row and
     closes what a row contradicts. The question before the final one asks whether every fact the answer
     rests on was written.
-  - **The morning news page** runs on this line with its own instructions as the system prompt and
-    the day it is written for as the prompt (`news-brief.md`).
 - **Translate runner**: one translation asked through agency's `POST /translation-runs` (`docs/api.md`,
   「translations」), on the road the road resolution answers for the work key `translate`, whose profile
   starts on the registry's provider, so the registered translation model answers first and the walk

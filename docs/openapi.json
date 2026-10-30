@@ -1101,7 +1101,7 @@
         "tags": [
           "sessions"
         ],
-        "summary": "Start a session for an agent at a scope, readable at once before its first turn; a throwaway one is scope apart with boundMs and its own options. A run with a fixed prompt (a research, a browse, a narration, the morning news) is such a session naming its prompt document; it calls the upstreams it needs through their own MCP servers.",
+        "summary": "Start a session for an agent at a scope, readable at once before its first turn; a throwaway one is scope apart with boundMs and its own options. A run on a runner line (search, search-branch, browse) is such a session naming its prompt document; it calls the upstreams it needs through their own MCP servers.",
         "responses": {
           "201": {
             "description": "Answered.",
@@ -7169,7 +7169,7 @@
               "string",
               "null"
             ],
-            "description": "The prompt document the session starts from, one of GET /prompt-documents. A run with a fixed prompt names its document here and carries its own bounds in boundMs and options."
+            "description": "The prompt document a thrown-away session's turns go out on: the runner line by the name its system prompt is written under, search, search-branch or browse; none for the worker line. A run with a fixed prompt names its document here and carries its own bounds in boundMs and options."
           },
           "foldRatio": {
             "type": [
@@ -8609,6 +8609,19 @@
           "role": {
             "type": "string"
           },
+          "provider": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "effort": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "None where the mapping it resolved to names no effort."
+          },
           "tier": {
             "type": "string"
           },
@@ -8646,6 +8659,9 @@
           "source",
           "owner",
           "role",
+          "provider",
+          "model",
+          "effort",
           "tier",
           "workKey",
           "state",
@@ -8653,15 +8669,16 @@
           "outcome",
           "session"
         ],
-        "description": "SeatRequest:"
+        "description": "SeatRequest: a seat asked of the pool: `waiting` in its bucket's line, `reserved` under a reservation,\n`active` once let in, and `released` or `cancelled` once given back; the provider, model, effort and tier\nits work key resolved to."
       },
       "SeatRequestState": {
         "type": "string",
         "enum": [
           "waiting",
-          "admitted",
-          "bound",
-          "finished"
+          "reserved",
+          "active",
+          "released",
+          "cancelled"
         ],
         "description": "One of the values the API accepts."
       },

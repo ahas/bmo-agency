@@ -12,7 +12,7 @@ about a message is not agency's: the judgement records belong to the units that 
   worker's whole stream all land in one table under the agent's name.
 - What the stream carries is what is kept: the run's text and thinking, every tool call with its
   arguments and what came back, MCP tools among them under their own names, and the branches a run
-  fanned out, each line tied to the `Task` or `research_branch` call it came from so a branch reads
+  fanned out, each line tied to the `Task` or `research` call it came from so a branch reads
   on its own.
 - A Claude Workflow is kept too, and it is kept differently, because the CLI does not run one as a
   chain of tool calls in the stream: it runs it as a background task of its own, and the stream says

@@ -15,13 +15,13 @@ fn env(pairs: &[(&str, &str)]) -> BTreeMap<String, String> {
 fn a_run_with_no_research_setting_is_opened_no_research_tool() {
   assert_eq!(
     research_record(&env(&[("BMO_RESEARCH_TOOLS", "")])),
-    (None, vec!["web.branches", "web.images", "web.rulebooks"])
+    (None, vec!["web.branches", "web.rulebooks"])
   );
 }
 
 #[test]
-fn a_branch_line_ping_is_opened_the_picture_viewer_alone() {
-  let (research, withheld) = research_record(&env(&[("BMO_RESEARCH_IMAGES", "1")]));
+fn a_run_whose_settings_open_nothing_is_shown_the_reading_tools_alone() {
+  let (research, withheld) = research_record(&env(&[("BMO_RESEARCH_BRANCHES", "0")]));
 
   assert_eq!(research, Some(json!({ "branches": 0, "chat": 0, "rulebooks": [] })));
   assert_eq!(withheld, vec!["web.branches", "web.rulebooks"]);
@@ -46,7 +46,7 @@ fn a_research_run_carries_what_its_runner_told_it() {
       json!({ "closesAt": 1700, "owner": "research:7", "branches": 3, "chat": -42, "rulebooks": ["a", "b"] })
     )
   );
-  assert_eq!(withheld, vec!["web.images"]);
+  assert!(withheld.is_empty());
 }
 
 // The paragraph a stand-in tool host words, which no agency text holds.
@@ -149,4 +149,52 @@ fn a_line_hands_its_record_the_deployment_variables_it_names_where_they_are_set(
     [("BMO_GATE_URL".to_owned(), "http://127.0.0.1:9".to_owned())]
   );
   assert!(line_variables(&ground, "worker").is_empty());
+}
+
+#[test]
+fn a_research_run_names_its_ledger_run_and_a_branch_keeps_its_parent_s() {
+  let (research, _) =
+    research_record(&env(&[("BMO_RESEARCH_RUN", "6190"), ("BMO_RESEARCH_BRANCHES", "2")]));
+
+  assert_eq!(research.as_ref().map(|research| &research["run"]), Some(&json!(6190)));
+
+  let (branch, _) = research_record(&env(&[
+    ("BMO_RESEARCH_RUN", "6190"),
+    ("BMO_RESEARCH_BRANCHES", "2"),
+    ("BMO_RESEARCH_BRANCH_OF", "6190"),
+  ]));
+  let branch = branch.unwrap();
+
+  assert_eq!((&branch["run"], &branch["branchOf"]), (&json!(6190), &json!(6190)));
+
+  let (unnamed, _) = research_record(&env(&[("BMO_RESEARCH_RUN", "0"), ("BMO_RESEARCH_BRANCHES", "2")]));
+
+  assert!(unnamed.unwrap().get("run").is_none(), "no run is named by nothing");
+}
+
+#[test]
+fn a_research_run_names_the_session_service_and_a_branch_names_none() {
+  let run = env(&[
+    ("BMO_RESEARCH_RUN", "6190"),
+    ("BMO_RESEARCH_BRANCHES", "2"),
+    ("BMO_RESEARCH_SESSIONS_AT", "http://127.0.0.1:9"),
+    ("BMO_RESEARCH_SESSIONS_TOKEN", "a-control-token"),
+  ]);
+  let (research, _) = research_record(&run);
+  let research = research.unwrap();
+
+  assert_eq!(
+    (&research["sessionsAt"], &research["sessionsToken"]),
+    (&json!("http://127.0.0.1:9"), &json!("a-control-token"))
+  );
+
+  let mut branch = run.clone();
+
+  branch.insert("BMO_RESEARCH_BRANCH_OF".into(), "6190".into());
+
+  let (branch, withheld) = research_record(&branch);
+  let branch = branch.unwrap();
+
+  assert!(branch.get("sessionsAt").is_none() && branch.get("sessionsToken").is_none(), "{branch}");
+  assert!(withheld.contains(&"web.branches"));
 }

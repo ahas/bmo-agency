@@ -276,13 +276,17 @@ pub fn view(
 }
 
 /// The variables a run of a research key is launched with, which the record the run's tool session is issued
-/// carries under `labels.research` (`crate::lines::token`, the research record): when its web tools close, the
-/// branches it may open and the role they go out on, its line, who asked and the room, the fetch strategy and
-/// the gaps.
+/// carries under `labels.research` (`crate::lines::token`, the research record): its ledger run, where the
+/// session service its research tool opens a branch through answers and the token it takes, as the
+/// environment agency runs in names them, when its web tools close, the branches it may open and the role
+/// they go out on, its line, who asked and the room, the fetch strategy and the gaps.
+#[allow(clippy::too_many_arguments)]
 pub fn variables(
+  env: &BTreeMap<String, String>,
   settings: &Settings,
   key: &str,
   line: &str,
+  run: i64,
   asker: Option<&str>,
   room: Option<i64>,
   closes_at: i64,
@@ -294,6 +298,7 @@ pub fn variables(
     branch_pages: None,
   });
   let mut set = BTreeMap::from([
+    (crate::lines::token::RUN.to_owned(), run.to_string()),
     ("BMO_RESEARCH_CLOSES_AT".to_owned(), closes_at.to_string()),
     ("BMO_RESEARCH_BRANCHES".to_owned(), kept.branches.to_string()),
     ("BMO_RESEARCH_ROLE".to_owned(), settings.branch_role.clone()),
@@ -302,7 +307,16 @@ pub fn variables(
   ]);
 
   if kept.branches > 0 {
-    set.insert("BMO_RESEARCH_TOOLS".to_owned(), "research_branch".to_owned());
+    set.insert("BMO_RESEARCH_TOOLS".to_owned(), "research".to_owned());
+  }
+
+  for (variable, named) in [
+    (crate::lines::token::SESSIONS_AT, "BMO_AGENCY_URL"),
+    (crate::lines::token::SESSIONS_TOKEN, crate::verbs::CONTROL_TOKEN),
+  ] {
+    if let Some(value) = env.get(named).map(|value| value.trim()).filter(|value| !value.is_empty()) {
+      set.insert(variable.to_owned(), value.to_owned());
+    }
   }
 
   for (variable, pages) in
@@ -743,9 +757,11 @@ async fn going_of(ground: &Arc<Ground>, ledger: i64, placed: &Placed) -> Option<
   let line = research_profile(&placed.ask.key)?.line.clone();
   let (settings, _) = settings(&ground.db).await.ok()?;
   let vars = variables(
+    ground.env(),
     &settings,
     &placed.ask.key,
     &line,
+    ledger,
     placed.ask.asker.as_deref(),
     placed.ask.room_id,
     placed.closes_at,
@@ -771,7 +787,7 @@ async fn going_of(ground: &Arc<Ground>, ledger: i64, placed: &Placed) -> Option<
 pub fn rounds_variables(vars: &BTreeMap<String, String>) -> BTreeMap<String, String> {
   let mut rounds = vars.clone();
 
-  for closed in ["BMO_RESEARCH_TOOLS", "BMO_RESEARCH_IMAGES", "BMO_RESEARCH_RULEBOOKS"] {
+  for closed in ["BMO_RESEARCH_TOOLS", "BMO_RESEARCH_RULEBOOKS"] {
     rounds.remove(closed);
   }
 
@@ -890,7 +906,6 @@ pub async fn launch(ground: Arc<Ground>, ask: ResearchRunAsk) -> Result<Research
   let trees = Trees::of(&ground);
   let prompt = request(&trees, &line, &ask, kept).map_err(|why| Refused::Failed(why.detail))?;
   let run = composed(&ground, &trees, &line, &ask.key, &taken).await?;
-  let vars = variables(&settings, &ask.key, &line, ask.asker.as_deref(), ask.room_id, closes_at);
   let unit = format!("research-{}", now_ms());
   let ledger = run_ledger::open(
     &ground.db,
@@ -909,6 +924,16 @@ pub async fn launch(ground: Arc<Ground>, ask: ResearchRunAsk) -> Result<Research
   )
   .await
   .map_err(|why| Refused::Failed(why.detail))?;
+  let vars = variables(
+    ground.env(),
+    &settings,
+    &ask.key,
+    &line,
+    ledger,
+    ask.asker.as_deref(),
+    ask.room_id,
+    closes_at,
+  );
   let launched = ResearchRun {
     run_id: ledger,
     key: ask.key.clone(),

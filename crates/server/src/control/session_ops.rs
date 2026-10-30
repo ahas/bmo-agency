@@ -24,6 +24,7 @@ use super::fold_ratios;
 use super::{Call, Refused, Route, answer};
 use crate::herdr_backend::Shared;
 use crate::lines::Trees;
+use crate::lines::runner;
 use crate::lines::standing::session_ttl_ms;
 use crate::lines::worker::worker_run;
 use crate::places::AgentRow;
@@ -235,6 +236,7 @@ pub fn scope_read(body: &Value) -> Result<Scope, Refused> {
         cwd: named("cwd")?,
         todo,
         role,
+        ..Apart::default()
       }))
     }
     Some("conversation") => {
@@ -272,8 +274,10 @@ fn room_id(scope: &Scope) -> Option<i64> {
   }
 }
 
-/// The scope a start's body names: the scope's word and a room's id, or the older object.
-fn scope_asked(body: &Value) -> Result<Scope, Refused> {
+/// The scope a start's body names: the scope's word and a room's id, or the older object. A thrown-away
+/// session's prompt document is a runner line's, any other refused with the names that are; a session
+/// naming one and no folder is left to go out in that line's own.
+pub fn scope_asked(body: &Value) -> Result<Scope, Refused> {
   if let Some(scope) = body.get("scope").and_then(Value::as_str) {
     return match scope {
       "agent" => Ok(Scope::Agent),
@@ -294,12 +298,32 @@ fn scope_asked(body: &Value) -> Result<Scope, Refused> {
             .and_then(Value::as_str)
             .filter(|value| !value.is_empty())
         };
+        let prompt_document = match body.get("promptDocumentName") {
+          None | Some(Value::Null) => None,
+          Some(Value::String(document)) if runner::line_of_document(document.trim()).is_some() => {
+            Some(document.trim().to_owned())
+          }
+          Some(other) => {
+            return Err(bad(format!(
+              "promptDocumentName names a runner line's document, one of {}, not {other}",
+              runner::DOCUMENTS.join(", ")
+            )));
+          }
+        };
+        let cwd = match (field("cwd"), &prompt_document) {
+          (Some(cwd), _) => cwd.to_owned(),
+          (None, Some(_)) => String::new(),
+          (None, None) => ".".to_owned(),
+        };
+
         Ok(Scope::Apart(Apart {
           provider: field("provider").unwrap_or("claude-code").to_owned(),
           model: field("model").ok_or_else(|| bad("a thrown-away scope names its model"))?.to_owned(),
-          cwd: field("cwd").map(str::to_owned).unwrap_or_else(|| ".".to_owned()),
+          cwd,
           todo: number(&options, "todo").or_else(|| number(body, "todo")),
           role: field("role").map(str::to_owned),
+          prompt_document,
+          bound_ms: number(body, "boundMs").filter(|bound| *bound > 0),
         }))
       }
       "conversation" => {

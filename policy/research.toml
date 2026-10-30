@@ -10,7 +10,6 @@ pool_capacity_most = 128
 # no research setting at all holds none of them. The launch leaves what this table withholds out of the
 # session record.
 [opens]
-"web.images" = "BMO_RESEARCH_IMAGES"
 "web.branches" = "BMO_RESEARCH_TOOLS"
 "web.rulebooks" = "BMO_RESEARCH_RULEBOOKS"
 
@@ -19,8 +18,8 @@ pool_capacity_most = 128
 # binding only some searches, which are given by the one section deciding whether each applies and read
 # whole from the web server once it says it does; and that section's heading.
 [search]
-rulebooks = ["search-kinds", "product-search", "restaurant-search", "investment-search", "study-material", "deep-dives"]
-on_request = ["product-search", "restaurant-search", "investment-search", "study-material", "deep-dives"]
+rulebooks = ["search-kinds", "product-search", "restaurant-search", "investment-search", "study-material", "deep-dives", "research"]
+on_request = ["product-search", "restaurant-search", "investment-search", "study-material", "deep-dives", "research"]
 applies_section = "Whether this rulebook applies at all"
 
 # The rounds a research run asks the same session after its first answer (docs/launch-lines.md, 「A

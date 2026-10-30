@@ -610,7 +610,7 @@ async fn the_chat_s_servers_file_items_for_its_agent_and_the_job_plugin_serves_n
   let service =
     Service::new(scratch.db().clone(), Config::read(|name| variables.get(name).cloned()).unwrap());
   let ground = Ground::new(&service, &machine, None);
-  let path = mcp_config(&ground, &Trees::of(&ground), "chat-agent").unwrap();
+  let path = mcp_config(&ground, &Trees::of(&ground), "chat-agent", false).unwrap();
   let config: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
   let args = |server: &str| -> Vec<String> {
     config["mcpServers"][server]["args"]
@@ -630,4 +630,14 @@ async fn the_chat_s_servers_file_items_for_its_agent_and_the_job_plugin_serves_n
   assert_eq!(config["mcpServers"]["explorer"]["command"].as_str(), Some("/opt/bmo-explorer"));
   assert!(job.windows(2).any(|pair| pair == ["--without", "job_item_create"]), "{job:?}");
   assert!(agency.windows(2).any(|pair| pair == ["--agent", "chat-agent"]), "{agency:?}");
+
+  // A companion's configuration carries the same servers but for agency's own plugin: it files no item
+  // and launches nothing.
+  let companion = mcp_config(&ground, &Trees::of(&ground), "companion-agent", true).unwrap();
+  let config: serde_json::Value =
+    serde_json::from_str(&std::fs::read_to_string(&companion).unwrap()).unwrap();
+
+  assert!(config["mcpServers"]["agency"].is_null(), "{config}");
+  assert!(config["mcpServers"]["job"].is_object(), "{config}");
+  assert!(config["mcpServers"]["explorer"].is_object(), "{config}");
 }

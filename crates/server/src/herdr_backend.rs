@@ -51,8 +51,10 @@ use crate::door::record::{ModelSpend, UsageSpent};
 use crate::door::turn::{AsideOutcome, Quiet, Watch};
 use crate::events::Event;
 use crate::job_run::claude::turn::{Shows, WorkAsked, WorkSeat, carry, continues};
+use crate::lines::Trees;
 use crate::lines::chat::{ChatLaunch, RoomContext, compose_prepared, compose_turn, gate_run};
 use crate::lines::companion::{CompanionTurn, compose, lost_session, pinned_provider, registration_named};
+use crate::lines::runner::line_of_document;
 use crate::places::gate_places;
 use crate::places::locks::{pane_lock_path, try_hold};
 use crate::places::{AgentRow, Ground, Places};
@@ -2128,10 +2130,19 @@ impl Sessions for HerdrSessions {
 
     let (id, scope) = match &request.scope {
       Scope::Apart(apart) => {
+        let mut apart = apart.clone();
+
+        // A session on a runner line naming no folder goes out in that line's own.
+        if apart.cwd.trim().is_empty()
+          && let Some(line) = apart.prompt_document.as_deref().and_then(line_of_document)
+        {
+          apart.cwd = Trees::of(self.ground()).agents.join(line).to_string_lossy().into_owned();
+        }
+
         let id = apart_id(&request.agent, self.numbered.fetch_add(1, Ordering::Relaxed));
 
         self.apart().insert(id.clone(), (request.agent.clone(), apart.clone()));
-        (id, request.scope.clone())
+        (id, Scope::Apart(apart))
       }
       Scope::Conversation(conversation) => {
         let mut conversation = conversation.clone();

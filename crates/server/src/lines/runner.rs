@@ -442,6 +442,71 @@ pub async fn branch_line_run(
   Ok(Some((run, env)))
 }
 
+/// The runner lines a thrown-away session may name as its prompt document (docs/api.md, 「sessions」), by
+/// the names their system prompts are written under.
+pub const DOCUMENTS: [&str; 3] = ["search", "search-branch", "browse"];
+
+/// The line a runner document goes out on, whose deployed directory is its folder; none where the name is
+/// no runner's document.
+pub fn line_of_document(document: &str) -> Option<&'static str> {
+  match document {
+    "search" | "search-branch" => Some(Search.name()),
+    "browse" => Some(Browse.name()),
+    _ => None,
+  }
+}
+
+/// A runner document's line as a thrown-away session's turn is handed it whole: the platform's harness
+/// opening and the document's instructions, the line's standing configuration and the tools it allows, on
+/// the model, effort and tier given, a search or a browse thinking as its agent's own choice says and a
+/// branch thinking; what its servers are told goes in the run's own environment, which is handed back.
+/// None where its instructions cannot be had now; refused where the name is no runner's document.
+pub async fn document_run(
+  ground: &Ground,
+  trees: &Trees,
+  document: &str,
+  mapped: (&str, &str, &str),
+  told: &[(&str, String)],
+) -> Result<Option<(RunnerRun, Vec<(String, String)>)>, Refusal> {
+  let (model, effort, tier) = mapped;
+  let on = async |name: &str| -> Result<On, Refusal> {
+    Ok(On {
+      model: model.to_owned(),
+      effort: effort.to_owned(),
+      tier: tier.to_owned(),
+      thinking: reasoning_of(ground, name).await?.thinking.unwrap_or(true),
+    })
+  };
+  let run = match document {
+    "search-branch" => return branch_line_run(ground, trees, mapped, told).await,
+    "search" => {
+      let Some(instructions) = Search.instructions(ground, trees).await? else {
+        return Ok(None);
+      };
+
+      runner_run_on(ground, trees, &Search, &instructions, on(Search.name()).await?).await?
+    }
+    "browse" => {
+      let Some(instructions) = Browse.instructions(ground, trees).await? else {
+        return Ok(None);
+      };
+
+      runner_run_on(ground, trees, &Browse, &instructions, on(Browse.name()).await?).await?
+    }
+    other => {
+      return Err(fault(format!(
+        "{other} is no runner's document; a session names one of {}",
+        DOCUMENTS.join(", ")
+      )));
+    }
+  };
+
+  Ok(Some((
+    run,
+    told.iter().map(|(name, value)| ((*name).to_owned(), value.clone())).collect(),
+  )))
+}
+
 impl RunnerRun {
   /// The run as Claude Code's words for it, opening the session named.
   pub fn args(&self, session: &str) -> Result<Vec<String>, Refusal> {

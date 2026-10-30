@@ -12,7 +12,7 @@ fn the_worker_line_keeps_its_session_and_leaves_its_tools_to_its_agents_role() {
     RUN_LINES.capabilities("chat"),
     ["room.tools", "gate.translate", "gate.reference", "deploy"]
   );
-  assert_eq!(RUN_LINES.namespaces("chat"), ["bmo", "gate", "eye", "testbed", "voice"]);
+  assert_eq!(RUN_LINES.namespaces("chat"), ["bmo", "gate", "eye", "ear", "testbed", "voice"]);
   assert!(RUN_LINES.capabilities("gate").is_empty());
 }
 
@@ -20,11 +20,13 @@ fn the_worker_line_keeps_its_session_and_leaves_its_tools_to_its_agents_role() {
 fn only_the_worker_research_and_chat_lines_show_their_most_called_entries_by_name() {
   assert!(RUN_LINES.shows("worker", "worker/graph_impact"));
   assert!(RUN_LINES.shows("worker", "web/web_fetch"));
-  assert!(!RUN_LINES.shows("worker", "web/research_branch"));
-  assert!(RUN_LINES.shows("search", "web/research_branch"));
-  assert!(RUN_LINES.shows("search", "web/reddit"));
-  assert!(RUN_LINES.shows("browse", "web/reddit"));
-  assert!(RUN_LINES.shows("browse", "web/view_image"));
+  assert!(!RUN_LINES.shows("worker", "web/research"));
+  assert!(RUN_LINES.shows("search", "web/research"));
+  assert!(RUN_LINES.shows("search", "web/read_rulebook"));
+  assert!(RUN_LINES.shows("browse", "web/web_fetch"));
+  assert!(!RUN_LINES.shows("search", "web/reddit"), "the site tools stay in the legacy repository");
+  assert!(RUN_LINES.shows("browse", "eye/see"));
+  assert!(RUN_LINES.shows("search", "eye/see"));
   assert!(RUN_LINES.shows("worker", "worker/todo_show"));
   assert!(!RUN_LINES.shows("worker", "worker/graph_list"));
   assert!(!RUN_LINES.shows("editor", "fragments/fragment_write"), "no editor line stands");
@@ -44,7 +46,7 @@ fn only_the_worker_research_and_chat_lines_show_their_most_called_entries_by_nam
   assert!(!RUN_LINES.shows("chat", "worker/graph_impact"));
   assert!(!RUN_LINES.shows("chat", "web/web_search"));
   assert!(!RUN_LINES.shows("chat", "web/web_fetch"));
-  assert!(!RUN_LINES.shows("chat", "web/reddit"));
+  assert!(!RUN_LINES.shows("chat", "web/web_search"));
   assert!(RUN_LINES.shows("chat", "gate/translate"));
   assert_eq!(RUN_LINES.variables("chat"), ["BMO_GATE_URL", "BMO_GATE_TOKEN_FILE"]);
   assert!(RUN_LINES.variables("worker").is_empty());

@@ -186,6 +186,25 @@ fn a_work_turns_parts_read_whole_by_the_names_a_jobs_runner_sends() {
   assert_eq!(context_read(&json!({ "mapping": null })).unwrap().work, None);
 }
 
+// The boundary names the work key and whether words reach the turn in camelCase, as `TurnSend` declares
+// them; the snake_case spellings read the same.
+#[test]
+fn a_work_turns_parts_read_by_the_boundary_s_camel_case_names() {
+  let snake = context_read(&work_body()).unwrap().work.unwrap();
+  let mut camel = work_body();
+  let body = camel.as_object_mut().unwrap();
+
+  body.remove("work_key");
+  body.remove("hears_words");
+  body.insert("workKey".into(), json!("job-worker"));
+  body.insert("hearsWords".into(), json!(true));
+
+  assert_eq!(context_read(&camel).unwrap().work.unwrap(), snake);
+
+  camel.as_object_mut().unwrap().remove("workKey");
+  assert!(context_read(&camel).is_err(), "a work turn with no work key is refused");
+}
+
 #[test]
 fn a_thrown_away_scope_reads_its_provider_model_and_folder_and_answers_as_it_read() {
   let scope = scope_read(&json!({
@@ -199,6 +218,7 @@ fn a_thrown_away_scope_reads_its_provider_model_and_folder_and_answers_as_it_rea
     cwd: "/places/p/01".into(),
     todo: Some(1816),
     role: Some("scout".into()),
+    ..Apart::default()
   });
 
   assert_eq!(scope, apart);
@@ -217,6 +237,7 @@ fn a_thrown_away_scope_reads_its_provider_model_and_folder_and_answers_as_it_rea
       cwd: "/tmp/run".into(),
       todo: None,
       role: None,
+      ..Apart::default()
     })
   );
 

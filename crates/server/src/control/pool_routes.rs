@@ -321,21 +321,13 @@ impl Route for PlaceWrite {
       return Err(bad("a place's key is required"));
     }
 
-    run(
+    pool::place_written(
       call.store(),
-      r#"INSERT INTO "coworker_pool_place_writes" ("place", "provider", "model", "effort", "upstream", "written_at")
-         VALUES ($1, $2, $3, $4, $5, $6)
-         ON CONFLICT ("place") DO UPDATE SET "provider" = excluded."provider", "model" = excluded."model",
-           "effort" = excluded."effort", "upstream" = excluded."upstream",
-           "written_at" = GREATEST("coworker_pool_place_writes"."written_at", excluded."written_at")"#,
-      vec![
-        place.into(),
-        text(&body, "provider")?.into(),
-        text(&body, "model")?.into(),
-        optional(&body, "effort").unwrap_or_default().into(),
-        optional(&body, "upstream").into(),
-        now_ms().into(),
-      ],
+      &place,
+      text(&body, "provider")?,
+      text(&body, "model")?,
+      optional(&body, "effort"),
+      optional(&body, "upstream"),
     )
     .await?;
 
@@ -759,21 +751,13 @@ impl Route for ChangePlace {
         places::retire_places(call.ground(), text(&body, "cwd")?, &used, &held(&body)).await;
       }
       _ => {
-        run(
+        pool::place_written(
           call.store(),
-          r#"INSERT INTO "coworker_pool_place_writes" ("place", "provider", "model", "effort", "upstream", "written_at")
-             VALUES ($1, $2, $3, $4, $5, $6)
-             ON CONFLICT ("place") DO UPDATE SET "provider" = excluded."provider", "model" = excluded."model",
-               "effort" = excluded."effort", "upstream" = excluded."upstream",
-               "written_at" = GREATEST("coworker_pool_place_writes"."written_at", excluded."written_at")"#,
-          vec![
-            place.clone().into(),
-            text(&body, "provider")?.into(),
-            text(&body, "model")?.into(),
-            optional(&body, "effort").unwrap_or_default().into(),
-            optional(&body, "upstream").into(),
-            now_ms().into(),
-          ],
+          &place,
+          text(&body, "provider")?,
+          text(&body, "model")?,
+          optional(&body, "effort"),
+          optional(&body, "upstream"),
         )
         .await?;
       }

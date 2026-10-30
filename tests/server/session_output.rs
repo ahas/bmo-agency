@@ -177,6 +177,7 @@ async fn every_scope_answers_a_turn_it_never_carried_as_nothing_found() {
         cwd: "/tmp/run".into(),
         todo: None,
         role: None,
+        ..Apart::default()
       }),
     })
     .await

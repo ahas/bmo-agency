@@ -123,7 +123,7 @@
   open the review, place or article page with `web_fetch` and raw set to true, and take the
   addresses from its `og:image` and `img` src attributes.
 - **Name a picture only once you have seen it.** Neither a page's text nor an address says what
-  a picture shows, so look at every picture you mean to name with the view_image tool, and name
+  a picture shows, so look at every picture you mean to name with the eye/see tool, and name
   only one that shows what its caption says, its address written exactly as you gave it to the
   tool. A logo, a banner, a stock photo, a map, a price table or any picture that is mostly text, a
   picture of another branch or another business, another thing's picture and one too small or

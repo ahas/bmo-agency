@@ -71,15 +71,37 @@ same way (`docs/launch-lines.md`, 「Translate runner」).
   the run's variables, and the record it issues for the run carries them under `labels.research` —
   `closesAt`, `branches`, `role`, `source`, `strategy`, `hostIntervalMs`, `engineIntervalMs`, `pages` and
   `branchPages` — the shape the web tools read (bmo-explorer's `docs/api.md`, 「What a placed tool reads of
-  its record」). What the console shows is what the next run carries.
-- **A branch's record says it is one.** A research branch is launched with its parent's variables and
+  its record」). Beside them it carries `run`, the run's ledger id, and `sessionsAt` and `sessionsToken`,
+  agency's own control address and the token its routes take — `BMO_AGENCY_URL` and
+  `AGENCY_CONTROL_TOKEN` as agency's environment names them, each left out where it names none — which
+  the research tool asks a branch's seat and session at (「Branches」). What the console shows is what the
+  next run carries.
+- **A branch's record says it is one.** A research branch's turn carries its parent's variables and
   `BMO_RESEARCH_BRANCH_OF`, the ledger id of the run it is a branch of. Its record carries the parent's
-  settings with `branchOf`, that id; its `pages` is the parent's `branchPages`, the budget each branch of
-  the parent has, which the web tools hold its fetches to; and it opens no branch of its own, `branches`
-  0, no `branchPages`, and the branch tool not shown.
+  settings with `branchOf`, that id, and keeps the parent's `run`; its `pages` is the parent's
+  `branchPages`, the budget each branch of the parent has, which the web tools hold its fetches to; and it
+  opens no branch of its own: `branches` 0, no `branchPages`, no `sessionsAt` or `sessionsToken`, and the
+  branch tool not shown.
 - **The search engines' state** is the web tools' own, read through the tool host's call of
   `explorer/search_engines`, and answered beside the settings; where the tool host cannot be asked, the
   answer says why instead.
+
+## Branches
+
+- **A run allowed branches opens them with bmo-explorer's `research` tool,** which asks agency as any
+  consumer of the pool asks it: a seat of the common co-worker pool (`docs/coworker-pool.md`, 「Who takes a
+  place」), then a thrown-away session on the prompt document `search-branch` (`docs/api.md`, 「sessions」)
+  on the model the seat was given, and a turn into it under the run's record: its work variables are the
+  run's with `BMO_RESEARCH_BRANCH_OF`, so the branch's record is a branch's (「What a run is held to: the
+  research settings」). The tool reads where to ask, and with what token, off its own record's
+  `sessionsAt` and `sessionsToken`.
+- **The branch's line is agency's,** its prompt the tool's: the platform's harness opening and the branch
+  instructions with the search line's configuration and tools (`docs/launch-lines.md`, 「Search
+  runner」), in a pane of its own; the angle and when research closes are what the tool tells it.
+- **Agency counts nothing of a run's branches.** How many a run has opened, whether another is allowed,
+  what becomes of one when its run ends and how its notes are framed for the run are the tool's. Agency
+  holds a run to its allowance only through the record: a run whose `branches` is 0, every branch, and
+  every round is shown no branch tool.
 
 ## One run, step by step
 

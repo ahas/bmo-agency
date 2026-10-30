@@ -14,7 +14,11 @@
 //! A thrown-away session's turn — a co-work branch's or a research run's — is the same turn on a session
 //! nothing keeps: on the provider, model and folder its scope names, always fresh, with nothing of a
 //! worker's records read, judged, recorded or remembered for it, in the standing branch checkout its
-//! folder is or in a pane of its own.
+//! folder is or in a pane of its own. One whose scope names its prompt document goes out on that runner
+//! line instead of the worker line, whole, in a pane of its own, its variables the run's record variables
+//! (docs/api.md, 「sessions」).
+
+use std::time::Duration;
 
 use agent_session::{
   self as contract, Apart, EngineError, Fault, FaultKind, JobMark, Outcome, Resume, SessionId, TurnEnd,
@@ -28,13 +32,16 @@ use super::walk::{Attempt, Walking, on_accounts};
 use crate::Refusal;
 use crate::control::claude_accounts::Account;
 use crate::control::harness::provider_enabled;
+use crate::door::apart::{self, new_session};
 use crate::door::confirm::{Asking, Confirmation};
 use crate::door::execution::{cancelled, execution_root};
 use crate::door::record::Reply;
 use crate::door::turn::{Ending, Turn, Watch, put};
 use crate::keepalive::logins;
 use crate::lines::Trees;
+use crate::lines::claude::{Command, Runs, command_env};
 use crate::lines::place::Place;
+use crate::lines::runner::{RunnerRun, document_run};
 use crate::lines::standing::{claim_standby, session_ttl_ms, worker_prefix_digest};
 use crate::lines::worker::{WorkerRun, effort_of, worker_run};
 use crate::places::branch::{self, BranchRun};
@@ -88,9 +95,14 @@ pub enum ApartSeat {
   Own(herdr::Herdr),
 }
 
-/// Where a thrown-away session's turn goes, by the folder its scope names; none where it names no
-/// standing checkout and this machine names no herdr to open a pane on.
+/// Where a thrown-away session's turn goes, by the folder its scope names, a session naming its prompt
+/// document always in a pane of its own; none where it names no standing checkout and this machine names
+/// no herdr to open a pane on.
 pub fn apart_seat(ground: &Ground, apart: &Apart) -> Option<ApartSeat> {
+  if apart.prompt_document.is_some() {
+    return ground.herdr.clone().map(ApartSeat::Own);
+  }
+
   let run = match (apart.todo, &apart.role) {
     (Some(todo), Some(role)) => Some(BranchRun {
       todo,
@@ -104,6 +116,48 @@ pub fn apart_seat(ground: &Ground, apart: &Apart) -> Option<ApartSeat> {
     None if branch::place_of(&ground.roots.data, &apart.cwd).is_some() => None,
     None => ground.herdr.clone().map(ApartSeat::Own),
   }
+}
+
+/// The runner line a thrown-away session naming its prompt document goes out on, as one login carries it on
+/// the session given: that document's line whole on the scope's model and the effort and tier the turn's
+/// mapping names, in the scope's folder or else the line's own, with the turn's variables in its
+/// environment, where the record its tool session is issued reads them. None where the document's
+/// instructions cannot be had now.
+pub async fn document_command(
+  ground: &Ground,
+  apart: &Apart,
+  document: &str,
+  work: &WorkParts,
+  account: Option<&Account>,
+  session: &str,
+) -> Result<Option<(RunnerRun, Command)>, Refusal> {
+  let trees = Trees::of(ground);
+  let effort = work.mapping.effort.as_deref().unwrap_or_default();
+  let tier = work.mapping.tier.as_deref().unwrap_or_default();
+  let told: Vec<(&str, String)> =
+    work.variables.iter().map(|(name, value)| (name.as_str(), value.clone())).collect();
+  let Some((run, told)) =
+    document_run(ground, &trees, document, (&apart.model, effort, tier), &told).await?
+  else {
+    return Ok(None);
+  };
+  let mut env = command_env(ground.env(), account, &Runs::Here, run.thinking)?;
+
+  for (name, value) in told {
+    env.insert(name, Some(value));
+  }
+
+  let cwd = match apart.cwd.trim() {
+    "" => run.cwd.to_string_lossy().into_owned(),
+    cwd => cwd.to_owned(),
+  };
+  let command = Command {
+    args: run.args(session)?,
+    cwd,
+    env,
+  };
+
+  Ok(Some((run, command)))
 }
 
 /// Which session an attempt goes on, or that the turn goes back to its runner with the session it would
@@ -552,7 +606,11 @@ impl Attempting<'_, '_> {
     let work = self.asked.work;
     let worker = self.asked.agent;
 
-    if let WorkSeat::Apart(_) = self.asked.seat {
+    if let WorkSeat::Apart(apart) = self.asked.seat {
+      if let Some(document) = &apart.prompt_document {
+        return self.on_document(apart, document, account).await;
+      }
+
       return match self.primary(None, account).await? {
         Primary::Answered(reply) => Ok(Settled::Answered(reply)),
         Primary::Back(continues) => Ok(Settled::Back(continues)),
@@ -607,6 +665,98 @@ impl Attempting<'_, '_> {
         }
       }
     }
+  }
+
+  // A thrown-away session's turn on the runner line its prompt document is, on a session of its own in a
+  // pane of its own, bounded as its start asked: the run's reply its answer. Nothing is held for it, so
+  // turns of several such sessions under one agent go out side by side.
+  async fn on_document(
+    &mut self,
+    apart: &Apart,
+    document: &str,
+    account: Option<Account>,
+  ) -> Result<Settled, Failure> {
+    let ground = self.asked.ground;
+    let work = self.asked.work;
+    let worker = self.asked.agent;
+    let session = new_session();
+    let (run, command) = document_command(ground, apart, document, work, account.as_ref(), &session)
+      .await
+      .map_err(refused)?
+      .ok_or_else(|| Failure::error(format!("{document}: the line's instructions cannot be had now")))?;
+
+    if !provider_enabled(&ground.db, PROVIDER).await.map_err(|why| Failure::error(why.error))? {
+      return Err(Failure::Unavailable {
+        scope: held::scope_of(worker),
+        mode: PROVIDER.to_owned(),
+        reason: "Claude Code is switched off".to_owned(),
+      });
+    }
+
+    let went_out = WentOut {
+      provider: PROVIDER.to_owned(),
+      model: run.model.clone(),
+      effort: (!run.effort.is_empty()).then(|| run.effort.clone()),
+      tier: (!run.tier.is_empty()).then(|| run.tier.clone()),
+    };
+
+    self.shown.went_out(&went_out);
+    self.beside.went_out = Some(went_out);
+    self
+      .log
+      .write(
+        &ground.db,
+        Line {
+          source: Some(PROVIDER.to_owned()),
+          state: Some("running"),
+          ..Line::note(format!("{PROVIDER} · {} · {document}", run.model))
+        },
+      )
+      .await;
+
+    let mut watch = WorkWatch {
+      ground,
+      log: self.log,
+      compacted: &mut self.beside.compacted,
+      session: self.asked.session,
+      run: &work.name,
+      questions: self.asked.questions,
+      shown: self.shown,
+    };
+    let ending = apart::run(
+      ground,
+      apart::Apart {
+        agent: worker,
+        line: run.line,
+        provider: PROVIDER,
+        title: work.title.clone(),
+        command,
+        session,
+        prompt: self.asked.prompt.to_owned(),
+        work_key: work.work_key.clone(),
+        model: run.model.clone(),
+        effort: run.effort.clone(),
+        tier: Some(run.tier.clone()),
+        bound: apart.bound_ms.and_then(|bound| u64::try_from(bound).ok()).map(Duration::from_millis),
+        parent: work.unit.clone(),
+        root: work.unit.as_deref().map(execution_root),
+      },
+      &mut watch,
+    )
+    .await
+    .map_err(|message| Failure::Transport { message })?;
+
+    if let Ending::Errored { kind, .. } = &ending {
+      self.beside.engine_error = Some(EngineError { kind: kind.clone() });
+    }
+
+    let reply = apart::answered(ending, &work.work_key)?;
+
+    noted(ground, worker, work.unit.as_deref().unwrap_or(&work.name), &reply)
+      .await
+      .map_err(refused)?;
+
+    Ok(Settled::Answered(Box::new(reply)))
   }
 
   // The run on the worker line with the turn's mapping laid on it, delivered under the agent's lock: the

@@ -216,7 +216,7 @@ pub fn shell_guard(input: &str) -> Option<String> {
 pub fn shell_refusal(command: &str, data_root: &Path) -> Option<String> {
   if let Some(launch) = claude_launch(command) {
     return Some(format!(
-      "refused: {launch}. No agent of this system starts Claude Code itself: hand work to a worker with your task tool (file it with todo_add first where it needs an item), and a search or a browse with their own tools (docs/agents.md, 「No print mode」)."
+      "refused: {launch}. No agent of this system starts Claude Code itself: file it as an item with file_item and launch it with assign_worker and run_job, and a search or a browse with their own tools (docs/agents.md, 「No print mode」)."
     ));
   }
 

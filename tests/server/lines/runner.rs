@@ -132,7 +132,7 @@ fn is_told_the_rounds_follow_its_first_answer() {
       "A run is a task turn and the rounds after it",
       "at the basic depth only the final question",
       "the final round asks for the result whole",
-      "no branch, no picture viewer and no rulebook reader",
+      "no branch and no rulebook reader",
     ],
   );
 }
@@ -193,10 +193,20 @@ fn carries_every_rulebook_or_its_deciding_section() {
       "RULEBOOK prompts/rules/product-search.md (sections: Whether this rulebook applies at all):",
       "RULEBOOK prompts/rules/restaurant-search.md (sections: Whether this rulebook applies at all):",
       "RULEBOOK prompts/rules/investment-search.md (sections: Whether this rulebook applies at all):",
+      "RULEBOOK prompts/rules/deep-dives.md (sections: Whether this rulebook applies at all):",
+      "RULEBOOK prompts/rules/research.md (sections: Whether this rulebook applies at all):",
       "read it whole with the read_rulebook tool before searching",
     ],
   );
-  lacks(&task, &["## The two views", "## The shape of a product answer", "## The owner's rule"]);
+  lacks(
+    &task,
+    &[
+      "## The two views",
+      "## The shape of a product answer",
+      "## The owner's rule",
+      "## The manual",
+    ],
+  );
   assert!(!placeholder(&task));
 }
 
@@ -238,7 +248,7 @@ fn tells_the_run_to_attach_pictures_where_the_picture_is_the_material() {
       "and in the body where the answer",
       "a question after one value or one fact is answered by that value, and a picture nobody asked for is noise",
       "The deployment keeps its own copy of every picture you name",
-      "look at every picture you mean to name with the view_image tool",
+      "look at every picture you mean to name with the eye/see tool",
       "the document shows lines written together as one slide gallery",
       "\"<dish> :: <price>\"",
     ],

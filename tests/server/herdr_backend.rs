@@ -27,6 +27,7 @@ fn no_id_is_named_for_a_thrown_away_session_ahead_of_its_start() {
     cwd: "/checkouts/a".into(),
     todo: Some(1802),
     role: Some("build".into()),
+    ..Apart::default()
   };
 
   assert_eq!(id_of("branch-a", &Scope::Apart(apart)), None);

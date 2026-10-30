@@ -16,7 +16,9 @@ composed into a system prompt, and what the chat agent's own prompt is made of.
   - `telegram-markup.md` — read by no model: the statement of what the send path's converter turns
     markdown into, kept beside the rulebooks it points to for the marks and the fold;
   - `search-kinds.md`, `product-search.md`, `restaurant-search.md`, `investment-search.md`,
-    `study-material.md` and `deep-dives.md` — the search runner;
+    `study-material.md`, `deep-dives.md` and `research.md` — the search runner; `research.md`, the
+    routine a research about a made thing follows and the three shapes its report takes, also binds a
+    job that measures something the lab runs, through the worker's researching-and-benching skill;
   - `document-writing.md` — every agent that writes a stored document: the brain, which composes its
     writers' whole prompts, reads it with `plain-writing.md` and `self-preservation.md` through the
     rulebook read (`docs/api.md`, 「Agents」);

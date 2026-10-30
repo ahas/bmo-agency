@@ -90,12 +90,14 @@ pub enum OvertimeRequestVerdict {
 pub enum SeatRequestState {
   #[serde(rename = "waiting")]
   Waiting,
-  #[serde(rename = "admitted")]
-  Admitted,
-  #[serde(rename = "bound")]
-  Bound,
-  #[serde(rename = "finished")]
-  Finished,
+  #[serde(rename = "reserved")]
+  Reserved,
+  #[serde(rename = "active")]
+  Active,
+  #[serde(rename = "released")]
+  Released,
+  #[serde(rename = "cancelled")]
+  Cancelled,
 }
 
 /// One of the values the API accepts.
@@ -249,7 +251,7 @@ pub struct Session {
   pub prefix_change_reason: Option<String>,
   pub bound_ms: Option<i64>,
   pub options: Value,
-  /// The prompt document the session starts from, one of GET /prompt-documents. A run with a fixed prompt names its document here and carries its own bounds in boundMs and options.
+  /// The prompt document a thrown-away session's turns go out on: the runner line by the name its system prompt is written under, search, search-branch or browse; none for the worker line. A run with a fixed prompt names its document here and carries its own bounds in boundMs and options.
   pub prompt_document_name: Option<String>,
   /// The share of its model's window the session may fill before it is folded once the turn that crossed it is over: the fold-ratio table's value for the provider it stands on and the tier its agent's work key is assigned, read with the session's state; none in a list, or where the state names no provider.
   #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -435,7 +437,9 @@ pub struct Pool {
   pub read_at: i64,
 }
 
-/// SeatRequest:
+/// SeatRequest: a seat asked of the pool: `waiting` in its bucket's line, `reserved` under a reservation,
+/// `active` once let in, and `released` or `cancelled` once given back; the provider, model, effort and tier
+/// its work key resolved to.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct SeatRequest {
@@ -443,6 +447,10 @@ pub struct SeatRequest {
   pub source: String,
   pub owner: String,
   pub role: String,
+  pub provider: String,
+  pub model: String,
+  /// None where the mapping it resolved to names no effort.
+  pub effort: Option<String>,
   pub tier: String,
   pub work_key: Option<String>,
   pub state: SeatRequestState,

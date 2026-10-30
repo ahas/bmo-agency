@@ -119,7 +119,7 @@ These checks apply on top of the owner's rule or the relaxed rule whenever the r
   its Naver place page, Dining Code, and for delivery its Coupang Eats store page.
 - **No menu in text: look for a menu board first.** Where no page gives the menu as text, go
   through the place's pictures (its place page's photos, the pictures in its reviews and blog
-  posts) for a menu board or a printed menu, look at each likely one with `view_image`, and read
+  posts) for a menu board or a printed menu, look at each likely one with `eye/see`, and read
   the dishes and prices off it. The `MENU:` line then names the picture it was read from. Only
   where no menu board turns up either is the menu written as not confirmed.
 - **A price read off a board is a price as of that picture.** Where the picture is dated, and a
@@ -133,7 +133,7 @@ These checks apply on top of the owner's rule or the relaxed rule whenever the r
   named for the dish, one for the storefront, and one for the inside where one turns up; three to
   six pictures in a group where that many pass, at least three of the food and one of the
   storefront.
-- **Look at every one with `view_image` before it goes in.** A picture goes in only where it shows
+- **Look at every one with `eye/see` before it goes in.** A picture goes in only where it shows
   this place's food, its storefront or its inside. Leave out a picture of none of these, a menu
   board (read for the menu, not shown as food) a stock photo, another shop's or another branch's
   picture, and one too blurred to make out.

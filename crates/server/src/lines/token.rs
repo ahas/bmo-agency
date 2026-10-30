@@ -315,9 +315,11 @@ fn leading_number(value: Option<&String>) -> i64 {
 /// What a run's session record carries of its research settings,
 /// read out of the run's environment where its runner put them, and the capabilities the policy ties to
 /// those settings that they do not open; no settings and
-/// every such capability left out for a run carrying none. A research branch's record carries its
-/// parent's settings held to the budget of one of the parent's branches, opens no branch, and names the
-/// parent's run as `branchOf`.
+/// every such capability left out for a run carrying none. A research run's record names its ledger run as
+/// `run`, and where agency's session service answers and the token it takes as `sessionsAt` and
+/// `sessionsToken`. A research branch's record carries its parent's settings and `run` held to the budget of
+/// one of the parent's branches, opens no branch and names no session service, and names the parent's run as
+/// `branchOf`.
 pub fn research_record(env: &BTreeMap<String, String>) -> (Option<Value>, Vec<&'static str>) {
   let branch_of = count(env.get(BRANCH_OF)).filter(|run| *run > 0);
   let narrowed;
@@ -343,13 +345,25 @@ pub fn research_record(env: &BTreeMap<String, String>) -> (Option<Value>, Vec<&'
 /// The variable that names, on a research branch's run, the ledger's run it is a branch of.
 pub const BRANCH_OF: &str = "BMO_RESEARCH_BRANCH_OF";
 
+/// The variable that names a research run's ledger run, which a branch of it carries as its parent's.
+pub const RUN: &str = "BMO_RESEARCH_RUN";
+
+/// The variable that names where agency's session service answers a research run's tools.
+pub const SESSIONS_AT: &str = "BMO_RESEARCH_SESSIONS_AT";
+
+/// The variable that names the token agency's session service takes from a research run's tools.
+pub const SESSIONS_TOKEN: &str = "BMO_RESEARCH_SESSIONS_TOKEN";
+
 // A branch's variables as its record reads them: its parent's settings, its page budget the one each branch
-// of the parent has, and no branch of its own.
+// of the parent has, and no branch of its own nor the session service one is opened through.
 fn branch_variables(env: &BTreeMap<String, String>) -> BTreeMap<String, String> {
   let mut narrowed = env.clone();
   let budget = narrowed.remove("BMO_RESEARCH_BRANCH_PAGES");
 
-  narrowed.remove("BMO_RESEARCH_TOOLS");
+  for opens in ["BMO_RESEARCH_TOOLS", SESSIONS_AT, SESSIONS_TOKEN] {
+    narrowed.remove(opens);
+  }
+
   narrowed.insert("BMO_RESEARCH_BRANCHES".to_owned(), "0".to_owned());
 
   match budget {
@@ -379,10 +393,16 @@ fn settings_record(env: &BTreeMap<String, String>) -> (Option<Value>, Vec<&'stat
     research.insert("closesAt".to_owned(), json!(at));
   }
 
+  if let Some(run) = count(set(RUN)).filter(|run| *run > 0) {
+    research.insert("run".to_owned(), json!(run));
+  }
+
   for (key, variable) in [
     ("owner", "BMO_RESEARCH_OWNER"),
     ("source", "BMO_RESEARCH_SOURCE"),
     ("role", "BMO_RESEARCH_ROLE"),
+    ("sessionsAt", SESSIONS_AT),
+    ("sessionsToken", SESSIONS_TOKEN),
   ] {
     let value =
       set(variable).filter(|value| key != "source" || ["search", "browse"].contains(&value.as_str()));

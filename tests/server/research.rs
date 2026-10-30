@@ -119,12 +119,21 @@ fn a_run_s_settings_travel_on_its_tool_session_record() {
     },
   );
 
-  let vars: std::collections::BTreeMap<String, String> =
-    variables(&settings, "search:thorough", "search", Some("the owner"), Some(-5), 1_900_000_000_000);
+  let vars: std::collections::BTreeMap<String, String> = variables(
+    &std::collections::BTreeMap::new(),
+    &settings,
+    "search:thorough",
+    "search",
+    6190,
+    Some("the owner"),
+    Some(-5),
+    1_900_000_000_000,
+  );
   let (record, withheld) = research_record(&vars);
   let record = record.expect("a research run carries its settings");
 
   assert_eq!(record["closesAt"], 1_900_000_000_000_i64);
+  assert_eq!(record["run"], 6190, "the record names the run its branches are asked under");
   assert_eq!(record["branches"], 2);
   assert_eq!(record["role"], json!(settings.branch_role));
   assert_eq!(record["source"], "search");
@@ -133,7 +142,16 @@ fn a_run_s_settings_travel_on_its_tool_session_record() {
   assert!(record.get("hostIntervalMs").is_none(), "a gap at the web tools' default is not named");
   assert!(!withheld.contains(&"web.branches"), "a run that may branch is shown the branch tool");
 
-  let none = variables(&defaults(), "search:basic", "search", None, None, 1);
+  let none = variables(
+    &std::collections::BTreeMap::new(),
+    &defaults(),
+    "search:basic",
+    "search",
+    1,
+    None,
+    None,
+    1,
+  );
 
   assert!(research_record(&none).1.contains(&"web.branches"), "a run of no branches is not");
 }
@@ -152,8 +170,16 @@ fn a_branch_s_record_names_its_parent_and_holds_it_to_one_branch_s_budget() {
     },
   );
 
-  let mut vars: std::collections::BTreeMap<String, String> =
-    variables(&settings, "search:thorough", "search", Some("the owner"), Some(-5), 1_900_000_000_000);
+  let mut vars: std::collections::BTreeMap<String, String> = variables(
+    &std::collections::BTreeMap::new(),
+    &settings,
+    "search:thorough",
+    "search",
+    6190,
+    Some("the owner"),
+    Some(-5),
+    1_900_000_000_000,
+  );
 
   vars.insert("BMO_RESEARCH_BRANCH_OF".into(), "6191".into());
 
@@ -161,6 +187,7 @@ fn a_branch_s_record_names_its_parent_and_holds_it_to_one_branch_s_budget() {
   let record = record.expect("a branch carries its parent's settings");
 
   assert_eq!(record["branchOf"], 6191);
+  assert_eq!(record["run"], 6190, "a branch keeps its parent's run");
   assert_eq!(record["pages"], 4, "a branch is held to the budget each branch of its parent has");
   assert!(record.get("branchPages").is_none(), "a branch opens no branch to give a budget");
   assert_eq!(record["branches"], 0);
@@ -406,8 +433,16 @@ async fn the_routes_keep_the_settings_and_refuse_what_is_no_research_or_what_not
 // the rulebook reader (docs/launch-lines.md, 「A research run's rounds」).
 #[test]
 fn the_rounds_hold_the_reading_tools_alone() {
-  let vars =
-    variables(&defaults(), "search:thorough", "search", Some("the owner"), Some(5), 1_900_000_000_000);
+  let vars = variables(
+    &std::collections::BTreeMap::new(),
+    &defaults(),
+    "search:thorough",
+    "search",
+    1,
+    Some("the owner"),
+    Some(5),
+    1_900_000_000_000,
+  );
   let rounds = rounds_variables(&vars);
 
   assert!(vars.contains_key("BMO_RESEARCH_TOOLS"));
@@ -439,7 +474,16 @@ fn each_depth_holds_its_budget_and_the_run_is_told_it_as_a_ceiling() {
   assert!(!budget_line(keys["search:basic"]).contains("branches"));
   assert_eq!(budget_line(keys["browse"]), "");
 
-  let vars = variables(&defaults(), "search:thorough", "search", None, None, 1);
+  let vars = variables(
+    &std::collections::BTreeMap::new(),
+    &defaults(),
+    "search:thorough",
+    "search",
+    1,
+    None,
+    None,
+    1,
+  );
   let (record, _) = research_record(&vars);
   let record = record.unwrap();
 
@@ -459,4 +503,33 @@ fn a_research_run_s_place_is_its_own_by_its_record_and_none_without_it() {
 
   assert!(is_run_place(data.path(), "search-7"));
   assert_eq!(run_places(data.path()), ["search-7"]);
+}
+
+// A run's record names agency's control address and token as agency's environment names them, and none
+// where it names none.
+#[test]
+fn a_run_s_record_names_where_its_research_tool_asks_for_a_branch() {
+  let env = std::collections::BTreeMap::from([
+    ("BMO_AGENCY_URL".to_owned(), " http://127.0.0.1:9 ".to_owned()),
+    ("AGENCY_CONTROL_TOKEN".to_owned(), "a-control-token".to_owned()),
+  ]);
+  let vars = variables(&env, &defaults(), "search:thorough", "search", 7, None, None, 1);
+  let record = research_record(&vars).0.unwrap();
+
+  assert_eq!(record["sessionsAt"], "http://127.0.0.1:9");
+  assert_eq!(record["sessionsToken"], "a-control-token");
+
+  let bare = variables(
+    &std::collections::BTreeMap::new(),
+    &defaults(),
+    "search:thorough",
+    "search",
+    7,
+    None,
+    None,
+    1,
+  );
+  let record = research_record(&bare).0.unwrap();
+
+  assert!(record.get("sessionsAt").is_none() && record.get("sessionsToken").is_none(), "{record}");
 }

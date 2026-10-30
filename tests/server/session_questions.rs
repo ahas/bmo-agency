@@ -257,6 +257,7 @@ async fn a_session_whose_turns_put_no_question_to_their_caller_takes_no_answer()
         cwd: "/tmp/run".into(),
         todo: None,
         role: None,
+        ..Apart::default()
       }),
     })
     .await

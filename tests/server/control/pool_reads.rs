@@ -92,6 +92,20 @@ async fn a_running_server_reads_the_pool_s_requests_and_roles_and_keeps_a_place_
   );
   assert_eq!(get(port, token, "/seat-requests/t-4").await.1["state"], json!("released"));
 
+  // The seat reads whole as the schema declares it, with what its work key resolved to.
+  let declared: bmo_agency_client::SeatRequest = serde_json::from_value(request.clone()).unwrap();
+
+  assert_eq!(declared.state, bmo_agency_client::SeatRequestState::Active);
+  assert_eq!(
+    (
+      declared.provider.as_str(),
+      declared.model.as_str(),
+      declared.effort.as_deref(),
+      declared.tier.as_str()
+    ),
+    ("codex", "m", Some("low"), "Light")
+  );
+
   let (status, absent) = get(port, token, "/seat-requests/nobody").await;
 
   assert_eq!((status, absent["code"].as_str()), (404, Some("not-found")), "{absent}");

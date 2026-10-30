@@ -33,7 +33,7 @@ made of is `docs/companions.md`.
   |---|---|---|
   | `chat` | Chat | `room.chat`, `room.send`, `web.read` |
   | `worker` | Worker | `graph.read`, `queue.read`, `web.read` |
-  | `searcher` | Searcher | `web.read`, `web.sites`, `web.images`, `web.branches`, `web.rulebooks` |
+  | `searcher` | Searcher | `web.read`, `web.sites`, `web.branches`, `web.rulebooks` |
   | `translator` | Translator | none |
   | `gate` | Gate | none |
 
@@ -77,9 +77,9 @@ made of is `docs/companions.md`.
   road carries:
   - `photo`, one picture or several as one album, each with the word to draw into it;
   - `react`, `pin` and `sticker`, as tools of the same catalogue;
-  - in its shell (`docs/companions.md`, 「Its tools」), a file it made,
-    sent out of the room's outbox (`upload.md`), and a file the room was sent, sent again
-    (`room-files.md`);
+  - in its shell (`docs/launch-lines.md`, 「A companion's turn」), a file it made,
+    sent out of the room's outbox, and a file the room was sent, sent again (the receiver's
+    `room-files.md`);
   - its answer pinned to a message by the reply sentinel, as the chat agent's is.
 - **What the room's road cannot carry is refused in that road's one sentence,** as for every sender
   (`chat-providers.md`): the bundle opens the verbs, and the road decides which of them go.
@@ -115,13 +115,14 @@ made of is `docs/companions.md`.
 
 ## The searcher role's bundles
 
-- **`web.read`, `web.sites`, `web.images`, `web.branches` and `web.rulebooks` — the whole of the web
-  namespace:** search and fetch, the site tools, the picture viewer, the research branch and the
-  rulebooks. The tools its line does not show are reached with `bmo use` under its own record, which no
+- **`web.read`, `web.sites`, `web.branches` and `web.rulebooks` — the whole of the web
+  namespace:** search and fetch, the site tools, the research branch and the rulebooks. The look at a
+  picture is the eye service's `eye/see`, which the search and browse lines hold through their `eye`
+  namespace and the `room.tools` capability its entries ask for (`policy/run-lines.toml`). The tools its line does not show are reached with `bmo use` under its own record, which no
   other role holds.
 - **A run's research settings narrow them** (`mcp-host.md`, 「The session record」): a research run
-  holds the picture viewer, the branch tool and the rulebooks only where its settings open them, so a
-  search, a browse, a branch and a news brief are each shown what their own settings ask for, and a run
+  holds the branch tool and the rulebooks only where its settings open them, so a
+  search, a browse and a branch are each shown what their own settings ask for, and a run
   carrying no research setting at all is shown the reading tools alone.
 - **The search and browse lines hold the shared brain's writing tools** (`docs/launch-lines.md`, 「A
   research run's rounds」): `brain_learn` and `brain_similar` of the `bmo` namespace, on the chat agent's brain —
@@ -130,7 +131,7 @@ made of is `docs/companions.md`.
   research run writes what it establishes into the same brain the chat agent reads, while the run itself
   stays the runner's and its work stays the runner work key's.
 - **The search runner and the browse runner hold it,** and so does every run on their behalf: a research
-  branch, a news brief, and the keepalive pings that warm their lines and their branch places.
+  branch, and the keepalive pings that warm their lines and their branch places.
 
 ## Who a send goes out as
 

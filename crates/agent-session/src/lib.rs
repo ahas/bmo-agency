@@ -42,14 +42,18 @@ pub enum Scope {
 }
 
 /// What a thrown-away session is started on: the provider, the model and the folder its turns go out on,
-/// and the item and role a co-work branch's place labels its run with, none for a research run.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+/// the item and role a co-work branch's place labels its run with, none for a research run, the prompt
+/// document naming the runner line its turns go out on, none for the worker line, and how long each of its
+/// turns may take, none for no bound.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct Apart {
   pub provider: String,
   pub model: String,
   pub cwd: String,
   pub todo: Option<i64>,
   pub role: Option<String>,
+  pub prompt_document: Option<String>,
+  pub bound_ms: Option<i64>,
 }
 
 /// What a conversation the caller opened stands on: the provider, the model and the folder its turns go
@@ -139,7 +143,8 @@ pub struct JobMark {
 /// on, the folder its program works in, the run's name and what a person watching reads over it, the room
 /// its run's lines stand under, the unit it runs under, the user and the work key its logins are offered
 /// by, whether words pushed into the session reach it, and the variables its program is started with
-/// beside its own.
+/// beside its own. The parts read by the boundary's camelCase names, the snake_case spellings of the two
+/// that differ accepted as well.
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
 pub struct WorkParts {
   pub provider: String,
@@ -154,8 +159,9 @@ pub struct WorkParts {
   pub unit: Option<String>,
   #[serde(default)]
   pub user: Option<String>,
+  #[serde(rename = "workKey", alias = "work_key")]
   pub work_key: String,
-  #[serde(default)]
+  #[serde(default, rename = "hearsWords", alias = "hears_words")]
   pub hears_words: bool,
   #[serde(default)]
   pub variables: BTreeMap<String, String>,
