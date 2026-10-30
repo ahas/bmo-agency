@@ -19,12 +19,12 @@ struct Stub {
 
 async fn worker(State(stub): State<Stub>, Path(name): Path<String>) -> (StatusCode, Json<Value>) {
   let body = match name.as_str() {
-    "helper" => json!({ "kind": "worker", "state": "idle", "sessionId": "s1", "cwd": "/work/helper" }),
-    "busy" => json!({ "kind": "worker", "state": "working", "sessionId": "s1", "cwd": "/work/busy" }),
+    "helper" => json!({ "state": "idle", "sessionId": "s1", "cwd": "/work/helper" }),
+    "busy" => json!({ "state": "working", "sessionId": "s1", "cwd": "/work/busy" }),
     "node" => {
-      json!({ "kind": "worker", "state": "idle", "sessionId": "s1", "cwd": "/work/node", "nodeName": "n1" })
+      json!({ "state": "idle", "sessionId": "s1", "cwd": "/work/node", "nodeName": "n1" })
     }
-    "own" => json!({ "kind": "worker", "state": "idle", "sessionId": "s1", "cwd": stub.folder }),
+    "own" => json!({ "state": "idle", "sessionId": "s1", "cwd": stub.folder }),
     _ => return (StatusCode::NOT_FOUND, Json(json!({ "error": "no worker" }))),
   };
 

@@ -196,10 +196,6 @@ pub async fn ask_with(api: &Api, session: &Session, input: AskInput) -> Answer {
     );
   }
 
-  if described.get("kind").and_then(Value::as_str) != Some("worker") {
-    return Answer::failure(format!("{worker} is no worker"));
-  }
-
   let state = described.get("state").and_then(Value::as_str).unwrap_or("idle");
 
   if state != "idle" && !owner {
