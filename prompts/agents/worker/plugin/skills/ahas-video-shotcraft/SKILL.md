@@ -1,0 +1,53 @@
+---
+name: "ahas-video-shotcraft"
+bundle: worker
+version: "1.0.0"
+description: "How a job makes a video with the video-shotcraft studio (Remotion): where the studio stands, how it is set up on a machine, how a render is run on CPU, what is checked before the file goes out, and the licence lines the studio's own files draw. Use before the first step of any item that produces a video or edits one."
+---
+
+# Making a video with the studio
+
+## Where the studio stands
+
+- The studio is the video-shotcraft skill bundle, a clone of its own repository under the worker's own
+  repository at `studio/video-shotcraft`. Its `SKILL.md` is the method and binds the work as if it stood in
+  this skill; read it whole before the first shot. Its `references/shots/` are the shot recipe cards, its
+  `template/` a runnable Remotion project, its `workbench/` the editor served after delivery, and its
+  `assets/audio/` the licensed music.
+- Where the folder is missing, make it: clone `https://github.com/Vincentwei1021/video-shotcraft.git` into
+  `studio/video-shotcraft` and install the template's packages with `npm install` in `template/`. Remotion
+  fetches its headless Chrome on the first render; where the machine's network refuses that download, name
+  the machine's own Chrome with `--browser-executable`.
+- The machine needs Node 22 or newer, npm, ffmpeg and ffprobe; the beat analysis of a music track needs `uv`.
+  Check each before the first render and report what is missing rather than working around it.
+
+## The render
+
+- A project is one folder an item under the worker's repository: the brief, the beat sheet, the captured
+  pages and pictures, the composition, the renders and `NOTES.md`.
+- Render the first scenes first as a proof at full quality, check its frames, then render the whole:
+  `npx remotion render <entry> <composition> <out.mp4>` from the template or the project, with
+  `--concurrency` set to what the machine has free. Rendering is CPU work: never on a node that serves a
+  model, never under a card hold.
+- After the whole render, run the studio's frame checks and its parity script, and look at the frames the
+  checks flag with the platform's eye. A video that fails a check is not finished.
+- The file that goes to a room is an MP4 under 50 MiB; a larger master stays in the project folder, named
+  in the report.
+
+## What the studio's own files say of licences
+
+- The code and the shot cards are Apache-2.0. The music under `assets/audio/` is Mixkit's free licence,
+  except any track the attribution file marks as untraceable, which is not used. The template's sound effects
+  are Mixkit's where the attribution file names them so, and not used where it marks the origin unknown.
+  Sound effects fetched from Freesound carry their own licence each, credited in `NOTES.md`.
+- Remotion's licence is free for a person and a small team; a company's use may need a paid licence. Say so
+  in the report where the video is for a company's use, and leave the decision to the owner.
+- The editor export for another tool writes device identifiers into its draft; strip them before such a
+  draft leaves the machine.
+
+## The record
+
+- `NOTES.md` in the project keeps what was made, the sources of every picture and sound with their
+  licences, the render settings, and the render time measured with the machine it ran on.
+- The report names the file sent, its length and size, the render time, and anything the checks flagged
+  and how it was fixed.

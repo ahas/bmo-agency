@@ -6,6 +6,8 @@ fn each_role_gives_its_bundles_and_every_bundle_a_role_names_is_declared() {
   assert_eq!(ROLES.bundles_of("worker"), ["graph.read", "queue.read", "web.read"]);
   assert_eq!(ROLES.bundles_of("searcher"), ["web.read", "web.sites", "web.branches", "web.rulebooks"]);
   assert!(ROLES.bundles_of("gate").is_empty());
+  assert_eq!(ROLES.bundles_of("video"), ["queue.read", "web.read", "room.send"]);
+  assert_eq!(ROLES.role("video").and_then(|role| role.prompt.as_deref()), Some("video.md"));
   assert!(ROLES.bundles_of("nobody").is_empty());
   assert!(!ROLES.holds("companion"));
   assert!(ROLES.holds(&ROLES.coworker));

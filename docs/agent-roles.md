@@ -35,6 +35,7 @@ made of is `docs/companions.md`.
   | `worker` | Worker | `graph.read`, `queue.read`, `web.read` |
   | `searcher` | Searcher | `web.read`, `web.sites`, `web.branches`, `web.rulebooks` |
   | `translator` | Translator | none |
+  | `video` | Video producer | `queue.read`, `web.read`, `room.send` |
   | `gate` | Gate | none |
 
 - **The translator is a runner, not a gate.** A gate judges a turn in the chain around it, its input and
@@ -112,6 +113,19 @@ made of is `docs/companions.md`.
 - **Every run a worker's work goes out on holds them:** a job's turns in the worker's standing program,
   its runs on another provider's road, the program a worker stands idle, and a co-work task's turns in
   its place and the pings that warm it.
+
+## The video role
+
+- **The video producer is a worker whose items make videos.** Its agent is a row of kind `worker` holding the
+  `video` role, standing in a repository of its own where its projects and its studio live; its line is the
+  worker line, and its role prompt, `prompts/roles/video.md`, stands first in every turn: what the studio is
+  (the video-shotcraft skill bundle driving Remotion, CPU rendering), how an item is made, how the file goes
+  out and the studio's licence rules. The worker plugin's `ahas-video-shotcraft` skill carries the setup, the
+  render and the checks.
+- **Its bundles:** `queue.read` for its items, `web.read` for the pages and assets an item names, and
+  `room.send` for the finished file, which goes into the item's room through the receiver's file send tool
+  as a job's own material (the receiver's `docs/room-files.md`, 「A job's sends」). It holds no graph: its
+  repository is not code the graph maps.
 
 ## The searcher role's bundles
 
