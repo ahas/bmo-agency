@@ -5,8 +5,8 @@ documents, the knowledge library, room rules, person books and lore. An answer t
 reply, a report, a summary returned to the caller) is not a stored document; its own instructions
 set its language. A document of the archive (what the search runner writes about one search, or
 what the chat agent writes there when asked to record something) is outside the language rule and stays in
-the room's language, never translated; the diagram rule under Shape and `plain-writing.md` still
-hold for it.
+the language of the person it was written for, never translated; the diagram rule under Shape and
+`plain-writing.md` still hold for it.
 
 ## Language
 

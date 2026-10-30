@@ -1,4 +1,4 @@
-# Product search order (product search order)
+# Product search order
 
 - This document sets the order and the places searched when someone asks to find something to buy.
 - The order binds the actual search: the search runner's prompt carries this rulebook's deciding
@@ -143,16 +143,18 @@ an unchecked value is told from one that does not exist.
 - **The line's news is searched first** (「The product line's news」), so the sellers are then
   searched for the lineup and the prices as they stand now, a product just announced among them.
 - **The price comparison starts at Danawa**, which sweeps domestic sellers' prices at
-  once: the default place to find the product and its lowest price (the `danawa_search` tool).
+  once: the default place to find the product and its lowest price.
+- **A site the task's catalogue lists a tool for is read with that tool**, Danawa, Coupang, Naver
+  Price Comparison and the exchange rate among them where it lists one; a site with none is read
+  with the web tools.
 - The sellers are then checked in this order:
-  1. **Coupang** (the `coupang_search` tool; its pages refuse this machine, so its prices are
-     snippet-only and a price Danawa lists for Coupang is the checked one)
-  2. **Domestic alternatives**: Naver Shopping (Smart Store; the `naver_price` tool reads Naver
-     Price Comparison's lowest price and its malls), then Gmarket, and a category's specialist leader
-     where it has one.
+  1. **Coupang** (its pages refuse this machine, so its prices are snippet-only and a price Danawa
+     lists for Coupang is the checked one)
+  2. **Domestic alternatives**: Naver Shopping (Smart Store, with Naver Price Comparison's lowest
+     price and its malls), then Gmarket, and a category's specialist leader where it has one.
   3. **Google Shopping**: for sellers the two above miss.
   4. **Overseas**: at least AliExpress and Amazon, compared by landed price, not list price, at
-     today's exchange rate (the `exchange_rate` tool).
+     today's exchange rate.
 - Comparing the domestic price with the Ali and Amazon prices is always worth giving when the item
   is sold overseas.
 
@@ -206,8 +208,8 @@ Before writing the answer, check two things:
 - The landed price has four parts:
   - **Exchange rate.**
     - Only converted to won can it be compared with domestic prices.
-    - Read the rate every time with the `exchange_rate` tool and use that moment's value, naming
-      its time. Never reuse a remembered value or one from an earlier answer.
+    - Read the rate every time and use that moment's value, naming its time. Never reuse a
+      remembered value or one from an earlier answer.
   - **Shipping.**
     - Free shipping is common on Ali but varies by item.
     - US Amazon ships only some items directly to Korea, and expensively, so consolidating through

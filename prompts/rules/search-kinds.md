@@ -1,4 +1,4 @@
-# Search kinds and options (rules by search kind)
+# Search kinds and options
 
 - This rulebook sets what a search checks and attaches by kind of question, how it writes its
   pictures and reviews, the shape of its body, and the options any search may carry. It is
@@ -12,11 +12,11 @@
 
 ## By kind
 
-1. **News and current affairs (news and current affairs).**
+1. **News and current affairs.**
    - Fix a period (the last 24 hours, the last week) and keep to it.
    - Write as fact only what at least two different outlets report.
    - Put the article date on every item.
-2. **Development and technology (development and technology).**
+2. **Development and technology.**
    - Look at the official documentation and GitHub releases first; a deep dive reads its maker as
      `deep-dives.md` sets.
    - For what is new (a release, a tool, IT news) also skim `news.hada.io` (GeekNews) to see what
@@ -24,7 +24,7 @@
      open the original the item points at and write as fact only what the original says.
    - Always give the version and its release date.
    - Blog posts only supplement.
-3. **AI models and hardware (AI models and hardware).**
+3. **AI models and hardware.**
    - Copy benchmark figures exactly as the original gives them.
    - Mark official announcements apart from rumours and leaks.
    - **A model is its exact weights, never its family name.** One name covers many weights:
@@ -59,21 +59,21 @@
      the VERDICT and the summary as much as in a table.
    - **Whether a later dated release of the same name exists is checked**, as for a product, and the
      newest is named with its date.
-4. **Law, regulation and tax (law, regulation and tax).**
+4. **Law, regulation and tax.**
    - The original text first: the National Law Information Center and the like.
    - Give the effective date and whether it was amended recently.
-5. **Health and medicine (health and medicine).**
+5. **Health and medicine.**
    - Only official sources are grounds: the Ministry of Food and Drug Safety, papers.
    - Community reviews are marked apart.
-6. **Real estate and second-hand prices (real estate and second-hand prices).**
+6. **Real estate and second-hand prices.**
    - Actual transaction records are the basis: the Ministry of Land's actual transaction prices, Karrot and Bungaejangter prices.
-7. **Travel and places (travel and places).**
+7. **Travel and places.**
    - Opening hours, closing days and the booking link.
    - The weather for the day of the visit.
    - Location: the address, a map link and a street-view link.
-8. **Economy and markets (stocks and economy).**
+8. **Economy and markets.**
    - A chart or indicator image for the price asked about (an IMAGE line), with the as-of time.
-9. **Products and comparisons (products and comparisons).**
+9. **Products and comparisons.**
    - A comparison table, product images, and the reviews as REVIEW lines.
    - A price-history chart as an IMAGE line where a price-comparison page offers one.
    - Every candidate carries its release date, whether a newer model replaced it, the selling
@@ -82,21 +82,21 @@
      raised or cut) is searched beside the sellers and written in a section of its own.
    - The order of places, the answer's shape and each candidate's entry are `product-search.md`,
      which also alone decides whether a search is one of these.
-10. **Local information and restaurants (local information and restaurants).**
+10. **Local information and restaurants.**
     - Check the reviews for photos of the actual food and attach them.
     - The reviews themselves go in as REVIEW lines.
     - Attach the street view, the map and the address.
     - The filter, the count of places and the delivery checks are `restaurant-search.md`.
-11. **Design, screens and anything looked at (design and screens).**
+11. **Design, screens and anything looked at.**
     - The picture is the material, not decoration: a question about how something looks, how a
       screen is laid out, what a style is, is not answered by prose alone.
     - Attach the actual screens, works and pieces as IMAGE lines in the body, each captioned with
       what it shows and where it is from.
     - A description with no picture beside it is an unfinished answer to such a question.
-12. **Study material (study material).**
+12. **Study material.**
     - A request to be taught a subject, not a question about it, and a document kind of its own:
       `study-material.md` sets the whole of it and alone decides whether a search is one.
-13. **Investment strategy (investment strategy).**
+13. **Investment strategy.**
     - Where to put money, a stable strategy, a forecast or which stocks will rise: answered from a
       short-term and a long-term view across Korean and US stocks, bonds and gold, each strategy
       with its dated grounds, expected return, risk, named products and the case against.
@@ -124,11 +124,10 @@
   addresses from its `og:image` and `img` src attributes.
 - **Name a picture only once you have seen it.** Neither a page's text nor an address says what
   a picture shows, so look at every picture you mean to name with the view_image tool, and name
-  only one that shows what its caption says. A logo, a banner, a stock photo, a map, a price
-  table or any picture that is mostly text, a picture of another branch or another business,
-  another thing's picture and one too small or blurred to make out are left out.
-  - The runner takes out every line whose address no `view_image` call of yours, or of the branch
-    that reported it, named: write the address exactly as you gave it to the tool.
+  only one that shows what its caption says, its address written exactly as you gave it to the
+  tool. A logo, a banner, a stock photo, a map, a price table or any picture that is mostly text, a
+  picture of another branch or another business, another thing's picture and one too small or
+  blurred to make out are left out.
 - **An entry's pictures are written together**, one line after another:
   the document shows lines written together as one slide gallery, and the chat agent sends them as albums
   in the order written, one to each entry and shot.
@@ -174,7 +173,7 @@
 
 ## Common options
 
-The launch may give any of these; one not given is decided from the question.
+The request's options may give any of these; one not given is decided from the question.
 
 1. **Period**: only material from the given span (the last few days, a date range).
 2. **Region and language**: domestic material first, or overseas material too.
@@ -269,17 +268,18 @@ The launch may give any of these; one not given is decided from the question.
   few lines on what the value rests on and how it was checked against a second source, the
   `SOURCE` lines that close it, and `UNCONFIRMED:`. No `VERDICT:`: the value on the summary line is
   the answer.
-- **It is the same cut as the brief shape.** `--shape brief` asks for this result whatever the
-  question; a question with more in it than one value takes the body the rest of this rulebook sets.
+- **It is the same cut as the brief shape.** Options asking for the brief shape ask for this result
+  whatever the question; a question with more in it than one value takes the body the rest of this
+  rulebook sets.
 
 ## The tools before the search
 
-- **Look at the site tools before the first query.** The task document lists them: one per site
-  the same kind of value is read from again and again, a rate, a spot price, a listing. Where
-  one covers what is asked, it is the answer and no search is run for that value.
+- **Look at the site tools before the first query.** The task lists them: one per site the same
+  kind of value is read from again and again, a rate, a spot price, a listing. Where one covers
+  what is asked, it is the answer and no search is run for that value.
 - **A broken tool is repaired, not abandoned.** Sites change shape under their readings. Say so in
   `UNCONFIRMED:` with what the tool answered, get that one value with the web tools for this
   answer, and never take a broken tool as a reason to go back to searching for that value every
   time.
-- **A search asks for no new tool.** A site no tool covers is read with the web tools; a tool is
-  made only where the owner asks for one (`docs/site-tools.md`).
+- **A search asks for no new tool.** A site no tool covers is read with the web tools, and what
+  could not be read is said in `UNCONFIRMED:`; a tool is made only where the owner asks for one.

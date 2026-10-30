@@ -1,4 +1,4 @@
-# Investment strategy search (investment strategy search)
+# Investment strategy search
 
 - This rulebook sets how a search answers someone asking where to put money: a stable investment
   strategy, what to hold now, or which stocks are likely to rise. Its deciding section stands in the
@@ -112,12 +112,13 @@ question itself names one horizon.
   - the index levels of KOSPI, KOSDAQ, S&P 500 and NASDAQ, and the forward PER of KOSPI and the
     S&P 500 where a page gives it;
   - the gold price.
-- **The site tools read what they cover:** `stock_index` for the index closes, `bond_yield` for
-  the four government bond yields, `exchange_rate` for the rate, `metal_price` for gold. No search
-  is run for those values.
-- **A stock's or an ETF's price is read with `stock_price`**: a pick's price at the time read and
-  what it has already moved, a product's price and whether it still trades. A value it marks intraday
-  is written as the in-session price with its time, never as the day's close.
+- **The site tools read what they cover:** where the task's catalogue lists a tool for an index
+  close, a government bond yield, the exchange rate, the gold price, or a stock's or an ETF's price
+  and valuation, that tool reads the value and no search is run for it.
+- **A stock's or an ETF's price is read from its own item page or a tool that covers it**: a pick's
+  price at the time read and what it has already moved, a product's price and whether it still
+  trades. A value marked intraday is written as the in-session price with its time, never as the
+  day's close.
 - **Every figure carries its date** as its page gives it. A figure found only in a snippet is
   marked as the task says; one that could not be read is unchecked, never remembered.
 
@@ -126,9 +127,10 @@ question itself names one horizon.
 Every stock that is a candidate is analysed before it can be a pick; an ETF or a fund is judged by
 its product page instead.
 
-- **The figures are read with `stock_valuation`,** never off a blog or a snippet: PER, PBR and ROE,
-  with EV/EBITDA, debt ratio and FCF, the consensus, and each investor group's net buying.
-- **Each ratio is read against two yardsticks:** the industry's (the industry PER the tool gives,
+- **The figures are read from the company's item page or a tool that covers it,** never off a blog
+  or a snippet: PER, PBR and ROE, with EV/EBITDA, debt ratio and FCF, the consensus, and each
+  investor group's net buying.
+- **Each ratio is read against two yardsticks:** the industry's (the industry PER the page gives,
   or the peers' figures where it gives none) and the company's own range over its reported years.
   A PER is high or low only against one of them, and the answer says which.
 - **The ratios are read together, by the frame's own criteria:** what the researched sources count
@@ -136,8 +138,8 @@ its product page instead.
   threshold the run carries in its head. An earnings estimate that makes the forward PER low is
   weighed against how far the reported years swing.
 - **EV/EBITDA, debt ratio and FCF are read where they decide the case** (a company carrying debt, one
-  whose profit is not turning into cash, one valued on its cash flow) and unchecked where the tool
-  could not give them.
+  whose profit is not turning into cash, one valued on its cash flow) and unchecked where they could
+  not be read.
 - **The figures stand in a table of their own,** 「company analysis」: one row per company, with PER,
   industry PER, the company's own PER range, PBR, ROE, and EV/EBITDA, debt ratio and FCF where read, the
   period each figure stands for, and a verdict of a few words (undervalued, fairly valued, overvalued) with what
@@ -150,11 +152,11 @@ its product page instead.
   moved on it.
 - **Every candidate whose case rests on news or a published revision is checked:**
   - the article's own date, from the article;
-  - the prices with `stock_price` across the sessions before that date and since it: how far the
-    price moved before, on and after it;
-  - the volume on those days against the sessions before them, and, with `stock_valuation`, who
-    was buying: individuals buying heavily while foreigners and institutions sell is the late
-    crowd arriving.
+  - the daily prices across the sessions before that date and since it: how far the price moved
+    before, on and after it;
+  - the volume on those days against the sessions before them, and, from each investor group's
+    net buying, who was buying: individuals buying heavily while foreigners and institutions sell
+    is the late crowd arriving.
 - **The verdict is one of three,** written in its own column priced in with the figures behind it:
   - **not yet priced in**: the price and the volume have not yet answered the news;
   - **partly priced in**: they have moved, but less than the news would justify by the frame's own

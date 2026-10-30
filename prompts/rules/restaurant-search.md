@@ -1,4 +1,4 @@
-# Restaurant and delivery search (restaurants and delivery)
+# Restaurant and delivery search
 
 - This rulebook sets how a search filters places to eat when someone asks for a restaurant or a
   delivery recommendation. Its deciding section stands in the search runner's prompt and the run
@@ -31,8 +31,8 @@ The owner's checklist. Every place recommended has passed all five checks.
 
 1. **The shop name.** Check from the name that it is a real food specialist.
    - Names ending in a generic pattern like "-food" are kitchens heating frozen goods, not
-     restaurants ("names ending in ~~food like that are all PC rooms"). Exclude them.
-   - This one check removes most bad candidates ("just doing check 1 properly makes it GOAT").
+     restaurants. Exclude them.
+   - This one check removes most bad candidates.
 2. **Bad reviews first.** Judge a place by its negative reviews, not its positive ones: read what
    the bad reviews actually say (food poisoning, smell, portion, a sudden drop in quality) and drop
    the place where they point at the food.
@@ -49,15 +49,15 @@ The owner's checklist. Every place recommended has passed all five checks.
 
 ## How many, and how they are picked
 
-- Every restaurant or delivery recommendation gives **at least three places and at most five**
-  ("at least 3, at most 5"), counting only the places that passed.
-- Pick them across food themes where the area allows (Korean food, Chinese food, Japanese food, fried chicken, snack food and the like)
-  one or two per theme rather than five of one kind ("searching by food theme is better"), and name each
-  place's theme in its entry. A question naming one kind of food keeps to that kind.
+- Every restaurant or delivery recommendation gives **at least three places and at most five**,
+  counting only the places that passed.
+- Pick them across food themes where the area allows (Korean food, Chinese food, Japanese food,
+  fried chicken, snack food and the like) one or two per theme rather than five of one kind, and name
+  each place's theme in its entry. A question naming one kind of food keeps to that kind.
 - Where fewer than three pass, give those and say plainly that no more passed, rather than filling
   the count with a place that failed a check.
 
-## Delivery (delivery)
+## Delivery
 
 These checks apply on top of the owner's rule or the relaxed rule whenever the recommendation is for delivery.
 
@@ -65,8 +65,8 @@ These checks apply on top of the owner's rule or the relaxed rule whenever the r
    source, and each place's Coupang Eats store page is where its hours, delivery area and menu prices
    are read.
 2. **Every shop that delivers there.** The candidates are every shop whose delivery area covers the
-   address asked about, not only those in its own block ("expand to the whole deliverable area"): a better place
-   across the district that delivers there is a candidate.
+   address asked about, not only those in its own block: a better place across the district that
+   delivers there is a candidate.
 3. **The address is inside the delivery area.** Confirm for each place that it delivers to the
    address asked about; one that does not is dropped. Where the question names only an area, that
    area stands for the address and the result says so.
@@ -81,8 +81,7 @@ These checks apply on top of the owner's rule or the relaxed rule whenever the r
    so.
 6. **Is the discount real.** Where a price is shown as discounted, check it against the same dish
    on the other app and the shop's own usual price. A discount no lower than, or about the same
-   as, the undiscounted price elsewhere is a padded list price, and the entry says so
-   ("whether the discounted price is about the same as the undiscounted one").
+   as, the undiscounted price elsewhere is a padded list price, and the entry says so.
 
 ## Who gets which
 
@@ -97,7 +96,7 @@ These checks apply on top of the owner's rule or the relaxed rule whenever the r
 - One entry per place that passed, each with:
   - `ADDRESS:` the registered address, `MAP:` its Naver Map link, and `ROADVIEW:` a street-view
     link where one was found.
-  - Its menu as a `MENU:` block (「The menu」 below), which the document folds under menu.
+  - Its menu as a `MENU:` block (「The menu」 below), which the document sets out as its menu.
   - Pictures, as `IMAGE:` lines written together right under its `MAP:` line, which the document
     shows as the place's one slide gallery (「The pictures」 below).
   - Reviews, as `REVIEW:` lines: three to five where that many exist, each with the reviewer's own
