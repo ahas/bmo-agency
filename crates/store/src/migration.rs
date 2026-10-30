@@ -39,6 +39,7 @@ mod m20261113_000001_agent_log_prune;
 mod m20261114_000001_chat_documents;
 mod m20261114_000002_registration_last_answered;
 mod m20261115_000001_agent_roles;
+mod m20261116_000001_agent_log_run_id;
 
 use sea_orm_migration::prelude::*;
 
@@ -160,6 +161,7 @@ impl MigratorTrait for Migrator {
       Box::new(m20261114_000001_chat_documents::Migration),
       Box::new(m20261114_000002_registration_last_answered::Migration),
       Box::new(m20261115_000001_agent_roles::Migration),
+      Box::new(m20261116_000001_agent_log_run_id::Migration),
     ]
   }
 
