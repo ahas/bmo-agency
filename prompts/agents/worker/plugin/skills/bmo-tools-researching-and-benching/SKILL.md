@@ -52,13 +52,16 @@ flowchart TD
 
 ## Taking the lab
 
-- **The job is the occupant `bench`.** Before a measurement it asks the node's card arbiter for a ticket
-  as `bench` and waits until its turn is given; every process it starts for the measurement carries
-  `BMO_CARD_SERVICE=bench` in its environment, so the arbiter knows whose it is.
+- **The job is the occupant `bench`, on as many cards as the arbiter grants, at most four.** Before a
+  measurement it asks the arbiter's master for the cards the measurement can use, as `bench`, at most
+  four, and never names a machine: the cards it is granted are where it measures, one measurement on each.
+  On each granted card it asks that machine's card arbiter for a ticket as `bench` and waits until its turn
+  is given; every process it starts for the measurement carries `BMO_CARD_SERVICE=bench` in its
+  environment, so the arbiter knows whose it is.
 - **The arbiter alone makes room.** The job never stops, starts or restarts another service by hand to
   free a card; what has to give way, the arbiter moves.
-- **The ticket goes back when the measurement ends,** whatever it came to, before the next step of the
-  work.
+- **The ticket goes back when the measurement on its card ends,** whatever it came to, and the cards
+  with it once the last measurement ends, before the next step of the work.
 - **A ticket told to give way ends the measurement at its next boundary:** the job stops at the end of the
   step it is in, gives the ticket back, and asks for a new one. A measurement cut this way is run again
   whole once the turn comes back; no figure of the cut run is kept.

@@ -626,6 +626,9 @@ When a demotion first catches — when a healthy session first drops — two thi
     - **A registration closed for an outage is asked again before it is passed over:** a job's walk asks
       the engine behind the registration for its health, and an engine that answers opens the road again
       at once, while a registration whose engine gives no health waits out its minute.
+      A registration whose engine the arbiter stands (`docs/own-llm.md`, 「An engine the arbiter stands」)
+      is asked through the arbiter's master instead: a stopped engine is no outage, and the road stays
+      open while its card service is placed on a node no claim and no lower tier holds.
   - **A gate** is not in this walk at all — a gate runs on its one provider and, on failure, ends as a
     gate with no answer (`docs/own-llm.md`, 「A gate has one road」).
 - **Re-checked just before running:** on/off is checked again just before a run starts. A provider turned

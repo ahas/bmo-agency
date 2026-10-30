@@ -55,6 +55,11 @@ warming and standing checkouts, is agency's.
   capacity (`docs/api.md`, 「pool, seat-requests, reservations and roles」): a provider agency does not
   carry, a tier no co-worker is borrowed at and a capacity outside 0 to the tier policy's
   `capacity_most` are refused, and a written limit raises at once the head places it frees.
+- **On a registration whose engine the arbiter stands,** a seat the pool admits then asks its demand
+  (`docs/own-llm.md`, 「An engine the arbiter stands」). The tier's limit is the ceiling and the master's
+  grants are what run: a seat waits for its grant outside its task's clock, as it waits for its place,
+  and gives its demand back with its lease. A seat asked from a run on such a registration asks within
+  that run's demand.
 - **Builder turns have no limit of their own.** A worker's turn waits only on its checkout, so as many
   builder turns run at once as there are workers.
 - Role, tier assignment, mapping and capacity are all store rows, so a value the owner changed stays
