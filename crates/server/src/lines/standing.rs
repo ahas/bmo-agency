@@ -894,6 +894,9 @@ pub(crate) fn gateway_variables(
     ("CLAUDE_CODE_MAX_OUTPUT_TOKENS", Some(answer_tokens.to_string())),
     (claude::COMPACT_SHARE, Some(fold_share(held.context_tokens, answer_tokens))),
     ("CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC", Some("1".to_owned())),
+    // Behind a base URL the program defers its MCP tools behind a tool search the model must call first; a
+    // registered model is shown every tool outright instead.
+    ("ENABLE_TOOL_SEARCH", Some("false".to_owned())),
     ("API_TIMEOUT_MS", Some(wait_ms.to_string())),
     ("BUN_CONFIG_HTTP_IDLE_TIMEOUT", Some(((wait_ms + 999) / 1_000).to_string())),
     ("ANTHROPIC_CUSTOM_HEADERS", (!headers.is_empty()).then(|| headers.join("\n"))),
