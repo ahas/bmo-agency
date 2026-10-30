@@ -716,8 +716,9 @@ them; a notice that holds nothing is withdrawn.
   queued and nothing is cached here; the caller cuts a long text into parts, keeps the translations it
   wants kept, and bounds how many parts it has out at once.
 - **A note** is the caller's word on this one part — what an earlier answer for it got wrong, or that a
-  one-line title is wanted — carried into the run's input between the language line and the text, marked as
-  a note that is not to be translated. A part with no note is asked as the language line and the text alone.
+  one-line title is wanted — carried in the run's system prompt after the translator's own, as an
+  instruction the model reads and does not render; the input is always the language line and the text
+  alone, since a translation model renders every line of its input.
 - **Refusals:** 400 `bad-request` for a purpose it does not know or an empty text or language; 503
   `no-login-open` with the road resolution's sentence where nothing can carry it; 413 `too-large` where the
   model refused the part as longer than its window takes, so the caller cuts it smaller; 502 `no-answer`

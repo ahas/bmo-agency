@@ -90,15 +90,21 @@ pub fn system_prompt(trees: &Trees, role: Option<&str>, purpose: Purpose) -> Res
   })
 }
 
-/// What a translation is asked with: the target language's line, the caller's note on this part where it gives
-/// one, then the text.
-pub fn input(language: &str, note: Option<&str>, text: &str) -> String {
+/// What a translation is asked with: the target language's line, then the text. A caller's note never
+/// stands in the input: a translation model renders every line of its input, a note among them, so the
+/// note is carried in the system prompt instead (`noted_system`).
+pub fn input(language: &str, text: &str) -> String {
+  format!("Translate into {}.\n\n{text}", language.trim())
+}
+
+/// The system prompt a part is translated under: the translator's, and the caller's note on this one part
+/// after it where the caller gives one, as an instruction the model reads and does not render.
+pub fn noted_system(system: &str, note: Option<&str>) -> String {
   match note.map(str::trim).filter(|note| !note.is_empty()) {
-    Some(note) => format!(
-      "Translate into {}.\n\nA note on this part, not to be translated: {note}\n\n{text}",
-      language.trim()
-    ),
-    None => format!("Translate into {}.\n\n{text}", language.trim()),
+    Some(note) => {
+      format!("{}\n\nA note on the part that follows, for you alone: {note}", system.trim_end())
+    }
+    None => system.to_owned(),
   }
 }
 
@@ -155,8 +161,9 @@ pub async fn translate(
 
   let trees = Trees::of(ground);
   let role = role_prompt(&ground.db, ROLE).await;
-  let system = system_prompt(&trees, role.as_deref(), purpose).map_err(Refused::NoAnswer)?;
-  let input = input(language, note, text);
+  let system =
+    noted_system(&system_prompt(&trees, role.as_deref(), purpose).map_err(Refused::NoAnswer)?, note);
+  let input = input(language, text);
   let answer = if taken.provider == crate::control::registry::PROVIDER {
     on_gateway(ground, &taken.model, &system, &input).await
   } else if taken.provider == crate::lines::runner::PROVIDER {

@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use agency_server::lines::Trees;
 use agency_server::translate::{
-  KEY, LINE, Purpose, ROLE, gateway_request, input, system_prompt, too_large,
+  KEY, LINE, Purpose, ROLE, gateway_request, input, noted_system, system_prompt, too_large,
 };
 use policy::providers::claude_code::CLAUDE_CODE;
 use policy::providers::registered::REGISTERED;
@@ -63,10 +63,12 @@ fn a_translation_s_prompt_is_the_role_s_then_its_purpose_s() {
   );
   assert_eq!(Purpose::read("document"), Some(Purpose::Document));
   assert_eq!(Purpose::read("gate"), None);
-  assert_eq!(input(" Korean ", None, "the text"), "Translate into Korean.\n\nthe text");
+  assert_eq!(input(" Korean ", "the text"), "Translate into Korean.\n\nthe text");
+  // The caller's note stands in the system prompt, never in the input a translation model would render.
+  assert_eq!(noted_system("the translator's prompt\n", None), "the translator's prompt\n");
   assert_eq!(
-    input("Korean", Some(" Keep it to one line. "), "the text"),
-    "Translate into Korean.\n\nA note on this part, not to be translated: Keep it to one line.\n\nthe text"
+    noted_system("the translator's prompt\n", Some(" Keep it to one line. ")),
+    "the translator's prompt\n\nA note on the part that follows, for you alone: Keep it to one line."
   );
 
   // A refusal for a part past the model's window is told apart from any other failure.
