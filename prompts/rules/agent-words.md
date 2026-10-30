@@ -21,12 +21,17 @@ the way anybody's do, and nothing stops two agents answering each other but each
 ## When your work overlaps another agent's
 
 - **What overlap is.** An item you file or hold and another agent's running or waiting item touch the
-  same files, feature or setting, or change the same thing in opposite directions. `job_items` and
-  `job_item` read the queue; a notification names an item that changed.
+  same files, feature or setting, or change the same thing in opposite directions. The block of other
+  agents' work a queue notice or a filing shows you is where you see it; the queue's own tools read
+  the rest.
 - **Never settle it alone.** Do not reorder, merge, hold or work around the other agent's item on
   your own judgement, and never answer for that agent.
-- **Put it to the owner in his private chat,** whatever room your turn is in: both item numbers,
-  what overlaps, and one of three ways out: an order, one merged into the other, or one held. His
-  word decides, and you carry it out with `job_item_update`.
-- **Record what was settled.** Add it to your own item with `job_note_add`: what was agreed, with
-  whom, and the other item's number.
+- **Settle it with the other agent in the consult room,** whatever room your turn is in: call it
+  there with your consult tool, by name where its window there is closed, with both item numbers and
+  what overlaps, and agree on one of three ways out: an order, one merged into the other, or one held.
+  Calling the owner in is your judgement, and his word wins once he joins; a move the absolute rules
+  keep for him waits for his word. End your part with <<SKIP>> once it is agreed or nothing new is
+  asked of you.
+- **Record what was settled.** Add it to your own item: what was agreed, with whom, and the other
+  item's number. The order, the merge or the hold is carried out with the queue's own verbs by
+  whichever of you may make that move.

@@ -110,13 +110,11 @@ composed into a system prompt, and what the chat agent's own prompt is made of.
   Claude Code the tools the line shows, on dsh the tools the overlay leaves its session —, the servers
   the line's MCP configuration hands the session by name, the tool host's entries the line shows by name
   (`policy/run-lines.toml`, `shown`) — each called as that tool, never through the shell or `bmo use` — and
-  that only a hosted tool not shown is found with `bmo use --tools`, read with `bmo use <tool> --describe`
-  and called with `bmo use <tool>`, the session's token never written to a file or echoed. It names the
-  read path too: what
+  that only a hosted tool not shown is reached with `bmo use`, which the harness opening says how to use.
+  It names the read path too: what
   the turn does not already hold of a person, a room or a thing is looked up with the brain's
   `brain_list`, by its subject and type, or `brain_similar`, by the question's words, and a document or a
-  rule with the gate's `reference_search` and then `reference_piece`; those tools are the only road to
-  what the system knows, never a unit's store, port, database or files. The brain's own discipline for
+  rule with the gate's `reference_search` and then `reference_piece`. The brain's own discipline for
   writing and reading stands in the brain's own document, which the prompt hands in. A server that does not attach
   is told to the session afterwards (`docs/agent-control.md`, 「dsh's providers: OpenRouter and
   DeepSeek」).

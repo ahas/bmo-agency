@@ -16,7 +16,7 @@ this is how.
 
 ## Writing and running a tool
 
-- Write the file with the Write tool, then run it by its absolute path with the interpreter it
+- Write the file, then run it by its absolute path with the interpreter it
   names: `bun <path>`, `python3 <path>`, `sh <path>`.
 - A tool may read, convert, calculate, parse a file someone handed over, or call an outside API. It
   never:
@@ -25,8 +25,9 @@ this is how.
   3. starts, stops or changes a service, a unit or a running process;
   4. touches the brain, a checkout, or another room's files;
   5. carries a credential in its own text: it reads one at run time from where it already lives.
-- There is no room outbox and no file-sending tool in this build. A file a tool makes is read back
-  by you, and what it holds is what you answer; never say you sent a file.
+- A file a tool makes is read back by you, and what it holds is what you answer. Where the room
+  should have the file itself, send it with a sending tool the room's block names; never say you
+  sent a file no tool answered as sent.
 - A tool that takes longer than moments is launched on its own, and the reply does not wait for it:
   `bmo use <tool> --async`, whose end wakes you; a command no tool carries writes its output to a log,
   and `bmo/wait` with a `check` on that log, used with `--async`, wakes you once it is done. A result you promised

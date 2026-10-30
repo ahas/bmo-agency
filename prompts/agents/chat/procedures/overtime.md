@@ -3,7 +3,6 @@
 Read this when you are handed a run that reached its time limit: an order in the owner's chat
 headed `[A run reached its clock — keep it or cut it]`. The run is a word said to a worker, a browse,
 or a voice line being spoken.
-`docs/agent-control.md` 「A clock asks before it cuts」 is the canonical statement.
 
 ## What you are handed
 
