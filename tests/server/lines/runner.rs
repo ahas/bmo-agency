@@ -106,17 +106,33 @@ fn is_told_to_draw_the_done_condition_out_of_the_question() {
   );
 }
 
-// is told there is no clock, and what does end the run instead
+// is told its web tools close on the run's clock and its budget, and what ends the run
 #[test]
-fn is_told_there_is_no_clock() {
+fn is_told_its_web_tools_close_and_what_ends_the_run() {
+  let task = task();
+
+  holds(
+    &task,
+    &[
+      "The run's web tools close a set time after the run starts",
+      "The request's page budget is a hard ceiling the web tools hold too",
+      "What ends a run is its done condition being met, its web tools closing, or the owner stopping it by hand",
+      "no depth turns it into looking for as long as you like",
+    ],
+  );
+  lacks(&task, &["A run has no time limit", "no deadline refuses its web tools"]);
+}
+
+// is told its task turn is followed by the depth's rounds, the final one's answer the result
+#[test]
+fn is_told_the_rounds_follow_its_first_answer() {
   holds(
     &task(),
     &[
-      "A run has no time limit",
-      "Slow is better than cut off",
-      "The three things that end a run are the done condition being met, the branch allowance running out, and",
-      "stopping the run by hand",
-      "no depth turns it into looking for as long as you like",
+      "A run is a task turn and the rounds after it",
+      "at the basic depth only the final question",
+      "the final round asks for the result whole",
+      "no branch, no picture viewer and no rulebook reader",
     ],
   );
 }
@@ -387,7 +403,7 @@ fn carries_the_catalogue_itself() {
     &task,
     &[
       "Read this list before your first query",
-      "a Naver book, shopping, blog or cafe address goes to its Naver tool",
+      "an address it answers goes to that tool rather than to web_fetch",
     ],
   );
   lacks(&task, &["{{tools}}"]);
@@ -402,18 +418,18 @@ fn a_branch_is_shown_the_same_catalogue() {
     assert!(task.contains(line), "missing: {line}");
   }
 
-  holds(&task, &["is read with its Naver tool"]);
+  holds(&task, &["an address it answers goes to that tool rather than to web_fetch"]);
   lacks(&task, &["{{tools}}"]);
 }
 
 // tells the search to repair a broken tool rather than go back to searching for the value
 #[test]
 fn tells_the_search_to_repair_a_broken_tool() {
-  // The rulebook the task is appended with says the same, since that is where the criterion is.
+  // The rulebook the task is appended with is where the criterion stands.
   holds(
     &task(),
     &[
-      "a broken tool is never a reason to go back to searching for that value every time",
+      "never take a broken tool as a reason to go back to searching for that value every",
       "## The tools before the search",
     ],
   );

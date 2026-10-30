@@ -25,7 +25,7 @@ Besides web_search and web_fetch you have the deployment's site tools:
 
 {{tools}}
 
-Finish everything you start before you answer: work still running when this run ends is killed and never comes back. Search, read, then answer once.
+Search, read, then answer once: nothing comes back later to finish the page.
 
 The answer is one JSON object and nothing else: no heading, no sentence before or after it, no code fence. Plain text in every string: no markdown, no HTML, no emoji. Its shape:
 

@@ -1,4 +1,4 @@
-# Telegram markup rules (Telegram markup rules)
+# Telegram markup rules
 
 - The rulebook of the converter on the send path, read by no model. It sets what is valid in the
   Telegram Bot API's HTML parse mode, and what the markdown written in an answer becomes in that
@@ -10,8 +10,8 @@
     with the marks removed, held as the fallback.
 - Which marks the writer has and when to use them are the writer's rules, in `answer-shape.md`;
   whether a message is folded is the output gate's own rulebook.
-- Where and how these rules are used, and surrounding facts such as the difference from MarkdownV2
-  and link previews, are in `docs/telegram-formatting.md`.
+- The dialect the send path carries them out in, `telegram-html`, is the Telegram provider's own
+  (its `docs/telegram.md`).
 
 ## Basic rules of HTML mode
 
@@ -102,7 +102,7 @@
 - The marks that become formatting, when a mark is left as a character, the marks laid flat and
   what is not formatting are the writer's list in `answer-shape.md` (「How to write in markdown」);
   the converter carries it out. Beyond that list:
-- **Emphasis pairs** stuck to Korean text (`this**is important**`) are pairs; the closing-space,
+- **Emphasis pairs** stuck to Korean letters on either side are pairs; the closing-space,
   stuck-to-a-letter and no-pair cases apply to `**`, `*`, `~~` and `||` alike.
 - **Backticks.** The same value wrapped several times is code at each place. Characters inside code
   are only escaped, never read as other marks. An unpaired backtick is left as a character.
@@ -114,8 +114,9 @@
 - **Links.** An address that is not http or https does not become a link; the address is written
   out after the text. The image mark also becomes a link.
   - A bare address stays as characters, and Telegram shows it as a link on its own. Where a Korean
-    letter follows it with no space (`to the address`, `to (the address)`) it becomes a link ending before that
-    letter and any bracket it did not open, since Telegram would read the letter into the address.
+    letter follows it with no space, directly or after a bracket closing right behind it, it becomes a
+    link ending before that letter and any bracket it did not open, since Telegram would read the
+    letter into the address.
 - **Quotes** do not nest, so `>>` is also one level of quote.
 - **Tables.** The separator row disappears, and the cells are joined by ` · `. A vertical bar
   inside inline code or a link address is not a cell boundary.

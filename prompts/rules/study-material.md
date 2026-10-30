@@ -1,4 +1,4 @@
-# Study material (study material)
+# Study material
 
 - This rulebook sets the shape of study material, the document a search writes when it is asked to
   teach a subject. Its deciding section stands in the search runner's prompt and the run reads the

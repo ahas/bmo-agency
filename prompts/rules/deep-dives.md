@@ -1,4 +1,4 @@
-# Deep dives (deep dives)
+# Deep dives
 
 - This rulebook sets how a deep dive works: how it frames its question, reads the maker of a thing
   before anyone writing about it, sets the maker's figures as the baseline, what its document holds
@@ -35,9 +35,8 @@
   abstract standing for the paper.
 - **A repository is opened, not judged by its front page.** The file tree, the README, the docs
   folder, the examples or cookbook, the wiki, the releases, recent pull requests and issues, and
-  the code itself where a claim turns on how something is done. A site tool reads what it covers
-  (an issue or pull request, a Hugging Face model's card, tree and files); any other file is read
-  with web_fetch at its raw address.
+  the code itself where a claim turns on how something is done. A page a listed site tool answers
+  is read with that tool; any other file is read with web_fetch at its raw address.
 - **The maker's claims, others' findings and our judgement are told apart sentence by sentence.**
   Each sentence of the maker's carries its source's mark and, where the source is long, the part it
   stands in: a section, a table, a file. A sentence that is our judgement reads as ours. A maker's
@@ -79,7 +78,7 @@
   and every one that could not be read with what it answered, or none.
 - **Tables and lists stand on lines of their own,** never run into a paragraph.
 
-## The narration (reading script)
+## The narration
 
 - **Every deep dive with a body carries one:** a script for the ear, written apart from the
   document, which the chat agent's voice speaks and the document keeps at its top, so its reader can listen
@@ -90,5 +89,4 @@
 - **It is written to be heard:** plain Korean sentences, no persona, no list, table, footnote
   mark, address, code or structure word; only the few figures that matter, rounded where the exact
   value adds nothing; a long identifier said by its short name.
-- **About three to five minutes aloud,** some 1,500 to 2,500 Korean characters and never more:
-  a longer script takes longer to speak than a briefing's run is given.
+- **About three to five minutes aloud,** some 1,500 to 2,500 Korean characters and never more.
