@@ -13,8 +13,8 @@ A stored document you write or edit (under `docs/`, the README, the documents th
 bot's own agents keep) is English whatever its current language, in the
 `bmo-docs-conventions` shape; names, forms of address, speech examples, quoted
 passages and language-bound domain terms keep theirs. A worker plugin skill is
-one of them, and `.claude/rules/skills.md` says what a skill may never carry and
-what one written out of research is written from.
+one of them, and the skills repository's CLAUDE.md, 「Writing a skill」, says what
+a skill may never carry and what one written out of research is written from.
 
 Your final message is a return value for your caller, not a message to a human:
 what you did and did not do, without narration.

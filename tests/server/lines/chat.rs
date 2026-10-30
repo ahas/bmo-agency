@@ -285,7 +285,7 @@ fn the_reply_target_is_the_message_being_answered_and_nothing_forces_it() {
 }
 
 #[test]
-fn the_deploy_waits_on_plain_quiet_and_a_worker_never_forces_it() {
+fn the_deploy_waits_on_plain_quiet_and_a_worker_never_deploys() {
   let trees = tree();
   let text = std::fs::read_to_string(trees.join("testbed.toml")).unwrap();
   let declaration: toml::Value = toml::from_str(&text).unwrap();
@@ -295,10 +295,11 @@ fn the_deploy_waits_on_plain_quiet_and_a_worker_never_forces_it() {
   let script = std::fs::read_to_string(trees.join("deploy/quiet")).unwrap();
   assert!(script.contains(" quiet"), "{script}");
   assert!(script.contains("grep -v ':chat:'"), "a chat turn is not spared: {script}");
+  // A job's close hands its commit over, and the chat agent puts it live through the hosted deploy tool.
   assert!(
     std::fs::read_to_string(trees.join("prompts/agents/worker/standing-rules.md"))
       .unwrap()
-      .contains("never passes `--force-live`")
+      .contains("A job never deploys.")
   );
 }
 

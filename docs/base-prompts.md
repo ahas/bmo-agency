@@ -98,13 +98,15 @@ flowchart TD
 
 ### `dsh`
 
-- **`dsh`, labelled DeepSeek Harness based:** the system prompt DeepSeek's own harness, dsh, sends
-  for a headless coding job at the version agency runs it at (`docs/launch-lines.md`), as that version
-  renders it for a run: its sections verbatim and in their order, with the values a run differs by
-  written as the `{{name}}` values below.
+- **`dsh`, labelled DeepSeek Harness based:** the platform's harness opening in dsh's terms — what
+  the harness is, how words reach a session, memory and the environment, as `prompts/harness.md` says
+  them — then the rules for dsh's own tools from the system prompt dsh sends for a headless coding job
+  at the version agency runs it at (`docs/launch-lines.md`), with the values a run differs by written
+  as the `{{name}}` values below.
 - **What is left out** is the runtime context dsh adds to each request on its own — its sandbox and
   approval policies and the like — since a run on Claude Code is told its environment by the program
-  (「What the harness still adds around it」).
+  (「What the harness still adds around it」), the model's name, which the harness opening leaves
+  unsaid, and the goal tools, which a standing session goes without.
 - **Who it is for:** an endpoint account whose model is DeepSeek's names it, so a worker's run on that
   account opens on the prompt the model's own harness runs it on.
 - **Its text is the seed file `prompts/base/dsh.md`.**
