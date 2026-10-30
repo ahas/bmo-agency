@@ -154,7 +154,10 @@ async fn main() -> ExitCode {
   // entries of the server's settings file, and nothing else of that file.
   let settings = data_root.join("env").join("agency.env");
   let master = match MasterAddress::read(|name| {
-    std::env::var(name).ok().filter(|value| !value.trim().is_empty()).or_else(|| entry_of(&settings, name))
+    std::env::var(name)
+      .ok()
+      .filter(|value| !value.trim().is_empty())
+      .or_else(|| entry_of(&settings, name))
   }) {
     Ok(address) => address.map(Master::new),
     Err(why) => {
