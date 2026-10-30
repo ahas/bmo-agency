@@ -740,11 +740,11 @@ bmo-agency agent --route <work key> --provider <auto|claude-code|codex|openroute
 
 ### Choosing a registered model
 
-- **The registry's provider carries every line but research:** the chat, the job worker and the
-  companions as a Claude Code road, and the gates as requests with no tools (「A request with no
-  tools」 above). No search or browse key is offered it and no research run walks to it: a research run
-  goes out on a registration only where it was set off by a run on one that keeps its research (「How
-  requests go」 below).
+- **The registry's provider carries every line but the browse:** the chat, the job worker, the
+  companions and a search's own run as a Claude Code road, and the gates as requests with no tools
+  (「A request with no tools」 above). No search key is offered it by the fallback table's defaults, so a
+  research run reaches a registration where its ask names that road (`docs/research-runs.md`, 「The
+  road」); the browse line, which needs a browser the registration's window does not carry, stays off it.
 - **Jobs:** manual job runs, items and work-order models pick a registered model with
   `registered::<registration>`; automatic jobs go down the provider order as far as the registry's
   provider where the registration the worker key's tier maps to is walked, unless the worker is pinned or

@@ -4,8 +4,10 @@
 # The provider's name as a screen shows it.
 label = "Registered models"
 
-# The lines it carries: every line but research.
-lines = ["chat", "gate", "worker", "translate"]
+# The lines it carries: its program is Claude Code pointed at the registration, which carries the chat, a gate's
+# judgement, a worker's job, a translation and a search's own run; the browse line, which needs a browser the
+# registration's window does not carry, stays off it.
+lines = ["chat", "gate", "worker", "translate", "search"]
 
 # A mapping of it carries a ceiling on the answer's tokens beside its model and effort.
 caps_answer_tokens = true
