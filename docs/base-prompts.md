@@ -1,45 +1,65 @@
 # Base prompts
 
+## The harness layer
+
+- **Every line that runs on Claude Code is handed one whole system prompt,** given with
+  `--system-prompt-file` in the place of the program's own, and it opens with a harness layer: what
+  the program around the model is, how words reach the agent, where its memory is and what the
+  platform around it holds. Claude Code's own prompt reaches no line.
+- **The platform's harness opening is agency's own document, `prompts/harness.md`,** read out of the
+  deploy tree as each line is composed, like the other agent documents (`docs/agent-documents.md`).
+  It is the harness layer of every line on Claude Code whose agent chooses no base prompt.
+- **A program that is a harness of its own keeps its own prompt:** on dsh the role and the persona,
+  or a worker's rules, go as the persona suffix after dsh's own prompt, and the platform's opening is
+  not sent there (`docs/launch-lines.md`).
+
 ## What a base prompt is
 
-- **A whole text an agent's system prompt opens with, in place of its harness's own** — the base
-  prompt on the console. It is the agent's harness prompt as the owner keeps it: what the program
-  around the model is told about itself, its tools and how it works, written out in full rather
-  than made by cutting passages out of the program's own prompt as each request goes.
+- **A whole text an agent's system prompt opens with in place of the platform's harness opening** —
+  the base prompt on the console. It is for a harness whose own prompt is the opening the model was
+  made to run on and for which the platform's opening is the wrong one: dsh's, or an endpoint's own
+  harness.
 - **Several are kept, each under a name and a label,** and each agent chooses one of them or none;
   a Claude account may name one too. Changing an agent's mind is choosing another — a prompt written
   for another harness, pasted in whole — with nothing of the harness or the gateway rewritten.
-- **None is the harness's own:** a worker that chooses none runs on its harness's own prompt with
-  the worker's rules appended (`docs/launch-lines.md`), unless its run goes out on an account that
-  names a base prompt; a companion that chooses none has its program's own prompt as its harness
-  (`docs/companions.md`,
-  「What a turn is given」).
+- **None is the platform's harness opening:** a worker that chooses none is handed
+  `prompts/harness.md` with the worker's rules after it (`docs/launch-lines.md`), unless its run goes
+  out on an account that names a base prompt; a companion that chooses none is handed the same opening
+  as its harness (`docs/companions.md`, 「What a turn is given」).
 - **An account's base is the account's answer, not the agent's.** An endpoint account
   (`docs/cache-fallback.md`, 「The Claude Code road is a list of accounts」) runs Claude Code against a
-  model that is not Anthropic's, for which Claude Code's own prompt is the wrong opening, so the
-  account names the prompt its endpoint's own harness runs on. Any account may name one.
+  model that is not Anthropic's, for which the platform's opening is the wrong one, so the account
+  names the prompt its endpoint's own harness runs on. Any account may name one.
 
 ## What each agent is sent
 
 - **A worker** that chooses one is handed one file as its whole system prompt: the chosen prompt,
   then the worker's rules — the owner's standing rules, the rulebook against destroying the system and
-  its own rules where it has them — joined by a blank line (`docs/launch-lines.md`).
+  its own rules where it has them — joined by a blank line (`docs/launch-lines.md`). A worker that
+  chooses none is handed the platform's harness opening in the chosen prompt's place, with the same
+  rules after it.
   - A worker whose run goes out on an account that names a base prompt is handed that account's base
     in the same place, with the same rules after it, whether the worker chooses one or none: the
     account's base wins, since it answers for the model the run reaches.
   - A support worker takes its base's choice, as it takes its base's own rules.
-  - Its co-workers' prompts are as on any worker: the role's own, closed by the same rules.
+  - Its co-workers' prompts are as on any worker: the platform's harness opening, the role's own, then
+    the same rules. A co-worker is a Claude Code subagent of the worker's session whose definition's
+    prompt is its whole system prompt, so it opens on the platform's opening whatever base its worker
+    chooses.
 - **A companion** that chooses one is sent the chosen prompt as its harness, then the companion role whole,
-  then its persona (`docs/companions.md`, 「What a turn is given」).
-- **The other lines read no base prompt:** the chat agent's harness is its program's own prompt, which
-  its role and persona follow (`docs/agent-documents.md`, 「The chat agent」); the gates, the runners and
-  batch runs are composed as they are on any account, since each replaces the program's whole prompt with
-  its own; a companion reads its own choice alone.
+  then its persona (`docs/companions.md`, 「What a turn is given」); one that chooses none is sent the
+  platform's harness opening in the chosen prompt's place.
+- **The other lines read no base prompt:** the chat agent's harness is the platform's opening, which its
+  role and persona follow (`docs/agent-documents.md`, 「The chat agent」); the search and browse runners
+  and a search's branches open on it before their instructions; the gates, the translator and batch runs
+  are handed the prompt their caller or their line composes, whole; a companion reads its own choice
+  alone.
 
 ```mermaid
 flowchart TD
   F[Account's base prompt] -- worker on that account --> C
   A[Chosen base prompt] --> B{Agent}
+  H[prompts/harness.md] -- no base chosen --> B
   B -- worker --> C[+ worker rules]
   B -- companion --> D[+ companion role + persona]
   C --> E[One file, whole system prompt]
@@ -60,7 +80,7 @@ flowchart TD
   - the checkout's `CLAUDE.md` as a reminder in the first user turn, where the line reads its
     setting sources.
 - **So the prompt holds no value of a run of its own:** the environment reaches the model through
-  the program, whichever prompt is chosen.
+  the program, whether the prompt opens on a base prompt or on the platform's harness opening.
 
 ## Values filled in as a run is composed
 
@@ -82,19 +102,10 @@ flowchart TD
 
 ## The seeds
 
-- **Two prompts are seeded, `claude-code` and `dsh`,** each from a seed file under `prompts/base/`.
-
-### `claude-code`
-
-- **`claude-code`, labelled Claude Code based:** Claude Code's own system prompt as 2.1.288 wrote it
-  for a worker on a registered model, less five passages the owner took out of it:
-  - the security caution opening `IMPORTANT: Assist with authorized security testing`;
-  - the three lines of its environment about Anthropic's newest models, Claude Code's apps and its
-    fast mode, with the heading they stood under;
-  - the sentence `If you are weighing a choice, give a recommendation, not an exhaustive survey`.
-- **What stays** is what the program needs to run: its opening line, the harness and its tools, the
-  rules on confirming and reporting, the session guidance and the context management.
-- **Its text is the seed file `prompts/base/claude-code.md`.**
+- **One prompt is seeded, `dsh`,** from its seed file under `prompts/base/`. No seed reproduces Claude
+  Code's own prompt: a line on Claude Code that chooses no base opens on the platform's harness
+  opening (「The harness layer」). A prompt a store already keeps under another name is the owner's and
+  stands as it is.
 
 ### `dsh`
 
@@ -115,7 +126,7 @@ flowchart TD
 
 - **The deployment declares each seed in agency's policy** (`policy/base-prompts.toml`): its name,
   label, seed file and the agents given it, with no code naming any of them. The repository's own
-  policy gives no agent either seed, since the agents are a deployment's.
+  policy gives no agent a seed, since the agents are a deployment's.
 - **A seed is given once by its name,** as the store is settled on a start, and recorded as given
   (`base_prompt_seeded`): a store made before a seed was declared gains it on its next start, a prompt
   of that name already kept is left as it stands, and a seed the owner removed stays removed. From then

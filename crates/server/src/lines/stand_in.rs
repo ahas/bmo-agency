@@ -28,6 +28,10 @@ pub struct Extensions {
   pub plugin_dir: PathBuf,
   pub agents_json: String,
   pub rules_path: PathBuf,
+  /// The whole system prompt Claude Code is handed where no base prompt is chosen: the platform's harness
+  /// opening with the rules after it; none in a kept run that does not name it.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub harnessed_path: Option<PathBuf>,
 }
 
 /// How a road takes the run: the way its prompt reaches the program, and whether the session it opens is
@@ -108,6 +112,7 @@ impl StandInRun {
         plugin_dir: line.plugin_dir.clone(),
         agents_json: line.agents_json.clone(),
         rules_path: line.rules.clone(),
+        harnessed_path: Some(line.harnessed.clone()),
       },
       thread,
       tier: line.tier.clone(),
@@ -133,6 +138,12 @@ impl StandInRun {
         level: reasoning.effort.clone(),
       }),
       system_prompt: self.system_prompt_path.clone(),
+      // A kept run that names no harnessed prompt stands on its rules alone.
+      harnessed: self
+        .extensions
+        .harnessed_path
+        .clone()
+        .unwrap_or_else(|| self.extensions.rules_path.clone()),
       rules: self.extensions.rules_path.clone(),
       mcp_config: self.mcp_config_path.clone(),
       settings: self.extensions.settings_path.clone(),

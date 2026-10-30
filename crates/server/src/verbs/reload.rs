@@ -26,6 +26,10 @@ pub const RELOAD_USAGE: &str = "usage: bmo-agency reload --path <file> [--path <
 // The tree's document directories a session relies on, relative to its root.
 const DOCUMENT_DIRS: [&str; 2] = ["prompts/rules", "prompts/agents"];
 
+// The platform's harness opening, a document of the tree standing outside those directories, relative to the
+// prompts.
+const HARNESS: &str = "harness.md";
+
 // The rulebooks and the chat agent's own documents a chat session is given as its system prompt.
 const CHAT_DOCUMENTS: [&str; 5] = [
   "rules/answer-content.md",
@@ -140,7 +144,8 @@ pub fn tree_documents(paths: &[String]) -> Vec<String> {
   paths
     .iter()
     .filter(|path| {
-      path.ends_with(".md") && DOCUMENT_DIRS.iter().any(|dir| path.starts_with(&format!("{dir}/")))
+      (path.ends_with(".md") && DOCUMENT_DIRS.iter().any(|dir| path.starts_with(&format!("{dir}/"))))
+        || path.as_str() == format!("prompts/{HARNESS}")
     })
     .cloned()
     .collect()
@@ -175,7 +180,9 @@ pub fn is_chat_prompt_document(path: &str) -> bool {
 
   let joined = document_parts(path).join("/");
 
-  CHAT_SYSTEM_DOCUMENTS.contains(&joined.as_str()) || CHAT_DOCUMENTS.contains(&joined.as_str())
+  joined == HARNESS
+    || CHAT_SYSTEM_DOCUMENTS.contains(&joined.as_str())
+    || CHAT_DOCUMENTS.contains(&joined.as_str())
 }
 
 /// How the agents' documents are written again where a changed rulebook or agent document calls for it, so

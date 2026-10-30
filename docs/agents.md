@@ -57,9 +57,10 @@ flowchart TD
   MCP configuration it is handed and the permission mode it runs in are the line's declaration
   (`docs/launch-lines.md`), the same for every agent of that kind.
 - **The prompt is the agent's, never the line's.** Each agent's system prompt is composed from its own
-  documents and settings and handed to its program as a file in place of the program's own: nothing
-  common is put in front of every agent, the program's own default prompt reaches no agent that
-  replaces it, and no agent's documents are read for another.
+  documents and settings and handed to its program as one whole file in place of the program's own: the
+  one thing in front of every agent on Claude Code is the platform's harness opening,
+  `prompts/harness.md`, or the base prompt that stands in its place (`docs/base-prompts.md`); Claude
+  Code's own default prompt reaches no agent, and no agent's documents are read for another.
 - **What a provider changes is the program and its endpoint,** read from its own declaration as the
   command is composed: Claude Code on the account agency chose, or Claude Code on the gateway under a
   registration's name.

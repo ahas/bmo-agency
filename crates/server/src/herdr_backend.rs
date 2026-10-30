@@ -460,11 +460,12 @@ async fn choice_of(
 }
 
 // The system prompt a companion's settings compose, out of the documents of the tree the process runs, for
-// the model it answers on.
+// the provider and model it answers on.
 async fn system_of(
   ground: &Ground,
   pinned: &Pinned,
   settings: &Settings,
+  provider: &dyn harness_providers::Provider,
   model: &str,
 ) -> Result<String, String> {
   let chosen = one(
@@ -488,8 +489,14 @@ async fn system_of(
     prompts: pinned.prompts.as_deref(),
   };
 
-  harness_machine::companion_prompt::system(&roots, companion, &settings.composition(), base.as_ref())
-    .map_err(|why| why.to_string())
+  harness_machine::companion_prompt::system(
+    &roots,
+    companion,
+    &settings.composition(),
+    base.as_ref(),
+    crate::lines::companion::takes_harness(provider.name()),
+  )
+  .map_err(|why| why.to_string())
 }
 
 // The generation settings a companion's row holds, in the order they were saved.
@@ -1016,7 +1023,7 @@ impl HerdrSessions {
     let settings = Settings::of(&db, agent)
       .await
       .map_err(|refused| fault(FaultKind::Refused, refused.error))?;
-    let system = match system_of(ground, &pinned, &settings, &model).await {
+    let system = match system_of(ground, &pinned, &settings, provider, &model).await {
       Ok(system) => system,
       Err(why) => return failed(why),
     };
@@ -2719,7 +2726,7 @@ impl Sessions for HerdrSessions {
         let settings = Settings::of(&ground.db, &agent)
           .await
           .map_err(|refused| fault(FaultKind::Refused, refused.error))?;
-        let system = system_of(ground, &pinned, &settings, &model)
+        let system = system_of(ground, &pinned, &settings, provider, &model)
           .await
           .map_err(|why| fault(FaultKind::Refused, why))?;
         let due = Due {

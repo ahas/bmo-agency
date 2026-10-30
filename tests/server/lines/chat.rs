@@ -23,7 +23,6 @@ fn line<'a>(dir: &'a Path, system: &'a Path) -> Words<'a> {
     shown: "Bash,Read",
     allowed: "Bash,Read,mcp__bmo",
     host_commands: false,
-    appended: false,
   }
 }
 
@@ -54,18 +53,11 @@ fn every_conversational_agent_stands_on_the_chat_line_with_its_own_prompt_and_se
   assert_eq!(resumed[resumed.len() - 2..], ["--resume".to_owned(), "s-1".to_owned()]);
   assert_eq!(opened[..opened.len() - 2], resumed[..resumed.len() - 2]);
 
-  // The chat agent's role and persona follow the program's own prompt rather than standing in its place.
-  let appended = agency_server::lines::chat::words(&Words {
-    appended: true,
-    ..line(dir.path(), &system)
-  })
-  .unwrap();
+  // The composed prompt stands whole in the program's own place; nothing is appended to the program's.
+  let words = agency_server::lines::chat::words(&line(dir.path(), &system)).unwrap();
 
-  assert_eq!(
-    at(&appended, "--append-system-prompt-file"),
-    Some(system.to_string_lossy().into_owned())
-  );
-  assert!(!appended.iter().any(|word| word == "--system-prompt-file"));
+  assert_eq!(at(&words, "--system-prompt-file"), Some(system.to_string_lossy().into_owned()));
+  assert!(!words.iter().chain(&opened).any(|word| word == "--append-system-prompt-file"));
 }
 
 // The tree this checkout is, which the chat's documents and rulebooks are read out of.
@@ -114,6 +106,13 @@ fn the_tool_hosts_paragraph_stands_right_after_the_brains_discipline_and_before_
 // A chat launch's system prompt as the chat line composes it on a machine whose tool host is the socket
 // named.
 async fn launched_system(scratch: &Scratch, home: &Path, socket: &Path) -> String {
+  let run = launched(scratch, home, socket).await;
+
+  std::fs::read_to_string(&run.system_path).unwrap().trim_end().to_owned()
+}
+
+// A chat launch's run as the chat line composes it on a machine whose tool host is the socket named.
+async fn launched(scratch: &Scratch, home: &Path, socket: &Path) -> ChatRun {
   let at = |path: &Path| path.to_string_lossy().into_owned();
   let machine = Machine::with_env(
     [
@@ -146,9 +145,50 @@ async fn launched_system(scratch: &Scratch, home: &Path, socket: &Path) -> Strin
     model: Some("claude-model"),
     cwd: Some(&at(home)),
   };
-  let run = chat_run(&ground, &machine, &launch, "hello", false).await.unwrap();
+  chat_run(&ground, &machine, &launch, "hello", false).await.unwrap()
+}
 
-  std::fs::read_to_string(&run.system_path).unwrap().trim_end().to_owned()
+// The chat's whole system prompt opens on the platform's harness opening read out of the tree the line is
+// composed from, then the role, and goes to Claude Code in the program's own place (docs/agent-documents.md,
+// 「The chat agent」).
+#[tokio::test]
+async fn a_chat_launch_opens_on_the_platform_s_harness_and_is_handed_whole() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let harness = std::fs::read_to_string(tree().join("prompts/harness.md")).unwrap();
+
+  scratch
+    .run(
+      r#"INSERT INTO "agents" ("name", "kind", "session_scope", "turn_shape", "default_answerer")
+         VALUES ('chat-agent', 'chat', 'room', 'window', 1)"#,
+      vec![],
+    )
+    .await;
+
+  let run = launched(&scratch, home.path(), &home.path().join("nobody.sock")).await;
+  let system = std::fs::read_to_string(&run.system_path).unwrap();
+  let args = agency_server::lines::chat::args(&run).unwrap();
+  let flag = args
+    .iter()
+    .position(|word| word == "--system-prompt-file")
+    .expect("the whole-prompt flag");
+
+  assert!(system.starts_with(&format!("{}\n\n", harness.trim())), "{system}");
+  assert!(system.find("ABSOLUTE RULES").is_some_and(|rules| rules > harness.trim().len()));
+  assert_eq!(args[flag + 1], run.system_path.to_string_lossy());
+  assert!(!args.iter().any(|word| word == "--append-system-prompt-file"));
+
+  // A program that is a harness of its own is handed the role and the persona with no opening of ours.
+  let trees = Trees {
+    code: tree(),
+    agents: home.path().join("agents"),
+    source: home.path().to_path_buf(),
+    data: home.path().join("data"),
+    home: home.path().to_path_buf(),
+  };
+  let on_dsh = run.system_parts.as_ref().unwrap().compose(&trees, &[]).unwrap();
+
+  assert!(!on_dsh.contains(harness.trim()));
 }
 
 #[tokio::test]

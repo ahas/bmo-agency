@@ -156,7 +156,7 @@ fn every_declared_base_prompt_is_seeded_with_its_files_text() {
     );
     assert_eq!(seed.text, file);
   }
-  assert!(seeds.iter().any(|seed| seed.name == "claude-code" && seed.label == "Claude Code based"));
+  assert!(seeds.iter().any(|seed| seed.name == "dsh" && seed.label == "DeepSeek Harness based"));
 }
 
 #[test]

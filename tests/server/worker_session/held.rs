@@ -26,6 +26,7 @@ fn run_on(mode: &'static str, model: &str) -> SessionRun {
       thinking: true,
       reasoning: None,
       system_prompt: None,
+      harnessed: PathBuf::new(),
       rules: PathBuf::new(),
       mcp_config: PathBuf::new(),
       settings: PathBuf::new(),

@@ -925,7 +925,7 @@ bmo-agency agent --route <work key> --provider <auto|claude-code|codex|openroute
 ### A worker on a registered model is composed as on Claude
 
 - **Every worker is handed one line, whatever its road:** a worker's run on a registered model is the job
-  worker line (`docs/launch-lines.md`) — the CLI's own system prompt with the worker's rules appended
+  worker line (`docs/launch-lines.md`) — the platform's harness opening with the worker's rules after it
   (the owner's standing rules, the rule against destroying the system and the worker's own where it has
   them), or the worker's base prompt with the same rules after it where it chooses one
   (`docs/base-prompts.md`), the worker's plugin and its skills, the co-worker definitions, the worker's

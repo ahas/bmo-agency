@@ -30,13 +30,21 @@ composed into a system prompt, and what the chat agent's own prompt is made of.
 - **`prompts/agents/<name>/` holds what one agent alone is given:** `chat/manual.md`,
   `chat/procedures/` and `chat/rules.md`, `search/task.md` and `request.md`, `browse/task.md` and
   `request.md` with its `.mcp.json`, and `worker/trailer.md`.
+- **`prompts/harness.md` is the platform's harness opening,** agency's own and no program's: what the
+  harness around the agent is, how words reach it, where its memory is and what the platform around it
+  holds. Every line on Claude Code opens its whole system prompt with it unless a base prompt stands in
+  its place — the chat session, every companion that chooses no base, every job worker and co-worker,
+  the search runner, its branches and the browse runner (`docs/base-prompts.md`, 「The harness layer」).
+  No gate and not the translator, whose prompts are handed whole by their caller and their role, and
+  not dsh, whose own prompt is its harness.
 - **No gate's prompt stands here.** A gate's instructions, rulebooks and order are the gate unit's: it
   hands its whole system prompt with each turn it sends, and agency reads the order of the gate kinds
   from the gate's declaration (`docs/api.md`, 「gate kinds」).
 - **A job's documents:** `worker/graph.md`, what a job is told of the code graph; `worker/trailer.md`,
   the trailer every job is held to, with the graph text, the path of the worker plugin's skills and the
   path of `plain-writing.md` filled in as the deployment shows them, which stands in the worker's prefix
-  — the rules file its line appends to the program's own prompt (`docs/launch-lines.md`) — so a session
+  — the rules its line hands after the harness opening in its whole system prompt
+  (`docs/launch-lines.md`) — so a session
   pays for it once rather than on every turn; and `handoff.md` in a worker's own folder — its base's for
   a support worker — the instruction it writes its own handoff note by, where it holds one. The
   worker's definition route answers all three (`docs/api.md`, 「Workers」).
@@ -78,9 +86,10 @@ composed into a system prompt, and what the chat agent's own prompt is made of.
     absolute rules and the manual are read from `chat_documents` where the owner saved one and from
     the files named here otherwise (`docs/api.md`, 「chat-documents」); the rulebooks and the room's
     documents are files alone.
-  - **The harness** is the program's own prompt, kept as the program writes it: Claude Code's own
-    default prompt, which the role and the persona are appended to; dsh's own prompt for the headless
-    profile, with the role and the persona as its persona suffix, after dsh's own guidance.
+  - **The harness** on Claude Code is agency's own `prompts/harness.md`, not the program's prompt: the
+    three layers go to the program as one whole system prompt in the place of its own. On dsh the
+    harness is dsh's own prompt for the headless profile, with the role and the persona as its persona
+    suffix after dsh's own guidance, and agency's opening is not sent.
   - **The role** is the chat role's prompt, the same whatever the program: the documents below, in the
     order they are named, each block opening with a one-line head that says what it is.
   - **The persona** closes the prompt: the base layer of the agent's own brain, under the persona
@@ -188,9 +197,9 @@ composed into a system prompt, and what the chat agent's own prompt is made of.
   and as the host words it, and left out where the host does not answer; and then the persona, the base
   layer of the agent's own brain, or the one the turn hands in where the brain gives none
   (`docs/sessions.md`, 「Document reload」).
-- **The role and the persona follow the harness, never replace it:** the program's own prompt stands
-  first and whole, while this machine's settings, instruction files, MCP servers and skills reach no chat
-  session.
+- **The role and the persona follow the harness, never replace it:** the harness opening stands
+  first and whole — agency's own on Claude Code, dsh's on dsh — while this machine's settings,
+  instruction files, MCP servers and skills reach no chat session.
 - **The session stands as the chat agent's resident program in its pane,** on the login that session was opened
   under, and that program keeps its slash commands, so compaction is `/compact` typed into it.
 - **The login is part of what identifies a session** rather than a detail of the run: a fold sent out

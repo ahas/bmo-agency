@@ -247,15 +247,15 @@ pub fn roots(call: &Call) -> Roots {
   }
 }
 
-/// The system prompt a companion's next turn sends, or an empty one where it cannot be composed: its
-/// persona read out of the prompt folder its row names, never by its name.
+/// The system prompt a companion's next turn sends on the provider and model named, or an empty one where it
+/// cannot be composed: its persona read out of the prompt folder its row names, never by its name.
 async fn system<C: ConnectionTrait>(
   db: &C,
   roots: &Roots,
   agent: &str,
   prompts: Option<&str>,
   settings: &Settings,
-  model: &str,
+  (provider, model): (&str, &str),
 ) -> Result<String, Refused> {
   let chosen = one(
     db,
@@ -275,7 +275,12 @@ async fn system<C: ConnectionTrait>(
     prompts,
   };
 
-  Ok(companion_prompt::system(roots, companion, &settings.composition(), base.as_ref()).unwrap_or_default())
+  let platform = crate::lines::companion::takes_harness(provider);
+
+  Ok(
+    companion_prompt::system(roots, companion, &settings.composition(), base.as_ref(), platform)
+      .unwrap_or_default(),
+  )
 }
 
 // The provider and model the supervisor route answers now, for a companion that keeps no fixed model.
@@ -328,11 +333,11 @@ async fn view(db: &DatabaseConnection, hooks: &Hooks, roots: &Roots, agent: &str
     None => None,
   };
   let pinned_model: Option<String> = row.try_get("", "pinned_model")?;
-  let model_now = match &route {
-    Some((_, model)) => model.clone(),
-    None => pinned_model.clone().unwrap_or_default(),
+  let (provider_now, model_now) = match &route {
+    Some((provider, model)) => (provider.clone(), model.clone()),
+    None => (pinned_provider.clone().unwrap_or_default(), pinned_model.clone().unwrap_or_default()),
   };
-  let text = system(db, roots, agent, prompts.as_deref(), &settings, &model_now).await?;
+  let text = system(db, roots, agent, prompts.as_deref(), &settings, (&provider_now, &model_now)).await?;
   let mut sessions = vec![];
 
   for session in

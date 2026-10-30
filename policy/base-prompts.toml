@@ -22,12 +22,6 @@ values = ["cwd", "date", "platform", "os_version", "shell", "model"]
 # left as it stands, and one the owner removed stays removed. `agents` names the agents given the choice as
 # the seed is first written; the repository's own policy gives it to none, since agents are a deployment's.
 [[seed]]
-name = "claude-code"
-label = "Claude Code based"
-file = "claude-code.md"
-agents = []
-
-[[seed]]
 name = "dsh"
 label = "DeepSeek Harness based"
 file = "dsh.md"

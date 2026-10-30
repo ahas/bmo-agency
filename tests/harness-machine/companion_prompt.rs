@@ -23,6 +23,7 @@ fn roots(dir: &Path) -> Roots {
     std::fs::write(at, format!("{text}\n")).unwrap();
   };
 
+  write("prompts/harness.md", "the platform's harness");
   write("prompts/rules/self-preservation.md", "keep the system");
   write("prompts/rules/absolute-rules.md", "ABSOLUTE RULES");
   write("prompts/rules/agent-words.md", "agent words");
@@ -45,7 +46,7 @@ fn a_companion_whose_row_names_no_prompt_folder_is_sent_no_persona() {
     name: "tester-pal",
     prompts: None,
   };
-  let composed = system(&roots(dir.path()), bare, &Composition::default(), None).unwrap();
+  let composed = system(&roots(dir.path()), bare, &Composition::default(), None, true).unwrap();
 
   assert!(composed.ends_with("RULEBOOK prompts/rules/agent-words.md:\nagent words"), "{composed}");
 }
@@ -85,10 +86,12 @@ fn every_policy_piece_has_its_own_text() {
   }
 }
 
+// On a program that is a harness of its own and with no base chosen, the prompt is the role whole and the
+// persona, with no opening of the platform's.
 #[test]
 fn the_prompt_is_the_rulebook_the_role_whole_then_the_persona() {
   let dir = tempfile::tempdir().unwrap();
-  let composed = system(&roots(dir.path()), PAL, &Composition::default(), None).unwrap();
+  let composed = system(&roots(dir.path()), PAL, &Composition::default(), None, false).unwrap();
   let home = dir.path().join("data/companion-homes/tester-pal").display().to_string();
   let tree = dir.path().join("assets").display().to_string();
 
@@ -98,6 +101,19 @@ fn the_prompt_is_the_rulebook_the_role_whole_then_the_persona() {
       "RULEBOOK prompts/rules/self-preservation.md:\nkeep the system\n\nABSOLUTE RULES\n\nframe\ntools at {home}, verbs in {tree}\n{{{{unknown}}}}\n\nturn\n\nRULEBOOK prompts/rules/agent-words.md:\nagent words\n\npersona file"
     )
   );
+}
+
+// On Claude Code a companion that chooses no base opens on the platform's harness opening, read out of the
+// asset root, before the role and the persona (docs/companions.md, 「What a turn is given」).
+#[test]
+fn a_companion_with_no_base_opens_on_the_platform_s_harness() {
+  let dir = tempfile::tempdir().unwrap();
+  let roots = roots(dir.path());
+  let opened = system(&roots, PAL, &Composition::default(), None, true).unwrap();
+  let bare = system(&roots, PAL, &Composition::default(), None, false).unwrap();
+
+  assert_eq!(roots.harness().unwrap(), "the platform's harness");
+  assert_eq!(opened, format!("the platform's harness\n\n{bare}"));
 }
 
 #[test]
@@ -114,8 +130,9 @@ fn the_base_prompt_is_the_harness_and_the_settings_persona_closes_the_prompt() {
   let home = dir.path().join("data/companion-homes/tester-pal").display().to_string();
   let tree = dir.path().join("assets").display().to_string();
 
+  // The chosen base stands in the platform's opening's place, so the opening is not sent beside it.
   assert_eq!(
-    system(&roots, PAL, &settings, Some(&base)).unwrap(),
+    system(&roots, PAL, &settings, Some(&base), true).unwrap(),
     format!(
       "Run in {home} on model-0-1 for {{{{nobody}}}}.\n\nRULEBOOK prompts/rules/self-preservation.md:\nkeep the system\n\nABSOLUTE RULES\n\nframe\ntools at {home}, verbs in {tree}\n{{{{unknown}}}}\n\nturn\n\nRULEBOOK prompts/rules/agent-words.md:\nagent words\n\nshort"
     )

@@ -65,6 +65,21 @@ impl Trees {
   pub fn rulebook_path(&self, name: &str) -> PathBuf {
     self.code.join("prompts").join("rules").join(format!("{name}.md"))
   }
+
+  /// The platform's harness opening, which every line that runs on Claude Code opens its whole system
+  /// prompt with (docs/base-prompts.md).
+  pub fn harness_path(&self) -> PathBuf {
+    self.code.join("prompts").join(HARNESS)
+  }
+}
+
+// The platform's harness opening, under the prompts.
+const HARNESS: &str = "harness.md";
+
+/// A whole system prompt for Claude Code: the platform's harness opening, read out of the code tree, then
+/// the line's own text. No line that runs on Claude Code goes out without its harness.
+pub fn harnessed(trees: &Trees, text: &str) -> Result<String, Refusal> {
+  Ok(format!("{}\n\n{text}", read_required(&trees.harness_path())?))
 }
 
 /// A document a line cannot go out without, read whole and trimmed, as the composition reads every
