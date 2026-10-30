@@ -493,7 +493,7 @@ async fn a_run_on_the_registry_s_provider_goes_out_in_places_on_the_registration
     tier: "basic".into(),
     system_prompt: home.path().join("search.md"),
     mcp_config: home.path().join("search.mcp.json"),
-    tools_allowed: "",
+    tools_allowed: "mcp__bmo,mcp__web,mcp__eye",
     thinking: true,
     cwd: home.path().to_path_buf(),
   };
@@ -513,6 +513,10 @@ async fn a_run_on_the_registry_s_provider_goes_out_in_places_on_the_registration
   assert_eq!(step.provider, "registered");
   assert_eq!(args.first().map(String::as_str), Some("claude"), "{args:?}");
   assert!(args.windows(2).any(|pair| pair == ["--model", "flash-next"]), "{args:?}");
+  assert!(
+    args.windows(2).any(|pair| pair == ["--allowedTools", "mcp__bmo,mcp__web,mcp__eye"]),
+    "the place run allows the line's tools: {args:?}"
+  );
   assert_eq!(
     env.get("CLAUDE_CONFIG_DIR").map(String::as_str),
     Some(registration_home.to_string_lossy().as_ref())

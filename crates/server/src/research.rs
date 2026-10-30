@@ -1082,7 +1082,7 @@ pub fn place_run(
       mark: String::new(),
     },
     tools_shown: String::new(),
-    tools_allowed: String::new(),
+    tools_allowed: run.tools_allowed.to_owned(),
     mcp_config: run.mcp_config.clone(),
     mcp_tools: None,
     prompt: prompt.to_owned(),

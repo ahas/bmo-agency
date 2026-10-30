@@ -26,7 +26,7 @@ pub const PROVIDER: &str = "claude-code";
 
 // The web reaches every runner through the deployment's own server, and no built-in tool is shown to any.
 // A hosted tool the namespaces do not show is reached with `bmo use`.
-const WEB_TOOLS: &str = "mcp__bmo,mcp__web";
+const WEB_TOOLS: &str = "mcp__bmo,mcp__web,mcp__eye";
 
 // The rulebook every text a person reads is written to.
 const PLAIN_WRITING: &str = "plain-writing";
