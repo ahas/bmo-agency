@@ -1,0 +1,655 @@
+//! The cards the arbiter's master grants the runs on a registration naming a card service
+//! (docs/own-llm.md, 「An engine the arbiter stands」): a demand asked for every run and held for its turn,
+//! waited on however long its grant takes; the run placed on the card granted once the gateway serves that
+//! card's entry; a demand asked within the run's own for work the run asks, and the run told where its own
+//! engine stood down for it; and every demand agency asked kept in the store's ledger, `card_demands`, so a
+//! demand whose run ended without giving it back is given back at the next start and with its lease.
+
+use std::path::Path;
+use std::time::Duration;
+
+use harness_machine::card_master::{DEMAND_WAIT, Demand, DemandAsk, GrantedCard, Master, MasterFault};
+use harness_machine::engine_health;
+use policy::control_words::CONTROL_WORDS;
+use policy::fill_marks;
+use sea_orm::{ConnectionTrait, DatabaseConnection};
+use store::{all, one, run};
+
+use crate::Refusal;
+use crate::control::registry::{self, Registration};
+use crate::lines::fault;
+use crate::now_ms;
+use crate::places::Ground;
+use crate::run_log::RunLog;
+use crate::run_log::lines::Line;
+
+// How long a look that found nothing new waits before the next: the master unreached, the gateway not yet
+// serving a card's entry, or an engine not yet answering its health.
+const AGAIN: Duration = Duration::from_secs(1);
+
+/// What a run hands in of the demands it holds itself: one of its own, granted, which the run stands on
+/// with no other asked for it; or the run's demand the run's own is asked within.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Ask {
+  pub own: Option<i64>,
+  pub within: Option<i64>,
+}
+
+/// A card a run holds for its turn.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Held {
+  pub demand: i64,
+  /// The node of the card granted, whose gateway entry the run names.
+  pub node: String,
+  pub service: String,
+  /// Whether agency asked the demand, and so gives it back; a demand the caller handed in is the caller's.
+  pub asked: bool,
+  /// The run's demand this one was asked within, where it was.
+  pub within: Option<i64>,
+  /// Whether the run's own card was lent to this one, its engine standing down meanwhile.
+  pub lent: bool,
+}
+
+/// The master the configuration names.
+pub fn master_of(ground: &Ground) -> Option<Master> {
+  ground.config.peers.arbiter.clone().map(Master::new)
+}
+
+/// A card held for a run on a registration naming a card service, or none on one that names none: a
+/// demand handed in, read until it is granted; or one asked for one card with the session's key as the
+/// work it continues and kept in the ledger under its holder and the lease where one holds it. Either is
+/// waited on however long its grant takes, each reason it waits on handed to `waiting` as it changes,
+/// and then until the gateway serves the card's entry.
+pub async fn hold(
+  ground: &Ground,
+  registration: &Registration,
+  holder: &str,
+  work_key: Option<&str>,
+  ask: Ask,
+  lease: Option<&str>,
+  waiting: &mut (dyn FnMut(&str) + Send),
+) -> Result<Option<Held>, Refusal> {
+  let Some(service) = registration.card_service.clone() else {
+    return Ok(None);
+  };
+  let Some(master) = master_of(ground) else {
+    return Err(fault(fill_marks(
+      &CONTROL_WORDS.cards.no_master,
+      &[("name", &registration.name), ("service", &service)],
+    )));
+  };
+  let held = hold_on(
+    &ground.db,
+    &master,
+    Asking {
+      registration: &registration.name,
+      service: &service,
+      holder,
+      work_key,
+      ask,
+      lease,
+    },
+    waiting,
+  )
+  .await?;
+
+  served(ground, &registration.name, &held.node, waiting).await?;
+
+  Ok(Some(held))
+}
+
+/// A card held for a run whose log says each reason it waits on as it changes, so its room or its watcher
+/// reads why the run has not begun; the same as `hold` otherwise.
+pub async fn hold_logged(
+  ground: &Ground,
+  registration: &Registration,
+  holder: &str,
+  work_key: Option<&str>,
+  ask: Ask,
+  log: &mut RunLog,
+) -> Result<Option<Held>, Refusal> {
+  let (said, mut heard) = tokio::sync::mpsc::unbounded_channel::<String>();
+  let mut waiting = move |why: &str| {
+    let _ = said.send(why.to_owned());
+  };
+  let holding = hold(ground, registration, holder, work_key, ask, None, &mut waiting);
+
+  tokio::pin!(holding);
+
+  loop {
+    tokio::select! {
+      held = &mut holding => break held,
+      Some(why) = heard.recv() => {
+        log.write(&ground.db, Line::note(why)).await;
+      }
+    }
+  }
+}
+
+/// A card held for a run on a provider's model, where the provider is the registry's and the registration
+/// names a card service; none for any other.
+pub async fn hold_for_model(
+  ground: &Ground,
+  provider: &str,
+  model: &str,
+  holder: &str,
+  work_key: Option<&str>,
+  log: &mut RunLog,
+) -> Result<Option<Held>, Refusal> {
+  if provider != registry::PROVIDER {
+    return Ok(None);
+  }
+
+  match registry::registration(&ground.db, model).await.map_err(|why| fault(why.error))? {
+    Some(held) => hold_logged(ground, &held, holder, work_key, Ask::default(), log).await,
+    None => Ok(None),
+  }
+}
+
+/// What a demand is asked for.
+pub struct Asking<'a> {
+  pub registration: &'a str,
+  pub service: &'a str,
+  pub holder: &'a str,
+  pub work_key: Option<&'a str>,
+  pub ask: Ask,
+  pub lease: Option<&'a str>,
+}
+
+/// A card held on the master: the demand handed in, or one asked and kept in the ledger, waited on until
+/// granted.
+pub async fn hold_on(
+  db: &DatabaseConnection,
+  master: &Master,
+  asking: Asking<'_>,
+  waiting: &mut (dyn FnMut(&str) + Send),
+) -> Result<Held, Refusal> {
+  if let Some(own) = asking.ask.own {
+    let demand = loop {
+      match master.demand(own, Duration::ZERO).await {
+        Ok(Some(demand)) => break demand,
+        Ok(None) => {
+          return Err(Refusal::bad(
+            "demand-gone",
+            fill_marks(&CONTROL_WORDS.cards.gone, &[("demand", &own.to_string())]),
+          ));
+        }
+        Err(_) => unreached(waiting).await,
+      }
+    };
+    let (demand, card) = granted(db, master, demand, None, &asking, waiting).await?;
+
+    return Ok(Held {
+      demand: demand.id,
+      node: card.node_name,
+      service: asking.service.to_owned(),
+      asked: false,
+      within: None,
+      lent: false,
+    });
+  }
+
+  let asked = ask_kept(db, master, &asking, waiting).await?;
+  let (demand, card) = granted(db, master, asked, Some(()), &asking, waiting).await?;
+  let lent = match asking.ask.within {
+    Some(outer) => master
+      .demand(outer, Duration::ZERO)
+      .await
+      .ok()
+      .flatten()
+      .is_some_and(|outer| outer.lent()),
+    None => false,
+  };
+
+  Ok(Held {
+    demand: demand.id,
+    node: card.node_name,
+    service: asking.service.to_owned(),
+    asked: true,
+    within: asking.ask.within,
+    lent,
+  })
+}
+
+// A demand asked and written into the ledger, asked again while the master cannot be reached.
+async fn ask_kept(
+  db: &DatabaseConnection,
+  master: &Master,
+  asking: &Asking<'_>,
+  waiting: &mut (dyn FnMut(&str) + Send),
+) -> Result<Demand, Refusal> {
+  let ask = DemandAsk {
+    service_name: asking.service.to_owned(),
+    count: 1,
+    within: asking.ask.within,
+    work_key: asking.work_key.map(str::to_owned),
+    reference: Some(format!("agency {}", asking.holder)),
+  };
+  let demand = loop {
+    match master.ask(&ask).await {
+      Ok(demand) => break demand,
+      Err(MasterFault::Failed { status, error }) if status != 502 && status != 503 => {
+        return Err(fault(format!(
+          "the arbiter's master refused a demand for {}: {error}",
+          asking.service
+        )));
+      }
+      Err(_) => unreached(waiting).await,
+    }
+  };
+
+  run(
+    db,
+    r#"INSERT INTO "card_demands" ("demand_id", "service", "registration", "holder", "lease", "within", "asked_at")
+       VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT ("demand_id") DO NOTHING"#,
+    vec![
+      demand.id.into(),
+      asking.service.into(),
+      asking.registration.into(),
+      asking.holder.into(),
+      asking.lease.map(str::to_owned).into(),
+      asking.ask.within.into(),
+      now_ms().into(),
+    ],
+  )
+  .await?;
+
+  Ok(demand)
+}
+
+// A demand read until a card is granted it, each reason it waits on said once as it changes. A demand the
+// master no longer holds — a master restarted — is asked again where agency asked it, its work key bringing
+// it back to its card, and is refused where the caller handed it in.
+async fn granted(
+  db: &DatabaseConnection,
+  master: &Master,
+  mut demand: Demand,
+  ours: Option<()>,
+  asking: &Asking<'_>,
+  waiting: &mut (dyn FnMut(&str) + Send),
+) -> Result<(Demand, GrantedCard), Refusal> {
+  let mut said: Option<String> = None;
+
+  loop {
+    if let Some(card) = demand.card().cloned() {
+      return Ok((demand, card));
+    }
+
+    if let Some(why) = demand.waiting_on().filter(|why| said.as_ref() != Some(why)) {
+      waiting(&fill_marks(&CONTROL_WORDS.cards.waiting, &[("service", asking.service), ("why", &why)]));
+      said = Some(why);
+    }
+
+    match master.demand(demand.id, DEMAND_WAIT).await {
+      Ok(Some(now)) => demand = now,
+      Ok(None) if ours.is_some() => {
+        forget(db, demand.id).await?;
+        demand = ask_kept(db, master, asking, waiting).await?;
+      }
+      Ok(None) => {
+        return Err(Refusal::bad(
+          "demand-gone",
+          fill_marks(&CONTROL_WORDS.cards.gone, &[("demand", &demand.id.to_string())]),
+        ));
+      }
+      Err(_) => unreached(waiting).await,
+    }
+  }
+}
+
+async fn unreached(waiting: &mut (dyn FnMut(&str) + Send)) {
+  waiting(&CONTROL_WORDS.cards.unreachable);
+  tokio::time::sleep(AGAIN).await;
+}
+
+// The gateway read until it serves the entry of the card granted, `<registration>@<node>`: the launcher
+// lays a standing instance into its table on its beat, so an engine the grant started is served a moment
+// after it stands.
+async fn served(
+  ground: &Ground,
+  registration: &str,
+  node: &str,
+  waiting: &mut (dyn FnMut(&str) + Send),
+) -> Result<(), Refusal> {
+  let entry = format!("{registration}@{node}");
+  let Some(service) =
+    registry::service_of(&ground.db, registration).await.map_err(|why| fault(why.error))?
+  else {
+    return Err(fault(format!("{registration} is no registration the registry holds")));
+  };
+  let key_file = harness_providers::registered::Registered::key_file(&ground.machine());
+  let mut said = false;
+
+  loop {
+    let listed = match crate::control::own_llm::credential(&key_file) {
+      Ok(key) => crate::control::own_llm::models(&service, &key).await.unwrap_or_default(),
+      Err(why) => return Err(fault(why.said(&service))),
+    };
+
+    if listed.contains(&entry) {
+      return Ok(());
+    }
+
+    if !said {
+      waiting(&fill_marks(
+        &CONTROL_WORDS.cards.waiting,
+        &[
+          ("service", registration),
+          ("why", &format!("the gateway is taking {entry} into its table.")),
+        ],
+      ));
+      said = true;
+    }
+
+    tokio::time::sleep(AGAIN).await;
+  }
+}
+
+/// A card given back once its run's turn has ended: a demand agency asked given back on the master and
+/// taken out of the ledger; one the caller handed in left to the caller. Where the run's own card was lent
+/// for it, the run's demand is read until it is granted again and its engine answers health, however long
+/// that takes, and the sentence telling the run so is answered.
+pub async fn give_back(ground: &Ground, held: &Held) -> Option<String> {
+  let master = master_of(ground)?;
+
+  give_back_on(&ground.db, &master, &ground.roots.data, held).await
+}
+
+/// The same, on a master and a data root of the caller's.
+pub async fn give_back_on(
+  db: &DatabaseConnection,
+  master: &Master,
+  data_root: &Path,
+  held: &Held,
+) -> Option<String> {
+  if held.asked {
+    returned(db, master, held.demand).await;
+  }
+
+  let outer = held.within.filter(|_| held.lent)?;
+
+  back(master, data_root, outer).await;
+
+  Some(CONTROL_WORDS.cards.stood_down.clone())
+}
+
+// The run's own demand read until a card is granted it again and the engine there answers health.
+async fn back(master: &Master, data_root: &Path, outer: i64) {
+  loop {
+    let card = match master.demand(outer, DEMAND_WAIT).await {
+      Ok(Some(demand)) => demand.card().cloned(),
+      Ok(None) => return,
+      Err(_) => {
+        tokio::time::sleep(AGAIN).await;
+        continue;
+      }
+    };
+    let Some(card) = card else { continue };
+    let Some(url) = card.address.clone() else { return };
+    let address = engine_health::Address {
+      url,
+      key_file: card.key_file.clone(),
+    };
+
+    if engine_health::health(data_root, std::slice::from_ref(&address)).await.is_some() {
+      return;
+    }
+
+    tokio::time::sleep(AGAIN).await;
+  }
+}
+
+// A demand given back on the master and taken out of the ledger; one the master could not be asked to
+// give back stays in the ledger for the next pass.
+async fn returned(db: &DatabaseConnection, master: &Master, demand: i64) -> bool {
+  match master.give_back(demand).await {
+    Ok(()) => forget(db, demand).await.is_ok(),
+    Err(why) => {
+      eprintln!("cards: the demand {demand} was not given back: {why}");
+      false
+    }
+  }
+}
+
+async fn forget<C: ConnectionTrait>(db: &C, demand: i64) -> Result<(), Refusal> {
+  run(db, r#"DELETE FROM "card_demands" WHERE "demand_id" = $1"#, vec![demand.into()]).await?;
+
+  Ok(())
+}
+
+/// The granted demand a holder's turn stands on now, the latest it asked with no lease of its own; none
+/// where it holds none.
+pub async fn holding<C: ConnectionTrait>(db: &C, holder: &str) -> Result<Option<i64>, Refusal> {
+  Ok(
+    one(
+      db,
+      r#"SELECT "demand_id" FROM "card_demands" WHERE "holder" = $1 AND "lease" IS NULL
+         ORDER BY "asked_at" DESC LIMIT 1"#,
+      vec![holder.into()],
+    )
+    .await?
+    .map(|row| row.try_get::<i64>("", "demand_id"))
+    .transpose()?,
+  )
+}
+
+/// The card a lease's demand holds, as the ledger keeps it: the demand, and the run's demand it was asked
+/// within where it was.
+pub async fn of_lease<C: ConnectionTrait>(
+  db: &C,
+  lease: &str,
+) -> Result<Option<(i64, Option<i64>)>, Refusal> {
+  one(
+    db,
+    r#"SELECT "demand_id", "within" FROM "card_demands" WHERE "lease" = $1"#,
+    vec![lease.into()],
+  )
+  .await?
+  .map(|row| Ok((row.try_get::<i64>("", "demand_id")?, row.try_get::<Option<i64>>("", "within")?)))
+  .transpose()
+}
+
+/// Every demand the ledger keeps given back: what a process left behind when it ended, given back as the
+/// next one starts, since no run of this one holds any yet. Answers how many were given back.
+pub async fn give_back_left(db: &DatabaseConnection, master: &Master) -> Result<usize, Refusal> {
+  let mut given = 0;
+
+  for row in all(db, r#"SELECT "demand_id" FROM "card_demands""#, vec![]).await? {
+    if returned(db, master, row.try_get::<i64>("", "demand_id")?).await {
+      given += 1;
+    }
+  }
+
+  Ok(given)
+}
+
+/// Every demand a lease held given back once that lease is no longer active — released, cancelled or gone
+/// — whatever path ended it. Answers how many were given back.
+pub async fn give_back_with_leases(db: &DatabaseConnection, master: &Master) -> Result<usize, Refusal> {
+  let mut given = 0;
+  let rows = all(
+    db,
+    r#"SELECT "demand_id" FROM "card_demands" AS "held" WHERE "lease" IS NOT NULL AND NOT EXISTS (
+         SELECT 1 FROM "coworker_pool_requests" AS "seat"
+         WHERE "seat"."token" = "held"."lease" AND "seat"."state" IN ('waiting', 'reserved', 'active'))"#,
+    vec![],
+  )
+  .await?;
+
+  for row in rows {
+    if returned(db, master, row.try_get::<i64>("", "demand_id")?).await {
+      given += 1;
+    }
+  }
+
+  Ok(given)
+}
+
+/// A seat's card as an admission answers it: its demand, its state, the node granted where one is, and
+/// what it waits on where it waits.
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SeatCard {
+  pub id: i64,
+  pub state: String,
+  pub node_name: Option<String>,
+  pub reason: Option<String>,
+}
+
+impl SeatCard {
+  fn of(demand: &Demand) -> Self {
+    Self {
+      id: demand.id,
+      state: demand.state.clone(),
+      node_name: demand.card().map(|card| card.node_name.clone()),
+      reason: demand.waiting_on(),
+    }
+  }
+
+  /// Whether the seat's child may go out now, on the node granted.
+  pub fn granted(&self) -> bool {
+    self.node_name.is_some()
+  }
+}
+
+/// The card of a seat the pool let in, on a registration naming a card service: the demand its lease
+/// holds, read with its answer held open a while, or asked now — within the asking run's demand where the
+/// admission names one — and kept in the ledger under the lease. None for a registration that names none.
+/// The seat waits for its grant outside its task's clock, so a caller asks again while it waits
+/// (docs/coworker-pool.md, 「Concurrency limits」).
+pub async fn seat_card(
+  ground: &Ground,
+  seat: &crate::control::pool::Request,
+  within: Option<i64>,
+) -> Result<Option<SeatCard>, Refusal> {
+  if seat.provider != registry::PROVIDER {
+    return Ok(None);
+  }
+
+  let Some(registration) =
+    registry::registration(&ground.db, &seat.model).await.map_err(|why| fault(why.error))?
+  else {
+    return Ok(None);
+  };
+  let Some(service) = registration.card_service.clone() else {
+    return Ok(None);
+  };
+  let Some(master) = master_of(ground) else {
+    return Err(fault(fill_marks(
+      &CONTROL_WORDS.cards.no_master,
+      &[("name", &registration.name), ("service", &service)],
+    )));
+  };
+  let asking = Asking {
+    registration: &registration.name,
+    service: &service,
+    holder: &seat.owner,
+    work_key: seat.session.as_deref(),
+    ask: Ask { own: None, within },
+    lease: Some(&seat.token),
+  };
+  let mut quiet = |_: &str| {};
+  let read = match of_lease(&ground.db, &seat.token).await? {
+    Some((demand, _)) => match master.demand(demand, DEMAND_WAIT).await {
+      Ok(Some(demand)) => demand,
+      Ok(None) => {
+        forget(&ground.db, demand).await?;
+        ask_kept(&ground.db, &master, &asking, &mut quiet).await?
+      }
+      Err(why) => return Err(fault(why.to_string())),
+    },
+    None => ask_kept(&ground.db, &master, &asking, &mut quiet).await?,
+  };
+
+  Ok(Some(SeatCard::of(&read)))
+}
+
+/// The card a seat's lease held given back as the seat is finished. Where the asking run's own card was lent
+/// for it, the run's demand is read until it is granted again and its engine answers health, and the
+/// sentence telling the run so is answered.
+pub async fn give_back_seat(ground: &Ground, token: &str) -> Result<Option<String>, Refusal> {
+  match master_of(ground) {
+    Some(master) => give_back_lease(&ground.db, &master, &ground.roots.data, token).await,
+    None => Ok(None),
+  }
+}
+
+/// The same, on a master and a data root of the caller's.
+pub async fn give_back_lease(
+  db: &DatabaseConnection,
+  master: &Master,
+  data_root: &Path,
+  token: &str,
+) -> Result<Option<String>, Refusal> {
+  let Some((demand, within)) = of_lease(db, token).await? else {
+    return Ok(None);
+  };
+  let lent = match within {
+    Some(outer) => master
+      .demand(outer, Duration::ZERO)
+      .await
+      .ok()
+      .flatten()
+      .is_some_and(|outer| outer.lent()),
+    None => false,
+  };
+  let held = Held {
+    demand,
+    node: String::new(),
+    service: String::new(),
+    asked: true,
+    within,
+    lent,
+  };
+
+  Ok(give_back_on(db, master, data_root, &held).await)
+}
+
+/// The card of a native co-worker's seat, on a registration naming a card service: asked within the
+/// demand its caller's turn holds where it holds one, kept under the seat's lease, and waited on however
+/// long its grant takes. None for a registration that names none.
+pub async fn native_card(
+  db: &DatabaseConnection,
+  master: Option<&Master>,
+  seat: &crate::control::pool::Request,
+  caller: Option<&str>,
+) -> Result<Option<Held>, Refusal> {
+  if seat.provider != registry::PROVIDER {
+    return Ok(None);
+  }
+
+  let Some(registration) = registry::registration(db, &seat.model).await.map_err(|why| fault(why.error))?
+  else {
+    return Ok(None);
+  };
+  let Some(service) = registration.card_service.clone() else {
+    return Ok(None);
+  };
+  let Some(master) = master else {
+    return Err(fault(fill_marks(
+      &CONTROL_WORDS.cards.no_master,
+      &[("name", &registration.name), ("service", &service)],
+    )));
+  };
+  let within = match caller {
+    Some(caller) => holding(db, caller).await?,
+    None => None,
+  };
+  let mut quiet = |_: &str| {};
+
+  hold_on(
+    db,
+    master,
+    Asking {
+      registration: &registration.name,
+      service: &service,
+      holder: &seat.owner,
+      work_key: None,
+      ask: Ask { own: None, within },
+      lease: Some(&seat.token),
+    },
+    &mut quiet,
+  )
+  .await
+  .map(Some)
+}

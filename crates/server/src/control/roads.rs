@@ -262,7 +262,7 @@ pub async fn registration_refusal(db: &DatabaseConnection, name: &str) -> Result
 
   Ok(
     held
-      .is_none_or(|held| held.addresses.is_empty())
+      .is_none_or(|held| !held.offered())
       .then(|| format!("{}: {name}", policy::providers::registered::REGISTERED.presence.not_registered)),
   )
 }

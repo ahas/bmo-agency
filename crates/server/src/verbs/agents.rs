@@ -61,9 +61,13 @@ pub struct AgentsArgs {
   pub key_stdin: bool,
   #[arg(long)]
   pub no_key: bool,
-  /// Whether the address's instance keeps role files, on or off.
+  /// Whether the address's instance keeps role files, on or off; with `--register`, whether the card
+  /// service's instances do.
   #[arg(long)]
   pub role_files: Option<String>,
+  /// The arbiter service a registration's engine is, or `none`.
+  #[arg(long)]
+  pub card_service: Option<String>,
   /// The registration's name, and the node of the one address to take away.
   #[arg(long, num_args = 1..=2, value_names = ["NAME", "NODE"])]
   pub unregister: Option<Vec<String>>,
@@ -462,10 +466,15 @@ async fn registry_change(stand: &Stand<'_>, args: &AgentsArgs) -> Result<Said, V
       }
     }
 
+    if let Some(service) = &args.card_service {
+      body["cardService"] = if service.trim() == "none" { Value::Null } else { json!(service) };
+    }
+
     for (field, value, flag) in [
       ("thinking", &args.thinking, "--thinking"),
       ("walked", &args.walked, "--walked"),
       ("keepsResearch", &args.research, "--research"),
+      ("roleFiles", &args.role_files, "--role-files"),
     ] {
       match on_off(value.as_deref(), flag) {
         Ok(Some(on)) => body[field] = json!(on),
@@ -528,6 +537,12 @@ async fn registry_change(stand: &Stand<'_>, args: &AgentsArgs) -> Result<Said, V
       if flag("walked") { "walked" } else { "not walked" },
       if flag("keepsResearch") { "keeps its research" } else { "research elsewhere" },
     ));
+
+    if let Some(service) = one["cardService"].as_str() {
+      let kept = if flag("roleFiles") { ", role files" } else { "" };
+
+      said.line(format!("  card service {service}, standing where the arbiter grants it{kept}"));
+    }
 
     for address in one["addresses"].as_array().into_iter().flatten() {
       let key = match address["key"].as_str() {
@@ -803,9 +818,10 @@ async fn header(judging: Judging<'_>) -> Result<Vec<String>, Refused> {
     .await?
     .iter()
     .map(|one| {
-      let addresses = match one.addresses.len() {
-        1 => "1 address".to_owned(),
-        many => format!("{many} addresses"),
+      let addresses = match (&one.card_service, one.addresses.len()) {
+        (Some(service), _) => format!("card service {service}"),
+        (None, 1) => "1 address".to_owned(),
+        (None, many) => format!("{many} addresses"),
       };
 
       format!("{} ({}, {addresses})", one.name, grouped(one.context_tokens.max(0) as usize))

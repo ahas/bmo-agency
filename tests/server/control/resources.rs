@@ -469,6 +469,8 @@ async fn the_model_resource_is_one_record() {
       "name": "mine",
       "provider": "registered",
       "model": "old-model",
+      "cardService": Value::Null,
+      "roleFiles": false,
       "tier": Value::Null,
       "healthy": false,
       "lastAnsweredAt": Value::Null,
@@ -525,6 +527,36 @@ async fn the_model_resource_is_one_record() {
   assert_eq!(status, 200, "{changed}");
   assert_eq!(changed["model"], json!("changed-model"));
   assert_eq!(get(port, token, "/models").await.1["items"][1]["model"], json!("changed-model"));
+
+  // A change may name the card service its engine is alone, and none takes it away again.
+  let (status, carded) = send(
+    port,
+    token,
+    reqwest::Method::PATCH,
+    "/models/registered::made",
+    json!({ "cardService": "lab-arena", "roleFiles": true }),
+  )
+  .await;
+
+  assert_eq!(status, 200, "{carded}");
+  assert_eq!((&carded["cardService"], &carded["roleFiles"]), (&json!("lab-arena"), &json!(true)));
+  assert_eq!(carded["model"], json!("changed-model"));
+
+  let (status, _) = send(
+    port,
+    token,
+    reqwest::Method::PATCH,
+    "/models/registered::made",
+    json!({ "cardService": "none" }),
+  )
+  .await;
+
+  assert_eq!(status, 200);
+  assert_eq!(get(port, token, "/models/registered::made").await.1["cardService"], Value::Null);
+  assert_eq!(
+    send(port, token, reqwest::Method::PATCH, "/models/registered::made", json!({})).await.0,
+    400
+  );
 
   assert_eq!(
     send(port, token, reqwest::Method::DELETE, "/models/registered::made", Value::Null)

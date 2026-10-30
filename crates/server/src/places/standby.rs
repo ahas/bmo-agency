@@ -482,11 +482,7 @@ pub async fn release_stale_companion(ground: &Ground, agent: &str) {
   let (name, node) =
     model.split_once('@').map_or((model.as_str(), None), |(name, node)| (name, Some(node)));
   let held = registry::registration(&ground.db, &pin).await.ok().flatten();
-  let address_held = node.is_none_or(|node| {
-    held
-      .as_ref()
-      .is_some_and(|held| held.addresses.iter().any(|address| address.node == node))
-  });
+  let address_held = node.is_none_or(|node| held.as_ref().is_some_and(|held| held.holds_node(node)));
 
   if name != pin || !address_held {
     let before = place.release().await;

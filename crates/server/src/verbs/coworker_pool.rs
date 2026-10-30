@@ -8,6 +8,7 @@
 use std::collections::BTreeMap;
 use std::time::Duration;
 
+use harness_machine::card_master::{Master, MasterAddress};
 use sea_orm::DatabaseConnection;
 use serde_json::{Value, json};
 
@@ -618,11 +619,12 @@ async fn judged(data_root: &std::path::Path, text: &str) -> Result<Vec<String>, 
 
   let input = hook_input(text)?;
   let db = super::store(data_root).await.map_err(|why| why.to_string())?;
+  let master = MasterAddress::of_process()?.map(Master::new);
 
   if !matches!(input, HookInput::Pre { .. }) {
     give_back(&db, &input).await?;
 
-    return Ok(vec![]);
+    return returned_card(&db, master.as_ref(), data_root, &input).await;
   }
 
   // A run on a provider that lends no co-workers has none apart from itself, so its call takes no place
@@ -657,6 +659,35 @@ async fn judged(data_root: &std::path::Path, text: &str) -> Result<Vec<String>, 
     return stopped(&db, token).await;
   };
 
+  // A seat on a registration whose engine the arbiter stands waits for its card, asked within the demand
+  // its caller's turn holds, however long that takes (docs/own-llm.md, 「An engine the arbiter stands」).
+  if let Admission::Allowed { token } = &admitted
+    && let Some(seat) = request(&db, token).await.map_err(|why| why.to_string())?
+  {
+    let caller = std::env::var(crate::lines::place::PLACE_VARIABLE).ok().and_then(|place| {
+      std::path::Path::new(&place).file_name().map(|name| name.to_string_lossy().into_owned())
+    });
+    let carded = tokio::select! {
+      carded = crate::cards::native_card(&db, master.as_ref(), &seat, caller.as_deref()) => Some(carded),
+      _ = interrupt.recv() => None,
+      _ = terminate.recv() => None,
+    };
+
+    match carded {
+      Some(Ok(_)) => {}
+      Some(Err(why)) => {
+        finish(&db, token, "native call found no card", true).await?;
+
+        return Ok(vec![refusal(&format!("The co-worker gate refused this: {}", why.detail))]);
+      }
+      None => {
+        finish(&db, token, "native call's waiting hook was stopped", true).await?;
+
+        return Err("stopped while waiting for a card".into());
+      }
+    }
+  }
+
   Ok(match admitted {
     Admission::Refused(reason) => vec![refusal(&reason)],
     Admission::Allowed { .. } => {
@@ -669,6 +700,60 @@ async fn judged(data_root: &std::path::Path, text: &str) -> Result<Vec<String>, 
       allowance(tool_input, guide.trim()).into_iter().collect()
     }
   })
+}
+
+// The card a native call's seat held, given back once the call has returned or failed and its place with
+// it; a call that went on as a background child keeps its card until the pool's clock finds its lease
+// ended. Where the caller's own card was lent for it, the hook holds the caller's next request until the
+// caller's engine is back, and tells it so.
+async fn returned_card(
+  db: &DatabaseConnection,
+  master: Option<&Master>,
+  data_root: &std::path::Path,
+  input: &HookInput,
+) -> Result<Vec<String>, String> {
+  let (
+    Some(master),
+    HookInput::Post {
+      session,
+      tool_use_id,
+      ..
+    }
+    | HookInput::Failure {
+      session,
+      tool_use_id,
+    },
+  ) = (master, input)
+  else {
+    return Ok(vec![]);
+  };
+  let Some(token) = token_of(db, session, tool_use_id).await? else { return Ok(vec![]) };
+
+  if request(db, &token)
+    .await
+    .map_err(|why| why.to_string())?
+    .is_some_and(|seat| seat.state == "active")
+  {
+    return Ok(vec![]);
+  }
+
+  let said = crate::cards::give_back_lease(db, master, data_root, &token)
+    .await
+    .map_err(|why| why.detail)?;
+  let event = if matches!(input, HookInput::Post { .. }) {
+    "PostToolUse"
+  } else {
+    "PostToolUseFailure"
+  };
+
+  Ok(
+    said
+      .map(|said| {
+        json!({ "hookSpecificOutput": { "hookEventName": event, "additionalContext": said } }).to_string()
+      })
+      .into_iter()
+      .collect(),
+  )
 }
 
 // A hook stopped while it waited: its request ended, and the hook's blocking exit.

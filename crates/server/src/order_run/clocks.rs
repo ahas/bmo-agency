@@ -1,6 +1,7 @@
 //! The co-worker pool's own clocks (docs/api.md, 「Co-worker pool」, the clocks): every five seconds a
 //! reservation's head place raised into a place another process gave back, and a native call whose caller
-//! ended reclaimed; every minute from the start a lease whose launched child ended given back; every ten
+//! ended reclaimed; every minute from the start a lease whose launched child ended given back, and the
+//! demand a lease no longer active held on the arbiter's master given back with it; every ten
 //! minutes what a job's end left in herdr swept; and on the keepalive pass's period the held reservations'
 //! places warmed. Beside them, each reader of the accounts' usage windows
 //! passes on the cadence it declares (docs/usage-windows.md). Each runs for as long as the process stands,
@@ -59,6 +60,29 @@ pub async fn keep_bound(db: DatabaseConnection, running: Running) {
 
       if released > 0 {
         println!("co-worker pool: {released} lease(s) whose launched child ended given back");
+      }
+
+      Ok(())
+    }
+  })
+  .await;
+}
+
+/// The card demands' clock, from the process's start: a demand a seat's lease held on the arbiter's master
+/// given back once that lease is no longer active, whatever path ended it (docs/coworker-pool.md,
+/// 「Concurrency limits」). A process that names no master keeps no such clock.
+pub async fn keep_card_demands(ground: Arc<Ground>) {
+  let Some(master) = crate::cards::master_of(&ground) else { return };
+
+  every("card demands", Duration::ZERO, BOUND_PASS, move || {
+    let db = ground.db.clone();
+    let master = master.clone();
+
+    async move {
+      let given = crate::cards::give_back_with_leases(&db, &master).await.map_err(|why| why.detail)?;
+
+      if given > 0 {
+        println!("cards: {given} demand(s) whose lease ended given back");
       }
 
       Ok(())

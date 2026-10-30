@@ -243,6 +243,9 @@ pub struct RegistryWords {
   pub last_address: String,
   pub no_address: String,
   pub the_registration: String,
+  pub card_service: String,
+  pub card_role_files: String,
+  pub card_service_address: String,
 }
 
 /// The model catalogue.
@@ -320,6 +323,18 @@ pub struct ControlWords {
   pub models: ModelsWords,
   pub companion_roster: CompanionRosterWords,
   pub companion_reset: CompanionResetWords,
+  pub cards: CardWords,
+}
+
+/// The cards the arbiter's master grants a run (docs/own-llm.md, 「An engine the arbiter stands」).
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CardWords {
+  pub no_master: String,
+  pub waiting: String,
+  pub unreachable: String,
+  pub gone: String,
+  pub stood_down: String,
 }
 
 crate::part!(pub CONTROL_WORDS: ControlWords = "control-words.toml");

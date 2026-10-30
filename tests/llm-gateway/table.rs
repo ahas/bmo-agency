@@ -3,7 +3,9 @@
 
 use std::collections::{BTreeMap, HashMap};
 
-use llm_gateway::table::{HOOKS, Member, Table, gateway_table, gateway_table_with_members, table_digest};
+use llm_gateway::table::{
+  HOOKS, Member, Table, gateway_table, gateway_table_with_members, laid_instances, table_digest,
+};
 use serde_json::{Value, json};
 use store::registry::{RegisteredAddress, Registration};
 
@@ -18,6 +20,8 @@ fn registration(name: &str, addresses: Vec<RegisteredAddress>) -> Registration {
     thinking: false,
     walked: false,
     keeps_research: false,
+    card_service: None,
+    role_files: false,
     addresses,
   }
 }
@@ -268,4 +272,43 @@ fn a_member_naming_a_registration_refuses_the_table() {
   let refused = gateway_table_with_members(&[registration("taken", vec![])], &[member]);
 
   assert!(refused.is_err());
+}
+
+#[test]
+fn a_registration_naming_a_card_service_is_served_by_the_master_s_standing_instances_each_by_its_node() {
+  let carded = Registration {
+    card_service: Some("lab-arena".into()),
+    role_files: true,
+    ..registration("flash", vec![])
+  };
+  let picture = json!({
+    "services": [{
+      "serviceName": "lab-arena", "nodeNames": ["n3", "n4"],
+      "instances": [{ "nodeName": "n3", "address": "http://127.0.0.1:18021/v1/chat/completions", "keyFile": "/keys/lab-arena.key" }],
+    }],
+    "nodes": [],
+  });
+  let laid = laid_instances(vec![carded.clone()], Some(&picture));
+
+  assert_eq!(laid[0].addresses.len(), 1);
+  assert!(laid[0].addresses[0].role_files, "an instance keeps role files as its registration says");
+
+  let table = gateway_table(&laid);
+  let read: Value = serde_json::from_str(&table.text).unwrap();
+  let names: Vec<&str> = read["model_list"]
+    .as_array()
+    .unwrap()
+    .iter()
+    .map(|entry| entry["model_name"].as_str().unwrap())
+    .collect();
+
+  assert_eq!(names, vec!["flash", "flash@n3"], "one standing instance is still served under its node");
+  assert_eq!(read["model_list"][1]["model_info"]["role_files"], true);
+  assert_eq!(table.key_files.values().next().map(String::as_str), Some("/keys/lab-arena.key"));
+
+  for nothing in [None, Some(json!({ "services": [] }))] {
+    let laid = laid_instances(vec![carded.clone()], nothing.as_ref());
+
+    assert!(laid[0].addresses.is_empty(), "with no picture of it, it is served nowhere");
+  }
 }

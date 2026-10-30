@@ -132,9 +132,11 @@ never the model's name.
   the registration.
 - **Whether it is walked:** whether the automatic walk asks the registry's provider when a key's tier
   maps to it (「Own services in the provider order」 below).
-- **Its card service:** the arbiter service its engine is, or none. A registration naming one holds no
-  addresses of its own: where its engine stands, and so where a run on it goes, is the arbiter's to say
-  at that moment (「An engine the arbiter stands」 below).
+- **Its card service:** the arbiter service its engine is, or none, and whether that service's instances
+  keep role files. A registration naming one holds no addresses of its own: where its engine stands, and so
+  where a run on it goes, is the arbiter's to say at that moment (「An engine the arbiter stands」 below).
+  Naming one takes away the addresses the registration held, and no address is added to it while it names
+  one.
 - **Whether it keeps its research:** on or off, kept for the caller that sends a search or a browse out and
   reads it; agency acts on neither.
 - **Nothing of a run's prompt:** what a run on it is told is its line's, and an agent's base prompt is
@@ -196,10 +198,12 @@ never the model's name.
     whether its key is usable.
   - `bmo-agency agent --register <name> [--label <label>] [--model <model>] [--context <tokens>]
     [--answer <tokens>] [--wait <seconds>] [--thinking on|off] [--walked on|off] [--research on|off]
-    [--card-service <service>|none]` makes a registration, every field but the label and the card service
-    named, or changes the named fields of one.
+    [--card-service <service>|none] [--role-files on|off]` makes a registration, every field but the
+    label, the card service and the role files named, or changes the named fields of one; `--role-files`
+    here says whether the card service's instances keep role files.
   - `bmo-agency agent --register-address <name> <node label> <address> [--key-stdin | --no-key]
-    [--role-files on|off]` adds an address or changes one; `--key-stdin` reads the key from standing
+    [--role-files on|off]` adds an address or changes one, and is refused on a registration naming a card
+    service; `--key-stdin` reads the key from standing
     input, and a key is never taken on the command line; `--role-files` says whether the instance behind
     it keeps role files (「Role files」 below), left as it stands where it is not named. The list marks
     such an address.
@@ -246,19 +250,26 @@ never the model's name.
   on which card is decided by the arbiter's master and this registry at that moment, never by a setting,
   a node list or an assignment a person makes. The arbiter's master is asked through the same path every
   caller of a service standing on several nodes uses (the arbiter's `docs/placement.md`, 「Demands」), and
-  its address and token file are agency settings, read from the files the arbiter's deployment keeps.
+  its address and token file are agency settings, read from the files the arbiter's deployment keeps:
+  `AGENCY_ARBITER_URL` names the master's address and `AGENCY_ARBITER_TOKEN_FILE` the arbiter deployment's
+  settings file, whose `CARD_MASTER_TOKEN` is the token every call carries. The server reads both from its
+  environment, and the gateway's launcher from its own or else from the server's settings file. A run on a registration naming a card service where no master
+  is named is refused, the sentence naming the setting.
 - **A registration naming a card service is served wherever the master grants it.** Its instances are the
   ones the master reports standing, each with the address callers reach it at and the file its key is
   read from, as the engine's own deployment reports them; whether they keep role files is the
   registration's.
 - **Every run on it asks a demand first:** a turn of the chat agent, a companion or a worker, a
   thrown-away session's turn, a co-worker seat's child and a gate's request alike ask the master for one
-  card of the card service, with the session's key as the work it continues. A caller that holds a
-  granted demand of its own hands its id in with its seat or session request, and no other is asked for
-  that run.
+  card of the card service, with the session's key as the work it continues and agency's holder as the
+  demand's shown reference. A caller that holds a granted demand of its own hands its id in with its seat or
+  session request, and no other is asked for that run.
 - **The run goes where the demand is granted.** A new session is placed on the card granted; a resumed
   session asks with its key, which brings it back to the card holding its state wherever that card is
-  open, and is computed from its first token where another card answers.
+  open, and is computed from its first token where another card answers. The run names the card's entry,
+  `<name>@<node>`, once the gateway serves it, an engine the grant started being taken into the gateway's
+  table on the launcher's next beat. A program standing with nothing put in, a worker's waiting for its
+  next job, names the registration alone.
 - **A run waits for its grant however long it takes,** its answer saying why — the engine starting, every
   card in use, a bench or a claim. A companion's or the chat agent's turn waits as it waits for an engine a
   job holds (`docs/companions.md`, 「The engine it shares」), the room shown the reason; a seat waits
@@ -267,7 +278,10 @@ never the model's name.
 - **The demand is held for the run's turn and given back at its end.** Nothing takes the card from it but
   a bench or a claim, which stops the engine as the arbiter's lower tiers always have; the turn's request
   in hand is then cut, and its next request waits for its demand to be granted again. A demand whose run
-  has ended without giving it back is given back by agency at its start and with its lease.
+  has ended without giving it back is given back by agency at its start and with its lease: every demand
+  agency asks is kept in the store's `card_demands` with its holder, the seat's lease where one holds it and
+  the demand it was asked within, until it is given back; the server gives back every demand kept there as
+  it starts, and on its pool's minute every demand of a lease no longer active.
 - **Work a run asks holds the run's card as its own.** A native co-worker, a search branch, a gate or a
   session asked from a run whose own demand is granted asks its demand within the run's. Work on the
   model the run already stands on is granted on the run's own card, beside the run, which waits on it.
@@ -280,7 +294,13 @@ never the model's name.
   request is held — the native co-worker gate's hook after the call holding it — until the run's own
   demand is granted again and its engine answers health, however long that takes. What the ask hands back
   says that the run's own engine stood down for the work and came back, so the agent knows what its ask
-  cost.
+  cost: "Your own model stood down while this work ran on its card, and it has come back." A native
+  co-worker's demand is asked within the demand its caller's turn holds, its caller found by the place its
+  program stands in; the gate's hook before the call waits for the grant and the hook after it holds the
+  caller and hands it the sentence, each hook's limit a day. The co-worker's own requests are its caller's
+  program's, sent under its definition's model, so they name the registration's spread entry, which lists
+  the standing instances, the card granted among them. A seat asks within the demand its admission
+  names, and the seat's finish answers the sentence.
 - **The gateway never sends to an engine that is down.** Its table holds, for such a registration, one
   entry for each instance the master reports standing, and the entry under the registration's name alone
   spread over exactly those; the launcher reads the master's picture on its beat, and a change starts a
@@ -404,7 +424,12 @@ never the model's name.
     hand; LiteLLM still holds the node until its own wait ends.
 - **What the table holds for a registration:** one entry under its name for every address, and, for a
   registration of several addresses, one more under `<name>@<node label>` for each (「Nodes and
-  sessions」 above). Each entry asks its address's chat completions path, with the address's key, for the
+  sessions」 above). A registration naming a card service holds the instances the arbiter's master reports
+  standing in place of addresses, each under `<name>@<node>` even where one stands alone and all of them
+  under its name, its instances' role files the registration's; a beat whose picture cannot be read leaves
+  the last good table standing, and with no master named, or a picture placing no such service, the
+  registration is served nowhere. The launcher reads the master's address and token file from its
+  own environment, else those two entries alone of the server's settings file under the data root's `env/`. Each entry asks its address's chat completions path, with the address's key, for the
   registration's model, waits the registration's request wait for a whole answer and for a stream alike,
   and sends `enable_thinking` off in `chat_template_kwargs` where a request names nothing.
 - **A request is waited for as long as its caller waits, and never longer.**

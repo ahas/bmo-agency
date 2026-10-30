@@ -82,6 +82,7 @@ fn chat_run(home: &std::path::Path) -> ChatRun {
       (launch, "1".to_owned()),
       ("MAX_THINKING_TOKENS".to_owned(), "0".to_owned()),
     ]),
+    cards: Default::default(),
   }
 }
 

@@ -460,7 +460,7 @@ pub async fn registered_command(
   let held = registry::registration(&ground.db, &run.model)
     .await
     .map_err(|refused| fault(refused.error))?
-    .filter(|held| !held.addresses.is_empty())
+    .filter(|held| held.offered())
     .ok_or_else(|| fault(format!("{}: {}", REGISTERED.presence.not_registered, run.model)))?;
   let model = GatewayModel::registration(machine, &held);
   let sampling = worker_sampling(ground, worker)

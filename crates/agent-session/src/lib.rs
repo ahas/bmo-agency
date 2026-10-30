@@ -59,6 +59,10 @@ pub struct Apart {
   pub system_prompt: Option<String>,
   pub labels: Option<String>,
   pub tools_allowed: Option<Vec<String>>,
+  /// A granted demand of the caller's own, which each turn stands on with no other asked for it.
+  pub demand: Option<i64>,
+  /// The caller's granted demand each turn's own is asked within.
+  pub within: Option<i64>,
 }
 
 impl Apart {

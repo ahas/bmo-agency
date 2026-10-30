@@ -519,6 +519,13 @@ pub struct Model {
   pub name: String,
   pub provider: String,
   pub model: String,
+  /// The arbiter service its engine is, where it names one: its instances are those the arbiter's master
+  /// reports standing, and it holds no address of its own.
+  #[serde(default)]
+  pub card_service: Option<String>,
+  /// Whether the card service's instances keep role files.
+  #[serde(default)]
+  pub role_files: bool,
   pub tier: Option<String>,
   pub healthy: Option<bool>,
   /// When the engine behind it last answered a health probe, in unix seconds, where it ever has.
@@ -1763,6 +1770,13 @@ pub struct SessionStart {
   /// The capabilities the session's record keeps, of those its line and its agent's role give.
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub tools_allowed: Option<Vec<String>>,
+  /// A granted demand of the caller's own on the arbiter's master, which each turn of a thrown-away session
+  /// on a registration naming a card service stands on, with no other asked.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub demand_id: Option<i64>,
+  /// The caller's granted demand each turn's own demand is asked within.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub within: Option<i64>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub options: Option<SessionOptions>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -2088,6 +2102,9 @@ pub struct SeatRequestChange {
   pub outcome: Option<String>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub cancel: Option<bool>,
+  /// On an admission ask: the asking run's granted demand the seat's own is asked within.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub within: Option<i64>,
 }
 
 /// The body that reserves seats for an owner.
@@ -2199,9 +2216,13 @@ pub struct ModelChange {
   pub url: Option<String>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub key: Option<String>,
-  /// Whether the instance behind the address keeps role files; left as it stands where none is named.
+  /// Whether the instance behind the address keeps role files, or on a registration naming a card service
+  /// whether its instances do; left as it stands where none is named.
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub role_files: Option<bool>,
+  /// The arbiter service the registration's engine is, or `none`; naming one takes its addresses away.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub card_service: Option<String>,
 }
 
 /// The body that assigns a tier to a work key or sets a tier's mapping on a provider.

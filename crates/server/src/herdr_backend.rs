@@ -966,7 +966,7 @@ impl HerdrSessions {
           || match (&harness.placement, provider.not_registered()) {
             (Some(node), Some(_)) => registration_named(ground, model)
               .await
-              .map(|held| !held.addresses.iter().any(|address| &address.node == node))
+              .map(|held| !held.holds_node(node))
               .unwrap_or(false),
             _ => false,
           }
@@ -1310,49 +1310,71 @@ impl HerdrSessions {
       .as_ref()
       .map(|harness| (harness.id.as_str(), harness.placement.as_deref()));
     let run = log.run().to_owned();
-    let composed = compose(
+    // A registration whose engine the arbiter stands is asked a card first, held for the turn and given
+    // back at its end (docs/own-llm.md, 「An engine the arbiter stands」).
+    let card = crate::cards::hold_for_model(
       ground,
-      &ground.machine(),
-      &CompanionTurn {
-        agent: &companion.name,
-        chat_id: session.chat_id,
-        provider: provider.name(),
-        model,
-        system,
-        prompt,
-        privileged: context.privileged,
-        resume,
-        run: &run,
-        answers: &context.answers,
-        generation,
-        began,
-      },
+      provider.name(),
+      model,
+      &companion.name,
+      resume.map(|(id, _)| id),
+      log,
     )
     .await
     .map_err(|refused| NoAnswer::Failed(refused.detail))?;
+    let turned = async {
+      let composed = compose(
+        ground,
+        &ground.machine(),
+        &CompanionTurn {
+          agent: &companion.name,
+          chat_id: session.chat_id,
+          provider: provider.name(),
+          model,
+          system,
+          prompt,
+          privileged: context.privileged,
+          resume,
+          card: card.as_ref().map(|card| card.node.as_str()),
+          run: &run,
+          answers: &context.answers,
+          generation,
+          began,
+        },
+      )
+      .await
+      .map_err(|refused| NoAnswer::Failed(refused.detail))?;
 
-    log.launched(&ground.db, Some(&composed.system_path), prompt, &[]).await;
+      log.launched(&ground.db, Some(&composed.system_path), prompt, &[]).await;
 
-    let tally = Tally {
-      agent: &companion.name,
-      chat_id: session.chat_id,
-      carried: session.spent,
-    };
-    let reply = run_turn(
-      ground,
-      &companion.name,
-      crate::lines::chat::LINE,
-      provider.name(),
-      &composed,
-      resume.map(|(id, _)| id),
-      log,
-      guarded,
-      Some(&tally),
-      Some(shown),
-    )
-    .await?;
+      let tally = Tally {
+        agent: &companion.name,
+        chat_id: session.chat_id,
+        carried: session.spent,
+      };
+      let reply = run_turn(
+        ground,
+        &companion.name,
+        crate::lines::chat::LINE,
+        provider.name(),
+        &composed,
+        resume.map(|(id, _)| id),
+        log,
+        guarded,
+        Some(&tally),
+        Some(shown),
+      )
+      .await?;
 
-    Ok((reply, composed.placement))
+      Ok((reply, composed.placement))
+    }
+    .await;
+
+    if let Some(card) = &card {
+      crate::cards::give_back(ground, card).await;
+    }
+
+    turned
   }
 
   // One turn of an agent across rooms, carried by its resident program on the chat line around the room
@@ -2015,6 +2037,7 @@ impl HerdrSessions {
       resume: None,
       cwd,
       env,
+      cards: Default::default(),
     };
     let mut log = RunLog::new(Target {
       agent: agent.to_owned(),
@@ -2115,6 +2138,10 @@ impl HerdrSessions {
       resume: None,
       cwd: run.cwd.to_string_lossy().into_owned(),
       env,
+      cards: crate::cards::Ask {
+        own: apart.demand,
+        within: apart.within,
+      },
     };
     let mut log = RunLog::new(Target {
       agent: agent.to_owned(),

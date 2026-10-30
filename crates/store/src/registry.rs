@@ -20,6 +20,13 @@ pub struct Registration {
   pub thinking: bool,
   pub walked: bool,
   pub keeps_research: bool,
+  /// The arbiter service its engine is, none where it is served at addresses of its own
+  /// (docs/own-llm.md, 「An engine the arbiter stands」).
+  pub card_service: Option<String>,
+  /// Whether the card service's instances keep role files (docs/own-llm.md, 「Role files」).
+  pub role_files: bool,
+  /// Its own addresses; a registration naming a card service holds none, and its reader lays the
+  /// instances the master reports standing here in their place.
   pub addresses: Vec<RegisteredAddress>,
 }
 
@@ -51,8 +58,8 @@ fn flag(row: &AnyRow, column: &str) -> Result<bool, sqlx::Error> {
 /// Every registration with its addresses.
 pub async fn registrations(store: &mut AnyConnection) -> Result<Vec<Registration>, sqlx::Error> {
   let models = sqlx::query(
-    "SELECT name, label, model, context_tokens, answer_tokens, wait_seconds, thinking, walked, keeps_research \
-     FROM registered_models ORDER BY added_at, name",
+    "SELECT name, label, model, context_tokens, answer_tokens, wait_seconds, thinking, walked, keeps_research, \
+     card_service, role_files FROM registered_models ORDER BY added_at, name",
   )
   .fetch_all(&mut *store)
   .await?;
@@ -89,6 +96,8 @@ pub async fn registrations(store: &mut AnyConnection) -> Result<Vec<Registration
       thinking: flag(row, "thinking")?,
       walked: flag(row, "walked")?,
       keeps_research: flag(row, "keeps_research")?,
+      card_service: row.try_get("card_service")?,
+      role_files: flag(row, "role_files")?,
       addresses: served,
       name,
     });

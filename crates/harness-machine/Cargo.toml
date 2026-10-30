@@ -14,6 +14,7 @@ test = false
 
 [dependencies]
 clap.workspace = true
+dotenvy.workspace = true
 libc.workspace = true
 policy = { path = "../policy" }
 regex.workspace = true

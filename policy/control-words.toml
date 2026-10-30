@@ -201,7 +201,8 @@ answer_tokens = "An answer ceiling is set only on {providers}, as one of {choice
 # The registry of models: what names a registration — a {tier}, a {worker}'s pin, a {companion}'s pin, a
 # work {key}'s own registration, a model file {entry} — a name, a node, an address or a key file out of its shape, a field's {label} out of
 # its {min} to {max}, a label past its {most} characters, a {name} not registered or with no address on a
-# {node}, and {what} cannot be removed while the {names} name it.
+# {node}, {what} cannot be removed while the {names} name it, and an address refused to a {name} naming a
+# card {service}.
 [registry]
 tier = "the {tier} tier"
 worker_pin = "worker {worker}'s pin"
@@ -229,6 +230,9 @@ in_use = "{what} cannot be removed while something names it: {names}"
 last_address = "The last address of {name}"
 no_address = "{name} has no address on {node}."
 the_registration = "The registration {name}"
+card_service = "A card service starts with a lowercase letter and holds only lowercase letters, digits and hyphens, at most 40 characters."
+card_role_files = "Whether a card service's instances keep role files is on or off."
+card_service_address = "{name} names the card service {service}: where it stands is the arbiter's to say, so it holds no address."
 
 # The model catalogue: a source, a {what}'s word, a field's {label} out of its {min} and {max}, a label
 # or a note past its {most} characters, a {name} not catalogued or being switched to, an {engine} serving
@@ -283,3 +287,13 @@ no_range = "Choose at least one range to take, the conversation or the person re
 not_companion = "{agent} is not a companion, so it cannot be reset."
 brain_root = "{agent}'s memory folder is the brain root, so it is not reset."
 reason = "companion reset"
+
+# The cards the arbiter's master grants a run on a registration naming a card {service}: a master named
+# nowhere, a run waiting on its grant and {why}, a master that could not be reached, a {demand} handed in
+# that the master no longer holds, and what an ask hands back where its run's own model stood down for it.
+[cards]
+no_master = "{name} names the card service {service}, and no arbiter master is named (AGENCY_ARBITER_URL)."
+waiting = "Waiting for a card of {service}: {why}"
+unreachable = "The arbiter's master could not be reached; asked again."
+gone = "The demand {demand} handed in is one the arbiter's master no longer holds."
+stood_down = "Your own model stood down while this work ran on its card, and it has come back."

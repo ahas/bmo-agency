@@ -152,11 +152,32 @@ impl Route for PoolAcquire {
         let outcome = body.get("outcome").and_then(Value::as_str).unwrap_or_default();
         let cancel = body.get("cancel").and_then(Value::as_bool).unwrap_or(false);
         let held = finish(call.store(), &token, outcome, cancel).await.map_err(refused)?;
-        Ok(answer(StatusCode::OK, json!({ "held": held })))
+        // The card the seat held goes back with it; where the asking run's own card was lent, the answer
+        // waits until that run's engine is back and says so (docs/own-llm.md, 「An engine the arbiter
+        // stands」).
+        let note = crate::cards::give_back_seat(call.ground(), &token).await.map_err(Refused::from)?;
+        Ok(answer(
+          StatusCode::OK,
+          json!({ "held": held, "stoodDown": note.is_some(), "note": note }),
+        ))
       }
       _ => {
         let admitted = acquire(call.store(), &held).await.map_err(refused)?;
-        Ok(answer(StatusCode::OK, json!({ "request": shown(admitted)? })))
+        // A seat on a registration whose engine the arbiter stands is let out once its card is granted; while
+        // its demand waits it answers none and the demand says why, and the caller asks again.
+        let card = match admitted.as_ref().filter(|seat| seat.state == "active") {
+          Some(seat) => {
+            let within = body.get("within").and_then(Value::as_i64);
+
+            crate::cards::seat_card(call.ground(), seat, within).await.map_err(Refused::from)?
+          }
+          None => None,
+        };
+        let request = match &card {
+          Some(card) if !card.granted() => Value::Null,
+          _ => shown(admitted)?,
+        };
+        Ok(answer(StatusCode::OK, json!({ "request": request, "demand": card })))
       }
     }
   }

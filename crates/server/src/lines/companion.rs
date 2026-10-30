@@ -64,6 +64,9 @@ pub struct CompanionTurn<'a> {
   pub privileged: bool,
   /// The harness session the turn goes on in, and the place it stands on; none opens a new one.
   pub resume: Option<(&'a str, Option<&'a str>)>,
+  /// The node of the card the turn holds, on a registration naming a card service, which the turn is
+  /// placed on whatever its session last stood on (docs/own-llm.md, 「An engine the arbiter stands」).
+  pub card: Option<&'a str>,
   pub run: &'a str,
   /// The messages the turn answers.
   pub answers: &'a [i64],
@@ -173,7 +176,7 @@ pub async fn registration_named(ground: &Ground, model: &str) -> Result<Registra
   registry::registration(&ground.db, model)
     .await
     .map_err(|refused| fault(refused.error))?
-    .filter(|held| !held.addresses.is_empty())
+    .filter(|held| held.offered())
     .ok_or_else(|| fault(format!("{}: {model}", REGISTERED.presence.not_registered)))
 }
 
@@ -390,6 +393,7 @@ pub async fn compose(
   let registration = gateway.registration.as_ref();
   let (placement, kept) = match (registration, turn.resume) {
     (None, _) => (None, None),
+    (Some(_), _) if turn.card.is_some() => (turn.card.map(str::to_owned), None),
     (Some(_), Some((_, Some(node)))) => (Some(node.to_owned()), Some(node.to_owned())),
     (Some(_), Some((_, None))) => (super::standing::place_registered(ground, turn.model).await?, None),
     (Some(_), None) => {
@@ -401,7 +405,7 @@ pub async fn compose(
 
   if let Some(node) = &placement
     && let Some(registration) = registration
-    && !registration.addresses.iter().any(|address| &address.node == node)
+    && !registration.holds_node(node)
   {
     return Err(fault(fill_marks(
       &REGISTERED.presence.node_missing,

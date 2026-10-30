@@ -27,6 +27,8 @@ fn expected() -> Vec<Registration> {
       thinking: false,
       walked: true,
       keeps_research: false,
+      card_service: None,
+      role_files: false,
       addresses: vec![RegisteredAddress {
         node: "d-vex".into(),
         url: "https://llm.example.com/v1/chat/completions".into(),
@@ -46,6 +48,8 @@ fn expected() -> Vec<Registration> {
       thinking: true,
       walked: false,
       keeps_research: true,
+      card_service: None,
+      role_files: false,
       addresses: vec![
         RegisteredAddress {
           node: "alpha".into(),

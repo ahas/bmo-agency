@@ -1,6 +1,6 @@
 //! The deployment's configuration: the names its agent and its owner go by (docs/policy.md, 「The
 //! deployment's names」), where each service agency calls is reached (docs/api.md, 「Calls agency
-//! makes」), the brain repository the agents' brain folders stand in (docs/agent-ownership.md, 「Long-term
+//! makes」), the arbiter's master among them, the brain repository the agents' brain folders stand in (docs/agent-ownership.md, 「Long-term
 //! memory」), the file
 //! the persona's placeholder values are kept in (docs/api.md, 「Calls agency makes」), and the trees its
 //! release is read from (docs/agent-control.md, 「The job's release」). Each is read through the variables
@@ -8,6 +8,7 @@
 
 use std::path::{Path, PathBuf};
 
+use harness_machine::card_master::MasterAddress;
 use harness_providers::Machine;
 use policy::deployment::{DEPLOYMENT_NAMES, Deployment};
 
@@ -92,6 +93,9 @@ pub struct PeerAddresses {
   pub node: Option<PeerAddress>,
   pub brain: Option<PeerAddress>,
   pub gate: Option<gate::GateAddress>,
+  /// The arbiter's master, which grants the cards a registration naming a card service runs on
+  /// (docs/own-llm.md, 「An engine the arbiter stands」).
+  pub arbiter: Option<MasterAddress>,
   /// The account key a brain agency makes is filed under, none where the deployment names none.
   pub brain_account: Option<String>,
 }
@@ -106,6 +110,7 @@ impl Config {
         node: PeerAddress::read(&node::ADDRESS, &variable)?,
         brain: PeerAddress::read(&brain::ADDRESS, &variable)?,
         gate: gate::GateAddress::read(&variable)?,
+        arbiter: MasterAddress::read(&variable)?,
         brain_account: variable(brain::ACCOUNT)
           .map(|value| value.trim().to_owned())
           .filter(|value| !value.is_empty()),

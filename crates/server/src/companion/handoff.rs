@@ -108,6 +108,27 @@ pub async fn hand_over(ground: &Ground, hold: &ResetHold, companion: &Companion,
   let model = due.model.clone();
   let run_name = log.run().to_owned();
   let machine = harness_providers::Machine::of_process(ground.roots.data.clone());
+  // A registration whose engine the arbiter stands is asked a card for the handoff's turn, as every turn on
+  // it is (docs/own-llm.md, 「An engine the arbiter stands」).
+  let card = match crate::cards::hold_for_model(
+    ground,
+    due.provider.name(),
+    &model,
+    &companion.name,
+    Some(&due.session),
+    &mut log,
+  )
+  .await
+  {
+    Ok(card) => card,
+    Err(refused) => {
+      log.write(&db, end(refused.detail.clone(), "failed")).await;
+      return eprintln!(
+        "companion {} in chat {chat_id}: the handoff failed: {}",
+        companion.name, refused.detail
+      );
+    }
+  };
   let composed = compose(
     ground,
     &machine,
@@ -120,6 +141,7 @@ pub async fn hand_over(ground: &Ground, hold: &ResetHold, companion: &Companion,
       prompt: &instruction,
       privileged: true,
       resume: Some((&due.session, due.placement.as_deref())),
+      card: card.as_ref().map(|card| card.node.as_str()),
       run: &run_name,
       answers: &[],
       generation: &due.generation,
@@ -142,6 +164,10 @@ pub async fn hand_over(ground: &Ground, hold: &ResetHold, companion: &Companion,
   let composed = match composed {
     Ok(composed) => composed,
     Err(refused) => {
+      if let Some(card) = &card {
+        crate::cards::give_back(ground, card).await;
+      }
+
       let _keeping = hold.keeping().await;
 
       if overtaken::overtaken(&db, &companion.name, began).await {
@@ -176,6 +202,11 @@ pub async fn hand_over(ground: &Ground, hold: &ResetHold, companion: &Companion,
     None,
   )
   .await;
+
+  if let Some(card) = &card {
+    crate::cards::give_back(ground, card).await;
+  }
+
   // What the handoff came to is kept under the hold its reset waits on, the point read again under it, as a turn's is.
   let keeping = hold.keeping().await;
   let replied = match replied {

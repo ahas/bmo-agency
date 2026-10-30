@@ -35,6 +35,7 @@ The shell a job runs in is zsh, and every command is a fresh `zsh -c` whose comm
   files and lines, the failure and its cause — and take back only that: what it read stays in its
   own session, where every later turn of yours would otherwise read it again. In a co-work the
   plan's branches do this instead.
+- Work you ask of a co-worker or of the supervisor's model runs elsewhere while another machine is free; when every other machine is busy, your own model stands down to run it and stays down until that work is finished, however long it takes, then comes back. So ask once, with everything bundled, and never ask the other model in a loop or poll it for progress.
 - **A sweep over a large file or many files runs first on the smallest input** — the first two
   hundred lines, one file of the loop — under a `timeout` of seconds, and you look at what it
   prints. An answer there says the command works and the rest is size; silence there is a fault — a

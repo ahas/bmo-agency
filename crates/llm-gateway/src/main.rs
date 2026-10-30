@@ -11,11 +11,12 @@ use std::process::ExitCode;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use harness_machine::card_master::{Master, MasterAddress, entry_of};
 use harness_machine::members::{self, Member};
 use llm_gateway::child::{Place, start, write_private};
 use llm_gateway::front::{Front, Status, router};
 use llm_gateway::keys::{read_key, usable_secret_file};
-use llm_gateway::table::{HOOKS, Table, gateway_table_with_members, table_digest};
+use llm_gateway::table::{HOOKS, Table, gateway_table_with_members, laid_instances, table_digest};
 use sqlx::Connection;
 use store::open_read;
 use store::registry::registrations;
@@ -59,24 +60,38 @@ fn store_address(data_root: &Path) -> Option<String> {
 
 /// The registry as it stands, read without a write: the store is opened read-only each time, so the
 /// gateway never holds a lock the bot waits on. A registry not settled yet — the gateway coming up
-/// before the bot — reads as nothing to serve for now.
-async fn registry_table(address: &str, members: &[Member]) -> Option<Table> {
+/// before the bot — reads as nothing to serve for now. A registration naming a card service is served by
+/// the instances the arbiter's master reports standing, its picture read on the same beat; a picture that
+/// cannot be read leaves the last good table standing (docs/own-llm.md, 「An engine the arbiter stands」).
+async fn registry_table(address: &str, master: Option<&Master>, members: &[Member]) -> Option<Table> {
   let read = async {
     let mut store = open_read(address).await?;
     let read = registrations(&mut store).await;
     let _ = store.close().await;
     read
   };
-  match read.await {
-    Ok(registry) => match gateway_table_with_members(&registry, members) {
-      Ok(table) => Some(table),
-      Err(why) => {
-        eprintln!("llm-gateway: the table was refused: {why}");
-        None
-      }
-    },
+  let registry = match read.await {
+    Ok(registry) => registry,
     Err(fault) => {
       eprintln!("llm-gateway: the registry could not be read: {fault}");
+      return None;
+    }
+  };
+  let picture = match (master, registry.iter().any(|one| one.card_service.is_some())) {
+    (Some(master), true) => match master.picture().await {
+      Ok(picture) => Some(picture),
+      Err(fault) => {
+        eprintln!("llm-gateway: {fault}; the last good table stands");
+        return None;
+      }
+    },
+    _ => None,
+  };
+  let laid = laid_instances(registry, picture.as_ref());
+  match gateway_table_with_members(&laid, members) {
+    Ok(table) => Some(table),
+    Err(why) => {
+      eprintln!("llm-gateway: the table was refused: {why}");
       None
     }
   }
@@ -90,7 +105,14 @@ fn write_status(path: &Path, status: &Status) {
   let _ = write_private(path, &format!("{written}\n"));
 }
 
-async fn refresh(front: &Front, place: &Place, store: &str, members_path: &Path, last: &mut Vec<Member>) {
+async fn refresh(
+  front: &Front,
+  place: &Place,
+  store: &str,
+  master: Option<&Master>,
+  members_path: &Path,
+  last: &mut Vec<Member>,
+) {
   let current = match members::read(members_path) {
     Ok(current) => {
       last.clone_from(&current);
@@ -101,7 +123,7 @@ async fn refresh(front: &Front, place: &Place, store: &str, members_path: &Path,
       last.clone()
     }
   };
-  let Some(table) = registry_table(store, &current).await else {
+  let Some(table) = registry_table(store, master, &current).await else {
     return;
   };
   let digest = table_digest(&table, |key_file| read_key(&place.env_dir, key_file), &place.hook_texts());
@@ -127,6 +149,18 @@ async fn main() -> ExitCode {
       data_root.join(store::place::ADDRESS_FILE).display()
     );
     return ExitCode::FAILURE;
+  };
+  // The master as the server's settings name it: the launcher's own environment first, else the two
+  // entries of the server's settings file, and nothing else of that file.
+  let settings = data_root.join("env").join("agency.env");
+  let master = match MasterAddress::read(|name| {
+    std::env::var(name).ok().filter(|value| !value.trim().is_empty()).or_else(|| entry_of(&settings, name))
+  }) {
+    Ok(address) => address.map(Master::new),
+    Err(why) => {
+      eprintln!("llm-gateway: {why}");
+      return ExitCode::FAILURE;
+    }
   };
   let members_path = members::path(&data_root);
   let hooks_dir = code_root().join("crates/llm-gateway/hooks");
@@ -184,7 +218,7 @@ async fn main() -> ExitCode {
       beat.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
       loop {
         beat.tick().await;
-        refresh(&front, &place, &store, &members_path, &mut last).await;
+        refresh(&front, &place, &store, master.as_ref(), &members_path, &mut last).await;
       }
     }
   });

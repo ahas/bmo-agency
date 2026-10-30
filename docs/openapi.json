@@ -7391,6 +7391,22 @@
             },
             "description": "The capabilities the session's record keeps, of those its line and its agent's role give."
           },
+          "demandId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "A granted demand of the caller's own on the arbiter's master, which each turn of a thrown-away session\non a registration naming a card service stands on, with no other asked."
+          },
+          "within": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The caller's granted demand each turn's own demand is asked within."
+          },
           "options": {
             "anyOf": [
               {
@@ -8925,6 +8941,14 @@
               "boolean",
               "null"
             ]
+          },
+          "within": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "On an admission ask: the asking run's granted demand the seat's own is asked within."
           }
         },
         "description": "The body that moves a seat request."
@@ -9415,6 +9439,19 @@
           "model": {
             "type": "string"
           },
+          "cardService": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The arbiter service its engine is, where it names one: its instances are those the arbiter's master\nreports standing, and it holds no address of its own.",
+            "default": null
+          },
+          "roleFiles": {
+            "type": "boolean",
+            "description": "Whether the card service's instances keep role files.",
+            "default": false
+          },
           "tier": {
             "type": [
               "string",
@@ -9441,6 +9478,8 @@
           "name",
           "provider",
           "model",
+          "cardService",
+          "roleFiles",
           "tier",
           "healthy",
           "lastAnsweredAt"
@@ -9536,7 +9575,14 @@
               "boolean",
               "null"
             ],
-            "description": "Whether the instance behind the address keeps role files; left as it stands where none is named."
+            "description": "Whether the instance behind the address keeps role files, or on a registration naming a card service\nwhether its instances do; left as it stands where none is named."
+          },
+          "cardService": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The arbiter service the registration's engine is, or `none`; naming one takes its addresses away."
           }
         },
         "description": "The body that saves or removes a registration, or sets or removes one of its addresses."

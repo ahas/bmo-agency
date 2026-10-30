@@ -83,9 +83,7 @@ pub async fn model_refusal(
 ) -> Result<Option<String>, Refused> {
   if let Some(not_registered) = provider.not_registered() {
     let held = if provider.unregistered().is_some() {
-      registry::registration(&ground.db, model)
-        .await?
-        .is_some_and(|held| !held.addresses.is_empty())
+      registry::registration(&ground.db, model).await?.is_some_and(|held| held.offered())
     } else {
       provider.holds_model(&ground.machine(), model)
     };

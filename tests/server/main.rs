@@ -10,6 +10,7 @@ mod standing;
 
 mod agent_roles;
 mod apart_session;
+mod cards;
 mod chat_runs;
 mod chat_stand_in;
 mod clock;

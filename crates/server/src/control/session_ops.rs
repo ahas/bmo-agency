@@ -389,11 +389,25 @@ fn runner_asked(body: &Value) -> Result<Apart, Refused> {
     Some(_) => return Err(bad("toolsAllowed is a list of capability names")),
   };
 
+  // The demands of the caller's own a registration whose engine the arbiter stands runs on: one granted to
+  // stand on, or the run's demand each turn's own is asked within (docs/own-llm.md, 「An engine the arbiter
+  // stands」).
+  let demand = |field: &str| match body.get(field) {
+    None | Some(Value::Null) => Ok(None),
+    Some(value) => value
+      .as_i64()
+      .filter(|id| *id > 0)
+      .map(Some)
+      .ok_or_else(|| bad(format!("{field} is the id of a demand the arbiter's master granted"))),
+  };
+
   Ok(Apart {
     line,
     system_prompt,
     labels,
     tools_allowed,
+    demand: demand("demandId")?,
+    within: demand("within")?,
     ..Apart::default()
   })
 }

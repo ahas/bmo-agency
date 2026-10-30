@@ -8,6 +8,9 @@
   - the gateway's status, as its launcher last wrote it;
   - the gateway's members, read and validated, with the road each belongs to;
   - an engine's health, asked at a registration's addresses;
+  - the arbiter's master, where the deployment names it: a demand for a card asked, read and given back,
+    and a service's standing instances and whether a node of its placement is open (「The arbiter's
+    master」 below);
   - a model's use on its engine: the unit it runs in, the engine's installer and its log;
   - a companion's system prompt, composed out of the agent documents.
 - **Agency's server links the crate.** It builds a binary of the same name as well, which answers the
@@ -74,6 +77,21 @@ flowchart TD
   the requests it has in hand, and why it stands aside and until when. A value of the wrong shape
   reads as none.
 - **No address answering is no health,** which every caller reads as nothing known.
+
+## The arbiter's master
+
+- **Where it is:** the address `AGENCY_ARBITER_URL` names, and the token the `CARD_MASTER_TOKEN` entry of
+  the settings file `AGENCY_ARBITER_TOKEN_FILE` names, read as `KEY=value` lines by a maintained reader; a
+  file that does not read or holds no such entry is no token.
+- **What it asks:** `POST /demands` for one card of a service, with the demand it is asked within, the work
+  key and a shown reference where they are named; `GET /demands/{demandId}` with its answer held open up to
+  thirty seconds; `DELETE /demands/{demandId}`, a demand the master no longer holds counting as given back;
+  and `GET /cluster`, the whole picture (the arbiter's `docs/api.md`, 「Demands」 and 「The cluster」).
+- **A demand's card** is the first card it is granted while its state is `granted` and nothing has taken
+  it; what it waits on is the master's reason, else the occupant that took its card.
+- **A service in the picture** is its standing instances that name an address, each with its node and key
+  file, and whether it is open: placed on a node whose link stands and whose every card has no claim and no
+  turn or queued ticket of a service of a lower tier than its own.
 
 ## A model's use on its engine
 

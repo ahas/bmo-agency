@@ -1,14 +1,19 @@
 //! The gateway's table, written from the registry (docs/own-llm.md, 「The gateway」): what LiteLLM is
 //! started on. Every registration is served under its name with one entry for each of its addresses,
 //! and a registration of several addresses once more under `<name>@<node>` for each, one address
-//! alone, so a session placed on a node asks that node only. The table names each key by a variable
-//! and never a key; the launcher sets the variables from the key files in its child's environment.
+//! alone, so a session placed on a node asks that node only. A registration naming a card service is served
+//! the same way over the instances the arbiter's master reports standing, each under `<name>@<node>` even
+//! where one stands alone, since a run names the entry of the card its demand was granted. The table names
+//! each key by a variable and never a key; the launcher sets the variables from the key files in its
+//! child's environment.
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use harness_machine::card_master::standing_in;
 use serde::Serialize;
+use serde_json::Value;
 use sha2::{Digest, Sha256};
-use store::registry::Registration;
+use store::registry::{RegisteredAddress, Registration};
 
 pub use harness_machine::members::Member;
 
@@ -113,6 +118,35 @@ struct General {
   master_key: String,
 }
 
+/// The registry with each registration naming a card service served by the instances the master's picture
+/// reports standing, an instance's role files the registration's own. With no picture — no master named —
+/// or a picture placing no such service, it is served nowhere.
+pub fn laid_instances(mut registrations: Vec<Registration>, picture: Option<&Value>) -> Vec<Registration> {
+  for registration in &mut registrations {
+    let Some(service) = registration.card_service.clone() else {
+      continue;
+    };
+    let instances = picture.and_then(|picture| standing_in(picture, &service)).map(|one| one.instances);
+
+    registration.addresses = instances
+      .into_iter()
+      .flatten()
+      .filter_map(|instance| {
+        Some(RegisteredAddress {
+          node: instance.node_name,
+          url: instance.address?,
+          key_file: instance.key_file,
+          key_owned: false,
+          placed_at: None,
+          role_files: registration.role_files,
+        })
+      })
+      .collect();
+  }
+
+  registrations
+}
+
 /// The table of the registry alone: no member of a deployment's own.
 pub fn gateway_table(registrations: &[Registration]) -> Table {
   gateway_table_with_members(registrations, &[]).expect("registrations hold unique names")
@@ -152,7 +186,7 @@ pub fn gateway_table_with_members(
         },
       };
       let info = address.role_files.then_some(Info { role_files: true });
-      if registration.addresses.len() > 1 {
+      if registration.addresses.len() > 1 || registration.card_service.is_some() {
         models.push(Entry {
           model_name: registration.name.clone(),
           litellm_params: params.clone(),

@@ -11,6 +11,7 @@ use policy::providers::Turns;
 use policy::providers::registered::REGISTERED;
 use serde::Serialize;
 
+use crate::cards;
 use crate::companion::run::{NoAnswer, Reply, run_turn};
 use crate::control::harness::provider_enabled;
 use crate::control::registry;
@@ -574,6 +575,22 @@ pub async fn registered_door(
   })
 }
 
+/// The door a turn on a registration naming a card service goes out through: as `registered_door`, placed
+/// on the node of the card its demand was granted.
+pub async fn carded_door(
+  ground: &Ground,
+  machine: &Machine,
+  registration: &str,
+  node: &str,
+) -> Result<Door, Refusal> {
+  let held = crate::lines::companion::registration_named(ground, registration).await?;
+
+  Ok(Door::Gateway {
+    held: Box::new(GatewayModel::registration(machine, &held)),
+    placement: Some(node.to_owned()),
+  })
+}
+
 // One turn on a registered model's road: Claude Code on the gateway in the agent's pane, the registration
 // first held to the gateway's list, on a session of its own placed where the registration places it.
 #[allow(clippy::too_many_arguments)]
@@ -593,12 +610,38 @@ async fn registered_road(
     return Ok(Err(format!("{}: {}", REGISTERED.presence.not_registered, step.model)));
   };
 
-  if let Err(why) = listed(ground, &service, &step.model).await {
-    return Ok(Err(why));
+  // A registration whose engine the arbiter stands is asked a card first, which the turn holds until its
+  // end; its turn goes out on the card granted (docs/own-llm.md, 「An engine the arbiter stands」).
+  let card = match registry::registration(&ground.db, &step.model).await.map_err(|why| failed(why.error))? {
+    Some(held) => {
+      match cards::hold_logged(ground, &held, &run.agent, run.resume.as_deref(), run.cards, log).await {
+        Ok(card) => card,
+        Err(why) => return Ok(Err(why.detail)),
+      }
+    }
+    None => None,
+  };
+  let outcome = async {
+    if let Err(why) = listed(ground, &service, &step.model).await {
+      return Ok(Err(why));
+    }
+
+    let door = match &card {
+      Some(card) => carded_door(ground, machine, &step.model, &card.node).await.map_err(refusal)?,
+      None => registered_door(ground, machine, &step.model).await.map_err(refusal)?,
+    };
+
+    deliver(ground, machine, run, step, &door, log, answers, began, shown).await
+  }
+  .await;
+
+  if let Some(card) = &card
+    && let Some(said) = cards::give_back(ground, card).await
+  {
+    log.write(&ground.db, Line::note(said)).await;
   }
 
-  let door = registered_door(ground, machine, &step.model).await.map_err(refusal)?;
-  let outcome = deliver(ground, machine, run, step, &door, log, answers, began, shown).await?;
+  let outcome = outcome?;
   let Ok(mut reply) = outcome else { return Ok(outcome) };
 
   reply.effort = step.thinking.then(|| "thinking".to_owned());

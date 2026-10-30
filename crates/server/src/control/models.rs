@@ -930,7 +930,7 @@ impl Route for CreateModel {
       return Err(Refused::new(StatusCode::CONFLICT, format!("a model is already registered as {name}")));
     }
 
-    let change = json!({
+    let mut change = json!({
       "action": "save",
       "name": name,
       "label": name,
@@ -939,6 +939,12 @@ impl Route for CreateModel {
       "answerTokens": REGISTRY.answer_tokens.min,
       "waitSeconds": REGISTRY.wait_seconds.min,
     });
+
+    for field in ["cardService", "roleFiles"] {
+      if let Some(value) = body.get(field) {
+        change[field] = value.clone();
+      }
+    }
 
     match super::registry::change(db, &data_root, &change).await? {
       Ok(()) => {}
@@ -956,7 +962,8 @@ impl Route for CreateModel {
 
 crate::moved!(CreateModel);
 
-/// A model's registration changed: the model name it is registered under.
+/// A model's registration changed: the model name it is registered under, the card service its engine is
+/// and whether that service's instances keep role files, each where the body names it.
 pub struct ChangeModel;
 
 impl Route for ChangeModel {
@@ -975,13 +982,23 @@ impl Route for ChangeModel {
     }
 
     let body = call.body().await?;
-    let model = body
-      .get("model")
-      .and_then(Value::as_str)
-      .map(str::trim)
-      .filter(|model| !model.is_empty())
-      .ok_or_else(|| Refused::new(StatusCode::BAD_REQUEST, "model (a string) is required"))?
-      .to_owned();
+    let model = match body.get("model") {
+      None => None,
+      Some(model) => Some(
+        model
+          .as_str()
+          .map(str::trim)
+          .filter(|model| !model.is_empty())
+          .ok_or_else(|| Refused::new(StatusCode::BAD_REQUEST, "model is a string"))?
+          .to_owned(),
+      ),
+    };
+    let card = ["cardService", "roleFiles"].into_iter().any(|field| body.get(field).is_some());
+
+    if model.is_none() && !card {
+      return Err(Refused::new(StatusCode::BAD_REQUEST, "model, cardService or roleFiles is required"));
+    }
+
     let db = call.store();
     let data_root = call.data_root();
 
@@ -989,7 +1006,24 @@ impl Route for ChangeModel {
       return Err(Refused::new(StatusCode::NOT_FOUND, format!("no model is registered as {name}")));
     }
 
-    super::registry::change_model(db, &name, &model).await.map_err(faulted)?;
+    if let Some(model) = &model {
+      super::registry::change_model(db, &name, model).await.map_err(faulted)?;
+    }
+
+    if card {
+      let mut change = json!({ "action": "save", "name": name });
+
+      for field in ["cardService", "roleFiles"] {
+        if let Some(value) = body.get(field) {
+          change[field] = value.clone();
+        }
+      }
+
+      if let Err(sentence) = super::registry::change(db, &data_root, &change).await? {
+        return Err(Refused::new(StatusCode::BAD_REQUEST, sentence));
+      }
+    }
+
     restand(&call);
 
     match super::registry::registered_model(db, &data_root, &name).await? {

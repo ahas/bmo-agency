@@ -1953,6 +1953,17 @@ export interface components {
             } | null;
             /** @description The capabilities the session's record keeps, of those its line and its agent's role give. */
             toolsAllowed?: string[] | null;
+            /**
+             * Format: int64
+             * @description A granted demand of the caller's own on the arbiter's master, which each turn of a thrown-away session
+             *     on a registration naming a card service stands on, with no other asked.
+             */
+            demandId?: number | null;
+            /**
+             * Format: int64
+             * @description The caller's granted demand each turn's own demand is asked within.
+             */
+            within?: number | null;
             options?: components["schemas"]["SessionOptions"] | null;
             provider?: string | null;
             model?: string | null;
@@ -2445,6 +2456,11 @@ export interface components {
             childId?: string | null;
             outcome?: string | null;
             cancel?: boolean | null;
+            /**
+             * Format: int64
+             * @description On an admission ask: the asking run's granted demand the seat's own is asked within.
+             */
+            within?: number | null;
         };
         /** @description ReservationPage: */
         ReservationPage: {
@@ -2590,6 +2606,17 @@ export interface components {
             name: string;
             provider: string;
             model: string;
+            /**
+             * @description The arbiter service its engine is, where it names one: its instances are those the arbiter's master
+             *     reports standing, and it holds no address of its own.
+             * @default null
+             */
+            cardService: string | null;
+            /**
+             * @description Whether the card service's instances keep role files.
+             * @default false
+             */
+            roleFiles: boolean;
             tier: string | null;
             healthy: boolean | null;
             /**
@@ -2616,8 +2643,13 @@ export interface components {
             node?: string | null;
             url?: string | null;
             key?: string | null;
-            /** @description Whether the instance behind the address keeps role files; left as it stands where none is named. */
+            /**
+             * @description Whether the instance behind the address keeps role files, or on a registration naming a card service
+             *     whether its instances do; left as it stands where none is named.
+             */
             roleFiles?: boolean | null;
+            /** @description The arbiter service the registration's engine is, or `none`; naming one takes its addresses away. */
+            cardService?: string | null;
         };
         /** @description ModelCatalogueView: */
         ModelCatalogueView: {

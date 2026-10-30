@@ -300,6 +300,10 @@ Beside them the start may name:
   member road such as DeepSeek's, or the registry's provider under a registration's name — Claude Code where
   the start names no provider. A provider agency does not carry, one the owner switched off, or one whose
   program does not carry the line is refused 503 `line-not-carried`, the sentence saying which.
+- **`demandId` and `within`:** on a registration naming a card service, a granted demand of the caller's
+  own that every turn of the session stands on, with no other asked, or the caller's granted demand each
+  turn's own is asked within (`docs/own-llm.md`, 「An engine the arbiter stands」); each a demand's id, a
+  positive whole number, refused 400 otherwise.
 - **`labels`:** an object the session's record carries, each key and its value written under that key of the
   record's `labels`, for the placed tools that read them; a key agency writes itself — `line`, `checkout`,
   `archive`, `role` and `place` — is refused 400.
@@ -501,7 +505,18 @@ a reservation lets it in rather than its token, or it was given back; a seat sti
 again. A `PATCH` with `{ "state": "bound", "childId": … }`
 binds an active seat to the unit it launched and answers the seat. A seat is given back with `{ "state":
 "finished", "outcome": … }`, and cancelled, where it never ran, with `{ "state": "finished", "cancel":
-true, "outcome": … }`; either answers `{ "held": <bool> }`, whether the seat was still held.
+true, "outcome": … }`; either answers `{ "held": <bool>, "stoodDown": <bool>, "note": <text or null> }`,
+whether the seat was still held, and whether the asking run's own card was lent for it.
+
+A seat on a registration naming a card service asks its demand once the pool lets it in (`docs/own-llm.md`,
+「An engine the arbiter stands」): the admission answers `demand` beside `request` — its `id`, `state`,
+`nodeName` once a card is granted and `reason` while it waits, null on any other seat — and answers
+`request` null until the card is granted, the caller asking again, with no clock of agency's. An admission
+may name `within`, the asking run's granted demand the seat's own is asked within. The seat's child stands on
+that demand by naming its id as the session's `demandId`. The demand is given back as the seat is finished,
+or, whatever ended its lease, on the pool's next minute; where the asking run's card was lent, the finish
+answers once the run's demand is granted again and its engine answers health, with `stoodDown` true and
+`note` the sentence the run is told.
 
 `PATCH /pool/limits` takes `provider`, `tier` and `capacity` and answers 200 with the three as written
 (`docs/coworker-pool.md`, 「Concurrency limits」). It is refused 422 `unprocessable-entity`, with one English
@@ -592,8 +607,12 @@ A create starts a registration under its own name as its label, at the registry'
 and wait and with no address, and is refused where the name already stands. `tier`, `healthy` and
 `lastAnsweredAt` are read back: `healthy` is whether the engine answers now, and `lastAnsweredAt` the
 moment it last answered a probe, in seconds, so a screen tells a model that is down from one that has
-never answered; the model behind a registration is what the change edits. A registration's addresses are the
-registry's: each carries `roleFiles`, whether the instance behind it keeps role files
+never answered; the model behind a registration is what the change edits. Each answer carries `cardService`,
+the arbiter service the registration's engine is or null, and `roleFiles`, whether that service's instances
+keep role files; the create and the change take both, `cardService` a service's name or `none` or null, and a
+change names at least one of `model`, `cardService` and `roleFiles`. Naming a card service takes the
+registration's addresses away, and its `healthy` is the arbiter master's (`docs/own-llm.md`, 「An engine the
+arbiter stands」). A registration's addresses are the registry's: each carries `roleFiles`, whether the instance behind it keeps role files
 (`docs/own-llm.md`, 「Role files」), set with `bmo-agency agent --register-address … --role-files on|off`
 (`docs/own-llm.md`, 「Where it is set」), left as it stands where the command names none and off on a new
 address; no route of this boundary sets an address.
@@ -1114,6 +1133,13 @@ reached (`GET /tool-sessions/{token}`, its `connected`), where a host that saw n
 calls for, picked over the chat agent's brain, and attaches the picked entries to the run's first prompt; and it
 reads the gate kinds and their order as the gate publishes them, so no copy of the gate order stands here.
 
+- **Where the arbiter's master is.** `AGENCY_ARBITER_URL` names its address and `AGENCY_ARBITER_TOKEN_FILE`
+  the arbiter deployment's settings file whose `CARD_MASTER_TOKEN` is its token. A run on a registration
+  naming a card service asks it `POST /demands` for one card, reads `GET /demands/{demandId}` with its answer
+  held open, and gives the demand back with `DELETE /demands/{demandId}`; health reads `GET /cluster`, and
+  the gateway's launcher reads it on its beat for each service's standing instances (`docs/own-llm.md`, 「An
+  engine the arbiter stands」). With no address, no demand is asked and a run on such a registration is
+  refused.
 - **Where the gate is.** `BMO_GATE_URL` names its address and `BMO_GATE_TOKEN_FILE` the path of the file
   its token stands in. With no address, no reference is asked and a job or a thrown-away session carries only
   its own words.

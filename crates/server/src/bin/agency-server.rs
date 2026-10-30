@@ -133,6 +133,16 @@ async fn serve(args: Args) -> Result<(), String> {
     Err(why) => eprintln!("agency: the runs left open: {}", why.detail),
   }
 
+  // The demands a process before this one asked on the arbiter's master and left behind, given back:
+  // no run of this process holds any yet (docs/own-llm.md, 「An engine the arbiter stands」).
+  if let Some(master) = agency_server::cards::master_of(&ground) {
+    match agency_server::cards::give_back_left(&ground.db, &master).await {
+      Ok(0) => {}
+      Ok(given) => println!("agency: {given} demands left on the arbiter's master given back"),
+      Err(why) => eprintln!("agency: the demands left on the arbiter's master: {}", why.detail),
+    }
+  }
+
   clocks(&ground);
   tokio::spawn(agency_server::order_run::clocks::keep_bound(
     ground.db.clone(),
@@ -174,7 +184,8 @@ async fn serve(args: Args) -> Result<(), String> {
   control::serve(listener, front).await.map_err(|why| format!("the control port: {why}"))
 }
 
-// The server's own clocks: the run log pruned, the pool's admissions and leftovers, the pool's warming, the
+// The server's own clocks: the run log pruned, the pool's admissions and leftovers, the demands of ended
+// leases given back, the pool's warming, the
 // accounts' usage windows read, the queue's reconciliation, the logins' watch on the keepalive pass, the held
 // launch's watch, the node service's pressures listened to, and what finished items left in the workbenches
 // swept.
@@ -196,6 +207,7 @@ fn clocks(ground: &Arc<Ground>) {
     .await
   });
   tokio::spawn(agency_server::order_run::clocks::keep_pool(ground.db.clone()));
+  tokio::spawn(agency_server::order_run::clocks::keep_card_demands(ground.clone()));
   tokio::spawn(agency_server::order_run::clocks::keep_leftovers(ground.clone()));
   tokio::spawn(agency_server::order_run::clocks::keep_warm(ground.clone()));
   tokio::spawn(agency_server::order_run::clocks::keep_usage_windows(ground.clone()));

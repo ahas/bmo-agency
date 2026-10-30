@@ -372,7 +372,7 @@ async fn view(db: &DatabaseConnection, hooks: &Hooks, roots: &Roots, agent: &str
   let offered: Vec<Value> = registrations(db)
     .await?
     .into_iter()
-    .filter(|one| !one.addresses.is_empty())
+    .filter(|one| one.offered())
     .map(|one| json!({ "name": one.name, "label": one.label }))
     .collect();
   let label: Option<String> = row.try_get("", "label")?;
@@ -440,12 +440,7 @@ async fn offered<C: ConnectionTrait>(db: &C, named: &Value) -> Result<Option<Str
     return Ok(None);
   };
 
-  Ok(
-    registration(db, name)
-      .await?
-      .filter(|held| !held.addresses.is_empty())
-      .map(|held| held.name),
-  )
+  Ok(registration(db, name).await?.filter(|held| held.offered()).map(|held| held.name))
 }
 
 /// What a save changes of the settings row, each field it names.

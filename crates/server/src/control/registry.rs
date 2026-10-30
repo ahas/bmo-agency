@@ -8,7 +8,8 @@
 use std::path::Path;
 use std::sync::LazyLock;
 
-use harness_machine::engine_health::{self, EngineHealth};
+use harness_machine::card_master::{Master, MasterAddress};
+use harness_machine::engine_health::{self, Aside, EngineHealth};
 use harness_machine::{gateway, keys};
 use policy::control_words::CONTROL_WORDS;
 use policy::fill_marks;
@@ -59,7 +60,25 @@ pub struct Registration {
   pub thinking: bool,
   pub walked: bool,
   pub keeps_research: bool,
+  /// The arbiter service its engine is, none where it is served at addresses of its own
+  /// (docs/own-llm.md, 「An engine the arbiter stands」).
+  pub card_service: Option<String>,
+  /// Whether the card service's instances keep role files (docs/own-llm.md, 「Role files」).
+  pub role_files: bool,
   pub addresses: Vec<Address>,
+}
+
+impl Registration {
+  /// Whether a run may name it: it holds an address, or names a card service the master places.
+  pub fn offered(&self) -> bool {
+    !self.addresses.is_empty() || self.card_service.is_some()
+  }
+
+  /// Whether a session placed on `node` may be resumed there: a node among its addresses, or any node on
+  /// a registration naming a card service, whose session goes where its demand is granted.
+  pub fn holds_node(&self, node: &str) -> bool {
+    self.card_service.is_some() || self.addresses.iter().any(|address| address.node == node)
+  }
 }
 
 fn flag(row: &QueryResult, column: &str) -> Result<bool, sea_orm::DbErr> {
@@ -102,6 +121,8 @@ pub async fn registrations<C: ConnectionTrait>(db: &C) -> Result<Vec<Registratio
       thinking: flag(&row, "thinking")?,
       walked: flag(&row, "walked")?,
       keeps_research: flag(&row, "keeps_research")?,
+      card_service: row.try_get("", "card_service")?,
+      role_files: flag(&row, "role_files")?,
       addresses: held,
       name,
     });
@@ -118,7 +139,10 @@ pub async fn registration<C: ConnectionTrait>(db: &C, name: &str) -> Result<Opti
 /// The health of the engine behind a registration, asked at its addresses, or none where none
 /// answers or the registry holds no such registration. An engine that answers at all is written down as
 /// having answered now, so a screen shows when it last did even after it stops answering
-/// (docs/own-llm.md, 「The registry」).
+/// (docs/own-llm.md, 「The registry」). A registration naming a card service is asked through the
+/// arbiter's master: a stopped engine is no outage, so it stands while the service is placed on a node no
+/// claim and no lower tier holds, its details those of an instance standing where one answers, and stands
+/// aside while every node of its placement is held (「An engine the arbiter stands」).
 pub async fn registration_health<C: ConnectionTrait>(
   db: &C,
   data_root: &Path,
@@ -127,15 +151,21 @@ pub async fn registration_health<C: ConnectionTrait>(
   let Some(held) = registration(db, name).await? else {
     return Ok(None);
   };
-  let addresses: Vec<engine_health::Address> = held
-    .addresses
-    .into_iter()
-    .map(|address| engine_health::Address {
-      url: address.url,
-      key_file: address.key_file,
-    })
-    .collect();
-  let health = engine_health::health(data_root, &addresses).await;
+  let health = match &held.card_service {
+    Some(service) => card_health(data_root, service).await,
+    None => {
+      let addresses: Vec<engine_health::Address> = held
+        .addresses
+        .into_iter()
+        .map(|address| engine_health::Address {
+          url: address.url,
+          key_file: address.key_file,
+        })
+        .collect();
+
+      engine_health::health(data_root, &addresses).await
+    }
+  };
 
   if health.is_some() {
     let _ = run(
@@ -147,6 +177,39 @@ pub async fn registration_health<C: ConnectionTrait>(
   }
 
   Ok(health)
+}
+
+// The health of a card service as the arbiter's master shows it, none where the master is named nowhere,
+// cannot be read or places no such service.
+async fn card_health(data_root: &Path, service: &str) -> Option<EngineHealth> {
+  let master = Master::new(MasterAddress::of_process().ok().flatten()?);
+  let standing = master.standing(service).await.ok().flatten()?;
+  let addresses: Vec<engine_health::Address> = standing
+    .instances
+    .iter()
+    .filter_map(|instance| {
+      Some(engine_health::Address {
+        url: instance.address.clone()?,
+        key_file: instance.key_file.clone(),
+      })
+    })
+    .collect();
+  let standing_health = engine_health::health(data_root, &addresses).await;
+  let mut health = standing_health.unwrap_or(EngineHealth {
+    context: None,
+    model: None,
+    in_hand: None,
+    aside: None,
+  });
+
+  if !standing.open {
+    health.aside = Some(Aside {
+      reason: format!("every node {service} is placed on is held by a claim or a lower tier"),
+      until: Value::Null,
+    });
+  }
+
+  Some(health)
 }
 
 /// The tiers the registry's provider maps a registration at, in the ladder's order: a tier mapping
@@ -173,12 +236,18 @@ pub async fn registered_model<C: ConnectionTrait>(
   data_root: &Path,
   name: &str,
 ) -> Result<Option<Value>, Refused> {
-  let Some(row) =
-    one(db, r#"SELECT "model" FROM "registered_models" WHERE "name" = $1"#, vec![name.into()]).await?
+  let Some(row) = one(
+    db,
+    r#"SELECT "model", "card_service", "role_files" FROM "registered_models" WHERE "name" = $1"#,
+    vec![name.into()],
+  )
+  .await?
   else {
     return Ok(None);
   };
   let model: String = row.try_get("", "model")?;
+  let card_service: Option<String> = row.try_get("", "card_service")?;
+  let role_files = flag(&row, "role_files")?;
   let tier = mapped_tiers(db, name).await?.into_iter().next();
   let healthy = registration_health(db, data_root, name)
     .await?
@@ -197,6 +266,8 @@ pub async fn registered_model<C: ConnectionTrait>(
     "name": name,
     "provider": PROVIDER,
     "model": model,
+    "cardService": card_service,
+    "roleFiles": role_files,
     "tier": tier,
     "healthy": healthy,
     "lastAnsweredAt": last_answered_at,
@@ -224,6 +295,15 @@ pub async fn listed_models<C: ConnectionTrait>(
   }
 
   Ok(listed)
+}
+
+/// A card service as a registration names it: none, or a name held to the registry's rule.
+pub fn checked_card_service(service: Option<&str>) -> Result<Option<String>, Fault> {
+  match service.map(str::trim).filter(|service| !service.is_empty() && *service != "none") {
+    None => Ok(None),
+    Some(service) if NAME.is_match(service) => Ok(Some(service.to_owned())),
+    Some(_) => refused("cardService", CONTROL_WORDS.registry.card_service.as_str()),
+  }
 }
 
 /// A registration's model changed to the name given, the name held to the registry's own rule.
@@ -256,19 +336,14 @@ pub struct OwnLlmService {
 }
 
 pub async fn service_of<C: ConnectionTrait>(db: &C, model: &str) -> Result<Option<OwnLlmService>, Refused> {
-  Ok(
-    registration(db, model)
-      .await?
-      .filter(|held| !held.addresses.is_empty())
-      .map(|held| OwnLlmService {
-        name: PROVIDER,
-        short_label: held.label.clone(),
-        label: held.label,
-        base_url: gateway::url(std::env::var("BMO_LLM_GATEWAY_URL").ok().as_deref()),
-        key_file: REGISTERED.presence.key_file.clone(),
-        registration: held.name,
-      }),
-  )
+  Ok(registration(db, model).await?.filter(Registration::offered).map(|held| OwnLlmService {
+    name: PROVIDER,
+    short_label: held.label.clone(),
+    label: held.label,
+    base_url: gateway::url(std::env::var("BMO_LLM_GATEWAY_URL").ok().as_deref()),
+    key_file: REGISTERED.presence.key_file.clone(),
+    registration: held.name,
+  }))
 }
 
 /// The answer ceiling of a key that is no gate, where its tier names none.
@@ -513,6 +588,8 @@ pub async fn view<C: ConnectionTrait>(db: &C, data_root: &Path) -> Result<Value,
       "thinking": one.thinking,
       "walked": one.walked,
       "keepsResearch": one.keeps_research,
+      "cardService": one.card_service,
+      "roleFiles": one.role_files,
       "addresses": addresses,
       "referrers": referrers(db, &one.name).await?,
     }));
@@ -753,6 +830,49 @@ impl<C: ConnectionTrait> Change<'_, C> {
       .await?;
     }
 
+    self.card_service(body, name, held.as_ref()).await
+  }
+
+  // The card service and its instances' role files, each as the change names it and else as it stands,
+  // none and off on a new registration. Naming a card service takes away the addresses it held, since
+  // where its engine stands is the arbiter's to say (docs/own-llm.md, 「What a registration holds」).
+  async fn card_service(
+    &mut self,
+    body: &Value,
+    name: &str,
+    held: Option<&Registration>,
+  ) -> Result<(), Fault> {
+    let service = match body.get("cardService") {
+      None => held.and_then(|held| held.card_service.clone()),
+      Some(Value::Null) => None,
+      Some(Value::String(service)) => checked_card_service(Some(service))?,
+      Some(_) => return refused("cardService", CONTROL_WORDS.registry.card_service.as_str()),
+    };
+    let role_files = match body.get("roleFiles") {
+      None | Some(Value::Null) => held.is_some_and(|held| held.role_files),
+      Some(Value::Bool(on)) => *on,
+      Some(_) => return refused("roleFiles", CONTROL_WORDS.registry.card_role_files.as_str()),
+    };
+
+    run(
+      self.db,
+      "UPDATE registered_models SET card_service = $1, role_files = $2 WHERE name = $3",
+      vec![service.clone().into(), i64::from(role_files).into(), name.into()],
+    )
+    .await?;
+
+    if service.is_some()
+      && let Some(held) = held.filter(|held| !held.addresses.is_empty())
+    {
+      run(
+        self.db,
+        "DELETE FROM registered_model_addresses WHERE registration = $1",
+        vec![name.into()],
+      )
+      .await?;
+      self.gone.extend(held.addresses.iter().cloned());
+    }
+
     Ok(())
   }
 
@@ -806,6 +926,13 @@ impl<C: ConnectionTrait> Change<'_, C> {
 
   async fn address(&mut self, body: &Value, name: &str) -> Result<(), Fault> {
     let held = self.required(name).await?;
+
+    if let Some(service) = &held.card_service {
+      return refused(
+        "node",
+        fill_marks(&CONTROL_WORDS.registry.card_service_address, &[("name", name), ("service", service)]),
+      );
+    }
     let node = text(body, "node");
     let url = text(body, "url");
     let standing = held.addresses.iter().find(|one| one.node == node).cloned();

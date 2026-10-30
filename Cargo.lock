@@ -1298,6 +1298,7 @@ name = "harness-machine"
 version = "0.1.0-rev.81"
 dependencies = [
  "clap",
+ "dotenvy",
  "libc",
  "policy",
  "regex",

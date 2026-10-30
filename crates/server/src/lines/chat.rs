@@ -116,6 +116,9 @@ pub struct ChatRun {
   pub resume: Option<String>,
   pub cwd: String,
   pub env: BTreeMap<String, String>,
+  /// The demands of its own the run's caller handed in, on a registration whose engine the arbiter
+  /// stands (docs/own-llm.md, 「An engine the arbiter stands」).
+  pub cards: crate::cards::Ask,
 }
 
 /// The owner's own text of each of the chat's documents, by the name the store keeps (`chat_documents`): the
@@ -618,6 +621,7 @@ pub async fn chat_run(
       .map(str::to_owned)
       .unwrap_or_else(|| ground.roots.deploy.to_string_lossy().into_owned()),
     env,
+    cards: Default::default(),
   })
 }
 
@@ -818,6 +822,7 @@ pub fn gate_run(
     resume: None,
     cwd: cwd.to_owned(),
     env,
+    cards: Default::default(),
   })
 }
 

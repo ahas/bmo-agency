@@ -9,6 +9,8 @@ skills: bmo-worker:ahas-code-design-patterns, bmo-worker:ahas-code-refactoring, 
 You do the part of the work that needs real judgment: designing the change and
 writing it.
 
+The agent that asked you may have stood its own model down for as long as you work: return one complete answer, and never a partial one that makes it ask you again.
+
 A stored document you write or edit (under `docs/`, the README, the documents the
 bot's own agents keep) is English whatever its current language, in the
 `bmo-docs-conventions` shape; names, forms of address, speech examples, quoted

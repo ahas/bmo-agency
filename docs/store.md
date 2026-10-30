@@ -49,8 +49,12 @@ seeds. The other crates and the server reach the store only through it.
   - the co-worker pool: the thirteen `coworker_pool_` tables, `limits`, `meta`, `native`,
     `native_reservations`, `native_stops`, `pings`, `place_writes`, `requests`, `reservation_meta`,
     `reservations`, `roles`, `tier_limits` and `tier_meta`;
-  - the models and their roads: `model_catalogue`, `model_uses`, `registered_models`,
-    `registered_model_addresses`, `model_fallbacks`, `fallback_routes`, `fallback_sessions`, and the
+  - the models and their roads: `model_catalogue`, `model_uses`, `registered_models` — a registration's
+    card service and its instances' role files among its columns —,
+    `registered_model_addresses`, `card_demands`, one row a demand agency asked of the arbiter's master and
+    has not yet given back — its id, the service, the registration, its holder, the seat's lease and the
+    demand it was asked within where they stand, and when it was asked (`docs/own-llm.md`, 「An engine the
+    arbiter stands」) —, `model_fallbacks`, `fallback_routes`, `fallback_sessions`, and the
     seven `model_tier_` tables, `assignments`, `backfilled`, `conflicts`, `legacy`, `mappings`, `meta`
     and `seeded`; and `fold_ratios`, the share of a model's window a session may fill before it is
     folded, one row a provider and tier, with `fold_ratio_seeded`, the providers whose ratios were given
