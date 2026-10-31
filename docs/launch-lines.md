@@ -416,7 +416,12 @@
   「A request with no tools」); where the registration names a card service, the request names the entry of
   the card the translations out on it at once share, waited on however long its grant takes and given
   back once the last of them is answered or has failed (`docs/own-llm.md`, 「An engine the arbiter
-  stands」). On Claude Code it is a run apart (`docs/agents.md`, 「Runs apart」): that system prompt as
+  stands」). Such a registration is the registry's road whether or not its engine stands when the
+  translation is asked: the demand starts it, the request waits until the gateway serves the granted
+  card's entry, and a translation never moves to Claude Code because no instance stood. A demand the
+  master refuses, or a request the engine fails, fails the translation, since a key set to the registry's
+  provider does not walk on a failure (`docs/own-llm.md`, 「When a registered model does not answer」). On
+  Claude Code it is a run apart (`docs/agents.md`, 「Runs apart」): that system prompt as
   the whole of it, no tool shown or allowed, no MCP server, a fresh session, thinking off. No other
   provider carries the line. The answer is the translation whole.
 - **Browse runner**: the line a browse goes out on, carried by agency and composed, as the search line is, by

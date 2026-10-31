@@ -257,9 +257,10 @@ Branch prefix digests include effective effort. A co-work reservation for a task
 - **A fixed model is a provider and one model of it,** kept as the agent's own pin: `pinned_provider` the
   provider and `pinned_model` the model. The model is one the provider holds: a model the Claude CLI's
   catalogue names on Claude Code (「The Claude catalogue」 below), a member of a provider's own road, or a
-  registration with an address on the registry's provider. Where the provider's catalogue cannot be read
-  at the moment the pin is set, the pin is kept rather than refused, since a catalogue that cannot be
-  read says nothing against the name; where it reads and does not name the model, the pin is refused.
+  registration on the registry's provider that is offered, with an address or naming a card service.
+  Where the provider's catalogue cannot be read at the moment the pin is set, the pin is kept rather than
+  refused, since a catalogue that cannot be read says nothing against the name; where it reads and does
+  not name the model, the pin is refused.
 - **It stands at the head of the agent's walk** (`docs/cache-fallback.md`, 「One road resolution」): the
   work answers on the pinned provider and model first and moves along the walk only while the pin cannot
   answer, so a fixed model that is down does not stop the agent. Everywhere else in the walk the work goes

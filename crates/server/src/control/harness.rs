@@ -11,7 +11,7 @@ use sea_orm::DatabaseConnection;
 use serde::Serialize;
 use serde_json::Value;
 
-use store::{all, run};
+use store::run;
 
 use super::claude_accounts::{self, Judging};
 use super::{Refused, set_setting, setting};
@@ -213,19 +213,18 @@ pub async fn set_provider_order(db: &DatabaseConnection, order: &[OrderEntry]) -
   Ok(())
 }
 
-/// The registrations with an address, in the order they were added.
-pub async fn addressed_registrations(db: &DatabaseConnection) -> Result<Vec<String>, Refused> {
-  all(
-    db,
-    r#"SELECT name FROM registered_models WHERE EXISTS
-         (SELECT 1 FROM registered_model_addresses WHERE registration = registered_models.name)
-       ORDER BY added_at, name"#,
-    vec![],
+/// The registrations a run may name, in the order they were added: each with an address, or naming a card
+/// service the arbiter's master places, whether or not an instance of it stands at this moment
+/// (docs/own-llm.md, 「An engine the arbiter stands」).
+pub async fn offered_registrations(db: &DatabaseConnection) -> Result<Vec<String>, Refused> {
+  Ok(
+    super::registry::registrations(db)
+      .await?
+      .into_iter()
+      .filter(super::registry::Registration::offered)
+      .map(|held| held.name)
+      .collect(),
   )
-  .await?
-  .iter()
-  .map(|row| Ok(row.try_get("", "name")?))
-  .collect()
 }
 
 /// The code of the reason a provider whose program does not carry a line gives.
@@ -243,7 +242,7 @@ pub async fn missing(
   }
 
   match provider.unregistered() {
-    Some(reason) if addressed_registrations(db).await?.is_empty() => Ok(Some(reason)),
+    Some(reason) if offered_registrations(db).await?.is_empty() => Ok(Some(reason)),
     _ => Ok(None),
   }
 }
@@ -268,7 +267,7 @@ pub async fn offered_reason(
   }))
 }
 
-/// What a provider offers a tier mapping, read afresh: the registrations with an address, each taking
+/// What a provider offers a tier mapping, read afresh: the registrations a run may name, each taking
 /// the provider's whole effort vocabulary, for a provider whose models they are; otherwise the
 /// provider's own catalogue, under the walking login's directory where it keeps it there. A catalogue
 /// that cannot be read is the refusal it gave.
@@ -285,7 +284,7 @@ pub async fn offered(
       .into_iter()
       .map(|word| word.map(str::to_owned))
       .collect();
-    let models = addressed_registrations(judging.db).await.map_err(|refused| refused.error)?;
+    let models = offered_registrations(judging.db).await.map_err(|refused| refused.error)?;
 
     return Ok(Offered {
       models: models

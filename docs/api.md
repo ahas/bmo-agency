@@ -148,7 +148,7 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
   `voice`, and `model`, the agent's own model (`docs/model-tiers.md`, 「An agent's own model」):
   - `{"method": "fixed", "provider": <provider>, "model": <model>}` pins an agent of any kind to one model
     of a provider: a model the Claude CLI's catalogue names on `claude-code`, a member of a provider's own
-    road, a registration with an address on `registered`;
+    road, an offered registration on `registered` — one with an address or naming a card service;
   - `{"method": "fixed", "registration": <name>}` pins it to a registered model by the registration's
     name alone;
   - `{"method": "route"}` lets the supervisor key's road carry it and clears its pin, and is taken by a

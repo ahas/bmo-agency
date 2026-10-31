@@ -173,8 +173,8 @@ pub trait Provider: Sync {
   }
 
   /// Where its models are the registry's registrations, which each side reads from its own archive,
-  /// the reason it gives where none has an address: it answers only where one has, and offers
-  /// those. Nothing for a provider whose models are not.
+  /// the reason it gives where none is offered: it answers only where one is, with an address or
+  /// naming a card service, and offers those. Nothing for a provider whose models are not.
   fn unregistered(&self) -> Option<Reason> {
     None
   }

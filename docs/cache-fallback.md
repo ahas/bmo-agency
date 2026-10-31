@@ -458,8 +458,10 @@ When a demotion first catches — when a healthy session first drops — two thi
   answers for itself, out of its own member. It cannot answer for one of these reasons, and can
   otherwise:
   - **no credential on this machine** — the presence its member reads (`docs/provider-presence.md`):
-    Codex's executable, OpenRouter's key, the gateway's key file and a registration with an address,
-    DeepSeek's key file; Claude Code's credentials are its logins, below;
+    Codex's executable, OpenRouter's key, the gateway's key file and an offered registration — one with
+    an address or one naming a card service, whose engine standing or stopped at that moment is no part of
+    its presence (`docs/own-llm.md`, 「An engine the arbiter stands」) — DeepSeek's key file; Claude Code's
+    credentials are its logins, below;
   - **its balance spent** — where it offers a balance, the one its reader last kept for its own road is
     at or below zero (`docs/usage-windows.md`, 「Balances」); a balance never read closes nothing;
   - **no login open** — where it holds logins, none of the logins the key may go out on is open by the

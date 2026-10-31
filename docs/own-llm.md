@@ -317,6 +317,14 @@ never the model's name.
   and one that is stopped is no outage. The registration is `healthy` while its card service is placed on
   a node no claim and no lower tier holds, and a walk that would pass it for an outage asks the master
   (`docs/cache-fallback.md`, 「Automatic walks only on providers, in order」).
+- **A stopped engine never closes the road.** Such a registration is offered whether or not any
+  instance stands at the moment, so the registry's provider can answer for a key that names it with no
+  engine up anywhere (`docs/cache-fallback.md`, 「Availability: whether a provider can answer now」). The
+  road resolution never reads the instances standing, nor the gateway's table: the run goes out on the
+  registry, asks its demand, the grant starts the engine, and the run sends once the gateway serves the
+  granted card's entry. A run leaves the registration only on a real refusal — the master refusing the
+  demand, or the engine failing the request — and then as a registered model that does not answer
+  (「When a registered model does not answer」 below), never because nothing stood when it asked.
 
 ## What leaves the machine
 
@@ -575,8 +583,8 @@ never the model's name.
 - **One key may name one registration** in place of its tier's registry cell. It stands for that key
   alone: every other key assigned to the tier keeps the cell, so a gate can move to a registration of
   its own without moving the tier.
-- **What it may name:** a registration the registry holds with an address, checked on saving; none takes
-  the pin away, and the key reads its tier's cell again.
+- **What it may name:** a registration the registry offers, with an address or naming a card service,
+  checked on saving; none takes the pin away, and the key reads its tier's cell again.
 - **Where it stands:** wherever the key is resolved on the registry's provider — its own runs on that
   provider, the model a gate's request names to the gateway, whether the automatic walk asks the
   registry for the key, and the route `GET /work-keys/{workKey}` answers, whichever tier its caller names

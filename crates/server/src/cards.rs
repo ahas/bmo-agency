@@ -444,9 +444,10 @@ async fn unreached(waiting: &mut (dyn FnMut(&str) + Send)) {
   tokio::time::sleep(AGAIN).await;
 }
 
-// The gateway read until it serves the entry of the card granted, `<registration>@<node>`: the launcher
-// lays a standing instance into its table on its beat, so an engine the grant started is served a moment
-// after it stands.
+// The gateway the run sends to read until it serves the entry of the card granted, `<registration>@<node>`:
+// the launcher lays a standing instance into its table on its beat, so an engine the grant started is
+// served a moment after it stands, and a run sent before then would name an entry the gateway does not
+// hold.
 async fn served(
   ground: &Ground,
   registration: &str,
@@ -454,12 +455,16 @@ async fn served(
   waiting: &mut (dyn FnMut(&str) + Send),
 ) -> Result<(), Refusal> {
   let entry = format!("{registration}@{node}");
-  let Some(service) =
+  let machine = ground.machine();
+  let Some(mut service) =
     registry::service_of(&ground.db, registration).await.map_err(|why| fault(why.error))?
   else {
     return Err(fault(format!("{registration} is no registration the registry holds")));
   };
-  let key_file = harness_providers::registered::Registered::key_file(&ground.machine());
+
+  service.base_url = harness_machine::gateway::url(machine.var("BMO_LLM_GATEWAY_URL"));
+
+  let key_file = harness_providers::registered::Registered::key_file(&machine);
   let mut said = false;
 
   loop {

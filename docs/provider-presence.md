@@ -41,8 +41,9 @@ flowchart TD
   not empty. A member road holds no login of its own.
 - **The registered models** can where the gateway's key file stands private under the data root's
   `env` directory: a file of its own, mode 0600, not empty.
-  - Past that, each side asks agency's store for a registration with an address, and says the policy
-    file's sentence for the store it lacks or the address none has.
+  - Past that, each side asks agency's store for an offered registration — one with an address, or one
+    naming a card service the arbiter's master places, whether or not an instance of it stands at that
+    moment — and says the policy file's sentence for the store it lacks or the registration none is.
 - **DeepSeek** can where the road's key file stands private under the data root's `env` directory, as
   the registered models' does. Its API is not asked: the key's presence is the machine's fact.
 - **A provider that cannot answer** says why twice over, both from its policy file: a kebab-case code a
@@ -65,7 +66,8 @@ flowchart TD
   - A directory with no such file, nothing that parses, or a catalogue naming no model is a refusal.
   - Each model carries its id, whether the CLI serves it or has superseded it, and the efforts its entry
     names; the catalogue carries when it was fetched and when the CLI holds it stale.
-- **The registered models:** the registrations with an address, out of the archive.
+- **The registered models:** the offered registrations, each with an address or naming a card service,
+  out of the archive.
 
 ## The binary
 

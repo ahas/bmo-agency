@@ -1,6 +1,6 @@
 //! The registered models: present on this machine where the gateway's key file stands private under
-//! the data root. Which registrations there are, and whether one has an address, is the archive's, read
-//! by each side from its own (docs/provider-presence.md).
+//! the data root. Which registrations there are, and whether one is offered — an address, or a card
+//! service — is the archive's, read by each side from its own (docs/provider-presence.md).
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
