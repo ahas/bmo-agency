@@ -13,10 +13,17 @@ pub struct PullRequests {
   pub queue: String,
   /// The lane label that opens the item without an approval where the job service holds that lane.
   pub lane: String,
+  /// The lane label of a review that waits for the owner's approval.
+  pub approval_lane: String,
   /// Who files the item.
   pub requester: String,
+  /// The author associations, as GitHub names them, whose pull requests from the same repository are reviewed
+  /// unattended.
+  pub trusted_authors: Vec<String>,
   pub title: String,
   pub brief: String,
+  /// The brief of a pull request that is not the owner's own.
+  pub approval_brief: String,
   pub pushed: String,
   pub merged: String,
   pub merged_elsewhere: String,

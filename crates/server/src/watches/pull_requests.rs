@@ -29,6 +29,12 @@ pub fn search_query(owner: &str) -> String {
   format!("is:pr is:open user:{}", owner.trim())
 }
 
+/// The fallback's GraphQL request: one page of the search, each pull request with who opened it and where its
+/// head branch stands.
+pub const SEARCH_GRAPHQL: &str = "query($q: String!, $n: Int!) { search(query: $q, type: ISSUE, first: $n) { \
+  nodes { ... on PullRequest { url number title authorAssociation repository { nameWithOwner } \
+  headRepository { nameWithOwner } } } } }";
+
 // The host a GitHub remote names.
 const GITHUB: &str = "github.com";
 
@@ -41,6 +47,23 @@ pub struct PullRequest {
   pub number: i64,
   pub title: String,
   pub head: Option<String>,
+  /// The author's association with the repository as GitHub names it (`OWNER`, `MEMBER`, `CONTRIBUTOR`, ...),
+  /// empty where it was not said.
+  pub author: String,
+  /// The `owner/name` the head branch stands in, or nothing where GitHub names none (a fork since deleted).
+  pub head_repository: Option<String>,
+}
+
+impl PullRequest {
+  /// Whether the pull request is the owner's own (docs/pull-request-reviews.md, 「Who opened it」): its author a
+  /// trusted association and its head branch in the repository it is opened on.
+  pub fn owners_own(&self) -> bool {
+    PULL_REQUESTS.trusted_authors.contains(&self.author)
+      && self
+        .head_repository
+        .as_deref()
+        .is_some_and(|head| head.eq_ignore_ascii_case(&self.repository))
+  }
 }
 
 /// What a delivery or the fallback asks of agency.
@@ -78,6 +101,8 @@ pub fn read_delivery(event: &str, body: &Value) -> Option<Delivered> {
     number: pull["number"].as_i64().or_else(|| body["number"].as_i64())?,
     title: pull["title"].as_str().unwrap_or_default().to_owned(),
     head: pull["head"]["sha"].as_str().map(str::to_owned),
+    author: pull["author_association"].as_str().unwrap_or_default().to_owned(),
+    head_repository: pull["head"]["repo"]["full_name"].as_str().map(str::to_owned),
   };
 
   match body["action"].as_str()? {
@@ -106,7 +131,8 @@ pub fn repository_of(remote: &str) -> Option<String> {
   (parts.next().is_none() && !owner.is_empty() && !name.is_empty()).then(|| format!("{owner}/{name}"))
 }
 
-/// The review item a pull request is filed as for the worker that holds its repository.
+/// The review item a pull request is filed as for the worker that holds its repository: in the unattended lane
+/// where it is the owner's own, and otherwise in the approval lane with the brief that never merges.
 pub fn review_item(request: &PullRequest, worker: &str) -> Value {
   let marks = [
     ("repository", request.repository.as_str()),
@@ -115,7 +141,12 @@ pub fn review_item(request: &PullRequest, worker: &str) -> Value {
     ("url", request.url.as_str()),
   ];
 
-  let mut labels = json!({ "pr": request.url, "lane": PULL_REQUESTS.lane });
+  let (lane, brief) = if request.owners_own() {
+    (&PULL_REQUESTS.lane, &PULL_REQUESTS.brief)
+  } else {
+    (&PULL_REQUESTS.approval_lane, &PULL_REQUESTS.approval_brief)
+  };
+  let mut labels = json!({ "pr": request.url, "lane": lane });
 
   if let Some(head) = &request.head {
     labels["head"] = json!(head);
@@ -123,7 +154,7 @@ pub fn review_item(request: &PullRequest, worker: &str) -> Value {
 
   json!({
     "title": fill_marks(&PULL_REQUESTS.title, &marks),
-    "brief": fill_marks(&PULL_REQUESTS.brief, &marks),
+    "brief": fill_marks(brief, &marks),
     "queueName": PULL_REQUESTS.queue,
     "assigneeName": worker,
     "requesterName": PULL_REQUESTS.requester,
@@ -227,7 +258,9 @@ impl Jobs {
     self
       .send(reqwest::Method::POST, "/items", &[], Some(&review_item(request, worker)))
       .await?;
-    println!("pull requests: {} filed for {worker}", request.url);
+    let waits = if request.owners_own() { "" } else { ", waiting for the owner's approval" };
+
+    println!("pull requests: {} filed for {worker}{waits}", request.url);
 
     Ok(())
   }
@@ -247,8 +280,11 @@ impl Jobs {
   }
 }
 
+// A review item, in either lane.
 fn is_review(item: &Value) -> bool {
-  item["labels"]["lane"].as_str() == Some(PULL_REQUESTS.lane.as_str())
+  item["labels"]["lane"]
+    .as_str()
+    .is_some_and(|lane| lane == PULL_REQUESTS.lane || lane == PULL_REQUESTS.approval_lane)
 }
 
 // Whether an item still stands: neither done, dropped nor merged.
@@ -341,23 +377,21 @@ pub async fn act(
   Ok(())
 }
 
-/// The open pull requests one page of GitHub's search answers, as the fallback reads them.
+/// The open pull requests one page of GitHub's search answers (`SEARCH_GRAPHQL`), as the fallback reads them.
 pub fn searched(page: &Value) -> Vec<PullRequest> {
-  page["items"]
+  page["data"]["search"]["nodes"]
     .as_array()
     .into_iter()
     .flatten()
-    .filter_map(|item| {
-      let url = item["pull_request"]["html_url"].as_str().or_else(|| item["html_url"].as_str())?;
-      let repository = item["repository_url"].as_str()?.rsplitn(3, '/').take(2).collect::<Vec<_>>();
-      let [name, owner] = repository.as_slice() else { return None };
-
+    .filter_map(|node| {
       Some(PullRequest {
-        url: url.to_owned(),
-        repository: format!("{owner}/{name}"),
-        number: item["number"].as_i64()?,
-        title: item["title"].as_str().unwrap_or_default().to_owned(),
+        url: node["url"].as_str()?.to_owned(),
+        repository: node["repository"]["nameWithOwner"].as_str()?.to_owned(),
+        number: node["number"].as_i64()?,
+        title: node["title"].as_str().unwrap_or_default().to_owned(),
         head: None,
+        author: node["authorAssociation"].as_str().unwrap_or_default().to_owned(),
+        head_repository: node["headRepository"]["nameWithOwner"].as_str().map(str::to_owned),
       })
     })
     .collect()
@@ -369,10 +403,11 @@ pub async fn fallback(db: &DatabaseConnection, vars: &BTreeMap<String, String>) 
   let Some(owner) = vars.get(OWNER).map(|owner| owner.trim()).filter(|owner| !owner.is_empty()) else {
     return Ok(());
   };
+  let graphql = format!("query={SEARCH_GRAPHQL}");
   let query = format!("q={}", search_query(owner));
-  let per_page = format!("per_page={}", PULL_REQUESTS.page);
+  let per_page = format!("n={}", PULL_REQUESTS.page);
   let out = tokio::process::Command::new("gh")
-    .args(["api", "-X", "GET", "search/issues", "-f", &query, "-f", &per_page])
+    .args(["api", "graphql", "-f", &graphql, "-f", &query, "-F", &per_page])
     .output()
     .await
     .map_err(|why| format!("gh: {why}"))?;

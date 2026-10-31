@@ -28,11 +28,31 @@ item for the worker, and a merge lets the item that waited on the pull request g
 ## The fallback
 
 - **Once an hour, one search.** Agency asks GitHub's search for every open pull request of the repositories the
-  owner's login the deployment names (`BMO_GITHUB_ORG`) owns, in one request (`gh api search/issues`, `is:pr
-  is:open user:<login>`, a hundred to a page), and files what a delivery missed. A deployment that names no
-  login runs no fallback.
+  owner's login the deployment names (`BMO_GITHUB_ORG`) owns, in one request (`gh api graphql`, a search of
+  `is:pr is:open user:<login>`, a hundred to a page), and files what a delivery missed. The search reads of
+  each pull request what a delivery carries of who opened it: its author's association with the repository and
+  the repository its head branch stands in, so the fallback files by the same rule a delivery does (「Who opened
+  it」). A deployment that names no login runs no fallback.
 - **The budget:** one GitHub call an hour for the fallback, a page more only past a hundred open pull requests,
   and none for a delivery; no model tokens at all for the watch.
+
+## Who opened it
+
+- **A review runs unattended only for the owner's own change.** The review worker checks the pull request's
+  branch out and runs the repository's checks on it under its own rights, so the code it runs must be code the
+  owner already stands behind. A pull request is the owner's own where both hold: its author's association
+  with the repository, as GitHub names it, is `OWNER` or `MEMBER`; and its head branch stands in the
+  repository the pull request is opened on, not in a fork.
+- **`COLLABORATOR` is not enough.** A collaborator is somebody outside the owner's account or organization
+  given write access to one repository; that access is not leave to run code on the deployment's machine, so
+  a collaborator's pull request waits for the owner as anybody else's does. The trusted associations stand in
+  `policy/pull-requests.toml`.
+- **A fork is never the owner's own,** whoever opened it, and neither is a pull request whose head repository
+  GitHub no longer names (a fork since deleted) or whose association it does not say.
+- **Anybody else's pull request waits for the owner.** It is filed as a review item all the same, but in the
+  approval lane (below), which the job service does not open by itself: the item stands a draft until the
+  owner approves it, and its brief tells the worker to review and check it and send what it found as a review
+  comment, never to merge it — the merge of a pull request from outside is the owner's own act.
 
 ## The review item
 
@@ -45,20 +65,24 @@ item for the worker, and a merge lets the item that waited on the pull request g
   base library (the general case only, the base's own tests, nothing of one asker's), run the repository's
   checks on the pull request's branch, use bmo-review where it helps, then merge it or send it back with the
   reason as a review comment on the pull request, and tell the owner's room what became of it in one line.
-  The words stand in `policy/pull-requests.toml`.
+  A pull request that is not the owner's own (「Who opened it」) carries the approval brief instead: the same
+  review and checks, what was found left as a review comment, no merge, and the owner's room told that the merge
+  waits for the owner. The words stand in `policy/pull-requests.toml`.
 - **Its labels:** `pr`, the pull request's address, by which a second delivery or the fallback finds it filed
-  and files nothing; `head`, the head commit it was filed for where the delivery names one; and `lane`,
-  `pr-review`, the job service's unattended lane, which opens an item of that lane without an approval and
-  says so in the item's note where the deployment's job service holds it. Until then the item is a draft,
-  approved as any other.
+  and files nothing; `head`, the head commit it was filed for where the delivery names one; and
+  `lane`. The owner's own pull request takes the lane `pr-review`, the job service's unattended lane, which
+  opens an item of that lane without an approval and says so in the item's note where the deployment's job
+  service holds it; until then the item is a draft, approved as any other. Anybody else's takes the lane
+  `pr-review-approval`, which no deployment names unattended, so the item is a draft until the owner approves
+  it. Both lanes read as review items wherever agency looks for one.
 - **Filed once for a head.** An opening, a reopening or the fallback files nothing while a review item of the
   pull request stands, nor where one was filed for the head it names — the fallback, which names no head,
   where any was filed; an item filed before items named their head counts as filed for every head.
 - **A pull request pushed again** (`synchronize`): a review item that still stands — a draft, open or
   running — is told as a note naming the new head, and the worker reads that head in its review; nothing
   more is filed. Where none stands and the latest review item of the pull request is `done` — the worker
-  sent it back — a new review item is filed for the new head, as an opening files one; a latest item
-  dropped files nothing.
+  sent it back — a new review item is filed for the new head, as an opening files one and by the same rule of
+  who opened it; a latest item dropped files nothing.
 
 ## After the pull request
 

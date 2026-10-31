@@ -6,7 +6,8 @@ use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
 use agency_server::watches::pull_requests::{
-  Delivered, PullRequest, act, read_delivery, repository_of, review_item, search_query, searched, signed,
+  Delivered, PullRequest, SEARCH_GRAPHQL, act, read_delivery, repository_of, review_item, search_query,
+  searched, signed,
 };
 use axum::body::Bytes;
 use axum::extract::State;
@@ -38,7 +39,9 @@ fn delivery(action: &str, merged: bool) -> Value {
       "number": 7,
       "title": "Document the theme tokens",
       "merged": merged,
-      "head": { "sha": "abc123" },
+      "author_association": "MEMBER",
+      "head": { "sha": "abc123", "repo": { "full_name": "org/base-ui" } },
+      "base": { "repo": { "full_name": "org/base-ui" } },
     },
   })
 }
@@ -50,6 +53,8 @@ fn request() -> PullRequest {
     number: 7,
     title: "Document the theme tokens".into(),
     head: Some("abc123".into()),
+    author: "MEMBER".into(),
+    head_repository: Some("org/base-ui".into()),
   }
 }
 
@@ -95,20 +100,49 @@ fn a_worker_s_remote_reads_as_the_github_repository_it_names() {
 
 #[test]
 fn the_fallback_reads_every_open_pull_request_of_the_search_and_the_item_names_its_review() {
-  let page = json!({ "items": [{
-    "number": 7,
-    "title": "Document the theme tokens",
-    "repository_url": "https://api.github.com/repos/org/base-ui",
-    "pull_request": { "html_url": "https://github.com/org/base-ui/pull/7" },
-  }]});
+  let page = json!({ "data": { "search": { "nodes": [
+    {
+      "url": "https://github.com/org/base-ui/pull/7",
+      "number": 7,
+      "title": "Document the theme tokens",
+      "authorAssociation": "MEMBER",
+      "repository": { "nameWithOwner": "org/base-ui" },
+      "headRepository": { "nameWithOwner": "org/base-ui" },
+    },
+    {
+      "url": "https://github.com/org/base-ui/pull/8",
+      "number": 8,
+      "title": "Fix a typo",
+      "authorAssociation": "MEMBER",
+      "repository": { "nameWithOwner": "org/base-ui" },
+      "headRepository": null,
+    },
+    // An issue the search names is no pull request and reads as nothing.
+    {},
+  ]}}});
 
   assert_eq!(
     searched(&page),
-    vec![PullRequest {
-      head: None,
-      ..request()
-    }]
+    vec![
+      PullRequest {
+        head: None,
+        ..request()
+      },
+      PullRequest {
+        url: "https://github.com/org/base-ui/pull/8".into(),
+        number: 8,
+        title: "Fix a typo".into(),
+        head: None,
+        head_repository: None,
+        ..request()
+      },
+    ]
   );
+
+  // The search asks of each pull request who opened it and where its head stands.
+  for field in ["authorAssociation", "headRepository", "nameWithOwner"] {
+    assert!(SEARCH_GRAPHQL.contains(field), "{field}");
+  }
 
   // The login owns the repositories: a user's, so the search names it with `user:`, never `org:`.
   assert_eq!(search_query(" someone "), "is:pr is:open user:someone");
@@ -123,6 +157,76 @@ fn the_fallback_reads_every_open_pull_request_of_the_search_and_the_item_names_i
   );
   assert!(item["title"].as_str().unwrap().contains("#7 of org/base-ui"));
   assert!(item["brief"].as_str().unwrap().contains("base-library rule"));
+}
+
+#[test]
+fn only_the_owner_s_own_pull_request_is_filed_in_the_unattended_lane() {
+  let fork = PullRequest {
+    head_repository: Some("stranger/base-ui".into()),
+    ..request()
+  };
+  let gone = PullRequest {
+    head_repository: None,
+    ..request()
+  };
+  let by = |author: &str| PullRequest {
+    author: author.into(),
+    ..request()
+  };
+
+  for own in [request(), by("OWNER")] {
+    assert!(own.owners_own(), "{own:?}");
+    assert_eq!(review_item(&own, "base-ui")["labels"]["lane"], PULL_REQUESTS.lane.as_str());
+  }
+
+  // A fork, even the owner's, a fork since deleted, a collaborator, an outsider, and an author GitHub did not name.
+  for other in [
+    fork,
+    gone,
+    PullRequest {
+      author: "OWNER".into(),
+      head_repository: Some("org-fork/base-ui".into()),
+      ..request()
+    },
+    by("COLLABORATOR"),
+    by("CONTRIBUTOR"),
+    by("FIRST_TIME_CONTRIBUTOR"),
+    by("NONE"),
+    by(""),
+  ] {
+    assert!(!other.owners_own(), "{other:?}");
+
+    let item = review_item(&other, "base-ui");
+
+    assert_eq!(item["labels"]["lane"], PULL_REQUESTS.approval_lane.as_str(), "{other:?}");
+    assert_ne!(item["labels"]["lane"], PULL_REQUESTS.lane.as_str());
+    assert_eq!(item["brief"], review_item(&by("NONE"), "base-ui")["brief"]);
+    assert!(item["brief"].as_str().unwrap().contains("never merge it"), "{other:?}");
+  }
+
+  // A delivery reads who opened the pull request and where its head stands.
+  let mut forked = delivery("opened", false);
+
+  forked["pull_request"]["author_association"] = json!("CONTRIBUTOR");
+  forked["pull_request"]["head"]["repo"] = json!({ "full_name": "stranger/base-ui" });
+
+  let Some(Delivered::Open(read)) = read_delivery("pull_request", &forked) else {
+    panic!("an opening reads as one");
+  };
+
+  assert_eq!(
+    (read.author.as_str(), read.head_repository.as_deref()),
+    ("CONTRIBUTOR", Some("stranger/base-ui"))
+  );
+  assert!(!read.owners_own());
+
+  forked["pull_request"]["head"]["repo"] = Value::Null;
+
+  let Some(Delivered::Open(read)) = read_delivery("pull_request", &forked) else {
+    panic!("an opening reads as one");
+  };
+
+  assert_eq!(read.head_repository, None);
 }
 
 type Calls = Arc<Mutex<Vec<(String, String, String, Value)>>>;
@@ -192,6 +296,107 @@ async fn an_open_pull_request_is_filed_once_for_the_worker_that_holds_its_reposi
 
   act(&vars, &BTreeMap::new(), &Delivered::Open(request())).await.unwrap();
   assert!(none.lock().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn a_delivered_pull_request_from_outside_is_filed_to_wait_for_the_owner_s_approval() {
+  let held = BTreeMap::from([("org/base-ui".to_owned(), "base-ui".to_owned())]);
+  let forked = PullRequest {
+    author: "CONTRIBUTOR".into(),
+    head_repository: Some("stranger/base-ui".into()),
+    ..request()
+  };
+  let (calls, vars) = stand(json!([])).await;
+
+  act(&vars, &held, &Delivered::Open(forked.clone())).await.unwrap();
+
+  let filed = made(&calls);
+
+  assert_eq!(filed.len(), 1, "{filed:?}");
+  assert_eq!(filed[0].2["labels"]["lane"], PULL_REQUESTS.approval_lane.as_str());
+  assert!(filed[0].2["brief"].as_str().unwrap().contains("never merge it"));
+
+  // A review in the approval lane counts as filed: the same opening files nothing more.
+  let waiting = json!([{ "id": 5, "state": "draft",
+    "labels": { "pr": request().url, "lane": PULL_REQUESTS.approval_lane, "head": "abc123" } }]);
+  let (again, vars) = stand(waiting.clone()).await;
+
+  act(&vars, &held, &Delivered::Open(forked.clone())).await.unwrap();
+  assert!(made(&again).is_empty(), "{:?}", made(&again));
+
+  // A push on it is told on the waiting item, and nothing is filed.
+  let (pushed, vars) = stand(waiting).await;
+  let push = PullRequest {
+    head: Some("def456".into()),
+    ..forked.clone()
+  };
+
+  act(&vars, &held, &Delivered::Pushed(push.clone())).await.unwrap();
+
+  let told = made(&pushed);
+
+  assert_eq!(told.len(), 1, "{told:?}");
+  assert_eq!(told[0].1, "/items/5/notes");
+
+  // A push after it was sent back files again, still to wait for the owner.
+  let (refiled, vars) = stand(json!([{ "id": 5, "state": "done",
+    "labels": { "pr": request().url, "lane": PULL_REQUESTS.approval_lane, "head": "abc123" } }]))
+  .await;
+
+  act(&vars, &held, &Delivered::Pushed(push)).await.unwrap();
+
+  let filed = made(&refiled);
+
+  assert_eq!(filed.len(), 1, "{filed:?}");
+  assert_eq!(filed[0].2["labels"]["lane"], PULL_REQUESTS.approval_lane.as_str());
+}
+
+#[tokio::test]
+async fn the_fallback_files_by_the_same_rule_of_who_opened_the_pull_request() {
+  let held = BTreeMap::from([("org/base-ui".to_owned(), "base-ui".to_owned())]);
+  let page = json!({ "data": { "search": { "nodes": [
+    {
+      "url": "https://github.com/org/base-ui/pull/7",
+      "number": 7,
+      "title": "Document the theme tokens",
+      "authorAssociation": "OWNER",
+      "repository": { "nameWithOwner": "org/base-ui" },
+      "headRepository": { "nameWithOwner": "org/base-ui" },
+    },
+    {
+      "url": "https://github.com/org/base-ui/pull/9",
+      "number": 9,
+      "title": "Run a script",
+      "authorAssociation": "OWNER",
+      "repository": { "nameWithOwner": "org/base-ui" },
+      "headRepository": { "nameWithOwner": "stranger/base-ui" },
+    },
+    {
+      "url": "https://github.com/org/base-ui/pull/10",
+      "number": 10,
+      "title": "Add a dependency",
+      "authorAssociation": "COLLABORATOR",
+      "repository": { "nameWithOwner": "org/base-ui" },
+      "headRepository": { "nameWithOwner": "org/base-ui" },
+    },
+  ]}}});
+  let mut lanes = Vec::new();
+
+  for found in searched(&page) {
+    let (calls, vars) = stand(json!([])).await;
+
+    act(&vars, &held, &Delivered::Open(found)).await.unwrap();
+
+    let filed = made(&calls);
+
+    assert_eq!(filed.len(), 1, "{filed:?}");
+    lanes.push(filed[0].2["labels"]["lane"].as_str().unwrap().to_owned());
+  }
+
+  assert_eq!(
+    lanes,
+    [PULL_REQUESTS.lane.as_str(), &PULL_REQUESTS.approval_lane, &PULL_REQUESTS.approval_lane]
+  );
 }
 
 #[tokio::test]

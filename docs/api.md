@@ -721,8 +721,10 @@ them; a notice that holds nothing is withdrawn.
   (`BMO_GITHUB_WEBHOOK_SECRET` or `BMO_GITHUB_WEBHOOK_SECRET_FILE`); one that does not match is 401
   `bad-signature`, and a deployment naming no secret answers 503 `no-webhook-secret`. An event or an action it
   does not act on is answered 202 as well.
-- **What it does after:** an open pull request a worker holds is filed once as a review item in the job service;
-  a push is told on that item; a merge opens the held items labelled with the same pull request, and a close is
+- **What it does after:** an open pull request a worker holds is filed once as a review item in the job service,
+  in the unattended lane only where its author is the repository's `OWNER` or a `MEMBER` and its head stands in
+  the same repository, and otherwise as a draft that waits for the owner's approval and is never merged by the
+  review; a push is told on that item; a merge opens the held items labelled with the same pull request, and a close is
   told on them.
 
 ### translations
@@ -1121,7 +1123,7 @@ hands the session over」); and every minute the job service's `GET /queues`, `G
 an idle queue is told once through the receiver's `POST /owner/notices` with the code `queue-idle`
 (`docs/agent-control.md`, 「An idle queue is told to the owner」); and for pull request reviews the job service's `GET /items` by the `pr` label,
 `POST /items`, `POST /items/{itemId}/notes` and `PATCH /items/{itemId}`, and once an hour GitHub's search through
-`gh api search/issues` for the owner's login (`user:`) (`docs/pull-request-reviews.md`). Each is the documented route of the unit that holds what
+`gh api graphql`, a search for the owner's login (`user:`) (`docs/pull-request-reviews.md`). Each is the documented route of the unit that holds what
 must reach it; agency keeps no client of these units and no store of their rows.
 Of the brain it asks an agent's own brain made as the agent is registered, found by the agent's key,
 let go whole or only found for a preview, the discipline a chat launch's system prompt carries, and the
