@@ -348,6 +348,25 @@ fn the_deploy_waits_on_plain_quiet_and_a_worker_never_deploys() {
 }
 
 #[test]
+fn a_research_ask_continuing_a_report_names_the_report_it_follows_from() {
+  let manual = std::fs::read_to_string(tree().join("prompts/agents/chat/manual.md")).unwrap();
+  let line = manual
+    .lines()
+    .find(|line| line.contains("research/ask"))
+    .expect("the research unit's line");
+
+  for said in [
+    "the last one you reported in this room",
+    "follows the item that report was told for",
+    "document that report's document",
+    "because one line",
+  ] {
+    assert!(line.contains(said), "{said}: {line}");
+  }
+  assert!(!line.contains('"'), "a rule, with no sentence for the agent to repeat: {line}");
+}
+
+#[test]
 fn a_result_for_a_person_is_in_the_asker_s_language_and_what_agents_read_of_each_other_is_english() {
   let language = section(&composed(), "THE LANGUAGE YOU ANSWER IN");
   let prompt = |path: &str| std::fs::read_to_string(tree().join("prompts").join(path)).unwrap();
