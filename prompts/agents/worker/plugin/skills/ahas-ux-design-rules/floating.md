@@ -9,9 +9,9 @@ every screen answers to and the sweep.
   1. A side panel, or a region that chooses what the body shows — a list, a tree, a table.
   2. An auxiliary region pulled up to consult — sources, references, properties.
   3. A large modal that is a screen of its own — a log, an item's full detail, a record's full view.
-- A dialog that is not a part of the page — a confirmation with something to fill in, a small form, a
-  rename, a search — must stay a centered modal on mobile too, never a drawer. A yes-or-no question
-  with nothing to fill in stands in the message pill instead.
+- A dialog that is not a part of the page — a confirmation, a small form, a rename, a search — must
+  stay a centered modal on mobile too, never a drawer. A confirmation with nothing to fill in is a
+  dialog as well, never the message pill (「Messages and notices」 in `notices.md`).
 - A list to pick from, opened at a point on the screen, must be a popover at every width.
 - A modal on mobile must be centered in the visible part of the screen, so the virtual keyboard never
   covers its fields or its buttons.
@@ -28,7 +28,7 @@ every screen answers to and the sweep.
 - Back must undo whatever the reader has to get out of — anything drawn over the screen and equally
   anything the screen has gone into — and the page must stay where it is.
   1. Drawn over the screen: modals, drawers, sheets, popovers, dropdown menus, select lists, context
-     menus, lightboxes, command palettes, a yes-or-no question standing in the message pill.
+     menus, lightboxes, command palettes, a confirmation dialog.
   2. Gone into: a state the screen changed into and the reader has to leave — a selection mode, a
      full-window view, an editing state, a reordering state. A press that was about the mode must
      not take the page with it.
