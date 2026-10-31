@@ -2,13 +2,15 @@
 //! master (docs/own-llm.md, 「An engine the arbiter stands」): a run waiting with no clock until its demand is
 //! granted, a demand handed in stood on and left to its caller, work asked within a run's demand lending the
 //! run's card and telling the run its engine stood down, the demands left behind given back at start and
-//! with their lease, and a native co-worker's card asked within the demand its caller's turn holds.
+//! with their lease, a native co-worker's card asked within the demand its caller's turn holds, and one card
+//! shared by the runs out at once on a registration.
 
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
 use agency_server::cards::{
-  Ask, Asking, give_back_left, give_back_on, give_back_with_leases, hold_on, holding, native_card,
+  Ask, Asking, Sharing, give_back_left, give_back_on, give_back_with_leases, hold_on, holding, native_card,
+  share,
 };
 use agency_server::control::pool::Request;
 use agency_server::control::registry::{change, registration, view};
@@ -465,4 +467,41 @@ async fn naming_a_card_service_takes_the_addresses_away_and_refuses_new_ones() {
     held.card_service.is_none() && !held.offered(),
     "no address and no card service is offered nowhere"
   );
+}
+
+#[tokio::test]
+async fn the_runs_out_at_once_on_a_registration_share_one_demand_given_back_by_the_last() {
+  let scratch = Scratch::new().await;
+  let data = tempfile::tempdir().unwrap();
+  let (master, shared) = stand_in(3, false, &key_file(&data)).await;
+  let sharing = Arc::new(Sharing::default());
+  let db = scratch.db();
+  let ask =
+    || async { hold_on(db, &master, asking("translator", Ask::default(), None), &mut |_: &str| {}).await };
+  let parts = (0..4).map(|_| share(&sharing, "flash", db, &master, data.path(), ask));
+  let mut sharers: Vec<_> =
+    futures_util::future::join_all(parts).await.into_iter().map(Result::unwrap).collect();
+  let demand = sharers[0].held.demand;
+
+  assert_eq!(shared.lock().unwrap().asked.len(), 1, "four parts out at once ask one demand");
+  assert!(sharers.iter().all(|sharer| sharer.held.demand == demand && sharer.held.node == "n1"));
+
+  let last = sharers.pop().unwrap();
+  for sharer in sharers {
+    sharer.leave().await;
+  }
+
+  assert!(shared.lock().unwrap().given_back.is_empty(), "kept while a part is still out");
+  assert_eq!(ledger(db).await, vec![demand]);
+
+  last.leave().await;
+
+  assert_eq!(shared.lock().unwrap().given_back, vec![demand], "given back once, by the last");
+  assert!(ledger(db).await.is_empty());
+
+  let again = share(&sharing, "flash", db, &master, data.path(), ask).await.unwrap();
+
+  assert_eq!(shared.lock().unwrap().asked.len(), 2, "a part out after the last left asks anew");
+  again.leave().await;
+  assert_eq!(shared.lock().unwrap().given_back.len(), 2);
 }

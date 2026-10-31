@@ -2,10 +2,14 @@
 //! (docs/own-llm.md, 「An engine the arbiter stands」): a demand asked for every run and held for its turn,
 //! waited on however long its grant takes; the run placed on the card granted once the gateway serves that
 //! card's entry; a demand asked within the run's own for work the run asks, and the run told where its own
-//! engine stood down for it; and every demand agency asked kept in the store's ledger, `card_demands`, so a
-//! demand whose run ended without giving it back is given back at the next start and with its lease.
+//! engine stood down for it; a card shared by the runs a caller has out at once on one registration, asked
+//! by the first and given back by the last; and every demand agency asked kept in the store's ledger,
+//! `card_demands`, so a demand whose run ended without giving it back is given back at the next start and
+//! with its lease.
 
-use std::path::Path;
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use harness_machine::card_master::{DEMAND_WAIT, Demand, DemandAsk, GrantedCard, Master, MasterFault};
@@ -73,10 +77,7 @@ pub async fn hold(
     return Ok(None);
   };
   let Some(master) = master_of(ground) else {
-    return Err(fault(fill_marks(
-      &CONTROL_WORDS.cards.no_master,
-      &[("name", &registration.name), ("service", &service)],
-    )));
+    return Err(no_master(&registration.name, &service));
   };
   let held = hold_on(
     &ground.db,
@@ -96,6 +97,147 @@ pub async fn hold(
   served(ground, &registration.name, &held.node, waiting).await?;
 
   Ok(Some(held))
+}
+
+// A run on a registration naming a card service where no master is named.
+fn no_master(registration: &str, service: &str) -> Refusal {
+  fault(fill_marks(
+    &CONTROL_WORDS.cards.no_master,
+    &[("name", registration), ("service", service)],
+  ))
+}
+
+/// The cards a caller's runs share, one for each registration it has runs out on at once.
+#[derive(Default)]
+pub struct Sharing {
+  out: Mutex<HashMap<String, Out>>,
+}
+
+// The runs out on one registration and the card they stand on, once the first has been granted it.
+struct Out {
+  runs: usize,
+  card: Arc<tokio::sync::OnceCell<Held>>,
+}
+
+impl Sharing {
+  fn join(&self, registration: &str) -> Arc<tokio::sync::OnceCell<Held>> {
+    let mut out = self.out.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let one = out.entry(registration.to_owned()).or_insert_with(|| Out {
+      runs: 0,
+      card: Arc::default(),
+    });
+
+    one.runs += 1;
+    one.card.clone()
+  }
+
+  // The card to give back where the run leaving was the last out on the registration.
+  fn leave(&self, registration: &str) -> Option<Held> {
+    let mut out = self.out.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let one = out.get_mut(registration)?;
+
+    one.runs -= 1;
+    if one.runs > 0 {
+      return None;
+    }
+
+    out.remove(registration).and_then(|one| one.card.get().cloned())
+  }
+}
+
+/// One run standing on a shared card: `leave` once its work is done, and a run dropped before it leaves
+/// leaves as it is dropped.
+pub struct Sharer {
+  pub held: Held,
+  leaving: Leaving,
+}
+
+// What a run leaving needs to give the card back where it is the last out.
+struct Leaving {
+  sharing: Arc<Sharing>,
+  registration: String,
+  db: DatabaseConnection,
+  master: Master,
+  data_root: PathBuf,
+  left: bool,
+}
+
+impl Sharer {
+  /// The run's work done: the card given back where no other run is out on it.
+  pub async fn leave(mut self) {
+    self.leaving.left = true;
+    if let Some(held) = self.leaving.sharing.leave(&self.leaving.registration) {
+      give_back_on(&self.leaving.db, &self.leaving.master, &self.leaving.data_root, &held).await;
+    }
+  }
+}
+
+impl Drop for Leaving {
+  fn drop(&mut self) {
+    if self.left {
+      return;
+    }
+    let Some(held) = self.sharing.leave(&self.registration) else { return };
+    let Ok(runtime) = tokio::runtime::Handle::try_current() else { return };
+    let (db, master, data_root) = (self.db.clone(), self.master.clone(), self.data_root.clone());
+
+    runtime.spawn(async move { give_back_on(&db, &master, &data_root, &held).await });
+  }
+}
+
+/// A card shared with every run `sharing` has out on the registration at once: the run joins the card the
+/// runs out already stand on, or waits on the one being asked for them, and where none is it asks one by
+/// `ask`, which the runs joining meanwhile wait on with it. An ask refused leaves the run, and the next run
+/// waiting asks again.
+pub async fn share<F, Fut>(
+  sharing: &Arc<Sharing>,
+  registration: &str,
+  db: &DatabaseConnection,
+  master: &Master,
+  data_root: &Path,
+  ask: F,
+) -> Result<Sharer, Refusal>
+where
+  F: FnOnce() -> Fut,
+  Fut: Future<Output = Result<Held, Refusal>>,
+{
+  let card = sharing.join(registration);
+  let leaving = Leaving {
+    sharing: sharing.clone(),
+    registration: registration.to_owned(),
+    db: db.clone(),
+    master: master.clone(),
+    data_root: data_root.to_owned(),
+    left: false,
+  };
+  let held = card.get_or_try_init(ask).await?.clone();
+
+  Ok(Sharer { held, leaving })
+}
+
+/// A card held for a run on a registration naming a card service, shared with every run `sharing` has out
+/// on it at once (`share`) and asked as `hold` asks one, with no work key; none on one that names none.
+pub async fn hold_shared(
+  ground: &Ground,
+  sharing: &Arc<Sharing>,
+  registration: &Registration,
+  holder: &str,
+) -> Result<Option<Sharer>, Refusal> {
+  let Some(service) = registration.card_service.clone() else {
+    return Ok(None);
+  };
+  let Some(master) = master_of(ground) else {
+    return Err(no_master(&registration.name, &service));
+  };
+  let ask = || async {
+    hold(ground, registration, holder, None, Ask::default(), None, &mut |_| {})
+      .await?
+      .ok_or_else(|| fault(format!("{} names no card service", registration.name)))
+  };
+
+  share(sharing, &registration.name, &ground.db, &master, &ground.roots.data, ask)
+    .await
+    .map(Some)
 }
 
 /// A card held for a run whose log says each reason it waits on as it changes, so its room or its watcher

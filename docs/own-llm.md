@@ -260,10 +260,11 @@ never the model's name.
   read from, as the engine's own deployment reports them; whether they keep role files is the
   registration's.
 - **Every run on it asks a demand first:** a turn of the chat agent, a companion or a worker, a
-  thrown-away session's turn, a co-worker seat's child, a gate's request and a translation's request
-  alike ask the master for one card of the card service, with the session's key as the work it continues
-  and agency's holder as the demand's shown reference. A caller that holds a granted demand of its own
-  hands its id in with its seat or session request, and no other is asked for that run.
+  thrown-away session's turn, a co-worker seat's child and a gate's request alike ask the master for one
+  card of the card service, with the session's key as the work it continues and agency's holder as the
+  demand's shown reference. A caller that holds a granted demand of its own hands its id in with its seat or
+  session request, and no other is asked for that run. A translation shares one with those out beside it
+  (below).
 - **The run goes where the demand is granted.** A new session is placed on the card granted; a resumed
   session asks with its key, which brings it back to the card holding its state wherever that card is
   open, and is computed from its first token where another card answers. The run names the card's entry,
@@ -282,6 +283,13 @@ never the model's name.
   agency asks is kept in the store's `card_demands` with its holder, the seat's lease where one holds it and
   the demand it was asked within, until it is given back; the server gives back every demand kept there as
   it starts, and on its pool's minute every demand of a lease no longer active.
+- **The translations out at once on a registration share one card.** Each translation is one request
+  of its own (`docs/api.md`, 「translations」), and its caller sends a document's parts together, so what
+  holds the card is the translations agency has out on the registration at that moment: the first asks a
+  demand, with no work key and `translator` as its holder; every one asked while that demand waits or stands
+  waits on the same grant and is sent to the granted card's entry, the parts reaching the engine together
+  as its slots take them; and the demand is given back once the last of them is answered or has failed. A
+  translation asked after that asks a new one.
 - **Work a run asks holds the run's card as its own.** A native co-worker, a search branch, a gate or a
   session asked from a run whose own demand is granted asks its demand within the run's. Work on the
   model the run already stands on is granted on the run's own card, beside the run, which waits on it.

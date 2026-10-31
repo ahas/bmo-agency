@@ -3,6 +3,7 @@
 //! provider, a run apart on Claude Code — under the translator role's prompt and the instructions of the
 //! purpose asked.
 
+use std::sync::{Arc, LazyLock};
 use std::time::Duration;
 
 use harness_providers::registered::Registered;
@@ -34,6 +35,9 @@ const AGENT: &str = "translator";
 
 // How long one translation is waited for.
 const ANSWER_WITHIN: Duration = Duration::from_secs(180);
+
+// The card the translations out at once on a registration share.
+static TRANSLATING: LazyLock<Arc<cards::Sharing>> = LazyLock::new(Arc::default);
 
 /// What a translation is for, each with its own instructions.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -205,30 +209,30 @@ pub fn gateway_request(registration: &str, system: &str, input: &str) -> Value {
   request
 }
 
-// One translation on the registry's provider: on a registration naming a card service, a card held for
-// the one request, which names the card's entry, and given back once it is answered (docs/own-llm.md,
-// 「An engine the arbiter stands」).
+// One translation on the registry's provider: on a registration naming a card service, the card every
+// translation out on it at once shares, asked by the first and given back once the last is answered or
+// has failed, and the request naming the card's entry (docs/own-llm.md, 「An engine the arbiter stands」).
 async fn on_registry(
   ground: &Ground,
   registration: &str,
   system: &str,
   input: &str,
 ) -> Result<String, String> {
-  let held = match crate::control::registry::registration(&ground.db, registration).await {
-    Ok(Some(one)) => cards::hold(ground, &one, AGENT, None, cards::Ask::default(), None, &mut |_| {})
+  let card = match crate::control::registry::registration(&ground.db, registration).await {
+    Ok(Some(one)) => cards::hold_shared(ground, &TRANSLATING, &one, AGENT)
       .await
       .map_err(|refused| refused.detail)?,
     Ok(None) => None,
     Err(why) => return Err(why.error),
   };
-  let entry = match &held {
-    Some(card) => format!("{registration}@{}", card.node),
+  let entry = match &card {
+    Some(card) => format!("{registration}@{}", card.held.node),
     None => registration.to_owned(),
   };
   let answered = on_gateway(ground, &entry, system, input).await;
 
-  if let Some(card) = &held {
-    cards::give_back(ground, card).await;
+  if let Some(card) = card {
+    card.leave().await;
   }
 
   answered
