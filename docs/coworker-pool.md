@@ -68,6 +68,10 @@ warming and standing checkouts, is agency's.
 ## Requests and leases
 
 - A request goes into the pool's request table before the model launches.
+- A launch a chat agent asks for on a room's words — a worker asked through `bmo/worker_ask`, an item's job
+  run through its `agency` server — reaches the pool only past the owner's gate (`docs/launch-lines.md`,
+  「The owner's gate」): a turn not the owner's goes on only where the account service answers that every
+  message's sender holds `launch` in the room, and is refused where it cannot be asked.
 - Within one provider and tier, only a waiting request with a smaller global increasing sequence can
   take a place, and one immediate transaction checks the current active count plus the reserved places
   and the FIFO head, and grants a lease (「Reserving places and keepalive」 below).

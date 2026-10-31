@@ -5,6 +5,7 @@
 
 mod answer;
 mod handed;
+pub mod room_gate;
 mod session;
 mod tree;
 

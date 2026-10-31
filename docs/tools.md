@@ -84,6 +84,9 @@ belongs to no one service is a repository of its own, not a folder here.
 - **`tools/worker_ask`** declares `bmo/worker_ask` to a session holding `room.tools`: a chat agent hands a
   resident worker a small coding task as a turn into the worker's session, with no queue item, lease or
   report.
+- **It asks only past the owner's gate** (`docs/launch-lines.md`, 「The owner's gate」): on a room turn not the
+  owner's, every message the turn answers must be answered allowed `launch` in the room by the account
+  service, and where it is not, or cannot be asked, the tool answers a failure saying so and starts nothing.
 - **Its arguments** are the worker's name, the words, an optional folder and an optional time bound. The
   folder is the asking agent's scratch workspace under the data root where none is named, made on first
   use; a worker's own checkout may be named only in the owner's turn. The bound is ten minutes where none

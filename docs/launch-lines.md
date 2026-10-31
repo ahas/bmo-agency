@@ -492,6 +492,41 @@
     but it is part of the command a pane's program was started with, so the change starts each
     resident program again on `--resume` of its own session at its next turn.
 
+## The owner's gate
+
+A chat agent holds Bash and reads every word said in its rooms, so what a room's words may make it do is not
+left to its prompt. In front of each action that touches the machine or spends money, the code that carries
+the action out asks who sent the words the turn answers.
+
+- **The actions gated:** asking a worker through `bmo/worker_ask`, which starts the worker's session on the
+  words; and `run_job`, the chat agent's own `agency` server launching an item's job on its worker. Each asks
+  the room relation `launch`.
+- **The turn asked about** is the one the agent's place carries now: the room it answers (`BMO_TURN_CHAT`), the
+  messages it answers (`BMO_TURN_MESSAGES`) and whether the receiver marked every new message in it the
+  owner's (`BMO_TURN_PRIVILEGED`), as the run the door put in names them.
+- **The owner's own words are never asked about.** A turn the receiver marked the owner's goes on at once; so
+  does a turn no room message opened — words the owner typed into the program, a job, a schedule — since no
+  sender stands behind it but the deployment's own.
+- **Anybody else's are checked, every message.** Each message the turn answers is handed to the account
+  service's `POST /checks/message` with the room and the relation, and the action goes on only where every one
+  is answered allowed: the platform administrator, the owner, passes every check, and anybody else passes only
+  on a grant of that relation the owner made in that room.
+- **A check that cannot be made refuses.** No account service named, one not reached, an answer that is not a
+  success, a turn that names no message: the action is refused, never let through.
+- **The refusal is a sentence.** The tool answers with a failure saying what was refused and why — whose
+  message, which relation, or why the check could not be made — and nothing is started.
+- **Where the account service is.** `WEB_ADDRESS` names its base address and `WEB_TOKEN`, or the file
+  `WEB_TOKEN_FILE` names, its token; a process whose environment names neither reads them from the web unit's
+  `env/web.env` under the data root, as the receiver's room tools do.
+- **What stands outside agency.** A deploy, `testbed/deploy`, is the testbed's hosted tool and a capability
+  `bmo use` reaches is the tool host's; each takes the same check with its own relation (`deploy` for a
+  deploy) in the unit that serves it, and agency hands it nothing it could gate there. An item the chat agent
+  files is not gated: one filed on a turn not the owner's stands a draft that only the owner's approval opens
+  (`docs/api.md`, 「assignments and jobs」), so nothing runs on it before he says so.
+- **What the gate does not close.** The agent's shell reaches agency's control port with the token file it is
+  handed, so a model turned against its rooms can still call a route itself; the gate stands in front of the
+  tools the chat agent is given to act with, not in front of the port.
+
 ## Why a line is held steady
 
 - The prompt cache matches a byte-identical prefix, and the tools shown, the system prompt and the

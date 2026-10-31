@@ -8,6 +8,7 @@ use std::time::Duration;
 
 use serde::Deserialize;
 use serde_json::{Value, json};
+use tool_call::room_gate::{self, AccountService, room_turn_of};
 use tool_call::{Answer, Asked, Handed, Session};
 
 /// The entry the manifest declares.
@@ -162,9 +163,21 @@ fn changed(lines: &[Value], folder: &Path) -> Vec<String> {
 
 /// One worker ask, answered with the worker's words and the files its turn changed.
 pub async fn ask(session: &Session, input: AskInput) -> Answer {
+  let accounts = AccountService::read(&session.data_root(), |name| std::env::var(name).ok());
+
+  if let Err(refused) = may_ask(&accounts, session).await {
+    return Answer::failure(refused);
+  }
+
   let api = Api::from_record(session);
 
   ask_with(&api, session, input).await
+}
+
+/// Whether the turn the call is made in may launch a worker (docs/launch-lines.md, 「The owner's gate」): the
+/// owner's own turn, or one whose every message's sender the account service answers holds `launch` in the room.
+pub async fn may_ask(accounts: &AccountService, session: &Session) -> Result<(), String> {
+  room_gate::gate(accounts, room_turn_of(session).as_ref(), room_gate::LAUNCH, "Asking a worker").await
 }
 
 /// The same ask against the server the caller names, for a test of the refusals and the round trip.

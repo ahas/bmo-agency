@@ -6,8 +6,8 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use bmo_agency_client::{
-  AgencyClient, Answer, AssignWorker, Assignment, ClientFailure, FileItem, ItemFiled, ItemFilingAsk, Job,
-  JobStopAsk, RunJob, STOP_JOB, StopJob,
+  AgencyClient, Answer, ApiError, AssignWorker, Assignment, ClientFailure, FileItem, ItemFiled,
+  ItemFilingAsk, Job, JobStopAsk, RunJob, STOP_JOB, StopJob,
 };
 use rmcp::model::{
   CallToolRequestParams, CallToolResponse, CallToolResult, ContentBlock, Implementation, InitializeResult,
@@ -20,6 +20,7 @@ use schemars::{JsonSchema, Schema};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use serde_json::{Map, Value, json};
+use tool_call::room_gate::{self, AccountService};
 
 /// What the server tells a harness of itself when it starts.
 const INSTRUCTIONS: &str = "Files items and runs them on the agency's workers. An item is filed with file_item, \
@@ -126,6 +127,8 @@ where
 /// server was started for an agent, whose turn its items are filed and its stops asked for.
 pub fn tools(agent: Option<&str>) -> Vec<AgencyTool> {
   let mut tools = vec![];
+  // A chat agent's own server launches nothing a room's words ask for unless the owner's gate lets it.
+  let gated = agent.is_some();
 
   if let Some(agent) = agent.map(str::to_owned) {
     let stopper = agent.clone();
@@ -178,11 +181,38 @@ pub fn tools(agent: Option<&str>) -> Vec<AgencyTool> {
       "run_job",
       "Run an item on its assigned worker: the harness hands over the item's content and the lease it holds, and the agency launches the worker's session on it; as the job ends the agency gives the lease back and queues the report in the room.",
       "POST /jobs",
-      |client, body| async move { client.create_jobs(&body).await },
+      move |client, body| async move {
+        if gated {
+          owners_gate(room_gate::LAUNCH, "Running a job").await?;
+        }
+
+        client.create_jobs(&body).await
+      },
     ),
   ]);
 
   tools
+}
+
+/// The owner's gate in front of a launch a chat agent's turn asks for (docs/launch-lines.md, 「The owner's
+/// gate」): the room turn the agent's place carries now, checked with the account service the data root names;
+/// a refusal answers the tool with its sentence.
+pub async fn owners_gate(relation: &str, action: &str) -> Answer<()> {
+  let turn = std::env::var(crate::lines::place::PLACE_VARIABLE)
+    .ok()
+    .and_then(|place| room_gate::room_turn_of_place(std::path::Path::new(&place)));
+  let data_root = crate::verbs::data_root();
+  let accounts = AccountService::read(&data_root, |name| std::env::var(name).ok());
+
+  room_gate::gate(&accounts, turn.as_ref(), relation, action).await.map_err(|said| {
+    ClientFailure::Answered {
+      status: 403,
+      answer: Some(ApiError {
+        code: "not-permitted".to_owned(),
+        error: said,
+      }),
+    }
+  })
 }
 
 /// The server over the agency the client reaches.
