@@ -161,6 +161,17 @@ if [ -d "$tools/todo" ]; then
 fi
 '''
 
+# Every agent's place rewritten to hand agency's tokens as the files they stand in, once the new server stands
+# and has written them (docs/agent-control.md, 「A token is handed as the file it stands in」): a place no
+# launch composes again keeps what it was written with otherwise. A program standing goes on as it is.
+[[deploy.step]]
+id = "hand-place-tokens"
+phase = "after-health"
+command = '''
+set -eu
+bin/bmo-agency hand-tokens
+'''
+
 [[deploy.step]]
 id = "place-worker-ask"
 phase = "before-flip"

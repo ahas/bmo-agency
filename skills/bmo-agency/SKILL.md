@@ -18,8 +18,8 @@ bmo-agency mcp --url http://127.0.0.1:3220
 ```
 
 The address is the agency's base address. `AGENCY_URL` may give it instead; with neither, the server reads
-`AGENCY_CONTROL_PORT` and calls the loopback on that port. The token goes in `AGENCY_CONTROL_TOKEN` or
-`--token`.
+`AGENCY_CONTROL_PORT` and calls the loopback on that port. The token goes in `AGENCY_CONTROL_TOKEN`, in the
+file `AGENCY_CONTROL_TOKEN_FILE` names, or in `--token`.
 
 ## Running an item
 

@@ -13,6 +13,7 @@ pub mod companion_reset;
 pub mod coworker_pool;
 pub mod dev_servers;
 pub mod fold_worker;
+pub mod hand_tokens;
 pub mod live_claude;
 pub mod models;
 pub mod node_pane;
@@ -291,9 +292,13 @@ pub fn control_port() -> u16 {
     .unwrap_or(DEFAULT_CONTROL_PORT)
 }
 
-/// The server's token, where this process holds one.
+/// The server's token, where this process holds one: by value, or in the file `AGENCY_CONTROL_TOKEN_FILE`
+/// names, as a program agency starts is handed it.
 pub fn control_token() -> Option<String> {
-  std::env::var(CONTROL_TOKEN).ok().filter(|token| !token.is_empty())
+  crate::places::token_or_file(
+    std::env::var(CONTROL_TOKEN).ok(),
+    std::env::var(crate::places::file_variable(CONTROL_TOKEN)).ok(),
+  )
 }
 
 /// One call to agency's server under its token: the status and the JSON it answered with, none where the

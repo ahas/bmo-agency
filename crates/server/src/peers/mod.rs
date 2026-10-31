@@ -55,7 +55,10 @@ impl PeerAddress {
 
     Ok(Some(Self {
       url,
-      token: set(variables.token),
+      token: crate::places::token_or_file(
+        set(variables.token),
+        set(&crate::places::file_variable(variables.token)),
+      ),
     }))
   }
 }

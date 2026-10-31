@@ -541,6 +541,10 @@ in the provider's own terms:
     readers take the figures from, and it prints the one line the program shows at the foot of its
     screen (「Runs and sessions in one pane」). On a work node it runs on the operations machine, where
     the place stands; the shell guard reads only the command it is handed and runs where it is called.
+  - **A record holds no token.** Before a line is appended to the place's status or hooks record, every
+    value shaped as a token — sixty-four hexadecimal digits standing alone, a key beginning `sk-`, the
+    word after `Bearer` — is written as `[redacted]`. A hook hands the call whole, a shell command an
+    agent ran with a token in it included, and the records are read by more than the agent they belong to.
   - **The place's records are read from their end.** Each call is one line appended to the place's
     status record or its hooks record, and neither is cut while what they hold stands, so an agent's records
     grow to hundreds of megabytes. A companion's are cut where its conversation is taken: its reset empties both,
@@ -2705,6 +2709,30 @@ enters the prefix.
   read the turn. The rest herdr's service lays on from its own environment.
 - **The release a program reads is among them.** `BMO_DEPLOY_DIR` names it, and it is part of the
   program's identity like every `BMO_` variable (「The job's release」).
+- **A token is handed as the file it stands in.** The tokens of agency's own deployment —
+  `AGENCY_CONTROL_TOKEN`, `AGENCY_BRAIN_TOKEN`, `AGENCY_NODE_TOKEN`, `BMO_JOB_TOKEN` and
+  `BMO_JOB_CHAT_TOKEN` — are never handed by value: not in a resident program's environment, so not in the
+  program a place holds, not in a run's, and not in an MCP configuration agency writes. Each goes as its
+  name with `_FILE` after it: where agency's own environment holds the value, naming a file agency writes
+  from it under the data root's `secrets/`, readable by its owner alone and written again only where the
+  value changed; where that environment names only the file, naming that file. Every reader of
+  them in what agency starts — its verbs and its MCP server, its tools, the event relay, its brain and node
+  clients — reads the variable and then the file. Where the file cannot be written the value is handed as
+  it stands, and agency's log says which and why.
+  - **What still goes by value, and why.** The place's session token, `BMO_MCP_TOKEN`: the harnesses read a
+    server's bearer from their environment alone (Claude Code's `${BMO_MCP_TOKEN}` in the configuration,
+    dsh's `process.env`), and the token is the place's own, issued for one program with the line's
+    capabilities and taken back once no written program carries it. A provider's key the harness calls with
+    (the route's `key_env`, DeepSeek's and OpenRouter's), which dsh reads from its environment alone. The
+    artifact plugin's token where the deployment names a plugin of its own (`BMO_ARTIFACT_PLUGIN`), which
+    agency cannot know to read a file; the deploy tree's own `artifact-mcp.sh` reads the file.
+  - **A place written before takes the files at its next composition.** The token variables are part of
+    the program's identity, so the first launch that composes an agent's program again writes the new one
+    into its place and ends the one standing, which the head starts again on the same session
+    (「One standing pane per agent」). A place no launch composes again keeps what it holds until
+    `bmo-agency hand-tokens` rewrites it, which a deployment runs once its new server stands: every place's program has each token it holds by value replaced
+    by its file, its identity made afresh, and a program standing on it goes on as it is until it next
+    starts.
 - **The pane's terminal is the head's to hand on.** The program draws on the terminal of the pane it
   stands in, and nothing the launcher holds says what that terminal is — a job's runner is a unit with no
   terminal at all. So the head, as it starts the program, lays the pane's own `TERM`, `COLORTERM`,

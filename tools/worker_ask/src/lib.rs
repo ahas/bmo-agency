@@ -58,7 +58,13 @@ impl Api {
       port: named("AGENCY_CONTROL_PORT")
         .and_then(|port| port.parse().ok())
         .unwrap_or(DEFAULT_CONTROL_PORT),
-      token: named("AGENCY_CONTROL_TOKEN"),
+      // The token by value, else the file its `_FILE` variable names (docs/api.md, 「The control port」).
+      token: named("AGENCY_CONTROL_TOKEN").filter(|token| !token.is_empty()).or_else(|| {
+        named("AGENCY_CONTROL_TOKEN_FILE")
+          .and_then(|file| std::fs::read_to_string(file).ok())
+          .map(|token| token.trim().to_owned())
+          .filter(|token| !token.is_empty())
+      }),
     }
   }
 

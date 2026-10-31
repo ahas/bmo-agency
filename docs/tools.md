@@ -71,7 +71,8 @@ belongs to no one service is a repository of its own, not a folder here.
   `road-verbs` hook (`docs/api.md`, 「Hooks」). With no consumer registered the road performs no verb,
   and every marked part is left out. Where the server cannot be asked, the read is refused with why.
 - **The tool reaches agency's server** on the port and with the token `AGENCY_CONTROL_PORT` and
-  `AGENCY_CONTROL_TOKEN` name. A placed tool's environment holds neither, since the tool host hands it a
+  `AGENCY_CONTROL_TOKEN` name, the token read from the file `AGENCY_CONTROL_TOKEN_FILE` names where the
+  variable is not set. A placed tool's environment holds neither, since the tool host hands it a
   clean one, so it reads them from `env/agency.env` under the record's data root, the file the server's
   unit takes its environment from; a variable its own environment holds stands first.
 - **A turn a companion's reset overtook** — one naming an agent and a moment at or before that agent's

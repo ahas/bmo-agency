@@ -42,6 +42,83 @@ pub const DEPLOY_VARIABLE: &str = "BMO_DEPLOY_DIR";
 /// The verbs' binary, as a code tree's `bin/` holds it.
 pub const VERBS_BINARY: &str = "bmo-agency";
 
+/// The tokens of agency's own deployment a program it starts is handed as the file each stands in, never by
+/// value (docs/agent-control.md, 「A token is handed as the file it stands in」).
+pub const HANDED_AS_FILES: [&str; 5] = [
+  "AGENCY_CONTROL_TOKEN",
+  "AGENCY_BRAIN_TOKEN",
+  "AGENCY_NODE_TOKEN",
+  "BMO_JOB_TOKEN",
+  "BMO_JOB_CHAT_TOKEN",
+];
+
+/// The variable naming the file a token stands in.
+pub fn file_variable(name: &str) -> String {
+  format!("{name}_FILE")
+}
+
+/// Where agency keeps a token it holds by value for the programs it starts: under the data root's
+/// `secrets/`, by the token's variable.
+pub fn secret_file(data_root: &Path, name: &str) -> PathBuf {
+  data_root.join("secrets").join(name)
+}
+
+// A token written where the programs read it, readable by its owner alone, and left as it is where it already
+// holds the value.
+fn write_secret(data_root: &Path, name: &str, value: &str) -> std::io::Result<PathBuf> {
+  use std::os::unix::fs::PermissionsExt as _;
+
+  let path = secret_file(data_root, name);
+
+  if std::fs::read_to_string(&path).ok().as_deref() == Some(value) {
+    return Ok(path);
+  }
+
+  let dir = data_root.join("secrets");
+
+  std::fs::create_dir_all(&dir)?;
+  std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700))?;
+  agent_host::disk::publish_bytes(&path, value.as_bytes())?;
+
+  Ok(path)
+}
+
+/// An environment with each of agency's tokens handed as the file it stands in: a value it holds written under
+/// the data root and named by the token's `_FILE` variable, a file the environment names alone kept as it is.
+/// A value whose file cannot be written stays, and the log says so.
+pub fn hand_as_files(env: &mut BTreeMap<String, String>, data_root: &Path) {
+  for name in HANDED_AS_FILES {
+    let Some(value) = env.get(name).map(|value| value.trim().to_owned()).filter(|value| !value.is_empty())
+    else {
+      continue;
+    };
+
+    match write_secret(data_root, name, &value) {
+      Ok(path) => {
+        env.remove(name);
+        env.insert(file_variable(name), path.to_string_lossy().into_owned());
+      }
+      Err(why) => {
+        eprintln!("places: {name} is handed by value, since its file could not be written: {why}")
+      }
+    }
+  }
+}
+
+/// A token the environment holds by value, or the one the file its `_FILE` variable names holds.
+pub fn token_or_file(value: Option<String>, file: Option<String>) -> Option<String> {
+  value
+    .map(|value| value.trim().to_owned())
+    .filter(|value| !value.is_empty())
+    .or_else(|| {
+      file
+        .filter(|path| !path.trim().is_empty())
+        .and_then(|path| std::fs::read_to_string(path.trim()).ok())
+        .map(|token| token.trim().to_owned())
+        .filter(|token| !token.is_empty())
+    })
+}
+
 /// One agent's row as the places read it.
 #[derive(Clone, Debug, PartialEq)]
 pub struct AgentRow {
@@ -197,6 +274,9 @@ impl Ground {
       ground.env.insert(DEPLOY_VARIABLE.to_owned(), own);
     }
 
+    // What a launch hands on carries agency's tokens as their files; agency's own calls read `vars`.
+    hand_as_files(&mut ground.env, &ground.roots.data);
+
     ground
   }
 
@@ -299,6 +379,7 @@ impl Ground {
     }
 
     env.insert(RUN_NAME.to_owned(), name.to_owned());
+    hand_as_files(&mut env, &self.roots.data);
     env
   }
 

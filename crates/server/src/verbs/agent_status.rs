@@ -292,12 +292,11 @@ pub async fn agent_status(asked: &Asked, input: &str, ground: &Ground<'_>) -> Ve
       .get(CONTROL_PORT)
       .and_then(|port| port.trim().parse().ok())
       .unwrap_or_else(control_port);
-    let token = ground
-      .env
-      .get(CONTROL_TOKEN)
-      .filter(|token| !token.is_empty())
-      .cloned()
-      .or_else(control_token);
+    let token = crate::places::token_or_file(
+      ground.env.get(CONTROL_TOKEN).cloned(),
+      ground.env.get(&crate::places::file_variable(CONTROL_TOKEN)).cloned(),
+    )
+    .or_else(control_token);
 
     printed.push(
       typed_hook_output(

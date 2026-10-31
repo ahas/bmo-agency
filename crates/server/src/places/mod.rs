@@ -27,7 +27,10 @@ use std::time::Duration;
 
 use self::claims::PaneClaims;
 use self::follow::FollowTurns;
-pub use self::ground::{AgentRow, DEPLOY_VARIABLE, Ground, VERBS_BINARY, machine_code_root};
+pub use self::ground::{
+  AgentRow, DEPLOY_VARIABLE, Ground, HANDED_AS_FILES, VERBS_BINARY, file_variable, hand_as_files,
+  machine_code_root, secret_file, token_or_file,
+};
 use self::locks::{lock_path, try_hold};
 use self::nodes::NodeList;
 use crate::clock::every;

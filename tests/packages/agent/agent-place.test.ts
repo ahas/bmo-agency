@@ -4,7 +4,7 @@ import { readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, describe, expect, test } from "bun:test";
 
-import { beginPlaceRun, endPlaceRun, holdFlag, readHooks, readRun, readStatus, recordCall, residentEnvironment, runVariables, statusAfterTurn, statusAround, turnEnvironment, typedFlag, typedHookSeconds, wordingHoldFlag, writePlaceSettings, type HookRecord, type StatusRecord } from "@agency/agent/agent-place";
+import { beginPlaceRun, endPlaceRun, holdFlag, readHooks, readRun, readStatus, recordCall, redactTokens, residentEnvironment, runVariables, statusAfterTurn, statusAround, turnEnvironment, typedFlag, typedHookSeconds, wordingHoldFlag, writePlaceSettings, type HookRecord, type StatusRecord } from "@agency/agent/agent-place";
 import { endpointPlaceSettings, readClaudeResidentTurn } from "@agency/agent/claude-code";
 import { codeRoot } from "@agency/support/roots";
 import { scratchDir } from "@agency/test-support/scratch";
@@ -281,5 +281,29 @@ describe("the settings a resident program is started with", () => {
     expect(held.hooks.UserPromptSubmit[0].hooks[0].command).toEndWith(`'${typedFlag}'`);
     expect(held.hooks.UserPromptSubmit[0].hooks[0].timeout).toBe(typedHookSeconds);
     expect(settings.hooks.Stop[1].hooks[0].command).not.toContain(holdFlag);
+  });
+});
+
+describe("a place's records", () => {
+  const control = "0123456789abcdef".repeat(4);
+
+  test("hold no token-shaped value: sixty-four hex digits, an sk- key, the word after Bearer", () => {
+    expect(redactTokens(`T=${control}; curl -H "Authorization: Bearer abcdefghijklmnopqrstuvwxyz"`)).toBe(
+      'T=[redacted]; curl -H "Authorization: Bearer [redacted]"',
+    );
+    expect(redactTokens("key sk-or-v1-0123456789abcdef0123")).toBe("key [redacted]");
+
+    for (const kept of ["5f27643e-ae81-4401-83a3-bc4d195ba48b", "890a6c3", "Bearer $T", control.slice(0, 40)]) {
+      expect(redactTokens(kept)).toBe(kept);
+    }
+
+    const place = scratchDir("bmo-agent-place-redact-");
+
+    recordCall(place, "start", { tool_input: { command: `T=${control}` } }, 1);
+    const text = readFileSync(join(place, "hooks.jsonl"), "utf8");
+
+    expect(text).not.toContain(control);
+    expect(text).toContain("T=[redacted]");
+    rmSync(place, { recursive: true, force: true });
   });
 });

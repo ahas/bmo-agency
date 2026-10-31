@@ -200,7 +200,13 @@ impl Server {
 
     Self {
       port: named(CONTROL_PORT).and_then(|port| port.parse().ok()).unwrap_or(DEFAULT_CONTROL_PORT),
-      token: named(CONTROL_TOKEN),
+      // The token by value, else the file its `_FILE` variable names.
+      token: named(CONTROL_TOKEN).or_else(|| {
+        named(&format!("{CONTROL_TOKEN}_FILE"))
+          .and_then(|file| std::fs::read_to_string(file).ok())
+          .map(|token| token.trim().to_owned())
+          .filter(|token| !token.is_empty())
+      }),
     }
   }
 

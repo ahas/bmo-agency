@@ -594,6 +594,8 @@ async fn the_chat_s_servers_file_items_for_its_agent_and_the_job_plugin_serves_n
       ("BMO_AGENCY_URL".to_owned(), "http://127.0.0.1:2".to_owned()),
       ("BMO_EXPLORER_PLUGIN".to_owned(), "/opt/bmo-explorer".to_owned()),
       ("BMO_DATA_DIR".to_owned(), at(&home.path().join("data"))),
+      ("AGENCY_CONTROL_TOKEN".to_owned(), "control-token-value".to_owned()),
+      ("BMO_JOB_TOKEN".to_owned(), "job-token-value".to_owned()),
     ],
     home.path().join("data"),
   );
@@ -602,6 +604,11 @@ async fn the_chat_s_servers_file_items_for_its_agent_and_the_job_plugin_serves_n
     Service::new(scratch.db().clone(), Config::read(|name| variables.get(name).cloned()).unwrap());
   let ground = Ground::new(&service, &machine, None);
   let path = mcp_config(&ground, &Trees::of(&ground), "chat-agent", false).unwrap();
+  let text = std::fs::read_to_string(&path).unwrap();
+
+  // No token stands in the configuration by value: each server is handed the file it stands in, and the job
+  // plugin, which reads its token from its environment alone, is started behind a shell that reads the file.
+  assert!(!text.contains("control-token-value") && !text.contains("job-token-value"), "{text}");
   let config: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
   let args = |server: &str| -> Vec<String> {
     config["mcpServers"][server]["args"]
@@ -621,6 +628,25 @@ async fn the_chat_s_servers_file_items_for_its_agent_and_the_job_plugin_serves_n
   assert_eq!(config["mcpServers"]["explorer"]["command"].as_str(), Some("/opt/bmo-explorer"));
   assert!(job.windows(2).any(|pair| pair == ["--without", "job_item_create"]), "{job:?}");
   assert!(agency.windows(2).any(|pair| pair == ["--agent", "chat-agent"]), "{agency:?}");
+  assert_eq!(config["mcpServers"]["job"]["command"].as_str(), Some("/bin/sh"));
+  assert_eq!(job[0], "-c");
+  assert_eq!(job[2], "/opt/bmo-job");
+  assert_eq!(job[3], "mcp");
+
+  let job_file = config["mcpServers"]["job"]["env"]["BMO_JOB_TOKEN_FILE"].as_str().unwrap();
+  let control_file = config["mcpServers"]["agency"]["env"]["AGENCY_CONTROL_TOKEN_FILE"].as_str().unwrap();
+
+  assert_eq!(std::fs::read_to_string(job_file).unwrap(), "job-token-value");
+  assert_eq!(std::fs::read_to_string(control_file).unwrap(), "control-token-value");
+
+  // The shell hands the plugin the token the file holds.
+  let shell = std::process::Command::new("/bin/sh")
+    .args(["-c", &job[1], "/bin/sh", "-c", r#"printf %s "$BMO_JOB_TOKEN""#])
+    .env("BMO_JOB_TOKEN_FILE", job_file)
+    .output()
+    .unwrap();
+
+  assert_eq!(String::from_utf8_lossy(&shell.stdout), "job-token-value");
 
   // A companion's configuration carries the same servers but for agency's own plugin: it files no item
   // and launches nothing.

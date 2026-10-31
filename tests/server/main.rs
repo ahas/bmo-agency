@@ -159,6 +159,7 @@ mod places {
   mod follow;
   mod gate_places;
   mod ground;
+  mod handed_tokens;
   mod home;
   mod item_sweep;
   mod locks;

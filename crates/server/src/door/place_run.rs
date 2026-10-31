@@ -276,13 +276,15 @@ fn forget_session(path: &Path, session: &str) -> std::io::Result<()> {
   }
 }
 
-/// A line appended to one of the place's records.
+/// A line appended to one of the place's records, every token-shaped value in it redacted
+/// (docs/agent-control.md, 「A record holds no token」).
 pub fn append(path: &Path, record: &Value) -> std::io::Result<()> {
   use std::io::Write as _;
 
   let mut file = std::fs::OpenOptions::new().create(true).append(true).open(path)?;
+  let line = record.to_string();
 
-  file.write_all(format!("{record}\n").as_bytes())
+  file.write_all(format!("{}\n", crate::text::redact_tokens(&line)).as_bytes())
 }
 
 /// The failure the program's latest turn since `since` ended with: none where that turn ended with a stop,

@@ -35,10 +35,11 @@ use super::worker::{Reasoning, effort_of, reasoning_of, rulebook, system_prompt_
 use super::{Trees, fault, publish_text, read_required};
 use crate::Refusal;
 use crate::control::tiers;
-use crate::places::Ground;
+use crate::places::{Ground, file_variable, token_or_file};
 use crate::run_log::RunLog;
 use crate::run_log::lines::Line;
 use crate::stand_in::Step;
+use crate::verbs::CONTROL_TOKEN;
 
 /// The line the deployment's chat goes out on.
 pub const LINE: &str = "chat";
@@ -312,6 +313,10 @@ pub fn mcp_config(
   Ok(path)
 }
 
+// The shell in front of a stdio plugin that takes its job token from its environment alone: the token read from
+// the file `BMO_JOB_TOKEN_FILE` names, and the plugin, its first word, started on its own words with it.
+const TOKEN_FROM_FILE: &str = r#"BMO_JOB_TOKEN=$(cat "$BMO_JOB_TOKEN_FILE") || exit 1; export BMO_JOB_TOKEN; unset BMO_JOB_TOKEN_FILE; exec "$0" "$@""#;
+
 // The chat's servers: the tool host's namespaces its line names, then the two the chat starts as programs of
 // its own — the job plugin on its `mcp` verb, told the queues it subscribes to and the holder it takes them
 // under, and the agency's own binary on the same verb, which a companion is not handed.
@@ -362,31 +367,45 @@ fn harness_servers(ground: &Ground, agent: &str, companion: bool) -> Ordered {
       args.push(Ordered::text(queue));
     }
 
-    let mut fields = vec![
-      ("type", Ordered::text("stdio")),
-      ("command", Ordered::text(plugin)),
-      ("args", Ordered::List(args)),
-    ];
-
     // The chat's own caller token where the deployment names one, so the job service records what the
-    // chat does under the chat's name; the shared token otherwise.
-    let own =
+    // chat does under the chat's name; the shared token otherwise. Each is handed as the file it stands in,
+    // which a shell in front of the plugin reads, since the plugin takes its token from its environment
+    // alone; one only held by value goes as it is (docs/agent-control.md, 「A token is handed as the file it
+    // stands in」).
+    let readable = |variable: &str| {
       env
-        .get("BMO_JOB_CHAT_TOKEN")
-        .filter(|token| !token.trim().is_empty())
+        .get(&file_variable(variable))
+        .filter(|file| token_or_file(None, Some((*file).clone())).is_some())
         .cloned()
-        .or_else(|| {
-          env
-            .get("BMO_JOB_CHAT_TOKEN_FILE")
-            .and_then(|file| std::fs::read_to_string(file).ok())
-            .map(|token| token.trim().to_owned())
-            .filter(|token| !token.is_empty())
-        });
+    };
+    let by_value = |variable: &str| env.get(variable).filter(|token| !token.trim().is_empty()).cloned();
+    let fields = match readable("BMO_JOB_CHAT_TOKEN").or_else(|| readable("BMO_JOB_TOKEN")) {
+      Some(file) => {
+        let mut wrapped = vec![Ordered::text("-c"), Ordered::text(TOKEN_FROM_FILE), Ordered::text(plugin)];
 
-    if let Some(token) = own.or_else(|| env.get("BMO_JOB_TOKEN").filter(|token| !token.is_empty()).cloned())
-    {
-      fields.push(("env", Ordered::map([("BMO_JOB_TOKEN", Ordered::text(token))])));
-    }
+        wrapped.extend(args);
+
+        vec![
+          ("type", Ordered::text("stdio")),
+          ("command", Ordered::text("/bin/sh")),
+          ("args", Ordered::List(wrapped)),
+          ("env", Ordered::map([("BMO_JOB_TOKEN_FILE", Ordered::text(file))])),
+        ]
+      }
+      None => {
+        let mut fields = vec![
+          ("type", Ordered::text("stdio")),
+          ("command", Ordered::text(plugin)),
+          ("args", Ordered::List(args)),
+        ];
+
+        if let Some(token) = by_value("BMO_JOB_CHAT_TOKEN").or_else(|| by_value("BMO_JOB_TOKEN")) {
+          fields.push(("env", Ordered::map([("BMO_JOB_TOKEN", Ordered::text(token))])));
+        }
+
+        fields
+      }
+    };
 
     servers.push(("job".to_owned(), Ordered::map(fields)));
   }
@@ -421,25 +440,27 @@ fn harness_servers(ground: &Ground, agent: &str, companion: bool) -> Ordered {
   // The artifact service's harness plugin, which files a document and answers its permanent share link.
   // Its address and its token are the deployment's, read from the environment the chat inherits; a
   // deployment that names neither leaves it out.
+  // The deploy tree's own wrapper reads the token's file; a plugin the deployment names is handed the value,
+  // since agency cannot know it reads a file.
   if let (Some(url), Some(token_file)) = (
     env.get("BMO_ARTIFACT_URL").filter(|url| !url.trim().is_empty()),
     env.get("BMO_ARTIFACT_TOKEN_FILE").filter(|file| !file.trim().is_empty()),
-  ) && let Some(token) = std::fs::read_to_string(token_file).ok().map(|token| token.trim().to_owned())
-    && !token.is_empty()
+  ) && let Some(token) = token_or_file(None, Some(token_file.clone()))
   {
-    let program = env
-      .get("BMO_ARTIFACT_PLUGIN")
-      .filter(|program| !program.trim().is_empty())
-      .cloned()
-      .unwrap_or_else(|| {
-        ground
-          .roots
-          .deploy
-          .join("deploy")
-          .join("artifact-mcp.sh")
-          .to_string_lossy()
-          .into_owned()
-      });
+    let named = env.get("BMO_ARTIFACT_PLUGIN").filter(|program| !program.trim().is_empty()).cloned();
+    let token = match named {
+      Some(_) => ("BMO_ARTIFACT_SERVER__TOKEN", Ordered::text(token)),
+      None => ("BMO_ARTIFACT_TOKEN_FILE", Ordered::text(token_file.as_str())),
+    };
+    let program = named.unwrap_or_else(|| {
+      ground
+        .roots
+        .deploy
+        .join("deploy")
+        .join("artifact-mcp.sh")
+        .to_string_lossy()
+        .into_owned()
+    });
     let fields = vec![
       ("type", Ordered::text("stdio")),
       ("command", Ordered::text(program)),
@@ -447,7 +468,7 @@ fn harness_servers(ground: &Ground, agent: &str, companion: bool) -> Ordered {
       (
         "env",
         Ordered::map([
-          ("BMO_ARTIFACT_SERVER__TOKEN", Ordered::text(token)),
+          token,
           ("HOME", Ordered::text(std::env::var("HOME").unwrap_or_else(|_| "/".to_owned()))),
         ]),
       ),
@@ -479,8 +500,12 @@ fn harness_servers(ground: &Ground, agent: &str, companion: bool) -> Ordered {
       ),
     ];
 
-    if let Some(token) = env.get("AGENCY_CONTROL_TOKEN").filter(|token| !token.is_empty()) {
-      fields.push(("env", Ordered::map([("AGENCY_CONTROL_TOKEN", Ordered::text(token.as_str()))])));
+    // The control token as the file it stands in, which the verb reads; by value only where the launch
+    // holds it so.
+    if let Some(file) = env.get(&file_variable(CONTROL_TOKEN)).filter(|file| !file.trim().is_empty()) {
+      fields.push(("env", Ordered::map([(file_variable(CONTROL_TOKEN), Ordered::text(file.as_str()))])));
+    } else if let Some(token) = env.get(CONTROL_TOKEN).filter(|token| !token.is_empty()) {
+      fields.push(("env", Ordered::map([(CONTROL_TOKEN, Ordered::text(token.as_str()))])));
     }
 
     servers.push(("agency".to_owned(), Ordered::map(fields)));

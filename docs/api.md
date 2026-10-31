@@ -41,7 +41,9 @@ a field's exact shape matters, the OpenAPI document is the one to read.
   `AGENCY_CONTROL_PORT` names (3220 where it names none), under `Authorization: Bearer <token>` with the
   token `AGENCY_CONTROL_TOKEN` holds. A request without the token is answered 401.
 - Both variables stand in the data root's `env/agency.env`. A process of agency's whose environment holds
-  neither reads them there.
+  neither reads them there. A program agency starts is handed the token as the file it stands in,
+  `AGENCY_CONTROL_TOKEN_FILE` (`docs/agent-control.md`, 「A token is handed as the file it stands in」), and
+  every reader of the token reads that file where the variable is not set.
 - The same file names the variables a line hands the session records of its runs
   (`docs/tools.md`, 「The session record」): for the chat line, `BMO_GATE_URL`, the gate's address, and
   `BMO_GATE_TOKEN_FILE`, the path of the gate's token file under the data root's `env/`.
@@ -1146,7 +1148,8 @@ reads the gate kinds and their order as the gate publishes them, so no copy of t
   its token stands in. With no address, no reference is asked and a job or a thrown-away session carries only
   its own words.
 - **Where the brain is.** `AGENCY_BRAIN_URL` names its address and `AGENCY_BRAIN_TOKEN` the token it is
-  called with. With no address, no agent has a brain: nothing is made, counted or let go.
+  called with, or `AGENCY_BRAIN_TOKEN_FILE` the file it stands in; the node's token is read the same way
+  (`AGENCY_NODE_TOKEN`, `AGENCY_NODE_TOKEN_FILE`). With no address, no agent has a brain: nothing is made, counted or let go.
 - **The account a brain is filed under.** The brain keeps one brain per agent, keyed by an account key
   and the agent's key, and never makes one by itself. A brain agency makes carries, as the account key,
   the id of the login account owning the agent where it names one, and otherwise the key

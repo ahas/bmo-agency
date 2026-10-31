@@ -49,10 +49,25 @@ const defaultControlPort = 3220;
 // Long enough for a server that is up to answer, short enough that a dead one holds nothing for long.
 const relayWaitMs = 2_000;
 
+// The token the file a `_FILE` variable names holds, or none where nothing is named or the file does not read.
+function tokenFromFile(path: string | null): string | null {
+  if (path === null) {
+    return null;
+  }
+
+  try {
+    const token = readFileSync(path, "utf8").trim();
+
+    return token === "" ? null : token;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Agency's server as this process reaches it: the port and the token its environment names, else those
- * the data root's `env/agency.env` names (docs/api.md, 「The control port」); none where neither names a
- * token.
+ * the data root's `env/agency.env` names (docs/api.md, 「The control port」), the token by value or in the
+ * file `AGENCY_CONTROL_TOKEN_FILE` names; none where neither names a token.
  */
 export function controlServer(): { port: number; token: string } | null {
   let file: Record<string, string | undefined> = {};
@@ -68,7 +83,7 @@ export function controlServer(): { port: number; token: string } | null {
 
     return value === "" ? null : value;
   };
-  const token = named("AGENCY_CONTROL_TOKEN");
+  const token = named("AGENCY_CONTROL_TOKEN") ?? tokenFromFile(named("AGENCY_CONTROL_TOKEN_FILE"));
   const port = Number(named("AGENCY_CONTROL_PORT") ?? defaultControlPort);
 
   return token === null || !Number.isInteger(port) ? null : { port, token };

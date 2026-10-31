@@ -50,3 +50,21 @@ pub fn grouped(number: usize) -> String {
 
   grouped
 }
+
+/// What a token-shaped value is written as in a record (docs/agent-control.md, 「A record holds no token」).
+pub const REDACTED: &str = "[redacted]";
+
+static TOKEN_SHAPED: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+  regex::Regex::new(
+    r"\b[0-9a-fA-F]{64}\b|\bsk-[A-Za-z0-9_-]{16,}|(?P<bearer>\bBearer\s+)[A-Za-z0-9._~+/=-]{16,}",
+  )
+  .expect("the token pattern compiles")
+});
+
+/// A text with every value shaped as a token written as `[redacted]`: sixty-four hexadecimal digits standing
+/// alone, a key beginning `sk-`, and the word after `Bearer`, which keeps its `Bearer`.
+pub fn redact_tokens(text: &str) -> std::borrow::Cow<'_, str> {
+  TOKEN_SHAPED.replace_all(text, |found: &regex::Captures| {
+    format!("{}{REDACTED}", found.name("bearer").map_or("", |bearer| bearer.as_str()))
+  })
+}

@@ -167,6 +167,8 @@ enum Verb {
   /// The model catalogue: listed, an entry added, changed, removed or chosen for its engine.
   #[command(alias = "models")]
   Model(ModelsArgs),
+  /// Every place's program rewritten to hand agency's tokens as the files they stand in.
+  HandTokens,
   /// The documents a session relies on, told that they moved.
   Reload {
     #[arg(long = "path", allow_hyphen_values = true)]
@@ -553,6 +555,7 @@ async fn run(verb: Verb) -> ExitCode {
     }),
     Verb::DevPane { worker, .. } => ended(dev_servers::dev_pane(&data_root, &worker).await),
     Verb::Model(args) => ended(models::models(&data_root, args).await),
+    Verb::HandTokens => ended(agency_server::verbs::hand_tokens::hand_tokens(&data_root)),
     Verb::Reload { paths, now } => ended(reloaded(&data_root, &paths, now).await),
     Verb::Overtime {
       list,
@@ -607,7 +610,10 @@ async fn mcp(url: Option<String>, token: Option<String>, agent: Option<String>) 
     .and_then(|port| port.trim().parse::<u16>().ok())
     .unwrap_or(agency_server::verbs::DEFAULT_CONTROL_PORT);
   let url = url.unwrap_or_else(|| format!("http://127.0.0.1:{port}"));
-  let token = token.unwrap_or_default();
+  let token = token
+    .filter(|token| !token.is_empty())
+    .or_else(agency_server::verbs::control_token)
+    .unwrap_or_default();
   let client = match AgencyClient::new(&url, token) {
     Ok(client) => client,
     Err(why) => {

@@ -184,7 +184,9 @@
   from a queue, started on the chat's own caller token where the deployment names one (`BMO_JOB_CHAT_TOKEN`,
   or the file `BMO_JOB_CHAT_TOKEN_FILE` names), so the job service records what the chat does — an
   approval among it, which it keeps as the chat's recommendation rather than the owner's approval — under
-  the chat's name, and on the deployment's shared token otherwise, its own item creation left out of what it
+  the chat's name, and on the deployment's shared token otherwise — either handed as the file it stands in and
+  read by a shell in front of the plugin, which takes its token from its environment alone
+  (`docs/agent-control.md`, 「A token is handed as the file it stands in」) — its own item creation left out of what it
   serves (`--without job_item_create`) and, on Claude Code, disallowed as well (`--disallowedTools`); and the agency's own, `agency`, started for the agent the configuration is
   composed for (`--agent`, one configuration a chat agent), which files an item through agency
   (`docs/api.md`, 「assignments and jobs」), assigns a worker and launches the item's job. A
