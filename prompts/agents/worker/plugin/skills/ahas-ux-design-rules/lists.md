@@ -75,6 +75,16 @@ every screen answers to and the sweep.
 
 - A double press on an item must never select its words. Its text is selectable only where the item
   turns it into a field, as when it is renamed in place.
+- A list that holds more than it shows loads its next page itself as the reader reaches its end;
+  a button that asks for more is never drawn.
+  1. A sentinel at the list's end asks the next page once as it comes into view, and asks nothing
+     while a page is still on its way.
+  2. The rows the next page will take stand as skeleton rows meanwhile (「Skeletons」 in
+     `loading.md`), so the list grows in place rather than jumping.
+  3. When nothing more stands, the list ends with one short quiet line saying so; a list that fits
+     whole ends with nothing.
+  4. A fold inside one item's own text — a long value shown short with the rest to open — is not a
+     page and keeps its own opening.
 
 - An item in a list that is not a data table and carries a status must show an icon with that
   status.
