@@ -220,10 +220,13 @@ pub async fn ask_with(api: &Api, session: &Session, input: AskInput) -> Answer {
     ));
   }
 
-  let Some(session_id) = described.get("sessionId").and_then(Value::as_str).filter(|id| !id.is_empty())
-  else {
-    return Answer::failure(format!("{worker} holds no session to put a turn into"));
-  };
+  // A worker's session is `<worker>@worker`; a worker that has not held one yet is answered no id, and
+  // the turn opens it (docs/api.md, 「sessions」).
+  let session_id = described
+    .get("sessionId")
+    .and_then(Value::as_str)
+    .filter(|id| !id.is_empty())
+    .map_or_else(|| format!("{worker}@worker"), str::to_owned);
   let since = crate::now_ms();
   let prompt = format!("Work in {}.\n\n{}", folder.display(), input.words.trim());
   let (status, turned) = match api

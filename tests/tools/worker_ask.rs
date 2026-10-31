@@ -20,6 +20,7 @@ struct Stub {
 async fn worker(State(stub): State<Stub>, Path(name): Path<String>) -> (StatusCode, Json<Value>) {
   let body = match name.as_str() {
     "helper" => json!({ "state": "idle", "sessionId": "s1", "cwd": "/work/helper" }),
+    "fresh" => json!({ "state": "idle", "sessionId": null, "cwd": "/work/fresh" }),
     "busy" => json!({ "state": "working", "sessionId": "s1", "cwd": "/work/busy" }),
     "node" => {
       json!({ "state": "idle", "sessionId": "s1", "cwd": "/work/node", "nodeName": "n1" })
@@ -31,10 +32,10 @@ async fn worker(State(stub): State<Stub>, Path(name): Path<String>) -> (StatusCo
   (StatusCode::OK, Json(body))
 }
 
-async fn turn(State(stub): State<Stub>) -> (StatusCode, Json<Value>) {
+async fn turn(Path(id): Path<String>, State(stub): State<Stub>) -> (StatusCode, Json<Value>) {
   (
     StatusCode::OK,
-    Json(json!({ "answer": format!("Done in {}.", stub.folder), "state": "ended" })),
+    Json(json!({ "answer": format!("Done in {} via {id}.", stub.folder), "state": "ended" })),
   )
 }
 
@@ -95,6 +96,32 @@ async fn a_round_trip_answers_with_the_words_and_the_files_the_turn_changed() {
   assert!(answer.contains("Done in"), "{answer}");
   assert!(answer.contains("a.rs"), "{answer}");
   assert!(answer.contains("b.rs"), "{answer}");
+}
+
+#[tokio::test]
+async fn a_worker_that_holds_no_session_yet_is_given_a_turn_into_its_own() {
+  let home = tempfile::tempdir().unwrap();
+  let folder = home.path().join("scratch");
+  std::fs::create_dir_all(&folder).unwrap();
+  let port = server(Stub {
+    folder: folder.to_string_lossy().into_owned(),
+  })
+  .await;
+  let answer = ask_with(
+    &Api { port, token: None },
+    &session(home.path()),
+    AskInput {
+      worker: "fresh".into(),
+      words: "add a file".into(),
+      folder: Some(folder.to_string_lossy().into_owned()),
+      time_bound_seconds: Some(30),
+    },
+  )
+  .await;
+
+  let answer = serde_json::to_string(&answer).unwrap();
+
+  assert!(answer.contains("via fresh@worker"), "{answer}");
 }
 
 #[tokio::test]
