@@ -413,9 +413,12 @@
   one after the plain-writing rulebook — and its input is one line naming the target language and then
   the text. On the registry's provider it is one request to the gateway's chat completions path under
   the registration the mapping names, with thinking off and the profile's sampling (`docs/own-llm.md`,
-  「A request with no tools」). On Claude Code it is a run apart (`docs/agents.md`, 「Runs apart」): that
-  system prompt as the whole of it, no tool shown or allowed, no MCP server, a fresh session, thinking
-  off. No other provider carries the line. The answer is the translation whole.
+  「A request with no tools」); where the registration names a card service, a demand for one card is held
+  for that request, waited on however long its grant takes, the request names the granted card's entry,
+  and the demand is given back once the answer is in (`docs/own-llm.md`, 「An engine the arbiter
+  stands」). On Claude Code it is a run apart (`docs/agents.md`, 「Runs apart」): that system prompt as
+  the whole of it, no tool shown or allowed, no MCP server, a fresh session, thinking off. No other
+  provider carries the line. The answer is the translation whole.
 - **Browse runner**: the line a browse goes out on, carried by agency and composed, as the search line is, by
   whoever starts a thrown-away session on it: the model the session names and the effort its turn's mapping
   names, don't-ask mode, no built-in tool shown, the chrome-devtools tools, the tool host's web tools and the

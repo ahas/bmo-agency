@@ -8,6 +8,7 @@ use std::time::Duration;
 use harness_providers::registered::Registered;
 use serde_json::{Value, json};
 
+use crate::cards;
 use crate::control::claude_accounts::Account;
 use crate::door::apart::{self, Apart, answered, new_session};
 use crate::door::turn::Watch;
@@ -165,7 +166,7 @@ pub async fn translate(
     noted_system(&system_prompt(&trees, role.as_deref(), purpose).map_err(Refused::NoAnswer)?, note);
   let input = input(language, text);
   let answer = if taken.provider == crate::control::registry::PROVIDER {
-    on_gateway(ground, &taken.model, &system, &input).await
+    on_registry(ground, &taken.model, &system, &input).await
   } else if taken.provider == crate::lines::runner::PROVIDER {
     apart_on_claude(ground, &trees, purpose, &taken.model, &system, &input).await
   } else {
@@ -202,6 +203,35 @@ pub fn gateway_request(registration: &str, system: &str, input: &str) -> Value {
   }
 
   request
+}
+
+// One translation on the registry's provider: on a registration naming a card service, a card held for
+// the one request, which names the card's entry, and given back once it is answered (docs/own-llm.md,
+// 「An engine the arbiter stands」).
+async fn on_registry(
+  ground: &Ground,
+  registration: &str,
+  system: &str,
+  input: &str,
+) -> Result<String, String> {
+  let held = match crate::control::registry::registration(&ground.db, registration).await {
+    Ok(Some(one)) => cards::hold(ground, &one, AGENT, None, cards::Ask::default(), None, &mut |_| {})
+      .await
+      .map_err(|refused| refused.detail)?,
+    Ok(None) => None,
+    Err(why) => return Err(why.error),
+  };
+  let entry = match &held {
+    Some(card) => format!("{registration}@{}", card.node),
+    None => registration.to_owned(),
+  };
+  let answered = on_gateway(ground, &entry, system, input).await;
+
+  if let Some(card) = &held {
+    cards::give_back(ground, card).await;
+  }
+
+  answered
 }
 
 // One request through the model gateway, answering the model's words.

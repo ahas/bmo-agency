@@ -260,10 +260,10 @@ never the model's name.
   read from, as the engine's own deployment reports them; whether they keep role files is the
   registration's.
 - **Every run on it asks a demand first:** a turn of the chat agent, a companion or a worker, a
-  thrown-away session's turn, a co-worker seat's child and a gate's request alike ask the master for one
-  card of the card service, with the session's key as the work it continues and agency's holder as the
-  demand's shown reference. A caller that holds a granted demand of its own hands its id in with its seat or
-  session request, and no other is asked for that run.
+  thrown-away session's turn, a co-worker seat's child, a gate's request and a translation's request
+  alike ask the master for one card of the card service, with the session's key as the work it continues
+  and agency's holder as the demand's shown reference. A caller that holds a granted demand of its own
+  hands its id in with its seat or session request, and no other is asked for that run.
 - **The run goes where the demand is granted.** A new session is placed on the card granted; a resumed
   session asks with its key, which brings it back to the card holding its state wherever that card is
   open, and is computed from its first token where another card answers. The run names the card's entry,
