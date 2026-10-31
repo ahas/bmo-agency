@@ -102,8 +102,11 @@ pub async fn keep_leftovers(ground: Arc<Ground>) {
 }
 
 /// The usage windows' clocks: each reader the keeping knows passing at once and then on its own cadence,
-/// every reading it takes replacing its slot's last.
+/// every reading it takes replacing its slot's last, and a login renewal its reader asks run on this
+/// ground.
 pub async fn keep_usage_windows(ground: Arc<Ground>) {
+  ground.renewals.stand_on(&ground);
+
   let clocks = ground.windows.readers().iter().cloned().map(|reader| {
     let ground = ground.clone();
 

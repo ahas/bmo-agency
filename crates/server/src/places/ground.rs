@@ -21,6 +21,7 @@ use crate::events::Bus;
 use crate::hooks::Hooks;
 use crate::peers::Peers;
 use crate::readiness::Readiness;
+use crate::usage_windows::LoginRenewals;
 use crate::watches::links::{self, Roots};
 use crate::{Refusal, Service};
 
@@ -113,14 +114,16 @@ impl AgentRow {
 }
 
 /// What every place is stood on: the store, the service's configuration, the services it calls, the
-/// accounts' usage windows it keeps, the bus its events go on and the hooks its consumers registered,
-/// whether the places have stood once, the machine's trees and environment, this machine's herdr, and the
-/// source root a worker with no directory of its own works in.
+/// accounts' usage windows it keeps and the runs that renew a login its reader finds expired, the bus its
+/// events go on and the hooks its consumers registered, whether the places have stood once, the machine's
+/// trees and environment, this machine's herdr, and the source root a worker with no directory of its own
+/// works in.
 pub struct Ground {
   pub db: DatabaseConnection,
   pub config: Arc<Config>,
   pub peers: Peers,
   pub windows: Keeping,
+  pub renewals: LoginRenewals,
   pub events: Bus,
   pub hooks: Hooks,
   pub readiness: Arc<Readiness>,
@@ -166,11 +169,13 @@ impl Ground {
   pub fn new(service: &Service, machine: &Machine, herdr: Option<Herdr>) -> Self {
     let home = PathBuf::from(machine.var("HOME").unwrap_or("/"));
     let trees = &service.config.trees;
+    let renewals = LoginRenewals::default();
     let mut ground = Self {
       db: service.db.clone(),
       config: service.config.clone(),
       peers: service.peers.clone(),
-      windows: crate::usage_windows::keeping(&service.db, machine),
+      windows: crate::usage_windows::keeping(&service.db, machine, &renewals),
+      renewals,
       events: service.events.clone(),
       hooks: service.hooks.clone(),
       readiness: service.readiness.clone(),

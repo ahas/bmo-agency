@@ -94,8 +94,9 @@ flowchart TD
 ## Runs apart
 
 A run apart is one run of a line that keeps no session: a turn of a thrown-away session on the search or
-browse line, the morning news page's writer, a tool probe and a judging batch of the gate project's claude
-road.
+browse line, the morning news page's writer, a tool probe, a judging batch of the gate project's claude
+road, and the turn the usage reader asks on a login found expired so the CLI renews it
+(`docs/usage-windows.md`, 「The Claude account reader」).
 
 ```mermaid
 flowchart TD

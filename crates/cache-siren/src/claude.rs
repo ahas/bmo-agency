@@ -3,9 +3,10 @@
 //! still has its own figures and never another's.
 //!
 //! The token is only ever in the request: read out of the account's own credential file, put in the one
-//! header that asks, and dropped — never kept, returned, said or renewed. Renewing a login is the CLI's; a
-//! token found expired is left for the CLI, and the account is marked unread so its last reading stops
-//! standing until a reading lifts the mark.
+//! header that asks, and dropped — never kept, returned, said or renewed. Renewing a login is the CLI's: a
+//! directory account's token found expired or refused marks the account unread, so its last reading stops
+//! standing until a reading lifts the mark, and asks the caller for one run of the CLI on that login, which
+//! renews it as it goes out; one such run of an account at a time, and at a pace while it keeps failing.
 
 use std::collections::HashMap;
 use std::future::Future;
@@ -50,6 +51,26 @@ pub struct Login {
 /// The registered accounts, on or off, as the caller that keeps them answers on each pass.
 pub trait Logins: Send + Sync {
   fn logins(&self) -> Pin<Box<dyn Future<Output = Result<Vec<Login>, String>> + Send + '_>>;
+}
+
+/// A run of the CLI on one account's own login, as the caller that starts the CLI answers it: a future that
+/// is the run, ending when the run has ended, with why it failed where it did. The CLI renews the login's
+/// token for itself as the run goes out; the reader never touches it.
+pub trait Renewals: Send + Sync {
+  fn renew(&self, account: &str) -> Pin<Box<dyn Future<Output = Result<(), String>> + Send + 'static>>;
+}
+
+// An account's last renewal: the moment it was asked, in epoch seconds, and whether its run has ended.
+#[derive(Clone, Copy, Debug)]
+struct Renewal {
+  asked_at: i64,
+  ended: bool,
+}
+
+type Renewing = Arc<Mutex<HashMap<String, Renewal>>>;
+
+fn locked<T>(held: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+  held.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
 /// The share past which a window of this name is full: the five-hour window against the rest's own
@@ -120,14 +141,17 @@ fn asking_within(wait: Duration) -> reqwest::Client {
   reqwest::Client::builder().timeout(wait).build().unwrap_or_default()
 }
 
-/// The reader on the clock: where it asks, who it asks for, each account's failure as last said, and the
-/// moment, in epoch seconds, before which an account the endpoint refused for asking too often is not asked.
+/// The reader on the clock: where it asks, who it asks for, each account's failure as last said, the
+/// moment, in epoch seconds, before which an account the endpoint refused for asking too often is not asked,
+/// who runs the CLI that renews a login, where anybody does, and each account's last renewal.
 pub struct ClaudeAccounts {
   url: String,
   http: reqwest::Client,
   logins: Arc<dyn Logins>,
   said: Said,
   paused: Mutex<HashMap<String, i64>>,
+  renewals: Option<Arc<dyn Renewals>>,
+  renewing: Renewing,
 }
 
 impl ClaudeAccounts {
@@ -139,11 +163,20 @@ impl ClaudeAccounts {
       logins,
       said: Said::default(),
       paused: Mutex::default(),
+      renewals: None,
+      renewing: Renewing::default(),
     }
   }
 
   fn paused(&self) -> std::sync::MutexGuard<'_, HashMap<String, i64>> {
-    self.paused.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+    locked(&self.paused)
+  }
+
+  /// The same reader asking `renewals` for a run of the CLI on a directory account's login it finds
+  /// expired or refused.
+  pub fn renewing(mut self, renewals: Arc<dyn Renewals>) -> Self {
+    self.renewals = Some(renewals);
+    self
   }
 
   /// The same reader taking a request that has not answered within `wait` as a failure, where a caller
@@ -226,8 +259,52 @@ impl ClaudeAccounts {
     )
   }
 
+  // A run of the CLI asked on an account's login, at `now` in epoch seconds: none while the last one asked
+  // runs, and none sooner than the pause after it was asked. The pass goes on without waiting for the run;
+  // its start is said as it is asked and its outcome as it ends.
+  fn renew(&self, account: &str, now: i64) {
+    let Some(renewals) = &self.renewals else { return };
+    let pause = i64::try_from(CLAUDE_CODE.usage.renewal_pause_seconds).unwrap_or(300);
+
+    {
+      let mut renewing = locked(&self.renewing);
+
+      if renewing.get(account).is_some_and(|last| !last.ended || now < last.asked_at + pause) {
+        return;
+      }
+
+      renewing.insert(
+        account.to_owned(),
+        Renewal {
+          asked_at: now,
+          ended: false,
+        },
+      );
+    }
+
+    eprintln!("claude usage for {account}: its login is renewed by one run of the CLI on it");
+
+    let running = renewals.renew(account);
+    let renewing = self.renewing.clone();
+    let account = account.to_owned();
+
+    tokio::spawn(async move {
+      let outcome = running.await;
+
+      if let Some(last) = locked(&renewing).get_mut(&account) {
+        last.ended = true;
+      }
+
+      match outcome {
+        Ok(()) => println!("claude usage for {account}: the run renewing its login ended"),
+        Err(why) => eprintln!("claude usage for {account}: the run renewing its login failed: {why}"),
+      }
+    });
+  }
+
   // One account read and its windows written; why not where they were not. A token that cannot be read
-  // with marks the account so its last reading stops standing, and a reading taken lifts the mark.
+  // with marks the account so its last reading stops standing, and asks a run of the CLI on a directory
+  // account's login; a reading taken lifts the mark, and lets go of a renewal that has ended.
   async fn read(&self, keeping: &Keeping, login: &Login, now_ms: i64) -> Result<Vec<Window>, String> {
     let now = now_ms.div_euclid(1000);
     let account = login.account.as_str();
@@ -246,6 +323,10 @@ impl ClaudeAccounts {
       Err(failure) => {
         if failure == TOKEN_EXPIRED || failure == TOKEN_REFUSED {
           keeping.mark_unread(account, now).await.map_err(|fault| fault.detail)?;
+
+          if let Credential::Directory(_) = login.credential {
+            self.renew(account, now);
+          }
         }
 
         return Err(failure);
@@ -265,6 +346,14 @@ impl ClaudeAccounts {
       .await
       .map_err(|fault| fault.detail)?;
     keeping.lift_unread(account).await.map_err(|fault| fault.detail)?;
+
+    let mut renewing = locked(&self.renewing);
+
+    if renewing.get(account).is_some_and(|last| last.ended) {
+      renewing.remove(account);
+    }
+
+    drop(renewing);
 
     for name in early {
       println!(

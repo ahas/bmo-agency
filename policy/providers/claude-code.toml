@@ -64,6 +64,13 @@ ask_seconds = 15
 pass_seconds = 60
 fresh_passes = 30
 refused_pause_seconds = 300
+# The run of the CLI the reader asks on a directory account's login found expired or refused, which the CLI
+# renews as it goes out: the model and effort it goes out on, the cheapest the login offers; the one word
+# that is its turn; and how long, while the account still cannot be read, before another is asked.
+renewal_model = "haiku"
+renewal_effort = "low"
+renewal_words = "ok"
+renewal_pause_seconds = 300
 # The windows taken out of an answer: the ones every subscription login keeps.
 windows = ["five_hour", "seven_day"]
 

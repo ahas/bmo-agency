@@ -44,7 +44,8 @@ all read them from here (`docs/cache-fallback.md`, 「The account judgement」, 
 - **The token is read out of the account's own credential file and dropped:** a directory account's
   file holds it as `claudeAiOauth.accessToken` beside its `expiresAt`, and a token found expired is not
   sent; a token account's file is the token. The token goes into the one request header and is never
-  kept, returned, logged or renewed; renewing a login is the CLI's.
+  kept, returned or logged. The reader never renews it and uses nothing else of the file: renewing a
+  login is the CLI's, and the reader asks the CLI for it (「A login found expired」 below).
 - **The windows taken are `five_hour` and `seven_day`:** each `utilization` is a percentage and is
   kept as its fraction, and each `resets_at` is an RFC 3339 moment kept in epoch seconds. A window with
   no figure is left out rather than written as nought, and an answer with no usable window is a
@@ -65,7 +66,31 @@ all read them from here (`docs/cache-fallback.md`, 「The account judgement」, 
 - **The unread mark.** Where an account's token is found expired, or the endpoint refuses it as
   unauthorised, the reader marks the moment it first found so under the account, and the next reading it
   takes lifts the mark. A reading seen at or before the mark is stale for the account judgement however
-  young it is, since nothing can renew it until a run renews the login.
+  young it is, since the account cannot be asked again until a run renews its login: the run the reader
+  asks for (below), or any other run that goes out on it.
+- **A login found expired is renewed by one run of the CLI.** Where a directory account's token is found
+  expired, or the endpoint refuses it as unauthorised, the reader asks for one run of Claude Code on
+  that login: a run apart (`docs/agents.md`, 「Runs apart」) under the account's own configuration
+  directory, the way every run on the account goes out, on the model and effort the provider's usage
+  declaration names for it — the cheapest the login offers — with a one-word turn, no tools, and its
+  answer thrown away. The CLI renews the token for itself as the run goes out, a token run out taking the
+  account's renewal lock like any run near its login's end (`docs/cache-fallback.md`, 「A login that is
+  about to end」), and the next pass asks with what it wrote. The reader never refreshes a token itself: a refresh
+  token is replaced at every renewal and every pane on the login shares it, so a second refresher beside
+  the CLI would leave those panes holding a credential it had replaced.
+  - **Only a directory account is renewed so.** A token account's long-lived token holds nothing to
+    renew with and an endpoint account holds no login, so neither is ever run on for it; a token account
+    refused stays marked until its file holds a token the endpoint takes. A login waiting for a person
+    (`docs/cache-fallback.md`, 「A login that is about to end」) is not run on either: only signing in
+    again brings it back.
+  - **One renewal of an account at a time, at a pace.** None is asked while one runs, none before a pass
+    after it has ended, and, while the account still cannot be read, none sooner than five minutes after
+    the last was asked. The pass does not wait for the run, so every other account is read on time. The
+    pace is between asks, not a bound: the run itself is never cut.
+  - **Said once each way:** its start on the error output, naming the account, and its outcome once as
+    the run ends — on the standard output where the run ended without failing, on the error output with
+    its reason where it failed. Whether the login came back is the next pass's reading, which lifts the
+    unread mark.
 - **A window that came back early is said:** a window the last reading held full, not yet reset, that a
   new reading finds below its ceiling is logged as having come back before the reset its reading named.
 

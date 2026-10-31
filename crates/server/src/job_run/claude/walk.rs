@@ -181,9 +181,9 @@ async fn closed(walking: &Walking<'_>, key: &str, carried: &[Account]) -> Result
   })
 }
 
-// The login is renewed by one run and not by several: where its credential is close to its end, this run
-// takes the account's own lock on the way out and the others wait for what it wrote.
-async fn renewed<T>(
+/// The login is renewed by one run and not by several: where its credential is close to its end, this run
+/// takes the account's own lock on the way out and the others wait for what it wrote.
+pub async fn renewed<T>(
   data_root: &std::path::Path,
   account: &Account,
   go: impl Future<Output = Result<T, Failure>>,
