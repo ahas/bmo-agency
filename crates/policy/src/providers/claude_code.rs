@@ -30,6 +30,14 @@ pub struct Usage {
   /// How long an account the endpoint refused for asking too often is left unasked, in seconds, where the
   /// refusal names no moment of its own.
   pub refused_pause_seconds: u64,
+  /// The model and effort of the run of the CLI that renews a directory account's login found expired or
+  /// refused, and the words that are its turn.
+  pub renewal_model: String,
+  pub renewal_effort: String,
+  pub renewal_words: String,
+  /// How long, in seconds, an account that still cannot be read waits after one renewal was asked before
+  /// another is.
+  pub renewal_pause_seconds: u64,
   pub windows: Vec<String>,
 }
 

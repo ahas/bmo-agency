@@ -2,8 +2,9 @@
 //! record them, each account asked with its own login and its windows written under it alone, an account
 //! that cannot be asked keeping what it had, an endpoint that does not answer in time a failure that leaves
 //! the account unmarked, a token that cannot be read with marking the account unread so its last full
-//! reading stops standing until a reading lifts the mark, and a failure said once when it starts and its
-//! recovery once when it ends.
+//! reading stops standing until a reading lifts the mark, a directory account's login found expired or
+//! refused renewed by one run of a stand-in CLI at a time and at a pace, and a failure said once when it
+//! starts and its recovery once when it ends.
 
 use std::future::Future;
 use std::pin::Pin;
@@ -14,11 +15,12 @@ use axum::Router;
 use axum::extract::Request;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use cache_siren::claude::{ClaudeAccounts, Credential, Login, Logins, MODE, windows_of};
+use cache_siren::claude::{ClaudeAccounts, Credential, Login, Logins, MODE, Renewals, windows_of};
 use cache_siren::reader::Said;
 use cache_siren::{Keeping, Reader, Slot, Window};
 use serde_json::{Value, json};
 use tokio::net::TcpListener;
+use tokio::sync::{Notify, mpsc};
 
 use crate::scratch::Scratch;
 
@@ -325,4 +327,142 @@ fn a_failure_is_said_once_with_its_reason_and_its_recovery_once() {
   );
   assert_eq!(said.outcome(what, &Ok(())).as_deref(), Some("claude usage for one read again"));
   assert_eq!(said.outcome(what, &Ok(())), None);
+}
+
+/// A stand-in for the run of the CLI on a login: each account it was asked for, in order; a run that waits
+/// to be let go, then writes the credential it renews to, where it names one, and says it ended.
+struct StandInCli {
+  asked: Mutex<Vec<String>>,
+  go: Arc<Notify>,
+  renews: Option<std::path::PathBuf>,
+  ended: mpsc::UnboundedSender<()>,
+}
+
+impl Renewals for StandInCli {
+  fn renew(&self, account: &str) -> Pin<Box<dyn Future<Output = Result<(), String>> + Send + 'static>> {
+    self.asked.lock().unwrap().push(account.to_owned());
+
+    let go = self.go.clone();
+    let renews = self.renews.clone();
+    let ended = self.ended.clone();
+
+    Box::pin(async move {
+      go.notified().await;
+
+      let outcome = match renews {
+        Some(file) => {
+          std::fs::write(&file, credential("sk-renewed", NOW_MS + 3_600_000)).unwrap();
+
+          Ok(())
+        }
+        None => Err("the run's pane went away under it".to_owned()),
+      };
+
+      ended.send(()).unwrap();
+      outcome
+    })
+  }
+}
+
+fn stand_in_cli(renews: Option<std::path::PathBuf>) -> (Arc<StandInCli>, mpsc::UnboundedReceiver<()>) {
+  let (ended, heard) = mpsc::unbounded_channel();
+  let cli = StandInCli {
+    asked: Mutex::new(Vec::new()),
+    go: Arc::new(Notify::new()),
+    renews,
+    ended,
+  };
+
+  (Arc::new(cli), heard)
+}
+
+fn credential(token: &str, expires_at: i64) -> String {
+  json!({ "claudeAiOauth": { "accessToken": token, "expiresAt": expires_at } }).to_string()
+}
+
+fn directory_login(account: &str, file: std::path::PathBuf) -> Login {
+  Login {
+    account: account.into(),
+    credential: Credential::Directory(file),
+  }
+}
+
+// A directory account's login found expired, or refused, asks one run of the CLI on it, and a token account
+// none; no other run is asked while it runs, and once it has renewed the login the next pass reads the
+// account and lifts its mark (docs/usage-windows.md, 「The Claude account reader」).
+#[tokio::test]
+async fn a_login_found_expired_asks_one_run_of_the_cli_and_the_pass_after_it_reads_the_account() {
+  let scratch = Scratch::new().await;
+  let dir = tempfile::tempdir().unwrap();
+  let expired = dir.path().join("main.json");
+  let refused = dir.path().join("held.json");
+  let token = dir.path().join("token");
+
+  std::fs::write(&expired, credential("sk-expired", NOW_MS - 1)).unwrap();
+  std::fs::write(&refused, credential(REFUSED, NOW_MS + 3_600_000)).unwrap();
+  std::fs::write(&token, REFUSED).unwrap();
+
+  let (url, asked) = usage_endpoint().await;
+  let (cli, mut ended) = stand_in_cli(Some(expired.clone()));
+  let logins = vec![
+    directory_login("main", expired.clone()),
+    directory_login("held", refused),
+    token_login("spare", token),
+  ];
+  let reader = Arc::new(ClaudeAccounts::new(url, Arc::new(Fixed(logins))).renewing(cli.clone()));
+  let keeping = Keeping::new(scratch.db().clone(), vec![reader.clone()]);
+
+  reader.pass(&keeping, NOW_MS).await;
+
+  assert_eq!(
+    *cli.asked.lock().unwrap(),
+    ["main", "held"],
+    "a directory login expired or refused asks a run, a token account none"
+  );
+
+  reader.pass(&keeping, NOW_MS + 60_000).await;
+  reader.pass(&keeping, NOW_MS + 600_000).await;
+
+  assert_eq!(cli.asked.lock().unwrap().len(), 2, "no run is asked while one runs, however long");
+  assert_eq!(asked.lock().unwrap().iter().filter(|said| said.contains("sk-expired")).count(), 0);
+
+  cli.go.notify_one();
+  ended.recv().await.unwrap();
+  reader.pass(&keeping, NOW_MS + 660_000).await;
+
+  let main = keeping.read(slot("main")).await.unwrap();
+
+  assert_eq!(main.unread_at, None, "the reading after the run lifts the mark");
+  assert_eq!(main.standing(NOW + 660).count(), 2);
+  assert!(asked.lock().unwrap().contains(&"Bearer sk-renewed".to_owned()));
+  assert_eq!(cli.asked.lock().unwrap().len(), 2, "a login read again asks no run");
+}
+
+// A run that ended without renewing the login is followed by another only once the pace after it was asked
+// has passed, never in the pass after it ends.
+#[tokio::test]
+async fn a_login_still_expired_after_its_run_asks_another_only_after_the_pace() {
+  let scratch = Scratch::new().await;
+  let dir = tempfile::tempdir().unwrap();
+  let expired = dir.path().join("main.json");
+
+  std::fs::write(&expired, credential("sk-expired", NOW_MS - 1)).unwrap();
+
+  let (url, _asked) = usage_endpoint().await;
+  let (cli, mut ended) = stand_in_cli(None);
+  let reader = Arc::new(
+    ClaudeAccounts::new(url, Arc::new(Fixed(vec![directory_login("main", expired)]))).renewing(cli.clone()),
+  );
+  let keeping = Keeping::new(scratch.db().clone(), vec![reader.clone()]);
+
+  reader.pass(&keeping, NOW_MS).await;
+  cli.go.notify_one();
+  ended.recv().await.unwrap();
+  reader.pass(&keeping, NOW_MS + 60_000).await;
+
+  assert_eq!(cli.asked.lock().unwrap().len(), 1, "the pass after a failed run waits out the pace");
+
+  reader.pass(&keeping, NOW_MS + 300_000).await;
+
+  assert_eq!(cli.asked.lock().unwrap().len(), 2, "asked again once the pace has passed");
 }
