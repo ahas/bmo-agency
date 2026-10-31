@@ -2,15 +2,15 @@
 //! master (docs/own-llm.md, 「An engine the arbiter stands」): a run waiting with no clock until its demand is
 //! granted, a demand handed in stood on and left to its caller, work asked within a run's demand lending the
 //! run's card and telling the run its engine stood down, the demands left behind given back at start and
-//! with their lease, a native co-worker's card asked within the demand its caller's turn holds, and one card
-//! shared by the runs out at once on a registration.
+//! with their lease, a native co-worker's card asked within the demand its caller's turn holds, a seat's
+//! admission reading its demand as it stands, and one card shared by the runs out at once on a registration.
 
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
 use agency_server::cards::{
   Ask, Asking, Sharing, give_back_left, give_back_on, give_back_with_leases, hold_on, holding, native_card,
-  share,
+  seat_card_on, share,
 };
 use agency_server::control::pool::Request;
 use agency_server::control::registry::{change, registration, view};
@@ -32,6 +32,8 @@ struct StandIn {
   next: i64,
   demands: BTreeMap<i64, Value>,
   reads: BTreeMap<i64, u32>,
+  /// How long each read asked the answer held open, in milliseconds, in the order the reads came.
+  waits: Vec<u64>,
   given_back: Vec<i64>,
   asked: Vec<Value>,
   /// How many reads a waiting demand waits before its card is granted.
@@ -67,9 +69,13 @@ async fn ask(State(shared): State<Shared>, Json(body): Json<Value>) -> impl Into
 async fn read(
   State(shared): State<Shared>,
   Path(id): Path<i64>,
-  Query(_query): Query<BTreeMap<String, String>>,
+  Query(query): Query<BTreeMap<String, String>>,
 ) -> axum::response::Response {
   let mut stand_in = shared.lock().unwrap();
+  let wait = query.get("waitMs").and_then(|wait| wait.parse::<u64>().ok()).unwrap_or_default();
+
+  stand_in.waits.push(wait);
+
   let reads = {
     let reads = stand_in.reads.entry(id).or_default();
     *reads += 1;
@@ -504,4 +510,74 @@ async fn the_runs_out_at_once_on_a_registration_share_one_demand_given_back_by_t
   assert_eq!(shared.lock().unwrap().asked.len(), 2, "a part out after the last left asks anew");
   again.leave().await;
   assert_eq!(shared.lock().unwrap().given_back.len(), 2);
+}
+
+#[tokio::test]
+async fn a_seat_s_admission_reads_its_demand_as_it_stands_and_answers_at_once() {
+  let scratch = Scratch::new().await;
+  let data = tempfile::tempdir().unwrap();
+  let (master, shared) = stand_in(2, false, &key_file(&data)).await;
+
+  change(
+    scratch.db(),
+    data.path(),
+    &json!({
+      "action": "save", "name": "flash", "model": "m", "contextTokens": 32_768, "answerTokens": 4_096,
+      "waitSeconds": 90, "cardService": "lab-arena", "roleFiles": true,
+    }),
+  )
+  .await
+  .unwrap()
+  .unwrap();
+
+  let seat = Request {
+    sequence: 1,
+    token: "seat-polled".into(),
+    request_key: "research:7".into(),
+    owner: "research:7".into(),
+    source: "search".into(),
+    role: "scout".into(),
+    work_key: "role:scout".into(),
+    generation: 1,
+    ended_at: None,
+    outcome: None,
+    reservation: None,
+    provider: "registered".into(),
+    model: "flash".into(),
+    effort: None,
+    tier: "light".into(),
+    capacity: 1,
+    state: "active".into(),
+    enqueued_at: 1,
+    leased_at: Some(1),
+    child_id: None,
+    yielding: false,
+    place_key: None,
+    turn: false,
+    session: Some("session-7".into()),
+  };
+  let admission = || seat_card_on(scratch.db(), Some(&master), &seat, Some(30));
+
+  // The first admission asks the demand, within the run's; the stand-in grants it on its second read.
+  let asked = admission().await.unwrap().unwrap();
+
+  assert!(!asked.granted() && asked.state == "waiting", "{asked:?}");
+  assert_eq!(shared.lock().unwrap().asked[0]["within"], 30);
+  assert_eq!(ledger(scratch.db()).await, vec![asked.id], "the demand is kept under the seat's lease");
+
+  let waiting = admission().await.unwrap().unwrap();
+
+  assert_eq!(waiting.id, asked.id);
+  assert!(!waiting.granted() && waiting.reason.is_some(), "{waiting:?}");
+
+  let granted = admission().await.unwrap().unwrap();
+
+  assert_eq!(granted.id, asked.id);
+  assert_eq!(granted.node_name.as_deref(), Some("n1"));
+  assert!(granted.granted() && granted.reason.is_none(), "{granted:?}");
+  assert_eq!(
+    shared.lock().unwrap().waits,
+    vec![0, 0],
+    "an admission reads the demand as it stands, holding nothing open at the master"
+  );
 }

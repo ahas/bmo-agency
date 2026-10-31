@@ -660,12 +660,24 @@ impl SeatCard {
 }
 
 /// The card of a seat the pool let in, on a registration naming a card service: the demand its lease
-/// holds, read with its answer held open a while, or asked now — within the asking run's demand where the
-/// admission names one — and kept in the ledger under the lease. None for a registration that names none.
-/// The seat waits for its grant outside its task's clock, so a caller asks again while it waits
-/// (docs/coworker-pool.md, 「Concurrency limits」).
+/// holds, read as it stands, or asked now — within the asking run's demand where the admission names one
+/// — and kept in the ledger under the lease. None for a registration that names none. The seat waits for
+/// its grant outside its task's clock, so a caller asks again while it waits (docs/coworker-pool.md,
+/// 「Concurrency limits」); the read holds nothing open at the master, so every admission answers at once,
+/// within whatever clock the caller's own call runs on.
 pub async fn seat_card(
   ground: &Ground,
+  seat: &crate::control::pool::Request,
+  within: Option<i64>,
+) -> Result<Option<SeatCard>, Refusal> {
+  seat_card_on(&ground.db, master_of(ground).as_ref(), seat, within).await
+}
+
+/// The same, on a master of the caller's; refused where the registration names a card service and no
+/// master is named.
+pub async fn seat_card_on(
+  db: &DatabaseConnection,
+  master: Option<&Master>,
   seat: &crate::control::pool::Request,
   within: Option<i64>,
 ) -> Result<Option<SeatCard>, Refusal> {
@@ -673,15 +685,14 @@ pub async fn seat_card(
     return Ok(None);
   }
 
-  let Some(registration) =
-    registry::registration(&ground.db, &seat.model).await.map_err(|why| fault(why.error))?
+  let Some(registration) = registry::registration(db, &seat.model).await.map_err(|why| fault(why.error))?
   else {
     return Ok(None);
   };
   let Some(service) = registration.card_service.clone() else {
     return Ok(None);
   };
-  let Some(master) = master_of(ground) else {
+  let Some(master) = master else {
     return Err(fault(fill_marks(
       &CONTROL_WORDS.cards.no_master,
       &[("name", &registration.name), ("service", &service)],
@@ -696,16 +707,16 @@ pub async fn seat_card(
     lease: Some(&seat.token),
   };
   let mut quiet = |_: &str| {};
-  let read = match of_lease(&ground.db, &seat.token).await? {
-    Some((demand, _)) => match master.demand(demand, DEMAND_WAIT).await {
+  let read = match of_lease(db, &seat.token).await? {
+    Some((demand, _)) => match master.demand(demand, Duration::ZERO).await {
       Ok(Some(demand)) => demand,
       Ok(None) => {
-        forget(&ground.db, demand).await?;
-        ask_kept(&ground.db, &master, &asking, &mut quiet).await?
+        forget(db, demand).await?;
+        ask_kept(db, master, &asking, &mut quiet).await?
       }
       Err(why) => return Err(fault(why.to_string())),
     },
-    None => ask_kept(&ground.db, &master, &asking, &mut quiet).await?,
+    None => ask_kept(db, master, &asking, &mut quiet).await?,
   };
 
   Ok(Some(SeatCard::of(&read)))

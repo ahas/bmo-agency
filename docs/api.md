@@ -513,7 +513,9 @@ whether the seat was still held, and whether the asking run's own card was lent 
 A seat on a registration naming a card service asks its demand once the pool lets it in (`docs/own-llm.md`,
 「An engine the arbiter stands」): the admission answers `demand` beside `request` — its `id`, `state`,
 `nodeName` once a card is granted and `reason` while it waits, null on any other seat — and answers
-`request` null until the card is granted, the caller asking again, with no clock of agency's. An admission
+`request` null until the card is granted, the caller asking again, with no clock of agency's. The demand is
+read as it stands, never held open at the master, so every admission answers at once and the caller's own
+pace sets how long it waits for its card. An admission
 may name `within`, the asking run's granted demand the seat's own is asked within. The seat's child stands on
 that demand by naming its id as the session's `demandId`. The demand is given back as the seat is finished,
 or, whatever ended its lease, on the pool's next minute; where the asking run's card was lent, the finish
