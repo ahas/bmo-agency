@@ -25,8 +25,6 @@ pub struct FallbackWords {
   pub provider_switch: String,
   pub run_mode: String,
   pub unknown_action: String,
-  pub no_laya: String,
-  pub laya_unset: String,
   pub not_offered: String,
   pub cell_off: String,
   pub cell_off_detail: String,

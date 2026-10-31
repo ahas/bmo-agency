@@ -61,10 +61,7 @@ default differences adopt the shared standard under version 2, as described belo
 review boundary, not an invisible per-agent concrete-model override. Compatibility reads
 expose the snapshot for review; legacy model-write API actions are retired and return HTTP 410. Route-mode and provider-order controls remain available.
 Legacy route model fields are migration evidence only. Fallback display and standing values resolve the tier store; unresolved or missing selections are unavailable rather than replaced with legacy defaults.
-A gate whose provider is Laya reads no tier at all: Laya is not a provider of the tier store, no
-mapping names a Laya model, and the gate is answered by the checkpoint the Laya service names for the
-gate's own key (the gate unit's `laya.md`, 「A gate whose provider is Laya」). Its assignment stays and is read
-again the moment the gate is put back on an LLM.
+Every gate reads its tier as any key does: no gate stands on a provider outside the tier store.
 Assignments and mapping edits never erase this evidence. The final acceptance stage must
 settle any remaining owner-override conflicts before publication. Shared tier edits affect every assigned work key on its next
 resolution; already returned values and historical execution identities do not change.
@@ -331,8 +328,6 @@ is never trusted. Claude Code uses the catalogue its CLI keeps on this machine;
 Codex uses its installed catalogue; each own LLM service uses its one selectable service model. OpenRouter supports no explicit effort on this harness.
 
 Each work key, runner depth and co-work role has a tier assignment. Workers share job-worker.
-A gate on Laya shows its checkpoint in the tier cell instead of a tier, and the cell cannot be
-pressed until the gate is put on an LLM again.
 The assignment form shows effective selections for every provider, including disabled providers,
 missing mappings and unresolved migration conflicts. Accepting a conflict requires an explicit
 review checkbox and saves the selected tier for the work key, accepting all its provider conflicts.

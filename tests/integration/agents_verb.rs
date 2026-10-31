@@ -492,7 +492,7 @@ async fn a_key_s_road_is_set_as_the_console_sets_it_and_a_model_of_its_own_is_re
     ended(&unread),
     (
       2,
-      "usage: bmo-agency agent --route <key> --provider <auto|claude-code|registered|codex|openrouter|deepseek|laya>"
+      "usage: bmo-agency agent --route <key> --provider <auto|claude-code|registered|codex|openrouter|deepseek>"
     )
   );
 

@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::control::claude_accounts::{self, Judging, moment_words};
 use crate::control::harness::{self, provider_order};
-use crate::control::roads::{self, AUTO, LAYA};
+use crate::control::roads::{self, AUTO};
 use crate::control::tiers;
 use crate::events::Event;
 use crate::now_ms;
@@ -269,7 +269,7 @@ impl Resolution {
 
 // The head a key's setting gives its walk: a worker's own pin where the ask names a worker that has one, the
 // fixed model of the agent the key is named after where it keeps one, else the key's row where it names one
-// provider; a gate on Laya and an automatic key walk from the top.
+// provider; an automatic key walks from the top.
 async fn pin_of(ground: &Ground, ask: &Ask<'_>) -> Result<Option<Pin>, String> {
   let db = &ground.db;
 
@@ -290,7 +290,7 @@ async fn pin_of(ground: &Ground, ask: &Ask<'_>) -> Result<Option<Pin>, String> {
 
   let mode = roads::selected_mode(db, ask.key).await.map_err(|refused| refused.error)?;
 
-  Ok((mode != AUTO && mode != LAYA && harness::named(&mode).is_ok()).then_some(Pin {
+  Ok((mode != AUTO && harness::named(&mode).is_ok()).then_some(Pin {
     provider: mode,
     model: None,
   }))

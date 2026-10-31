@@ -15,9 +15,8 @@ roads, as registered models.
 - **The model catalogue** holds the model files the deployment's own engines serve, each with where it
   comes from, where it lies and how it is asked by default; choosing one for an engine fetches, checks
   and installs it (`docs/model-catalogue.md`).
-- **A gate's own classifier provider,** where a gate's profile offers one, answers at an address of the
-  same shape but is no registration: it answers a gate's question with probabilities rather than text,
-  and is a gate's provider of its own (`laya.md`).
+- **No gate has a provider of its own.** Every gate goes out on the providers the other keys do; a route row
+  naming a road this build does not carry reads as the key's default road.
 
 ## A request with no tools
 
@@ -607,8 +606,7 @@ bmo-agency agent --route <work key> [--provider registered] --registration <regi
 
 - **The registry's provider:** the gates each start on the registration their tier maps to there, as
   the tiers are seeded (`docs/model-tiers.md`).
-- **A gate's classifier provider:** the formatting gate starts on its provider and is offered the
-  classifier too (`laya.md`).
+- **The formatting gate** starts on the registry's provider as the other gates do.
 - **No key that is no gate starts on the registry's provider:** the chat or the worker key is
   put on it only by the owner's choice, and the automatic walk reaches it as 「Own services in the
   provider order」 below says.
@@ -619,7 +617,7 @@ bmo-agency agent --route <work key> [--provider registered] --registration <regi
 - **Where:** the run-route and gate tabs of the agent management screen, or with this command:
 
 ```
-bmo-agency agent --route <work key> --provider <auto|claude-code|codex|openrouter|registered|deepseek|laya>
+bmo-agency agent --route <work key> --provider <auto|claude-code|codex|openrouter|registered|deepseek>
 ```
 
 - **Model check:** a registry cell's registration is checked against the registry on saving.
@@ -692,12 +690,6 @@ bmo-agency agent --route <work key> --provider <auto|claude-code|codex|openroute
   registration」).
 - **One ask, and that is all.** It never moves to another provider or model — not on timeout, busy,
   refusal or error.
-- **A gate whose provider is a classifier has one LLM behind it, and only that.** Where the classifier
-  gives no verdict, the gate's fallback LLM is asked once, on its own time limit, and its verdict stands;
-  where it gives none either, the gate's default does (`laya.md`). That LLM is the gate's own setting:
-  unset, the provider the gate's road would begin on with its tier for the gate; none, no LLM at all; or
-  a provider by name, with its tier for the gate. The LLM's own ask follows every rule here — one
-  provider, one ask, nothing behind it.
 - **Why:** waiting for one verdict costs a room more than the value of that verdict, and with one road
   the time a verdict took is the time that road took, so what is slow shows plainly in the record.
 

@@ -1,7 +1,6 @@
 //! Each work key's road as the fallback settings read and set it (docs/cache-fallback.md, 「The per-key
 //! choice is automatic or one provider」): the route row the owner wrote, the provider the key's road
-//! begins on, the roads the key is offered with why each is shut, and Laya for a gate whose profile
-//! says Laya can give its whole verdict, the gate's own service, which runs on no agent provider.
+//! begins on, and the roads the key is offered with why each is shut.
 
 use harness_providers::{ARCHIVE_PROVIDERS, Machine, Provider, Reason, providers};
 use policy::control_words::CONTROL_WORDS;
@@ -14,9 +13,6 @@ use super::Refused;
 use super::harness::{enabled_providers, named, offered_reason, provider_enabled};
 use super::registry;
 use store::{one, run};
-
-/// The road of a gate that stands on Laya, which is no agent provider.
-pub const LAYA: &str = "laya";
 
 /// The road that walks the providers in the owner's order.
 pub const AUTO: &str = "auto";
@@ -37,9 +33,9 @@ pub fn profile(key: &str) -> Option<&'static Profile> {
   WORK_KEYS.profile(key)
 }
 
-/// Whether a road may stand in a route row: the walk, a provider this build carries, or Laya.
+/// Whether a road may stand in a route row: the walk, or a provider this build carries.
 pub fn is_route_mode(mode: &str) -> bool {
-  mode == AUTO || mode == LAYA || ARCHIVE_PROVIDERS.contains(&mode)
+  mode == AUTO || ARCHIVE_PROVIDERS.contains(&mode)
 }
 
 /// The row the owner wrote for a key, or none.
@@ -67,20 +63,21 @@ pub fn default_mode(key: &str) -> &str {
   profile(key).map_or(AUTO, |profile| profile.default_route_mode.as_str())
 }
 
-/// The road the key stands on: the owner's row, or its profile's default.
+/// The road the key stands on: the owner's row, or its profile's default where none stands or the row names a
+/// road this build does not carry.
 pub async fn selected_mode(db: &DatabaseConnection, key: &str) -> Result<String, Refused> {
   Ok(match route_row(db, key).await? {
-    Some(row) => row.route_mode,
-    None => default_mode(key).to_owned(),
+    Some(row) if is_route_mode(&row.route_mode) => row.route_mode,
+    _ => default_mode(key).to_owned(),
   })
 }
 
 /// The one provider a key is set to run on, or none where it walks: a key set to a provider the owner
-/// has turned off walks too, and a gate on Laya runs on no agent provider.
+/// has turned off walks too.
 pub async fn pinned_provider(db: &DatabaseConnection, key: &str) -> Result<Option<String>, Refused> {
   let mode = selected_mode(db, key).await?;
 
-  if mode == AUTO || mode == LAYA || !provider_enabled(db, &mode).await? {
+  if mode == AUTO || !provider_enabled(db, &mode).await? {
     return Ok(None);
   }
 
@@ -131,16 +128,13 @@ pub async fn road_provider(db: &DatabaseConnection, key: &str) -> Result<String,
   enabled.first().cloned().ok_or_else(|| Refused::failed("no provider is on"))
 }
 
-/// One road a key is offered: a provider, or Laya, selectable or shut with the reason why.
+/// One road a key is offered: a provider, selectable or shut with the reason why.
 #[derive(Clone, Debug)]
 pub struct OfferedRoad {
   pub name: String,
   pub label: String,
   pub reason: Option<Reason>,
 }
-
-/// The code of the reason Laya gives where the process names no address to ask it at.
-pub const LAYA_UNSET: &str = "laya-url-unset";
 
 impl OfferedRoad {
   pub fn view(&self) -> Value {
@@ -155,15 +149,13 @@ impl OfferedRoad {
 }
 
 /// Every road a work key may be put on: each provider on its line, shut where this machine lacks it or
-/// its program does not carry the line, and Laya for a gate whose profile offers it, shut where the
-/// process names no address to ask it at.
+/// its program does not carry the line.
 pub async fn offered_roads(
   db: &DatabaseConnection,
   machine: &Machine,
   key: &str,
 ) -> Result<Vec<OfferedRoad>, Refused> {
-  let profile = profile(key);
-  let line = profile.map_or("worker", |profile| profile.line.as_str());
+  let line = profile(key).map_or("worker", |profile| profile.line.as_str());
   let mut roads = Vec::new();
 
   for provider in providers() {
@@ -171,16 +163,6 @@ pub async fn offered_roads(
       name: provider.name().to_owned(),
       label: provider.declared().label.clone(),
       reason: offered_reason(db, machine, provider, line).await?,
-    });
-  }
-
-  if profile.is_some_and(|profile| profile.laya_road) {
-    let addressed = machine.var("BMO_LAYA_URL").is_some_and(|url| !url.trim().is_empty());
-
-    roads.push(OfferedRoad {
-      name: LAYA.to_owned(),
-      label: "Laya".to_owned(),
-      reason: (!addressed).then(|| Reason::new(LAYA_UNSET, &CONTROL_WORDS.fallback.laya_unset)),
     });
   }
 

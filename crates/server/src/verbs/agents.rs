@@ -31,7 +31,7 @@ use crate::control::claude_account_changes::{
 use crate::control::claude_accounts::{self, CredentialKind, EndpointModels, Judging, accounts};
 use crate::control::harness::{OrderEntry, provider_order, set_provider_order};
 use crate::control::registry::{self, registrations};
-use crate::control::roads::{self, LAYA};
+use crate::control::roads;
 use crate::control::tiers;
 use crate::now_ms;
 use crate::places::Ground;
@@ -970,7 +970,7 @@ async fn route_mode(
   let mode = args.provider.as_deref().unwrap_or_default();
 
   if roads::profile(key).is_none() || !roads::is_route_mode(mode) {
-    let modes: Vec<&str> = std::iter::once(roads::AUTO).chain(build_providers()).chain([LAYA]).collect();
+    let modes: Vec<&str> = std::iter::once(roads::AUTO).chain(build_providers()).collect();
 
     return Ok(
       said.misread(format!("usage: bmo-agency agent --route <key> --provider <{}>", modes.join("|"))),
@@ -985,10 +985,7 @@ async fn route_mode(
 
   roads::set_mode(&stand.ground.db, key, mode, now_seconds()).await.map_err(failed)?;
 
-  let laya = roads::selected_mode(&stand.ground.db, key).await.map_err(failed)? == LAYA;
-  let on = if laya {
-    "Laya, its own checkpoint".to_owned()
-  } else {
+  let on = {
     let provider = roads::road_provider(&stand.ground.db, key).await.map_err(failed)?;
     let model = tiers::resolve(&stand.ground.db, key, &provider)
       .await
@@ -1703,7 +1700,6 @@ async fn agent_line(db: &DatabaseConnection, agent: &Agent, now: i64) -> Result<
   };
   let configured = match &route {
     None => String::new(),
-    Some(route) if route.laya => " configured laya".to_owned(),
     Some(route) => format!(
       " configured {}/{}{}",
       route.provider,
@@ -1720,7 +1716,6 @@ async fn agent_line(db: &DatabaseConnection, agent: &Agent, now: i64) -> Result<
     ),
   };
   let model = match &route {
-    Some(route) if route.laya => "laya",
     Some(route) => route.model.as_deref().unwrap_or("-"),
     None => "-",
   };

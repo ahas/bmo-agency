@@ -10,13 +10,12 @@ import { isFallbackRouteMode } from "./work-profile";
 
 import type { GenerationValues } from "./generation-settings";
 import type { RunLine } from "./run-lines";
-import type { CodexChoice, DeploymentWork, FallbackRouteMode, LayaMode, WorkProfile } from "./work-profile";
+import type { CodexChoice, DeploymentWork, FallbackRouteMode, WorkProfile } from "./work-profile";
 
 // The kinds of work a key names: the chat agent's own, the job worker's, a runner line's and a gate's.
 export type WorkKind = "bmo" | "worker" | "runner" | "gate";
 
 const kinds: readonly WorkKind[] = ["bmo", "worker", "runner", "gate"];
-const layaModes: readonly LayaMode[] = ["off", "shadow", "filter", "asymmetric"];
 
 // A profile as the policy's file declares it.
 interface DeclaredProfile {
@@ -32,10 +31,6 @@ interface DeclaredProfile {
   gate_sampling?: Record<string, unknown>;
   answer_floor?: number;
   thinking_answer_floor?: number;
-  laya_mode?: string;
-  laya_road?: boolean;
-  laya_each?: boolean;
-  laya_safe?: boolean;
   switchable?: boolean;
   holds_no_session?: boolean;
 }
@@ -48,9 +43,6 @@ function profileOf(declared: DeclaredProfile): WorkProfile<string, WorkKind, Run
   if (!(kinds as readonly string[]).includes(declared.kind)) refused(`a kind no work has: ${declared.kind}`);
   if (!isFallbackRouteMode(declared.default_route_mode)) refused(`a road no key takes: ${declared.default_route_mode}`);
   if (!(declaredTiers.ladder as string[]).includes(declared.tier)) refused(`a tier off the ladder: ${declared.tier}`);
-  if (declared.laya_mode !== undefined && !(layaModes as readonly string[]).includes(declared.laya_mode)) {
-    refused(`a Laya mode there is none of: ${declared.laya_mode}`);
-  }
 
   for (const [name, value] of Object.entries(declared.gate_sampling ?? {})) {
     const setting = generationSetting(name);
@@ -74,11 +66,7 @@ function profileOf(declared: DeclaredProfile): WorkProfile<string, WorkKind, Run
     ...(gateSampling === undefined ? {} : { gateSampling }),
     ...(declared.answer_floor === undefined ? {} : { answerFloor: declared.answer_floor }),
     ...(declared.thinking_answer_floor === undefined ? {} : { thinkingAnswerFloor: declared.thinking_answer_floor }),
-    ...(declared.laya_mode === undefined ? {} : { layaMode: declared.laya_mode as LayaMode }),
     // A mark the file sets stands on the profile as true, and one it leaves out is absent.
-    ...(declared.laya_road === true ? { layaRoad: true as const } : {}),
-    ...(declared.laya_each === true ? { layaEach: true as const } : {}),
-    ...(declared.laya_safe === true ? { layaSafe: true as const } : {}),
     ...(declared.switchable === true ? { switchable: true as const } : {}),
     ...(declared.holds_no_session === true ? { holdsNoSession: true as const } : {}),
   };

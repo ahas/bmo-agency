@@ -42,13 +42,6 @@ pub struct Profile {
   pub gate_pool: Option<usize>,
   pub answer_floor: Option<i64>,
   pub thinking_answer_floor: Option<i64>,
-  pub laya_mode: Option<String>,
-  #[serde(default)]
-  pub laya_road: bool,
-  #[serde(default)]
-  pub laya_each: bool,
-  #[serde(default)]
-  pub laya_safe: bool,
   #[serde(default)]
   pub switchable: bool,
   #[serde(default)]

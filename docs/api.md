@@ -587,7 +587,7 @@ fallback's `order`, and each road a work key is `offered`, answers `reason`, the
 `reasonCode`, its kebab-case code, both null on a road that can be taken; a tier's cell answers its
 provider's as `error` and `errorCode`, the code null where the error is the resolution's own. The codes
 are a provider's own, from its policy file, and agency's `line-not-carried`, a provider whose program does
-not carry the key's line, and `laya-url-unset`.
+not carry the key's line.
 
 Each work key's member of the fallback's `routes` answers, beside its `routeMode` and `account`, its
 `registration`: the registration the key runs on at the registry's provider in place of its tier's cell,
@@ -679,9 +679,8 @@ way, goes out on the provider its key is set to, and a key set to the registry's
 of its own goes out on that registration.
 
 `runMode` is the road the key stands on: the route the owner wrote for it, else its profile's default —
-`auto` for the walk, a provider's name, or `laya` for a gate whose classifier answers it. A gate on `laya`
-runs no model the read names; the provider and model it answers are where the walk would take the key, the
-road its fallback LLM begins on where it names none.
+`auto` for the walk or a provider's name. A route row naming a road this build does not carry reads as the
+profile's default.
 
 A block is a resource with an id: its selection — `provider::model` — the moment it opens again in epoch
 milliseconds and the reason it was closed. A list returns the blocks whose moment is still ahead, narrowed

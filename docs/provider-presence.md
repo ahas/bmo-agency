@@ -92,6 +92,4 @@ flowchart TD
   - the listing's stand-in address in `BMO_OPENROUTER_LISTING_URL`;
   - a balance's stand-in address in `BMO_DEEPSEEK_BALANCE_URL` or `BMO_OPENROUTER_BALANCE_URL`
     (`docs/usage-windows.md`, 「Balances」);
-  - a catalogue file under the login's configuration directory;
-  - beside the providers, the gate's model server address in `BMO_LAYA_URL`, or none, for the routes
-    that offer it to a gate.
+  - a catalogue file under the login's configuration directory.

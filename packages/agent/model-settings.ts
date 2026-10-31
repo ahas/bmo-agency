@@ -1,7 +1,7 @@
 import queueWords from "@agency/policy/queue-words.toml";
 import { carriesWorkLine, provider as providerNamed, walkedProvider } from "./agent-providers";
 import { enabledProviders, providerEnabled } from "./provider-order";
-import { isWorkKey, layaRoad, workProfile } from "./work-profile";
+import { isFallbackRouteMode, isWorkKey, workProfile } from "./work-profile";
 
 import type { Archive } from "@agency/archive/archive";
 import type { FallbackRouteMode } from "./work-profile";
@@ -76,16 +76,18 @@ export function installModelSettings(store: Archive | null): void {
 
 // The road a work key is on: the owner's row where the owner wrote one, the key's profile otherwise.
 export async function selectedRouteMode(store: Archive, key: string): Promise<FallbackRouteMode> {
-  return (await store.fallbacks().fallbackRoute(key))?.routeMode ?? (isWorkKey(key) ? workProfile(key).defaultRouteMode : "auto");
+  const stored: string | undefined = (await store.fallbacks().fallbackRoute(key))?.routeMode;
+
+  // A row naming a road this build does not carry reads as the key's default.
+  return stored !== undefined && isFallbackRouteMode(stored) ? stored : isWorkKey(key) ? workProfile(key).defaultRouteMode : "auto";
 }
 
 // The one provider a key is set to run on, or null where the key walks automatically. A key set
-// to a provider the owner has turned off walks automatically too, so it reads as null here, and so
-// does a gate on Laya, which runs on no agent provider at all and asks none of this.
+// to a provider the owner has turned off walks automatically too, so it reads as null here.
 export async function pinnedProvider(store: Archive, key: string): Promise<TierProvider | null> {
   const mode = await selectedRouteMode(store, key);
 
-  return mode === "auto" || mode === layaRoad || !await providerEnabled(store, mode) ? null : mode;
+  return mode === "auto" || !await providerEnabled(store, mode) ? null : mode;
 }
 
 // What a worker is pinned to, or null where it follows the worker key's road: a provider, and one

@@ -13,11 +13,6 @@
 # Each profile names its key, the label a screen shows, its kind (bmo, worker, runner or gate), the
 # run line it goes out on, the road it takes where the owner wrote none, the tier it starts on, and
 # the Claude and Codex choices the tier store's first seed drew on. A gate may add:
-# - laya_mode: its Laya mode where the owner chose none; a gate
-#   without one has no probe;
-# - laya_road: Laya may be its provider, since its probe reads every verdict it gives;
-# - laya_each: Laya settles it one question at a time;
-# - laya_safe: its probe names a safe verdict, which lets it be filtered asymmetrically;
 # - switchable: the owner may switch it off, since its caller has a way of its own without it;
 # - holds_no_session: its turns are asked about a session rather than held as one;
 # - gate_answer_tokens: the room its answer is given, where its answer is not the shape the common
@@ -102,23 +97,18 @@ default_route_mode = "registered"
 default_claude_model = "claude-haiku-4-5-20251001"
 tier = "Simple"
 default_codex = { model = "gpt-5.6-luna", effort = "low" }
-laya_mode = "off"
-laya_safe = true
 
-# The formatting gate decides the fold alone, and Laya answers it: the model a road would run it on is
-# what it stands on only where somebody puts it on one.
+# The formatting gate decides the fold alone, on the registry's provider as the other small gates do.
 [[profile]]
 key = "output-format"
 label = "Output format gate"
 gate_sampling = { temperature = 0.1, top_p = 0.8, top_k = 20, min_p = 0 }
 kind = "gate"
 line = "gate"
-default_route_mode = "laya"
+default_route_mode = "registered"
 default_claude_model = "claude-haiku-4-5-20251001"
 tier = "Simple"
 default_codex = { model = "gpt-5.6-luna", effort = "low" }
-laya_mode = "shadow"
-laya_road = true
 prefix_role = "gate"
 
 # The translator runner's key (docs/launch-lines.md, 「Translate runner」): the registered translation model

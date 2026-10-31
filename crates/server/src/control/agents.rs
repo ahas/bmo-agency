@@ -19,7 +19,7 @@ use serde_json::{Map, Value, json};
 use super::agent_switches::{owns_reasoning, turn_gates_of};
 use super::claude_accounts::Judging;
 use super::harness::{enabled_providers, levels, line_provider, named, provider_enabled};
-use super::roads::{self, LAYA};
+use super::roads;
 use super::{Call, Refused, Route, answer, registry, setting, tiers};
 use crate::conversational::{Scope, Settings};
 use store::{all, one};
@@ -216,12 +216,10 @@ impl Agent {
   }
 }
 
-/// What an agent is configured to begin on: the provider its first road is on and the model there,
-/// none where the key stands on Laya, whose checkpoint is the service's to name.
+/// What an agent is configured to begin on: the provider its first road is on and the model there.
 pub struct Configured {
   pub provider: String,
   pub model: Option<String>,
-  pub laya: bool,
 }
 
 // Whether a directory is a git checkout.
@@ -320,7 +318,6 @@ pub async fn configured(db: &DatabaseConnection, agent: &Agent) -> Option<Config
     _ if agent.pinned_provider.is_some() => agent.pinned_provider.clone().map(|provider| Configured {
       provider,
       model: agent.pinned_model.clone(),
-      laya: false,
     }),
     _ if agent.conversation.is_some() => supervisor_choice(db).await,
     _ => match roads::profile(&agent.name).map(|profile| profile.line.as_str()) {
@@ -348,12 +345,9 @@ async fn road_choice(db: &DatabaseConnection, key: &str) -> Result<Configured, R
     .await
     .map(|mapping| mapping.model)
     .unwrap_or_default();
-  let laya = roads::selected_mode(db, key).await? == LAYA;
-
   Ok(Configured {
     provider,
-    model: (!laya && !model.is_empty()).then_some(model),
-    laya,
+    model: (!model.is_empty()).then_some(model),
   })
 }
 
@@ -364,7 +358,6 @@ async fn runner_choice(db: &DatabaseConnection, key: &str) -> Result<Configured,
   Ok(Configured {
     provider,
     model: Some(mapping.model),
-    laya: false,
   })
 }
 
@@ -456,17 +449,16 @@ pub fn job_choice(selection: &str) -> Option<Configured> {
   Some(Configured {
     provider: (*provider).to_owned(),
     model: Some(found[2].to_owned()),
-    laya: false,
   })
 }
 
 // What a screen calls the provider and the model an agent begins on: the provider's own label, and the
-// registration's where the model is one; none where the agent begins on nothing, or on Laya.
+// registration's where the model is one; none where the agent begins on nothing.
 async fn start_labels(
   db: &DatabaseConnection,
   configured: Option<&Configured>,
 ) -> Result<(Option<String>, Option<String>), Refused> {
-  let Some(configured) = configured.filter(|one| !one.laya) else {
+  let Some(configured) = configured else {
     return Ok((None, None));
   };
   let provider = named(&configured.provider)?;
@@ -493,7 +485,7 @@ async fn reasoning_view(
     return Value::Null;
   }
 
-  let reaches = match configured.filter(|one| !one.laya).map(|one| (named(&one.provider), one)) {
+  let reaches = match configured.map(|one| (named(&one.provider), one)) {
     Some((Ok(provider), configured)) => {
       let levels =
         levels(judging, machine, provider, configured.model.as_deref().unwrap_or_default()).await;

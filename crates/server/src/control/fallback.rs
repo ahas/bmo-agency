@@ -25,8 +25,8 @@ use super::harness::{
   provider_order, set_provider_order,
 };
 use super::roads::{
-  LAYA, OfferedRoad, is_route_mode, mode_refusal, offered_roads, pinned_provider, profile,
-  registration_refusal, route_row, set_account, set_mode, set_registration,
+  OfferedRoad, is_route_mode, mode_refusal, offered_roads, pinned_provider, profile, registration_refusal,
+  route_row, set_account, set_mode, set_registration,
 };
 use super::{Call, Refused, Route, answer, registry, setting, tiers};
 use crate::now_ms;
@@ -253,31 +253,22 @@ async fn profile_view(
 
   let route_mode = row
     .as_ref()
+    .filter(|row| is_route_mode(&row.route_mode))
     .map_or_else(|| profile.default_route_mode.clone(), |row| row.route_mode.clone());
   let offered = offered_roads(db, machine, key).await?;
-  let available = if route_mode == LAYA {
-    offered.iter().any(|one| one.name == LAYA && one.reason.is_none())
-  } else {
-    let mut any = false;
+  let mut available = false;
 
-    for one in &offered {
-      if one.name != LAYA
-        && one.reason.is_none()
-        && !errors.contains_key(one.name.as_str())
-        && provider_enabled(db, &one.name).await?
-      {
-        any = true;
-        break;
-      }
+  for one in &offered {
+    if one.reason.is_none()
+      && !errors.contains_key(one.name.as_str())
+      && provider_enabled(db, &one.name).await?
+    {
+      available = true;
+      break;
     }
+  }
 
-    any
-  };
-  let no_route = if route_mode == LAYA {
-    &CONTROL_WORDS.fallback.no_laya
-  } else {
-    &CONTROL_WORDS.fallback.no_provider
-  };
+  let no_route = &CONTROL_WORDS.fallback.no_provider;
   let model = |provider: &str| choices.get(provider).map(|one| one.model.clone());
   let codex = choices.get("codex");
   let view = json!({

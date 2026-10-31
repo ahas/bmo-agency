@@ -234,11 +234,13 @@ async fn a_route_read_with_no_provider_begins_on_the_key_s_own_road_and_registra
       vec![],
     )
     .await;
-  // The translator set to the registry's provider on a registration of its own; a gate on Laya walks.
+  // The translator set to the registry's provider on a registration of its own; a gate set to walk walks; a
+  // row naming a road this build does not carry reads as the key's default.
   scratch
     .run(
       r#"INSERT INTO "fallback_routes" ("key", "set_at", "route_mode", "registration")
-         VALUES ('translator', 1, 'registered', 'own-pick'), ('output-format', 1, 'laya', NULL)"#,
+         VALUES ('translator', 1, 'registered', 'own-pick'), ('output-format', 1, 'auto', NULL),
+           ('sanitizer', 1, 'laya', NULL)"#,
       vec![],
     )
     .await;
@@ -259,13 +261,21 @@ async fn a_route_read_with_no_provider_begins_on_the_key_s_own_road_and_registra
   assert_eq!(
     walked["provider"],
     json!("deepseek"),
-    "a key on Laya names no provider and walks the order"
+    "a key set to walk names no provider and walks the order"
   );
   assert_eq!(pinned["runMode"], json!("registered"), "the road the key is set to");
   assert_eq!(
     walked["runMode"],
-    json!("laya"),
+    json!("auto"),
     "the road the key stands on, never a word of the read's own"
+  );
+
+  let (_, retired) = get(port, token, "/work-keys/sanitizer?tier=Reliable").await;
+
+  assert_eq!(
+    retired["runMode"],
+    json!(agency_server::control::roads::default_mode("sanitizer")),
+    "{retired}"
   );
 }
 
@@ -287,7 +297,7 @@ async fn the_walk_passes_over_a_shut_road_and_a_key_set_to_a_provider_stays_on_i
     .await;
   scratch
     .run(
-      r#"INSERT INTO "fallback_routes" ("key", "set_at", "route_mode") VALUES ('output-format', 1, 'laya'),
+      r#"INSERT INTO "fallback_routes" ("key", "set_at", "route_mode") VALUES ('output-format', 1, 'auto'),
            ('sanitizer', 1, 'deepseek'), ('translator', 1, 'auto')"#,
       vec![],
     )
@@ -299,7 +309,7 @@ async fn the_walk_passes_over_a_shut_road_and_a_key_set_to_a_provider_stays_on_i
 
   assert_eq!(
     (&before["provider"], &before["runMode"]),
-    (&json!("deepseek"), &json!("laya")),
+    (&json!("deepseek"), &json!("auto")),
     "{before}"
   );
 

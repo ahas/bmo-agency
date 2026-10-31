@@ -1,8 +1,4 @@
-import { fallbackRouteModes, isFallbackRouteMode, layaRoad } from "@agency/archive/route-modes";
-
-// A gate's Laya mode, as the gate unit names it (docs/api.md, 「Hooks」): carried with the profile and
-// read by nothing here.
-export type LayaMode = "off" | "shadow" | "filter" | "asymmetric";
+import { fallbackRouteModes, isFallbackRouteMode } from "@agency/archive/route-modes";
 import type { Sampling } from "./harness";
 import type { FallbackRouteMode } from "@agency/archive/route-modes";
 
@@ -12,7 +8,7 @@ import type { FallbackRouteMode } from "@agency/archive/route-modes";
 // happens to do that work today, so a launch-model change never silently moves another work's road.
 
 // The route modes a key may take stand with the archive, which stores them (`route-modes.ts`).
-export { fallbackRouteModes, isFallbackRouteMode, layaRoad };
+export { fallbackRouteModes, isFallbackRouteMode };
 export type { FallbackRouteMode };
 
 export interface CodexChoice {
@@ -51,18 +47,6 @@ export interface WorkProfile<Key extends string = string, Kind extends string = 
   // thinking is written out of the same room before the answer, so a work whose answer is a whole
   // document needs room for both; none leaves `answerFloor` alone.
   thinkingAnswerFloor?: number;
-  // The Laya mode of a gate that declares a Laya probe, where the owner has chosen none.
-  // A gate without one has no probe, and no mode but off is
-  // taken for it.
-  layaMode?: LayaMode;
-  // Whether Laya may be this gate's provider: its probe reads every verdict the gate gives, and the
-  // gate names the verdict it takes when Laya gives none. Only such a gate is offered Laya.
-  layaRoad?: true;
-  // Whether Laya settles this gate one question at a time: its probe says how its input narrows to
-  // some of its questions and how two parts of a verdict join. Its agreement is counted by question.
-  layaEach?: true;
-  // Whether its probe names a safe verdict, which is what lets it be filtered asymmetrically.
-  layaSafe?: true;
   // Whether the owner may switch this gate off: its caller has a way of its own without it, so a
   // gate switched off is simply not asked. Every other gate always runs.
   switchable?: true;
@@ -72,7 +56,7 @@ export interface WorkProfile<Key extends string = string, Kind extends string = 
 }
 
 // The deployment's work: every profile it runs, which of those keys are gates — the keys a
-// judgement runs under, whose options and Laya settings are a gate's own — and the two keys the
+// judgement runs under, whose options are a gate's own — and the two keys the
 // base itself has to tell apart: the chat's, whose session is kept in settings of its own, and the
 // one a job's turns run under, whose scopes carry the worker's name after it. The deployment hands
 // them over as a function, read the first time they are asked for; a read with nothing composed
