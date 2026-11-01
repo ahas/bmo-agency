@@ -516,7 +516,12 @@ async fn naming_a_card_service_takes_the_addresses_away_and_refuses_new_ones() {
 
 // The registration `flash` naming the card service `lab-arena`, and what a card its runs share is asked
 // with: the stand-in as the master and as the gateway, its key file readable as the gateway's is.
-async fn shared_ask(db: &sea_orm::DatabaseConnection, data: &tempfile::TempDir, master: &Master, shared: &Shared) -> SharedAsk {
+async fn shared_ask(
+  db: &sea_orm::DatabaseConnection,
+  data: &tempfile::TempDir,
+  master: &Master,
+  shared: &Shared,
+) -> SharedAsk {
   change(
     db,
     data.path(),
@@ -630,7 +635,11 @@ async fn a_part_let_go_while_the_shared_demand_waits_leaves_it_to_the_rest_and_t
   third.abort();
   until(&shared, |stand_in| !stand_in.given_back.is_empty()).await;
 
-  assert_eq!(shared.lock().unwrap().given_back, vec![demand], "given back by the last let go, still waiting");
+  assert_eq!(
+    shared.lock().unwrap().given_back,
+    vec![demand],
+    "given back by the last let go, still waiting"
+  );
   assert_eq!(shared.lock().unwrap().asked.len(), 1);
   assert!(ledger(db).await.is_empty());
 
