@@ -727,3 +727,24 @@ fn the_manual_holds_a_line_for_the_voice_to_its_two_texts() {
   }
   assert!(!voice.contains('"'), "a rule, with no sentence for the agent to repeat: {voice}");
 }
+
+#[test]
+fn words_handed_to_the_supervisor_are_said_in_its_own_voice_with_their_facts_and_intent_kept() {
+  let system = composed();
+  let handed = section(&system, "WORDS HANDED TO YOU");
+
+  for said in [
+    "Every message a room receives comes from that room's supervisor",
+    "hands it to you as an instruction, and nothing of it has reached the room",
+    "names who handed it and what was asked of the room",
+    "in your own words and your own voice",
+    "or answer <<SKIP>> where it is not worth saying",
+    "Keep its facts exact: every number",
+    "Keep the intent of whoever handed it",
+    "A voice note stays a voice note",
+    "unless the room's state makes it pointless",
+  ] {
+    assert!(handed.contains(said), "{said}: {handed}");
+  }
+  assert!(!handed.contains('"'), "a rule, with no sentence for the agent to repeat: {handed}");
+}

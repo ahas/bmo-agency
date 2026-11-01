@@ -185,10 +185,11 @@ made of is `docs/companions.md`.
   (`chat-providers.md`, `speakers`). The chat agent is the road's own voice and names no
   speaker. A road that speaks as the bot alone refuses another agent's send rather than file it as
   the chat agent's.
-- **A send no agent's turn makes** — a job's check, a person at a shell, a runner of its own — is the
-  bot's own voice, the chat agent's. It is asked whether that agent answers the room and whether the road
-  carries the verb; a role is asked of an agent's turn alone, since no turn's bundles stand behind
-  such a send.
+- **Only an agent's own round sends.** The receiver carries a send where the agent's round is working in
+  the room the turn answers and no job asks it. A send anything else asks — a job's check, a worker, a
+  person at a shell, a runner of its own, a script — goes out nowhere: the receiver hands its words to the
+  room's supervisor as a quiet instruction, and that supervisor says them in its own turn, in its own words
+  and voice, or lets them go (the receiver's `docs/messages.md`, 「Words handed to the room's supervisor」).
 - **Another agent's room stays closed:** an agent never sends into a room it does not answer,
   whatever its role.
 
