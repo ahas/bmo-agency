@@ -92,7 +92,9 @@ flowchart TD
   application plan, the open questions and the sources.
 - **What is still open is only what no job can reach now,** each with what puts it there. A value a
   job could have measured is measured, never marked `추정` or `확인 필요`.
-- **The narration** is written by the rules of a deep dive's, `deep-dives.md` 「The narration」.
+- **The narration** is written by the rules of a deep dive's, `deep-dives.md` 「The narration」: the
+  written words, names and figures as written, from which the voice unit derives and checks the spoken
+  words.
 - **It is reported only once its voice is ready.** `archive-doc` launches the narration and returns
   before it is spoken. Wait, marked as the `bmo-marking-a-wait` skill says, until the document keeps its
   sound: an attachment of media `audio` on the document, read with

@@ -106,13 +106,27 @@ composed into a system prompt, and what the chat agent's own prompt is made of.
   - A game anyone asks for — a word game, a quiz — is played like any other request, and a member
     who has become a drain is answered briefly instead.
 - **`prompts/agents/chat/manual.md` is the operating manual** — long work, the queue and the owner's
-  approval, the worker's run and its close, host work, the fast track, images, the response protocol
-  with its sentinels, the language an answer is written in, what the room hears of the agent's tools,
+  approval, the worker's run and its close, host work, the fast track, images, a line for the voice,
+  the response protocol with its sentinels, the language an answer is written in, what the room hears
+  of the agent's tools,
   the draft process, the answer rules, promises, and a turn past its clock. It says how a message of each kind reaches the
   agent, a voice note among them arriving as what was said in it rather than as a placeholder it cannot open. It is how
   the chat agent works at all, and it says when to act.
   It names no tool of the program the session runs on, since one manual serves every program the chat
   stands on.
+- **A line that goes to the voice is two texts,** and every prompt of an agent that hands words to the
+  voice says so where it does: the manual for the chat agent, the video role for its narration, the
+  worker plugin's skills for a document's narration. The written words are what people read — a caption,
+  the reading folded under a voice note, a transcript, a narration kept beside its page — and stay as the
+  agent would write them, names, acronyms and figures included. The spoken words are what the voice
+  synthesises: the same words as a Korean reader says them aloud, every foreign name, acronym, product and
+  model name in its Korean reading, the platform's name read as Korean says it, every figure in the words
+  a reader says, an address, a path, code and markup said in a few words or left out, and nothing else
+  added, dropped or moved. The agent writes them itself, judging each reading from its context, and passes
+  them beside the written words, or passes the written words alone for the voice unit to derive them; the
+  voice unit checks them either way and refuses spoken words that still hold a Latin letter, a digit, an
+  address, a path or markup, naming the first such run, which the agent corrects and sends again. The
+  rule is a rule, with no example reading in it, since an example becomes the agent's own phrasing.
 - **The tools paragraph follows the manual,** composed at each launch for the program the session runs
   on, in the words `policy/chat-line.toml` holds for it: that program's own tools by their names — on
   Claude Code the tools the line shows, on dsh the tools the overlay leaves its session —, the servers

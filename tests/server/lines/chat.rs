@@ -677,3 +677,23 @@ async fn the_chat_s_servers_file_items_for_its_agent_and_the_job_plugin_serves_n
   assert!(config["mcpServers"]["job"].is_object(), "{config}");
   assert!(config["mcpServers"]["explorer"].is_object(), "{config}");
 }
+
+#[test]
+fn the_manual_holds_a_line_for_the_voice_to_its_two_texts() {
+  let system = composed();
+  let voice = section(&system, "A LINE FOR THE VOICE");
+
+  for said in [
+    "is two texts",
+    "They stay exactly as you would write the line",
+    "the same words as a Korean reader says them aloud",
+    "the platform's name, BMO, is read",
+    "no word added, dropped or moved",
+    "--spoken",
+    "the voice unit derives the spoken words",
+    "naming the first such run; correct that run and send again",
+  ] {
+    assert!(voice.contains(said), "{said}: {voice}");
+  }
+  assert!(!voice.contains('"'), "a rule, with no sentence for the agent to repeat: {voice}");
+}
