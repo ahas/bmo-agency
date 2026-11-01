@@ -49,6 +49,10 @@ description: "How a job puts something in front of the owner: a decision that is
     `--narration <file>`: a script for the ear by the rules of a deep dive's, in
     `~/.local/share/bmo-research/deploy/prompts/rules/deep-dives.md` 「The narration」, spoken in the chat agent's
     voice and kept at the document's head as its 들으며 보세요 band.
+  - The narration file is the written words, kept as the narration's transcript: names, acronyms and
+    figures stand as you would write them. The voice unit derives the spoken words from it, the same
+    words as a Korean reader says them aloud, and checks them; a narration it refuses names the first run
+    it could not clear, and is launched again as the `bmo-tools-researching-and-benching` skill says.
   - A document with a narration is handed over only once its sound is kept: `archive-doc` returns
     before the narration is spoken, and the `bmo-tools-researching-and-benching` skill says how to wait for it.
   - The console address it prints goes into your question, or opens your report as the
