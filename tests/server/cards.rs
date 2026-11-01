@@ -3,14 +3,15 @@
 //! granted, a demand handed in stood on and left to its caller, work asked within a run's demand lending the
 //! run's card and telling the run its engine stood down, the demands left behind given back at start and
 //! with their lease, a native co-worker's card asked within the demand its caller's turn holds, a seat's
-//! admission reading its demand as it stands, and one card shared by the runs out at once on a registration.
+//! admission reading its demand as it stands, a seat standing on its caller's own demand with none asked,
+//! and one card shared by the runs out at once on a registration.
 
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
 use agency_server::cards::{
-  Ask, Asking, Sharing, give_back_left, give_back_on, give_back_with_leases, hold_on, holding, native_card,
-  seat_card_on, share,
+  Ask, Asking, Sharing, give_back_lease, give_back_left, give_back_on, give_back_with_leases, hold_on,
+  holding, native_card, seat_card_on, share,
 };
 use agency_server::control::pool::Request;
 use agency_server::control::registry::{change, registration, view};
@@ -184,6 +185,36 @@ async fn ledger(db: &sea_orm::DatabaseConnection) -> Vec<i64> {
     .iter()
     .map(|row| row.try_get::<i64>("", "demand_id").unwrap())
     .collect()
+}
+
+// A seat the pool let in on the registration `flash`, for run 7.
+fn seat(token: &str) -> Request {
+  Request {
+    sequence: 1,
+    token: token.into(),
+    request_key: "research:7".into(),
+    owner: "research:7".into(),
+    source: "search".into(),
+    role: "scout".into(),
+    work_key: "role:scout".into(),
+    generation: 1,
+    ended_at: None,
+    outcome: None,
+    reservation: None,
+    provider: "registered".into(),
+    model: "flash".into(),
+    effort: None,
+    tier: "light".into(),
+    capacity: 1,
+    state: "active".into(),
+    enqueued_at: 1,
+    leased_at: Some(1),
+    child_id: None,
+    yielding: false,
+    place_key: None,
+    turn: false,
+    session: Some("session-7".into()),
+  }
 }
 
 fn key_file(dir: &tempfile::TempDir) -> String {
@@ -530,33 +561,12 @@ async fn a_seat_s_admission_reads_its_demand_as_it_stands_and_answers_at_once() 
   .unwrap()
   .unwrap();
 
-  let seat = Request {
-    sequence: 1,
-    token: "seat-polled".into(),
-    request_key: "research:7".into(),
-    owner: "research:7".into(),
-    source: "search".into(),
-    role: "scout".into(),
-    work_key: "role:scout".into(),
-    generation: 1,
-    ended_at: None,
-    outcome: None,
-    reservation: None,
-    provider: "registered".into(),
-    model: "flash".into(),
-    effort: None,
-    tier: "light".into(),
-    capacity: 1,
-    state: "active".into(),
-    enqueued_at: 1,
-    leased_at: Some(1),
-    child_id: None,
-    yielding: false,
-    place_key: None,
-    turn: false,
-    session: Some("session-7".into()),
+  let seat = seat("seat-polled");
+  let within = Ask {
+    own: None,
+    within: Some(30),
   };
-  let admission = || seat_card_on(scratch.db(), Some(&master), &seat, Some(30));
+  let admission = || seat_card_on(scratch.db(), Some(&master), &seat, within);
 
   // The first admission asks the demand, within the run's; the stand-in grants it on its second read.
   let asked = admission().await.unwrap().unwrap();
@@ -580,4 +590,51 @@ async fn a_seat_s_admission_reads_its_demand_as_it_stands_and_answers_at_once() 
     vec![0, 0],
     "an admission reads the demand as it stands, holding nothing open at the master"
   );
+}
+
+#[tokio::test]
+async fn a_seat_standing_on_its_caller_s_own_demand_asks_none_and_leaves_it_to_its_caller() {
+  let scratch = Scratch::new().await;
+  let data = tempfile::tempdir().unwrap();
+  let (master, shared) = stand_in(1, true, &key_file(&data)).await;
+
+  change(
+    scratch.db(),
+    data.path(),
+    &json!({
+      "action": "save", "name": "flash", "model": "m", "contextTokens": 32_768, "answerTokens": 4_096,
+      "waitSeconds": 90, "cardService": "lab-arena", "roleFiles": true,
+    }),
+  )
+  .await
+  .unwrap()
+  .unwrap();
+  granted(&shared, 7);
+
+  let seat = seat("seat-standing");
+  let own = Ask {
+    own: Some(7),
+    within: None,
+  };
+  let card = seat_card_on(scratch.db(), Some(&master), &seat, own).await.unwrap().unwrap();
+
+  assert_eq!((card.id, card.node_name.as_deref()), (7, Some("n1")));
+  assert!(card.granted(), "{card:?}");
+  assert!(shared.lock().unwrap().asked.is_empty(), "no demand of the seat's own is asked");
+  assert!(ledger(scratch.db()).await.is_empty(), "nothing is kept under the seat's lease");
+  assert_eq!(shared.lock().unwrap().waits, vec![0], "the demand is read as it stands");
+
+  let told = give_back_lease(scratch.db(), &master, data.path(), &seat.token).await.unwrap();
+
+  assert_eq!(told, None, "the caller's engine never stood down");
+  assert!(shared.lock().unwrap().given_back.is_empty(), "the caller gives its own demand back");
+  assert_eq!(shared.lock().unwrap().demands[&7]["state"], "granted");
+
+  let gone = Ask {
+    own: Some(99),
+    within: None,
+  };
+  let refused = seat_card_on(scratch.db(), Some(&master), &seat, gone).await;
+
+  assert!(matches!(&refused, Err(why) if why.code == "demand-gone"), "{refused:?}");
 }

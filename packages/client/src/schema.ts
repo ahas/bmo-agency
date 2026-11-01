@@ -2458,6 +2458,12 @@ export interface components {
             cancel?: boolean | null;
             /**
              * Format: int64
+             * @description On an admission ask: a granted demand of the caller's own the seat stands on, with none of its own
+             *     asked.
+             */
+            demandId?: number | null;
+            /**
+             * Format: int64
              * @description On an admission ask: the asking run's granted demand the seat's own is asked within.
              */
             within?: number | null;

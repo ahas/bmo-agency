@@ -516,11 +516,16 @@ A seat on a registration naming a card service asks its demand once the pool let
 `request` null until the card is granted, the caller asking again, with no clock of agency's. The demand is
 read as it stands, never held open at the master, so every admission answers at once and the caller's own
 pace sets how long it waits for its card. An admission
-may name `within`, the asking run's granted demand the seat's own is asked within. The seat's child stands on
-that demand by naming its id as the session's `demandId`. The demand is given back as the seat is finished,
-or, whatever ended its lease, on the pool's next minute; where the asking run's card was lent, the finish
-answers once the run's demand is granted again and its engine answers health, with `stoodDown` true and
-`note` the sentence the run is told.
+may name `demandId`, a granted demand of the caller's own the seat stands on: the seat then asks none of its
+own, whatever registration it resolved to, and the admission answers that demand, read as it stands, as
+`demand`, and `request` null while no card is granted it; a demand the master no longer holds is refused
+400 `demand-gone`, and the seat's finish gives nothing back, the demand staying the caller's. An admission
+may instead name `within`, the asking run's granted demand the seat's own is asked within. Either is a
+demand's id, a positive whole number, refused 400 otherwise. The seat's child stands on the demand the seat
+stands on, the caller's own or the one the seat asked, by naming its id as the session's `demandId`. A
+demand the seat asked is given back as the seat is finished, or, whatever ended its lease, on the pool's next
+minute; where the asking run's card was lent, the finish answers once the run's demand is granted again and
+its engine answers health, with `stoodDown` true and `note` the sentence the run is told.
 
 `PATCH /pool/limits` takes `provider`, `tier` and `capacity` and answers 200 with the three as written
 (`docs/coworker-pool.md`, 「Concurrency limits」). It is refused 422 `unprocessable-entity`, with one English

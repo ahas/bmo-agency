@@ -659,18 +659,19 @@ impl SeatCard {
   }
 }
 
-/// The card of a seat the pool let in, on a registration naming a card service: the demand its lease
-/// holds, read as it stands, or asked now — within the asking run's demand where the admission names one
-/// — and kept in the ledger under the lease. None for a registration that names none. The seat waits for
-/// its grant outside its task's clock, so a caller asks again while it waits (docs/coworker-pool.md,
-/// 「Concurrency limits」); the read holds nothing open at the master, so every admission answers at once,
-/// within whatever clock the caller's own call runs on.
+/// The card of a seat the pool let in, on a registration naming a card service: the caller's own demand
+/// the admission hands in, which the seat stands on with none asked and nothing kept under its lease; or
+/// else the demand its lease holds, or one asked now — within the asking run's demand where the admission
+/// names one — and kept in the ledger under the lease. Either is read as it stands. None for a registration
+/// that names none. The seat waits for its grant outside its task's clock, so a caller asks again while it
+/// waits (docs/coworker-pool.md, 「Concurrency limits」); the read holds nothing open at the master, so
+/// every admission answers at once, within whatever clock the caller's own call runs on.
 pub async fn seat_card(
   ground: &Ground,
   seat: &crate::control::pool::Request,
-  within: Option<i64>,
+  ask: Ask,
 ) -> Result<Option<SeatCard>, Refusal> {
-  seat_card_on(&ground.db, master_of(ground).as_ref(), seat, within).await
+  seat_card_on(&ground.db, master_of(ground).as_ref(), seat, ask).await
 }
 
 /// The same, on a master of the caller's; refused where the registration names a card service and no
@@ -679,7 +680,7 @@ pub async fn seat_card_on(
   db: &DatabaseConnection,
   master: Option<&Master>,
   seat: &crate::control::pool::Request,
-  within: Option<i64>,
+  ask: Ask,
 ) -> Result<Option<SeatCard>, Refusal> {
   if seat.provider != registry::PROVIDER {
     return Ok(None);
@@ -698,12 +699,25 @@ pub async fn seat_card_on(
       &[("name", &registration.name), ("service", &service)],
     )));
   };
+  if let Some(own) = ask.own {
+    return match master.demand(own, Duration::ZERO).await {
+      Ok(Some(demand)) => Ok(Some(SeatCard::of(&demand))),
+      Ok(None) => Err(Refusal::bad(
+        "demand-gone",
+        fill_marks(&CONTROL_WORDS.cards.gone, &[("demand", &own.to_string())]),
+      )),
+      Err(why) => Err(fault(why.to_string())),
+    };
+  }
   let asking = Asking {
     registration: &registration.name,
     service: &service,
     holder: &seat.owner,
     work_key: seat.session.as_deref(),
-    ask: Ask { own: None, within },
+    ask: Ask {
+      own: None,
+      within: ask.within,
+    },
     lease: Some(&seat.token),
   };
   let mut quiet = |_: &str| {};

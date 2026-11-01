@@ -59,7 +59,9 @@ warming and standing checkouts, is agency's.
   (`docs/own-llm.md`, 「An engine the arbiter stands」). The tier's limit is the ceiling and the master's
   grants are what run: a seat waits for its grant outside its task's clock, as it waits for its place,
   and gives its demand back with its lease. A seat asked from a run on such a registration asks within
-  that run's demand.
+  that run's demand. A seat whose caller hands in a granted demand of its own stands on that demand and
+  asks none, so a caller that is itself the work its demand was granted for lends its card to nothing;
+  its finish leaves that demand to the caller.
 - **Builder turns have no limit of their own.** A worker's turn waits only on its checkout, so as many
   builder turns run at once as there are workers.
 - Role, tier assignment, mapping and capacity are all store rows, so a value the owner changed stays

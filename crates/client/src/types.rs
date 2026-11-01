@@ -2102,6 +2102,10 @@ pub struct SeatRequestChange {
   pub outcome: Option<String>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub cancel: Option<bool>,
+  /// On an admission ask: a granted demand of the caller's own the seat stands on, with none of its own
+  /// asked.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub demand_id: Option<i64>,
   /// On an admission ask: the asking run's granted demand the seat's own is asked within.
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub within: Option<i64>,

@@ -8942,6 +8942,14 @@
               "null"
             ]
           },
+          "demandId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "On an admission ask: a granted demand of the caller's own the seat stands on, with none of its own\nasked."
+          },
           "within": {
             "type": [
               "integer",

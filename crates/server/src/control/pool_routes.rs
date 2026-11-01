@@ -162,15 +162,26 @@ impl Route for PoolAcquire {
         ))
       }
       _ => {
+        // The demands of the caller's own an admission names: one granted the seat stands on, or the run's
+        // demand the seat's own is asked within (docs/api.md, 「pool, seat-requests, reservations and
+        // roles」).
+        let demand = |field: &str| match body.get(field) {
+          None | Some(Value::Null) => Ok(None),
+          Some(value) => value
+            .as_i64()
+            .filter(|id| *id > 0)
+            .map(Some)
+            .ok_or_else(|| bad(format!("{field} is the id of a demand the arbiter's master granted"))),
+        };
+        let ask = crate::cards::Ask {
+          own: demand("demandId")?,
+          within: demand("within")?,
+        };
         let admitted = acquire(call.store(), &held).await.map_err(refused)?;
         // A seat on a registration whose engine the arbiter stands is let out once its card is granted; while
         // its demand waits it answers none and the demand says why, and the caller asks again.
         let card = match admitted.as_ref().filter(|seat| seat.state == "active") {
-          Some(seat) => {
-            let within = body.get("within").and_then(Value::as_i64);
-
-            crate::cards::seat_card(call.ground(), seat, within).await.map_err(Refused::from)?
-          }
+          Some(seat) => crate::cards::seat_card(call.ground(), seat, ask).await.map_err(Refused::from)?,
           None => None,
         };
         let request = match &card {
