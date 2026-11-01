@@ -10,8 +10,9 @@ seeds. The other crates and the server reach the store only through it.
   it, columns, keys and indexes alike, and the clocks' two tables and the run ledger in agency's own,
   each made by a migration of its own after the first. A column of agency's own beside an archive shape
   is added by a migration of its own too: a worker's session record keeps the tokens its last answered
-  turn carried and the share of the window they filled, and an agent's row the login account that owns
-  it. The words said to a worker stand in the
+  turn carried and the share of the window they filled, an agent's row the login account that owns
+  it, and a co-worker pool request the number of its owner's last ask, drawn from `coworker_pool_asks`,
+  a sequence of the store's own (`docs/coworker-pool.md`, 「Requests and leases」). The words said to a worker stand in the
   archive's shape, made by a migration of their own after the first.
 - **The record of what ran is `agency_migrations`,** a table of the store's own, so the store may stand
   in a database beside another service's tables without either's record in the other's way.

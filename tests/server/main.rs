@@ -67,6 +67,7 @@ mod control {
   mod pane_death;
   mod pool_board;
   mod pool_bound;
+  mod pool_line;
   mod pool_reads;
   mod pool_sessions;
   mod pool_sources;

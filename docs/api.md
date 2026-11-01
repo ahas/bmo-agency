@@ -504,7 +504,11 @@ A seat request answers its `state` — `waiting` in its bucket's line, `reserved
 for admission by a `PATCH` naming no `bound` or `finished` state, which answers `{ "request": <seat or
 null> }`: the seat, `active`, where it is let in now or was already, and null where its turn has not come,
 a reservation lets it in rather than its token, or it was given back; a seat still `waiting` is asked
-again. A `PATCH` with `{ "state": "bound", "childId": … }`
+again. A seat's admissions are its owner asking: the line keeps the order seats were asked for in, and a
+place goes to the first waiting seat whose owner is asking now (`docs/coworker-pool.md`, 「Requests and
+leases」). A seat ahead whose owner has not asked since the asker's own last admission keeps its place and
+is passed over, never dropped, and is next again once its owner asks again; an owner that knows itself
+gone takes its seat out by cancelling it. A `PATCH` with `{ "state": "bound", "childId": … }`
 binds an active seat to the unit it launched and answers the seat. A seat is given back with `{ "state":
 "finished", "outcome": … }`, and cancelled, where it never ran, with `{ "state": "finished", "cancel":
 true, "outcome": … }`; either answers `{ "held": <bool>, "stoodDown": <bool>, "note": <text or null> }`,
