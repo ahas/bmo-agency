@@ -74,9 +74,24 @@ warming and standing checkouts, is agency's.
   run through its `agency` server — reaches the pool only past the owner's gate (`docs/launch-lines.md`,
   「The owner's gate」): a turn not the owner's goes on only where the account service answers that every
   message's sender holds `launch` in the room, and is refused where it cannot be asked.
-- Within one provider and tier, only a waiting request with a smaller global increasing sequence can
-  take a place, and one immediate transaction checks the current active count plus the reserved places
-  and the FIFO head, and grants a lease (「Reserving places and keepalive」 below).
+- **The line.** Within one provider and tier, waiting requests stand in the order they were asked for,
+  by a global increasing sequence, and a place goes to the first of them whose owner is asking now. One
+  immediate transaction checks the current active count plus the reserved places and who stands ahead
+  of the asker, and grants a lease (「Reserving places and keepalive」 below).
+  - **An owner asks for its waiting request by asking for its admission,** again and again while it
+    waits (`docs/api.md`, 「pool, seat-requests, reservations and roles」). Every ask is numbered in one
+    increasing order of the pool's own, which counts no time. A reservation's place is asked for by its
+    standing reservation, the pool's own passes over its bucket being its asks.
+  - **A request ahead of the asker stands in its way while its owner is asking:** a reservation's
+    place always does, and any other request does where its owner has asked since the asker's own last
+    ask. Before the asker's first ask every request ahead stands in its way, so an ask never passes a
+    request whose owner was not given a turn to ask after the asker's last one.
+  - **A request whose owner is not asking keeps its place and is passed over, never dropped.** It stays
+    waiting at its sequence, and a request behind it whose owner asks again is let in where a place is
+    free and no other request stands in its way. When its own owner asks again it stands ahead of every request behind it once more
+    and is next. No request leaves the line for not having been asked about, however long: it leaves
+    only by its token's release or cancel, which is how an owner that knows itself gone takes its
+    request out, or where the evidence below shows its owner ended.
 - A lease preserves a hard-to-guess token, a stable owner and request key, the role and work key, the
   chosen provider, model, effort and tier, the capacity then, the generation and the time.
 - Changing settings does not change this snapshot for an already-waiting or active request; it reads
@@ -101,12 +116,13 @@ warming and standing checkouts, is agency's.
 - **Every request and reserved place now in this pool is a prior request** — yielding is a rule the
   pool holds, a place used when there is something that can defer its own work behind another's.
 - **A prior request's turn** is the smallest sequence among the prior requests waiting on the same
-  provider and tier. A yielding request is skipped as if not there in that line — even having queued
-  first, it does not block a prior request's turn.
-- **A yielding request enters only** when no prior request is waiting on the same provider and tier,
-  active plus reserved is below the limit, and it is the FIFO head among yielding requests. A reserved
-  place waiting to become reserved is a prior request too, so a yielding request does not enter while
-  such a place exists.
+  provider and tier that stand in the way of the asker (「Requests and leases」 above, the line). A
+  yielding request is skipped as if not there in that line — even having queued first, it does not block
+  a prior request's turn.
+- **A yielding request enters only** when no prior request waiting on the same provider and tier stands
+  in its way, active plus reserved is below the limit, and no yielding request ahead of it stands in its
+  way either, by the same rule of the line. A reserved place waiting to become reserved is a prior
+  request that always stands in the way, so a yielding request does not enter while such a place exists.
 - **An already-active yielding request is not taken away.** A prior request waits for its lease to
   end. So a prior request waits on a yielding request only until an already-entered one ends, and never
   stands behind a yielding request that entered while it was waiting.
@@ -168,11 +184,14 @@ warming and standing checkouts, is agency's.
   - The limit counts active and reserved together, so a reserved place cannot be taken by another
     request, and the reserving owner's actual request does not requeue.
   - If the owner has a reserved place on the same provider and tier, one transaction releases that
-    place and admits the actual request as active. If the owner's not-yet-reserved place is that tier's
-    FIFO head, the actual request takes over that place's turn.
+    place and admits the actual request as active. If the owner's not-yet-reserved place is the first
+    request standing in the actual request's way, the actual request takes over that place's turn.
   - When a place frees, when the limit changes, and on the pool's own clock every five seconds, the pool
-    raises a head place to reserved. An already-reserved place is not taken away by lowering the limit — the same promise as
-    an admitted request's snapshot.
+    passes over each bucket and raises to reserved, in the line's order, every place no request stands in
+    the way of, while there is room. Each pass is an ask of every place waiting in the bucket, so a
+    request ahead whose owner has not asked since the pass before is passed over as the line's rule says.
+    An already-reserved place is not taken away by lowering the limit — the same promise as an admitted
+    request's snapshot.
 - **Release:** a reservation releases only when the owner releases it or there is evidence the owner
   ended, not for time passing.
   - Releasing a reservation cancels the waiting place rows and releases the reserved ones.

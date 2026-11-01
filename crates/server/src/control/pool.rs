@@ -367,27 +367,52 @@ pub async fn coworker_providers(db: &DatabaseConnection) -> Result<Vec<String>, 
   Ok(lending)
 }
 
-// The seat standing at the head of a bucket's foreground line, where one stands.
-pub(crate) async fn foreground_head<C: ConnectionTrait>(
+/// Numbers a waiting request's ask in the pool's one increasing order of asks, and answers the ask its
+/// owner made before this one, none where this is its first (docs/coworker-pool.md, 「Requests and
+/// leases」).
+pub(crate) async fn ask<C: ConnectionTrait>(db: &C, token: &str) -> Result<Option<i64>, Refused> {
+  let before = one(db, "SELECT asked FROM coworker_pool_requests WHERE token = $1", vec![token.into()])
+    .await?
+    .map(|row| row.try_get::<Option<i64>>("", "asked"))
+    .transpose()?
+    .flatten();
+
+  run(
+    db,
+    "UPDATE coworker_pool_requests SET asked = nextval('coworker_pool_asks') WHERE token = $1",
+    vec![token.into()],
+  )
+  .await?;
+
+  Ok(before)
+}
+
+// The first seat of a bucket's foreground line standing in the way of a seat asked for at `sequence`: one
+// ahead of it that is a reservation's place, or whose owner has asked since that seat's own last ask
+// `since` — every one ahead where it has not asked before. A seat whose owner has not asked since is
+// passed over and keeps its place; one whose place key is taken stands in no one's way.
+pub(crate) async fn in_the_way<C: ConnectionTrait>(
   db: &C,
   provider: &str,
   tier: &str,
-) -> Result<Option<(String, Option<String>, i64)>, Refused> {
+  sequence: i64,
+  since: Option<i64>,
+) -> Result<Option<(String, Option<String>, String)>, Refused> {
   let row = one(
     db,
-    r#"SELECT token, reservation, capacity FROM coworker_pool_requests AS waiting
+    r#"SELECT token, reservation, owner FROM coworker_pool_requests AS waiting
        WHERE provider = $1 AND tier = $2 AND state = 'waiting' AND class = 'foreground' AND turn = 0
+         AND sequence < $3
          AND (place_key IS NULL OR NOT EXISTS (SELECT 1 FROM coworker_pool_requests AS held
            WHERE held.place_key = waiting.place_key AND held.state = 'active'))
+         AND (reservation IS NOT NULL OR $4::bigint IS NULL OR asked > $4::bigint)
        ORDER BY sequence LIMIT 1"#,
-    vec![provider.into(), tier.into()],
+    vec![provider.into(), tier.into(), sequence.into(), since.into()],
   )
   .await?;
 
   row
-    .map(|row| {
-      Ok((row.try_get("", "token")?, row.try_get("", "reservation")?, row.try_get("", "capacity")?))
-    })
+    .map(|row| Ok((row.try_get("", "token")?, row.try_get("", "reservation")?, row.try_get("", "owner")?)))
     .transpose()
 }
 
@@ -403,8 +428,8 @@ pub(crate) async fn used<C: ConnectionTrait>(db: &C, provider: &str, tier: &str)
   Ok(row.map(|row| row.try_get::<i64>("", "count")).transpose()?.unwrap_or(0))
 }
 
-/// Lets every seat standing at the head of its line into a place that has come free. Only a seat at
-/// the head of the foreground is let in: a request standing ahead of it keeps its turn.
+/// Lets every reservation's seat into a place that has come free, in its line's order. A seat is let in
+/// only where no request stands in its way: one ahead whose owner is asking keeps its turn.
 pub async fn promote_reservations<C: ConnectionTrait>(db: &C, now: i64) -> Result<i64, Refused> {
   let buckets = all(
     db,
@@ -424,17 +449,45 @@ pub async fn promote_reservations<C: ConnectionTrait>(db: &C, now: i64) -> Resul
   Ok(promoted)
 }
 
-// One bucket's seats let in while its head is a reservation's and a place stands free.
+// One bucket's reservation seats let in, in the line's order, while none stands in the way of the next and
+// a place stands free. The pass is an ask of every such seat waiting in the bucket, its standing
+// reservation being its owner asking.
 pub(crate) async fn promote_bucket<C: ConnectionTrait>(
   db: &C,
   provider: &str,
   tier: &str,
   now: i64,
 ) -> Result<i64, Refused> {
+  let seats = all(
+    db,
+    r#"SELECT token, sequence, asked, capacity FROM coworker_pool_requests AS waiting
+       WHERE provider = $1 AND tier = $2 AND state = 'waiting' AND class = 'foreground' AND turn = 0
+         AND reservation IS NOT NULL
+         AND (place_key IS NULL OR NOT EXISTS (SELECT 1 FROM coworker_pool_requests AS held
+           WHERE held.place_key = waiting.place_key AND held.state = 'active'))
+       ORDER BY sequence"#,
+    vec![provider.into(), tier.into()],
+  )
+  .await?;
+
+  run(
+    db,
+    r#"UPDATE coworker_pool_requests SET asked = nextval('coworker_pool_asks')
+       WHERE provider = $1 AND tier = $2 AND state = 'waiting' AND class = 'foreground' AND turn = 0
+         AND reservation IS NOT NULL"#,
+    vec![provider.into(), tier.into()],
+  )
+  .await?;
+
   let mut promoted = 0;
 
-  while let Some((token, Some(_), capacity)) = foreground_head(db, provider, tier).await? {
-    if used(db, provider, tier).await? >= capacity {
+  for seat in seats {
+    let token: String = seat.try_get("", "token")?;
+    let since: Option<i64> = seat.try_get("", "asked")?;
+
+    if in_the_way(db, provider, tier, seat.try_get("", "sequence")?, since).await?.is_some()
+      || used(db, provider, tier).await? >= seat.try_get::<i64>("", "capacity")?
+    {
       break;
     }
 

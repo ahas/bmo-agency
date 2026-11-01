@@ -1,6 +1,6 @@
 //! A task's place in the common co-worker pool (docs/coworker-pool.md, 「Requests and leases」, 「Prior
 //! requests and yielding requests」): the provider and tier a role resolves to, a branch's
-//! seat or a builder turn's place asked of the pool, admitted at the head of its line, bound to the unit
+//! seat or a builder turn's place asked of the pool, admitted in its line's order, bound to the unit
 //! it launched and given back with what it came to, and the seats an owner holds for a stage. Every write
 //! is the TypeScript dispatch's, statement for statement, so either side of the pool's twin check leaves the
 //! pool's rows the same. The labels and keys of a consumer's work arrive with each request; nothing here
@@ -20,7 +20,7 @@ use crate::control::Refused;
 use crate::control::claude_accounts::{self, Judging};
 use crate::control::harness::{enabled_providers, named, provider_enabled};
 use crate::control::pool::{
-  Request, Reservation, coworker_providers, foreground_head, promote_bucket, request_of, reservation_of,
+  Request, Reservation, ask, coworker_providers, in_the_way, promote_bucket, request_of, reservation_of,
   used,
 };
 use crate::control::roads::{profile, walked};
@@ -589,8 +589,8 @@ async fn enqueue(
   Ok(held)
 }
 
-/// The request let in where its turn has come, or none where it waits on: FIFO admission once the
-/// asker has kept its token.
+/// The request let in where its turn has come, or none where it waits on: the asker's owner asking for it,
+/// let in once no request whose owner is asking stands ahead of it.
 pub async fn acquire(db: &DatabaseConnection, held: &Request) -> Result<Option<Request>, Fault> {
   if held.state == "released" || held.state == "cancelled" {
     return Ok(None);
@@ -616,6 +616,9 @@ async fn admission<C: ConnectionTrait>(db: &C, token: &str, now: i64) -> Result<
     return Ok(None);
   }
 
+  // This ask is numbered, and the owner's ask before it is what the requests ahead are judged against.
+  let since = ask(db, token).await.map_err(refused)?;
+
   if place_taken(db, held.place_key.as_deref()).await? {
     return Ok(None);
   }
@@ -625,7 +628,7 @@ async fn admission<C: ConnectionTrait>(db: &C, token: &str, now: i64) -> Result<
   }
 
   if held.yielding {
-    return admit_yielding(db, &held, now).await;
+    return admit_yielding(db, &held, since, now).await;
   }
 
   // A seat its own owner holds in this bucket is the request's place: the seat is given up and the
@@ -647,25 +650,22 @@ async fn admission<C: ConnectionTrait>(db: &C, token: &str, now: i64) -> Result<
     return admit(db, token, now).await;
   }
 
-  let Some((first, reservation, _)) =
-    foreground_head(db, &held.provider, &held.tier).await.map_err(refused)?
-  else {
-    return Ok(None);
+  // The owner's own seat standing first in the request's way hands its turn to the request; any other
+  // keeps it waiting.
+  let inherits = match in_the_way(db, &held.provider, &held.tier, held.sequence, since)
+    .await
+    .map_err(refused)?
+  {
+    None => None,
+    Some((first, Some(_), owner)) if owner == held.owner => Some(first),
+    Some(_) => return Ok(None),
   };
-  let first_owner = request(db, &first).await?.map(|first| first.owner);
-  // The owner's own seat standing at the head of the line hands its turn to the request.
-  let inherits =
-    first != token && reservation.is_some() && first_owner.as_deref() == Some(held.owner.as_str());
-
-  if first != token && !inherits {
-    return Ok(None);
-  }
 
   if used(db, &held.provider, &held.tier).await.map_err(refused)? >= held.capacity {
     return Ok(None);
   }
 
-  if inherits {
+  if let Some(first) = inherits {
     end_seat(db, &first, "cancelled", &format!("turn given to {token}"), now).await?;
   }
 
@@ -714,18 +714,21 @@ async fn admit_turn<C: ConnectionTrait>(
   admit(db, &held.token, now).await
 }
 
-// A yielding request goes in only where no foreground request waits for its tier or its place, and only as
-// the first of the yielding requests that could go in.
+// A yielding request goes in only where no foreground request stands in its way for its tier or waits for its
+// place, and only as the first of the yielding requests that could go in and stand in its way; a request
+// stands in its way as the line's rule says, judged against the owner's ask before this one, `since`.
 async fn admit_yielding<C: ConnectionTrait>(
   db: &C,
   held: &Request,
+  since: Option<i64>,
   now: i64,
 ) -> Result<Option<Request>, Fault> {
   let waits = one(
     db,
     r#"SELECT 1 AS waits FROM coworker_pool_requests
-       WHERE provider = $1 AND tier = $2 AND state = 'waiting' AND class = 'foreground' AND turn = 0 LIMIT 1"#,
-    vec![held.provider.clone().into(), held.tier.clone().into()],
+       WHERE provider = $1 AND tier = $2 AND state = 'waiting' AND class = 'foreground' AND turn = 0
+         AND (reservation IS NOT NULL OR $3::bigint IS NULL OR asked > $3::bigint) LIMIT 1"#,
+    vec![held.provider.clone().into(), held.tier.clone().into(), since.into()],
   )
   .await
   .map_err(faulted)?;
@@ -756,8 +759,14 @@ async fn admit_yielding<C: ConnectionTrait>(
          AND (place_key IS NULL OR NOT EXISTS (SELECT 1 FROM coworker_pool_requests AS other
            WHERE other.place_key = waiting.place_key
              AND (other.state = 'active' OR (other.state = 'waiting' AND other.class = 'foreground'))))
+         AND (token = $3 OR $4::bigint IS NULL OR asked > $4::bigint)
        ORDER BY sequence LIMIT 1"#,
-    vec![held.provider.clone().into(), held.tier.clone().into()],
+    vec![
+      held.provider.clone().into(),
+      held.tier.clone().into(),
+      held.token.clone().into(),
+      since.into(),
+    ],
   )
   .await
   .map_err(faulted)?
