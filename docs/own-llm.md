@@ -287,8 +287,12 @@ never the model's name.
   holds the card is the translations agency has out on the registration at that moment: the first asks a
   demand, with no work key and `translator` as its holder; every one asked while that demand waits or stands
   waits on the same grant and is sent to the granted card's entry, the parts reaching the engine together
-  as its slots take them; and the demand is given back once the last of them is answered or has failed. A
-  translation asked after that asks a new one.
+  as its slots take them. The demand is the line's, not the first translation's: a translation ends when it
+  is answered, when it has failed, or when its caller goes away before its answer, and whichever ends, the
+  rest keep waiting on the same demand, none asking another. Once the last of them has ended the demand is
+  given back, granted or still waiting, so a line with no translation out holds no card and no place in the
+  master's line. A demand the master refuses fails every translation waiting on it. A translation asked
+  after the last has ended asks a new one.
 - **Work a run asks holds the run's card as its own.** A native co-worker, a search branch, a gate or a
   session asked from a run whose own demand is granted asks its demand within the run's. Work on the
   model the run already stands on is granted on the run's own card, beside the run, which waits on it.

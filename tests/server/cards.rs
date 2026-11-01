@@ -4,14 +4,17 @@
 //! run's card and telling the run its engine stood down, the demands left behind given back at start and
 //! with their lease, a native co-worker's card asked within the demand its caller's turn holds, a seat's
 //! admission reading its demand as it stands, a seat standing on its caller's own demand with none asked,
-//! and one card shared by the runs out at once on a registration.
+//! and one card shared by the runs out at once on a registration, kept for the runs still out when one is
+//! let go and given back, granted or still waiting, once none is.
 
 use std::collections::BTreeMap;
+use std::os::unix::fs::PermissionsExt;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use agency_server::cards::{
-  Ask, Asking, Sharing, give_back_lease, give_back_left, give_back_on, give_back_with_leases, hold_on,
-  holding, native_card, seat_card_on, share,
+  Ask, Asking, Gateway, SharedAsk, Sharing, give_back_lease, give_back_left, give_back_on,
+  give_back_with_leases, hold_on, holding, native_card, seat_card_on, share,
 };
 use agency_server::control::pool::Request;
 use agency_server::control::registry::{change, registration, view};
@@ -44,6 +47,8 @@ struct StandIn {
   /// The address the granted card's engine answers at, and its key file.
   engine: String,
   key_file: String,
+  /// The origin the stand-in answers at, its gateway's among them.
+  base: String,
 }
 
 type Shared = Arc<Mutex<StandIn>>;
@@ -139,12 +144,15 @@ async fn stand_in(grant_after: u32, lends: bool, key_file: &str) -> (Master, Sha
     lends,
     engine: format!("{base}/v1/chat/completions"),
     key_file: key_file.to_owned(),
+    base: base.clone(),
     ..StandIn::default()
   }));
   let app = axum::Router::new()
     .route("/demands", axum::routing::post(ask))
     .route("/demands/{id}", get(read).delete(give_back))
     .route("/health", get(|| async { Json(json!({ "context": 65_536 })) }))
+    // The gateway's table: the granted card's entry served.
+    .route("/v1/models", get(|| async { Json(json!({ "data": [{ "id": "flash@n1", "owned_by": "gateway" }] })) }))
     .with_state(shared.clone());
 
   tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
@@ -506,6 +514,51 @@ async fn naming_a_card_service_takes_the_addresses_away_and_refuses_new_ones() {
   );
 }
 
+// The registration `flash` naming the card service `lab-arena`, and what a card its runs share is asked
+// with: the stand-in as the master and as the gateway, its key file readable as the gateway's is.
+async fn shared_ask(db: &sea_orm::DatabaseConnection, data: &tempfile::TempDir, master: &Master, shared: &Shared) -> SharedAsk {
+  change(
+    db,
+    data.path(),
+    &json!({
+      "action": "save", "name": "flash", "model": "m", "contextTokens": 32_768, "answerTokens": 4_096,
+      "waitSeconds": 90, "cardService": "lab-arena", "roleFiles": true,
+    }),
+  )
+  .await
+  .unwrap()
+  .unwrap();
+
+  let key_file = data.path().join("gateway.key");
+
+  std::fs::write(&key_file, "gateway-key\n").unwrap();
+  std::fs::set_permissions(&key_file, std::fs::Permissions::from_mode(0o600)).unwrap();
+
+  SharedAsk {
+    db: db.clone(),
+    master: master.clone(),
+    registration: "flash".into(),
+    service: "lab-arena".into(),
+    holder: "translator".into(),
+    gateway: Gateway {
+      url: shared.lock().unwrap().base.clone(),
+      key_file,
+    },
+  }
+}
+
+// Read until `done` holds of the stand-in, the work under test going on its own meanwhile.
+async fn until(shared: &Shared, done: impl Fn(&StandIn) -> bool) {
+  for _ in 0..500 {
+    if done(&shared.lock().unwrap()) {
+      return;
+    }
+    tokio::time::sleep(Duration::from_millis(10)).await;
+  }
+
+  panic!("the stand-in never came to the state looked for");
+}
+
 #[tokio::test]
 async fn the_runs_out_at_once_on_a_registration_share_one_demand_given_back_by_the_last() {
   let scratch = Scratch::new().await;
@@ -513,9 +566,8 @@ async fn the_runs_out_at_once_on_a_registration_share_one_demand_given_back_by_t
   let (master, shared) = stand_in(3, false, &key_file(&data)).await;
   let sharing = Arc::new(Sharing::default());
   let db = scratch.db();
-  let ask =
-    || async { hold_on(db, &master, asking("translator", Ask::default(), None), &mut |_: &str| {}).await };
-  let parts = (0..4).map(|_| share(&sharing, "flash", db, &master, data.path(), ask));
+  let ask = shared_ask(db, &data, &master, &shared).await;
+  let parts = (0..4).map(|_| share(&sharing, ask.clone()));
   let mut sharers: Vec<_> =
     futures_util::future::join_all(parts).await.into_iter().map(Result::unwrap).collect();
   let demand = sharers[0].held.demand;
@@ -536,11 +588,63 @@ async fn the_runs_out_at_once_on_a_registration_share_one_demand_given_back_by_t
   assert_eq!(shared.lock().unwrap().given_back, vec![demand], "given back once, by the last");
   assert!(ledger(db).await.is_empty());
 
-  let again = share(&sharing, "flash", db, &master, data.path(), ask).await.unwrap();
+  let again = share(&sharing, ask.clone()).await.unwrap();
 
   assert_eq!(shared.lock().unwrap().asked.len(), 2, "a part out after the last left asks anew");
   again.leave().await;
   assert_eq!(shared.lock().unwrap().given_back.len(), 2);
+}
+
+#[tokio::test]
+async fn a_part_let_go_while_the_shared_demand_waits_leaves_it_to_the_rest_and_the_last_gives_it_back() {
+  let scratch = Scratch::new().await;
+  let data = tempfile::tempdir().unwrap();
+  let (master, shared) = stand_in(u32::MAX, false, &key_file(&data)).await;
+  let sharing = Arc::new(Sharing::default());
+  let db = scratch.db();
+  let ask = shared_ask(db, &data, &master, &shared).await;
+  let out = |sharing: &Arc<Sharing>| {
+    let (sharing, ask) = (sharing.clone(), ask.clone());
+
+    tokio::spawn(async move { share(&sharing, ask).await.map(|sharer| sharer.held.demand) })
+  };
+  let first = out(&sharing);
+
+  until(&shared, |stand_in| stand_in.asked.len() == 1).await;
+
+  let second = out(&sharing);
+  let third = out(&sharing);
+  let demand = *shared.lock().unwrap().demands.keys().next().unwrap();
+
+  // The part that asked the demand is let go by its caller: the others keep waiting on the same demand.
+  let read = shared.lock().unwrap().reads.get(&demand).copied().unwrap_or_default();
+
+  first.abort();
+  until(&shared, |stand_in| stand_in.reads.get(&demand).is_some_and(|reads| *reads > read + 20)).await;
+
+  assert_eq!(shared.lock().unwrap().asked.len(), 1, "no part asks a demand of its own");
+  assert!(shared.lock().unwrap().given_back.is_empty(), "kept while a part still waits on it");
+  assert_eq!(ledger(db).await, vec![demand]);
+
+  second.abort();
+  third.abort();
+  until(&shared, |stand_in| !stand_in.given_back.is_empty()).await;
+
+  assert_eq!(shared.lock().unwrap().given_back, vec![demand], "given back by the last let go, still waiting");
+  assert_eq!(shared.lock().unwrap().asked.len(), 1);
+  assert!(ledger(db).await.is_empty());
+
+  // A part out after that asks anew, and is granted as the master grants.
+  shared.lock().unwrap().grant_after = 1;
+
+  let again = share(&sharing, ask.clone()).await.unwrap();
+
+  assert_eq!(shared.lock().unwrap().asked.len(), 2);
+
+  // The last let go while the card stands gives it back as it goes.
+  drop(again);
+  until(&shared, |stand_in| stand_in.given_back.len() == 2).await;
+  assert!(ledger(db).await.is_empty());
 }
 
 #[tokio::test]

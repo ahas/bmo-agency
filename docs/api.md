@@ -744,6 +744,9 @@ them; a notice that holds nothing is withdrawn.
 - **One text, one run** (`docs/launch-lines.md`, 「Translate runner」): no session is kept, nothing is
   queued and nothing is cached here; the caller cuts a long text into parts, keeps the translations it
   wants kept, and bounds how many parts it has out at once.
+- **A caller that stops waiting** ends its translation there, as one that failed: the card the
+  translations out on a registration share stays with the others still out and is given back once none
+  is, whether its demand was granted yet or not (`docs/own-llm.md`, 「An engine the arbiter stands」).
 - **A note** is the caller's word on this one part — what an earlier answer for it got wrong, or that a
   one-line title is wanted — carried in the run's system prompt after the translator's own, as an
   instruction the model reads and does not render; the input is always the language line and the text

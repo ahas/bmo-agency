@@ -3,12 +3,13 @@
 //! waited on however long its grant takes; the run placed on the card granted once the gateway serves that
 //! card's entry; a demand asked within the run's own for work the run asks, and the run told where its own
 //! engine stood down for it; a card shared by the runs a caller has out at once on one registration, asked
-//! by the first and given back by the last; and every demand agency asked kept in the store's ledger,
-//! `card_demands`, so a demand whose run ended without giving it back is given back at the next start and
-//! with its lease.
+//! once for all of them and given back once the last has gone, granted or still waiting; and every demand
+//! agency asked kept in the store's ledger, `card_demands`, so a demand whose run ended without giving it
+//! back is given back at the next start and with its lease.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicI64, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -18,6 +19,7 @@ use policy::control_words::CONTROL_WORDS;
 use policy::fill_marks;
 use sea_orm::{ConnectionTrait, DatabaseConnection};
 use store::{all, one, run};
+use tokio::sync::watch;
 
 use crate::Refusal;
 use crate::control::registry::{self, Registration};
@@ -111,42 +113,147 @@ fn no_master(registration: &str, service: &str) -> Refusal {
 #[derive(Default)]
 pub struct Sharing {
   out: Mutex<HashMap<String, Out>>,
+  asks: AtomicU64,
 }
 
-// The runs out on one registration and the card they stand on, once the first has been granted it.
+// What the runs out on a registration are answered: none while their card is asked, then the card or the
+// refusal.
+type Answer = Option<Result<Held, Refusal>>;
+
+// The runs out on one registration, the ask that holds their card, and the card once it is granted and
+// served.
 struct Out {
+  // Which ask this is: a run that joined an earlier one, since ended, touches nothing of this one.
+  ask: u64,
   runs: usize,
-  card: Arc<tokio::sync::OnceCell<Held>>,
+  card: watch::Receiver<Answer>,
+  held: Option<Held>,
+  // Told once the last run has gone while the card is still asked, so the ask gives back what it asked.
+  gone: watch::Sender<bool>,
 }
 
 impl Sharing {
-  fn join(&self, registration: &str) -> Arc<tokio::sync::OnceCell<Held>> {
-    let mut out = self.out.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-    let one = out.entry(registration.to_owned()).or_insert_with(|| Out {
-      runs: 0,
-      card: Arc::default(),
-    });
-
-    one.runs += 1;
-    one.card.clone()
+  fn out(&self) -> std::sync::MutexGuard<'_, HashMap<String, Out>> {
+    self.out.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
   }
 
-  // The card to give back where the run leaving was the last out on the registration.
-  fn leave(&self, registration: &str) -> Option<Held> {
-    let mut out = self.out.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-    let one = out.get_mut(registration)?;
+  // The run joins the ask out on the registration, or starts one where none is, which then runs on its
+  // own: no run's going away cuts it.
+  fn join(self: &Arc<Self>, asking: SharedAsk) -> (u64, watch::Receiver<Answer>) {
+    let mut out = self.out();
+
+    if let Some(one) = out.get_mut(&asking.registration) {
+      one.runs += 1;
+      return (one.ask, one.card.clone());
+    }
+
+    let ask = self.asks.fetch_add(1, Ordering::Relaxed);
+    let (answer, card) = watch::channel(None);
+    let (gone, left) = watch::channel(false);
+
+    out.insert(
+      asking.registration.clone(),
+      Out {
+        ask,
+        runs: 1,
+        card: card.clone(),
+        held: None,
+        gone,
+      },
+    );
+    tokio::spawn(ask_for_all(self.clone(), ask, asking, answer, left));
+
+    (ask, card)
+  }
+
+  // A run of `ask` gone: where it was the last out, the card to give back where one stands, or else the
+  // ask told to give back what it asked.
+  fn leave(&self, registration: &str, ask: u64) -> Option<Held> {
+    let mut out = self.out();
+    let one = out.get_mut(registration).filter(|one| one.ask == ask)?;
 
     one.runs -= 1;
     if one.runs > 0 {
       return None;
     }
 
-    out.remove(registration).and_then(|one| one.card.get().cloned())
+    let one = out.remove(registration)?;
+
+    if one.held.is_none() {
+      let _ = one.gone.send(true);
+    }
+
+    one.held
+  }
+
+  // The ask's answer laid down where its runs are still out: a card kept for them, or a refusal ending the
+  // ask so the next run asks anew. False where the last run has gone, whatever the ask holds being its own
+  // to give back.
+  fn answered(&self, registration: &str, ask: u64, answer: &Result<Held, Refusal>) -> bool {
+    let mut out = self.out();
+    let Some(one) = out.get_mut(registration).filter(|one| one.ask == ask) else {
+      return false;
+    };
+
+    match answer {
+      Ok(held) => one.held = Some(held.clone()),
+      Err(_) => {
+        out.remove(registration);
+      }
+    }
+
+    true
   }
 }
 
-/// One run standing on a shared card: `leave` once its work is done, and a run dropped before it leaves
-/// leaves as it is dropped.
+/// The gateway a run sends to, and the file its key is read from.
+#[derive(Clone, Debug)]
+pub struct Gateway {
+  pub url: String,
+  pub key_file: PathBuf,
+}
+
+impl Gateway {
+  /// The gateway the machine names.
+  pub fn of(ground: &Ground) -> Self {
+    let machine = ground.machine();
+
+    Self {
+      url: harness_machine::gateway::url(machine.var("BMO_LLM_GATEWAY_URL")),
+      key_file: harness_providers::registered::Registered::key_file(&machine),
+    }
+  }
+}
+
+/// What a card the runs share is asked with, all of it owned: the ask runs on its own while runs join and
+/// leave, for as long as any is out.
+#[derive(Clone)]
+pub struct SharedAsk {
+  pub db: DatabaseConnection,
+  pub master: Master,
+  pub registration: String,
+  pub service: String,
+  pub holder: String,
+  /// The gateway that must serve the granted card's entry before a run is sent on it.
+  pub gateway: Gateway,
+}
+
+impl SharedAsk {
+  // What its demand is asked for: no work key, no lease, nothing within.
+  fn asking(&self) -> Asking<'_> {
+    Asking {
+      registration: &self.registration,
+      service: &self.service,
+      holder: &self.holder,
+      work_key: None,
+      ask: Ask::default(),
+      lease: None,
+    }
+  }
+}
+
+/// One run standing on a shared card: `leave` once its work is done, and a run dropped before it leaves —
+/// its caller gone — leaves as it is dropped.
 pub struct Sharer {
   pub held: Held,
   leaving: Leaving,
@@ -156,18 +263,20 @@ pub struct Sharer {
 struct Leaving {
   sharing: Arc<Sharing>,
   registration: String,
+  ask: u64,
   db: DatabaseConnection,
   master: Master,
-  data_root: PathBuf,
   left: bool,
 }
 
 impl Sharer {
-  /// The run's work done: the card given back where no other run is out on it.
+  /// The run's work done: the card given back where no other run is out on it, the giving back going on
+  /// to its end whether or not the run's caller still waits for it.
   pub async fn leave(mut self) {
     self.leaving.left = true;
-    if let Some(held) = self.leaving.sharing.leave(&self.leaving.registration) {
-      give_back_on(&self.leaving.db, &self.leaving.master, &self.leaving.data_root, &held).await;
+    if let Some(held) = self.leaving.sharing.leave(&self.leaving.registration, self.leaving.ask) {
+      let (db, master) = (self.leaving.db.clone(), self.leaving.master.clone());
+      let _ = tokio::spawn(async move { returned(&db, &master, held.demand).await }).await;
     }
   }
 }
@@ -177,42 +286,94 @@ impl Drop for Leaving {
     if self.left {
       return;
     }
-    let Some(held) = self.sharing.leave(&self.registration) else { return };
+    let Some(held) = self.sharing.leave(&self.registration, self.ask) else { return };
     let Ok(runtime) = tokio::runtime::Handle::try_current() else { return };
-    let (db, master, data_root) = (self.db.clone(), self.master.clone(), self.data_root.clone());
+    let (db, master) = (self.db.clone(), self.master.clone());
 
-    runtime.spawn(async move { give_back_on(&db, &master, &data_root, &held).await });
+    runtime.spawn(async move { returned(&db, &master, held.demand).await });
   }
 }
 
 /// A card shared with every run `sharing` has out on the registration at once: the run joins the card the
-/// runs out already stand on, or waits on the one being asked for them, and where none is it asks one by
-/// `ask`, which the runs joining meanwhile wait on with it. An ask refused leaves the run, and the next run
-/// waiting asks again.
-pub async fn share<F, Fut>(
-  sharing: &Arc<Sharing>,
-  registration: &str,
-  db: &DatabaseConnection,
-  master: &Master,
-  data_root: &Path,
-  ask: F,
-) -> Result<Sharer, Refusal>
-where
-  F: FnOnce() -> Fut,
-  Fut: Future<Output = Result<Held, Refusal>>,
-{
-  let card = sharing.join(registration);
+/// runs out already stand on, or waits on the one being asked for them, and where none is it starts the
+/// ask, which the runs joining meanwhile wait on with it. The ask is the runs', not the first run's: it
+/// goes on while any run waits on it, whichever runs go away meanwhile, and once the last has gone its
+/// demand is given back, granted or still waiting. An ask refused answers every run waiting on it, and the
+/// next run out asks again.
+pub async fn share(sharing: &Arc<Sharing>, asking: SharedAsk) -> Result<Sharer, Refusal> {
+  let (registration, db, master) = (asking.registration.clone(), asking.db.clone(), asking.master.clone());
+  let (ask, mut card) = sharing.join(asking);
   let leaving = Leaving {
     sharing: sharing.clone(),
-    registration: registration.to_owned(),
-    db: db.clone(),
-    master: master.clone(),
-    data_root: data_root.to_owned(),
+    registration,
+    ask,
+    db,
+    master,
     left: false,
   };
-  let held = card.get_or_try_init(ask).await?.clone();
+  let answer = card.wait_for(Option::is_some).await.ok().and_then(|answer| answer.clone());
+  let held = match answer {
+    Some(answer) => answer?,
+    None => return Err(fault("the card the runs share was asked by none".to_owned())),
+  };
 
   Ok(Sharer { held, leaving })
+}
+
+// The ask a shared card is held by, on its own: its demand asked and written into the ledger, waited on
+// until it is granted and the gateway serves its entry, and the answer laid down for the runs out. Where
+// the last run goes before then, or the ask is refused after its demand was asked, the demand asked last
+// is given back here.
+async fn ask_for_all(
+  sharing: Arc<Sharing>,
+  ask: u64,
+  asking: SharedAsk,
+  answer: watch::Sender<Answer>,
+  mut left: watch::Receiver<bool>,
+) {
+  let asked = AtomicI64::new(0);
+  let held = match ask_kept(&asking.db, &asking.master, &asking.asking(), &mut |_| {}).await {
+    Ok(demand) => {
+      asked.store(demand.id, Ordering::Release);
+      tokio::select! {
+        biased;
+        Ok(_) = left.wait_for(|gone| *gone) => None,
+        held = held_for_all(&asking, demand, &asked) => Some(held),
+      }
+    }
+    Err(refused) => Some(Err(refused)),
+  };
+  let kept = held.as_ref().is_some_and(|held| sharing.answered(&asking.registration, ask, held));
+
+  if !(kept && matches!(held, Some(Ok(_)))) {
+    let demand = asked.load(Ordering::Acquire);
+
+    if demand > 0 {
+      returned(&asking.db, &asking.master, demand).await;
+    }
+  }
+
+  if kept {
+    let _ = answer.send(held);
+  }
+}
+
+// A shared card's demand waited on until it is granted, and then until the gateway serves its entry.
+async fn held_for_all(asking: &SharedAsk, demand: Demand, asked: &AtomicI64) -> Result<Held, Refusal> {
+  let mut quiet = |_: &str| {};
+  let (demand, card) =
+    granted(&asking.db, &asking.master, demand, Some(()), &asking.asking(), asked, &mut quiet).await?;
+
+  served_at(&asking.db, &asking.gateway, &asking.registration, &card.node_name, &mut quiet).await?;
+
+  Ok(Held {
+    demand: demand.id,
+    node: card.node_name,
+    service: asking.service.clone(),
+    asked: true,
+    within: None,
+    lent: false,
+  })
 }
 
 /// A card held for a run on a registration naming a card service, shared with every run `sharing` has out
@@ -229,15 +390,16 @@ pub async fn hold_shared(
   let Some(master) = master_of(ground) else {
     return Err(no_master(&registration.name, &service));
   };
-  let ask = || async {
-    hold(ground, registration, holder, None, Ask::default(), None, &mut |_| {})
-      .await?
-      .ok_or_else(|| fault(format!("{} names no card service", registration.name)))
+  let asking = SharedAsk {
+    db: ground.db.clone(),
+    master,
+    registration: registration.name.clone(),
+    service,
+    holder: holder.to_owned(),
+    gateway: Gateway::of(ground),
   };
 
-  share(sharing, &registration.name, &ground.db, &master, &ground.roots.data, ask)
-    .await
-    .map(Some)
+  share(sharing, asking).await.map(Some)
 }
 
 /// A card held for a run whose log says each reason it waits on as it changes, so its room or its watcher
@@ -319,7 +481,7 @@ pub async fn hold_on(
         Err(_) => unreached(waiting).await,
       }
     };
-    let (demand, card) = granted(db, master, demand, None, &asking, waiting).await?;
+    let (demand, card) = granted(db, master, demand, None, &asking, &AtomicI64::new(own), waiting).await?;
 
     return Ok(Held {
       demand: demand.id,
@@ -332,7 +494,8 @@ pub async fn hold_on(
   }
 
   let asked = ask_kept(db, master, &asking, waiting).await?;
-  let (demand, card) = granted(db, master, asked, Some(()), &asking, waiting).await?;
+  let last = AtomicI64::new(asked.id);
+  let (demand, card) = granted(db, master, asked, Some(()), &asking, &last, waiting).await?;
   let lent = match asking.ask.within {
     Some(outer) => master
       .demand(outer, Duration::ZERO)
@@ -401,13 +564,14 @@ async fn ask_kept(
 
 // A demand read until a card is granted it, each reason it waits on said once as it changes. A demand the
 // master no longer holds — a master restarted — is asked again where agency asked it, its work key bringing
-// it back to its card, and is refused where the caller handed it in.
+// it back to its card, and `asked` then names the one asked anew; one the caller handed in is refused.
 async fn granted(
   db: &DatabaseConnection,
   master: &Master,
   mut demand: Demand,
   ours: Option<()>,
   asking: &Asking<'_>,
+  asked: &AtomicI64,
   waiting: &mut (dyn FnMut(&str) + Send),
 ) -> Result<(Demand, GrantedCard), Refusal> {
   let mut said: Option<String> = None;
@@ -427,6 +591,7 @@ async fn granted(
       Ok(None) if ours.is_some() => {
         forget(db, demand.id).await?;
         demand = ask_kept(db, master, asking, waiting).await?;
+        asked.store(demand.id, Ordering::Release);
       }
       Ok(None) => {
         return Err(Refusal::bad(
@@ -454,21 +619,29 @@ async fn served(
   node: &str,
   waiting: &mut (dyn FnMut(&str) + Send),
 ) -> Result<(), Refusal> {
+  served_at(&ground.db, &Gateway::of(ground), registration, node, waiting).await
+}
+
+// The same, on a gateway of the caller's.
+async fn served_at(
+  db: &DatabaseConnection,
+  gateway: &Gateway,
+  registration: &str,
+  node: &str,
+  waiting: &mut (dyn FnMut(&str) + Send),
+) -> Result<(), Refusal> {
   let entry = format!("{registration}@{node}");
-  let machine = ground.machine();
-  let Some(mut service) =
-    registry::service_of(&ground.db, registration).await.map_err(|why| fault(why.error))?
+  let Some(mut service) = registry::service_of(db, registration).await.map_err(|why| fault(why.error))?
   else {
     return Err(fault(format!("{registration} is no registration the registry holds")));
   };
 
-  service.base_url = harness_machine::gateway::url(machine.var("BMO_LLM_GATEWAY_URL"));
+  service.base_url = gateway.url.clone();
 
-  let key_file = harness_providers::registered::Registered::key_file(&machine);
   let mut said = false;
 
   loop {
-    let listed = match crate::control::own_llm::credential(&key_file) {
+    let listed = match crate::control::own_llm::credential(&gateway.key_file) {
       Ok(key) => crate::control::own_llm::models(&service, &key).await.unwrap_or_default(),
       Err(why) => return Err(fault(why.said(&service))),
     };
