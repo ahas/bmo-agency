@@ -320,12 +320,19 @@ fn a_draft_that_was_never_sent_is_no_message_the_duplicate_rule_holds() {
 }
 
 #[test]
-fn the_reply_target_is_the_message_being_answered_and_nothing_forces_it() {
+fn a_plain_answer_is_the_default_and_a_reply_targets_the_message_being_answered() {
   let capabilities = std::fs::read_to_string(tree().join("prompts/agents/chat/capabilities.md")).unwrap();
 
-  assert!(capabilities.contains("Pin it to the message you are answering with <<REPLY:9166>>"));
-  assert!(capabilities.contains("Never pin another message and never the last one you read"));
-  assert!(capabilities.contains("If nothing fits, send plain"));
+  assert!(capabilities.contains("Your answer goes out as a plain message: that is the default."));
+  assert!(
+    capabilities.contains("a reply only where the room has moved past the message you are answering")
+  );
+  assert!(capabilities.contains("Never send a reply in the owner's private chat."));
+  assert!(capabilities.contains("<<REPLY:<number>>>, the number the transcript shows"));
+  assert!(capabilities.contains("never a message it does not address; where no message fits, send plain"));
+  assert!(capabilities.contains("One reply per answer at most."));
+  assert!(capabilities.contains("whether to reply is your own judgement, never a count of lines"));
+  assert!(!capabilities.contains("9166"), "the rule names no example number");
 }
 
 #[test]

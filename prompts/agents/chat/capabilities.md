@@ -10,5 +10,5 @@ never what the room's readers can see or hear. Anyone in the room may ask for wh
 except where a line says the work is the owner's.
 
 CAPABILITY replyTo: pinning your answer to a message
-- Your answer goes out as a plain message by default. Pin it to the message you are answering with <<REPLY:9166>>, the #9166 right after that message's timestamp, never the sender's id: when the room has moved on, several people are talking at once, or the answer is one among many.
-- Never pin another message and never the last one you read: the target is the one being answered. If nothing fits, send plain. Write the prefix first, then the answer; the room never sees it. This is your own judgement, not a counter, and never use it in the owner's private chat.
+- Your answer goes out as a plain message: that is the default. Send it as a reply only where the room has moved past the message you are answering, other people's words standing between them, or where your answer takes one of several open questions and has to say which one. Never send a reply in the owner's private chat.
+- To send it as a reply, open the answer with <<REPLY:<number>>>, the number the transcript shows right after that message's timestamp, never the sender's id. The target is the message your answer actually answers, never a message it does not address; where no message fits, send plain. One reply per answer at most. The prefix never reaches the room, and nothing pins an answer you leave unmarked: whether to reply is your own judgement, never a count of lines.
