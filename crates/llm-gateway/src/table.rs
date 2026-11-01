@@ -21,9 +21,10 @@ pub use harness_machine::members::Member;
 /// Messages request's thinking to the chat template, the one that writes a run's sampling settings
 /// from its header into the request, the one that folds a system turn inside the conversation into
 /// the person's turn beside it, the one that copies a run's long tools from their header into the
-/// field the engines read, and the one that starts a request from its role's saved prefix on an instance
-/// that keeps role files.
-pub const HOOKS: [&str; 5] = ["thinking", "sampling", "reminders", "long_tools", "roles"];
+/// field the engines read, the one that starts a request from its role's saved prefix on an instance
+/// that keeps role files, and the one that takes the wait off a request naming none on an entry that has
+/// none.
+pub const HOOKS: [&str; 6] = ["thinking", "sampling", "reminders", "long_tools", "roles", "unclocked"];
 
 /// The gateway's own key, as the variable the table names it by.
 pub const GATEWAY_KEY_VARIABLE: &str = "LLM_GATEWAY_KEY";
@@ -76,7 +77,16 @@ struct Entry {
 #[derive(Clone, Serialize)]
 struct Info {
   /// The instance behind the address keeps role files (docs/own-llm.md, 「Role files」).
+  #[serde(skip_serializing_if = "is_false")]
   role_files: bool,
+  /// The entry has no wait of its own: a request on it naming none is waited for however long the
+  /// engine takes (docs/own-llm.md, 「The gateway」).
+  #[serde(skip_serializing_if = "is_false")]
+  unclocked: bool,
+}
+
+fn is_false(value: &bool) -> bool {
+  !*value
 }
 
 #[derive(Clone, Serialize)]
@@ -87,8 +97,12 @@ struct Params {
   /// An address that takes no key is still handed one, since the OpenAI client will not go without;
   /// the backend reads none.
   api_key: String,
-  timeout: i64,
-  stream_timeout: i64,
+  /// The entry's own wait, none on an entry of a card service's engine: LiteLLM has no value meaning no
+  /// wait, so such an entry names none and is marked unclocked for the hook that takes the wait off.
+  #[serde(skip_serializing_if = "Option::is_none")]
+  timeout: Option<i64>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  stream_timeout: Option<i64>,
   /// Thinking off where a request names nothing: the template's own default thinks for minutes on a
   /// slow card, even on a turn that asked for none.
   chat_template_kwargs: TemplateSettings,
@@ -108,8 +122,8 @@ struct Settings {
   use_chat_completions_url_for_anthropic_messages: bool,
   callbacks: Vec<String>,
   /// A failed request is answered once and not retried here: the run that asked decides. Each entry
-  /// holds its own wait; the gateway-wide `request_timeout` is not read on the Messages path, so none
-  /// is set.
+  /// holds its own wait, or none on a card service's engine; the gateway-wide `request_timeout` is not
+  /// read on the Messages path, so none is set.
   num_retries: u32,
 }
 
@@ -175,17 +189,22 @@ pub fn gateway_table_with_members(
       if let (Some(variable), Some(key_file)) = (&variable, &address.key_file) {
         key_files.insert(variable.clone(), key_file.clone());
       }
+      let unclocked = registration.card_service.is_some();
+      let wait = (!unclocked).then_some(registration.wait_seconds);
       let params = Params {
         model: format!("openai/{}", registration.model),
         api_base: Some(api_base(&address.url)),
         api_key: variable.map_or_else(|| "no-key".to_owned(), |variable| format!("os.environ/{variable}")),
-        timeout: registration.wait_seconds,
-        stream_timeout: registration.wait_seconds,
+        timeout: wait,
+        stream_timeout: wait,
         chat_template_kwargs: TemplateSettings {
           enable_thinking: false,
         },
       };
-      let info = address.role_files.then_some(Info { role_files: true });
+      let info = (address.role_files || unclocked).then_some(Info {
+        role_files: address.role_files,
+        unclocked,
+      });
       if registration.addresses.len() > 1 || registration.card_service.is_some() {
         models.push(Entry {
           model_name: registration.name.clone(),
@@ -229,8 +248,8 @@ pub fn gateway_table_with_members(
         model: format!("{provider}/{}", member.model),
         api_base: member.api_base.clone(),
         api_key: format!("os.environ/{variable}"),
-        timeout: member.wait_seconds,
-        stream_timeout: member.wait_seconds,
+        timeout: Some(member.wait_seconds),
+        stream_timeout: Some(member.wait_seconds),
         chat_template_kwargs: TemplateSettings {
           enable_thinking: false,
         },

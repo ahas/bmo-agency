@@ -124,7 +124,7 @@ fn each_address_is_asked_for_the_model_with_its_wait_and_thinking_off_and_keys_n
     json!({
       "drop_params": true,
       "use_chat_completions_url_for_anthropic_messages": true,
-      "callbacks": ["thinking.handler", "sampling.handler", "reminders.handler", "long_tools.handler", "roles.handler"],
+      "callbacks": ["thinking.handler", "sampling.handler", "reminders.handler", "long_tools.handler", "roles.handler", "unclocked.handler"],
       "num_retries": 0,
     })
   );
@@ -304,6 +304,23 @@ fn a_registration_naming_a_card_service_is_served_by_the_master_s_standing_insta
 
   assert_eq!(names, vec!["flash", "flash@n3"], "one standing instance is still served under its node");
   assert_eq!(read["model_list"][1]["model_info"]["role_files"], true);
+
+  for entry in read["model_list"].as_array().unwrap() {
+    let params = &entry["litellm_params"];
+
+    assert!(
+      params.get("timeout").is_none() && params.get("stream_timeout").is_none(),
+      "an entry of a card service's engine names no wait: {entry}"
+    );
+    assert_eq!(entry["model_info"]["unclocked"], true, "and is marked as one with none: {entry}");
+  }
+
+  assert!(
+    read["litellm_settings"]["callbacks"]
+      .as_array()
+      .unwrap()
+      .contains(&"unclocked.handler".into())
+  );
   assert_eq!(table.key_files.values().next().map(String::as_str), Some("/keys/lab-arena.key"));
 
   for nothing in [None, Some(json!({ "services": [] }))] {

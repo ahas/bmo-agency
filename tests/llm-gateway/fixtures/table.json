@@ -74,7 +74,8 @@
       "sampling.handler",
       "reminders.handler",
       "long_tools.handler",
-      "roles.handler"
+      "roles.handler",
+      "unclocked.handler"
     ],
     "num_retries": 0
   },

@@ -126,7 +126,9 @@ never the model's name.
 - **Its answer size:** the answer ceiling of a run on it where the key's tier names none, a whole
   number of tokens within the policy's bounds and smaller than its window.
 - **Its request wait:** how long one request is waited for, long enough for a whole default answer at
-  the model's speed. Claude Code waits it, a translation on it waits it, and so does the gateway behind.
+  the model's speed. Claude Code waits it, and so does the gateway behind on a registration of
+  addresses; a request that names no wait on a registration naming a card service is waited for
+  however long the engine takes (「The gateway」 below).
 - **Its thinking default:** on or off, what a run on it does where its tier mapping leaves thinking to
   the registration.
 - **Whether it is walked:** whether the automatic walk asks the registry's provider when a key's tier
@@ -448,9 +450,12 @@ never the model's name.
   under its name, its instances' role files the registration's; a beat whose picture cannot be read leaves
   the last good table standing, and with no master named, or a picture placing no such service, the
   registration is served nowhere. The launcher reads the master's address and token file from its
-  own environment, else those two entries alone of the server's settings file under the data root's `env/`. Each entry asks its address's chat completions path, with the address's key, for the
-  registration's model, waits the registration's request wait for a whole answer and for a stream alike,
-  and sends `enable_thinking` off in `chat_template_kwargs` where a request names nothing.
+  own environment, else those two entries alone of the server's settings file under the data root's
+  `env/`. Each entry asks its address's chat completions path, with the address's key, for the
+  registration's model, and sends `enable_thinking` off in `chat_template_kwargs` where a request names
+  nothing. An entry of a registration on addresses waits the registration's request wait for a whole
+  answer and for a stream alike; an entry of a registration naming a card service has no wait of its
+  own (「A request is waited for as long as its caller waits」 below).
 - **A request is waited for as long as its caller waits, and never longer.**
   - A node sends nothing, not even its response headers, until it has read the whole prompt, so a long
     prompt is most of an hour of silence.
@@ -462,6 +467,14 @@ never the model's name.
     caller.
   - An entry's own wait is that of a request naming none. The gateway-wide request wait is not read on
     the Messages path, so the table sets none.
+  - **A request naming no wait on a card service's engine is waited for however long the engine takes.**
+    An engine the arbiter stands is the deployment's own, shared by every caller in the master's line,
+    so a request on it is never given up on a clock: its entry names no wait, and is marked in its model
+    information as one with none. LiteLLM has no value that means no wait — an entry naming none falls
+    to the proxy-wide default, and an infinite one fails the connection — so a hook of the gateway's
+    own, run after the entry is chosen, takes the wait off such a request where it names none in the
+    wait headers. A request that names a wait is waited for that wait, as on any entry. A request whose
+    caller has gone goes on holding the engine until the engine has answered it.
 - **What holds for every entry:**
   - An OpenAI-compatible backend is asked at its chat completions path; left to itself the gateway asks
     the Responses API, which an engine's front may answer with a 404.

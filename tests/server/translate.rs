@@ -3,7 +3,7 @@
 //! the text, one request with thinking off on the registry's provider, its route refusing what is no
 //! translation, and a translation on a registration naming a card service with no engine standing asking its
 //! demand, waiting for the granted card's entry and going out on it, never moved off the registry; and a
-//! translation on the registry waited for its registration's request wait, which it names to the gateway.
+//! translation on the registry naming no wait of its own, waited for however long the gateway takes.
 
 use std::collections::{BTreeMap, HashMap};
 use std::os::unix::fs::PermissionsExt;
@@ -451,7 +451,7 @@ async fn slow_gateway(slow: Duration) -> (String, Named) {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn a_translation_on_the_registry_waits_its_registration_s_request_wait_and_names_it_to_the_gateway() {
+async fn a_translation_on_the_registry_names_no_wait_and_is_waited_for_however_long_the_gateway_takes() {
   let scratch = Scratch::new().await;
   let db = scratch.db();
   let home = tempfile::tempdir().unwrap();
@@ -485,7 +485,8 @@ async fn a_translation_on_the_registry_waits_its_registration_s_request_wait_and
   .await
   .unwrap();
 
-  // One registration on an address, whose request wait is shorter than the gateway takes to answer.
+  // One registration on an address, whose request wait is shorter than the gateway takes to answer: the
+  // registration's wait is the gateway's entry's, never agency's.
   scratch.run(r#"DELETE FROM "registered_models""#, vec![]).await;
   scratch
     .run(
@@ -512,18 +513,8 @@ async fn a_translation_on_the_registry_waits_its_registration_s_request_wait_and
     .await;
   roads::set_registration(db, KEY, Some("hy"), 1).await.unwrap();
 
-  let began = std::time::Instant::now();
-  let refused = translate(&ground, "document", "English", (None, &[]), "the text").await;
-  let waited = began.elapsed();
+  let translated = translate(&ground, "document", "English", (None, &[]), "the text").await.unwrap();
 
-  assert!(refused.is_err(), "a translation the gateway answers after its wait has none");
-  assert!(
-    waited < Duration::from_secs(3),
-    "given up at the registration's wait, not a wait of the code's own: {waited:?}"
-  );
-  assert_eq!(
-    *named.lock().unwrap(),
-    [("1".to_owned(), "1".to_owned())],
-    "the wait named to the gateway, so it gives the request up where agency does"
-  );
+  assert_eq!(translated.text, "the text, rendered", "waited for until the gateway answered");
+  assert_eq!(*named.lock().unwrap(), [(String::new(), String::new())], "no wait named to the gateway");
 }
