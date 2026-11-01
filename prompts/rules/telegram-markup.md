@@ -9,7 +9,8 @@
   - So the one place HTML is made is the converter, which also makes the same text as plain text
     with the marks removed, held as the fallback.
 - Which marks the writer has and when to use them are the writer's rules, in `answer-shape.md`;
-  whether a message is folded is the output gate's own rulebook.
+  whether a message is folded is the writer's own judgement, marked on the answer under the rule
+  its room's capability section gives, and the converter folds only a send that asks for it.
 - The dialect the send path carries them out in, `telegram-html`, is the Telegram provider's own
   (its `docs/telegram.md`).
 

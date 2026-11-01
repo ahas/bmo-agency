@@ -336,6 +336,29 @@ fn a_plain_answer_is_the_default_and_a_reply_targets_the_message_being_answered(
 }
 
 #[test]
+fn an_unfolded_answer_is_the_default_and_a_fold_is_the_agents_own_mark() {
+  let capabilities = std::fs::read_to_string(tree().join("prompts/agents/chat/capabilities.md")).unwrap();
+  let section = capabilities.split("CAPABILITY foldable: ").nth(1).expect("the fold's section");
+
+  assert!(section.contains("Your answer goes out unfolded: that is the default."), "{section}");
+  assert!(
+    section.contains("only where its body runs long and stands apart from a short lead"),
+    "{section}"
+  );
+  assert!(section.contains("Never fold a conversational answer, a short answer"), "{section}");
+  assert!(section.contains("end the answer with <<FOLD>>"), "{section}");
+  assert!(section.contains("nothing folds an answer you leave unmarked"), "{section}");
+  assert!(
+    section.contains("whether to fold is your own judgement, never a count of characters"),
+    "{section}"
+  );
+  assert!(
+    capabilities.contains("or for folding where its dialect\nfolds"),
+    "the section stands only there"
+  );
+}
+
+#[test]
 fn the_deploy_waits_on_plain_quiet_and_a_worker_never_deploys() {
   let trees = tree();
   let text = std::fs::read_to_string(trees.join("testbed.toml")).unwrap();
