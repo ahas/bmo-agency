@@ -412,8 +412,13 @@
   and then the
   instructions of the purpose asked — `prompts/agents/translator/instructions.md` for a document's part,
   `worker.md` for a text a job worker reads, `record.md` for a worker's record the owner reads, that
-  one after the plain-writing rulebook — and its input is one line naming the target language and then
-  the text. On the registry's provider it is one request to the gateway's chat completions path under
+  one after the plain-writing rulebook, and the caller's note on the part after them — and its input is
+  one line naming the target language and then the text. Where the caller names terms (`docs/api.md`,
+  「translations」), the input is instead the translation model's own terminology form, which a
+  translation model follows more closely than an instruction in the system prompt: a line saying that
+  reference translations follow, one line for each term, its source and then its target, a blank line,
+  the instruction to translate the text into the target language and answer with the translation alone,
+  a blank line, and the text. On the registry's provider it is one request to the gateway's chat completions path under
   the registration the mapping names, with thinking off and the profile's sampling (`docs/own-llm.md`,
   「A request with no tools」); where the registration names a card service, the request names the entry of
   the card the translations out on it at once share, waited on however long its grant takes and given

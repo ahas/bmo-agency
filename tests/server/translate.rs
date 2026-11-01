@@ -26,6 +26,7 @@ use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::routing::{get, post};
+use bmo_agency_client::TranslationTerm;
 use harness_providers::Machine;
 use policy::providers::claude_code::CLAUDE_CODE;
 use policy::providers::registered::REGISTERED;
@@ -82,7 +83,29 @@ fn a_translation_s_prompt_is_the_role_s_then_its_purpose_s() {
   );
   assert_eq!(Purpose::read("document"), Some(Purpose::Document));
   assert_eq!(Purpose::read("gate"), None);
-  assert_eq!(input(" Korean ", "the text"), "Translate into Korean.\n\nthe text");
+  assert_eq!(input(" Korean ", "the text", &[]), "Translate into Korean.\n\nthe text");
+  // The caller's terms stand first, as the translation model's reference translations, a term with no target
+  // kept as written.
+  let terms = [
+    TranslationTerm {
+      source: "38.6 tokens/s".into(),
+      target: None,
+    },
+    TranslationTerm {
+      source: "Reproduction plan".into(),
+      target: Some("Reproduction plan".into()),
+    },
+    TranslationTerm {
+      source: " ".into(),
+      target: None,
+    },
+  ];
+  assert_eq!(
+    input("Korean", "the text", &terms),
+    "Reference the following translations:\n38.6 tokens/s translates to 38.6 tokens/s\nReproduction plan \
+     translates to Reproduction plan\n\nTranslate the following text into Korean. Note that you must ONLY \
+     output the translated result without any additional explanation:\n\nthe text"
+  );
   // The caller's note stands in the system prompt, never in the input a translation model would render.
   assert_eq!(noted_system("the translator's prompt\n", None), "the translator's prompt\n");
   assert_eq!(
@@ -177,6 +200,7 @@ struct Engine {
   given_back: Vec<i64>,
   lists_after_grant: u32,
   sent: Vec<String>,
+  inputs: Vec<String>,
 }
 
 type Shared = Arc<Mutex<Engine>>;
@@ -255,6 +279,9 @@ async fn completed(State(shared): State<Shared>, Json(body): Json<Value>) -> axu
   let model = body["model"].as_str().unwrap_or_default().to_owned();
 
   engine.sent.push(model.clone());
+  engine
+    .inputs
+    .push(body["messages"][1]["content"].as_str().unwrap_or_default().to_owned());
 
   if engine.lists_after_grant <= BEAT_AFTER {
     return (
@@ -359,7 +386,11 @@ async fn a_translation_on_a_card_service_with_no_engine_standing_asks_its_demand
     "{resolution:?}"
   );
 
-  let translated = translate(&ground, "document", "English", None, "the text").await.unwrap();
+  let terms = [TranslationTerm {
+    source: "Thing-7B".into(),
+    target: None,
+  }];
+  let translated = translate(&ground, "document", "English", (None, &terms), "the text").await.unwrap();
 
   assert_eq!(
     (translated.provider.as_str(), translated.model.as_str(), translated.text.as_str()),
@@ -377,6 +408,11 @@ async fn a_translation_on_a_card_service_with_no_engine_standing_asks_its_demand
       "sent once, to the granted card's entry, after the gateway held it"
     );
     assert_eq!(engine.given_back, [1], "the demand given back once the translation was answered");
+    assert_eq!(
+      engine.inputs.last().map(String::as_str),
+      Some(input("English", "the text", &terms).as_str()),
+      "the caller's terms reach the model in its input"
+    );
   }
 
   let kept = settings::get(db, &format!("road_kept:{KEY}")).await.unwrap();

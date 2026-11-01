@@ -24,7 +24,7 @@ impl Route for CreateTranslationRun {
       call.ground(),
       &asked.purpose,
       &asked.language,
-      asked.note.as_deref(),
+      (asked.note.as_deref(), &asked.terms),
       &asked.text,
     )
     .await

@@ -2469,6 +2469,20 @@ pub struct TranslationRunAsk {
   /// The caller's word on this one part, carried into the run's input as a note not to be translated.
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub note: Option<String>,
+  /// The words of this one part the translation renders as the caller says, set before the text as the
+  /// translation model's reference translations.
+  #[serde(default, skip_serializing_if = "Vec::is_empty")]
+  pub terms: Vec<TranslationTerm>,
+}
+
+/// TranslationTerm: a word of a part to translate and how the translation writes it: `source` as the text
+/// writes it, and `target`, the source itself where none is named.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct TranslationTerm {
+  pub source: String,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub target: Option<String>,
 }
 
 /// TranslationRun: a translation as it came back, whole, with the road it went out on.

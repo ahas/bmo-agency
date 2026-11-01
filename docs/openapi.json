@@ -12467,6 +12467,13 @@
               "null"
             ],
             "description": "The caller's word on this one part, carried into the run's input as a note not to be translated."
+          },
+          "terms": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TranslationTerm"
+            },
+            "description": "The words of this one part the translation renders as the caller says, set before the text as the\ntranslation model's reference translations."
           }
         },
         "required": [
@@ -12475,6 +12482,24 @@
           "text"
         ],
         "description": "TranslationRunAsk: one text to translate on the `translate` road: what it is for (`document`, `worker` or\n`record`), the language to render it in and the text."
+      },
+      "TranslationTerm": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string"
+          },
+          "target": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "source"
+        ],
+        "description": "TranslationTerm: a word of a part to translate and how the translation writes it: `source` as the text\nwrites it, and `target`, the source itself where none is named."
       },
       "FileItem": {
         "type": "object",

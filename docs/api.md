@@ -743,7 +743,7 @@ them; a notice that holds nothing is withdrawn.
 
 | Method | Path | Does |
 |---|---|---|
-| POST | `/translation-runs` | Translate one text on the `translate` road: `purpose` (`document`, `worker` or `record`), `language` (the target's name as the instructions ask for it), `text` and an optional `note`; answers 200 with `text`, the translation whole, and the `provider` and `model` it went out on. |
+| POST | `/translation-runs` | Translate one text on the `translate` road: `purpose` (`document`, `worker` or `record`), `language` (the target's name as the instructions ask for it), `text`, an optional `note` and optional `terms`; answers 200 with `text`, the translation whole, and the `provider` and `model` it went out on. |
 
 - **One text, one run** (`docs/launch-lines.md`, 「Translate runner」): no session is kept, nothing is
   queued and nothing is cached here; the caller cuts a long text into parts, keeps the translations it
@@ -753,8 +753,14 @@ them; a notice that holds nothing is withdrawn.
   is, whether its demand was granted yet or not (`docs/own-llm.md`, 「An engine the arbiter stands」).
 - **A note** is the caller's word on this one part — what an earlier answer for it got wrong, or that a
   one-line title is wanted — carried in the run's system prompt after the translator's own, as an
-  instruction the model reads and does not render; the input is always the language line and the text
-  alone, since a translation model renders every line of its input.
+  instruction the model reads and does not render; the input is the language line and the text, and the
+  terms where the caller names any, since a translation model renders every line of its input.
+- **Terms** are the words of this one part the translation renders as the caller says: each a `source`, as
+  the text writes it, and a `target`, how the translation writes it, the source itself where none is
+  named, so a name, a figure with its unit, code, an address or a fixed heading the caller lists stays as
+  written. They stand at the head of the input as the translation model's own reference translations, one
+  line each, and the instruction after them asks for the translation alone (`docs/launch-lines.md`,
+  「Translate runner」). An empty list, or none, asks with the language line alone.
 - **Refusals:** 400 `bad-request` for a purpose it does not know or an empty text or language; 503
   `no-login-open` with the road resolution's sentence where nothing can carry it; 413 `too-large` where the
   model refused the part as longer than its window takes, so the caller cuts it smaller; 502 `no-answer`

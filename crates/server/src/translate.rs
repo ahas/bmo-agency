@@ -6,6 +6,7 @@
 use std::sync::{Arc, LazyLock};
 use std::time::Duration;
 
+use bmo_agency_client::TranslationTerm;
 use harness_providers::registered::Registered;
 use serde_json::{Value, json};
 
@@ -95,11 +96,32 @@ pub fn system_prompt(trees: &Trees, role: Option<&str>, purpose: Purpose) -> Res
   })
 }
 
-/// What a translation is asked with: the target language's line, then the text. A caller's note never
+/// What a translation is asked with: the target language's line, then the text; where the caller names
+/// terms, the translation model's own terminology form instead — the reference translations, one line for
+/// each term, then the instruction to answer with the translation alone, then the text. A caller's note never
 /// stands in the input: a translation model renders every line of its input, a note among them, so the
 /// note is carried in the system prompt instead (`noted_system`).
-pub fn input(language: &str, text: &str) -> String {
-  format!("Translate into {}.\n\n{text}", language.trim())
+pub fn input(language: &str, text: &str, terms: &[TranslationTerm]) -> String {
+  let language = language.trim();
+  let terms: Vec<String> = terms
+    .iter()
+    .filter(|term| !term.source.trim().is_empty())
+    .map(|term| {
+      let source = term.source.trim();
+      let target = term.target.as_deref().map(str::trim).filter(|target| !target.is_empty());
+      format!("{source} translates to {}", target.unwrap_or(source))
+    })
+    .collect();
+
+  if terms.is_empty() {
+    return format!("Translate into {language}.\n\n{text}");
+  }
+
+  format!(
+    "Reference the following translations:\n{}\n\nTranslate the following text into {language}. Note that you \
+     must ONLY output the translated result without any additional explanation:\n\n{text}",
+    terms.join("\n")
+  )
 }
 
 /// The system prompt a part is translated under: the translator's, and the caller's note on this one part
@@ -145,7 +167,7 @@ pub async fn translate(
   ground: &Ground,
   purpose: &str,
   language: &str,
-  note: Option<&str>,
+  (note, terms): (Option<&str>, &[TranslationTerm]),
   text: &str,
 ) -> Result<Translated, Refused> {
   let purpose = Purpose::read(purpose)
@@ -168,7 +190,7 @@ pub async fn translate(
   let role = role_prompt(&ground.db, ROLE).await;
   let system =
     noted_system(&system_prompt(&trees, role.as_deref(), purpose).map_err(Refused::NoAnswer)?, note);
-  let input = input(language, text);
+  let input = input(language, text, terms);
   let answer = if taken.provider == crate::control::registry::PROVIDER {
     on_registry(ground, &taken.model, &system, &input).await
   } else if taken.provider == crate::lines::runner::PROVIDER {

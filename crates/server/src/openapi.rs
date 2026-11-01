@@ -2652,6 +2652,7 @@ fn schema(g: &mut SchemaGenerator, name: &str) -> Schema {
     "GithubEvent" => g.subschema_for::<serde_json::Value>(),
     "GithubDeliveryTaken" => g.subschema_for::<GithubDeliveryTaken>(),
     "TranslationRunAsk" => g.subschema_for::<TranslationRunAsk>(),
+    "TranslationTerm" => g.subschema_for::<TranslationTerm>(),
     "TranslationRun" => g.subschema_for::<TranslationRun>(),
     "JobInstruction" => g.subschema_for::<JobInstruction>(),
     "InstructionText" => g.subschema_for::<InstructionText>(),

@@ -3553,6 +3553,19 @@ export interface components {
             text: string;
             /** @description The caller's word on this one part, carried into the run's input as a note not to be translated. */
             note?: string | null;
+            /**
+             * @description The words of this one part the translation renders as the caller says, set before the text as the
+             *     translation model's reference translations.
+             */
+            terms?: components["schemas"]["TranslationTerm"][];
+        };
+        /**
+         * @description TranslationTerm: a word of a part to translate and how the translation writes it: `source` as the text
+         *     writes it, and `target`, the source itself where none is named.
+         */
+        TranslationTerm: {
+            source: string;
+            target?: string | null;
         };
         /** @description FileItem: an item to file as the chat agent asks it, everything but the agent its plugin was started for. */
         FileItem: {
