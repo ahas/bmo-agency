@@ -17,6 +17,7 @@ use crate::door::turn::Watch;
 use crate::job_run::claude::failure::Failure;
 use crate::job_run::claude::walk::{Attempt, Walking, on_accounts};
 use crate::lines::claude::{ApartRun, Command, Runs, apart_args, command_env};
+use crate::lines::standing::gateway_headers;
 use crate::lines::worker::{effort_of, rulebook, system_prompt_file};
 use crate::lines::{Trees, read_required, role_prompt};
 use crate::places::Ground;
@@ -34,7 +35,8 @@ pub const ROLE: &str = "translator";
 // The agent folder the purposes' instructions stand in, and the folder a run apart works in.
 const AGENT: &str = "translator";
 
-// How long one translation is waited for.
+// How long one translation on Claude Code is waited for; one on the registry's provider waits its
+// registration's request wait.
 const ANSWER_WITHIN: Duration = Duration::from_secs(180);
 
 // The card the translations out at once on a registration share.
@@ -231,27 +233,30 @@ pub fn gateway_request(registration: &str, system: &str, input: &str) -> Value {
   request
 }
 
-// One translation on the registry's provider: on a registration naming a card service, the card every
-// translation out on it at once shares, asked by the first and given back once the last is answered or
-// has failed, and the request naming the card's entry (docs/own-llm.md, 「An engine the arbiter stands」).
+// One translation on the registry's provider, waited for its registration's request wait: on a
+// registration naming a card service, the card every translation out on it at once shares, asked by the
+// first and given back once the last is answered or has failed, and the request naming the card's entry
+// (docs/own-llm.md, 「An engine the arbiter stands」).
 async fn on_registry(
   ground: &Ground,
   registration: &str,
   system: &str,
   input: &str,
 ) -> Result<String, String> {
-  let card = match crate::control::registry::registration(&ground.db, registration).await {
-    Ok(Some(one)) => cards::hold_shared(ground, &TRANSLATING, &one, AGENT)
-      .await
-      .map_err(|refused| refused.detail)?,
-    Ok(None) => None,
+  let one = match crate::control::registry::registration(&ground.db, registration).await {
+    Ok(Some(one)) => one,
+    Ok(None) => return Err(format!("no registration is named {registration}")),
     Err(why) => return Err(why.error),
   };
+  let wait = Duration::from_secs(one.wait_seconds.max(1) as u64);
+  let card = cards::hold_shared(ground, &TRANSLATING, &one, AGENT)
+    .await
+    .map_err(|refused| refused.detail)?;
   let entry = match &card {
     Some(card) => format!("{registration}@{}", card.held.node),
     None => registration.to_owned(),
   };
-  let answered = on_gateway(ground, &entry, system, input).await;
+  let answered = on_gateway(ground, &entry, wait, system, input).await;
 
   if let Some(card) = card {
     card.leave().await;
@@ -260,21 +265,31 @@ async fn on_registry(
   answered
 }
 
-// One request through the model gateway, answering the model's words.
+// One request through the model gateway, answering the model's words: waited for `wait`, which it names
+// to the gateway as its own, so the gateway gives it up where agency does.
 async fn on_gateway(
   ground: &Ground,
   registration: &str,
+  wait: Duration,
   system: &str,
   input: &str,
 ) -> Result<String, String> {
   let machine = ground.machine();
   let url = harness_machine::gateway::url(machine.var("BMO_LLM_GATEWAY_URL"));
   let key = std::fs::read_to_string(Registered::key_file(&machine)).unwrap_or_default();
-  let answer = reqwest::Client::new()
+  let mut asked = reqwest::Client::new()
     .post(format!("{url}/v1/chat/completions"))
-    .bearer_auth(key.trim())
+    .bearer_auth(key.trim());
+
+  for header in gateway_headers(wait.as_millis() as i64, None, &[], None) {
+    if let Some((name, value)) = header.split_once(": ") {
+      asked = asked.header(name, value);
+    }
+  }
+
+  let answer = asked
     .json(&gateway_request(registration, system, input))
-    .timeout(ANSWER_WITHIN)
+    .timeout(wait)
     .send()
     .await
     .map_err(|why| format!("the gateway: {why}"))?;

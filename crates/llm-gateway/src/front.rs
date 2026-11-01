@@ -161,10 +161,16 @@ impl Front {
 
   /// One request, carried to the child serving now and its answer carried back as it comes.
   pub async fn handle(self: &Arc<Self>, request: Request) -> Response {
-    let Some(serving) = self.held.lock().unwrap().current.clone() else {
-      return text(StatusCode::SERVICE_UNAVAILABLE, "the gateway has no table to serve yet".to_owned());
+    // Counted in hand under the lock the child is taken under, so a take that retires that child in
+    // between never finds it idle and stops it under the request.
+    let serving = {
+      let held = self.held.lock().unwrap();
+      let Some(serving) = held.current.clone() else {
+        return text(StatusCode::SERVICE_UNAVAILABLE, "the gateway has no table to serve yet".to_owned());
+      };
+      serving.in_hand.fetch_add(1, Ordering::SeqCst);
+      serving
     };
-    serving.in_hand.fetch_add(1, Ordering::SeqCst);
     let in_hand = InHand {
       front: Arc::clone(self),
       serving: Arc::clone(&serving),

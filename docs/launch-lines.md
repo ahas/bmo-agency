@@ -420,10 +420,11 @@
   the instruction to translate the text into the target language and answer with the translation alone,
   a blank line, and the text. On the registry's provider it is one request to the gateway's chat completions path under
   the registration the mapping names, with thinking off and the profile's sampling (`docs/own-llm.md`,
-  「A request with no tools」); where the registration names a card service, the request names the entry of
-  the card the translations out on it at once share, waited on however long its grant takes and given
-  back once the last of them has ended — answered, failed, or let go by its caller — whether its demand
-  was granted yet or not (`docs/own-llm.md`, 「An engine the arbiter stands」). Such a registration is the
+  「A request with no tools」), waited for as long as that registration's request wait and naming that wait
+  to the gateway as its own, so agency and the gateway give it up together; where the registration names a
+  card service, the request names the entry of the card the translations out on it at once share, waited
+  on however long its grant takes and given back once the last of them has ended — answered, failed, or
+  let go by its caller — whether its demand was granted yet or not (`docs/own-llm.md`, 「An engine the arbiter stands」). Such a registration is the
   registry's road whether or not its engine stands when the translation is asked: the demand starts it,
   the request waits until the gateway serves the granted card's entry, and a translation never moves to
   Claude Code because no instance stood. A demand the master refuses, or a request the engine fails, fails the translation, since a key set to the registry's

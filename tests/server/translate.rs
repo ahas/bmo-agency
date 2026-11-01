@@ -2,7 +2,8 @@
 //! prompt is the translator role's prompt and then the purpose's instructions, its input the target's line and
 //! the text, one request with thinking off on the registry's provider, its route refusing what is no
 //! translation, and a translation on a registration naming a card service with no engine standing asking its
-//! demand, waiting for the granted card's entry and going out on it, never moved off the registry.
+//! demand, waiting for the granted card's entry and going out on it, never moved off the registry; and a
+//! translation on the registry waited for its registration's request wait, which it names to the gateway.
 
 use std::collections::{BTreeMap, HashMap};
 use std::os::unix::fs::PermissionsExt;
@@ -23,7 +24,7 @@ use agency_server::translate::{
 };
 use axum::Json;
 use axum::extract::{Path, State};
-use axum::http::StatusCode;
+use axum::http::{HeaderMap, StatusCode};
 use axum::response::IntoResponse;
 use axum::routing::{get, post};
 use bmo_agency_client::TranslationTerm;
@@ -418,4 +419,111 @@ async fn a_translation_on_a_card_service_with_no_engine_standing_asks_its_demand
   let kept = settings::get(db, &format!("road_kept:{KEY}")).await.unwrap();
 
   assert_eq!(kept, None, "the key's road never moved");
+}
+
+// The wait headers each request named to the stand-in gateway, and how long it takes to answer one.
+type Named = Arc<Mutex<Vec<(String, String)>>>;
+
+async fn slowly(State((named, slow)): State<(Named, Duration)>, headers: HeaderMap) -> Json<Value> {
+  let header =
+    |name: &str| headers.get(name).and_then(|value| value.to_str().ok()).unwrap_or_default().to_owned();
+
+  named
+    .lock()
+    .unwrap()
+    .push((header("x-litellm-timeout"), header("x-litellm-stream-timeout")));
+  tokio::time::sleep(slow).await;
+  Json(json!({ "choices": [{ "message": { "content": "the text, rendered" } }] }))
+}
+
+// A gateway that answers each request only after `slow`.
+async fn slow_gateway(slow: Duration) -> (String, Named) {
+  let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+  let base = format!("http://{}", listener.local_addr().unwrap());
+  let named: Named = Arc::default();
+  let app = axum::Router::new()
+    .route("/v1/chat/completions", post(slowly))
+    .with_state((named.clone(), slow));
+
+  tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+
+  (base, named)
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_translation_on_the_registry_waits_its_registration_s_request_wait_and_names_it_to_the_gateway() {
+  let scratch = Scratch::new().await;
+  let db = scratch.db();
+  let home = tempfile::tempdir().unwrap();
+  let data = home.path().join("data");
+  let (base, named) = slow_gateway(Duration::from_secs(3)).await;
+  let service = Service::new(db.clone(), Config::read(|_| None).unwrap());
+  let at = |path: &std::path::Path| path.to_string_lossy().into_owned();
+  let machine = Machine::with_env(
+    [
+      ("HOME".to_owned(), at(home.path())),
+      ("PATH".to_owned(), "/nowhere".to_owned()),
+      ("BMO_DEPLOY_DIR".to_owned(), env!("CARGO_MANIFEST_DIR").to_owned()),
+      ("BMO_LLM_GATEWAY_URL".to_owned(), base.clone()),
+    ],
+    data.clone(),
+  );
+  let ground = Ground::new(&service, &machine, None);
+  let key = data.join("env").join(&REGISTERED.presence.key_file);
+
+  std::fs::create_dir_all(key.parent().unwrap()).unwrap();
+  std::fs::write(&key, "a key\n").unwrap();
+  std::fs::set_permissions(&key, std::fs::Permissions::from_mode(0o600)).unwrap();
+  store::seed::settle(db, &deployment(&machine)).await.unwrap();
+  set_provider_order(
+    db,
+    &[OrderEntry {
+      name: "registered".into(),
+      enabled: true,
+    }],
+  )
+  .await
+  .unwrap();
+
+  // One registration on an address, whose request wait is shorter than the gateway takes to answer.
+  scratch.run(r#"DELETE FROM "registered_models""#, vec![]).await;
+  scratch
+    .run(
+      r#"INSERT INTO "registered_models" ("name", "label", "model", "context_tokens", "answer_tokens",
+            "wait_seconds", "thinking", "walked", "added_at", "keeps_research")
+         VALUES ('hy', 'hy', 'served', 32768, 2048, 1, 0, 0, 1, 0)"#,
+      vec![],
+    )
+    .await;
+  scratch
+    .run(
+      r#"INSERT INTO "registered_model_addresses" ("registration", "node", "position", "url", "key_file", "key_owned")
+         VALUES ('hy', 'n1', 1, 'http://127.0.0.1:9/v1/chat/completions', NULL, 0)"#,
+      vec![],
+    )
+    .await;
+  scratch
+    .run(
+      r#"INSERT INTO "model_tier_mappings" ("provider", "tier", "model", "effort", "answer_tokens", "thinking")
+         VALUES ('registered', 'Reliable', 'hy', NULL, NULL, NULL)
+         ON CONFLICT ("provider", "tier") DO UPDATE SET "model" = excluded."model""#,
+      vec![],
+    )
+    .await;
+  roads::set_registration(db, KEY, Some("hy"), 1).await.unwrap();
+
+  let began = std::time::Instant::now();
+  let refused = translate(&ground, "document", "English", (None, &[]), "the text").await;
+  let waited = began.elapsed();
+
+  assert!(refused.is_err(), "a translation the gateway answers after its wait has none");
+  assert!(
+    waited < Duration::from_secs(3),
+    "given up at the registration's wait, not a wait of the code's own: {waited:?}"
+  );
+  assert_eq!(
+    *named.lock().unwrap(),
+    [("1".to_owned(), "1".to_owned())],
+    "the wait named to the gateway, so it gives the request up where agency does"
+  );
 }

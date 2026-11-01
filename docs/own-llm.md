@@ -126,7 +126,7 @@ never the model's name.
 - **Its answer size:** the answer ceiling of a run on it where the key's tier names none, a whole
   number of tokens within the policy's bounds and smaller than its window.
 - **Its request wait:** how long one request is waited for, long enough for a whole default answer at
-  the model's speed. Claude Code waits it, and so does the gateway behind.
+  the model's speed. Claude Code waits it, a translation on it waits it, and so does the gateway behind.
 - **Its thinking default:** on or off, what a run on it does where its tier mapping leaves thinking to
   the registration.
 - **Whether it is walked:** whether the automatic walk asks the registry's provider when a key's tier
