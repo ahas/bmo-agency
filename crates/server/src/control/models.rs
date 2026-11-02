@@ -26,7 +26,6 @@ use policy::control_words::CONTROL_WORDS;
 use policy::fill_marks;
 use policy::model_catalogue::{MODEL_CATALOGUE, NumberBounds};
 use policy::registry::REGISTRY;
-use policy::tiers::TIERS;
 use regex::Regex;
 use sea_orm::{ConnectionTrait, QueryResult, TransactionTrait};
 use serde_json::{Map, Value, json};
@@ -867,13 +866,7 @@ impl Route for ListModels {
       ));
     }
 
-    let tier = call.query("tier").filter(|tier| !tier.trim().is_empty());
-
-    if let Some(tier) = tier.as_deref().filter(|tier| !TIERS.holds(tier)) {
-      return Err(Refused::new(StatusCode::BAD_REQUEST, format!("Unknown model tier: {tier}")));
-    }
-
-    let listed = super::registry::listed_models(call.store(), &call.data_root(), tier.as_deref()).await?;
+    let listed = super::registry::listed_models(call.store(), &call.data_root()).await?;
 
     Ok(answer(StatusCode::OK, json!({ "items": listed, "more": false })))
   }

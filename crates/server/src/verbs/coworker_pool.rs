@@ -1,9 +1,9 @@
-//! A job's native `Agent` calls held to the common co-worker pool (docs/coworker-pool.md, 「Native co-worker
-//! places」): the hooks the worker's settings run around every call — before it, a wait for a place and the
-//! call let out only once it has one; after it returns or fails, and when a background child stops, the
-//! place given back — and the job's own word about the calls it is about to make, seats reserved under the
-//! CLI process it is run from and given back by `release` or once that process ends. A place whose waiter
-//! or caller process is gone is reclaimed on that evidence alone, never for its age.
+//! A job's native `Agent` calls held to their roles' slots (docs/role-slots.md, 「Native co-worker slots」):
+//! the hooks the worker settings run around every call — before it, a wait for a slot of the role the call
+//! names and the call let out only once it has one; after it returns or fails, and when a background child
+//! stops, the slot given back — and the job's own word about the calls it is about to make, slots reserved
+//! under the CLI process it is run from and given back by `release` or once that process ends. A slot whose
+//! waiter or caller process is gone is reclaimed on that evidence alone, never for its age.
 
 use std::collections::BTreeMap;
 use std::time::Duration;
@@ -13,13 +13,14 @@ use sea_orm::DatabaseConnection;
 use serde_json::{Value, json};
 
 use super::VerbError;
+use crate::agent_roles::{self, AgentRole};
 use crate::control::harness::named;
-use crate::control::pool::{NATIVE_PROVIDER, roles};
-use crate::control::tiers;
+use crate::control::pool::NATIVE_PROVIDER;
 use crate::now_ms;
+use crate::order::Entry;
 use crate::order_run::dispatch::{
-  self, Asked, NATIVE, Seats, Wanted, acquire, bind, enqueue_native, finish, held_reservations,
-  reclaim_native, release_reservation, request,
+  self, Asked, NATIVE, Seats, Wanted, acquire_inside, bind, finish, held_reservations, reclaim_native,
+  release_reservation, request,
 };
 use store::{all, one, run};
 
@@ -33,8 +34,7 @@ const POLL: Duration = Duration::from_millis(500);
 const RECLAIM_EVERY: Duration = Duration::from_secs(5);
 
 /// The usage the reservation verb answers a wrong line with.
-pub const USAGE: &str =
-  "usage: bmo-agency coworker pool reserve --role <role> [--tier <tier>] --count <n> | release";
+pub const USAGE: &str = "usage: bmo-agency coworker pool reserve --role <role> --count <n> | release";
 
 /// A process marked by its id and the kernel's start time, so a pid the kernel handed to a later process is
 /// not taken for the one marked.
@@ -220,23 +220,21 @@ pub fn coworker_provider(machine: &harness_providers::Machine) -> Option<&'stati
     .map(|provider| provider.name())
 }
 
-/// The provider, tier and model a pooled role's native calls run on where the calling program stands on no
-/// provider of its own.
-pub async fn role_mapping(db: &DatabaseConnection, role: &str) -> Result<(String, String, String), String> {
-  let mapping = tiers::resolve(db, &format!("role:{role}"), NATIVE_PROVIDER).await?;
-
-  Ok((mapping.provider, mapping.tier, mapping.model))
+/// The road a callable role's native calls go out on from a program standing on `provider`: the model and
+/// effort the role's order names for that provider. A role whose order holds no entry for it is refused, and
+/// the caller does that part itself (docs/role-slots.md, 「Native co-worker slots」).
+pub fn native_road(role: &AgentRole, provider: &str) -> Result<Entry, String> {
+  role.order.entry(provider).cloned().ok_or_else(|| {
+    format!(
+      "the {} role's order holds no entry for {provider}, the provider this program stands on",
+      role.name
+    )
+  })
 }
 
-async fn pooled_roles(db: &DatabaseConnection) -> Result<Vec<String>, String> {
-  Ok(
-    roles(db, true)
-      .await
-      .map_err(|why| why.error)?
-      .into_iter()
-      .map(|role| role.name)
-      .collect(),
-  )
+// The roles a native call may name: the callable ones.
+async fn callable_roles(db: &DatabaseConnection) -> Result<Vec<AgentRole>, String> {
+  agent_roles::callable(db).await.map_err(|why| why.detail)
 }
 
 /// How a pre-call wait ended: the call let out on its place, or refused with why.
@@ -246,10 +244,10 @@ pub enum Admission {
   Refused(String),
 }
 
-/// A native call admitted to the pool: its role held to the pooled ones and resolved to its tier on `on`,
-/// the provider its program stands on (Claude Code where none is named), its request put in the line on
-/// that provider — counted under a reservation the calling CLI holds for that tier, where it holds one —
-/// and waited on until it is let in or ended, however long that takes. `waiting` hears the request's token
+/// A native call let into its role's slots: its role held to the callable ones and its road the entry the
+/// role's order names for `on`, the provider its program stands on (Claude Code where none is named), its
+/// request put in the role's line — counted under a reservation the calling CLI holds for that role, where it
+/// holds one — and waited on until it is let in or ended, however long that takes. `waiting` hears the request's token
 /// once it stands, so a stopped hook can end it.
 pub async fn admit(
   db: &DatabaseConnection,
@@ -274,60 +272,57 @@ pub async fn admit(
     return Ok(Admission::Refused(NESTED_REFUSAL.into()));
   }
 
-  let pooled = pooled_roles(db).await?;
-  let Some(role) = coworker_type.as_deref().filter(|role| pooled.iter().any(|one| one == role)) else {
+  let callable = callable_roles(db).await?;
+  let Some(role) = coworker_type.as_deref().and_then(|role| callable.iter().find(|one| one.name == role))
+  else {
     let named = coworker_type.as_deref().map_or_else(
       || "a call with no subagent_type".to_owned(),
       |role| format!("the subagent_type {role}"),
     );
-    let roles = if pooled.is_empty() {
-      "(no pooled role is enabled)".to_owned()
+    let roles = if callable.is_empty() {
+      "(no role may be called)".to_owned()
     } else {
-      pooled.join(", ")
+      callable.iter().map(|role| role.name.as_str()).collect::<Vec<_>>().join(", ")
     };
 
     return Ok(Admission::Refused(format!(
-      "The co-worker gate refused this: {named} is not a role of the common spawning pool, and a type outside it would run on the parent's model. Name one of: {roles}; or do this part yourself."
+      "The co-worker gate refused this: {named} is no role a run may call, and a type outside the roles would run on the parent's model. Name one of: {roles}; or do this part yourself."
     )));
   };
   let provider = on.unwrap_or(NATIVE_PROVIDER);
-  let mapping = match tiers::resolve(db, &format!("role:{role}"), provider).await {
-    Ok(mapping) => mapping,
+  let road = match native_road(role, provider) {
+    Ok(road) => road,
     Err(why) => {
       return Ok(Admission::Refused(format!(
-        "The co-worker gate refused this: the {role} role resolves to no model on {provider} ({why})."
+        "The co-worker gate refused this: {why}; do this part yourself."
       )));
     }
   };
 
   reclaim_native(db).await?;
 
-  // A call of a CLI that reserved this tier is counted under that reservation's owner, which is what lets
-  // it take a held seat instead of waiting in the line.
+  // A call of a CLI that reserved this role is counted under that reservation's owner, which is what lets it
+  // take a held slot instead of waiting in the line.
   let reserved = held_reservations(db, Some(&cli_owner(owner)))
     .await?
     .iter()
-    .any(|held| held.provider == mapping.provider && held.tier == mapping.tier);
+    .any(|held| held.role == role.name);
   let asked = Asked {
     request_key: format!("native:{session}:{tool_use_id}"),
     owner: if reserved { cli_owner(owner) } else { format!("native:{session}") },
     wanted: Wanted {
-      role,
-      selection: "",
-      requested_tier: None,
-      provider: on,
-      work_key: None,
+      role: &role.name,
+      path: None,
+      fixed: Some(road),
     },
-    generation: 1,
-    yielding: false,
-    token: None,
-    place_key: None,
+    ..Asked::default()
   };
+  let role = role.name.as_str();
   let row = (session.clone(), tool_use_id.clone(), waiter.clone(), owner.clone());
-  let held = match enqueue_native(db, &asked, &mapping, async move |unit, held| {
+  let held = match dispatch::enqueue(db, &asked, NATIVE, async move |unit, held| {
     run(
       unit,
-      r#"INSERT INTO "coworker_pool_native" ("token","session","tool_use_id","waiter_pid","waiter_start","owner_pid","owner_start")
+      r#"INSERT INTO "role_slot_native" ("token","session","tool_use_id","waiter_pid","waiter_start","owner_pid","owner_start")
          VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT DO NOTHING"#,
       vec![
         held.token.clone().into(),
@@ -358,8 +353,8 @@ pub async fn admit(
       return Ok(ended(role));
     };
 
-    if acquire(db, &current).await?.is_some() {
-      let admitted = request(db, &held.token).await?.ok_or("the pool request admitted is gone")?;
+    if acquire_inside(db, &current).await?.is_some() {
+      let admitted = request(db, &held.token).await?.ok_or("the slot request let in is gone")?;
 
       bind(db, &admitted, tool_use_id).await?;
 
@@ -381,7 +376,7 @@ pub async fn admit(
 
 fn ended(role: &str) -> Admission {
   Admission::Refused(format!(
-    "The co-worker gate refused this: the pool request for this {role} call was ended before it got a place."
+    "The co-worker gate refused this: the slot request for this {role} call was ended before it got a slot."
   ))
 }
 
@@ -397,7 +392,7 @@ async fn token_of(
 ) -> Result<Option<String>, String> {
   one(
     db,
-    r#"SELECT "token" FROM "coworker_pool_native" WHERE "session" = $1 AND "tool_use_id" = $2"#,
+    r#"SELECT "token" FROM "role_slot_native" WHERE "session" = $1 AND "tool_use_id" = $2"#,
     vec![session.into(), tool_use_id.into()],
   )
   .await
@@ -423,7 +418,7 @@ pub async fn give_back(db: &DatabaseConnection, input: &HookInput) -> Result<(),
       if let (Some("async_launched"), Some(agent)) = (status.as_deref(), agent_id.as_deref()) {
         let stopped = one(
           db,
-          r#"SELECT "agent_id" FROM "coworker_pool_native_stops" WHERE "agent_id" = $1"#,
+          r#"SELECT "agent_id" FROM "role_slot_native_stops" WHERE "agent_id" = $1"#,
           vec![agent.into()],
         )
         .await
@@ -432,7 +427,7 @@ pub async fn give_back(db: &DatabaseConnection, input: &HookInput) -> Result<(),
         if stopped.is_none() {
           run(
             db,
-            r#"UPDATE "coworker_pool_native" SET "agent_id" = $1 WHERE "token" = $2"#,
+            r#"UPDATE "role_slot_native" SET "agent_id" = $1 WHERE "token" = $2"#,
             vec![agent.into(), token.into()],
           )
           .await
@@ -454,7 +449,7 @@ pub async fn give_back(db: &DatabaseConnection, input: &HookInput) -> Result<(),
     HookInput::Stop { agent_id } => {
       let row = one(
         db,
-        r#"SELECT "token" FROM "coworker_pool_native" WHERE "agent_id" = $1"#,
+        r#"SELECT "token" FROM "role_slot_native" WHERE "agent_id" = $1"#,
         vec![agent_id.clone().into()],
       )
       .await
@@ -468,7 +463,7 @@ pub async fn give_back(db: &DatabaseConnection, input: &HookInput) -> Result<(),
 
       run(
         db,
-        r#"INSERT INTO "coworker_pool_native_stops" VALUES ($1, $2) ON CONFLICT ("agent_id") DO UPDATE SET "at" = excluded."at""#,
+        r#"INSERT INTO "role_slot_native_stops" VALUES ($1, $2) ON CONFLICT ("agent_id") DO UPDATE SET "at" = excluded."at""#,
         vec![agent_id.clone().into(), now_ms().into()],
       )
       .await
@@ -478,62 +473,46 @@ pub async fn give_back(db: &DatabaseConnection, input: &HookInput) -> Result<(),
   }
 }
 
-/// Seats held for the native calls one CLI is about to make, on the tier its role — or the tier it names —
-/// resolves to on `on`, the provider the CLI stands on (Claude Code where none is named); the line saying
-/// how many are held and how many still wait for a place.
+/// Slots of a callable role held for the native calls one CLI is about to make; the line saying how many are
+/// held and how many still wait.
 pub async fn reserve(
   db: &DatabaseConnection,
   owner: &ProcessMark,
-  on: Option<&str>,
   role: &str,
-  tier: Option<&str>,
   count: i64,
 ) -> Result<Vec<String>, VerbError> {
   let failed = |why: String| VerbError::Ended {
     code: 1,
     said: format!("coworker-pool: {why}"),
   };
-  let pooled = pooled_roles(db).await.map_err(failed)?;
+  let callable = callable_roles(db).await.map_err(failed)?;
 
-  if !pooled.iter().any(|one| one == role) {
-    return Err(failed(format!(
-      "{role} is not a role of the common spawning pool; name one of: {}",
-      pooled.join(", ")
-    )));
+  if !callable.iter().any(|one| one.name == role) {
+    let names: Vec<&str> = callable.iter().map(|role| role.name.as_str()).collect();
+
+    return Err(failed(format!("{role} is no role a run may call; name one of: {}", names.join(", "))));
   }
 
-  let provider = on.unwrap_or(NATIVE_PROVIDER);
-  let mapping = match tier {
-    None => tiers::resolve(db, &format!("role:{role}"), provider).await,
-    Some(tier) => tiers::resolve_tier(db, tier, provider).await,
-  }
-  .map_err(failed)?;
   let key = cli_owner(owner);
   let seats = Seats {
-    reservation_key: format!("{key}:{role}:{}", mapping.tier),
+    reservation_key: format!("{key}:{role}"),
     owner: key,
     source: NATIVE,
-    wanted: Wanted {
-      role,
-      selection: "",
-      requested_tier: None,
-      provider: on,
-      work_key: None,
-    },
+    role,
     count,
   };
-  let held = dispatch::reserve_on(db, &seats, &mapping).await.map_err(failed)?;
+  let held = dispatch::reserve(db, &seats).await.map_err(failed)?;
 
   run(
     db,
-    r#"INSERT INTO "coworker_pool_native_reservations" VALUES ($1, $2, $3) ON CONFLICT DO NOTHING"#,
+    r#"INSERT INTO "role_slot_native_reservations" VALUES ($1, $2, $3) ON CONFLICT DO NOTHING"#,
     vec![held.token.clone().into(), owner.pid.into(), owner.start.clone().into()],
   )
   .await?;
 
   let states = all(
     db,
-    r#"SELECT "state" FROM "coworker_pool_requests" WHERE "reservation" = $1"#,
+    r#"SELECT "state" FROM "role_slot_requests" WHERE "reservation" = $1"#,
     vec![held.token.clone().into()],
   )
   .await?;
@@ -545,10 +524,8 @@ pub async fn reserve(
   };
 
   Ok(vec![format!(
-    "{}/{} {}: {} of {} seats held, {} waiting for a place",
-    held.provider,
-    held.tier,
-    held.model,
+    "{}: {} of {} slots held, {} waiting",
+    held.role,
     count_of("reserved"),
     held.wanted,
     count_of("waiting")

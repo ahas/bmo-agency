@@ -161,14 +161,9 @@ pub fn review_item(request: &PullRequest, worker: &str) -> Value {
 /// The workers that hold a GitHub repository, by `owner/name` in lower case: each worker's checkout's
 /// `origin` remote.
 pub async fn holders(db: &DatabaseConnection) -> BTreeMap<String, String> {
-  let rows = all(
-    db,
-    r#"SELECT "name", "cwd" FROM "agents" WHERE "kind" = 'worker' AND "cwd" IS NOT NULL AND "support_of" IS NULL
-       ORDER BY "name""#,
-    vec![],
-  )
-  .await
-  .unwrap_or_default();
+  let rows = all(db, r#"SELECT "name", "path" AS "cwd" FROM "repositories" ORDER BY "name""#, vec![])
+    .await
+    .unwrap_or_default();
   let mut held = BTreeMap::new();
 
   for row in rows {

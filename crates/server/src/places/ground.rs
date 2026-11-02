@@ -119,10 +119,12 @@ pub fn token_or_file(value: Option<String>, file: Option<String>) -> Option<Stri
     })
 }
 
-/// One agent's row as the places read it.
+/// One place's row as the places read it: a supervisor, whose resident program stands in a home of its own,
+/// or a repository's checkout, where runs of roles work and nothing stands between them.
 #[derive(Clone, Debug, PartialEq)]
 pub struct AgentRow {
   pub name: String,
+  /// `chat` for a supervisor, `worker` for a checkout.
   pub kind: String,
   pub label: Option<String>,
   pub herdr_label: Option<String>,
@@ -133,55 +135,90 @@ pub struct AgentRow {
   pub resting: bool,
 }
 
-const AGENT_COLUMNS: &str = r#""name", "kind", "label", "herdr_label", "node", "cwd", "dev_command", "support_of",
-  "resting_since" IS NOT NULL AS "resting""#;
+// The kind a supervisor's row is read as, and a checkout's.
+const SUPERVISOR: &str = "chat";
+const CHECKOUT: &str = "worker";
 
 impl AgentRow {
-  fn read(row: &QueryResult) -> Result<Self, sea_orm::DbErr> {
+  fn supervisor(row: &QueryResult) -> Result<Self, sea_orm::DbErr> {
     Ok(Self {
       name: row.try_get("", "name")?,
-      kind: row.try_get("", "kind")?,
+      kind: SUPERVISOR.to_owned(),
       label: row.try_get("", "label")?,
       herdr_label: row.try_get("", "herdr_label")?,
-      node: row.try_get("", "node")?,
-      cwd: row.try_get("", "cwd")?,
-      dev_command: row.try_get("", "dev_command")?,
-      support_of: row.try_get("", "support_of")?,
-      resting: row.try_get("", "resting")?,
+      node: None,
+      cwd: None,
+      dev_command: None,
+      support_of: None,
+      resting: false,
     })
   }
 
-  /// Every agent but a resting worker, which keeps its row for its record alone.
+  async fn checkouts(db: &DatabaseConnection) -> Result<Vec<Self>, Refusal> {
+    let mut rows = vec![];
+
+    for worker in crate::queue::workers::workers(db, Path::new("")).await? {
+      if worker.builtin {
+        continue;
+      }
+
+      let base = worker.support_of.clone().unwrap_or_else(|| worker.name.clone());
+      let dev_command = crate::repositories::named(db, &base)
+        .await?
+        .and_then(|repository| repository.dev_command);
+
+      rows.push(Self {
+        name: worker.name,
+        kind: CHECKOUT.to_owned(),
+        label: Some(worker.label),
+        herdr_label: None,
+        node: worker.node,
+        cwd: Some(worker.cwd),
+        dev_command,
+        support_of: worker.support_of,
+        resting: false,
+      });
+    }
+
+    Ok(rows)
+  }
+
+  /// Every supervisor: the only rows whose program stands between turns.
   pub async fn standing(db: &DatabaseConnection) -> Result<Vec<Self>, Refusal> {
-    let sql = format!(
-      r#"SELECT {AGENT_COLUMNS} FROM "agents" WHERE "resting_since" IS NULL ORDER BY "kind", "name""#
-    );
+    let rows = all(
+      db,
+      r#"SELECT "name", "label", "herdr_label" FROM "supervisors" ORDER BY "name""#,
+      vec![],
+    )
+    .await?;
 
-    Ok(all(db, &sql, vec![]).await?.iter().map(Self::read).collect::<Result<_, _>>()?)
+    Ok(rows.iter().map(Self::supervisor).collect::<Result<_, _>>()?)
   }
 
-  /// The workers that are not resting, in the order the queue lists them.
+  /// Every repository's checkouts, in the order the queue lists them.
   pub async fn workers(db: &DatabaseConnection) -> Result<Vec<Self>, Refusal> {
-    let sql = format!(
-      r#"SELECT {AGENT_COLUMNS} FROM "agents" a WHERE a."kind" = 'worker' AND a."resting_since" IS NULL
-         ORDER BY COALESCE((SELECT b."builtin" FROM "agents" b WHERE b."name" = a."support_of"), a."builtin") DESC,
-           COALESCE(a."support_of", a."name"), COALESCE(a."support_slot", 1)"#
-    );
-
-    Ok(all(db, &sql, vec![]).await?.iter().map(Self::read).collect::<Result<_, _>>()?)
+    Self::checkouts(db).await
   }
 
-  /// One agent's row, a resting worker's included.
+  /// One supervisor's row, or one checkout's.
   pub async fn named(db: &DatabaseConnection, name: &str) -> Result<Option<Self>, Refusal> {
-    let sql = format!(r#"SELECT {AGENT_COLUMNS} FROM "agents" WHERE "name" = $1"#);
+    let supervisor = one(
+      db,
+      r#"SELECT "name", "label", "herdr_label" FROM "supervisors" WHERE "name" = $1"#,
+      vec![name.into()],
+    )
+    .await?;
 
-    Ok(one(db, &sql, vec![name.into()]).await?.as_ref().map(Self::read).transpose()?)
+    if let Some(row) = supervisor {
+      return Ok(Some(Self::supervisor(&row)?));
+    }
+
+    Ok(Self::checkouts(db).await?.into_iter().find(|row| row.name == name))
   }
 
-  /// The line the agent's work goes out on: a runner is named for its line, every other agent's kind
-  /// is its line's name.
+  /// The line the row's work goes out on: the chat line for a supervisor, the worker line for a checkout.
   pub fn line(&self) -> &str {
-    if self.kind == "runner" { &self.name } else { &self.kind }
+    &self.kind
   }
 
   /// The label herdr shows it by.

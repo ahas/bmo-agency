@@ -1,5 +1,5 @@
 //! The logins a Claude turn is carried by (docs/cache-fallback.md, 「The Claude Code road is a list of
-//! accounts」): the logins its work key is offered, in order, for the user it is made for, each carrying the
+//! accounts」): the logins the run is offered, in order, for the user it is made for, each carrying the
 //! turn on its own session; a login that cannot answer is never offered, and a run none of whose logins
 //! answers goes out on none. Where a turn fails on the login rather than on the work, the next login
 //! carries it: a full window is put to rest as it is passed over, and a login that is gone is marked and
@@ -12,7 +12,7 @@ use std::time::Duration;
 use super::failure::{AccountFailure, Failure};
 use crate::control::claude_accounts::{
   self, Account, Judging, account_open, carried_for_user, credential_expiry, hold_in_use, in_use,
-  pinned_account, reopens_at, walk_for_user,
+  reopens_at, walk_for_user,
 };
 use crate::keepalive::logins;
 use crate::now_ms;
@@ -68,13 +68,12 @@ pub async fn on_accounts<T, A: Attempt<T>>(
   attempt: &mut A,
 ) -> Result<T, Failure> {
   let db = &walking.ground.db;
-  let mut walk = walk_for_user(walking.judging(), key, user).await.map_err(refused)?;
-  let pinned = pinned_account(db, key).await.map_err(refused)?.is_some();
+  let mut walk = walk_for_user(walking.judging(), user).await.map_err(refused)?;
 
   walk.retain(|account| attempt.takes(account));
 
   if walk.is_empty() {
-    let carried = carried_for_user(db, key, user).await.map_err(refused)?;
+    let carried = carried_for_user(db, user).await.map_err(refused)?;
     let (taken, passed): (Vec<Account>, Vec<Account>) =
       carried.into_iter().partition(|account| attempt.takes(account));
 
@@ -107,9 +106,7 @@ pub async fn on_accounts<T, A: Attempt<T>>(
 
     match tried {
       Ok(result) => {
-        if !pinned {
-          hold_where_moved(walking.ground, &account.id).await?;
-        }
+        hold_where_moved(walking.ground, &account.id).await?;
 
         return Ok(result);
       }

@@ -10,35 +10,23 @@ use sea_orm::DatabaseConnection;
 
 use crate::control::own_llm::{self, OwnLlmError};
 use crate::control::registry::{self, Mapping};
-use crate::control::tiers;
 use crate::events::{Bus, Event};
 use crate::lines::worker::{Reasoning, effort_of};
 use crate::places::Ground;
 use crate::{Refusal, now_ms};
-use store::one;
 
 /// The provider the walk stands in for.
 pub const CLAUDE: &str = "claude-code";
 
-/// Whether an agent answers while the rest closes Claude Code's road: an agent pinned to another provider
-/// stands on a road the rest does not close, and any other answers where the road resolution's walk of its
-/// key meets a provider other than Claude Code that can answer now.
+/// Whether a supervisor answers while the rest closes Claude Code's road: where the walk of its own order
+/// meets a provider other than Claude Code that can answer now.
 pub async fn answers(ground: &Ground, _machine: &Machine, agent: &str) -> bool {
-  let pinned = one(
-    &ground.db,
-    r#"SELECT "pinned_provider" FROM "agents" WHERE "name" = $1"#,
-    vec![agent.into()],
-  )
-  .await
-  .ok()
-  .flatten()
-  .and_then(|row| row.try_get::<Option<String>>("", "pinned_provider").ok().flatten());
+  let Ok(Some(supervisor)) = crate::supervisors::named(&ground.db, agent).await else {
+    return false;
+  };
+  let ask = crate::road::Ask::of(crate::road::Row::Supervisor(agent), "chat", &supervisor.order);
 
-  if pinned.is_some_and(|provider| provider != CLAUDE) {
-    return true;
-  }
-
-  match crate::road::resolve(ground, &crate::road::Ask::key(agent)).await {
+  match crate::road::resolve(ground, &ask).await {
     Ok(resolution) => resolution.open().any(|road| road.provider != CLAUDE),
     Err(why) => {
       eprintln!("stand-in {agent}: its road could not be resolved: {why}");
@@ -69,7 +57,7 @@ pub async fn step_of(
   reasoning: &Reasoning,
 ) -> Result<Step, String> {
   let db = &ground.db;
-  let mapping = tiers::resolve_execution(db, key, provider, None).await?;
+  let mapping = crate::order::row_entry(db, key, provider).await?;
   let effort =
     effort_of(ground, machine, provider, &mapping.model, mapping.effort.as_deref(), Some(reasoning))
       .await
@@ -83,7 +71,7 @@ pub async fn step_of(
       .find(|one| one.member.name == mapping.model)
       .ok_or_else(|| format!("{provider}: {} is no member of its road", mapping.model))?;
     let thinking = mapping
-      .thinking
+      .thinks()
       .unwrap_or_else(|| if effort.is_empty() { held.thinking } else { effort != "none" });
 
     return Ok(Step {
@@ -97,7 +85,7 @@ pub async fn step_of(
 
   let asked = Mapping {
     model: mapping.model.clone(),
-    thinking: mapping.thinking,
+    thinking: mapping.thinks(),
     effort: Some(effort).filter(|effort| !effort.is_empty()),
     answer_tokens: mapping.answer_tokens,
   };

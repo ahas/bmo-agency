@@ -19,7 +19,6 @@ DROP TABLE "model_tier_seeded";
 DROP TABLE "fold_ratios";
 DROP TABLE "fold_ratio_seeded";
 DROP TABLE "fallback_routes";
-DROP TABLE "fallback_sessions";
 DROP TABLE "coworker_pool_limits";
 DROP TABLE "coworker_pool_meta";
 DROP TABLE "coworker_pool_pings";

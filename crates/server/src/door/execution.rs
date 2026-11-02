@@ -34,10 +34,10 @@ pub struct Identity {
   /// them rather than the run's own name.
   pub root: Option<String>,
   pub parent: Option<String>,
-  pub work_key: Option<String>,
+  /// The role the run holds, where it is a role's.
+  pub role: Option<String>,
   pub model: Option<String>,
   pub effort: Option<String>,
-  pub tier: Option<Value>,
 }
 
 /// What this process is called, as a run it opens is counted under: the name its environment hands it, or
@@ -215,10 +215,9 @@ impl Row {
     body.insert("agent".into(), json!(identity.agent));
     body.insert("root".into(), json!(identity.root.clone().unwrap_or_else(|| execution_root(name))));
     body.insert("parent".into(), json!(identity.parent.as_deref().unwrap_or(name)));
-    body.insert("workKey".into(), json!(identity.work_key.as_deref().unwrap_or(line)));
+    body.insert("role".into(), json!(identity.role));
     body.insert("model".into(), pick(&identity.model, flag("--model")));
     body.insert("effort".into(), pick(&identity.effort, flag("--effort")));
-    body.insert("tier".into(), identity.tier.clone().unwrap_or(Value::Null));
     body.insert("sessionId".into(), json!(session));
     body.insert("provider".into(), json!(provider));
     body.insert("line".into(), json!(line));
@@ -270,9 +269,7 @@ impl Row {
       .and_then(|body| serde_json::from_str::<Map<String, Value>>(&body).ok());
 
     if let Some(previous) = held {
-      for key in [
-        "agent", "root", "parent", "attempt", "provider", "workKey", "nativeId", "tier", "effort",
-      ] {
+      for key in ["agent", "root", "parent", "attempt", "provider", "role", "nativeId", "effort"] {
         if previous.get(key) != self.body.get(key) {
           return Err(crate::lines::fault(format!("execution identity cannot change: {key}")));
         }
@@ -415,7 +412,7 @@ pub fn native_child(parent: &Row, native: &str) -> Row {
   body.insert("parent".into(), json!(parent.id()));
   body.insert("nativeId".into(), json!(native));
 
-  for key in ["sessionId", "model", "effort", "tier"] {
+  for key in ["sessionId", "model", "effort"] {
     body.insert(key.into(), Value::Null);
   }
 

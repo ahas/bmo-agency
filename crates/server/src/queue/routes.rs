@@ -8,18 +8,14 @@ use std::sync::LazyLock;
 use harness_providers::{ARCHIVE_PROVIDERS, Machine};
 use policy::fill_marks;
 use policy::queue_words::QUEUE_WORDS;
-use policy::work_keys::WORK_KEYS;
 use regex::Regex;
 use sea_orm::DatabaseConnection;
 use serde_json::{Value, json};
-use store::one;
 
 use super::settings;
 use crate::Refusal;
 use crate::control::claude_accounts::Judging;
-use crate::control::harness::{enabled_providers, missing, named, provider_enabled};
-use crate::control::roads::{pinned_provider, walked};
-use crate::control::tiers::resolve_execution;
+use crate::control::harness::{missing, named, provider_enabled};
 use crate::rest::resting;
 
 /// The work key every job of a worker goes out on.
@@ -70,12 +66,14 @@ impl<E: std::fmt::Display> From<E> for Unrouted {
 
 /// The run line a job goes out on, which a provider that does not carry it never answers.
 pub fn job_line() -> &'static str {
-  WORK_KEYS.profile(JOB_WORK_KEY).map_or("", |profile| profile.line.as_str())
+  JOB_LINE
 }
 
-// What a worker is pinned to: a provider, and one model of it where a pin may name one of the provider's
-// models (docs/model-tiers.md, 「An agent's own model」). A support worker is on its base's pin, and a pin to
-// a provider the owner turned off reads as none.
+// The line the job role's runs go out on.
+const JOB_LINE: &str = "worker";
+
+// What a checkout's repository pins: a provider, and one model of it (docs/repositories.md, 「A pinned
+// model」). A pin to a provider the owner turned off reads as none.
 pub async fn worker_pin(
   db: &DatabaseConnection,
   worker: &str,
@@ -91,58 +89,34 @@ pub async fn worker_pin(
   Ok(Some((provider, model)))
 }
 
-/// What a worker is pinned to, whether or not the owner has its provider on: the head of the worker's walk
-/// (docs/cache-fallback.md, 「One road resolution」), a provider this build carries and, where a pin may name
-/// one of its models, the model. A support worker is on its base's pin.
+/// What a checkout's repository pins, whether or not the owner has its provider on: a provider this build
+/// carries and the model.
 pub async fn worker_pin_held(
   db: &DatabaseConnection,
   worker: &str,
 ) -> Result<Option<(String, Option<String>)>, Unrouted> {
-  let row = one(
-    db,
-    r#"SELECT COALESCE(b."pinned_provider", CASE WHEN a."support_of" IS NULL THEN a."pinned_provider" END) AS "provider",
-              COALESCE(b."pinned_model", CASE WHEN a."support_of" IS NULL THEN a."pinned_model" END) AS "model"
-       FROM "agents" a LEFT JOIN "agents" b ON b."name" = a."support_of" WHERE a."name" = $1"#,
-    vec![worker.into()],
-  )
-  .await?;
-  let Some(row) = row else {
+  let repository = crate::queue::workers::repository_of(db, worker)
+    .await
+    .map_err(|why| Unrouted(why.detail))?;
+  let Some(pin) = repository.and_then(|repository| repository.pin) else {
     return Ok(None);
   };
-  let Some(provider) = row
-    .try_get::<Option<String>>("", "provider")?
-    .filter(|provider| ARCHIVE_PROVIDERS.contains(&provider.as_str()))
-  else {
+
+  if !ARCHIVE_PROVIDERS.contains(&pin.provider.as_str()) {
     return Ok(None);
-  };
-  let names_models = named(&provider).map_err(|refused| Unrouted(refused.error))?.pins_models();
-  let model = if names_models { row.try_get::<Option<String>>("", "model")? } else { None };
-
-  Ok(Some((provider, model)))
-}
-
-/// The worker's selection on each provider the automatic walk asks, in the owner's provider order,
-/// or on the one provider the worker is pinned to, or else the job key is set to.
-pub async fn worker_selections(
-  db: &DatabaseConnection,
-  tier: Option<&str>,
-  worker: Option<&str>,
-) -> Result<Vec<String>, Unrouted> {
-  let mut enabled = vec![];
-
-  for name in enabled_providers(db).await.map_err(|refused| Unrouted(refused.error))? {
-    let provider = named(&name).map_err(|refused| Unrouted(refused.error))?;
-
-    if walked(db, provider, JOB_WORK_KEY, job_line())
-      .await
-      .map_err(|refused| Unrouted(refused.error))?
-    {
-      enabled.push(name);
-    }
   }
 
+  Ok(Some((pin.provider, Some(pin.model))))
+}
+
+/// A job's selection on each provider of the job role's order, in that order; or the one its repository pins
+/// alone, which its work waits for and never leaves (docs/repositories.md, 「A pinned model」).
+pub async fn worker_selections(
+  db: &DatabaseConnection,
+  worker: Option<&str>,
+) -> Result<Vec<String>, Unrouted> {
   let pin = match worker {
-    Some(worker) => worker_pin(db, worker).await?,
+    Some(worker) => worker_pin_held(db, worker).await?,
     None => None,
   };
 
@@ -150,24 +124,23 @@ pub async fn worker_selections(
     return Ok(vec![format!("{provider}::{model}")]);
   }
 
-  let pinned = match pin {
-    Some((provider, None)) => Some(provider),
-    _ => pinned_provider(db, JOB_WORK_KEY).await.map_err(|refused| Unrouted(refused.error))?,
-  };
-  let order = pinned.map_or(enabled, |pinned| vec![pinned]);
+  let role = crate::agent_roles::named(db, crate::agent_roles::job_role())
+    .await
+    .map_err(|why| Unrouted(why.detail))?
+    .ok_or_else(|| Unrouted(crate::agent_roles::unknown(crate::agent_roles::job_role())))?;
   let mut selections = vec![];
 
-  for provider in order {
-    let mapping = resolve_execution(db, JOB_WORK_KEY, &provider, tier).await.map_err(Unrouted)?;
-
-    selections.push(format!("{provider}::{}", mapping.model));
+  for entry in &role.order.entries {
+    if provider_enabled(db, &entry.provider).await.map_err(|refused| Unrouted(refused.error))? {
+      selections.push(format!("{}::{}", entry.provider, entry.model));
+    }
   }
 
   Ok(selections)
 }
 
 /// The selection a job asked for as it goes out: a provider's model as it is named, a bare Claude
-/// model on Claude Code, and the automatic choice on the first the worker's walk asks.
+/// model on Claude Code, and the first of its role's order otherwise.
 pub async fn resolve_job_model(
   db: &DatabaseConnection,
   selection: Option<&str>,
@@ -185,7 +158,7 @@ pub async fn resolve_job_model(
     });
   }
 
-  worker_selections(db, None, worker)
+  worker_selections(db, worker)
     .await?
     .into_iter()
     .next()
@@ -200,7 +173,6 @@ pub async fn job_route_candidates(
   machine: &Machine,
   requested: Option<&str>,
   worker: Option<&str>,
-  tier: Option<&str>,
 ) -> Result<Vec<String>, Unrouted> {
   let mut choices: Vec<String> = vec![];
   let mut add = |selection: String| {
@@ -216,7 +188,7 @@ pub async fn job_route_candidates(
     add(resolve_job_model(db, Some(requested), worker).await?);
   }
 
-  for selection in worker_selections(db, tier, worker).await? {
+  for selection in worker_selections(db, worker).await? {
     add(selection);
   }
 
@@ -356,7 +328,7 @@ pub async fn walked_keys(
   model: Option<&str>,
   worker: Option<&str>,
 ) -> Result<std::collections::HashSet<String>, Refusal> {
-  let candidates = job_route_candidates(db, machine, model, worker, None)
+  let candidates = job_route_candidates(db, machine, model, worker)
     .await
     .map_err(|unrouted| Refusal::bad("no-route", unrouted.0))?;
 
@@ -434,7 +406,7 @@ pub async fn item_route_open(
   now_ms: i64,
 ) -> bool {
   let Ok(candidates) =
-    job_route_candidates(judging.db, machine, Some(model.unwrap_or("auto")), worker, None).await
+    job_route_candidates(judging.db, machine, Some(model.unwrap_or("auto")), worker).await
   else {
     return false;
   };

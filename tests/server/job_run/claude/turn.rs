@@ -165,7 +165,6 @@ fn a_job_turn_carries_its_variables_its_agent_its_jobs_marker_its_work_key_and_i
   );
   assert_eq!(turn.env[TURN_AGENT], "worker-a");
   assert_eq!(turn.env[TASK_LOCKED], "1");
-  assert_eq!(turn.identity.work_key.as_deref(), Some("job-worker"));
   assert_eq!(turn.identity.parent.as_deref(), Some("bmo-task-41"));
   assert_eq!(
     turn.identity.root.as_deref(),

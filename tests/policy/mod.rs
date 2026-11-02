@@ -35,7 +35,6 @@ mod run_lines;
 mod run_stop;
 mod seeds;
 mod span_words;
-mod tiers;
 mod verb_words;
 mod work_keys;
 mod worker_words;

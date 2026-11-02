@@ -76,7 +76,7 @@ impl Settings {
   /// left with no settings is read by the kind it was written under, as the settling read every row
   /// standing when the settings arrived.
   pub fn of(row: &QueryResult) -> Result<Option<Self>, Refusal> {
-    let kind: String = row.try_get("", "kind")?;
+    let kind: String = row.try_get::<String>("", "kind").unwrap_or_else(|_| "chat".to_owned());
     let scope: Option<String> = row.try_get("", "session_scope")?;
     let shape: Option<String> = row.try_get("", "turn_shape")?;
     let default_answerer: i64 = row.try_get("", "default_answerer")?;
@@ -129,13 +129,9 @@ fn unsettled(kind: &str) -> Option<Settings> {
   }
 }
 
-/// The role an agent's row holds, where it holds one.
+/// The role a run under this name holds, where the name is a role's: a supervisor holds none, being no role.
 pub async fn role_of(db: &impl ConnectionTrait, agent: &str) -> Result<Option<String>, Refusal> {
-  Ok(
-    one(db, r#"SELECT "role" FROM "agents" WHERE "name" = $1"#, vec![agent.into()])
-      .await?
-      .and_then(|row| row.try_get::<Option<String>>("", "role").ok().flatten()),
-  )
+  Ok(crate::agent_roles::holds(db, agent).await?.then(|| agent.to_owned()))
 }
 
 /// A conversational agent's settings by its name, or none where it has no row or its row is no
@@ -143,7 +139,7 @@ pub async fn role_of(db: &impl ConnectionTrait, agent: &str) -> Result<Option<St
 pub async fn settings(db: &impl ConnectionTrait, agent: &str) -> Result<Option<Settings>, Refusal> {
   match one(
     db,
-    r#"SELECT "kind", "session_scope", "turn_shape", "default_answerer" FROM "agents" WHERE "name" = $1"#,
+    r#"SELECT 'chat' AS "kind", "session_scope", "turn_shape", "default_answerer" FROM "supervisors" WHERE "name" = $1"#,
     vec![agent.into()],
   )
   .await?
@@ -162,7 +158,7 @@ pub async fn is_companion(db: &impl ConnectionTrait, agent: &str) -> Result<bool
 /// persona are read from, or none where its row names none or it has no row (`docs/store.md`). Every
 /// path composing a companion's prompt hands this as its `prompts`, never the companion's name.
 pub async fn prompt_folder(db: &impl ConnectionTrait, agent: &str) -> Result<Option<String>, Refusal> {
-  match one(db, r#"SELECT "prompts" FROM "agents" WHERE "name" = $1"#, vec![agent.into()]).await? {
+  match one(db, r#"SELECT "prompts" FROM "supervisors" WHERE "name" = $1"#, vec![agent.into()]).await? {
     Some(row) => Ok(row.try_get("", "prompts")?),
     None => Ok(None),
   }
@@ -173,9 +169,7 @@ pub async fn prompt_folder(db: &impl ConnectionTrait, agent: &str) -> Result<Opt
 pub async fn default_answerer(db: &impl ConnectionTrait, own: &str) -> Result<String, Refusal> {
   let row = one(
     db,
-    r#"SELECT "name" FROM "agents"
-       WHERE "default_answerer" <> 0 AND "session_scope" IS NOT NULL AND "resting_since" IS NULL
-       ORDER BY "name" LIMIT 1"#,
+    r#"SELECT "name" FROM "supervisors" WHERE "default_answerer" <> 0 ORDER BY "name" LIMIT 1"#,
     vec![],
   )
   .await?;
@@ -195,8 +189,8 @@ pub async fn answers_unnamed(db: &impl ConnectionTrait, own: &str, agent: &str) 
 pub async fn named_answerers(db: &impl ConnectionTrait, chat_id: i64) -> Result<Vec<String>, Refusal> {
   all(
     db,
-    r#"SELECT "a"."name" FROM "room_answerers" "r" JOIN "agents" "a" ON "a"."name" = "r"."agent"
-       WHERE "r"."chat_id" = $1 AND "a"."resting_since" IS NULL ORDER BY "a"."name""#,
+    r#"SELECT "a"."name" FROM "room_answerers" "r" JOIN "supervisors" "a" ON "a"."name" = "r"."agent"
+       WHERE "r"."chat_id" = $1 ORDER BY "a"."name""#,
     vec![chat_id.into()],
   )
   .await?
@@ -242,8 +236,8 @@ pub async fn agents_where(
 ) -> Result<Vec<String>, Refusal> {
   let rows = all(
     db,
-    r#"SELECT "name", "kind", "session_scope", "turn_shape", "default_answerer" FROM "agents"
-       WHERE "resting_since" IS NULL ORDER BY "name""#,
+    r#"SELECT "name", 'chat' AS "kind", "session_scope", "turn_shape", "default_answerer" FROM "supervisors"
+       ORDER BY "name""#,
     vec![],
   )
   .await?;

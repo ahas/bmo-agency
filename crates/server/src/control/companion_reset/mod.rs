@@ -109,7 +109,12 @@ struct Companion {
 
 async fn companion(db: &sea_orm::DatabaseConnection, agent: &str) -> Result<Companion, Refused> {
   let words = &CONTROL_WORDS.companion_reset;
-  let row = one(db, "SELECT * FROM agents WHERE name = $1", vec![agent.into()]).await?;
+  let row = one(
+    db,
+    r#"SELECT *, 'chat' AS "kind" FROM "supervisors" WHERE "name" = $1"#,
+    vec![agent.into()],
+  )
+  .await?;
   let is_companion = |row: &sea_orm::QueryResult| {
     crate::conversational::Settings::of(row)
       .ok()

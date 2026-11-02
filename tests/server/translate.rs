@@ -10,17 +10,17 @@ use std::os::unix::fs::PermissionsExt;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use crate::support::grounds::{OrderEntry, set_provider_order};
 use agency_server::Service;
 use agency_server::config::Config;
-use agency_server::control::harness::{OrderEntry, missing, offered_registrations, set_provider_order};
-use agency_server::control::roads;
+use agency_server::control::harness::{missing, offered_registrations};
 use agency_server::lines::Trees;
 use agency_server::places::Ground;
 use agency_server::queue::settings;
 use agency_server::road::{self, Ask};
 use agency_server::seeds::deployment;
 use agency_server::translate::{
-  KEY, LINE, Purpose, ROLE, gateway_request, input, noted_system, system_prompt, too_large, translate,
+  KEY, LINE, Purpose, gateway_request, input, noted_system, system_prompt, too_large, translate,
 };
 use axum::Json;
 use axum::extract::{Path, State};
@@ -124,7 +124,7 @@ fn a_translation_s_prompt_is_the_role_s_then_its_purpose_s() {
 
 #[test]
 fn the_translator_is_a_runner_with_a_role_of_its_own_and_a_line_two_providers_carry() {
-  let role = ROLES.role(ROLE).expect("the translator role");
+  let role = ROLES.role(&ROLES.translate).expect("the translator role");
 
   assert!(role.bundles.is_empty(), "no web, no tool");
   assert_eq!(role.prompt.as_deref(), Some("translator.md"));
@@ -363,15 +363,13 @@ async fn a_translation_on_a_card_service_with_no_engine_standing_asks_its_demand
       vec![],
     )
     .await;
+  // The translator runs on the one registration its order names.
   scratch
     .run(
-      r#"INSERT INTO "model_tier_mappings" ("provider", "tier", "model", "effort", "answer_tokens", "thinking")
-         VALUES ('registered', 'Reliable', 'hy', NULL, NULL, NULL)
-         ON CONFLICT ("provider", "tier") DO UPDATE SET "model" = excluded."model""#,
+      r#"UPDATE "roles" SET "provider_order" = '[{"provider":"registered","model":"hy"}]' WHERE "name" = 'translator'"#,
       vec![],
     )
     .await;
-  roads::set_registration(db, KEY, Some("hy"), 1).await.unwrap();
 
   // With no instance standing the registry still offers the registration and can answer for the key.
   let registered = agency_server::control::harness::named("registered").unwrap();
@@ -379,7 +377,11 @@ async fn a_translation_on_a_card_service_with_no_engine_standing_asks_its_demand
   assert_eq!(offered_registrations(db).await.unwrap(), ["hy"]);
   assert!(missing(db, &machine, registered).await.unwrap().is_none());
 
-  let resolution = road::resolve(&ground, &Ask::key(KEY)).await.unwrap();
+  let translator = agency_server::agent_roles::named(db, "translator").await.unwrap().unwrap();
+  let resolution =
+    road::resolve(&ground, &Ask::of(road::Row::Role("translator"), &translator.line, &translator.order))
+      .await
+      .unwrap();
 
   assert_eq!(
     resolution.road().map(|road| (road.provider.as_str(), road.model.as_str())),
@@ -503,15 +505,13 @@ async fn a_translation_on_the_registry_names_no_wait_and_is_waited_for_however_l
       vec![],
     )
     .await;
+  // The translator runs on the one registration its order names.
   scratch
     .run(
-      r#"INSERT INTO "model_tier_mappings" ("provider", "tier", "model", "effort", "answer_tokens", "thinking")
-         VALUES ('registered', 'Reliable', 'hy', NULL, NULL, NULL)
-         ON CONFLICT ("provider", "tier") DO UPDATE SET "model" = excluded."model""#,
+      r#"UPDATE "roles" SET "provider_order" = '[{"provider":"registered","model":"hy"}]' WHERE "name" = 'translator'"#,
       vec![],
     )
     .await;
-  roads::set_registration(db, KEY, Some("hy"), 1).await.unwrap();
 
   let translated = translate(&ground, "document", "English", (None, &[]), "the text").await.unwrap();
 

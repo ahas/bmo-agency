@@ -1,43 +1,15 @@
-//! The workers as the store holds them: the built-in standing whether its row is written or not, a base's
-//! support workers brought to its count, a checkout on a node named by the node service's label, and a
-//! support worker removed publishing `worker-removed`.
+//! The checkouts jobs work in, as the repositories hold them (docs/worker-slots.md): the built-in standing
+//! first where no repository's base is there, each repository's base followed by the support worktrees its
+//! count asks for and the checkouts it keeps on the nodes, and a checkout read back to its repository.
 
 use std::path::Path;
 
-use agency_server::events::Bus;
-use agency_server::peers::Asking;
-use agency_server::peers::node::{NodeKind, NodeRow, NodeService};
-use agency_server::queue::workers::{BUILTIN_WORKER, WorkerRemoved, settle_support, support_name, workers};
+use agency_server::queue::workers::{BUILTIN_WORKER, repository_of, support_name, workers};
 
 use crate::support::scratch::Scratch;
 
-/// A node service keeping one node, labelled.
-struct OneNode;
-
-impl NodeService for OneNode {
-  fn link_up<'a>(&'a self, _node: &'a str) -> Asking<'a, bool> {
-    Box::pin(async { Ok(true) })
-  }
-
-  fn node_rows(&self) -> Asking<'_, Vec<NodeRow>> {
-    Box::pin(async {
-      Ok(vec![NodeRow {
-        node: "n1".into(),
-        label: Some("Bench".into()),
-        kind: NodeKind::Ssh,
-        state: "connected".into(),
-        detail: None,
-      }])
-    })
-  }
-
-  fn ssh_login<'a>(&'a self, _node: &'a str) -> Asking<'a, Option<Vec<String>>> {
-    Box::pin(async { Ok(None) })
-  }
-}
-
 #[tokio::test]
-async fn the_built_in_stands_first_whether_its_row_is_written_or_not() {
+async fn the_built_in_stands_first_where_no_repository_is_there() {
   let scratch = Scratch::new().await;
   let listed = workers(scratch.db(), Path::new("/source")).await.unwrap();
 
@@ -46,54 +18,45 @@ async fn the_built_in_stands_first_whether_its_row_is_written_or_not() {
 }
 
 #[tokio::test]
-async fn a_bases_support_workers_follow_its_count_and_a_node_checkout_its_nodes_label() {
+async fn a_repositorys_support_worktrees_follow_its_count_and_its_node_checkouts_follow_them() {
   let scratch = Scratch::new().await;
-  let events = Bus::default();
-  let mut removed = events.subscribe::<WorkerRemoved>();
 
   scratch
     .run(
-      r#"INSERT INTO "agents" ("name", "kind", "label", "cwd", "support_count") VALUES ('infra', 'worker', 'Infra', '/repos/infra', 2)"#,
+      r#"INSERT INTO "repositories" ("name", "label", "path", "support_count", "created_at", "updated_at")
+         VALUES ('infra', 'Infra', '/repos/infra', 2, 0, 0)"#,
       vec![],
     )
     .await;
   scratch
     .run(
-      r#"INSERT INTO "agents" ("name", "kind", "label", "cwd", "support_of", "node") VALUES ('infra-n1', 'worker', 'old', '/n1/infra', 'infra', 'n1')"#,
+      r#"INSERT INTO "repository_node_checkouts" ("repository", "node", "path", "created_at")
+         VALUES ('infra', 'n1', '/remote/infra', 0)"#,
       vec![],
     )
     .await;
 
-  let settled = settle_support(scratch.db(), &OneNode, &events, "infra", Path::new("/source"), |_| false)
-    .await
-    .unwrap();
+  let listed = workers(scratch.db(), Path::new("/source")).await.unwrap();
+  let names: Vec<&str> = listed.iter().map(|worker| worker.name.as_str()).collect();
 
-  assert_eq!(settled.added, [support_name("infra", 2), support_name("infra", 3)]);
-  assert!(settled.removed.is_empty());
+  assert_eq!(
+    names,
+    [
+      BUILTIN_WORKER,
+      "infra",
+      &support_name("infra", 2),
+      &support_name("infra", 3),
+      "infra@n1"
+    ]
+  );
+  assert_eq!(listed[2].cwd, "/repos/infra-w2");
+  assert_eq!(listed[2].support_of.as_deref(), Some("infra"));
+  assert_eq!(listed[4].node.as_deref(), Some("n1"));
+  assert!(listed[4].is_node_checkout());
 
-  let label = |name: &'static str| {
-    let db = scratch.db().clone();
+  for checkout in ["infra", "infra-w3", "infra@n1"] {
+    let repository = repository_of(scratch.db(), checkout).await.unwrap().unwrap();
 
-    async move {
-      store::one(&db, r#"SELECT "label", "cwd" FROM "agents" WHERE "name" = $1"#, vec![name.into()])
-        .await
-        .unwrap()
-        .map(|row| (row.try_get::<String>("", "label").unwrap(), row.try_get::<String>("", "cwd").unwrap()))
-    }
-  };
-
-  assert_eq!(label("infra-w2").await, Some(("Infra#2".into(), "/repos/infra-w2".into())));
-  assert_eq!(label("infra-n1").await.map(|(label, _)| label).as_deref(), Some("Infra@Bench"));
-
-  scratch
-    .run(r#"UPDATE "agents" SET "support_count" = 1 WHERE "name" = 'infra'"#, vec![])
-    .await;
-
-  let settled = settle_support(scratch.db(), &OneNode, &events, "infra", Path::new("/source"), |_| false)
-    .await
-    .unwrap();
-
-  assert_eq!(settled.removed, [support_name("infra", 3)]);
-  assert_eq!(removed.ready().map(|gone| gone.worker), Some(support_name("infra", 3)));
-  assert_eq!(removed.ready(), None);
+    assert_eq!(repository.name, "infra", "{checkout} is a checkout of infra");
+  }
 }

@@ -9,7 +9,6 @@ use std::sync::LazyLock;
 
 use harness_providers::Machine;
 use policy::base_prompts::BASE_PROMPTS;
-use policy::reasoning::REASONING;
 use policy::run_lines::RUN_LINES;
 use regex::Regex;
 use serde::Serialize;
@@ -21,10 +20,8 @@ use crate::Refusal;
 use crate::control::claude_accounts::Account;
 use crate::control::harness::{levels, named};
 use crate::control::pool::{NATIVE_PROVIDER, native_provider};
-use crate::control::tiers;
 use crate::places::Ground;
-use crate::queue::routes::JOB_WORK_KEY;
-use store::{all, one};
+use store::one;
 
 /// The line's name.
 pub const LINE: &str = "worker";
@@ -70,44 +67,20 @@ pub struct WorkerRun {
   pub cwd: String,
 }
 
-/// The name a worker's own documents go by: its own, or its base's for a support worker.
+/// The repository a checkout's own documents go by: its own name for a base, its repository's for a support
+/// worktree or a node checkout.
 pub async fn documents_of(ground: &Ground, worker: &str) -> Result<String, Refusal> {
-  let row = one(
-    &ground.db,
-    r#"SELECT "support_of" FROM "agents" WHERE "name" = $1"#,
-    vec![worker.into()],
-  )
-  .await?;
-
   Ok(
-    row
-      .and_then(|row| row.try_get::<Option<String>>("", "support_of").ok().flatten())
-      .unwrap_or_else(|| worker.to_owned()),
+    crate::queue::workers::repository_of(&ground.db, worker)
+      .await?
+      .map_or_else(|| worker.to_owned(), |repository| repository.name),
   )
 }
 
-/// What the row of the agent's own choice names: a support worker runs on its base's.
-pub async fn reasoning_of(ground: &Ground, agent: &str) -> Result<Reasoning, Refusal> {
-  let sql = r#"SELECT
-                 COALESCE(b."thinking", CASE WHEN a."support_of" IS NULL THEN a."thinking" END) AS "thinking",
-                 CASE WHEN a."support_of" IS NULL THEN a."effort" ELSE b."effort" END AS "effort",
-                 a."support_of" IS NOT NULL AND b."name" IS NULL AS "orphan"
-               FROM "agents" a LEFT JOIN "agents" b ON b."name" = a."support_of" WHERE a."name" = $1"#;
-  let Some(row) = one(&ground.db, sql, vec![agent.into()]).await? else {
-    return Ok(Reasoning::default());
-  };
-
-  if row.try_get::<bool>("", "orphan")? {
-    return Ok(Reasoning::default());
-  }
-
-  let thinking: Option<i64> = row.try_get("", "thinking")?;
-  let level: Option<String> = row.try_get("", "effort")?;
-
-  Ok(Reasoning {
-    thinking: thinking.map(|value| value != 0),
-    level: level.filter(|level| REASONING.holds(level)),
-  })
+/// The reasoning a run's row chooses beside its order: none, since the effort and the thinking a run goes out
+/// with are its order's entry's (docs/provider-order.md, 「Effort and thinking」).
+pub async fn reasoning_of(_ground: &Ground, _agent: &str) -> Result<Reasoning, Refusal> {
+  Ok(Reasoning::default())
 }
 
 /// A worker's rules: those its co-workers share — every worker's rules and the worker's own after them —
@@ -177,17 +150,9 @@ pub fn standing_rules(
 /// the worker's checkout, an absolute one where it stands. A support worker with none of its own takes its
 /// base's. A document that cannot be read is left out and said in the log; none where the list is empty.
 pub async fn prefix_documents(ground: &Ground, worker: &str, cwd: &str) -> Result<Option<String>, Refusal> {
-  let row = one(
-    &ground.db,
-    r#"SELECT COALESCE(own."prefix_documents", base."prefix_documents") AS "documents"
-       FROM "agents" own LEFT JOIN "agents" base ON base."name" = own."support_of"
-       WHERE own."name" = $1"#,
-    vec![worker.into()],
-  )
-  .await?;
-  let listed: Vec<String> = row
-    .and_then(|row| row.try_get::<Option<String>>("", "documents").ok().flatten())
-    .and_then(|text| serde_json::from_str(&text).ok())
+  let listed: Vec<String> = crate::queue::workers::repository_of(&ground.db, worker)
+    .await?
+    .map(|repository| repository.prefix_documents)
     .unwrap_or_default();
   let mut read = Vec::new();
 
@@ -411,10 +376,10 @@ fn plugin_skills(plugin_dir: &Path) -> Result<Vec<String>, Refusal> {
   )
 }
 
-/// The co-worker definitions a job is handed whole: every enabled role, on the model its own key maps to
-/// on `provider` — the one its native calls take their seats on — and that mapping's effort in Claude
-/// Code's word, its prompt — which stands in the place of the subagent's own — opened by the platform's
-/// harness and closed by the worker's rules, and only the skills the plugin carries.
+/// The co-worker definitions a job's program is handed (docs/role-slots.md, 「Native co-worker slots」): every
+/// callable role whose order holds an entry for `provider` — the one its program stands on — on that entry's
+/// model and effort in Claude Code's word, its prompt — which stands in the place of the subagent's own —
+/// opened by the platform's harness and closed by the worker's rules, and every skill the plugin carries.
 pub async fn coworkers_json(
   ground: &Ground,
   trees: &Trees,
@@ -425,36 +390,24 @@ pub async fn coworkers_json(
   let words = named(provider).map_err(|refused| fault(refused.error))?;
   let carried = plugin_skills(plugin_dir)?;
   let harness = read_required(&trees.harness_path())?;
-  let rows = all(
-    &ground.db,
-    r#"SELECT "name", "description", "prompt", "tools", "skills" FROM "coworker_pool_roles"
-       WHERE "enabled" = 1 ORDER BY "name""#,
-    vec![],
-  )
-  .await?;
-  let list = |text: String| serde_json::from_str::<Vec<String>>(&text).unwrap_or_default();
-  let mut definitions = Vec::with_capacity(rows.len());
+  let mut definitions = vec![];
 
-  for row in rows {
-    let name: String = row.try_get("", "name")?;
-    let prompt: String = row.try_get("", "prompt")?;
-    let mapping = tiers::resolve(&ground.db, &format!("role:{name}"), provider).await.map_err(fault)?;
-    let effort = mapping
+  for role in crate::agent_roles::callable(&ground.db).await? {
+    let Some(entry) = role.order.entry(provider) else { continue };
+    let effort = entry
       .effort
+      .clone()
       .map(|word| words.claude_effort(&word).map_or(word, str::to_owned))
       .unwrap_or_default();
 
     definitions.push((
-      name,
+      role.name.clone(),
       Definition {
-        description: row.try_get("", "description")?,
-        prompt: format!("{harness}\n\n{}\n\n{rules}", prompt.trim()),
-        tools: list(row.try_get("", "tools")?),
-        skills: list(row.try_get("", "skills")?)
-          .into_iter()
-          .filter(|skill| carried.contains(skill))
-          .collect(),
-        model: mapping.model,
+        description: role.description.clone().unwrap_or_default(),
+        prompt: format!("{harness}\n\n{}\n\n{rules}", role.prompt.as_deref().unwrap_or_default().trim()),
+        tools: vec![],
+        skills: carried.clone(),
+        model: entry.model.clone(),
         effort,
       },
     ));
@@ -566,20 +519,19 @@ pub async fn worker_run_on(
   })
 }
 
-/// The run with the job key's tier mapping on a provider laid on it: the mapping's model and tier,
-/// and the effort word the provider makes of the mapping's word and the worker's own choice.
+/// The run with the job role's entry on a provider laid on it: the entry's model, and the effort word the
+/// provider makes of the entry's word.
 pub async fn configured(
   ground: &Ground,
   machine: &Machine,
   run: WorkerRun,
   provider: &str,
 ) -> Result<WorkerRun, Refusal> {
-  configured_for(ground, machine, run, JOB_WORK_KEY, provider).await
+  configured_for(ground, machine, run, crate::agent_roles::job_role(), provider).await
 }
 
-/// The run with the job key's tier mapping on a provider laid on it, on the model the worker's pin names
-/// there where it names one (docs/model-tiers.md, 「An agent's own model」): that model at the mapping's
-/// tier, with the effort word the provider makes for it of the mapping's word and the worker's own choice.
+/// The run with the job role's entry on a provider laid on it, on the model the repository's pin names there
+/// where it names one (docs/repositories.md, 「A pinned model」).
 pub async fn configured_pinned(
   ground: &Ground,
   machine: &Machine,
@@ -589,7 +541,7 @@ pub async fn configured_pinned(
 ) -> Result<WorkerRun, Refusal> {
   let pinned = pinned_model_on(&ground.db, worker, provider).await?;
 
-  lay(ground, machine, run, JOB_WORK_KEY, provider, pinned).await
+  lay(ground, machine, run, crate::agent_roles::job_role(), provider, pinned).await
 }
 
 /// The model a worker's pin names on a provider: where the worker — or its base, for a support worker — is
@@ -606,35 +558,36 @@ pub async fn pinned_model_on(
   Ok(pin.filter(|(pinned, _)| pinned == provider).and_then(|(_, model)| model))
 }
 
-/// The run with a work key's tier mapping on a provider laid on it, as a job's run takes the job key's.
+/// The run with a role's entry on a provider laid on it, as a job's run takes the job role's.
 pub async fn configured_for(
   ground: &Ground,
   machine: &Machine,
   run: WorkerRun,
-  key: &str,
+  role: &str,
   provider: &str,
 ) -> Result<WorkerRun, Refusal> {
-  lay(ground, machine, run, key, provider, None).await
+  lay(ground, machine, run, role, provider, None).await
 }
 
-// The mapping laid on the run, on the model named where one is, the mapping's own otherwise.
+// The role's entry for the provider laid on the run, on the model named where one is, the entry's own
+// otherwise.
 async fn lay(
   ground: &Ground,
   machine: &Machine,
   mut run: WorkerRun,
-  key: &str,
+  role: &str,
   provider: &str,
   model: Option<String>,
 ) -> Result<WorkerRun, Refusal> {
-  let mapping = tiers::resolve_execution(&ground.db, key, provider, None).await.map_err(fault)?;
-  let model = model.unwrap_or(mapping.model);
+  let entry = crate::order::role_entry(&ground.db, role, provider).await.map_err(fault)?;
+  let model = model.unwrap_or(entry.model);
 
   run.effort =
-    effort_of(ground, machine, provider, &model, mapping.effort.as_deref(), run.reasoning.as_ref())
+    effort_of(ground, machine, provider, &model, entry.effort.as_deref(), run.reasoning.as_ref())
       .await?
       .unwrap_or_default();
   run.model = model;
-  run.tier = Some(mapping.tier);
+  run.tier = None;
 
   Ok(run)
 }

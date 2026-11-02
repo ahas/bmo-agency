@@ -1,6 +1,5 @@
-//! The seeds agency's server settles its store with: the account on the machine's own Claude Code login,
-//! the first seed's mapping of every tier on each provider the store begins with, and every work key at the
-//! tier it starts on, no recollector's among them; given once, so a second settling writes nothing more.
+//! The seeds agency's server settles its store with: the account on the machine's own Claude Code login, the
+//! base prompts and the roles the policy declares; given once, so a second settling writes nothing more.
 
 use agency_server::seeds::{base_prompt_seeds, deployment, role_seeds};
 use harness_providers::Machine;
@@ -34,111 +33,26 @@ fn the_account_is_the_machines_own_login_directory() {
 }
 
 #[tokio::test]
-async fn a_fresh_store_is_given_the_account_the_tiers_and_the_keys_once() {
+async fn a_fresh_store_is_given_the_account_and_the_fourteen_roles_once() {
   let scratch = Scratch::blank().await;
   let seeds = deployment(&machine(&[("HOME", "/home/someone")]));
 
   settle(scratch.db(), &seeds).await.unwrap();
   settle(scratch.db(), &seeds).await.unwrap();
 
-  assert_eq!(
-    scratch
-      .count(
-        r#"SELECT count(*) FROM "claude_accounts" WHERE "id" = 'default' AND "credential_path" = '/home/someone/.claude'"#,
-        vec![]
-      )
-      .await,
-    1
-  );
   assert_eq!(scratch.count(r#"SELECT count(*) FROM "claude_accounts""#, vec![]).await, 1);
-  assert_eq!(scratch.count(r#"SELECT count(*) FROM "model_tier_mappings""#, vec![]).await, 24);
+  assert_eq!(scratch.count(r#"SELECT count(*) FROM "roles""#, vec![]).await, 14);
+  assert_eq!(scratch.count(r#"SELECT count(*) FROM "role_seeded""#, vec![]).await, 14);
   assert_eq!(
     scratch
       .count(
-        r#"SELECT count(*) FROM "model_tier_mappings" WHERE "tier" = 'Supervisor' AND "provider" = 'claude-code' AND "model" = 'claude-opus-5'"#,
+        r#"SELECT count(*) FROM "roles" WHERE "name" = 'scout' AND "callable" = 1 AND "description" IS NOT NULL
+             AND "prompt" IS NOT NULL"#,
         vec![]
       )
       .await,
-    1
-  );
-
-  for (key, tier) in [
-    ("bmo", "Supervisor"),
-    ("job-worker", "Frontier"),
-    ("output-format", "Simple"),
-    ("role:scout", "Light"),
-  ] {
-    assert_eq!(
-      scratch
-        .count(
-          r#"SELECT count(*) FROM "model_tier_assignments" WHERE "key" = $1 AND "tier" = $2"#,
-          vec![key.into(), tier.into()]
-        )
-        .await,
-      1,
-      "{key} starts on {tier}"
-    );
-  }
-}
-
-#[test]
-fn no_recollector_is_seeded() {
-  let seeds = deployment(&machine(&[("HOME", "/home/someone")]));
-  let keys: Vec<&str> = seeds.tiers.keys.iter().map(|key| key.key.as_str()).collect();
-
-  for retired in ["digest", "people-digest", "people-standing", "session-summary"] {
-    assert!(!keys.contains(&retired), "{retired} is seeded");
-  }
-}
-
-#[tokio::test]
-async fn a_ladder_that_gained_a_tier_maps_it_and_moves_the_keys_an_older_ladder_placed() {
-  let scratch = Scratch::blank().await;
-  let seeds = deployment(&machine(&[("HOME", "/home/someone")]));
-
-  settle(scratch.db(), &seeds).await.unwrap();
-
-  // A tier an earlier ladder held, with the mapping and the assignment that stood on it, before the
-  // ladder that replaced it is settled.
-  scratch.run(r#"DELETE FROM "model_tier_meta" WHERE "version" = 4"#, vec![]).await;
-  scratch
-    .run(r#"DELETE FROM "model_tier_mappings" WHERE "tier" = 'Supervisor'"#, vec![])
-    .await;
-  scratch
-    .run(
-      r#"INSERT INTO "model_tier_mappings" ("provider", "tier", "model", "effort") VALUES ('claude-code', 'BMO', 'an-old-model', 'medium')"#,
-      vec![],
-    )
-    .await;
-  scratch
-    .run(r#"UPDATE "model_tier_assignments" SET "tier" = 'BMO' WHERE "key" = 'bmo'"#, vec![])
-    .await;
-
-  settle(scratch.db(), &seeds).await.unwrap();
-
-  assert_eq!(
-    scratch
-      .count(r#"SELECT count(*) FROM "model_tier_mappings" WHERE "tier" = 'BMO'"#, vec![])
-      .await,
-    0
-  );
-  assert_eq!(
-    scratch
-      .count(
-        r#"SELECT count(*) FROM "model_tier_assignments" WHERE "key" = 'bmo' AND "tier" = 'Supervisor'"#,
-        vec![]
-      )
-      .await,
-    1
-  );
-  assert_eq!(
-    scratch
-      .count(
-        r#"SELECT count(*) FROM "model_tier_mappings" WHERE "tier" = 'Supervisor' AND "provider" = 'claude-code'"#,
-        vec![]
-      )
-      .await,
-    1
+    1,
+    "a co-worker role takes its definition's body and description"
   );
 }
 
@@ -172,16 +86,21 @@ fn every_declared_role_is_seeded_with_its_prompt_file_s_text() {
 
   assert_eq!(seeds.len(), ROLES.roles.len());
   for (seed, declared) in seeds.iter().zip(&ROLES.roles) {
-    let prompt = declared
-      .prompt
-      .as_ref()
-      .map(|file| std::fs::read_to_string(code.join("prompts").join("roles").join(file)).unwrap());
+    let prompt = match (&declared.prompt, &declared.definition) {
+      (Some(file), _) => {
+        Some(std::fs::read_to_string(code.join("prompts").join("roles").join(file)).unwrap())
+      }
+      (None, Some(_)) => seed.prompt.clone(),
+      (None, None) => None,
+    };
 
     assert_eq!(
       (&seed.name, &seed.label, &seed.bundles),
       (&declared.name, &declared.label, &declared.bundles)
     );
-    assert_eq!(seed.max_concurrent, declared.max_concurrent.map(|most| most as i64));
+    assert_eq!(seed.max_concurrent, declared.max_concurrent);
+    assert_eq!(seed.line, declared.line);
+    assert_eq!(seed.callable, declared.callable);
     assert_eq!(seed.prompt, prompt);
     assert_eq!(seed.sessions, declared.sessions.word());
   }
@@ -191,5 +110,5 @@ fn every_declared_role_is_seeded_with_its_prompt_file_s_text() {
   let elsewhere: Vec<String> =
     role_seeds(std::path::Path::new("/nowhere")).into_iter().map(|seed| seed.name).collect();
 
-  assert_eq!(elsewhere, ["chat", "worker", "searcher", "gate", "upkeep"]);
+  assert_eq!(elsewhere, ["worker", "searcher", "browser", "transliterator", "upkeep"]);
 }

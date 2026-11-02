@@ -140,19 +140,21 @@ async fn companion_row<C: ConnectionTrait>(db: &C, agent: &str) -> Result<QueryR
   }
 }
 
-/// The registration a companion is pinned to, where its pin is the registry's.
-fn pinned_registration(row: &QueryResult) -> Result<Option<String>, sea_orm::DbErr> {
-  let provider: Option<String> = row.try_get("", "pinned_provider")?;
+// A supervisor's order as its row holds it.
+fn order_of(row: &QueryResult) -> Result<crate::order::Order, sea_orm::DbErr> {
+  Ok(crate::order::Order::of_row(
+    &row.try_get::<String>("", "provider_order")?,
+    row.try_get("", "quota_share")?,
+  ))
+}
 
-  if provider.as_deref() == Some(PROVIDER) {
-    row.try_get("", "pinned_model")
-  } else {
-    Ok(None)
-  }
+/// The registration a companion's order runs on at the registry's provider, where it names one.
+fn pinned_registration(row: &QueryResult) -> Result<Option<String>, sea_orm::DbErr> {
+  Ok(order_of(row)?.entry(PROVIDER).map(|entry| entry.model.clone()))
 }
 
 fn thinking_of(row: &QueryResult) -> Result<Option<bool>, sea_orm::DbErr> {
-  Ok(row.try_get::<Option<i64>>("", "thinking")?.map(|thinking| thinking == 1))
+  Ok(order_of(row)?.first().and_then(crate::order::Entry::thinks))
 }
 
 // A number as a sentence writes it: whole numbers grouped by thousands.
@@ -283,16 +285,12 @@ async fn system<C: ConnectionTrait>(
   )
 }
 
-// The provider and model the supervisor route answers now, for a companion that keeps no fixed model.
-async fn route_of(db: &DatabaseConnection) -> Option<(String, String)> {
-  let key = crate::road::supervisor_key()?;
-  let provider = crate::control::roads::road_provider(db, key).await.ok()?;
-  let model = crate::control::tiers::resolve(db, key, &provider)
-    .await
-    .map(|mapping| mapping.model)
-    .unwrap_or_default();
+// The provider and model a supervisor's order names first.
+async fn route_of(db: &DatabaseConnection, agent: &str) -> Option<(String, String)> {
+  let held = crate::supervisors::named(db, agent).await.ok()??;
+  let first = held.order.first()?;
 
-  Some((provider, model))
+  Some((first.provider.clone(), first.model.clone()))
 }
 
 /// One companion as a screen shows it, each room by the title the room's owner answers.
@@ -300,10 +298,10 @@ async fn view(db: &DatabaseConnection, hooks: &Hooks, roots: &Roots, agent: &str
   let row = companion_row(db, agent).await?;
   let prompts = prompt_folder(db, agent).await?;
   let registration_name = pinned_registration(&row)?;
-  let pinned_provider: Option<String> = row.try_get("", "pinned_provider")?;
-  let method = if pinned_provider.is_some() { "fixed" } else { "route" };
+  let pinned_provider: Option<String> = None;
+  let method = "route";
   let route = match method {
-    "route" => route_of(db).await,
+    "route" => route_of(db, agent).await,
     _ => None,
   };
   let health = match &registration_name {
@@ -332,7 +330,7 @@ async fn view(db: &DatabaseConnection, hooks: &Hooks, roots: &Roots, agent: &str
     Some(name) => registration(db, name).await?.map(|held| held.context_tokens),
     None => None,
   };
-  let pinned_model: Option<String> = row.try_get("", "pinned_model")?;
+  let pinned_model: Option<String> = None;
   let (provider_now, model_now) = match &route {
     Some((provider, model)) => (provider.clone(), model.clone()),
     None => (pinned_provider.clone().unwrap_or_default(), pinned_model.clone().unwrap_or_default()),
@@ -591,46 +589,45 @@ async fn write(
 ) -> Result<bool, Fault> {
   let at = now_ms() / 1000;
   let mut fields_changed = vec![];
-  let pinned_model: Option<String> = row.try_get("", "pinned_model")?;
-  let pinned_provider: Option<String> = row.try_get("", "pinned_provider")?;
+  let mut order = order_of(row)?;
+  let held_registration = order.entry(PROVIDER).map(|entry| entry.model.clone());
 
+  // A registration named stands as the registry's entry of the companion's order, at its head; none takes the
+  // registry's entry out.
   match &saved.pin {
-    Some(Some(registration))
-      if pinned_provider.as_deref() != Some(PROVIDER) || pinned_model.as_ref() != Some(registration) =>
-    {
-      run(
-        db,
-        "UPDATE agents SET pinned_provider = $1, pinned_model = $2 WHERE name = $3",
-        vec![PROVIDER.into(), registration.clone().into(), row.try_get::<String>("", "name")?.into()],
-      )
-      .await?;
+    Some(Some(registration)) if held_registration.as_ref() != Some(registration) => {
+      order.entries.retain(|entry| entry.provider != PROVIDER);
+      order.entries.insert(
+        0,
+        crate::order::Entry {
+          provider: PROVIDER.to_owned(),
+          model: registration.clone(),
+          effort: None,
+          thinking: None,
+          answer_tokens: None,
+        },
+      );
     }
-    Some(None) if pinned_provider.is_some() || pinned_model.is_some() => {
-      run(
-        db,
-        r#"UPDATE "agents" SET "pinned_provider" = NULL, "pinned_model" = NULL WHERE "name" = $1"#,
-        vec![row.try_get::<String>("", "name")?.into()],
-      )
-      .await?;
+    Some(None) if held_registration.is_some() && order.entries.len() > 1 => {
+      order.entries.retain(|entry| entry.provider != PROVIDER);
     }
     _ => {}
   }
 
   if saved.thinking != thinking_of(row)? {
-    let effort: Option<String> = row.try_get("", "effort")?;
+    for entry in &mut order.entries {
+      entry.thinking = saved.thinking.map(|on| if on { "on" } else { "off" }.to_owned());
+    }
 
-    run(
-      db,
-      "UPDATE agents SET thinking = $1, effort = $2 WHERE name = $3",
-      vec![
-        saved.thinking.map(i64::from).into(),
-        effort.into(),
-        row.try_get::<String>("", "name")?.into(),
-      ],
-    )
-    .await?;
     fields_changed.push("thinking".to_owned());
   }
+
+  run(
+    db,
+    r#"UPDATE "supervisors" SET "provider_order" = $1 WHERE "name" = $2"#,
+    vec![order.entries_text().into(), row.try_get::<String>("", "name")?.into()],
+  )
+  .await?;
 
   let held = Settings::of(db, agent).await?;
   let next = |field: &str| saved.change.get(field).cloned().unwrap_or_else(|| held.field(field));

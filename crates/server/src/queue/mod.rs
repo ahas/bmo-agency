@@ -13,5 +13,4 @@ pub mod routes;
 pub mod running;
 pub mod settings;
 pub mod stops;
-pub mod worker_rules;
 pub mod workers;

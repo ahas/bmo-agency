@@ -116,8 +116,13 @@ pub async fn stand_in_turn(
 ) -> Result<Option<Reply>, NoAnswer> {
   let machine = ground.machine();
   let agent = run.agent.as_str();
-  let resolution = road::resolve(ground, &road::Ask::key(key)).await.map_err(failed)?;
-  let chosen = resolution.pinned.clone().unwrap_or_else(|| "auto".to_owned());
+  let supervisor = crate::supervisors::named(&ground.db, agent)
+    .await
+    .map_err(|why| failed(why.detail))?
+    .ok_or_else(|| failed(format!("No supervisor named {agent} is held")))?;
+  let ask = road::Ask::of(road::Row::Supervisor(agent), "chat", &supervisor.order);
+  let resolution = road::resolve(ground, &ask).await.map_err(failed)?;
+  let chosen = "auto".to_owned();
   let mut tried: Vec<Closed> = vec![];
   let mut noted = false;
 

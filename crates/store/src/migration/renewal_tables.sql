@@ -136,3 +136,7 @@ CREATE INDEX "role_slot_waiting" ON "role_slot_requests" ("role", "state", "clas
 
 ALTER TABLE "role_slot_reservations" DROP COLUMN "work_key";
 ALTER TABLE "role_slot_reservations" DROP COLUMN "tier";
+
+-- The role a job runs as, `worker` where its item names none (docs/repositories.md, 「A job」).
+ALTER TABLE "assignments" ADD COLUMN "role" text NOT NULL DEFAULT 'worker';
+ALTER TABLE "jobs" ADD COLUMN "role" text NOT NULL DEFAULT 'worker';

@@ -536,28 +536,21 @@ async fn stand(
     .or_else(|| held.map(|held| held.root))
     .unwrap_or_else(|| DEFAULT_WORKPLACE_ROOT.to_owned());
   let workplace = place_workplace(db, node, &root).await?;
-  let workers = all(
-    db,
-    r#"SELECT "name", "cwd", "support_of" FROM "agents" WHERE "kind" = 'worker' AND "resting_since" IS NULL AND "node" = $1 AND "cwd" IS NOT NULL ORDER BY "builtin" DESC, "name""#,
-    vec![node.clone().into()],
-  )
-  .await?;
+  let standing = crate::queue::workers::workers(db, std::path::Path::new(""))
+    .await
+    .map_err(|why| VerbError::Refused(why.detail))?;
   let mut checkouts = Vec::new();
 
-  for worker in &workers {
-    let support_of: Option<String> = worker.try_get("", "support_of")?;
-    let base_cwd = match support_of {
-      Some(base) => one(db, r#"SELECT "cwd" FROM "agents" WHERE "name" = $1"#, vec![base.into()])
-        .await?
-        .map(|row| row.try_get::<Option<String>>("", "cwd"))
-        .transpose()?
-        .flatten(),
-      None => None,
-    };
+  for worker in standing.iter().filter(|worker| worker.node.as_deref() == Some(node.as_str())) {
+    let base_cwd = worker
+      .support_of
+      .as_ref()
+      .and_then(|base| standing.iter().find(|one| &one.name == base))
+      .map(|base| base.cwd.clone());
 
     checkouts.push(SetupCheckout {
-      worker: worker.try_get("", "name")?,
-      cwd: worker.try_get("", "cwd")?,
+      worker: worker.name.clone(),
+      cwd: worker.cwd.clone(),
       remote: base_cwd.as_deref().and_then(remote_of),
     });
   }
@@ -601,7 +594,13 @@ async fn stand(
       if absolute != checkout.cwd {
         run(
           db,
-          r#"UPDATE "agents" SET "cwd" = $1 WHERE "name" = $2"#,
+          r#"UPDATE "repositories" SET "path" = $1 WHERE "name" = $2"#,
+          vec![absolute.clone().into(), checkout.worker.clone().into()],
+        )
+        .await?;
+        run(
+          db,
+          r#"UPDATE "repository_node_checkouts" SET "path" = $1 WHERE "repository" || '@' || "node" = $2"#,
           vec![absolute.into(), checkout.worker.clone().into()],
         )
         .await?;

@@ -15,8 +15,6 @@ use sea_orm::DatabaseConnection;
 use store::{all, run};
 
 use super::dispatch::Fault;
-use crate::control::tiers;
-use crate::keepalive::pool::schedule;
 use crate::lines::Trees;
 use crate::lines::place::Place;
 use crate::lines::standing::worker_prefix_digest;
@@ -33,13 +31,19 @@ pub struct Held {
 }
 
 /// What a branch asks a place for: the checkout its order works in, the selection its task names, its role,
-/// and the tier it asks for where it names one.
+/// and the effort its slot carries where it names one.
 #[derive(Clone, Copy, Debug)]
 pub struct Asked<'a> {
   pub cwd: &'a str,
   pub selection: &'a str,
   pub role: &'a str,
-  pub tier: Option<&'a str>,
+  pub effort: Option<&'a str>,
+}
+
+/// The usable part of a published lifetime, in milliseconds: the list's margin taken off
+/// (`policy/pool-warm.toml`), and none where nothing is left of it.
+pub fn usable(published_ms: i64) -> Option<i64> {
+  bmo_cache_warmer_schedule::usable(published_ms, policy::pool_warm::POOL_WARM.margin_minutes * 60_000)
 }
 
 /// How many places a pool keeps standing once free, for the prompt caches they hold. A stage as wide as its
@@ -76,7 +80,7 @@ pub fn ttl_ms(mode: &str, model: &str, upstream: Option<&str>) -> Option<i64> {
 
   harness_providers::provider(mode)
     .and_then(|provider| provider.place_cache(model, upstream).ok())
-    .and_then(|cache| schedule::usable(cache.ttl_minutes * 60_000))
+    .and_then(|cache| usable(cache.ttl_minutes * 60_000))
 }
 
 /// Whether the clock still allows a row; `now` in milliseconds, the row's time in seconds.
@@ -632,7 +636,6 @@ pub async fn take_slot(ground: &Ground, asked: &Asked<'_>, held: &[Held], now: i
   let gone: HashSet<i64> = tidy_slots(ground, cwd, &standing, &busy, now).await?.into_iter().collect();
   let slots: Vec<i64> = standing.into_iter().filter(|slot| !gone.contains(slot)).collect();
   let rows = agents(db, &pool).await?;
-  let role = asked.role;
   let mut digests: Vec<(i64, String)> = vec![];
 
   for agent in &rows {
@@ -644,12 +647,8 @@ pub async fn take_slot(ground: &Ground, asked: &Asked<'_>, held: &[Held], now: i
       continue;
     }
 
-    let effort = tiers::resolve_execution(db, &format!("role:{role}"), mode, asked.tier)
-      .await
-      .ok()
-      .and_then(|mapping| mapping.effort);
     let digest =
-      digest_of(ground, &slot_dir(&ground.roots.data, &pool, agent.slot), model, effort.as_deref()).await;
+      digest_of(ground, &slot_dir(&ground.roots.data, &pool, agent.slot), model, asked.effort).await;
 
     digests.retain(|(slot, _)| *slot != agent.slot);
     digests.push((agent.slot, digest.unwrap_or_default()));

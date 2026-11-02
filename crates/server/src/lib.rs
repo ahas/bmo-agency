@@ -51,21 +51,20 @@ pub mod job_run {
   pub mod openrouter_tap;
 }
 
-/// The keepalive agency keeps: the logins' watch, the co-worker pool's warming of its reserved places, and
-/// the owner's warming switch that stops it.
+/// The keepalive agency keeps beside the supervisors' warming: the logins' watch.
 pub mod keepalive {
   pub mod logins;
-  pub mod pool;
-  pub mod switch;
 }
 pub mod lines;
 pub mod mcp;
 pub mod openapi;
+pub mod order;
 pub mod order_run;
 pub mod peers;
 pub mod places;
 pub mod queue;
 pub mod readiness;
+pub mod repositories;
 pub mod rest;
 pub mod road;
 pub mod rooms;
@@ -78,6 +77,7 @@ pub mod session_output;
 pub mod session_questions;
 pub mod session_tools;
 pub mod stand_in;
+pub mod supervisors;
 pub mod text;
 pub mod translate;
 pub mod turn_marks;
@@ -97,7 +97,6 @@ pub mod watches {
 }
 pub mod wording;
 pub mod worker_session;
-pub mod worker_words;
 
 use std::path::Path;
 use std::sync::Arc;

@@ -7,7 +7,6 @@
 mod common;
 
 mod agent_status_verb;
-mod agents_verb;
 mod claude_logins;
 mod companion_follow_verb;
 mod companion_reset_verb;
@@ -17,7 +16,6 @@ mod machine_memory;
 mod machine_verbs;
 mod nouns;
 mod places;
-mod pool_hook;
 mod runs;
 mod standby;
 mod stops;

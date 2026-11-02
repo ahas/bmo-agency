@@ -216,8 +216,6 @@ pub fn with_work(mut turn: Turn, agent: &str, work: &WorkParts, job: Option<JobM
     turn.env.remove(TASK_LOCKED);
   }
 
-  turn.identity.work_key = Some(work.work_key.clone());
-
   if let Some(unit) = &work.unit {
     turn.identity.parent = Some(unit.clone());
     turn.identity.root = Some(execution_root(unit));
@@ -630,9 +628,9 @@ impl Attempting<'_, '_> {
     let kept = records::resumable(&ground.db, worker, &work.model, &recorded, ttl)
       .await
       .map_err(refused)?;
-    // A worker whose role keeps no sessions opens a new one for a turn that leaves the choice to agency
+    // A job whose role keeps no sessions opens a new one for a turn that leaves the choice to agency
     // (docs/agent-roles.md, 「A role's sessions」).
-    let kept = match crate::agent_roles::sessions_of_agent(&ground.db, worker).await {
+    let kept = match crate::agent_roles::sessions_of(&ground.db, crate::agent_roles::job_role()).await {
       Ok(Some(sessions)) if !sessions.keeps() && matches!(work.resume, Resume::Auto) => None,
       _ => kept,
     };
@@ -692,7 +690,7 @@ impl Attempting<'_, '_> {
       provider: PROVIDER.to_owned(),
       model: run.model.clone(),
       effort: (!run.effort.is_empty()).then(|| run.effort.clone()),
-      tier: (!run.tier.is_empty()).then(|| run.tier.clone()),
+      tier: None,
     };
 
     self.shown.went_out(&went_out);
@@ -722,17 +720,16 @@ impl Attempting<'_, '_> {
       ground,
       apart::Apart {
         agent: worker,
-        role: None,
+        role: apart.role.as_deref().unwrap_or_else(|| crate::agent_roles::job_role()),
         line: run.line,
         provider: PROVIDER,
         title: work.title.clone(),
         command,
         session,
         prompt: self.asked.prompt.to_owned(),
-        work_key: work.work_key.clone(),
         model: run.model.clone(),
         effort: run.effort.clone(),
-        tier: Some(run.tier.clone()),
+        account: account.as_ref().map(|account| account.id.clone()),
         parent: work.unit.clone(),
         root: work.unit.as_deref().map(execution_root),
       },
@@ -966,7 +963,7 @@ impl Attempting<'_, '_> {
       .await?;
     note_carried(&ground.db, worker, &work.model, &account, sent.resume.is_none(), reply).await?;
 
-    let fold_ratio = worker_fold_ratio(ground, &reply.mode, sent.line.tier.as_deref()).await;
+    let fold_ratio = worker_fold_ratio(ground, &reply.mode, None).await;
 
     if worker_session_full(reply.context_ratio, fold_ratio) {
       println!("{worker} {}: {session_id} is full, folding it", work.model);

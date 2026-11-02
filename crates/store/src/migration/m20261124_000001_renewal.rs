@@ -93,12 +93,19 @@ const POSITIONS: [&str; 14] = [
 ];
 
 // The roles a runner row's line becomes, by the runner's name, with the work key its route was read under.
-const RUNNERS: [(&str, &str, &str); 3] =
-  [("search", "searcher", "search"), ("browse", "browser", "browse"), ("translator", "translator", "translate")];
+const RUNNERS: [(&str, &str, &str); 3] = [
+  ("search", "searcher", "search"),
+  ("browse", "browser", "browse"),
+  ("translator", "translator", "translate"),
+];
 
 // The line each carried role runs on, where it is not the worker line.
-const LINES: [(&str, &str); 4] =
-  [("searcher", "search"), ("browser", "browse"), ("translator", "translate"), ("transliterator", "search")];
+const LINES: [(&str, &str); 4] = [
+  ("searcher", "search"),
+  ("browser", "browse"),
+  ("translator", "translate"),
+  ("transliterator", "search"),
+];
 
 // The work key each carried role's route and tier were read under.
 const KEYS: [(&str, &str); 11] = [
@@ -177,7 +184,8 @@ impl Held {
     };
 
     for row in all(db, r#"SELECT * FROM "model_tier_mappings""#, vec![]).await? {
-      let (Some(provider), Some(tier), Some(model)) = (text(&row, "provider"), text(&row, "tier"), text(&row, "model"))
+      let (Some(provider), Some(tier), Some(model)) =
+        (text(&row, "provider"), text(&row, "tier"), text(&row, "model"))
       else {
         continue;
       };
@@ -207,7 +215,9 @@ impl Held {
       }
     }
 
-    for row in all(db, r#"SELECT "key", "route_mode", "registration" FROM "fallback_routes""#, vec![]).await? {
+    for row in
+      all(db, r#"SELECT "key", "route_mode", "registration" FROM "fallback_routes""#, vec![]).await?
+    {
       if let Some(key) = text(&row, "key") {
         held.routes.insert(key, (text(&row, "route_mode"), text(&row, "registration")));
       }
@@ -226,7 +236,13 @@ impl Held {
   fn entry(&self, provider: &str, tier: &str) -> Option<Value> {
     let mapping = self.mappings.get(&(provider.to_owned(), tier.to_owned()))?;
 
-    Some(entry_of(provider, &mapping.model, mapping.effort.as_deref(), mapping.thinking, mapping.answer_tokens))
+    Some(entry_of(
+      provider,
+      &mapping.model,
+      mapping.effort.as_deref(),
+      mapping.thinking,
+      mapping.answer_tokens,
+    ))
   }
 
   // The order a row carries: its head first where it has one, then every provider of the owner's order the
@@ -377,7 +393,10 @@ async fn switches<C: ConnectionTrait>(db: &C, held: &Held) -> Result<(), crate::
       db,
       r#"INSERT INTO "settings" ("key", "value") VALUES ($1, $2)
          ON CONFLICT ("key") DO UPDATE SET "value" = EXCLUDED."value""#,
-      vec![format!("provider_switch:{provider}").into(), (if *enabled { "on" } else { "off" }).into()],
+      vec![
+        format!("provider_switch:{provider}").into(),
+        (if *enabled { "on" } else { "off" }).into(),
+      ],
     )
     .await?;
   }
@@ -486,8 +505,12 @@ fn is_repository(row: &QueryResult) -> bool {
 }
 
 async fn repositories<C: ConnectionTrait>(db: &C, held: &Held, now: i64) -> Result<(), crate::Fault> {
-  let names: BTreeSet<String> =
-    held.agents.iter().filter(|row| is_repository(row)).filter_map(|row| text(row, "name")).collect();
+  let names: BTreeSet<String> = held
+    .agents
+    .iter()
+    .filter(|row| is_repository(row))
+    .filter_map(|row| text(row, "name"))
+    .collect();
 
   for row in held.agents.iter().filter(|row| is_repository(row)) {
     let Some(name) = text(row, "name") else { continue };
@@ -534,7 +557,8 @@ async fn repositories<C: ConnectionTrait>(db: &C, held: &Held, now: i64) -> Resu
 
   // A support row standing on a node is that repository's checkout there.
   for row in held.agents.iter() {
-    let (Some(of), Some(node), Some(path)) = (text(row, "support_of"), text(row, "node"), text(row, "cwd")) else {
+    let (Some(of), Some(node), Some(path)) = (text(row, "support_of"), text(row, "node"), text(row, "cwd"))
+    else {
       continue;
     };
 
@@ -556,8 +580,12 @@ async fn repositories<C: ConnectionTrait>(db: &C, held: &Held, now: i64) -> Resu
 
 // The order a carried role runs on.
 fn role_order(held: &Held, role: &str) -> (Vec<Value>, String) {
-  let key = listed(&KEYS, role)
-    .or_else(|| RUNNERS.iter().find(|(_, held_role, _)| *held_role == role).map(|(_, _, key)| (*key).to_owned()));
+  let key = listed(&KEYS, role).or_else(|| {
+    RUNNERS
+      .iter()
+      .find(|(_, held_role, _)| *held_role == role)
+      .map(|(_, _, key)| (*key).to_owned())
+  });
   let tier = key.as_deref().map(|key| held.tier(key)).unwrap_or_else(|| FALLBACK_TIER.to_owned());
 
   // The worker role's first entry is DeepSeek's flash model (the owner's decision on Q11).
@@ -585,7 +613,9 @@ fn role_order(held: &Held, role: &str) -> (Vec<Value>, String) {
   let pinned = held
     .agents
     .iter()
-    .find(|row| text(row, "role").as_deref() == Some(role) && text(row, "kind").as_deref() == Some("worker"))
+    .find(|row| {
+      text(row, "role").as_deref() == Some(role) && text(row, "kind").as_deref() == Some("worker")
+    })
     .filter(|row| text(row, "name").as_deref() == Some(role))
     .and_then(|row| {
       let (provider, model) = text(row, "pinned_provider").zip(text(row, "pinned_model"))?;
@@ -596,7 +626,9 @@ fn role_order(held: &Held, role: &str) -> (Vec<Value>, String) {
         &provider,
         &model,
         effort.as_deref(),
-        number(row, "thinking").map(|on| on != 0).or_else(|| mapping.and_then(|mapping| mapping.thinking)),
+        number(row, "thinking")
+          .map(|on| on != 0)
+          .or_else(|| mapping.and_then(|mapping| mapping.thinking)),
         mapping.and_then(|mapping| mapping.answer_tokens),
       ))
     });

@@ -190,12 +190,7 @@ pub async fn read_workspaces(herdr: &Herdr) -> Option<Vec<WorkspaceView>> {
 
 /// The agents that stand: the store's own, awake, and each place of the co-work pools.
 pub async fn standing_agents(db: &sea_orm::DatabaseConnection) -> Result<HashSet<String>, Refusal> {
-  let mut names: HashSet<String> =
-    all(db, r#"SELECT "name" FROM "agents" WHERE "resting_since" IS NULL"#, vec![])
-      .await?
-      .iter()
-      .map(|row| row.try_get::<String>("", "name"))
-      .collect::<Result<_, _>>()?;
+  let mut names: HashSet<String> = crate::queue::workers::taken_names(db).await?.into_iter().collect();
 
   for row in all(db, r#"SELECT DISTINCT "pool", "slot" FROM "branch_agents""#, vec![]).await? {
     let pool: String = row.try_get("", "pool")?;
@@ -207,19 +202,9 @@ pub async fn standing_agents(db: &sea_orm::DatabaseConnection) -> Result<HashSet
   Ok(names)
 }
 
-/// The workers resting.
-pub async fn resting_workers(db: &sea_orm::DatabaseConnection) -> Result<HashSet<String>, Refusal> {
-  Ok(
-    all(
-      db,
-      r#"SELECT "name" FROM "agents" WHERE "kind" = 'worker' AND "resting_since" IS NOT NULL"#,
-      vec![],
-    )
-    .await?
-    .iter()
-    .map(|row| row.try_get::<String>("", "name"))
-    .collect::<Result<_, _>>()?,
-  )
+/// The checkouts resting: none, since a repository's checkouts rest only between its jobs.
+pub async fn resting_workers(_db: &sea_orm::DatabaseConnection) -> Result<HashSet<String>, Refusal> {
+  Ok(HashSet::new())
 }
 
 /// One workspace the sweep would not close, as the leftovers event names it.

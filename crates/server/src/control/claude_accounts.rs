@@ -15,7 +15,7 @@ use policy::rest::REST;
 use sea_orm::DatabaseConnection;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use store::{all, one, run};
+use store::{all, run};
 
 use super::{Refused, set_setting, setting};
 use crate::now_ms;
@@ -800,68 +800,36 @@ async fn administrator(db: &DatabaseConnection) -> Result<Option<i64>, Refused> 
   Ok(setting(db, "users_administrator").await?.and_then(|value| leading_integer(&value)))
 }
 
-/// The logins a work key's run made for the platform's own work is offered, in order: the one login
-/// the key is pinned to where it is pinned to one that is on, the open walk otherwise; neither offers
-/// a login another user owns.
-pub async fn walk_for(judging: Judging<'_>, key: &str) -> Result<Vec<Account>, Refused> {
-  walk_for_user(judging, key, None).await
-}
-
-/// The login a work key is pinned to, where it is pinned to one that is on.
-pub async fn pinned_account(db: &DatabaseConnection, key: &str) -> Result<Option<Account>, Refused> {
-  let pinned = one(db, "SELECT account FROM fallback_routes WHERE key = $1", vec![key.into()])
-    .await?
-    .map(|row| row.try_get::<Option<String>>("", "account"))
-    .transpose()?
-    .flatten();
-
-  let Some(pinned) = pinned else { return Ok(None) };
-
-  Ok(accounts(db).await?.into_iter().find(|one| one.enabled && one.id == pinned))
-}
-
-/// The logins a work key's run may go out on for the user it is made for, whether or not they answer now,
-/// in the order the road takes them: that user's own logins alone, and for no user the platform's own
-/// work's. A key pinned to one login that is on takes that one first, as the head of its walk, and the
-/// rest of the road's order after it.
-pub async fn carried_for_user(
-  db: &DatabaseConnection,
-  key: &str,
-  user: Option<i64>,
-) -> Result<Vec<Account>, Refused> {
+/// The logins a run may go out on for the user it is made for, whether or not they answer now, in the order
+/// the road takes them: that user's own logins alone, and for no user the platform's own work's.
+pub async fn carried_for_user(db: &DatabaseConnection, user: Option<i64>) -> Result<Vec<Account>, Refused> {
   let administrator = if user.is_none() { administrator(db).await? } else { None };
   let carries = |account: &Account| match user {
     Some(user) => account.user_id == Some(user),
     None => account.user_id.is_none() || administrator.is_none() || account.user_id == administrator,
   };
 
-  let pinned = pinned_account(db, key).await?.filter(|pinned| carries(pinned));
-  let pinned_id = pinned.as_ref().map(|pinned| pinned.id.clone());
-  let rest = road_order(db)
-    .await?
-    .into_iter()
-    .filter(|one| carries(one) && pinned_id.as_ref() != Some(&one.id));
-
-  Ok(pinned.into_iter().chain(rest).collect())
+  Ok(road_order(db).await?.into_iter().filter(|one| carries(one)).collect())
 }
 
-/// The logins a work key's run is offered for the user it is made for: of the logins it may go out on,
-/// those that answer now. A key pinned to a login that cannot answer is offered the others that can.
-pub async fn walk_for_user(
-  judging: Judging<'_>,
-  key: &str,
-  user: Option<i64>,
-) -> Result<Vec<Account>, Refused> {
+/// The logins a run is offered for the user it is made for: of the logins it may go out on, those that answer
+/// now.
+pub async fn walk_for_user(judging: Judging<'_>, user: Option<i64>) -> Result<Vec<Account>, Refused> {
   let now = now_ms();
   let mut open = Vec::new();
 
-  for account in carried_for_user(judging.db, key, user).await? {
+  for account in carried_for_user(judging.db, user).await? {
     if open_now(judging, &account, now).await? {
       open.push(account);
     }
   }
 
   Ok(open)
+}
+
+/// The logins the platform's own work is offered, in order.
+pub async fn walk_for(judging: Judging<'_>) -> Result<Vec<Account>, Refused> {
+  walk_for_user(judging, None).await
 }
 
 /// The moment, in epoch seconds, the first of these logins that rests on its limit answers again; none

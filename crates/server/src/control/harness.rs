@@ -1,31 +1,19 @@
-//! The harness providers as the routes ask them (docs/provider-presence.md): the owner's order and on/off,
-//! whether each provider can answer on this machine, which roads a work key is offered, and what each
-//! offers a tier mapping. The machine's answers are the harness-providers crate's; what the store holds —
-//! the order, the registrations — is read here.
+//! The harness providers as the routes ask them (docs/provider-presence.md): the owner's switch on each,
+//! whether each can answer on this machine, and what each offers an order's entry. The machine's answers are
+//! the harness-providers crate's; what the store holds — the switches, the registrations — is read here.
 
 use harness_providers::{ARCHIVE_PROVIDERS, Machine, Offered, OfferedModel, Provider, Reason, provider};
 use policy::control_words::CONTROL_WORDS;
 use policy::fill_marks;
 use policy::reasoning::REASONING;
 use sea_orm::DatabaseConnection;
-use serde::Serialize;
-use serde_json::Value;
-
-use store::run;
 
 use super::claude_accounts::{self, Judging};
 use super::{Refused, set_setting, setting};
 use crate::now_ms;
 
-// Where the owner's order is kept.
-const ORDER_KEY: &str = "provider_order";
-
-/// One provider of the owner's order, on or off.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
-pub struct OrderEntry {
-  pub name: String,
-  pub enabled: bool,
-}
+// Where the owner's switch on a provider is kept, by the provider (docs/store.md, 「The settings table」).
+const SWITCH: &str = "provider_switch";
 
 /// The scale's levels a run of this model on this provider takes, in the scale's order: the model's own
 /// efforts where the provider's catalogue names them, and the provider's words otherwise.
@@ -53,164 +41,34 @@ pub fn named(name: &str) -> Result<&'static dyn Provider, Refused> {
   provider(name).ok_or_else(|| Refused::failed(format!("no provider named {name} in this build")))
 }
 
-/// A saved order as it reads under these providers: its own order and on/off kept, and every provider
-/// it does not name appended at the end, on. A value naming a provider outside the list, naming one
-/// twice, of any other shape, or leaving none on, reads as the default.
-pub fn stored_order(stored: Option<&str>) -> Vec<OrderEntry> {
-  let default = || {
-    ARCHIVE_PROVIDERS
-      .iter()
-      .map(|name| OrderEntry {
-        name: (*name).into(),
-        enabled: true,
-      })
-      .collect()
-  };
-  let Some(Value::Array(entries)) = stored.and_then(|text| serde_json::from_str::<Value>(text).ok()) else {
-    return default();
-  };
-  let named: Option<Vec<OrderEntry>> = if entries.iter().all(Value::is_string) {
-    entries
-      .iter()
-      .map(|one| {
-        Some(OrderEntry {
-          name: one.as_str()?.into(),
-          enabled: true,
-        })
-      })
-      .collect()
-  } else {
-    entries
-      .iter()
-      .map(|one| {
-        Some(OrderEntry {
-          name: one.get("name")?.as_str()?.into(),
-          enabled: one.get("enabled")?.as_bool()?,
-        })
-      })
-      .collect()
-  };
-  let Some(mut read) = named else {
-    return default();
-  };
-  let unique = read
-    .iter()
-    .enumerate()
-    .all(|(at, one)| read[..at].iter().all(|before| before.name != one.name));
+/// Whether the owner has a provider on: its switch, on where it was never thrown.
+pub async fn provider_enabled(db: &DatabaseConnection, name: &str) -> Result<bool, Refused> {
+  Ok(setting(db, &format!("{SWITCH}:{name}")).await?.as_deref() != Some("off"))
+}
 
-  if !unique || !read.iter().all(|one| ARCHIVE_PROVIDERS.contains(&one.name.as_str())) {
-    return default();
-  }
+/// The providers the owner has on, in the order this build carries them.
+pub async fn enabled_providers(db: &DatabaseConnection) -> Result<Vec<String>, Refused> {
+  let mut on = vec![];
 
   for name in ARCHIVE_PROVIDERS {
-    if !read.iter().any(|one| one.name == name) {
-      read.push(OrderEntry {
-        name: name.into(),
-        enabled: true,
-      });
+    if provider_enabled(db, name).await? {
+      on.push(name.to_owned());
     }
   }
 
-  if read.iter().any(|one| one.enabled) { read } else { default() }
+  Ok(on)
 }
 
-/// The owner's provider order as every reader reads it.
-pub async fn provider_order(db: &DatabaseConnection) -> Result<Vec<OrderEntry>, Refused> {
-  Ok(stored_order(setting(db, ORDER_KEY).await?.as_deref()))
-}
+/// The owner's switch on a provider thrown (docs/provider-order.md, 「The owner's switch on a provider」): the
+/// last provider left on is not turned off, since nothing would answer.
+pub async fn set_provider_enabled(db: &DatabaseConnection, name: &str, on: bool) -> Result<(), Refused> {
+  named(name)?;
 
-/// Whether the owner has a provider on.
-pub async fn provider_enabled(db: &DatabaseConnection, name: &str) -> Result<bool, Refused> {
-  Ok(provider_order(db).await?.iter().any(|one| one.name == name && one.enabled))
-}
-
-/// The providers the owner has on, in the owner's order.
-pub async fn enabled_providers(db: &DatabaseConnection) -> Result<Vec<String>, Refused> {
-  Ok(
-    provider_order(db)
-      .await?
-      .into_iter()
-      .filter(|one| one.enabled)
-      .map(|one| one.name)
-      .collect(),
-  )
-}
-
-/// The first provider the owner has on whose program carries a line, as a runner line's agent is shown
-/// beginning on one.
-pub async fn line_provider(db: &DatabaseConnection, line: &str) -> Result<String, String> {
-  for entry in provider_order(db).await.map_err(|refused| refused.error)? {
-    if entry.enabled && named(&entry.name).map_err(|refused| refused.error)?.declared().carries(line) {
-      return Ok(entry.name);
-    }
-  }
-
-  Err(format!("No enabled provider carries the {line} line"))
-}
-
-/// What an order to save is refused with where it does not name every provider once.
-pub fn order_shape_reason() -> String {
-  let labels: Vec<&str> =
-    harness_providers::providers().iter().map(|one| one.declared().label.as_str()).collect();
-
-  fill_marks(&CONTROL_WORDS.fallback.order, &[("providers", &labels.join(", "))])
-}
-
-/// An order to save as it reads against the order held: every provider once, all named alone — each
-/// keeping its own on/off — or all as entries with their on/off. Nothing for any other value.
-pub fn order_to_save(value: &Value, held: &[OrderEntry]) -> Option<Vec<OrderEntry>> {
-  let entries = value.as_array().filter(|entries| entries.len() == ARCHIVE_PROVIDERS.len())?;
-  let read: Vec<OrderEntry> = if entries.iter().all(Value::is_string) {
-    entries
-      .iter()
-      .map(|one| {
-        let name = one.as_str()?;
-
-        Some(OrderEntry {
-          name: name.into(),
-          enabled: held.iter().find(|held| held.name == name)?.enabled,
-        })
-      })
-      .collect::<Option<_>>()?
-  } else {
-    entries
-      .iter()
-      .map(|one| {
-        Some(OrderEntry {
-          name: one.get("name")?.as_str()?.into(),
-          enabled: one.get("enabled")?.as_bool()?,
-        })
-      })
-      .collect::<Option<_>>()?
-  };
-  let unique = read
-    .iter()
-    .enumerate()
-    .all(|(at, one)| read[..at].iter().all(|before| before.name != one.name));
-
-  (unique && read.iter().all(|one| ARCHIVE_PROVIDERS.contains(&one.name.as_str()))).then_some(read)
-}
-
-/// Whether an order is the default: every provider on, in the providers' own order.
-pub fn is_default_order(order: &[OrderEntry]) -> bool {
-  order.len() == ARCHIVE_PROVIDERS.len()
-    && order.iter().zip(ARCHIVE_PROVIDERS).all(|(one, name)| one.enabled && one.name == name)
-}
-
-/// The owner's order saved, or the refusal of one leaving every provider off. The default is kept as
-/// no setting at all, so a provider a later build gains joins it.
-pub async fn set_provider_order(db: &DatabaseConnection, order: &[OrderEntry]) -> Result<(), Refused> {
-  if !order.iter().any(|one| one.enabled) {
+  if !on && enabled_providers(db).await?.iter().all(|one| one == name) {
     return Err(Refused::failed(CONTROL_WORDS.fallback.all_off.as_str()));
   }
 
-  if is_default_order(order) {
-    run(db, r#"DELETE FROM "settings" WHERE "key" = $1"#, vec![ORDER_KEY.into()]).await?;
-  } else {
-    set_setting(db, ORDER_KEY, &serde_json::to_string(order).map_err(Refused::failed)?).await?;
-  }
-
-  Ok(())
+  set_setting(db, &format!("{SWITCH}:{name}"), if on { "on" } else { "off" }).await
 }
 
 /// The registrations a run may name, in the order they were added: each with an address, or naming a card
@@ -247,7 +105,7 @@ pub async fn missing(
   }
 }
 
-/// Why a work key on this line may not be put on a provider, or nothing where it may: the provider
+/// Why a row on this line may not be put on a provider, or nothing where it may: the provider
 /// cannot answer here, or its program does not carry the line.
 pub async fn offered_reason(
   db: &DatabaseConnection,
@@ -267,7 +125,7 @@ pub async fn offered_reason(
   }))
 }
 
-/// What a provider offers a tier mapping, read afresh: the registrations a run may name, each taking
+/// What a provider offers an order's entry, read afresh: the registrations a run may name, each taking
 /// the provider's whole effort vocabulary, for a provider whose models they are; otherwise the
 /// provider's own catalogue, under the walking login's directory where it keeps it there. A catalogue
 /// that cannot be read is the refusal it gave.

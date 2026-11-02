@@ -140,15 +140,17 @@ impl SessionHolder for Worker {
     Box::pin(async move {
       let mut by_worker: Vec<(String, Vec<String>)> = vec![];
 
-      for row in all(db, "SELECT worker, model FROM worker_sessions ORDER BY last_reply_at", vec![]).await?
-      {
-        let worker: String = row.try_get("", "worker")?;
-        let model: String = row.try_get("", "model")?;
+      for checkout in crate::queue::workers::workers_in(db).await? {
+        let mut models: Vec<String> = vec![];
 
-        match by_worker.iter_mut().find(|(held, _)| *held == worker) {
-          Some((_, models)) if models.contains(&model) => {}
-          Some((_, models)) => models.push(model),
-          None => by_worker.push((worker, vec![model])),
+        for held in crate::worker_session::records::sessions(db, &checkout).await? {
+          if !models.contains(&held.model) {
+            models.push(held.model);
+          }
+        }
+
+        if !models.is_empty() {
+          by_worker.push((checkout, models));
         }
       }
 
@@ -185,7 +187,7 @@ impl SessionHolder for Worker {
         &places.ground.db,
         r#"SELECT DISTINCT "agent" FROM "session_resets"
            WHERE "chat_id" IS NULL AND "done_at" IS NULL
-             AND "agent" IN (SELECT "worker" FROM "worker_sessions")
+             AND "agent" NOT IN (SELECT "name" FROM "supervisors")
            ORDER BY "agent""#,
         vec![],
       )
@@ -226,17 +228,11 @@ impl SessionHolder for Companion {
       let mut sessions = vec![];
 
       for name in by_room {
-        let pin = one(
-          db,
-          "SELECT pinned_provider, pinned_model FROM agents WHERE name = $1",
-          vec![name.clone().into()],
-        )
-        .await?;
-        let read = |column: &str| {
-          pin.as_ref().and_then(|row| row.try_get::<Option<String>>("", column).ok().flatten())
-        };
-        let (provider, model) = (read("pinned_provider"), read("pinned_model"));
-        let models: Vec<Value> = provider.and(model).map(Value::String).into_iter().collect();
+        let held = crate::supervisors::named(db, &name).await?;
+        let models: Vec<Value> = held
+          .iter()
+          .flat_map(|held| held.order.entries.iter().map(|entry| Value::String(entry.model.clone())))
+          .collect();
         let rooms = all(
           db,
           "SELECT chat_id, generation FROM room_sessions WHERE agent = $1 ORDER BY chat_id",
@@ -309,8 +305,7 @@ impl SessionHolder for Chat {
     Box::pin(async move {
       let names = all(
         db,
-        r#"SELECT "name" FROM "agents"
-           WHERE "kind" = 'chat' AND "session_scope" = 'agent' ORDER BY "name""#,
+        r#"SELECT "name" FROM "supervisors" WHERE "session_scope" = 'agent' ORDER BY "name""#,
         vec![],
       )
       .await?;
@@ -407,17 +402,17 @@ pub async fn last_done<C: ConnectionTrait>(
   Ok(row.as_ref().map(SessionReset::of).transpose()?)
 }
 
-/// The agents that wake, in the order the agent list keeps them.
+/// Every supervisor's row, by name.
 pub async fn awake_agents<C: ConnectionTrait>(db: &C) -> Result<Vec<QueryResult>, Refused> {
-  Ok(all(db, "SELECT * FROM agents WHERE resting_since IS NULL ORDER BY kind, name", vec![]).await?)
+  Ok(all(db, r#"SELECT *, 'chat' AS "kind" FROM "supervisors" ORDER BY "name""#, vec![]).await?)
 }
 
-/// An agent's row by any name it answers to.
+/// A supervisor's row by any name it answers to.
 pub async fn agent_row<C: ConnectionTrait>(db: &C, name: &str) -> Result<Option<QueryResult>, Refused> {
   Ok(
     one(
       db,
-      "SELECT * FROM agents WHERE name = $1",
+      r#"SELECT *, 'chat' AS "kind" FROM "supervisors" WHERE "name" = $1"#,
       vec![canonical_agent(db, name).await?.into()],
     )
     .await?,
@@ -451,7 +446,7 @@ async fn view_of<C: ConnectionTrait>(
   let label: Option<String> = row.as_ref().map(|row| row.try_get("", "label")).transpose()?.flatten();
   let kind: Option<String> = row.as_ref().map(|row| row.try_get("", "kind")).transpose()?.flatten();
   let own: Option<String> = row.as_ref().map(|row| row.try_get("", "icon")).transpose()?.flatten();
-  let icon = kind.as_deref().and_then(|kind| ROLES.icon(kind)).map(str::to_owned).or(own);
+  let icon = kind.as_deref().and(ROLES.icon("supervisor")).map(str::to_owned).or(own);
 
   Ok(SessionView {
     label: label.unwrap_or_else(|| session.agent.clone()),

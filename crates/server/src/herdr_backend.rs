@@ -47,14 +47,13 @@ use crate::control::claude_accounts::{Judging, account_open};
 use crate::control::companions::Settings;
 use crate::door::aside;
 use crate::door::record::{ModelSpend, UsageSpent};
-use crate::door::turn::{AsideOutcome, Quiet, Watch};
+use crate::door::turn::{AsideOutcome, Quiet};
 use crate::events::Event;
 use crate::job_run::claude::turn::{Shows, WorkAsked, WorkSeat, carry, continues};
 use crate::lines::Trees;
 use crate::lines::chat::{ChatLaunch, RoomContext, compose_prepared, compose_turn, gate_run};
-use crate::lines::companion::{CompanionTurn, compose, lost_session, pinned_provider, registration_named};
+use crate::lines::companion::{CompanionTurn, compose, lost_session, registration_named};
 use crate::places::gate_places;
-use crate::places::locks::{pane_lock_path, try_hold};
 use crate::places::{AgentRow, Ground, Places};
 use crate::run_ledger;
 use crate::run_log::lines::Line;
@@ -64,8 +63,7 @@ use crate::session_questions::Questions;
 use crate::watches::machine::keep_worker_job;
 use crate::worker_session::fold::{Folded, fold};
 use crate::worker_session::records::{self, note_answer, slot_account};
-use crate::worker_session::{self, Missed, Side, Turned};
-use crate::worker_words::{WordRoad, WordTurn};
+use crate::worker_session::{self, Missed, Side};
 use crate::{Refusal, now_ms};
 
 // What a worker's session is told apart by in its id, after its agent.
@@ -177,53 +175,48 @@ impl RoadWalked {
 // The provider a turn across rooms goes out on: the chat line is mapped on Claude Code alone.
 const CHAT_PROVIDER: &str = "claude-code";
 
-/// The model a worker's pin names now, or none where the worker is unpinned. A program and a turn stand
-/// on this model, never on the row's `last_model`, which is only where a program ran before the pin moved.
+/// The model a repository's pin names now, or none where the repository pins none. A job there stands on
+/// this model (docs/repositories.md, 「A pinned model」).
 pub async fn pinned_worker_model(
   db: &sea_orm::DatabaseConnection,
-  worker: &str,
+  repository: &str,
 ) -> Result<Option<String>, store::Fault> {
   Ok(
-    one(
-      db,
-      r#"SELECT "pinned_model" FROM "agents"
-         WHERE "name" = $1 AND "pinned_provider" IS NOT NULL AND "pinned_model" IS NOT NULL"#,
-      vec![worker.into()],
-    )
-    .await?
-    .and_then(|row| row.try_get::<Option<String>>("", "pinned_model").ok().flatten())
-    .filter(|model| !model.trim().is_empty()),
+    crate::repositories::named(db, repository)
+      .await?
+      .and_then(|repository| repository.pin)
+      .map(|pin| pin.model),
   )
 }
 
-/// The harness session an agent's row keeps across rooms, where it keeps one.
+/// The harness session a supervisor's row keeps across rooms, where it keeps one.
 pub async fn agent_session(
   db: &sea_orm::DatabaseConnection,
   agent: &str,
 ) -> Result<Option<String>, Refusal> {
   Ok(
-    one(db, r#"SELECT "session_id" FROM "agents" WHERE "name" = $1"#, vec![agent.into()])
+    one(db, r#"SELECT "session_id" FROM "supervisors" WHERE "name" = $1"#, vec![agent.into()])
       .await?
       .and_then(|row| row.try_get::<Option<String>>("", "session_id").ok().flatten())
       .filter(|session| !session.is_empty()),
   )
 }
 
-/// The provider an agent's last answer went out on, where it answered: the road of the session its row
+/// The provider a supervisor's last answer went out on, where it answered: the road of the session its row
 /// keeps, so a stand-in's session is resumed on the same road and never handed to another.
 pub async fn agent_last_mode(
   db: &sea_orm::DatabaseConnection,
   agent: &str,
 ) -> Result<Option<String>, Refusal> {
   Ok(
-    one(db, r#"SELECT "last_mode" FROM "agents" WHERE "name" = $1"#, vec![agent.into()])
+    one(db, r#"SELECT "last_mode" FROM "supervisors" WHERE "name" = $1"#, vec![agent.into()])
       .await?
       .and_then(|row| row.try_get::<Option<String>>("", "last_mode").ok().flatten())
       .filter(|mode| !mode.is_empty()),
   )
 }
 
-/// The harness session an agent keeps across rooms written on its row, with the room its last turn
+/// The harness session a supervisor keeps across rooms written on its row, with the room its last turn
 /// answered; none lets it go.
 pub async fn keep_agent_session(
   db: &sea_orm::DatabaseConnection,
@@ -235,7 +228,7 @@ pub async fn keep_agent_session(
 
   written(
     db,
-    r#"UPDATE "agents" SET "session_id" = $2, "chat_id" = COALESCE($3, "chat_id") WHERE "name" = $1"#,
+    r#"UPDATE "supervisors" SET "session_id" = $2, "chat_id" = COALESCE($3, "chat_id") WHERE "name" = $1"#,
     vec![agent.into(), session.into(), chat_id.into()],
   )
   .await
@@ -267,8 +260,6 @@ pub struct HerdrSessions {
   deaf: Mutex<HashSet<SessionId>>,
   // What each session's latest job turn wrote of its answer.
   outputs: Outputs,
-  // The places each bounded role holds for its running turns, by the role's name.
-  role_places: crate::agent_roles::RolePlaces,
   // The thrown-away sessions whose first prompt has been handed the gate's reference, so their later turns
   // are asked over it and not over it again.
   referenced: Mutex<HashSet<SessionId>>,
@@ -416,59 +407,59 @@ fn room_number(room: &str) -> Result<i64, Fault> {
     .map_err(|_| fault(FaultKind::Refused, format!("{room} is not a room's id")))
 }
 
-// What a companion's agent row holds of its pin and its prompts.
+// What a supervisor's row holds that its turn reads: who it is, its order, its prompts and its threshold.
 struct Pinned {
   companion: Companion,
-  provider: Option<String>,
+  supervisor: crate::supervisors::Supervisor,
   prompts: Option<String>,
 }
 
 async fn pinned(ground: &Ground, agent: &str) -> Result<Option<Pinned>, Fault> {
-  let row = one(
-    &ground.db,
-    r#"SELECT "name", "label", "pinned_provider", "pinned_model", "prompts" FROM "agents" WHERE "name" = $1"#,
-    vec![agent.into()],
-  )
-  .await
-  .map_err(|why| store_fault(why.into()))?;
-  let Some(row) = row else { return Ok(None) };
-  let text = |name: &str| row.try_get::<Option<String>>("", name).ok().flatten();
+  let held = crate::supervisors::named(&ground.db, agent)
+    .await
+    .map_err(|why| store_fault(why.into()))?;
+  let Some(supervisor) = held else { return Ok(None) };
 
   Ok(Some(Pinned {
     companion: Companion {
       name: agent.to_owned(),
-      label: text("label"),
-      pinned_model: text("pinned_model"),
+      label: supervisor.label.clone(),
+      pinned_model: None,
     },
-    provider: text("pinned_provider"),
-    prompts: text("prompts"),
+    prompts: supervisor.prompts.clone(),
+    supervisor,
   }))
 }
 
-// The provider and model a companion's turn goes out on: its own fixed model where its row pins one, else
-// the supervisor route — the supervisor key's road as it stands now (docs/model-tiers.md, 「A supervisor's
-// own model」). Every supervisor chooses its model the same two ways.
+// The provider and model a supervisor's turn goes out on: the first provider of its own order that has quota
+// above its share and can answer now (docs/supervisors.md, 「Where a supervisor's turn runs」). Where none
+// can, the turn waits, never refused, until a provider of its order can again: the walk is asked again as
+// each usage reading, account change or road fact comes in, and on the line's own pass.
 async fn choice_of(
   ground: &Ground,
   pinned: &Pinned,
 ) -> Result<(&'static dyn harness_providers::Provider, String), String> {
-  if pinned.provider.is_some() {
-    let provider =
-      pinned_provider(ground, pinned.provider.as_deref(), pinned.companion.pinned_model.as_deref()).await?;
+  let supervisor = &pinned.supervisor;
+  let ask = crate::road::Ask::of(crate::road::Row::Supervisor(&supervisor.name), "chat", &supervisor.order);
 
-    return Ok((provider, pinned.companion.pinned_model.clone().unwrap_or_default()));
+  loop {
+    let mut moved = crate::order::quota_watch(ground);
+    let resolution = crate::road::resolve(ground, &ask).await?;
+    let took = resolution.road().cloned();
+
+    crate::road::went(ground, &resolution, took.as_ref(), &[]).await;
+
+    if let Some(road) = took {
+      let provider = harness_providers::provider(&road.provider)
+        .ok_or_else(|| format!("{} is no provider of this build", road.provider))?;
+
+      return Ok((provider, road.model));
+    }
+
+    if moved.next().await.is_none() {
+      return Err(resolution.sentence());
+    }
   }
-
-  let key = crate::road::supervisor_key().ok_or_else(|| "no supervisor work key is declared".to_owned())?;
-  let resolution = crate::road::resolve(ground, &crate::road::Ask::key(key)).await?;
-
-  let Some(road) = resolution.road() else {
-    return Err(resolution.sentence());
-  };
-  let provider = harness_providers::provider(&road.provider)
-    .ok_or_else(|| format!("{} is no provider of this build", road.provider))?;
-
-  Ok((provider, road.model.clone()))
 }
 
 // The system prompt a companion's settings compose, out of the documents of the tree the process runs, for
@@ -634,7 +625,6 @@ impl HerdrSessions {
       questions: Questions::default(),
       deaf: Mutex::default(),
       outputs: Outputs::default(),
-      role_places: crate::agent_roles::RolePlaces::default(),
       referenced: Mutex::default(),
       left: Mutex::default(),
     }
@@ -664,25 +654,6 @@ impl HerdrSessions {
 
   fn referenced(&self) -> std::sync::MutexGuard<'_, HashSet<SessionId>> {
     self.referenced.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
-  }
-
-  // The role's places: a role the store bounds holds one for the turn's length, so its agents run at most
-  // that many at once. The bound is read as the turn begins, so a changed one holds from the next turn. A
-  // turn beyond the bound waits; none is refused.
-  async fn role_turn(&self, agent: &str) -> Result<Option<tokio::sync::OwnedSemaphorePermit>, Fault> {
-    let bounded = crate::agent_roles::bound_of_agent(&self.ground().db, agent)
-      .await
-      .map_err(|fault| store_fault(fault.into()))?;
-    let Some((role, bound)) = bounded else {
-      return Ok(None);
-    };
-
-    self
-      .role_places
-      .take(&role, bound)
-      .await
-      .map(Some)
-      .map_err(|_| fault(FaultKind::Unknown, format!("{agent}: its role's places closed")))
   }
 
   fn showing(&self) -> std::sync::MutexGuard<'_, HashMap<SessionId, WentOut>> {
@@ -891,12 +862,13 @@ impl HerdrSessions {
 
     let last = one(
       &ground.db,
-      r#"SELECT "last_model" FROM "agents" WHERE "name" = $1"#,
+      r#"SELECT "model" FROM "role_slot_requests" WHERE "place_key" = $1 AND "model" <> ''
+         ORDER BY "sequence" DESC LIMIT 1"#,
       vec![worker.into()],
     )
     .await
     .map_err(|why| store_fault(why.into()))?
-    .and_then(|row| row.try_get::<Option<String>>("", "last_model").ok().flatten());
+    .and_then(|row| row.try_get::<Option<String>>("", "model").ok().flatten());
     let model = pinned.or(last);
 
     match model {
@@ -914,11 +886,7 @@ impl HerdrSessions {
       return Ok(None);
     }
 
-    let ask = crate::road::Ask {
-      worker: Some(worker),
-      ..crate::road::Ask::key(crate::queue::routes::JOB_WORK_KEY)
-    };
-    let resolution = crate::road::resolve(self.ground(), &ask)
+    let resolution = crate::road::for_job(self.ground(), None, Some(worker), None, &[])
       .await
       .map_err(|why| fault(FaultKind::Refused, why))?;
 
@@ -1272,18 +1240,7 @@ impl HerdrSessions {
       .resident
       .as_ref()
       .is_some_and(|resident| resident.handover == policy::providers::Handover::Handoff);
-    let mark =
-      match crate::control::fold_ratios::of_agent(&db, provider.name(), &pinned.companion.name).await {
-        Ok(mark) => mark,
-        Err(refused) => {
-          eprintln!(
-            "agency: {}'s fold ratio did not read, its provider's stands: {}",
-            pinned.companion.name, refused.error
-          );
-
-          crate::control::fold_ratios::fallback(provider.name()).0
-        }
-      };
+    let mark = pinned.supervisor.fold_ratio;
 
     if let Some(ratio) = reply.context_ratio.filter(|ratio| hands_off && *ratio >= mark) {
       let due = Due {
@@ -1488,9 +1445,9 @@ impl HerdrSessions {
       Err(NoAnswer::Overtaken) => return Ok(Came::Stopped),
       Err(no) => {
         let (reason, engine) = failure_of(no);
-        let model = crate::control::tiers::resolve(&db, agent, CHAT_PROVIDER)
+        let model = crate::order::supervisor_entry(&db, agent, CHAT_PROVIDER)
           .await
-          .map(|mapping| mapping.model)
+          .map(|entry| entry.model)
           .unwrap_or_default();
 
         ground.events.publish(RoadWalked::of(
@@ -1949,7 +1906,6 @@ impl HerdrSessions {
   async fn sent(&self, mut turn: Turn) -> Result<TurnEnd, Fault> {
     let (agent, scope) = self.scope_held(&turn.session)?;
     let row = self.admitted(&agent, &scope).await?;
-    let _role_place = self.role_turn(&agent).await?;
     let at = now_ms();
     let room = match &scope {
       Scope::Room(room) => Some(room.clone()),
@@ -2656,26 +2612,20 @@ impl Sessions for HerdrSessions {
         ))
       }
       Scope::Agent => {
-        // An agent whose turns go through its resident's inbox holds no session id of its own: its session
-        // stands from its start on the provider its row pins it to, else the one its last answer went out
-        // on, at its resident's context.
-        let last = one(
-          &ground.db,
-          r#"SELECT "pinned_provider", "pinned_model", "last_mode", "last_model" FROM "agents" WHERE "name" = $1"#,
-          vec![agent.clone().into()],
-        )
-        .await
-        .map_err(|why| store_fault(why.into()))?;
-        let field = |name: &str| {
-          last
-            .as_ref()
-            .and_then(|row| row.try_get::<Option<String>>("", name).ok().flatten())
-            .filter(|value| !value.is_empty())
-        };
-        let road = match field("pinned_provider") {
-          Some(pinned) => Some((pinned, field("pinned_model"))),
-          None => field("last_mode").map(|mode| (mode, field("last_model"))),
-        };
+        // A supervisor whose turns go through its resident's inbox holds no session id of its own: its session
+        // stands from its start on the provider its last answer went out on, else its order's first, at its
+        // resident's context.
+        let held = crate::supervisors::named(&ground.db, &agent)
+          .await
+          .map_err(|why| store_fault(why.into()))?;
+        let road = held.as_ref().and_then(|held| {
+          held
+            .last_mode
+            .clone()
+            .filter(|mode| !mode.is_empty())
+            .map(|mode| (mode, held.last_model.clone()))
+            .or_else(|| held.order.first().map(|entry| (entry.provider.clone(), Some(entry.model.clone()))))
+        });
 
         if let Some((provider, model)) =
           road.filter(|(provider, _)| crate::chat_stand_in::inbox_declared(provider))
@@ -2690,15 +2640,7 @@ impl Sessions for HerdrSessions {
           return Err(fault(FaultKind::Unknown, format!("{session} has not been opened")));
         }
 
-        let model = one(
-          &ground.db,
-          r#"SELECT "last_model" FROM "agents" WHERE "name" = $1"#,
-          vec![agent.clone().into()],
-        )
-        .await
-        .map_err(|why| store_fault(why.into()))?
-        .and_then(|row| row.try_get::<Option<String>>("", "last_model").ok().flatten())
-        .unwrap_or_default();
+        let model = held.as_ref().and_then(|held| held.last_model.clone()).unwrap_or_default();
 
         Ok(State::standing(
           session.clone(),
@@ -2965,7 +2907,7 @@ impl Sessions for HerdrSessions {
 
     let across = all(
       db,
-      r#"SELECT "name" FROM "agents" WHERE "session_scope" = 'agent' AND "session_id" IS NOT NULL ORDER BY "name""#,
+      r#"SELECT "name" FROM "supervisors" WHERE "session_scope" = 'agent' AND "session_id" IS NOT NULL ORDER BY "name""#,
       vec![],
     )
     .await
@@ -2977,14 +2919,14 @@ impl Sessions for HerdrSessions {
       sessions.extend(listed(agent, Scope::Agent));
     }
 
-    let workers = all(db, "SELECT DISTINCT worker FROM worker_sessions ORDER BY worker", vec![])
+    let checkouts = crate::queue::workers::workers(db, std::path::Path::new(""))
       .await
-      .map_err(|why| store_fault(why.into()))?;
+      .map_err(store_fault)?;
 
-    for row in workers {
-      let agent: String = row.try_get("", "worker").map_err(|why| store_fault(why.into()))?;
-
-      sessions.extend(listed(agent, Scope::Worker));
+    for checkout in checkouts.into_iter().filter(|checkout| !checkout.builtin) {
+      if !records::sessions(db, &checkout.name).await.map_err(store_fault)?.is_empty() {
+        sessions.extend(listed(checkout.name, Scope::Worker));
+      }
     }
 
     for (id, (agent, apart)) in self.apart().iter() {
@@ -3053,85 +2995,6 @@ pub type Shared = Arc<HerdrSessions>;
 fn worker_session_id(worker: &str) -> Result<SessionId, Fault> {
   id_of(worker, &Scope::Worker)
     .ok_or_else(|| fault(FaultKind::Unknown, format!("{worker} names no worker's session")))
-}
-
-/// The words said to a worker go into its session through the backend: pushed into the turn it is working,
-/// or carried in a turn of their own that holds the session as a contract's turn does, so neither goes in
-/// over the other.
-impl WordRoad for HerdrSessions {
-  async fn push(&self, worker: &str, words: &str) -> Result<Aside, Fault> {
-    let session = worker_session_id(worker)?;
-    let turn = self.going().get(&session).and_then(|runs| (runs.len() == 1).then(|| runs[0].turn));
-
-    match turn {
-      Some(turn) => Sessions::push(self, &session, turn, words).await,
-      None => Ok(Aside::Refused),
-    }
-  }
-
-  async fn turn<W: Watch + Send + Sync>(
-    &self,
-    worker: &AgentRow,
-    asked: WordTurn,
-    watch: &mut W,
-  ) -> Result<Option<Turned>, Refusal> {
-    let session = worker_session_id(&worker.name).map_err(|why| Refusal::failed(why.message))?;
-    // The worker's pane lock, taken without waiting: a job of the worker's waits out the word's turn on it.
-    let Some(_pane) = try_hold(&pane_lock_path(&self.ground().roots.data, &worker.name)) else {
-      return Ok(None);
-    };
-
-    let turn;
-    let run = asked.name.clone();
-
-    {
-      let mut going = self.going();
-
-      if going.get(&session).is_some_and(|runs| !runs.is_empty()) {
-        return Ok(None);
-      }
-
-      turn = self.next_turn();
-      going.entry(session.clone()).or_default().push(Running {
-        turn,
-        run: run.clone(),
-      });
-    }
-    self.outputs.begun(&session, turn, &run);
-
-    let turned = match self.worker_session(&worker.name).await {
-      Ok((model, resumed)) => {
-        worker_session::turn(
-          &Side {
-            ground: self.ground(),
-          },
-          worker_session::Asked {
-            worker,
-            model,
-            session: resumed,
-            prompt: asked.prompt,
-            name: asked.name.clone(),
-            title: asked.title,
-            label: "word".to_owned(),
-            clock: Some(asked.clock),
-          },
-          watch,
-        )
-        .await
-      }
-      Err(why) => Err(Refusal::failed(why.message)),
-    };
-
-    if let Ok(turned) = &turned
-      && let Some(reply) = &turned.reply
-    {
-      self.outputs.wrote(&session, turn, std::slice::from_ref(&reply.text));
-    }
-
-    self.ended(&session, &run);
-
-    turned.map(Some)
-  }
 }
 
 // A chat turn's run opened in the ledger (docs/run-records.md, 「The run ledger」): the room it runs for,

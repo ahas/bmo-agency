@@ -4,10 +4,7 @@
 
 mod account_routes;
 mod agent_roles;
-mod agent_roster;
 mod agent_sampling;
-pub mod agent_switches;
-pub mod agents;
 mod base_prompts;
 mod catalogues;
 mod chat_documents;
@@ -21,7 +18,6 @@ pub mod events_stream;
 mod executions;
 pub mod fallback;
 pub mod fault;
-pub mod fold_ratios;
 pub mod github_deliveries;
 pub mod harness;
 mod health;
@@ -30,17 +26,15 @@ pub mod item_filings;
 pub mod job_stops;
 mod keepalive;
 mod machine;
-pub mod model_tiers;
 pub mod models;
 mod node_reads;
 pub mod own_llm;
 pub mod pool;
-pub mod pool_board;
 mod pool_routes;
 pub mod quota;
 pub mod registry;
+mod repository_routes;
 pub mod road_verbs;
-pub mod roads;
 mod rooms;
 pub mod run_clocks;
 mod run_ledger;
@@ -48,15 +42,12 @@ mod run_log;
 pub mod session_ops;
 pub mod sessions;
 pub mod stand_ins;
-pub mod tiers;
+mod supervisor_routes;
 pub mod translation_runs;
 pub mod typed_line;
 mod walk_reads;
 pub mod work;
-mod worker;
-pub mod worker_api;
 mod worker_runtime;
-mod worker_words;
 mod workers_routes;
 
 use std::collections::{BTreeSet, HashMap};
@@ -83,7 +74,6 @@ use crate::companion::going::GoingRuns;
 use crate::events::Bus;
 use crate::places::{Ground, Places};
 use crate::queue::settings;
-use crate::worker_words::Words;
 pub use inventory;
 
 /// One route the front answers, written beside its answer: `crate::moved!(BasePrompts);`
@@ -160,6 +150,8 @@ pub struct Refused {
   /// The code the route answers with where it is not the status's own: a rule of its own, as
   /// `no-worker-free`.
   pub code: Option<String>,
+  /// The field of the body it refuses, where it refuses one.
+  pub field: Option<String>,
 }
 
 impl Refused {
@@ -169,7 +161,14 @@ impl Refused {
       status,
       error: error.into(),
       code: None,
+      field: None,
     }
+  }
+
+  /// The same refusal naming the field of the body it refuses.
+  pub fn with_field(mut self, field: impl Into<String>) -> Self {
+    self.field = Some(field.into());
+    self
   }
 
   /// The same refusal under a code of the route's own.
@@ -184,6 +183,7 @@ impl Refused {
       status: StatusCode::BAD_REQUEST,
       error: error.to_string(),
       code: None,
+      field: None,
     }
   }
 
@@ -223,7 +223,13 @@ impl From<store::Fault> for Refused {
 
 impl IntoResponse for Refused {
   fn into_response(self) -> Response {
-    (self.status, Json(json!({ "code": self.code(), "error": self.error }))).into_response()
+    let mut body = json!({ "code": self.code(), "error": self.error });
+
+    if let Some(field) = self.field {
+      body["field"] = json!(field);
+    }
+
+    (self.status, Json(body)).into_response()
   }
 }
 
@@ -272,8 +278,6 @@ pub struct Call {
   going: Arc<GoingRuns>,
   // The session contract over the places the server stands, where it stands them.
   sessions: Option<crate::herdr_backend::Shared>,
-  // The words said to the workers, offered over that contract.
-  words: Option<Words<crate::herdr_backend::HerdrSessions>>,
   // What the request's path held at each `{name}` of the route's path.
   params: Vec<(String, String)>,
 }
@@ -333,11 +337,6 @@ impl Call {
   /// The session contract, where the server stands the places it is carried over.
   pub fn sessions(&self) -> Option<crate::herdr_backend::Shared> {
     self.sessions.clone()
-  }
-
-  /// The words said to the workers, where the server stands the places they are offered over.
-  pub fn words(&self) -> Option<Words<crate::herdr_backend::HerdrSessions>> {
-    self.words.clone()
   }
 
   /// The companions' runs going now, as `companion-run-going` names them.
@@ -427,7 +426,6 @@ pub struct Front {
   herdr: Option<herdr::picture::Watch>,
   going: Arc<GoingRuns>,
   sessions: Option<crate::herdr_backend::Shared>,
-  words: Option<Words<crate::herdr_backend::HerdrSessions>>,
 }
 
 impl Front {
@@ -462,7 +460,6 @@ impl Front {
       herdr: None,
       going,
       sessions: None,
-      words: None,
     })
   }
 
@@ -470,17 +467,10 @@ impl Front {
   /// picture of herdr it keeps.
   pub fn with_places(mut self, places: Places, herdr: Option<herdr::picture::Watch>) -> Self {
     let sessions = Arc::new(crate::herdr_backend::HerdrSessions::new(places.clone()));
-
-    self.words = Some(Words::new(self.ground.clone(), sessions.clone()));
     self.sessions = Some(sessions);
     self.places = Some(places);
     self.herdr = herdr;
     self
-  }
-
-  /// The words said to the workers, once the front stands over their places.
-  pub fn words(&self) -> Option<Words<crate::herdr_backend::HerdrSessions>> {
-    self.words.clone()
   }
 
   fn authorised(&self, request: &Request) -> bool {
@@ -514,7 +504,6 @@ async fn dispatch(State(front): State<Arc<Front>>, request: Request) -> Response
     places: front.places.clone(),
     going: front.going.clone(),
     sessions: front.sessions.clone(),
-    words: front.words.clone(),
     params,
   };
 

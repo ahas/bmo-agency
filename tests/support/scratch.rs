@@ -230,3 +230,30 @@ impl Drop for Scratch {
     drop_copy(std::mem::take(&mut self.database));
   }
 }
+
+/// The migrations a store has not run yet that stand before the two axes' carrying, run: the shape the agent
+/// rows stood in, which a test of an earlier migration reads.
+pub async fn up_to_two_axes(db: &DatabaseConnection) {
+  use sea_orm_migration::MigratorTrait;
+
+  let pending = store::migration::Migrator::get_pending_migrations(db).await.unwrap();
+  let steps = pending
+    .iter()
+    .take_while(|pending| pending.name() != store::migration::TWO_AXES)
+    .count();
+
+  if steps > 0 {
+    store::migration::Migrator::up(db, Some(u32::try_from(steps).unwrap())).await.unwrap();
+  }
+}
+
+impl Scratch {
+  /// A database of the test's own at the shape before the two axes' carrying, dropped when the guard goes.
+  pub async fn before_two_axes() -> Scratch {
+    let scratch = Scratch::blank().await;
+
+    up_to_two_axes(scratch.db()).await;
+
+    scratch
+  }
+}

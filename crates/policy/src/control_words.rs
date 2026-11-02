@@ -126,16 +126,18 @@ pub struct AgentsWords {
 pub struct AgentRolesWords {
   pub name: String,
   pub taken: String,
-  pub coworker: String,
   pub unknown: String,
   pub label: String,
   pub bundles: String,
+  pub line: String,
   pub bound: String,
   pub prompt: String,
-  pub tier: String,
+  pub description: String,
+  pub callable: String,
+  pub fold_ratio: String,
   pub sessions: String,
   pub held: String,
-  pub kind_default: String,
+  pub default_role: String,
 }
 
 /// The base prompts.

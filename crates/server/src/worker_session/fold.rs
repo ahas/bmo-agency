@@ -19,7 +19,6 @@ use super::told::SessionFolded;
 use super::{Composed, account_named, compose};
 use crate::Refusal;
 use crate::control::claude_accounts::SEED_ACCOUNT;
-use crate::control::fold_ratios;
 use crate::control::harness::provider_enabled;
 use crate::door::record::Tail;
 use crate::door::turn::{Ending, Quiet, put};
@@ -37,16 +36,23 @@ pub fn worker_session_full(context_ratio: Option<f64>, fold_ratio: f64) -> bool 
   context_ratio.is_some_and(|ratio| ratio >= fold_ratio)
 }
 
-/// The fold ratio of a worker's session: the table's for the provider it stands on and the tier its run
-/// went out on, the provider's own where the store cannot be read, since a fold is upkeep that fails
-/// nothing.
-pub async fn worker_fold_ratio(ground: &Ground, provider: &str, tier: Option<&str>) -> f64 {
-  match fold_ratios::ratio(&ground.db, provider, tier).await {
-    Ok(ratio) => ratio,
-    Err(refused) => {
-      eprintln!("agency: the fold ratio of {provider} did not read, its own stands: {}", refused.error);
+/// The compaction threshold of a job's session: its role's (docs/sessions.md, 「Session compaction」), the
+/// provider's declared default where the store cannot be read, since a fold is upkeep that fails nothing.
+pub async fn worker_fold_ratio(ground: &Ground, provider: &str, role: Option<&str>) -> f64 {
+  let role = role.unwrap_or_else(|| crate::agent_roles::job_role());
 
-      fold_ratios::fallback(provider).0
+  match crate::agent_roles::named(&ground.db, role).await {
+    Ok(Some(role)) => role.fold_ratio,
+    held => {
+      if let Err(why) = held {
+        eprintln!(
+          "agency: the compaction threshold of {role} did not read, {provider}'s own stands: {why}"
+        );
+      }
+
+      harness_providers::provider(provider)
+        .and_then(|provider| provider.declared().fold_ratio)
+        .unwrap_or(crate::order::DEFAULT_FOLD_RATIO)
     }
   }
 }

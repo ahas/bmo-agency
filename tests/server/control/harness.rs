@@ -1,9 +1,7 @@
 use agency_server::control::harness::*;
 use harness_providers::ARCHIVE_PROVIDERS;
 
-fn names(order: &[OrderEntry]) -> Vec<(&str, bool)> {
-  order.iter().map(|one| (one.name.as_str(), one.enabled)).collect()
-}
+use crate::support::scratch::Scratch;
 
 #[test]
 fn the_store_keeps_every_provider_this_build_carries() {
@@ -15,38 +13,26 @@ fn the_store_keeps_every_provider_this_build_carries() {
   assert_eq!(carried, stored);
 }
 
-#[test]
-fn a_saved_order_reads_with_the_providers_it_lacks_appended_on() {
-  let read =
-    stored_order(Some(r#"[{"name":"codex","enabled":false},{"name":"claude-code","enabled":true}]"#));
+#[tokio::test]
+async fn a_provider_is_on_until_the_owner_switches_it_off_and_the_last_one_on_stays_on() {
+  let scratch = Scratch::new().await;
+  let db = scratch.db();
 
-  assert_eq!(
-    names(&read),
-    [
-      ("codex", false),
-      ("claude-code", true),
-      ("openrouter", true),
-      ("registered", true),
-      ("deepseek", true)
-    ]
-  );
-  assert_eq!(names(&stored_order(Some(r#"["registered","codex"]"#)))[0], ("registered", true));
-}
+  assert_eq!(enabled_providers(db).await.unwrap().len(), ARCHIVE_PROVIDERS.len());
 
-#[test]
-fn an_order_of_any_other_shape_reads_as_the_default() {
-  let standing = stored_order(None);
-  let default = names(&standing);
+  set_provider_enabled(db, "codex", false).await.unwrap();
+  assert!(!provider_enabled(db, "codex").await.unwrap());
 
-  assert_eq!(default.len(), 5);
-  for stored in [
-    "not json",
-    r#"{"name":"codex"}"#,
-    r#"["codex","codex"]"#,
-    r#"["codex",{"name":"registered","enabled":true}]"#,
-    r#"["elsewhere"]"#,
-    r#"[{"name":"codex","enabled":false},{"name":"claude-code","enabled":false},{"name":"openrouter","enabled":false},{"name":"registered","enabled":false},{"name":"deepseek","enabled":false}]"#,
-  ] {
-    assert_eq!(names(&stored_order(Some(stored))), default, "{stored}");
+  for name in ARCHIVE_PROVIDERS.iter().filter(|name| **name != "deepseek") {
+    set_provider_enabled(db, name, false).await.unwrap();
   }
+
+  assert_eq!(enabled_providers(db).await.unwrap(), ["deepseek"]);
+  assert!(
+    set_provider_enabled(db, "deepseek", false).await.is_err(),
+    "the last provider on stays on"
+  );
+
+  set_provider_enabled(db, "codex", true).await.unwrap();
+  assert!(provider_enabled(db, "codex").await.unwrap());
 }

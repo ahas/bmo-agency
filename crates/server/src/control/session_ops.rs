@@ -20,7 +20,6 @@ use axum::response::{IntoResponse, Response};
 use serde::Deserialize;
 use serde_json::{Value, json};
 
-use super::fold_ratios;
 use super::{Call, Refused, Route, answer};
 use crate::herdr_backend::Shared;
 use crate::lines::Trees;
@@ -448,18 +447,24 @@ fn member(session: &Session, state: Option<&State>, body: &Value) -> Value {
   })
 }
 
-// The member with the tier its agent stands at now and the share of its model's window its session is folded
-// at, read for the provider the state names at that tier (docs/sessions.md, 「Session compaction」); a member
-// naming no provider carries no share.
+// The member with the share of its model's window its session is folded at, its supervisor's or its role's
+// compaction threshold read afresh (docs/sessions.md, 「Session compaction」), and the row it runs for.
 async fn folded(db: &sea_orm::DatabaseConnection, mut member: Value) -> Result<Value, Refused> {
   let provider = member["provider"].as_str().unwrap_or_default().to_owned();
   let agent = member["agentName"].as_str().unwrap_or_default().to_owned();
-  let tier = fold_ratios::agent_tier(db, &agent).await?;
+  let supervisor = crate::supervisors::named(db, &agent).await?;
+  let role = match &supervisor {
+    Some(_) => None,
+    None => crate::agent_roles::named(db, &agent).await?,
+  };
+  let ratio = supervisor
+    .as_ref()
+    .map(|held| held.fold_ratio)
+    .or(role.as_ref().map(|held| held.fold_ratio));
 
-  if !provider.is_empty() {
-    member["foldRatio"] = json!(fold_ratios::ratio(db, &provider, tier.as_deref()).await?);
-  }
-  member["tier"] = json!(tier);
+  member["foldRatio"] = json!(ratio);
+  member["supervisor"] = json!(supervisor.map(|held| held.name));
+  member["role"] = json!(role.map(|held| held.name));
   // A room's or an agent's session on a program that carries its own turns compacts itself at that share.
   member["foldsItself"] = json!(
     matches!(member["scope"].as_str(), Some("agent" | "room"))

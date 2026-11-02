@@ -374,14 +374,7 @@ async fn threads_of(ground: &Ground, scope: &str, model: &str, effort: &str) -> 
 
 // Every login's session record of the worker on a model, which a replaced session leaves worthless.
 async fn sessions_of(ground: &Ground, worker: &str, model: &str) -> Result<(), Refusal> {
-  run(
-    &ground.db,
-    r#"DELETE FROM "worker_sessions" WHERE "worker" = $1 AND "model" = $2"#,
-    vec![worker.into(), model.into()],
-  )
-  .await?;
-
-  Ok(())
+  super::records::forget(&ground.db, worker, model, None).await
 }
 
 /// The session that answered kept as the one the scope holds, on the model it answered on.

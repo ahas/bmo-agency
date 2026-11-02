@@ -69,7 +69,15 @@ async fn the_columns_carried_beyond_a_tables_first_shape_stand_after_its_row_id(
   let roles = columns("roles").await;
   assert_eq!(
     roles[roles.len() - 7..],
-    ["sessions", "description", "line", "provider_order", "quota_share", "fold_ratio", "callable"]
+    [
+      "sessions",
+      "description",
+      "line",
+      "provider_order",
+      "quota_share",
+      "fold_ratio",
+      "callable"
+    ]
   );
   let accounts = columns("claude_accounts").await;
   assert_eq!(
@@ -181,7 +189,7 @@ async fn no_recollector_is_left_standing_and_nothing_else_goes_with_them() {
     scratch.run(statement, vec![]).await;
   }
 
-  Migrator::up(scratch.db(), None).await.unwrap();
+  crate::support::scratch::up_to_two_axes(scratch.db()).await;
 
   let count = |sql: &'static str| scratch.count(sql, vec![]);
 

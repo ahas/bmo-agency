@@ -240,7 +240,7 @@ pub async fn reload(
     for agent in &agents {
       run(
         db,
-        r#"UPDATE "agents" SET "prompt_changed_at" = $1 WHERE "name" = $2"#,
+        r#"UPDATE "supervisors" SET "prompt_changed_at" = $1 WHERE "name" = $2"#,
         vec![now.into(), agent.as_str().into()],
       )
       .await?;

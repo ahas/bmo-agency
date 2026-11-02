@@ -38,7 +38,7 @@ pub async fn follow_room(
 ) -> Result<(i64, String), VerbError> {
   let words = &VERB_WORDS.companion_follow;
   let Some(row) =
-    one(db, r#"SELECT "name", "label" FROM "agents" WHERE "name" = $1"#, vec![agent.into()]).await?
+    one(db, r#"SELECT "name", "label" FROM "supervisors" WHERE "name" = $1"#, vec![agent.into()]).await?
   else {
     return Err(VerbError::Refused(fill_marks(&words.unknown_agent, &[("agent", agent)])));
   };

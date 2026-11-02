@@ -67,7 +67,7 @@ pub const TWO_AXES: &str = m20261124_000001_renewal::NAME;
 
 /// Every table the store's migrations make, beside the record of what ran: what reads every table of the
 /// store reads these and no other service's beside them (docs/store.md, 「Its tables」).
-pub const OWN_TABLES: [&str; 50] = [
+pub const OWN_TABLES: [&str; 51] = [
   "supervisors",
   "roles",
   "role_seeded",
@@ -94,6 +94,7 @@ pub const OWN_TABLES: [&str; 50] = [
   "usage_windows",
   "usage_balances",
   "model_catalogue",
+  "fallback_sessions",
   "model_fallbacks",
   "model_uses",
   "registered_models",

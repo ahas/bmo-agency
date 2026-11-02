@@ -1,69 +1,126 @@
+//! The roles policy (docs/agent-roles.md, 「The roles the policy seeds」): the fourteen seeded roles with their
+//! lines, caps, sessions, callable marks and orders, the defaults nothing names, the supervisor bundles and the
+//! shape of a role's name.
+
+use std::collections::BTreeSet;
+
 use policy::roles::*;
+use regex::Regex;
 
 #[test]
-fn each_role_gives_its_bundles_and_every_bundle_a_role_names_is_declared() {
-  assert_eq!(ROLES.bundles_of("chat"), ["room.chat", "room.send", "web.read"]);
-  assert_eq!(ROLES.bundles_of("worker"), ["graph.read", "queue.read", "web.read"]);
-  assert_eq!(ROLES.bundles_of("searcher"), ["web.read", "web.sites", "web.branches", "web.rulebooks"]);
-  assert!(ROLES.bundles_of("gate").is_empty());
-  assert_eq!(ROLES.bundles_of("video"), ["queue.read", "web.read", "room.send"]);
-  assert_eq!(ROLES.role("video").and_then(|role| role.prompt.as_deref()), Some("video.md"));
-  assert_eq!(ROLES.bundles_of("helper"), ["graph.read", "queue.read", "web.read"]);
-  assert_eq!(ROLES.role("helper").and_then(|role| role.prompt.as_deref()), Some("helper.md"));
-  assert!(ROLES.holds(&ROLES.delegate), "delegated work goes to a role the policy seeds");
-  assert!(ROLES.bundles_of("nobody").is_empty());
-  assert!(!ROLES.holds("companion"));
-  assert!(ROLES.holds(&ROLES.coworker));
-  assert_eq!(ROLES.bundle_label("room.send"), "Send");
-  assert!(ROLES.bundles_of("chat").contains(&ROLES.send));
+fn the_policy_seeds_the_fourteen_roles_in_the_order_a_screen_lists_them() {
+  let names: Vec<&str> = ROLES.roles.iter().map(|role| role.name.as_str()).collect();
 
+  assert_eq!(
+    names,
+    [
+      "worker",
+      "delegator",
+      "helper",
+      "video",
+      "builder",
+      "verifier",
+      "digest",
+      "scout",
+      "screener",
+      "searcher",
+      "browser",
+      "translator",
+      "transliterator",
+      "upkeep"
+    ]
+  );
+}
+
+#[test]
+fn each_role_starts_at_the_cap_the_owner_decided() {
+  let caps: Vec<(&str, i64)> =
+    ROLES.roles.iter().map(|role| (role.name.as_str(), role.max_concurrent)).collect();
+
+  for (name, cap) in [
+    ("worker", 3),
+    ("delegator", 2),
+    ("helper", 2),
+    ("builder", 8),
+    ("verifier", 6),
+    ("digest", 6),
+    ("scout", 12),
+    ("screener", 12),
+    ("upkeep", 1),
+  ] {
+    assert!(caps.contains(&(name, cap)), "{name} starts at {cap}: {caps:?}");
+  }
+}
+
+#[test]
+fn the_worker_goes_out_on_deepseeks_flash_model_first() {
+  let worker = ROLES.role("worker").unwrap();
+
+  assert_eq!(
+    (worker.order[0].provider.as_str(), worker.order[0].model.as_str()),
+    ("deepseek", "deepseek-flash")
+  );
+}
+
+#[test]
+fn every_order_names_a_provider_once_and_every_role_names_its_line() {
   for role in &ROLES.roles {
-    for bundle in &role.bundles {
+    let providers: BTreeSet<&str> = role.order.iter().map(|entry| entry.provider.as_str()).collect();
+
+    assert!(!role.order.is_empty(), "{} names an order", role.name);
+    assert_eq!(providers.len(), role.order.len(), "{} names a provider twice", role.name);
+    assert!(
+      ["worker", "search", "browse", "translate"].contains(&role.line.as_str()),
+      "{}",
+      role.name
+    );
+
+    for entry in &role.order {
       assert!(
-        ROLES.bundles.iter().any(|one| &one.name == bundle),
-        "{} names {bundle}, which is no bundle",
-        role.name
+        harness_providers::provider(&entry.provider).is_some(),
+        "{} names {}",
+        role.name,
+        entry.provider
       );
     }
   }
 }
 
 #[test]
-fn each_kind_holds_a_declared_role_where_its_writer_names_none() {
-  let kinds: Vec<(&str, &str)> =
-    ROLES.kinds.iter().map(|(kind, role)| (kind.as_str(), role.as_str())).collect();
+fn only_the_co_worker_roles_are_callable_and_the_builder_is_the_orders_own_turn() {
+  let callable: Vec<&str> =
+    ROLES.roles.iter().filter(|role| role.callable).map(|role| role.name.as_str()).collect();
 
-  assert_eq!(
-    kinds,
-    [("chat", "chat"), ("gate", "gate"), ("runner", "searcher"), ("worker", "worker"),]
-  );
-  assert!(ROLES.kinds.values().all(|role| ROLES.holds(role)));
+  assert_eq!(callable, ["verifier", "digest", "scout", "screener"]);
 }
 
 #[test]
-fn every_seeded_role_has_a_name_and_label_a_role_added_on_the_control_port_may_have() {
-  let pattern = regex::Regex::new(&ROLES.name_pattern).unwrap();
+fn the_defaults_nothing_names_are_seeded_roles_and_each_bundle_a_role_gives_is_declared() {
+  for role in [&ROLES.job, &ROLES.delegate, &ROLES.renewal, &ROLES.translate] {
+    assert!(ROLES.holds(role), "{role} is seeded");
+  }
+
+  assert!(ROLES.default_role("delegator"));
+  assert!(!ROLES.default_role("helper"), "the helper is a role one names, and may go");
+  assert_eq!(ROLES.supervisor, ["room.chat", "room.send", "web.read"]);
+  assert!(ROLES.supervisor.contains(&ROLES.send));
+  assert_eq!(ROLES.quota_share, 0.01);
 
   for role in &ROLES.roles {
-    assert!(
-      pattern.is_match(&role.name) && role.name.chars().count() <= ROLES.name_most,
-      "{}",
-      role.name
-    );
-    assert!(
-      !role.label.is_empty() && role.label.chars().count() <= ROLES.label_most,
-      "{}",
-      role.label
-    );
-    assert!(ROLES.bundles.iter().all(|bundle| ROLES.declares_bundle(&bundle.name)));
+    for bundle in &role.bundles {
+      assert!(ROLES.declares_bundle(bundle), "{} names {bundle}, which is no bundle", role.name);
+    }
+  }
+}
+
+#[test]
+fn a_roles_name_is_kebab_case() {
+  let shape = Regex::new(&ROLES.name_pattern).unwrap();
+
+  for role in &ROLES.roles {
+    assert!(shape.is_match(&role.name), "{}", role.name);
   }
 
-  for name in ["video", "code-review", "a1-b2"] {
-    assert!(pattern.is_match(name), "{name}");
-  }
-  for name in ["Video", "code_review", "-lead", "trail-", "two--hyphens", "1st"] {
-    assert!(!pattern.is_match(name), "{name}");
-  }
-  assert!(ROLES.kind_default("searcher") && !ROLES.kind_default("video"));
-  assert!(!ROLES.declares_bundle("web.everything"));
+  assert!(!shape.is_match("Worker"));
+  assert!(!shape.is_match("co_worker"));
 }

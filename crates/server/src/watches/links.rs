@@ -290,18 +290,14 @@ async fn workplaces(db: &DatabaseConnection) -> Result<Vec<Workplace>, Refusal> 
 async fn workers(
   db: &DatabaseConnection,
 ) -> Result<Vec<(String, Option<String>, Option<String>)>, Refusal> {
-  all(
-    db,
-    r#"SELECT a."name", a."node", a."cwd" FROM "agents" a WHERE a."kind" = 'worker' AND a."resting_since" IS NULL
-       ORDER BY COALESCE((SELECT b."builtin" FROM "agents" b WHERE b."name" = a."support_of"), a."builtin") DESC,
-         COALESCE(a."support_of", a."name"), COALESCE(a."support_slot", 1)"#,
-    vec![],
+  Ok(
+    crate::queue::workers::workers(db, std::path::Path::new(""))
+      .await?
+      .into_iter()
+      .filter(|worker| !worker.builtin)
+      .map(|worker| (worker.name, worker.node, Some(worker.cwd)))
+      .collect(),
   )
-  .await?
-  .iter()
-  .map(|row| Ok((row.try_get("", "name")?, row.try_get("", "node")?, row.try_get("", "cwd")?)))
-  .collect::<Result<_, sea_orm::DbErr>>()
-  .map_err(Refusal::from)
 }
 
 /// An agent placed on a node: its name and its checkout as the node reads it.

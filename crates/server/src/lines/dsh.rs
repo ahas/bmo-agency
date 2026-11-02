@@ -460,13 +460,13 @@ fn overlay_of_with(
 /// The profile's row of dsh's own automatic compaction, whose threshold a session that folds itself sets.
 pub const COMPACTION_ROW: &str = "compaction-basic";
 
-/// The share of its model's window a chat agent's standing session compacts itself at: its session's fold
-/// ratio, the table's value for the provider and the tier its agent's work key is assigned; none where the
-/// table cannot be read.
-pub async fn compact_share(ground: &crate::places::Ground, agent: &str, provider: &str) -> Option<f64> {
-  let tier = crate::control::fold_ratios::agent_tier(&ground.db, agent).await.ok()?;
-
-  crate::control::fold_ratios::ratio(&ground.db, provider, tier.as_deref()).await.ok()
+/// The share of its model's window a supervisor's standing session compacts itself at: its compaction
+/// threshold; none where its row cannot be read.
+pub async fn compact_share(ground: &crate::places::Ground, agent: &str, _provider: &str) -> Option<f64> {
+  crate::supervisors::named(&ground.db, agent)
+    .await
+    .ok()?
+    .map(|supervisor| supervisor.fold_ratio)
 }
 
 /// The tools a standing session keeps of dsh's own, as the pinned version names them to the model: every row

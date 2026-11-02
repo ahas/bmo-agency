@@ -16,8 +16,8 @@ use agency_server::cards::{
   Ask, Asking, Gateway, SharedAsk, Sharing, give_back_lease, give_back_left, give_back_on,
   give_back_with_leases, hold_on, holding, native_card, seat_card_on, share,
 };
-use agency_server::control::pool::Request;
 use agency_server::control::registry::{change, registration, view};
+use agency_server::order_run::dispatch::Request;
 use axum::Json;
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
@@ -204,15 +204,13 @@ fn seat(token: &str) -> Request {
     owner: "research:7".into(),
     source: "search".into(),
     role: "scout".into(),
-    work_key: "role:scout".into(),
-    generation: 1,
+    path: None,
     ended_at: None,
     outcome: None,
     reservation: None,
     provider: "registered".into(),
     model: "flash".into(),
     effort: None,
-    tier: "light".into(),
     capacity: 1,
     state: "active".into(),
     enqueued_at: 1,
@@ -220,11 +218,11 @@ fn seat(token: &str) -> Request {
     child_id: None,
     yielding: false,
     place_key: None,
-    turn: false,
     session: Some("session-7".into()),
     title: None,
     asked_by: None,
     agent_name: None,
+    held_for: None,
   }
 }
 
@@ -408,15 +406,13 @@ async fn a_native_co_worker_s_card_is_asked_within_the_demand_its_caller_s_turn_
     owner: "native:s".into(),
     source: "native".into(),
     role: "scout".into(),
-    work_key: "role:scout".into(),
-    generation: 1,
+    path: None,
     ended_at: None,
     outcome: None,
     reservation: None,
     provider: "registered".into(),
     model: "flash".into(),
     effort: None,
-    tier: "light".into(),
     capacity: 1,
     state: "active".into(),
     enqueued_at: 1,
@@ -424,11 +420,11 @@ async fn a_native_co_worker_s_card_is_asked_within_the_demand_its_caller_s_turn_
     child_id: None,
     yielding: false,
     place_key: None,
-    turn: false,
     session: None,
     title: None,
     asked_by: None,
     agent_name: None,
+    held_for: None,
   };
   let held = native_card(scratch.db(), Some(&master), &seat, Some("worker-a"))
     .await

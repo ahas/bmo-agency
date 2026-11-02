@@ -15,8 +15,10 @@ pub struct Roads {
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Reasons {
-  /// A pinned provider the owner turned off.
+  /// A provider the owner turned off.
   pub off: String,
+  /// A quota at or below the row's share, with `{left}` and `{share}`.
+  pub quota: String,
   /// A balance at or below zero, with `{amount}` and `{currency}`.
   pub balance: String,
   /// No login of a provider that holds logins is open.

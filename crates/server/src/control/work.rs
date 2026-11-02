@@ -22,7 +22,7 @@ use crate::lines::{Trees, worker};
 use crate::now_ms;
 use crate::places::{AgentRow, Ground};
 use crate::queue::routes::JOB_WORK_KEY;
-use crate::road::{self, Ask, Closed, Road};
+use crate::road::{self, Closed, Road};
 use crate::run_ledger::{self, Closing, NotClosed, Opening, Spent};
 use crate::run_log::lines::Line;
 use crate::run_log::{RunLog, Target};
@@ -155,15 +155,27 @@ impl Route for CreateAssignment {
 
     release_ended(db).await?;
 
-    let sql = r#"SELECT a."name", a."cwd" FROM "agents" a
-      WHERE a."kind" = 'worker' AND a."resting_since" IS NULL
-        AND ($1 = '' OR a."name" = $1)
-        AND NOT EXISTS (SELECT 1 FROM "assignments" held
-              WHERE held."worker_name" = a."name" AND held."state" IN ('held', 'running'))
-        AND NOT EXISTS (SELECT 1 FROM "jobs" j
-              WHERE j."worker_name" = a."name" AND j."state" IN ('starting', 'running'))
-      ORDER BY a."name" LIMIT 1"#;
-    let picked = one(db, sql, vec![assignee.unwrap_or_default().into()]).await?;
+    // A checkout of a repository that no assignment or job holds now, the named one where one is named.
+    let mut picked = None;
+
+    for checkout in crate::queue::workers::workers(db, &call.ground().source).await? {
+      if checkout.builtin || assignee.is_some_and(|assignee| assignee != checkout.name) {
+        continue;
+      }
+
+      let held = one(
+        db,
+        r#"SELECT 1 AS "held" WHERE EXISTS (SELECT 1 FROM "assignments" WHERE "worker_name" = $1 AND "state" IN ('held', 'running'))
+             OR EXISTS (SELECT 1 FROM "jobs" WHERE "worker_name" = $1 AND "state" IN ('starting', 'running'))"#,
+        vec![checkout.name.clone().into()],
+      )
+      .await?;
+
+      if held.is_none() {
+        picked = Some(checkout);
+        break;
+      }
+    }
     let Some(picked) = picked else {
       return Err(
         Refused::new(
@@ -177,7 +189,7 @@ impl Route for CreateAssignment {
         .with_code("no-worker-free"),
       );
     };
-    let worker_name: String = picked.try_get("", "name")?;
+    let worker_name: String = picked.name;
     let now = now_ms();
     let row = one(
       db,
@@ -620,7 +632,7 @@ impl Route for CreateJob {
     let worker_name: String = held["workerName"].as_str().unwrap_or_default().to_owned();
     // A job is refused only where nothing in its worker's walk can answer now (docs/cache-fallback.md,
     // 「One road resolution」); the sentence names every provider's reason and what a person must do.
-    let resolution = road::resolve(call.ground(), &job_ask(&worker_name, &[]))
+    let resolution = road::for_job(call.ground(), None, Some(&worker_name), None, &[])
       .await
       .map_err(|why| Refused::new(StatusCode::SERVICE_UNAVAILABLE, why))?;
     if resolution.road().is_none() {
@@ -676,17 +688,6 @@ impl Route for CreateJob {
 
 crate::moved!(CreateJob);
 
-/// What a job's road is asked: the job key, on its worker, with the providers this job already left.
-fn job_ask<'a>(worker: &'a str, left: &'a [Closed]) -> Ask<'a> {
-  Ask {
-    key: JOB_WORK_KEY,
-    worker: Some(worker),
-    user: None,
-    left,
-    named: None,
-  }
-}
-
 /// The work parts a job's turn is carried with, on the road the resolution answered for it: its provider
 /// and model, and the effort and tier the job key maps to there.
 pub(crate) async fn work_parts(
@@ -698,31 +699,34 @@ pub(crate) async fn work_parts(
   taken: &Road,
 ) -> Result<WorkParts, String> {
   let provider = taken.provider.clone();
-  let mut mapping = super::tiers::resolve_execution(&ground.db, JOB_WORK_KEY, &provider, None).await?;
-
-  mapping.model.clone_from(&taken.model);
+  // The job role's entry for the provider names the effort; the road names the model, its repository's pin's
+  // where it pins one.
+  let role = crate::agent_roles::job_role();
+  let entry = crate::order::role_entry(&ground.db, role, &provider).await.ok();
+  let effort = entry.as_ref().and_then(|entry| entry.effort.clone());
+  let answer_tokens = entry.as_ref().and_then(|entry| entry.answer_tokens);
+  let model = taken.model.clone();
   let row = AgentRow::named(&ground.db, worker_name)
     .await
     .map_err(|why| why.detail)?
     .ok_or_else(|| format!("no worker is named {worker_name}"))?;
   let cwd = row.cwd.unwrap_or_else(|| ground.source.to_string_lossy().into_owned());
   let trees = Trees::of(ground);
-  let mut line = worker::worker_run(ground, &trees, Some(worker_name), None, &mapping.model, &cwd)
+  let mut line = worker::worker_run(ground, &trees, Some(worker_name), None, &model, &cwd)
     .await
     .map_err(|why| why.detail)?;
-  line.effort = mapping.effort.clone().unwrap_or(line.effort);
-  line.tier = Some(mapping.tier.clone());
+  line.effort = effort.clone().unwrap_or(line.effort);
   let mut variables = BTreeMap::new();
   variables.insert("BMO_DATA_DIR".to_owned(), ground.roots.data.to_string_lossy().into_owned());
 
   Ok(WorkParts {
     provider,
-    model: mapping.model.clone(),
+    model: model.clone(),
     mapping: WorkMapping {
-      model: mapping.model,
-      effort: mapping.effort,
-      tier: Some(mapping.tier),
-      answer_tokens: mapping.answer_tokens.and_then(|tokens| u64::try_from(tokens).ok()),
+      model,
+      effort,
+      tier: None,
+      answer_tokens: answer_tokens.and_then(|tokens| u64::try_from(tokens).ok()),
     },
     resume: Resume::Auto,
     cwd,
@@ -731,7 +735,7 @@ pub(crate) async fn work_parts(
     chat: room,
     unit: Some(name.to_owned()),
     user: None,
-    work_key: JOB_WORK_KEY.to_owned(),
+    work_key: role.to_owned(),
     hears_words: true,
     variables,
   })
@@ -903,14 +907,10 @@ pub async fn reap_stale(ground: &Ground) -> Result<usize, Refused> {
     }
 
     // A worker on a node runs elsewhere: its execution is no row this machine holds.
-    let node: Option<String> = one(
-      &ground.db,
-      r#"SELECT "node" FROM "agents" WHERE "name" = $1"#,
-      vec![worker.clone().into()],
-    )
-    .await?
-    .and_then(|row| row.try_get::<Option<String>>("", "node").ok().flatten())
-    .filter(|node| !node.trim().is_empty());
+    let node: Option<String> = crate::queue::workers::worker_row(&ground.db, &worker, &ground.source)
+      .await?
+      .and_then(|checkout| checkout.node)
+      .filter(|node| !node.trim().is_empty());
 
     if node.is_some() {
       println!("job {id}: left {state}: its worker {worker} stands on {}", node.unwrap_or_default());
@@ -1206,7 +1206,7 @@ async fn wait_for_road(
       return Ok(false);
     }
 
-    if road::resolve(ground, &job_ask(job.worker, &[])).await?.road().is_some() {
+    if road::for_job(ground, None, Some(job.worker), None, &[]).await?.road().is_some() {
       held_for(ground, job.id, None).await;
 
       return Ok(true);
@@ -1238,11 +1238,11 @@ pub async fn carry_job<C: Carrier>(
   let mut last: Option<Ended> = None;
 
   loop {
-    let resolution = road::resolve(ground, &job_ask(job.worker, &left)).await?;
+    let resolution = road::for_job(ground, None, Some(job.worker), None, &left).await?;
     let Some(taken) = resolution.road().cloned() else {
       // Every road that can answer now was already tried in this job: it ends as its last turn did.
       if let Some((state, outcome, report, _)) = last.take()
-        && road::resolve(ground, &job_ask(job.worker, &[])).await?.road().is_some()
+        && road::for_job(ground, None, Some(job.worker), None, &[]).await?.road().is_some()
       {
         return Ok(Some((state, outcome, with_roads(report, &roads), spent)));
       }

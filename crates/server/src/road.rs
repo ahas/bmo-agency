@@ -1,70 +1,77 @@
-//! The one road resolution (docs/cache-fallback.md, 「One road resolution」): the one place that decides where
-//! a work key's work goes out now. The key's setting — a worker's own pin, the fixed model of the agent the
-//! key is named after, else the key's row, else automatic — is the head of a walk through the owner's
-//! provider order; every provider of that walk answers
-//! for itself whether it can answer now (「Availability: whether a provider can answer now」), each out of
-//! its own member, and the first that can carries the work, on the pinned model where the pin names one and
-//! the key's tier mapping everywhere else, on the first login the account judgement offers where the
-//! provider holds logins. Work whose caller names its road walks that road alone. The resolution knows no
-//! provider by name. A move off the head of the walk, a return to it and an order that cannot answer at all
-//! are each published once, as the facts of `road.changed` (docs/api.md, 「Events」).
+//! The one road resolution (docs/provider-order.md, 「Choosing the provider」): the one place that decides
+//! where a supervisor's or a role's run goes out now. The row's own order is walked from the top; every
+//! provider of it answers for itself whether it can answer now — the owner's switch, its presence on this
+//! machine, its balance and its logins — and whether it has quota above the row's share, each out of its own
+//! member, and the first that can carries the run on the model, effort and thinking its entry names, on the
+//! first login with quota where the provider holds logins. A run whose caller fixes its road — a repository's
+//! pin, a delegation as its supervisor's double, a native co-worker on its caller's provider, a session's
+//! named road — walks that road alone and waits while it cannot answer. The resolution knows no provider by
+//! name. A move off the top of the order, a return to it and an order that cannot answer at all are each
+//! published once, as the facts of `road.changed` (docs/api.md, 「Events」).
 
 use cache_siren::Slot;
 use harness_providers::{Machine, Provider};
 use policy::fill_marks;
 use policy::roads::ROADS;
-use policy::work_keys::WORK_KEYS;
 use serde::{Deserialize, Serialize};
 
 use crate::control::claude_accounts::{self, Judging, moment_words};
-use crate::control::harness::{self, provider_order};
-use crate::control::roads::{self, AUTO};
-use crate::control::tiers;
+use crate::control::harness;
 use crate::events::Event;
 use crate::now_ms;
+use crate::order::{self, Entry, Order};
 use crate::places::Ground;
-use crate::queue::routes::worker_pin_held;
 use crate::queue::settings;
-use sea_orm::DatabaseConnection;
-use store::one;
 
-/// What the resolution is asked: the work key, the worker a job goes out on where it is a job's, the user a
-/// run is made for, the providers a job already left in this job with why, which its walk counts as
-/// unable to answer, and the road the caller named where it names one.
-#[derive(Clone, Copy, Debug, Default)]
-pub struct Ask<'a> {
-  pub key: &'a str,
-  pub worker: Option<&'a str>,
-  pub user: Option<i64>,
-  pub left: &'a [Closed],
-  pub named: Option<Named<'a>>,
+/// The row a run is of: a supervisor or a role, by name.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Row<'a> {
+  Supervisor(&'a str),
+  Role(&'a str),
 }
 
-/// The road a caller names for its work (docs/cache-fallback.md, 「One road resolution」): a provider, a
-/// model, or both. The walk is that road alone — the provider named, or where only the model is named every
-/// provider of the order whose program carries the key's line — each on the model named, or on the key's
-/// tier mapping where only the provider is named.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct Named<'a> {
-  pub provider: Option<&'a str>,
-  pub model: Option<&'a str>,
-}
+impl Row<'_> {
+  /// The row's name.
+  pub fn name(&self) -> &str {
+    match self {
+      Self::Supervisor(name) | Self::Role(name) => name,
+    }
+  }
 
-impl<'a> Ask<'a> {
-  /// A work key's own work.
-  pub fn key(key: &'a str) -> Self {
-    Self {
-      key,
-      ..Self::default()
+  // The key what is kept of its road stands under.
+  fn kept_key(&self) -> String {
+    match self {
+      Self::Supervisor(name) => format!("road_kept:supervisor:{name}"),
+      Self::Role(name) => format!("road_kept:role:{name}"),
     }
   }
 }
 
-/// The head a key's setting gives its walk: a provider, and one model of it where a worker's pin names one.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Pin {
-  pub provider: String,
-  pub model: Option<String>,
+/// What the resolution is asked: the row, the line its runs go out on, its order, the user a run is made for,
+/// the providers a job already left in this job with why, which its walk counts as unable to answer, and the
+/// road the caller fixed where it fixes one.
+#[derive(Clone, Copy, Debug)]
+pub struct Ask<'a> {
+  pub row: Row<'a>,
+  pub line: &'a str,
+  pub order: &'a Order,
+  pub user: Option<i64>,
+  pub left: &'a [Closed],
+  pub fixed: Option<&'a Entry>,
+}
+
+impl<'a> Ask<'a> {
+  /// A row's own run, walking its order.
+  pub fn of(row: Row<'a>, line: &'a str, order: &'a Order) -> Self {
+    Self {
+      row,
+      line,
+      order,
+      user: None,
+      left: &[],
+      fixed: None,
+    }
+  }
 }
 
 /// One road: the provider work goes out on, the model, and the login where the provider holds logins.
@@ -111,11 +118,10 @@ impl Closed {
   }
 }
 
-/// What one provider of the walk answers of itself for the key now.
+/// What one provider of the walk answers of itself for the row now.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Answer {
-  /// It is no road of this key: its program does not carry the key's line, the key maps no model on it,
-  /// its registration is not walked, or the owner has it off in an automatic walk.
+  /// It is no road of this row: its program does not carry the row's line.
   NoRoad,
   /// It cannot answer now, and why.
   Cannot(Closed),
@@ -123,44 +129,37 @@ pub enum Answer {
   Can(Road),
 }
 
-/// One provider of the walk, with the model the key would go out on there and what it answered.
-#[derive(Clone, Debug, PartialEq, Eq)]
+/// One provider of the walk, with the entry the row would go out on there and what it answered.
+#[derive(Clone, Debug, PartialEq)]
 pub struct Step {
   pub provider: String,
-  pub model: Option<String>,
+  pub entry: Entry,
   pub answer: Answer,
 }
 
-/// Where a key's work goes now, and why.
-#[derive(Clone, Debug, PartialEq, Eq)]
+/// Where a row's run goes now, and why.
+#[derive(Clone, Debug, PartialEq)]
 pub struct Resolution {
-  pub key: String,
-  /// The provider the key's setting pins, none where it walks automatically.
-  pub pinned: Option<String>,
+  pub row: String,
+  pub supervisor: bool,
   /// Every provider of the walk in its order, with what it answered.
   pub steps: Vec<Step>,
-  /// The key's line, where its profile names one, and the providers the owner has on whose program
-  /// cannot carry it, which the walk passes as no road of the key.
-  pub line: Option<String>,
+  /// The row's line, and the providers of its order whose program cannot carry it.
+  pub line: String,
   pub uncarried: Vec<String>,
-  /// Whether the caller named the road, so the walk was that road alone.
-  pub named: bool,
-}
-
-/// The walk over the owner's order: automatic from the top; a pin from its provider, then the providers
-/// after it in the order, then those before it.
-pub fn walk(order: &[String], pin: Option<&str>) -> Vec<String> {
-  let Some(at) = pin.and_then(|pin| order.iter().position(|one| one == pin)) else {
-    return order.to_vec();
-  };
-
-  order[at..].iter().chain(&order[..at]).cloned().collect()
+  /// Whether the caller fixed the road, so the walk was that road alone.
+  pub fixed: bool,
 }
 
 impl Resolution {
   /// The road work goes out on now: the first of the walk that can answer.
   pub fn road(&self) -> Option<&Road> {
     self.open().next()
+  }
+
+  /// The step the road work goes out on now stands on, with its entry.
+  pub fn taken(&self) -> Option<&Step> {
+    self.steps.iter().find(|step| matches!(step.answer, Answer::Can(_)))
   }
 
   /// Every road of the walk that can answer now, in the walk's order.
@@ -198,19 +197,16 @@ impl Resolution {
     passed
   }
 
-  /// The head of the walk: the pinned provider where the key is pinned, else the first provider of the walk
-  /// that is a road of the key, on the model the key would go out on there.
+  /// The head of the walk: the first provider of the order that is a road of the row, on the model it would
+  /// go out on there.
   pub fn head(&self) -> Option<Road> {
-    let step = match &self.pinned {
-      Some(pinned) => self.steps.iter().find(|step| &step.provider == pinned)?,
-      None => self.steps.iter().find(|step| step.answer != Answer::NoRoad)?,
-    };
+    let step = self.steps.iter().find(|step| step.answer != Answer::NoRoad)?;
 
     match &step.answer {
       Answer::Can(road) => Some(road.clone()),
       _ => Some(Road {
         provider: step.provider.clone(),
-        model: step.model.clone().unwrap_or_default(),
+        model: step.entry.model.clone(),
         account: None,
       }),
     }
@@ -229,11 +225,11 @@ impl Resolution {
     self.closed().into_iter().filter_map(|closed| closed.reopens_at).min()
   }
 
-  /// The sentence a closed road is refused or held with: every provider's reason, the moment the first
-  /// road that waits for one reopens, and what a person does to reopen the first a person can.
+  /// The sentence a closed road is held with: every provider's reason, the moment the first road that waits
+  /// for one reopens, and what a person does to reopen the first a person can.
   pub fn sentence(&self) -> String {
     let words = &ROADS.closed;
-    let mut lines = vec![if self.named { words.named.clone() } else { words.head.clone() }];
+    let mut lines = vec![if self.fixed { words.named.clone() } else { words.head.clone() }];
 
     for closed in self.closed() {
       lines.push(fill_marks(
@@ -246,14 +242,14 @@ impl Resolution {
       lines.push(fill_marks(&words.reopens, &[("at", &moment_words(at))]));
     }
 
-    if let Some(line) = self.line.as_deref().filter(|_| !self.uncarried.is_empty()) {
-      let needs = policy::run_lines::RUN_LINES.line(line).map(|declared| declared.needs.join(", "));
+    if !self.uncarried.is_empty() {
+      let needs = policy::run_lines::RUN_LINES.line(&self.line).map(|declared| declared.needs.join(", "));
 
       lines.push(fill_marks(
         &words.uncarried,
         &[
           ("providers", &self.uncarried.join(", ")),
-          ("line", line),
+          ("line", &self.line),
           ("needs", &needs.unwrap_or_default()),
         ],
       ));
@@ -267,107 +263,71 @@ impl Resolution {
   }
 }
 
-// The head a key's setting gives its walk: a worker's own pin where the ask names a worker that has one, the
-// fixed model of the agent the key is named after where it keeps one, else the key's row where it names one
-// provider; an automatic key walks from the top.
-async fn pin_of(ground: &Ground, ask: &Ask<'_>) -> Result<Option<Pin>, String> {
-  let db = &ground.db;
-
-  if let Some(worker) = ask.worker
-    && let Some((provider, model)) = worker_pin_held(db, worker).await.map_err(|unrouted| unrouted.0)?
-  {
-    return Ok(Some(Pin { provider, model }));
-  }
-
-  if ask.worker.is_none()
-    && let Some((provider, model)) = agent_fixed_model(db, ask.key).await?
-  {
-    return Ok(Some(Pin {
-      provider,
-      model: Some(model),
-    }));
-  }
-
-  let mode = roads::selected_mode(db, ask.key).await.map_err(|refused| refused.error)?;
-
-  Ok((mode != AUTO && harness::named(&mode).is_ok()).then_some(Pin {
-    provider: mode,
-    model: None,
-  }))
-}
-
-// The provider and model an agent's own fixed model names, for the key that is the agent's own name
-// (docs/model-tiers.md, 「An agent's own model」): none where no agent of that name keeps one. A worker's is
-// read as its pin, for the job key its work goes out on. A fixed model stands ahead of the key's row, so an
-// agent the owner set on a model of its own answers on it first.
-async fn agent_fixed_model(db: &DatabaseConnection, key: &str) -> Result<Option<(String, String)>, String> {
-  let row = one(
-    db,
-    r#"SELECT "pinned_provider", "pinned_model" FROM "agents"
-       WHERE "name" = $1 AND "kind" <> 'worker'
-         AND "pinned_provider" IS NOT NULL AND "pinned_model" IS NOT NULL"#,
-    vec![key.into()],
-  )
-  .await
-  .map_err(|why| why.to_string())?;
-  let Some(row) = row else { return Ok(None) };
-  let provider: Option<String> = row.try_get("", "pinned_provider").map_err(|why| why.to_string())?;
-  let model: Option<String> = row.try_get("", "pinned_model").map_err(|why| why.to_string())?;
-
-  Ok(
-    provider
-      .filter(|provider| !provider.trim().is_empty())
-      .zip(model.filter(|model| !model.trim().is_empty())),
-  )
-}
-
-/// The work key every supervisor's route is: the policy's key of the chat agent's kind.
-pub fn supervisor_key() -> Option<&'static str> {
-  WORK_KEYS.supervisor().map(|profile| profile.key.as_str())
-}
-
-/// Where a key's work goes out now (docs/cache-fallback.md, 「One road resolution」).
-pub async fn resolve(ground: &Ground, ask: &Ask<'_>) -> Result<Resolution, String> {
-  let db = &ground.db;
-  let machine = ground.machine();
-  let order = provider_order(db).await.map_err(|refused| refused.error)?;
-  // A named road is the head of its own walk: no setting of the key's is read for it.
-  let pin = match ask.named {
-    Some(_) => None,
-    None => pin_of(ground, ask).await?,
+/// Where a job of a role at a checkout goes out now: its repository's pinned model alone where the repository
+/// pins one, which its work waits for and never leaves, else the role's own order (docs/repositories.md, 「A
+/// pinned model」); the job role where none is named. The providers the job already left count as unable to
+/// answer.
+pub async fn for_job(
+  ground: &Ground,
+  role: Option<&str>,
+  checkout: Option<&str>,
+  user: Option<i64>,
+  left: &[Closed],
+) -> Result<Resolution, String> {
+  let role = role.unwrap_or_else(|| crate::agent_roles::job_role());
+  let held = crate::agent_roles::named(&ground.db, role)
+    .await
+    .map_err(|why| why.detail)?
+    .ok_or_else(|| crate::agent_roles::unknown(role))?;
+  let pin = match checkout {
+    Some(checkout) => crate::queue::workers::repository_of(&ground.db, checkout)
+      .await
+      .map_err(|why| why.detail)?
+      .and_then(|repository| repository.pin),
+    None => None,
   };
-  let names: Vec<String> = order.iter().map(|entry| entry.name.clone()).collect();
-  let line = WORK_KEYS.profile(ask.key).map(|profile| profile.line.clone());
-  let walked = match ask.named.and_then(|named| named.provider) {
-    Some(provider) => vec![provider.to_owned()],
-    None => walk(&names, pin.as_ref().map(|pin| pin.provider.as_str())),
+  // A pin goes out at the effort the role's order names for its provider, else the provider's own default.
+  let fixed = pin.map(|pin| {
+    let own = held.order.entry(&pin.provider);
+
+    Entry {
+      provider: pin.provider.clone(),
+      model: pin.model,
+      effort: own.and_then(|entry| entry.effort.clone()),
+      thinking: own.and_then(|entry| entry.thinking.clone()),
+      answer_tokens: own.and_then(|entry| entry.answer_tokens),
+    }
+  });
+  let ask = Ask {
+    user,
+    left,
+    fixed: fixed.as_ref(),
+    ..Ask::of(Row::Role(&held.name), &held.line, &held.order)
+  };
+
+  resolve(ground, &ask).await
+}
+
+/// Where a row's run goes out now (docs/provider-order.md, 「Choosing the provider」).
+pub async fn resolve(ground: &Ground, ask: &Ask<'_>) -> Result<Resolution, String> {
+  let machine = ground.machine();
+  let walked: Vec<&Entry> = match ask.fixed {
+    Some(entry) => vec![entry],
+    None => ask.order.entries.iter().collect(),
   };
   let mut steps = vec![];
   let mut uncarried = vec![];
 
-  for name in walked {
-    let provider = harness::named(&name).map_err(|refused| refused.error)?;
-    let carries = line.as_deref().is_none_or(|line| provider.declared().carries(line));
+  for entry in walked {
+    let provider = harness::named(&entry.provider).map_err(|refused| refused.error)?;
+    let mut asked = step(ground, &machine, ask, provider, entry).await?;
 
-    // A road named by its model alone is every provider whose program carries the line, and no other.
-    if ask.named.is_some_and(|named| named.provider.is_none()) && !carries {
-      continue;
-    }
-
-    let enabled = order.iter().any(|entry| entry.name == name && entry.enabled);
-    let named = ask.named.map(|named| Pin {
-      provider: name.clone(),
-      model: named.model.map(str::to_owned),
-    });
-    let pinned = named.as_ref().or_else(|| pin.as_ref().filter(|pin| pin.provider == name));
-    let mut asked = step(ground, &machine, ask, provider, enabled, pinned).await?;
-
-    if ask.named.is_none() && enabled && !carries {
-      uncarried.push(name.clone());
+    if asked.answer == Answer::NoRoad {
+      uncarried.push(entry.provider.clone());
     }
 
     // A provider this job already left is one that cannot answer it, for the reason it was left.
-    if let Some(left) = ask.left.iter().find(|left| left.provider == name)
+    if let Some(left) = ask.left.iter().find(|left| left.provider == entry.provider)
       && asked.answer != Answer::NoRoad
     {
       asked.answer = Answer::Cannot(left.clone());
@@ -377,74 +337,46 @@ pub async fn resolve(ground: &Ground, ask: &Ask<'_>) -> Result<Resolution, Strin
   }
 
   Ok(Resolution {
-    key: ask.key.to_owned(),
-    pinned: match ask.named {
-      Some(named) => named.provider.map(str::to_owned),
-      None => pin.map(|pin| pin.provider),
-    },
+    row: ask.row.name().to_owned(),
+    supervisor: matches!(ask.row, Row::Supervisor(_)),
     steps,
-    line,
+    line: ask.line.to_owned(),
     uncarried,
-    named: ask.named.is_some(),
+    fixed: ask.fixed.is_some(),
   })
 }
 
-// One provider of the walk asked whether it can answer for the key now, every part of the answer its own
-// member's: whether its program carries the key's line, its presence on this machine, the balance it offers
-// and the logins it holds; on a named road also whether it lists the model named and maps the key's tier.
+// One provider of the walk asked whether it can answer for the row now, every part of the answer its own
+// member's: whether its program carries the row's line, the owner's switch, its presence on this machine,
+// the balance it offers, the quota it has left above the row's share and the logins it holds.
 async fn step(
   ground: &Ground,
   machine: &Machine,
   ask: &Ask<'_>,
   provider: &dyn Provider,
-  enabled: bool,
-  pin: Option<&Pin>,
+  entry: &Entry,
 ) -> Result<Step, String> {
   let db = &ground.db;
   let name = provider.name();
-  // A key no profile declares names no line, and every provider carries it.
-  let line = WORK_KEYS.profile(ask.key).map(|profile| profile.line.as_str());
-  let step = |model: Option<String>, answer: Answer| Step {
+  let step = |answer: Answer| Step {
     provider: name.to_owned(),
-    model,
+    entry: entry.clone(),
     answer,
   };
   let refused = |refused: crate::control::Refused| refused.error;
-  let uncarried = line.filter(|line| !provider.declared().carries(line));
+  let cannot = |closed: Closed| Ok(step(Answer::Cannot(closed)));
 
-  // On a named road a program that does not carry the line is a reason, told, rather than no road.
-  if let Some(line) = uncarried
-    && ask.named.is_some()
-  {
-    let reason = fill_marks(&ROADS.reasons.uncarried, &[("line", line)]);
+  if !provider.declared().carries(ask.line) {
+    if ask.fixed.is_some() {
+      let reason = fill_marks(&ROADS.reasons.uncarried, &[("line", ask.line)]);
 
-    return Ok(step(None, Answer::Cannot(Closed::plain(name, reason))));
+      return cannot(Closed::plain(name, reason));
+    }
+
+    return Ok(step(Answer::NoRoad));
   }
 
-  if uncarried.is_some() || (pin.is_none() && !enabled) {
-    return Ok(step(None, Answer::NoRoad));
-  }
-
-  if pin.is_none()
-    && let Some(line) = line
-    && !roads::walked(db, provider, ask.key, line).await.map_err(refused)?
-  {
-    return Ok(step(None, Answer::NoRoad));
-  }
-
-  let mapped = match pin.and_then(|pin| pin.model.clone()) {
-    Some(model) => Ok(model),
-    None if enabled => tiers::resolve_execution(db, ask.key, name, None).await.map(|mapping| mapping.model),
-    None => tiers::resolve(db, ask.key, name).await.map(|mapping| mapping.model),
-  };
-  let model = match mapped {
-    Ok(model) => model,
-    Err(_) if pin.is_none() => return Ok(step(None, Answer::NoRoad)),
-    Err(why) => return Ok(step(None, Answer::Cannot(Closed::plain(name, why)))),
-  };
-  let cannot = |closed: Closed| Ok(step(Some(model.clone()), Answer::Cannot(closed)));
-
-  if !enabled {
+  if !harness::provider_enabled(db, name).await.map_err(refused)? {
     return cannot(Closed::plain(name, &ROADS.reasons.off));
   }
 
@@ -456,19 +388,25 @@ async fn step(
     return cannot(closed);
   }
 
-  // A model named goes out on the effort the key's tier maps on the provider, so the mapping must stand.
-  if ask.named.is_some_and(|named| named.model.is_some()) {
-    if let Err(why) = tiers::resolve_execution(db, ask.key, name, None).await {
-      return cannot(Closed::plain(name, why));
-    }
+  let quota = order::quota(ground, provider, ask.order.quota_share, ask.user).await;
 
-    if let Some(why) = unlisted(ground, machine, provider, &model).await {
-      return cannot(Closed::plain(name, why));
-    }
+  if !quota.has && !provider.holds_logins() {
+    let reason = fill_marks(
+      &ROADS.reasons.quota,
+      &[
+        ("left", &quota.left.map_or_else(String::new, percent)),
+        ("share", &percent(ask.order.quota_share)),
+      ],
+    );
+
+    return cannot(Closed {
+      reopens_at: quota.resets_at,
+      ..Closed::plain(name, reason)
+    });
   }
 
   let account = if provider.holds_logins() {
-    match logins(ground, ask, name).await? {
+    match logins(ground, ask, name, &quota).await? {
       Ok(account) => account,
       Err(closed) => return cannot(closed),
     }
@@ -476,29 +414,16 @@ async fn step(
     None
   };
 
-  Ok(step(
-    Some(model.clone()),
-    Answer::Can(Road {
-      provider: name.to_owned(),
-      model,
-      account,
-    }),
-  ))
+  Ok(step(Answer::Can(Road {
+    provider: name.to_owned(),
+    model: entry.model.clone(),
+    account,
+  })))
 }
 
-// Why a provider does not take a model a named road names, out of what it offers a tier mapping, or none where
-// it lists it: the words for a model it does not list, or the refusal its catalogue gave where it cannot be read.
-async fn unlisted(
-  ground: &Ground,
-  machine: &Machine,
-  provider: &dyn Provider,
-  model: &str,
-) -> Option<String> {
-  match harness::offered(Judging::of(ground), machine, provider).await {
-    Ok(offered) if offered.models.iter().any(|one| one.id == model) => None,
-    Ok(_) => Some(fill_marks(&ROADS.reasons.unlisted, &[("model", model)])),
-    Err(why) => Some(why),
-  }
+// A share as a person reads it.
+fn percent(share: f64) -> String {
+  format!("{:.0}%", share * 100.0)
 }
 
 // A provider that offers a balance and whose own road's last reading is at or below zero: closed, with
@@ -535,26 +460,41 @@ async fn balance_spent(ground: &Ground, provider: &dyn Provider) -> Option<Close
   })
 }
 
-// The login a provider that holds logins offers the key first, by the account judgement; none where no
-// login carries the key's run, which goes out as it stands. Where every login that carries it is closed,
-// the provider is, with every login's own reason, what a person does for the first a person can reopen,
-// and the moment the first that rests reopens.
+// The login a provider that holds logins offers the run first: the open login with quota above the share
+// that the quota read counted first, else the account judgement's first. Where every login is closed, the
+// provider is, with every login's own reason, what a person does for the first a person can reopen, and the
+// moment the first that rests reopens; where logins are open but none has quota above the share, the
+// provider is closed for its quota.
 async fn logins(
   ground: &Ground,
   ask: &Ask<'_>,
   name: &str,
+  quota: &order::Quota,
 ) -> Result<Result<Option<String>, Closed>, String> {
   let judging = Judging::of(ground);
   let refused = |refused: crate::control::Refused| refused.error;
-  let open = claude_accounts::walk_for_user(judging, ask.key, ask.user).await.map_err(refused)?;
+  let open = claude_accounts::walk_for_user(judging, ask.user).await.map_err(refused)?;
 
-  if let Some(first) = open.first() {
-    return Ok(Ok(Some(first.id.clone())));
+  if !open.is_empty() {
+    if !quota.has {
+      let reason = fill_marks(
+        &ROADS.reasons.quota,
+        &[
+          ("left", &quota.left.map_or_else(String::new, percent)),
+          ("share", &percent(ask.order.quota_share)),
+        ],
+      );
+
+      return Ok(Err(Closed {
+        reopens_at: quota.resets_at,
+        ..Closed::plain(name, reason)
+      }));
+    }
+
+    return Ok(Ok(quota.account.clone().or_else(|| open.first().map(|first| first.id.clone()))));
   }
 
-  let carried = claude_accounts::carried_for_user(&ground.db, ask.key, ask.user)
-    .await
-    .map_err(refused)?;
+  let carried = claude_accounts::carried_for_user(&ground.db, ask.user).await.map_err(refused)?;
 
   if carried.is_empty() {
     return Ok(Ok(None));
@@ -587,7 +527,7 @@ async fn logins(
   }))
 }
 
-/// Why a provider cannot answer now whatever the key, or none where it can: the owner has it off, it is
+/// Why a provider cannot answer now whatever the row, or none where it can: the owner has it off, it is
 /// missing on this machine, or its balance is spent. What the warming asks before it warms a provider's
 /// sessions, which leaves the logins to the account judgement it already walks.
 pub async fn provider_closed(ground: &Ground, name: &str) -> Result<Option<String>, String> {
@@ -605,9 +545,9 @@ pub async fn provider_closed(ground: &Ground, name: &str) -> Result<Option<Strin
   Ok(balance_spent(ground, provider).await.map(|closed| closed.reason))
 }
 
-// ---- the facts of a key's road ----
+// ---- the facts of a row's road ----
 
-/// What is kept of a key's road between its runs: the road it moved to, or that nothing could answer.
+/// What is kept of a row's road between its runs: the road it moved to, or that nothing could answer.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "state", rename_all = "kebab-case")]
 pub enum Kept {
@@ -615,7 +555,7 @@ pub enum Kept {
   Closed,
 }
 
-/// One fact of a key's road, published once (docs/api.md, 「Events」).
+/// One fact of a row's road, published once (docs/api.md, 「Events」).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Fact {
   Moved {
@@ -634,7 +574,7 @@ pub enum Fact {
   },
 }
 
-/// What a key's road comes to as work goes out on `took` — none where nothing could — against what was kept
+/// What a row's road comes to as work goes out on `took` — none where nothing could — against what was kept
 /// of it: the fact to publish, where one is new, and what is kept after it. Work on the head of its walk
 /// with nothing kept is no fact; a move to where the last move already went is none either, and nor is a
 /// closed road that was already closed.
@@ -684,13 +624,14 @@ pub fn fact(
   (fact, Some(Kept::Moved { road: took.clone() }))
 }
 
-/// A key's road moved off the head of its walk: the road it moved from and to, and why each provider passed
+/// A row's road moved off the head of its walk: the road it moved from and to, and why each provider passed
 /// could not answer.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RoadMoved {
   pub fact: &'static str,
-  pub key: String,
+  pub supervisor: Option<String>,
+  pub role: Option<String>,
   pub from: Option<Road>,
   pub to: Road,
   pub reasons: Vec<Closed>,
@@ -700,12 +641,13 @@ impl Event for RoadMoved {
   const NAME: &'static str = "road.changed";
 }
 
-/// A key's road back on the head of its walk after a move.
+/// A row's road back on the head of its walk after a move.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RoadReturned {
   pub fact: &'static str,
-  pub key: String,
+  pub supervisor: Option<String>,
+  pub role: Option<String>,
   pub from: Option<Road>,
   pub to: Road,
 }
@@ -714,13 +656,14 @@ impl Event for RoadReturned {
   const NAME: &'static str = "road.changed";
 }
 
-/// Nothing in a key's order can answer: every provider's reason, what a person does to reopen the first
+/// Nothing in a row's order can answer: every provider's reason, what a person does to reopen the first
 /// road a person can, and the moment the first that waits for one reopens.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RoadClosed {
   pub fact: &'static str,
-  pub key: String,
+  pub supervisor: Option<String>,
+  pub role: Option<String>,
   pub reasons: Vec<Closed>,
   pub command: Option<String>,
   pub reopens_at: Option<i64>,
@@ -730,20 +673,21 @@ impl Event for RoadClosed {
   const NAME: &'static str = "road.changed";
 }
 
-fn kept_key(key: &str) -> String {
-  format!("road_kept:{key}")
-}
-
-/// That a key's work goes out on `took` now — none where nothing in its order could answer — told once: the
+/// That a row's work goes out on `took` now — none where nothing in its order could answer — told once: the
 /// fact it comes to published on the bus, and what is kept of the road written for the next run. `failed`
 /// are the roads the work was tried on and that did not answer, beside the ones the resolution passed.
 pub async fn went(ground: &Ground, resolution: &Resolution, took: Option<&Road>, failed: &[Closed]) {
   let db = &ground.db;
-  let key = kept_key(&resolution.key);
+  let row = if resolution.supervisor {
+    Row::Supervisor(&resolution.row)
+  } else {
+    Row::Role(&resolution.row)
+  };
+  let key = row.kept_key();
   let kept = match settings::get(db, &key).await {
     Ok(kept) => kept.and_then(|text| serde_json::from_str::<Kept>(&text).ok()),
     Err(why) => {
-      return eprintln!("road {}: what was kept of it could not be read: {}", resolution.key, why.detail);
+      return eprintln!("road {}: what was kept of it could not be read: {}", resolution.row, why.detail);
     }
   };
   let (fact, after) = fact(kept.as_ref(), resolution, took, failed);
@@ -755,11 +699,16 @@ pub async fn went(ground: &Ground, resolution: &Resolution, took: Option<&Road>,
     };
 
     if let Err(why) = written {
-      eprintln!("road {}: what is kept of it was not written: {}", resolution.key, why.detail);
+      eprintln!("road {}: what is kept of it was not written: {}", resolution.row, why.detail);
     }
   }
 
-  let key = resolution.key.clone();
+  let key = resolution.row.clone();
+  let (supervisor, role) = if resolution.supervisor {
+    (Some(key.clone()), None)
+  } else {
+    (None, Some(key.clone()))
+  };
 
   match fact {
     None => {}
@@ -767,7 +716,8 @@ pub async fn went(ground: &Ground, resolution: &Resolution, took: Option<&Road>,
       println!("road {key}: moved to {}", to.words());
       ground.events.publish(RoadMoved {
         fact: "road-moved",
-        key,
+        supervisor,
+        role,
         from,
         to,
         reasons,
@@ -777,7 +727,8 @@ pub async fn went(ground: &Ground, resolution: &Resolution, took: Option<&Road>,
       println!("road {key}: back on {}", to.words());
       ground.events.publish(RoadReturned {
         fact: "road-returned",
-        key,
+        supervisor,
+        role,
         from,
         to,
       });
@@ -790,7 +741,8 @@ pub async fn went(ground: &Ground, resolution: &Resolution, took: Option<&Road>,
       println!("road {key}: no provider of the order can answer");
       ground.events.publish(RoadClosed {
         fact: "road-closed",
-        key,
+        supervisor,
+        role,
         reasons,
         command,
         reopens_at,

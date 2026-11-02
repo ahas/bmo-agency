@@ -30,7 +30,6 @@ use crate::control::pool::native_provider;
 use crate::control::registry;
 use crate::places::Ground;
 use crate::places::trust::{config_file, mark_onboarded, trust_folder};
-use crate::queue::routes::JOB_WORK_KEY;
 use crate::worker_session::warmth;
 use crate::{Refusal, now_ms};
 use store::{all, one, run};
@@ -78,34 +77,21 @@ async fn resumable_session(
   model: &str,
   account: &str,
 ) -> Result<Option<(String, String, Option<String>)>, Refusal> {
-  let row = one(
-    &ground.db,
-    r#"SELECT "claude_session_id", "last_reply_at", "answered_model", "account" FROM "worker_sessions"
-       WHERE "worker" = $1 AND "model" = $2 AND "account" = $3"#,
-    vec![worker.into(), model.into(), account.into()],
-  )
-  .await?;
-  let Some(row) = row else { return Ok(None) };
-  let last_reply_at: i64 = row.try_get("", "last_reply_at")?;
+  let held = crate::worker_session::records::sessions(&ground.db, worker)
+    .await?
+    .into_iter()
+    .find(|held| held.model == model && held.account == account);
+  let Some(held) = held else { return Ok(None) };
 
   if let Some(ttl) = session_ttl_ms(ground, model).await
-    && now_ms() - last_reply_at * 1000 > ttl
+    && now_ms() - held.last_reply_at * 1000 > ttl
   {
-    run(
-      &ground.db,
-      r#"DELETE FROM "worker_sessions" WHERE "worker" = $1 AND "model" = $2 AND "account" = $3"#,
-      vec![worker.into(), model.into(), account.into()],
-    )
-    .await?;
+    crate::worker_session::records::forget(&ground.db, worker, model, Some(account)).await?;
 
     return Ok(None);
   }
 
-  Ok(Some((
-    row.try_get("", "claude_session_id")?,
-    row.try_get("", "account")?,
-    row.try_get("", "answered_model")?,
-  )))
+  Ok(Some((held.session_id, held.account, held.answered_model)))
 }
 
 // The model a kept session goes on: the one it fell to, where the worker does not heal a downgrade.
@@ -118,7 +104,7 @@ async fn session_launch_model(
   let Some(fallen) = fallen else { return Ok(model) };
   let heals = one(
     &ground.db,
-    r#"SELECT "downgrade_heal" FROM "agents" WHERE "name" = $1"#,
+    r#"SELECT "downgrade_heal" FROM "repositories" WHERE "name" = $1"#,
     vec![worker.into()],
   )
   .await?
@@ -141,7 +127,7 @@ pub async fn worker_prefix_digest(
   let source = trees.source.to_string_lossy().into_owned();
   // The run this stands for goes out on the login the walk offers now, so its base prompt is that
   // login's.
-  let account = claude_accounts::walk_for(claude_accounts::Judging::of(ground), JOB_WORK_KEY)
+  let account = claude_accounts::walk_for(claude_accounts::Judging::of(ground))
     .await
     .map_err(|refused| fault(refused.error))?
     .into_iter()
@@ -179,7 +165,7 @@ pub async fn claude_program(
   cwd: &str,
 ) -> Result<Standing, Refusal> {
   let trees = Trees::of(ground);
-  let walked = claude_accounts::walk_for(claude_accounts::Judging::of(ground), JOB_WORK_KEY)
+  let walked = claude_accounts::walk_for(claude_accounts::Judging::of(ground))
     .await
     .map_err(|refused| fault(refused.error))?
     .into_iter()
@@ -187,7 +173,7 @@ pub async fn claude_program(
 
   // A program is stood only on a login that answers now, never on the machine's own in place of one.
   if walked.is_none()
-    && !claude_accounts::carried_for_user(&ground.db, JOB_WORK_KEY, None)
+    && !claude_accounts::carried_for_user(&ground.db, None)
       .await
       .map_err(|refused| fault(refused.error))?
       .is_empty()
@@ -199,7 +185,7 @@ pub async fn claude_program(
   let model = match pinned_model_on(&ground.db, worker, "claude-code").await? {
     Some(model) => model,
     None => {
-      crate::control::tiers::resolve_execution(&ground.db, JOB_WORK_KEY, "claude-code", None)
+      crate::order::role_entry(&ground.db, crate::agent_roles::job_role(), "claude-code")
         .await
         .map_err(fault)?
         .model
@@ -306,12 +292,12 @@ pub(crate) async fn pinned_run(
   let Some(model) = model else {
     return Ok((configured(ground, machine, base, provider).await?, None));
   };
-  let mapping = crate::control::tiers::resolve_execution(&ground.db, JOB_WORK_KEY, provider, None)
+  let entry = crate::order::role_entry(&ground.db, crate::agent_roles::job_role(), provider)
     .await
     .ok();
-  let (tier, mapped, answer_tokens) = match mapping {
-    Some(mapping) if mapping.model == model => (Some(mapping.tier), mapping.effort, mapping.answer_tokens),
-    other => (other.map(|mapping| mapping.tier).or_else(|| Some(String::new())), None, None),
+  let (mapped, answer_tokens) = match entry {
+    Some(entry) if entry.model == model => (entry.effort, entry.answer_tokens),
+    _ => (None, None),
   };
   let mut run = base;
 
@@ -319,7 +305,7 @@ pub(crate) async fn pinned_run(
     .await?
     .unwrap_or_default();
   run.model = model.to_owned();
-  run.tier = tier;
+  run.tier = None;
 
   Ok((run, answer_tokens))
 }
@@ -1027,22 +1013,16 @@ pub async fn claim_standby(
     .and_then(|at| at.duration_since(std::time::UNIX_EPOCH).ok())
     .map_or(0, |since| since.as_secs() as i64);
 
-  run(
+  let _ = replied;
+
+  crate::worker_session::records::record(
     &ground.db,
-    r#"INSERT INTO "worker_sessions"
-         ("worker", "model", "account", "claude_session_id", "last_reply_at", "prefix_digest", "answered_model")
-       VALUES ($1, $2, $3, $4, $5, $6, NULL)
-       ON CONFLICT ("worker", "model", "account") DO UPDATE SET
-         "claude_session_id" = excluded."claude_session_id", "last_reply_at" = excluded."last_reply_at",
-         "prefix_digest" = excluded."prefix_digest", "answered_model" = excluded."answered_model""#,
-    vec![
-      worker.into(),
-      standby.model.as_str().into(),
-      standby.account.as_str().into(),
-      standby.session_id.as_str().into(),
-      replied.into(),
-      standby.prefix_digest.clone().into(),
-    ],
+    worker,
+    &standby.model,
+    &standby.account,
+    &standby.session_id,
+    standby.prefix_digest.as_deref(),
+    None,
   )
   .await?;
   Standby::drop_from(&place.path);

@@ -20,7 +20,6 @@ use serde_json::{Map, Value, json};
 use super::fault;
 use crate::Refusal;
 use crate::places::Ground;
-use store::one;
 
 /// The variable a program carries its token in, which every configuration's bearer header reads.
 pub const TOKEN_VARIABLE: &str = "BMO_MCP_TOKEN";
@@ -127,27 +126,35 @@ pub async fn discipline(ground: &Ground) -> Result<String, String> {
 }
 
 /// The role and the capabilities of a record issued for `agent` on `line` (docs/agent-roles.md, 「Where the
-/// role is read」): the line's capabilities, then the bundles the agent's role gives, each once. An agent
-/// the archive holds no row of holds no role, but for a co-worker's place, known by its checkout, which
-/// holds the role the policy names for co-workers.
+/// role is read」): the line's capabilities, then the bundles the run's role gives — or the supervisor bundles
+/// for a supervisor — each once.
 async fn capabilities(
   ground: &Ground,
   line: &str,
   agent: &str,
   checkout: &str,
 ) -> Result<(Option<String>, Vec<String>), Refusal> {
-  // A thrown-away session's place holds its session's agent's role; a branch place the co-workers'.
+  // A thrown-away session's place holds its session's role; a supervisor holds the supervisor bundles; a
+  // checkout's run and a branch place hold the job role's (docs/agent-roles.md, 「Where the role is read」).
   let named = match crate::apart_places::session_agent(&ground.roots.data, agent) {
     Some(of_session) => of_session,
     None => agent.to_owned(),
   };
-  let role =
-    match one(&ground.db, r#"SELECT "role" FROM "agents" WHERE "name" = $1"#, vec![named.into()]).await? {
-      Some(row) => row.try_get::<Option<String>>("", "role")?,
-      None => crate::places::branch::place_of(&ground.roots.data, checkout).map(|_| ROLES.coworker.clone()),
-    };
+  let supervisor = crate::supervisors::named(&ground.db, &named).await?.is_some();
+  let role = if supervisor {
+    None
+  } else if crate::agent_roles::holds(&ground.db, &named).await? {
+    Some(named.clone())
+  } else if crate::places::branch::place_of(&ground.roots.data, checkout).is_some()
+    || crate::queue::workers::repository_of(&ground.db, &named).await?.is_some()
+  {
+    Some(ROLES.job.clone())
+  } else {
+    None
+  };
   let bundles = match role.as_deref() {
     Some(role) => crate::agent_roles::bundles_of(&ground.db, role).await?,
+    None if supervisor => ROLES.supervisor.clone(),
     None => vec![],
   };
   let mut held: Vec<String> = Vec::new();

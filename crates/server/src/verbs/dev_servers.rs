@@ -532,15 +532,11 @@ impl Pane {
   }
 
   async fn slot(&self) -> Option<i64> {
-    store::one(
-      &self.ground.db,
-      r#"SELECT "support_slot" FROM "agents" WHERE "name" = $1"#,
-      vec![self.worker.clone().into()],
-    )
-    .await
-    .ok()
-    .flatten()
-    .and_then(|row| row.try_get::<Option<i64>>("", "support_slot").ok().flatten())
+    crate::queue::workers::worker_row(&self.ground.db, &self.worker, &self.ground.source)
+      .await
+      .ok()
+      .flatten()
+      .and_then(|checkout| checkout.support_slot)
   }
 
   async fn start(&mut self, command: &str, cwd: &str, key: String) {

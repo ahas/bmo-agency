@@ -9,7 +9,7 @@ use crate::support::scratch::Scratch;
 const MOVE: &str = include_str!("../../crates/store/src/migration/deepseek_provider.sql");
 
 async fn settled() -> Scratch {
-  let scratch = Scratch::new().await;
+  let scratch = Scratch::before_two_axes().await;
 
   scratch
     .run(

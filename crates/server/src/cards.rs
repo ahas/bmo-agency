@@ -790,7 +790,7 @@ pub async fn give_back_with_leases(db: &DatabaseConnection, master: &Master) -> 
   let rows = all(
     db,
     r#"SELECT "demand_id" FROM "card_demands" AS "held" WHERE "lease" IS NOT NULL AND NOT EXISTS (
-         SELECT 1 FROM "coworker_pool_requests" AS "seat"
+         SELECT 1 FROM "role_slot_requests" AS "seat"
          WHERE "seat"."token" = "held"."lease" AND "seat"."state" IN ('waiting', 'reserved', 'active'))"#,
     vec![],
   )
@@ -841,7 +841,7 @@ impl SeatCard {
 /// every admission answers at once, within whatever clock the caller's own call runs on.
 pub async fn seat_card(
   ground: &Ground,
-  seat: &crate::control::pool::Request,
+  seat: &crate::order_run::dispatch::Request,
   ask: Ask,
 ) -> Result<Option<SeatCard>, Refusal> {
   seat_card_on(&ground.db, master_of(ground).as_ref(), seat, ask).await
@@ -852,7 +852,7 @@ pub async fn seat_card(
 pub async fn seat_card_on(
   db: &DatabaseConnection,
   master: Option<&Master>,
-  seat: &crate::control::pool::Request,
+  seat: &crate::order_run::dispatch::Request,
   ask: Ask,
 ) -> Result<Option<SeatCard>, Refusal> {
   if seat.provider != registry::PROVIDER {
@@ -956,7 +956,7 @@ pub async fn give_back_lease(
 pub async fn native_card(
   db: &DatabaseConnection,
   master: Option<&Master>,
-  seat: &crate::control::pool::Request,
+  seat: &crate::order_run::dispatch::Request,
   caller: Option<&str>,
 ) -> Result<Option<Held>, Refusal> {
   if seat.provider != registry::PROVIDER {

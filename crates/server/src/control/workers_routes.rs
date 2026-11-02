@@ -359,7 +359,7 @@ pub struct UsageRoute;
 fn grouped_by(word: &str) -> Option<(&'static str, Option<&'static str>)> {
   match word {
     "model" => Some(("model", Some("model"))),
-    "agent" => Some(("worker_name", Some("worker"))),
+    "agent" => Some(("worker_name", Some("role"))),
     "user" => Some(("holder_name", Some("account"))),
     "room" => Some(("room_id", None)),
     _ => None,
@@ -395,7 +395,7 @@ impl Route for UsageRoute {
         call.store(),
         &format!(
           r#"SELECT COALESCE(CAST("{column}" AS text), '') AS "key", COALESCE(SUM("context_tokens"), 0)::bigint AS "tokens"
-             FROM "worker_sessions" WHERE "last_reply_at" * 1000 >= $1 AND "last_reply_at" * 1000 <= $2
+             FROM "role_sessions" WHERE "answered_at" >= $1 AND "answered_at" <= $2
              GROUP BY 1"#
         ),
         vec![after.into(), before.into()],

@@ -43,15 +43,9 @@ use crate::places::home::Home;
 static NAME: LazyLock<Regex> =
   LazyLock::new(|| Regex::new(&COMPANIONS.name_pattern).expect("the companion name pattern reads"));
 
-// What a companion is for: it talks in rooms (docs/agent-roles.md).
-const ROLE: &str = "chat";
-
 /// The tables keyed by the agent alone whose rows a removal takes after the reset: its settings, its base
 /// prompt choice and the asks of its session resets.
 const AGENT_TABLES: [&str; 3] = ["companion_settings", "agent_base_prompts", "session_resets"];
-
-/// The tables keyed by a worker whose rows go with it: its sessions and the words said to it.
-const WORKER_TABLES: [&str; 2] = ["worker_sessions", "worker_words"];
 
 /// One field of the body, trimmed; empty where it is missing or no text.
 pub(super) fn text(body: &Value, field: &str) -> String {
@@ -120,12 +114,8 @@ pub(super) async fn pin_checked(
     };
   }
 
-  let found = one(
-    written,
-    "SELECT name FROM agents WHERE name = $1 AND kind = 'worker'",
-    vec![worker.into()],
-  )
-  .await?;
+  let found =
+    one(written, r#"SELECT "name" FROM "repositories" WHERE "name" = $1"#, vec![worker.into()]).await?;
 
   if found.is_none() {
     return refused("worker", fill_marks(&words.worker, &[("worker", worker)]));
@@ -139,28 +129,44 @@ pub(super) fn given(field: &str) -> Option<&str> {
   Some(field).filter(|field| !field.is_empty())
 }
 
-/// A checked companion's row written as the console adds one: the settings a companion added there takes,
-/// the chat role, the console's mark, its pin, the worker its items go to and its brain folder.
+/// A checked companion's row written as the console adds one: the settings a companion added there takes, the
+/// console's mark, its order — the provider and model it names, alone — the repository its items go to and its
+/// brain folder.
 async fn write(written: &DatabaseTransaction, asked: &Asked) -> Result<(), Fault> {
   let added = Conversation::companion_added();
+  let order = crate::order::Order {
+    entries: vec![crate::order::Entry {
+      provider: asked.provider.clone(),
+      model: asked.model.clone(),
+      effort: None,
+      thinking: None,
+      answer_tokens: None,
+    }],
+    quota_share: policy::roles::ROLES.quota_share,
+  };
+  let warming = serde_json::json!({ asked.provider.clone(): true }).to_string();
+  let now = now_ms();
 
   run(
     written,
-    "INSERT INTO agents (name, kind, session_scope, turn_shape, default_answerer, role, label, icon, pinned_provider,
-       pinned_model, item_worker, builtin, brain_folder, last_run_at)
-     VALUES ($1, 'chat', $2, $3, 0, $4, $5, $6, $7, $8, $9, 0, $10, $11)",
+    r#"INSERT INTO "supervisors" ("name", "session_scope", "turn_shape", "default_answerer", "label", "icon",
+         "repository", "brain_folder", "provider_order", "quota_share", "warming", "fold_ratio", "last_run_at",
+         "created_at", "updated_at")
+       VALUES ($1, $2, $3, 0, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $13)"#,
     vec![
       asked.name.clone().into(),
       added.scope.word().into(),
       added.shape.word().into(),
-      ROLE.into(),
       asked.label.clone().into(),
       COMPANIONS.added_icon.clone().into(),
-      asked.provider.clone().into(),
-      asked.model.clone().into(),
       asked.worker.clone().into(),
       format!("agents/{}", asked.name).into(),
-      (now_ms() / 1000).into(),
+      order.entries_text().into(),
+      order.quota_share.into(),
+      warming.into(),
+      order.default_fold_ratio().into(),
+      (now / 1000).into(),
+      now.into(),
     ],
   )
   .await?;
@@ -239,10 +245,6 @@ pub(super) async fn remove(written: &DatabaseTransaction, agent: &str) -> Result
     run(written, &format!("DELETE FROM {table} WHERE agent = $1"), vec![agent.into()]).await?;
   }
 
-  for table in WORKER_TABLES {
-    run(written, &format!("DELETE FROM {table} WHERE worker = $1"), vec![agent.into()]).await?;
-  }
-
   // Its own switches of its gates, its sampling and its reset point.
   run(
     written,
@@ -254,7 +256,7 @@ pub(super) async fn remove(written: &DatabaseTransaction, agent: &str) -> Result
     ],
   )
   .await?;
-  run(written, "DELETE FROM agents WHERE name = $1", vec![agent.into()]).await?;
+  run(written, r#"DELETE FROM "supervisors" WHERE "name" = $1"#, vec![agent.into()]).await?;
 
   Ok(())
 }
@@ -391,8 +393,12 @@ impl Route for CompanionDelete {
       vec![agent.clone().into()],
     )
     .await?;
-    store::run(call.store(), r#"DELETE FROM "agents" WHERE "name" = $1"#, vec![agent.clone().into()])
-      .await?;
+    store::run(
+      call.store(),
+      r#"DELETE FROM "supervisors" WHERE "name" = $1"#,
+      vec![agent.clone().into()],
+    )
+    .await?;
     store::run(
       call.store(),
       r#"DELETE FROM "settings" WHERE "key" IN ($1, $2) OR "key" LIKE $3"#,

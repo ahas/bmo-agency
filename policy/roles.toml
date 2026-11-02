@@ -4,8 +4,10 @@
 # job: the role a job runs as where its item names none (docs/repositories.md, 「A job」).
 # delegate: the role a delegated task runs as where its ask names none: the supervisor's double
 #   (docs/tools.md, 「The delegate」).
-# renewal: the role agency's own runs hold that stand for no one's work, the usage reader's renewal turn among
-#   them (docs/agents.md, 「A run in a pane of its own」).
+# renewal: the role agency's own runs hold that stand for no one's work, the usage reader's renewal turn and a
+#   judging batch among them (docs/agents.md, 「A run in a pane of its own」).
+# translate: the role a translation agency is asked for runs as (docs/agent-roles.md, 「The translator and the
+#   transliterator roles」).
 # send: the bundle that opens sending into a room, which every guard of a send reads here.
 # supervisor: the bundles every supervisor's session record holds (docs/supervisors.md, 「The bundles a
 #   supervisor holds」).
@@ -26,6 +28,7 @@
 job = "worker"
 delegate = "delegator"
 renewal = "upkeep"
+translate = "translator"
 send = "room.send"
 supervisor = ["room.chat", "room.send", "web.read"]
 name_pattern = "^[a-z][a-z0-9]*(-[a-z0-9]+)*$"

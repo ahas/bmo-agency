@@ -34,7 +34,6 @@ use super::token::facts;
 use super::worker::{Reasoning, effort_of, reasoning_of, rulebook, system_prompt_file};
 use super::{Trees, fault, publish_text, read_required};
 use crate::Refusal;
-use crate::control::tiers;
 use crate::places::{Ground, file_variable, token_or_file};
 use crate::run_log::RunLog;
 use crate::run_log::lines::Line;
@@ -532,15 +531,15 @@ pub async fn chat_run(
     // know; its agent's own level is the whole of what the chat line hands it.
     Some(model) => (model.to_owned(), reasoning.level.clone().unwrap_or_default(), None),
     None => {
-      let mapping = tiers::resolve(&ground.db, agent, CLAUDE).await.map_err(fault)?;
+      let entry = crate::order::supervisor_entry(&ground.db, agent, CLAUDE).await.map_err(fault)?;
       let effort =
-        effort_of(ground, machine, CLAUDE, &mapping.model, mapping.effort.as_deref(), Some(&reasoning))
+        effort_of(ground, machine, CLAUDE, &entry.model, entry.effort.as_deref(), Some(&reasoning))
           .await?
           .unwrap_or_default();
 
-      held_thinking = mapping.thinking;
+      held_thinking = entry.thinks();
 
-      (mapping.model, effort, Some(mapping.tier))
+      (entry.model, effort, None)
     }
   };
   let thinking = held_thinking.or(reasoning.thinking).unwrap_or(true);

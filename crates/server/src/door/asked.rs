@@ -84,13 +84,11 @@ pub struct AskedIdentity {
   #[serde(default)]
   pub parent: Option<String>,
   #[serde(default)]
-  pub work_key: Option<String>,
+  pub role: Option<String>,
   #[serde(default)]
   pub model: Option<String>,
   #[serde(default)]
   pub effort: Option<String>,
-  #[serde(default)]
-  pub tier: Option<Value>,
 }
 
 /// A turn of a surface that carries its own turns, as a TypeScript surface turn (`agents/agent`) is handed
@@ -179,10 +177,9 @@ impl Asked {
       agent: None,
       root: given.root,
       parent: given.parent,
-      work_key: given.work_key,
+      role: given.role,
       model: given.model,
       effort: given.effort,
-      tier: given.tier,
     });
 
     let scripted = Scripted {

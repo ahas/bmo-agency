@@ -23,7 +23,9 @@ pub async fn carry_out_worker_reset(ground: &Ground, worker: &str) -> Result<boo
     return Ok(false);
   }
 
-  run(db, r#"DELETE FROM "worker_sessions" WHERE "worker" = $1"#, vec![worker.into()]).await?;
+  if let Some(path) = crate::worker_session::records::checkout_path(db, worker).await? {
+    crate::apart_sessions::hand_over_path(db, &path).await?;
+  }
   drop_spoken_standby(&Place::of(&ground.roots.data, worker));
 
   let settled = run(

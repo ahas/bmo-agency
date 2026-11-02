@@ -82,7 +82,6 @@ pub async fn turn<W: Watch>(
     session,
     // The run's own effort, none where it names none, never the word its command hands the program.
     identity: super::execution::Identity {
-      work_key: Some(asked.run.line.clone()),
       effort: Some(asked.run.effort.clone()),
       ..asked.identity()
     },

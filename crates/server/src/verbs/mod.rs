@@ -12,7 +12,6 @@ pub mod companion_follow;
 pub mod companion_reset;
 pub mod coworker_pool;
 pub mod dev_servers;
-pub mod fold_worker;
 pub mod hand_tokens;
 pub mod live_claude;
 pub mod models;

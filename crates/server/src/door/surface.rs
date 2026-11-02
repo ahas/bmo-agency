@@ -71,10 +71,9 @@ impl SurfaceTurn {
       agent: Some(self.home.agent.clone()),
       root: self.root.clone(),
       parent: self.parent.clone(),
-      work_key: None,
+      role: None,
       model: Some(self.run.model.clone()),
       effort: (!self.run.effort.is_empty()).then(|| self.run.effort.clone()),
-      tier: self.run.tier.clone(),
     }
   }
 }

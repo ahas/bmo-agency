@@ -86,12 +86,11 @@ pub async fn keep_worker_job(db: &DatabaseConnection, worker: &str, job: Option<
 pub async fn at_work(db: &DatabaseConnection) -> Result<Vec<AtWork>, Refusal> {
   let rows = all(
     db,
-    r#"SELECT a."name", s."value" AS "job" FROM "agents" a
-       LEFT JOIN "settings" s ON s."key" = $1 || a."name"
-       WHERE a."kind" = 'worker' AND a."node" IS NULL
-         AND EXISTS (SELECT 1 FROM "agent_executions" e
-                     WHERE (e."body"::json ->> 'endedAt') IS NULL AND (e."body"::json ->> 'agent') = a."name")
-       ORDER BY a."name""#,
+    r#"SELECT DISTINCT (e."body"::json ->> 'agent') AS "name", s."value" AS "job" FROM "agent_executions" e
+       LEFT JOIN "settings" s ON s."key" = $1 || (e."body"::json ->> 'agent')
+       WHERE (e."body"::json ->> 'endedAt') IS NULL AND (e."body"::json ->> 'agent') IS NOT NULL
+         AND NOT EXISTS (SELECT 1 FROM "supervisors" WHERE "name" = (e."body"::json ->> 'agent'))
+       ORDER BY "name""#,
     vec![WORKER_JOB.into()],
   )
   .await?;

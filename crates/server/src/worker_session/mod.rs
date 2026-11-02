@@ -16,7 +16,6 @@ use std::time::Duration;
 
 use policy::keepalive::KEEPALIVE;
 use policy::run_lines::RUN_LINES;
-use serde_json::Value;
 
 use self::held::{SessionRun, prepare, remember};
 use self::records::{
@@ -34,7 +33,6 @@ use crate::lines::standing::{status_root, worker_prefix_digest};
 use crate::lines::worker::{LINE, WorkerRun, configured_pinned, worker_run};
 use crate::lines::{Trees, fault};
 use crate::places::{AgentRow, Ground};
-use crate::queue::routes::JOB_WORK_KEY;
 use crate::{Refusal, now_ms};
 
 /// The provider a worker's own session stands on.
@@ -129,7 +127,7 @@ pub async fn account_named(ground: &Ground, id: &str) -> Result<Option<Account>,
 // Whether logins are registered to carry the worker line and none of them answers now, which a turn
 // is never put out on the machine's own login in place of.
 async fn no_login_answers(ground: &Ground) -> Result<bool, Refusal> {
-  let carried = claude_accounts::carried_for_user(&ground.db, JOB_WORK_KEY, None)
+  let carried = claude_accounts::carried_for_user(&ground.db, None)
     .await
     .map_err(|refused| fault(refused.error))?;
 
@@ -139,7 +137,7 @@ async fn no_login_answers(ground: &Ground) -> Result<bool, Refusal> {
 /// The login a job's walk offers now on the worker line.
 pub async fn walked_account(ground: &Ground) -> Result<Option<Account>, Refusal> {
   Ok(
-    claude_accounts::walk_for(claude_accounts::Judging::of(ground), JOB_WORK_KEY)
+    claude_accounts::walk_for(claude_accounts::Judging::of(ground))
       .await
       .map_err(|refused| fault(refused.error))?
       .into_iter()
@@ -258,10 +256,9 @@ fn turn_on(
       agent: None,
       root: None,
       parent: None,
-      work_key: Some(JOB_WORK_KEY.to_owned()),
+      role: Some(crate::agent_roles::job_role().to_owned()),
       model: Some(line.model.clone()),
       effort: (!line.effort.is_empty()).then(|| line.effort.clone()),
-      tier: line.tier.clone().map(Value::String),
     },
     line: LINE.to_owned(),
     provider: PROVIDER.to_owned(),
@@ -290,11 +287,7 @@ async fn idle_turn_stands(
     return Ok(false);
   }
 
-  let ask = crate::road::Ask {
-    worker: Some(worker),
-    ..crate::road::Ask::key(JOB_WORK_KEY)
-  };
-  let resolution = crate::road::resolve(ground, &ask).await.map_err(fault)?;
+  let resolution = crate::road::for_job(ground, None, Some(worker), None, &[]).await.map_err(fault)?;
 
   if resolution.road().is_none_or(|taken| taken.provider != PROVIDER) {
     return Ok(false);
@@ -528,7 +521,7 @@ pub async fn turn<W: Watch>(side: &Side<'_>, asked: Asked<'_>, watch: &mut W) ->
     if run.resume.is_none() { "brought up" } else { "resumed" }
   );
 
-  let fold_ratio = fold::worker_fold_ratio(ground, &reply.mode, run.line.tier.as_deref()).await;
+  let fold_ratio = fold::worker_fold_ratio(ground, &reply.mode, None).await;
 
   if fold::worker_session_full(reply.context_ratio, fold_ratio) {
     println!("{label} {worker} {model}: {session_id} is full, folding it");

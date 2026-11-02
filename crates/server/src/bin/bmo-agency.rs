@@ -15,7 +15,6 @@ use agency_server::verbs::agents::{self, AgentsArgs};
 use agency_server::verbs::claude_batch::{self, ClaudeBatch};
 use agency_server::verbs::companion_reset::{self, ResetArgs};
 use agency_server::verbs::dev_servers::{self, DevAction};
-use agency_server::verbs::fold_worker::{self, FoldAsked};
 use agency_server::verbs::models::{self, ModelsArgs};
 use agency_server::verbs::overtime::{self, OvertimeAsked};
 use agency_server::verbs::process_memory::{self, MemoryArgs};
@@ -36,7 +35,7 @@ use rmcp::transport::stdio;
 /// The nouns `bmo` dispatches to this command, one a line as `nouns` prints them, each marked `home` after
 /// a tab where its commands act on the operations machine (bmo-cli's `docs/api.md`, 「The nouns a unit
 /// declares」; `docs/api.md`, 「The command」).
-pub const NOUNS: [&str; 24] = [
+pub const NOUNS: [&str; 23] = [
   "agent\thome",
   "agents\thome",
   "agent status\thome",
@@ -45,7 +44,6 @@ pub const NOUNS: [&str; 24] = [
   "models",
   "coworker pool",
   "coworker hook\thome",
-  "worker fold",
   "reload",
   "node work\thome",
   "work-node\thome",
@@ -147,11 +145,6 @@ enum Verb {
     #[command(subcommand)]
     step: Option<WorkNodeVerb>,
   },
-  /// The job workers' sessions.
-  Worker {
-    #[command(subcommand)]
-    what: WorkerVerb,
-  },
   /// A worker's dev server: started, started again or stopped, listed, or its pane run.
   DevServer {
     #[command(subcommand)]
@@ -241,15 +234,12 @@ enum Verb {
 
 #[derive(Subcommand)]
 enum CoworkerVerb {
-  /// Seats reserved under the CLI this is run from, or every one given back.
+  /// Slots of a callable role reserved under the CLI this is run from, or every one given back.
   Pool {
     /// `reserve` or `release`.
     action: Option<String>,
     #[arg(long, allow_hyphen_values = true)]
     role: Option<String>,
-    /// The tier to hold the seats on, in place of the one the role resolves to.
-    #[arg(long, allow_hyphen_values = true)]
-    tier: Option<String>,
     #[arg(long, allow_hyphen_values = true)]
     count: Option<String>,
   },
@@ -279,21 +269,6 @@ enum NodeVerb {
   Work {
     #[command(subcommand)]
     step: Option<WorkNodeVerb>,
-  },
-}
-
-#[derive(Subcommand)]
-enum WorkerVerb {
-  /// Folds the job workers' sessions whose prefix moved, or with --all every one.
-  Fold {
-    #[arg(long)]
-    worker: Option<String>,
-    #[arg(long)]
-    model: Option<String>,
-    #[arg(long)]
-    all: bool,
-    #[arg(long)]
-    dry_run: bool,
   },
 }
 
@@ -529,23 +504,6 @@ async fn run(verb: Verb) -> ExitCode {
     },
     Verb::NodePane { name } => ended(node_pane::node_pane(&data_root, &name).await),
     Verb::WorkNode { step } => ended(work_node::work_node(&data_root, step).await),
-    Verb::Worker {
-      what: WorkerVerb::Fold {
-        worker,
-        model,
-        all,
-        dry_run,
-      },
-    } => {
-      let asked = FoldAsked {
-        worker,
-        model,
-        all,
-        dry_run,
-      };
-
-      ended(fold(&data_root, &asked).await)
-    }
     Verb::DevServer { what } => ended(match what {
       DevVerb::Start { worker } => dev_servers::dev_server(&data_root, DevAction::Start, &worker).await,
       DevVerb::Restart { worker } => dev_servers::dev_server(&data_root, DevAction::Restart, &worker).await,
@@ -652,14 +610,13 @@ async fn live_claude_run(
 }
 
 async fn coworker(data_root: &std::path::Path, what: CoworkerVerb) -> Result<Answer, VerbError> {
-  let (action, role, tier, count) = match what {
+  let (action, role, count) = match what {
     CoworkerVerb::Hook => return Ok(coworker_pool::hook(data_root, &standing_input()).await),
     CoworkerVerb::Pool {
       action,
       role,
-      tier,
       count,
-    } => (action, role, tier, count),
+    } => (action, role, count),
   };
   let failed = |why: &str| VerbError::Ended {
     code: 1,
@@ -688,15 +645,7 @@ async fn coworker(data_root: &std::path::Path, what: CoworkerVerb) -> Result<Ans
         return Err(failed("reserve needs --role <role> and --count <n>"));
       };
 
-      if let Some(tier) = tier.as_deref().filter(|tier| !policy::tiers::TIERS.holds(tier)) {
-        return Err(failed(&format!("unknown tier: {tier}")));
-      }
-
-      let on = coworker_pool::coworker_provider(&machine);
-
-      coworker_pool::reserve(&db, &caller, on, &role, tier.as_deref(), count)
-        .await
-        .map(Answer::from)
+      coworker_pool::reserve(&db, &caller, &role, count).await.map(Answer::from)
     }
     Some("release") => coworker_pool::release(&db, &caller).await.map(Answer::from),
     _ => Err(failed(coworker_pool::USAGE)),
@@ -707,12 +656,6 @@ async fn token(data_root: &std::path::Path, account: &str, paste: bool) -> Resul
   let db = agency_server::verbs::store(data_root).await?;
 
   claude_token::claude_token(&db, data_root, account, paste).await
-}
-
-async fn fold(data_root: &std::path::Path, asked: &FoldAsked) -> Result<Answer, VerbError> {
-  let ground = fold_worker::ground_of(data_root).await?;
-
-  fold_worker::fold_worker(&ground, data_root, asked, &mut |said| println!("{said}")).await
 }
 
 async fn reloaded(data_root: &std::path::Path, paths: &[String], now: bool) -> Result<Answer, VerbError> {

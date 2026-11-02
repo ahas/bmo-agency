@@ -34,7 +34,10 @@ impl Route for Health {
     let mut pool = serde_json::Map::new();
 
     for state in ["active", "reserved", "waiting"] {
-      let count = super::pool::requests(&ground.db, &[state]).await?.len();
+      let count = crate::order_run::dispatch::requests(&ground.db, &[state])
+        .await
+        .map_err(Refused::failed)?
+        .len();
 
       pool.insert(state.to_owned(), json!(count));
     }

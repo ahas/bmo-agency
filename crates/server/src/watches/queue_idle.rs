@@ -235,18 +235,21 @@ pub async fn held(db: &DatabaseConnection, open: Vec<Open>) -> Result<Standing, 
       .filter_map(|row| row.try_get::<i64>("", "item_id").ok())
       .collect();
   let open = open.into_iter().filter(|item| !working.contains(&item.id)).collect();
-  let free = all(
+  let busy: Vec<String> = all(
     db,
-    r#"SELECT a."name" FROM "agents" a
-       WHERE a."kind" = 'worker' AND a."resting_since" IS NULL
-         AND NOT EXISTS (SELECT 1 FROM "jobs" j WHERE j."worker_name" = a."name" AND j."state" IN ('starting', 'running'))
-       ORDER BY a."name""#,
+    r#"SELECT DISTINCT "worker_name" FROM "jobs" WHERE "state" IN ('starting', 'running')"#,
     vec![],
   )
   .await?
   .iter()
-  .filter_map(|row| row.try_get::<String>("", "name").ok())
+  .filter_map(|row| row.try_get::<String>("", "worker_name").ok())
   .collect();
+  let free = crate::queue::workers::workers(db, std::path::Path::new(""))
+    .await?
+    .into_iter()
+    .filter(|worker| !worker.builtin && !busy.contains(&worker.name))
+    .map(|worker| worker.name)
+    .collect();
   let last_start = one(db, r#"SELECT MAX("started_at") AS "at" FROM "jobs""#, vec![])
     .await?
     .and_then(|row| row.try_get::<Option<i64>>("", "at").ok().flatten());

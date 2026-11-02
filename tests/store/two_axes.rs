@@ -12,7 +12,10 @@ use crate::support::scratch::Scratch;
 // A blank store brought to the shape before the two axes.
 async fn before() -> Scratch {
   let scratch = Scratch::blank().await;
-  let steps = Migrator::migrations().iter().take_while(|migration| migration.name() != TWO_AXES).count();
+  let steps = Migrator::migrations()
+    .iter()
+    .take_while(|migration| migration.name() != TWO_AXES)
+    .count();
 
   Migrator::up(scratch.db(), Some(steps as u32)).await.unwrap();
 
@@ -170,7 +173,14 @@ async fn live(scratch: &Scratch) {
   // support checkout beside it here and one on a node, the video producer and the helper.
   for (name, role, pin, support_of, node, cwd) in [
     ("alpha", "worker", Some(("deepseek", "deepseek-flash")), None, None, "/repos/alpha"),
-    ("companion-repo", "worker", Some(("registered", "flash-next")), None, None, "/repos/companion"),
+    (
+      "companion-repo",
+      "worker",
+      Some(("registered", "flash-next")),
+      None,
+      None,
+      "/repos/companion",
+    ),
     ("web", "worker", Some(("deepseek", "deepseek-flash")), None, None, "/repos/web"),
     ("web-w2", "worker", None, Some("web"), None, "/repos/web-w2"),
     ("web-n3", "worker", None, Some("web"), Some("n3"), "/remote/web"),
@@ -225,9 +235,14 @@ async fn live(scratch: &Scratch) {
       .await;
   }
 
-  for (name, pooled) in
-    [("builder", 0i64), ("verifier", 1), ("digest", 1), ("scout", 1), ("screener", 1), ("transliterator", 1)]
-  {
+  for (name, pooled) in [
+    ("builder", 0i64),
+    ("verifier", 1),
+    ("digest", 1),
+    ("scout", 1),
+    ("screener", 1),
+    ("transliterator", 1),
+  ] {
     scratch
       .run(
         r#"INSERT INTO "coworker_pool_roles" ("name", "description", "prompt", "tools", "skills", "enabled",
@@ -252,10 +267,14 @@ async fn live(scratch: &Scratch) {
 }
 
 async fn row(scratch: &Scratch, table: &str, name: &str) -> sea_orm::QueryResult {
-  store::one(scratch.db(), &format!(r#"SELECT * FROM "{table}" WHERE "name" = $1"#), vec![name.into()])
-    .await
-    .unwrap()
-    .unwrap_or_else(|| panic!("no {table} row {name}"))
+  store::one(
+    scratch.db(),
+    &format!(r#"SELECT * FROM "{table}" WHERE "name" = $1"#),
+    vec![name.into()],
+  )
+  .await
+  .unwrap()
+  .unwrap_or_else(|| panic!("no {table} row {name}"))
 }
 
 fn order(row: &sea_orm::QueryResult) -> Vec<(String, String)> {
@@ -264,12 +283,20 @@ fn order(row: &sea_orm::QueryResult) -> Vec<(String, String)> {
 
   entries
     .iter()
-    .map(|entry| (entry["provider"].as_str().unwrap().to_owned(), entry["model"].as_str().unwrap().to_owned()))
+    .map(|entry| {
+      (
+        entry["provider"].as_str().unwrap().to_owned(),
+        entry["model"].as_str().unwrap().to_owned(),
+      )
+    })
     .collect()
 }
 
 fn pairs(list: &[(&str, &str)]) -> Vec<(String, String)> {
-  list.iter().map(|(provider, model)| ((*provider).to_owned(), (*model).to_owned())).collect()
+  list
+    .iter()
+    .map(|(provider, model)| ((*provider).to_owned(), (*model).to_owned()))
+    .collect()
 }
 
 async fn names(scratch: &Scratch, sql: &str) -> Vec<String> {
@@ -288,7 +315,10 @@ async fn chat_rows_become_supervisors_each_with_its_own_order_warming_and_thresh
   live(&scratch).await;
   Migrator::up(scratch.db(), None).await.unwrap();
 
-  assert_eq!(names(&scratch, r#"SELECT "name" FROM "supervisors" ORDER BY "name""#).await, ["bmo", "companion"]);
+  assert_eq!(
+    names(&scratch, r#"SELECT "name" FROM "supervisors" ORDER BY "name""#).await,
+    ["bmo", "companion"]
+  );
 
   let chat = row(&scratch, "supervisors", "bmo").await;
   // The route's provider first, then the owner's order, each on the Supervisor tier's model there.
@@ -302,8 +332,12 @@ async fn chat_rows_become_supervisors_each_with_its_own_order_warming_and_thresh
       ("openrouter", "nemotron"),
     ])
   );
-  let entries: Vec<Value> = serde_json::from_str(&chat.try_get::<String>("", "provider_order").unwrap()).unwrap();
-  assert_eq!(entries[0]["effort"], "max", "the supervisor's own effort stands on every entry taking a level");
+  let entries: Vec<Value> =
+    serde_json::from_str(&chat.try_get::<String>("", "provider_order").unwrap()).unwrap();
+  assert_eq!(
+    entries[0]["effort"], "max",
+    "the supervisor's own effort stands on every entry taking a level"
+  );
   assert_eq!(entries[1]["effort"], Value::Null, "a registered model takes no level");
   assert_eq!(entries[1]["thinking"], "on");
   assert_eq!(chat.try_get::<f64>("", "fold_ratio").unwrap(), 0.5);
@@ -313,11 +347,21 @@ async fn chat_rows_become_supervisors_each_with_its_own_order_warming_and_thresh
   assert_eq!(warming["deepseek"], true);
 
   let companion = row(&scratch, "supervisors", "companion").await;
-  assert_eq!(order(&companion), pairs(&[("registered", "flash-next")]), "a fixed model is the whole order");
+  assert_eq!(
+    order(&companion),
+    pairs(&[("registered", "flash-next")]),
+    "a fixed model is the whole order"
+  );
   assert_eq!(companion.try_get::<f64>("", "fold_ratio").unwrap(), 0.95);
-  assert_eq!(companion.try_get::<Option<String>>("", "repository").unwrap().as_deref(), Some("companion-repo"));
+  assert_eq!(
+    companion.try_get::<Option<String>>("", "repository").unwrap().as_deref(),
+    Some("companion-repo")
+  );
   let warming: Value = serde_json::from_str(&companion.try_get::<String>("", "warming").unwrap()).unwrap();
-  assert_eq!(warming["registered"], false, "a supervisor whose keepalive was stopped is warmed nowhere");
+  assert_eq!(
+    warming["registered"], false,
+    "a supervisor whose keepalive was stopped is warmed nowhere"
+  );
 }
 
 #[tokio::test]
@@ -335,16 +379,33 @@ async fn worker_rows_become_repositories_and_only_a_registered_pin_is_carried() 
 
   let alpha = row(&scratch, "repositories", "alpha").await;
   assert_eq!(alpha.try_get::<String>("", "path").unwrap(), "/repos/alpha");
-  assert_eq!(alpha.try_get::<Option<String>>("", "pinned_provider").unwrap(), None, "a DeepSeek pin is not carried");
-  assert_eq!(alpha.try_get::<Option<String>>("", "preamble").unwrap().as_deref(), Some("alpha preamble"));
+  assert_eq!(
+    alpha.try_get::<Option<String>>("", "pinned_provider").unwrap(),
+    None,
+    "a DeepSeek pin is not carried"
+  );
+  assert_eq!(
+    alpha.try_get::<Option<String>>("", "preamble").unwrap().as_deref(),
+    Some("alpha preamble")
+  );
   assert_eq!(alpha.try_get::<i64>("", "downgrade_heal").unwrap(), 0);
 
   let pinned = row(&scratch, "repositories", "companion-repo").await;
-  assert_eq!(pinned.try_get::<Option<String>>("", "pinned_provider").unwrap().as_deref(), Some("registered"));
-  assert_eq!(pinned.try_get::<Option<String>>("", "pinned_model").unwrap().as_deref(), Some("flash-next"));
+  assert_eq!(
+    pinned.try_get::<Option<String>>("", "pinned_provider").unwrap().as_deref(),
+    Some("registered")
+  );
+  assert_eq!(
+    pinned.try_get::<Option<String>>("", "pinned_model").unwrap().as_deref(),
+    Some("flash-next")
+  );
 
   let web = row(&scratch, "repositories", "web").await;
-  assert_eq!(web.try_get::<i64>("", "support_count").unwrap(), 1, "a support row here is a support checkout");
+  assert_eq!(
+    web.try_get::<i64>("", "support_count").unwrap(),
+    1,
+    "a support row here is a support checkout"
+  );
   assert_eq!(
     scratch
       .count(
@@ -390,35 +451,64 @@ async fn roles_take_their_orders_caps_and_lines_and_the_chat_and_gate_roles_go()
   assert_eq!(worker.try_get::<f64>("", "fold_ratio").unwrap(), 0.5);
 
   let helper = row(&scratch, "roles", "helper").await;
-  assert_eq!(order(&helper)[0], ("claude-code".to_owned(), "claude-fable".to_owned()), "its fixed model first");
+  assert_eq!(
+    order(&helper)[0],
+    ("claude-code".to_owned(), "claude-fable".to_owned()),
+    "its fixed model first"
+  );
   assert_eq!(order(&helper)[1], ("deepseek".to_owned(), "deepseek-flash".to_owned()));
   assert_eq!(helper.try_get::<i64>("", "max_concurrent").unwrap(), 2);
 
   let translator = row(&scratch, "roles", "translator").await;
-  assert_eq!(order(&translator), pairs(&[("registered", "hy-mt")]), "the translator keeps its one registration");
+  assert_eq!(
+    order(&translator),
+    pairs(&[("registered", "hy-mt")]),
+    "the translator keeps its one registration"
+  );
   assert_eq!(translator.try_get::<String>("", "line").unwrap(), "translate");
 
   let browser = row(&scratch, "roles", "browser").await;
   assert_eq!(browser.try_get::<String>("", "line").unwrap(), "browse");
   assert_eq!(browser.try_get::<String>("", "sessions").unwrap(), "fresh");
 
-  for (name, cap, callable) in
-    [("builder", 8, 0), ("verifier", 6, 1), ("digest", 6, 1), ("scout", 12, 1), ("screener", 12, 1), ("upkeep", 1, 0)]
-  {
+  for (name, cap, callable) in [
+    ("builder", 8, 0),
+    ("verifier", 6, 1),
+    ("digest", 6, 1),
+    ("scout", 12, 1),
+    ("screener", 12, 1),
+    ("upkeep", 1, 0),
+  ] {
     let role = row(&scratch, "roles", name).await;
     assert_eq!(role.try_get::<i64>("", "max_concurrent").unwrap(), cap, "{name}'s cap");
     assert_eq!(role.try_get::<i64>("", "callable").unwrap(), callable, "whether {name} is callable");
   }
 
   let scout = row(&scratch, "roles", "scout").await;
-  assert_eq!(scout.try_get::<Option<String>>("", "prompt").unwrap().as_deref(), Some("You are the scout.\n"));
-  assert_eq!(scout.try_get::<Option<String>>("", "description").unwrap().as_deref(), Some("What a scout is for."));
-  assert_eq!(order(&scout)[0], ("deepseek".to_owned(), "deepseek-flash".to_owned()), "the owner's order");
+  assert_eq!(
+    scout.try_get::<Option<String>>("", "prompt").unwrap().as_deref(),
+    Some("You are the scout.\n")
+  );
+  assert_eq!(
+    scout.try_get::<Option<String>>("", "description").unwrap().as_deref(),
+    Some("What a scout is for.")
+  );
+  assert_eq!(
+    order(&scout)[0],
+    ("deepseek".to_owned(), "deepseek-flash".to_owned()),
+    "the owner's order"
+  );
   let transliterator = row(&scratch, "roles", "transliterator").await;
-  assert_eq!(transliterator.try_get::<i64>("", "callable").unwrap(), 0, "a role already held stays uncallable");
+  assert_eq!(
+    transliterator.try_get::<i64>("", "callable").unwrap(),
+    0,
+    "a role already held stays uncallable"
+  );
 
   assert_eq!(
-    scratch.count(r#"SELECT COUNT(*) FROM "role_seeded" WHERE "name" IN ('builder', 'browser')"#, vec![]).await,
+    scratch
+      .count(r#"SELECT COUNT(*) FROM "role_seeded" WHERE "name" IN ('builder', 'browser')"#, vec![])
+      .await,
     2,
     "a role the migration gave is recorded as given, so no seed gives it again"
   );
@@ -431,7 +521,13 @@ async fn the_retired_tables_and_settings_go_and_the_owners_switches_stay() {
   live(&scratch).await;
   Migrator::up(scratch.db(), None).await.unwrap();
 
-  for table in ["agents", "model_tier_mappings", "fold_ratios", "fallback_routes", "coworker_pool_tier_limits"] {
+  for table in [
+    "agents",
+    "model_tier_mappings",
+    "fold_ratios",
+    "fallback_routes",
+    "coworker_pool_tier_limits",
+  ] {
     assert_eq!(
       scratch
         .count(
@@ -444,7 +540,12 @@ async fn the_retired_tables_and_settings_go_and_the_owners_switches_stay() {
     );
   }
 
-  assert_eq!(scratch.count(r#"SELECT COUNT(*) FROM "settings" WHERE "key" = 'provider_order'"#, vec![]).await, 0);
+  assert_eq!(
+    scratch
+      .count(r#"SELECT COUNT(*) FROM "settings" WHERE "key" = 'provider_order'"#, vec![])
+      .await,
+    0
+  );
   let switch = store::one(
     scratch.db(),
     r#"SELECT "value" FROM "settings" WHERE "key" = 'provider_switch:codex'"#,

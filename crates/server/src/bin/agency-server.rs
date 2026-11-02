@@ -184,11 +184,6 @@ async fn serve(args: Args) -> Result<(), String> {
 
   let front = control::Front::new(token, ground)?.with_places(places, watch);
 
-  // The words said to the workers still waiting, offered again on the words' own clock.
-  if let Some(words) = front.words() {
-    words.stand();
-  }
-
   let listener = control::bind(args.control_port)
     .await
     .map_err(|why| format!("the control port: {why}"))?;
@@ -225,7 +220,6 @@ fn clocks(ground: &Arc<Ground>) {
   tokio::spawn(agency_server::order_run::clocks::keep_pool(ground.db.clone()));
   tokio::spawn(agency_server::order_run::clocks::keep_card_demands(ground.clone()));
   tokio::spawn(agency_server::order_run::clocks::keep_leftovers(ground.clone()));
-  tokio::spawn(agency_server::order_run::clocks::keep_warm(ground.clone()));
   tokio::spawn(agency_server::order_run::clocks::keep_usage_windows(ground.clone()));
 
   let watched = ground.clone();

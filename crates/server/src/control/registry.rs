@@ -15,7 +15,6 @@ use policy::control_words::CONTROL_WORDS;
 use policy::fill_marks;
 use policy::providers::registered::REGISTERED;
 use policy::registry::{REGISTRY, WholeBounds};
-use policy::tiers::TIERS;
 use regex::Regex;
 use sea_orm::{ConnectionTrait, QueryResult, TransactionTrait};
 use serde_json::{Value, json};
@@ -210,22 +209,6 @@ async fn card_health(data_root: &Path, service: &str) -> Option<EngineHealth> {
   Some(health)
 }
 
-/// The tiers the registry's provider maps a registration at, in the ladder's order: a tier mapping
-/// names the registration, not the model behind it.
-pub async fn mapped_tiers<C: ConnectionTrait>(db: &C, name: &str) -> Result<Vec<String>, Refused> {
-  let held: Vec<String> = all(
-    db,
-    "SELECT tier FROM model_tier_mappings WHERE provider = $1 AND model = $2",
-    vec![PROVIDER.into(), name.into()],
-  )
-  .await?
-  .iter()
-  .map(|row| row.try_get::<String>("", "tier"))
-  .collect::<Result<_, sea_orm::DbErr>>()?;
-
-  Ok(TIERS.ladder.iter().filter(|tier| held.contains(tier)).cloned().collect())
-}
-
 /// One registration as the boundary's model resource answers it: its name as the key, its model, the
 /// first tier it is mapped at in the ladder's order and whether its addresses answer, or none where the
 /// registry holds no registration by that name.
@@ -246,7 +229,6 @@ pub async fn registered_model<C: ConnectionTrait>(
   let model: String = row.try_get("", "model")?;
   let card_service: Option<String> = row.try_get("", "card_service")?;
   let role_files = flag(&row, "role_files")?;
-  let tier = mapped_tiers(db, name).await?.into_iter().next();
   let healthy = registration_health(db, data_root, name)
     .await?
     .is_some_and(|health| health.aside.is_none());
@@ -266,27 +248,17 @@ pub async fn registered_model<C: ConnectionTrait>(
     "model": model,
     "cardService": card_service,
     "roleFiles": role_files,
-    "tier": tier,
+    "usedBy": referrers(db, name).await?,
     "healthy": healthy,
     "lastAnsweredAt": last_answered_at,
   })))
 }
 
-/// Every registration as the model resource lists it, narrowed to the tier the query names where it
-/// names one.
-pub async fn listed_models<C: ConnectionTrait>(
-  db: &C,
-  data_root: &Path,
-  tier: Option<&str>,
-) -> Result<Vec<Value>, Refused> {
+/// Every registration as the model resource lists it.
+pub async fn listed_models<C: ConnectionTrait>(db: &C, data_root: &Path) -> Result<Vec<Value>, Refused> {
   let mut listed = vec![];
 
   for held in registrations(db).await? {
-    let mapped = mapped_tiers(db, &held.name).await?;
-
-    if tier.is_some_and(|wanted| !mapped.iter().any(|one| one == wanted)) {
-      continue;
-    }
     if let Some(model) = registered_model(db, data_root, &held.name).await? {
       listed.push(model);
     }
@@ -378,7 +350,7 @@ impl OwnLlmSettings {
   }
 }
 
-/// A tier mapping as an own service reads it: its model, effort and answer ceiling, each where named.
+/// An order's entry as an own service reads it: its model, effort and answer ceiling, each where named.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Mapping {
   pub model: String,
@@ -387,11 +359,11 @@ pub struct Mapping {
   pub answer_tokens: Option<i64>,
 }
 
-impl From<&super::tiers::Mapping> for Mapping {
-  fn from(held: &super::tiers::Mapping) -> Self {
+impl From<&crate::order::Entry> for Mapping {
+  fn from(held: &crate::order::Entry) -> Self {
     Self {
       model: held.model.clone(),
-      thinking: held.thinking,
+      thinking: held.thinks(),
       effort: held.effort.clone(),
       answer_tokens: held.answer_tokens,
     }
@@ -451,21 +423,9 @@ pub async fn run_settings<C: ConnectionTrait>(
   })
 }
 
-/// Whether the automatic walk of a key asks the registry: only where the registration the key's tier
-/// maps to there is walked. A tier or a registration that cannot be read is no walk.
-pub async fn walks(db: &sea_orm::DatabaseConnection, key: &str) -> bool {
-  let Ok(mapping) = super::tiers::resolve(db, key, PROVIDER).await else {
-    return false;
-  };
-
-  registration(db, &mapping.model)
-    .await
-    .is_ok_and(|held| held.is_some_and(|held| held.walked))
-}
-
-/// What names a registration, each thing that may name one answering for itself: the tiers whose
-/// mapping on the registry names it, the workers and companions pinned to it, the work keys that name it
-/// as their own, and the model catalogue's entries served behind it.
+/// What names a registration, each thing that may name one answering for itself (docs/api.md, 「providers,
+/// models and model files」): every supervisor and role whose order names it on the registry's provider, every
+/// repository whose pin names it, and the model catalogue's entries served behind it.
 pub async fn referrers<C: ConnectionTrait>(db: &C, name: &str) -> Result<Vec<String>, Refused> {
   let names = |rows: Vec<QueryResult>, column: &str| -> Result<Vec<String>, Refused> {
     rows
@@ -473,47 +433,28 @@ pub async fn referrers<C: ConnectionTrait>(db: &C, name: &str) -> Result<Vec<Str
       .map(|row| row.try_get::<String>("", column).map_err(Refused::from))
       .collect()
   };
-  let mapped = names(
-    all(
-      db,
-      "SELECT tier FROM model_tier_mappings WHERE provider = $1 AND model = $2",
-      vec![PROVIDER.into(), name.into()],
-    )
-    .await?,
-    "tier",
-  )?;
-  let workers = names(
-    all(
-      db,
-      "SELECT name FROM agents WHERE kind = 'worker' AND resting_since IS NULL AND pinned_provider = $1
-       AND pinned_model = $2 ORDER BY name",
-      vec![PROVIDER.into(), name.into()],
-    )
-    .await?,
-    "name",
-  )?;
-  let conversational = crate::conversational::agents_where(db, |settings| settings.companion()).await?;
-  let companions: Vec<String> = names(
-    all(
-      db,
-      "SELECT name FROM agents WHERE pinned_provider = $1 AND pinned_model = $2 ORDER BY name",
-      vec![PROVIDER.into(), name.into()],
-    )
-    .await?,
-    "name",
-  )?
-  .into_iter()
-  .filter(|pinned| conversational.contains(pinned))
-  .collect();
-  let keys = names(
-    all(
-      db,
-      "SELECT key FROM fallback_routes WHERE registration = $1 ORDER BY key",
-      vec![name.into()],
-    )
-    .await?,
-    "key",
-  )?;
+  let names_it =
+    |order: &crate::order::Order| order.entry(PROVIDER).is_some_and(|entry| entry.model == name);
+  let mut used = vec![];
+
+  for supervisor in crate::supervisors::every(db).await? {
+    if names_it(&supervisor.order) {
+      used.push(format!("supervisor {}", supervisor.name));
+    }
+  }
+
+  for role in crate::agent_roles::every(db).await? {
+    if names_it(&role.order) {
+      used.push(format!("role {}", role.name));
+    }
+  }
+
+  for repository in crate::repositories::every(db).await? {
+    if repository.pin.as_ref().is_some_and(|pin| pin.provider == PROVIDER && pin.model == name) {
+      used.push(format!("repository {}", repository.name));
+    }
+  }
+
   let entries = names(
     all(
       db,
@@ -524,30 +465,13 @@ pub async fn referrers<C: ConnectionTrait>(db: &C, name: &str) -> Result<Vec<Str
     "name",
   )?;
 
-  Ok(
-    TIERS
-      .ladder
+  used.extend(
+    entries
       .iter()
-      .filter(|tier| mapped.contains(tier))
-      .map(|tier| fill_marks(&CONTROL_WORDS.registry.tier, &[("tier", tier)]))
-      .chain(
-        workers
-          .iter()
-          .map(|worker| fill_marks(&CONTROL_WORDS.registry.worker_pin, &[("worker", worker)])),
-      )
-      .chain(
-        companions
-          .iter()
-          .map(|companion| fill_marks(&CONTROL_WORDS.registry.companion_pin, &[("companion", companion)])),
-      )
-      .chain(keys.iter().map(|key| fill_marks(&CONTROL_WORDS.registry.key_pin, &[("key", key)])))
-      .chain(
-        entries
-          .iter()
-          .map(|entry| fill_marks(&CONTROL_WORDS.registry.model_file, &[("entry", entry)])),
-      )
-      .collect(),
-  )
+      .map(|entry| fill_marks(&CONTROL_WORDS.registry.model_file, &[("entry", entry)])),
+  );
+
+  Ok(used)
 }
 
 /// Every registration as the screen shows it, each address's key said in one word, and the gateway as

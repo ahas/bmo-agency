@@ -1,7 +1,8 @@
-//! A run apart (docs/agents.md, 「Runs apart」): one run of a line no standing program carries — a runner
-//! line's, a translation, a probe, a judging batch, a login's renewal — as the interactive program in a pane
-//! of its own, opened for the run and closed with it, on the session its role's setting gives it: a new one,
-//! or the warm one the role's last run of the same command left. The run's command is its line's; what it
+//! A run in a pane of its own (docs/agents.md, 「A run in a pane of its own」): one run of a role — a job's
+//! turn, a delegated task, a search, a translation, a probe, a login's renewal — as the interactive program in
+//! a pane of its own, opened for the run and closed with it, on the session its role's setting gives it: a
+//! new one, or the valid one the role's last run at the same path on the same provider and model left
+//! (docs/sessions.md, 「A role's session」). The run's command is its line's; what it
 //! is handed beside that is its own tool token and the variables its line set, and what comes back is the
 //! door's reading of the program's record.
 
@@ -12,7 +13,6 @@ use std::time::Duration;
 use harness_providers::claude_code::ClaudeCode;
 use herdr::Herdr;
 use policy::resident_turn::RESIDENT_TURN;
-use serde_json::Value;
 
 use super::execution::{Identity, execution_root, own_unit};
 use super::guard::launch_refusal;
@@ -31,25 +31,24 @@ use crate::places::trust::{config_file, mark_onboarded};
 // How long a run's tool session may stand if nothing takes its token back.
 const TOKEN_BACKSTOP: Duration = Duration::from_secs(24 * 3_600);
 
-/// One run apart as its caller names it: the agent it runs for, the role it holds where that agent stands no
-/// row, the line and provider it goes out on, what a person watching herdr reads it as, the line's command
-/// for it — its words opening `session`, a new session the run resumes a kept one in place of where its role
-/// keeps sessions — the words it is told, the work key, model, effort and tier its execution row keeps, and
-/// the run its execution is a child of and the root it is counted under, where the caller names them rather
-/// than this process's own unit. A run apart carries no clock: it lasts until it ends or is stopped.
+/// One run as its caller names it: the name it runs under, the role it holds, the line and provider it goes
+/// out on, what a person watching herdr reads it as, the line's command for it — its words opening `session`,
+/// a new session the run resumes a kept one in place of where its role keeps sessions — the words it is told,
+/// the model, effort and login its execution row and its session's key keep, and the run its execution is a
+/// child of and the root it is counted under, where the caller names them rather than this process's own
+/// unit. A run carries no clock: it lasts until it ends or is stopped.
 pub struct Apart<'a> {
   pub agent: &'a str,
-  pub role: Option<&'a str>,
+  pub role: &'a str,
   pub line: &'a str,
   pub provider: &'a str,
   pub title: String,
   pub command: Command,
   pub session: String,
   pub prompt: String,
-  pub work_key: String,
   pub model: String,
   pub effort: String,
-  pub tier: Option<String>,
+  pub account: Option<String>,
   pub parent: Option<String>,
   pub root: Option<String>,
 }
@@ -106,19 +105,22 @@ pub async fn run<W: Watch>(ground: &Ground, mut apart: Apart<'_>, watch: &mut W)
     .herdr
     .clone()
     .ok_or_else(|| format!("{}: this machine names no herdr to open the run's pane on", apart.line))?;
-  let kept = if apart_sessions::setting(&ground.db, apart.agent, apart.role).await.keeps() {
-    Some(apart_sessions::key(
-      apart.agent,
-      apart.line,
-      &apart.command,
-      &records_home(ground, &apart.command),
-    ))
+  let kept = if apart_sessions::setting(&ground.db, apart.role).await.keeps() {
+    Some(apart_sessions::SessionKey {
+      role: apart.role.to_owned(),
+      path: apart.command.cwd.clone(),
+      provider: apart.provider.to_owned(),
+      model: apart.model.clone(),
+      effort: apart.effort.clone(),
+      account: apart.account.clone(),
+      command: apart_sessions::key(apart.line, &apart.command, &records_home(ground, &apart.command)),
+    })
   } else {
     None
   };
 
   if let Some(key) = &kept {
-    match apart_sessions::take(&ground.db, key, apart.provider, &apart.model, now_ms()).await {
+    match apart_sessions::take(&ground.db, key, now_ms()).await {
       Ok(Some(held)) if record_of(ground, &apart.command, &held).is_file() => {
         apart.command.args = resumed_command(&apart.command.args, &held);
         apart.session = held;
@@ -130,15 +132,28 @@ pub async fn run<W: Watch>(ground: &Ground, mut apart: Apart<'_>, watch: &mut W)
     }
   }
 
-  let agent = apart.agent;
   let line = apart.line;
   let session = apart.session.clone();
+  let opened_at = now_ms();
   let ended = run_on(ground, herdr, apart, watch).await;
 
-  if let (Some(key), Ok(Ending::Answered { .. })) = (&kept, &ended)
-    && let Err(why) = apart_sessions::keep(&ground.db, key, agent, line, &session, now_ms()).await
-  {
-    eprintln!("{line}: the session it answered on was not kept: {why:?}");
+  if let Some(key) = &kept {
+    let kept = match &ended {
+      Ok(Ending::Answered { .. }) => {
+        let answered = apart_sessions::Answered {
+          at: now_ms(),
+          opened_at,
+          ..apart_sessions::Answered::default()
+        };
+
+        apart_sessions::keep(&ground.db, key, &session, answered).await
+      }
+      _ => apart_sessions::give_back(&ground.db, &session).await,
+    };
+
+    if let Err(why) = kept {
+      eprintln!("{line}: the session it ran on was not kept: {why:?}");
+    }
   }
 
   ended
@@ -204,10 +219,9 @@ async fn run_on<W: Watch>(
       agent: None,
       root: apart.root.or_else(|| Some(execution_root(own.as_deref().unwrap_or_default()))),
       parent: apart.parent.or(own),
-      work_key: Some(apart.work_key),
+      role: Some(apart.role.to_owned()),
       model: Some(apart.model),
       effort: (!apart.effort.is_empty()).then_some(apart.effort),
-      tier: apart.tier.filter(|tier| !tier.is_empty()).map(Value::String),
     },
     line: apart.line.to_owned(),
     provider: apart.provider.to_owned(),
@@ -244,8 +258,8 @@ pub fn said(ended: &Result<Ending, String>) -> Result<&str, &str> {
 
 /// A run's ending in the words a walk of logins reads: its reply where it answered, and otherwise what kept
 /// it from answering — the program's own error read as a login's failure where it is one, a stop, the pane
-/// or the program failing under it, a person's question, or a run that ended with no answer. `key` is the
-/// work the run was for, which a gone login's failure names.
+/// or the program failing under it, a person's question, or a run that ended with no answer. `key` names the
+/// run, which a gone login's failure names.
 pub fn answered(ending: Ending, key: &str) -> Result<Reply, Failure> {
   let died = |message: String| Failure::Died {
     ending: RunEnding::Exit { code: 1 },

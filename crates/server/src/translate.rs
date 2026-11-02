@@ -3,6 +3,7 @@
 //! provider, a run apart on Claude Code — under the translator role's prompt and the instructions of the
 //! purpose asked.
 
+use policy::roles::ROLES;
 use std::sync::{Arc, LazyLock};
 
 use bmo_agency_client::TranslationTerm;
@@ -26,9 +27,6 @@ pub const KEY: &str = "translate";
 
 /// The line a translation runs on.
 pub const LINE: &str = "translate";
-
-/// The role whose prompt stands first in a translation's system prompt.
-pub const ROLE: &str = "translator";
 
 // The agent folder the purposes' instructions stand in, and the folder a run apart works in.
 const AGENT: &str = "translator";
@@ -173,7 +171,13 @@ pub async fn translate(
     return Err(Refused::Ask("a translation names its language and its text".to_owned()));
   }
 
-  let resolution = road::resolve(ground, &Ask::key(KEY)).await.map_err(Refused::NoAnswer)?;
+  let held = crate::agent_roles::named(&ground.db, &ROLES.translate)
+    .await
+    .map_err(|why| Refused::NoAnswer(why.detail))?
+    .ok_or_else(|| Refused::NoAnswer(crate::agent_roles::unknown(&ROLES.translate)))?;
+  let resolution = road::resolve(ground, &Ask::of(road::Row::Role(&held.name), &held.line, &held.order))
+    .await
+    .map_err(Refused::NoAnswer)?;
   let Some(taken) = resolution.road().cloned() else {
     road::went(ground, &resolution, None, &[]).await;
 
@@ -183,7 +187,7 @@ pub async fn translate(
   road::went(ground, &resolution, Some(&taken), &[]).await;
 
   let trees = Trees::of(ground);
-  let role = role_prompt(&ground.db, ROLE).await;
+  let role = role_prompt(&ground.db, &ROLES.translate).await;
   let system =
     noted_system(&system_prompt(&trees, role.as_deref(), purpose).map_err(Refused::NoAnswer)?, note);
   let input = input(language, text, terms);
@@ -339,17 +343,16 @@ impl Attempt<String> for OnLogin<'_> {
       self.ground,
       Apart {
         agent: AGENT,
-        role: None,
+        role: &ROLES.translate,
         line: LINE,
         provider: crate::lines::runner::PROVIDER,
         title: format!("{KEY} · {} · {}", self.purpose.word(), self.model),
         command,
         session,
         prompt: self.input.to_owned(),
-        work_key: KEY.to_owned(),
         model: self.model.to_owned(),
         effort: self.effort.clone(),
-        tier: None,
+        account: None,
         parent: None,
         root: None,
       },
@@ -372,8 +375,8 @@ async fn apart_on_claude(
   input: &str,
 ) -> Result<String, String> {
   let provider = crate::lines::runner::PROVIDER;
-  let mapping = crate::control::tiers::resolve_execution(&ground.db, KEY, provider, None).await?;
-  let effort = effort_of(ground, &ground.machine(), provider, model, mapping.effort.as_deref(), None)
+  let entry = crate::order::role_entry(&ground.db, &ROLES.translate, provider).await?;
+  let effort = effort_of(ground, &ground.machine(), provider, model, entry.effort.as_deref(), None)
     .await
     .map_err(|why| why.detail)?
     .unwrap_or_default();

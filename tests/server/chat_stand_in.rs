@@ -7,11 +7,11 @@
 use std::collections::{BTreeMap, HashMap};
 use std::os::unix::fs::PermissionsExt;
 
+use crate::support::grounds::{OrderEntry, set_provider_order};
 use agency_server::Service;
 use agency_server::chat_stand_in::{FallbackEnded, fallback_ended, stand_in_turn};
 use agency_server::companion::run::NoAnswer;
 use agency_server::config::Config;
-use agency_server::control::harness::{OrderEntry, set_provider_order};
 use agency_server::lines::chat::{ChatRun, Door, RoomContext, claude_folder, compose_stand_in};
 use agency_server::lines::standing::GatewayModel;
 use agency_server::lines::worker::Reasoning;

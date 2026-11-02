@@ -18,7 +18,7 @@ use policy::fill_marks;
 use policy::place_words::PLACE_WORDS;
 use policy::providers::Turns;
 use serde_json::{Value, json};
-use store::{all, one, run};
+use store::{all, run};
 
 use super::locks::{Held, hold, lock_path, pane_lock_path, try_hold};
 use super::trust::trust_worker_folder;
@@ -31,8 +31,8 @@ use crate::lines::standing::{
   Standing, claim_standby, claude_program, inbox_program, member_program, registered_program,
 };
 use crate::lines::token;
-use crate::queue::routes::{JOB_WORK_KEY, worker_pin_held};
-use crate::road::{self, Ask};
+use crate::queue::routes::worker_pin_held;
+use crate::road;
 use crate::{Refusal, now_ms};
 
 const CLAUDE_CODE: &str = "claude-code";
@@ -275,10 +275,8 @@ pub async fn stand_idle(ground: &Ground, row: &AgentRow) -> Result<(), Refusal> 
 async fn job_road(ground: &Ground) -> Result<String, Refusal> {
   let fault = |refused: crate::control::Refused| crate::lines::fault(refused.error);
 
-  if let Some(taken) = road::resolve(ground, &Ask::key(JOB_WORK_KEY))
-    .await
-    .map_err(crate::lines::fault)?
-    .road()
+  if let Some(taken) =
+    road::for_job(ground, None, None, None, &[]).await.map_err(crate::lines::fault)?.road()
   {
     return Ok(taken.provider.clone());
   }
@@ -302,11 +300,9 @@ async fn pinned_road(ground: &Ground, worker: &str) -> Result<Option<(String, Op
   else {
     return Ok(None);
   };
-  let ask = Ask {
-    worker: Some(worker),
-    ..Ask::key(JOB_WORK_KEY)
-  };
-  let resolution = road::resolve(ground, &ask).await.map_err(crate::lines::fault)?;
+  let resolution = road::for_job(ground, None, Some(worker), None, &[])
+    .await
+    .map_err(crate::lines::fault)?;
   let Some(taken) = resolution.road() else { return Ok(Some(pin)) };
   let names_models = provider(&taken.provider).is_some_and(|one| one.pins_models());
 
@@ -434,8 +430,8 @@ pub async fn compose(ground: &Ground, worker: &str) -> Result<Option<Standing>, 
   }
 }
 
-/// A companion's program let go where its pin or its registration moved under it: a program on another
-/// model than the pin names now, or on an address its registration no longer holds, is taken down so the
+/// A supervisor's program let go where its registered model or its registration moved under it: a program on
+/// another model than its order names on the registry's provider now, or on an address its registration no longer holds, is taken down so the
 /// next turn stands the pin's own (docs/companions.md, 「The program on an ended session」). A program on
 /// the pin's model and an address it holds is left as it stands.
 pub async fn release_stale_companion(ground: &Ground, agent: &str) {
@@ -449,16 +445,11 @@ pub async fn release_stale_companion(ground: &Ground, agent: &str) {
   else {
     return;
   };
-  let pin: Option<String> = one(
-    &ground.db,
-    r#"SELECT "pinned_model" FROM "agents" WHERE "name" = $1 AND "pinned_provider" = 'registered'"#,
-    vec![agent.into()],
-  )
-  .await
-  .ok()
-  .flatten()
-  .and_then(|row| row.try_get::<Option<String>>("", "pinned_model").ok().flatten())
-  .filter(|pin| !pin.trim().is_empty());
+  let pin: Option<String> = crate::order::supervisor_entry(&ground.db, agent, "registered")
+    .await
+    .ok()
+    .map(|entry| entry.model)
+    .filter(|pin| !pin.trim().is_empty());
   let Some(pin) = pin else { return };
   let (name, node) =
     model.split_once('@').map_or((model.as_str(), None), |(name, node)| (name, Some(node)));
@@ -477,8 +468,7 @@ pub async fn release_stale_companion(ground: &Ground, agent: &str) {
 /// Every companion's standing program checked against its pin, as a pin or a registration changes: one on
 /// another model, or on an address its registration lost, is let go.
 pub async fn release_stale_companions(ground: &Ground) {
-  let Ok(rows) = all(&ground.db, r#"SELECT "name" FROM "agents" WHERE "kind" = 'chat'"#, vec![]).await
-  else {
+  let Ok(rows) = all(&ground.db, r#"SELECT "name" FROM "supervisors""#, vec![]).await else {
     return;
   };
 

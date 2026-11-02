@@ -124,12 +124,7 @@ impl Bench {
   }
 
   async fn walk(&self) -> Vec<String> {
-    walk_for(self.judging(), "bmo")
-      .await
-      .unwrap()
-      .into_iter()
-      .map(|account| account.id)
-      .collect()
+    walk_for(self.judging()).await.unwrap().into_iter().map(|account| account.id).collect()
   }
 }
 

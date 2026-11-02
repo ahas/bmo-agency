@@ -325,7 +325,7 @@ pub async fn move_checkout(ground: &Ground, worker: &str, from: &str, to: &str) 
 
   match run(
     &ground.db,
-    r#"UPDATE "agents" SET "cwd" = $1 WHERE "name" = $2"#,
+    r#"UPDATE "repositories" SET "path" = $1 WHERE "name" = $2"#,
     vec![to.into(), worker.into()],
   )
   .await

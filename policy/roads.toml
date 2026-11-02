@@ -1,18 +1,21 @@
-# The words of the one road resolution (docs/cache-fallback.md, 「One road resolution」): why a provider
+# The words of the one road resolution (docs/provider-order.md, 「Choosing the provider」): why a provider
 # cannot answer now, why a login of it cannot, the sentence a closed road is refused or held with, the line
 # a job launched again on the next road is opened with and its report's account of where it ran, and how
 # often a job waiting for a road asks again. A provider's own words, the place its balance is topped up
 # among them, stand in that provider's file.
 
 [reasons]
-# A provider the owner turned off, as a pinned key that heads its walk with it is told.
+# A provider the owner turned off.
 off = "the owner turned it off"
 # A provider that offers a balance, its last reading at or below zero.
 balance = "its balance is spent ({amount} {currency} left)"
-# A provider that holds logins, none of the logins the key may go out on open; each login's own reason
+# A provider whose quota left stands at or below the row's share (docs/provider-order.md, 「Quota: what a
+# provider has left」).
+quota = "{left} of its quota is left, at or below the share of {share}"
+# A provider that holds logins, none of the logins the run may go out on open; each login's own reason
 # follows it.
 no_login = "no login of it is open"
-# A provider on the road a caller named whose program does not carry the key's line.
+# A provider on the road a caller named whose program does not carry the row's line.
 uncarried = "its program does not carry the {line} line"
 # A provider on the road a caller named that does not list the model named.
 unlisted = "it lists no model {model}"
@@ -35,7 +38,7 @@ named = "Nothing can carry the work on the road it was asked on."
 provider = "{provider}: {reason}"
 reopens = "The first road reopens on its own at {at}."
 person = "To reopen {provider} now: {command}"
-# The providers on whose program a key's line cannot go out, where some are: the line and what it needs.
+# The providers on whose program a row's line cannot go out, where some are: the line and what it needs.
 uncarried = "{providers}: no program of theirs carries the {line} line, which needs {needs}."
 
 [job]

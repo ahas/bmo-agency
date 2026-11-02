@@ -5,10 +5,10 @@
 use std::collections::{BTreeMap, HashMap};
 use std::path::PathBuf;
 
+use crate::support::grounds::{OrderEntry, set_provider_order};
 use agency_server::Service;
 use agency_server::config::Config;
 use agency_server::control::claude_accounts::{Account, Credential, EndpointModels};
-use agency_server::control::harness::{OrderEntry, set_provider_order};
 use agency_server::lines::Trees;
 use agency_server::lines::claude::{
   COMPACT_SHARE, Command, Runs, command_env, line_environment, worker_args,
@@ -387,10 +387,7 @@ async fn a_worker_s_claude_run_goes_out_on_the_model_its_pin_names() {
 
   let trees = Trees::of(&ground);
   let machine = ground.machine();
-  let mapped =
-    agency_server::control::tiers::resolve_execution(scratch.db(), "job-worker", "claude-code", None)
-      .await
-      .unwrap();
+  let mapped = agency_server::order::role_entry(scratch.db(), "worker", "claude-code").await.unwrap();
 
   assert_ne!(mapped.model, "claude-fable-5-1");
 
@@ -403,7 +400,6 @@ async fn a_worker_s_claude_run_goes_out_on_the_model_its_pin_names() {
     let laid = configured_pinned(&ground, &machine, run, worker, "claude-code").await.unwrap();
 
     assert_eq!(laid.model, model, "{worker}");
-    assert_eq!(laid.tier.as_deref(), Some(mapped.tier.as_str()), "{worker}");
   }
 
   set_provider_order(scratch.db(), &on(false)).await.unwrap();

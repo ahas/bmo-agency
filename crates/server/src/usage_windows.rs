@@ -134,7 +134,7 @@ pub async fn renew_login(ground: &Ground, id: &str) -> Result<(), String> {
 
   let apart = Apart {
     agent: RENEWAL,
-    role: Some(ROLES.renewal.as_str()),
+    role: ROLES.renewal.as_str(),
     line: RENEWAL,
     provider: crate::lines::runner::PROVIDER,
     title: format!("{RENEWAL} · {id} · {}", usage.renewal_model),
@@ -145,10 +145,9 @@ pub async fn renew_login(ground: &Ground, id: &str) -> Result<(), String> {
     },
     session,
     prompt: usage.renewal_words.clone(),
-    work_key: RENEWAL.to_owned(),
     model: usage.renewal_model.clone(),
     effort: usage.renewal_effort.clone(),
-    tier: None,
+    account: None,
     parent: None,
     root: None,
   };

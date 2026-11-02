@@ -14,7 +14,6 @@ use axum::response::Response;
 use harness_providers::{codex, openrouter};
 use serde_json::json;
 
-use super::model_tiers::listing_refusal;
 use super::{Call, Refused, Route, answer};
 
 /// The models the installed Codex executable offers, with the reasoning levels each accepts.
@@ -45,4 +44,12 @@ impl Route for OpenRouterModels {
       Err(error) => Err(Refused::new(StatusCode::BAD_GATEWAY, listing_refusal("OpenRouter", &error))),
     }
   }
+}
+
+/// The sentence a provider's model listing that could not be read is refused with.
+pub fn listing_refusal(provider: &str, error: &str) -> String {
+  policy::fill_marks(
+    &policy::control_words::CONTROL_WORDS.fallback.models_unread,
+    &[("provider", provider), ("why", error)],
+  )
 }

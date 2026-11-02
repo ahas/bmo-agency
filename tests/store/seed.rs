@@ -1,34 +1,24 @@
 //! The seeds a store is given as it is settled (docs/store.md, 「Its seeds」): each written once, and a
 //! row the owner removed left removed.
 
-use store::seed::{
-  AccountSeed, BasePromptSeed, CatalogueSeed, CoworkerTier, FoldRatioSeed, LaterSeed, RoleSeed, Seeds,
-  TierMapping, TierPlan, WorkKey, settle,
-};
+use store::seed::{AccountSeed, BasePromptSeed, CatalogueSeed, RoleSeed, Seeds, settle};
 
 use crate::support::scratch::Scratch;
 
-fn mapping(
-  provider: &str,
-  tier: &str,
-  model: &str,
-  effort: Option<&str>,
-  answer_tokens: Option<i64>,
-) -> TierMapping {
-  TierMapping {
-    provider: provider.into(),
-    tier: tier.into(),
-    model: model.into(),
-    thinking: None,
-    effort: effort.map(Into::into),
-    answer_tokens,
-  }
-}
-
-fn key(key: &str, tier: &str) -> WorkKey {
-  WorkKey {
-    key: key.into(),
-    tier: tier.into(),
+fn role(name: &str, cap: i64, sessions: &str, prompt: Option<&str>) -> RoleSeed {
+  RoleSeed {
+    name: name.into(),
+    label: name.to_uppercase(),
+    bundles: vec!["room.send".into()],
+    line: "worker".into(),
+    order: r#"[{"provider":"deepseek","model":"deepseek-flash"}]"#.into(),
+    quota_share: 0.01,
+    max_concurrent: cap,
+    prompt: prompt.map(str::to_owned),
+    description: Some(format!("What {name} is for.")),
+    sessions: sessions.into(),
+    fold_ratio: 0.5,
+    callable: name == "maker",
   }
 }
 
@@ -40,30 +30,6 @@ fn seeds() -> Seeds {
       credential_kind: "directory".into(),
       credential_path: "$HOME/.claude".into(),
     }),
-    tiers: TierPlan {
-      ladder: vec!["Top".into(), "Low".into()],
-      mappings: vec![
-        mapping("first", "Top", "first-large", Some("high"), None),
-        mapping("first", "Low", "first-small", None, None),
-        mapping("engine", "Top", "engine-old", Some("thinking"), Some(4096)),
-      ],
-      keys: vec![key("chat", "Top"), key("gate", "Low")],
-      later: vec![],
-      coworker: vec![CoworkerTier {
-        tier: "Low".into(),
-        capacity: 12,
-      }],
-    },
-    fold_ratios: vec![
-      FoldRatioSeed {
-        provider: "first".into(),
-        ratio: 0.85,
-      },
-      FoldRatioSeed {
-        provider: "engine".into(),
-        ratio: 0.5,
-      },
-    ],
     catalogue: vec![CatalogueSeed {
       name: "entry".into(),
       label: "Entry".into(),
@@ -94,175 +60,36 @@ fn seeds() -> Seeds {
         agents: vec![],
       },
     ],
-    roles: vec![
-      RoleSeed {
-        name: "talker".into(),
-        label: "Talker".into(),
-        bundles: vec!["room.send".into()],
-        max_concurrent: Some(3),
-        prompt: None,
-        sessions: "keep".into(),
-      },
-      RoleSeed {
-        name: "maker".into(),
-        label: "Maker".into(),
-        bundles: vec![],
-        max_concurrent: None,
-        prompt: Some("Make things.".into()),
-        sessions: "fresh".into(),
-      },
-    ],
+    roles: vec![role("talker", 3, "keep", None), role("maker", 0, "fresh", Some("Make things."))],
   }
 }
 
-// A role's label, bundles, bound and prompt as the store holds it, with its place in the listing.
-async fn role(scratch: &Scratch, name: &str) -> Option<(String, String, Option<i64>, Option<String>, i64)> {
-  store::one(
-    scratch.db(),
-    r#"SELECT "label", "bundles", "max_concurrent", "prompt", "position" FROM "agent_roles" WHERE "name" = $1"#,
-    vec![name.into()],
-  )
-  .await
-  .unwrap()
-  .map(|row| {
-    (
-      row.try_get("", "label").unwrap(),
-      row.try_get("", "bundles").unwrap(),
-      row.try_get("", "max_concurrent").unwrap(),
-      row.try_get("", "prompt").unwrap(),
-      row.try_get("", "position").unwrap(),
-    )
-  })
+async fn role_row(scratch: &Scratch, name: &str) -> Option<sea_orm::QueryResult> {
+  store::one(scratch.db(), r#"SELECT * FROM "roles" WHERE "name" = $1"#, vec![name.into()])
+    .await
+    .unwrap()
 }
 
 #[tokio::test]
-async fn the_roles_are_given_once_and_a_row_the_store_holds_wins_over_the_seed() {
+async fn a_role_is_given_once_with_its_order_cap_line_threshold_and_callable_mark() {
   let scratch = Scratch::blank().await;
 
   settle(scratch.db(), &seeds()).await.unwrap();
 
-  assert_eq!(
-    role(&scratch, "talker").await,
-    Some(("Talker".into(), r#"["room.send"]"#.into(), Some(3), None, 0))
-  );
-  assert_eq!(
-    role(&scratch, "maker").await,
-    Some(("Maker".into(), "[]".into(), None, Some("Make things.".into()), 1))
-  );
+  let talker = role_row(&scratch, "talker").await.unwrap();
+  let maker = role_row(&scratch, "maker").await.unwrap();
 
-  // The owner's change stands, and a role the owner removed stays removed.
-  scratch
-    .run(
-      r#"UPDATE "agent_roles" SET "label" = 'Speaker', "max_concurrent" = 1 WHERE "name" = 'talker'"#,
-      vec![],
-    )
-    .await;
-  scratch.run(r#"DELETE FROM "agent_roles" WHERE "name" = 'maker'"#, vec![]).await;
-
-  let mut later = seeds();
-  later.roles[0].label = "Changed in the policy".into();
-  later.roles.push(RoleSeed {
-    name: "late".into(),
-    label: "Late".into(),
-    bundles: vec![],
-    max_concurrent: None,
-    prompt: None,
-    sessions: "keep".into(),
-  });
-  settle(scratch.db(), &later).await.unwrap();
-
-  assert_eq!(
-    role(&scratch, "talker").await.map(|(label, _, bound, ..)| (label, bound)),
-    Some(("Speaker".into(), Some(1)))
-  );
-  assert_eq!(role(&scratch, "maker").await, None);
-  assert_eq!(role(&scratch, "late").await.map(|(label, ..)| label), Some("Late".into()));
-}
-
-async fn sessions(scratch: &Scratch, name: &str) -> Option<String> {
-  store::one(
-    scratch.db(),
-    r#"SELECT "sessions" FROM "agent_roles" WHERE "name" = $1"#,
-    vec![name.into()],
-  )
-  .await
-  .unwrap()
-  .map(|row| row.try_get("", "sessions").unwrap())
-}
-
-#[tokio::test]
-async fn a_role_is_seeded_with_whether_its_runs_keep_their_sessions() {
-  let scratch = Scratch::blank().await;
-
-  settle(scratch.db(), &seeds()).await.unwrap();
-
-  assert_eq!(sessions(&scratch, "talker").await.as_deref(), Some("keep"));
-  assert_eq!(sessions(&scratch, "maker").await.as_deref(), Some("fresh"));
-}
-
-async fn assignment(scratch: &Scratch, key: &str) -> Option<String> {
-  store::one(
-    scratch.db(),
-    r#"SELECT "tier" FROM "model_tier_assignments" WHERE "key" = $1"#,
-    vec![key.into()],
-  )
-  .await
-  .unwrap()
-  .map(|row| row.try_get::<String>("", "tier").unwrap())
-}
-
-async fn mapped(
-  scratch: &Scratch,
-  provider: &str,
-  tier: &str,
-) -> Option<(String, Option<String>, Option<i64>)> {
-  store::one(
-    scratch.db(),
-    r#"SELECT "model", "effort", "answer_tokens" FROM "model_tier_mappings" WHERE "provider" = $1 AND "tier" = $2"#,
-    vec![provider.into(), tier.into()],
-  )
-  .await
-  .unwrap()
-  .map(|row| {
-    (
-      row.try_get::<String>("", "model").unwrap(),
-      row.try_get::<Option<String>>("", "effort").unwrap(),
-      row.try_get::<Option<i64>>("", "answer_tokens").unwrap(),
-    )
-  })
-}
-
-#[tokio::test]
-async fn a_fresh_store_is_given_every_seed() {
-  let scratch = Scratch::blank().await;
-
-  settle(scratch.db(), &seeds()).await.unwrap();
-
-  assert_eq!(
-    scratch
-      .count(
-        r#"SELECT COUNT(*) FROM "claude_accounts" WHERE "id" = 'default' AND "place" = 1"#,
-        vec![]
-      )
-      .await,
-    1
-  );
-  assert_eq!(
-    scratch
-      .count(
-        r#"SELECT COUNT(*) FROM "model_catalogue" WHERE "name" = 'entry' AND "nodes" = '[]'"#,
-        vec![]
-      )
-      .await,
-    1
-  );
-  assert_eq!(scratch.count(r#"SELECT COUNT(*) FROM "model_tier_meta""#, vec![]).await, 4);
-  assert_eq!(
-    mapped(&scratch, "first", "Top").await,
-    Some(("first-large".into(), Some("high".into()), None))
-  );
-  assert_eq!(assignment(&scratch, "chat").await.as_deref(), Some("Top"));
-  assert_eq!(assignment(&scratch, "gate").await.as_deref(), Some("Low"));
+  assert_eq!(talker.try_get::<i64>("", "max_concurrent").unwrap(), 3);
+  assert_eq!(talker.try_get::<String>("", "line").unwrap(), "worker");
+  assert_eq!(talker.try_get::<String>("", "sessions").unwrap(), "keep");
+  assert_eq!(talker.try_get::<f64>("", "fold_ratio").unwrap(), 0.5);
+  assert!(talker.try_get::<String>("", "provider_order").unwrap().contains("deepseek-flash"));
+  assert_eq!(talker.try_get::<i64>("", "callable").unwrap(), 0);
+  assert_eq!(maker.try_get::<i64>("", "max_concurrent").unwrap(), 0, "a cap of zero closes a role");
+  assert_eq!(maker.try_get::<Option<String>>("", "prompt").unwrap().as_deref(), Some("Make things."));
+  assert_eq!(maker.try_get::<i64>("", "callable").unwrap(), 1);
+  assert_eq!(talker.try_get::<i64>("", "position").unwrap(), 0);
+  assert_eq!(maker.try_get::<i64>("", "position").unwrap(), 1);
 }
 
 #[tokio::test]
@@ -270,89 +97,21 @@ async fn what_the_owner_removed_stays_removed_and_what_the_owner_set_stands() {
   let scratch = Scratch::blank().await;
 
   settle(scratch.db(), &seeds()).await.unwrap();
-  scratch.run(r#"DELETE FROM "model_catalogue""#, vec![]).await;
-  scratch.run(r#"DELETE FROM "claude_accounts""#, vec![]).await;
   scratch
-    .run(
-      r#"INSERT INTO "claude_accounts" ("id", "name", "place", "credential_kind", "credential_path", "added_at")
-         VALUES ('mine', 'Mine', 1, 'directory', '/elsewhere', 1)"#,
-      vec![],
-    )
+    .run(r#"UPDATE "roles" SET "max_concurrent" = 9 WHERE "name" = 'talker'"#, vec![])
     .await;
-  scratch
-    .run(
-      r#"DELETE FROM "model_tier_mappings" WHERE "provider" = 'first' AND "tier" = 'Low'"#,
-      vec![],
-    )
-    .await;
-  scratch
-    .run(r#"DELETE FROM "model_tier_assignments" WHERE "key" = 'gate'"#, vec![])
-    .await;
-  scratch
-    .run(r#"UPDATE "model_tier_assignments" SET "tier" = 'Low' WHERE "key" = 'chat'"#, vec![])
-    .await;
-
+  scratch.run(r#"DELETE FROM "roles" WHERE "name" = 'maker'"#, vec![]).await;
   settle(scratch.db(), &seeds()).await.unwrap();
 
-  assert_eq!(scratch.count(r#"SELECT COUNT(*) FROM "model_catalogue""#, vec![]).await, 0);
-  assert_eq!(scratch.count(r#"SELECT COUNT(*) FROM "claude_accounts""#, vec![]).await, 1);
   assert_eq!(
-    scratch
-      .count(r#"SELECT COUNT(*) FROM "claude_accounts" WHERE "id" = 'mine'"#, vec![])
-      .await,
-    1
+    role_row(&scratch, "talker")
+      .await
+      .unwrap()
+      .try_get::<i64>("", "max_concurrent")
+      .unwrap(),
+    9
   );
-  assert_eq!(mapped(&scratch, "first", "Low").await, None);
-  assert_eq!(assignment(&scratch, "gate").await, None);
-  assert_eq!(assignment(&scratch, "chat").await.as_deref(), Some("Low"));
-}
-
-async fn fold_ratio(scratch: &Scratch, provider: &str, tier: &str) -> Option<f64> {
-  store::one(
-    scratch.db(),
-    r#"SELECT "ratio" FROM "fold_ratios" WHERE "provider" = $1 AND "tier" = $2"#,
-    vec![provider.into(), tier.into()],
-  )
-  .await
-  .unwrap()
-  .map(|row| row.try_get::<f64>("", "ratio").unwrap())
-}
-
-#[tokio::test]
-async fn every_provider_is_given_its_fold_ratio_at_every_tier_once() {
-  let scratch = Scratch::blank().await;
-
-  settle(scratch.db(), &seeds()).await.unwrap();
-
-  for tier in ["Top", "Low"] {
-    assert_eq!(fold_ratio(&scratch, "first", tier).await, Some(0.85));
-    assert_eq!(fold_ratio(&scratch, "engine", tier).await, Some(0.5));
-  }
-
-  scratch
-    .run(
-      r#"UPDATE "fold_ratios" SET "ratio" = 0.7 WHERE "provider" = 'first' AND "tier" = 'Top'"#,
-      vec![],
-    )
-    .await;
-  scratch
-    .run(r#"DELETE FROM "fold_ratios" WHERE "provider" = 'engine' AND "tier" = 'Low'"#, vec![])
-    .await;
-
-  let mut later = seeds();
-  later.fold_ratios.push(FoldRatioSeed {
-    provider: "late".into(),
-    ratio: 0.6,
-  });
-  settle(scratch.db(), &later).await.unwrap();
-
-  assert_eq!(fold_ratio(&scratch, "first", "Top").await, Some(0.7), "what the owner set stands");
-  assert_eq!(fold_ratio(&scratch, "engine", "Low").await, None, "a provider is seeded once");
-  assert_eq!(
-    fold_ratio(&scratch, "late", "Low").await,
-    Some(0.6),
-    "a provider declared later is seeded"
-  );
+  assert!(role_row(&scratch, "maker").await.is_none(), "a role the owner removed stays removed");
 }
 
 #[tokio::test]
@@ -368,89 +127,6 @@ async fn a_store_holding_no_account_is_given_the_seed_again() {
       .count(r#"SELECT COUNT(*) FROM "claude_accounts" WHERE "id" = 'default'"#, vec![])
       .await,
     1
-  );
-}
-
-#[tokio::test]
-async fn a_key_declared_later_is_given_its_tier_once() {
-  let scratch = Scratch::blank().await;
-
-  settle(scratch.db(), &seeds()).await.unwrap();
-
-  let mut later = seeds();
-  later.tiers.keys.push(key("viewer", "Low"));
-  settle(scratch.db(), &later).await.unwrap();
-  assert_eq!(assignment(&scratch, "viewer").await.as_deref(), Some("Low"));
-
-  scratch
-    .run(r#"DELETE FROM "model_tier_assignments" WHERE "key" = 'viewer'"#, vec![])
-    .await;
-  settle(scratch.db(), &later).await.unwrap();
-  assert_eq!(assignment(&scratch, "viewer").await, None);
-}
-
-#[tokio::test]
-async fn a_provider_declared_later_maps_the_tiers_it_names_once() {
-  let scratch = Scratch::blank().await;
-
-  settle(scratch.db(), &seeds()).await.unwrap();
-
-  let mut later = seeds();
-  later.tiers.later.push(LaterSeed {
-    provider: "registry".into(),
-    mappings: vec![
-      mapping("registry", "Top", "registered", Some("thinking"), Some(4096)),
-      mapping("registry", "Low", "registered", Some("no-thinking"), None),
-    ],
-  });
-  settle(scratch.db(), &later).await.unwrap();
-
-  assert_eq!(
-    mapped(&scratch, "registry", "Top").await,
-    Some(("registered".into(), Some("thinking".into()), Some(4096)))
-  );
-  assert_eq!(
-    mapped(&scratch, "registry", "Low").await,
-    Some(("registered".into(), Some("no-thinking".into()), None))
-  );
-  // The co-worker pool's starting place at the tiers a co-worker is borrowed at.
-  assert_eq!(
-    scratch
-      .count(
-        r#"SELECT "capacity" FROM "coworker_pool_tier_limits" WHERE "provider" = 'registry' AND "tier" = 'Low'"#,
-        vec![]
-      )
-      .await,
-    12
-  );
-
-  scratch
-    .run(
-      r#"DELETE FROM "model_tier_mappings" WHERE "provider" = 'registry' AND "tier" = 'Low'"#,
-      vec![],
-    )
-    .await;
-  settle(scratch.db(), &later).await.unwrap();
-  assert_eq!(mapped(&scratch, "registry", "Low").await, None);
-}
-
-#[tokio::test]
-async fn a_plan_naming_a_tier_off_its_ladder_is_refused_before_anything_is_written() {
-  let scratch = Scratch::blank().await;
-  let mut wrong = seeds();
-
-  wrong.tiers.keys.push(key("stray", "Middle"));
-
-  let refused = settle(scratch.db(), &wrong).await.unwrap_err();
-  assert!(refused.detail.contains("Middle"), "{refused}");
-  assert_eq!(
-    scratch
-      .count(
-        "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = current_schema()",
-        vec![]
-      )
-      .await,
-    0
   );
 }
 

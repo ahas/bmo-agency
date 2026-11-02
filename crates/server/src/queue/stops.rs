@@ -23,7 +23,6 @@ use store::one;
 
 use super::running::{EXECUTION_CANCEL_PREFIX, Running};
 use super::{cancels, settings};
-use crate::control::pool;
 use crate::places::Ground;
 use crate::{Refusal, now_ms};
 
@@ -448,9 +447,7 @@ impl Stops {
 
     for run in runs {
       if let Some(request) = &run.pool_request {
-        pool::give_back(&self.db, request, why, true, now_ms())
-          .await
-          .map_err(|refused| refused.error)?;
+        crate::order_run::dispatch::finish(&self.db, request, why, true).await?;
       }
     }
 

@@ -4,12 +4,12 @@ mod pin_model;
 
 mod agent_roles;
 mod apart_session;
-mod apart_sessions;
 mod cards;
 mod chat_runs;
 mod chat_stand_in;
 mod clock;
 mod conversation_session;
+mod role_sessions;
 mod command_reading {
   mod reading;
   mod records;
@@ -26,10 +26,7 @@ mod companion {
 mod config;
 mod control {
   mod account_routes;
-  mod agent_model;
   mod agent_roles;
-  mod agent_roster;
-  mod agents;
   mod base_prompts;
   mod brain_reads;
   mod chat_documents;
@@ -43,7 +40,6 @@ mod control {
   mod events_publish;
   mod executions;
   mod fallback;
-  mod fold_ratios;
   mod front;
   mod gate_kinds;
   mod harness;
@@ -56,28 +52,16 @@ mod control {
   mod job_stops;
   mod jobs;
   mod mcp;
-  mod model_tiers;
   mod models;
   mod own_llm;
   mod pane_death;
-  mod pool_board;
-  mod pool_bound;
-  mod pool_line;
-  mod pool_reads;
-  mod pool_sessions;
-  mod pool_sources;
   mod registry;
   mod resources;
-  mod roads;
   mod room_session_reads;
-  mod route_registration;
   mod run_launch;
   mod session_ops;
   mod sessions;
   mod stand_in_route;
-  mod tiers;
-  mod walk_reads;
-  mod worker_api;
   mod worker_runtime;
 }
 mod conversational;
@@ -119,15 +103,8 @@ mod job_run {
 }
 mod keepalive {
   mod logins;
-  mod pool {
-    mod branch;
-    mod margin;
-    mod schedule;
-  }
-  mod switch;
 }
 mod order_run {
-  mod dispatch;
   mod places;
 }
 mod peers;
@@ -171,13 +148,13 @@ mod queue {
   mod reconcile;
   mod routes;
   mod settings;
-  mod worker_rules;
   mod workers;
 }
 mod readiness;
 mod relay;
 mod rest;
 mod road;
+mod role_slots;
 mod rooms;
 mod run_clock;
 mod run_list;
@@ -201,7 +178,6 @@ mod run_log {
 }
 
 mod verbs {
-  mod agents;
   mod claude_batch;
   mod reload;
 }

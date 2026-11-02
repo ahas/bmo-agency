@@ -102,6 +102,8 @@ pub struct Roles {
   pub delegate: String,
   /// The role agency's own runs hold that stand for no one's work.
   pub renewal: String,
+  /// The role a translation agency is asked for runs as.
+  pub translate: String,
   /// The bundle that opens sending into a room.
   pub send: String,
   /// The bundles every supervisor's session record holds.

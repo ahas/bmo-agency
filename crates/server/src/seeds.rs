@@ -118,7 +118,8 @@ struct Definition {
 // A role's prompt and description: the prompt file's text, or a co-worker definition's body and its front
 // matter's description.
 fn role_texts(code: &Path, role: &Role) -> Result<(Option<String>, Option<String>), String> {
-  let read = |file: &Path| std::fs::read_to_string(file).map_err(|why| format!("{}: {why}", file.display()));
+  let read =
+    |file: &Path| std::fs::read_to_string(file).map_err(|why| format!("{}: {why}", file.display()));
 
   if let Some(file) = &role.prompt {
     return Ok((Some(read(&code.join("prompts").join("roles").join(file))?), None));

@@ -103,11 +103,8 @@ impl Sweep {
 // Every workbench no agent's row names that holds nothing; one that still holds anything stays, since what is
 // inside is not agency's to judge.
 async fn empty_benches(ground: &Ground, benches: &Path) -> Result<Vec<String>, Refusal> {
-  let agents: BTreeSet<String> = all(&ground.db, r#"SELECT "name" FROM "agents""#, vec![])
-    .await?
-    .iter()
-    .filter_map(|row| row.try_get::<String>("", "name").ok())
-    .collect();
+  let agents: BTreeSet<String> =
+    crate::queue::workers::taken_names(&ground.db).await?.into_iter().collect();
   let mut removed = vec![];
 
   for bench in names(benches).into_iter().filter(|bench| !agents.contains(bench)) {
