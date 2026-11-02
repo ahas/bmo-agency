@@ -46,9 +46,6 @@ let missedSaid = false;
 // The port agency's server listens on where nothing names one.
 const defaultControlPort = 3220;
 
-// Long enough for a server that is up to answer, short enough that a dead one holds nothing for long.
-const relayWaitMs = 2_000;
-
 // The token the file a `_FILE` variable names holds, or none where nothing is named or the file does not read.
 function tokenFromFile(path: string | null): string | null {
   if (path === null) {
@@ -89,14 +86,14 @@ export function controlServer(): { port: number; token: string } | null {
   return token === null || !Number.isInteger(port) ? null : { port, token };
 }
 
-// One event posted to agency's server, which publishes it on its streams; a word that did not land is said
-// once on the error stream.
+// One event posted to agency's server, which publishes it on its streams, waiting for the server's answer: its
+// end is that answer, or the connection refused or broken. A word that did not land is said once on the
+// error stream.
 async function relayed(server: { port: number; token: string }, name: AgencyEventName, body: AgencyEvent["body"]): Promise<void> {
   try {
     const client = agencyClient(`http://127.0.0.1:${server.port}`, server.token);
     const { response } = await client.POST("/events", {
       body: { kind: name, data: body },
-      signal: AbortSignal.timeout(relayWaitMs),
     });
 
     if (!response.ok) throw new Error(`the server answered ${response.status}`);

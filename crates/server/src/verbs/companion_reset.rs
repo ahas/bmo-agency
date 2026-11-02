@@ -2,17 +2,12 @@
 //! (docs/companions.md, 「Starting it afresh」). The reset is the server's route, so this verb only asks it
 //! and prints what it answered: a dry run counts what would go and writes nothing.
 
-use std::time::Duration;
-
 use clap::Parser;
 use policy::fill_marks;
 use policy::verb_words::VERB_WORDS;
 use serde_json::{Value, json};
 
 use super::{Answer, CONTROL_TOKEN, VerbError, control_call, control_port, control_token};
-
-// How long a reset is waited on: it may stop a writer's run and walk every record the companion kept.
-const RESET_WAIT: Duration = Duration::from_secs(300);
 
 /// What `bmo-agency companion reset` is asked.
 #[derive(Parser, Debug, Default)]
@@ -166,15 +161,16 @@ pub async fn reset(args: ResetArgs) -> Result<Answer, VerbError> {
     "dryRun": args.dry_run,
     "by": "shell",
   });
-  let (status, answer) =
-    control_call(&token, reqwest::Method::POST, "/companion-resets", Some(&body), RESET_WAIT)
-      .await
-      .map_err(|why| {
-        VerbError::Refused(fill_marks(
-          &words.unanswered,
-          &[("port", &control_port().to_string()), ("why", &why.to_string())],
-        ))
-      })?;
+  // The reset is waited on however long it takes: it may stop a writer's run and walk every record the
+  // companion kept.
+  let (status, answer) = control_call(&token, reqwest::Method::POST, "/companion-resets", Some(&body))
+    .await
+    .map_err(|why| {
+      VerbError::Refused(fill_marks(
+        &words.unanswered,
+        &[("port", &control_port().to_string()), ("why", &why.to_string())],
+      ))
+    })?;
   let answer = answer.unwrap_or(Value::Null);
 
   if !(200..300).contains(&status) || answer.get("agent").is_none() {

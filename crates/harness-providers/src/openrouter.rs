@@ -4,7 +4,6 @@
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
-use std::time::Duration;
 
 use policy::providers::Declared;
 use policy::providers::openrouter::OPENROUTER;
@@ -211,11 +210,7 @@ fn listing(machine: &Machine) -> &str {
 
 /// Every model OpenRouter offers, for a screen to choose a stand-in from.
 pub async fn models(machine: &Machine) -> Result<Vec<Model>, String> {
-  let client = reqwest::Client::builder()
-    .timeout(Duration::from_secs(OPENROUTER.catalogue.seconds))
-    .build()
-    .map_err(|error| format!("openrouter models: {error}"))?;
-  let response = client
+  let response = reqwest::Client::new()
     .get(listing(machine))
     .header(reqwest::header::ACCEPT, "application/json")
     .send()

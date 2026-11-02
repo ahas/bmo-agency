@@ -142,7 +142,10 @@ export function aliveOnNode(place: string, process: PlaceProcess, now: number = 
   return (told.alive ?? []).some((one) => one.pid === process.pid && (process.birth === null || one.birth === process.birth));
 }
 
-/** A signal for a process of a place on a node, carried by its link; whether the link took it. */
+/**
+ * A signal for a process of a place on a node, carried by its link; whether the link took it, as the link
+ * answers it or its socket closes or fails.
+ */
 export async function signalOnNode(node: string, process: PlaceProcess, signal: number = 15, root: string = dataRoot()): Promise<boolean> {
   const socket = join(nodeDir(node, root), "control.sock");
 
@@ -151,17 +154,12 @@ export async function signalOnNode(node: string, process: PlaceProcess, signal: 
   return await new Promise<boolean>((resolve) => {
     const client = connect(socket);
     let answer = "";
-    const timer = setTimeout(() => {
-      client.destroy();
-      resolve(false);
-    }, 5_000);
 
     client.on("connect", () => client.write(`${JSON.stringify({ signal: { pid: process.pid, birth: process.birth, signal } })}\n`));
     client.on("data", (chunk) => {
       answer += chunk.toString("utf8");
     });
     client.on("end", () => {
-      clearTimeout(timer);
 
       try {
         resolve((JSON.parse(answer) as { ok?: boolean }).ok === true);
@@ -170,7 +168,6 @@ export async function signalOnNode(node: string, process: PlaceProcess, signal: 
       }
     });
     client.on("error", () => {
-      clearTimeout(timer);
       resolve(false);
     });
   });

@@ -961,7 +961,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Stop a job, by its id or by its item, for the turn an agent is carrying now, only where every message of that turn is the owner's: its turn cut short first, and the job answered once that turn has ended. */
+        /** Stop a job, by its id or by its item, for the turn an agent is carrying now, only where every message of that turn is the owner's: its turn asked to end first, and the job answered once that turn has ended, however long that takes. */
         post: operations["createJobStops"];
         delete?: never;
         options?: never;
@@ -1421,7 +1421,7 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** End a job with its outcome, or stop it, its turn cut short first and the job answered once that turn has ended; its assignment is released, and the harness gives the lease back or closes the item in the job service. */
+        /** End a job with its outcome, or stop it, its turn asked to end first and the job answered once that turn has ended, however long that takes; its assignment is released, and the harness gives the lease back or closes the item in the job service. */
         patch: operations["changeJobsByJobId"];
         trace?: never;
     };
@@ -3734,15 +3734,6 @@ export interface components {
         };
         /** @description seeded */
         Seeded: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["Error"];
-            };
-        };
-        /** @description stop-pending */
-        StopPending: {
             headers: {
                 [name: string]: unknown;
             };

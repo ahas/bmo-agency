@@ -3,15 +3,11 @@
 //! the first that answers with an object.
 
 use std::path::Path;
-use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::keys;
-
-// How long one address's health is waited for before the next is asked.
-const WAIT: Duration = Duration::from_secs(3);
 
 // The largest integer a double holds exactly, which JavaScript calls a safe integer.
 const SAFE_MOST: i64 = (1 << 53) - 1;
@@ -90,7 +86,7 @@ fn health_url(address: &str) -> Option<String> {
 /// The health of the engine behind a registration's addresses, or none where no address with a
 /// readable key answers with one — a registration served by another operator's front gives none.
 pub async fn health(data_root: &Path, addresses: &[Address]) -> Option<EngineHealth> {
-  let client = reqwest::Client::builder().timeout(WAIT).build().ok()?;
+  let client = reqwest::Client::new();
 
   for address in addresses {
     let Some(key) = address.key_file.as_deref().and_then(|file| keys::read(data_root, file)) else {

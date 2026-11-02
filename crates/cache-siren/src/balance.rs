@@ -50,8 +50,6 @@ pub trait BalanceSource: Send + Sync {
   fn cadence(&self) -> Duration;
   /// How long a reading stands after it was seen.
   fn fresh(&self) -> Duration;
-  /// How long an ask may take before it is a failure.
-  fn wait(&self) -> Duration;
   /// The accounts asked on this pass.
   fn asks(&self) -> Asking<'_>;
   /// The balance an answer states, or why it states none.
@@ -68,20 +66,21 @@ pub struct BalanceReader {
 impl BalanceReader {
   pub fn new(source: Arc<dyn BalanceSource>) -> Self {
     Self {
-      http: reqwest::Client::builder().timeout(source.wait()).build().unwrap_or_default(),
+      http: reqwest::Client::new(),
       source,
       said: Said::default(),
     }
   }
 
   async fn ask(&self, url: &str, key: &str) -> Result<Balance, String> {
-    let answer = self.http.get(url).bearer_auth(key).send().await.map_err(|why| {
-      if why.is_timeout() {
-        "the endpoint did not answer in time".to_owned()
-      } else {
-        "the request failed".to_owned()
-      }
-    })?;
+    // The ask waits for its answer; its end is the answer, or the connection refused or broken.
+    let answer = self
+      .http
+      .get(url)
+      .bearer_auth(key)
+      .send()
+      .await
+      .map_err(|_| "the request failed".to_owned())?;
 
     if !answer.status().is_success() {
       return Err(format!("HTTP {}", answer.status().as_u16()));

@@ -10,15 +10,13 @@ pub mod openrouter;
 pub mod registered;
 
 /// How a provider that offers a balance has it read (docs/usage-windows.md, 「Balances」): the address
-/// asked, the variable a stand-in's address is named in, how long an ask may take, how often it is read,
-/// for how many passes a reading stands, the currency its answer counts in where the answer names none, and
+/// asked, the variable a stand-in's address is named in, how often it is read, for how many passes a reading stands, the currency its answer counts in where the answer names none, and
 /// where a person tops a spent balance up.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Balance {
   pub url: String,
   pub url_env: String,
-  pub ask_seconds: u64,
   pub pass_seconds: u64,
   pub fresh_passes: u32,
   #[serde(default)]

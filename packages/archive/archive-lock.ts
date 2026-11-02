@@ -14,17 +14,13 @@ export const walLimitBytes = 32 * 1024 * 1024;
  * How long one attempt waits for whoever holds the write lock. Measured against the live archive
  * with three processes writing agent-log lines flat out: the lock is normally free inside 11 ms,
  * but a burst can hold it for over six seconds, and a five-second budget was exhausted outright in
- * two attempts of forty. Ten seconds covers the worst measured stretch with margin, and it is a
- * ceiling as much as a budget — every writer here is on a thread that draws chats and answers
- * routes, so a wait is that thread held.
+ * two attempts of forty. Ten seconds covers the worst measured stretch with margin. It paces the
+ * attempts rather than ending the work: every writer here is on a thread that draws chats and
+ * answers routes, so one attempt's wait is that thread held, and the work is started over after it
+ * for as long as the lock stays taken.
  */
 export function lockWaitMs(): number {
   return positiveFromEnv(process.env.BMO_ARCHIVE_LOCK_WAIT_MS, 10_000);
-}
-
-/** How long the retries below may go on in total, across every attempt. */
-export function lockBudgetMs(): number {
-  return positiveFromEnv(process.env.BMO_ARCHIVE_LOCK_BUDGET_MS, 20_000);
 }
 
 // The longest one backoff waits, so a retry's own pause never rivals the wait it follows.
@@ -65,7 +61,6 @@ export function shareArchive(db: LockedStore): void {
 }
 
 export interface LockWait {
-  budgetMs?: number;
   backoffMs?: number;
   sleep?: (ms: number) => unknown;
   now?: () => number;
@@ -77,19 +72,17 @@ export interface LockWait {
  * not save the write and nothing at all of the times they did — so a burst that cost the bot
  * twenty seconds and lost nothing reads exactly like an hour of quiet.
  *
- * `met` is the refusals seen, `saved` the pieces of work that a retry carried through, `lost` the
- * ones the budget ran out on, and `waitedMs` the time spent waiting on the lock rather than
- * working.
+ * `met` is the refusals seen, `saved` the pieces of work that a retry carried through, and
+ * `waitedMs` the time spent waiting on the lock rather than working.
  */
 export interface LockTally {
   met: number;
   saved: number;
-  lost: number;
   waitedMs: number;
   longestMs: number;
 }
 
-const tally: LockTally = { met: 0, saved: 0, lost: 0, waitedMs: 0, longestMs: 0 };
+const tally: LockTally = { met: 0, saved: 0, waitedMs: 0, longestMs: 0 };
 
 /** The tally as it stands. */
 export function lockTally(): LockTally {
@@ -102,7 +95,6 @@ export function takeLockTally(): LockTally {
 
   tally.met = 0;
   tally.saved = 0;
-  tally.lost = 0;
   tally.waitedMs = 0;
   tally.longestMs = 0;
 
@@ -114,16 +106,16 @@ export function takeLockTally(): LockTally {
  *
  * The wait above is not always spent. A transaction that reads before it writes cannot wait at
  * all — SQLite refuses it the instant the lock is somebody else's, because a waiter holding a read
- * would only deadlock — so the budget goes unused and the refusal arrives in a millisecond. What
+ * would only deadlock — so the wait goes unused and the refusal arrives in a millisecond. What
  * answers that is starting the work over, which takes a fresh snapshot and a fresh place in the
- * queue; the budget bounds how long that may go on.
+ * queue, for as long as the lock is somebody else's: the work waits for the lock however long
+ * that takes.
  */
 export async function throughLock<T>(work: () => Promise<T>, options: LockWait = {}): Promise<T> {
   const now = options.now ?? Date.now;
   const sleep = options.sleep ?? Bun.sleep;
   const backoff = options.backoffMs ?? 50;
   const started = now();
-  const until = started + (options.budgetMs ?? lockBudgetMs());
   // One write is one thing met, however many of these it passed through on the way: the archive
   // retries a transaction of its own inside the retries a caller asked for, and a tally that counted
   // both would say the lock was met twice where a writer met it once. Which retries are outermost
@@ -146,12 +138,6 @@ export async function throughLock<T>(work: () => Promise<T>, options: LockWait =
 
         if (counting) tally.met += 1;
 
-        if (now() >= until) {
-          if (counting) count("lost", now() - started);
-
-          throw error;
-        }
-
         await sleep(Math.min(backoff * 2 ** attempt, maxBackoffMs));
       }
     }
@@ -162,7 +148,6 @@ export async function throughLock<T>(work: () => Promise<T>, options: LockWait =
 // over a bare connection before anything else touches it, where there is nothing to wait beside.
 function throughLockNow<T>(work: () => T): T {
   const started = Date.now();
-  const until = started + lockBudgetMs();
   let met = false;
 
   for (let attempt = 0; ; attempt += 1) {
@@ -178,12 +163,6 @@ function throughLockNow<T>(work: () => T): T {
       met = true;
       tally.met += 1;
 
-      if (Date.now() >= until) {
-        count("lost", Date.now() - started);
-
-        throw error;
-      }
-
       Bun.sleepSync(Math.min(50 * 2 ** attempt, maxBackoffMs));
     }
   }
@@ -192,7 +171,7 @@ function throughLockNow<T>(work: () => T): T {
 // Set inside a piece of work the retries above already count.
 const retrying = new AsyncLocalStorage<true>();
 
-function count(outcome: "saved" | "lost", waitedMs: number): void {
+function count(outcome: "saved", waitedMs: number): void {
   tally[outcome] += 1;
   tally.waitedMs += waitedMs;
   tally.longestMs = Math.max(tally.longestMs, waitedMs);
@@ -200,19 +179,11 @@ function count(outcome: "saved" | "lost", waitedMs: number): void {
 
 /**
  * The same, for archive work whose loss is not worth what it is part of — a log line, a row that
- * records what already happened. A lock that never frees leaves the work undone, says so in the
- * journal under the name it was given, and answers null; the caller carries on.
+ * records what already happened. It waits for the lock as every write does; the name it is given
+ * says what the work is, and the answer is the work's, or null where the work answered none.
  */
-export async function keptThroughLock<T>(what: string, work: () => Promise<T>, options: LockWait = {}): Promise<T | null> {
-  try {
-    return await throughLock(work, options);
-  } catch (error) {
-    if (!archiveBusy(error)) throw error;
-
-    console.error(`${what} could not be written: the archive stayed locked`);
-
-    return null;
-  }
+export async function keptThroughLock<T>(_what: string, work: () => Promise<T>, options: LockWait = {}): Promise<T | null> {
+  return await throughLock(work, options);
 }
 
 // The settling's transaction over a bare connection (docs/store.md): taken immediate and

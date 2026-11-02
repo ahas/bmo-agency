@@ -3968,7 +3968,7 @@
         "tags": [
           "assignments-and-jobs"
         ],
-        "summary": "Stop a job, by its id or by its item, for the turn an agent is carrying now, only where every message of that turn is the owner's: its turn cut short first, and the job answered once that turn has ended.",
+        "summary": "Stop a job, by its id or by its item, for the turn an agent is carrying now, only where every message of that turn is the owner's: its turn asked to end first, and the job answered once that turn has ended, however long that takes.",
         "responses": {
           "200": {
             "description": "Answered.",
@@ -3999,8 +3999,7 @@
           "no-turn",
           "not-owner",
           "no-job",
-          "conflict",
-          "stop-pending"
+          "conflict"
         ],
         "requestBody": {
           "required": true,
@@ -5717,7 +5716,7 @@
         "tags": [
           "jobs"
         ],
-        "summary": "End a job with its outcome, or stop it, its turn cut short first and the job answered once that turn has ended; its assignment is released, and the harness gives the lease back or closes the item in the job service.",
+        "summary": "End a job with its outcome, or stop it, its turn asked to end first and the job answered once that turn has ended, however long that takes; its assignment is released, and the harness gives the lease back or closes the item in the job service.",
         "responses": {
           "200": {
             "description": "Answered.",
@@ -5746,8 +5745,7 @@
           "unauthorized",
           "bad-request",
           "not-found",
-          "conflict",
-          "stop-pending"
+          "conflict"
         ],
         "parameters": [
           {
@@ -12735,16 +12733,6 @@
           }
         }
       },
-      "StopPending": {
-        "description": "stop-pending",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/Error"
-            }
-          }
-        }
-      },
       "TooLarge": {
         "description": "too-large",
         "content": {
@@ -12808,7 +12796,7 @@
     },
     {
       "name": "stop_job",
-      "description": "Stop a running job on the owner's word, by its job id or by its item, with a short reason that becomes the job's report: only a turn whose every message is the owner's stops one. The job's turn is cut short first, and the answer is the job once its turn has ended, stopped; a turn still going after the wait is refused stop-pending, and the job ends stopped when it does.",
+      "description": "Stop a running job on the owner's word, by its job id or by its item, with a short reason that becomes the job's report: only a turn whose every message is the owner's stops one. The job's turn is asked to end first, and the answer is the job once its turn has ended, stopped, however long that takes.",
       "input": {
         "$ref": "#/components/schemas/StopJob"
       },

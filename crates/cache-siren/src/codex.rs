@@ -11,6 +11,7 @@
 
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, UNIX_EPOCH};
 
 use policy::providers::codex::CODEX;
@@ -240,17 +241,26 @@ async fn ask_app_server(program: &Path) -> Result<Vec<Window>, String> {
   let lines: String = requests.iter().map(|request| format!("{request}\n")).collect();
   let mut stdin = child.stdin.take().ok_or("codex app-server took no input")?;
   let stdout = child.stdout.take().ok_or("codex app-server gave no output")?;
-  // What it says on its error stream is read as it goes, so a full pipe never holds it up, and is carried
-  // beside a failure.
-  let stderr = child.stderr.take().map(|mut stderr| {
-    tokio::spawn(async move {
-      let mut said = String::new();
-      let _ = stderr.read_to_string(&mut said).await;
+  // What it says on its error stream is read as it goes, so a full pipe never holds it up, and what it has
+  // said by the time the read ends is carried beside a failure: a process it started may hold the stream
+  // open past its own end, so the stream's close is never waited for.
+  let said = Arc::new(Mutex::new(Vec::new()));
+  if let Some(mut stderr) = child.stderr.take() {
+    let said = said.clone();
 
-      said
-    })
-  });
-  let ask = Duration::from_secs(usage.ask_seconds);
+    tokio::spawn(async move {
+      let mut chunk = [0u8; 4096];
+
+      while let Ok(read) = stderr.read(&mut chunk).await
+        && read > 0
+      {
+        said
+          .lock()
+          .unwrap_or_else(std::sync::PoisonError::into_inner)
+          .extend_from_slice(&chunk[..read]);
+      }
+    });
+  }
   let answered = async {
     stdin.write_all(lines.as_bytes()).await.map_err(|why| why.to_string())?;
     stdin.flush().await.map_err(|why| why.to_string())?;
@@ -279,9 +289,8 @@ async fn ask_app_server(program: &Path) -> Result<Vec<Window>, String> {
 
     Err("app-server closed before returning rate limits".to_owned())
   };
-  let answered = tokio::time::timeout(ask, answered)
-    .await
-    .unwrap_or_else(|_| Err(format!("app-server rate-limit read timed out after {}s", ask.as_secs())));
+  // The read waits for the answer or for the process to close its output, however long either takes.
+  let answered = answered.await;
 
   drop(stdin);
   let _ = child.kill().await;
@@ -289,15 +298,8 @@ async fn ask_app_server(program: &Path) -> Result<Vec<Window>, String> {
   let Err(why) = answered else {
     return answered;
   };
-  // A process it started may still hold the stream open, so what was said is waited for a moment only.
-  let said = match stderr {
-    Some(reading) => tokio::time::timeout(Duration::from_secs(usage.stderr_seconds), reading)
-      .await
-      .ok()
-      .and_then(Result::ok)
-      .unwrap_or_default(),
-    None => String::new(),
-  };
+  let said =
+    String::from_utf8_lossy(&said.lock().unwrap_or_else(std::sync::PoisonError::into_inner)).into_owned();
 
   Err(if said.trim().is_empty() { why } else { format!("{why}: {}", said.trim()) })
 }

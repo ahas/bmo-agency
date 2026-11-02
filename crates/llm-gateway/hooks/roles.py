@@ -9,8 +9,9 @@ role already, then lets the request go on. Which files stand, and whether one is
 engine deployment's own; this hook never saves one.
 
 For each instance the hook keeps the role it last restored or served: a request naming no role leaves the
-instance on none, since what it reads replaces the role's state. A restore that is refused or not answered
-leaves the request to go as it stands, with a line in the log, and that role is not asked of that instance
+instance on none, since what it reads replaces the role's state. A restore is waited for until the instance
+answers it; one that is refused, or whose connection is refused or broken, leaves the request to go as it
+stands, with a line in the log, and that role is not asked of that instance
 again for ten minutes. What it keeps is this process's: a new gateway child starts with every instance on
 no role.
 """
@@ -31,8 +32,6 @@ ROLE_HEADER = "x-bmo-role"
 ROLE_NAME = re.compile(r"^[a-z][a-z0-9-]{0,39}$")
 # How long a role an instance could not restore is not asked of it again, in seconds.
 RETRY_AFTER = 600
-# How long a restore is waited for, in seconds.
-RESTORE_WAIT = 30
 
 # Each instance's role, by its root address: the one it last restored or served, None for none.
 on_role: dict = {}
@@ -95,12 +94,12 @@ def restore(root: str, key, role: str):
         headers["Authorization"] = f"Bearer {key}"
     asked = urllib.request.Request(f"{root}/slots/0?action=restore", data=body, method="POST", headers=headers)
     try:
-        with urllib.request.urlopen(asked, timeout=RESTORE_WAIT) as answer:
+        with urllib.request.urlopen(asked) as answer:
             answer.read()
             return True, None
     except urllib.error.HTTPError as refusal:
         return False, f"the instance answered {refusal.code}"
-    except Exception as failure:  # no answer, a refused connection or a wait run out
+    except Exception as failure:  # a refused or broken connection
         return False, f"no answer: {failure}"
 
 

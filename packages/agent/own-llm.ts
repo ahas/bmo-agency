@@ -39,9 +39,6 @@ export interface OwnLlmSettings {
   effort: string | null;
   thinking: boolean;
   answerTokens: number;
-  // How long one request is waited for where the run names no wait of its own, or absent where the
-  // road's runs are each given one by their caller.
-  requestWaitMs?: number;
   // The model's window, in tokens, where the road knows it.
   contextTokens?: number;
 }
@@ -87,10 +84,9 @@ export function ownLlmKeyPath(service: OwnLlmService): string {
 
 // A 4,096-token answer and the gateway's model list fit well inside this ceiling. Read through a
 // byte-counted stream instead of Response.text()/arrayBuffer(): headers arrive before the body,
-// and an upstream that answers forever must not turn a short gate deadline into unbounded memory.
+// and an upstream that answers forever must not turn into unbounded memory.
 const maxSuccessResponseBytes = 512 * 1_024;
 const maxFailureResponseBytes = 64 * 1_024;
-const defaultListingTimeoutMs = 15_000;
 const defaultAttempts = 2;
 
 export type OwnLlmFailure =
@@ -209,16 +205,6 @@ function headers(credential: string, more: Record<string, string> = {}): Headers
   });
 }
 
-// A request's headers with the service's word for how long this attempt is waited for, where it has one.
-function telling(given: HeadersInit | undefined, wait: Record<string, string> | undefined): HeadersInit | undefined {
-  if (wait === undefined) return given;
-
-  const told = new Headers(given);
-
-  for (const [name, value] of Object.entries(wait)) told.set(name, value);
-  return told;
-}
-
 function statusError(status: number): OwnLlmError {
   if (status === 401 || status === 403) {
     return new OwnLlmError("unauthorized", { status });
@@ -305,37 +291,20 @@ function rejectCredentialReflection(value: string, credential: string): void {
   }
 }
 
-async function request(
-  url: string,
-  init: RequestInit,
-  timeoutMs: number,
-  fetcher: OwnLlmFetch,
-  attempts: number,
-  waitHeaders?: (waitMs: number) => Record<string, string>,
-): Promise<string> {
-  const deadline = Date.now() + Math.max(1, timeoutMs);
+// One request waited for until it answers or its connection is refused or broken, asked again where its
+// failure may pass, up to the attempts given.
+async function request(url: string, init: RequestInit, fetcher: OwnLlmFetch, attempts: number): Promise<string> {
   let last = new OwnLlmError("network", { transient: true });
 
   for (let attempt = 0; attempt < Math.max(1, attempts); attempt += 1) {
-    const remaining = deadline - Date.now();
-
-    if (remaining <= 0) {
-      throw new OwnLlmError("timeout", { transient: true });
-    }
-
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), remaining);
-
     try {
-      // The deadline above is the attempt's whole wait. Bun's fetch otherwise gives up on a
-      // connection silent for five minutes, and an engine reading a long prompt sends nothing for
-      // longer than that.
-      const response = await fetcher(url, { ...init, headers: telling(init.headers, waitHeaders?.(remaining)), signal: controller.signal, timeout: false } as RequestInit);
+      // Bun's fetch otherwise gives up on a connection silent for five minutes, and an engine reading a
+      // long prompt sends nothing for longer than that.
+      const response = await fetcher(url, { ...init, timeout: false } as RequestInit);
 
       if (response.ok) {
-        // Fetch resolves when the headers arrive, not when the response has been consumed. Read
-        // the body while the same deadline is still armed so a provider that stalls mid-body
-        // cannot escape the gate's ceiling or allocate without a byte ceiling.
+        // Fetch resolves when the headers arrive, not when the response has been consumed; the body is
+        // read under a byte ceiling.
         const body = await boundedBody(response, maxSuccessResponseBytes, true);
 
         return body;
@@ -355,29 +324,21 @@ async function request(
         // The provider's error body is diagnostics, never part of agency's failure contract.
       }
     } catch (error) {
-      if (error instanceof OwnLlmError) {
-        last = error;
-      } else if (controller.signal.aborted) {
-        last = new OwnLlmError("timeout", { transient: true });
-      } else {
-        last = new OwnLlmError("network", { transient: true });
-      }
-    } finally {
-      clearTimeout(timer);
+      last = error instanceof OwnLlmError ? error : new OwnLlmError("network", { transient: true });
     }
 
     if (!last.transient || attempt + 1 >= Math.max(1, attempts)) {
       throw last;
     }
 
-    await pause(Math.min(100 * (attempt + 1), Math.max(0, deadline - Date.now())));
+    await pause(100 * (attempt + 1));
   }
 
   throw last;
 }
 
 // The catalogue a call verifies against, reused for a minute. Asked on every call it doubled the
-// requests a gate makes and shared that gate's deadline; the catalogue itself changes rarely, and a
+// requests a gate makes; the catalogue itself changes rarely, and a
 // call made after the minute asks again. It is kept per fetch and per catalogue address, so two
 // callers holding different transports never read each other's answer, and each service's
 // catalogue is its own.
@@ -388,7 +349,6 @@ async function verifiedCatalogue(
   service: OwnLlmService,
   deps: Required<Omit<OwnLlmDependencies, "catalogue">>,
   credential: string,
-  deadline: number,
 ): Promise<OwnLlmModel[]> {
   const byUrl = catalogues.get(deps.fetch) ?? new Map<string, { at: number; models: OwnLlmModel[] }>();
   const held = byUrl.get(deps.modelsUrl);
@@ -401,7 +361,6 @@ async function verifiedCatalogue(
   const models = await ownLlmModels(service, {
     ...deps,
     readCredential: () => credential,
-    timeoutMs: Math.max(1, deadline - Date.now()),
   });
 
   byUrl.set(deps.modelsUrl, { at: performance.now(), models });
@@ -422,17 +381,17 @@ function dependencies(service: OwnLlmService, options: OwnLlmDependencies): Requ
 
 // The catalogue a gate request is checked against, as the caller's side holds it: model discovery, asked of
 // the service at most once a minute, and handed to the request that runs apart.
-export async function ownLlmCatalogue(service: OwnLlmService, timeoutMs: number, options: OwnLlmDependencies = {}): Promise<OwnLlmModel[]> {
+export async function ownLlmCatalogue(service: OwnLlmService, options: OwnLlmDependencies = {}): Promise<OwnLlmModel[]> {
   return await atDoor(service, async () => {
     const deps = dependencies(service, options);
 
-    return await verifiedCatalogue(service, deps, deps.readCredential(), Date.now() + Math.max(1, timeoutMs));
+    return await verifiedCatalogue(service, deps, deps.readCredential());
   });
 }
 
 export async function ownLlmModels(
   service: OwnLlmService,
-  options: OwnLlmDependencies & { timeoutMs?: number } = {},
+  options: OwnLlmDependencies = {},
 ): Promise<OwnLlmModel[]> {
   return await atDoor(service, async () => {
     const deps = dependencies(service, options);
@@ -440,7 +399,6 @@ export async function ownLlmModels(
     const response = await request(
       deps.modelsUrl,
       { method: "GET", headers: headers(credential) },
-      options.timeoutMs ?? defaultListingTimeoutMs,
       deps.fetch,
       deps.attempts,
     );

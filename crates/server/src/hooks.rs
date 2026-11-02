@@ -9,7 +9,6 @@ use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::{Arc, RwLock};
-use std::time::Duration;
 
 use serde::Serialize;
 use serde::de::DeserializeOwned;
@@ -100,9 +99,6 @@ pub struct Remote {
   pub token: Option<String>,
 }
 
-// How long an ask waits on a consumer before the point answers its default.
-const REMOTE_WAIT: Duration = Duration::from_secs(10);
-
 /// One point a consumer across the boundary may register at, by its name.
 pub struct Wired {
   pub name: &'static str,
@@ -180,7 +176,7 @@ where
   H: HookPoint,
   H::Answer: DeserializeOwned,
 {
-  let mut call = client.post(&remote.url).timeout(REMOTE_WAIT).json(body);
+  let mut call = client.post(&remote.url).json(body);
 
   if let Some(token) = &remote.token {
     call = call.bearer_auth(token);

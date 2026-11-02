@@ -61,11 +61,10 @@ upstreams = [
 ]
 
 [catalogue]
-# Where the model listing is read from, and how long it is given. It needs no key, so a machine given
+# Where the model listing is read from; the request waits for its answer. It needs no key, so a machine given
 # none can still show the choice. A test names a stand-in's address in the variable below.
 url = "https://openrouter.ai/api/v1/models"
 url_env = "BMO_OPENROUTER_LISTING_URL"
-seconds = 15
 
 [resident]
 # The keys typed into the pane of its standing program, Claude Code, that cut a working turn short
@@ -92,12 +91,11 @@ key_env = "BMO_OPENROUTER_KEY"
 
 [balance]
 # What the account has left, asked with the key in its key variable on a clock (docs/usage-windows.md,
-# 「Balances」): where it is asked, the variable a test names a stand-in's address in, how long an ask may
-# take, how often it is read and for how many passes a reading stands, and, for a balance spent, where a
-# person tops it up (docs/cache-fallback.md, 「One road resolution」). Its credits are US dollars.
+# 「Balances」): where it is asked, the variable a test names a stand-in's address in, how often it is read
+# and for how many passes a reading stands, and, for a balance spent, where a person tops it up
+# (docs/cache-fallback.md, 「One road resolution」). Its credits are US dollars.
 url = "https://openrouter.ai/api/v1/credits"
 url_env = "BMO_OPENROUTER_BALANCE_URL"
-ask_seconds = 15
 pass_seconds = 300
 fresh_passes = 6
 currency = "USD"

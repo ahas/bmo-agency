@@ -8,14 +8,10 @@
 //! delivery that holds it (docs/api.md, 「Calls agency makes」).
 
 use std::collections::BTreeMap;
-use std::time::Duration;
 
 use serde_json::{Value, json};
 
 use crate::places::Ground;
-
-/// How long either call waits before the end stands on its own.
-const ANSWER_WITHIN: Duration = Duration::from_secs(5);
 
 fn setting<'a>(vars: &'a BTreeMap<String, String>, name: &str) -> Option<&'a str> {
   vars.get(name).map(String::as_str).map(str::trim).filter(|value| !value.is_empty())
@@ -96,7 +92,6 @@ async fn return_lease(vars: &BTreeMap<String, String>, member: &Value) {
   let answer = reqwest::Client::new()
     .delete(format!("{url}/leases/{lease}"))
     .bearer_auth(token)
-    .timeout(ANSWER_WITHIN)
     .send()
     .await;
 
@@ -143,7 +138,6 @@ async fn requester(vars: &BTreeMap<String, String>, member: &Value) -> Option<St
   let answer = reqwest::Client::new()
     .get(format!("{url}/items/{item}"))
     .bearer_auth(token)
-    .timeout(ANSWER_WITHIN)
     .send()
     .await;
 
@@ -174,7 +168,6 @@ async fn post_instruction(url: &str, token: &str, body: &Value) -> Result<(), St
     .post(format!("{url}/instructions"))
     .bearer_auth(token)
     .json(body)
-    .timeout(ANSWER_WITHIN)
     .send()
     .await;
 

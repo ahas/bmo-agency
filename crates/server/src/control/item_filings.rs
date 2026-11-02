@@ -3,7 +3,6 @@
 //! model's to write.
 
 use std::collections::BTreeMap;
-use std::time::Duration;
 
 use axum::http::{Method, StatusCode};
 use axum::response::Response;
@@ -18,9 +17,6 @@ use crate::turn_marks;
 pub const ASKED_BY: &str = "asked-by";
 /// Its value.
 pub const OWNER: &str = "owner";
-
-// How long the job service is given.
-const ANSWER_WITHIN: Duration = Duration::from_secs(15);
 
 /// The item the job service is asked to raise: the ask as it came, its room the turn's, its `asked-by` label
 /// agency's alone.
@@ -90,7 +86,6 @@ impl Route for FileItem {
       .post(format!("{url}/items"))
       .bearer_auth(bearer)
       .json(&item_of(&ask, mark))
-      .timeout(ANSWER_WITHIN)
       .send()
       .await
       .map_err(|why| upstream(format!("the job service: {why}")))?;

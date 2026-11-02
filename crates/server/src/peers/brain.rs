@@ -4,7 +4,6 @@
 //! finds it. A chat launch reads the persona that brain renders of the layers it names.
 
 use std::sync::Arc;
-use std::time::Duration;
 
 use bmo_brain_client::{
   Brain as BrainMember, BrainClient, BrainsQuery, ClientFailure, NewBrain, PersonaQuery,
@@ -24,9 +23,6 @@ pub const ADDRESS: Variables = Variables {
 pub const ACCOUNT: &str = "AGENCY_BRAIN_ACCOUNT";
 
 const PEER: &str = "brain";
-
-// A reset lets a whole brain go, which may hold many rows.
-const ANSWER_WITHIN: Duration = Duration::from_secs(60);
 
 /// What a reset of an agent took of the brain, or would take: the brains let go, counted, and what it could
 /// not do.
@@ -110,8 +106,7 @@ pub struct PublishedBrain {
 
 impl PublishedBrain {
   pub fn new(address: PeerAddress, account: Option<String>) -> Result<Self, String> {
-    let http = reqwest::Client::builder().timeout(ANSWER_WITHIN).build().unwrap_or_default();
-    let client = BrainClient::new(address.url.as_str(), address.token.unwrap_or_default())?.with_http(http);
+    let client = BrainClient::new(address.url.as_str(), address.token.unwrap_or_default())?;
 
     Ok(Self { client, account })
   }

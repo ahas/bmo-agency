@@ -147,7 +147,6 @@ pub async fn renew_login(ground: &Ground, id: &str) -> Result<(), String> {
     model: usage.renewal_model.clone(),
     effort: usage.renewal_effort.clone(),
     tier: None,
-    bound: None,
     parent: None,
     root: None,
   };
@@ -195,10 +194,6 @@ impl BalanceSource for ProviderBalances {
 
   fn fresh(&self) -> Duration {
     self.cadence() * self.offers.declared().fresh_passes
-  }
-
-  fn wait(&self) -> Duration {
-    Duration::from_secs(self.offers.declared().ask_seconds)
   }
 
   fn asks(&self) -> Asking<'_> {

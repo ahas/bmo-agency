@@ -136,11 +136,6 @@ fn access_token(credential: &Credential, now_ms: i64) -> Result<String, &'static
   Ok(token.to_owned())
 }
 
-// The client every ask goes out on: a request that has not answered within `wait` fails.
-fn asking_within(wait: Duration) -> reqwest::Client {
-  reqwest::Client::builder().timeout(wait).build().unwrap_or_default()
-}
-
 /// The reader on the clock: where it asks, who it asks for, each account's failure as last said, the
 /// moment, in epoch seconds, before which an account the endpoint refused for asking too often is not asked,
 /// who runs the CLI that renews a login, where anybody does, and each account's last renewal.
@@ -159,7 +154,7 @@ impl ClaudeAccounts {
   pub fn new(url: impl Into<String>, logins: Arc<dyn Logins>) -> Self {
     Self {
       url: url.into(),
-      http: asking_within(Duration::from_secs(CLAUDE_CODE.usage.ask_seconds)),
+      http: reqwest::Client::new(),
       logins,
       said: Said::default(),
       paused: Mutex::default(),
@@ -179,28 +174,22 @@ impl ClaudeAccounts {
     self
   }
 
-  /// The same reader taking a request that has not answered within `wait` as a failure, where a caller
-  /// stands in an endpoint of its own.
-  pub fn waiting(mut self, wait: Duration) -> Self {
-    self.http = asking_within(wait);
-    self
-  }
-
   /// The reader asking the provider's own account-usage endpoint.
   pub fn of_provider(logins: Arc<dyn Logins>) -> Self {
     Self::new(CLAUDE_CODE.usage.url.as_str(), logins)
   }
 
-  // One ask for an account's windows. A refusal for asking too often pauses the account until the moment
+  // One ask for an account's windows, waiting for its answer however long it takes: its end is the answer,
+  // or the connection refused or broken. A refusal for asking too often pauses the account until the moment
   // the refusal's `Retry-After` names, in seconds, or for the policy's pause where it names none.
   async fn ask(&self, token: &str, account: &str, now: i64) -> Result<Vec<Window>, String> {
-    let answer = self.http.get(&self.url).bearer_auth(token).send().await.map_err(|why| {
-      if why.is_timeout() {
-        "the endpoint did not answer in time".to_owned()
-      } else {
-        "the request failed".to_owned()
-      }
-    })?;
+    let answer = self
+      .http
+      .get(&self.url)
+      .bearer_auth(token)
+      .send()
+      .await
+      .map_err(|_| "the request failed".to_owned())?;
 
     if answer.status().as_u16() == 429 {
       let after = answer

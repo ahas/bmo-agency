@@ -5,7 +5,6 @@
 //! overtook is listed none and refused its read.
 
 use std::path::{Path, PathBuf};
-use std::time::Duration;
 
 use regex::Regex;
 use serde_json::{Value, json};
@@ -23,10 +22,6 @@ pub const ROAD_VERBS_PATH: &str = "/road-verbs";
 const CONTROL_PORT: &str = "AGENCY_CONTROL_PORT";
 const CONTROL_TOKEN: &str = "AGENCY_CONTROL_TOKEN";
 const DEFAULT_CONTROL_PORT: u16 = 3220;
-
-// Long enough for the consumer to answer agency's hook, short enough that a read never outlasts the call's own
-// timeout.
-const ASK_WAIT: Duration = Duration::from_secs(20);
 
 /// A procedure's address by its name.
 pub fn procedure_uri(name: &str) -> String {
@@ -228,7 +223,6 @@ impl Server {
     let answered = reqwest::Client::new()
       .get(address)
       .bearer_auth(token)
-      .timeout(ASK_WAIT)
       .send()
       .await
       .map_err(|why| format!("agency's server could not be asked the verbs of the room's road: {why}"))?;

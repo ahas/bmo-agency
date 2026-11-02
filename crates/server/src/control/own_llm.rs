@@ -4,14 +4,13 @@
 //! a request or the key.
 
 use std::path::Path;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use serde_json::Value;
 
 use super::registry::OwnLlmService;
 
-// The list's own wait, and how many times a passing failure is asked again inside it.
-const LISTING_WAIT: Duration = Duration::from_secs(15);
+// How many times the list is asked where its failure may pass.
 const ATTEMPTS: u32 = 2;
 
 // A list read whole, and the complaint a failure is drained of, each held to a ceiling.
@@ -138,30 +137,24 @@ pub fn offers(service: &OwnLlmService, models: &[String], model: &str) -> Result
   }
 }
 
-// One GET under the list's wait, asked again once where its failure may pass.
+// One GET waited on until it answers or its connection is refused or broken, asked again once where its
+// failure may pass.
 async fn request(url: &str, key: &str) -> Result<String, OwnLlmError> {
-  let deadline = Instant::now() + LISTING_WAIT;
   let client = reqwest::Client::new();
   let mut last = OwnLlmError::passing("network");
 
   for attempt in 0..ATTEMPTS {
-    let Some(remaining) = deadline.checked_duration_since(Instant::now()).filter(|left| !left.is_zero())
-    else {
-      return Err(OwnLlmError::passing("timeout"));
-    };
     let asked = client
       .get(url)
       .bearer_auth(key)
       .header("accept", "application/json")
       .header("content-type", "application/json")
-      .timeout(remaining)
       .send()
       .await;
 
     last = match asked {
       Ok(answer) if answer.status().is_success() => return bounded(answer).await,
       Ok(answer) => OwnLlmError::status(answer.status().as_u16()),
-      Err(why) if why.is_timeout() => OwnLlmError::passing("timeout"),
       Err(_) => OwnLlmError::passing("network"),
     };
 
@@ -171,7 +164,7 @@ async fn request(url: &str, key: &str) -> Result<String, OwnLlmError> {
 
     let pause = Duration::from_millis(100 * u64::from(attempt + 1));
 
-    tokio::time::sleep(pause.min(deadline.saturating_duration_since(Instant::now()))).await;
+    tokio::time::sleep(pause).await;
   }
 
   Err(last)
@@ -191,7 +184,6 @@ async fn bounded(mut answer: reqwest::Response) -> Result<String, OwnLlmError> {
         }
       }
       Ok(None) => return Ok(String::from_utf8_lossy(&body).into_owned()),
-      Err(why) if why.is_timeout() => return Err(OwnLlmError::passing("timeout")),
       Err(_) => return Err(OwnLlmError::passing("network")),
     }
   }

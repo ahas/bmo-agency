@@ -77,14 +77,12 @@ pub struct Presence {
   pub not_held: String,
 }
 
-/// Where the model listing is read from, the variable a stand-in's address is named in, and how long
-/// it is given.
+/// Where the model listing is read from, and the variable a stand-in's address is named in.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Catalogue {
   pub url: String,
   pub url_env: String,
-  pub seconds: u64,
 }
 
 crate::part!(pub OPENROUTER: OpenRouter = "providers/openrouter.toml");

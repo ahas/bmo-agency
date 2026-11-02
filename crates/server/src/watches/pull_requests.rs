@@ -3,7 +3,6 @@
 //! a merge letting the items that waited on the pull request go on. No model runs here.
 
 use std::collections::BTreeMap;
-use std::time::Duration;
 
 use hmac::{Hmac, Mac};
 use policy::fill_marks;
@@ -14,9 +13,6 @@ use sha2::Sha256;
 use store::all;
 
 use crate::job_end::{address, token};
-
-// How long a call of the job service or of GitHub waits.
-const ANSWER_WITHIN: Duration = Duration::from_secs(20);
 
 /// The variable naming the webhook secret, and the one naming the file it stands in.
 pub const SECRET: &str = "BMO_GITHUB_WEBHOOK_SECRET";
@@ -228,7 +224,7 @@ impl Jobs {
       asked = asked.json(body);
     }
 
-    let answer = asked.timeout(ANSWER_WITHIN).send().await.map_err(|why| why.to_string())?;
+    let answer = asked.send().await.map_err(|why| why.to_string())?;
     let status = answer.status();
     let read = answer.json::<Value>().await.unwrap_or(Value::Null);
 

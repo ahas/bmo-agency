@@ -6,7 +6,6 @@
 
 use std::collections::BTreeMap;
 use std::path::Path;
-use std::time::Duration;
 
 use serde_json::{Value, json};
 
@@ -20,9 +19,6 @@ pub const ENV_FILE: &str = "env/web.env";
 pub const LAUNCH: &str = "launch";
 pub const FILE_TODO: &str = "file_todo";
 pub const DEPLOY: &str = "deploy";
-
-// How long the account service is given to answer one check.
-const ANSWER_WITHIN: Duration = Duration::from_secs(10);
 
 /// The room turn an action is asked in, as the caller read it: the room, the messages it answers, and whether
 /// the receiver marked every one of them the owner's.
@@ -64,7 +60,8 @@ impl AccountService {
     }
   }
 
-  /// Whether one message's sender holds a relation in the room the message stands in, or why it was not answered.
+  /// Whether one message's sender holds a relation in the room the message stands in, or why it was not answered:
+  /// the check waits for the account service's answer, its end that answer or the connection refused or broken.
   pub async fn message_holds(&self, room: i64, message: i64, relation: &str) -> Result<bool, String> {
     if self.address.is_empty() {
       return Err(format!("no account service is named ({ADDRESS_VARIABLE})"));
@@ -74,7 +71,6 @@ impl AccountService {
       .post(format!("{}/checks/message", self.address))
       .bearer_auth(&self.token)
       .json(&json!({ "room": room, "message": message, "relation": relation }))
-      .timeout(ANSWER_WITHIN)
       .send()
       .await
       .map_err(|why| format!("the account service was not reached: {why}"))?;

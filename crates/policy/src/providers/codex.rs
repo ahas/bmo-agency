@@ -25,8 +25,6 @@ pub struct Usage {
   pub fresh_passes: u32,
   pub rollout_fresh_seconds: i64,
   pub rollout_days: usize,
-  pub ask_seconds: u64,
-  pub stderr_seconds: u64,
   pub app_server_args: Vec<String>,
 }
 
@@ -69,13 +67,12 @@ pub struct Presence {
   pub not_held: String,
 }
 
-/// How the catalogue bundled with the executable is asked for, and how long it is given.
+/// How the catalogue bundled with the executable is asked for.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Catalogue {
   pub program: String,
   pub args: Vec<String>,
-  pub seconds: u64,
 }
 
 crate::part!(pub CODEX: Codex = "providers/codex.toml");

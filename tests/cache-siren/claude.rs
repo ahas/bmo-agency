@@ -1,6 +1,6 @@
 //! The Claude account reader against a stand-in endpoint: an answer read into windows as the parity cases
 //! record them, each account asked with its own login and its windows written under it alone, an account
-//! that cannot be asked keeping what it had, an endpoint that does not answer in time a failure that leaves
+//! that cannot be asked keeping what it had, an endpoint that breaks the connection a failure that leaves
 //! the account unmarked, a token that cannot be read with marking the account unread so its last full
 //! reading stops standing until a reading lifts the mark, a directory account's login found expired or
 //! refused renewed by one run of a stand-in CLI at a time and at a pace, and a failure said once when it
@@ -265,33 +265,32 @@ async fn a_full_reading_the_reader_cannot_renew_for_its_token_stops_standing_unt
   assert_eq!(keeping.unread_at("spare").await.unwrap(), Some(NOW), "a refused token stays marked");
 }
 
-/// An account-usage endpoint that answers nothing for longer than any ask here waits.
-async fn silent_endpoint() -> String {
+/// An account-usage endpoint that takes each connection and drops it unanswered.
+async fn breaking_endpoint() -> String {
   let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
   let port = listener.local_addr().unwrap().port();
-  let app = Router::new().fallback(|| async {
-    tokio::time::sleep(Duration::from_secs(30)).await;
 
-    StatusCode::OK
+  tokio::spawn(async move {
+    while let Ok((stream, _)) = listener.accept().await {
+      drop(stream);
+    }
   });
-
-  tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
 
   format!("http://127.0.0.1:{port}/usage")
 }
 
 #[tokio::test]
-async fn an_endpoint_that_does_not_answer_in_time_is_a_failure_and_the_account_keeps_what_it_had() {
+async fn an_endpoint_that_breaks_the_connection_is_a_failure_and_the_account_keeps_what_it_had() {
   let scratch = Scratch::new().await;
   let dir = tempfile::tempdir().unwrap();
   let token = dir.path().join("token");
 
   std::fs::write(&token, "sk-token-one").unwrap();
 
-  let reader = Arc::new(
-    ClaudeAccounts::new(silent_endpoint().await, Arc::new(Fixed(vec![token_login("one", token)])))
-      .waiting(Duration::from_millis(200)),
-  );
+  let reader = Arc::new(ClaudeAccounts::new(
+    breaking_endpoint().await,
+    Arc::new(Fixed(vec![token_login("one", token)])),
+  ));
   let keeping = Keeping::new(scratch.db().clone(), vec![reader.clone()]);
   let kept = full("five_hour");
 
@@ -299,13 +298,13 @@ async fn an_endpoint_that_does_not_answer_in_time_is_a_failure_and_the_account_k
 
   let outcomes = reader.read_each(&keeping, NOW_MS).await.unwrap();
 
-  assert_eq!(outcomes, [("one".to_owned(), Err("the endpoint did not answer in time".to_owned()))]);
+  assert_eq!(outcomes, [("one".to_owned(), Err("the request failed".to_owned()))]);
 
   let read = keeping.read(slot("one")).await.unwrap();
 
   assert_eq!(read.windows[0].window, kept);
   assert_eq!(read.windows[0].seen_at, NOW - 60);
-  assert_eq!(read.unread_at, None, "an endpoint that did not answer says nothing of the token");
+  assert_eq!(read.unread_at, None, "an endpoint that broke the connection says nothing of the token");
 }
 
 #[test]
@@ -321,8 +320,8 @@ fn a_failure_is_said_once_with_its_reason_and_its_recovery_once() {
   );
   assert_eq!(said.outcome(what, &refused), None, "the same failure is not said again");
   assert_eq!(
-    said.outcome(what, &Err("the endpoint did not answer in time".to_owned())).as_deref(),
-    Some("claude usage for one could not be read: the endpoint did not answer in time"),
+    said.outcome(what, &Err("the request failed".to_owned())).as_deref(),
+    Some("claude usage for one could not be read: the request failed"),
     "another reason is said as it starts"
   );
   assert_eq!(said.outcome(what, &Ok(())).as_deref(), Some("claude usage for one read again"));

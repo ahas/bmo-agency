@@ -5,7 +5,6 @@
 //! deployment that names no job service keeps nothing.
 
 use std::collections::BTreeMap;
-use std::time::Duration;
 
 use policy::job_leases::JOB_LEASES;
 use reqwest::StatusCode;
@@ -14,9 +13,6 @@ use store::{all, run};
 
 use crate::Refusal;
 use crate::job_end::{address, token};
-
-// How long one call to the job service is waited for.
-const ANSWER_WITHIN: Duration = Duration::from_secs(10);
 
 /// What a pass did with one running job's lease.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -118,7 +114,6 @@ impl Service<'_> {
       .patch(format!("{}/leases/{lease}", self.url))
       .bearer_auth(self.token)
       .json(&json!({ "ttlMs": JOB_LEASES.ttl_ms }))
-      .timeout(ANSWER_WITHIN)
       .send()
       .await
       .map_err(|why| why.to_string())?;
@@ -136,7 +131,6 @@ impl Service<'_> {
       .client
       .get(format!("{}/items/{item}", self.url))
       .bearer_auth(self.token)
-      .timeout(ANSWER_WITHIN)
       .send()
       .await
       .map_err(|why| why.to_string())?;
@@ -169,7 +163,6 @@ impl Service<'_> {
       .post(format!("{}/leases", self.url))
       .bearer_auth(self.token)
       .json(&asked)
-      .timeout(ANSWER_WITHIN)
       .send()
       .await
       .map_err(|why| why.to_string())?;

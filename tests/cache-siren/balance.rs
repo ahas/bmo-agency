@@ -1,6 +1,6 @@
 //! The balance reader against a stand-in endpoint: each account asked with its own key and its balance kept
-//! under it alone, an account refused or with no key keeping what it had, an endpoint that does not answer
-//! in time a failure, and the reader declaring its source's provider, cadence and span.
+//! under it alone, an account refused or with no key keeping what it had, an endpoint slow to answer waited
+//! for, and the reader declaring its source's provider, cadence and span.
 
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -19,7 +19,7 @@ use crate::scratch::Scratch;
 const NOW_MS: i64 = 1_800_000_000_000;
 const NOW: i64 = NOW_MS / 1000;
 
-// The key the stand-in refuses as unauthorised, and the one it answers only after any wait here.
+// The key the stand-in refuses as unauthorised, and the one it answers only after a while.
 const REFUSED: &str = "sk-refused";
 const SLOW: &str = "sk-slow";
 
@@ -40,10 +40,6 @@ impl BalanceSource for Fixed {
 
   fn fresh(&self) -> Duration {
     Duration::from_secs(1800)
-  }
-
-  fn wait(&self) -> Duration {
-    Duration::from_millis(500)
   }
 
   fn asks(&self) -> Asking<'_> {
@@ -91,8 +87,8 @@ async fn balance_endpoint() -> (String, Arc<Mutex<Vec<String>>>) {
       match said.strip_prefix("Bearer ").unwrap_or_default() {
         REFUSED => StatusCode::UNAUTHORIZED.into_response(),
         SLOW => {
-          tokio::time::sleep(Duration::from_secs(30)).await;
-          StatusCode::OK.into_response()
+          tokio::time::sleep(Duration::from_millis(300)).await;
+          axum::Json(json!({ "left": 3.5 })).into_response()
         }
         _ => axum::Json(json!({ "left": 42.5 })).into_response(),
       }
@@ -149,7 +145,13 @@ async fn each_account_is_read_with_its_own_key_and_one_that_cannot_be_asked_keep
       ),
       ("refused".to_owned(), Err("HTTP 401".to_owned())),
       ("keyless".to_owned(), Err("the key file is unreadable".to_owned())),
-      ("slow".to_owned(), Err("the endpoint did not answer in time".to_owned())),
+      (
+        "slow".to_owned(),
+        Ok(Balance {
+          amount: 3.5,
+          currency: "CNY".into()
+        })
+      ),
     ]
   );
   assert_eq!(
@@ -163,7 +165,11 @@ async fn each_account_is_read_with_its_own_key_and_one_that_cannot_be_asked_keep
   assert_eq!(road.balance.amount, 42.5);
   assert_eq!(road.seen_at, NOW);
 
-  for account in ["refused", "keyless", "slow"] {
+  let slow = keeping.balance_of_account("slow").await.unwrap().unwrap();
+
+  assert_eq!((slow.balance.amount, slow.seen_at), (3.5, NOW), "an ask slow to answer is waited for");
+
+  for account in ["refused", "keyless"] {
     let kept = keeping.balance_of_account(account).await.unwrap().unwrap();
 
     assert_eq!((kept.balance, kept.seen_at), (before.clone(), NOW - 60), "{account}");

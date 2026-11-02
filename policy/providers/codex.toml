@@ -39,11 +39,10 @@ effort = { none = "low", minimal = "low", low = "low", medium = "medium", high =
 
 [catalogue]
 # The catalogue bundled with the installed executable, which needs neither a network request nor a
-# model run, and how long it is given to answer. The executable is read by the chooser that declares a
+# model run; its answer is waited for until the run ends. The executable is read by the chooser that declares a
 # member; no run of this build goes out on it.
 program = "codex"
 args = ["debug", "models", "--bundled"]
-seconds = 15
 
 [cache]
 # How long a prefix its models hold stays cached, and how long a thread may stand idle before a ping
@@ -60,15 +59,13 @@ models = [
 # reader」): how often, and for how many passes a reading stands. The newest rollout's reading is taken
 # where a turn wrote it within rollout_fresh_seconds, the newest rollout_days day folders searched for it
 # (a thread resumed today still writes into the day it began on); otherwise the app-server is started with
-# app_server_args and asked, and given ask_seconds to answer and stderr_seconds to say why it failed. The
+# app_server_args and asked, and its answer or its closed output waited for. The
 # app-server starts its sandbox host as it boots, which this machine's sandbox setup cannot make a user
 # namespace for, so its line asks for full access and never to be asked.
 pass_seconds = 60
 fresh_passes = 6
 rollout_fresh_seconds = 60
 rollout_days = 3
-ask_seconds = 15
-stderr_seconds = 2
 app_server_args = [
   "app-server",
   "--listen",

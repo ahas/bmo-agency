@@ -3,7 +3,7 @@
 
 use std::future::Future;
 use std::str::FromStr;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use sea_orm::{DatabaseConnection, SqlxPostgresConnector};
 use sqlx::any::{AnyRow, install_default_drivers};
@@ -53,37 +53,25 @@ pub fn server_went_away(error: &sqlx::Error) -> bool {
   }
 }
 
-// A restart of the server is over in seconds; a minute covers one that waits on a checkpoint.
-const RECONNECT_MS: u64 = 60_000;
+// The pause between attempts doubles from the first to the last and stays there.
 const FIRST_PAUSE_MS: u64 = 100;
 const LAST_PAUSE_MS: u64 = 2_000;
 
-/// A whole number above zero the environment names, or the default.
-fn positive_from_env(name: &str, default: u64) -> u64 {
-  std::env::var(name)
-    .ok()
-    .and_then(|value| value.trim().parse::<u64>().ok())
-    .filter(|value| *value > 0)
-    .unwrap_or(default)
-}
-
 /// Work run again whole wherever the server went away under it, with a doubling pause between
-/// attempts, until the reconnect budget (`AGENCY_STORE_RECONNECT_MS`, a minute by default) is spent;
-/// every other error, and the last one past the budget, is answered as it came. The work opens its own
-/// connection, so each attempt stands on a fresh one.
+/// attempts, until the server answers it: a restart is waited out however long it takes. Every other
+/// error is answered as it came. The work opens its own connection, so each attempt stands on a fresh
+/// one.
 pub async fn retrying<T, F, Fut>(mut work: F) -> Result<T, sqlx::Error>
 where
   F: FnMut() -> Fut,
   Fut: Future<Output = Result<T, sqlx::Error>>,
 {
-  let budget = Duration::from_millis(positive_from_env("AGENCY_STORE_RECONNECT_MS", RECONNECT_MS));
-  let started = Instant::now();
   let mut pause = Duration::from_millis(FIRST_PAUSE_MS);
   let mut attempt = 1;
 
   loop {
     match work().await {
-      Err(error) if server_went_away(&error) && started.elapsed() + pause <= budget => {
+      Err(error) if server_went_away(&error) => {
         attempt += 1;
         eprintln!(
           "store: the database went away ({error}); running the work again in {} ms, attempt {attempt}",

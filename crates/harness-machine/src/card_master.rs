@@ -22,9 +22,6 @@ pub const TOKEN_ENTRY: &str = "CARD_MASTER_TOKEN";
 /// How long one read of a demand holds its answer open at the master, the longest a read waits for.
 pub const DEMAND_WAIT: Duration = Duration::from_secs(30);
 
-// How long a call waits beyond the time it asks the master to hold its answer.
-const CALL_SLACK: Duration = Duration::from_secs(15);
-
 /// Where the master is reached, and the token it is called with where the deployment names one.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MasterAddress {
@@ -219,9 +216,8 @@ impl Master {
     format!("{}{path}", self.address.url.as_str().trim_end_matches('/'))
   }
 
-  fn authorized(&self, request: reqwest::RequestBuilder, waits: Duration) -> reqwest::RequestBuilder {
-    let request = request.timeout(waits + CALL_SLACK);
-
+  // A call waits for the master's answer: its end is that answer, or the connection refused or broken.
+  fn authorized(&self, request: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
     match &self.address.token {
       Some(token) => request.bearer_auth(token),
       None => request,
@@ -246,7 +242,7 @@ impl Master {
   /// A demand asked: answered as it stands, granted or waiting.
   pub async fn ask(&self, ask: &DemandAsk) -> Result<Demand, MasterFault> {
     let answer = self
-      .authorized(self.http.post(self.at("/demands")).json(ask), Duration::ZERO)
+      .authorized(self.http.post(self.at("/demands")).json(ask))
       .send()
       .await
       .map_err(|why| MasterFault::Unreachable(why.to_string()))?;
@@ -259,7 +255,7 @@ impl Master {
   pub async fn demand(&self, id: i64, wait: Duration) -> Result<Option<Demand>, MasterFault> {
     let request = self.http.get(self.at(&format!("/demands/{id}?waitMs={}", wait.as_millis())));
     let answer = self
-      .authorized(request, wait)
+      .authorized(request)
       .send()
       .await
       .map_err(|why| MasterFault::Unreachable(why.to_string()))?;
@@ -274,7 +270,7 @@ impl Master {
   /// A demand given back; one the master no longer holds is given back already.
   pub async fn give_back(&self, id: i64) -> Result<(), MasterFault> {
     let answer = self
-      .authorized(self.http.delete(self.at(&format!("/demands/{id}"))), Duration::ZERO)
+      .authorized(self.http.delete(self.at(&format!("/demands/{id}"))))
       .send()
       .await
       .map_err(|why| MasterFault::Unreachable(why.to_string()))?;
@@ -293,7 +289,7 @@ impl Master {
   /// The master's whole picture.
   pub async fn picture(&self) -> Result<Value, MasterFault> {
     let answer = self
-      .authorized(self.http.get(self.at("/cluster")), Duration::ZERO)
+      .authorized(self.http.get(self.at("/cluster")))
       .send()
       .await
       .map_err(|why| MasterFault::Unreachable(why.to_string()))?;

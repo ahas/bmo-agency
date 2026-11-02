@@ -4,7 +4,7 @@
 // is, and the catalogue.
 
 import type { TransactionSQL } from "bun";
-import { idleSecondsOf, postgresClient, reconnectMsOf, serverWentAway } from "./postgres-client";
+import { idleSecondsOf, postgresClient, serverWentAway } from "./postgres-client";
 import type { PostgresClient, PostgresReach } from "./postgres-client";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { jsonKey, jsonPath } from "./archive-sql";
@@ -168,13 +168,12 @@ export class PostgresArchiveSql implements ArchiveSql {
   /**
    * A port opening its client with `connect` at its first statement, and giving it back once
    * nothing has used it for `idleSeconds`, the next statement opening a fresh one. Work the server
-   * went away under is run again on a fresh client for as long as `reconnectMs` allows, the first
-   * pause between attempts lasting `firstPause`.
+   * went away under is run again on a fresh client until the server answers it, the first pause
+   * between attempts lasting `firstPause`.
    */
   constructor(
     private readonly connect: () => Client,
     private readonly idleSeconds: number,
-    private readonly reconnectMs: number = reconnectMsOf({}),
     private readonly firstPause: number = firstPauseMs,
   ) {}
 
@@ -185,7 +184,7 @@ export class PostgresArchiveSql implements ArchiveSql {
 
     if (known !== undefined) return known;
 
-    const port = new PostgresArchiveSql(() => postgresClient(address, reach), idleSecondsOf(reach), reconnectMsOf(reach));
+    const port = new PostgresArchiveSql(() => postgresClient(address, reach), idleSecondsOf(reach));
 
     shared.set(key, port);
 
@@ -295,13 +294,13 @@ export class PostgresArchiveSql implements ArchiveSql {
   }
 
   // Work the server went away under is run again whole on a fresh client, with a doubling pause between
-  // attempts, until the reconnect budget is spent (docs/store.md); every other error is thrown as it came.
+  // attempts, until the server answers it however long its restart takes (docs/store.md); every other error
+  // is thrown as it came.
   private async using<T>(work: (client: Client) => Promise<T>): Promise<T> {
     if (this.resting !== null) clearTimeout(this.resting);
     this.resting = null;
     this.working += 1;
 
-    const started = Date.now();
     let pause = this.firstPause;
 
     try {
@@ -313,7 +312,7 @@ export class PostgresArchiveSql implements ArchiveSql {
 
           return await work(client);
         } catch (error) {
-          if (!serverWentAway(error) || Date.now() - started + pause > this.reconnectMs) throw error;
+          if (!serverWentAway(error)) throw error;
 
           console.error(`archive: the database went away (${goneName(error)}); running the work again in ${pause} ms, attempt ${attempt + 1}`);
           if (client !== null) this.letGo(client);

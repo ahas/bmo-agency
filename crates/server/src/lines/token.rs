@@ -9,7 +9,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use bmo_pocket_client::{Failure, Pocket, SessionRequest};
 use policy::deployment::DEPLOYMENT;
@@ -28,9 +28,8 @@ pub const TOKEN_VARIABLE: &str = "BMO_MCP_TOKEN";
 /// The variable a launcher may name the issuer token file in, where a deployment keeps it elsewhere.
 pub const ISSUER_TOKEN_VARIABLE: &str = "BMO_MCP_HOST_ISSUER_TOKEN";
 
-// How long a launch waits for a host restarting under a deployment before it refuses, and how often it
-// asks again meanwhile.
-const ISSUE_WAIT: Duration = Duration::from_secs(10);
+// How often a launch asks again while the host is restarting under a deployment: it waits for the host to
+// answer however long that takes.
 const RETRY_EVERY: Duration = Duration::from_millis(200);
 
 /// The tool host's control socket: the one the environment names, or `bmo/mcp-host.sock` under the
@@ -369,11 +368,10 @@ pub async fn issue_for_run(
 // A token asked of the host for a record.
 async fn issue_record(ground: &Ground, request: &SessionRequest) -> Result<String, Refusal> {
   let socket = host_socket(ground);
-  let deadline = Instant::now() + ISSUE_WAIT;
 
   loop {
-    let why = match issuer_token(ground) {
-      None => "the issuer token is not there".to_owned(),
+    match issuer_token(ground) {
+      None => {}
       Some(token) => match pocket(ground, token).issue(request).await {
         Ok(session) => return Ok(session.token),
         Err(Failure::Refused { status, error }) => {
@@ -382,12 +380,8 @@ async fn issue_record(ground: &Ground, request: &SessionRequest) -> Result<Strin
         Err(Failure::Unreadable { status, why }) => {
           return Err(host_down(&socket, format!("{status} {why}")));
         }
-        Err(Failure::Unreachable(why)) => why.to_string(),
+        Err(Failure::Unreachable(_)) => {}
       },
-    };
-
-    if Instant::now() >= deadline {
-      return Err(host_down(&socket, why));
     }
 
     tokio::time::sleep(RETRY_EVERY).await;

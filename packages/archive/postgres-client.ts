@@ -20,8 +20,6 @@ export interface PostgresReach {
   idleSeconds?: number;
   /** Every statement refused a write by the server itself, as a SQLite file opened read-only is. */
   readonly?: boolean;
-  /** How long the archive port waits out a server gone away before it gives up, in milliseconds. */
-  reconnectMs?: number;
 }
 
 // Every process that opens the archive holds a pool of its own, and the server shares its hundred
@@ -29,17 +27,9 @@ export interface PostgresReach {
 // back a client it has not used for a little while.
 const defaultConnections = 2;
 const defaultIdleSeconds = 10;
-// A restart of the server is over in seconds; a minute covers one that waits on a checkpoint.
-const defaultReconnectMs = 60_000;
 
 export function idleSecondsOf(reach: PostgresReach): number {
   return reach.idleSeconds ?? defaultIdleSeconds;
-}
-
-export function reconnectMsOf(reach: PostgresReach): number {
-  const named = Number(process.env.BMO_ARCHIVE_RECONNECT_MS);
-
-  return reach.reconnectMs ?? (Number.isFinite(named) && named > 0 ? named : defaultReconnectMs);
 }
 
 // What Bun's client says when the connection closed under a statement, never opened, or answered

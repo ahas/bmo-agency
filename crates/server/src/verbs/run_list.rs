@@ -24,9 +24,6 @@ use crate::now_ms;
 use crate::places::Ground;
 use crate::queue::cancels;
 
-/// How long herdr is given to answer its snapshot.
-const HERDR_WAIT: std::time::Duration = std::time::Duration::from_secs(5);
-
 /// What `bmo-agency run list` is asked.
 #[derive(Parser, Debug, Default)]
 pub struct ListArgs {
@@ -238,10 +235,9 @@ async fn panes(ground: &Ground) -> Panes {
   let Some(herdr) = &ground.herdr else {
     return Panes::Unnamed;
   };
-  let snapshot = match tokio::time::timeout(HERDR_WAIT, herdr.snapshot()).await {
-    Ok(Ok(snapshot)) => snapshot,
-    Ok(Err(fault)) => return Panes::Unreached(fault.to_string()),
-    Err(_) => return Panes::Unreached("no answer in time".to_owned()),
+  let snapshot = match herdr.snapshot().await {
+    Ok(snapshot) => snapshot,
+    Err(fault) => return Panes::Unreached(fault.to_string()),
   };
   let status = statuses(herdr).await;
 

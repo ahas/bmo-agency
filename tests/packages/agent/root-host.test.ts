@@ -7,15 +7,12 @@ import { join } from "node:path";
 import { Archive } from "@agency/archive/archive";
 import { installPlacer, spawnAgentProcess } from "@agency/agent/agent-process";
 import { installProviderSettings } from "@agency/agent/provider-order";
-import { standResident } from "@agency/agent/resident-pane";
-import { readProgram } from "@agency/agent/resident-program";
 import { MCP_TOKEN_VARIABLE, ToolHostDown, composeToolRecord, issueToolToken } from "@agency/agent/tool-host";
 import declaredRoles from "@agency/policy/roles.toml";
 import { crateBinary } from "@agency/test-support/cargo";
 import { scratchDir } from "@agency/test-support/scratch";
 
 import type { Placer } from "@agency/agent/pane-process";
-import type { ResidentProgram } from "@agency/agent/resident-program";
 import { codeRoot } from "@agency/support/roots";
 import { scratchArchive, scratchDatabase } from "@agency/test-support/store";
 
@@ -137,51 +134,50 @@ describe("a structured run on a line standing on the hosts", () => {
     expect(lines.at(-1)).toStartWith("resting");
   }, 60_000);
 
-  test("is refused, naming the tool host, before anything is placed when the tool host does not answer", async () => {
+  test("waits for a tool host that does not answer yet, placing nothing until it answers", async () => {
     let placed = 0;
     const counting: Placer = async () => {
       placed += 1;
       return { ok: false, error: { code: "unused", message: "unused" } };
     };
     const socket = process.env.BMO_MCP_HOST_SOCKET;
+    const late = join(sockets, "late-launch.sock");
+    let host: ReturnType<typeof Bun.serve> | null = null;
 
     installPlacer(counting);
-    process.env.BMO_MCP_HOST_SOCKET = join(sockets, "nobody.sock");
+    process.env.BMO_MCP_HOST_SOCKET = late;
 
     try {
       const proc = await spawnAgentProcess({ args: [process.execPath, "-e", "0"], cwd: data, env: {}, stdin: null }, "worker", "claude-code", { agent: "worker" });
 
-      expect(proc.exited).rejects.toThrow(/The tool host did not answer on .*nobody\.sock/);
-      await proc.exited.catch(() => {});
+      await Bun.sleep(800);
       expect(placed).toBe(0);
+
+      host = Bun.serve({ unix: late, fetch: () => Response.json({ token: "late-token" }) });
+      await proc.exited.catch(() => {});
+      expect(placed).toBe(1);
     } finally {
       installPlacer(null);
       process.env.BMO_MCP_HOST_SOCKET = socket;
+      (host as ReturnType<typeof Bun.serve> | null)?.stop(true);
     }
   }, 30_000);
 });
 
-describe("a resident program on a line standing on the hosts", () => {
-  const cwd = scratchDir("bmo-root-host-resident-");
-  const program = (identity: string): ResidentProgram => ({ identity, command: { args: ["sleep", "60"], cwd, env: { PATH: "/usr/bin" } }, restart: null });
+test("a host not answering yet is waited for until it answers", async () => {
+  const late = join(sockets, "late.sock");
+  const record = { holderName: "worker", namespaces: ["web", "worker"], capabilities: [], grants: [] };
+  let host: ReturnType<typeof Bun.serve> | null = null;
+  const coming = Bun.sleep(600).then(() => {
+    host = Bun.serve({ unix: late, fetch: () => Response.json({ token: "late-token" }) });
+  });
 
-  test("is not written when the tool host does not answer", async () => {
-    const place = join(scratchDir("bmo-root-host-place-"), "worker");
-    const socket = process.env.BMO_MCP_HOST_SOCKET;
-
-    mkdirSync(place, { recursive: true });
-    process.env.BMO_MCP_HOST_SOCKET = join(sockets, "nobody.sock");
-
-    try {
-      const stood = await standResident({ place, home: { agent: "worker", label: "worker", head: { command: [], cwd, env: {} } }, program: program("one"), line: "worker" });
-
-      expect(stood.ok).toBe(false);
-      expect(!stood.ok && stood.error.code).toBe("tool-host-down");
-      expect(readProgram(place)).toBeNull();
-    } finally {
-      process.env.BMO_MCP_HOST_SOCKET = socket;
-    }
-  }, 30_000);
+  try {
+    expect(await issueToolToken(record, { socket: late })).toBe("late-token");
+  } finally {
+    await coming;
+    (host as ReturnType<typeof Bun.serve> | null)?.stop(true);
+  }
 });
 
 test("a host that answers and refuses the record is said at once, not waited for", async () => {

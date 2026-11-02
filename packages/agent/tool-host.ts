@@ -86,12 +86,12 @@ export function toolHostUrl(namespace: string): string {
 export const TOOL_HOST_AUTHORIZATION = `Bearer \${${MCP_TOKEN_VARIABLE}}`;
 
 /**
- * How long a program waits on one call of the tool host before giving it up, in seconds: past the longest
- * call the host carries, a launching tool called in sync waiting for its run. Codex's and dsh's own
- * defaults give a call up after a minute, and a client that gave up first would lose a result the call had
- * already taken from the next turn.
+ * What a program is told it may wait on one call of the tool host, in seconds. A call is waited for until it
+ * answers, but Codex and dsh give a call up after a minute unless told a wait, and a client that gave up
+ * would lose a result the call had already taken from the next turn; so they are told the longest wait the
+ * runtime's own timer holds, about twenty-four days, which no call reaches.
  */
-export const TOOL_HOST_WAIT_SECONDS = 240;
+export const TOOL_HOST_WAIT_SECONDS = 2_147_483;
 
 /** An HTTP server as agency's configuration files write one: its URL and the headers it is handed. */
 export interface HttpServerEntry {
@@ -184,20 +184,23 @@ export async function toolSessionRecord(line: string, command: ToolRecordRun, de
   };
 }
 
-// How long a launch waits for a host restarting under a deployment before it refuses.
-const issueWaitMs = 10_000;
+// How often a launch asks again while the host is restarting under a deployment.
 const retryEveryMs = 200;
 
-/** A token issued for a record, waited for up to ten seconds of the host not answering. */
-export async function issueToolToken(record: ToolSessionRecord, options: { socket?: string; waitMs?: number } = {}): Promise<string> {
+/**
+ * A token issued for a record, waited for however long the host takes to answer: a host restarting under a
+ * deployment, or not yet writing its issuer token, is asked again until it does.
+ */
+export async function issueToolToken(record: ToolSessionRecord, options: { socket?: string } = {}): Promise<string> {
   const socket = options.socket ?? mcpHostSocket();
-  const deadline = Date.now() + (options.waitMs ?? issueWaitMs);
-  const issuer = issuerToken();
-
-  if (issuer === null) throw new ToolHostDown(socket, "the issuer token is not there");
 
   for (;;) {
-    let why: string;
+    const issuer = issuerToken();
+
+    if (issuer === null) {
+      await Bun.sleep(retryEveryMs);
+      continue;
+    }
 
     try {
       const answer = await fetch("http://localhost/tool-sessions", {
@@ -214,10 +217,7 @@ export async function issueToolToken(record: ToolSessionRecord, options: { socke
       throw new ToolHostDown(socket, `${answer.status} ${typeof said?.error === "string" ? said.error : ""}`.trim());
     } catch (error) {
       if (error instanceof ToolHostDown) throw error;
-      why = error instanceof Error ? error.message : String(error);
     }
-
-    if (Date.now() >= deadline) throw new ToolHostDown(socket, why);
 
     await Bun.sleep(retryEveryMs);
   }

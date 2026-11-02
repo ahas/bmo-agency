@@ -3,7 +3,6 @@
 //! keeps and the SSH login to each.
 
 use std::sync::Arc;
-use std::time::Duration;
 
 use bmo_node_client::events::{Change, EventsQuery};
 use bmo_node_client::nodes::{Node, NodeKind as PublishedKind, NodesQuery, Target};
@@ -28,9 +27,6 @@ const PEER: &str = "node service";
 
 // The name the service gives its own machine.
 const THIS_MACHINE: &str = "local";
-
-// A reading asked on a clock or before a launch is not waited on for long.
-const ANSWER_WITHIN: Duration = Duration::from_secs(15);
 
 /// The kind of event a machine's standing and its pressures are told as.
 const MACHINE_CHANGED: &str = "machine.changed";
@@ -197,18 +193,14 @@ impl NodeService for NoNodeService {
 /// The node service asked through its published client.
 pub struct PublishedNode {
   calls: NodeClient,
-  events: NodeClient,
 }
 
 impl PublishedNode {
   pub fn new(address: PeerAddress) -> Result<Self, String> {
-    let with_wait = reqwest::Client::builder().timeout(ANSWER_WITHIN).build().unwrap_or_default();
     let token = address.token.clone().unwrap_or_default();
 
     Ok(Self {
-      calls: NodeClient::with_http(address.url.as_str(), token.clone(), with_wait)?,
-      // A stream is held open past any call's wait, so it is asked through a client with none.
-      events: NodeClient::with_http(address.url.as_str(), token, reqwest::Client::new())?,
+      calls: NodeClient::new(address.url.as_str(), token)?,
     })
   }
 
@@ -308,7 +300,7 @@ impl NodeService for PublishedNode {
         machine_name: Some(THIS_MACHINE.to_owned()),
         ..EventsQuery::default()
       };
-      let told = self.events.events(&query).await.map_err(fault)?.filter_map(|event| async move {
+      let told = self.calls.events(&query).await.map_err(fault)?.filter_map(|event| async move {
         match event {
           Ok(event) => match event.change() {
             Ok(Change::MachineChanged(machine)) => Some(Ok(*machine)),

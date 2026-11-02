@@ -5,7 +5,6 @@
 //! job starts.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::time::Duration;
 
 use policy::fill_marks;
 use policy::queue_idle::QUEUE_IDLE;
@@ -27,9 +26,6 @@ pub const MINUTES_KEY: &str = "queue_idle_minutes";
 pub const SEEN_PREFIX: &str = "queue_item_waiting:";
 /// The settings rows, one an item by its number, of when the chat agent was told the item awaits a launch.
 pub const LAUNCH_TOLD_PREFIX: &str = "queue_item_told:";
-
-// How long either call waits.
-const ANSWER_WITHIN: Duration = Duration::from_secs(10);
 
 /// An open item as the alarm reads it.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -271,7 +267,6 @@ async fn read_job(url: &str, token: &str, path: &str, query: &[(&str, &str)]) ->
     .get(format!("{url}{path}"))
     .query(query)
     .bearer_auth(token)
-    .timeout(ANSWER_WITHIN)
     .send()
     .await
     .map_err(|why| why.to_string())?;
@@ -344,7 +339,6 @@ async fn tell(vars: &BTreeMap<String, String>, body: &Value) -> Result<bool, Str
     .post(format!("{url}/owner/notices"))
     .bearer_auth(token)
     .json(body)
-    .timeout(ANSWER_WITHIN)
     .send()
     .await
     .map_err(|why| why.to_string())?;

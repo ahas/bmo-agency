@@ -91,7 +91,6 @@ export class SettingStore {
       const day: LockTally = {
         met: (was?.met ?? 0) + held.met,
         saved: (was?.saved ?? 0) + held.saved,
-        lost: (was?.lost ?? 0) + held.lost,
         waitedMs: (was?.waitedMs ?? 0) + held.waitedMs,
         longestMs: Math.max(was?.longestMs ?? 0, held.longestMs),
       };

@@ -69,12 +69,11 @@ key_file = "deepseek.key"
 
 [balance]
 # What the account has left, asked with the road's key file on a clock (docs/usage-windows.md,
-# 「Balances」): where it is asked, the variable a test names a stand-in's address in, how long an ask may
-# take, how often it is read and for how many passes a reading stands; and, for a balance spent, where a
-# person tops it up (docs/cache-fallback.md, 「One road resolution」).
+# 「Balances」): where it is asked, the variable a test names a stand-in's address in, how often it is read
+# and for how many passes a reading stands; and, for a balance spent, where a person tops it up
+# (docs/cache-fallback.md, 「One road resolution」).
 url = "https://api.deepseek.com/user/balance"
 url_env = "BMO_DEEPSEEK_BALANCE_URL"
-ask_seconds = 15
 pass_seconds = 300
 fresh_passes = 6
 top_up = "top the DeepSeek balance up at https://platform.deepseek.com/top_up"

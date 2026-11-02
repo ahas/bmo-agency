@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use http_body_util::Empty;
 use hyper::body::Bytes;
@@ -18,9 +18,8 @@ use crate::front::{BoxFuture, Child};
 use crate::keys::read_key;
 use crate::table::{GATEWAY_KEY_VARIABLE, Table};
 
-/// How long a child is given to answer after it starts, and how long a stopped one before it is killed.
-const READINESS: Duration = Duration::from_secs(180);
-const STOP_WAIT: Duration = Duration::from_secs(15);
+/// How often a child coming up is asked whether it answers.
+const READINESS_LOOK: Duration = Duration::from_millis(500);
 
 /// Where a launcher keeps its tables and reads its keys, and the hooks it copies beside each table.
 pub struct Place {
@@ -91,23 +90,22 @@ impl Child for Litellm {
   }
 }
 
+// A child asked to end, and waited for until it has.
 async fn stop_process(process: &mut tokio::process::Child) {
   if let Some(pid) = process.id() {
     unsafe {
       libc::kill(pid as i32, libc::SIGTERM);
     }
   }
-  if tokio::time::timeout(STOP_WAIT, process.wait()).await.is_err() {
-    let _ = process.start_kill();
-    let _ = process.wait().await;
-  }
+  let _ = process.wait().await;
 }
 
 fn free_port() -> std::io::Result<u16> {
   Ok(std::net::TcpListener::bind("127.0.0.1:0")?.local_addr()?.port())
 }
 
-// Whether the child answers its liveliness path with a success.
+// Whether the child answers its liveliness path with a success: a refused or broken connection is no, and
+// an answer is waited for.
 async fn lively(port: u16) -> bool {
   let asked = async {
     let stream = TcpStream::connect(("127.0.0.1", port)).await.ok()?;
@@ -120,14 +118,10 @@ async fn lively(port: u16) -> bool {
       .ok()?;
     Some(sender.send_request(request).await.ok()?.status().is_success())
   };
-  tokio::time::timeout(Duration::from_secs(5), asked)
-    .await
-    .ok()
-    .flatten()
-    .unwrap_or(false)
+  asked.await.unwrap_or(false)
 }
 
-/// LiteLLM started on the table and waited for.
+/// LiteLLM started on the table and waited for until it answers or ends, however long it takes.
 pub async fn start(place: &Place, table: &Table, digest: &str) -> Result<Box<dyn Child>, String> {
   let table_path = place.table_path(digest);
   write_private(&table_path, &table.text)
@@ -181,8 +175,7 @@ pub async fn start(place: &Place, table: &Table, digest: &str) -> Result<Box<dyn
     }
   };
 
-  let deadline = Instant::now() + READINESS;
-  while Instant::now() < deadline {
+  loop {
     if let Ok(Some(ended)) = process.try_wait() {
       let _ = std::fs::remove_file(&table_path);
       let code = ended.code().map_or_else(|| "a signal".to_owned(), |code| code.to_string());
@@ -195,9 +188,6 @@ pub async fn start(place: &Place, table: &Table, digest: &str) -> Result<Box<dyn
         table: table_path,
       }));
     }
-    tokio::time::sleep(Duration::from_millis(500)).await;
+    tokio::time::sleep(READINESS_LOOK).await;
   }
-  stop_process(&mut process).await;
-  let _ = std::fs::remove_file(&table_path);
-  Err(format!("LiteLLM did not answer within {} seconds", READINESS.as_secs()))
 }

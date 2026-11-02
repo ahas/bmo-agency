@@ -5,7 +5,6 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
-use std::time::Duration;
 
 use policy::providers::Declared;
 use policy::providers::codex::CODEX;
@@ -203,7 +202,7 @@ pub fn failure(stdout: &str, stderr: &str, status: Option<i32>) -> String {
     })
 }
 
-/// Every model the installed executable offers, asked within the seconds the policy gives it.
+/// Every model the installed executable offers, its answer waited for until the run ends.
 pub async fn models(machine: &Machine) -> Result<Vec<Model>, String> {
   let program = machine
     .program(&CODEX.catalogue.program)
@@ -222,10 +221,7 @@ pub async fn models(machine: &Machine) -> Result<Vec<Model>, String> {
   }
 
   let child = command.spawn().map_err(|error| format!("codex models: {error}"))?;
-  let output = tokio::time::timeout(Duration::from_secs(CODEX.catalogue.seconds), child.wait_with_output())
-    .await
-    .map_err(|_| format!("codex models: no answer within {} seconds", CODEX.catalogue.seconds))?
-    .map_err(|error| format!("codex models: {error}"))?;
+  let output = child.wait_with_output().await.map_err(|error| format!("codex models: {error}"))?;
   let stdout = String::from_utf8_lossy(&output.stdout);
 
   if !output.status.success() {

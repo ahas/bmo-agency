@@ -28,7 +28,6 @@ pub mod work_node_setup;
 
 use std::fmt;
 use std::path::{Path, PathBuf};
-use std::time::Duration;
 
 use sea_orm::DatabaseConnection;
 
@@ -254,8 +253,7 @@ pub async fn relay_events() {
 
   for (at, event) in published.iter().enumerate() {
     let body = serde_json::json!({ "kind": event.name, "data": event.body });
-    let missed = match control_call(&token, reqwest::Method::POST, "/events", Some(&body), TELL_WAIT).await
-    {
+    let missed = match control_call(&token, reqwest::Method::POST, "/events", Some(&body)).await {
       Ok((status, _)) if (200..300).contains(&status) => None,
       Ok((status, _)) => Some(format!("the server answered {status}")),
       Err(why) => Some(format!("no server answered on port {} ({why})", control_port())),
@@ -302,18 +300,17 @@ pub fn control_token() -> Option<String> {
 }
 
 /// One call to agency's server under its token: the status and the JSON it answered with, none where the
-/// answer did not read as JSON; the transport's own fault where nothing answered in time.
+/// answer did not read as JSON; the transport's own fault where the connection was refused or broken. The
+/// call waits for the server's answer however long it takes.
 pub async fn control_call(
   token: &str,
   method: reqwest::Method,
   path: &str,
   body: Option<&serde_json::Value>,
-  wait: Duration,
 ) -> Result<(u16, Option<serde_json::Value>), reqwest::Error> {
   let mut call = reqwest::Client::new()
     .request(method, format!("http://127.0.0.1:{}{path}", control_port()))
-    .bearer_auth(token)
-    .timeout(wait);
+    .bearer_auth(token);
 
   if let Some(body) = body {
     call = call.json(body);
@@ -325,16 +322,13 @@ pub async fn control_call(
   Ok((status, answer.json().await.ok()))
 }
 
-// Short enough that a verb never sits on a server that is restarting.
-const TELL_WAIT: Duration = Duration::from_secs(2);
-
 /// One word to the running server, as a verb outside it tells it what it changed: a POST of `body` to
 /// `path`. The caller is never failed by it: what it wrote stands whether the server hears or not, but a
 /// word that did not land says so once on the error stream.
 pub async fn tell_server(path: &str, body: serde_json::Value) {
   let missed = match control_token() {
     None => Some(format!("{CONTROL_TOKEN} is not set in this process")),
-    Some(token) => match control_call(&token, reqwest::Method::POST, path, Some(&body), TELL_WAIT).await {
+    Some(token) => match control_call(&token, reqwest::Method::POST, path, Some(&body)).await {
       Ok((status, _)) if (200..300).contains(&status) => None,
       Ok((status, _)) => Some(format!("the server answered {status}")),
       Err(why) => Some(format!("no server answered on port {} ({why})", control_port())),
