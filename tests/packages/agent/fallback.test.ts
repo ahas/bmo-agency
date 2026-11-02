@@ -40,9 +40,10 @@ describe("no Claude launch line moved", () => {
       "--setting-sources", "--strict-mcp-config",
       // agency's own server, beside the strict flag that keeps every other out.
       "--mcp-config", "--disable-slash-commands", "--no-chrome",
-      // What a run keeps back, written only where it names any — a companion with a worker's hands —
-      // and before the mode, since the list would swallow a word after it.
-      "--disallowedTools",
+      // A supervisor's program: bypass mode and the denied list alone, which would swallow a word after it
+      // were a flag not to follow.
+      "--permission-mode", "--disallowedTools",
+      // Any other run of the line: its mode, then what it is shown and allowed.
       "--permission-mode", "--tools", "--allowedTools",
       // Only the resident program is handed its settings, after the list that would swallow them.
       "--settings",

@@ -31,8 +31,7 @@ fn line<'a>(dir: &'a Path, system: &'a Path) -> Words<'a> {
     effort: "low",
     system,
     mcp: dir,
-    shown: "Bash,Read",
-    allowed: "Bash,Read,mcp__bmo",
+    hands: Hands::AllBut("WebSearch,mcp__job__job_item_create"),
     host_commands: false,
   }
 }
@@ -56,9 +55,9 @@ fn every_conversational_agent_stands_on_the_chat_line_with_its_own_prompt_and_se
   assert!(!opened.iter().any(|word| word == "-p" || word == "--print"));
   assert!(!opened.iter().any(|word| word == "--disable-slash-commands"));
   assert_eq!(at(&opened, "--system-prompt-file"), Some(system.to_string_lossy().into_owned()));
-  assert_eq!(at(&opened, "--permission-mode").as_deref(), Some("dontAsk"));
-  assert_eq!(at(&opened, "--disallowedTools").as_deref(), Some("mcp__job__job_item_create"));
-  assert_eq!(at(&opened, "--allowedTools").as_deref(), Some("Bash,Read,mcp__bmo"));
+  assert_eq!(at(&opened, "--permission-mode").as_deref(), Some("bypassPermissions"));
+  assert_eq!(at(&opened, "--disallowedTools").as_deref(), Some("WebSearch,mcp__job__job_item_create"));
+  assert!(!opened.iter().any(|word| word == "--allowedTools" || word == "--tools"), "{opened:?}");
   assert_eq!(at(&opened, "--settings"), Some(settings.to_string_lossy().into_owned()));
   assert_eq!(opened[opened.len() - 2..], ["--session-id".to_owned(), "s-1".to_owned()]);
   assert_eq!(resumed[resumed.len() - 2..], ["--resume".to_owned(), "s-1".to_owned()]);
@@ -69,6 +68,22 @@ fn every_conversational_agent_stands_on_the_chat_line_with_its_own_prompt_and_se
 
   assert_eq!(at(&words, "--system-prompt-file"), Some(system.to_string_lossy().into_owned()));
   assert!(!words.iter().chain(&opened).any(|word| word == "--append-system-prompt-file"));
+
+  // A run that holds only what it is shown and allowed — a gate's judgement, shown nothing — runs in don't-ask
+  // mode over its lists, and is denied nothing besides.
+  let gate = agency_server::lines::chat::words(&Words {
+    hands: Hands::Listed {
+      shown: "",
+      allowed: "",
+    },
+    ..line(dir.path(), &system)
+  })
+  .unwrap();
+
+  assert_eq!(at(&gate, "--permission-mode").as_deref(), Some("dontAsk"));
+  assert_eq!(at(&gate, "--tools").as_deref(), Some(""));
+  assert_eq!(at(&gate, "--allowedTools").as_deref(), Some(""));
+  assert!(!gate.iter().any(|word| word == "--disallowedTools"), "{gate:?}");
 }
 
 // The tree this checkout is, which the chat's documents and rulebooks are read out of.
@@ -568,11 +583,11 @@ fn the_chats_prompt_names_the_tools_of_the_program_it_is_composed_for_and_the_ma
     servers: vec!["bmo".to_owned(), "web".to_owned()],
     ..SystemParts::default()
   };
-  let on_claude = parts.compose(&trees, &["Bash", "ListMcpResourcesTool"]).unwrap();
+  let on_claude = parts.compose(&trees, &[CHAT_LINE.tools.listed.as_str()]).unwrap();
   let on_dsh = parts.compose(&trees, &agency_server::lines::dsh::SESSION_TOOLS).unwrap();
   let manual = std::fs::read_to_string(tree().join("prompts/agents/chat/manual.md")).unwrap();
 
-  assert!(on_claude.contains("own tools are Bash, ListMcpResourcesTool."), "{on_claude}");
+  assert!(on_claude.contains(&format!("own tools are {}.", CHAT_LINE.tools.listed)), "{on_claude}");
   assert!(on_dsh.contains("own tools are bash, read, write, edit"), "{on_dsh}");
   assert!(!on_dsh.contains("ListMcpResourcesTool"));
   assert!(!manual.contains("ListMcpResourcesTool") && !manual.contains("Your tools are Bash"));
@@ -740,4 +755,132 @@ fn words_handed_to_the_supervisor_are_said_in_its_own_voice_with_their_facts_and
     assert!(handed.contains(said), "{said}: {handed}");
   }
   assert!(!handed.contains('"'), "a rule, with no sentence for the agent to repeat: {handed}");
+}
+
+// The words a flag stands before.
+fn after<'a>(args: &'a [String], flag: &str) -> Option<&'a str> {
+  args.iter().position(|arg| arg == flag).map(|at| args[at + 1].as_str())
+}
+
+// A supervisor's program runs in bypass-permissions mode with the chat line's denied list as its only
+// restriction, writes no allow list and narrows nothing it is shown, and holds every server of its chat
+// configuration, on Claude Code's own road and on DeepSeek's gateway road alike (docs/launch-lines.md, 「What a
+// line's program is allowed, by road」).
+#[tokio::test]
+async fn a_supervisor_s_program_bypasses_permissions_and_holds_every_chat_server_on_every_road() {
+  use std::os::unix::fs::PermissionsExt;
+
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let at = |path: &Path| path.to_string_lossy().into_owned();
+  let artifact_token = home.path().join("artifact.token");
+
+  std::fs::write(&artifact_token, "artifact-token-value").unwrap();
+
+  let machine = Machine::with_env(
+    [
+      ("HOME".to_owned(), at(home.path())),
+      ("PATH".to_owned(), "/usr/bin:/bin".to_owned()),
+      ("BMO_DEPLOY_DIR".to_owned(), at(&tree())),
+      ("BMO_AGENTS_DIR".to_owned(), at(&home.path().join("agents"))),
+      ("BMO_JOB_PLUGIN".to_owned(), "/opt/bmo-job".to_owned()),
+      ("BMO_JOB_URL".to_owned(), "http://127.0.0.1:1".to_owned()),
+      ("BMO_AGENCY_URL".to_owned(), "http://127.0.0.1:2".to_owned()),
+      ("BMO_EXPLORER_PLUGIN".to_owned(), "/opt/bmo-explorer".to_owned()),
+      ("BMO_DATA_DIR".to_owned(), at(&home.path().join("data"))),
+      ("BMO_ARTIFACT_URL".to_owned(), "http://127.0.0.1:3".to_owned()),
+      ("BMO_ARTIFACT_TOKEN_FILE".to_owned(), at(&artifact_token)),
+      ("BMO_ARTIFACT_PLUGIN".to_owned(), "/opt/bmo-artifact".to_owned()),
+    ],
+    home.path().join("data"),
+  );
+  let variables: HashMap<String, String> = HashMap::new();
+  let service =
+    Service::new(scratch.db().clone(), Config::read(|name| variables.get(name).cloned()).unwrap());
+  let ground = Ground::new(&service, &machine, None);
+
+  chat_agent(&scratch, "agent").await;
+
+  let cwd = at(home.path());
+  let launch = ChatLaunch {
+    agent: "chat-agent",
+    chat_id: -5,
+    room: RoomContext {
+      chat_id: -5,
+      text: "the room's block".into(),
+      mark: "[a]".into(),
+    },
+    via: None,
+    resume: None,
+    privileged: true,
+    ping: false,
+    base_persona: Some("the persona"),
+    model: Some("claude-model"),
+    cwd: Some(&cwd),
+  };
+  let run = chat_run(&ground, &machine, &launch, "hello", false).await.unwrap();
+  let on_claude = compose_prepared(&ground, &machine, &run, "hello", "run-1", &[], 1)
+    .await
+    .unwrap()
+    .command
+    .args;
+
+  // DeepSeek's member on agency's gateway, its key where the settings' key helper reads it.
+  let key = ground.roots.data.join("env/llm-gateway.key");
+
+  std::fs::create_dir_all(key.parent().unwrap()).unwrap();
+  std::fs::write(&key, "sk-gateway\n").unwrap();
+  std::fs::set_permissions(&key, std::fs::Permissions::from_mode(0o600)).unwrap();
+
+  let door = Door::Gateway {
+    held: Box::new(agency_server::lines::standing::GatewayModel {
+      name: "deepseek-flash".into(),
+      label: "DeepSeek Flash".into(),
+      home: ground.roots.data.join("claude-roads/deepseek/deepseek-flash"),
+      context_tokens: 131_072,
+      answer_tokens: 16_384,
+      thinking: true,
+      registration: None,
+      road: Some("deepseek"),
+    }),
+    placement: None,
+  };
+  let step = agency_server::stand_in::Step {
+    provider: "deepseek".into(),
+    model: "deepseek-flash".into(),
+    effort: "high".into(),
+    thinking: true,
+    answer_tokens: None,
+  };
+  let on_deepseek = compose_stand_in(&ground, &machine, &run, &step, &door, &[], 1)
+    .await
+    .unwrap()
+    .command
+    .args;
+  let denied = denied();
+  let mut servers: Vec<String> = policy::run_lines::RUN_LINES.namespaces(LINE).to_vec();
+
+  servers.extend(["job", "agency", "artifact", "explorer"].map(str::to_owned));
+
+  for (road, args) in [("claude-code", &on_claude), ("deepseek", &on_deepseek)] {
+    assert_eq!(args.first().map(String::as_str), Some("claude"), "{road}: {args:?}");
+    assert_eq!(after(args, "--permission-mode"), Some("bypassPermissions"), "{road}: {args:?}");
+    assert_eq!(after(args, "--disallowedTools"), Some(denied.as_str()), "{road}: {args:?}");
+    assert!(
+      !args.iter().any(|arg| arg == "--allowedTools" || arg == "--tools" || arg == "dontAsk"),
+      "{road}: no allow list and nothing narrowed: {args:?}"
+    );
+
+    let config: serde_json::Value =
+      serde_json::from_str(&std::fs::read_to_string(after(args, "--mcp-config").unwrap()).unwrap())
+        .unwrap();
+
+    for server in &servers {
+      assert!(config["mcpServers"][server].is_object(), "{road}: {server}: {config}");
+    }
+  }
+
+  for server in ["eye", "ear", "testbed", "voice", "research"] {
+    assert!(servers.contains(&server.to_owned()), "the chat line names {server}: {servers:?}");
+  }
 }

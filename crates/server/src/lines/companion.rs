@@ -21,7 +21,7 @@ use policy::providers::Turns;
 use policy::providers::registered::REGISTERED;
 use serde_json::Value;
 
-use super::chat::{Words, standing_words};
+use super::chat::{Hands, Words, denied, standing_words};
 use super::claude::{Command, Runs, Session, command_env, line_environment};
 use super::place::{Holds, Place, write_place_settings};
 use super::standing::{GatewayModel, OnGateway, Placing, gateway_command, status_root};
@@ -270,8 +270,9 @@ pub async fn compose(
       provider: turn.provider,
       system: Some(&system),
       rules: None,
+      // A program told its tools is allowed every one it is shown.
       shown: Some(&CHAT_LINE.tools.shown),
-      allowed: Some(&CHAT_LINE.tools.allowed),
+      allowed: Some(&CHAT_LINE.tools.shown),
       cwd: &cwd,
       model: turn.model,
       effort: &effort,
@@ -337,6 +338,7 @@ pub async fn compose(
     Some((id, _)) => Session::Resume(id.to_owned()),
     None => Session::Open(uuid::Uuid::new_v4().to_string()),
   };
+  let denied = denied();
   let line = |model: &str, effort: &str, settings: &std::path::Path| {
     standing_words(
       &Words {
@@ -344,8 +346,7 @@ pub async fn compose(
         effort,
         system: &system,
         mcp: &mcp,
-        shown: &CHAT_LINE.tools.shown,
-        allowed: &CHAT_LINE.tools.allowed,
+        hands: Hands::AllBut(&denied),
         host_commands: true,
       },
       settings,

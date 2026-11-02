@@ -3,8 +3,8 @@
 ## What this document holds
 
 - **How each agent's Claude process is started:** its model and effort, the tools it is shown, its
-  permission mode and allow list, what of this machine's configuration it reads, how its system
-  prompt is delivered, and its environment.
+  permission mode and the tools it is denied or allowed, what of this machine's configuration it reads,
+  how its system prompt is delivered, and its environment.
 - **Where the lines are:** agency's server's `lines` module — the chat line every supervisor stands on,
   a companion's turn, and the lines a role names: the worker line, the search, browse and translate
   lines. The interactive program a supervisor keeps standing in its pane, and the one each run of a role
@@ -14,7 +14,7 @@
 - **Two shapes of one line.** A supervisor's line is started once as the interactive program standing
   in the supervisor's pane: the same flags without print mode and without a prompt, the session named by
   `--session-id` for the first start and by `--resume` for every start after it, and `--settings` naming
-  the place's settings file — the status line and the hooks — placed after the allowed tools so that list
+  the place's settings file — the status line and the hooks — placed after the denied tools so that list
   flag never swallows it. Every turn is words put into that program. A role's line runs each run apart:
   the same interactive program in a pane of its own, opened for the run on the session its role gives it
   — a new one, or the one the role keeps at that path while it is valid — and closed with it
@@ -173,7 +173,8 @@
   (`--system-prompt-file`); on dsh, whose own prompt is its harness, the role and the persona go as the
   persona suffix of its system prompt and the platform's opening is not sent. No settings sources, no
   skills, no Chrome, and the chat line's MCP servers, named in `chat.mcp.json` beside the strict flag that
-  keeps every other server out: the tool host's namespaces the chat line names, `bmo`, `gate` and `eye`,
+  keeps every other server out: the tool host's namespaces the chat line names — `bmo`, `gate`, `eye`,
+  `ear`, `testbed`, `voice` and `research` (`policy/run-lines.toml`, the chat line's `namespaces`) —
   each a streamable HTTP server behind the run's session token (the tool host's `mcp-host.md`), which is
   where the chat agent's own tools stand — sending, its brain's memory tools, and the gate's translator
   among them; the artifact and explorer services as first-class servers of the line, `artifact` and
@@ -184,22 +185,28 @@
   approval — under the chat's name, and on the deployment's shared token otherwise — either handed as the
   file it stands in and read by a shell in front of the plugin, which takes its token from its environment
   alone (`docs/agent-control.md`, 「A token is handed as the file it stands in」) — its own item creation left
-  out of what it serves (`--without job_item_create`) and, on Claude Code, disallowed as well
-  (`--disallowedTools`); and the agency's own, `agency`, started for the supervisor the configuration is
+  out of what it serves (`--without job_item_create`) and, on Claude Code, among the line's denied tools
+  as well; and the agency's own, `agency`, started for the supervisor the configuration is
   composed for (`--agent`, one configuration a supervisor), which files an item through agency and launches
   the item's job (`docs/api.md`, 「assignments and jobs」). A hosted tool those namespaces do not show is
-  reached with `bmo use`. The chat line no longer names the tool host's `web`: its own `WebSearch` and
+  reached with `bmo use`. The chat line names no `web` of the tool host's: the CLI's own `WebSearch` and
   `WebFetch` are denied, and the explorer server is the search and page reader of the line. The search and
   browse lines keep their `web` tools, since a search or a browse is the open web's work and they have no
-  explorer server of their own. The tools shown are exactly Bash, Read, Write, Edit and the CLI's two MCP
-  resource tools, the list and the read, in every run of every chat (none when the owner has turned tools
-  off in that chat), with the line's servers' tools beside them; the permission mode is don't-ask, and the
-  allow list is those same six and the whole of the line's servers by their prefixes in every run, whoever
-  wrote the turn's messages. A line that names fewer servers than these leaves the chat agent with no tool
-  of its own: a configuration that drops the tool host drops sending and memory with it. What is the owner's
-  alone — approving, launching or finishing work, deploying, reading another room — is held by the session's
-  own judgement under its rules, not by the allow list. The chat stands as the chat agent's resident
-  program, whose line keeps its slash commands — `/compact` is one, typed into the program to fold the
+  explorer server of their own. The permission mode is bypass-permissions, the same words a role's run is
+  started with, and the chat line's denied list is its only restriction (`policy/run-lines.toml`, the chat
+  line's `tools_denied`): the CLI's web search and fetch, its Artifact tools, the claude.ai Docs connector,
+  the tools that bring a session back after its turn has ended — `Monitor`, `ScheduleWakeup` and the
+  session cron tools, since a supervisor's turns are the ones its runner puts into its program — and the
+  job plugin's own item creation. The program is shown every other tool of its own, no `--tools` list
+  narrows it and no allow list is written, and every call of every tool it holds goes ahead unasked, every
+  server of its configuration among them, in every run of every supervisor, whoever wrote the turn's
+  messages. The place's settings pass over the CLI's warning on the bypass mode, as every place's do, so
+  the program comes up with no person to answer it. A line that names fewer servers than these leaves the
+  chat agent with no tool of its own: a configuration that drops the tool host drops sending and memory
+  with it. What is the owner's alone — approving, launching or finishing work, deploying, reading another
+  room — is held by the session's own judgement under its rules and by the owner's gate in front of the
+  actions that launch work (「The owner's gate」 below), not by a permission list. The chat stands as the
+  chat agent's resident program, whose line keeps its slash commands — `/compact` is one, typed into the program to fold the
   session in place, on the same prefix its turns stand on. There is no separate fold line for the chat. It
   works in a folder whose name a release does not change — the deploy tree's link on dsh, the agent's own
   home `companion-homes/<agent>` on Claude Code, which names its records after the folder's real path — so
@@ -349,7 +356,7 @@
   login of the Claude road goes with it.
 - **A companion's turn** (agency's server's companion turn): a turn of the companion's resident program,
   which stands on the chat line above as the chat agent's does (`docs/supervisors.md`, 「One runner」) —
-  the same tools shown and allowed, the same configuration but for agency's own plugin, which a
+  the same permission mode and denied tools, the same configuration but for agency's own plugin, which a
   companion is not handed, so it files no item and launches no job and tells the chat agent
   in the consult room what needs hands, the same mode and the same shell guard —
   with the system prompt its own settings compose (`docs/companions.md`, 「What a turn is given」) in
@@ -494,12 +501,17 @@
 
   | Line | Its runs | Permission mode | Built-in tools shown | Allowed | MCP configuration |
   |---|---|---|---|---|---|
-  | chat | a supervisor's resident program, a companion's turn | don't-ask | Bash, Read, Write, Edit and the two MCP resource tools; none in a chat whose tools the owner turned off | those six and the servers its allow list names — `bmo`, `gate`, `job`, `agency`, `artifact` and `explorer` — by their prefixes | the supervisor's chat configuration, strict |
+  | chat | a supervisor's resident program — the chat agent's turns and every companion's | bypass-permissions | every built-in tool but the chat line's denied list | everything shown and every server of its configuration — `bmo`, `gate`, `eye`, `ear`, `testbed`, `voice`, `research`, `job`, `agency` (a companion's holds none), `artifact` and `explorer` | the supervisor's chat configuration, strict |
   | worker | every role naming the line — a job, a worker ask, a delegated task, a co-work stage or branch, upkeep — and a supervisor's double | bypass-permissions | every built-in tool but the line's denied list | everything shown and every server of its configuration | `worker.mcp.json`, the tool host's `web` and `worker`; a double's `double.<supervisor>.worker.mcp.json`, the supervisor's chat servers with those beside them |
   | search | a searcher's turn | don't-ask | none | `bmo`, `web`, `eye` and `research` by their prefixes | `search.mcp.json`, those four namespaces, strict |
   | browse | a browser's turn | don't-ask | none | `bmo`, `chrome-devtools`, `web`, `eye` and `research` by their prefixes | the browse configuration, strict |
   | translate, gate | a translation, a gate's judgement | don't-ask | none | none | none |
 
+- **A supervisor is allowed the same on every road.** Its resident program is started on the chat line's one
+  set of words on Claude Code's own road and on DeepSeek's, Codex's, OpenRouter's and the registry's gateway
+  roads alike: bypass-permissions, the chat line's denied list as its only restriction, and its chat
+  configuration whole. These are the words a role's run and a supervisor's double are started with on the
+  worker line, the line's own denied list in place of the chat line's.
 - **What stands beside the tools goes with them.** A run of the worker line takes its whole line on every road:
   the worker settings and their hooks — the guard on every shell command a job runs and the slot hooks of
   native co-workers among them — the plugin and its skills, the co-worker definitions resolved on the run's own
@@ -512,7 +524,8 @@
 - **A program that is a harness of its own is told its tools another way.** dsh and Codex, carried for a
   rollback and named by no provider of this build, take a shown and an allowed list rather than a permission
   mode over every built-in: a run of the worker line on one of them is handed its line's MCP configuration and
-  allowed its servers, and a supervisor's double the chat line's shown and allowed tools beside them
+  allowed its servers; a supervisor, and a supervisor's double with it, is shown the chat line's shown tools
+  (`policy/chat-line.toml`, `shown`) and allowed every one it is shown, with no allow list of its own
   (`docs/worker-mcp.md`, 「A supervisor's double」).
 
 ## The owner's gate

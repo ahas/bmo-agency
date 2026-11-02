@@ -2539,11 +2539,11 @@ enters the prefix.
   and keeps its prefix.
 - **The chat line comes up interactive on its own flags.** Its argv without the print-mode flags — the
   system-prompt file, the emptied setting sources, the strict MCP configuration, no Chrome, the
-  `dontAsk` permission mode, the tools shown and allowed — with `--settings` added comes up, stops at the
+  permission mode and its tool lists — with `--settings` added comes up, stops at the
   folder trust like the worker's line, and runs the status line and every hook the settings file names
   (measured). The worker's line already runs interactive with its MCP configuration, plugin directory,
-  co-worker definitions and denied tools. A flag that takes a list — the tools shown and allowed, the MCP
-  configuration — reads every word after it as another item, so it never ends the line (measured: a
+  co-worker definitions and denied tools. A flag that takes a list — the tools shown, allowed or denied, the
+  MCP configuration — reads every word after it as another item, so it never ends the line (measured: a
   prompt placed after the allowed tools was read as a tool).
 
 ### The keepalive ping goes into the same program as the turns

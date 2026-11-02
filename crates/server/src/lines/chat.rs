@@ -54,6 +54,13 @@ const SERVER: &str = "bmo";
 // every chat agent that stands on it, and never an agent's name.
 const HARNESS: &str = "harness";
 
+/// The chat line's denied list (`policy/run-lines.toml`): the one restriction on a supervisor's program, which
+/// runs in bypass-permissions mode over every other tool of its own on every road (docs/launch-lines.md,
+/// 「What a line's program is allowed, by road」).
+pub fn denied() -> String {
+  RUN_LINES.line(LINE).map(|line| line.tools_denied.join(",")).unwrap_or_default()
+}
+
 /// The room's block as the caller composed it for the turn: the room it is, its text, and the mark the
 /// turn's answer carries.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -103,8 +110,14 @@ pub struct ChatRun {
   /// program composes it with that program's tools named; none for a run handed its prompt whole.
   pub system_parts: Option<SystemParts>,
   pub room: RoomContext,
+  /// What a program that is told its tools is shown and allowed; on Claude Code, what a run in don't-ask mode
+  /// is shown and allowed.
   pub tools_shown: String,
   pub tools_allowed: String,
+  /// What the program is denied where it runs in bypass-permissions mode over every other tool of its own: a
+  /// supervisor's, on every road whose program is Claude Code (docs/launch-lines.md, 「What a line's program is
+  /// allowed, by road」); none for a run in don't-ask mode over what it is shown and allowed.
+  pub tools_denied: Option<String>,
   pub mcp_config: PathBuf,
   /// The digest of what the deployment's own server shows, where the tool host says it.
   pub mcp_tools: Option<String>,
@@ -318,21 +331,17 @@ pub fn mcp_config(
   Ok(path)
 }
 
-/// What a supervisor's double is handed of the supervisor's servers and tools (docs/worker-mcp.md, 「A
-/// supervisor's double」): its MCP configuration and the tools its program is shown and allowed on a road that
-/// is told them.
+/// What a supervisor's double is handed of the supervisor's servers (docs/worker-mcp.md, 「A supervisor's
+/// double」): its MCP configuration. A program that is told its tools tells a double the supervisor's own.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Double {
   pub mcp_config: PathBuf,
-  pub tools_shown: String,
-  pub tools_allowed: String,
 }
 
-/// The servers and tools of `supervisor`'s double on a role line whose own configuration is `line_config`:
-/// the supervisor's chat configuration — a companion's carrying no agency plugin, as its own does — with each
+/// The servers of `supervisor`'s double on a role line whose own configuration is `line_config`: the
+/// supervisor's chat configuration — a companion's carrying no agency plugin, as its own does — with each
 /// server of the line's configuration the chat's holds none of beside it, written as
-/// `double.<supervisor>.<line>.mcp.json` under the agents tree where it differs from what stands there; and the
-/// chat line's shown and allowed tools, each server of the line's configuration allowed beside them.
+/// `double.<supervisor>.<line>.mcp.json` under the agents tree where it differs from what stands there.
 pub async fn double_of(
   ground: &Ground,
   trees: &Trees,
@@ -352,15 +361,6 @@ pub async fn double_of(
       .map_err(|why| fault(format!("{}: {why}", line_config.display())))?,
   )
   .map_err(|why| fault(format!("{}: {why}", line_config.display())))?;
-  let mut allowed: Vec<String> = CHAT_LINE
-    .tools
-    .allowed
-    .split(',')
-    .map(str::trim)
-    .filter(|tool| !tool.is_empty())
-    .map(str::to_owned)
-    .collect();
-
   for (name, server) in read
     .entries()
     .and_then(|top| top.get("mcpServers"))
@@ -369,12 +369,6 @@ pub async fn double_of(
     .flatten()
   {
     servers.entry(name.clone()).or_insert_with(|| server.clone());
-
-    let tool = format!("mcp__{name}");
-
-    if !allowed.contains(&tool) {
-      allowed.push(tool);
-    }
   }
 
   let path = trees.agents.join(format!("double.{supervisor}.{line}.mcp.json"));
@@ -387,11 +381,7 @@ pub async fn double_of(
       .map_err(|why| fault(format!("{}: {why}", path.display())))?;
   }
 
-  Ok(Double {
-    mcp_config: path,
-    tools_shown: CHAT_LINE.tools.shown.clone(),
-    tools_allowed: allowed.join(","),
-  })
+  Ok(Double { mcp_config: path })
 }
 
 // The shell in front of a stdio plugin that takes its job token from its environment alone: the token read from
@@ -425,12 +415,9 @@ fn harness_servers(ground: &Ground, agent: &str, companion: bool) -> Ordered {
 
     // The plugin's own tools the line keeps from the chat, which the plugin then neither lists nor calls on
     // any program, by the names it serves them under.
-    let without: Vec<&str> = CHAT_LINE
-      .tools
-      .hidden
-      .split(',')
-      .filter_map(|tool| tool.trim().strip_prefix("mcp__job__"))
-      .collect();
+    let denied = denied();
+    let without: Vec<&str> =
+      denied.split(',').filter_map(|tool| tool.trim().strip_prefix("mcp__job__")).collect();
 
     if !without.is_empty() {
       args.push(Ordered::text("--without"));
@@ -667,14 +654,8 @@ pub async fn chat_run(
       .map(|(name, _)| name.clone())
       .collect(),
   };
-  let shown: Vec<&str> = CHAT_LINE
-    .tools
-    .shown
-    .split(',')
-    .map(str::trim)
-    .filter(|tool| !tool.is_empty())
-    .collect();
-  let system = parts.whole(&trees, &shown)?;
+  // Claude Code lists its own tools to the session, every one but the line's denied list.
+  let system = parts.whole(&trees, &[CHAT_LINE.tools.listed.as_str()])?;
   let system_path = system_prompt_file(&trees, agent, &system)?;
   let mcp = mcp_config(ground, &trees, agent, false)?;
   let mut env: BTreeMap<String, String> = ground.env().clone();
@@ -710,7 +691,9 @@ pub async fn chat_run(
     system_parts: Some(parts),
     room: launch.room.clone(),
     tools_shown: CHAT_LINE.tools.shown.clone(),
-    tools_allowed: CHAT_LINE.tools.allowed.clone(),
+    // A program told its tools is allowed every one it is shown, and Claude Code denied the line's list alone.
+    tools_allowed: CHAT_LINE.tools.shown.clone(),
+    tools_denied: Some(denied()),
     mcp_config: mcp,
     mcp_tools: server_digest(ground).await,
     prompt: prompt.to_owned(),
@@ -920,6 +903,7 @@ pub fn gate_run(
     },
     tools_shown: String::new(),
     tools_allowed: String::new(),
+    tools_denied: None,
     mcp_config,
     mcp_tools: None,
     prompt: prompt.to_owned(),
@@ -936,7 +920,7 @@ pub fn gate_run(
 
 /// What one conversational agent's program on the chat line is started with, whichever agent it is
 /// (docs/agents.md, 「Conversational agents」): the model and effort, its own composed prompt, the line's
-/// one configuration, what the line shows and allows, and whether the program's own commands are reachable.
+/// one configuration, what it holds of its own tools, and whether the program's own commands are reachable.
 pub struct Words<'a> {
   pub model: &'a str,
   pub effort: &'a str,
@@ -944,14 +928,24 @@ pub struct Words<'a> {
   /// open with a harness, a gate's is its instructions.
   pub system: &'a Path,
   pub mcp: &'a Path,
-  pub shown: &'a str,
-  pub allowed: &'a str,
+  pub hands: Hands<'a>,
   pub host_commands: bool,
+}
+
+/// What a program on the chat line holds of its own tools (docs/launch-lines.md, 「What a line's program is
+/// allowed, by road」).
+#[derive(Clone, Copy, Debug)]
+pub enum Hands<'a> {
+  /// Every tool of its own but these, each call going ahead unasked: a supervisor's, on every road.
+  AllBut(&'a str),
+  /// Only what it is shown, and of that only what it is allowed, in don't-ask mode: a gate's judgement, shown
+  /// nothing, and a runner line's turn on a gateway road.
+  Listed { shown: &'a str, allowed: &'a str },
 }
 
 /// The line's words for the interactive program: the model and effort, the composed prompt in the program's
 /// own place, nothing of this machine but the one configuration handed, the program's own commands off where
-/// they are not reachable, and what it is shown and allowed.
+/// they are not reachable, and its permission mode with what it is denied, or shown and allowed.
 pub fn words(line: &Words<'_>) -> Result<Vec<String>, Refusal> {
   let mut args: Vec<String> = vec!["claude".to_owned()];
 
@@ -969,14 +963,23 @@ pub fn words(line: &Words<'_>) -> Result<Vec<String>, Refusal> {
     args.push("--disable-slash-commands".to_owned());
   }
 
-  if !CHAT_LINE.tools.hidden.is_empty() {
-    args.extend(["--disallowedTools".to_owned(), CHAT_LINE.tools.hidden.clone()]);
-  }
+  args.push("--no-chrome".to_owned());
 
-  args.extend(["--no-chrome", "--permission-mode", "dontAsk", "--tools"].map(str::to_owned));
-  args.push(line.shown.to_owned());
-  args.push("--allowedTools".to_owned());
-  args.push(line.allowed.to_owned());
+  // Each list flag reads every word after it as another item, so a flag of its own always follows it.
+  match line.hands {
+    Hands::AllBut(denied) => {
+      args.extend(["--permission-mode", "bypassPermissions"].map(str::to_owned));
+
+      if !denied.is_empty() {
+        args.extend(["--disallowedTools".to_owned(), denied.to_owned()]);
+      }
+    }
+    Hands::Listed { shown, allowed } => {
+      args.extend(
+        ["--permission-mode", "dontAsk", "--tools", shown, "--allowedTools", allowed].map(str::to_owned),
+      );
+    }
+  }
 
   Ok(args)
 }
@@ -1012,8 +1015,13 @@ impl ChatRun {
       effort: &self.effort,
       system: &self.system_path,
       mcp: &self.mcp_config,
-      shown: &self.tools_shown,
-      allowed: &self.tools_allowed,
+      hands: match &self.tools_denied {
+        Some(denied) => Hands::AllBut(denied),
+        None => Hands::Listed {
+          shown: &self.tools_shown,
+          allowed: &self.tools_allowed,
+        },
+      },
       host_commands: true,
     }
   }
@@ -1110,7 +1118,7 @@ impl ChatRun {
       },
       tools_shown: &self.tools_shown,
       tools_allowed: &self.tools_allowed,
-      tools_denied: None,
+      tools_denied: self.tools_denied.as_deref(),
       mcp_config_path: &self.mcp_config,
       mcp_tools: self.mcp_tools.as_deref(),
       prompt: None,
@@ -1171,7 +1179,7 @@ pub fn prefix(run: &ChatRun, mode: &str) -> String {
     system: file(&run.system_path),
     tools_shown: &run.tools_shown,
     tools_allowed: &run.tools_allowed,
-    tools_denied: None,
+    tools_denied: run.tools_denied.as_deref(),
     mcp: file(&run.mcp_config),
     mcp_tools: run.mcp_tools.as_deref(),
     cwd: &run.cwd,

@@ -91,6 +91,23 @@ describe("the commands are the commands they were", () => {
     expect((await claudeCode.command(chatRunFor(false))).env.MAX_THINKING_TOKENS).toBe("0");
   });
 
+  // A supervisor's program names what it is denied and nothing else: every tool of its own but those, each
+  // call unasked, with no list of what it is shown or allowed (docs/launch-lines.md, 「What a line's program
+  // is allowed, by road」).
+  test("a supervisor's chat line bypasses permissions with its denied list alone", async () => {
+    const run = { ...chatRunFor(true), toolsShown: "Bash,Read", toolsAllowed: "Bash,Read", toolsDenied: "WebSearch,mcp__job__job_item_create" };
+    const args = (await claudeCode.command(run)).args;
+
+    expect(args.slice(args.indexOf("--permission-mode"))).toEqual([
+      "--permission-mode",
+      "bypassPermissions",
+      "--disallowedTools",
+      "WebSearch,mcp__job__job_item_create",
+    ]);
+    expect(args).not.toContain("--tools");
+    expect(args).not.toContain("--allowedTools");
+  });
+
   // Claude Code runs only as the interactive program (docs/agents.md, 「No print mode」).
   test("a run asking for its answer on the program's output is refused", async () => {
     for (const answerShape of ["object", "stream"] as const) {

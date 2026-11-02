@@ -1,5 +1,5 @@
 # The chat line (docs/launch-lines.md): what
-# its system prompt is made of, the tools it is shown and allowed, and every fixed line of the room's block a
+# its system prompt is made of, the tools it holds, and every fixed line of the room's block a
 # turn carries ahead of its prompt. Every side that composes the line composes it from this file.
 
 # The chat's system prompt: its own documents under prompts/agents/chat/ around the absolute rules, then the
@@ -13,23 +13,20 @@ manual = "manual.md"
 # The rulebooks under prompts/rules/ the chat reads, in the order it reads them.
 rulebooks = ["answer-content", "answer-shape", "plain-writing", "agent-words", "self-preservation"]
 
-# The tools every run of the chat is shown, the same in every room since their definitions open the cached
-# prefix, and what it is allowed beyond them: the tool host's namespaces the chat line names, where the chat
-# agent's sending, filing, memory, web and translation tools stand, and the job service's harness plugin and
-# the agency's own, which lease an item and launch its worker. A hosted tool those namespaces do not show is
-# reached with `bmo use`, as the tool host's paragraph says.
+# What a supervisor's program holds of its own tools. On Claude Code, on every road, it is shown every tool of
+# its own but the chat line's denied list (policy/run-lines.toml) and runs in bypass-permissions mode, so every
+# server of its configuration is reached; a program that is a harness of its own and is told its tools — dsh
+# and Codex, carried for a rollback — is shown these and allowed every one of them. A hosted tool the line's
+# namespaces do not show is reached with `bmo use`, as the tool host's paragraph says.
 [tools]
 shown = "Bash,Read,Write,Edit,ListMcpResourcesTool,ReadMcpResourceTool"
-allowed = "Bash,Read,Write,Edit,ListMcpResourcesTool,ReadMcpResourceTool,mcp__bmo,mcp__gate,mcp__job,mcp__agency,mcp__artifact,mcp__explorer"
-# What the line keeps from the chat: the job plugin's own item creation, since an item is filed through the
-# agency's file_item, which reads the turn's room and whether the owner asked it (docs/api.md, 「assignments and
-# jobs」). Claude Code is told it as disallowed tools, and the job plugin is started without each of its own
-# tools here, so no program lists it.
-hidden = "mcp__job__job_item_create"
+# The program's own tools as the tools paragraph names them on Claude Code, which lists them to the session
+# itself.
+listed = "Claude Code's own, every one it lists to you"
 # The tools paragraph after the manual, composed at each launch for the program the session runs on
-# (docs/agent-documents.md, 「The chat agent」): {program} is the program's own tools by name, {servers} the
-# servers the line's MCP configuration hands the session, and {shown} the tool host's entries the line shows
-# by name, each as the program calls it.
+# (docs/agent-documents.md, 「The chat agent」): {program} is the program's own tools, {servers} the servers
+# the line's MCP configuration hands the session, and {shown} the tool host's entries the line shows by name,
+# each as the program calls it.
 paragraph = "TOOLS: Your program's own tools are {program}. Your MCP servers are {servers}, and of the tool host's tools they show you {shown} by name. A tool shown to you by name is called as that tool, never through your shell or `bmo use`; only a hosted tool not shown to you is reached with `bmo use`, as the opening says, and a tool none of these names or lists does not exist here. What the turn does not already hold of a person, a room or a thing is looked up, never guessed: mcp__bmo__brain_list with its subject and type (a person: type person, key the person's id), or mcp__bmo__brain_similar with the question's own words; a document or a rule with mcp__gate__reference_search, then mcp__gate__reference_piece for the piece it names."
 # The fact a chat session is told of a server its program did not attach (docs/agent-control.md, 「dsh's
 # providers: OpenRouter and DeepSeek」): {server} is the server and {why} what kept it out.

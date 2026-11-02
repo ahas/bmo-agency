@@ -116,8 +116,8 @@ flowchart TD
   own, labelled with what the run is, its role and its model, and closed with the run. Two runs of one role
   at once are two panes, so overlapping jobs, searches and branches never wait on each other's program.
 - **Its command is its line's,** without print mode: the model and effort its order gives it, the tools
-  shown and allowed, the MCP configuration, the permission mode and the system prompt, and the session its
-  role's setting gives it.
+  it is shown, denied or allowed, the MCP configuration, the permission mode and the system prompt, and the
+  session its role's setting gives it.
 - **Its role is the one the work names:** a job item's role, `worker` where the item names none; the role
   a delegation or a co-worker call names; the role a session's caller names. A run that stands for no
   piece of anyone's work holds the role the roles policy names for it — the usage reader's renewal turn

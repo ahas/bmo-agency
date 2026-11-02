@@ -273,15 +273,16 @@ function workerLine(run: HarnessRun): string[] {
 
 // The chat line, and a companion's turn, which is of the same shape with its own prompt, tools and
 // server. Its system prompt replaces the CLI's own, nothing of this machine rides along but the one
-// MCP configuration it is handed, and the tools shown are the same in every run of every chat
-// because they are the front of the cached prefix, and so is the allow list: owner-only work is the
-// session's judgement, not a lock.
+// MCP configuration it is handed, and a supervisor's program holds every tool of its own but the
+// line's denied list in bypass-permissions mode, the same in every run of every supervisor on every
+// road because the tools are the front of the cached prefix: owner-only work is the session's
+// judgement, not a lock (docs/launch-lines.md, 「What a line's program is allowed, by road」).
 //
 // Standing in its pane the line is started as a person starts it and takes its rounds as they are
 // spoken to it; it keeps its slash commands, which it folds and clears with, and is handed the
 // settings naming its status line and hooks. Neither moves the prefix (docs/agent-control.md, 「The
-// cache prefix」). The settings come after the allowed tools, which is a list and would read any
-// word after it as another tool.
+// cache prefix」). The settings come after the tool lists, each of which would read any word after it
+// as another tool.
 function chatLine(run: HarnessRun): string[] {
   const args = programHead(run);
 
@@ -309,22 +310,24 @@ function chatLine(run: HarnessRun): string[] {
 
   args.push("--no-chrome");
 
-  // A run that keeps tools back names them before its mode, since the flag takes a list.
+  // A run that names what it is denied is a supervisor's: every tool of its own but those, each call
+  // going ahead unasked, with no list of what it is shown or allowed. What it is shown and allowed stand
+  // for a program that is told its tools, which this one is not.
   if (run.toolsDenied !== null) {
-    args.push("--disallowedTools", run.toolsDenied);
-  }
+    args.push("--permission-mode", "bypassPermissions", "--disallowedTools", run.toolsDenied);
+  } else {
+    // A run with no allow list allows what it is shown, every call going ahead unasked as a job's do.
+    // Every other run is refused whatever it was not allowed, and a run that says nothing of what it is
+    // shown takes everything the CLI offers.
+    args.push("--permission-mode", run.toolsAllowed === null ? "bypassPermissions" : "dontAsk");
 
-  // A run with no allow list allows what it is shown, every call going ahead unasked as a job's do —
-  // a companion with a worker's hands. Every other run is refused whatever it was not allowed, and a
-  // run that says nothing of what it is shown takes everything the CLI offers.
-  args.push("--permission-mode", run.toolsAllowed === null ? "bypassPermissions" : "dontAsk");
+    if (run.toolsShown !== null) {
+      args.push("--tools", run.toolsShown);
+    }
 
-  if (run.toolsShown !== null) {
-    args.push("--tools", run.toolsShown);
-  }
-
-  if (run.toolsAllowed !== null) {
-    args.push("--allowedTools", run.toolsAllowed);
+    if (run.toolsAllowed !== null) {
+      args.push("--allowedTools", run.toolsAllowed);
+    }
   }
 
   if (run.resident?.settingsPath !== undefined && run.resident.settingsPath !== null) {

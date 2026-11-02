@@ -129,8 +129,9 @@ composed into a system prompt, and what the chat agent's own prompt is made of.
   address, a path or markup, naming the first such run, which the agent corrects and sends again. The
   rule is a rule, with no example reading in it, since an example becomes the agent's own phrasing.
 - **The tools paragraph follows the manual,** composed at each launch for the program the session runs
-  on, in the words `policy/chat-line.toml` holds for it: that program's own tools by their names — on
-  Claude Code the tools the line shows, on dsh the tools the overlay leaves its session —, the servers
+  on, in the words `policy/chat-line.toml` holds for it: that program's own tools — on Claude Code every
+  one it lists, since the line shows it all of them but the line's denied tools, on dsh the tools the
+  overlay leaves its session, by their names —, the servers
   the line's MCP configuration hands the session by name, the tool host's entries the line shows by name
   (`policy/run-lines.toml`, `shown`) — each called as that tool, never through the shell or `bmo use` — and
   that only a hosted tool not shown is reached with `bmo use`, which the harness opening says how to use.

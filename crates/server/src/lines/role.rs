@@ -9,6 +9,7 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use agent_session::{Apart, Mapping};
+use policy::chat_line::CHAT_LINE;
 
 use super::Trees;
 use super::chat::{ChatRun, RoomContext};
@@ -106,10 +107,11 @@ pub async fn compose(
     thinking: line.thinking,
     // The role's whole system prompt: the harness opening and the role's prompt before the rules.
     system_path: line.system_prompt.clone().unwrap_or_else(|| line.harnessed.clone()),
-    tools_shown: double.as_ref().map(|double| double.tools_shown.clone()).unwrap_or_default(),
+    // A double is told its supervisor's own: the chat line's shown tools, every one of them allowed.
+    tools_shown: double.as_ref().map(|_| CHAT_LINE.tools.shown.clone()).unwrap_or_default(),
     // A program told its tools takes every working row of its road; the list only has to be non-empty for the
     // road to hand it them rather than none.
-    tools_allowed: double.as_ref().map_or_else(|| "Bash".to_owned(), |double| double.tools_allowed.clone()),
+    tools_allowed: double.as_ref().map_or_else(|| "Bash".to_owned(), |_| CHAT_LINE.tools.shown.clone()),
     mcp_config: line.mcp_config.clone(),
     cwd: apart.cwd.clone(),
     worker: Some(Box::new(line)),
@@ -148,6 +150,7 @@ impl RoleLine {
       },
       tools_shown: self.tools_shown,
       tools_allowed: self.tools_allowed,
+      tools_denied: None,
       mcp_config: self.mcp_config,
       mcp_tools: None,
       prompt: turned.prompt,

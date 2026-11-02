@@ -1,5 +1,5 @@
-//! The chat line (docs/launch-lines.md): what its system prompt is made of, the tools it is shown and
-//! allowed, and every fixed line of the room's block.
+//! The chat line (docs/launch-lines.md): what its system prompt is made of, the tools it holds, and every
+//! fixed line of the room's block.
 
 use serde::Deserialize;
 
@@ -16,8 +16,7 @@ pub struct System {
 #[serde(deny_unknown_fields)]
 pub struct Tools {
   pub shown: String,
-  pub allowed: String,
-  pub hidden: String,
+  pub listed: String,
   pub paragraph: String,
   pub absent: String,
   pub absent_summary: String,
