@@ -16,7 +16,7 @@ use agency_server::{Refusal, Service};
 use harness_providers::Machine;
 use policy::job_prompt::JOB_PROMPT;
 
-use crate::scratch::Scratch;
+use crate::support::scratch::Scratch;
 
 // Databases standing in for the cluster's: the names held, and those dropped.
 struct Databases {

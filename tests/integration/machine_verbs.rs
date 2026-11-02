@@ -2,8 +2,8 @@
 //! service lists it, and an account's token for the work nodes made through `bmo-agency node claude-token`
 //! over a scratch store and a scratch data root, never a real machine.
 
-use crate::binary;
-use crate::common;
+use crate::integration::common;
+use crate::support::binary;
 
 use std::path::Path;
 

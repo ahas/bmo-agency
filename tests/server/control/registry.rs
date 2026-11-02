@@ -75,7 +75,7 @@ fn a_registration_is_a_service_on_the_gateway_and_a_mapping_its_settings() {
 
 #[tokio::test]
 async fn an_address_keeps_role_files_as_its_change_names_and_as_it_stands_where_one_names_none() {
-  let scratch = crate::scratch::Scratch::new().await;
+  let scratch = crate::support::scratch::Scratch::new().await;
   let db = scratch.db();
   let data = tempfile::tempdir().unwrap();
   let address = |body: serde_json::Value| {

@@ -15,8 +15,8 @@ use agency_server::seeds::deployment;
 use agent_session::{RoomBlock, Scope, Sessions, Start, Turn, TurnContext};
 use serde_json::{Value, json};
 
-use crate::scratch::Scratch;
-use crate::standing;
+use crate::support::scratch::Scratch;
+use crate::support::standing;
 
 fn machine(home: &std::path::Path) -> harness_providers::Machine {
   let at = |path: std::path::PathBuf| path.to_string_lossy().into_owned();

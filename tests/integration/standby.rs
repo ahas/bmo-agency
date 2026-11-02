@@ -2,7 +2,7 @@
 //! the program a worker's place is given while no turn has asked for anything, and a pinned worker's pane
 //! holding another provider's program replaced at once.
 
-use crate::common;
+use crate::integration::common;
 
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};

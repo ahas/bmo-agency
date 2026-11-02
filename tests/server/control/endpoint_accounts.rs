@@ -20,7 +20,7 @@ use agency_server::usage_windows::window_logins;
 use cache_siren::Keeping;
 use harness_providers::Machine;
 
-use crate::scratch::Scratch;
+use crate::support::scratch::Scratch;
 
 // A directory account `main` and an endpoint account `deep`, each with a home of its own, and the
 // endpoint's key written into its file.

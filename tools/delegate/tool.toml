@@ -7,7 +7,7 @@ name = "delegate"
 protocol = 1
 language = "rust"
 build = 'cargo build --release -p delegate-tool && cp "$BMO_CARGO_TARGET/release/delegate-tool" "$BMO_TOOL_OUT/"'
-check = 'cargo test -p agency-checks --test tools'
+check = 'cargo test -p agency-checks --test main tools::'
 run = ["delegate-tool"]
 
 [[entry]]

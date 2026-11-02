@@ -5,7 +5,7 @@
 //! closes the last open login is published once, and a standing program left on a closed login is taken
 //! down.
 
-use crate::common;
+use crate::integration::common;
 
 use agency_server::control::claude_accounts::{Account, Judging, open_accounts, walk_for};
 use agency_server::job_run::claude::failure::Failure;

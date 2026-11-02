@@ -4,15 +4,15 @@ testbed = 0
 name = "agency"
 
 [test]
-# The Cargo workspace's crates, the root package's test groups among them, and the TypeScript test files
+# The Cargo workspace's crates, the root package's test harness among them, and the TypeScript test files
 # under tests/packages. Each TypeScript test file imports its setup first, so it runs from any folder; the
 # bunfig.toml in tests/packages preloads the same setup for a run started there.
 languages = ["cargo", "bun"]
 # A release runs the TypeScript half of agency, so its packages are installed in every fresh tree.
 setup = ["cd packages && bun install --frozen-lockfile"]
-# The root package's test group is every integration binary this repository keeps, and several of them
+# The root package's test harness holds every Rust test this repository keeps, and several of its modules
 # run a server against the test database; as one unit it needs more than the testbed's default guard on a
-# machine carrying other work, so the guards stand above that group's measured time here (the testbed's
+# machine carrying other work, so the guards stand above that harness's measured time here (the testbed's
 # docs/suite.md, 「The guards」).
 guard_seconds = 600
 file_guard_seconds = 300
@@ -34,7 +34,7 @@ check_script = "check:types"
 dir = "tools"
 
 [check]
-quick = ["layout", "dependencies"]
+quick = ["layout", "dependencies", "cargo-profile"]
 base_libraries = [
   "bmo-chat",
   "bmo-chat-client",

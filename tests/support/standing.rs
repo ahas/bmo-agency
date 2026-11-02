@@ -9,7 +9,7 @@ use std::io::{BufRead, BufReader};
 use std::path::Path;
 use std::process::{Child, Command, Stdio};
 
-use crate::binary;
+use crate::support::binary;
 
 /// A server standing, and the port its control routes listen on.
 pub struct Standing {

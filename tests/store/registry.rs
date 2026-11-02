@@ -4,7 +4,7 @@
 use store::open_read;
 use store::registry::{RegisteredAddress, Registration, registrations};
 
-use crate::scratch::Scratch;
+use crate::support::scratch::Scratch;
 
 // Written out of order, so the reading's own order is what the test sees.
 const ROWS: [&str; 5] = [

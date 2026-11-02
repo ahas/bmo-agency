@@ -1,8 +1,8 @@
 //! A worker's dev server and the model catalogue as `bmo-agency` carries them: the dev pane's own decisions,
 //! and the catalogue verb run as a shell runs it over a scratch store, its engine's installer a stand-in.
 
-use crate::binary;
-use crate::common;
+use crate::integration::common;
+use crate::support::binary;
 
 use std::path::Path;
 

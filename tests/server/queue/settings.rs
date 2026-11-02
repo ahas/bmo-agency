@@ -2,7 +2,7 @@
 
 use agency_server::queue::settings::{forget, get, numbered, set, take};
 
-use crate::scratch::Scratch;
+use crate::support::scratch::Scratch;
 
 #[tokio::test]
 async fn a_value_is_set_read_taken_once_and_its_family_numbered() {

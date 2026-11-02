@@ -14,12 +14,12 @@ use agent_host::identity::ProcessIdentity;
 use serde_json::{Value, json};
 use tempfile::TempDir;
 
-use crate::scratch::{Scratch, address_of};
+use crate::support::scratch::{Scratch, address_of};
 
 const SH: &str = "/bin/sh";
 
 fn binary() -> PathBuf {
-  crate::binary::built("agent-host", "agent-host")
+  crate::support::binary::built("agent-host", "agent-host")
 }
 
 fn now_ms() -> u64 {

@@ -2,7 +2,7 @@
 //! it has ended, an execution's cancellation reaching each run it owns by what can reach it, and the runs a
 //! change ended confirmed gone before their cancellation is taken back.
 
-use crate::common;
+use crate::integration::common;
 
 use std::path::PathBuf;
 use std::time::Duration;

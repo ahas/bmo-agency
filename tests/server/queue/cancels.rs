@@ -5,7 +5,7 @@ use agency_server::queue::cancels::{covered, take_back};
 use agency_server::queue::running::EXECUTION_CANCEL_PREFIX;
 use serde_json::json;
 
-use crate::scratch::Scratch;
+use crate::support::scratch::Scratch;
 
 #[test]
 fn a_cancellation_covers_its_descendants_and_what_is_rooted_in_it_and_nothing_else() {

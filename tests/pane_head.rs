@@ -2,9 +2,6 @@
 //! (docs/agent-control.md, 「One standing pane per agent」). The answering side runs in this test's
 //! process, through the same handler and socket the host serves; the program is a stand-in shell.
 
-#[path = "../support/binary.rs"]
-mod binary;
-
 use std::fs;
 use std::path::PathBuf;
 use std::process::{Child, Command, Output, Stdio};
@@ -24,7 +21,7 @@ const SH: &str = "/bin/sh";
 fn head_binary() -> &'static str {
   static HEAD: OnceLock<String> = OnceLock::new();
 
-  HEAD.get_or_init(|| binary::built("pane-head", "pane-head").to_str().unwrap().to_owned())
+  HEAD.get_or_init(|| crate::support::binary::built("pane-head", "pane-head").to_str().unwrap().to_owned())
 }
 
 fn now_ms() -> u64 {

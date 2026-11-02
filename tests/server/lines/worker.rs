@@ -19,7 +19,7 @@ use agency_server::places::Ground;
 use harness_providers::Machine;
 use sea_orm::Value;
 
-use crate::scratch::Scratch;
+use crate::support::scratch::Scratch;
 
 // No line sets the share of its model's window a session compacts at: a chat, an editor, a gate and a
 // job worker alike compact where Claude Code does by itself (docs/sessions.md, 「Session compaction」).

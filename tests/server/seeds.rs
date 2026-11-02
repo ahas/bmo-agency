@@ -8,7 +8,7 @@ use policy::base_prompts::BASE_PROMPTS;
 use policy::roles::ROLES;
 use store::seed::settle;
 
-use crate::scratch::Scratch;
+use crate::support::scratch::Scratch;
 
 fn machine(vars: &[(&str, &str)]) -> Machine {
   Machine::with_env(vars.iter().map(|(name, value)| ((*name).to_owned(), (*value).to_owned())), "/d")

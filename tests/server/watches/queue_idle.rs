@@ -17,7 +17,7 @@ use policy::queue_idle::QUEUE_IDLE;
 use serde_json::{Value, json};
 use tokio::net::TcpListener;
 
-use crate::scratch::Scratch;
+use crate::support::scratch::Scratch;
 
 fn open(id: i64, assignee: Option<&str>) -> Open {
   Open {

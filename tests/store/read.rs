@@ -3,7 +3,7 @@
 use sqlx::Row;
 use store::{number, open_read};
 
-use crate::scratch::Scratch;
+use crate::support::scratch::Scratch;
 
 #[tokio::test]
 async fn a_read_connection_reads_numbers_however_they_were_stored() {

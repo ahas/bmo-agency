@@ -5,7 +5,7 @@
 
 use agency_server::control::{registry, roads, tiers};
 
-use crate::scratch::Scratch;
+use crate::support::scratch::Scratch;
 
 // Two registrations with an address each, and one with none; the tier the translator is assigned mapping to
 // the first on the registry's provider, with an answer ceiling and thinking of its own.

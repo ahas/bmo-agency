@@ -11,7 +11,7 @@ use agency_server::now_ms;
 use agency_server::places::Ground;
 use harness_providers::Machine;
 
-use crate::scratch::Scratch;
+use crate::support::scratch::Scratch;
 
 fn ground(scratch: &Scratch, machine: &Machine) -> Ground {
   let variables: HashMap<String, String> = HashMap::new();

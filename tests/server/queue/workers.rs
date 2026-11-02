@@ -9,7 +9,7 @@ use agency_server::peers::Asking;
 use agency_server::peers::node::{NodeKind, NodeRow, NodeService};
 use agency_server::queue::workers::{BUILTIN_WORKER, WorkerRemoved, settle_support, support_name, workers};
 
-use crate::scratch::Scratch;
+use crate::support::scratch::Scratch;
 
 /// A node service keeping one node, labelled.
 struct OneNode;

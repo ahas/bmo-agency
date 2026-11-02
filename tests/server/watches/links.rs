@@ -11,7 +11,7 @@ use agency_server::watches::links::{
 };
 use node_link::spec::{Spec, rewrite};
 
-use crate::scratch::Scratch;
+use crate::support::scratch::Scratch;
 
 #[test]
 fn a_path_from_the_home_is_read_against_the_nodes_home() {

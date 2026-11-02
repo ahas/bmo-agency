@@ -7,8 +7,8 @@ use agency_server::turn_marks::{self, Mark};
 use bmo_agency_client::ItemFilingAsk;
 use serde_json::{Value, json};
 
-use crate::scratch::Scratch;
-use crate::standing;
+use crate::support::scratch::Scratch;
+use crate::support::standing;
 
 fn ask(labels: &[(&str, &str)]) -> ItemFilingAsk {
   ItemFilingAsk {

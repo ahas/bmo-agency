@@ -120,7 +120,7 @@ fn a_road_sums_what_each_model_reported_and_none_where_none_reported() {
 async fn an_agents_session_across_rooms_is_kept_on_its_row_and_let_go() {
   use agency_server::herdr_backend::{agent_session, keep_agent_session};
 
-  let scratch = crate::scratch::Scratch::new().await;
+  let scratch = crate::support::scratch::Scratch::new().await;
 
   scratch
     .run(r#"INSERT INTO "agents" ("name", "kind") VALUES ('chat-agent', 'chat')"#, vec![])

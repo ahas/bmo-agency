@@ -8,7 +8,7 @@ use agency_server::run_log::prune::{
 use agency_server::run_log::secrets::MASKED_VALUE;
 use agency_server::run_log::{MAX_TOOL_CHARS, RunLog, Target, preview};
 
-use crate::scratch::Scratch;
+use crate::support::scratch::Scratch;
 
 fn target(agent: &str, run: &str, job_id: Option<i64>) -> Target {
   Target {

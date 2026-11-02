@@ -13,7 +13,7 @@ use agency_server::run_sweep::{CUT, pass};
 use agency_server::{now_ms, turn_pickup};
 use harness_providers::Machine;
 
-use crate::scratch::Scratch;
+use crate::support::scratch::Scratch;
 
 fn ground(scratch: &Scratch, home: &std::path::Path) -> Arc<Ground> {
   let variables: HashMap<String, String> = HashMap::new();

@@ -14,7 +14,7 @@ use agency_server::watches::machine::{
 use agent_session::JobMark;
 use serde_json::json;
 
-use crate::scratch::Scratch;
+use crate::support::scratch::Scratch;
 
 /// A node service reporting the standing the test names, which cannot be asked at all where it is `down`.
 struct Machine {

@@ -21,7 +21,7 @@ use sqlx::{Connection, Executor};
 use store::migration::Migrator;
 use tokio::net::TcpStream;
 
-use crate::scratch::Scratch;
+use crate::support::scratch::Scratch;
 
 const GATEWAY_KEY: &str = "gateway-key-0123456789";
 
@@ -102,7 +102,7 @@ fn command() -> Command {
       command.args(words);
       command
     }
-    _ => Command::new(crate::binary::built("llm-gateway", "llm-gateway")),
+    _ => Command::new(crate::support::binary::built("llm-gateway", "llm-gateway")),
   }
 }
 

@@ -27,7 +27,7 @@ use harness_machine::card_master::{Master, MasterAddress};
 use serde_json::{Value, json};
 use tokio::net::TcpListener;
 
-use crate::scratch::Scratch;
+use crate::support::scratch::Scratch;
 
 /// The stand-in master's memory: the demands it holds, how often each was read, the ids given back, and
 /// how it grants.

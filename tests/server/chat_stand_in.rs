@@ -22,7 +22,7 @@ use harness_providers::Machine;
 use policy::providers::claude_code::CLAUDE_CODE;
 use sea_orm::DatabaseConnection;
 
-use crate::scratch::Scratch;
+use crate::support::scratch::Scratch;
 
 fn ground_on(db: DatabaseConnection, home: &std::path::Path, set: &[(&str, &str)]) -> Ground {
   let variables: HashMap<String, String> = HashMap::new();

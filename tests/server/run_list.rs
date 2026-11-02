@@ -5,8 +5,8 @@
 use agency_server::run_ledger::{self, Opening, Page, Search};
 use serde_json::Value;
 
-use crate::scratch::Scratch;
-use crate::standing;
+use crate::support::scratch::Scratch;
+use crate::support::standing;
 
 // Six runs: two agents, two rooms, two rounds, the even ones closed. Answers their ids, oldest first.
 async fn seeded(scratch: &Scratch) -> Vec<i64> {

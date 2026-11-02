@@ -3,8 +3,7 @@
 //! migration takes. A copy is dropped when its test is done, and the template
 //! and copies a binary left behind are dropped by the next binary to make a template.
 //!
-//! Each group of tests that needs a store includes this file as a module of its own and uses what it
-//! needs of it, so what one group leaves unused is no fault.
+//! The modules that need a store each use what they need of it, so what none of them uses is no fault.
 
 #![allow(dead_code)]
 

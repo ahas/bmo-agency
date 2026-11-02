@@ -20,8 +20,8 @@ use harness_providers::Machine;
 use serde_json::{Value, json};
 use tokio::net::TcpListener;
 
-use crate::scratch::Scratch;
-use crate::standing;
+use crate::support::scratch::Scratch;
+use crate::support::standing;
 
 fn member(report: Option<&str>, outcome: Option<&str>) -> Value {
   json!({

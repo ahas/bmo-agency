@@ -4,8 +4,8 @@
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
-use crate::binary;
-use crate::common::Scratch;
+use crate::integration::common::Scratch;
+use crate::support::binary;
 
 // The room a companion answers in, as the hint prints it: a chat's number, which is negative.
 const ROOM: i64 = -9_000_000_000_002;

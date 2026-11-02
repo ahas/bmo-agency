@@ -35,7 +35,7 @@ use agent_session::{
 use harness_providers::Machine;
 use serde_json::json;
 
-use crate::scratch::Scratch;
+use crate::support::scratch::Scratch;
 
 fn work(resume: Resume) -> WorkParts {
   WorkParts {

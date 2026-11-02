@@ -4,7 +4,7 @@
 
 use sea_orm::ConnectionTrait;
 
-use crate::scratch::Scratch;
+use crate::support::scratch::Scratch;
 
 const MOVE: &str = include_str!("../../crates/store/src/migration/deepseek_provider.sql");
 

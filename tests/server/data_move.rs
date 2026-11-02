@@ -2,7 +2,7 @@
 
 use agency_server::data_move::{MOVED, moved};
 
-use crate::scratch::Scratch;
+use crate::support::scratch::Scratch;
 
 #[tokio::test]
 async fn the_move_is_done_once_its_mark_is_held() {

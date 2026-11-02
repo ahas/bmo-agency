@@ -8,7 +8,7 @@ use std::time::Duration;
 use cache_siren::reader::Passing;
 use cache_siren::{Keeping, Reader, Slot, Window};
 
-use crate::scratch::Scratch;
+use crate::support::scratch::Scratch;
 
 const NOW: i64 = 1_800_000_000;
 

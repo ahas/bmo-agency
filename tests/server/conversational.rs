@@ -2,7 +2,7 @@
 
 use agency_server::conversational::*;
 
-use crate::scratch::Scratch;
+use crate::support::scratch::Scratch;
 
 #[test]
 fn a_row_with_settings_is_read_by_them_whatever_its_kind() {

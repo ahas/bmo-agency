@@ -7,7 +7,7 @@ name = "procedures"
 protocol = 1
 language = "rust"
 build = 'cargo build --release -p procedures-tool && cp "$BMO_CARGO_TARGET/release/procedures-tool" "$BMO_TOOL_OUT/"'
-check = 'cargo test -p agency-checks --test tools'
+check = 'cargo test -p agency-checks --test main tools::'
 run = ["procedures-tool"]
 
 [resources]

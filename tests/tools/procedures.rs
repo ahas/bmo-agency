@@ -18,7 +18,7 @@ use procedures_tool::{
 use serde_json::{Value, json};
 use tool_call::Session;
 
-use crate::{binary, scratch, standing};
+use crate::support::{binary, scratch, standing};
 
 const DOCUMENT: &str = "# Sending\n\nEvery room reads this.\n\n## Stickers [CAP:sticker]\n\n- send one\n\n## Lines\n\n- a line [CAP:text]\n- a pin [CAP:pin]\n  - its fine print\n- plain\n";
 

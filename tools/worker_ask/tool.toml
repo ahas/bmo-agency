@@ -6,7 +6,7 @@ name = "worker_ask"
 protocol = 1
 language = "rust"
 build = 'cargo build --release -p worker-ask-tool && cp "$BMO_CARGO_TARGET/release/worker-ask-tool" "$BMO_TOOL_OUT/"'
-check = 'cargo test -p agency-checks --test tools'
+check = 'cargo test -p agency-checks --test main tools::'
 run = ["worker-ask-tool"]
 
 [[entry]]

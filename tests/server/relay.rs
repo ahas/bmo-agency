@@ -5,8 +5,8 @@
 use std::process::Command;
 use std::time::Duration;
 
-use crate::scratch::Scratch;
-use crate::{binary, standing};
+use crate::support::scratch::Scratch;
+use crate::support::{binary, standing};
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_worker_the_verb_removed_is_read_off_the_servers_event_stream() {

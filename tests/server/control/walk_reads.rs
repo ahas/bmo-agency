@@ -9,8 +9,8 @@ use policy::providers::deepseek::DEEPSEEK;
 use policy::providers::registered::REGISTERED;
 use serde_json::{Value, json};
 
-use crate::scratch::Scratch;
-use crate::standing;
+use crate::support::scratch::Scratch;
+use crate::support::standing;
 
 // DeepSeek's key and the gateway's, private under the data root's env directory, so both can answer here.
 fn keys_in(data: &std::path::Path) {

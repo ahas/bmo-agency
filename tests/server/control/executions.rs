@@ -5,8 +5,8 @@
 use reqwest::Method;
 use serde_json::{Value, json};
 
-use crate::scratch::Scratch;
-use crate::standing;
+use crate::support::scratch::Scratch;
+use crate::support::standing;
 
 async fn ask(port: u16, token: &str, method: Method, path: &str) -> (u16, Value) {
   let answer = reqwest::Client::new()

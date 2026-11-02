@@ -7,8 +7,8 @@ use agency_server::control::fold_ratios::{Source, admissible, agent_tier, fallba
 use policy::resident_turn::RESIDENT_TURN;
 use serde_json::{Value, json};
 
-use crate::scratch::Scratch;
-use crate::standing;
+use crate::support::scratch::Scratch;
+use crate::support::standing;
 
 #[test]
 fn a_provider_s_own_share_stands_before_the_general_one() {

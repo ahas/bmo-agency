@@ -6,7 +6,7 @@ use std::collections::HashSet;
 
 use agency_server::order_run::dispatch::{BOUND_GRACE_MS, bound_leases, release_ended};
 
-use crate::scratch::Scratch;
+use crate::support::scratch::Scratch;
 
 #[tokio::test]
 async fn a_lease_whose_launched_child_ended_is_given_back_and_one_that_stands_is_kept() {

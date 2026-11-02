@@ -2,13 +2,10 @@
 //! folded tables, the refusal of a store already holding rows, and the count-and-sample compare, over
 //! a small export written into a temporary folder and a migrated scratch database.
 
-#[path = "support/scratch.rs"]
-mod scratch;
-
 use std::fs;
 use std::path::PathBuf;
 
-use scratch::Scratch;
+use crate::support::scratch::Scratch;
 use serde_json::{Value, json};
 use store::import::{self, Cell};
 

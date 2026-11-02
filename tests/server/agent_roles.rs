@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use agency_server::agent_roles::{RolePlaces, bound_of_agent, bundles_of, prompt_of};
 
-use crate::scratch::Scratch;
+use crate::support::scratch::Scratch;
 
 async fn bounded(scratch: &Scratch) -> (String, usize) {
   bound_of_agent(scratch.db(), "maker")

@@ -2,7 +2,7 @@
 //! dev pane, the nodes' workspaces and a renamed worker's checkout, each stood against a herdr of the test's
 //! own and agency's ground on a store of the test's own.
 
-use crate::common;
+use crate::integration::common;
 
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};

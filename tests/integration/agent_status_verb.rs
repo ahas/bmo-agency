@@ -516,7 +516,7 @@ fn the_shell_guard_refuses_a_command_that_reaches_another_unit_s_store_and_names
 fn a_dsh_shell_refuses_before_it_runs_and_runs_every_other_command() {
   let data = tempfile::tempdir().unwrap();
   let script = agency_server::lines::place::carry_script(data.path()).unwrap();
-  let guard = crate::binary::built("agency-server", "bmo-agency");
+  let guard = crate::support::binary::built("agency-server", "bmo-agency");
   let marker = data.path().join("ran");
   let run = |command: &str| {
     std::process::Command::new("bash")

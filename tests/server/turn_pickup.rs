@@ -17,7 +17,7 @@ use agency_server::turn_pickup::*;
 use harness_providers::Machine;
 use serde_json::json;
 
-use crate::scratch::Scratch;
+use crate::support::scratch::Scratch;
 
 fn ground(scratch: &Scratch, home: &std::path::Path) -> Arc<Ground> {
   let variables: HashMap<String, String> = HashMap::new();

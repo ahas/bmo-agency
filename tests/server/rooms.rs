@@ -3,7 +3,7 @@
 
 use agency_server::rooms::{forget, names_a_room};
 
-use crate::scratch::Scratch;
+use crate::support::scratch::Scratch;
 
 async fn seed(scratch: &Scratch, room: i64) {
   for (job, text) in [(None::<i64>, "said"), (Some(5), "a job's turn")] {

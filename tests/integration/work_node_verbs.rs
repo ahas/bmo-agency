@@ -1,7 +1,7 @@
 //! A work node's verbs of `bmo-agency` (docs/work-nodes.md): the workplace's setup run against a shell
 //! standing in for the node and its rows over a scratch store, never a real node.
 
-use crate::common;
+use crate::integration::common;
 
 use std::sync::Mutex;
 

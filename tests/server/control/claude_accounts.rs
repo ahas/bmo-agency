@@ -11,7 +11,7 @@ use agency_server::now_ms;
 use cache_siren::reader::Passing;
 use cache_siren::{Keeping, Reader, Slot, Window};
 
-use crate::scratch::Scratch;
+use crate::support::scratch::Scratch;
 
 /// A reader of Claude Code's windows whose reading stands for half an hour, and which passes over nothing.
 struct HalfHour;

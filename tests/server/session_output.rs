@@ -17,7 +17,7 @@ use agent_session::{Apart, FaultKind, Output, Scope, SessionId, Sessions, Start}
 use harness_providers::Machine;
 use serde_json::json;
 
-use crate::scratch::Scratch;
+use crate::support::scratch::Scratch;
 
 fn said(texts: &[&str]) -> String {
   json!({

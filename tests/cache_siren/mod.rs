@@ -2,9 +2,6 @@
 //! test's own, the readers that fill it against stand-in endpoints and programs, and the cache-lifetime
 //! judgement.
 
-#[path = "../support/scratch.rs"]
-mod scratch;
-
 mod balance;
 mod claude;
 mod codex;

@@ -22,7 +22,7 @@ use serde_json::{Value, json};
 use tokio::net::TcpListener;
 use tokio::sync::{Notify, mpsc};
 
-use crate::scratch::Scratch;
+use crate::support::scratch::Scratch;
 
 // Every moment here is fixed, in epoch milliseconds; nothing reads the real clock.
 const NOW_MS: i64 = 1_800_000_000_000;

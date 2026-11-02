@@ -13,7 +13,7 @@ use agency_server::run_clock::{
   Asked, ClockAskClosed, ClockAsked, Clocked, NotSettled, Verdict, clock_of, close, open, open_asks, settle,
 };
 
-use crate::scratch::Scratch;
+use crate::support::scratch::Scratch;
 
 fn clocked(run: &str) -> Clocked {
   Clocked {

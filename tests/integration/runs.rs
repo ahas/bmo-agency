@@ -11,7 +11,7 @@ use common::{Scratch, UNIT};
 use harness_providers::Machine;
 use serde_json::json;
 
-use crate::common;
+use crate::integration::common;
 
 fn picture() -> Picture {
   Picture {

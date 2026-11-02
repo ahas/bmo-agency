@@ -40,7 +40,7 @@ fn nothing_is_written_where_no_login_lives_or_the_file_is_no_configuration() {
 }
 
 fn trust(file: &Path, folder: &str) -> Output {
-  Command::new(crate::binary::built("agent-host", "agent-host"))
+  Command::new(crate::support::binary::built("agent-host", "agent-host"))
     .arg("trust")
     .arg(file)
     .arg(folder)

@@ -39,9 +39,12 @@ is the caller's decision; agency supplies it.
   answered by that member, never by a central table in the layer below.
 - **No hand-written parser for a general format.** TOML, JSON, YAML, markdown, shell lines and command
   lines are read by a maintained library; where none fits, the reason is written beside the code.
-- **Tests live in `tests/`.** The root package holds them: a group of tests is a directory under
-  `tests/` with its own `main.rs`, the TypeScript tests stand under `tests/packages/`, and the checks that
-  span the repository are files at the top of `tests/`. No test module sits in a source file.
+- **Tests live in `tests/`.** The root package holds them in one test target, the harness
+  `tests/main.rs` (bmo-chat's `docs/conventions.md`, 「Rust builds」): a crate's tests are a module of it, a
+  directory under `tests/` named after the crate with underscores, the checks that span the repository are
+  modules of a file each at the top of `tests/`, and what they share is the `support` module. One file's
+  tests run as `bmo-testbed cargo test -p agency-checks --test main <module>::`. The TypeScript tests
+  stand under `tests/packages/`. No test module sits in a source file.
 - **English only** in code, comments, strings, tests and documents, and in commit messages. Korean stands
   in `prompts/` alone, where it is what the agents are told and answer in; `tests/literals.rs` fails on
   Hangul anywhere else. Messages a service shows are English sentences; machine-read outcomes are status

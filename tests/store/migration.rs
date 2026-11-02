@@ -4,7 +4,7 @@
 use sea_orm_migration::MigratorTrait;
 use store::migration::{MIGRATIONS_TABLE, Migrator, OWN_TABLES, TABLES};
 
-use crate::scratch::Scratch;
+use crate::support::scratch::Scratch;
 
 async fn tables(scratch: &Scratch) -> Vec<String> {
   let rows = store::all(

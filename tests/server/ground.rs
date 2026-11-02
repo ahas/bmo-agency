@@ -14,7 +14,7 @@ use http_body_util::BodyExt;
 use serde_json::{Value, json};
 use store::place::VARIABLE as STORE_ADDRESS;
 
-use crate::scratch::Scratch;
+use crate::support::scratch::Scratch;
 
 async fn answered(refusal: Refusal) -> (StatusCode, Value) {
   let response = refusal.into_response();

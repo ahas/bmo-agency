@@ -26,7 +26,7 @@ use agent_session::{
 use harness_providers::Machine;
 use serde_json::json;
 
-use crate::scratch::Scratch;
+use crate::support::scratch::Scratch;
 
 fn machine(home: &std::path::Path) -> Machine {
   let at = |path: std::path::PathBuf| path.to_string_lossy().into_owned();

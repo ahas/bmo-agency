@@ -19,7 +19,7 @@ use agent_session::{EngineError, Failure, Outcome, TurnEnd};
 use harness_providers::Machine;
 use sea_orm::DatabaseConnection;
 
-use crate::scratch::Scratch;
+use crate::support::scratch::Scratch;
 
 fn ground_on(db: DatabaseConnection, home: &std::path::Path) -> Ground {
   let variables: HashMap<String, String> = HashMap::new();

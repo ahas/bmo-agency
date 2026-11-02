@@ -12,7 +12,7 @@ use std::os::unix::fs::PermissionsExt as _;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-pub use crate::scratch::Scratch;
+pub use crate::support::scratch::Scratch;
 
 /// The owner's user id, which is also the chat id of the owner's private chat.
 pub const OWNER: i64 = 42;

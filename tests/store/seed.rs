@@ -6,7 +6,7 @@ use store::seed::{
   TierMapping, TierPlan, WorkKey, settle,
 };
 
-use crate::scratch::Scratch;
+use crate::support::scratch::Scratch;
 
 fn mapping(
   provider: &str,

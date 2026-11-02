@@ -11,7 +11,7 @@ use harness_providers::Machine;
 use harness_providers::registered::Registered;
 use policy::door_words::DOOR_WORDS;
 
-use crate::scratch::Scratch;
+use crate::support::scratch::Scratch;
 
 const WORK_KEY: &str = "job-worker";
 

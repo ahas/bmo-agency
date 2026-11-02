@@ -16,7 +16,7 @@ use agent_session::{
   Conversation, FaultKind, Resume, Scope, SessionId, Sessions, Start, Turn, TurnContext, WorkParts,
 };
 
-use crate::scratch::Scratch;
+use crate::support::scratch::Scratch;
 
 fn machine(home: &std::path::Path) -> harness_providers::Machine {
   let at = |path: std::path::PathBuf| path.to_string_lossy().into_owned();

@@ -10,7 +10,7 @@ use agency_server::control::work::pane_died;
 use agency_server::places::Ground;
 use harness_providers::Machine;
 
-use crate::scratch::Scratch;
+use crate::support::scratch::Scratch;
 
 #[tokio::test]
 async fn a_head_loop_reports_a_death_bounds_three_fast_deaths_and_keeps_exit_three_deliberate() {

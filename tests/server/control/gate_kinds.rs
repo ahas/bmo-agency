@@ -7,7 +7,7 @@ use agency_server::gate_kinds::{self, Kind};
 use bmo_gate_client::Gate;
 use serde_json::json;
 
-use crate::scratch::Scratch;
+use crate::support::scratch::Scratch;
 
 fn gate(name: &str, part: &str, step: i64) -> Gate {
   Gate {

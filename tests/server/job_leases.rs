@@ -14,7 +14,7 @@ use axum::response::IntoResponse;
 use serde_json::{Value, json};
 use tokio::net::TcpListener;
 
-use crate::scratch::Scratch;
+use crate::support::scratch::Scratch;
 
 type Calls = Arc<Mutex<Vec<(String, String, Value)>>>;
 
@@ -173,7 +173,7 @@ async fn a_worker_with_a_running_job_reads_as_working_on_it() {
     .await;
   seeded(&scratch).await;
 
-  let server = crate::standing::stand_server(home.path(), &data, &scratch.address(), "secret");
+  let server = crate::support::standing::stand_server(home.path(), &data, &scratch.address(), "secret");
   let read = |name: &'static str| async move {
     reqwest::Client::new()
       .get(format!("http://127.0.0.1:{}/workers/{name}", server.port))

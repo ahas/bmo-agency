@@ -2,7 +2,7 @@
 //! 「The program on an ended session」): a pin moved to another registration makes the program stand the
 //! registration it names now.
 
-use crate::scratch::Scratch;
+use crate::support::scratch::Scratch;
 
 #[tokio::test]
 async fn a_worker_s_model_is_the_pin_s_never_its_last_model() {

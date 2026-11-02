@@ -17,7 +17,7 @@ use harness_providers::Machine;
 use policy::providers::deepseek::DEEPSEEK;
 use sea_orm::DatabaseConnection;
 
-use crate::scratch::Scratch;
+use crate::support::scratch::Scratch;
 
 fn names(list: &[&str]) -> Vec<String> {
   list.iter().map(|one| (*one).to_owned()).collect()

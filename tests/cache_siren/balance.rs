@@ -14,7 +14,7 @@ use cache_siren::{Balance, Keeping, Reader, Slot};
 use serde_json::{Value, json};
 use tokio::net::TcpListener;
 
-use crate::scratch::Scratch;
+use crate::support::scratch::Scratch;
 
 const NOW_MS: i64 = 1_800_000_000_000;
 const NOW: i64 = NOW_MS / 1000;

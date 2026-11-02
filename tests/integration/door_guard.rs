@@ -4,7 +4,7 @@
 
 use std::collections::BTreeMap;
 
-use crate::common::alone::alone;
+use crate::integration::common::alone::alone;
 use agency_server::door::guard::{declare_required_run, launch_refusal, prompt_refusal};
 
 // "a declaration opens a job's launch"

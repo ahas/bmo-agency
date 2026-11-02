@@ -3,7 +3,7 @@
 //! scratch store with its outside effects — a worker's workbench settled, the server told, what is
 //! running, standing input — answered by a stand-in that writes down what it was asked.
 
-use crate::common;
+use crate::integration::common;
 
 use std::path::Path;
 use std::sync::{Arc, Mutex};

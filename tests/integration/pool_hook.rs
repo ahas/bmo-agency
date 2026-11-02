@@ -2,8 +2,8 @@
 //! places」): the hook's input and answers, the admission and the place given back over a scratch store, the
 //! reservation verb, and the hook binary run as the worker's settings run it.
 
-use crate::binary;
-use crate::common;
+use crate::integration::common;
+use crate::support::binary;
 
 use std::io::Write;
 use std::time::Duration;

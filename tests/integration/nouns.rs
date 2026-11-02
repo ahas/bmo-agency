@@ -4,7 +4,7 @@
 
 use std::process::{Command, Output, Stdio};
 
-use crate::binary;
+use crate::support::binary;
 
 // The nouns the command declares, as `nouns` prints them, `home` marks included.
 const NOUNS: [&str; 24] = [

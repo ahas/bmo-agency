@@ -1,7 +1,7 @@
 //! A room's session taken afresh, or handed over, clears what the turns before it spent (docs/companions.md,
 //! 「A turn that goes nowhere」): a stale spent figure never judges the next turn over the bound at once.
 
-use crate::scratch::Scratch;
+use crate::support::scratch::Scratch;
 use agency_server::companion::sessions::{hand_over, open_generation};
 
 #[tokio::test]

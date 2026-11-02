@@ -1,12 +1,6 @@
 //! The server's tests: its ground, each piece asked as a handler or a later part of the server asks it.
 
-#[path = "../support/binary.rs"]
-mod binary;
 mod pin_model;
-#[path = "../support/scratch.rs"]
-mod scratch;
-#[path = "../support/standing.rs"]
-mod standing;
 
 mod agent_roles;
 mod apart_session;

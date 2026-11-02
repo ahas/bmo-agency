@@ -37,8 +37,8 @@ use policy::work_keys::WORK_KEYS;
 use serde_json::{Value, json};
 use tokio::net::TcpListener;
 
-use crate::scratch::Scratch;
-use crate::standing;
+use crate::support::scratch::Scratch;
+use crate::support::standing;
 
 fn trees() -> Trees {
   let code = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));

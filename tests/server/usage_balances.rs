@@ -9,7 +9,7 @@ use cache_siren::balance::BalanceSource;
 use harness_providers::deepseek::DeepSeek;
 use harness_providers::{Machine, provider};
 
-use crate::scratch::Scratch;
+use crate::support::scratch::Scratch;
 
 #[tokio::test]
 async fn the_road_and_each_endpoint_account_on_the_provider_s_origin_are_asked_with_their_own_keys() {

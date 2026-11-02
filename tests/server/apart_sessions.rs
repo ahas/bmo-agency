@@ -10,7 +10,7 @@ use agency_server::lines::claude::Command;
 use agency_server::now_ms;
 use policy::roles::Sessions;
 
-use crate::scratch::Scratch;
+use crate::support::scratch::Scratch;
 
 fn command(model: &str, prompt: &std::path::Path, session: &str) -> Command {
   Command {

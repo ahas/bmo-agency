@@ -12,7 +12,7 @@ use cache_siren::codex::{CodexReader, SLOT, windows_of_answer, windows_of_rollou
 use cache_siren::{Keeping, Reader, Window};
 use serde_json::{Value, json};
 
-use crate::scratch::Scratch;
+use crate::support::scratch::Scratch;
 
 // The moment the rollout's token count was written, and every other moment from it, in epoch
 // milliseconds; nothing reads the real clock.

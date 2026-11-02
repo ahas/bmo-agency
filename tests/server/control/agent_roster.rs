@@ -13,8 +13,8 @@ use axum::response::{IntoResponse, Response};
 use serde_json::{Value, json};
 use tokio::net::TcpListener;
 
-use crate::scratch::Scratch;
-use crate::standing;
+use crate::support::scratch::Scratch;
+use crate::support::standing;
 
 /// What the brain was asked, in order, and the brains it keeps by agent key.
 #[derive(Default)]

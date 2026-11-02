@@ -5,7 +5,7 @@
 use std::io::Write as _;
 use std::process::{Command, Output, Stdio};
 
-use crate::binary;
+use crate::support::binary;
 
 /// Every subcommand path the deployment, an agent's settings, a hook or a pane runs.
 const SUBCOMMANDS: &[&[&str]] = &[

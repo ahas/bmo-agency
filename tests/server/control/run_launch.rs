@@ -11,8 +11,8 @@ use agent_host::identity::{ProcessIdentity, process_birth};
 use agent_host::layout::Layout;
 use serde_json::{Value, json};
 
-use crate::scratch::Scratch;
-use crate::standing;
+use crate::support::scratch::Scratch;
+use crate::support::standing;
 
 async fn get(port: u16, token: &str, path: &str) -> (u16, Value) {
   let answer = reqwest::Client::new()

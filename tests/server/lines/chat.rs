@@ -11,7 +11,7 @@ use harness_providers::Machine;
 use policy::chat_line::CHAT_LINE;
 
 use super::token::{PARAGRAPH, tool_host};
-use crate::scratch::Scratch;
+use crate::support::scratch::Scratch;
 
 // The line's words for a program whose files stand where it is handed them.
 fn line<'a>(dir: &'a Path, system: &'a Path) -> Words<'a> {

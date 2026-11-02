@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use serde_json::{Value, json};
 
-use crate::binary;
+use crate::support::binary;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn the_mcp_server_starts_and_lists_exactly_the_document_s_tools() {
