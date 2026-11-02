@@ -166,6 +166,18 @@ async fn a_job_waits_for_a_login_ends_with_why_and_frees_its_worker() {
   );
   let port = server.port;
 
+  // An item naming a role the store does not hold is refused, and nothing is held for it.
+  let (status, refused) = post(
+    port,
+    token,
+    "/assignments",
+    json!({ "itemId": 40, "holderName": "harness", "assigneeName": "helper", "roleName": "nobody", "item": item() }),
+  )
+  .await;
+
+  assert_eq!(status, 422, "{refused}");
+  assert_eq!(refused["code"], "unknown-role", "{refused}");
+
   // Nothing in the order can answer: nothing is launched, the worker stays held for the item, and the
   // refusal names every provider's reason and the moment the first login reopens.
   let assignment = assigned(port, token, 41).await;
@@ -223,6 +235,20 @@ async fn a_job_waits_for_a_login_ends_with_why_and_frees_its_worker() {
   assert_eq!(kept["outcome"], "failed", "{kept}");
   assert_eq!(ended["usage"], Value::Null, "{ended}");
   assert_eq!(ended["tokenCount"], 0, "{ended}");
+
+  // The job ran as its assignment's role, `worker` where the item named none, holding a slot of that role
+  // keyed by its checkout, which its end gave back.
+  assert_eq!(ended["roleName"], "worker", "{ended}");
+  assert_eq!(
+    scratch
+      .count(
+        r#"SELECT COUNT(*) FROM "role_slot_requests" WHERE "role" = 'worker' AND "source" = 'job'
+             AND "place_key" = 'helper' AND "owner" = $1 AND "state" = 'released'"#,
+        vec![format!("job-{id}").into()],
+      )
+      .await,
+    1
+  );
 
   // The end released the assignment, so the same worker is held for the next item.
   assert_eq!(get(port, token, &format!("/assignments/{assignment}")).await.1["state"], "released");

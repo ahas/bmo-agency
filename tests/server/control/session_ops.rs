@@ -208,7 +208,7 @@ fn a_work_turns_parts_read_by_the_boundary_s_camel_case_names() {
 #[test]
 fn a_thrown_away_scope_reads_its_provider_model_and_folder_and_answers_as_it_read() {
   let scope = scope_read(&json!({
-    "scope": { "kind": "apart", "provider": "claude-code", "model": "sonnet", "cwd": "/places/p/01",
+    "scope": { "kind": "role", "provider": "claude-code", "model": "sonnet", "cwd": "/places/p/01",
       "todo": 1816, "role": "scout" }
   }))
   .unwrap();
@@ -224,11 +224,11 @@ fn a_thrown_away_scope_reads_its_provider_model_and_folder_and_answers_as_it_rea
   assert_eq!(scope, apart);
   assert_eq!(
     scope_value(&apart),
-    json!({ "kind": "apart", "provider": "claude-code", "model": "sonnet", "cwd": "/places/p/01",
+    json!({ "kind": "role", "provider": "claude-code", "model": "sonnet", "cwd": "/places/p/01",
       "todo": 1816, "role": "scout" })
   );
   assert_eq!(
-    scope_read(&json!({ "scope": { "kind": "apart", "provider": "claude-code", "model": "sonnet",
+    scope_read(&json!({ "scope": { "kind": "role", "provider": "claude-code", "model": "sonnet",
       "cwd": "/tmp/run", "todo": null } }))
     .unwrap(),
     Scope::Apart(Apart {
@@ -242,7 +242,7 @@ fn a_thrown_away_scope_reads_its_provider_model_and_folder_and_answers_as_it_rea
   );
 
   for missing in ["provider", "model", "cwd"] {
-    let mut body = json!({ "scope": { "kind": "apart", "provider": "p", "model": "m", "cwd": "/c" } });
+    let mut body = json!({ "scope": { "kind": "role", "provider": "p", "model": "m", "cwd": "/c" } });
 
     body["scope"].as_object_mut().unwrap().remove(missing);
     assert!(scope_read(&body).is_err(), "a thrown-away scope with no {missing} is refused");
@@ -250,7 +250,7 @@ fn a_thrown_away_scope_reads_its_provider_model_and_folder_and_answers_as_it_rea
 
   assert!(
     scope_read(
-      &json!({ "scope": { "kind": "apart", "provider": "p", "model": "m", "cwd": "/c", "todo": "x" } })
+      &json!({ "scope": { "kind": "role", "provider": "p", "model": "m", "cwd": "/c", "todo": "x" } })
     )
     .is_err()
   );

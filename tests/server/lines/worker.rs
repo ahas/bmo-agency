@@ -14,7 +14,7 @@ use agency_server::lines::claude::{
   COMPACT_SHARE, Command, Runs, command_env, line_environment, worker_args,
 };
 use agency_server::lines::standing::registered_program;
-use agency_server::lines::worker::{configured_pinned, pinned_model_on, worker_run};
+use agency_server::lines::worker::{configured_pinned, pinned_model_on, role_run, worker_run};
 use agency_server::places::Ground;
 use harness_providers::Machine;
 use sea_orm::Value;
@@ -264,6 +264,65 @@ async fn a_worker_s_rules_carry_the_report_trailer_before_its_documents_and_a_br
   let branch = worker_run(&ground, &trees, None, None, "claude-opus-5", &cwd).await.unwrap();
 
   assert!(!std::fs::read_to_string(&branch.rules).unwrap().contains(opening));
+}
+
+// A role's run opens on the platform's harness and the role's own prompt, whatever the provider, and where it
+// works in a repository's checkout carries the repository's own rules, found by the prompt folder its row
+// names rather than by its name (docs/repositories.md, 「What a run in a repository is handed」).
+#[tokio::test]
+async fn a_role_s_run_opens_on_its_role_s_prompt_and_reads_its_repository_s_rules_by_the_row_s_folder() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let checkout = home.path().join("checkout");
+  let code = home.path().join("code");
+
+  std::fs::create_dir_all(&checkout).unwrap();
+  std::fs::create_dir_all(&code).unwrap();
+  // A code tree of the test's own: the prompts as they stand, and a prompt folder holding a repository's rules.
+  let copied = std::process::Command::new("cp")
+    .args(["-r", &format!("{}/prompts", env!("CARGO_MANIFEST_DIR")), &code.to_string_lossy()])
+    .status()
+    .unwrap();
+
+  assert!(copied.success());
+  std::fs::create_dir_all(code.join("prompts/agents/kept")).unwrap();
+  std::fs::write(code.join("prompts/agents/kept/own-rules.md"), "KEEP THE TREE TIDY.\n").unwrap();
+  scratch
+    .run(
+      r#"INSERT INTO "roles" ("name", "label", "bundles", "max_concurrent", "prompt", "position", "created_at",
+           "updated_at", "line", "provider_order")
+         VALUES ('making', 'Making', '[]', 1, 'MAKE IT WELL.', 0, 1, 1, 'worker',
+           '[{"provider":"deepseek","model":"deepseek-flash"}]')"#,
+      vec![],
+    )
+    .await;
+  repository(scratch.db(), "repo-a", &checkout.to_string_lossy(), &[("prompts", "kept".into())]).await;
+  repository(scratch.db(), "kept", &home.path().join("other").to_string_lossy(), &[]).await;
+
+  let ground = ground(&scratch, &home).await;
+  let trees = Trees {
+    code,
+    ..Trees::of(&ground)
+  };
+  let cwd = checkout.to_string_lossy().into_owned();
+  let run = role_run(&ground, &trees, "making", Some("repo-a"), None, "deepseek-flash", &cwd, "deepseek")
+    .await
+    .unwrap();
+  let whole = std::fs::read_to_string(&run.harnessed).unwrap();
+
+  assert!(whole.contains("MAKE IT WELL."), "{whole}");
+  assert!(
+    whole.find("MAKE IT WELL.") < whole.find("KEEP THE TREE TIDY."),
+    "the role's prompt stands before the repository's rules: {whole}"
+  );
+  assert!(std::fs::read_to_string(&run.rules).unwrap().contains("KEEP THE TREE TIDY."));
+
+  // A repository named like the folder but naming none on its row hands no rules of its own.
+  let bare = role_run(&ground, &trees, "making", Some("kept"), None, "deepseek-flash", &cwd, "deepseek")
+    .await
+    .unwrap();
+
+  assert!(!std::fs::read_to_string(&bare.rules).unwrap().contains("KEEP THE TREE TIDY."));
 }
 
 // A worker's co-worker definitions are resolved where its program's native calls take their seats: each

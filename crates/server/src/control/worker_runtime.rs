@@ -19,7 +19,7 @@ use serde_json::json;
 use super::{Call, Refused, Route, answer};
 use crate::lines::prefix::touches_prefix;
 use crate::lines::standing::session_ttl_ms;
-use crate::lines::worker::{documents_of, worker_run};
+use crate::lines::worker::{rules_of, worker_run};
 use crate::lines::{Trees, read_required, render};
 use crate::places::{AgentRow, dev, servers};
 use crate::worker_session::held::{self, SessionRun};
@@ -87,8 +87,10 @@ impl Route for JobDocuments {
       ..trees.clone()
     };
     let trailer = crate::lines::worker::job_trailer(&trees, &shown)?;
-    let own = trees.agent_dir(&documents_of(ground, &worker).await?).join("handoff.md");
-    let handoff = std::fs::read_to_string(own).ok().map(|text| text.trim().to_owned());
+    let handoff = rules_of(ground, &worker)
+      .await?
+      .and_then(|folder| std::fs::read_to_string(trees.agent_dir(&folder).join("handoff.md")).ok())
+      .map(|text| text.trim().to_owned());
 
     Ok(answer(
       StatusCode::OK,

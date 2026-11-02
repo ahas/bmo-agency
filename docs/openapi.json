@@ -6798,7 +6798,7 @@
           "worker",
           "room",
           "agent",
-          "apart",
+          "role",
           "conversation"
         ],
         "description": "One of the values the API accepts."
@@ -9752,6 +9752,14 @@
           "workerName": {
             "type": "string"
           },
+          "roleName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The role the job runs as.",
+            "default": null
+          },
           "sessionId": {
             "type": [
               "string",
@@ -9852,6 +9860,7 @@
           "holderName",
           "assignmentId",
           "workerName",
+          "roleName",
           "sessionId",
           "runId",
           "runName",
@@ -10689,6 +10698,14 @@
           "workerName": {
             "type": "string"
           },
+          "roleName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The role the item's job runs as.",
+            "default": null
+          },
           "state": {
             "$ref": "#/components/schemas/AssignmentState"
           },
@@ -10708,6 +10725,7 @@
           "itemId",
           "holderName",
           "workerName",
+          "roleName",
           "state",
           "createdAt",
           "changedAt"
@@ -10741,6 +10759,13 @@
               "string",
               "null"
             ]
+          },
+          "roleName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The role the item's job runs as, a role the store holds; `worker` where it names none."
           }
         },
         "required": [

@@ -8,7 +8,8 @@
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-/// Directories that are built, fetched or kept by tools rather than written.
+/// What is built, fetched or kept by tools rather than written: directories, and a worktree's `.git`
+/// pointer file at the root, which is no file of the repository.
 const NOT_WRITTEN: &[&str] = &[".git", "target", "node_modules"];
 
 /// The folders of code, tests and documents, which hold no Hangul.
@@ -48,6 +49,7 @@ fn files(folders: &[&str]) -> Vec<(PathBuf, String)> {
     let path = entry.path();
 
     if path.is_file()
+      && !NOT_WRITTEN.iter().any(|skip| entry.file_name() == *skip)
       && let Ok(text) = std::fs::read_to_string(&path)
     {
       found.push((path, text));

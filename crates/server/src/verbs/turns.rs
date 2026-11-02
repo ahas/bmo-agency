@@ -75,13 +75,11 @@ struct HostAsked {
   #[serde(default)]
   parent: Option<String>,
   #[serde(default)]
-  work_key: Option<String>,
+  role: Option<String>,
   #[serde(default)]
   model: Option<String>,
   #[serde(default)]
   effort: Option<String>,
-  #[serde(default)]
-  tier: Option<Value>,
   #[serde(default)]
   session_id: Option<String>,
   #[serde(default)]
@@ -115,10 +113,9 @@ pub async fn host_run(data_root: &Path, request: &Path) -> Result<Answer, VerbEr
       command: asked.command,
       root: asked.root,
       parent: asked.parent,
-      work_key: asked.work_key,
+      role: asked.role,
       model: asked.model,
       effort: asked.effort,
-      tier: asked.tier,
       session: asked.session_id,
     },
     &mut caller,

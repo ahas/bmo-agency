@@ -373,6 +373,7 @@ pub async fn heal(
 
   ground.events.publish(WorkerDowngraded {
     worker: worker.to_owned(),
+    role: Some(job_role().to_owned()),
     launched: launched.to_owned(),
     answered_on: models.clone(),
     dropped,
@@ -380,6 +381,48 @@ pub async fn heal(
   });
 
   Ok(Downgrade { models, dropped })
+}
+
+/// The heal of a job's run that came back on a lesser model than it went out on (docs/cache-fallback.md,
+/// 「Healing differs for a job」): the session it kept for its role at the checkout dropped, unless the owner
+/// turned the heal off for the checkout's repository, and `worker.changed` published with the checkout, the
+/// role, the model it went out on, the models it answered on and the job. Telling the owner is the consumer's.
+pub async fn heal_role_run(
+  ground: &Ground,
+  checkout: &str,
+  role: &str,
+  launched: &str,
+  reply: &Reply,
+  job: Option<i64>,
+) -> Result<(), Refusal> {
+  let models = downgrades(&reply.spend, launched);
+
+  if models.is_empty() {
+    return Ok(());
+  }
+
+  let dropped = heals(&ground.db, checkout).await?;
+
+  if dropped && let Some(session) = &reply.session_id {
+    crate::apart_sessions::hand_over(&ground.db, session).await?;
+  }
+
+  println!(
+    "downgrade {checkout} {role} {launched}: answered on {}, session {}",
+    models.join(", "),
+    if dropped { "dropped" } else { "kept, the heal is off for this repository" }
+  );
+
+  ground.events.publish(WorkerDowngraded {
+    worker: checkout.to_owned(),
+    role: Some(role.to_owned()),
+    launched: launched.to_owned(),
+    answered_on: models,
+    dropped,
+    job,
+  });
+
+  Ok(())
 }
 
 /// What a kept session is marked with once a turn on it answered: the model it fell to now, or the

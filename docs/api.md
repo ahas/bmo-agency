@@ -115,7 +115,7 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
 |---|---|---|
 | GET | `/supervisors` | Every supervisor, each with the login account that owns it. |
 | POST | `/supervisors` | Register a supervisor; it is given its brain. |
-| GET | `/supervisors/{supervisorName}` | One supervisor: its order, warming, threshold, gates, voice, reset point, stand-in. |
+| GET | `/supervisors/{supervisorName}` | One supervisor: its row, order, warming, threshold, gates, sampling, voice, and what it stands on now. |
 | PATCH | `/supervisors/{supervisorName}` | Change a supervisor's order, warming, threshold, gates, sampling or voice. |
 | DELETE | `/supervisors/{supervisorName}` | End a supervisor's registration; `forgetBrain` lets its brain go with it. |
 
@@ -129,7 +129,9 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
   order (below); `warming`, for each provider of its order whether its prefix is kept warm there;
   `foldRatio`, its compaction threshold; `gates`, `voice` and `sampling`; and what it stands on now —
   `provider`, `model` and `effort` its last turn went out on, and `waitingFor`, why its turn waits where no
-  provider of its order has quota, or null.
+  provider of its order has quota, or null. A companion's reset point is no field of it: the reset publishes
+  each move of the point as it makes it (「Events」), and whether a stand-in answers a supervisor now is
+  `GET /stand-in` (「accounts, rest and usage」).
 - **An order** is a list, each member a provider agency carries, once each: `provider`, `model`, `effort` (a
   level of the reasoning policy or null), `thinking` (`on`, `off` or null for the provider's own) and, on the
   registry's provider, `answerTokens` or null; beside it `quotaShare`, a fraction from 0 to 1, 0.01 where none
@@ -822,6 +824,13 @@ state or several comma-separated; by `running`, `true` the jobs starting or runn
 by `itemId`; by `roomId`; by `repositoryName`; by `roleName`; and by `holderName`, every filter named holding at once. A query
 naming anything else, or a value that does not read as its filter's kind, is refused 400.
 
+- **The role a job runs as is its assignment's.** `POST /assignments` takes `roleName`, a role the store
+  holds, `worker` where it names none, and refuses another 422 `unknown-role`; an assignment and its job
+  answer it as `roleName`. The job's run is a run of that role at the checkout: it holds a slot of the role
+  keyed by the checkout, goes out on the role's order, or the repository's pin, in a session of the role's
+  started for each turn and ended with it, and resumes the session the role keeps at that checkout on that
+  provider and model where it keeps one (「sessions」 above; `docs/role-slots.md`, 「The line」).
+
 A job's `itemId` and `leaseId` are the harness's references, kept as given. The harness reads the job's
 progress, questions and outcome from its fields and events, and reports and closes the item in the job
 service.
@@ -979,7 +988,7 @@ Agency publishes one stream, `GET /events`. The kinds are:
 `prompt-document.changed`, `document-move.created`, `overtime-request.created`,
 `overtime-request.changed`, `rest.changed`, `fallback.changed`, `account.changed`, `usage.changed`,
 `road.changed`, `launch-room.changed`, `companion-reset.created`, `place.changed`, `assignment.created`,
-`assignment.changed`, `job.created`, `job.changed`, `job.ended`.
+`assignment.changed`, `job.created`, `job.changed`, `job.ended`, `worker.changed`.
 
 A kind agency keeps to its own processes does not cross the stream. `events.missed` is the stream's own
 notice to a reader resuming too late (「events」 above), never published as an event and never kept.
@@ -998,6 +1007,11 @@ notice to a reader resuming too late (「events」 above), never published as an
 
   Telling the owner is the consumer's: the moved road as what the system switched to, the closed road
   with its command passed over verbatim. No fact is the end of the matter, and none is said twice.
+- **`worker.changed`** carries a job's run that answered on a lesser model than it went out on
+  (`docs/cache-fallback.md`, 「Healing differs for a job」): `worker`, the checkout it ran in; `role`, the
+  role it ran as; `launched`, the model it went out on; `answeredOn`, the models it answered on; `dropped`,
+  whether the session its role kept there was dropped, false where the repository's heal is off; and `job`,
+  the job, or null.
 
 ## Hook points
 

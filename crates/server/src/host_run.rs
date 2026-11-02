@@ -62,10 +62,10 @@ pub struct Asked<'a> {
   pub command: Command,
   pub root: Option<String>,
   pub parent: Option<String>,
-  pub work_key: Option<String>,
+  /// The role the run holds, where it is a role's.
+  pub role: Option<String>,
   pub model: Option<String>,
   pub effort: Option<String>,
-  pub tier: Option<Value>,
   pub session: Option<String>,
 }
 
@@ -245,10 +245,9 @@ fn first_body(asked: &Asked<'_>) -> Map<String, Value> {
   body.insert("agent".into(), json!(asked.agent));
   body.insert("root".into(), json!(root));
   body.insert("parent".into(), json!(asked.parent));
-  body.insert("workKey".into(), json!(asked.work_key.as_deref().unwrap_or(asked.line)));
+  body.insert("role".into(), json!(asked.role));
   body.insert("model".into(), json!(asked.model));
   body.insert("effort".into(), json!(asked.effort));
-  body.insert("tier".into(), asked.tier.clone().unwrap_or(Value::Null));
   body.insert("sessionId".into(), json!(asked.session));
   body.insert("provider".into(), json!(asked.provider));
   body.insert("line".into(), json!(asked.line));
@@ -473,10 +472,9 @@ pub async fn leave(ground: &Ground, left: Left<'_>) -> Result<(), String> {
     command: left.command,
     root: Some(left.name.to_owned()),
     parent: None,
-    work_key: Some(left.agent.to_owned()),
+    role: None,
     model: None,
     effort: None,
-    tier: None,
     session: None,
   };
   let mut body = first_body(&asked);

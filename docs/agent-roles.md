@@ -72,7 +72,7 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
 
   | Role | Label | Line | Bundles | Cap | Prompt | Sessions | Co-worker |
   |---|---|---|---|---|---|---|---|
-  | `worker` | Worker | worker | `graph.read`, `queue.read`, `web.read` | 8 | none | keep | no |
+  | `worker` | Worker | worker | `graph.read`, `queue.read`, `web.read` | 3 | none | keep | no |
   | `delegator` | Delegator | worker | `graph.read`, `queue.read`, `web.read` | 2 | `delegator.md` | keep | no |
   | `helper` | Helper | worker | `graph.read`, `queue.read`, `web.read` | 2 | `helper.md` | keep | no |
   | `video` | Video producer | worker | `queue.read`, `web.read`, `room.send` | 2 | `video.md` | keep | no |

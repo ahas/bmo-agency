@@ -426,21 +426,17 @@ pub async fn delegate_with(api: &Api, session: &Session, input: DelegateInput, h
 
   let body = json!({
     "prompt": format!("Work in {}.\n\n{instruction}", folder.display()),
-    "context": {
-      "work": {
-        "provider": seat.provider,
-        "model": seat.model,
-        "mapping": { "model": seat.model, "effort": seat.effort },
-        "resume": { "kind": "auto" },
-        "cwd": folder.display().to_string(),
-        "name": run,
-        "title": format!("delegated by {asker}: {title}"),
-        "chat": turn.chat.unwrap_or_default(),
-        "workKey": seat.role,
-        "hearsWords": false,
-        "variables": {},
-      },
-    },
+    "provider": seat.provider,
+    "model": seat.model,
+    "mapping": { "model": seat.model, "effort": seat.effort },
+    "resume": { "kind": "auto" },
+    "cwd": folder.display().to_string(),
+    "name": run,
+    "title": format!("delegated by {asker}: {title}"),
+    "chat": turn.chat.unwrap_or_default(),
+    "workKey": seat.role,
+    "hearsWords": false,
+    "variables": {},
   });
   let before = files(&folder);
 

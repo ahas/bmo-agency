@@ -184,6 +184,21 @@ pub async fn worker_row(
   Ok(workers(db, source).await?.into_iter().find(|worker| worker.name == name))
 }
 
+/// The checkout standing at a path, by name, where a repository's checkout stands there: what a run working at
+/// that path is handed the repository's own for (docs/repositories.md, 「What a run in a repository is
+/// handed」).
+pub async fn checkout_at(db: &DatabaseConnection, path: &str) -> Result<Option<String>, Refusal> {
+  let at = super::paths::resolve(path);
+
+  Ok(
+    workers(db, Path::new(""))
+      .await?
+      .into_iter()
+      .find(|worker| !worker.builtin && super::paths::resolve(&worker.cwd) == at)
+      .map(|worker| worker.name),
+  )
+}
+
 /// The repository a checkout is of: the base's own name, or the repository a support worktree or a node
 /// checkout stands beside.
 pub async fn repository_of(db: &DatabaseConnection, checkout: &str) -> Result<Option<Repository>, Refusal> {

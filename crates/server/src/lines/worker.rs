@@ -67,13 +67,24 @@ pub struct WorkerRun {
   pub cwd: String,
 }
 
-/// The repository a checkout's own documents go by: its own name for a base, its repository's for a support
-/// worktree or a node checkout.
-pub async fn documents_of(ground: &Ground, worker: &str) -> Result<String, Refusal> {
+/// The repository a checkout belongs to, by name: its own name for a base, its repository's for a support
+/// worktree or a node checkout. The base prompt it chooses and its sampling are kept under this name.
+pub async fn repository_name_of(ground: &Ground, worker: &str) -> Result<String, Refusal> {
   Ok(
     crate::queue::workers::repository_of(&ground.db, worker)
       .await?
       .map_or_else(|| worker.to_owned(), |repository| repository.name),
+  )
+}
+
+/// The prompt folder under `prompts/agents/` a checkout's repository names for its rules, its row's
+/// `prompts`, or none where it names none (docs/repositories.md, 「What a repository row holds」).
+pub async fn rules_of(ground: &Ground, worker: &str) -> Result<Option<String>, Refusal> {
+  Ok(
+    crate::queue::workers::repository_of(&ground.db, worker)
+      .await?
+      .and_then(|repository| repository.rules)
+      .filter(|folder| !folder.trim().is_empty()),
   )
 }
 
@@ -107,17 +118,17 @@ pub fn job_trailer(trees: &Trees, shown: &Trees) -> Result<String, Refusal> {
   ))
 }
 
-/// Every worker's rules, the worker's own after them, the job's report trailer after those where the rules
-/// are a worker's, and the documents its row names for its prefix last, as one file: the session's cached
-/// prefix, paid for once.
+/// Every worker's rules, the repository's own after them — `own-rules.md` of the prompt folder its row
+/// names — the job's report trailer after those where the rules are a worker's, and the documents its row
+/// names for its prefix last, as one file: the session's cached prefix, paid for once.
 pub fn standing_rules(
   trees: &Trees,
-  named: Option<&str>,
+  folder: Option<&str>,
   worker: Option<&str>,
   trailer: Option<&str>,
   documents: Option<&str>,
 ) -> Result<StandingRules, Refusal> {
-  let own_path = named.map(|named| trees.agent_dir(named).join("own-rules.md"));
+  let own_path = folder.map(|folder| trees.agent_dir(folder).join("own-rules.md"));
   let own = match &own_path {
     Some(path) if path.exists() => Some(read_required(path)?),
     _ => None,
@@ -135,9 +146,9 @@ pub fn standing_rules(
   parts.extend(documents.map(str::to_owned));
 
   let text = parts.join("\n\n");
-  let name = match (documents, worker, own, named) {
+  let name = match (documents, worker, own, folder) {
     (Some(_), Some(worker), _, _) => format!("worker-rules-{worker}"),
-    (_, _, Some(_), Some(named)) => format!("worker-rules-{named}"),
+    (_, _, Some(_), Some(folder)) => format!("worker-rules-{folder}"),
     _ => "worker-rules".to_owned(),
   };
   let file = system_prompt_file(trees, &name, &text)?;
@@ -453,8 +464,50 @@ pub async fn worker_run_on(
   cwd: &str,
   provider: &str,
 ) -> Result<WorkerRun, Refusal> {
+  let role = match worker {
+    Some(worker) => crate::conversational::role_of(&ground.db, worker).await.ok().flatten(),
+    None => None,
+  };
+
+  run_on_line(ground, trees, worker, role.as_deref(), account, model, cwd, provider).await
+}
+
+/// A role's run on the worker line in a program standing on `provider` (docs/agents.md, 「A run」): the
+/// platform's harness opening and the role's prompt first, then the worker line's standing rules, and where it
+/// works in a repository's checkout `checkout`, the repository's own — its rules, the job's trailer and its
+/// prefix documents (docs/repositories.md, 「What a run in a repository is handed」).
+#[allow(clippy::too_many_arguments)]
+pub async fn role_run(
+  ground: &Ground,
+  trees: &Trees,
+  role: &str,
+  checkout: Option<&str>,
+  account: Option<&Account>,
+  model: &str,
+  cwd: &str,
+  provider: &str,
+) -> Result<WorkerRun, Refusal> {
+  run_on_line(ground, trees, checkout, Some(role), account, model, cwd, provider).await
+}
+
+// The run on the worker line for a checkout, or none, under the role named.
+#[allow(clippy::too_many_arguments)]
+async fn run_on_line(
+  ground: &Ground,
+  trees: &Trees,
+  worker: Option<&str>,
+  role: Option<&str>,
+  account: Option<&Account>,
+  model: &str,
+  cwd: &str,
+  provider: &str,
+) -> Result<WorkerRun, Refusal> {
   let named = match worker {
-    Some(worker) => Some(documents_of(ground, worker).await?),
+    Some(worker) => Some(repository_name_of(ground, worker).await?),
+    None => None,
+  };
+  let folder = match worker {
+    Some(worker) => rules_of(ground, worker).await?,
     None => None,
   };
   let documents = match worker {
@@ -473,13 +526,9 @@ pub async fn worker_run_on(
     shared,
     text: rules_text,
     file: rules,
-  } = standing_rules(trees, named.as_deref(), worker, trailer.as_deref(), documents.as_deref())?;
-  let role = match worker {
-    Some(worker) => crate::conversational::role_of(&ground.db, worker).await.ok().flatten(),
-    None => None,
-  };
+  } = standing_rules(trees, folder.as_deref(), worker, trailer.as_deref(), documents.as_deref())?;
   let above = match role {
-    Some(role) => super::role_prompt(&ground.db, &role).await,
+    Some(role) => super::role_prompt(&ground.db, role).await,
     None => None,
   };
   let system_prompt = worker_system_prompt(

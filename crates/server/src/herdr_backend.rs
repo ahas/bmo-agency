@@ -49,7 +49,7 @@ use crate::door::aside;
 use crate::door::record::{ModelSpend, UsageSpent};
 use crate::door::turn::{AsideOutcome, Quiet};
 use crate::events::Event;
-use crate::job_run::claude::turn::{Shows, WorkAsked, WorkSeat, carry, continues};
+use crate::job_run::claude::turn::{Shows, TASK_LOCKED, TURN_AGENT, WorkAsked, WorkSeat, carry, continues};
 use crate::lines::Trees;
 use crate::lines::chat::{ChatLaunch, RoomContext, compose_prepared, compose_turn, gate_run};
 use crate::lines::companion::{CompanionTurn, compose, lost_session, registration_named};
@@ -383,16 +383,24 @@ fn numbered_scope(id: &SessionId, word: &str) -> bool {
     .is_some_and(|rest| rest.strip_prefix(':').is_some_and(|number| number.parse::<u64>().is_ok()))
 }
 
-// Whether a thrown-away session's turns go into a place of its own: one handing a runner line its
-// instructions on a road whose program carries its own turns and that line (docs/api.md, 「sessions」).
-fn in_places(apart: &Apart) -> bool {
-  let carried = |line: &str| {
-    harness_providers::provider(&apart.provider).is_some_and(|declared| declared.declared().carries(line))
-  };
+// What a role's run on a road other than Claude Code's own stands on: its line, effort and reasoning, its
+// whole system prompt, the tools it is allowed, its MCP configuration and its folder.
+struct RoleLine {
+  line: &'static str,
+  effort: String,
+  tier: Option<String>,
+  reasoning: crate::lines::worker::Reasoning,
+  thinking: bool,
+  system_path: std::path::PathBuf,
+  tools_allowed: String,
+  mcp_config: std::path::PathBuf,
+  cwd: String,
+}
 
-  apart.system_prompt.is_some()
-    && crate::chat_stand_in::carries_own_turns(&apart.provider)
-    && apart.line.as_deref().is_some_and(carried)
+// Whether a role's session's turns go into a place of its own: every road but Claude Code's own, whose runs
+// each stand in a pane of their own (docs/api.md, 「sessions」).
+fn in_places(apart: &Apart) -> bool {
+  apart.provider != worker_session::PROVIDER
 }
 
 // A thrown-away session asked of what is no thrown-away session's to answer.
@@ -780,21 +788,13 @@ impl HerdrSessions {
   // name its turns run under, which is no agent's row.
   async fn admitted(&self, agent: &str, scope: &Scope) -> Result<Option<AgentRow>, Fault> {
     match scope {
-      Scope::Apart(apart) if apart.provider != worker_session::PROVIDER && !in_places(apart) => Err(fault(
-        FaultKind::Refused,
-        format!(
-          "{agent}: a thrown-away session goes out on {}, not {}, but where it hands a runner line its \
-           instructions on a road whose program carries that line",
-          worker_session::PROVIDER,
-          apart.provider
-        ),
-      )),
-      Scope::Apart(apart) if apart.provider != worker_session::PROVIDER => {
+      // A role's run goes out on whichever provider its slot or its caller names, each a provider this build
+      // carries and the owner has on (docs/provider-order.md, 「Choosing the provider」).
+      Scope::Apart(apart) => {
         self.provider_ready(&apart.provider).await?;
 
         Ok(None)
       }
-      Scope::Apart(_) => Ok(None),
       Scope::Conversation(conversation) => {
         self.provider_ready(&conversation.provider).await?;
 
@@ -1942,6 +1942,7 @@ impl HerdrSessions {
     if let Scope::Apart(apart) = &scope
       && !(apart.todo.is_some() && apart.role.is_some())
       && turn.context.gate.is_none()
+      && turn.context.job.is_none()
       && self.referenced().insert(turn.session.clone())
     {
       let lines: Vec<String> = turn.prompt.lines().map(str::to_owned).collect();
@@ -2071,14 +2072,38 @@ impl HerdrSessions {
         (Some(gate), _) => {
           self.gate_turn(&turn, &agent, &apart.provider, &apart.cwd, gate, &run, shown).await
         }
-        (None, Some(work)) if apart.provider != worker_session::PROVIDER => {
-          let began = turn.context.began.unwrap_or(at);
+        (None, Some(work)) => {
+          let db = &self.ground().db;
 
-          self
-            .apart_in_place(&turn.session, &agent, apart, work, &turn.prompt, began, shown)
-            .await
+          if turn.context.job.is_some() {
+            keep_worker_job(db, &agent, turn.context.job).await;
+          }
+
+          let came = if apart.provider == worker_session::PROVIDER {
+            self.carried(&turn, &agent, WorkSeat::Apart(apart), work, turn_id).await
+          } else {
+            let began = turn.context.began.unwrap_or(at);
+
+            self
+              .apart_in_place(
+                &turn.session,
+                &agent,
+                apart,
+                work,
+                &turn.prompt,
+                began,
+                turn.context.job,
+                shown,
+              )
+              .await
+          };
+
+          if turn.context.job.is_some() {
+            keep_worker_job(db, &agent, None).await;
+          }
+
+          came
         }
-        (None, Some(work)) => self.carried(&turn, &agent, WorkSeat::Apart(apart), work, turn_id).await,
         (None, None) => Err(apart_refused(&agent)),
       },
       (Scope::Conversation(conversation), _) => match &turn.context.gate {
@@ -2287,9 +2312,12 @@ impl HerdrSessions {
     }
   }
 
-  // One turn of a thrown-away session in the place of its own (docs/api.md, 「sessions」): the runner line it
-  // names with the instructions its caller handed in, composed as a worker's job on the session's road is, the
-  // line's servers its tools and nothing of the program's own, the record its caller named on its token.
+  // One turn of a role's session on a provider other than Claude Code's own, in the place of its own
+  // (docs/api.md, 「sessions」): the runner line it names with the instructions its caller handed in, or else
+  // the worker line opening on the platform's harness and the role's prompt, with the repository's own where
+  // its folder is a repository's checkout; on the session the role keeps at that folder on that provider and
+  // model where it keeps sessions and one is valid, a new one otherwise; the role's bundles and the record its
+  // caller named on its token.
   #[allow(clippy::too_many_arguments)]
   async fn apart_in_place(
     &self,
@@ -2299,42 +2327,122 @@ impl HerdrSessions {
     work: &WorkParts,
     prompt: &str,
     began: i64,
+    job: Option<agent_session::JobMark>,
     shown: OutputWatch<'_>,
   ) -> Result<Came, Fault> {
     let ground = self.ground();
     let trees = Trees::of(ground);
     let place = crate::apart_places::place_name(session);
-    let line = apart.line.as_deref().unwrap_or_default();
-    let instructions = apart.system_prompt.as_deref().unwrap_or_default();
+    let role = apart.role.as_deref().unwrap_or_else(|| crate::agent_roles::job_role());
     let effort = work.mapping.effort.as_deref().unwrap_or_default();
     let tier = work.mapping.tier.as_deref().unwrap_or_default();
     let refused = |why: String| fault(FaultKind::Refused, why);
-    let run =
-      crate::lines::runner::given_run(ground, &trees, line, instructions, (&apart.model, effort, tier))
+    let composed = match (apart.line.as_deref(), apart.system_prompt.as_deref()) {
+      (Some(line), Some(instructions)) => {
+        let run =
+          crate::lines::runner::given_run(ground, &trees, line, instructions, (&apart.model, effort, tier))
+            .await
+            .map_err(|why| refused(why.detail))?;
+        let thinking = crate::lines::worker::reasoning_of(ground, line)
+          .await
+          .map_err(|why| refused(why.detail))?
+          .thinking;
+
+        RoleLine {
+          line: run.line,
+          effort: run.effort.clone(),
+          tier: Some(run.tier.clone()).filter(|tier| !tier.is_empty()),
+          reasoning: crate::lines::worker::Reasoning {
+            thinking,
+            level: None,
+          },
+          thinking: run.thinking,
+          system_path: run.system_prompt.clone(),
+          tools_allowed: run.tools_allowed.to_owned(),
+          mcp_config: run.mcp_config.clone(),
+          cwd: run.cwd.to_string_lossy().into_owned(),
+        }
+      }
+      _ => {
+        let checkout = crate::queue::workers::checkout_at(&ground.db, &apart.cwd)
+          .await
+          .map_err(|why| refused(why.detail))?;
+        let line = crate::lines::worker::role_run(
+          ground,
+          &trees,
+          role,
+          checkout.as_deref(),
+          None,
+          &apart.model,
+          &apart.cwd,
+          &apart.provider,
+        )
         .await
         .map_err(|why| refused(why.detail))?;
-    let thinking = crate::lines::worker::reasoning_of(ground, line)
-      .await
-      .map_err(|why| refused(why.detail))?
-      .thinking;
+
+        RoleLine {
+          line: crate::lines::worker::LINE,
+          effort: work.mapping.effort.clone().unwrap_or(line.effort.clone()),
+          tier: work.mapping.tier.clone(),
+          reasoning: line.reasoning.clone().unwrap_or_default(),
+          thinking: line.thinking,
+          // The role's whole system prompt: the harness opening and the role's prompt before the rules.
+          system_path: line.system_prompt.clone().unwrap_or_else(|| line.harnessed.clone()),
+          // The run takes every working row of the road; the list only has to be non-empty for the road to
+          // hand it them rather than none.
+          tools_allowed: "Bash".to_owned(),
+          mcp_config: line.mcp_config.clone(),
+          cwd: apart.cwd.clone(),
+        }
+      }
+    };
     let mut env = ground.env().clone();
 
     crate::apart_places::mark(ground, &place, session).map_err(refused)?;
     env.extend(work.variables.iter().map(|(name, value)| (name.clone(), value.clone())));
     env.extend(crate::lines::token::record_variables(apart));
+    env.insert(TURN_AGENT.to_owned(), agent.to_owned());
 
+    if job.is_some() {
+      env.insert(TASK_LOCKED.to_owned(), "1".to_owned());
+    }
+
+    // The session the role keeps at this folder on this provider and model, where it keeps sessions.
+    let key = if crate::apart_sessions::setting(&ground.db, role).await.keeps() {
+      Some(crate::apart_sessions::SessionKey {
+        role: role.to_owned(),
+        path: composed.cwd.clone(),
+        provider: apart.provider.clone(),
+        model: apart.model.clone(),
+        effort: composed.effort.clone(),
+        account: None,
+        command: crate::apart_sessions::key_of(
+          composed.line,
+          &composed.cwd,
+          &composed.system_path,
+          &composed.mcp_config,
+          &composed.tools_allowed,
+        ),
+      })
+    } else {
+      None
+    };
+    let resume = match &key {
+      Some(key) => crate::apart_sessions::take(&ground.db, key, now_ms()).await.unwrap_or_else(|why| {
+        eprintln!("{session}: its kept session could not be read, so it opens a new one: {why:?}");
+        None
+      }),
+      None => None,
+    };
     let chat_run = crate::lines::chat::ChatRun {
-      line: run.line,
+      line: composed.line,
       agent: place.clone(),
       model: apart.model.clone(),
-      effort: run.effort.clone(),
-      tier: Some(run.tier.clone()).filter(|tier| !tier.is_empty()),
-      reasoning: crate::lines::worker::Reasoning {
-        thinking,
-        level: None,
-      },
-      thinking: run.thinking,
-      system_path: run.system_prompt.clone(),
+      effort: composed.effort,
+      tier: composed.tier,
+      reasoning: composed.reasoning,
+      thinking: composed.thinking,
+      system_path: composed.system_path,
       system_parts: None,
       room: RoomContext {
         chat_id: 0,
@@ -2342,15 +2450,15 @@ impl HerdrSessions {
         mark: String::new(),
       },
       tools_shown: String::new(),
-      tools_allowed: run.tools_allowed.to_owned(),
-      mcp_config: run.mcp_config.clone(),
+      tools_allowed: composed.tools_allowed,
+      mcp_config: composed.mcp_config,
       mcp_tools: None,
       prompt: prompt.to_owned(),
       persona_unused: None,
       fold: false,
       ping: false,
-      resume: None,
-      cwd: run.cwd.to_string_lossy().into_owned(),
+      resume: resume.clone(),
+      cwd: composed.cwd,
       env,
       cards: crate::cards::Ask {
         own: apart.demand,
@@ -2361,25 +2469,43 @@ impl HerdrSessions {
       agent: agent.to_owned(),
       run: work.name.clone(),
       chat_id: (work.chat != 0).then_some(work.chat),
-      job_id: None,
+      job_id: job.map(|job| job.job),
     });
     let taken = crate::road::Road {
       provider: apart.provider.clone(),
       model: apart.model.clone(),
       account: None,
     };
+    let opened_at = now_ms();
+    let came =
+      crate::chat_stand_in::job_turn_on(ground, &mut log, &chat_run, role, &taken, began, Some(shown))
+        .await;
 
-    match crate::chat_stand_in::job_turn_on(
-      ground,
-      &mut log,
-      &chat_run,
-      &work.work_key,
-      &taken,
-      began,
-      Some(shown),
-    )
-    .await
-    {
+    if let Some(key) = &key {
+      let kept = match &came {
+        Ok(reply) if !reply.session_id.is_empty() => {
+          let held = crate::apart_sessions::Answered {
+            at: now_ms(),
+            opened_at,
+            context_tokens: reply.context_tokens,
+            context_share: reply.context_ratio,
+          };
+
+          crate::apart_sessions::keep(&ground.db, key, &reply.session_id, held).await
+        }
+        Ok(_) => Ok(()),
+        Err(_) => match &resume {
+          Some(held) => crate::apart_sessions::give_back(&ground.db, held).await,
+          None => Ok(()),
+        },
+      };
+
+      if let Err(why) = kept {
+        eprintln!("{session}: the session it ran on was not kept: {why:?}");
+      }
+    }
+
+    match came {
       Ok(reply) => Ok(Came::Answered(reply.text.clone(), spent_of(&reply.spend), left(&reply))),
       Err(NoAnswer::Overtaken) => Ok(Came::Stopped),
       Err(no) => {
@@ -2508,13 +2634,6 @@ impl Sessions for HerdrSessions {
         };
 
         self.provider_ready(&next.provider).await?;
-
-        if next.provider != worker_session::PROVIDER && !in_places(&next) {
-          return Err(fault(
-            FaultKind::Refused,
-            format!("{session} goes out on {}, not {}", worker_session::PROVIDER, next.provider),
-          ));
-        }
 
         if let Some((_, held)) = self.apart().get_mut(session) {
           *held = next.clone();

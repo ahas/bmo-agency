@@ -30,7 +30,7 @@ use super::openrouter::resident_command;
 use super::ordered::Ordered;
 use super::place::{Holds, Place, write_place_settings};
 use super::standing::{GatewayModel, OnGateway, Placing, gateway_command, status_root};
-use super::token::facts;
+use super::token::{self, facts};
 use super::worker::{Reasoning, effort_of, reasoning_of, rulebook, system_prompt_file};
 use super::{Trees, fault, publish_text, read_required};
 use crate::Refusal;
@@ -1283,7 +1283,10 @@ pub async fn compose_stand_in(
       )
       .await?;
 
-      command.env.extend(env.into_iter().filter(|(name, _)| name.starts_with("BMO_TURN_")));
+      command.env.extend(env.into_iter().filter(|(name, _)| {
+        name.starts_with("BMO_TURN_")
+          || [token::RECORD_LABELS, token::RECORD_TOOLS].contains(&name.as_str())
+      }));
 
       Ok(ComposedTurn {
         placement: placement.clone(),

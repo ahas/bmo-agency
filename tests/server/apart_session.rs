@@ -145,11 +145,14 @@ async fn a_thrown_away_session_stands_from_its_start_to_its_end_and_keeps_nothin
     FaultKind::Unknown,
     "a number never given names no session"
   );
+  let elsewhere = sessions.start(start("branch-a", apart("codex", "/tmp/run-c"))).await.unwrap();
+
   assert_eq!(
-    sessions.start(start("branch-a", apart("codex", "/tmp/run-c"))).await.unwrap_err().kind,
-    FaultKind::Refused,
-    "a thrown-away session goes out on Claude Code alone"
+    elsewhere.scope,
+    agent_session::Scope::Apart(apart("codex", "/tmp/run-c")),
+    "a role's session goes out on whichever provider it names"
   );
+  sessions.end(&elsewhere.id).await.unwrap();
   assert_eq!(
     sessions.start(start("a@b", apart("claude-code", "/tmp/run-c"))).await.unwrap_err().kind,
     FaultKind::Refused
@@ -470,7 +473,7 @@ async fn a_run_of_a_session_naming_its_record_is_issued_with_its_labels_and_only
 }
 
 #[tokio::test]
-async fn a_session_on_a_road_carrying_its_own_turns_stands_only_where_it_hands_its_line_instructions() {
+async fn a_session_on_a_road_carrying_its_own_turns_stands_in_a_place_of_its_own() {
   let scratch = Scratch::new().await;
   let home = tempfile::tempdir().unwrap();
   let machine = machine(home.path());
@@ -478,16 +481,21 @@ async fn a_session_on_a_road_carrying_its_own_turns_stands_only_where_it_hands_i
   store::seed::settle(scratch.db(), &deployment(&machine)).await.unwrap();
 
   let sessions = HerdrSessions::new(Places::new(ground(&scratch, &machine, None), Arc::default()));
-  let refused = sessions.start(start("search", apart("registered", "/tmp/run-a"))).await.unwrap_err();
+  let worker_line = sessions.start(start("search", apart("registered", "/tmp/run-a"))).await.unwrap();
 
-  assert_eq!(refused.kind, FaultKind::Refused, "the worker line goes out on Claude Code alone");
+  assert_eq!(
+    worker_line.scope,
+    agent_session::Scope::Apart(apart("registered", "/tmp/run-a")),
+    "a role's run on the worker line goes out on any provider"
+  );
+  sessions.end(&worker_line.id).await.unwrap();
 
   let placed = sessions.start(start("search", handed("registered", "flash-next"))).await.unwrap();
 
-  assert_eq!(placed.id, SessionId("search@run:1".into()));
+  assert_eq!(placed.id, SessionId("search@run:2".into()));
   assert_eq!(
     agency_server::apart_places::place_name(&placed.id),
-    "apart-search-run-1",
+    "apart-search-run-2",
     "its place is named after it"
   );
 
@@ -518,5 +526,51 @@ async fn a_start_on_a_road_whose_program_does_not_carry_the_line_says_why() {
       .unwrap(),
     None,
     "a session on the worker line is the backend's to judge"
+  );
+}
+
+// A role's run names its role in its variables, and its record is given that role's bundles whatever name it
+// is carried under: a job's run under its checkout's name holds the bundles of the role its item names
+// (docs/agent-roles.md, 「Where the role is read」).
+#[tokio::test]
+async fn a_run_naming_its_role_is_issued_that_role_s_bundles_under_any_name() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let socket = home.path().join("mcp-host.sock");
+  let issued = issuing_host(&socket);
+  let machine = hosted(home.path(), &socket);
+
+  store::seed::settle(scratch.db(), &deployment(&machine)).await.unwrap();
+
+  let ground = ground(&scratch, &machine, None);
+  let video = Apart {
+    provider: "deepseek".into(),
+    model: "deepseek-flash".into(),
+    cwd: "/tmp".into(),
+    role: Some("video".into()),
+    ..Apart::default()
+  };
+  let env: BTreeMap<String, String> =
+    agency_server::lines::token::record_variables(&video).into_iter().collect();
+
+  assert_eq!(env[agency_server::lines::token::RUN_ROLE], "video");
+  assert!(agency_server::lines::token::names_record(&env));
+
+  agency_server::lines::token::issue_for_run(&ground, "worker", "some-checkout", "/tmp", &env, u64::MAX)
+    .await
+    .unwrap()
+    .expect("a token");
+
+  let record = issued.lock().unwrap().pop().expect("a record was issued");
+  let capabilities: Vec<String> = serde_json::from_value(record["capabilities"].clone()).unwrap();
+
+  assert_eq!(record["labels"]["role"], json!("video"), "{record}");
+  assert!(
+    capabilities.contains(&"room.send".to_owned()),
+    "the video role's own bundle: {capabilities:?}"
+  );
+  assert!(
+    !capabilities.contains(&"graph.read".to_owned()),
+    "no bundle the role does not give: {capabilities:?}"
   );
 }

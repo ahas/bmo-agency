@@ -65,13 +65,14 @@ async fn a_running_server_answers_what_a_job_s_run_asks_of_its_worker() {
 
   std::fs::create_dir_all(&bench).unwrap();
   std::fs::write(bench.join("dev-server.wanted"), "").unwrap();
-  // A repository of its own, and one whose prompt folder holds a handoff instruction, with a support checkout.
+  // A repository naming no prompt folder, and one whose row names a folder holding a handoff instruction —
+  // found by the row's folder, not by the repository's name — with a support checkout.
   repository(scratch.db(), "helper", &home.path().join("helper").to_string_lossy(), &[]).await;
   repository(
     scratch.db(),
-    "companion",
+    "kept-apart",
     &home.path().join("companion").to_string_lossy(),
-    &[("support_count", 1i64.into())],
+    &[("support_count", 1i64.into()), ("prompts", "companion".into())],
   )
   .await;
 
@@ -97,7 +98,7 @@ async fn a_running_server_answers_what_a_job_s_run_asks_of_its_worker() {
   assert!(trailer.contains("plain-writing.md"), "{trailer}");
   assert_eq!(documents["handoff"], Value::Null);
 
-  let (_, support) = get(port, token, "/repositories/companion-w2/definition").await;
+  let (_, support) = get(port, token, "/repositories/kept-apart-w2/definition").await;
 
   assert!(support["handoff"].as_str().is_some_and(|text| !text.is_empty()), "{support}");
 

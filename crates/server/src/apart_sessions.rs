@@ -67,6 +67,25 @@ pub fn key(line: &str, command: &Command, home: &Path) -> String {
   format!("{:x}", hash.finalize())
 }
 
+/// The key a run on a road other than Claude Code's own stands under beside its role, path, provider and model:
+/// the line, the folder, the text of its whole system prompt, its MCP configuration and the tools it is allowed,
+/// so another prompt, tool list or folder is another command.
+pub fn key_of(line: &str, cwd: &str, system: &Path, mcp_config: &Path, tools: &str) -> String {
+  let mut hash = Sha256::new();
+  let mut part = |text: &[u8]| {
+    hash.update((text.len() as u64).to_le_bytes());
+    hash.update(text);
+  };
+
+  part(line.as_bytes());
+  part(cwd.as_bytes());
+  part(&std::fs::read(system).unwrap_or_else(|_| system.as_os_str().as_encoded_bytes().to_vec()));
+  part(mcp_config.as_os_str().as_encoded_bytes());
+  part(tools.as_bytes());
+
+  format!("{:x}", hash.finalize())
+}
+
 /// What a role's session is kept by: the role, the path its run works at, the provider and model it went out
 /// on, the effort and login, and the command's key.
 #[derive(Clone, Debug, PartialEq, Eq)]

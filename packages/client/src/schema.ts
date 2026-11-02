@@ -1725,7 +1725,7 @@ export interface components {
          * @description One of the values the API accepts.
          * @enum {string}
          */
-        SessionScope: "worker" | "room" | "agent" | "apart" | "conversation";
+        SessionScope: "worker" | "room" | "agent" | "role" | "conversation";
         /**
          * @description The body that starts a session: the agent, the scope, the room and the options, with the older
          *     top-level names read where the options name none.
@@ -2663,6 +2663,11 @@ export interface components {
             /** Format: int64 */
             assignmentId: number;
             workerName: string;
+            /**
+             * @description The role the job runs as.
+             * @default null
+             */
+            roleName: string | null;
             sessionId: string | null;
             /** Format: int64 */
             runId: number | null;
@@ -2973,6 +2978,11 @@ export interface components {
             itemId: number;
             holderName: string;
             workerName: string;
+            /**
+             * @description The role the item's job runs as.
+             * @default null
+             */
+            roleName: string | null;
             state: components["schemas"]["AssignmentState"];
             /**
              * Format: int64
@@ -2997,6 +3007,8 @@ export interface components {
             holderName: string;
             item: components["schemas"]["JobItem"];
             assigneeName?: string | null;
+            /** @description The role the item's job runs as, a role the store holds; `worker` where it names none. */
+            roleName?: string | null;
         };
         /** @description JobItem: The item's content as the harness read it from the job service; the agency reads nothing there. */
         JobItem: {

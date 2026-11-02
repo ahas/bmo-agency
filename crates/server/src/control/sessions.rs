@@ -615,7 +615,7 @@ impl Route for Sessions {
     {
       for session in held {
         let (kind, provider, model) = match &session.scope {
-          agent_session::Scope::Apart(apart) => ("apart", &apart.provider, &apart.model),
+          agent_session::Scope::Apart(apart) => ("role", &apart.provider, &apart.model),
           agent_session::Scope::Conversation(conversation) => {
             ("conversation", &conversation.provider, &conversation.model)
           }

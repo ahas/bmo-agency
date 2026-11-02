@@ -888,7 +888,7 @@ pub(crate) async fn worker_sampling(
   ground: &Ground,
   worker: &str,
 ) -> Result<Option<indexmap::IndexMap<String, Value>>, Refusal> {
-  let named = worker::documents_of(ground, worker).await?;
+  let named = worker::repository_name_of(ground, worker).await?;
   let Some(text) = crate::queue::settings::get(&ground.db, &format!("agent_sampling:{named}")).await?
   else {
     return Ok(None);

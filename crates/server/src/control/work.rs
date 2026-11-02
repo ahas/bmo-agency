@@ -7,8 +7,8 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use agent_session::{
-  JobMark, Mapping as WorkMapping, Resume, Scope, SessionId, Sessions, Start, Turn, TurnContext, TurnEnd,
-  WorkParts,
+  Apart, JobMark, Mapping as WorkMapping, Resume, Scope, SessionId, Sessions, Start, Turn, TurnContext,
+  TurnEnd, WorkParts,
 };
 use axum::http::{Method, StatusCode};
 use axum::response::{IntoResponse, Response};
@@ -20,6 +20,7 @@ use crate::events::Named;
 use crate::herdr_backend::turn_spent;
 use crate::lines::{Trees, worker};
 use crate::now_ms;
+use crate::order_run::dispatch::{self, Request};
 use crate::places::{AgentRow, Ground};
 use crate::queue::routes::JOB_WORK_KEY;
 use crate::road::{self, Closed, Road};
@@ -83,6 +84,7 @@ fn assignment_value(row: &QueryResult) -> Result<Value, sea_orm::DbErr> {
     "itemId": row.try_get::<i64>("", "item_id")?,
     "holderName": row.try_get::<String>("", "holder_name")?,
     "workerName": row.try_get::<String>("", "worker_name")?,
+    "roleName": row.try_get::<String>("", "role")?,
     "state": row.try_get::<String>("", "state")?,
     "createdAt": row.try_get::<i64>("", "created_at")?,
     "changedAt": row.try_get::<i64>("", "changed_at")?,
@@ -90,7 +92,7 @@ fn assignment_value(row: &QueryResult) -> Result<Value, sea_orm::DbErr> {
 }
 
 const ASSIGNMENT_COLUMNS: &str =
-  r#""id", "item_id", "holder_name", "worker_name", "state", "created_at", "changed_at""#;
+  r#""id", "item_id", "holder_name", "worker_name", "role", "state", "created_at", "changed_at""#;
 
 async fn assignment(db: &sea_orm::DatabaseConnection, id: i64) -> Result<Value, Refused> {
   let sql = format!(r#"SELECT {ASSIGNMENT_COLUMNS} FROM "assignments" WHERE "id" = $1"#);
@@ -152,6 +154,24 @@ impl Route for CreateAssignment {
       .map(str::trim)
       .filter(|name| !name.is_empty());
     let db = &call.ground().db;
+    // The role the item's job runs as, `worker` where it names none; any role the store holds, and an unknown
+    // one is refused (docs/repositories.md, 「A job」).
+    let named = asked
+      .get("roleName")
+      .and_then(Value::as_str)
+      .map(str::trim)
+      .filter(|name| !name.is_empty());
+
+    if let Some(role) = named
+      && !crate::agent_roles::holds(db, role).await?
+    {
+      return Err(
+        Refused::new(StatusCode::UNPROCESSABLE_ENTITY, format!("no role is named {role}"))
+          .with_code("unknown-role"),
+      );
+    }
+
+    let role = named.unwrap_or_else(|| crate::agent_roles::job_role()).to_owned();
 
     release_ended(db).await?;
 
@@ -193,10 +213,10 @@ impl Route for CreateAssignment {
     let now = now_ms();
     let row = one(
       db,
-      r#"INSERT INTO "assignments" ("item_id", "holder_name", "worker_name", "state", "created_at",
+      r#"INSERT INTO "assignments" ("item_id", "holder_name", "worker_name", "role", "state", "created_at",
               "changed_at")
-         VALUES ($1, $2, $3, 'held', $4, $4) RETURNING "id""#,
-      vec![item_id.into(), holder.into(), worker_name.into(), now.into()],
+         VALUES ($1, $2, $3, $5, 'held', $4, $4) RETURNING "id""#,
+      vec![item_id.into(), holder.into(), worker_name.into(), now.into(), role.into()],
     )
     .await?
     .ok_or_else(|| Refused::failed("the assignment was written but not answered"))?;
@@ -315,7 +335,7 @@ crate::moved!(ChangeAssignment);
 
 // ---- jobs ----
 
-const JOB_COLUMNS: &str = r#""id", "item_id", "lease_id", "holder_name", "assignment_id", "worker_name",
+const JOB_COLUMNS: &str = r#""id", "item_id", "lease_id", "holder_name", "assignment_id", "worker_name", "role",
   "session_id", "run_id", "run_name", "room_id", "state", "outcome", "report", "token_count",
   "input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens", "instruction",
   "started_at", "ended_at", "prompt", "prompt_english", "roads", "held_for""#;
@@ -351,6 +371,7 @@ fn job_value(row: &QueryResult) -> Result<Value, sea_orm::DbErr> {
     "holderName": row.try_get::<String>("", "holder_name")?,
     "assignmentId": row.try_get::<i64>("", "assignment_id")?,
     "workerName": row.try_get::<String>("", "worker_name")?,
+    "roleName": row.try_get::<String>("", "role")?,
     "sessionId": row.try_get::<Option<String>>("", "session_id")?,
     "runId": row.try_get::<Option<i64>>("", "run_id")?,
     "runName": row.try_get::<Option<String>>("", "run_name")?,
@@ -630,9 +651,11 @@ impl Route for CreateJob {
       ));
     }
     let worker_name: String = held["workerName"].as_str().unwrap_or_default().to_owned();
+    let role: String =
+      held["roleName"].as_str().unwrap_or_else(|| crate::agent_roles::job_role()).to_owned();
     // A job is refused only where nothing in its worker's walk can answer now (docs/cache-fallback.md,
     // 「One road resolution」); the sentence names every provider's reason and what a person must do.
-    let resolution = road::for_job(call.ground(), None, Some(&worker_name), None, &[])
+    let resolution = road::for_job(call.ground(), Some(&role), Some(&worker_name), None, &[])
       .await
       .map_err(|why| Refused::new(StatusCode::SERVICE_UNAVAILABLE, why))?;
     if resolution.road().is_none() {
@@ -650,8 +673,8 @@ impl Route for CreateJob {
     let row = one(
       db,
       r#"INSERT INTO "jobs" ("item_id", "lease_id", "holder_name", "assignment_id", "worker_name",
-              "room_id", "state", "token_count", "started_at", "prompt", "instruction")
-         VALUES ($1, $2, $3, $4, $5, $6, 'starting', 0, $7, $8, $9) RETURNING "id""#,
+              "room_id", "state", "token_count", "started_at", "prompt", "instruction", "role")
+         VALUES ($1, $2, $3, $4, $5, $6, 'starting', 0, $7, $8, $9, $10) RETURNING "id""#,
       vec![
         item_id.into(),
         lease_id.into(),
@@ -662,6 +685,7 @@ impl Route for CreateJob {
         now.into(),
         prompt.clone().into(),
         instruction.as_ref().map(Value::to_string).into(),
+        role.into(),
       ],
     )
     .await?
@@ -689,7 +713,7 @@ impl Route for CreateJob {
 crate::moved!(CreateJob);
 
 /// The work parts a job's turn is carried with, on the road the resolution answered for it: its provider
-/// and model, and the effort and tier the job key maps to there.
+/// and model, and the effort its role's order names there.
 pub(crate) async fn work_parts(
   ground: &Ground,
   worker_name: &str,
@@ -698,10 +722,23 @@ pub(crate) async fn work_parts(
   title: &str,
   taken: &Road,
 ) -> Result<WorkParts, String> {
+  role_work_parts(ground, crate::agent_roles::job_role(), worker_name, room, name, title, taken).await
+}
+
+/// The work parts a run of `role` at a checkout is carried with on a road: its provider and model, and the
+/// effort the role's order names for that provider.
+pub(crate) async fn role_work_parts(
+  ground: &Ground,
+  role: &str,
+  worker_name: &str,
+  room: i64,
+  name: &str,
+  title: &str,
+  taken: &Road,
+) -> Result<WorkParts, String> {
   let provider = taken.provider.clone();
-  // The job role's entry for the provider names the effort; the road names the model, its repository's pin's
+  // The role's entry for the provider names the effort; the road names the model, its repository's pin's
   // where it pins one.
-  let role = crate::agent_roles::job_role();
   let entry = crate::order::role_entry(&ground.db, role, &provider).await.ok();
   let effort = entry.as_ref().and_then(|entry| entry.effort.clone());
   let answer_tokens = entry.as_ref().and_then(|entry| entry.answer_tokens);
@@ -1206,7 +1243,11 @@ async fn wait_for_road(
       return Ok(false);
     }
 
-    if road::for_job(ground, None, Some(job.worker), None, &[]).await?.road().is_some() {
+    if road::for_job(ground, Some(&role_of_job(ground, job.id).await), Some(job.worker), None, &[])
+      .await?
+      .road()
+      .is_some()
+    {
       held_for(ground, job.id, None).await;
 
       return Ok(true);
@@ -1230,6 +1271,8 @@ pub async fn carry_job<C: Carrier>(
   // places」).
   crate::places::checkouts::ensure_support_checkout(ground, job.worker).await?;
 
+  let role = role_of_job(ground, job.id).await;
+  let role = Some(role.as_str());
   let mut left: Vec<Closed> = vec![];
   let mut roads: Vec<(Road, Option<String>)> = vec![];
   let mut values: Vec<Value> = vec![];
@@ -1238,11 +1281,11 @@ pub async fn carry_job<C: Carrier>(
   let mut last: Option<Ended> = None;
 
   loop {
-    let resolution = road::for_job(ground, None, Some(job.worker), None, &left).await?;
+    let resolution = road::for_job(ground, role, Some(job.worker), None, &left).await?;
     let Some(taken) = resolution.road().cloned() else {
       // Every road that can answer now was already tried in this job: it ends as its last turn did.
       if let Some((state, outcome, report, _)) = last.take()
-        && road::for_job(ground, None, Some(job.worker), None, &[]).await?.road().is_some()
+        && road::for_job(ground, role, Some(job.worker), None, &[]).await?.road().is_some()
       {
         return Ok(Some((state, outcome, with_roads(report, &roads), spent)));
       }
@@ -1292,6 +1335,18 @@ pub async fn carry_job<C: Carrier>(
   }
 }
 
+/// The role a job runs as: the one its row names, `worker` where it names none (docs/repositories.md, 「A
+/// job」).
+pub async fn role_of_job(ground: &Ground, id: i64) -> String {
+  one(&ground.db, r#"SELECT "role" FROM "jobs" WHERE "id" = $1"#, vec![id.into()])
+    .await
+    .ok()
+    .flatten()
+    .and_then(|row| row.try_get::<String>("", "role").ok())
+    .filter(|role| !role.is_empty())
+    .unwrap_or_else(|| crate::agent_roles::job_role().to_owned())
+}
+
 // One line written into a job's log under its run.
 async fn noted_line(ground: &Ground, id: i64, text: &str) {
   let Ok((member, _)) = job(&ground.db, id).await else {
@@ -1307,17 +1362,69 @@ async fn noted_line(ground: &Ground, id: i64, text: &str) {
   log.write(&ground.db, Line::note(text.to_owned())).await;
 }
 
-// The worker's session carrying a job's turns: each turn on the work parts of its road, a run of the ledger
-// opened for it and closed as it ends.
+// How often a job waiting for its role's slot asks for it again: the line counts asks, never time
+// (docs/role-slots.md, 「The line」).
+const SLOT_ASK_EVERY: std::time::Duration = std::time::Duration::from_secs(1);
+
+// A job's turns, each a run of its role at its checkout (docs/agents.md, 「A run」): on the work parts of its
+// road, holding a slot of its role while it goes, in a session of the role's started for the turn and ended
+// with it, with a run of the ledger opened for it and closed as it ends.
 struct OnSession<'a> {
   ground: &'a Ground,
   sessions: crate::herdr_backend::Shared,
-  session_id: String,
   member: &'a Value,
   worker: &'a str,
+  role: &'a str,
   room: i64,
   name: &'a str,
   title: &'a str,
+  roads: usize,
+}
+
+impl OnSession<'_> {
+  // A slot of the job's role taken for one turn on its road, keyed by its checkout so one checkout carries one
+  // run at a time: asked, then asked again until the line lets it in, however long that takes. None where the
+  // job was stopped while it waited, its ask then cancelled.
+  async fn slot(&self, id: i64, taken: &Road, parts: &WorkParts) -> Result<Option<Request>, String> {
+    let ground = self.ground;
+    let fixed = crate::order::Entry {
+      provider: taken.provider.clone(),
+      model: taken.model.clone(),
+      effort: parts.mapping.effort.clone(),
+      thinking: None,
+      answer_tokens: parts.mapping.answer_tokens.and_then(|tokens| i64::try_from(tokens).ok()),
+    };
+    let asked = dispatch::Asked {
+      request_key: format!("job-{id}-{}", self.roads),
+      owner: format!("job-{id}"),
+      wanted: dispatch::Wanted {
+        role: self.role,
+        path: Some(&parts.cwd),
+        fixed: Some(fixed),
+      },
+      place_key: Some(self.worker),
+      title: Some(self.title),
+      ..dispatch::Asked::default()
+    };
+    let mut held = dispatch::enqueue(&ground.db, &asked, dispatch::JOB, async |_, _| Ok(())).await?;
+
+    loop {
+      if let Some(let_in) = dispatch::acquire(ground, &held).await? {
+        return Ok(Some(dispatch::bind(&ground.db, &let_in, self.name).await?));
+      }
+
+      if called_off(ground, id).await {
+        dispatch::finish(&ground.db, &held.token, "cancelled: the job was stopped", true).await?;
+
+        return Ok(None);
+      }
+
+      tokio::time::sleep(SLOT_ASK_EVERY).await;
+      held = dispatch::request(&ground.db, &held.token)
+        .await?
+        .ok_or("The job's slot request is gone")?;
+    }
+  }
 }
 
 impl Carrier for OnSession<'_> {
@@ -1325,7 +1432,54 @@ impl Carrier for OnSession<'_> {
     let ground = self.ground;
     let member = self.member;
     let id = member["id"].as_i64().unwrap_or_default();
-    let parts = work_parts(ground, self.worker, self.room, self.name, self.title, taken).await?;
+    let parts =
+      role_work_parts(ground, self.role, self.worker, self.room, self.name, self.title, taken).await?;
+
+    self.roads += 1;
+
+    let Some(lease) = self.slot(id, taken, &parts).await? else {
+      return Err(format!("job {id} was stopped while it waited for a slot of the {} role", self.role));
+    };
+    let carried = self.on_session(id, taken, &parts, prompt).await;
+    let outcome = match &carried {
+      Ok(end) => format!("{:?}", end.outcome).to_lowercase(),
+      Err(why) => format!("failed: {why}"),
+    };
+
+    if let Err(why) = dispatch::finish(&ground.db, &lease.token, &outcome, false).await {
+      eprintln!("job {id}: its slot was not given back: {why}");
+    }
+
+    carried
+  }
+}
+
+impl OnSession<'_> {
+  // One turn of the job in a session of its role started for it at the checkout on the road, the session
+  // ended with the turn.
+  async fn on_session(
+    &self,
+    id: i64,
+    taken: &Road,
+    parts: &WorkParts,
+    prompt: &str,
+  ) -> Result<TurnEnd, String> {
+    let ground = self.ground;
+    let member = self.member;
+    let session = self
+      .sessions
+      .start(Start {
+        agent: self.worker.to_owned(),
+        scope: Scope::Apart(Apart {
+          provider: taken.provider.clone(),
+          model: taken.model.clone(),
+          cwd: parts.cwd.clone(),
+          role: Some(self.role.to_owned()),
+          ..Apart::default()
+        }),
+      })
+      .await
+      .map_err(|fault| fault.message)?;
     let ledger = run_ledger::open(
       &ground.db,
       &Opening {
@@ -1348,7 +1502,7 @@ impl Carrier for OnSession<'_> {
       r#"UPDATE "jobs" SET "state" = 'running', "session_id" = $1, "run_name" = $2, "model" = $3, "run_id" = $5
          WHERE "id" = $4"#,
       vec![
-        self.session_id.clone().into(),
+        session.id.0.clone().into(),
         self.name.to_owned().into(),
         parts.mapping.model.clone().into(),
         id.into(),
@@ -1360,6 +1514,7 @@ impl Carrier for OnSession<'_> {
     // A run opened for a turn that never goes out is closed with it.
     if let Err(why) = marked {
       closed(ground, ledger, "failed", None, None).await;
+      self.ended(&session.id).await;
       return Err(why.detail);
     }
 
@@ -1370,18 +1525,21 @@ impl Carrier for OnSession<'_> {
     let sent = self
       .sessions
       .send_turn(Turn {
-        session: SessionId(self.session_id.clone()),
+        session: session.id.clone(),
         prompt: prompt.to_owned(),
         context: TurnContext {
           job: Some(JobMark {
             job: id,
             item: member["itemId"].as_i64(),
           }),
-          work: Some(parts),
+          work: Some(parts.clone()),
           ..TurnContext::default()
         },
       })
       .await;
+
+    self.ended(&session.id).await;
+
     let end = match sent {
       Ok(end) => end,
       Err(fault) => {
@@ -1405,6 +1563,13 @@ impl Carrier for OnSession<'_> {
 
     Ok(end)
   }
+
+  // A turn's session ended with it, its place closed (docs/agents.md, 「A run in a pane of its own」).
+  async fn ended(&self, session: &SessionId) {
+    if let Err(fault) = self.sessions.end(session).await {
+      eprintln!("{}: the job's session was not ended: {}", session.0, fault.message);
+    }
+  }
 }
 
 async fn launched(
@@ -1414,6 +1579,7 @@ async fn launched(
 ) -> Result<Option<Ended>, String> {
   let (member, prompt) = job(&ground.db, id).await.map_err(|why| why.error)?;
   let worker_name = member["workerName"].as_str().unwrap_or_default().to_owned();
+  let role = role_of_job(ground, id).await;
   let room = member["roomId"].as_i64().unwrap_or(0);
   let title = prompt.lines().next().unwrap_or_default().trim_start_matches("# ").to_owned();
   let name = format!("job-{id}");
@@ -1424,23 +1590,16 @@ async fn launched(
   // The gate picks the reference a job's instruction calls for, and the run carries it in its first
   // prompt; a job with no instruction stands as it was.
   let prompt = referenced(ground, member.get("instruction"), &prompt).await;
-
-  let session = sessions
-    .start(Start {
-      agent: worker_name.clone(),
-      scope: Scope::Worker,
-    })
-    .await
-    .map_err(|fault| fault.message)?;
   let mut carrier = OnSession {
     ground,
     sessions,
-    session_id: session.id.0,
     member: &member,
     worker: &worker_name,
+    role: &role,
     room,
     name: &name,
     title: &title,
+    roads: 0,
   };
 
   carry_job(

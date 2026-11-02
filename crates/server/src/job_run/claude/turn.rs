@@ -37,11 +37,11 @@ use crate::door::record::Reply;
 use crate::door::turn::{Ending, Turn, Watch, put};
 use crate::keepalive::logins;
 use crate::lines::Trees;
-use crate::lines::claude::{Command, Runs, command_env};
+use crate::lines::claude::{self, Command, Runs, Session, command_env};
 use crate::lines::place::Place;
 use crate::lines::runner::{RunnerRun, given_run};
 use crate::lines::standing::{claim_standby, session_ttl_ms, worker_prefix_digest};
-use crate::lines::worker::{WorkerRun, effort_of, worker_run};
+use crate::lines::worker::{LINE, WorkerRun, effort_of, role_run, worker_run};
 use crate::places::branch::{self, BranchRun};
 use crate::places::home::Home;
 use crate::places::{AgentRow, Ground, locks};
@@ -154,6 +154,65 @@ pub async fn runner_command(
   };
 
   Ok((run, command))
+}
+
+/// The worker line's command a role's run goes out on at its scope's folder, as one login carries it on the
+/// session given (docs/agents.md, 「A run in a pane of its own」): the platform's harness opening and the role's
+/// own prompt, the line's standing rules and, where the folder is a repository's checkout, the repository's
+/// own; on the scope's model at the effort the turn's mapping names; with the turn's variables, the role and
+/// the record its scope names, and the job's mark where it is a job's, in its environment.
+#[allow(clippy::too_many_arguments)]
+pub async fn role_command(
+  ground: &Ground,
+  agent: &str,
+  apart: &Apart,
+  role: &str,
+  work: &WorkParts,
+  account: Option<&Account>,
+  session: &str,
+  job: bool,
+) -> Result<(WorkerRun, Command), Refusal> {
+  let trees = Trees::of(ground);
+  let machine = ground.machine();
+  let checkout = crate::queue::workers::checkout_at(&ground.db, &apart.cwd).await?;
+  let mut line =
+    role_run(ground, &trees, role, checkout.as_deref(), account, &apart.model, &apart.cwd, PROVIDER)
+      .await?;
+
+  line.effort = effort_of(
+    ground,
+    &machine,
+    PROVIDER,
+    &apart.model,
+    work.mapping.effort.as_deref(),
+    line.reasoning.as_ref(),
+  )
+  .await?
+  .unwrap_or_default();
+  line.model.clone_from(&apart.model);
+  line.tier.clone_from(&work.mapping.tier);
+
+  let mut env = command_env(ground.env(), account, &Runs::Here, line.thinking)?;
+
+  for (name, value) in
+    work.variables.clone().into_iter().chain(crate::lines::token::record_variables(apart))
+  {
+    env.insert(name, Some(value));
+  }
+
+  env.insert(TURN_AGENT.to_owned(), Some(agent.to_owned()));
+
+  if job {
+    env.insert(TASK_LOCKED.to_owned(), Some("1".to_owned()));
+  }
+
+  let command = Command {
+    args: claude::worker_args(&line, &line.settings, Some(&Session::Open(session.to_owned())))?,
+    cwd: line.cwd.clone(),
+    env,
+  };
+
+  Ok((line, command))
 }
 
 /// Which session an attempt goes on, or that the turn goes back to its runner with the session it would
@@ -605,6 +664,12 @@ impl Attempting<'_, '_> {
         return self.on_runner(apart, account).await;
       }
 
+      // A role's run is a pane of its own on the session its role gives it; a co-work branch in a standing
+      // branch checkout goes into that checkout's program.
+      if !matches!(apart_seat(ground, apart), Some(ApartSeat::Standing(_))) {
+        return self.on_role(apart, account).await;
+      }
+
       return match self.primary(None, account).await? {
         Primary::Answered(reply) => Ok(Settled::Answered(reply)),
         Primary::Back(continues) => Ok(Settled::Back(continues)),
@@ -747,6 +812,98 @@ impl Attempting<'_, '_> {
     noted(ground, worker, work.unit.as_deref().unwrap_or(&work.name), &reply)
       .await
       .map_err(refused)?;
+
+    Ok(Settled::Answered(Box::new(reply)))
+  }
+
+  // A role's run on the worker line in a pane of its own, on the session its role gives it at the folder,
+  // provider and model: the run's reply its answer. A job's run that answered on a lesser model than it went
+  // out on has its session dropped where its repository heals, and the fall is told.
+  async fn on_role(&mut self, apart: &Apart, account: Option<Account>) -> Result<Settled, Failure> {
+    let ground = self.asked.ground;
+    let work = self.asked.work;
+    let agent = self.asked.agent;
+    let role = apart.role.as_deref().unwrap_or_else(|| crate::agent_roles::job_role());
+    let session = new_session();
+    let job = self.asked.job;
+    let (line, command) =
+      role_command(ground, agent, apart, role, work, account.as_ref(), &session, job.is_some())
+        .await
+        .map_err(refused)?;
+
+    if !provider_enabled(&ground.db, PROVIDER).await.map_err(|why| Failure::error(why.error))? {
+      return Err(Failure::Unavailable {
+        scope: held::scope_of(agent),
+        mode: PROVIDER.to_owned(),
+        reason: "Claude Code is switched off".to_owned(),
+      });
+    }
+
+    let went_out = went_out_of(&line);
+
+    self.shown.went_out(&went_out);
+    self.beside.went_out = Some(went_out);
+    self
+      .log
+      .write(
+        &ground.db,
+        Line {
+          source: Some(PROVIDER.to_owned()),
+          state: Some("running"),
+          ..Line::note(format!("{PROVIDER} · {} · {role}", line.model))
+        },
+      )
+      .await;
+
+    let mut watch = WorkWatch {
+      ground,
+      log: self.log,
+      compacted: &mut self.beside.compacted,
+      session: self.asked.session,
+      run: &work.name,
+      questions: self.asked.questions,
+      shown: self.shown,
+    };
+    let ending = apart::run(
+      ground,
+      apart::Apart {
+        agent,
+        role,
+        line: LINE,
+        provider: PROVIDER,
+        title: work.title.clone(),
+        command,
+        session,
+        prompt: self.asked.prompt.to_owned(),
+        model: line.model.clone(),
+        effort: line.effort.clone(),
+        account: account.as_ref().map(|account| account.id.clone()),
+        parent: work.unit.clone(),
+        root: work.unit.as_deref().map(execution_root),
+      },
+      &mut watch,
+    )
+    .await
+    .map_err(|message| Failure::Transport { message })?;
+
+    if let Ending::Errored { kind, .. } = &ending {
+      self.beside.engine_error = Some(EngineError { kind: kind.clone() });
+    }
+
+    let reply = match apart::answered(ending, &work.work_key) {
+      Err(_) if self.stopped().await => return Err(Failure::Stopped),
+      answered => answered?,
+    };
+
+    noted(ground, agent, work.unit.as_deref().unwrap_or(&work.name), &reply)
+      .await
+      .map_err(refused)?;
+
+    if job.is_some() {
+      records::heal_role_run(ground, agent, role, &line.model, &reply, job.map(|job| job.job))
+        .await
+        .map_err(refused)?;
+    }
 
     Ok(Settled::Answered(Box::new(reply)))
   }

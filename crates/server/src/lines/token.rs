@@ -133,15 +133,23 @@ async fn capabilities(
   line: &str,
   agent: &str,
   checkout: &str,
+  run_role: Option<&str>,
 ) -> Result<(Option<String>, Vec<String>), Refusal> {
-  // A thrown-away session's place holds its session's role; a supervisor holds the supervisor bundles; a
-  // checkout's run and a branch place hold the job role's (docs/agent-roles.md, 「Where the role is read」).
+  // The role a run names holds its own bundles; a thrown-away session's place holds its session's role; a
+  // supervisor holds the supervisor bundles; a checkout's run and a branch place hold the job role's
+  // (docs/agent-roles.md, 「Where the role is read」).
   let named = match crate::apart_places::session_agent(&ground.roots.data, agent) {
     Some(of_session) => of_session,
     None => agent.to_owned(),
   };
-  let supervisor = crate::supervisors::named(&ground.db, &named).await?.is_some();
-  let role = if supervisor {
+  let held = match run_role {
+    Some(role) => crate::agent_roles::holds(&ground.db, role).await?,
+    None => false,
+  };
+  let supervisor = !held && crate::supervisors::named(&ground.db, &named).await?.is_some();
+  let role = if held {
+    run_role.map(str::to_owned)
+  } else if supervisor {
     None
   } else if crate::agent_roles::holds(&ground.db, &named).await? {
     Some(named.clone())
@@ -201,7 +209,7 @@ pub async fn issue(
   place: &Path,
   checkout: &Path,
 ) -> Result<Option<String>, Refusal> {
-  let (role, capabilities) = capabilities(ground, line, agent, &checkout.to_string_lossy()).await?;
+  let (role, capabilities) = capabilities(ground, line, agent, &checkout.to_string_lossy(), None).await?;
 
   if capabilities.is_empty() {
     return Ok(None);
@@ -265,10 +273,19 @@ pub const RECORD_LABELS: &str = "BMO_RECORD_LABELS";
 /// JSON list's text.
 pub const RECORD_TOOLS: &str = "BMO_RECORD_TOOLS";
 
-/// The variables a thrown-away session's turn carries of the record its caller named: its labels and the
-/// capabilities it keeps, each where the start named it.
+/// The variable a role's run carries the role it holds in, whose bundles its record is given whatever the
+/// name the run is carried under (docs/agent-roles.md, 「Where the role is read」). It is a turn's variable, so
+/// every road hands it to the program its run stands.
+pub const RUN_ROLE: &str = "BMO_TURN_ROLE";
+
+/// The variables a role's session's turn carries of its role and of the record its caller named: its labels
+/// and the capabilities it keeps, each where the start named it.
 pub fn record_variables(apart: &agent_session::Apart) -> Vec<(String, String)> {
   let mut variables = Vec::new();
+
+  if let Some(role) = apart.role.as_deref().filter(|role| !role.is_empty()) {
+    variables.push((RUN_ROLE.to_owned(), role.to_owned()));
+  }
 
   if let Some(labels) = &apart.labels {
     variables.push((RECORD_LABELS.to_owned(), labels.clone()));
@@ -281,9 +298,10 @@ pub fn record_variables(apart: &agent_session::Apart) -> Vec<(String, String)> {
   variables
 }
 
-/// Whether a run's variables name a record of its caller's: labels or the capabilities it keeps.
+/// Whether a run's variables name a record of its own: its role, or labels or the capabilities its caller lets
+/// it keep.
 pub fn names_record(env: &BTreeMap<String, String>) -> bool {
-  [RECORD_LABELS, RECORD_TOOLS]
+  [RUN_ROLE, RECORD_LABELS, RECORD_TOOLS]
     .iter()
     .any(|name| env.get(*name).is_some_and(|value| !value.is_empty()))
 }
@@ -320,7 +338,8 @@ pub async fn issue_for_run(
 ) -> Result<Option<String>, Refusal> {
   let given = |name: &str| env.get(name).filter(|value| !value.is_empty()).cloned();
   let agent = given("BMO_TURN_AGENT").map_or_else(|| agent.to_owned(), |named| named.trim().to_owned());
-  let (role, mut capabilities) = capabilities(ground, line, &agent, cwd).await?;
+  let run_role = given(RUN_ROLE);
+  let (role, mut capabilities) = capabilities(ground, line, &agent, cwd, run_role.as_deref()).await?;
 
   if let Some(allowed) = named_tools(env) {
     capabilities.retain(|capability| allowed.contains(capability));

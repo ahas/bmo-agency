@@ -139,11 +139,12 @@ pub async fn run<W: Watch>(ground: &Ground, mut apart: Apart<'_>, watch: &mut W)
 
   if let Some(key) = &kept {
     let kept = match &ended {
-      Ok(Ending::Answered { .. }) => {
+      Ok(Ending::Answered { reply, .. }) => {
         let answered = apart_sessions::Answered {
           at: now_ms(),
           opened_at,
-          ..apart_sessions::Answered::default()
+          context_tokens: reply.context_tokens,
+          context_share: reply.context_ratio,
         };
 
         apart_sessions::keep(&ground.db, key, &session, answered).await

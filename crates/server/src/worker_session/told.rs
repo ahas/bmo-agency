@@ -5,13 +5,14 @@ use serde::Serialize;
 
 use crate::events::Event;
 
-/// A worker's session answered on a lesser model than it was launched on: the worker, the model it was
-/// launched on, the models it answered on, whether its session's record was dropped, and the job it ran
-/// for where one is known (docs/cache-fallback.md, 「Healing differs for a worker」).
+/// A job's run answered on a lesser model than it was launched on: the checkout it ran in, the role it ran
+/// as, the model it was launched on, the models it answered on, whether its kept session was dropped, and the
+/// job it ran for where one is known (docs/cache-fallback.md, 「Healing differs for a job」).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkerDowngraded {
   pub worker: String,
+  pub role: Option<String>,
   pub launched: String,
   pub answered_on: Vec<String>,
   pub dropped: bool,

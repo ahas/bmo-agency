@@ -149,7 +149,7 @@ pub fn scope_value(scope: &Scope) -> Value {
     Scope::Room(room) => json!({ "kind": "room", "room": room }),
     Scope::Worker => json!({ "kind": "worker" }),
     Scope::Apart(apart) => json!({
-      "kind": "apart",
+      "kind": "role",
       "provider": apart.provider,
       "model": apart.model,
       "cwd": apart.cwd,
@@ -217,7 +217,7 @@ pub fn scope_read(body: &Value) -> Result<Scope, Refused> {
       Some(Value::Number(room)) => Ok(Scope::Room(room.to_string())),
       _ => Err(bad("a room's scope names its room")),
     },
-    Some("apart") => {
+    Some("role" | "apart") => {
       let named = |field: &str| text(scope, field).map(|value| value.trim().to_owned());
       let todo = match scope.get("todo") {
         None | Some(Value::Null) => None,
@@ -261,7 +261,7 @@ fn scope_word(scope: &Scope) -> &'static str {
     Scope::Agent => "agent",
     Scope::Room(_) => "room",
     Scope::Worker => "worker",
-    Scope::Apart(_) => "apart",
+    Scope::Apart(_) => "role",
     Scope::Conversation(_) => "conversation",
   }
 }

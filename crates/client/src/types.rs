@@ -33,8 +33,8 @@ pub enum SessionScope {
   Room,
   #[serde(rename = "agent")]
   Agent,
-  #[serde(rename = "apart")]
-  Apart,
+  #[serde(rename = "role")]
+  Role,
   #[serde(rename = "conversation")]
   Conversation,
 }
@@ -1471,6 +1471,9 @@ pub struct Assignment {
   pub item_id: i64,
   pub holder_name: String,
   pub worker_name: String,
+  /// The role the item's job runs as.
+  #[serde(default)]
+  pub role_name: Option<String>,
   pub state: AssignmentState,
   /// epoch milliseconds
   pub created_at: i64,
@@ -1533,6 +1536,9 @@ pub struct Job {
   pub holder_name: String,
   pub assignment_id: i64,
   pub worker_name: String,
+  /// The role the job runs as.
+  #[serde(default)]
+  pub role_name: Option<String>,
   pub session_id: Option<String>,
   pub run_id: Option<i64>,
   pub run_name: Option<String>,
@@ -1617,6 +1623,9 @@ pub struct AssignWorker {
   pub item: JobItem,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub assignee_name: Option<String>,
+  /// The role the item's job runs as, a role the store holds; `worker` where it names none.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub role_name: Option<String>,
 }
 
 /// The body that releases an assignment.

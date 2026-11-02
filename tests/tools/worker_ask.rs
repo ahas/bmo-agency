@@ -177,7 +177,7 @@ async fn a_slot_waits_in_line_and_the_worker_run_answers_with_its_words_and_the_
   let (session, body) = held.turned.clone().unwrap();
 
   assert_eq!(session, "worker@run:1");
-  assert_eq!(body["context"]["work"]["model"], "deepseek-flash");
+  assert_eq!(body["model"], "deepseek-flash");
   assert_eq!(held.finished, [json!({ "state": "finished", "outcome": "answered", "cancel": false })]);
 }
 
