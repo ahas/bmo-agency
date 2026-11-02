@@ -45,10 +45,10 @@ fn what_the_dev_server_pane_does_next() {
 }
 
 // "restarts on request: a matching server is stopped, and a stopped one starts without waiting"
-// "ends a server past its lifetime with the pane, unless a restart was just asked for"
-// "ends a server unused past its allowance with the pane, and leaves one used within it or one not running"
+// "ends a server nobody is on while memory is short with the pane, unless a restart was just asked for"
+// "ends nothing for its age or for going unasked"
 #[test]
-fn a_restart_a_lifetime_and_an_allowance_of_use() {
+fn a_restart_and_memory_short_with_nobody_on_the_server() {
   let cmd = wanted("/repo", "bun run dev");
   let restart = |want: Option<String>, running: Option<String>, start_at: i64| DevState {
     restart: true,
@@ -59,40 +59,22 @@ fn a_restart_a_lifetime_and_an_allowance_of_use() {
   assert_eq!(dev_step(&restart(cmd.clone(), None, 60_000), 1_000), DevStep::Start);
   assert_eq!(dev_step(&restart(None, None, 0), 1_000), DevStep::Exit);
 
-  let aged = DevState {
-    started_at: Some(0),
-    max_age_ms: Some(60_000),
+  // A server that has run for days with nobody asking anything of it is left while memory is not short.
+  assert_eq!(dev_step(&state(cmd.clone(), cmd.clone(), 0), 7 * 24 * 3_600_000), DevStep::Wait);
+
+  let pressed = DevState {
+    pressed: true,
     ..state(cmd.clone(), cmd.clone(), 0)
   };
 
-  assert_eq!(dev_step(&aged, 30_000), DevStep::Wait);
-  assert_eq!(dev_step(&aged, 61_000), DevStep::Expire);
+  assert_eq!(dev_step(&pressed, 1_000), DevStep::Pressed);
   assert_eq!(
     dev_step(
       &DevState {
         restart: true,
-        ..aged
+        ..pressed.clone()
       },
-      61_000
-    ),
-    DevStep::Stop
-  );
-
-  let quiet = DevState {
-    used_at: Some(10_000),
-    idle_ms: Some(60_000),
-    ..state(cmd.clone(), cmd.clone(), 0)
-  };
-
-  assert_eq!(dev_step(&quiet, 69_000), DevStep::Wait);
-  assert_eq!(dev_step(&quiet, 71_000), DevStep::Idle);
-  assert_eq!(
-    dev_step(
-      &DevState {
-        restart: true,
-        ..quiet.clone()
-      },
-      71_000
+      1_000
     ),
     DevStep::Stop
   );
@@ -100,9 +82,9 @@ fn a_restart_a_lifetime_and_an_allowance_of_use() {
     dev_step(
       &DevState {
         running: None,
-        ..quiet
+        ..pressed
       },
-      71_000
+      1_000
     ),
     DevStep::Start
   );
@@ -138,12 +120,7 @@ fn the_dev_server_s_environment() {
 
   assert_eq!(
     dev_environment(env, Path::new("/data/workbench/trainer"), None),
-    pairs(&[
-      ("PATH", "/bin"),
-      ("HOME", "/home/tester"),
-      ("BMO_WORKBENCH_DIR", "/data/workbench/trainer"),
-      ("BMO_DEV_USED_FILE", "/data/workbench/trainer/dev-server.used"),
-    ])
+    pairs(&[("PATH", "/bin"), ("HOME", "/home/tester"), ("BMO_WORKBENCH_DIR", "/data/workbench/trainer"),])
   );
   assert_eq!(
     dev_environment(
@@ -154,7 +131,6 @@ fn the_dev_server_s_environment() {
     pairs(&[
       ("PATH", "/bin"),
       ("BMO_WORKBENCH_DIR", "/data/workbench/worker-w2"),
-      ("BMO_DEV_USED_FILE", "/data/workbench/worker-w2/dev-server.used"),
       ("BMO_WORKER_SLOT", "2"),
     ])
   );

@@ -188,12 +188,12 @@ path = "Placing it on a node, give that node's path too, starting with / or ~/."
 [dev_servers.server]
 no_worker = "There is no worker named {worker}."
 not_up = "{worker}'s dev server is not up."
-not_down = "{worker}'s dev server (process group {group}) did not go down within {seconds} seconds. Log: {log}"
 down = "{worker}'s dev server is down."
 no_command = "The worker {worker} has no dev-server command."
 no_job = "No job is running on the worker {worker}, so its dev server is not started. A dev server stands only while a job runs."
 already_up = "{worker}'s dev server is already up (process group {group}). Read its output in {log}."
-not_up_in_time = "The new dev server did not come up within {seconds} seconds. Log: {log}"
+# No new server stood before the request was taken away or the job let its hold go.
+not_started = "No new dev server stood before the pane closed or the job ended. Log: {log}"
 # The server came up, started anew or again: {done} is `started` or `restarted`.
 up = "{worker}'s dev server {done} (process group {group}). Ask the server itself whether it is ready, and read its output in {log}."
 started = "started"
@@ -202,14 +202,12 @@ restarted = "restarted"
 # `bmo-agency dev-server list [--sweep]`: every worker's dev server and every server a job left, with the
 # memory each holds.
 [dev_servers.listing]
-# {minutes} is a dev server's lifetime.
-head = "Workers' dev servers (lifetime {minutes} min)"
+head = "Workers' dev servers"
 # One worker's server: its process group {group}, how long it has stood {minutes}, its memory {megabytes},
-# whether a job of it runs {job}, and {expired} where it outlived its lifetime.
-worker = "- {worker}: group {group}, {minutes} min up, {megabytes} MB, {job}{expired}"
+# and whether a job of it runs {job}.
+worker = "- {worker}: group {group}, {minutes} min up, {megabytes} MB, {job}"
 job_running = "job running"
 no_job = "no job running"
-expired = ", past its lifetime"
 left_head = "Servers jobs left"
 none = "- none"
 # How many servers stand, {count}, and the memory they hold together, {megabytes}.
@@ -234,10 +232,8 @@ no_command = "There is no dev-server command or the worker is resting;"
 # {why} is one of the three above.
 closing = "{why} closing this pane."
 stopping = "{why} taking the dev server down."
-expired = "The dev server outlived its lifetime ({minutes} min); taking it down and closing this pane. A job that needs it again starts it again."
-# A server unused for {minutes}, with {short} where the machine is short of memory.
-idle = "The dev server went unused for {minutes} min{short}; taking it down and closing this pane. A job that needs it again starts it again."
-short = " while memory is short"
+# Memory is short and no client is on the server.
+pressed = "Memory is short and nobody is on the dev server; taking it down and closing this pane. A job that needs it again starts it again."
 restarting = "Asked to, starting the dev server again."
 moved = "The dev-server command or its working path changed; starting it again."
 starting_now = "Asked to, starting the dev server now."

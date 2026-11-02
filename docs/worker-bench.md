@@ -225,7 +225,7 @@ Each job worker holds three things beside the work of its jobs:
   never does holds none.
   - **The request** is a file in the workbench folder, `dev-server.wanted`. The start and restart
     verbs write it; the pane removes it whenever it takes the server down for good — the job over,
-    the server idle, its lifetime past, or a stop asked for — and the job's runner removes one left
+    memory short with nobody on the server, or a stop asked for — and the job's runner removes one left
     from before as the job starts.
   - **Why:** a console dev server holds two to three gigabytes once its pages have been opened, and
     one stood up for every job, the many that never open the console included, ran the machine out
@@ -239,32 +239,22 @@ Each job worker holds three things beside the work of its jobs:
   cache and nothing else.
 - **The job ends, the server ends:** once no job holds the hold, the pane stops the server, removes the
   request and closes itself; the next job starts it again where it needs it.
-- **Its lifetime:** a server that has run longer than the settings row `dev_server_max_age_minutes`
-  (180 where there is no row) is stopped and the pane closes, job or no job. The clock starts again with
-  every start, and a job that still needs the server starts it again (「A job starts, restarts and stops
-  it」).
+- **No clock ends it:** a server stands for as long as the job that asked for it runs and has not
+  taken the request back, however long that is. Its age and how long it has gone unasked end nothing.
 
-### It goes down when nobody uses it
+### It goes down when memory is short and nobody is on it
 
-- **What counts as use:**
-  - the start or the restart verb, each of which leaves the request anew;
-  - the server's own use mark: the pane names a file in `BMO_DEV_USED_FILE`, and a server that can
-    tell when it was asked something touches it. The console's development build touches it on every
-    request its server answers, at most once a minute; a server that never touches it is judged by
-    the other two;
-  - a client outside the server's process group holding a TCP connection to a port the group listens
-    on: a browser with a page open holds the page's hot-reload socket. A connection between two
-    processes of the group — the console's server reading its stand-in bot — is not use. The pane
-    asks `lsof` for the group's connections every thirty seconds, since one asking costs a third of a
-    second of CPU.
-- **Idle for too long, it goes down:** a server nothing has used for the settings row
-  `dev_server_idle_minutes` (20 where there is no row) is stopped, the request removed and the pane
-  closed. A job that needs it again starts it again.
-- **When memory is short, the idle go first:** while the machine is short of memory by its launch
+- **What counts as being on it:** a client outside the server's process group holding a TCP connection
+  to a port the group listens on: a browser with a page open holds the page's hot-reload socket. A
+  connection between two processes of the group — the console's server reading its stand-in bot — is
+  not one. The pane asks `lsof` for the group's connections only while memory is short, and at most
+  every thirty seconds, since one asking costs a third of a second of CPU.
+- **When memory is short, the unused go down:** while the machine is short of memory by its launch
   limits (`docs/agent-control.md`, 「Room on the machine」) — less memory available than
   `machine_limit:launch_memory_available_gb`, or the last minute's memory pressure at or above
-  `machine_limit:launch_memory_full_pct` — a server unused for two minutes goes down. One in use
-  stays: a browser on its page, or requests within those two minutes.
+  `machine_limit:launch_memory_full_pct` — a server no outside client is connected to is stopped, the
+  request removed and the pane closed. One a browser is on stays. A job that needs it again starts it
+  again.
 
 ### It stands in that worker's fixed workspace
 
@@ -286,8 +276,7 @@ Each job worker holds three things beside the work of its jobs:
     must not block the new one.
 - **Its own environment.**
   - Agency's `BMO_` variables are removed from the dev server's environment, and the workbench folder
-    path is added as `BMO_WORKBENCH_DIR`, its use mark as `BMO_DEV_USED_FILE` (「It goes down when
-    nobody uses it」).
+    path is added as `BMO_WORKBENCH_DIR`.
   - This keeps agency's secrets from reaching any dev server; if a dev server needs a `BMO_` variable,
     the command writes it itself.
   - This environment is the dev server's, not the job's.
@@ -306,10 +295,13 @@ Each job worker holds three things beside the work of its jobs:
   - So editing the field alone changes or brings down the dev server.
 - **Follows the job and its use.**
   - On every look it also asks whether a job holds the checkout's job hold, whether the request still
-    stands, how long the server has run and how long since it was last used, and whether the machine
-    is short of memory.
-  - No job, no request, a server past its lifetime, or one idle past its allowance stops the server,
-    removes the request and ends the script, which takes the pane with it.
+    stands, and whether the machine is short of memory, and while it is, whether a client is on the
+    server.
+  - No job, no request, or memory short with no client on the server stops the server, removes the
+    request and ends the script, which takes the pane with it.
+- **Stops by asking.**
+  - It stops a server with TERM to its process group and waits until the group has gone, however long
+    its ending takes; it never escalates to KILL.
 
 ### Agency sets it up
 
@@ -370,12 +362,13 @@ Each job worker holds three things beside the work of its jobs:
      worker's being its base's (`docs/worker-slots.md`) — or a worker no job of which is running.
   2. Leaves the request in the workbench folder, which counts as use as well.
   3. Brings the dev-server pane to the row, as agency does, so a pane that is missing is started.
-  4. Where a live server stands already, says so at once. Otherwise waits, up to a minute, until the
-     pid file names a live process group, then prints it and the log's path; on no new server it
-     prints the log's tail and fails.
+  4. Where a live server stands already, says so at once. Otherwise waits until the pid file names a
+     live process group, then prints it and the log's path. Where the request is taken away or the job
+     hold let go before one stands — the pane closed, or the job ended — it prints the log's tail and
+     fails.
 - **`restart`:** the same, with a restart request left beside the request, and the wait is for a
   process group other than the one standing.
-- **`stop`:** removes the request, then waits, up to half a minute, until the server's group has gone,
+- **`stop`:** removes the request, then waits until the server's group has gone,
   the pane having stopped it on its next look; a worker with nothing running is told so. It refuses
   only a name that is not a worker.
 - **What the pane does with the request:** on its next look it takes the request away; a running server
@@ -385,8 +378,8 @@ Each job worker holds three things beside the work of its jobs:
 - **When a job uses them:** it starts the server just before it first looks at what the server serves —
   it takes about a minute to come up — and restarts it where the server is down, answers with errors,
   or holds code the job has changed in a way hot reload does not take; a dev server it could start or
-  restart is never reported as unfinished work. Done looking, it stops it rather than leaving it to the
-  idle rule.
+  restart is never reported as unfinished work. Done looking, it stops it rather than leaving it standing
+  until the job ends.
 - **What stays off limits:** the system's own standing services are not a dev server,
   and a job does not restart them; the deployment does.
 
@@ -404,10 +397,10 @@ Each job worker holds three things beside the work of its jobs:
   - The job's runner sweeps its own worker's as the job ends, before it hands the job over, by asking
     agency across the boundary (`docs/api.md`, 「Workers」).
   - Agency sweeps every worker's every ten minutes, which catches a runner that died. It takes a server
-    whose worker has no job holding its checkout's job hold, and one that has run past the dev
-    server's lifetime even while a job runs.
+    whose worker has no job holding its checkout's job hold; one whose worker's job still runs is
+    kept, however long it has run.
   - An agency server on a copy of the data root sweeps nothing: the machine is not the copy's.
-- **What is ended:** the server's process group, TERM and then KILL after five seconds, and only where
+- **What is ended:** the server's process group, by TERM, waited on until the group has gone, and only where
   every process in that group names the same place. The worker's program shares its group with its
   head, which names no place, so a group holding the program is never signalled; a server in such a
   group is reported and left.

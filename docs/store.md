@@ -123,8 +123,7 @@ seeds. The other crates and the server reach the store only through it.
     room, the chat turn's run in the ledger, the job and when it began, kept while the turn goes and read
     by the next server's start (`docs/sessions.md`, 「A restart hands the session over」);
   - a companion's reset point, `reset_point:*` (`docs/companions.md`, 「What the reset cuts off」);
-  - the machine watch's notes: `doctor_standing_failure`, `herdr_leftovers_told`,
-    `dev_server_max_age_minutes`;
+  - the machine watch's notes: `doctor_standing_failure`, `herdr_leftovers_told`;
   - the logins watch's notes: `claude_node_token_gone:*` and its notice keys;
   - a job's road and its stop: `job_route_block:*`, `job_stop:*`;
   - the machine's room: its six limits, `machine_limit:<name>`, the launcher's notice of launches held,

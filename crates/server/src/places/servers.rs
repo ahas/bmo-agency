@@ -1,6 +1,6 @@
-//! The servers a worker's job left listening, and the lifetime every dev server of a worker is held to
-//! (docs/worker-bench.md, 「Servers a job leaves listening」). A worker's resident program stays up
-//! between jobs, so a `nuxi dev` one of its turns started lives on with it unless something ends it.
+//! The servers a worker's job left listening (docs/worker-bench.md, 「Servers a job leaves listening」). A
+//! worker's resident program stays up between jobs, so a `nuxi dev` one of its turns started lives on with
+//! it unless something ends it; what ends it is its worker's job ending, never its age.
 //!
 //! A candidate is a process listening on a TCP port whose environment names a worker's agent place. The
 //! worker's own dev server carries no `BMO_` variable and a person's shell names no place, so neither is
@@ -9,20 +9,11 @@
 use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 
-use store::one;
-
 use super::{AgentRow, Ground, locks};
 use crate::Refusal;
 
-// The settings row holding a dev server's lifetime in minutes, and what stands where there is none.
-const MAX_AGE_KEY: &str = "dev_server_max_age_minutes";
-const MAX_AGE_MINUTES: f64 = 180.0;
-
 // The variable a run's place is named in.
 const PLACE_VARIABLE: &str = "BMO_AGENT_PLACE";
-
-// How long an ended group is given between its TERM and its KILL.
-const TERM_WAIT: Duration = Duration::from_secs(5);
 
 /// One process as the sweep reads it.
 #[derive(Clone, Debug, PartialEq)]
@@ -41,8 +32,6 @@ pub struct ProcessRow {
 pub enum Verdict {
   /// No job of its worker runs.
   Ended,
-  /// Older than the lifetime.
-  Expired,
   /// Its worker's job still runs.
   Kept,
   /// Due to end, but its group holds a process naming no place — the worker's program and its head —
@@ -54,7 +43,6 @@ impl Verdict {
   fn word(self) -> &'static str {
     match self {
       Self::Ended => "ended",
-      Self::Expired => "expired",
       Self::Kept => "kept",
       Self::Shared => "shared",
     }
@@ -80,12 +68,7 @@ pub struct WorkerPlan {
 }
 
 /// What the sweep makes of every candidate.
-pub fn plan(
-  processes: &[ProcessRow],
-  listening: &[i32],
-  workers: &[WorkerPlan],
-  max_age_ms: f64,
-) -> Vec<JobServer> {
+pub fn plan(processes: &[ProcessRow], listening: &[i32], workers: &[WorkerPlan]) -> Vec<JobServer> {
   let by_pid: HashMap<i32, &ProcessRow> = processes.iter().map(|row| (row.pid, row)).collect();
   let mut seen_groups = HashSet::new();
   let mut servers = vec![];
@@ -103,13 +86,6 @@ pub fn plan(
     }
 
     let members: Vec<&ProcessRow> = processes.iter().filter(|member| member.group == row.group).collect();
-    let due = if !worker.job_running {
-      Some(Verdict::Ended)
-    } else if (row.age_seconds as f64) * 1000.0 > max_age_ms {
-      Some(Verdict::Expired)
-    } else {
-      None
-    };
     let own_group = row.group > 1 && members.iter().all(|member| member.place == row.place);
 
     servers.push(JobServer {
@@ -118,10 +94,12 @@ pub fn plan(
       group: row.group,
       age_seconds: row.age_seconds,
       kilobytes: members.iter().map(|member| member.kilobytes).sum(),
-      verdict: match due {
-        None => Verdict::Kept,
-        Some(due) if own_group => due,
-        Some(_) => Verdict::Shared,
+      verdict: if worker.job_running {
+        Verdict::Kept
+      } else if own_group {
+        Verdict::Ended
+      } else {
+        Verdict::Shared
       },
     });
   }
@@ -206,23 +184,6 @@ async fn listening() -> Vec<i32> {
   pids
 }
 
-/// A dev server's lifetime in milliseconds; a row that is not a positive number reads as the default.
-pub async fn max_age_ms(ground: &Ground) -> Result<f64, Refusal> {
-  let minutes = one(
-    &ground.db,
-    r#"SELECT "value" FROM "settings" WHERE "key" = $1"#,
-    vec![MAX_AGE_KEY.into()],
-  )
-  .await?
-  .map(|row| row.try_get::<String>("", "value"))
-  .transpose()?
-  .and_then(|value| value.trim().parse::<f64>().ok())
-  .filter(|minutes| minutes.is_finite() && *minutes > 0.0)
-  .unwrap_or(MAX_AGE_MINUTES);
-
-  Ok(minutes * 60_000.0)
-}
-
 /// An age as a line reads it, in hours and minutes.
 pub fn minutes(seconds: i64) -> String {
   if seconds >= 3600 {
@@ -266,16 +227,13 @@ fn signal(group: i32, signal: i32) -> bool {
   unsafe { libc::kill(-group, signal) == 0 }
 }
 
+// A group asked to end with TERM, waited on until it has gone however long its ending takes.
 async fn end_group(group: i32) {
   signal(group, libc::SIGTERM);
 
-  let until = tokio::time::Instant::now() + TERM_WAIT;
-
-  while tokio::time::Instant::now() < until && signal(group, 0) {
+  while signal(group, 0) {
     tokio::time::sleep(Duration::from_millis(100)).await;
   }
-
-  signal(group, libc::SIGKILL);
 }
 
 /// Every server a worker's job left listening, with what the sweep makes of it. Only the workers named are
@@ -298,10 +256,10 @@ pub async fn read(
     })
     .collect();
 
-  Ok(plan(&processes().await, &listening().await, &workers, max_age_ms(ground).await?))
+  Ok(plan(&processes().await, &listening().await, &workers))
 }
 
-/// Every server due to end ended — its worker's job over, or its lifetime past — answering one line for
+/// Every server due to end ended — its worker's job over — answering one line for
 /// each server ended or left in a shared group. Only the workers named are read where some are; a job's
 /// runner sweeping its own worker as it ends reads that job as over, though it still holds the hold.
 pub async fn sweep(ground: &Ground, only: Option<&[String]>, ending: bool) -> Result<Vec<String>, Refusal> {

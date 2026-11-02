@@ -21,12 +21,12 @@ fn worker(name: &str, job_running: bool) -> WorkerPlan {
 }
 
 #[test]
-fn a_group_is_one_server_judged_by_its_workers_job_its_age_and_who_shares_it() {
+fn a_group_is_one_server_judged_by_its_workers_job_and_who_shares_it_never_by_its_age() {
   let processes = [
     // A worker's leftover server, its group its own, listening twice.
     process(10, 10, 60, Some("/d/agent-places/idle")),
     process(11, 10, 60, Some("/d/agent-places/idle")),
-    // A busy worker's server, young and old.
+    // A busy worker's servers, young and old: both are kept while the job runs.
     process(20, 20, 60, Some("/d/agent-places/busy")),
     process(30, 30, 99_999, Some("/d/agent-places/busy")),
     // A server sharing its group with the worker's program, which names no place.
@@ -35,16 +35,11 @@ fn a_group_is_one_server_judged_by_its_workers_job_its_age_and_who_shares_it() {
     // A person's server names no place.
     process(50, 50, 60, None),
   ];
-  let planned = plan(
-    &processes,
-    &[10, 11, 20, 30, 40, 50],
-    &[worker("idle", false), worker("busy", true)],
-    180.0 * 60_000.0,
-  );
+  let planned = plan(&processes, &[10, 11, 20, 30, 40, 50], &[worker("idle", false), worker("busy", true)]);
 
   assert_eq!(
     planned.iter().map(|server| (server.pid, server.verdict)).collect::<Vec<_>>(),
-    [(10, Verdict::Ended), (20, Verdict::Kept), (30, Verdict::Expired), (40, Verdict::Shared)]
+    [(10, Verdict::Ended), (20, Verdict::Kept), (30, Verdict::Kept), (40, Verdict::Shared)]
   );
   assert_eq!(planned[0].kilobytes, 2048);
 }

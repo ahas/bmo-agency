@@ -4,9 +4,9 @@
 //!
 //! The server belongs to the dev-server pane, and stands only while a job of the worker has asked for it,
 //! so each verb is asked of that pane through the workbench. Start leaves the job's request, brings the
-//! pane to the worker's row (started where it is missing) and waits until a server stands; restart leaves a
-//! restart request beside it and waits for a new one; stop takes the request back and waits until the pane
-//! has taken the server down.
+//! pane to the worker's row (started where it is missing) and waits until a server stands, or until the
+//! request or the job is gone; restart leaves a restart request beside it and waits for a new one; stop
+//! takes the request back and waits until the pane has taken the server down. No wait here ends on a clock.
 
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -28,16 +28,12 @@ use crate::queue::settings;
 pub const DEV_SERVER_PID: &str = "dev-server.pid";
 /// A request to start the dev server again, left in the workbench for the pane to take on its next look.
 pub const DEV_SERVER_RESTART: &str = "dev-server.restart";
-/// The job's request that its worker's dev server stand; its time is the last use the verbs made of it.
+/// The job's request that its worker's dev server stand.
 pub const DEV_SERVER_WANTED: &str = "dev-server.wanted";
-/// The server's own use mark, named to it in `BMO_DEV_USED_FILE`.
-pub const DEV_SERVER_USED: &str = "dev-server.used";
 /// The server's output, as the pane writes it beside its screen.
 pub const DEV_SERVER_LOG: &str = "dev-server.log";
 
-// How long a start waits for the server to come up, and a stop for it to go down.
-const START_WAIT: Duration = Duration::from_secs(60);
-const STOP_WAIT: Duration = Duration::from_secs(30);
+// How often a start looks for the server to come up, and a stop for it to go down.
 const POLL: Duration = Duration::from_millis(500);
 
 /// How often the pane reads the worker's row again.
@@ -46,25 +42,15 @@ pub const DEV_LOOK_MS: i64 = 3_000;
 pub const DEV_QUICK_EXIT_MS: i64 = 30_000;
 /// Where the log is rotated; one older generation is kept beside it.
 pub const DEV_LOG_MAX_BYTES: u64 = 5 * 1024 * 1024;
-/// How often the pane asks who is connected to the server: one asking of `lsof` costs about a third of
-/// a second of CPU, too much for every look.
+/// How often the pane asks who is connected to the server while memory is short: one asking of `lsof`
+/// costs about a third of a second of CPU, too much for every look.
 pub const DEV_USE_LOOK_MS: i64 = 30_000;
-/// How long a server may stand unused while the machine is short of memory, whatever the settings allow.
-pub const DEV_SHORT_IDLE_MS: i64 = 2 * 60_000;
 
-// The settings row holding how long a dev server may stand unused, in minutes, and what stands where
-// there is none.
-const IDLE_KEY: &str = "dev_server_idle_minutes";
-const IDLE_MINUTES: f64 = 20.0;
-
-// The machine's launch limits a dev server's idle stretch is shortened under, each a settings row under
-// this prefix, with the default policy/machine-room.toml holds where no row does (docs/agent-control.md,
-// 「The limits」).
+// The machine's launch limits under which a server nobody is on goes down, each a settings row under this
+// prefix, with the default policy/machine-room.toml holds where no row does (docs/agent-control.md, 「The
+// limits」).
 const MACHINE_LIMIT: &str = "machine_limit:";
 const GIGABYTE: f64 = 1024.0 * 1024.0 * 1024.0;
-
-// How long the pane gives a server between its TERM and its KILL.
-const END_WAIT: Duration = Duration::from_secs(5);
 
 /// The workbench's files of one worker's dev server.
 struct Bench {
@@ -128,18 +114,12 @@ fn signal_group(group: i32, signal: i32) {
   }
 }
 
+// A server asked to end with TERM, waited on until its group has gone however long its ending takes.
 async fn end_group(group: i32) {
   signal_group(group, libc::SIGTERM);
 
-  let mut waited = Duration::ZERO;
-
-  while waited < END_WAIT && group_alive(group) {
+  while group_alive(group) {
     tokio::time::sleep(Duration::from_millis(100)).await;
-    waited += Duration::from_millis(100);
-  }
-
-  if group_alive(group) {
-    signal_group(group, libc::SIGKILL);
   }
 }
 
@@ -156,7 +136,8 @@ pub enum DevAction {
   Stop,
 }
 
-/// One worker's dev server started, started again or stopped, waited on until it has.
+/// One worker's dev server started, started again or stopped, waited on until it has, or until the request
+/// or the job it stood for is gone.
 pub async fn dev_server(data_root: &Path, action: DevAction, worker: &str) -> Result<Answer, VerbError> {
   let ground = super::ground(data_root).await?;
   let words = &VERB_WORDS.dev_servers.server;
@@ -177,23 +158,9 @@ pub async fn dev_server(data_root: &Path, action: DevAction, worker: &str) -> Re
     let Some(before) = bench.standing() else {
       return Ok(Answer::from(vec![fill_marks(&words.not_up, &[("worker", worker)])]));
     };
-    let mut waited = Duration::ZERO;
 
-    while waited < STOP_WAIT && group_alive(before) {
+    while group_alive(before) {
       tokio::time::sleep(POLL).await;
-      waited += POLL;
-    }
-
-    if group_alive(before) {
-      return Err(refused(
-        &words.not_down,
-        &[
-          ("seconds", &STOP_WAIT.as_secs().to_string()),
-          ("worker", worker),
-          ("group", &before.to_string()),
-          ("log", &log),
-        ],
-      ));
     }
 
     return Ok(Answer::from(vec![fill_marks(&words.down, &[("worker", worker)])]));
@@ -210,7 +177,6 @@ pub async fn dev_server(data_root: &Path, action: DevAction, worker: &str) -> Re
 
   let before = bench.standing();
 
-  // The request is written anew on every start, so its time is the job's latest use of the server.
   bench.stamp(DEV_SERVER_WANTED);
 
   if action == DevAction::Start
@@ -228,23 +194,22 @@ pub async fn dev_server(data_root: &Path, action: DevAction, worker: &str) -> Re
 
   dev::dev_pane(&ground, worker).await;
 
-  let mut waited = Duration::ZERO;
-  let mut now = None;
+  // The wait is for the new server's group, and ends without one only where the pane took the request
+  // away or the job let its hold go: the pane closed, or the job ended.
+  let now = loop {
+    if let Some(now) = bench.standing().filter(|group| Some(*group) != before) {
+      break Some(now);
+    }
 
-  while waited < START_WAIT {
-    now = bench.standing().filter(|group| Some(*group) != before);
-
-    if now.is_some() {
-      break;
+    if !bench.asked() || !job_held(&ground, &row) {
+      break None;
     }
 
     tokio::time::sleep(POLL).await;
-    waited += POLL;
-  }
+  };
 
   let Some(now) = now else {
-    let mut said =
-      fill_marks(&words.not_up_in_time, &[("seconds", &START_WAIT.as_secs().to_string()), ("log", &log)]);
+    let mut said = fill_marks(&words.not_started, &[("log", &log)]);
 
     if let Ok(text) = std::fs::read_to_string(bench.log()) {
       let lines: Vec<&str> = text.split('\n').collect();
@@ -264,17 +229,13 @@ pub async fn dev_server(data_root: &Path, action: DevAction, worker: &str) -> Re
 }
 
 /// Every worker's dev server and every server a job left listening, with the memory each holds, and with
-/// `sweep` the ones of those due to end ended, as the bot's clock does.
+/// `sweep` the ones of those due to end ended, as the bot's sweep does.
 pub async fn dev_servers(data_root: &Path, sweep: bool) -> Result<Answer, VerbError> {
   let ground = super::ground(data_root).await?;
   let words = &VERB_WORDS.dev_servers.listing;
   let fault = |refusal: crate::Refusal| VerbError::Refused(refusal.detail);
-  let max_age_ms = servers::max_age_ms(&ground).await.map_err(fault)?;
   let processes = servers::processes().await;
-  let mut lines = vec![fill_marks(
-    &words.head,
-    &[("minutes", &((max_age_ms / 60_000.0).round() as i64).to_string())],
-  )];
+  let mut lines = vec![words.head.clone()];
   let mut count = 0;
   let mut kilobytes = 0;
 
@@ -296,7 +257,6 @@ pub async fn dev_servers(data_root: &Path, sweep: bool) -> Result<Answer, VerbEr
       .find(|one| one.pid == leader)
       .map_or_else(|| members.iter().map(|one| one.age_seconds).max().unwrap_or(0), |one| one.age_seconds);
     let job = if job_held(&ground, &row) { &words.job_running } else { &words.no_job };
-    let expired = if age as f64 * 1000.0 > max_age_ms { words.expired.as_str() } else { "" };
 
     count += 1;
     kilobytes += held;
@@ -308,7 +268,6 @@ pub async fn dev_servers(data_root: &Path, sweep: bool) -> Result<Answer, VerbEr
         ("minutes", &((age as f64 / 60.0).round() as i64).to_string()),
         ("megabytes", &((held as f64 / 1024.0).round() as i64).to_string()),
         ("job", job),
-        ("expired", expired),
       ],
     ));
   }
@@ -351,8 +310,7 @@ pub async fn dev_servers(data_root: &Path, sweep: bool) -> Result<Answer, VerbEr
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DevStep {
   Exit,
-  Expire,
-  Idle,
+  Pressed,
   Stop,
   Start,
   Wait,
@@ -368,35 +326,23 @@ pub struct DevState {
   /// When a stopped server may start again.
   pub start_at: i64,
   pub restart: bool,
-  pub started_at: Option<i64>,
-  pub max_age_ms: Option<i64>,
-  pub used_at: Option<i64>,
-  pub idle_ms: Option<i64>,
+  /// The machine is short of memory and no client outside the server's group is connected to it.
+  pub pressed: bool,
 }
 
 /// What to do now. The command the row names is what should be running; a different one running is stopped
 /// first and the named one started on a later look, and no command named at all ends the pane — once
 /// whatever was running has been stopped. A restart a job asked for stops the matching server too, and
-/// starts a stopped one without waiting out the delay after a failure. A server that has run past its
-/// lifetime, or stood unused past its allowance, is ended with the pane, unless a restart was just asked
-/// for.
+/// starts a stopped one without waiting out the delay after a failure. A server nobody is on while memory
+/// is short is ended with the pane, unless a restart was just asked for. Neither its age nor how long it
+/// went unasked ends it.
 pub fn dev_step(state: &DevState, now: i64) -> DevStep {
   let Some(wanted) = &state.wanted else {
     return if state.running.is_none() { DevStep::Exit } else { DevStep::Stop };
   };
 
-  if state.running.is_some() && !state.restart {
-    if let (Some(started_at), Some(max_age)) = (state.started_at, state.max_age_ms)
-      && now - started_at > max_age
-    {
-      return DevStep::Expire;
-    }
-
-    if let (Some(used_at), Some(idle)) = (state.used_at, state.idle_ms)
-      && now - used_at > idle
-    {
-      return DevStep::Idle;
-    }
+  if state.running.is_some() && !state.restart && state.pressed {
+    return DevStep::Pressed;
   }
 
   match &state.running {
@@ -419,8 +365,7 @@ pub fn dev_restart_delay_ms(quick_endings: u32) -> i64 {
 }
 
 /// The environment the dev server runs in: the pane's own with the bot's variables taken out, and the
-/// workbench named, with its use mark, and a support worker's number beside it so a server that binds
-/// ports moves them.
+/// workbench named, with a support worker's number beside it so a server that binds ports moves them.
 pub fn dev_environment(
   env: impl IntoIterator<Item = (String, String)>,
   workbench: &Path,
@@ -430,10 +375,6 @@ pub fn dev_environment(
     env.into_iter().filter(|(name, _)| !name.starts_with("BMO_")).collect();
 
   kept.push(("BMO_WORKBENCH_DIR".into(), workbench.to_string_lossy().into_owned()));
-  kept.push((
-    "BMO_DEV_USED_FILE".into(),
-    workbench.join(DEV_SERVER_USED).to_string_lossy().into_owned(),
-  ));
 
   if let Some(slot) = slot {
     kept.push(("BMO_WORKER_SLOT".into(), slot.to_string()));
@@ -483,15 +424,6 @@ fn now_ms() -> i64 {
   chrono::Utc::now().timestamp_millis()
 }
 
-// When a file was last written, in milliseconds, or 0 where there is none.
-fn written_at(path: &Path) -> i64 {
-  std::fs::metadata(path)
-    .and_then(|held| held.modified())
-    .ok()
-    .and_then(|at| at.duration_since(std::time::UNIX_EPOCH).ok())
-    .map_or(0, |since| since.as_millis() as i64)
-}
-
 // The pane's screen and the workbench's log, written together.
 struct Output {
   log: PathBuf,
@@ -535,7 +467,8 @@ struct Pane {
   started_at: i64,
   start_at: i64,
   quick_endings: u32,
-  client_seen_at: i64,
+  // What lsof last said of a client on the server, and when it was asked.
+  client_on: bool,
   clients_asked_at: i64,
 }
 
@@ -560,12 +493,14 @@ impl Pane {
   }
 
   // Whether a client outside the server's group is connected to it, asked of lsof every half minute at
-  // most.
-  fn ask_clients(&mut self, now: i64) {
-    let Some(group) = self.running.as_ref().map(|running| running.group) else { return };
+  // most; until it is first asked, the server reads as one a client is on.
+  fn client_on(&mut self, now: i64) -> bool {
+    let Some(group) = self.running.as_ref().map(|running| running.group) else {
+      return false;
+    };
 
-    if now - self.clients_asked_at < DEV_USE_LOOK_MS {
-      return;
+    if self.clients_asked_at != 0 && now - self.clients_asked_at < DEV_USE_LOOK_MS {
+      return self.client_on;
     }
 
     self.clients_asked_at = now;
@@ -576,25 +511,8 @@ impl Pane {
       .stderr(Stdio::null())
       .output();
 
-    if listed.is_ok_and(|listed| outside_client(&String::from_utf8_lossy(&listed.stdout))) {
-      self.client_seen_at = now;
-    }
-  }
-
-  // When the server was last used: its start, the job's start or restart verb, the server's own use mark,
-  // or a client seen connected.
-  fn used_at(&mut self, now: i64) -> i64 {
-    self.ask_clients(now);
-
-    [
-      self.started_at,
-      self.client_seen_at,
-      written_at(&self.bench.file(DEV_SERVER_WANTED)),
-      written_at(&self.bench.file(DEV_SERVER_USED)),
-    ]
-    .into_iter()
-    .max()
-    .unwrap_or(0)
+    self.client_on = listed.is_ok_and(|listed| outside_client(&String::from_utf8_lossy(&listed.stdout)));
+    self.client_on
   }
 
   async fn end_leftover(&self) {
@@ -741,29 +659,17 @@ impl Pane {
     };
     let wanted = command.as_ref().map(|command| json!([cwd, command]).to_string());
     let restart = self.take_restart();
-    let max_age_ms = servers::max_age_ms(&self.ground).await.map_err(fault)? as i64;
-    // How long a running server may stand unused: shorter while the machine is short of memory by the
-    // limits a job's launch is held to, so the unused go first.
-    let short = self.running.is_some() && self.memory_short().await?;
-    let idle_ms = match self.running {
-      None => None,
-      Some(_) => {
-        let set = idle_ms(&self.ground).await.map_err(fault)?;
-
-        Some(if short { set.min(DEV_SHORT_IDLE_MS) } else { set })
-      }
-    };
     let now = now_ms();
-    let used_at = self.used_at(now);
+    // A running server nobody is on goes down while the machine is short of memory by the limits a job's
+    // launch is held to; who is on it is asked only then.
+    let short = self.running.is_some() && self.memory_short().await?;
+    let pressed = short && !self.client_on(now);
     let state = DevState {
       wanted: wanted.clone(),
       running: self.running.as_ref().map(|running| running.key.clone()),
       start_at: self.start_at,
       restart,
-      started_at: Some(self.started_at),
-      max_age_ms: Some(max_age_ms),
-      used_at: Some(used_at),
-      idle_ms,
+      pressed,
     };
     let why = if job_over {
       &words.job_over
@@ -780,22 +686,8 @@ impl Pane {
 
         return Ok(Some(Answer::default()));
       }
-      DevStep::Expire => {
-        let reason = fill_marks(
-          &words.expired,
-          &[("minutes", &((max_age_ms as f64 / 60_000.0).round() as i64).to_string())],
-        );
-
-        return Ok(Some(self.close(&reason).await));
-      }
-      DevStep::Idle => {
-        let reason = fill_marks(
-          &words.idle,
-          &[
-            ("short", if short { &words.short } else { "" }),
-            ("minutes", &((idle_ms.unwrap_or(0) as f64 / 60_000.0).round() as i64).to_string()),
-          ],
-        );
+      DevStep::Pressed => {
+        let reason = words.pressed.clone();
 
         return Ok(Some(self.close(&reason).await));
       }
@@ -865,18 +757,6 @@ fn memory_reading() -> Option<(f64, Option<f64>)> {
   Some((available as f64 / GIGABYTE, full))
 }
 
-// How long a dev server may stand unused, in milliseconds; a row that is not a positive number reads as
-// the default.
-async fn idle_ms(ground: &Ground) -> Result<i64, crate::Refusal> {
-  let minutes = settings::get(&ground.db, IDLE_KEY)
-    .await?
-    .and_then(|value| value.trim().parse::<f64>().ok())
-    .filter(|minutes| minutes.is_finite() && *minutes > 0.0)
-    .unwrap_or(IDLE_MINUTES);
-
-  Ok((minutes * 60_000.0) as i64)
-}
-
 /// The dev-server pane of one worker, run until it closes: the worker's dev command in its checkout, in a
 /// session and process group of its own, with its output on the screen and in the workbench's log, while
 /// a job of the worker runs and has asked for it.
@@ -909,7 +789,7 @@ pub async fn dev_pane(data_root: &Path, worker: &str) -> Result<Answer, VerbErro
     started_at: 0,
     start_at: 0,
     quick_endings: 0,
-    client_seen_at: 0,
+    client_on: false,
     clients_asked_at: 0,
   };
   let mut closed = Vec::new();
