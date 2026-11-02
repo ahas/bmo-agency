@@ -535,15 +535,6 @@ pub struct Reservation {
   pub outcome: Option<String>,
 }
 
-/// Role:
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct Role {
-  pub name: String,
-  pub tier: String,
-  pub pooled: bool,
-}
-
 /// Place:
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -1369,14 +1360,6 @@ pub struct SeatRequestPage {
 #[serde(rename_all = "camelCase")]
 pub struct ReservationPage {
   pub items: Vec<Reservation>,
-  pub more: bool,
-}
-
-/// RolePage:
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct RolePage {
-  pub items: Vec<Role>,
   pub more: bool,
 }
 
@@ -2613,4 +2596,450 @@ pub struct DeclaredGate {
 #[serde(rename_all = "camelCase")]
 pub struct GateKindDeclaration {
   pub gates: Vec<DeclaredGate>,
+}
+
+/// OrderEntry: one provider of a supervisor's or a role's order, and what the row runs on there.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct OrderEntry {
+  pub provider: String,
+  pub model: String,
+  /// a level of the effort scale; null for the provider's own
+  #[serde(default)]
+  pub effort: Option<String>,
+  /// `on`, `off`, or null for the provider's own
+  #[serde(default)]
+  pub thinking: Option<String>,
+  /// on the registry's provider, the answer ceiling; null for the registration's own
+  #[serde(default)]
+  pub answer_tokens: Option<i64>,
+}
+
+/// Supervisor: one supervisor as its row holds it, and what it stands on now.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct Supervisor {
+  pub name: String,
+  pub label: Option<String>,
+  pub owner_account: Option<i64>,
+  pub aliases: Option<String>,
+  pub icon: Option<String>,
+  pub session_scope: String,
+  pub turn_shape: String,
+  pub default_answerer: bool,
+  pub brain_folder: Option<String>,
+  /// the repository its TODO items go to
+  pub repository: Option<String>,
+  pub order: Vec<OrderEntry>,
+  /// a fraction from 0 to 1
+  pub quota_share: f64,
+  /// for each provider of its order, whether its prefix is kept warm there
+  pub warming: BTreeMap<String, bool>,
+  /// its compaction threshold
+  pub fold_ratio: f64,
+  pub gates: Value,
+  pub voice: Option<String>,
+  pub sampling: Option<Value>,
+  /// what its last turn went out on
+  pub provider: Option<String>,
+  pub model: Option<String>,
+  pub effort: Option<String>,
+  /// why its turn waits where no provider of its order has quota, or null
+  pub waiting_for: Option<String>,
+}
+
+/// SupervisorList: every supervisor.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SupervisorList {
+  pub items: Vec<Supervisor>,
+  pub more: bool,
+}
+
+/// SupervisorAsk: the body that registers a supervisor.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SupervisorAsk {
+  pub name: String,
+  pub label: String,
+  pub order: Vec<OrderEntry>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub quota_share: Option<f64>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub repository: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub owner_account: Option<i64>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub fold_ratio: Option<f64>,
+}
+
+/// SupervisorRegistered: a supervisor registered, and what became of its brain.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SupervisorRegistered {
+  pub supervisor: Supervisor,
+  pub brain: BrainBirth,
+}
+
+/// SupervisorChange: the fields a change of a supervisor names.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SupervisorChange {
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub label: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub order: Option<Vec<OrderEntry>>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub quota_share: Option<f64>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub warming: Option<BTreeMap<String, bool>>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub fold_ratio: Option<f64>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub repository: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub gates: Option<BTreeMap<String, bool>>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub sampling: Option<Value>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub voice: Option<String>,
+}
+
+/// DeleteSupervisorQuery: what a supervisor's removal is asked with.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct DeleteSupervisorQuery {
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub force: Option<bool>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub forget_brain: Option<bool>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub rooms: Option<String>,
+}
+
+/// RoleBundle: one bundle a role may give, with its kebab-case code and its label.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RoleBundle {
+  pub name: String,
+  pub code: String,
+  pub label: String,
+}
+
+/// Role: one role as its row holds it, and what stands of it now.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct Role {
+  pub name: String,
+  pub code: String,
+  pub label: String,
+  pub prompt: Option<String>,
+  pub description: Option<String>,
+  pub bundles: Vec<RoleBundle>,
+  pub line: String,
+  pub order: Vec<OrderEntry>,
+  pub quota_share: f64,
+  /// the most of its runs that go at once
+  pub max_concurrent: i64,
+  pub sessions: RoleSessions,
+  pub fold_ratio: f64,
+  pub callable: bool,
+  pub running: i64,
+  pub waiting: i64,
+  /// its active provider, or null where none of its order has quota
+  pub provider: Option<String>,
+  pub waiting_for: Option<String>,
+}
+
+/// RoleList: every role, every bundle a role may give and every line a role may name.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RoleList {
+  pub roles: Vec<Role>,
+  pub bundles: Vec<RoleBundle>,
+  pub lines: Vec<String>,
+}
+
+/// RoleAsk: the body that adds a role.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RoleAsk {
+  pub name: String,
+  pub label: String,
+  pub bundles: Vec<String>,
+  pub line: String,
+  pub order: Vec<OrderEntry>,
+  pub max_concurrent: i64,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub quota_share: Option<f64>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub prompt: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub description: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub sessions: Option<RoleSessions>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub fold_ratio: Option<f64>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub callable: Option<bool>,
+}
+
+/// RoleChange: the fields a change of a role names; a prompt or a description given as null clears it.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RoleChange {
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub label: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub bundles: Option<Vec<String>>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub line: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub order: Option<Vec<OrderEntry>>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub quota_share: Option<f64>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub max_concurrent: Option<i64>,
+  #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "present")]
+  pub prompt: Option<Option<String>>,
+  #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "present")]
+  pub description: Option<Option<String>>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub sessions: Option<RoleSessions>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub fold_ratio: Option<f64>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub callable: Option<bool>,
+}
+
+/// RoleSession: one session a role's runs opened, and whether the next run of its key would resume it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RoleSession {
+  pub id: i64,
+  pub session_id: String,
+  pub path: String,
+  pub provider: String,
+  pub model: String,
+  pub effort: Option<String>,
+  pub account: Option<String>,
+  /// epoch milliseconds
+  pub opened_at: i64,
+  /// epoch milliseconds
+  pub last_answered_at: Option<i64>,
+  pub runs: i64,
+  pub context: Value,
+  pub valid: bool,
+}
+
+/// RoleSessionPage: the sessions a role's runs opened, newest first.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RoleSessionPage {
+  pub items: Vec<RoleSession>,
+  pub more: bool,
+}
+
+/// RoleSessionsQuery: the page of a role's sessions asked for.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RoleSessionsQuery {
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub before: Option<i64>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub limit: Option<i64>,
+}
+
+/// RepositoryPin: a repository's pinned provider and model.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RepositoryPin {
+  pub provider: String,
+  pub model: String,
+}
+
+/// Repository: one repository as its row holds it, with its checkouts.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct Repository {
+  pub name: String,
+  pub label: Option<String>,
+  pub icon: Option<String>,
+  pub owner_account: Option<i64>,
+  pub path: String,
+  pub node_name: Option<String>,
+  pub support_count: i64,
+  pub prefix_documents: Vec<String>,
+  pub preamble: Option<String>,
+  pub rules: Option<String>,
+  pub dev_command: Option<String>,
+  pub pin: Option<RepositoryPin>,
+  pub downgrade_heal: bool,
+  pub sampling: Option<Value>,
+  /// each its name, path, node and the job holding it, where one does
+  pub checkouts: Vec<Value>,
+}
+
+/// RepositoryList: every repository.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RepositoryList {
+  pub items: Vec<Repository>,
+  pub more: bool,
+}
+
+/// RepositoryAsk: the body that adds a repository, or the fields a change names.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RepositoryAsk {
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub name: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub label: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub owner_account: Option<i64>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub path: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub node_name: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub support_count: Option<i64>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub prefix_documents: Option<Vec<String>>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub preamble: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub rules: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub dev_command: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "present")]
+  pub pin: Option<Option<RepositoryPin>>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub downgrade_heal: Option<bool>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub sampling: Option<Value>,
+}
+
+/// SlotRequest: one slot request of a role with its lease.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SlotRequest {
+  pub sequence: i64,
+  pub token: String,
+  pub request_key: String,
+  pub owner: String,
+  pub source: String,
+  pub role: String,
+  pub path: Option<String>,
+  /// the road it is let in on; empty until it is, unless its caller fixed it
+  pub provider: String,
+  pub model: String,
+  pub effort: Option<String>,
+  /// the role's cap when it was let in
+  pub capacity: i64,
+  /// `waiting`, `reserved`, `active`, `released` or `cancelled`
+  pub state: String,
+  /// epoch milliseconds
+  pub enqueued_at: i64,
+  pub leased_at: Option<i64>,
+  pub child_id: Option<String>,
+  pub ended_at: Option<i64>,
+  pub outcome: Option<String>,
+  pub reservation: Option<String>,
+  pub yielding: bool,
+  pub place_key: Option<String>,
+  pub session: Option<String>,
+  pub title: Option<String>,
+  pub asked_by: Option<String>,
+  pub agent_name: Option<String>,
+  /// why it waits where its provider has no quota, or null
+  pub held_for: Option<String>,
+}
+
+/// SlotRequestAsk: the body that asks a slot of a role.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SlotRequestAsk {
+  pub request_key: String,
+  pub owner: String,
+  /// the delegator where a delegation names none
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub role: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub source: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub path: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub provider: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub model: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub place_key: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub yielding: Option<bool>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub token: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub session: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub title: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub asked_by: Option<String>,
+}
+
+/// SlotRequestMove: a slot request asked for its admission, bound to its run, or given back.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SlotRequestMove {
+  /// `bound` or `finished`; none asks for admission
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub state: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub child_id: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub agent_name: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub outcome: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub cancel: Option<bool>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub demand_id: Option<i64>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub within: Option<i64>,
+}
+
+/// SlotRequestPage: the open slot requests.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SlotRequestPage {
+  pub items: Vec<SlotRequest>,
+  pub more: bool,
+}
+
+/// SlotRequestsQuery: the open slot requests narrowed.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SlotRequestsQuery {
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub role: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub owner: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub waiting: Option<bool>,
+}
+
+/// Slots: every role's slots, each with its cap, its runs let in, reserved and waiting, and what holds each.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct Slots {
+  pub items: Vec<Value>,
+}
+
+/// ProviderModels: the models an order's entry may name on a provider.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderModels {
+  pub provider: String,
+  pub models: Vec<Value>,
+  pub stale_read_at: Option<f64>,
 }

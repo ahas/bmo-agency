@@ -80,12 +80,6 @@
       "name": "hooks"
     },
     {
-      "name": "agents"
-    },
-    {
-      "name": "agent-roles"
-    },
-    {
       "name": "prompt-documents"
     },
     {
@@ -116,16 +110,10 @@
       "name": "stop-marks"
     },
     {
-      "name": "pool"
-    },
-    {
       "name": "seat-requests"
     },
     {
       "name": "reservations"
-    },
-    {
-      "name": "roles"
     },
     {
       "name": "places"
@@ -140,19 +128,10 @@
       "name": "pin-checks"
     },
     {
-      "name": "tiers"
-    },
-    {
-      "name": "fold-ratios"
-    },
-    {
       "name": "fallback"
     },
     {
       "name": "assignments-and-jobs"
-    },
-    {
-      "name": "work-keys"
     },
     {
       "name": "road-blocks"
@@ -179,7 +158,7 @@
       "name": "companion-resets"
     },
     {
-      "name": "workers"
+      "name": "repositories"
     },
     {
       "name": "prefix-checks"
@@ -207,6 +186,15 @@
     },
     {
       "name": "translations"
+    },
+    {
+      "name": "supervisors"
+    },
+    {
+      "name": "roles"
+    },
+    {
+      "name": "slots"
     }
   ],
   "paths": {
@@ -496,396 +484,6 @@
             "name": "via",
             "in": "query",
             "required": false,
-            "schema": {
-              "type": "string",
-              "description": ""
-            }
-          }
-        ]
-      }
-    },
-    "/agents": {
-      "get": {
-        "operationId": "listAgents",
-        "tags": [
-          "agents"
-        ],
-        "summary": "Every agent, each with the login account that owns it.",
-        "responses": {
-          "200": {
-            "description": "Answered.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AgentPage"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          }
-        },
-        "x-codes": [
-          "unauthorized"
-        ]
-      },
-      "post": {
-        "operationId": "createAgents",
-        "tags": [
-          "agents"
-        ],
-        "summary": "Register an agent of any kind; one that converses is given its brain.",
-        "responses": {
-          "201": {
-            "description": "Answered.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AgentCreated"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "409": {
-            "$ref": "#/components/responses/NameTaken"
-          }
-        },
-        "x-codes": [
-          "unauthorized",
-          "bad-request",
-          "name-taken"
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AgentAsk"
-              }
-            }
-          }
-        }
-      }
-    },
-    "/agents/{agentName}": {
-      "get": {
-        "operationId": "getAgent",
-        "tags": [
-          "agents"
-        ],
-        "summary": "One agent: role, gates, reasoning, voice, reset point, stand-in.",
-        "responses": {
-          "200": {
-            "description": "Answered.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Agent"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          }
-        },
-        "x-codes": [
-          "unauthorized",
-          "not-found"
-        ],
-        "parameters": [
-          {
-            "name": "agentName",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": ""
-            }
-          }
-        ]
-      },
-      "patch": {
-        "operationId": "changeAgent",
-        "tags": [
-          "agents"
-        ],
-        "summary": "Change an agent's gates, reasoning, role, voice or own model.",
-        "responses": {
-          "200": {
-            "description": "Answered.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Agent"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          }
-        },
-        "x-codes": [
-          "unauthorized",
-          "bad-request",
-          "not-found"
-        ],
-        "parameters": [
-          {
-            "name": "agentName",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": ""
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AgentChange"
-              }
-            }
-          }
-        }
-      },
-      "delete": {
-        "operationId": "deleteAgent",
-        "tags": [
-          "agents"
-        ],
-        "summary": "End an agent's registration; forgetBrain lets its brain go with it.",
-        "responses": {
-          "204": {
-            "description": "Answered."
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          },
-          "409": {
-            "$ref": "#/components/responses/Seeded"
-          }
-        },
-        "x-codes": [
-          "unauthorized",
-          "not-found",
-          "seeded",
-          "running"
-        ],
-        "parameters": [
-          {
-            "name": "agentName",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": ""
-            }
-          },
-          {
-            "name": "force",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "boolean",
-              "description": "end it under a turn that holds it now"
-            }
-          },
-          {
-            "name": "forgetBrain",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "boolean",
-              "description": "let its brain go whole with it"
-            }
-          },
-          {
-            "name": "rooms",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "description": "a comma-separated list of the rooms a companion answers"
-            }
-          }
-        ]
-      }
-    },
-    "/agent-roles": {
-      "get": {
-        "operationId": "listAgentRoles",
-        "tags": [
-          "agent-roles"
-        ],
-        "summary": "Every role an agent may hold, and every bundle a role may give.",
-        "responses": {
-          "200": {
-            "description": "Answered.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AgentRoleList"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          }
-        },
-        "x-codes": [
-          "unauthorized"
-        ]
-      },
-      "post": {
-        "operationId": "createAgentRoles",
-        "tags": [
-          "agent-roles"
-        ],
-        "summary": "Add a role.",
-        "responses": {
-          "201": {
-            "description": "Answered.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AgentRole"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "422": {
-            "$ref": "#/components/responses/UnprocessableEntity"
-          }
-        },
-        "x-codes": [
-          "unauthorized",
-          "unprocessable-entity"
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AgentRoleAsk"
-              }
-            }
-          }
-        }
-      }
-    },
-    "/agent-roles/{roleName}": {
-      "patch": {
-        "operationId": "changeAgentRole",
-        "tags": [
-          "agent-roles"
-        ],
-        "summary": "Change a role's label, bundles, bound, prompt or tier.",
-        "responses": {
-          "200": {
-            "description": "Answered.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AgentRole"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          },
-          "422": {
-            "$ref": "#/components/responses/UnprocessableEntity"
-          }
-        },
-        "x-codes": [
-          "unauthorized",
-          "not-found",
-          "unprocessable-entity"
-        ],
-        "parameters": [
-          {
-            "name": "roleName",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": ""
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AgentRoleChange"
-              }
-            }
-          }
-        }
-      },
-      "delete": {
-        "operationId": "deleteAgentRole",
-        "tags": [
-          "agent-roles"
-        ],
-        "summary": "Remove a role no agent holds and no kind is for.",
-        "responses": {
-          "204": {
-            "description": "Answered."
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          },
-          "409": {
-            "$ref": "#/components/responses/Conflict"
-          }
-        },
-        "x-codes": [
-          "unauthorized",
-          "not-found",
-          "conflict"
-        ],
-        "parameters": [
-          {
-            "name": "roleName",
-            "in": "path",
-            "required": true,
             "schema": {
               "type": "string",
               "description": ""
@@ -2670,115 +2268,6 @@
         ]
       }
     },
-    "/pool": {
-      "get": {
-        "operationId": "getPool",
-        "tags": [
-          "pool"
-        ],
-        "summary": "The co-worker pool: buckets, seats, waiting work.",
-        "responses": {
-          "200": {
-            "description": "Answered.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Pool"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          }
-        },
-        "x-codes": [
-          "unauthorized"
-        ]
-      }
-    },
-    "/seat-requests": {
-      "get": {
-        "operationId": "listSeatRequests",
-        "tags": [
-          "seat-requests"
-        ],
-        "summary": "Open seat requests, by owner or waiting.",
-        "responses": {
-          "200": {
-            "description": "Answered.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SeatRequestPage"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          }
-        },
-        "x-codes": [
-          "unauthorized"
-        ],
-        "parameters": [
-          {
-            "name": "owner",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "description": ""
-            }
-          },
-          {
-            "name": "state",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "description": ""
-            }
-          }
-        ]
-      },
-      "post": {
-        "operationId": "createSeatRequests",
-        "tags": [
-          "seat-requests"
-        ],
-        "summary": "Ask for a co-worker seat; the tier is resolved from the work key.",
-        "responses": {
-          "201": {
-            "description": "Answered.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SeatRequest"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          }
-        },
-        "x-codes": [
-          "unauthorized"
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SeatRequestAsk"
-              }
-            }
-          }
-        }
-      }
-    },
     "/delegations": {
       "get": {
         "operationId": "listDelegations",
@@ -2824,107 +2313,6 @@
             }
           }
         ]
-      }
-    },
-    "/seat-requests/{token}": {
-      "get": {
-        "operationId": "getSeatRequest",
-        "tags": [
-          "seat-requests"
-        ],
-        "summary": "One seat request.",
-        "responses": {
-          "200": {
-            "description": "Answered.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SeatRequest"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          }
-        },
-        "x-codes": [
-          "unauthorized",
-          "not-found"
-        ],
-        "parameters": [
-          {
-            "name": "token",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": ""
-            }
-          },
-          {
-            "name": "waitMs",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "description": ""
-            }
-          }
-        ]
-      },
-      "patch": {
-        "operationId": "changeSeatRequest",
-        "tags": [
-          "seat-requests"
-        ],
-        "summary": "Move a seat request: admitted, bound to its launched unit, finished.",
-        "responses": {
-          "200": {
-            "description": "Answered.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SeatRequest"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          }
-        },
-        "x-codes": [
-          "unauthorized",
-          "not-found"
-        ],
-        "parameters": [
-          {
-            "name": "token",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": ""
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SeatRequestChange"
-              }
-            }
-          }
-        }
       }
     },
     "/reservations": {
@@ -3046,74 +2434,6 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/ReservationChange"
-              }
-            }
-          }
-        }
-      }
-    },
-    "/roles": {
-      "get": {
-        "operationId": "listRoles",
-        "tags": [
-          "roles"
-        ],
-        "summary": "The roles the pool can lend.",
-        "responses": {
-          "200": {
-            "description": "Answered.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RolePage"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          }
-        },
-        "x-codes": [
-          "unauthorized"
-        ]
-      }
-    },
-    "/pool/limits": {
-      "patch": {
-        "operationId": "changePoolLimit",
-        "tags": [
-          "pool"
-        ],
-        "summary": "Set how many children of one co-worker tier may be alive on one provider.",
-        "responses": {
-          "200": {
-            "description": "Answered.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PoolLimit"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "422": {
-            "$ref": "#/components/responses/UnprocessableEntity"
-          }
-        },
-        "x-codes": [
-          "unauthorized",
-          "unprocessable-entity"
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PoolLimit"
               }
             }
           }
@@ -3727,177 +3047,6 @@
         }
       }
     },
-    "/tiers": {
-      "get": {
-        "operationId": "listTiers",
-        "tags": [
-          "tiers"
-        ],
-        "summary": "Tiers in ladder order, each with its mapping.",
-        "responses": {
-          "200": {
-            "description": "Answered.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TierPage"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          }
-        },
-        "x-codes": [
-          "unauthorized"
-        ]
-      }
-    },
-    "/tiers/{tierName}": {
-      "patch": {
-        "operationId": "changeTier",
-        "tags": [
-          "tiers"
-        ],
-        "summary": "Change a tier's mapping for a role.",
-        "responses": {
-          "200": {
-            "description": "Answered.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Tier"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          }
-        },
-        "x-codes": [
-          "unauthorized",
-          "not-found"
-        ],
-        "parameters": [
-          {
-            "name": "tierName",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": ""
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TierChange"
-              }
-            }
-          }
-        }
-      }
-    },
-    "/fold-ratios": {
-      "get": {
-        "operationId": "listFoldRatios",
-        "tags": [
-          "fold-ratios"
-        ],
-        "summary": "Every provider's fold ratio at every tier, each with where it comes from: set in the table, the provider's own declared share, or the general 0.85.",
-        "responses": {
-          "200": {
-            "description": "Answered.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FoldRatioPage"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          }
-        },
-        "x-codes": [
-          "unauthorized"
-        ]
-      }
-    },
-    "/fold-ratios/{provider}/{tier}": {
-      "put": {
-        "operationId": "putFoldRatio",
-        "tags": [
-          "fold-ratios"
-        ],
-        "summary": "Set a provider's fold ratio at a tier: the share of a model's window a session may fill before it is folded once the turn that crossed it is over.",
-        "responses": {
-          "200": {
-            "description": "Answered.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FoldRatio"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          }
-        },
-        "x-codes": [
-          "unauthorized",
-          "bad-request",
-          "not-found"
-        ],
-        "parameters": [
-          {
-            "name": "provider",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": ""
-            }
-          },
-          {
-            "name": "tier",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": "an abstract tier of the ladder"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/FoldRatioWrite"
-              }
-            }
-          }
-        }
-      }
-    },
     "/fallback": {
       "get": {
         "operationId": "getFallback",
@@ -4060,102 +3209,6 @@
         }
       }
     },
-    "/work-keys": {
-      "get": {
-        "operationId": "listWorkKeys",
-        "tags": [
-          "work-keys"
-        ],
-        "summary": "Every work key with the tier it is assigned, the tiers it may be, and what it resolves to on each provider.",
-        "responses": {
-          "200": {
-            "description": "Answered.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/WorkKeyAssignmentPage"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          }
-        },
-        "x-codes": [
-          "unauthorized"
-        ]
-      }
-    },
-    "/work-keys/{workKey}": {
-      "get": {
-        "operationId": "getWorkKey",
-        "tags": [
-          "work-keys"
-        ],
-        "summary": "Where a work key goes: provider, model, effort, answer tokens, run bound, run mode.",
-        "responses": {
-          "200": {
-            "description": "Answered.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/WorkKey"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          }
-        },
-        "x-codes": [
-          "unauthorized",
-          "not-found"
-        ],
-        "parameters": [
-          {
-            "name": "workKey",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": ""
-            }
-          },
-          {
-            "name": "tier",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "description": ""
-            }
-          },
-          {
-            "name": "provider",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "description": ""
-            }
-          },
-          {
-            "name": "agentName",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "description": ""
-            }
-          }
-        ]
-      }
-    },
     "/road-blocks": {
       "get": {
         "operationId": "listRoadBlocks",
@@ -4192,7 +3245,7 @@
             }
           },
           {
-            "name": "workerName",
+            "name": "repositoryName",
             "in": "query",
             "required": false,
             "schema": {
@@ -4847,198 +3900,11 @@
         }
       }
     },
-    "/workers": {
-      "get": {
-        "operationId": "listWorkers",
-        "tags": [
-          "workers"
-        ],
-        "summary": "Every worker.",
-        "responses": {
-          "200": {
-            "description": "Answered.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/WorkerPage"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          }
-        },
-        "x-codes": [
-          "unauthorized"
-        ]
-      },
-      "post": {
-        "operationId": "createWorkers",
-        "tags": [
-          "workers"
-        ],
-        "summary": "Add a worker.",
-        "responses": {
-          "201": {
-            "description": "Answered.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Worker"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          }
-        },
-        "x-codes": [
-          "unauthorized"
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/WorkerAdd"
-              }
-            }
-          }
-        }
-      }
-    },
-    "/workers/{workerName}": {
-      "get": {
-        "operationId": "getWorker",
-        "tags": [
-          "workers"
-        ],
-        "summary": "One worker: checkout, node, role, prefix documents, sampling, session, runs.",
-        "responses": {
-          "200": {
-            "description": "Answered.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Worker"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          }
-        },
-        "x-codes": [
-          "unauthorized",
-          "not-found"
-        ],
-        "parameters": [
-          {
-            "name": "workerName",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": ""
-            }
-          }
-        ]
-      },
-      "patch": {
-        "operationId": "changeWorker",
-        "tags": [
-          "workers"
-        ],
-        "summary": "Change a worker: fields, node placement, sampling, stand it again, ready its bench.",
-        "responses": {
-          "200": {
-            "description": "Answered.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Worker"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          }
-        },
-        "x-codes": [
-          "unauthorized",
-          "not-found"
-        ],
-        "parameters": [
-          {
-            "name": "workerName",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": ""
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/WorkerChange"
-              }
-            }
-          }
-        }
-      },
-      "delete": {
-        "operationId": "deleteWorker",
-        "tags": [
-          "workers"
-        ],
-        "summary": "Remove a worker.",
-        "responses": {
-          "204": {
-            "description": "Answered."
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          }
-        },
-        "x-codes": [
-          "unauthorized",
-          "not-found"
-        ],
-        "parameters": [
-          {
-            "name": "workerName",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": ""
-            }
-          }
-        ]
-      }
-    },
-    "/workers/{workerName}/definition": {
+    "/repositories/{repositoryName}/definition": {
       "get": {
         "operationId": "getWorkersDefinition",
         "tags": [
-          "workers"
+          "repositories"
         ],
         "summary": "The worker's agent definition: graph, trailer, handoff.",
         "responses": {
@@ -5065,7 +3931,7 @@
         ],
         "parameters": [
           {
-            "name": "workerName",
+            "name": "repositoryName",
             "in": "path",
             "required": true,
             "schema": {
@@ -5076,11 +3942,11 @@
         ]
       }
     },
-    "/workers/{workerName}/workbench": {
+    "/repositories/{repositoryName}/workbench": {
       "get": {
         "operationId": "getWorkersWorkbench",
         "tags": [
-          "workers"
+          "repositories"
         ],
         "summary": "The worker's workbench and scratch folders.",
         "responses": {
@@ -5107,7 +3973,7 @@
         ],
         "parameters": [
           {
-            "name": "workerName",
+            "name": "repositoryName",
             "in": "path",
             "required": true,
             "schema": {
@@ -5118,11 +3984,11 @@
         ]
       }
     },
-    "/workers/{workerName}/servers": {
+    "/repositories/{repositoryName}/servers": {
       "delete": {
         "operationId": "deleteWorkersServers",
         "tags": [
-          "workers"
+          "repositories"
         ],
         "summary": "End the job servers a worker left running.",
         "responses": {
@@ -5142,7 +4008,7 @@
         ],
         "parameters": [
           {
-            "name": "workerName",
+            "name": "repositoryName",
             "in": "path",
             "required": true,
             "schema": {
@@ -5314,7 +4180,7 @@
             }
           },
           {
-            "name": "workerName",
+            "name": "repositoryName",
             "in": "query",
             "required": false,
             "schema": {
@@ -5610,7 +4476,7 @@
             }
           },
           {
-            "name": "workerName",
+            "name": "repositoryName",
             "in": "query",
             "required": false,
             "schema": {
@@ -6377,6 +5243,961 @@
           }
         }
       }
+    },
+    "/supervisors": {
+      "get": {
+        "operationId": "listSupervisors",
+        "tags": [
+          "supervisors"
+        ],
+        "summary": "Every supervisor, each with the login account that owns it.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupervisorList"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "x-codes": [
+          "unauthorized"
+        ]
+      },
+      "post": {
+        "operationId": "createSupervisor",
+        "tags": [
+          "supervisors"
+        ],
+        "summary": "Register a supervisor; it is given its brain.",
+        "responses": {
+          "201": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupervisorRegistered"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "409": {
+            "$ref": "#/components/responses/NameTaken"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "name-taken"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SupervisorAsk"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/supervisors/{supervisorName}": {
+      "get": {
+        "operationId": "getSupervisor",
+        "tags": [
+          "supervisors"
+        ],
+        "summary": "One supervisor: its order, warming, threshold, gates, voice.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Supervisor"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "not-found"
+        ],
+        "parameters": [
+          {
+            "name": "supervisorName",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": ""
+            }
+          }
+        ]
+      },
+      "patch": {
+        "operationId": "changeSupervisor",
+        "tags": [
+          "supervisors"
+        ],
+        "summary": "Change a supervisor's order, warming, threshold, gates, sampling or voice.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Supervisor"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "not-found"
+        ],
+        "parameters": [
+          {
+            "name": "supervisorName",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": ""
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SupervisorChange"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteSupervisor",
+        "tags": [
+          "supervisors"
+        ],
+        "summary": "End a supervisor's registration; forgetBrain lets its brain go with it.",
+        "responses": {
+          "204": {
+            "description": "Answered."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Seeded"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "not-found",
+          "seeded",
+          "running"
+        ],
+        "parameters": [
+          {
+            "name": "supervisorName",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": ""
+            }
+          },
+          {
+            "name": "force",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": ""
+            }
+          },
+          {
+            "name": "forgetBrain",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": ""
+            }
+          },
+          {
+            "name": "rooms",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": ""
+            }
+          }
+        ]
+      }
+    },
+    "/roles": {
+      "get": {
+        "operationId": "listRoles",
+        "tags": [
+          "roles"
+        ],
+        "summary": "Every role, every bundle a role may give and every line a role may name.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleList"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "x-codes": [
+          "unauthorized"
+        ]
+      },
+      "post": {
+        "operationId": "createRole",
+        "tags": [
+          "roles"
+        ],
+        "summary": "Add a role.",
+        "responses": {
+          "201": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Role"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "unprocessable-entity"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RoleAsk"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/roles/{roleName}": {
+      "get": {
+        "operationId": "getRole",
+        "tags": [
+          "roles"
+        ],
+        "summary": "One role, with how many of its runs go and wait.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Role"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "not-found"
+        ],
+        "parameters": [
+          {
+            "name": "roleName",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": ""
+            }
+          }
+        ]
+      },
+      "patch": {
+        "operationId": "changeRole",
+        "tags": [
+          "roles"
+        ],
+        "summary": "Change any field of a role.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Role"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "not-found",
+          "unprocessable-entity"
+        ],
+        "parameters": [
+          {
+            "name": "roleName",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": ""
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RoleChange"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteRole",
+        "tags": [
+          "roles"
+        ],
+        "summary": "Remove a role no run holds or waits for and no default names.",
+        "responses": {
+          "204": {
+            "description": "Answered."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "not-found",
+          "conflict"
+        ],
+        "parameters": [
+          {
+            "name": "roleName",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": ""
+            }
+          }
+        ]
+      }
+    },
+    "/roles/{roleName}/sessions": {
+      "get": {
+        "operationId": "listRoleSessions",
+        "tags": [
+          "roles"
+        ],
+        "summary": "The sessions the role's runs opened, newest first.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleSessionPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "not-found"
+        ],
+        "parameters": [
+          {
+            "name": "roleName",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": ""
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "description": ""
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "description": ""
+            }
+          }
+        ]
+      }
+    },
+    "/repositories": {
+      "get": {
+        "operationId": "listRepositories",
+        "tags": [
+          "repositories"
+        ],
+        "summary": "Every repository.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RepositoryList"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "x-codes": [
+          "unauthorized"
+        ]
+      },
+      "post": {
+        "operationId": "createRepository",
+        "tags": [
+          "repositories"
+        ],
+        "summary": "Add a repository.",
+        "responses": {
+          "201": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Repository"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "409": {
+            "$ref": "#/components/responses/NameTaken"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "name-taken"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RepositoryAsk"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/repositories/{repositoryName}": {
+      "get": {
+        "operationId": "getRepository",
+        "tags": [
+          "repositories"
+        ],
+        "summary": "One repository: checkouts, node, prefix documents, preamble, rules, pin.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Repository"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "not-found"
+        ],
+        "parameters": [
+          {
+            "name": "repositoryName",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": ""
+            }
+          }
+        ]
+      },
+      "patch": {
+        "operationId": "changeRepository",
+        "tags": [
+          "repositories"
+        ],
+        "summary": "Change a repository: fields, checkouts, node placement, pin, sampling.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Repository"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "not-found"
+        ],
+        "parameters": [
+          {
+            "name": "repositoryName",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": ""
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RepositoryAsk"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteRepository",
+        "tags": [
+          "repositories"
+        ],
+        "summary": "Remove a repository no job holds a checkout of.",
+        "responses": {
+          "204": {
+            "description": "Answered."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "not-found",
+          "conflict"
+        ],
+        "parameters": [
+          {
+            "name": "repositoryName",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": ""
+            }
+          }
+        ]
+      }
+    },
+    "/slots": {
+      "get": {
+        "operationId": "listSlots",
+        "tags": [
+          "slots"
+        ],
+        "summary": "Every role's slots: the runs let in, reserved and waiting.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Slots"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "x-codes": [
+          "unauthorized"
+        ]
+      }
+    },
+    "/slot-requests": {
+      "get": {
+        "operationId": "listSlotRequests",
+        "tags": [
+          "slots"
+        ],
+        "summary": "Open slot requests, by role, by owner or waiting.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SlotRequestPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "x-codes": [
+          "unauthorized"
+        ],
+        "parameters": [
+          {
+            "name": "role",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": ""
+            }
+          },
+          {
+            "name": "owner",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": ""
+            }
+          },
+          {
+            "name": "waiting",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": ""
+            }
+          }
+        ]
+      },
+      "post": {
+        "operationId": "createSlotRequest",
+        "tags": [
+          "slots"
+        ],
+        "summary": "Ask for a slot of a role; its provider and model are the role's order's.",
+        "responses": {
+          "201": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SlotRequest"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnknownRole"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "unknown-role",
+          "unprocessable-entity"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SlotRequestAsk"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/slot-requests/{token}": {
+      "get": {
+        "operationId": "getSlotRequest",
+        "tags": [
+          "slots"
+        ],
+        "summary": "One slot request.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SlotRequest"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "not-found"
+        ],
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": ""
+            }
+          }
+        ]
+      },
+      "patch": {
+        "operationId": "moveSlotRequest",
+        "tags": [
+          "slots"
+        ],
+        "summary": "Move a slot request: admitted, bound to its launched run, finished.",
+        "responses": {
+          "200": {
+            "description": "Answered."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "not-found",
+          "unprocessable-entity"
+        ],
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": ""
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SlotRequestMove"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/provider-models/{providerName}": {
+      "get": {
+        "operationId": "listProviderModels",
+        "tags": [
+          "providers"
+        ],
+        "summary": "The models a provider holds, for an order's chooser.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderModels"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "service-unavailable"
+        ],
+        "parameters": [
+          {
+            "name": "providerName",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": ""
+            }
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -6573,462 +6394,6 @@
           "url"
         ],
         "description": "The body that registers a hook's address at a point."
-      },
-      "AgentPage": {
-        "type": "object",
-        "properties": {
-          "items": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Agent"
-            }
-          },
-          "more": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "items",
-          "more"
-        ],
-        "description": "AgentPage:"
-      },
-      "Agent": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "label": {
-            "type": "string"
-          },
-          "role": {
-            "type": "string"
-          },
-          "gates": true,
-          "reasoning": true,
-          "voice": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "resetAt": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64",
-            "description": "epoch milliseconds"
-          },
-          "standInAvailable": {
-            "type": "boolean"
-          },
-          "ownerAccount": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64",
-            "description": "the id of the login account that owns it, none for the administrator's"
-          }
-        },
-        "required": [
-          "name",
-          "label",
-          "role",
-          "gates",
-          "reasoning",
-          "voice",
-          "resetAt",
-          "standInAvailable",
-          "ownerAccount"
-        ],
-        "description": "Agent:"
-      },
-      "AgentCreated": {
-        "type": "object",
-        "properties": {
-          "agent": {
-            "$ref": "#/components/schemas/Agent"
-          },
-          "brain": {
-            "$ref": "#/components/schemas/BrainBirth"
-          }
-        },
-        "required": [
-          "agent",
-          "brain"
-        ],
-        "description": "An agent registered, and what became of its brain."
-      },
-      "BrainBirth": {
-        "type": "string",
-        "enum": [
-          "made",
-          "kept",
-          "none",
-          "failed"
-        ],
-        "description": "What became of a registered agent's brain."
-      },
-      "AgentAsk": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "label": {
-            "type": "string"
-          },
-          "kind": {
-            "type": "string"
-          },
-          "role": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "ownerAccount": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64",
-            "description": "the id of the login account that owns it, none for the administrator's"
-          },
-          "icon": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "thinking": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
-          "effort": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "provider": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "the `chat` kind's pinned provider"
-          },
-          "model": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "the `chat` kind's pinned model"
-          },
-          "worker": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "the worker a `chat` agent's items go to"
-          },
-          "cwd": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "a `worker`'s checkout"
-          },
-          "nodeName": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "the node a `worker` stands on"
-          }
-        },
-        "required": [
-          "name",
-          "label",
-          "kind"
-        ],
-        "description": "The body that registers an agent: its key, label, kind, role and owner, and the fields its kind\ncarries."
-      },
-      "AgentChange": {
-        "type": "object",
-        "properties": {
-          "gates": true,
-          "reasoning": true,
-          "role": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "voice": true,
-          "model": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/AgentModel"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "the agent's own model"
-          }
-        },
-        "description": "The body that changes an agent's gates, reasoning, role, voice or own model."
-      },
-      "AgentModel": {
-        "type": "object",
-        "properties": {
-          "method": {
-            "type": "string"
-          },
-          "provider": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "model": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "registration": {
-            "type": [
-              "string",
-              "null"
-            ]
-          }
-        },
-        "required": [
-          "method"
-        ],
-        "description": "An agent's own model: `fixed` on a provider and one model of it, or on a registration by its name\nalone; `route` on the supervisor key's road, a chat agent's alone."
-      },
-      "AgentRoleList": {
-        "type": "object",
-        "properties": {
-          "roles": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/AgentRole"
-            }
-          },
-          "bundles": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/AgentRoleBundle"
-            }
-          }
-        },
-        "required": [
-          "roles",
-          "bundles"
-        ],
-        "description": "AgentRoleList: every role an agent may hold, and every bundle a role may give."
-      },
-      "AgentRole": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "label": {
-            "type": "string"
-          },
-          "bundles": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/AgentRoleBundle"
-            }
-          },
-          "maxConcurrent": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64",
-            "description": "The most of its agents that run a turn at once; null where it is unbounded."
-          },
-          "prompt": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "The prompt its agents are given before their own; null where it carries none."
-          },
-          "tier": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "The tier its work key `role:<name>` is assigned; null where none is."
-          },
-          "sessions": {
-            "$ref": "#/components/schemas/RoleSessions",
-            "description": "Whether its runs keep their sessions."
-          },
-          "agents": {
-            "type": "integer",
-            "format": "int64",
-            "description": "How many agent rows hold it."
-          },
-          "kindDefault": {
-            "type": "boolean",
-            "description": "Whether a kind's own is it, which keeps it from being removed."
-          }
-        },
-        "required": [
-          "name",
-          "label",
-          "bundles",
-          "maxConcurrent",
-          "prompt",
-          "tier",
-          "sessions",
-          "agents",
-          "kindDefault"
-        ],
-        "description": "AgentRole: one role an agent may hold, as the store keeps it."
-      },
-      "AgentRoleBundle": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "label": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "name",
-          "label"
-        ],
-        "description": "AgentRoleBundle: a bundle a role may give, by its name and the label a screen writes it by."
-      },
-      "RoleSessions": {
-        "type": "string",
-        "enum": [
-          "keep",
-          "fresh"
-        ],
-        "description": "RoleSessions: whether a role's runs go on in the session an earlier run left while its cache is warm,\n`keep`, or each open a session of its own, `fresh`."
-      },
-      "AgentRoleAsk": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string",
-            "description": "kebab-case, held by no role and no co-worker role"
-          },
-          "label": {
-            "type": "string"
-          },
-          "bundles": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "description": "bundle names the policy declares"
-          },
-          "maxConcurrent": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64"
-          },
-          "prompt": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "tier": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "sessions": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/RoleSessions"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "`keep` where none is named"
-          }
-        },
-        "required": [
-          "name",
-          "label",
-          "bundles"
-        ],
-        "description": "AgentRoleAsk: the body that adds a role."
-      },
-      "AgentRoleChange": {
-        "type": "object",
-        "properties": {
-          "label": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "bundles": {
-            "type": [
-              "array",
-              "null"
-            ],
-            "items": {
-              "type": "string"
-            }
-          },
-          "maxConcurrent": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64"
-          },
-          "prompt": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "tier": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "sessions": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/RoleSessions"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "description": "AgentRoleChange: a change to a role; a field left out keeps what it holds, and a bound, a prompt or a\ntier given as null is cleared."
       },
       "PromptDocumentPage": {
         "type": "object",
@@ -8823,248 +8188,6 @@
         ],
         "description": "The body that marks a job to stop."
       },
-      "Pool": {
-        "type": "object",
-        "properties": {
-          "buckets": {
-            "type": "array",
-            "items": true
-          },
-          "workers": {
-            "type": "array",
-            "items": true
-          },
-          "readAt": {
-            "type": "integer",
-            "format": "int64",
-            "description": "epoch milliseconds"
-          }
-        },
-        "required": [
-          "buckets",
-          "workers",
-          "readAt"
-        ],
-        "description": "Pool:"
-      },
-      "SeatRequestPage": {
-        "type": "object",
-        "properties": {
-          "items": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/SeatRequest"
-            }
-          },
-          "more": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "items",
-          "more"
-        ],
-        "description": "SeatRequestPage:"
-      },
-      "SeatRequest": {
-        "type": "object",
-        "properties": {
-          "token": {
-            "type": "string"
-          },
-          "source": {
-            "type": "string"
-          },
-          "owner": {
-            "type": "string"
-          },
-          "role": {
-            "type": "string"
-          },
-          "provider": {
-            "type": "string"
-          },
-          "model": {
-            "type": "string"
-          },
-          "effort": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "None where the mapping it resolved to names no effort."
-          },
-          "tier": {
-            "type": "string"
-          },
-          "workKey": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "state": {
-            "$ref": "#/components/schemas/SeatRequestState"
-          },
-          "childId": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "outcome": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "session": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "The session a worker's own turn continues, or none where it opens a fresh one."
-          },
-          "title": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "One line naming the work the seat is asked for, where its asker named one."
-          },
-          "askedBy": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "The agent that asked for the seat, where its asker named one."
-          },
-          "agentName": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "The agent the seat's child runs on, where its binding named one."
-          }
-        },
-        "required": [
-          "token",
-          "source",
-          "owner",
-          "role",
-          "provider",
-          "model",
-          "effort",
-          "tier",
-          "workKey",
-          "state",
-          "childId",
-          "outcome",
-          "session",
-          "title",
-          "askedBy",
-          "agentName"
-        ],
-        "description": "SeatRequest: a seat asked of the pool: `waiting` in its bucket's line, `reserved` under a reservation,\n`active` once let in, and `released` or `cancelled` once given back; the provider, model, effort and tier\nits work key resolved to."
-      },
-      "SeatRequestState": {
-        "type": "string",
-        "enum": [
-          "waiting",
-          "reserved",
-          "active",
-          "released",
-          "cancelled"
-        ],
-        "description": "One of the values the API accepts."
-      },
-      "SeatRequestAsk": {
-        "type": "object",
-        "properties": {
-          "requestKey": {
-            "type": "string"
-          },
-          "owner": {
-            "type": "string"
-          },
-          "role": {
-            "type": "string"
-          },
-          "selection": {
-            "type": "string"
-          },
-          "tier": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "provider": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "workKey": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "generation": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64"
-          },
-          "yielding": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
-          "token": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "placeKey": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "source": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "title": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "One line naming the work the seat is asked for."
-          },
-          "askedBy": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "The agent asking for the seat."
-          }
-        },
-        "required": [
-          "requestKey",
-          "owner",
-          "role",
-          "selection"
-        ],
-        "description": "The body that asks for a co-worker seat."
-      },
       "DelegationPage": {
         "type": "object",
         "properties": {
@@ -9162,65 +8285,6 @@
           "ended"
         ],
         "description": "DelegationStage: where a delegated task stands: `waiting` while its seat waits in the line, `running`\nonce it is let in, `ended` once it is finished or cancelled."
-      },
-      "SeatRequestChange": {
-        "type": "object",
-        "properties": {
-          "state": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "action": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "childId": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "outcome": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "cancel": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
-          "demandId": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64",
-            "description": "On an admission ask: a granted demand of the caller's own the seat stands on, with none of its own\nasked."
-          },
-          "within": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64",
-            "description": "On an admission ask: the asking run's granted demand the seat's own is asked within."
-          },
-          "agentName": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "On a binding: the agent the seat's child runs on."
-          }
-        },
-        "description": "The body that moves a seat request."
       },
       "ReservationPage": {
         "type": "object",
@@ -9351,67 +8415,6 @@
           }
         },
         "description": "The body that releases a reservation."
-      },
-      "RolePage": {
-        "type": "object",
-        "properties": {
-          "items": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Role"
-            }
-          },
-          "more": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "items",
-          "more"
-        ],
-        "description": "RolePage:"
-      },
-      "Role": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "tier": {
-            "type": "string"
-          },
-          "pooled": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "name",
-          "tier",
-          "pooled"
-        ],
-        "description": "Role:"
-      },
-      "PoolLimit": {
-        "type": "object",
-        "properties": {
-          "provider": {
-            "type": "string"
-          },
-          "tier": {
-            "type": "string"
-          },
-          "capacity": {
-            "type": "integer",
-            "format": "int64",
-            "description": "from 0, which closes the tier on the provider"
-          }
-        },
-        "required": [
-          "provider",
-          "tier",
-          "capacity"
-        ],
-        "description": "PoolLimit: how many children of one co-worker tier may be alive on one provider."
       },
       "PlacePage": {
         "type": "object",
@@ -10200,170 +9203,6 @@
         ],
         "description": "PinCheckAsk:"
       },
-      "TierPage": {
-        "type": "object",
-        "properties": {
-          "items": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Tier"
-            }
-          },
-          "more": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "items",
-          "more"
-        ],
-        "description": "TierPage:"
-      },
-      "Tier": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "coworker": {
-            "type": "boolean"
-          },
-          "mapping": true
-        },
-        "required": [
-          "name",
-          "coworker",
-          "mapping"
-        ],
-        "description": "Tier:"
-      },
-      "TierChange": {
-        "type": "object",
-        "properties": {
-          "action": {
-            "type": "string"
-          },
-          "tier": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "key": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "acceptConflicts": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
-          "provider": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "model": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "thinking": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
-          "effort": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "answerTokens": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64"
-          }
-        },
-        "required": [
-          "action"
-        ],
-        "description": "The body that assigns a tier to a work key or sets a tier's mapping on a provider."
-      },
-      "FoldRatioPage": {
-        "type": "object",
-        "properties": {
-          "items": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/FoldRatio"
-            }
-          },
-          "more": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "items",
-          "more"
-        ],
-        "description": "FoldRatioPage:"
-      },
-      "FoldRatio": {
-        "type": "object",
-        "properties": {
-          "provider": {
-            "type": "string"
-          },
-          "tier": {
-            "type": "string"
-          },
-          "ratio": {
-            "type": "number",
-            "format": "double"
-          },
-          "source": {
-            "$ref": "#/components/schemas/FoldRatioSource"
-          }
-        },
-        "required": [
-          "provider",
-          "tier",
-          "ratio",
-          "source"
-        ],
-        "description": "A provider's fold ratio at a tier: the share of a model's window a session may fill before it is folded once the turn that crossed it is over."
-      },
-      "FoldRatioSource": {
-        "type": "string",
-        "enum": [
-          "set",
-          "provider",
-          "default"
-        ],
-        "description": "Where a fold ratio comes from: the table's row, the provider's own declared share where the table holds none, or the general share where the provider declares none either."
-      },
-      "FoldRatioWrite": {
-        "type": "object",
-        "properties": {
-          "ratio": {
-            "type": "number",
-            "format": "double"
-          }
-        },
-        "required": [
-          "ratio"
-        ],
-        "description": "The body that sets a provider's fold ratio at a tier: a share above 0 and at most 1."
-      },
       "Fallback": {
         "type": "object",
         "properties": {
@@ -11138,124 +9977,6 @@
         ],
         "description": "JobStopAsk: a job a chat agent stops for the turn it carries now, by its id or by its item; the agent is the\none its harness plugin was started for, and whether the owner asked for the stop is agency's to read."
       },
-      "WorkKeyAssignmentPage": {
-        "type": "object",
-        "properties": {
-          "items": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/WorkKeyAssignment"
-            }
-          },
-          "more": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "items",
-          "more"
-        ],
-        "description": "WorkKeyAssignmentPage:"
-      },
-      "WorkKeyAssignment": {
-        "type": "object",
-        "properties": {
-          "key": {
-            "type": "string"
-          },
-          "code": {
-            "type": "string",
-            "description": "The key in kebab case, the word a screen words it by."
-          },
-          "label": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "The English name its profile gives, none for a key no profile declares."
-          },
-          "tier": {
-            "type": "string"
-          },
-          "choices": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "conflicts": {
-            "type": "array",
-            "items": true,
-            "description": "Each `provider`, `previous` and `accepted`."
-          },
-          "effective": {
-            "type": "array",
-            "items": true,
-            "description": "Each `provider`, `selection`, `error` (one short clause), `detail` (the whole of why) and `errorCode`."
-          }
-        },
-        "required": [
-          "key",
-          "code",
-          "label",
-          "tier",
-          "choices",
-          "conflicts",
-          "effective"
-        ],
-        "description": "WorkKeyAssignment: one work key's tier, the tiers it may be assigned, the owner's choices from before the\ntiers kept for review, and what it resolves to on each provider of the registry's archive."
-      },
-      "WorkKey": {
-        "type": "object",
-        "properties": {
-          "key": {
-            "type": "string"
-          },
-          "provider": {
-            "type": "string"
-          },
-          "model": {
-            "type": "string"
-          },
-          "thinking": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
-          "effort": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "answerTokens": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64"
-          },
-          "capMs": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "runMode": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "key",
-          "provider",
-          "model",
-          "thinking",
-          "effort",
-          "answerTokens",
-          "capMs",
-          "runMode"
-        ],
-        "description": "WorkKey:"
-      },
       "RoadBlockPage": {
         "type": "object",
         "properties": {
@@ -11841,253 +10562,6 @@
           "agent"
         ],
         "description": "The body that asks for a companion reset."
-      },
-      "WorkerPage": {
-        "type": "object",
-        "properties": {
-          "items": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Worker"
-            }
-          },
-          "more": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "items",
-          "more"
-        ],
-        "description": "WorkerPage:"
-      },
-      "Worker": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "label": {
-            "type": "string"
-          },
-          "cwd": {
-            "type": "string"
-          },
-          "icon": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "builtin": {
-            "type": "boolean"
-          },
-          "nodeName": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "role": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "state": {
-            "type": "string",
-            "description": "resting, working while a job of its is starting or running, or idle"
-          },
-          "jobId": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64",
-            "description": "The job it is working on, where it is working.",
-            "default": null
-          },
-          "itemId": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64",
-            "description": "That job's item.",
-            "default": null
-          },
-          "sampling": true,
-          "restingSince": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64",
-            "description": "epoch milliseconds"
-          },
-          "sessionId": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "runCount": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "lastRunAt": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64",
-            "description": "epoch milliseconds"
-          },
-          "prefixDocuments": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "description": "The documents its session's prefix carries, in order: a relative path from its checkout, an absolute\none where it stands.",
-            "default": []
-          }
-        },
-        "required": [
-          "name",
-          "label",
-          "cwd",
-          "icon",
-          "builtin",
-          "nodeName",
-          "role",
-          "state",
-          "jobId",
-          "itemId",
-          "sampling",
-          "restingSince",
-          "sessionId",
-          "runCount",
-          "lastRunAt",
-          "prefixDocuments"
-        ],
-        "description": "Worker:"
-      },
-      "WorkerAdd": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "label": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "cwd": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "icon": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "role": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "nodeName": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "prefixDocuments": {
-            "type": [
-              "array",
-              "null"
-            ],
-            "items": {
-              "type": "string"
-            },
-            "description": "The documents its session's prefix carries, in order."
-          }
-        },
-        "required": [
-          "name"
-        ],
-        "description": "The body that adds a worker."
-      },
-      "WorkerChange": {
-        "type": "object",
-        "properties": {
-          "sampling": true,
-          "nodeName": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "node": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "label": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "cwd": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "icon": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "role": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "stand": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
-          "bench": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
-          "prefixDocuments": {
-            "type": [
-              "array",
-              "null"
-            ],
-            "items": {
-              "type": "string"
-            },
-            "description": "The documents its session's prefix carries, in order, the list whole; an empty list clears it."
-          }
-        },
-        "description": "The body that changes a worker."
       },
       "WorkerDefinition": {
         "type": "object",
@@ -12734,6 +11208,1331 @@
         ],
         "description": "TranslationTerm: a word of a part to translate and how the translation writes it: `source` as the text\nwrites it, and `target`, the source itself where none is named."
       },
+      "SupervisorList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Supervisor"
+            }
+          },
+          "more": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "items",
+          "more"
+        ],
+        "description": "SupervisorList: every supervisor."
+      },
+      "Supervisor": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ownerAccount": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "aliases": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "icon": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sessionScope": {
+            "type": "string"
+          },
+          "turnShape": {
+            "type": "string"
+          },
+          "defaultAnswerer": {
+            "type": "boolean"
+          },
+          "brainFolder": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "repository": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "the repository its TODO items go to"
+          },
+          "order": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OrderEntry"
+            }
+          },
+          "quotaShare": {
+            "type": "number",
+            "format": "double",
+            "description": "a fraction from 0 to 1"
+          },
+          "warming": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "description": "for each provider of its order, whether its prefix is kept warm there"
+          },
+          "foldRatio": {
+            "type": "number",
+            "format": "double",
+            "description": "its compaction threshold"
+          },
+          "gates": true,
+          "voice": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sampling": true,
+          "provider": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "what its last turn went out on"
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "effort": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "waitingFor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "why its turn waits where no provider of its order has quota, or null"
+          }
+        },
+        "required": [
+          "name",
+          "label",
+          "ownerAccount",
+          "aliases",
+          "icon",
+          "sessionScope",
+          "turnShape",
+          "defaultAnswerer",
+          "brainFolder",
+          "repository",
+          "order",
+          "quotaShare",
+          "warming",
+          "foldRatio",
+          "gates",
+          "voice",
+          "sampling",
+          "provider",
+          "model",
+          "effort",
+          "waitingFor"
+        ],
+        "description": "Supervisor: one supervisor as its row holds it, and what it stands on now."
+      },
+      "OrderEntry": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "effort": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "a level of the effort scale; null for the provider's own",
+            "default": null
+          },
+          "thinking": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`on`, `off`, or null for the provider's own",
+            "default": null
+          },
+          "answerTokens": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "on the registry's provider, the answer ceiling; null for the registration's own",
+            "default": null
+          }
+        },
+        "required": [
+          "provider",
+          "model",
+          "effort",
+          "thinking",
+          "answerTokens"
+        ],
+        "description": "OrderEntry: one provider of a supervisor's or a role's order, and what the row runs on there."
+      },
+      "SupervisorRegistered": {
+        "type": "object",
+        "properties": {
+          "supervisor": {
+            "$ref": "#/components/schemas/Supervisor"
+          },
+          "brain": {
+            "$ref": "#/components/schemas/BrainBirth"
+          }
+        },
+        "required": [
+          "supervisor",
+          "brain"
+        ],
+        "description": "SupervisorRegistered: a supervisor registered, and what became of its brain."
+      },
+      "BrainBirth": {
+        "type": "string",
+        "enum": [
+          "made",
+          "kept",
+          "none",
+          "failed"
+        ],
+        "description": "What became of a registered agent's brain."
+      },
+      "SupervisorAsk": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "order": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OrderEntry"
+            }
+          },
+          "quotaShare": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "repository": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ownerAccount": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "foldRatio": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          }
+        },
+        "required": [
+          "name",
+          "label",
+          "order"
+        ],
+        "description": "SupervisorAsk: the body that registers a supervisor."
+      },
+      "SupervisorChange": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "order": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/OrderEntry"
+            }
+          },
+          "quotaShare": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "warming": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": {
+              "type": "boolean"
+            }
+          },
+          "foldRatio": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "repository": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "gates": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": {
+              "type": "boolean"
+            }
+          },
+          "sampling": true,
+          "voice": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "description": "SupervisorChange: the fields a change of a supervisor names."
+      },
+      "RoleList": {
+        "type": "object",
+        "properties": {
+          "roles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Role"
+            }
+          },
+          "bundles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RoleBundle"
+            }
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "roles",
+          "bundles",
+          "lines"
+        ],
+        "description": "RoleList: every role, every bundle a role may give and every line a role may name."
+      },
+      "Role": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "prompt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "bundles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RoleBundle"
+            }
+          },
+          "line": {
+            "type": "string"
+          },
+          "order": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OrderEntry"
+            }
+          },
+          "quotaShare": {
+            "type": "number",
+            "format": "double"
+          },
+          "maxConcurrent": {
+            "type": "integer",
+            "format": "int64",
+            "description": "the most of its runs that go at once"
+          },
+          "sessions": {
+            "$ref": "#/components/schemas/RoleSessions"
+          },
+          "foldRatio": {
+            "type": "number",
+            "format": "double"
+          },
+          "callable": {
+            "type": "boolean"
+          },
+          "running": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "waiting": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "provider": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "its active provider, or null where none of its order has quota"
+          },
+          "waitingFor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "code",
+          "label",
+          "prompt",
+          "description",
+          "bundles",
+          "line",
+          "order",
+          "quotaShare",
+          "maxConcurrent",
+          "sessions",
+          "foldRatio",
+          "callable",
+          "running",
+          "waiting",
+          "provider",
+          "waitingFor"
+        ],
+        "description": "Role: one role as its row holds it, and what stands of it now."
+      },
+      "RoleBundle": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "code",
+          "label"
+        ],
+        "description": "RoleBundle: one bundle a role may give, with its kebab-case code and its label."
+      },
+      "RoleSessions": {
+        "type": "string",
+        "enum": [
+          "keep",
+          "fresh"
+        ],
+        "description": "RoleSessions: whether a role's runs go on in the session an earlier run left while its cache is warm,\n`keep`, or each open a session of its own, `fresh`."
+      },
+      "RoleAsk": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "bundles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "line": {
+            "type": "string"
+          },
+          "order": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OrderEntry"
+            }
+          },
+          "maxConcurrent": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "quotaShare": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "prompt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sessions": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RoleSessions"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "foldRatio": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "callable": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "label",
+          "bundles",
+          "line",
+          "order",
+          "maxConcurrent"
+        ],
+        "description": "RoleAsk: the body that adds a role."
+      },
+      "RoleChange": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "bundles": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "line": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "order": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/OrderEntry"
+            }
+          },
+          "quotaShare": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "maxConcurrent": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "prompt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sessions": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RoleSessions"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "foldRatio": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "callable": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          }
+        },
+        "description": "RoleChange: the fields a change of a role names; a prompt or a description given as null clears it."
+      },
+      "RoleSessionPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RoleSession"
+            }
+          },
+          "more": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "items",
+          "more"
+        ],
+        "description": "RoleSessionPage: the sessions a role's runs opened, newest first."
+      },
+      "RoleSession": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "sessionId": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "effort": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "account": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "openedAt": {
+            "type": "integer",
+            "format": "int64",
+            "description": "epoch milliseconds"
+          },
+          "lastAnsweredAt": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "epoch milliseconds"
+          },
+          "runs": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "context": true,
+          "valid": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "sessionId",
+          "path",
+          "provider",
+          "model",
+          "effort",
+          "account",
+          "openedAt",
+          "lastAnsweredAt",
+          "runs",
+          "context",
+          "valid"
+        ],
+        "description": "RoleSession: one session a role's runs opened, and whether the next run of its key would resume it."
+      },
+      "RepositoryList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Repository"
+            }
+          },
+          "more": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "items",
+          "more"
+        ],
+        "description": "RepositoryList: every repository."
+      },
+      "Repository": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "icon": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ownerAccount": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "path": {
+            "type": "string"
+          },
+          "nodeName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "supportCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "prefixDocuments": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "preamble": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rules": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "devCommand": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "pin": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RepositoryPin"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "downgradeHeal": {
+            "type": "boolean"
+          },
+          "sampling": true,
+          "checkouts": {
+            "type": "array",
+            "items": true,
+            "description": "each its name, path, node and the job holding it, where one does"
+          }
+        },
+        "required": [
+          "name",
+          "label",
+          "icon",
+          "ownerAccount",
+          "path",
+          "nodeName",
+          "supportCount",
+          "prefixDocuments",
+          "preamble",
+          "rules",
+          "devCommand",
+          "pin",
+          "downgradeHeal",
+          "sampling",
+          "checkouts"
+        ],
+        "description": "Repository: one repository as its row holds it, with its checkouts."
+      },
+      "RepositoryPin": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "model"
+        ],
+        "description": "RepositoryPin: a repository's pinned provider and model."
+      },
+      "RepositoryAsk": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ownerAccount": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "path": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "nodeName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "supportCount": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "prefixDocuments": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "preamble": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rules": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "devCommand": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "pin": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RepositoryPin"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "downgradeHeal": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "sampling": true
+        },
+        "description": "RepositoryAsk: the body that adds a repository, or the fields a change names."
+      },
+      "Slots": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": true
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "description": "Slots: every role's slots, each with its cap, its runs let in, reserved and waiting, and what holds each."
+      },
+      "SlotRequestPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SlotRequest"
+            }
+          },
+          "more": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "items",
+          "more"
+        ],
+        "description": "SlotRequestPage: the open slot requests."
+      },
+      "SlotRequest": {
+        "type": "object",
+        "properties": {
+          "sequence": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "token": {
+            "type": "string"
+          },
+          "requestKey": {
+            "type": "string"
+          },
+          "owner": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "path": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "provider": {
+            "type": "string",
+            "description": "the road it is let in on; empty until it is, unless its caller fixed it"
+          },
+          "model": {
+            "type": "string"
+          },
+          "effort": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "capacity": {
+            "type": "integer",
+            "format": "int64",
+            "description": "the role's cap when it was let in"
+          },
+          "state": {
+            "type": "string",
+            "description": "`waiting`, `reserved`, `active`, `released` or `cancelled`"
+          },
+          "enqueuedAt": {
+            "type": "integer",
+            "format": "int64",
+            "description": "epoch milliseconds"
+          },
+          "leasedAt": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "childId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "endedAt": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "outcome": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reservation": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "yielding": {
+            "type": "boolean"
+          },
+          "placeKey": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "session": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "askedBy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "agentName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "heldFor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "why it waits where its provider has no quota, or null"
+          }
+        },
+        "required": [
+          "sequence",
+          "token",
+          "requestKey",
+          "owner",
+          "source",
+          "role",
+          "path",
+          "provider",
+          "model",
+          "effort",
+          "capacity",
+          "state",
+          "enqueuedAt",
+          "leasedAt",
+          "childId",
+          "endedAt",
+          "outcome",
+          "reservation",
+          "yielding",
+          "placeKey",
+          "session",
+          "title",
+          "askedBy",
+          "agentName",
+          "heldFor"
+        ],
+        "description": "SlotRequest: one slot request of a role with its lease."
+      },
+      "SlotRequestAsk": {
+        "type": "object",
+        "properties": {
+          "requestKey": {
+            "type": "string"
+          },
+          "owner": {
+            "type": "string"
+          },
+          "role": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "the delegator where a delegation names none"
+          },
+          "source": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "path": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "provider": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "placeKey": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "yielding": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "token": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "session": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "askedBy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "requestKey",
+          "owner"
+        ],
+        "description": "SlotRequestAsk: the body that asks a slot of a role."
+      },
+      "SlotRequestMove": {
+        "type": "object",
+        "properties": {
+          "state": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`bound` or `finished`; none asks for admission"
+          },
+          "childId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "agentName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "outcome": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cancel": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "demandId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "within": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          }
+        },
+        "description": "SlotRequestMove: a slot request asked for its admission, bound to its run, or given back."
+      },
+      "ProviderModels": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string"
+          },
+          "models": {
+            "type": "array",
+            "items": true
+          },
+          "staleReadAt": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          }
+        },
+        "required": [
+          "provider",
+          "models",
+          "staleReadAt"
+        ],
+        "description": "ProviderModels: the models an order's entry may name on a provider."
+      },
       "FileItem": {
         "type": "object",
         "properties": {
@@ -12968,6 +12767,16 @@
           }
         }
       },
+      "ServiceUnavailable": {
+        "description": "service-unavailable",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
       "TooLarge": {
         "description": "too-large",
         "content": {
@@ -12980,6 +12789,16 @@
       },
       "Unauthorized": {
         "description": "unauthorized",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "UnknownRole": {
+        "description": "unknown-role",
         "content": {
           "application/json": {
             "schema": {

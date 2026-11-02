@@ -26,14 +26,16 @@ test("a call reaches its route with the token and reads the answer", async () =>
 
 test("a refusal is read in the error shape", async () => {
   const standIn: AgencyFetch = async () =>
-    new Response(JSON.stringify({ code: "not-found", error: "There is no agent by that name." }), {
+    new Response(JSON.stringify({ code: "not-found", error: "There is no supervisor tester." }), {
       status: 404,
       headers: { "Content-Type": "application/json" },
     });
   const client = agencyClient("http://agency.test", "the-token", standIn);
-  const { data, error } = await client.GET("/agents/{agentName}", { params: { path: { agentName: "tester" } } });
+  const { data, error } = await client.GET("/supervisors/{supervisorName}", {
+    params: { path: { supervisorName: "tester" } },
+  });
 
   expect(data).toBeUndefined();
   expect(error?.code).toBe("not-found");
-  expect(error?.error).toBe("There is no agent by that name.");
+  expect(error?.error).toBe("There is no supervisor tester.");
 });

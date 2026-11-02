@@ -829,11 +829,11 @@ pub struct Workbench;
 
 impl Route for Workbench {
   const METHOD: Method = Method::GET;
-  const PATH: &'static str = "/workers/{workerName}/workbench";
+  const PATH: &'static str = "/repositories/{repositoryName}/workbench";
 
   async fn answer(&self, call: Call) -> Result<Response, Refused> {
     let worker = call
-      .param("workerName")
+      .param("repositoryName")
       .filter(|worker| !worker.is_empty())
       .ok_or_else(|| bad("a worker is required"))?;
     let root = dev::workbench(call.ground(), worker);

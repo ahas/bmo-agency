@@ -91,79 +91,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/agents": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Every agent, each with the login account that owns it. */
-        get: operations["listAgents"];
-        put?: never;
-        /** Register an agent of any kind; one that converses is given its brain. */
-        post: operations["createAgents"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/agents/{agentName}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** One agent: role, gates, reasoning, voice, reset point, stand-in. */
-        get: operations["getAgent"];
-        put?: never;
-        post?: never;
-        /** End an agent's registration; forgetBrain lets its brain go with it. */
-        delete: operations["deleteAgent"];
-        options?: never;
-        head?: never;
-        /** Change an agent's gates, reasoning, role, voice or own model. */
-        patch: operations["changeAgent"];
-        trace?: never;
-    };
-    "/agent-roles": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Every role an agent may hold, and every bundle a role may give. */
-        get: operations["listAgentRoles"];
-        put?: never;
-        /** Add a role. */
-        post: operations["createAgentRoles"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/agent-roles/{roleName}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /** Remove a role no agent holds and no kind is for. */
-        delete: operations["deleteAgentRole"];
-        options?: never;
-        head?: never;
-        /** Change a role's label, bundles, bound, prompt or tier. */
-        patch: operations["changeAgentRole"];
-        trace?: never;
-    };
     "/prompt-documents": {
         parameters: {
             query?: never;
@@ -584,41 +511,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/pool": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** The co-worker pool: buckets, seats, waiting work. */
-        get: operations["getPool"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/seat-requests": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Open seat requests, by owner or waiting. */
-        get: operations["listSeatRequests"];
-        put?: never;
-        /** Ask for a co-worker seat; the tier is resolved from the work key. */
-        post: operations["createSeatRequests"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/delegations": {
         parameters: {
             query?: never;
@@ -634,24 +526,6 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
-        trace?: never;
-    };
-    "/seat-requests/{token}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** One seat request. */
-        get: operations["getSeatRequest"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /** Move a seat request: admitted, bound to its launched unit, finished. */
-        patch: operations["changeSeatRequest"];
         trace?: never;
     };
     "/reservations": {
@@ -687,40 +561,6 @@ export interface paths {
         head?: never;
         /** Release a reservation with its outcome. */
         patch: operations["changeReservation"];
-        trace?: never;
-    };
-    "/roles": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** The roles the pool can lend. */
-        get: operations["listRoles"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/pool/limits": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /** Set how many children of one co-worker tier may be alive on one provider. */
-        patch: operations["changePoolLimit"];
         trace?: never;
     };
     "/places": {
@@ -866,74 +706,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/tiers": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Tiers in ladder order, each with its mapping. */
-        get: operations["listTiers"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/tiers/{tierName}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /** Change a tier's mapping for a role. */
-        patch: operations["changeTier"];
-        trace?: never;
-    };
-    "/fold-ratios": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Every provider's fold ratio at every tier, each with where it comes from: set in the table, the provider's own declared share, or the general 0.85. */
-        get: operations["listFoldRatios"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/fold-ratios/{provider}/{tier}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Set a provider's fold ratio at a tier: the share of a model's window a session may fill before it is folded once the turn that crossed it is over. */
-        put: operations["putFoldRatio"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/fallback": {
         parameters: {
             query?: never;
@@ -980,40 +752,6 @@ export interface paths {
         put?: never;
         /** Stop a job, by its id or by its item, for the turn an agent is carrying now, only where every message of that turn is the owner's: its turn asked to end first, and the job answered once that turn has ended, however long that takes. */
         post: operations["createJobStops"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/work-keys": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Every work key with the tier it is assigned, the tiers it may be, and what it resolves to on each provider. */
-        get: operations["listWorkKeys"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/work-keys/{workKey}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Where a work key goes: provider, model, effort, answer tokens, run bound, run mode. */
-        get: operations["getWorkKey"];
-        put?: never;
-        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1230,44 +968,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/workers": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Every worker. */
-        get: operations["listWorkers"];
-        put?: never;
-        /** Add a worker. */
-        post: operations["createWorkers"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/workers/{workerName}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** One worker: checkout, node, role, prefix documents, sampling, session, runs. */
-        get: operations["getWorker"];
-        put?: never;
-        post?: never;
-        /** Remove a worker. */
-        delete: operations["deleteWorker"];
-        options?: never;
-        head?: never;
-        /** Change a worker: fields, node placement, sampling, stand it again, ready its bench. */
-        patch: operations["changeWorker"];
-        trace?: never;
-    };
-    "/workers/{workerName}/definition": {
+    "/repositories/{repositoryName}/definition": {
         parameters: {
             query?: never;
             header?: never;
@@ -1284,7 +985,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/workers/{workerName}/workbench": {
+    "/repositories/{repositoryName}/workbench": {
         parameters: {
             query?: never;
             header?: never;
@@ -1301,7 +1002,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/workers/{workerName}/servers": {
+    "/repositories/{repositoryName}/servers": {
         parameters: {
             query?: never;
             header?: never;
@@ -1599,6 +1300,204 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/supervisors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every supervisor, each with the login account that owns it. */
+        get: operations["listSupervisors"];
+        put?: never;
+        /** Register a supervisor; it is given its brain. */
+        post: operations["createSupervisor"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/supervisors/{supervisorName}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One supervisor: its order, warming, threshold, gates, voice. */
+        get: operations["getSupervisor"];
+        put?: never;
+        post?: never;
+        /** End a supervisor's registration; forgetBrain lets its brain go with it. */
+        delete: operations["deleteSupervisor"];
+        options?: never;
+        head?: never;
+        /** Change a supervisor's order, warming, threshold, gates, sampling or voice. */
+        patch: operations["changeSupervisor"];
+        trace?: never;
+    };
+    "/roles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every role, every bundle a role may give and every line a role may name. */
+        get: operations["listRoles"];
+        put?: never;
+        /** Add a role. */
+        post: operations["createRole"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/roles/{roleName}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One role, with how many of its runs go and wait. */
+        get: operations["getRole"];
+        put?: never;
+        post?: never;
+        /** Remove a role no run holds or waits for and no default names. */
+        delete: operations["deleteRole"];
+        options?: never;
+        head?: never;
+        /** Change any field of a role. */
+        patch: operations["changeRole"];
+        trace?: never;
+    };
+    "/roles/{roleName}/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The sessions the role's runs opened, newest first. */
+        get: operations["listRoleSessions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/repositories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every repository. */
+        get: operations["listRepositories"];
+        put?: never;
+        /** Add a repository. */
+        post: operations["createRepository"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/repositories/{repositoryName}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One repository: checkouts, node, prefix documents, preamble, rules, pin. */
+        get: operations["getRepository"];
+        put?: never;
+        post?: never;
+        /** Remove a repository no job holds a checkout of. */
+        delete: operations["deleteRepository"];
+        options?: never;
+        head?: never;
+        /** Change a repository: fields, checkouts, node placement, pin, sampling. */
+        patch: operations["changeRepository"];
+        trace?: never;
+    };
+    "/slots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every role's slots: the runs let in, reserved and waiting. */
+        get: operations["listSlots"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/slot-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Open slot requests, by role, by owner or waiting. */
+        get: operations["listSlotRequests"];
+        put?: never;
+        /** Ask for a slot of a role; its provider and model are the role's order's. */
+        post: operations["createSlotRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/slot-requests/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One slot request. */
+        get: operations["getSlotRequest"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Move a slot request: admitted, bound to its launched run, finished. */
+        patch: operations["moveSlotRequest"];
+        trace?: never;
+    };
+    "/provider-models/{providerName}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The models a provider holds, for an order's chooser. */
+        get: operations["listProviderModels"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export interface webhooks {
     "turn-submitting": {
@@ -1709,155 +1608,6 @@ export interface components {
         HookRegistration: {
             url: string;
             token?: string | null;
-        };
-        /** @description AgentPage: */
-        AgentPage: {
-            items: components["schemas"]["Agent"][];
-            more: boolean;
-        };
-        /** @description Agent: */
-        Agent: {
-            name: string;
-            label: string;
-            role: string;
-            gates: unknown;
-            reasoning: unknown;
-            voice: string | null;
-            /**
-             * Format: int64
-             * @description epoch milliseconds
-             */
-            resetAt: number | null;
-            standInAvailable: boolean;
-            /**
-             * Format: int64
-             * @description the id of the login account that owns it, none for the administrator's
-             */
-            ownerAccount: number | null;
-        };
-        /** @description An agent registered, and what became of its brain. */
-        AgentCreated: {
-            agent: components["schemas"]["Agent"];
-            brain: components["schemas"]["BrainBirth"];
-        };
-        /**
-         * @description What became of a registered agent's brain.
-         * @enum {string}
-         */
-        BrainBirth: "made" | "kept" | "none" | "failed";
-        /**
-         * @description The body that registers an agent: its key, label, kind, role and owner, and the fields its kind
-         *     carries.
-         */
-        AgentAsk: {
-            name: string;
-            label: string;
-            kind: string;
-            role?: string | null;
-            /**
-             * Format: int64
-             * @description the id of the login account that owns it, none for the administrator's
-             */
-            ownerAccount?: number | null;
-            icon?: string | null;
-            thinking?: boolean | null;
-            effort?: string | null;
-            /** @description the `chat` kind's pinned provider */
-            provider?: string | null;
-            /** @description the `chat` kind's pinned model */
-            model?: string | null;
-            /** @description the worker a `chat` agent's items go to */
-            worker?: string | null;
-            /** @description a `worker`'s checkout */
-            cwd?: string | null;
-            /** @description the node a `worker` stands on */
-            nodeName?: string | null;
-        };
-        /** @description The body that changes an agent's gates, reasoning, role, voice or own model. */
-        AgentChange: {
-            gates?: unknown;
-            reasoning?: unknown;
-            role?: string | null;
-            voice?: unknown;
-            /** @description the agent's own model */
-            model?: components["schemas"]["AgentModel"] | null;
-        };
-        /**
-         * @description An agent's own model: `fixed` on a provider and one model of it, or on a registration by its name
-         *     alone; `route` on the supervisor key's road, a chat agent's alone.
-         */
-        AgentModel: {
-            method: string;
-            provider?: string | null;
-            model?: string | null;
-            registration?: string | null;
-        };
-        /** @description AgentRoleList: every role an agent may hold, and every bundle a role may give. */
-        AgentRoleList: {
-            roles: components["schemas"]["AgentRole"][];
-            bundles: components["schemas"]["AgentRoleBundle"][];
-        };
-        /** @description AgentRole: one role an agent may hold, as the store keeps it. */
-        AgentRole: {
-            name: string;
-            label: string;
-            bundles: components["schemas"]["AgentRoleBundle"][];
-            /**
-             * Format: int64
-             * @description The most of its agents that run a turn at once; null where it is unbounded.
-             */
-            maxConcurrent: number | null;
-            /** @description The prompt its agents are given before their own; null where it carries none. */
-            prompt: string | null;
-            /** @description The tier its work key `role:<name>` is assigned; null where none is. */
-            tier: string | null;
-            /** @description Whether its runs keep their sessions. */
-            sessions: components["schemas"]["RoleSessions"];
-            /**
-             * Format: int64
-             * @description How many agent rows hold it.
-             */
-            agents: number;
-            /** @description Whether a kind's own is it, which keeps it from being removed. */
-            kindDefault: boolean;
-        };
-        /** @description AgentRoleBundle: a bundle a role may give, by its name and the label a screen writes it by. */
-        AgentRoleBundle: {
-            name: string;
-            label: string;
-        };
-        /**
-         * @description RoleSessions: whether a role's runs go on in the session an earlier run left while its cache is warm,
-         *     `keep`, or each open a session of its own, `fresh`.
-         * @enum {string}
-         */
-        RoleSessions: "keep" | "fresh";
-        /** @description AgentRoleAsk: the body that adds a role. */
-        AgentRoleAsk: {
-            /** @description kebab-case, held by no role and no co-worker role */
-            name: string;
-            label: string;
-            /** @description bundle names the policy declares */
-            bundles: string[];
-            /** Format: int64 */
-            maxConcurrent?: number | null;
-            prompt?: string | null;
-            tier?: string | null;
-            /** @description `keep` where none is named */
-            sessions?: components["schemas"]["RoleSessions"] | null;
-        };
-        /**
-         * @description AgentRoleChange: a change to a role; a field left out keeps what it holds, and a bound, a prompt or a
-         *     tier given as null is cleared.
-         */
-        AgentRoleChange: {
-            label?: string | null;
-            bundles?: string[] | null;
-            /** Format: int64 */
-            maxConcurrent?: number | null;
-            prompt?: string | null;
-            tier?: string | null;
-            sessions?: components["schemas"]["RoleSessions"] | null;
         };
         /** @description PromptDocumentPage: */
         PromptDocumentPage: {
@@ -2446,74 +2196,6 @@ export interface components {
         StopMarkAsk: {
             reason: string;
         };
-        /** @description Pool: */
-        Pool: {
-            buckets: unknown[];
-            workers: unknown[];
-            /**
-             * Format: int64
-             * @description epoch milliseconds
-             */
-            readAt: number;
-        };
-        /** @description SeatRequestPage: */
-        SeatRequestPage: {
-            items: components["schemas"]["SeatRequest"][];
-            more: boolean;
-        };
-        /**
-         * @description SeatRequest: a seat asked of the pool: `waiting` in its bucket's line, `reserved` under a reservation,
-         *     `active` once let in, and `released` or `cancelled` once given back; the provider, model, effort and tier
-         *     its work key resolved to.
-         */
-        SeatRequest: {
-            token: string;
-            source: string;
-            owner: string;
-            role: string;
-            provider: string;
-            model: string;
-            /** @description None where the mapping it resolved to names no effort. */
-            effort: string | null;
-            tier: string;
-            workKey: string | null;
-            state: components["schemas"]["SeatRequestState"];
-            childId: string | null;
-            outcome: string | null;
-            /** @description The session a worker's own turn continues, or none where it opens a fresh one. */
-            session: string | null;
-            /** @description One line naming the work the seat is asked for, where its asker named one. */
-            title: string | null;
-            /** @description The agent that asked for the seat, where its asker named one. */
-            askedBy: string | null;
-            /** @description The agent the seat's child runs on, where its binding named one. */
-            agentName: string | null;
-        };
-        /**
-         * @description One of the values the API accepts.
-         * @enum {string}
-         */
-        SeatRequestState: "waiting" | "reserved" | "active" | "released" | "cancelled";
-        /** @description The body that asks for a co-worker seat. */
-        SeatRequestAsk: {
-            requestKey: string;
-            owner: string;
-            role: string;
-            selection: string;
-            tier?: string | null;
-            provider?: string | null;
-            workKey?: string | null;
-            /** Format: int64 */
-            generation?: number | null;
-            yielding?: boolean | null;
-            token?: string | null;
-            placeKey?: string | null;
-            source?: string | null;
-            /** @description One line naming the work the seat is asked for. */
-            title?: string | null;
-            /** @description The agent asking for the seat. */
-            askedBy?: string | null;
-        };
         /**
          * @description DelegationPage: the ones still waiting or running in the order they were asked, then the latest ended,
          *     newest first.
@@ -2554,27 +2236,6 @@ export interface components {
          * @enum {string}
          */
         DelegationStage: "waiting" | "running" | "ended";
-        /** @description The body that moves a seat request. */
-        SeatRequestChange: {
-            state?: string | null;
-            action?: string | null;
-            childId?: string | null;
-            outcome?: string | null;
-            cancel?: boolean | null;
-            /**
-             * Format: int64
-             * @description On an admission ask: a granted demand of the caller's own the seat stands on, with none of its own
-             *     asked.
-             */
-            demandId?: number | null;
-            /**
-             * Format: int64
-             * @description On an admission ask: the asking run's granted demand the seat's own is asked within.
-             */
-            within?: number | null;
-            /** @description On a binding: the agent the seat's child runs on. */
-            agentName?: string | null;
-        };
         /** @description ReservationPage: */
         ReservationPage: {
             items: components["schemas"]["Reservation"][];
@@ -2612,27 +2273,6 @@ export interface components {
         /** @description The body that releases a reservation. */
         ReservationChange: {
             outcome?: string | null;
-        };
-        /** @description RolePage: */
-        RolePage: {
-            items: components["schemas"]["Role"][];
-            more: boolean;
-        };
-        /** @description Role: */
-        Role: {
-            name: string;
-            tier: string;
-            pooled: boolean;
-        };
-        /** @description PoolLimit: how many children of one co-worker tier may be alive on one provider. */
-        PoolLimit: {
-            provider: string;
-            tier: string;
-            /**
-             * Format: int64
-             * @description from 0, which closes the tier on the provider
-             */
-            capacity: number;
         };
         /** @description PlacePage: */
         PlacePage: {
@@ -2846,53 +2486,6 @@ export interface components {
         /** @description PinCheckAsk: */
         PinCheckAsk: {
             value: string;
-        };
-        /** @description TierPage: */
-        TierPage: {
-            items: components["schemas"]["Tier"][];
-            more: boolean;
-        };
-        /** @description Tier: */
-        Tier: {
-            name: string;
-            coworker: boolean;
-            mapping: unknown;
-        };
-        /** @description The body that assigns a tier to a work key or sets a tier's mapping on a provider. */
-        TierChange: {
-            action: string;
-            tier?: string | null;
-            key?: string | null;
-            acceptConflicts?: boolean | null;
-            provider?: string | null;
-            model?: string | null;
-            thinking?: boolean | null;
-            effort?: string | null;
-            /** Format: int64 */
-            answerTokens?: number | null;
-        };
-        /** @description FoldRatioPage: */
-        FoldRatioPage: {
-            items: components["schemas"]["FoldRatio"][];
-            more: boolean;
-        };
-        /** @description A provider's fold ratio at a tier: the share of a model's window a session may fill before it is folded once the turn that crossed it is over. */
-        FoldRatio: {
-            provider: string;
-            tier: string;
-            /** Format: double */
-            ratio: number;
-            source: components["schemas"]["FoldRatioSource"];
-        };
-        /**
-         * @description Where a fold ratio comes from: the table's row, the provider's own declared share where the table holds none, or the general share where the provider declares none either.
-         * @enum {string}
-         */
-        FoldRatioSource: "set" | "provider" | "default";
-        /** @description The body that sets a provider's fold ratio at a tier: a share above 0 and at most 1. */
-        FoldRatioWrite: {
-            /** Format: double */
-            ratio: number;
         };
         /** @description Fallback: */
         Fallback: {
@@ -3156,41 +2749,6 @@ export interface components {
             itemId?: number | null;
             reason: string;
         };
-        /** @description WorkKeyAssignmentPage: */
-        WorkKeyAssignmentPage: {
-            items: components["schemas"]["WorkKeyAssignment"][];
-            more: boolean;
-        };
-        /**
-         * @description WorkKeyAssignment: one work key's tier, the tiers it may be assigned, the owner's choices from before the
-         *     tiers kept for review, and what it resolves to on each provider of the registry's archive.
-         */
-        WorkKeyAssignment: {
-            key: string;
-            /** @description The key in kebab case, the word a screen words it by. */
-            code: string;
-            /** @description The English name its profile gives, none for a key no profile declares. */
-            label: string | null;
-            tier: string;
-            choices: string[];
-            /** @description Each `provider`, `previous` and `accepted`. */
-            conflicts: unknown[];
-            /** @description Each `provider`, `selection`, `error` (one short clause), `detail` (the whole of why) and `errorCode`. */
-            effective: unknown[];
-        };
-        /** @description WorkKey: */
-        WorkKey: {
-            key: string;
-            provider: string;
-            model: string;
-            thinking: boolean | null;
-            effort: string | null;
-            /** Format: int64 */
-            answerTokens: number | null;
-            /** Format: int64 */
-            capMs: number;
-            runMode: string;
-        };
         /** @description RoadBlockPage: */
         RoadBlockPage: {
             items: components["schemas"]["RoadBlock"][];
@@ -3375,80 +2933,6 @@ export interface components {
             shared?: unknown;
             dryRun?: boolean | null;
             by?: string | null;
-        };
-        /** @description WorkerPage: */
-        WorkerPage: {
-            items: components["schemas"]["Worker"][];
-            more: boolean;
-        };
-        /** @description Worker: */
-        Worker: {
-            name: string;
-            label: string;
-            cwd: string;
-            icon: string | null;
-            builtin: boolean;
-            nodeName: string | null;
-            role: string | null;
-            /** @description resting, working while a job of its is starting or running, or idle */
-            state: string;
-            /**
-             * Format: int64
-             * @description The job it is working on, where it is working.
-             * @default null
-             */
-            jobId: number | null;
-            /**
-             * Format: int64
-             * @description That job's item.
-             * @default null
-             */
-            itemId: number | null;
-            sampling: unknown;
-            /**
-             * Format: int64
-             * @description epoch milliseconds
-             */
-            restingSince: number | null;
-            sessionId: string | null;
-            /** Format: int64 */
-            runCount: number;
-            /**
-             * Format: int64
-             * @description epoch milliseconds
-             */
-            lastRunAt: number | null;
-            /**
-             * @description The documents its session's prefix carries, in order: a relative path from its checkout, an absolute
-             *     one where it stands.
-             * @default []
-             */
-            prefixDocuments: string[];
-        };
-        /** @description The body that adds a worker. */
-        WorkerAdd: {
-            name: string;
-            label?: string | null;
-            cwd?: string | null;
-            icon?: string | null;
-            role?: string | null;
-            nodeName?: string | null;
-            /** @description The documents its session's prefix carries, in order. */
-            prefixDocuments?: string[] | null;
-        };
-        /** @description The body that changes a worker. */
-        WorkerChange: {
-            sampling?: unknown;
-            nodeName?: string | null;
-            node?: string | null;
-            label?: string | null;
-            cwd?: string | null;
-            icon?: string | null;
-            role?: string | null;
-            stand?: boolean | null;
-            bench?: boolean | null;
-            /** @description The documents its session's prefix carries, in order, the list whole; an empty list clears it. */
-            prefixDocuments?: string[] | null;
         };
         /** @description WorkerDefinition: */
         WorkerDefinition: {
@@ -3663,6 +3147,361 @@ export interface components {
             source: string;
             target?: string | null;
         };
+        /** @description SupervisorList: every supervisor. */
+        SupervisorList: {
+            items: components["schemas"]["Supervisor"][];
+            more: boolean;
+        };
+        /** @description Supervisor: one supervisor as its row holds it, and what it stands on now. */
+        Supervisor: {
+            name: string;
+            label: string | null;
+            /** Format: int64 */
+            ownerAccount: number | null;
+            aliases: string | null;
+            icon: string | null;
+            sessionScope: string;
+            turnShape: string;
+            defaultAnswerer: boolean;
+            brainFolder: string | null;
+            /** @description the repository its TODO items go to */
+            repository: string | null;
+            order: components["schemas"]["OrderEntry"][];
+            /**
+             * Format: double
+             * @description a fraction from 0 to 1
+             */
+            quotaShare: number;
+            /** @description for each provider of its order, whether its prefix is kept warm there */
+            warming: {
+                [key: string]: boolean;
+            };
+            /**
+             * Format: double
+             * @description its compaction threshold
+             */
+            foldRatio: number;
+            gates: unknown;
+            voice: string | null;
+            sampling: unknown;
+            /** @description what its last turn went out on */
+            provider: string | null;
+            model: string | null;
+            effort: string | null;
+            /** @description why its turn waits where no provider of its order has quota, or null */
+            waitingFor: string | null;
+        };
+        /** @description OrderEntry: one provider of a supervisor's or a role's order, and what the row runs on there. */
+        OrderEntry: {
+            provider: string;
+            model: string;
+            /**
+             * @description a level of the effort scale; null for the provider's own
+             * @default null
+             */
+            effort: string | null;
+            /**
+             * @description `on`, `off`, or null for the provider's own
+             * @default null
+             */
+            thinking: string | null;
+            /**
+             * Format: int64
+             * @description on the registry's provider, the answer ceiling; null for the registration's own
+             * @default null
+             */
+            answerTokens: number | null;
+        };
+        /** @description SupervisorRegistered: a supervisor registered, and what became of its brain. */
+        SupervisorRegistered: {
+            supervisor: components["schemas"]["Supervisor"];
+            brain: components["schemas"]["BrainBirth"];
+        };
+        /**
+         * @description What became of a registered agent's brain.
+         * @enum {string}
+         */
+        BrainBirth: "made" | "kept" | "none" | "failed";
+        /** @description SupervisorAsk: the body that registers a supervisor. */
+        SupervisorAsk: {
+            name: string;
+            label: string;
+            order: components["schemas"]["OrderEntry"][];
+            /** Format: double */
+            quotaShare?: number | null;
+            repository?: string | null;
+            /** Format: int64 */
+            ownerAccount?: number | null;
+            /** Format: double */
+            foldRatio?: number | null;
+        };
+        /** @description SupervisorChange: the fields a change of a supervisor names. */
+        SupervisorChange: {
+            label?: string | null;
+            order?: components["schemas"]["OrderEntry"][] | null;
+            /** Format: double */
+            quotaShare?: number | null;
+            warming?: {
+                [key: string]: boolean;
+            } | null;
+            /** Format: double */
+            foldRatio?: number | null;
+            repository?: string | null;
+            gates?: {
+                [key: string]: boolean;
+            } | null;
+            sampling?: unknown;
+            voice?: string | null;
+        };
+        /** @description RoleList: every role, every bundle a role may give and every line a role may name. */
+        RoleList: {
+            roles: components["schemas"]["Role"][];
+            bundles: components["schemas"]["RoleBundle"][];
+            lines: string[];
+        };
+        /** @description Role: one role as its row holds it, and what stands of it now. */
+        Role: {
+            name: string;
+            code: string;
+            label: string;
+            prompt: string | null;
+            description: string | null;
+            bundles: components["schemas"]["RoleBundle"][];
+            line: string;
+            order: components["schemas"]["OrderEntry"][];
+            /** Format: double */
+            quotaShare: number;
+            /**
+             * Format: int64
+             * @description the most of its runs that go at once
+             */
+            maxConcurrent: number;
+            sessions: components["schemas"]["RoleSessions"];
+            /** Format: double */
+            foldRatio: number;
+            callable: boolean;
+            /** Format: int64 */
+            running: number;
+            /** Format: int64 */
+            waiting: number;
+            /** @description its active provider, or null where none of its order has quota */
+            provider: string | null;
+            waitingFor: string | null;
+        };
+        /** @description RoleBundle: one bundle a role may give, with its kebab-case code and its label. */
+        RoleBundle: {
+            name: string;
+            code: string;
+            label: string;
+        };
+        /**
+         * @description RoleSessions: whether a role's runs go on in the session an earlier run left while its cache is warm,
+         *     `keep`, or each open a session of its own, `fresh`.
+         * @enum {string}
+         */
+        RoleSessions: "keep" | "fresh";
+        /** @description RoleAsk: the body that adds a role. */
+        RoleAsk: {
+            name: string;
+            label: string;
+            bundles: string[];
+            line: string;
+            order: components["schemas"]["OrderEntry"][];
+            /** Format: int64 */
+            maxConcurrent: number;
+            /** Format: double */
+            quotaShare?: number | null;
+            prompt?: string | null;
+            description?: string | null;
+            sessions?: components["schemas"]["RoleSessions"] | null;
+            /** Format: double */
+            foldRatio?: number | null;
+            callable?: boolean | null;
+        };
+        /** @description RoleChange: the fields a change of a role names; a prompt or a description given as null clears it. */
+        RoleChange: {
+            label?: string | null;
+            bundles?: string[] | null;
+            line?: string | null;
+            order?: components["schemas"]["OrderEntry"][] | null;
+            /** Format: double */
+            quotaShare?: number | null;
+            /** Format: int64 */
+            maxConcurrent?: number | null;
+            prompt?: string | null;
+            description?: string | null;
+            sessions?: components["schemas"]["RoleSessions"] | null;
+            /** Format: double */
+            foldRatio?: number | null;
+            callable?: boolean | null;
+        };
+        /** @description RoleSessionPage: the sessions a role's runs opened, newest first. */
+        RoleSessionPage: {
+            items: components["schemas"]["RoleSession"][];
+            more: boolean;
+        };
+        /** @description RoleSession: one session a role's runs opened, and whether the next run of its key would resume it. */
+        RoleSession: {
+            /** Format: int64 */
+            id: number;
+            sessionId: string;
+            path: string;
+            provider: string;
+            model: string;
+            effort: string | null;
+            account: string | null;
+            /**
+             * Format: int64
+             * @description epoch milliseconds
+             */
+            openedAt: number;
+            /**
+             * Format: int64
+             * @description epoch milliseconds
+             */
+            lastAnsweredAt: number | null;
+            /** Format: int64 */
+            runs: number;
+            context: unknown;
+            valid: boolean;
+        };
+        /** @description RepositoryList: every repository. */
+        RepositoryList: {
+            items: components["schemas"]["Repository"][];
+            more: boolean;
+        };
+        /** @description Repository: one repository as its row holds it, with its checkouts. */
+        Repository: {
+            name: string;
+            label: string | null;
+            icon: string | null;
+            /** Format: int64 */
+            ownerAccount: number | null;
+            path: string;
+            nodeName: string | null;
+            /** Format: int64 */
+            supportCount: number;
+            prefixDocuments: string[];
+            preamble: string | null;
+            rules: string | null;
+            devCommand: string | null;
+            pin: components["schemas"]["RepositoryPin"] | null;
+            downgradeHeal: boolean;
+            sampling: unknown;
+            /** @description each its name, path, node and the job holding it, where one does */
+            checkouts: unknown[];
+        };
+        /** @description RepositoryPin: a repository's pinned provider and model. */
+        RepositoryPin: {
+            provider: string;
+            model: string;
+        };
+        /** @description RepositoryAsk: the body that adds a repository, or the fields a change names. */
+        RepositoryAsk: {
+            name?: string | null;
+            label?: string | null;
+            /** Format: int64 */
+            ownerAccount?: number | null;
+            path?: string | null;
+            nodeName?: string | null;
+            /** Format: int64 */
+            supportCount?: number | null;
+            prefixDocuments?: string[] | null;
+            preamble?: string | null;
+            rules?: string | null;
+            devCommand?: string | null;
+            pin?: components["schemas"]["RepositoryPin"] | null;
+            downgradeHeal?: boolean | null;
+            sampling?: unknown;
+        };
+        /** @description Slots: every role's slots, each with its cap, its runs let in, reserved and waiting, and what holds each. */
+        Slots: {
+            items: unknown[];
+        };
+        /** @description SlotRequestPage: the open slot requests. */
+        SlotRequestPage: {
+            items: components["schemas"]["SlotRequest"][];
+            more: boolean;
+        };
+        /** @description SlotRequest: one slot request of a role with its lease. */
+        SlotRequest: {
+            /** Format: int64 */
+            sequence: number;
+            token: string;
+            requestKey: string;
+            owner: string;
+            source: string;
+            role: string;
+            path: string | null;
+            /** @description the road it is let in on; empty until it is, unless its caller fixed it */
+            provider: string;
+            model: string;
+            effort: string | null;
+            /**
+             * Format: int64
+             * @description the role's cap when it was let in
+             */
+            capacity: number;
+            /** @description `waiting`, `reserved`, `active`, `released` or `cancelled` */
+            state: string;
+            /**
+             * Format: int64
+             * @description epoch milliseconds
+             */
+            enqueuedAt: number;
+            /** Format: int64 */
+            leasedAt: number | null;
+            childId: string | null;
+            /** Format: int64 */
+            endedAt: number | null;
+            outcome: string | null;
+            reservation: string | null;
+            yielding: boolean;
+            placeKey: string | null;
+            session: string | null;
+            title: string | null;
+            askedBy: string | null;
+            agentName: string | null;
+            /** @description why it waits where its provider has no quota, or null */
+            heldFor: string | null;
+        };
+        /** @description SlotRequestAsk: the body that asks a slot of a role. */
+        SlotRequestAsk: {
+            requestKey: string;
+            owner: string;
+            /** @description the delegator where a delegation names none */
+            role?: string | null;
+            source?: string | null;
+            path?: string | null;
+            provider?: string | null;
+            model?: string | null;
+            placeKey?: string | null;
+            yielding?: boolean | null;
+            token?: string | null;
+            session?: string | null;
+            title?: string | null;
+            askedBy?: string | null;
+        };
+        /** @description SlotRequestMove: a slot request asked for its admission, bound to its run, or given back. */
+        SlotRequestMove: {
+            /** @description `bound` or `finished`; none asks for admission */
+            state?: string | null;
+            childId?: string | null;
+            agentName?: string | null;
+            outcome?: string | null;
+            cancel?: boolean | null;
+            /** Format: int64 */
+            demandId?: number | null;
+            /** Format: int64 */
+            within?: number | null;
+        };
+        /** @description ProviderModels: the models an order's entry may name on a provider. */
+        ProviderModels: {
+            provider: string;
+            models: unknown[];
+            /** Format: double */
+            staleReadAt: number | null;
+        };
         /** @description FileItem: an item to file as the chat agent asks it, everything but the agent its plugin was started for. */
         FileItem: {
             /** @description The item's name in the queue: a short English line. */
@@ -3837,6 +3676,15 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /** @description service-unavailable */
+        ServiceUnavailable: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
         /** @description too-large */
         TooLarge: {
             headers: {
@@ -3848,6 +3696,15 @@ export interface components {
         };
         /** @description unauthorized */
         Unauthorized: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description unknown-role */
+        UnknownRole: {
             headers: {
                 [name: string]: unknown;
             };
@@ -4056,233 +3913,6 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
-        };
-    };
-    listAgents: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Answered. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AgentPage"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-        };
-    };
-    createAgents: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AgentAsk"];
-            };
-        };
-        responses: {
-            /** @description Answered. */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AgentCreated"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            409: components["responses"]["NameTaken"];
-        };
-    };
-    getAgent: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                agentName: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Answered. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Agent"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
-        };
-    };
-    deleteAgent: {
-        parameters: {
-            query?: {
-                force?: boolean;
-                forgetBrain?: boolean;
-                rooms?: string;
-            };
-            header?: never;
-            path: {
-                agentName: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Answered. */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            401: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
-            409: components["responses"]["Seeded"];
-        };
-    };
-    changeAgent: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                agentName: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AgentChange"];
-            };
-        };
-        responses: {
-            /** @description Answered. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Agent"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
-        };
-    };
-    listAgentRoles: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Answered. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AgentRoleList"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-        };
-    };
-    createAgentRoles: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AgentRoleAsk"];
-            };
-        };
-        responses: {
-            /** @description Answered. */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AgentRole"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-            422: components["responses"]["UnprocessableEntity"];
-        };
-    };
-    deleteAgentRole: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                roleName: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Answered. */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            401: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
-        };
-    };
-    changeAgentRole: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                roleName: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AgentRoleChange"];
-            };
-        };
-        responses: {
-            /** @description Answered. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AgentRole"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
-            422: components["responses"]["UnprocessableEntity"];
         };
     };
     listPromptDocuments: {
@@ -5226,76 +4856,6 @@ export interface operations {
             404: components["responses"]["NotFound"];
         };
     };
-    getPool: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Answered. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Pool"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-        };
-    };
-    listSeatRequests: {
-        parameters: {
-            query?: {
-                owner?: string;
-                state?: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Answered. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SeatRequestPage"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-        };
-    };
-    createSeatRequests: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SeatRequestAsk"];
-            };
-        };
-        responses: {
-            /** @description Answered. */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SeatRequest"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-        };
-    };
     listDelegations: {
         parameters: {
             query?: {
@@ -5318,60 +4878,6 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
-        };
-    };
-    getSeatRequest: {
-        parameters: {
-            query?: {
-                waitMs?: number;
-            };
-            header?: never;
-            path: {
-                token: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Answered. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SeatRequest"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
-        };
-    };
-    changeSeatRequest: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                token: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SeatRequestChange"];
-            };
-        };
-        responses: {
-            /** @description Answered. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SeatRequest"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
         };
     };
     listReservations: {
@@ -5448,53 +4954,6 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
-        };
-    };
-    listRoles: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Answered. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RolePage"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-        };
-    };
-    changePoolLimit: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["PoolLimit"];
-            };
-        };
-        responses: {
-            /** @description Answered. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PoolLimit"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-            422: components["responses"]["UnprocessableEntity"];
         };
     };
     listPlaces: {
@@ -5867,106 +5326,6 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
         };
     };
-    listTiers: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Answered. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TierPage"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-        };
-    };
-    changeTier: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                tierName: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["TierChange"];
-            };
-        };
-        responses: {
-            /** @description Answered. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Tier"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
-        };
-    };
-    listFoldRatios: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Answered. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FoldRatioPage"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-        };
-    };
-    putFoldRatio: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                provider: string;
-                tier: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["FoldRatioWrite"];
-            };
-        };
-        responses: {
-            /** @description Answered. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FoldRatio"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
-        };
-    };
     getFallback: {
         parameters: {
             query?: never;
@@ -6069,60 +5428,11 @@ export interface operations {
             409: components["responses"]["NoTurn"];
         };
     };
-    listWorkKeys: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Answered. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WorkKeyAssignmentPage"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-        };
-    };
-    getWorkKey: {
-        parameters: {
-            query?: {
-                tier?: string;
-                provider?: string;
-                agentName?: string;
-            };
-            header?: never;
-            path: {
-                workKey: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Answered. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WorkKey"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
-        };
-    };
     listRoadBlocks: {
         parameters: {
             query?: {
                 model?: string;
-                workerName?: string;
+                repositoryName?: string;
             };
             header?: never;
             path?: never;
@@ -6550,132 +5860,12 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
         };
     };
-    listWorkers: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Answered. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WorkerPage"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-        };
-    };
-    createWorkers: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["WorkerAdd"];
-            };
-        };
-        responses: {
-            /** @description Answered. */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Worker"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-        };
-    };
-    getWorker: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                workerName: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Answered. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Worker"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
-        };
-    };
-    deleteWorker: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                workerName: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Answered. */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            401: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
-        };
-    };
-    changeWorker: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                workerName: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["WorkerChange"];
-            };
-        };
-        responses: {
-            /** @description Answered. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Worker"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
-        };
-    };
     getWorkersDefinition: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                workerName: string;
+                repositoryName: string;
             };
             cookie?: never;
         };
@@ -6699,7 +5889,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                workerName: string;
+                repositoryName: string;
             };
             cookie?: never;
         };
@@ -6723,7 +5913,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                workerName: string;
+                repositoryName: string;
             };
             cookie?: never;
         };
@@ -6817,7 +6007,7 @@ export interface operations {
         parameters: {
             query?: {
                 holderName?: string;
-                workerName?: string;
+                repositoryName?: string;
                 state?: string;
                 after?: number;
                 limit?: number;
@@ -6953,7 +6143,7 @@ export interface operations {
                 running?: boolean;
                 itemId?: number;
                 roomId?: number;
-                workerName?: string;
+                repositoryName?: string;
                 holderName?: string;
                 state?: string;
                 after?: number;
@@ -7391,6 +6581,557 @@ export interface operations {
             413: components["responses"]["TooLarge"];
             422: components["responses"]["NoAnswer"];
             503: components["responses"]["NoLoginOpen"];
+        };
+    };
+    listSupervisors: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupervisorList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    createSupervisor: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SupervisorAsk"];
+            };
+        };
+        responses: {
+            /** @description Answered. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupervisorRegistered"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            409: components["responses"]["NameTaken"];
+        };
+    };
+    getSupervisor: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                supervisorName: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Supervisor"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteSupervisor: {
+        parameters: {
+            query?: {
+                force?: boolean;
+                forgetBrain?: boolean;
+                rooms?: string;
+            };
+            header?: never;
+            path: {
+                supervisorName: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Seeded"];
+        };
+    };
+    changeSupervisor: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                supervisorName: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SupervisorChange"];
+            };
+        };
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Supervisor"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listRoles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoleList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    createRole: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RoleAsk"];
+            };
+        };
+        responses: {
+            /** @description Answered. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Role"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            422: components["responses"]["UnprocessableEntity"];
+        };
+    };
+    getRole: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roleName: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Role"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteRole: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roleName: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    changeRole: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roleName: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RoleChange"];
+            };
+        };
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Role"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["UnprocessableEntity"];
+        };
+    };
+    listRoleSessions: {
+        parameters: {
+            query?: {
+                before?: number;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                roleName: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoleSessionPage"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listRepositories: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RepositoryList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    createRepository: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RepositoryAsk"];
+            };
+        };
+        responses: {
+            /** @description Answered. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Repository"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            409: components["responses"]["NameTaken"];
+        };
+    };
+    getRepository: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                repositoryName: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Repository"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteRepository: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                repositoryName: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    changeRepository: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                repositoryName: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RepositoryAsk"];
+            };
+        };
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Repository"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listSlots: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Slots"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    listSlotRequests: {
+        parameters: {
+            query?: {
+                role?: string;
+                owner?: string;
+                waiting?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SlotRequestPage"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    createSlotRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SlotRequestAsk"];
+            };
+        };
+        responses: {
+            /** @description Answered. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SlotRequest"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            422: components["responses"]["UnknownRole"];
+        };
+    };
+    getSlotRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SlotRequest"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    moveSlotRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SlotRequestMove"];
+            };
+        };
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["UnprocessableEntity"];
+        };
+    };
+    listProviderModels: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                providerName: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderModels"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            422: components["responses"]["ServiceUnavailable"];
         };
     };
 }

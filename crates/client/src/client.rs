@@ -234,22 +234,6 @@ pub struct ListDelegationsQuery {
 
 #[derive(Debug, Clone, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ListSeatRequestsQuery {
-  #[serde(skip_serializing_if = "Option::is_none")]
-  pub owner: Option<String>,
-  #[serde(skip_serializing_if = "Option::is_none")]
-  pub state: Option<String>,
-}
-
-#[derive(Debug, Clone, Default, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct GetSeatRequestQuery {
-  #[serde(skip_serializing_if = "Option::is_none")]
-  pub wait_ms: Option<i64>,
-}
-
-#[derive(Debug, Clone, Default, Serialize)]
-#[serde(rename_all = "camelCase")]
 pub struct ListReservationsQuery {
   #[serde(skip_serializing_if = "Option::is_none")]
   pub owner: Option<String>,
@@ -271,17 +255,6 @@ pub struct ListModelsQuery {
   pub provider: Option<String>,
   #[serde(skip_serializing_if = "Option::is_none")]
   pub tier: Option<String>,
-}
-
-#[derive(Debug, Clone, Default, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct GetWorkKeyQuery {
-  #[serde(skip_serializing_if = "Option::is_none")]
-  pub tier: Option<String>,
-  #[serde(skip_serializing_if = "Option::is_none")]
-  pub provider: Option<String>,
-  #[serde(skip_serializing_if = "Option::is_none")]
-  pub agent_name: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize)]
@@ -326,17 +299,6 @@ pub struct GetUsageQuery {
 pub struct ListCompanionsQuery {
   #[serde(skip_serializing_if = "Option::is_none")]
   pub room_id: Option<i64>,
-}
-
-#[derive(Debug, Clone, Default, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct DeleteAgentQuery {
-  #[serde(skip_serializing_if = "Option::is_none")]
-  pub force: Option<bool>,
-  #[serde(skip_serializing_if = "Option::is_none")]
-  pub forget_brain: Option<bool>,
-  #[serde(skip_serializing_if = "Option::is_none")]
-  pub rooms: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize)]
@@ -425,51 +387,6 @@ impl AgencyClient {
   /// `DELETE /hooks/{point}`: Take a registration away.
   pub async fn delete_hook(&self, point: &str) -> Answer<()> {
     Self::nothing(self.request(Method::DELETE, &["hooks", point])).await
-  }
-
-  /// `GET /agents`: Every agent, each with the login account that owns it.
-  pub async fn list_agents(&self) -> Answer<AgentPage> {
-    Self::answered(self.request(Method::GET, &["agents"])).await
-  }
-
-  /// `POST /agents`: Register an agent of any kind; one that converses is given its brain.
-  pub async fn create_agents(&self, body: &AgentAsk) -> Answer<AgentCreated> {
-    Self::answered(self.request(Method::POST, &["agents"]).json(body)).await
-  }
-
-  /// `GET /agents/{agentName}`: One agent: role, gates, reasoning, voice, reset point, stand-in.
-  pub async fn get_agent(&self, agent_name: &str) -> Answer<Agent> {
-    Self::answered(self.request(Method::GET, &["agents", agent_name])).await
-  }
-
-  /// `PATCH /agents/{agentName}`: Change an agent's gates, reasoning, role or voice.
-  pub async fn change_agent(&self, agent_name: &str, body: &AgentChange) -> Answer<Agent> {
-    Self::answered(self.request(Method::PATCH, &["agents", agent_name]).json(body)).await
-  }
-
-  /// `DELETE /agents/{agentName}`: End an agent's registration; `forgetBrain` lets its brain go with it.
-  pub async fn delete_agent(&self, agent_name: &str, query: &DeleteAgentQuery) -> Answer<()> {
-    Self::nothing(self.request(Method::DELETE, &["agents", agent_name]).query(query)).await
-  }
-
-  /// `GET /agent-roles`: Every role an agent may hold, and every bundle a role may give.
-  pub async fn list_agent_roles(&self) -> Answer<AgentRoleList> {
-    Self::answered(self.request(Method::GET, &["agent-roles"])).await
-  }
-
-  /// `POST /agent-roles`: Add a role.
-  pub async fn create_agent_roles(&self, body: &AgentRoleAsk) -> Answer<AgentRole> {
-    Self::answered(self.request(Method::POST, &["agent-roles"]).json(body)).await
-  }
-
-  /// `PATCH /agent-roles/{roleName}`: Change a role's label, bundles, bound, prompt or tier.
-  pub async fn change_agent_role(&self, role_name: &str, body: &AgentRoleChange) -> Answer<AgentRole> {
-    Self::answered(self.request(Method::PATCH, &["agent-roles", role_name]).json(body)).await
-  }
-
-  /// `DELETE /agent-roles/{roleName}`: Remove a role no agent holds and no kind is for.
-  pub async fn delete_agent_role(&self, role_name: &str) -> Answer<()> {
-    Self::nothing(self.request(Method::DELETE, &["agent-roles", role_name])).await
   }
 
   /// `GET /prompt-documents`: Deployed prompt documents: base prompts, rulebooks, personas, agent definitions, system prompts.
@@ -663,34 +580,9 @@ impl AgencyClient {
     Self::nothing(self.request(Method::DELETE, &["stop-marks", &job_id.to_string()])).await
   }
 
-  /// `GET /pool`: The co-worker pool: buckets, seats, waiting work.
-  pub async fn get_pool(&self) -> Answer<Pool> {
-    Self::answered(self.request(Method::GET, &["pool"])).await
-  }
-
-  /// `GET /seat-requests`: Open seat requests, by owner or waiting.
-  pub async fn list_seat_requests(&self, query: &ListSeatRequestsQuery) -> Answer<SeatRequestPage> {
-    Self::answered(self.request(Method::GET, &["seat-requests"]).query(query)).await
-  }
-
   /// `GET /delegations`: The tasks an agent delegated, each with its title, stage, helper agent and start.
   pub async fn list_delegations(&self, query: &ListDelegationsQuery) -> Answer<DelegationPage> {
     Self::answered(self.request(Method::GET, &["delegations"]).query(query)).await
-  }
-
-  /// `POST /seat-requests`: Ask for a co-worker seat; the tier is resolved from the work key.
-  pub async fn create_seat_requests(&self, body: &SeatRequestAsk) -> Answer<SeatRequest> {
-    Self::answered(self.request(Method::POST, &["seat-requests"]).json(body)).await
-  }
-
-  /// `GET /seat-requests/{token}`: One seat request.
-  pub async fn get_seat_request(&self, token: &str, query: &GetSeatRequestQuery) -> Answer<SeatRequest> {
-    Self::answered(self.request(Method::GET, &["seat-requests", token]).query(query)).await
-  }
-
-  /// `PATCH /seat-requests/{token}`: Move a seat request: admitted, bound to its launched unit, finished.
-  pub async fn change_seat_request(&self, token: &str, body: &SeatRequestChange) -> Answer<SeatRequest> {
-    Self::answered(self.request(Method::PATCH, &["seat-requests", token]).json(body)).await
   }
 
   /// `GET /reservations`: Held seat reservations.
@@ -706,16 +598,6 @@ impl AgencyClient {
   /// `PATCH /reservations/{token}`: Release a reservation with its outcome.
   pub async fn change_reservation(&self, token: &str, body: &ReservationChange) -> Answer<Reservation> {
     Self::answered(self.request(Method::PATCH, &["reservations", token]).json(body)).await
-  }
-
-  /// `GET /roles`: The roles the pool can lend.
-  pub async fn list_roles(&self) -> Answer<RolePage> {
-    Self::answered(self.request(Method::GET, &["roles"])).await
-  }
-
-  /// `PATCH /pool/limits`: Set how many children of one co-worker tier may be alive on one provider.
-  pub async fn change_pool_limit(&self, body: &PoolLimit) -> Answer<PoolLimit> {
-    Self::answered(self.request(Method::PATCH, &["pool", "limits"]).json(body)).await
   }
 
   /// `GET /places`: Branch places, by node and checkout.
@@ -794,31 +676,6 @@ impl AgencyClient {
     Self::answered(self.request(Method::POST, &["pin-checks"]).json(body)).await
   }
 
-  /// `GET /tiers`: Tiers in ladder order, each with its mapping.
-  pub async fn list_tiers(&self) -> Answer<TierPage> {
-    Self::answered(self.request(Method::GET, &["tiers"])).await
-  }
-
-  /// `PATCH /tiers/{tierName}`: Change a tier's mapping for a role.
-  pub async fn change_tier(&self, tier_name: &str, body: &TierChange) -> Answer<Tier> {
-    Self::answered(self.request(Method::PATCH, &["tiers", tier_name]).json(body)).await
-  }
-
-  /// `GET /fold-ratios`: Every provider's fold ratio at every tier, each with where it comes from.
-  pub async fn list_fold_ratios(&self) -> Answer<FoldRatioPage> {
-    Self::answered(self.request(Method::GET, &["fold-ratios"])).await
-  }
-
-  /// `PUT /fold-ratios/{provider}/{tier}`: Set a provider's fold ratio at a tier.
-  pub async fn put_fold_ratio(
-    &self,
-    provider: &str,
-    tier: &str,
-    body: &FoldRatioWrite,
-  ) -> Answer<FoldRatio> {
-    Self::answered(self.request(Method::PUT, &["fold-ratios", provider, tier]).json(body)).await
-  }
-
   /// `GET /fallback`: The fallback roads and whether the fallback is answering.
   pub async fn get_fallback(&self) -> Answer<Fallback> {
     Self::answered(self.request(Method::GET, &["fallback"])).await
@@ -837,16 +694,6 @@ impl AgencyClient {
   /// `POST /job-stops`: Stop a job, by its id or by its item, for the turn an agent is carrying now.
   pub async fn create_job_stops(&self, body: &JobStopAsk) -> Answer<Job> {
     Self::answered(self.request(Method::POST, &["job-stops"]).json(body)).await
-  }
-
-  /// `GET /work-keys`: Every work key with the tier it is assigned, the tiers it may be, and what it resolves to on each provider.
-  pub async fn list_work_keys(&self) -> Answer<WorkKeyAssignmentPage> {
-    Self::answered(self.request(Method::GET, &["work-keys"])).await
-  }
-
-  /// `GET /work-keys/{workKey}`: Where a work key goes: provider, model, effort, answer tokens, run bound, run mode.
-  pub async fn get_work_key(&self, work_key: &str, query: &GetWorkKeyQuery) -> Answer<WorkKey> {
-    Self::answered(self.request(Method::GET, &["work-keys", work_key]).query(query)).await
   }
 
   /// `GET /road-blocks`: Roads blocked now, by model or worker; none means open.
@@ -939,44 +786,19 @@ impl AgencyClient {
     Self::answered(self.request(Method::POST, &["companion-resets"]).json(body)).await
   }
 
-  /// `GET /workers`: Every worker.
-  pub async fn list_workers(&self) -> Answer<WorkerPage> {
-    Self::answered(self.request(Method::GET, &["workers"])).await
-  }
-
-  /// `POST /workers`: Add a worker.
-  pub async fn create_workers(&self, body: &WorkerAdd) -> Answer<Worker> {
-    Self::answered(self.request(Method::POST, &["workers"]).json(body)).await
-  }
-
-  /// `GET /workers/{workerName}`: One worker: checkout, node, role, sampling, session, runs.
-  pub async fn get_worker(&self, worker_name: &str) -> Answer<Worker> {
-    Self::answered(self.request(Method::GET, &["workers", worker_name])).await
-  }
-
-  /// `PATCH /workers/{workerName}`: Change a worker: fields, node placement, sampling, stand it again, ready its bench.
-  pub async fn change_worker(&self, worker_name: &str, body: &WorkerChange) -> Answer<Worker> {
-    Self::answered(self.request(Method::PATCH, &["workers", worker_name]).json(body)).await
-  }
-
-  /// `DELETE /workers/{workerName}`: Remove a worker.
-  pub async fn delete_worker(&self, worker_name: &str) -> Answer<()> {
-    Self::nothing(self.request(Method::DELETE, &["workers", worker_name])).await
-  }
-
-  /// `GET /workers/{workerName}/definition`: The worker's agent definition: graph, trailer, handoff.
+  /// `GET /repositories/{repositoryName}/definition`: The worker's agent definition: graph, trailer, handoff.
   pub async fn get_workers_definition(&self, worker_name: &str) -> Answer<WorkerDefinition> {
-    Self::answered(self.request(Method::GET, &["workers", worker_name, "definition"])).await
+    Self::answered(self.request(Method::GET, &["repositories", worker_name, "definition"])).await
   }
 
-  /// `GET /workers/{workerName}/workbench`: The worker's workbench and scratch folders.
+  /// `GET /repositories/{repositoryName}/workbench`: The worker's workbench and scratch folders.
   pub async fn get_workers_workbench(&self, worker_name: &str) -> Answer<Workbench> {
-    Self::answered(self.request(Method::GET, &["workers", worker_name, "workbench"])).await
+    Self::answered(self.request(Method::GET, &["repositories", worker_name, "workbench"])).await
   }
 
-  /// `DELETE /workers/{workerName}/servers`: End the job servers a worker left running.
+  /// `DELETE /repositories/{repositoryName}/servers`: End the job servers a worker left running.
   pub async fn delete_workers_servers(&self, worker_name: &str) -> Answer<()> {
-    Self::nothing(self.request(Method::DELETE, &["workers", worker_name, "servers"])).await
+    Self::nothing(self.request(Method::DELETE, &["repositories", worker_name, "servers"])).await
   }
 
   /// `POST /prefix-checks`: Which of these files are in a worker's session prefix.
@@ -1106,5 +928,127 @@ impl AgencyClient {
   /// `DELETE /session-loads/{sessionId}`: Forget a session's loads.
   pub async fn delete_session_loads_by_session_id(&self, session_id: &str) -> Answer<()> {
     Self::nothing(self.request(Method::DELETE, &["session-loads", session_id])).await
+  }
+
+  /// `GET /supervisors`: Every supervisor, each with the login account that owns it.
+  pub async fn list_supervisors(&self) -> Answer<SupervisorList> {
+    Self::answered(self.request(Method::GET, &["supervisors"])).await
+  }
+
+  /// `POST /supervisors`: Register a supervisor; it is given its brain.
+  pub async fn create_supervisor(&self, body: &SupervisorAsk) -> Answer<SupervisorRegistered> {
+    Self::answered(self.request(Method::POST, &["supervisors"]).json(body)).await
+  }
+
+  /// `GET /supervisors/{supervisorName}`: One supervisor: its order, warming, threshold, gates, voice.
+  pub async fn get_supervisor(&self, supervisor_name: &str) -> Answer<Supervisor> {
+    Self::answered(self.request(Method::GET, &["supervisors", supervisor_name])).await
+  }
+
+  /// `PATCH /supervisors/{supervisorName}`: Change a supervisor's order, warming, threshold, gates, sampling or voice.
+  pub async fn change_supervisor(
+    &self,
+    supervisor_name: &str,
+    body: &SupervisorChange,
+  ) -> Answer<Supervisor> {
+    Self::answered(self.request(Method::PATCH, &["supervisors", supervisor_name]).json(body)).await
+  }
+
+  /// `DELETE /supervisors/{supervisorName}`: End a supervisor's registration; forgetBrain lets its brain go with it.
+  pub async fn delete_supervisor(
+    &self,
+    supervisor_name: &str,
+    query: &DeleteSupervisorQuery,
+  ) -> Answer<()> {
+    Self::nothing(self.request(Method::DELETE, &["supervisors", supervisor_name]).query(query)).await
+  }
+
+  /// `GET /roles`: Every role, every bundle a role may give and every line a role may name.
+  pub async fn list_roles(&self) -> Answer<RoleList> {
+    Self::answered(self.request(Method::GET, &["roles"])).await
+  }
+
+  /// `POST /roles`: Add a role.
+  pub async fn create_role(&self, body: &RoleAsk) -> Answer<Role> {
+    Self::answered(self.request(Method::POST, &["roles"]).json(body)).await
+  }
+
+  /// `GET /roles/{roleName}`: One role, with how many of its runs go and wait.
+  pub async fn get_role(&self, role_name: &str) -> Answer<Role> {
+    Self::answered(self.request(Method::GET, &["roles", role_name])).await
+  }
+
+  /// `PATCH /roles/{roleName}`: Change any field of a role.
+  pub async fn change_role(&self, role_name: &str, body: &RoleChange) -> Answer<Role> {
+    Self::answered(self.request(Method::PATCH, &["roles", role_name]).json(body)).await
+  }
+
+  /// `DELETE /roles/{roleName}`: Remove a role no run holds or waits for and no default names.
+  pub async fn delete_role(&self, role_name: &str) -> Answer<()> {
+    Self::nothing(self.request(Method::DELETE, &["roles", role_name])).await
+  }
+
+  /// `GET /roles/{roleName}/sessions`: The sessions the role's runs opened, newest first.
+  pub async fn list_role_sessions(
+    &self,
+    role_name: &str,
+    query: &RoleSessionsQuery,
+  ) -> Answer<RoleSessionPage> {
+    Self::answered(self.request(Method::GET, &["roles", role_name, "sessions"]).query(query)).await
+  }
+
+  /// `GET /repositories`: Every repository.
+  pub async fn list_repositories(&self) -> Answer<RepositoryList> {
+    Self::answered(self.request(Method::GET, &["repositories"])).await
+  }
+
+  /// `POST /repositories`: Add a repository.
+  pub async fn create_repository(&self, body: &RepositoryAsk) -> Answer<Repository> {
+    Self::answered(self.request(Method::POST, &["repositories"]).json(body)).await
+  }
+
+  /// `GET /repositories/{repositoryName}`: One repository: checkouts, node, prefix documents, preamble, rules, pin.
+  pub async fn get_repository(&self, repository_name: &str) -> Answer<Repository> {
+    Self::answered(self.request(Method::GET, &["repositories", repository_name])).await
+  }
+
+  /// `PATCH /repositories/{repositoryName}`: Change a repository: fields, checkouts, node placement, pin, sampling.
+  pub async fn change_repository(&self, repository_name: &str, body: &RepositoryAsk) -> Answer<Repository> {
+    Self::answered(self.request(Method::PATCH, &["repositories", repository_name]).json(body)).await
+  }
+
+  /// `DELETE /repositories/{repositoryName}`: Remove a repository no job holds a checkout of.
+  pub async fn delete_repository(&self, repository_name: &str) -> Answer<()> {
+    Self::nothing(self.request(Method::DELETE, &["repositories", repository_name])).await
+  }
+
+  /// `GET /slots`: Every role's slots: the runs let in, reserved and waiting.
+  pub async fn list_slots(&self) -> Answer<Slots> {
+    Self::answered(self.request(Method::GET, &["slots"])).await
+  }
+
+  /// `GET /slot-requests`: Open slot requests, by role, by owner or waiting.
+  pub async fn list_slot_requests(&self, query: &SlotRequestsQuery) -> Answer<SlotRequestPage> {
+    Self::answered(self.request(Method::GET, &["slot-requests"]).query(query)).await
+  }
+
+  /// `POST /slot-requests`: Ask for a slot of a role; its provider and model are the role's order's.
+  pub async fn create_slot_request(&self, body: &SlotRequestAsk) -> Answer<SlotRequest> {
+    Self::answered(self.request(Method::POST, &["slot-requests"]).json(body)).await
+  }
+
+  /// `GET /slot-requests/{token}`: One slot request.
+  pub async fn get_slot_request(&self, token: &str) -> Answer<SlotRequest> {
+    Self::answered(self.request(Method::GET, &["slot-requests", token])).await
+  }
+
+  /// `PATCH /slot-requests/{token}`: Move a slot request: admitted, bound to its launched run, finished.
+  pub async fn move_slot_request(&self, token: &str, body: &SlotRequestMove) -> Answer<serde_json::Value> {
+    Self::answered(self.request(Method::PATCH, &["slot-requests", token]).json(body)).await
+  }
+
+  /// `GET /provider-models/{providerName}`: The models a provider holds, for an order's chooser.
+  pub async fn list_provider_models(&self, provider_name: &str) -> Answer<ProviderModels> {
+    Self::answered(self.request(Method::GET, &["provider-models", provider_name])).await
   }
 }
