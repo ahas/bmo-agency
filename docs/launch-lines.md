@@ -234,7 +234,10 @@
   set that key to `false` in `prompts/agents/worker/settings.json` and let the commit go live; it
   moves the worker prefix like any change to the line (「Why a line is held steady」). The Claude
   Docs server stays on the disallowed list either way, so turning the connectors on brings back
-  the others and never the one that publishes. The job worker runs in the directory its own worker
+  the others and never the one that publishes. The program runs with permissions bypassed, so the worker
+  settings also set `skipDangerousModePermissionPrompt` to `true`: a run on the line in a pane of its own,
+  which reads those settings as they stand rather than a place's, would otherwise stop at the CLI's
+  warning dialog until a person answered it. The job worker runs in the directory its own worker
   row names — this
   repository for the built-in worker, since editing this code is what that one is for. No persona: its
   whole system prompt, given with `--system-prompt-file` in the CLI's own place, is the platform's
@@ -507,8 +510,9 @@ left to its prompt. In front of each action that touches the machine or spends m
 the action out asks who sent the words the turn answers.
 
 - **The actions gated:** asking a worker through `bmo/worker_ask`, which starts the worker's session on the
-  words; and `run_job`, the chat agent's own `agency` server launching an item's job on its worker. Each asks
-  the room relation `launch`.
+  words; handing a task off through `bmo/delegate`, which takes a co-worker seat and puts the words into the
+  helper's session; and `run_job`, the chat agent's own `agency` server launching an item's job on its worker. Each
+  asks the room relation `launch`.
 - **The turn asked about** is the one the agent's place carries now: the room it answers (`BMO_TURN_CHAT`), the
   messages it answers (`BMO_TURN_MESSAGES`) and whether the receiver marked every new message in it the
   owner's (`BMO_TURN_PRIVILEGED`), as the run the door put in names them.

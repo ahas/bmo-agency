@@ -5,7 +5,6 @@
   "properties": {
     "worker": { "type": "string", "minLength": 1, "description": "The resident worker's name." },
     "words": { "type": "string", "minLength": 1, "description": "The task, in the worker's words." },
-    "folder": { "type": ["string", "null"], "description": "Where to work; the asking agent's scratch workspace where none is named. A worker's own checkout may be named only in the owner's turn." },
-    "timeBoundSeconds": { "type": ["integer", "null"], "minimum": 1, "maximum": 600 }
+    "folder": { "type": ["string", "null"], "description": "Where to work; the asking agent's scratch workspace where none is named. A worker's own checkout may be named only in the owner's turn." }
   }
 }

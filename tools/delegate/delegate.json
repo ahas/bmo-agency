@@ -1,0 +1,10 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["instruction"],
+  "properties": {
+    "instruction": { "type": "string", "minLength": 1, "description": "The task, with every piece of context it needs: what to find or do, where, on which machine, and what the answer must hold. The helper sees nothing of the conversation." },
+    "role": { "type": ["string", "null"], "description": "The role whose agents carry the task and whose tier the seat is asked at; the policy's role for delegated work, the helper, where none is named." },
+    "folder": { "type": ["string", "null"], "description": "Where to work; the asking agent's scratch workspace where none is named." }
+  }
+}

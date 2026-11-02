@@ -497,7 +497,15 @@ async fn enqueue(
       row.try_get::<i64>("", "enabled").map_err(|why| why.to_string())? == 1,
       row.try_get::<i64>("", "pooled").map_err(|why| why.to_string())? == 1,
     ),
-    None => (false, false),
+    // An agent role lends its seats as a pooled role does: its tier is its key's assignment, held to a tier
+    // a co-worker is borrowed at like any other (docs/coworker-pool.md, 「Who takes a place」).
+    None => {
+      let agent_role = one(&written, r#"SELECT 1 FROM "agent_roles" WHERE "name" = $1"#, vec![name.into()])
+        .await
+        .map_err(faulted)?;
+
+      (agent_role.is_some(), agent_role.is_some())
+    }
   };
 
   if !enabled || (child && !pooled) {

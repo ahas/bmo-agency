@@ -15,6 +15,7 @@ dependencies = [
  "cache-siren",
  "chrono",
  "clap",
+ "delegate-tool",
  "futures-util",
  "harness-machine",
  "harness-providers",
@@ -891,6 +892,19 @@ dependencies = [
  "darling_core 0.24.1",
  "quote",
  "syn 3.0.9",
+]
+
+[[package]]
+name = "delegate-tool"
+version = "0.1.0-rev.81"
+dependencies = [
+ "dotenvy",
+ "policy",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tool-call",
 ]
 
 [[package]]

@@ -2,8 +2,8 @@
 
 The tools agency itself provides to the tool host: each a folder of its own under `tools/`, with its
 `tool.toml`, which the tool host reads as it reads any other tool's. They hand agents the documents
-agency keeps under `prompts/` — the chat agent's procedures — and let a chat agent hand a resident worker a
-small task. A tool that
+agency keeps under `prompts/` — the chat agent's procedures — let a chat agent hand a resident worker a
+small task, and let a chat agent delegate a task to the helper on a co-worker seat. A tool that
 belongs to no one service is a repository of its own, not a folder here.
 
 ## A tool's folder
@@ -87,13 +87,62 @@ belongs to no one service is a repository of its own, not a folder here.
 - **It asks only past the owner's gate** (`docs/launch-lines.md`, 「The owner's gate」): on a room turn not the
   owner's, every message the turn answers must be answered allowed `launch` in the room by the account
   service, and where it is not, or cannot be asked, the tool answers a failure saying so and starts nothing.
-- **Its arguments** are the worker's name, the words, an optional folder and an optional time bound. The
-  folder is the asking agent's scratch workspace under the data root where none is named, made on first
-  use; a worker's own checkout may be named only in the owner's turn. The bound is ten minutes where none
-  is named, and never more.
+- **Its arguments** are the worker's name, the words and an optional folder. The folder is the asking
+  agent's scratch workspace under the data root where none is named, made on first use; a worker's own
+  checkout may be named only in the owner's turn.
+- **It waits for the worker's turn to end,** however long the turn takes: no bound of its own and no
+  timeout on its wait for agency's answer (the entry is unbounded to the tool host).
 - **Its answer** is the turn's answer text and the paths of the files the turn created or changed in the
   folder, read from the run's recorded edit diffs. The exchange is a turn of the worker's like any other,
   written to its log, so the console shows it.
-- **It refuses** a worker that is not free (`409`), a worker that stands on a node where the folder is not,
-  an unknown worker, and a checkout named outside the owner's turn. A task worth keeping and reviewing is
-  a queue item, filed with `file_item`, not asked this way.
+- **A busy worker is waited for, never refused.** Where the worker is in a turn of its own, a job's or
+  another ask's, the ask goes in behind it, sent again at a steady pace until the worker's session takes
+  it, for every asker past the owner's gate, and runs once the worker is free.
+- **It refuses only what cannot be asked at all:** an unknown worker, a worker that stands on a node where
+  the folder is not, and a checkout named outside the owner's turn, besides the owner's gate. A task worth
+  keeping and reviewing is a queue item, filed with `file_item`, not asked this way.
+
+## The delegate
+
+- **`tools/delegate`** declares `bmo/delegate` to a session holding `room.tools`: a chat agent hands a task
+  — an investigation, a lookup on another machine, reading code, a problem it cannot settle in its turn,
+  anything longer than moments that needs no queue item — to the helper (`docs/agent-roles.md`, 「The
+  helper role」), with no item, lease or report. The chat agent calls it with `bmo use bmo/delegate
+  --async`, so its turn goes on and the answer comes back to it as a wake.
+- **It asks only past the owner's gate** (`docs/launch-lines.md`, 「The owner's gate」), as the worker ask
+  does, before it asks anything of the pool: a refused turn starts nothing.
+- **Its arguments** are the instruction, carrying every piece of context the task needs, since the helper
+  sees nothing of the conversation; an optional role; and an optional folder.
+  - The role is an agent role whose agents take delegated work; where none is named it is the one
+    agency's roles policy names, `delegate` in `policy/roles.toml`, the helper role. An agent holding it
+    carries the task, a free one first.
+  - The folder is where the task works: the asking agent's scratch workspace under the data root where
+    none is named, made on first use, the same one the worker ask defaults to.
+- **It takes a co-worker seat and waits in line however long the line takes.** It asks the pool for a
+  seat under the role, as the source `delegate`, keyed by a request of its own, on Claude Code; the seat's
+  tier is the role's `role:<name>` assignment (`docs/coworker-pool.md`, 「Who takes a place」). It asks for
+  its admission again at a steady pace until it is let in, is never refused for the pool being full and
+  never gives up for having waited; a seat the pool gave back before it was let in ends the call with
+  that said.
+- **The work is a turn of the helper agent's own session** (`docs/sessions.md`, 「A worker's session per
+  model」): the seat bound to the turn's run, and one turn sent into the agent's worker session carrying
+  the seat's mapping, its work key and the asking turn's room, resumed as a job's turn is. So a delegation
+  that follows another on the same model within the provider's cache lifetime goes on in the same
+  session and reads its prefix and what came before, the keepalive keeps that session warm as it keeps
+  every worker's (`docs/keepalive-schedule.md`), and a session past its cache lifetime or its model's
+  context is replaced by a fresh one by the same rules.
+  - **The session stands in the agent's own checkout,** which never changes between delegations, since a
+    Claude Code session is kept per folder; the task's folder is named in the turn's words, and the turn
+    works there with the agent's own program and tools — a shell among them, so it reaches other machines
+    as a worker does.
+  - **A helper agent carries one turn at a time.** A delegation whose agent is in a turn waits for that
+    turn to end and is sent then, however long it takes.
+  - The call waits for the turn's end with no timeout, and nothing bounds the turn by a clock.
+- **Once the turn ends** the seat is finished with what the turn came to; the session stays held for the
+  next delegation. A call whose caller goes away while its seat still waits cancels the seat, so nothing
+  is left standing in the line; a turn already sent is carried to its end by agency, and its seat is
+  finished as the call goes away.
+- **Its answer** is the turn's answer text and the paths of the files created or changed in the folder
+  while the task ran, found by comparing the folder before and after, its `.git` directories passed over.
+- **A task worth keeping and reviewing is still a queue item,** filed with `file_item`; the delegate files
+  nothing of the task.

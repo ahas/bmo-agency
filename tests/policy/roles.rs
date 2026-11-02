@@ -8,6 +8,9 @@ fn each_role_gives_its_bundles_and_every_bundle_a_role_names_is_declared() {
   assert!(ROLES.bundles_of("gate").is_empty());
   assert_eq!(ROLES.bundles_of("video"), ["queue.read", "web.read", "room.send"]);
   assert_eq!(ROLES.role("video").and_then(|role| role.prompt.as_deref()), Some("video.md"));
+  assert_eq!(ROLES.bundles_of("helper"), ["graph.read", "queue.read", "web.read"]);
+  assert_eq!(ROLES.role("helper").and_then(|role| role.prompt.as_deref()), Some("helper.md"));
+  assert!(ROLES.holds(&ROLES.delegate), "delegated work goes to a role the policy seeds");
   assert!(ROLES.bundles_of("nobody").is_empty());
   assert!(!ROLES.holds("companion"));
   assert!(ROLES.holds(&ROLES.coworker));

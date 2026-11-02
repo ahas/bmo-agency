@@ -1,5 +1,6 @@
 # A chat agent asks a resident worker a small coding task as a turn into its session, with no queue item
-# (docs/tools.md, 「The worker ask」; docs/agent-control.md, 「Asking a worker directly」).
+# (docs/tools.md, 「The worker ask」; docs/agent-control.md, 「Asking a worker directly」). The entry is
+# unbounded: a call waits for the worker's turn to end however long it takes.
 [tool]
 name = "worker_ask"
 protocol = 1
@@ -7,7 +8,7 @@ language = "rust"
 build = 'cargo build --release -p worker-ask-tool && cp "$BMO_CARGO_TARGET/release/worker-ask-tool" "$BMO_TOOL_OUT/"'
 check = 'cargo test -p agency-checks --test tools'
 run = ["worker-ask-tool"]
-timeout = 660
+timeout = 60
 
 [[entry]]
 namespace = "bmo"
@@ -16,6 +17,7 @@ title = "Ask a worker"
 description = "Give a resident worker a small coding task as a turn, without filing a queue item, and answer with what it wrote and the files it changed. A task worth keeping and reviewing is a queue item."
 input = "worker_ask.json"
 capabilities = ["room.tools"]
+unbounded = true
 
 [entry.listing]
 line = "- worker_ask — hand a resident worker a small coding task as a turn, with no item, and read what it wrote and changed"

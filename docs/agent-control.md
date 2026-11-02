@@ -939,9 +939,10 @@ The owner's words:
 
 ### Asking a worker directly
 
-- **A chat agent may hand a free worker a small coding task as a turn, with no item.** `worker_ask` names
-  the worker, the words, an optional folder and an optional bound; agency puts the words into the worker's
-  session on its usual road and answers with the turn's answer and the files it changed in the folder.
+- **A chat agent may hand a worker a small coding task as a turn, with no item.** `worker_ask` names
+  the worker, the words and an optional folder; agency puts the words into the worker's session on its
+  usual road, the ask waits for the turn's end however long it takes, and it answers with the turn's
+  answer and the files it changed in the folder.
 - **The road is the one the worker's next job would take** (`docs/cache-fallback.md`, 「One road
   resolution」): its own fixed model at the head of its walk where it keeps one (`docs/model-tiers.md`,
   「An agent's own model」), the job key's road where it keeps none. On Claude Code the turn goes into the
@@ -950,12 +951,27 @@ The owner's words:
   keepalive ping is no such turn: it warms only the Claude session it stands on.
 - **The folder** is the asking agent's scratch workspace under the data root where none is named, made on
   first use. A worker's own checkout may be named only in the owner's turn.
-- **A free worker only.** A worker that is working, queued or carrying a turn is refused with `409`; only
-  the owner's turn may queue behind it. The ask counts against the same one turn at a time and the same
-  concurrency cap as a job.
+- **A busy worker is waited for.** A worker that is working, queued or carrying a turn is never a
+  refusal: the ask goes in behind what it is doing, for every asker past the owner's gate, and runs when the
+  worker is free. The ask counts against the same one turn at a time and the same concurrency cap as a job.
 - **A worker that stands on a node** is refused unless the folder is on that node.
 - **The exchange is a turn of the worker's**, written to its log like any other, so the console shows it.
   No item, lease or report is written. A task worth keeping and reviewing is filed as an item.
+
+### Delegating a task to the helper
+
+- **A chat agent may hand a task to the helper, with no item.** `delegate` names the instruction, with
+  all the context it needs, an optional role and an optional folder (`docs/tools.md`, 「The delegate」).
+  It names no worker: an agent holding the helper role carries it (`docs/agent-roles.md`, 「The helper
+  role」), once the task's seat is let in from the pool's line at the role's tier (`docs/coworker-pool.md`,
+  「Who takes a place」), however long that takes; it is never refused because every seat is taken.
+- **The task is a turn of the helper's own session,** on the seat's model, in the helper's checkout,
+  working in the folder its words name; a later delegation on the same model within the cache lifetime
+  goes on in the same session (`docs/sessions.md`, 「A worker's session per model」). Its turn is never
+  bounded by a clock, and its seat is finished once the turn has answered.
+- **The chat agent calls it apart,** with `bmo use bmo/delegate --async`, so its own turn is not held by
+  the work: the room is told the task was handed off, and the answer — the turn's text and the files
+  created or changed in the folder — comes back as a wake.
 
 ### Words that arrive while a turn is working
 

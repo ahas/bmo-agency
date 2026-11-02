@@ -53,7 +53,7 @@ async fn a_role_is_added_changed_and_removed_on_the_control_port() {
     .iter()
     .map(|role| role["name"].as_str().unwrap())
     .collect();
-  assert_eq!(names, ["chat", "worker", "searcher", "translator", "video", "gate"]);
+  assert_eq!(names, ["chat", "worker", "searcher", "translator", "video", "helper", "gate"]);
 
   let translator =
     std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/prompts/roles/translator.md")).unwrap();
@@ -62,6 +62,7 @@ async fn a_role_is_added_changed_and_removed_on_the_control_port() {
   assert_eq!(role(&listing, "video").unwrap()["kindDefault"], false);
   assert_eq!(role(&listing, "video").unwrap()["maxConcurrent"], 2);
   assert_eq!(role(&listing, "video").unwrap()["tier"], Value::Null);
+  assert_eq!(role(&listing, "helper").unwrap()["tier"], "Reliable", "its key is seeded");
   assert_eq!(
     role(&listing, "chat").unwrap()["bundles"][1],
     json!({ "name": "room.send", "label": "Send" })
@@ -94,7 +95,7 @@ async fn a_role_is_added_changed_and_removed_on_the_control_port() {
     assert_eq!(refused["code"], "unprocessable-entity");
     assert!(refused["error"].as_str().unwrap().ends_with('.'), "{refused}");
   }
-  assert_eq!(scratch.count(r#"SELECT count(*) FROM "agent_roles""#, vec![]).await, 6);
+  assert_eq!(scratch.count(r#"SELECT count(*) FROM "agent_roles""#, vec![]).await, 7);
 
   // A role added, its bundles once each, its tier its key's assignment, which the tier settings list.
   let (status, added) = ask(

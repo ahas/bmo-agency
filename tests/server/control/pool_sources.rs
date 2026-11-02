@@ -150,3 +150,73 @@ async fn a_seat_is_kept_under_its_caller_s_own_source_and_work_key() {
 
   assert_eq!(plain["workKey"], json!("role:tracer"), "{plain}");
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_seat_is_asked_under_an_agent_role_at_its_key_s_co_worker_tier() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let data = home.path().join("data");
+  let token = "secret";
+
+  std::fs::create_dir_all(&data).unwrap();
+
+  let server = standing::stand_server(home.path(), &data, &scratch.address(), token);
+  let port = server.port;
+
+  for (role, tier) in [("aide", Some("Light")), ("chief", Some("Frontier")), ("unranked", None)] {
+    scratch
+      .run(
+        r#"INSERT INTO "agent_roles" ("name", "label", "bundles", "position", "created_at", "updated_at")
+           VALUES ($1, $1, '[]', 99, 0, 0) ON CONFLICT DO NOTHING"#,
+        vec![role.into()],
+      )
+      .await;
+
+    if let Some(tier) = tier {
+      scratch
+        .run(
+          r#"INSERT INTO "model_tier_assignments" ("key", "tier") VALUES ($1, $2)
+             ON CONFLICT ("key") DO UPDATE SET "tier" = excluded."tier""#,
+          vec![format!("role:{role}").into(), tier.into()],
+        )
+        .await;
+    }
+  }
+
+  scratch
+    .run(
+      r#"INSERT INTO "coworker_pool_tier_limits" ("provider", "tier", "capacity", "set_at") VALUES ('claude-code', 'Light', 4, 0)
+         ON CONFLICT ("provider", "tier") DO UPDATE SET "capacity" = 4"#,
+      vec![],
+    )
+    .await;
+
+  let asked = |role: &str, key: &str| {
+    json!({
+      "requestKey": key, "owner": key, "role": role, "selection": "auto", "source": "delegate",
+      "provider": "claude-code",
+    })
+  };
+
+  // An agent role whose key names a co-worker tier lends a seat at that tier, under its own key.
+  let (status, seat) = post(port, token, "/seat-requests", asked("aide", "delegate:1")).await;
+
+  assert_eq!(status, 201, "{seat}");
+  assert_eq!(
+    (&seat["role"], &seat["tier"], &seat["workKey"], &seat["source"], &seat["state"]),
+    (
+      &json!("aide"),
+      &json!("Light"),
+      &json!("role:aide"),
+      &json!("delegate"),
+      &json!("waiting")
+    )
+  );
+
+  // A tier no co-worker is borrowed at, a key with no tier, and a name no role holds are refused.
+  for (role, key) in [("chief", "delegate:2"), ("unranked", "delegate:3"), ("nobody", "delegate:4")] {
+    let (status, said) = post(port, token, "/seat-requests", asked(role, key)).await;
+
+    assert_eq!(status, 422, "{role}: {said}");
+  }
+}

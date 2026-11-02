@@ -4,7 +4,6 @@
 
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
-use std::time::Duration;
 
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -18,8 +17,13 @@ pub const TITLE: &str = "Ask a worker";
 pub const DESCRIPTION: &str = "Give a resident worker a small coding task as a turn, without filing a queue item, and answer with what it wrote and the files it changed. A task worth keeping and reviewing is a queue item.";
 pub const CAPABILITIES: &[&str] = &["room.tools"];
 
-const DEFAULT_BOUND_SECONDS: u64 = 600;
 const DEFAULT_CONTROL_PORT: u16 = 3220;
+
+// The code agency answers a turn sent into a session already in one with.
+const SESSION_BUSY: &str = "session-busy";
+
+/// How often a turn answered busy is sent again: a pace, never a bound on how long the ask waits.
+pub const LOOK_EVERY: std::time::Duration = std::time::Duration::from_secs(1);
 
 pub fn entry() -> String {
   format!("{NAMESPACE}/{NAME}")
@@ -32,8 +36,6 @@ pub struct AskInput {
   pub words: String,
   #[serde(default)]
   pub folder: Option<String>,
-  #[serde(default)]
-  pub time_bound_seconds: Option<u64>,
 }
 
 /// The agency server a tool reaches: its port and token, from its own environment or the server's env file.
@@ -69,10 +71,9 @@ impl Api {
     }
   }
 
+  // A read answered whenever agency answers: no timeout cuts the wait.
   async fn get(&self, path: &str) -> Result<(reqwest::StatusCode, Value), String> {
-    let mut request = reqwest::Client::new()
-      .get(format!("http://127.0.0.1:{}{path}", self.port))
-      .timeout(Duration::from_secs(10));
+    let mut request = reqwest::Client::new().get(format!("http://127.0.0.1:{}{path}", self.port));
 
     if let Some(token) = &self.token {
       request = request.bearer_auth(token);
@@ -85,16 +86,10 @@ impl Api {
     Ok((status, answered.json().await.unwrap_or(Value::Null)))
   }
 
-  async fn post(
-    &self,
-    path: &str,
-    body: Value,
-    bound: Duration,
-  ) -> Result<(reqwest::StatusCode, Value), String> {
-    let mut request = reqwest::Client::new()
-      .post(format!("http://127.0.0.1:{}{path}", self.port))
-      .json(&body)
-      .timeout(bound);
+  // A send answered once agency answers, a turn's once the turn has ended, however long that takes.
+  async fn post(&self, path: &str, body: Value) -> Result<(reqwest::StatusCode, Value), String> {
+    let mut request =
+      reqwest::Client::new().post(format!("http://127.0.0.1:{}{path}", self.port)).json(&body);
 
     if let Some(token) = &self.token {
       request = request.bearer_auth(token);
@@ -190,10 +185,6 @@ pub async fn ask_with(api: &Api, session: &Session, input: AskInput) -> Answer {
     return Answer::failure("words must not be empty");
   }
 
-  let bound = input
-    .time_bound_seconds
-    .unwrap_or(DEFAULT_BOUND_SECONDS)
-    .clamp(1, DEFAULT_BOUND_SECONDS);
   let owner = session.variables.get("BMO_TURN_PRIVILEGED").is_some_and(|flag| flag == "1");
   let worker = input.worker.trim();
   let (status, described) = match api.get(&format!("/workers/{worker}")).await {
@@ -213,12 +204,6 @@ pub async fn ask_with(api: &Api, session: &Session, input: AskInput) -> Answer {
         .unwrap_or("agency refused the worker")
         .to_owned(),
     );
-  }
-
-  let state = described.get("state").and_then(Value::as_str).unwrap_or("idle");
-
-  if state != "idle" && !owner {
-    return Answer::failure(format!("{worker} is busy: {state}"));
   }
 
   let folder = match workspace(session, input.folder.as_deref()) {
@@ -248,16 +233,25 @@ pub async fn ask_with(api: &Api, session: &Session, input: AskInput) -> Answer {
     .map_or_else(|| format!("{worker}@worker"), str::to_owned);
   let since = crate::now_ms();
   let prompt = format!("Work in {}.\n\n{}", folder.display(), input.words.trim());
-  let (status, turned) = match api
-    .post(
-      &format!("/sessions/{session_id}/turns"),
-      json!({ "prompt": prompt, "context": { "cwd": folder } }),
-      Duration::from_secs(bound),
-    )
-    .await
-  {
-    Ok(answer) => answer,
-    Err(why) => return Answer::failure(why),
+  // A worker in a turn of its own, a job's or another ask's, is waited for: the turn is sent again at the
+  // pace until the session takes it, and runs once the worker is free (docs/tools.md, 「The worker ask」).
+  let (status, turned) = loop {
+    match api
+      .post(
+        &format!("/sessions/{session_id}/turns"),
+        json!({ "prompt": prompt, "context": { "cwd": folder } }),
+      )
+      .await
+    {
+      Ok((status, said))
+        if status == reqwest::StatusCode::CONFLICT
+          && said.get("code").and_then(Value::as_str) == Some(SESSION_BUSY) =>
+      {
+        tokio::time::sleep(LOOK_EVERY).await;
+      }
+      Ok(answer) => break answer,
+      Err(why) => return Answer::failure(why),
+    }
   };
 
   if !status.is_success() {

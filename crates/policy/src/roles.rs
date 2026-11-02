@@ -1,6 +1,7 @@
 //! The roles an agent may hold and the function bundles a role may give (docs/agent-roles.md): the roles
 //! themselves are the store's rows, which these declarations seed once; the bundles, the kinds' roles, the
-//! co-worker's role, the sending bundle, the kinds' marks and the shape of a role's name are the policy's.
+//! co-worker's role, the role delegated work goes to, the sending bundle, the kinds' marks and the shape of a
+//! role's name are the policy's.
 
 use std::collections::BTreeMap;
 
@@ -40,6 +41,8 @@ pub struct Role {
 pub struct Roles {
   /// The role a co-worker's run holds: its place has no agents row to name one of its own.
   pub coworker: String,
+  /// The role whose agents carry a delegated task where its ask names none.
+  pub delegate: String,
   /// The bundle that opens sending into a room.
   pub send: String,
   /// The shape of a role's name.

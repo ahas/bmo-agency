@@ -12,18 +12,25 @@ warming and standing checkouts, is agency's.
   the co-workers a job worker line calls with Claude Code's native `Agent` (also called `Task`) all
   take a place from the same store pool before the model process launches.
 - A co-work work order's builder turn also launches a job after taking a place in the same pool.
+- **A delegated task takes a place too.** A task a chat agent hands off through `bmo/delegate`
+  (`docs/tools.md`, 「The delegate」) asks a seat as a branch does, under the helper role, an agent role, at
+  the tier its `role:<name>` assignment gives on Claude Code, waits in the line however long it takes, and
+  sends its turn into the helper's session only once it is let in, so the tier's limit counts it like any
+  other co-worker. The pool lets a seat be asked under an agent role whose `role:<name>` assignment names
+  a tier a co-worker is borrowed at, as under a pooled co-worker role; a reservation is a co-worker role's
+  alone.
 - **Branches:** the caller gives a role and instruction to the common dispatcher, which reads the
   provider order and the `role:<name>` tier assignment and picks the actual `(provider, model,
   effort)` independently of the parent. A native `Agent` call is the exception: its provider is the
   parent's where the parent stands on a provider that lends co-workers, and the pool's order decides
   for every other branch.
 - **A branch's source and work key are the caller's.** A seat is asked under the source label its
-  caller sends — `cowork` for a co-work branch, a runner line's name for a seat the research unit asks — and a
-  builder turn's place under `turn`; the label is kept as sent and only `turn` is a builder turn's. A
-  seat is resolved under the work key its caller names, such as a search depth's, and under
-  `role:<name>` where it names none. The key a request or a reservation was resolved under is the one
-  kept on it, and every later reading of it — the request asked again, a reservation's seats — reads
-  that key rather than building it again.
+  caller sends — `cowork` for a co-work branch, a runner line's name for a seat the research unit asks,
+  `delegate` for a delegated task — and a builder turn's place under `turn`; the label is kept as sent and
+  only `turn` is a builder turn's. A seat is resolved under the work key its caller names, such as a
+  search depth's, and under `role:<name>` where it names none. The key a request or a reservation was
+  resolved under is the one kept on it, and every later reading of it — the request asked again, a
+  reservation's seats — reads that key rather than building it again.
 - **A worker line's native `Agent`:** the child runs inside the worker's own program, so the worker
   settings' hook puts the request into the provider that program stands on and the tier the
   `role:<name>` mapping gives on it before the call, and sends the call only after taking a place
@@ -70,10 +77,11 @@ warming and standing checkouts, is agency's.
 ## Requests and leases
 
 - A request goes into the pool's request table before the model launches.
-- A launch a chat agent asks for on a room's words — a worker asked through `bmo/worker_ask`, an item's job
-  run through its `agency` server — reaches the pool only past the owner's gate (`docs/launch-lines.md`,
-  「The owner's gate」): a turn not the owner's goes on only where the account service answers that every
-  message's sender holds `launch` in the room, and is refused where it cannot be asked.
+- A launch a chat agent asks for on a room's words — a worker asked through `bmo/worker_ask`, a task
+  handed off through `bmo/delegate`, an item's job run through its `agency` server — reaches the pool only
+  past the owner's gate (`docs/launch-lines.md`, 「The owner's gate」): a turn not the owner's goes on only
+  where the account service answers that every message's sender holds `launch` in the room, and is refused
+  where it cannot be asked.
 - **The line.** Within one provider and tier, waiting requests stand in the order they were asked for,
   by a global increasing sequence, and a place goes to the first of them whose owner is asking now. One
   immediate transaction checks the current active count plus the reserved places and who stands ahead

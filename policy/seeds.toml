@@ -140,6 +140,12 @@ tier = "Light"
 key = "role:screener"
 tier = "Light"
 
+# The helper role's key: the tier a delegated task's seat is asked at (docs/agent-roles.md, 「The helper
+# role」).
+[[key]]
+key = "role:helper"
+tier = "Reliable"
+
 [[key]]
 key = "search"
 tier = "Frontier"

@@ -18,6 +18,7 @@ members = [
   "crates/tool-call",
   "crates/cache-siren",
   "crates/server",
+  "tools/delegate",
   "tools/procedures",
   "tools/worker_ask",
 ]
@@ -106,6 +107,7 @@ libc.workspace = true
 llm-gateway = { path = "crates/llm-gateway" }
 node-link = { path = "crates/node-link" }
 policy = { path = "crates/policy" }
+delegate-tool = { path = "tools/delegate" }
 procedures-tool = { path = "tools/procedures" }
 worker-ask-tool = { path = "tools/worker_ask" }
 regex.workspace = true

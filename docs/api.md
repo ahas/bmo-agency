@@ -498,6 +498,10 @@ out and the paths the call changed.
 | GET | `/roles` | The roles the pool can lend. |
 | PATCH | `/pool/limits` | Set how many children of one co-worker tier may be alive on one provider. |
 
+A seat is asked under a role: a co-worker role the pool lends (`GET /roles`), or an agent role whose
+`role:<name>` key is assigned a tier a co-worker is borrowed at (「agent-roles」), and is refused 422 under
+any other.
+
 A seat request answers its `state` — `waiting` in its bucket's line, `reserved` under a reservation,
 `active` once let in, and `released` or `cancelled` once given back — and the `provider`, `model`,
 `effort` and `tier` its work key resolved to, `effort` null where the mapping names none. A seat is asked

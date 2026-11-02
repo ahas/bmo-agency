@@ -11,6 +11,9 @@
 #   `bmo use` unless the line lists it. None is listed for now.
 # coworker: the role a co-worker's run holds. A co-worker is a sub-agent for a worker's use alone, and
 #   the place it works in, a standing branch checkout, has no agents row to name a role of its own.
+# delegate: the role whose agents carry a task a chat agent hands off through bmo/delegate where the ask names
+#   none (docs/tools.md, 「The delegate」; docs/agent-roles.md, 「The helper role」). Its seat is asked under
+#   it, at the tier its role:<name> assignment gives.
 # send: the bundle that opens sending into a room, which every guard of a send reads here.
 # name_pattern, name_most: the shape of a role's name, kebab-case, and the most characters it holds.
 # label_most: the most characters a role's label holds.
@@ -18,6 +21,7 @@
 #   role comes from」).
 
 coworker = "worker"
+delegate = "helper"
 send = "room.send"
 name_pattern = "^[a-z][a-z0-9]*(-[a-z0-9]+)*$"
 name_most = 40
@@ -102,6 +106,15 @@ label = "Video producer"
 prompt = "video.md"
 max_concurrent = 2
 bundles = ["queue.read", "web.read", "room.send"]
+
+# The helper: the role the chat agent delegates hard work to, carried by a worker row standing in a checkout
+# of its own (docs/agent-roles.md, 「The helper role」).
+[[roles]]
+name = "helper"
+label = "Helper"
+prompt = "helper.md"
+max_concurrent = 2
+bundles = ["graph.read", "queue.read", "web.read"]
 
 [[roles]]
 name = "gate"

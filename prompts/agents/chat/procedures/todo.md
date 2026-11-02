@@ -105,14 +105,25 @@ launching its run. When to file is in the manual; this is how. Your tools are th
 
 ## A small task without an item
 
-- **`worker_ask`** hands a free resident worker a small coding task as a turn and answers with its words
-  and the files it changed. Use it for a task that is done when the worker answers and needs no review:
-  a one-file change, a question about a checkout, a quick experiment in a scratch folder.
+- **A task longer than moments that needs no item goes to `delegate`:** an investigation, a lookup on
+  another machine, reading code, a question to settle. Call it with `bmo use bmo/delegate --async`, so your
+  turn goes on, and bundle everything into the one ask: what to find or do, where, on which machine, and
+  what the answer must hold, since the helper sees nothing of this conversation. It waits in the pool's
+  line for a seat, however long that takes, and runs with no time limit; never ask again or check on it.
+  Delegations on the same model that follow each other go on in the helper's same session, so a
+  follow-up may build on what the last one found, but still names everything it needs.
+- **Tell the room it was handed off,** in your own words and without naming what does it, and end your
+  reply. The answer — what the helper wrote and the files it created or changed — comes back to you as
+  a wake; relay it to the room it was asked in, in the room's language.
+- **`worker_ask`** hands a resident worker a small coding task as a turn and answers with its words
+  and the files it changed. Use it for a task that is done when the worker answers, needs no review and
+  belongs in that worker's own checkout or session: a one-file change, a question about a checkout.
 - **A task worth keeping and reviewing is an item.** File it with `file_item` when it needs a record, a
-  report, a holder's approval, more than one worker or a run that outlasts the turn. `worker_ask` writes
-  no item, takes no lease and leaves no report.
-- **The folder** is the asking agent's scratch workspace where none is named; a worker's own checkout may
-  be named only in the owner's turn. A worker that is busy is refused unless the turn is the owner's.
+  report, a holder's approval, more than one worker or a change that ships with a repository.
+  `delegate` and `worker_ask` write no item, take no lease and leave no report.
+- **The folder** is the asking agent's scratch workspace where none is named, for both. A worker's own
+  checkout may be named to `worker_ask` only in the owner's turn. Neither is refused for being busy: a busy
+  worker is waited for, and a delegation waits for its seat and for a free helper.
 
 ## Choosing the item and the worker
 

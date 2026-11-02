@@ -36,8 +36,8 @@ made of is `docs/companions.md`.
   waits for the next settling that can read it.
 - **The policy keeps what is not a role's own,** read by the bun side and the Rust side alike: the bundles
   a role may give, `[[bundles]]`, each with its label; the role each kind holds (「Where a role comes
-  from」); the role a co-worker holds; the bundle that opens sending; each kind's mark; and the shape of a
-  role's name.
+  from」); the role a co-worker holds; the role delegated work goes to where its ask names none (「The
+  helper role」 below); the bundle that opens sending; each kind's mark; and the shape of a role's name.
 - **A label is an English word** a screen translates through its own language pack. A screen is handed
   each role and bundle with its kebab-case code beside the label (`docs/api.md`, 「agents」 and
   「agent-roles」), and words the code; the label is the English the log keeps.
@@ -51,6 +51,7 @@ made of is `docs/companions.md`.
   | `translator` | Translator | none | 4 | `translator.md` |
   | `video` | Video producer | `queue.read`, `web.read`, `room.send` | 2 | `video.md` |
   | `gate` | Gate | none | 8 | none |
+  | `helper` | Helper | `graph.read`, `queue.read`, `web.read` | 2 | `helper.md` |
 
 - **The translator is a runner, not a gate.** A gate judges a turn in the chain around it, its input and
   answer fixed; a translation is work asked on demand — a document's part, a text a job worker reads, a
@@ -137,6 +138,23 @@ made of is `docs/companions.md`.
 - **Every run a worker's work goes out on holds them:** a job's turns in the worker's standing program,
   its runs on another provider's road, the program a worker stands idle, and a co-work task's turns in
   its place and the pings that warm it.
+
+## The helper role
+
+- **A worker, a co-worker and the helper are three different things.** A worker owns one fixed
+  repository: its prefix documents, the prompts that stand before its own and that repository's rules. A
+  co-worker is the pool's rule of how many runs of a model's tier go at once (`docs/coworker-pool.md`), and
+  a worker's co-work is governed by it. The helper is one role among the role definitions: the one the
+  supervisor, the chat agent, delegates hard work to.
+- **Its agent is a row of kind `worker` holding the `helper` role,** standing in a checkout of its own like
+  any worker, its role prompt, seeded from `prompts/roles/helper.md`, standing first in every turn. More than
+  one row may hold the role, and a delegation goes to a free one first.
+- **Delegated work reaches it through `bmo/delegate`** (`docs/tools.md`, 「The delegate」), as a turn of its
+  own worker session on the model its seat resolved to. The role is named for delegated work as `delegate`
+  in `policy/roles.toml`, and its `role:<name>` key is seeded at Reliable, the highest tier a co-worker is
+  borrowed at, so a delegated task's seat counts against that tier's limit; the owner changes it as any
+  role's tier.
+- **Its bundles** are the worker's: `graph.read`, `queue.read` and `web.read`.
 
 ## The video role
 
