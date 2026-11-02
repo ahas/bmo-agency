@@ -53,7 +53,22 @@ async fn a_role_is_added_changed_and_removed_on_the_control_port() {
     .iter()
     .map(|role| role["name"].as_str().unwrap())
     .collect();
-  assert_eq!(names, ["chat", "worker", "searcher", "translator", "video", "helper", "gate"]);
+  assert_eq!(names, ["chat", "worker", "searcher", "translator", "video", "helper", "gate", "upkeep"]);
+
+  // Whether a role's runs keep their sessions is its row's: the policy seeds the runners', the gate's and the
+  // upkeep's fresh, every other kept.
+  for (name, sessions) in [
+    ("chat", "keep"),
+    ("worker", "keep"),
+    ("searcher", "fresh"),
+    ("translator", "fresh"),
+    ("video", "keep"),
+    ("helper", "keep"),
+    ("gate", "fresh"),
+    ("upkeep", "fresh"),
+  ] {
+    assert_eq!(role(&listing, name).unwrap()["sessions"], sessions, "{name}");
+  }
 
   let translator =
     std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/prompts/roles/translator.md")).unwrap();
@@ -88,6 +103,7 @@ async fn a_role_is_added_changed_and_removed_on_the_control_port() {
     json!({ "name": "reviewer", "label": "Reviewer", "bundles": [], "maxConcurrent": 0 }),
     json!({ "name": "reviewer", "label": "Reviewer", "bundles": [], "tier": "Nowhere" }),
     json!({ "name": "reviewer", "label": "Reviewer", "bundles": [], "prompt": 3 }),
+    json!({ "name": "reviewer", "label": "Reviewer", "bundles": [], "sessions": "sometimes" }),
   ] {
     let (status, refused) = ask(reqwest::Method::POST, port, "/agent-roles", Some(body.clone())).await;
 
@@ -95,7 +111,7 @@ async fn a_role_is_added_changed_and_removed_on_the_control_port() {
     assert_eq!(refused["code"], "unprocessable-entity");
     assert!(refused["error"].as_str().unwrap().ends_with('.'), "{refused}");
   }
-  assert_eq!(scratch.count(r#"SELECT count(*) FROM "agent_roles""#, vec![]).await, 7);
+  assert_eq!(scratch.count(r#"SELECT count(*) FROM "agent_roles""#, vec![]).await, 8);
 
   // A role added, its bundles once each, its tier its key's assignment, which the tier settings list.
   let (status, added) = ask(
@@ -122,6 +138,7 @@ async fn a_role_is_added_changed_and_removed_on_the_control_port() {
       "maxConcurrent": 2,
       "prompt": "Review what you are handed.",
       "tier": "Fine",
+      "sessions": "keep",
       "agents": 0,
       "kindDefault": false,
     })
@@ -181,6 +198,26 @@ async fn a_role_is_added_changed_and_removed_on_the_control_port() {
     ask(reqwest::Method::PATCH, port, "/agent-roles/reviewer", Some(json!({ "tier": "Light" }))).await;
   assert_eq!(status, 200);
   assert_eq!(assigned(&scratch, "role:reviewer").await, 1);
+
+  // Its sessions are changed on the row, the other fields kept.
+  let (status, fresh) = ask(
+    reqwest::Method::PATCH,
+    port,
+    "/agent-roles/reviewer",
+    Some(json!({ "sessions": "fresh" })),
+  )
+  .await;
+  assert_eq!(status, 200, "{fresh}");
+  assert_eq!((&fresh["sessions"], &fresh["label"]), (&json!("fresh"), &json!("Checker of work")));
+
+  let (status, _) = ask(
+    reqwest::Method::PATCH,
+    port,
+    "/agent-roles/reviewer",
+    Some(json!({ "sessions": "never" })),
+  )
+  .await;
+  assert_eq!(status, 422);
 
   let (status, _) = ask(
     reqwest::Method::PATCH,

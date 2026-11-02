@@ -169,8 +169,9 @@ warming and standing checkouts, is agency's.
 - **Where either fails,** the request carries no session and the turn opens a new one as it does today,
   carrying the note the replacement rules already leave (`docs/sessions.md`, 「Session replacement」). The
   session that failed is dropped with its record by the rules those sessions already stand on.
-- **A borrowed child's seat carries no session of its own.** A co-work branch or a search's keeps no session,
-  and a native call keeps its parent's, so their seats are unchanged.
+- **A borrowed child's seat carries no session of its own.** A co-work branch opens a session of its own,
+  a search's run goes on the session its role's setting gives it (`docs/agent-roles.md`, 「A role's
+  sessions」), and a native call keeps its parent's, so their seats name none.
 - **Reuse changes which session a seat runs in, never how many run.** A request's session is no part of
   admission: the tier's limit, the line, the place and the yielding rule count exactly as they did, and a
   builder turn still stands in no tier's line.
@@ -347,7 +348,7 @@ The worker settings' hook takes the place for one native `Agent` call.
   number — and agency counts those as busy; it reads none of the consumer's orders or jobs. The ask
   names the order's checkout, the task's selection, its role and the tier it asks for, and is answered
   with the place's number and its folder.
-- **A branch's turn reaches its place as a thrown-away session** whose folder is the place's, naming
+- **A branch's turn reaches its place as an apart session** whose folder is the place's, naming
   the task's item and role (`docs/api.md`, 「Sessions」): agency finds the place by that folder and
   puts the turn into the place's program under the label below.
 - **A pool is one repository:** the work order checkout's git common directory sets the pool, and the

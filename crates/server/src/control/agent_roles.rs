@@ -9,7 +9,7 @@ use axum::http::{Method, StatusCode};
 use axum::response::{IntoResponse, Response};
 use policy::control_words::CONTROL_WORDS;
 use policy::fill_marks;
-use policy::roles::ROLES;
+use policy::roles::{ROLES, Sessions};
 use policy::tiers::TIERS;
 use regex::Regex;
 use sea_orm::{ConnectionTrait, TransactionTrait};
@@ -70,6 +70,7 @@ async fn view<C: ConnectionTrait>(db: &C, role: &AgentRole) -> Result<Value, Ref
     "maxConcurrent": role.max_concurrent,
     "prompt": role.prompt,
     "tier": tier,
+    "sessions": role.sessions.word(),
     "agents": holders(db, &role.name).await?.len(),
     "kindDefault": ROLES.kind_default(&role.name),
   }))
@@ -97,6 +98,7 @@ struct Fields {
   bound: Option<Option<i64>>,
   prompt: Option<Option<String>>,
   tier: Option<Option<String>>,
+  sessions: Option<Sessions>,
 }
 
 impl Fields {
@@ -158,6 +160,13 @@ impl Fields {
         Value::String(tier) if TIERS.holds(tier) => Some(tier.clone()),
         _ => return Err(unprocessable(fill_marks(&words.tier, &[("tiers", &TIERS.ladder.join(", "))]))),
       });
+    }
+
+    if let Some(sessions) = body.get("sessions") {
+      match sessions.as_str().and_then(Sessions::of) {
+        Some(sessions) => fields.sessions = Some(sessions),
+        None => return Err(unprocessable(words.sessions.as_str())),
+      }
     }
 
     Ok(fields)
@@ -253,8 +262,8 @@ impl Route for AgentRoleCreate {
 
     run(
       &written,
-      r#"INSERT INTO "agent_roles" ("name", "label", "bundles", "max_concurrent", "prompt", "position", "created_at", "updated_at")
-         VALUES ($1, $2, $3, $4, $5, (SELECT COALESCE(MAX("position"), -1) + 1 FROM "agent_roles"), $6, $6)"#,
+      r#"INSERT INTO "agent_roles" ("name", "label", "bundles", "max_concurrent", "prompt", "position", "created_at", "updated_at", "sessions")
+         VALUES ($1, $2, $3, $4, $5, (SELECT COALESCE(MAX("position"), -1) + 1 FROM "agent_roles"), $6, $6, $7)"#,
       vec![
         name.clone().into(),
         label.into(),
@@ -262,6 +271,7 @@ impl Route for AgentRoleCreate {
         fields.bound.flatten().into(),
         fields.prompt.flatten().into(),
         now.into(),
+        fields.sessions.unwrap_or_default().word().into(),
       ],
     )
     .await?;
@@ -281,7 +291,7 @@ impl Route for AgentRoleCreate {
 
 crate::moved!(AgentRoleCreate);
 
-/// `PATCH /agent-roles/{roleName}`: a role's label, bundles, bound, prompt or tier changed.
+/// `PATCH /agent-roles/{roleName}`: a role's label, bundles, bound, prompt, tier or sessions changed.
 pub struct AgentRoleChange;
 
 impl Route for AgentRoleChange {
@@ -301,7 +311,8 @@ impl Route for AgentRoleChange {
 
     run(
       &written,
-      r#"UPDATE "agent_roles" SET "label" = $1, "bundles" = $2, "max_concurrent" = $3, "prompt" = $4, "updated_at" = $5
+      r#"UPDATE "agent_roles" SET "label" = $1, "bundles" = $2, "max_concurrent" = $3, "prompt" = $4, "updated_at" = $5,
+           "sessions" = $7
          WHERE "name" = $6"#,
       vec![
         fields.label.unwrap_or(held.label).into(),
@@ -310,6 +321,7 @@ impl Route for AgentRoleChange {
         fields.prompt.unwrap_or(held.prompt).into(),
         now_ms().into(),
         name.clone().into(),
+        fields.sessions.unwrap_or(held.sessions).word().into(),
       ],
     )
     .await?;

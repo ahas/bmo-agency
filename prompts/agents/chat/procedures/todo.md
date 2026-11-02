@@ -107,9 +107,14 @@ launching its run. When to file is in the manual; this is how. Your tools are th
 
 - **A task longer than moments that needs no item goes to `delegate`:** an investigation, a lookup on
   another machine, reading code, a question to settle. Call it with `bmo use bmo/delegate --async`, so your
-  turn goes on, and bundle everything into the one ask: what to find or do, where, on which machine, and
-  what the answer must hold, since the helper sees nothing of this conversation. It waits in the pool's
-  line for a seat, however long that takes, and runs with no time limit; never ask again or check on it.
+  turn goes on, give it a `title`, one line naming the task, and bundle everything into the one ask: what
+  to find or do, where, on which machine, and what the answer must hold, since the helper sees nothing of
+  this conversation. It waits in the pool's line for a seat, however long that takes, and runs with no
+  time limit; never ask it again while it stands.
+- **`delegations` lists what you have delegated:** each task's title, its stage — waiting for a seat,
+  running on a helper, ended — when it was asked and the helper it runs on. Read it before delegating,
+  and delegate nothing the list shows already waiting or running for the same task. Asked how delegated
+  work stands, read it and answer from what it says, never from memory.
   Delegations on the same model that follow each other go on in the helper's same session, so a
   follow-up may build on what the last one found, but still names everything it needs.
 - **Tell the room it was handed off,** in your own words and without naming what does it, and end your
@@ -154,7 +159,8 @@ launching its run. When to file is in the manual; this is how. Your tools are th
    until you release it, and no clock lets it go: release one you will not run.
 2. **`run_job`** with `assignmentId`, `itemId`, `leaseId`, `holderName` `harness` and the same
    `item`, `scope` among it. It launches the worker's session on the item and the lease, and answers
-   the job; as the job ends, the agency gives its lease back and tells the room its report.
+   the job; as the job ends, the agency tells the room its report, and keeps the item's lease standing
+   for your close, or gives it back where the job was stopped.
    - **Work a small model runs carries an `instruction`,** all four fields filled: `repository`, the
      checkout; `documents`, the canonical documents the change answers to; `sentences`, each statement
      the change must make or keep true; `checks`, the commands whose passing says it is done. Nothing
@@ -180,9 +186,11 @@ launching its run. When to file is in the manual; this is how. Your tools are th
   its report. It may put a question to the owner.
 - **When the work is finished and its checks passed:** `job_report` of kind `final` with
   `actorName` `harness` and the run's account, then `job_item_update` with item <id> and `state`
-  `done` to close it. The close is allowed while the lease stands; a lease that ran out leaves the
-  item open, so take it again before closing. Never close on a report saying its checks did not
-  pass.
+  `done` to close it. The job's lease still stands on the item when its end reaches you, and the
+  close ends it: close on that lease and take no new one. Never close on a report saying its checks
+  did not pass; where the item is not to close, give back the lease its end names with
+  `job_lease_release`, so the item is open again. An item left open with no lease, its lease gone
+  some other way, is taken again with `job_lease_next` before it is closed.
 - **Relay the run's end in a few lines, in the item's room,** as the manual says: its outcome, the commit
   or artefact, one line of what was left out, then what the report could not say. The report itself stays
   whole on the item.

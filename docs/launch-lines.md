@@ -17,10 +17,10 @@
   flags without print mode and without a prompt, the session named by `--session-id` for the first
   start and by `--resume` for every start after it, and `--settings` naming the agent place's
   settings file — the status line and the hooks — placed after the allowed tools so that list flag
-  never swallows it. Every turn is words put into that program. A line that keeps no session — a
-  runner's — runs each run apart: the same interactive program in a
-  pane of its own, opened on a session of its own for the run and closed with it (`docs/agents.md`,
-  「Runs apart」). A gate's line stands as a pool of the same interactive programs, each cleared between
+  never swallows it. Every turn is words put into that program. A line no standing program carries — a
+  runner's — runs each run apart: the same interactive program in a pane of its own, opened for the run
+  on the session its role gives it — a new one, or the warm one the role keeps — and closed with it
+  (`docs/agents.md`, 「Runs apart」). A gate's line stands as a pool of the same interactive programs, each cleared between
   the judgements put into it (`gates.md`, 「A gate on Claude Code」); on dsh it stands in places kept
   for each program a gate's ask composes, which stay up between judgements
   (`docs/agent-control.md`, 「A gate's places」). No line has a print-mode
@@ -136,8 +136,8 @@
   Codex and dsh offer no gate on a tool call and carry a chat round, a job and a gate, each as a portable
   run the fallback runner hands over; dsh with every tool row of its own off also carries the search line,
   whose tools are the run's MCP servers alone, and the browse line stays Claude Code's.
-- **A runner line's thrown-away session goes out on any road whose program carries the line.** A consumer
-  that composes a runner's instructions itself starts a thrown-away session on the line with them
+- **A runner line's apart session goes out on any road whose program carries the line.** A consumer
+  that composes a runner's instructions itself starts an apart session on the line with them
   (`docs/api.md`, 「sessions」) and names the provider and model: on Claude Code each turn is a run apart in a
   pane of its own; on a road whose program carries its own turns — a member road's, the registry's — each turn
   goes into a place of the session's own, composed as a worker's job on that road is (the member's or the
@@ -342,8 +342,8 @@
   stand beside them, and the turn's title is what the pane shows over it (`docs/api.md`, 「Sessions」,
   a work turn's parts). A co-work branch is a
   turn of the resident program of the standing checkout it works in (`docs/coworker-pool.md`,
-  「Standing branch checkouts and their list」), on a thrown-away session of its own that it keeps
-  nowhere; a branch outside every standing checkout, and a thrown-away session handed a runner line's
+  「Standing branch checkouts and their list」), on an apart session of its own that it keeps
+  nowhere; a branch outside every standing checkout, and an apart session handed a runner line's
   instructions — which goes out on that runner line rather than this one (`docs/api.md`,
   「sessions」) — go into a pane of their own opened for the turn. There
   may be more than one worker: the owner adds them, names them and points each at a checkout of
@@ -386,7 +386,7 @@
   variables. On a registered model it goes out as every run on one does, the thinking its agent row
   names or else the registration's, with its generation settings as the run's sampling.
 - **Search runner**: the line a search goes out on, carried by agency and composed by whoever starts a
-  thrown-away session on it (`docs/api.md`, 「sessions」) — the research unit for its searches, their rounds
+  apart session on it (`docs/api.md`, 「sessions」) — the research unit for its searches, their rounds
   and their branches. Its instructions are handed in whole by that caller; agency composes none and asks
   nothing of a run after its answer. On Claude Code: the model the session names and the effort and tier the
   turn's mapping names, don't-ask mode, no built-in tool shown, the web MCP server's tools and the brain's
@@ -436,10 +436,11 @@
   Claude Code because no instance stood. A demand the master refuses, or a request the engine fails, fails the translation, since a key set to the registry's
   provider does not walk on a failure (`docs/own-llm.md`, 「When a registered model does not answer」). On
   Claude Code it is a run apart (`docs/agents.md`, 「Runs apart」): that system prompt as
-  the whole of it, no tool shown or allowed, no MCP server, a fresh session, thinking off. No other
+  the whole of it, no tool shown or allowed, no MCP server, the session the translator role's setting gives
+  it (`docs/agent-roles.md`, 「A role's sessions」), thinking off. No other
   provider carries the line. The answer is the translation whole.
 - **Browse runner**: the line a browse goes out on, carried by agency and composed, as the search line is, by
-  whoever starts a thrown-away session on it: the model the session names and the effort its turn's mapping
+  whoever starts an apart session on it: the model the session names and the effort its turn's mapping
   names, don't-ask mode, no built-in tool shown, the chrome-devtools tools, the tool host's web tools and the
   brain's `bmo` namespace from the line's MCP configuration — chrome-devtools started headless, apart from a
   person's session, its D-Bus and its keyring, the web namespace as every line names it, the run's own values

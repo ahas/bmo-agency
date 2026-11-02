@@ -25,8 +25,8 @@ made of is `docs/companions.md`.
 ## The roles
 
 - **Kept in agency's store,** the `agent_roles` table (`docs/store.md`), one row a role: its name, its
-  label, the bundles it gives, the bound on how many of its agents run at once and the prompt its agents
-  are given before their own. The owner adds, changes and removes roles on the control port (「Changing
+  label, the bundles it gives, the bound on how many of its agents run at once, the prompt its agents
+  are given before their own and whether its runs keep their sessions (「A role's sessions」 below). The owner adds, changes and removes roles on the control port (「Changing
   the roles」 below), and every reader takes a change at its next read, with no deployment and no
   restart.
 - **The policy seeds them,** `policy/roles.toml`: every role it declares under `[[roles]]` is given to
@@ -37,21 +37,24 @@ made of is `docs/companions.md`.
 - **The policy keeps what is not a role's own,** read by the bun side and the Rust side alike: the bundles
   a role may give, `[[bundles]]`, each with its label; the role each kind holds (「Where a role comes
   from」); the role a co-worker holds; the role delegated work goes to where its ask names none (「The
-  helper role」 below); the bundle that opens sending; each kind's mark; and the shape of a role's name.
+  helper role」 below); the role each of agency's own runs that stands for no agent row holds — the usage
+  reader's renewal turn, `renewal`, and the gate project's judging batch, `judging`; the bundle that opens
+  sending; each kind's mark; and the shape of a role's name.
 - **A label is an English word** a screen translates through its own language pack. A screen is handed
   each role and bundle with its kebab-case code beside the label (`docs/api.md`, 「agents」 and
   「agent-roles」), and words the code; the label is the English the log keeps.
 - **The roles the policy seeds:**
 
-  | Role | Label | Bundles | Bound | Prompt |
-  |---|---|---|---|---|
-  | `chat` | Chat | `room.chat`, `room.send`, `web.read` | 8 | none |
-  | `worker` | Worker | `graph.read`, `queue.read`, `web.read` | 8 | none |
-  | `searcher` | Searcher | `web.read`, `web.sites`, `web.branches`, `web.rulebooks` | 4 | none |
-  | `translator` | Translator | none | 4 | `translator.md` |
-  | `video` | Video producer | `queue.read`, `web.read`, `room.send` | 2 | `video.md` |
-  | `gate` | Gate | none | 8 | none |
-  | `helper` | Helper | `graph.read`, `queue.read`, `web.read` | 2 | `helper.md` |
+  | Role | Label | Bundles | Bound | Prompt | Sessions |
+  |---|---|---|---|---|---|
+  | `chat` | Chat | `room.chat`, `room.send`, `web.read` | 8 | none | keep |
+  | `worker` | Worker | `graph.read`, `queue.read`, `web.read` | 8 | none | keep |
+  | `searcher` | Searcher | `web.read`, `web.sites`, `web.branches`, `web.rulebooks` | 4 | none | fresh |
+  | `translator` | Translator | none | 4 | `translator.md` | fresh |
+  | `video` | Video producer | `queue.read`, `web.read`, `room.send` | 2 | `video.md` | keep |
+  | `helper` | Helper | `graph.read`, `queue.read`, `web.read` | 2 | `helper.md` | keep |
+  | `gate` | Gate | none | 8 | none | fresh |
+  | `upkeep` | Upkeep | none | none | none | fresh |
 
 - **The translator is a runner, not a gate.** A gate judges a turn in the chain around it, its input and
   answer fixed; a translation is work asked on demand — a document's part, a text a job worker reads, a
@@ -67,6 +70,9 @@ made of is `docs/companions.md`.
   each other stays English.
 - **A role with no bundle of its own still names what the agent is for.** A gate's runs hold what
   their line declares (`docs/launch-lines.md`) and nothing of a role.
+- **The upkeep role is held by agency's own upkeep runs that stand for no agent row,** the usage reader's
+  renewal turn among them; the gate project's judging batch holds the gate role. Neither gives a bundle:
+  what they hold of a role is its sessions setting.
 - **A role may carry a prompt its agents are given before their own,** the row's `prompt`, written in
   English: the role's instruction stands for every agent holding it, and the agent's own documents follow
   it. A role carrying none gives none. A changed prompt reaches an agent's next launch.
@@ -75,6 +81,8 @@ made of is `docs/companions.md`.
   running at that moment, never on how many sessions stand. It is read as every turn begins, so a changed
   bound holds from the next turn on, and a turn already running finishes under the bound it began under;
   none is cut.
+- **A role says whether its runs keep their sessions,** the row's `sessions` (「A role's sessions」
+  below), `keep` unless it is given `fresh`.
 - **A role may have a tier,** the tier its work key `role:<name>` is assigned in the tier settings
   (`docs/model-tiers.md`). It is given as the role is made or changed; a role given none has none, and its
   key stands in the tier settings once it is given one. Agency's own launches go out on their line's work
@@ -93,6 +101,33 @@ made of is `docs/companions.md`.
 - **The bundle that opens sending is named once,** as `send` in `roles.toml`, and every guard of a
   send reads it there.
 - **A role gives only bundles the policy declares,** and the control port refuses a role naming another.
+
+## A role's sessions
+
+- **Whether a run goes on in the session an earlier run left is its role's setting,** the row's
+  `sessions`: `keep` or `fresh`. A role added names it or is given `keep`; the policy seeds each role's,
+  and the owner changes it on the row like any other field (「Changing the roles」 below). Nothing reads a
+  kind, a line's name or an agent's name to decide it: every reader takes the role the run holds and reads
+  its row.
+- **`keep`: a run resumes its session while the session's cache is warm.** The criterion is the worker's
+  warm/cold one, the cache lifetime the provider declares for the model (`docs/sessions.md`, 「A worker's
+  session per model」); a session past it, or one whose road or prefix moved, is replaced by a new one.
+- **`fresh`: every run opens a session of its own,** which no later run resumes.
+- **Who reads it:**
+  - every run apart, under the role its agent's row names or, for a run that stands for no row, the one
+    the policy names for it (`docs/agents.md`, 「Runs apart」; `docs/sessions.md`, 「A run apart's kept
+    session」);
+  - a worker's job turn, which under a `fresh` role opens a new session in place of the one the worker
+    holds on the turn's model (`docs/sessions.md`, 「A worker's session per model」); a turn that names
+    the session it continues still continues it.
+- **What it does not reach:** a conversation of the chat line is the room's session, kept and replaced as
+  `docs/sessions.md`, 「One session per chat」 says, and a co-work branch opens a session of its own as one
+  stage of its co-work (`docs/coworker-pool.md`, 「Standing branch checkouts and their list」); neither is a
+  role's run to keep or not.
+- **The policy seeds the searcher, the translator, the gate and the upkeep roles `fresh`,** and every
+  other `keep`. A role a store held before the column stood holds the value the policy seeds it with,
+  written once as the column is added, and `keep` where the policy seeds no role of its name.
+- **A changed setting holds from the next run;** a run already going keeps the session it started on.
 
 ## The chat role's bundles
 
@@ -177,7 +212,7 @@ made of is `docs/companions.md`.
   picture is the eye service's `eye/see`, which the search and browse lines hold through their `eye`
   namespace and the `room.tools` capability its entries ask for (`policy/run-lines.toml`). The tools its line does not show are reached with `bmo use` under its own record, which no
   other role holds.
-- **The session's caller narrows them** (`docs/api.md`, 「sessions」): a thrown-away session on the search or
+- **The session's caller narrows them** (`docs/api.md`, 「sessions」): an apart session on the search or
   browse line keeps only the capabilities its start's `toolsAllowed` names, so the research unit decides
   whether a search, a browse, a round or a branch holds the branch tool and the rulebooks.
 - **The search and browse lines hold the shared brain's writing tools** (`docs/launch-lines.md`, 「Search
@@ -220,7 +255,7 @@ made of is `docs/companions.md`.
     otherwise the agent the launcher runs it for — the worker whose standing program it is, the agent
     a run is recorded under.
   - An agent the archive holds no row of holds no role, but for a co-worker's place, which holds the
-    co-workers' role, and a thrown-away session's place, which holds the role of the agent whose session
+    co-workers' role, and an apart session's place, which holds the role of the agent whose session
     it is.
 - **The catalogue a call is served.** The system's own MCP server serves a record the whole catalogue where it
   holds `room.tools`, and otherwise the chat catalogue's tools whose bundles it holds.
@@ -242,12 +277,12 @@ made of is `docs/companions.md`.
 ## Changing the roles
 
 - **`GET /agent-roles`** lists every role the store holds, in the order a screen lists them, each with its
-  bundles by name and label, its bound, its prompt, its tier, how many agents hold it and whether it is a
-  kind's own; beside them, every bundle a role may give (`docs/api.md`, 「agent-roles」).
+  bundles by name and label, its bound, its prompt, its tier, its sessions, how many agents hold it and
+  whether it is a kind's own; beside them, every bundle a role may give (`docs/api.md`, 「agent-roles」).
 - **`POST /agent-roles`** adds a role, and refuses a name out of the pattern or already taken, a bundle the
-  policy does not declare and a tier the ladder does not hold. A tier given is written as the role's key's
-  assignment in the same write.
-- **`PATCH /agent-roles/{roleName}`** changes its label, bundles, bound, prompt or tier. A bound or a
+  policy does not declare, a tier the ladder does not hold and a sessions setting other than `keep` or
+  `fresh`. A tier given is written as the role's key's assignment in the same write.
+- **`PATCH /agent-roles/{roleName}`** changes its label, bundles, bound, prompt, tier or sessions. A bound or a
   prompt given as null is cleared, and a tier given as null takes the key's assignment away.
 - **`DELETE /agent-roles/{roleName}`** removes a role and its key's assignment in one write, and is refused
   while an agent holds the role or a kind's own is it.

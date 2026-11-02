@@ -45,6 +45,9 @@ mod m20261118_000001_pool_asks;
 mod m20261119_000001_registration_wait_retired;
 mod m20261120_000001_clock_asks_unbounded;
 mod m20261121_000001_assignments_unbounded;
+mod m20261122_000001_role_sessions;
+mod m20261122_000002_delegation_titles;
+mod m20261122_000003_job_close_lease;
 
 use sea_orm_migration::prelude::*;
 
@@ -56,10 +59,11 @@ pub const TABLES: &str = m20261016_000001_store::NAME;
 
 /// Every table the store's migrations make, beside the record of what ran: what reads every table of the
 /// store reads these and no other service's beside them (docs/store.md, 「Its tables」).
-pub const OWN_TABLES: [&str; 65] = [
+pub const OWN_TABLES: [&str; 66] = [
   "agents",
   "agent_roles",
   "agent_role_seeded",
+  "apart_sessions",
   "gate_kinds",
   "chat_documents",
   "agent_log",
@@ -173,6 +177,9 @@ impl MigratorTrait for Migrator {
       Box::new(m20261119_000001_registration_wait_retired::Migration),
       Box::new(m20261120_000001_clock_asks_unbounded::Migration),
       Box::new(m20261121_000001_assignments_unbounded::Migration),
+      Box::new(m20261122_000001_role_sessions::Migration),
+      Box::new(m20261122_000002_delegation_titles::Migration),
+      Box::new(m20261122_000003_job_close_lease::Migration),
     ]
   }
 

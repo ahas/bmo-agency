@@ -183,6 +183,7 @@ fn every_declared_role_is_seeded_with_its_prompt_file_s_text() {
     );
     assert_eq!(seed.max_concurrent, declared.max_concurrent.map(|most| most as i64));
     assert_eq!(seed.prompt, prompt);
+    assert_eq!(seed.sessions, declared.sessions.word());
   }
   assert!(seeds.iter().any(|seed| seed.name == "video" && seed.prompt.is_some()));
 
@@ -190,5 +191,5 @@ fn every_declared_role_is_seeded_with_its_prompt_file_s_text() {
   let elsewhere: Vec<String> =
     role_seeds(std::path::Path::new("/nowhere")).into_iter().map(|seed| seed.name).collect();
 
-  assert_eq!(elsewhere, ["chat", "worker", "searcher", "gate"]);
+  assert_eq!(elsewhere, ["chat", "worker", "searcher", "gate", "upkeep"]);
 }

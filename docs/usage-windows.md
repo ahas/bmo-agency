@@ -75,7 +75,8 @@ all read them from here (`docs/cache-fallback.md`, 「The account judgement」, 
   that login: a run apart (`docs/agents.md`, 「Runs apart」) under the account's own configuration
   directory, the way every run on the account goes out, on the model and effort the provider's usage
   declaration names for it — the cheapest the login offers — with a one-word turn, no tools, and its
-  answer thrown away. The CLI renews the token for itself as the run goes out, a token run out taking the
+  answer thrown away. The run holds the upkeep role the roles policy names for it, `renewal`, and opens
+  the session that role's setting gives it. The CLI renews the token for itself as the run goes out, a token run out taking the
   account's renewal lock like any run near its login's end (`docs/cache-fallback.md`, 「A login that is
   about to end」), and the next pass asks with what it wrote. The reader never refreshes a token itself: a refresh
   token is replaced at every renewal and every pane on the login shares it, so a second refresher beside

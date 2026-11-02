@@ -10,7 +10,8 @@ use serde::Deserialize;
 pub struct RunLine {
   /// What its program has to offer for the line to go out on it.
   pub needs: Vec<String>,
-  /// Whether its turns follow one another on one session.
+  /// Whether its turns follow one another in one program standing in the agent's pane; a line that stands
+  /// none runs each run apart, on the session its role's setting gives it.
   pub keeps_session: bool,
   /// Whether a line a person types into its standing program is handed the composition a turn of the
   /// deployment's would carry.

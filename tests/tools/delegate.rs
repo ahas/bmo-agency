@@ -10,11 +10,11 @@ use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::routing::{get, patch, post};
 use axum::{Json, Router};
-use delegate_tool::{Api, DelegateInput, Held, delegate_with, may_delegate};
+use delegate_tool::{Api, DelegateInput, Held, ListInput, delegate_with, list_with, may_delegate};
 use serde_json::{Value, json};
 use tool_call::Session;
 use tool_call::room_gate::AccountService;
@@ -171,6 +171,7 @@ fn session(root: &std::path::Path) -> Session {
 
 fn input(instruction: &str) -> DelegateInput {
   DelegateInput {
+    title: "Read the node's disk".into(),
     instruction: instruction.into(),
     role: None,
     folder: None,
@@ -215,6 +216,9 @@ async fn a_seat_waits_in_line_and_the_helper_s_turn_answers_with_its_words_and_t
   assert_eq!(asked["source"], "delegate");
   assert_eq!(asked["provider"], "claude-code");
   assert_eq!(asked["requestKey"], asked["owner"]);
+  // It is asked under its title and the asking agent, which the delegation is listed by.
+  assert_eq!(asked["title"], "Read the node's disk");
+  assert_eq!(asked["askedBy"], "bmo");
 
   // It asked for its admission as long as the line held it, and only then sent the turn.
   assert_eq!(stub.admissions, 6);
@@ -226,6 +230,7 @@ async fn a_seat_waits_in_line_and_the_helper_s_turn_answers_with_its_words_and_t
   let run = turned["name"].as_str().unwrap();
 
   assert_eq!(stub.bound.clone().unwrap()["childId"], run, "the seat is bound to the turn's run");
+  assert_eq!(stub.bound.clone().unwrap()["agentName"], "helper-a", "and names the helper it runs on");
   assert!(
     turned["prompt"]
       .as_str()
@@ -257,6 +262,7 @@ async fn a_named_folder_is_the_one_worked_in_and_a_role_nobody_holds_is_refused(
   })
   .await;
   let named = |role: Option<&str>| DelegateInput {
+    title: "Look".into(),
     instruction: "look".into(),
     role: role.map(str::to_owned),
     folder: Some(folder.to_string_lossy().into_owned()),
@@ -350,6 +356,75 @@ async fn an_empty_instruction_is_refused_before_the_pool_is_asked() {
 
   assert!(answer.contains("instruction must not be empty"), "{answer}");
   assert!(stub.lock().unwrap().asked_seat.is_none());
+}
+
+#[tokio::test]
+async fn an_empty_title_is_refused_before_the_pool_is_asked() {
+  let home = tempfile::tempdir().unwrap();
+  let (api, stub) = server(Stub::default()).await;
+  let untitled = DelegateInput {
+    title: " \n ".into(),
+    ..input("look")
+  };
+  let answer =
+    serde_json::to_string(&delegate_with(&api, &session(home.path()), untitled, &Held::default()).await)
+      .unwrap();
+
+  assert!(answer.contains("title must not be empty"), "{answer}");
+  assert!(stub.lock().unwrap().asked_seat.is_none());
+}
+
+// Agency's listing of the asking agent's delegations, as `GET /delegations` answers it.
+async fn delegations(Query(asked): Query<BTreeMap<String, String>>) -> Json<Value> {
+  assert_eq!(
+    asked.get("askedBy").map(String::as_str),
+    Some("bmo"),
+    "only the asking agent's are read"
+  );
+  assert_eq!(asked.get("ended").map(String::as_str), Some("3"));
+
+  Json(json!({ "items": [
+    { "token": "t2", "title": "Read the node's disk", "askedBy": "bmo", "stage": "running",
+      "agentName": "helper-a", "role": "helper", "askedAt": 1_780_000_000_000_i64, "runningSince": 1, "endedAt": null,
+      "outcome": null },
+    { "token": "t3", "title": "Find the slow query", "askedBy": "bmo", "stage": "waiting",
+      "agentName": null, "role": "helper", "askedAt": 1_780_000_060_000_i64, "runningSince": null,
+      "endedAt": null, "outcome": null },
+    { "token": "t1", "title": "Check the backup", "askedBy": "bmo", "stage": "ended",
+      "agentName": "helper-b", "role": "helper", "askedAt": 1_779_990_000_000_i64, "runningSince": 1,
+      "endedAt": 2, "outcome": "answered" },
+  ] }))
+}
+
+#[tokio::test]
+async fn the_listing_names_each_delegation_by_its_title_stage_helper_and_start() {
+  let home = tempfile::tempdir().unwrap();
+  let app = Router::new().route("/delegations", get(delegations));
+  let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+  let port = listener.local_addr().unwrap().port();
+
+  tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+
+  let api = Api {
+    port,
+    token: None,
+    pace: Duration::from_millis(10),
+  };
+  let answer = list_with(&api, &session(home.path()), ListInput { ended: Some(3) }).await;
+  let text = serde_json::to_value(&answer).unwrap()["content"][0]["text"]
+    .as_str()
+    .unwrap()
+    .to_owned();
+  let lines: Vec<&str> = text.lines().collect();
+
+  assert_eq!(lines.len(), 3, "{text}");
+  assert!(
+    lines[0].starts_with("- Read the node's disk — running on helper-a — asked 2026-"),
+    "{text}"
+  );
+  assert!(lines[1].starts_with("- Find the slow query — waiting for a seat — asked "), "{text}");
+  assert!(lines[2].contains("Check the backup — ended: answered"), "{text}");
+  assert!(lines[2].ends_with("ran on helper-b"), "{text}");
 }
 
 #[tokio::test]

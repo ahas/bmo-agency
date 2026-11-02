@@ -1,14 +1,16 @@
-//! A run apart (docs/agents.md, 「Runs apart」): one run of a line that keeps no session — a runner
-//! line's, a branch, a ping, a probe, a judging batch — as the interactive program in a pane
-//! of its own, opened for the run on a session of its own and closed with it. The run's command is its
-//! line's; what it is handed beside that is its own tool token and the variables its line set, and what
-//! comes back is the door's reading of the program's record.
+//! A run apart (docs/agents.md, 「Runs apart」): one run of a line no standing program carries — a runner
+//! line's, a translation, a probe, a judging batch, a login's renewal — as the interactive program in a pane
+//! of its own, opened for the run and closed with it, on the session its role's setting gives it: a new one,
+//! or the warm one the role's last run of the same command left. The run's command is its line's; what it
+//! is handed beside that is its own tool token and the variables its line set, and what comes back is the
+//! door's reading of the program's record.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use harness_providers::claude_code::ClaudeCode;
+use herdr::Herdr;
 use policy::resident_turn::RESIDENT_TURN;
 use serde_json::Value;
 
@@ -17,8 +19,10 @@ use super::guard::launch_refusal;
 use super::record::Reply;
 use super::surface::interrupt_of;
 use super::turn::{Ending, Seat, Timings, Turn, Watch, put};
+use crate::apart_sessions;
 use crate::job_run::claude::failure::{Failure, RunEnding, of_errored};
 use crate::lines::claude::{Command, line_environment};
+use crate::lines::place::resumed_command;
 use crate::lines::token;
 use crate::now_ms;
 use crate::places::Ground;
@@ -27,13 +31,15 @@ use crate::places::trust::{config_file, mark_onboarded};
 // How long a run's tool session may stand if nothing takes its token back.
 const TOKEN_BACKSTOP: Duration = Duration::from_secs(24 * 3_600);
 
-/// One run apart as its caller names it: the agent it runs for, the line and provider it goes out on, what
-/// a person watching herdr reads it as, the line's command for it — its words opening `session` — the words
-/// it is told, the work key, model, effort and tier its execution row keeps, and the run its execution is a
-/// child of and the root it is counted under, where the caller names them rather than this process's own
-/// unit. A run apart carries no clock: it lasts until it ends or is stopped.
+/// One run apart as its caller names it: the agent it runs for, the role it holds where that agent stands no
+/// row, the line and provider it goes out on, what a person watching herdr reads it as, the line's command
+/// for it — its words opening `session`, a new session the run resumes a kept one in place of where its role
+/// keeps sessions — the words it is told, the work key, model, effort and tier its execution row keeps, and
+/// the run its execution is a child of and the root it is counted under, where the caller names them rather
+/// than this process's own unit. A run apart carries no clock: it lasts until it ends or is stopped.
 pub struct Apart<'a> {
   pub agent: &'a str,
+  pub role: Option<&'a str>,
   pub line: &'a str,
   pub provider: &'a str,
   pub title: String,
@@ -48,7 +54,7 @@ pub struct Apart<'a> {
   pub root: Option<String>,
 }
 
-/// A session of a run's own, which nothing resumes.
+/// A new session for a run, which a later run resumes only where the run's role keeps sessions.
 pub fn new_session() -> String {
   uuid::Uuid::new_v4().to_string()
 }
@@ -92,13 +98,59 @@ pub fn pane_environment(
 }
 
 /// One run apart, to its ending: refused before anything stands where the job guard refuses its command,
-/// its tool token issued for it and taken back once it ends, and the turn put into a pane of its own on
-/// this machine's herdr, its record handed to `watch` as it is written.
-pub async fn run<W: Watch>(ground: &Ground, apart: Apart<'_>, watch: &mut W) -> Result<Ending, String> {
+/// its tool token issued for it and taken back once it ends, its session the kept one where its role keeps
+/// sessions and one stands warm, and the turn put into a pane of its own on this machine's herdr, its record
+/// handed to `watch` as it is written. A run whose role keeps sessions keeps the session it answered on.
+pub async fn run<W: Watch>(ground: &Ground, mut apart: Apart<'_>, watch: &mut W) -> Result<Ending, String> {
   let herdr = ground
     .herdr
     .clone()
     .ok_or_else(|| format!("{}: this machine names no herdr to open the run's pane on", apart.line))?;
+  let kept = if apart_sessions::setting(&ground.db, apart.agent, apart.role).await.keeps() {
+    Some(apart_sessions::key(
+      apart.agent,
+      apart.line,
+      &apart.command,
+      &records_home(ground, &apart.command),
+    ))
+  } else {
+    None
+  };
+
+  if let Some(key) = &kept {
+    match apart_sessions::take(&ground.db, key, apart.provider, &apart.model, now_ms()).await {
+      Ok(Some(held)) if record_of(ground, &apart.command, &held).is_file() => {
+        apart.command.args = resumed_command(&apart.command.args, &held);
+        apart.session = held;
+      }
+      Ok(_) => {}
+      Err(why) => {
+        eprintln!("{}: its kept session could not be read, so it opens a new one: {why:?}", apart.line)
+      }
+    }
+  }
+
+  let agent = apart.agent;
+  let line = apart.line;
+  let session = apart.session.clone();
+  let ended = run_on(ground, herdr, apart, watch).await;
+
+  if let (Some(key), Ok(Ending::Answered { .. })) = (&kept, &ended)
+    && let Err(why) = apart_sessions::keep(&ground.db, key, agent, line, &session, now_ms()).await
+  {
+    eprintln!("{line}: the session it answered on was not kept: {why:?}");
+  }
+
+  ended
+}
+
+// The run on the session settled for it.
+async fn run_on<W: Watch>(
+  ground: &Ground,
+  herdr: Herdr,
+  apart: Apart<'_>,
+  watch: &mut W,
+) -> Result<Ending, String> {
   let name = format!("{}-{}", apart.line, apart.session.chars().take(8).collect::<String>());
   let mut env = pane_environment(ground.env(), &apart.command, &name);
 

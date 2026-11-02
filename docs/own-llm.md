@@ -258,7 +258,7 @@ never the model's name.
   read from, as the engine's own deployment reports them; whether they keep role files is the
   registration's.
 - **Every run on it asks a demand first:** a turn of the chat agent, a companion or a worker, a
-  thrown-away session's turn, a co-worker seat's child and a gate's request alike ask the master for one
+  apart session's turn, a co-worker seat's child and a gate's request alike ask the master for one
   card of the card service, with the session's key as the work it continues and agency's holder as the
   demand's shown reference. A caller that holds a granted demand of its own hands its id in with its seat or
   session request, and no other is asked for that run. A translation shares one with those out beside it
@@ -827,7 +827,7 @@ bmo-agency agent --route <work key> --provider <auto|claude-code|codex|openroute
 - **The registry's provider carries every line but the browse:** the chat, the job worker, the
   companions and a search's own run as a Claude Code road, and the gates as requests with no tools
   (「A request with no tools」 above). No search key is offered it by the fallback table's defaults, so a
-  search reaches a registration where its caller names that road for a thrown-away session on the search line
+  search reaches a registration where its caller names that road for an apart session on the search line
   (`docs/api.md`, 「sessions」); the browse line, which needs a browser the registration's window does not carry, stays off it.
 - **Jobs:** manual job runs, items and work-order models pick a registered model with
   `registered::<registration>`; automatic jobs go down the provider order as far as the registry's
@@ -881,7 +881,7 @@ bmo-agency agent --route <work key> --provider <auto|claude-code|codex|openroute
 - **Runs with tools go to Claude Code,** the program every line was written for, pointed at the gateway
   under the registration's name (「The gateway」 above). The line is the one a Claude run of it takes — the
   chat's, the worker's, a companion's (「A worker on a registered model is composed as on
-  Claude」 below). Its program carries the search line, and a thrown-away session on that line goes out in a place
+  Claude」 below). Its program carries the search line, and an apart session on that line goes out in a place
   of its own as a member road's does, its program composed as a worker's job on the registration is
   (`docs/api.md`, 「sessions」); the session's caller names the registration, since a registration's window
   decides whether the instructions it hands in fit at all. The road changes only what
@@ -935,7 +935,7 @@ bmo-agency agent --route <work key> --provider <auto|claude-code|codex|openroute
     give up its cards at once once an answer calls one of them, and to keep them while a short tool runs.
     A program whose adapter names none sends no such header.
 - **What comes back** is Claude Code's own record — its transcript in a pane, a standing one or one of a
-  run apart's own — read as a Claude run's is. A thrown-away session's turn has each
+  run apart's own — read as a Claude run's is. An apart session's turn has each
   line of its record written into its run log as it is written; a gate's run in the host prints one object at its
   end, whose answer text is all its log is given; a job's turn in the pane has its transcript written
   into the job's run log as the program writes it, so a long turn on a slow engine is never a job
@@ -1004,7 +1004,7 @@ bmo-agency agent --route <work key> --provider <auto|claude-code|codex|openroute
   Claude's, which never passes the gateway. The gateway rewrites no prompt.
 - **What stays in the host:** a gate with no tool is one request and one answer, asked in the agent's
   host (「How requests go」 above). A gate on a registration stays a host agent; only a gate on Claude Code
-  stands programs of its own (`gates.md`). A thrown-away session on a runner line on a registration goes out in a
+  stands programs of its own (`gates.md`). An apart session on a runner line on a registration goes out in a
   place of its own (`docs/api.md`, 「sessions」); any other runner's run on a registration is a run apart
   (`docs/agents.md`, 「Runs apart」).
 - **Standing with nothing to do:** a worker pinned to a registered model has the program written into its

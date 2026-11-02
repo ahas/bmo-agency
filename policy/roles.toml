@@ -8,12 +8,17 @@
 #   label as a screen writes it, the bundles it gives, the most of its agents that run at once, the file
 #   under prompts/roles/ whose text is its prompt, and in `shown` the tool entries, by full name, its agents
 #   are shown by name whatever their line; every other entry a session of the role holds is reached with
-#   `bmo use` unless the line lists it. None is listed for now.
+#   `bmo use` unless the line lists it. None is listed for now. `sessions` says whether the role's runs go on in
+#   the session an earlier run left while its cache is warm, `keep`, or each open its own, `fresh`; `keep` where
+#   a role names none (docs/agent-roles.md, 「A role's sessions」).
 # coworker: the role a co-worker's run holds. A co-worker is a sub-agent for a worker's use alone, and
 #   the place it works in, a standing branch checkout, has no agents row to name a role of its own.
 # delegate: the role whose agents carry a task a chat agent hands off through bmo/delegate where the ask names
 #   none (docs/tools.md, 「The delegate」; docs/agent-roles.md, 「The helper role」). Its seat is asked under
 #   it, at the tier its role:<name> assignment gives.
+# renewal, judging: the roles agency's own runs hold that stand for no agent row — the usage reader's renewal
+#   turn and the gate project's judging batch — whose sessions setting they open their session by
+#   (docs/agents.md, 「Runs apart」).
 # send: the bundle that opens sending into a room, which every guard of a send reads here.
 # name_pattern, name_most: the shape of a role's name, kebab-case, and the most characters it holds.
 # label_most: the most characters a role's label holds.
@@ -22,6 +27,8 @@
 
 coworker = "worker"
 delegate = "helper"
+renewal = "upkeep"
+judging = "gate"
 send = "room.send"
 name_pattern = "^[a-z][a-z0-9]*(-[a-z0-9]+)*$"
 name_most = 40
@@ -90,6 +97,7 @@ name = "searcher"
 label = "Searcher"
 max_concurrent = 4
 bundles = ["web.read", "web.sites", "web.branches", "web.rulebooks"]
+sessions = "fresh"
 
 [[roles]]
 name = "translator"
@@ -97,6 +105,7 @@ label = "Translator"
 prompt = "translator.md"
 max_concurrent = 4
 bundles = []
+sessions = "fresh"
 
 # The video producer: a worker whose items make videos with the video-shotcraft studio, which reads its
 # items, the web and sends the finished file into a room (docs/agent-roles.md, 「The video role」).
@@ -121,3 +130,12 @@ name = "gate"
 label = "Gate"
 max_concurrent = 8
 bundles = []
+sessions = "fresh"
+
+# Upkeep: the role agency's own upkeep runs hold where they stand for no agent row, the usage reader's renewal
+# turn among them (docs/agent-roles.md, 「The roles」).
+[[roles]]
+name = "upkeep"
+label = "Upkeep"
+bundles = []
+sessions = "fresh"

@@ -221,10 +221,11 @@ The owner's words:
   - A companion keeps a session in each room it answers, and its one program goes on in the session of
     the room its turn is for: a turn for another room changes the command, which starts the program
     again on that room's session in the same pane (「The interactive surface a provider declares」).
-- **A run that keeps no session is a run apart:** the turns of thrown-away sessions on the search and
-  browse lines and the news page's writer each stand the interactive
-  program in a pane of their own, opened for the run and closed with it, so two runs of one agent at
-  once are two panes (`docs/agents.md`, 「Runs apart」).
+- **A run of a line no standing program carries is a run apart:** the turns of apart sessions on the
+  search and browse lines and the news page's writer each stand the interactive program in a pane of
+  their own, opened for the run and closed with it, so two runs of one agent at once are two panes; the
+  session each opens on, a new one or the warm one its role keeps, is its role's setting (`docs/agents.md`,
+  「Runs apart」).
 - **A gate on Claude Code stands a pool of resident programs,** since its judgements are independent
   calls that overlap (「A gate's pool」 below; `gates.md`, 「A gate on Claude Code」).
   - Each judgement stands alone, and two of them for the same gate may run at once for two rooms.
@@ -960,8 +961,9 @@ The owner's words:
 
 ### Delegating a task to the helper
 
-- **A chat agent may hand a task to the helper, with no item.** `delegate` names the instruction, with
-  all the context it needs, an optional role and an optional folder (`docs/tools.md`, 「The delegate」).
+- **A chat agent may hand a task to the helper, with no item.** `delegate` names a one-line title, the
+  instruction, with all the context it needs, an optional role and an optional folder (`docs/tools.md`,
+  「The delegate」).
   It names no worker: an agent holding the helper role carries it (`docs/agent-roles.md`, 「The helper
   role」), once the task's seat is let in from the pool's line at the role's tier (`docs/coworker-pool.md`,
   「Who takes a place」), however long that takes; it is never refused because every seat is taken.
@@ -972,6 +974,10 @@ The owner's words:
 - **The chat agent calls it apart,** with `bmo use bmo/delegate --async`, so its own turn is not held by
   the work: the room is told the task was handed off, and the answer — the turn's text and the files
   created or changed in the folder — comes back as a wake.
+- **A chat agent reads what it has delegated,** each delegation by its title, its stage — waiting for a
+  seat, running on a helper agent, ended — when it was asked and the helper agent it runs on
+  (`docs/tools.md`, 「The delegate」), so it answers how its delegated work stands and hands off no task
+  already running.
 
 ### Words that arrive while a turn is working
 
@@ -1162,7 +1168,7 @@ flowchart TD
 - **No run is cut on a clock.** A run ends when it finishes, when it fails on its own or when somebody
   stops it. A clock on a run only says when to ask about it.
 - **Which runs carry a clock.** A job's turn, a chat round, a keepalive ping, a fold and a turn of a
-  thrown-away session carry none. A word said to a worker while nothing of its own runs carries ten
+  apart session carry none. A word said to a worker while nothing of its own runs carries ten
   minutes, since the worker's queue waits on its lock while it runs, and a voice run ten minutes for
   the speaking of its line, on this machine's card or a node; past it the clock asks.
 - **The mechanism is the run's, the policy its caller's.** A pane turn, and a run that is one
@@ -2342,7 +2348,7 @@ question used to stand until somebody attached to herdr and answered it.
     what is read, both from the question a person is asked and from what tells one question from the
     next, so a question that is only ticking down is the same question on every look.
   - It hands the question to its caller once per question and keeps polling while the caller decides.
-  - **Who is asked is the scope's.** On a worker's and a thrown-away session's turn the caller is the
+  - **Who is asked is the scope's.** On a worker's and an apart session's turn the caller is the
     one that sent the turn over the session contract: the question stands on the session's state, is
     published as `turn-question`, and is answered through `POST /session/answer` (`docs/api.md`,
     「Sessions」, 「A question in the middle of a turn」). On a companion's and an agent's

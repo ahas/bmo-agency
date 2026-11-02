@@ -11,10 +11,10 @@
 //! judges none of it. Where the session the turn settles on is not the one its runner composed its prompt
 //! for, nothing goes in and the turn goes back to its runner with the session it would continue.
 //!
-//! A thrown-away session's turn — a co-work branch's or a runner line's — is the same turn on a session
-//! nothing keeps: on the provider, model and folder its scope names, always fresh, with nothing of a
-//! worker's records read, judged, recorded or remembered for it, in the standing branch checkout its folder
-//! is or in a pane of its own. One whose scope hands in a runner line's instructions goes out on that line
+//! A thrown-away session's turn — a co-work branch's or a runner line's — is the same turn on a session no
+//! worker keeps: on the provider, model and folder its scope names, with nothing of a worker's records read,
+//! judged, recorded or remembered for it, in the standing branch checkout its folder is or in a pane of its
+//! own; a branch's opens a session of its own, and a runner line's the one its agent's role gives it. One whose scope hands in a runner line's instructions goes out on that line
 //! instead of the worker line, whole, in a pane of its own, its variables the run's record variables
 //! (docs/api.md, 「sessions」).
 
@@ -596,7 +596,7 @@ impl Attempting<'_, '_> {
 
   // One login's attempt: the owner's reset and the standby first, the session the turn's resume settles on,
   // and the turn asked again on a fresh session where the program has lost the one it resumed. A
-  // thrown-away session's turn reads none of a worker's sessions and resumes nothing.
+  // thrown-away session's turn reads none of a worker's sessions.
   async fn on_login(&mut self, account: Option<Account>) -> Result<Settled, Failure> {
     let ground = self.asked.ground;
     let work = self.asked.work;
@@ -630,6 +630,12 @@ impl Attempting<'_, '_> {
     let kept = records::resumable(&ground.db, worker, &work.model, &recorded, ttl)
       .await
       .map_err(refused)?;
+    // A worker whose role keeps no sessions opens a new one for a turn that leaves the choice to agency
+    // (docs/agent-roles.md, 「A role's sessions」).
+    let kept = match crate::agent_roles::sessions_of_agent(&ground.db, worker).await {
+      Ok(Some(sessions)) if !sessions.keeps() && matches!(work.resume, Resume::Auto) => None,
+      _ => kept,
+    };
     let resume = match choose(&work.resume, kept) {
       Choice::Go(resume) => resume,
       Choice::Back(continues) => return Ok(Settled::Back(continues)),
@@ -663,9 +669,9 @@ impl Attempting<'_, '_> {
     }
   }
 
-  // A thrown-away session's turn on its runner line with the instructions its caller handed in, on a
-  // session of its own in a pane of its own, bounded as its start asked: the run's reply its answer.
-  // Nothing is held for it, so turns of several such sessions under one agent go out side by side.
+  // A thrown-away session's turn on its runner line with the instructions its caller handed in, a run apart
+  // in a pane of its own on the session its agent's role gives it: the run's reply its answer. Nothing is
+  // held for it, so turns of several such sessions under one agent go out side by side.
   async fn on_runner(&mut self, apart: &Apart, account: Option<Account>) -> Result<Settled, Failure> {
     let ground = self.asked.ground;
     let work = self.asked.work;
@@ -716,6 +722,7 @@ impl Attempting<'_, '_> {
       ground,
       apart::Apart {
         agent: worker,
+        role: None,
         line: run.line,
         provider: PROVIDER,
         title: work.title.clone(),

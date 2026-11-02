@@ -3,7 +3,8 @@
 The tools agency itself provides to the tool host: each a folder of its own under `tools/`, with its
 `tool.toml`, which the tool host reads as it reads any other tool's. They hand agents the documents
 agency keeps under `prompts/` — the chat agent's procedures — let a chat agent hand a resident worker a
-small task, and let a chat agent delegate a task to the helper on a co-worker seat. A tool that
+small task, and let a chat agent delegate a task to the helper on a co-worker seat and read what it has
+delegated. A tool that
 belongs to no one service is a repository of its own, not a folder here.
 
 ## A tool's folder
@@ -15,8 +16,9 @@ belongs to no one service is a repository of its own, not a folder here.
   the folder the tool host reads: the executable the release's `bin/` holds, beside the manifest and
   the schema files it names. The steps that do it stand in the testbed's declaration, `testbed.toml`.
 - **The manifest** says the tool's name, the protocol version it speaks, its build and check
-  commands, its run command, its timeout, and either its entries or the resources it serves, each
-  with the capabilities a session must hold. Its tests hold the manifest to what the executable
+  commands, its run command, and either its entries or the resources it serves, each with the
+  capabilities a session must hold. It names no timeout, for the tool or an entry: a call is waited on
+  until the executable answers. Its tests hold the manifest to what the executable
   answers.
 - **The executable answers one request and ends:** the tool host hands it one JSON object on
   standard input and reads one on standard output.
@@ -34,7 +36,7 @@ belongs to no one service is a repository of its own, not a folder here.
 - **The session record** is the tool host's: the holder's name, the session's namespaces,
   capabilities, grants and shown entries, and the variables handed to every call's environment. The
   data root stands in those variables as `BMO_DATA_DIR`. Agency's own values stand under the issuer's
-  `labels`: the line, the store's address and the agent's place where it is a resident program; a thrown-away
+  `labels`: the line, the store's address and the agent's place where it is a resident program; an apart
   session's caller adds labels of its own beside them (`docs/api.md`, 「sessions」), which agency's tools do
   not read. The turn's own variables stand in `variables`, beside the
   deployment's variables the run's line names in `policy/run-lines.toml` for the placed tools that read
@@ -91,7 +93,7 @@ belongs to no one service is a repository of its own, not a folder here.
   agent's scratch workspace under the data root where none is named, made on first use; a worker's own
   checkout may be named only in the owner's turn.
 - **It waits for the worker's turn to end,** however long the turn takes: no bound of its own and no
-  timeout on its wait for agency's answer (the entry is unbounded to the tool host).
+  timeout on its wait for agency's answer.
 - **Its answer** is the turn's answer text and the paths of the files the turn created or changed in the
   folder, read from the run's recorded edit diffs. The exchange is a turn of the worker's like any other,
   written to its log, so the console shows it.
@@ -111,8 +113,9 @@ belongs to no one service is a repository of its own, not a folder here.
   --async`, so its turn goes on and the answer comes back to it as a wake.
 - **It asks only past the owner's gate** (`docs/launch-lines.md`, 「The owner's gate」), as the worker ask
   does, before it asks anything of the pool: a refused turn starts nothing.
-- **Its arguments** are the instruction, carrying every piece of context the task needs, since the helper
-  sees nothing of the conversation; an optional role; and an optional folder.
+- **Its arguments** are the title, one line naming the task, which the delegation is listed by; the
+  instruction, carrying every piece of context the task needs, since the helper sees nothing of the
+  conversation; an optional role; and an optional folder.
   - The role is an agent role whose agents take delegated work; where none is named it is the one
     agency's roles policy names, `delegate` in `policy/roles.toml`, the helper role. An agent holding it
     carries the task, a free one first.
@@ -144,5 +147,15 @@ belongs to no one service is a repository of its own, not a folder here.
   finished as the call goes away.
 - **Its answer** is the turn's answer text and the paths of the files created or changed in the folder
   while the task ran, found by comparing the folder before and after, its `.git` directories passed over.
+- **Its stage stands on its seat,** where agency answers it (`docs/api.md`, 「pool, seat-requests,
+  reservations and roles」): the seat is asked with the title and the asking agent, and bound naming the
+  helper agent its turn goes to. A delegation is waiting while its seat waits in the line, running once
+  its seat is let in and bound to the helper's turn, and ended once the seat is finished, with what it came
+  to.
+- **`bmo/delegations` lists the asking agent's delegations,** declared by the same tool to a session holding
+  `room.tools`: each one's title, stage, the helper agent it runs on, when it was asked and, once ended, what
+  it came to, the ones still waiting or running first and then the latest ended, newest first. It reads
+  agency's `GET /delegations` for the agent the asking turn is, so an agent sees its own delegations and no
+  other's, and it takes no argument but an optional count of ended ones to list.
 - **A task worth keeping and reviewing is still a queue item,** filed with `file_item`; the delegate files
   nothing of the task.

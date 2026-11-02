@@ -186,7 +186,7 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
 |---|---|---|
 | GET | `/agent-roles` | Every role an agent may hold, and every bundle a role may give. |
 | POST | `/agent-roles` | Add a role. |
-| PATCH | `/agent-roles/{roleName}` | Change a role's label, bundles, bound, prompt or tier. |
+| PATCH | `/agent-roles/{roleName}` | Change a role's label, bundles, bound, prompt, tier or sessions. |
 | DELETE | `/agent-roles/{roleName}` | Remove a role no agent holds and no kind is for. |
 
 - **The roles are the store's rows** (`docs/agent-roles.md`, 「The roles」), and these routes are the one
@@ -194,22 +194,25 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
 - **`GET /agent-roles` answers `roles` and `bundles`.** Each role, in the order a screen lists them, is
   `name`; `label`; `bundles`, each `name` and `label`; `maxConcurrent`, its bound or null; `prompt`, its
   text or null; `tier`, the assignment of its work key `role:<name>` or null where none is assigned;
-  `agents`, how many agent rows hold it; and `kindDefault`, whether a kind's own is it. `bundles` beside
+  `sessions`, `keep` where its runs go on in the session an earlier run left while its cache is warm and
+  `fresh` where each run opens its own (`docs/agent-roles.md`, 「A role's sessions」); `agents`, how many
+  agent rows hold it; and `kindDefault`, whether a kind's own is it. `bundles` beside
   them is every bundle the policy declares, each `name` and `label`, in the policy's order.
-- **`POST /agent-roles` takes `name`, `label` and `bundles`,** and may add `maxConcurrent`, `prompt` and
-  `tier`, and answers 201 with the role as the listing answers it. It is refused 422
+- **`POST /agent-roles` takes `name`, `label` and `bundles`,** and may add `maxConcurrent`, `prompt`,
+  `tier` and `sessions`, `keep` where it names none, and answers 201 with the role as the listing answers it. It is refused 422
   `unprocessable-entity`, with one English sentence and nothing written, for:
   - a name out of the roles policy's pattern or past its length, or one a role or a co-worker role holds;
   - an empty label, or one past the policy's length;
   - `bundles` that is no list of names, or a bundle the policy does not declare;
   - a bound that is no whole number of one or more;
   - a prompt that is not text;
-  - a tier the ladder does not hold.
+  - a tier the ladder does not hold;
+  - `sessions` other than `keep` or `fresh`.
 - **A tier given is the role's key's assignment,** written in the same write as the role, as the tier
   settings write one (「work-keys, road-blocks and launch-room」), so the key stands in `GET /work-keys` from
   then on and is changed there as well as here.
 - **`PATCH /agent-roles/{roleName}` changes the fields the body names** and answers 200 with the role: any
-  of `label`, `bundles`, `maxConcurrent`, `prompt` and `tier`, each judged as `POST` judges it. A
+  of `label`, `bundles`, `maxConcurrent`, `prompt`, `tier` and `sessions`, each judged as `POST` judges it. A
   `maxConcurrent` or a `prompt` given as null clears it, and a `tier` given as null takes the key's
   assignment away. 404 `not-found` for a role the store does not hold.
 - **`DELETE /agent-roles/{roleName}`** answers 204, the role and its key's assignment gone in one write;
@@ -253,9 +256,9 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
 | Method | Path | Does |
 |---|---|---|
 | GET | `/sessions` | Every session, by agent or scope. |
-| POST | `/sessions` | Start a session for an agent at a scope. A run on a runner line is a thrown-away session handed that line's instructions. |
+| POST | `/sessions` | Start a session for an agent at a scope. A run on a runner line is an apart session handed that line's instructions. |
 | GET | `/sessions/{sessionId}` | A session's state: provider, model, place, holder, why the prefix changed, the fold ratio. |
-| PATCH | `/sessions/{sessionId}` | Move a conversation's provider and model, or a thrown-away session's model, or hand a worker's session over to another holder. |
+| PATCH | `/sessions/{sessionId}` | Move a conversation's provider and model, or an apart session's model, or hand a worker's session over to another holder. |
 | DELETE | `/sessions/{sessionId}` | End a session, or clear a room's session. |
 | POST | `/sessions/{sessionId}/turns` | Send a turn into a session; words to a worker are a turn into its session. |
 | GET | `/sessions/{sessionId}/turns/{turnId}` | A turn and what it has written so far. |
@@ -268,7 +271,7 @@ A job's run is a worker's session turn with the work parts in the turn's context
 one scope — `agent`, `room`, `worker`, `apart` or `conversation` — and the scope says what is
 kept. Its id names the agent and the scope: the agent's name alone for an agent's session,
 `<agent>@<room>` or `<agent>@worker` for a room's or a worker's, and a
-number the service gives it for a thrown-away session (`<agent>@apart:<n>`) and a conversation
+number the service gives it for an apart session (`<agent>@apart:<n>`) and a conversation
 (`<agent>@conversation:<n>`), so every start of one of those is a session of its own.
 
 A conversation is the caller's: its start names the provider, the model and, where it names one, the
@@ -277,20 +280,20 @@ parts. A provider whose program keeps a session continues the one its last answe
 keeps its dsh session inside bmo-tui's pane, which carries the next turn although agency stores no id for
 it. The session stands in the server's memory from its start to its end.
 
-A thrown-away session's turn is a co-work branch's, or a run on a runner line whose instructions the session's
-caller handed in (below). Every thrown-away session but a co-work branch's — one whose scope names no branch
+An apart session's turn is a co-work branch's, or a run on a runner line whose instructions the session's
+caller handed in (below). Every apart session but a co-work branch's — one whose scope names no branch
 role — carries the reference its first prompt's instruction calls for, picked by the gate's reference
 selection over the chat agent's brain and attached to that first prompt, the same way a job's is
 (「assignments and jobs」); a later turn of the same session is asked over it and not over it again. A co-work
 branch's prompt is composed by its parent and carries none.
 
-A thrown-away session goes out on a runner line with its instructions handed in whole, for a consumer that
+An apart session goes out on a runner line with its instructions handed in whole, for a consumer that
 composes its own — the research unit, which asks for the seats and the sessions its searches, browses,
 rounds and branches go out in, is one: the start names `line`, the runner line (`search` or `browse`), and
 `systemPrompt`, the instructions — the platform's harness opening and then that text, as one system prompt,
 with the line's standing MCP configuration and the tools it allows (`docs/launch-lines.md`, 「Search runner」
 and 「Browse runner」). `systemPrompt` with no line is refused 400. A turn into such a session carries work
-parts as every thrown-away session's turn does, and goes out on that line whole, on the model the scope
+parts as every apart session's turn does, and goes out on that line whole, on the model the scope
 names and the effort and tier the turn's mapping names, never in a standing branch checkout. Its folder is
 the scope's `cwd`, or the line's own deployed directory where the start names none. Its prompt is the
 caller's, whole, and its answer is the run's reply text. Its turns carry no clock: each lasts until it ends
@@ -312,13 +315,14 @@ Beside them the start may name:
 - **`toolsAllowed`:** the capabilities the record keeps, of those the line and its agent's role give it; a
   record keeps them all where the start names none, and the list never widens them.
 
-On Claude Code each turn of such a session goes out in a pane of its own on a session of its own
-(`docs/agents.md`, 「Runs apart」). On a road whose program carries its own turns each turn goes into a place of
+On Claude Code each turn of such a session goes out in a pane of its own, a run apart on the session the
+role of the session's agent gives it: a warm one the agent's last run of the same command left where the
+role keeps sessions, a new one where it does not (`docs/agents.md`, 「Runs apart」). On a road whose program carries its own turns each turn goes into a place of
 the session's own, the program composed as a worker's job on that road is, the line's instructions its system
 prompt and the line's servers its tools; the place is marked as the session's, stands under no agent's row,
 and is ended with the session — its program released, the session token it carried taken back, its workspace
 closed and its folder taken away. A server that starts ends every such place the process before it left, since
-a thrown-away session does not outlive the process that started it. Agency asks nothing of such a session
+an apart session does not outlive the process that started it. Agency asks nothing of such a session
 after a turn's answer: any further turn, a round among them, is its caller's.
 
 A conversation whose agent is a gate work key carries a gate's one turn: the turn's `gate` part holds the
@@ -345,8 +349,8 @@ room's is: the provider and model its row pins it to, else those its last answer
 resident's context and that provider's `foldRatio`.
 
 A conversation moves its provider and model on the change route, each left as it stands where the body
-names only the other, and starts its next turn on a fresh session where the road keeps one. A
-thrown-away session's provider and model move the same way, onto a provider whose program carries its line;
+names only the other, and starts its next turn on a fresh session where the road keeps one. An
+apart session's provider and model move the same way, onto a provider whose program carries its line;
 one that names no line goes out on Claude Code alone. A hand-over is a worker's alone: it closes the worker's held
 session on the model and drops the record, handing nothing to the next turn, and the holder the body
 names is kept for the session's state; a worker with nothing open keeps the holder alone. An agent's and
@@ -492,6 +496,7 @@ out and the paths the call changed.
 | POST | `/seat-requests` | Ask for a co-worker seat; the tier is resolved from the work key. |
 | GET | `/seat-requests/{token}` | One seat request. |
 | PATCH | `/seat-requests/{token}` | Move a seat request: admitted, bound to its launched unit, finished. |
+| GET | `/delegations` | The tasks an agent delegated, each with its title, stage, helper agent and start. |
 | GET | `/reservations` | Held seat reservations. |
 | POST | `/reservations` | Reserve seats for an owner. |
 | PATCH | `/reservations/{token}` | Release a reservation with its outcome. |
@@ -540,6 +545,18 @@ its engine answers health, with `stoodDown` true and `note` the sentence the run
 sentence, for a provider agency does not carry, a tier the ladder does not hold or one no co-worker is
 borrowed at, and a capacity that is no whole number from 0 to the most the pool policy allows. The
 written limit lets in at once the waiting places it frees.
+
+A seat request may carry `title`, one line naming the work it is asked for, and `askedBy`, the agent that
+asked for it, each kept as given and answered on the seat; a `PATCH` binding it may name `agentName`, the
+agent its child runs on, kept and answered as `agentName`. Each is null where none was named.
+
+`GET /delegations` answers `items`, the seats asked under the source `delegate` (`docs/tools.md`, 「The
+delegate」), narrowed to one asking agent by `askedBy`: the ones still waiting or running in the order they
+were asked, then the latest ended, newest first, `ended` of them (10 where it names none). Each is `token`;
+`title`; `askedBy`; `stage`, `waiting` while its seat waits in the line, `running` once it is let in, and
+`ended` once it is finished or cancelled; `agentName`, the helper agent its turn runs on, or null before it
+is bound; `role`; `askedAt`, `runningSince` and `endedAt` in epoch milliseconds, each null until it comes;
+and `outcome`, what it came to once ended. A count that is no whole number from 0 is refused 400.
 
 A seat request carries its `session` where it stands for a project's own turn: the session that turn
 continues, or null where the worker's earlier session was cold or past its model's context
@@ -904,8 +921,8 @@ service.
   (`policy/job-leases.toml`), so the lease holds however long the job runs and whether or not the harness
   that took it still stands — its session replaced, its plugin restarted, agency itself restarted under the
   job. A lease the job service no longer holds, run out before a renewal reached it, is taken again on the
-  same item for the same holder and assignee, and the job keeps the new lease's id, which its end gives
-  back. An item another holder leased meanwhile, or one no longer open, is left as it stands and said in
+  same item for the same holder and assignee, and the job keeps the new lease's id, which its end keeps or
+  gives back as below. An item another holder leased meanwhile, or one no longer open, is left as it stands and said in
   agency's log. The harness may renew the lease as well; a renewal of either holds it. Agency keeps no job store; the calls it makes there are the ones a job's end states below,
 and the filing of an item.
 
@@ -943,12 +960,21 @@ and the filing of an item.
   - a job no turn carries is written so at once.
   A job's end never writes over a job already ended or stopped.
 
-- **A job's end reaches the room and gives its lease back.** However a job ends — its run finishing, failing,
-  or the harness ending or stopping it — the agency returns the item's lease to the job service as the end is
-  written, so the item is open again the moment no run holds it, and queues the job's report for the agent
+- **A job that ends keeps its item's lease for the item's close.** A job written `ended` — its run
+  finishing or failing, or the harness ending it — gives no lease back: the lease it held stands, and agency
+  goes on renewing it on the same clock as a running job's, until the job service holds it no more. The
+  item stays `leased` from the job's start through its close, never `open` between them: the requester
+  writes the final report and moves the item to `done`, which ends the lease (the job service's 「States and
+  moves」), or, where the item is not to close, gives that lease back itself, and the next renewal finds it
+  gone and stops. A lease the job service no longer holds is not taken again for an ended job.
+- **A job that is stopped gives its lease back.** A stop — the harness's or the owner's, or the pass below
+  ending a job whose process went away — returns the item's lease to the job service as the end is written,
+  so the item is open again for a rerun.
+- **A job's end reaches the room.** However a job ends, agency queues the job's report for the agent
   that filed the item through the receiver's `POST /instructions`: an order under the sort `job`, naming the
   requester its item names, and carrying the item, the worker, the outcome and the report whole, under the
-  event `job-ended:#<item>`. The receiver keeps the instruction until a turn takes it, so a chat session
+  event `job-ended:#<item>`; an ended job's order names the lease that still stands on the item, which the
+  close ends. The receiver keeps the instruction until a turn takes it, so a chat session
   being replaced when the job ended loses nothing, and it queues the notice for that requester and no other
   agent. The requester reads the report and relays the job's end in a few lines in that room, as its own
   manual says, the report itself staying whole on the item. A job with no room is queued for the owner's
@@ -960,8 +986,8 @@ and the filing of an item.
 - **A job whose turn goes on across agency's restart ends as its turn does.** Its turn is kept in flight
   while it goes, and the server that starts next picks it up (「sessions」 above): a turn whose program's
   record holds its end, or comes to hold it, ends the job `ended` with the turn's answer as its report,
-  as its launch would have, its run closed, its assignment released, its lease returned and its end told
-  to the room. The pass below leaves a job whose turn is kept in flight to it.
+  as its launch would have, its run closed, its assignment released, its lease kept for the item's close and
+  its end told to the room. The pass below leaves a job whose turn is kept in flight to it.
 - **A job left running with no live execution ends as stopped on the pass.** The process that ran it can
   go away with agency's own restart before the run writes its end, on a program that keeps no record the
   next server can read it from. On start, after the turns in flight are picked up, and on the reconcile
@@ -1135,8 +1161,9 @@ route. A caller uses one of them and writes no client of its own.
 
 Agency reaches upstreams through what their repositories publish: brain, graph, node, arbiter,
 pocket, testbed, gate and chat through their clients, and cache-warmer through the schedule library
-`bmo-cache-warmer-schedule`. These routes below it are called: as a job ends, the job service's lease is
-given back and the receiver's `POST /instructions` is handed the report for the room's chat agent; after a
+`bmo-cache-warmer-schedule`. These routes below it are called: as a job is stopped, the job service's lease
+is given back, and while an ended job's lease stands for its item's close it is renewed; as a job ends, the
+receiver's `POST /instructions` is handed the report for the room's chat agent; after a
 chat program's first turn, that same route is handed one fact for each of the session's servers its
 program did not attach (`docs/agent-control.md`, 「dsh's providers: OpenRouter and DeepSeek」); and before a chat agent's turn opens a fresh
 session in place of one it had, the receiver's `POST /handoffs/{agentName}` is asked for the old session's
@@ -1154,7 +1181,7 @@ base layer of the agent's persona that prompt ends with. Of the tool host it ask
 with the issuer token, a session token for each program and run that holds a capability, which it takes
 back, a namespace's facts, the paragraph on finding and using tools that a chat launch's
 system prompt carries, and, after a chat program's first turn, the servers its session token's clients
-reached (`GET /tool-sessions/{token}`, its `connected`), where a host that saw none says nothing. Of the gate it asks the reference a job's or a thrown-away session's instruction
+reached (`GET /tool-sessions/{token}`, its `connected`), where a host that saw none says nothing. Of the gate it asks the reference a job's or an apart session's instruction
 calls for, picked over the chat agent's brain, and attaches the picked entries to the run's first prompt; and it
 reads the gate kinds and their order as the gate publishes them, so no copy of the gate order stands here.
 
@@ -1166,7 +1193,7 @@ reads the gate kinds and their order as the gate publishes them, so no copy of t
   engine the arbiter stands」). With no address, no demand is asked and a run on such a registration is
   refused.
 - **Where the gate is.** `BMO_GATE_URL` names its address and `BMO_GATE_TOKEN_FILE` the path of the file
-  its token stands in. With no address, no reference is asked and a job or a thrown-away session carries only
+  its token stands in. With no address, no reference is asked and a job or an apart session carries only
   its own words.
 - **Where the brain is.** `AGENCY_BRAIN_URL` names its address and `AGENCY_BRAIN_TOKEN` the token it is
   called with, or `AGENCY_BRAIN_TOKEN_FILE` the file it stands in; the node's token is read the same way
@@ -1202,7 +1229,7 @@ Each surface is a crate of its own repository, declared in the workspace manifes
 stays outside the boundary.
 
 It calls no downstream but the job service's lease route and the receiver's instruction route: the lease
-returned and the report handed over as a job ends, and a chat session told of a server it lacks. The gate and the receiver reach it through the hook point
+renewed or, for a stopped job, returned, and the report handed over as a job ends, and a chat session told of a server it lacks. The gate and the receiver reach it through the hook point
 above for everything else.
 
 - **A test's ground reaches no peer.** A server a test stands is handed an environment built for it, with

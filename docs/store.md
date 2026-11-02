@@ -11,8 +11,10 @@ seeds. The other crates and the server reach the store only through it.
   each made by a migration of its own after the first. A column of agency's own beside an archive shape
   is added by a migration of its own too: a worker's session record keeps the tokens its last answered
   turn carried and the share of the window they filled, an agent's row the login account that owns
-  it, and a co-worker pool request the number of its owner's last ask, drawn from `coworker_pool_asks`,
-  a sequence of the store's own (`docs/coworker-pool.md`, 「Requests and leases」). The words said to a worker stand in the
+  it, a co-worker pool request the number of its owner's last ask, drawn from `coworker_pool_asks`,
+  a sequence of the store's own (`docs/coworker-pool.md`, 「Requests and leases」), and the title, the
+  asking agent and the agent its child runs on that a seat's asker names (`docs/api.md`, 「pool,
+  seat-requests, reservations and roles」). The words said to a worker stand in the
   archive's shape, made by a migration of their own after the first.
 - **The record of what ran is `agency_migrations`,** a table of the store's own, so the store may stand
   in a database beside another service's tables without either's record in the other's way.
@@ -21,12 +23,16 @@ seeds. The other crates and the server reach the store only through it.
   store — a room forgotten among them — reads them and no other service's beside them in one database.
 - **The tables, by what they keep:**
   - the roles an agent may hold: `agent_roles`, one row a role — its name, its label, the bundles it gives
-    as a JSON list, its bound or none, its prompt or none, the place a screen lists it at, and when it was
-    made and last changed in epoch milliseconds — and `agent_role_seeded`, the name of every role the
+    as a JSON list, its bound or none, its prompt or none, its `sessions`, `keep` or `fresh`, the place a
+    screen lists it at, and when it was made and last changed in epoch milliseconds — and `agent_role_seeded`, the name of every role the
     policy's seed has given (`docs/agent-roles.md`, 「The roles」);
   - the agents and what they did: `agents`, `agent_log`, `agent_executions`, `execution_attempts`,
     `branch_agents`, `worker_sessions`, `session_resets`, and `worker_words`, the words said to a
     worker, each kept until a turn has taken it;
+  - the sessions runs apart keep: `apart_sessions`, one row an agent's command — the key the command is
+    kept by, the agent, the line, the session and when it last answered in epoch milliseconds — taken by a
+    run as it starts and written again once it has answered (`docs/sessions.md`, 「A run apart's kept
+    session」);
   - the base prompts: `base_prompts`, `agent_base_prompts`, and `base_prompt_seeded`, the name of
     every seed the store has been given (`docs/base-prompts.md`, 「The seeds」);
   - the chat agent's own documents the owner keeps a text of: `chat_documents`, one row a document's
@@ -74,7 +80,8 @@ seeds. The other crates and the server reach the store only through it.
     holder, the worker and its state — and `jobs`, one row the item's run on that
     worker — the item and lease the harness named, the assignment, the worker, the session and run it
     opened, the model its turn went out on, every road its turns went out on and why each was left, the
-    reason it waits where no road can answer, its state, outcome and report, what its turn spent (its
+    reason it waits where no road can answer, its state, outcome and report, whether its ended job's
+    lease is kept standing for the item's close, what its turn spent (its
     input, output, cache-read and cache-write tokens) and their sum, and the prompt it was launched with; and what a session carries: `session_work`, its item and results, and `session_loads`,
     the documents loaded into it (`docs/api.md`, 「Assignments and jobs」);
   - the run ledger: `runs`, one row a run of an agent's unit — its agent and room, its unit, how deep

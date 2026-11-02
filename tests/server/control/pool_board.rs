@@ -30,6 +30,9 @@ fn request(source: &str, turn: bool, state: &str) -> Request {
     place_key: None,
     turn,
     session: None,
+    title: None,
+    asked_by: None,
+    agent_name: None,
   }
 }
 

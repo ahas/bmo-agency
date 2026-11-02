@@ -1,15 +1,18 @@
-//! A job's end reaching the room and giving its lease back (docs/api.md, 「assignments and jobs」): the
-//! report a run left, queued in the room's chat agent through the receiver's instruction route, and the
-//! job service's lease on the item returned as the job ends. A run's end is written where the run ends, so
-//! neither the room's session being replaced nor the harness that launched the job being gone loses it: the
-//! receiver keeps the row until a turn takes it, and the item is open again the moment the run is over.
+//! A job's end reaching the room and its lease kept for the item's close or given back (docs/api.md,
+//! 「assignments and jobs」): the report a run left, queued in the room's chat agent through the receiver's
+//! instruction route; the job service's lease on the item kept standing where the job ended, so the item
+//! stays leased until its close ends the lease, and given back where it was stopped, so the item is open
+//! again for a rerun. A run's end is written where the run ends, so neither the room's session being
+//! replaced nor the harness that launched the job being gone loses it: the receiver keeps the row until a
+//! turn takes it.
 //!
-//! Agency calls no downstream but for these two: the lease it was handed back, and the end told to the room
-//! delivery that holds it (docs/api.md, 「Calls agency makes」).
+//! Agency calls no downstream but for these two: the lease of a stopped job given back, and the end told to
+//! the room delivery that holds it (docs/api.md, 「Calls agency makes」).
 
 use std::collections::BTreeMap;
 
 use serde_json::{Value, json};
+use store::run;
 
 use crate::places::Ground;
 
@@ -49,9 +52,27 @@ pub(crate) fn address(vars: &BTreeMap<String, String>, variable: &str) -> Option
   setting(vars, variable).map(|url| url.trim_end_matches('/').to_owned())
 }
 
-/// A job's end delivered: its lease given back to the job service, and its report queued for the room's
-/// chat agent. Each call stands on its own, and a call that fails is said and never fails the job.
+/// Whether a job's end keeps its item's lease standing for the item's close: a job that ended, holding a
+/// lease. A stopped job's item is open again for a rerun.
+pub fn keeps_lease(member: &Value) -> bool {
+  member["state"].as_str() == Some("ended") && member["leaseId"].as_i64().is_some_and(|lease| lease > 0)
+}
+
+/// A job's end delivered: its lease kept for the item's close where it ended, which the lease pass renews
+/// until the close ends it, or given back to the job service where it was stopped; and its report queued for
+/// the room's chat agent. Each call stands on its own, and a call that fails is said and never fails the job.
 pub async fn delivered(ground: &Ground, member: &Value) {
+  if keeps_lease(member)
+    && let Err(why) = run(
+      &ground.db,
+      r#"UPDATE "jobs" SET "lease_kept" = true WHERE "id" = $1"#,
+      vec![id_of(member).into()],
+    )
+    .await
+  {
+    eprintln!("job {}: its lease was not kept for the item's close: {why:?}", id_of(member));
+  }
+
   if ground.testing() {
     eprintln!("job {}: its end was not delivered: the ground is a test's", id_of(member));
 
@@ -69,12 +90,15 @@ pub async fn delivered_with(vars: &BTreeMap<String, String>, member: &Value) {
     return;
   }
 
-  return_lease(vars, member).await;
+  if !keeps_lease(member) {
+    return_lease(vars, member).await;
+  }
+
   tell_room(vars, member).await;
 }
 
-/// The lease a job's item was held by, given back, so the item is open as the job ends whichever way it
-/// ended. A lease already gone is no failure.
+/// The lease a stopped job's item was held by, given back, so the item is open again for a rerun. A lease
+/// already gone is no failure.
 async fn return_lease(vars: &BTreeMap<String, String>, member: &Value) {
   let lease = member["leaseId"].as_i64().unwrap_or_default();
 
@@ -204,7 +228,8 @@ fn id_of(member: &Value) -> i64 {
 }
 
 /// What the room's chat agent is told: an order carrying the item, the worker and the report, and asking
-/// for the briefing the chat agent's own manual describes. A job that left no report says so.
+/// for the briefing the chat agent's own manual describes; where the job ended holding a lease, the lease
+/// that still stands on the item for its close. A job that left no report says so.
 pub fn order(member: &Value) -> String {
   let item = member["itemId"].as_i64().unwrap_or_default();
   let worker = member["workerName"].as_str().unwrap_or_default();
@@ -218,13 +243,22 @@ pub fn order(member: &Value) -> String {
     (state, Some(outcome)) => format!("{state}, its outcome {outcome}"),
     (state, None) => state.to_owned(),
   };
-  let text = format!(
+  let mut text = format!(
     "The job of item #{item} on worker {worker} {ended}.\n\nIts report, as the run left it:\n\n{}\n\n\
      Relay its end in a few lines in this room, in the asker's language: the outcome, the commit or \
      artefact it left, and one line of what it left out, then what the report could not say. The report \
      stays whole on the item; never paste it into the room.",
     report.unwrap_or("The run left no report; its end is all there is to tell.")
   );
+
+  if keeps_lease(member) {
+    let lease = member["leaseId"].as_i64().unwrap_or_default();
+
+    text.push_str(&format!(
+      "\n\nThe item stays leased under lease {lease} until its close: write its final report and set it \
+       done, which ends the lease; where it is not to close, give lease {lease} back so it is open again."
+    ));
+  }
 
   text
 }

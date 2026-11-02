@@ -339,6 +339,7 @@ impl Attempt<String> for OnLogin<'_> {
       self.ground,
       Apart {
         agent: AGENT,
+        role: None,
         line: LINE,
         provider: crate::lines::runner::PROVIDER,
         title: format!("{KEY} · {} · {}", self.purpose.word(), self.model),

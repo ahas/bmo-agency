@@ -2779,6 +2779,53 @@
         }
       }
     },
+    "/delegations": {
+      "get": {
+        "operationId": "listDelegations",
+        "tags": [
+          "seat-requests"
+        ],
+        "summary": "The tasks an agent delegated, each with its title, stage, helper agent and start.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DelegationPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "x-codes": [
+          "unauthorized"
+        ],
+        "parameters": [
+          {
+            "name": "askedBy",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "The asking agent whose delegations are listed."
+            }
+          },
+          {
+            "name": "ended",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "description": "How many of the latest ended delegations are listed; 10 where none is named."
+            }
+          }
+        ]
+      }
+    },
     "/seat-requests/{token}": {
       "get": {
         "operationId": "getSeatRequest",
@@ -6791,6 +6838,10 @@
             ],
             "description": "The tier its work key `role:<name>` is assigned; null where none is."
           },
+          "sessions": {
+            "$ref": "#/components/schemas/RoleSessions",
+            "description": "Whether its runs keep their sessions."
+          },
           "agents": {
             "type": "integer",
             "format": "int64",
@@ -6808,6 +6859,7 @@
           "maxConcurrent",
           "prompt",
           "tier",
+          "sessions",
           "agents",
           "kindDefault"
         ],
@@ -6828,6 +6880,14 @@
           "label"
         ],
         "description": "AgentRoleBundle: a bundle a role may give, by its name and the label a screen writes it by."
+      },
+      "RoleSessions": {
+        "type": "string",
+        "enum": [
+          "keep",
+          "fresh"
+        ],
+        "description": "RoleSessions: whether a role's runs go on in the session an earlier run left while its cache is warm,\n`keep`, or each open a session of its own, `fresh`."
       },
       "AgentRoleAsk": {
         "type": "object",
@@ -6864,6 +6924,17 @@
               "string",
               "null"
             ]
+          },
+          "sessions": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RoleSessions"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "`keep` where none is named"
           }
         },
         "required": [
@@ -6908,6 +6979,16 @@
             "type": [
               "string",
               "null"
+            ]
+          },
+          "sessions": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RoleSessions"
+              },
+              {
+                "type": "null"
+              }
             ]
           }
         },
@@ -8789,6 +8870,27 @@
               "null"
             ],
             "description": "The session a worker's own turn continues, or none where it opens a fresh one."
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "One line naming the work the seat is asked for, where its asker named one."
+          },
+          "askedBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The agent that asked for the seat, where its asker named one."
+          },
+          "agentName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The agent the seat's child runs on, where its binding named one."
           }
         },
         "required": [
@@ -8804,7 +8906,10 @@
           "state",
           "childId",
           "outcome",
-          "session"
+          "session",
+          "title",
+          "askedBy",
+          "agentName"
         ],
         "description": "SeatRequest: a seat asked of the pool: `waiting` in its bucket's line, `reserved` under a reservation,\n`active` once let in, and `released` or `cancelled` once given back; the provider, model, effort and tier\nits work key resolved to."
       },
@@ -8882,6 +8987,20 @@
               "string",
               "null"
             ]
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "One line naming the work the seat is asked for."
+          },
+          "askedBy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The agent asking for the seat."
           }
         },
         "required": [
@@ -8891,6 +9010,104 @@
           "selection"
         ],
         "description": "The body that asks for a co-worker seat."
+      },
+      "DelegationPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Delegation"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "description": "DelegationPage: the ones still waiting or running in the order they were asked, then the latest ended,\nnewest first."
+      },
+      "Delegation": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string"
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "askedBy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "stage": {
+            "$ref": "#/components/schemas/DelegationStage"
+          },
+          "agentName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The helper agent its turn runs on; null before it is bound."
+          },
+          "role": {
+            "type": "string"
+          },
+          "askedAt": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Epoch milliseconds."
+          },
+          "runningSince": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Epoch milliseconds; null until it is let in."
+          },
+          "endedAt": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Epoch milliseconds; null until it ends."
+          },
+          "outcome": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What it came to, once ended."
+          }
+        },
+        "required": [
+          "token",
+          "title",
+          "askedBy",
+          "stage",
+          "agentName",
+          "role",
+          "askedAt",
+          "runningSince",
+          "endedAt",
+          "outcome"
+        ],
+        "description": "Delegation: a task a chat agent delegated, as its seat stands."
+      },
+      "DelegationStage": {
+        "type": "string",
+        "enum": [
+          "waiting",
+          "running",
+          "ended"
+        ],
+        "description": "DelegationStage: where a delegated task stands: `waiting` while its seat waits in the line, `running`\nonce it is let in, `ended` once it is finished or cancelled."
       },
       "SeatRequestChange": {
         "type": "object",
@@ -8940,6 +9157,13 @@
             ],
             "format": "int64",
             "description": "On an admission ask: the asking run's granted demand the seat's own is asked within."
+          },
+          "agentName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "On a binding: the agent the seat's child runs on."
           }
         },
         "description": "The body that moves a seat request."

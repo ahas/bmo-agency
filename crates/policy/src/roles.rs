@@ -1,7 +1,7 @@
 //! The roles an agent may hold and the function bundles a role may give (docs/agent-roles.md): the roles
 //! themselves are the store's rows, which these declarations seed once; the bundles, the kinds' roles, the
-//! co-worker's role, the role delegated work goes to, the sending bundle, the kinds' marks and the shape of a
-//! role's name are the policy's.
+//! co-worker's role, the role delegated work goes to, the roles of agency's own runs that stand for no agent
+//! row, the sending bundle, the kinds' marks and the shape of a role's name are the policy's.
 
 use std::collections::BTreeMap;
 
@@ -16,9 +16,43 @@ pub struct Bundle {
   pub label: String,
 }
 
+/// Whether a role's runs go on in the session an earlier run left while its cache is warm, or each opens its
+/// own (docs/agent-roles.md, 「A role's sessions」).
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum Sessions {
+  #[default]
+  Keep,
+  Fresh,
+}
+
+impl Sessions {
+  /// The word a row and the routes write it by.
+  pub fn word(self) -> &'static str {
+    match self {
+      Self::Keep => "keep",
+      Self::Fresh => "fresh",
+    }
+  }
+
+  /// The setting a word names, where it names one.
+  pub fn of(word: &str) -> Option<Self> {
+    match word {
+      "keep" => Some(Self::Keep),
+      "fresh" => Some(Self::Fresh),
+      _ => None,
+    }
+  }
+
+  /// Whether a run under it goes on in a kept session.
+  pub fn keeps(self) -> bool {
+    self == Self::Keep
+  }
+}
+
 /// One role a store is seeded with: its name, its label as a screen writes it, the file under
-/// `prompts/roles/` whose text is the prompt its agents are given before their own, the bundles it gives
-/// and the tool entries its agents are shown by name.
+/// `prompts/roles/` whose text is the prompt its agents are given before their own, the bundles it gives,
+/// the tool entries its agents are shown by name and whether its runs keep their sessions.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Role {
@@ -32,6 +66,9 @@ pub struct Role {
   /// The most agents of this role that run at once, where the deployment bounds them.
   #[serde(default)]
   pub max_concurrent: Option<usize>,
+  /// Whether its runs keep their sessions; `keep` where the declaration names none.
+  #[serde(default)]
+  pub sessions: Sessions,
 }
 
 /// Every bundle and every seeded role, each in the order a screen lists them, and the role a co-worker
@@ -43,6 +80,10 @@ pub struct Roles {
   pub coworker: String,
   /// The role whose agents carry a delegated task where its ask names none.
   pub delegate: String,
+  /// The role the usage reader's renewal turn holds, a run that stands for no agent row.
+  pub renewal: String,
+  /// The role the gate project's judging batch holds, a run that stands for no agent row.
+  pub judging: String,
   /// The bundle that opens sending into a room.
   pub send: String,
   /// The shape of a role's name.

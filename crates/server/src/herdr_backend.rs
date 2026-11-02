@@ -2842,7 +2842,7 @@ impl Sessions for HerdrSessions {
       }
       Scope::Apart(_) => Err(fault(
         FaultKind::Refused,
-        format!("{session} is thrown away, every turn on a fresh session"),
+        format!("{session} is an apart session, whose turns each go out as a run of their own"),
       )),
       Scope::Conversation(_) => Err(fault(
         FaultKind::Refused,

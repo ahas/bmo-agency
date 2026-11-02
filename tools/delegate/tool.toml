@@ -1,7 +1,7 @@
 # A chat agent hands a task to the helper on a co-worker seat, as a turn of the helper's own session with no
-# time bound (docs/tools.md, 「The delegate」; docs/agent-control.md, 「Delegating a task to the helper」). The
-# entry is unbounded: a call waits in the pool's line and on the turn as long as they take, and is run with
-# bmo use --async so its end wakes the agent.
+# time bound, and lists the tasks it has delegated (docs/tools.md, 「The delegate」; docs/agent-control.md,
+# 「Delegating a task to the helper」). A delegation waits in the pool's line and on the turn as long as they
+# take, and is run with bmo use --async so its end wakes the agent.
 [tool]
 name = "delegate"
 protocol = 1
@@ -9,18 +9,29 @@ language = "rust"
 build = 'cargo build --release -p delegate-tool && cp "$BMO_CARGO_TARGET/release/delegate-tool" "$BMO_TOOL_OUT/"'
 check = 'cargo test -p agency-checks --test tools'
 run = ["delegate-tool"]
-timeout = 60
 
 [[entry]]
 namespace = "bmo"
 name = "delegate"
 title = "Delegate a task"
-description = "Hand a task that needs no queue item to the helper on a co-worker seat, run with no time limit, and answer with what it wrote and the files it created or changed: run as bmo use bmo/delegate --async so its end wakes you in the room."
+description = "Hand a task that needs no queue item to the helper on a co-worker seat, under a one-line title, run with no time limit, and answer with what it wrote and the files it created or changed: run as bmo use bmo/delegate --async so its end wakes you in the room."
 input = "delegate.json"
 hints = { open_world = true }
 capabilities = ["room.tools"]
-unbounded = true
 
 [entry.listing]
 line = "- delegate — hand a task with no item to the helper on a co-worker seat, and read what it wrote and changed"
 order = 5
+
+[[entry]]
+namespace = "bmo"
+name = "delegations"
+title = "List my delegations"
+description = "List the tasks you delegated: each one's title, its stage (waiting for a seat, running on a helper, ended), the helper it runs on, when it was asked and, once ended, what it came to; the waiting and running ones first, then the latest ended."
+input = "delegations.json"
+hints = { read_only = true }
+capabilities = ["room.tools"]
+
+[entry.listing]
+line = "- delegations — list the tasks you delegated, each with its title, stage, helper and start"
+order = 6

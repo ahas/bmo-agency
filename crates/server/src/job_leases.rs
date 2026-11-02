@@ -1,8 +1,9 @@
-//! A running job's lease kept on the harness's behalf (docs/api.md, 「assignments and jobs」): every job still
+//! A job's lease kept on the harness's behalf (docs/api.md, 「assignments and jobs」): every job still
 //! starting or running has its item's lease renewed in the job service, and a lease the service no longer holds
 //! taken again on the same item for the same holder, and its assignee where it names one, the job keeping
-//! the new lease's id. A
-//! deployment that names no job service keeps nothing.
+//! the new lease's id. An ended job whose lease stands for the item's close has it renewed the same way until
+//! the service holds it no more — the close moved the item to done, or the lease was given back — and is
+//! never leased again. A deployment that names no job service keeps nothing.
 
 use std::collections::BTreeMap;
 
@@ -21,12 +22,15 @@ pub enum Kept {
   Renewed,
   /// The lease had run out and the item was leased again, under this id.
   Taken(i64),
+  /// An ended job's lease the service holds no more: the item's close ended it, or it was given back.
+  Closed,
   /// Neither: the item is another holder's or no longer open, or the job service could not be asked; why.
   Left(String),
 }
 
-/// One pass over the running jobs: each one's lease renewed or taken again. Answers each job with what was
-/// done; nothing where the deployment names no job service.
+/// One pass over the running jobs, each one's lease renewed or taken again, and the ended jobs whose lease
+/// stands for the item's close, each one's renewed or let go once the service holds it no more. Answers each
+/// job with what was done; nothing where the deployment names no job service.
 pub async fn pass(
   db: &sea_orm::DatabaseConnection,
   vars: &BTreeMap<String, String>,
@@ -38,8 +42,8 @@ pub async fn pass(
   };
   let rows = all(
     db,
-    r#"SELECT "id", "item_id", "lease_id", "holder_name" FROM "jobs"
-       WHERE "state" IN ('starting', 'running') ORDER BY "id""#,
+    r#"SELECT "id", "item_id", "lease_id", "holder_name", "state" FROM "jobs"
+       WHERE "state" IN ('starting', 'running') OR ("state" = 'ended' AND "lease_kept") ORDER BY "id""#,
     vec![],
   )
   .await?;
@@ -52,16 +56,37 @@ pub async fn pass(
   let mut kept = vec![];
 
   for row in rows {
-    let (Ok(id), Ok(item), Ok(lease), Ok(holder)) = (
+    let (Ok(id), Ok(item), Ok(lease), Ok(holder), Ok(state)) = (
       row.try_get::<i64>("", "id"),
       row.try_get::<i64>("", "item_id"),
       row.try_get::<i64>("", "lease_id"),
       row.try_get::<String>("", "holder_name"),
+      row.try_get::<String>("", "state"),
     ) else {
       continue;
     };
 
     if item <= 0 {
+      continue;
+    }
+
+    if state == "ended" {
+      let done = match service.renew(lease).await {
+        Ok(true) => Kept::Renewed,
+        Ok(false) => {
+          run(db, r#"UPDATE "jobs" SET "lease_kept" = false WHERE "id" = $1"#, vec![id.into()]).await?;
+          println!("job {id}: the lease {lease} on item #{item} has ended with the item's close");
+          Kept::Closed
+        }
+        Err(why) => {
+          eprintln!(
+            "job {id}: the lease {lease} on item #{item}, kept for its close, was not renewed: {why}"
+          );
+          Kept::Left(why)
+        }
+      };
+
+      kept.push((id, done));
       continue;
     }
 

@@ -108,6 +108,29 @@ impl Route for PoolEnqueue {
       source => enqueue_seat(call.store(), &asked, source, async |_, _| Ok(())).await,
     }
     .map_err(refused)?;
+    // The title and the asking agent a seat is listed by, kept as its asker named them (docs/api.md, 「pool,
+    // seat-requests, reservations and roles」).
+    let request = match (optional(&body, "title"), optional(&body, "askedBy")) {
+      (None, None) => request,
+      (title, asked_by) => {
+        run(
+          call.store(),
+          "UPDATE coworker_pool_requests SET title = COALESCE($1, title), asked_by = COALESCE($2, asked_by)
+           WHERE token = $3",
+          vec![
+            title.map(str::to_owned).into(),
+            asked_by.map(str::to_owned).into(),
+            request.token.clone().into(),
+          ],
+        )
+        .await?;
+
+        dispatch::request(call.store(), &request.token)
+          .await
+          .map_err(refused)?
+          .unwrap_or(request)
+      }
+    };
 
     Ok(answer(StatusCode::CREATED, shown(request)?))
   }
@@ -145,7 +168,19 @@ impl Route for PoolAcquire {
     match move_to {
       Some("bound") => {
         let child = text(&body, "childId")?;
-        let bound = bind(call.store(), &held, child).await.map_err(refused)?;
+        let mut bound = bind(call.store(), &held, child).await.map_err(refused)?;
+
+        // The agent the seat's child runs on, kept where the binding names it.
+        if let Some(agent) = optional(&body, "agentName") {
+          run(
+            call.store(),
+            "UPDATE coworker_pool_requests SET agent = $1 WHERE token = $2",
+            vec![agent.into(), token.clone().into()],
+          )
+          .await?;
+          bound.agent_name = Some(agent.to_owned());
+        }
+
         Ok(answer(StatusCode::OK, shown(bound)?))
       }
       Some("finished") | Some("finish") => {
@@ -308,6 +343,94 @@ impl Route for PoolOpenRequests {
 }
 
 crate::moved!(PoolOpenRequests);
+
+// The source a delegated task's seat is asked under (docs/tools.md, 「The delegate」), and the most ended
+// delegations a listing names where it asks for no count.
+const DELEGATE: &str = "delegate";
+const ENDED_LISTED: i64 = 10;
+
+/// A delegation's stage as its seat stands: waiting in the line, running once let in, ended once given back.
+fn stage(state: &str) -> &'static str {
+  match state {
+    "waiting" | "reserved" => "waiting",
+    "active" => "running",
+    _ => "ended",
+  }
+}
+
+/// `GET /delegations`: the seats asked under the source `delegate`, one asking agent's where `askedBy`
+/// names one — the ones still waiting or running in the order they were asked, then the latest ended,
+/// newest first.
+pub struct Delegations;
+
+impl Route for Delegations {
+  const METHOD: Method = Method::GET;
+  const PATH: &'static str = "/delegations";
+
+  async fn answer(&self, call: Call) -> Result<Response, Refused> {
+    let asked_by = call.query("askedBy").filter(|asker| !asker.is_empty());
+    let ended = match call.query("ended") {
+      None => ENDED_LISTED,
+      Some(count) => count
+        .parse::<i64>()
+        .ok()
+        .filter(|count| *count >= 0)
+        .ok_or_else(|| bad("ended is a whole number from 0"))?,
+    };
+    let narrowed = if asked_by.is_some() { " AND asked_by = $2" } else { "" };
+    let mut values: Vec<sea_orm::Value> = vec![DELEGATE.into()];
+
+    if let Some(asker) = &asked_by {
+      values.push(asker.clone().into());
+    }
+
+    let open = store::all(
+      call.store(),
+      &format!(
+        "SELECT * FROM coworker_pool_requests WHERE source = $1 AND state IN ('waiting', 'reserved', 'active'){narrowed}
+         ORDER BY sequence"
+      ),
+      values.clone(),
+    )
+    .await?;
+    let mut closed_values = values;
+
+    closed_values.push(ended.into());
+
+    let limit = if asked_by.is_some() { "$3" } else { "$2" };
+    let closed = store::all(
+      call.store(),
+      &format!(
+        "SELECT * FROM coworker_pool_requests WHERE source = $1 AND state NOT IN ('waiting', 'reserved', 'active'){narrowed}
+         ORDER BY sequence DESC LIMIT {limit}"
+      ),
+      closed_values,
+    )
+    .await?;
+    let mut items = vec![];
+
+    for row in open.iter().chain(closed.iter()) {
+      let seat = crate::control::pool::request_of(row)?;
+
+      items.push(json!({
+        "token": seat.token,
+        "title": seat.title,
+        "askedBy": seat.asked_by,
+        "stage": stage(&seat.state),
+        "agentName": seat.agent_name,
+        "role": seat.role,
+        "askedAt": seat.enqueued_at,
+        "runningSince": seat.leased_at,
+        "endedAt": seat.ended_at,
+        "outcome": seat.outcome,
+      }));
+    }
+
+    Ok(answer(StatusCode::OK, json!({ "items": items })))
+  }
+}
+
+crate::moved!(Delegations);
 
 /// Every role the pool knows, with the tier its assignment names.
 pub struct PoolRoles;

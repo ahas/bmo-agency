@@ -225,6 +225,15 @@ pub struct ListOvertimeRequestsQuery {
 
 #[derive(Debug, Clone, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ListDelegationsQuery {
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub asked_by: Option<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub ended: Option<i64>,
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ListSeatRequestsQuery {
   #[serde(skip_serializing_if = "Option::is_none")]
   pub owner: Option<String>,
@@ -662,6 +671,11 @@ impl AgencyClient {
   /// `GET /seat-requests`: Open seat requests, by owner or waiting.
   pub async fn list_seat_requests(&self, query: &ListSeatRequestsQuery) -> Answer<SeatRequestPage> {
     Self::answered(self.request(Method::GET, &["seat-requests"]).query(query)).await
+  }
+
+  /// `GET /delegations`: The tasks an agent delegated, each with its title, stage, helper agent and start.
+  pub async fn list_delegations(&self, query: &ListDelegationsQuery) -> Answer<DelegationPage> {
+    Self::answered(self.request(Method::GET, &["delegations"]).query(query)).await
   }
 
   /// `POST /seat-requests`: Ask for a co-worker seat; the tier is resolved from the work key.

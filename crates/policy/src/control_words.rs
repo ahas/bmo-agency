@@ -133,6 +133,7 @@ pub struct AgentRolesWords {
   pub bound: String,
   pub prompt: String,
   pub tier: String,
+  pub sessions: String,
   pub held: String,
   pub kind_default: String,
 }

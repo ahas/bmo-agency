@@ -412,7 +412,7 @@ dependencies = [
 
 [[package]]
 name = "bmo-cache-warmer-schedule"
-version = "0.1.0-rev.5"
+version = "0.1.0-rev.6"
 
 [[package]]
 name = "bmo-chat"
@@ -898,6 +898,7 @@ dependencies = [
 name = "delegate-tool"
 version = "0.1.0-rev.81"
 dependencies = [
+ "chrono",
  "dotenvy",
  "policy",
  "reqwest",

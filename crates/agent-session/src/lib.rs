@@ -35,7 +35,8 @@ pub enum Scope {
   Room(String),
   /// A worker's session, kept for the work it is given.
   Worker,
-  /// A session thrown away: a co-work branch's or a runner line's, every turn on it a fresh one.
+  /// A session apart: a co-work branch's or a runner line's, ended by its caller; a branch's turn opens a
+  /// session of its own, and a runner line's goes on the session its agent's role gives it.
   Apart(Apart),
   /// A conversation the caller opened on a provider and model of its own, kept for it until it ends.
   Conversation(Conversation),

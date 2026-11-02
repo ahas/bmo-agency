@@ -689,7 +689,7 @@ When a demotion first catches — when a healthy session first drops — two thi
   - **Codex** keeps the thread id `codex exec` produced, per run scope, model and effort, and continues
     with `codex exec resume <id>` under a cross-process lock, one request at a time. A dsh headless run
     has no resume interface and is stateless.
-- **Search and browse runners do not cross over:** a thrown-away session's only program is Claude Code,
+- **Search and browse runners do not cross over:** an apart session's only program is Claude Code,
   so a search or browse request runs on Claude even with Claude Code off, on the first login the account
   judgement offers its key; its key's read answers by the road resolution like any other, and its
   keepalive warms Claude's prefix only while Claude Code is on.

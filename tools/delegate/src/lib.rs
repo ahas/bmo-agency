@@ -2,8 +2,8 @@
 //! under the helper role and waited for in its line however long that takes, one turn sent into a helper
 //! agent's own worker session on the seat's model and waited on with no bound, the session going on from the
 //! last delegation while its cache holds, the seat finished, and the turn's words answered with the files it
-//! created or changed in the task's folder (docs/tools.md, 「The delegate」; docs/agent-control.md,
-//! 「Delegating a task to the helper」).
+//! created or changed in the task's folder; and the asking agent's delegations listed by their titles and
+//! stages (docs/tools.md, 「The delegate」; docs/agent-control.md, 「Delegating a task to the helper」).
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -21,8 +21,13 @@ use tool_call::{Answer, Asked, Handed, Session, Turn};
 pub const NAMESPACE: &str = "bmo";
 pub const NAME: &str = "delegate";
 pub const TITLE: &str = "Delegate a task";
-pub const DESCRIPTION: &str = "Hand a task that needs no queue item to the helper on a co-worker seat, run with no time limit, and answer with what it wrote and the files it created or changed: run as bmo use bmo/delegate --async so its end wakes you in the room.";
+pub const DESCRIPTION: &str = "Hand a task that needs no queue item to the helper on a co-worker seat, under a one-line title, run with no time limit, and answer with what it wrote and the files it created or changed: run as bmo use bmo/delegate --async so its end wakes you in the room.";
 pub const CAPABILITIES: &[&str] = &["room.tools"];
+
+/// The entry that lists the asking agent's delegations.
+pub const LIST_NAME: &str = "delegations";
+pub const LIST_TITLE: &str = "List my delegations";
+pub const LIST_DESCRIPTION: &str = "List the tasks you delegated: each one's title, its stage (waiting for a seat, running on a helper, ended), the helper it runs on, when it was asked and, once ended, what it came to; the waiting and running ones first, then the latest ended.";
 
 /// The source a delegated task's seat is asked under (docs/coworker-pool.md, 「Who takes a place」).
 pub const SOURCE: &str = "delegate";
@@ -49,9 +54,15 @@ pub fn entry() -> String {
   format!("{NAMESPACE}/{NAME}")
 }
 
+pub fn list_entry() -> String {
+  format!("{NAMESPACE}/{LIST_NAME}")
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DelegateInput {
+  /// One line naming the task, which the delegation is listed by.
+  pub title: String,
   pub instruction: String,
   #[serde(default)]
   pub role: Option<String>,
@@ -331,6 +342,12 @@ pub async fn delegate_with(api: &Api, session: &Session, input: DelegateInput, h
     return Answer::failure("instruction must not be empty");
   }
 
+  let title = input.title.split_whitespace().collect::<Vec<_>>().join(" ");
+
+  if title.is_empty() {
+    return Answer::failure("title must not be empty");
+  }
+
   let role = input
     .role
     .as_deref()
@@ -356,6 +373,8 @@ pub async fn delegate_with(api: &Api, session: &Session, input: DelegateInput, h
     "selection": "auto",
     "source": SOURCE,
     "provider": PROVIDER,
+    "title": title,
+    "askedBy": asker,
   });
   let seat = match api.ok(Method::POST, "/seat-requests", Some(asked), "the pool gave no seat").await {
     Ok(said) => match Seat::of(&said) {
@@ -379,7 +398,7 @@ pub async fn delegate_with(api: &Api, session: &Session, input: DelegateInput, h
   let run = format!("{SOURCE}-{}-{began}", keyed(&asker));
   // The seat is bound to the turn's run, which the turn's execution names, so the pool reads it standing while
   // the turn goes (docs/coworker-pool.md, 「Requests and leases」).
-  let bound = json!({ "state": "bound", "childId": run });
+  let bound = json!({ "state": "bound", "childId": run, "agentName": agent.name });
 
   if let Err(why) = api
     .ok(
@@ -576,12 +595,100 @@ pub async fn call(session: &Session, arguments: Value) -> Result<Answer, String>
   Ok(delegate(session, input).await)
 }
 
+/// What the listing is asked: how many of the latest ended delegations to name beside the open ones.
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ListInput {
+  #[serde(default)]
+  pub ended: Option<u32>,
+}
+
+/// The asking agent's delegations as agency answers them, one line each: the title, the stage and the helper
+/// it runs on, when it was asked and what it came to once ended.
+pub async fn list_with(api: &Api, session: &Session, input: ListInput) -> Answer {
+  let asker = asker(session);
+  let mut path = format!("/delegations?askedBy={}", encoded(&asker));
+
+  if let Some(ended) = input.ended {
+    path.push_str(&format!("&ended={ended}"));
+  }
+
+  let said = match api.ok(Method::GET, &path, None, "the delegations could not be read").await {
+    Ok(said) => said,
+    Err(why) => return Answer::failure(why),
+  };
+  let items = said.get("items").and_then(Value::as_array).cloned().unwrap_or_default();
+
+  if items.is_empty() {
+    return Answer::text("You have delegated nothing that is listed.");
+  }
+
+  let lines: Vec<String> = items.iter().map(listed).collect();
+
+  Answer::text(lines.join("\n"))
+}
+
+// One delegation as a line of the listing.
+fn listed(item: &Value) -> String {
+  let text = |field: &str| item.get(field).and_then(Value::as_str).filter(|value| !value.is_empty());
+  let title = text("title").unwrap_or("(untitled)");
+  let stage = match (text("stage"), text("agentName")) {
+    (Some("waiting"), _) => "waiting for a seat".to_owned(),
+    (Some("running"), Some(agent)) => format!("running on {agent}"),
+    (Some("running"), None) => "running".to_owned(),
+    (Some("ended"), _) => format!("ended: {}", text("outcome").unwrap_or("no outcome")),
+    (other, _) => other.unwrap_or("unknown").to_owned(),
+  };
+  let asked = item.get("askedAt").and_then(Value::as_i64).map_or_else(|| "?".to_owned(), moment);
+  let mut line = format!("- {title} — {stage} — asked {asked}");
+
+  if let (Some("ended"), Some(agent)) = (text("stage"), text("agentName")) {
+    line.push_str(&format!(" — ran on {agent}"));
+  }
+
+  line
+}
+
+// A moment in epoch milliseconds as a UTC time a reader takes in at a glance.
+fn moment(ms: i64) -> String {
+  chrono::DateTime::<chrono::Utc>::from_timestamp_millis(ms)
+    .map_or_else(|| ms.to_string(), |at| at.format("%Y-%m-%d %H:%M UTC").to_string())
+}
+
+// A query value with every byte outside the unreserved set percent-encoded.
+fn encoded(text: &str) -> String {
+  text
+    .bytes()
+    .map(|byte| {
+      if byte.is_ascii_alphanumeric() || b"-._~".contains(&byte) {
+        (byte as char).to_string()
+      } else {
+        format!("%{byte:02X}")
+      }
+    })
+    .collect()
+}
+
+pub async fn list(session: &Session, arguments: Value) -> Result<Answer, String> {
+  let input: ListInput = if arguments.is_null() {
+    ListInput::default()
+  } else {
+    serde_json::from_value(arguments).map_err(|why| format!("invalid arguments: {LIST_NAME}: {why}"))?
+  };
+
+  Ok(list_with(&Api::from_record(session), session, input).await)
+}
+
 pub async fn answer(handed: Handed) -> Result<Value, String> {
   let answered = match handed.asked {
     Asked::Call {
       entry: asked,
       arguments,
     } if asked == entry() => call(&handed.session, arguments).await.unwrap_or_else(Answer::failure),
+    Asked::Call {
+      entry: asked,
+      arguments,
+    } if asked == list_entry() => list(&handed.session, arguments).await.unwrap_or_else(Answer::failure),
     Asked::Call { entry: asked, .. } => Answer::failure(format!("this executable holds no entry {asked}")),
     Asked::ResourcesList => return Ok(json!({ "resources": [] })),
     Asked::ResourcesRead { .. } => return Ok(json!({ "error": "this executable serves no resources" })),

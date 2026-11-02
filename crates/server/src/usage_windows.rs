@@ -17,6 +17,7 @@ use cache_siren::{Keeping, Reader, Slot, Window};
 use harness_providers::balance::{OffersBalance, key_in_file};
 use harness_providers::{Machine, Provider};
 use policy::providers::claude_code::CLAUDE_CODE;
+use policy::roles::ROLES;
 use sea_orm::DatabaseConnection;
 use serde_json::Value;
 
@@ -133,6 +134,7 @@ pub async fn renew_login(ground: &Ground, id: &str) -> Result<(), String> {
 
   let apart = Apart {
     agent: RENEWAL,
+    role: Some(ROLES.renewal.as_str()),
     line: RENEWAL,
     provider: crate::lines::runner::PROVIDER,
     title: format!("{RENEWAL} · {id} · {}", usage.renewal_model),

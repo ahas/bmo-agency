@@ -70,6 +70,12 @@ pub struct Request {
   pub turn: bool,
   /// The session a worker's own turn continues, or none where it opens a fresh one.
   pub session: Option<String>,
+  /// One line naming the work the seat is asked for, where its asker names one.
+  pub title: Option<String>,
+  /// The agent that asked for the seat, where its asker names one.
+  pub asked_by: Option<String>,
+  /// The agent the seat's child runs on, where its binding names one.
+  pub agent_name: Option<String>,
 }
 
 /// One owner's reservation.
@@ -152,6 +158,9 @@ pub(crate) fn request_of(row: &QueryResult) -> Result<Request, Refused> {
     place_key: row.try_get("", "place_key")?,
     turn: row.try_get::<i64>("", "turn")? == 1,
     session: row.try_get("", "session")?,
+    title: row.try_get("", "title")?,
+    asked_by: row.try_get("", "asked_by")?,
+    agent_name: row.try_get("", "agent")?,
   })
 }
 

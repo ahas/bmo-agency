@@ -29,7 +29,8 @@ pub struct Seeds {
 }
 
 /// One role a store is given once by its name (docs/agent-roles.md, 「The roles」): its label, the bundles
-/// it gives, the most of its agents that run at once and the text of its prompt.
+/// it gives, the most of its agents that run at once, the text of its prompt and whether its runs keep their
+/// sessions, `keep` or `fresh`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RoleSeed {
   pub name: String,
@@ -37,6 +38,7 @@ pub struct RoleSeed {
   pub bundles: Vec<String>,
   pub max_concurrent: Option<i64>,
   pub prompt: Option<String>,
+  pub sessions: String,
 }
 
 /// One base prompt a store is given once by its name (docs/base-prompts.md, 「The seeds」), with the
@@ -321,8 +323,8 @@ async fn role_seed<C: ConnectionTrait>(
 
   run(
     db,
-    r#"INSERT INTO "agent_roles" ("name", "label", "bundles", "max_concurrent", "prompt", "position", "created_at", "updated_at")
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $7) ON CONFLICT DO NOTHING"#,
+    r#"INSERT INTO "agent_roles" ("name", "label", "bundles", "max_concurrent", "prompt", "position", "created_at", "updated_at", "sessions")
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $8) ON CONFLICT DO NOTHING"#,
     vec![
       role.name.clone().into(),
       role.label.clone().into(),
@@ -331,6 +333,7 @@ async fn role_seed<C: ConnectionTrait>(
       text(&role.prompt),
       place.into(),
       at_ms.into(),
+      role.sessions.clone().into(),
     ],
   )
   .await?;

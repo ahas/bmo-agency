@@ -320,10 +320,36 @@ statements below about either are kept for a rollback to the road a deployment l
   none of it (`docs/api.md`, 「Sessions」, a work turn's parts). A turn whose runner named a session
   that the walk, a reset or the judging of the held session has moved off is put to the runner again
   before anything goes in, since its prompt was composed for what that session has read.
+- **A worker whose role keeps no sessions opens a new one for every job turn.** Where the worker's role
+  row says `fresh` (`docs/agent-roles.md`, 「A role's sessions」), a turn that leaves the choice to agency
+  resumes no session the worker holds on the turn's model, warm or not, and opens a new one; a turn that
+  names the session it continues continues it as above.
 - **A session's generation and its context are kept for its state to read:** how many times the
   worker's session on that model was opened fresh rather than resumed, counted beside the records so a
   record forgotten takes no count with it; and on the record, the tokens its last answered turn carried
   and the share of the window they filled.
+
+## A run apart's kept session
+
+- **A run apart whose role keeps sessions goes on in the last one** (`docs/agents.md`, 「Runs apart」;
+  `docs/agent-roles.md`, 「A role's sessions」). Its record is kept by the run's agent and its command: the
+  line, the folder, the login's configuration home, and every word of the command but its session's, the
+  system prompt's text standing for its file. A run on another model, effort, login, tool list or system
+  prompt is another command, and opens its own session; so a resumed session always stands on the road and
+  the prefix it was opened on.
+- **One run holds a kept session at a time.** A run takes the record as it starts and gives it back, with
+  the session it answered on and the moment of that answer, once it has answered. A run of the same command
+  starting meanwhile finds no record and opens a new session, so runs at once never share one, and whichever
+  of them answers last leaves the record the next run takes. A run that ends with no answer gives nothing
+  back, and the next opens a new session.
+- **The warm/cold criterion is the worker's** (「A worker's session per model」): a session is resumed while
+  the time since its last answer is under the cache lifetime its provider declares for its model, an hour
+  where it declares none. A record past it is dropped as it is taken, and one whose session's record file
+  is no longer there is not resumed.
+- **A resumed run is handed nothing beyond its own words,** as a resumed worker session is; what it reads of
+  the earlier runs is what its session already holds.
+- **A role whose sessions are fresh keeps no record:** each of its runs opens a session no later run
+  resumes.
 
 ## Session replacement
 

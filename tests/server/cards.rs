@@ -222,6 +222,9 @@ fn seat(token: &str) -> Request {
     place_key: None,
     turn: false,
     session: Some("session-7".into()),
+    title: None,
+    asked_by: None,
+    agent_name: None,
   }
 }
 
@@ -423,6 +426,9 @@ async fn a_native_co_worker_s_card_is_asked_within_the_demand_its_caller_s_turn_
     place_key: None,
     turn: false,
     session: None,
+    title: None,
+    asked_by: None,
+    agent_name: None,
   };
   let held = native_card(scratch.db(), Some(&master), &seat, Some("worker-a"))
     .await

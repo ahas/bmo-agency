@@ -93,14 +93,16 @@ flowchart TD
 
 ## Runs apart
 
-A run apart is one run of a line that keeps no session: a turn of a thrown-away session on the search or
-browse line, the morning news page's writer, a tool probe, a judging batch of the gate project's claude
-road, and the turn the usage reader asks on a login found expired so the CLI renews it
-(`docs/usage-windows.md`, 「The Claude account reader」).
+A run apart is one run of a line Claude Code carries in a pane of the run's own rather than in a standing
+program: a turn of an apart session on the search or browse line, a translation, the morning news page's
+writer, a tool probe, a judging batch of the gate project's claude road, and the turn the usage reader asks
+on a login found expired so the CLI renews it (`docs/usage-windows.md`, 「The Claude account reader」).
+Whether a run apart goes on in the session an earlier run left or opens a new one is the setting of the role
+it holds, never a fact of its line or its kind (`docs/agent-roles.md`, 「A role's sessions」).
 
 ```mermaid
 flowchart TD
-  C[The line's command<br/>on a session of its own] --> P[A pane of its own<br/>in a workspace of its own]
+  C[The line's command<br/>on the session its role gives it] --> P[A pane of its own<br/>in a workspace of its own]
   P --> T[The lead, then the run's words]
   T --> R[The program's record]
   R --> L[The run log, line by line]
@@ -112,8 +114,16 @@ flowchart TD
   its own, labelled with what the run is and its model, and closed with the run. Two runs of one line
   at once are two panes, so overlapping searches, batches and branches never wait on each other.
 - **Its command is its line's,** without print mode: the same model, effort, tools shown and allowed,
-  MCP configuration, permission mode and system prompt, and a session id the run chooses, which no
-  later run resumes.
+  MCP configuration, permission mode and system prompt, and the session its role's setting gives it.
+- **Its role is its agent's,** read from the agent's row as the run starts; a run whose agent stands no
+  row holds the role the roles policy names for it — the usage reader's renewal turn `renewal`, the gate
+  project's judging batch `judging` (`policy/roles.toml`).
+- **Its session is its role's to keep or not,** the role row's `sessions`:
+  - `fresh`: the run opens a session id of its own, which no later run resumes;
+  - `keep`: the run resumes the session the last answered run of the same agent left on the same
+    command, while that session is warm, and opens a new one otherwise; the session it answers on is
+    kept for the next (`docs/sessions.md`, 「A run apart's kept session」);
+  - a role the store does not hold keeps nothing, as `fresh`.
 - **What goes in** is a typed lead saying the paste after it is the run's task, then the run's words,
   the way a pane of a run's own takes any turn (`docs/agent-control.md`, 「The order for putting in one
   turn and waiting for it to end」).

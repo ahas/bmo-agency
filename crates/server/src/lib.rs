@@ -6,6 +6,7 @@
 
 pub mod agent_roles;
 pub mod apart_places;
+pub mod apart_sessions;
 pub mod cards;
 pub mod chat_stand_in;
 pub mod clock;

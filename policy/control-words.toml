@@ -125,6 +125,7 @@ bundles = "A role gives a list of bundles, each one of {bundles}."
 bound = "A role's bound is a whole number of one or more, or null for none."
 prompt = "A role's prompt is text, or null for none."
 tier = "A role's tier is one of {tiers}, or null for none."
+sessions = "A role's sessions are keep, its runs going on in the session an earlier run left while its cache is warm, or fresh, each run opening its own."
 held = "{name} is held by {agents}. Give them another role first."
 kind_default = "{name} is the role every {kind} agent holds where none is named, so it stays."
 

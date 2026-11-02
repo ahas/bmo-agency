@@ -102,6 +102,43 @@ async fn a_running_job_s_lease_is_renewed_or_taken_again_and_one_another_holds_i
 }
 
 #[tokio::test]
+async fn an_ended_job_s_lease_kept_for_its_close_is_renewed_until_the_close_ends_it_and_never_taken_again()
+{
+  let scratch = Scratch::new().await;
+  let calls: Calls = Arc::default();
+  let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+  let address = format!("http://{}", listener.local_addr().unwrap());
+  let app = axum::Router::new().fallback(jobs).with_state(calls.clone());
+
+  tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+  scratch
+    .run(
+      r#"INSERT INTO "jobs" ("id", "item_id", "lease_id", "holder_name", "assignment_id", "worker_name", "state",
+                             "started_at", "prompt", "lease_kept")
+         VALUES (5, 20, 7, 'harness', 5, 'worker-a', 'ended', 1, 'work', true),
+                (6, 21, 8, 'harness', 6, 'worker-a', 'ended', 1, 'work', true),
+                (7, 22, 9, 'harness', 7, 'worker-b', 'stopped', 1, 'work', false)"#,
+      vec![],
+    )
+    .await;
+
+  let vars: BTreeMap<String, String> = [
+    ("BMO_JOB_URL".to_owned(), address),
+    ("BMO_JOB_TOKEN".to_owned(), "job-token".to_owned()),
+  ]
+  .into();
+
+  // Lease 7 stands for its item's close and is renewed; lease 8 has ended with its item's close, and its item,
+  // open or not, is not leased again.
+  assert_eq!(pass(scratch.db(), &vars).await.unwrap(), [(5, Kept::Renewed), (6, Kept::Closed)]);
+  assert!(
+    !calls.lock().unwrap().iter().any(|(method, ..)| method == "POST"),
+    "no lease is taken again"
+  );
+  assert_eq!(pass(scratch.db(), &vars).await.unwrap(), [(5, Kept::Renewed)]);
+}
+
+#[tokio::test]
 async fn a_running_job_s_item_waits_on_no_free_worker() {
   let scratch = Scratch::new().await;
 

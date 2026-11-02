@@ -285,7 +285,7 @@ Branch prefix digests include effective effort. A co-work reservation for a task
   (`docs/cache-fallback.md`, 「One road resolution」): the first provider of the walk whose program carries
   the key's line and that can answer now; a provider that cannot carry it, or cannot answer now, is passed
   over.
-- **What goes out on that road is the caller's.** The research unit asks the seat and then a thrown-away
+- **What goes out on that road is the caller's.** The research unit asks the seat and then an apart
   session on the line with the provider and model the seat answered (`docs/api.md`, 「sessions」).
 
 ## The Claude catalogue

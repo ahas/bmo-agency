@@ -15,6 +15,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use clap::Args;
 use harness_providers::claude_code::ClaudeCode;
+use policy::roles::ROLES;
 use serde_json::{Value, json};
 
 use super::{Stop, VerbError, ground};
@@ -198,6 +199,7 @@ pub async fn run(asked: ClaudeBatch, data_root: &Path) -> Result<Vec<String>, Ve
     &ground,
     Apart {
       agent: NAME,
+      role: Some(ROLES.judging.as_str()),
       line: NAME,
       provider: PROVIDER,
       title: asked.title,

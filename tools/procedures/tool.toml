@@ -9,7 +9,6 @@ language = "rust"
 build = 'cargo build --release -p procedures-tool && cp "$BMO_CARGO_TARGET/release/procedures-tool" "$BMO_TOOL_OUT/"'
 check = 'cargo test -p agency-checks --test tools'
 run = ["procedures-tool"]
-timeout = 30
 
 [resources]
 namespace = "bmo"

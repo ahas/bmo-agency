@@ -34,8 +34,10 @@ file `AGENCY_CONTROL_TOKEN_FILE` names, or in `--token`.
 3. Read the job with `GET /jobs/{jobId}` or from the agency's events (`job.created`, `job.changed`,
    `job.ended`). Its `state` moves `starting` to `running` to `ended` or `stopped`; `outcome` and `report`
    carry what the run came to. `tokenCount` is what the model spent.
-4. End or stop the job with `PATCH /jobs/{jobId}`; its assignment is released. Report and close the item in
-   the job service yourself from `outcome` and `report`.
+4. End or stop the job with `PATCH /jobs/{jobId}`; its assignment is released. A job that ends keeps the lease
+   you handed over standing, the agency renewing it, so the item stays `leased` until you close it: report and
+   close the item in the job service yourself from `outcome` and `report`, which ends the lease, or give that
+   lease back where the item is not to close. A stopped job gives its lease back, and the item is open again.
 5. Words appended to the item reach the run as a turn into the job's `sessionId`, at
    `POST /sessions/{sessionId}/turns`. The worker's question is put at `GET /sessions/{sessionId}` under
    `question`, and answered with `POST /sessions/{sessionId}/answers`.

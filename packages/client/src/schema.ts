@@ -619,6 +619,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/delegations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The tasks an agent delegated, each with its title, stage, helper agent and start. */
+        get: operations["listDelegations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/seat-requests/{token}": {
         parameters: {
             query?: never;
@@ -1775,6 +1792,8 @@ export interface components {
             prompt: string | null;
             /** @description The tier its work key `role:<name>` is assigned; null where none is. */
             tier: string | null;
+            /** @description Whether its runs keep their sessions. */
+            sessions: components["schemas"]["RoleSessions"];
             /**
              * Format: int64
              * @description How many agent rows hold it.
@@ -1788,6 +1807,12 @@ export interface components {
             name: string;
             label: string;
         };
+        /**
+         * @description RoleSessions: whether a role's runs go on in the session an earlier run left while its cache is warm,
+         *     `keep`, or each open a session of its own, `fresh`.
+         * @enum {string}
+         */
+        RoleSessions: "keep" | "fresh";
         /** @description AgentRoleAsk: the body that adds a role. */
         AgentRoleAsk: {
             /** @description kebab-case, held by no role and no co-worker role */
@@ -1799,6 +1824,8 @@ export interface components {
             maxConcurrent?: number | null;
             prompt?: string | null;
             tier?: string | null;
+            /** @description `keep` where none is named */
+            sessions?: components["schemas"]["RoleSessions"] | null;
         };
         /**
          * @description AgentRoleChange: a change to a role; a field left out keeps what it holds, and a bound, a prompt or a
@@ -1811,6 +1838,7 @@ export interface components {
             maxConcurrent?: number | null;
             prompt?: string | null;
             tier?: string | null;
+            sessions?: components["schemas"]["RoleSessions"] | null;
         };
         /** @description PromptDocumentPage: */
         PromptDocumentPage: {
@@ -2423,6 +2451,12 @@ export interface components {
             outcome: string | null;
             /** @description The session a worker's own turn continues, or none where it opens a fresh one. */
             session: string | null;
+            /** @description One line naming the work the seat is asked for, where its asker named one. */
+            title: string | null;
+            /** @description The agent that asked for the seat, where its asker named one. */
+            askedBy: string | null;
+            /** @description The agent the seat's child runs on, where its binding named one. */
+            agentName: string | null;
         };
         /**
          * @description One of the values the API accepts.
@@ -2444,7 +2478,51 @@ export interface components {
             token?: string | null;
             placeKey?: string | null;
             source?: string | null;
+            /** @description One line naming the work the seat is asked for. */
+            title?: string | null;
+            /** @description The agent asking for the seat. */
+            askedBy?: string | null;
         };
+        /**
+         * @description DelegationPage: the ones still waiting or running in the order they were asked, then the latest ended,
+         *     newest first.
+         */
+        DelegationPage: {
+            items: components["schemas"]["Delegation"][];
+        };
+        /** @description Delegation: a task a chat agent delegated, as its seat stands. */
+        Delegation: {
+            token: string;
+            title: string | null;
+            askedBy: string | null;
+            stage: components["schemas"]["DelegationStage"];
+            /** @description The helper agent its turn runs on; null before it is bound. */
+            agentName: string | null;
+            role: string;
+            /**
+             * Format: int64
+             * @description Epoch milliseconds.
+             */
+            askedAt: number;
+            /**
+             * Format: int64
+             * @description Epoch milliseconds; null until it is let in.
+             */
+            runningSince: number | null;
+            /**
+             * Format: int64
+             * @description Epoch milliseconds; null until it ends.
+             */
+            endedAt: number | null;
+            /** @description What it came to, once ended. */
+            outcome: string | null;
+        };
+        /**
+         * @description DelegationStage: where a delegated task stands: `waiting` while its seat waits in the line, `running`
+         *     once it is let in, `ended` once it is finished or cancelled.
+         * @enum {string}
+         */
+        DelegationStage: "waiting" | "running" | "ended";
         /** @description The body that moves a seat request. */
         SeatRequestChange: {
             state?: string | null;
@@ -2463,6 +2541,8 @@ export interface components {
              * @description On an admission ask: the asking run's granted demand the seat's own is asked within.
              */
             within?: number | null;
+            /** @description On a binding: the agent the seat's child runs on. */
+            agentName?: string | null;
         };
         /** @description ReservationPage: */
         ReservationPage: {
@@ -5180,6 +5260,30 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SeatRequest"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    listDelegations: {
+        parameters: {
+            query?: {
+                askedBy?: string;
+                ended?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DelegationPage"];
                 };
             };
             401: components["responses"]["Unauthorized"];

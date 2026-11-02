@@ -453,6 +453,51 @@ pub struct SeatRequest {
   pub outcome: Option<String>,
   /// The session a worker's own turn continues, or none where it opens a fresh one.
   pub session: Option<String>,
+  /// One line naming the work the seat is asked for, where its asker named one.
+  pub title: Option<String>,
+  /// The agent that asked for the seat, where its asker named one.
+  pub asked_by: Option<String>,
+  /// The agent the seat's child runs on, where its binding named one.
+  pub agent_name: Option<String>,
+}
+
+/// DelegationStage: where a delegated task stands: `waiting` while its seat waits in the line, `running`
+/// once it is let in, `ended` once it is finished or cancelled.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum DelegationStage {
+  Waiting,
+  Running,
+  Ended,
+}
+
+/// Delegation: a task a chat agent delegated, as its seat stands.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct Delegation {
+  pub token: String,
+  pub title: Option<String>,
+  pub asked_by: Option<String>,
+  pub stage: DelegationStage,
+  /// The helper agent its turn runs on; null before it is bound.
+  pub agent_name: Option<String>,
+  pub role: String,
+  /// Epoch milliseconds.
+  pub asked_at: i64,
+  /// Epoch milliseconds; null until it is let in.
+  pub running_since: Option<i64>,
+  /// Epoch milliseconds; null until it ends.
+  pub ended_at: Option<i64>,
+  /// What it came to, once ended.
+  pub outcome: Option<String>,
+}
+
+/// DelegationPage: the ones still waiting or running in the order they were asked, then the latest ended,
+/// newest first.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct DelegationPage {
+  pub items: Vec<Delegation>,
 }
 
 /// Reservation:
@@ -1087,6 +1132,16 @@ pub struct AgentRoleBundle {
   pub label: String,
 }
 
+/// RoleSessions: whether a role's runs go on in the session an earlier run left while its cache is warm,
+/// `keep`, or each open a session of its own, `fresh`.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum RoleSessions {
+  #[default]
+  Keep,
+  Fresh,
+}
+
 /// AgentRole: one role an agent may hold, as the store keeps it.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -1100,6 +1155,8 @@ pub struct AgentRole {
   pub prompt: Option<String>,
   /// The tier its work key `role:<name>` is assigned; null where none is.
   pub tier: Option<String>,
+  /// Whether its runs keep their sessions.
+  pub sessions: RoleSessions,
   /// How many agent rows hold it.
   pub agents: i64,
   /// Whether a kind's own is it, which keeps it from being removed.
@@ -1129,6 +1186,9 @@ pub struct AgentRoleAsk {
   pub prompt: Option<String>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub tier: Option<String>,
+  /// `keep` where none is named
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub sessions: Option<RoleSessions>,
 }
 
 // A field given, even as null, read as given; a field left out stays none.
@@ -1153,6 +1213,8 @@ pub struct AgentRoleChange {
   pub prompt: Option<Option<String>>,
   #[serde(default, deserialize_with = "present", skip_serializing_if = "Option::is_none")]
   pub tier: Option<Option<String>>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub sessions: Option<RoleSessions>,
 }
 
 /// PoolLimit: how many children of one co-worker tier may be alive on one provider.
@@ -2075,6 +2137,12 @@ pub struct SeatRequestAsk {
   pub place_key: Option<String>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub source: Option<String>,
+  /// One line naming the work the seat is asked for.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub title: Option<String>,
+  /// The agent asking for the seat.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub asked_by: Option<String>,
 }
 
 /// The body that moves a seat request.
@@ -2098,6 +2166,9 @@ pub struct SeatRequestChange {
   /// On an admission ask: the asking run's granted demand the seat's own is asked within.
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub within: Option<i64>,
+  /// On a binding: the agent the seat's child runs on.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub agent_name: Option<String>,
 }
 
 /// The body that reserves seats for an owner.

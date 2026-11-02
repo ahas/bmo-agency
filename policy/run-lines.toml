@@ -5,7 +5,9 @@
 # needs: what its program has to offer for the line to go out on it. The runners' tools are agency's own
 #   MCP servers and the co-worker gate, so a program that cannot withhold its own tools or gate each
 #   call does not carry them; every other line goes out on whatever program its road names.
-# keeps_session: whether its turns follow one another on one session.
+# keeps_session: whether its turns follow one another in one program standing in the agent's pane; a line that
+#   stands none runs each run apart, whose session, a new one or a kept one, is its role's setting
+#   (docs/agents.md, 「Runs apart」).
 # composes_typed_lines: whether a line a person types into the line's standing program is handed, by
 #   the place's submit hook, the composition a turn the deployment puts in would carry.
 # capabilities: what every run of the line may reach of the tool host, whoever it runs for;

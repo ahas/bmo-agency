@@ -149,6 +149,7 @@ pub fn role_seeds(code: &Path) -> Vec<RoleSeed> {
         bundles: role.bundles.clone(),
         max_concurrent: role.max_concurrent.map(|most| most as i64),
         prompt,
+        sessions: role.sessions.word().to_owned(),
       })
     })
     .collect()

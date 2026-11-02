@@ -191,6 +191,6 @@ command = '''
 set -eu
 rm -rf tools/delegate/.placed
 mkdir -p tools/delegate/.placed
-cp bin/delegate-tool tools/delegate/tool.toml tools/delegate/delegate.json tools/delegate/.placed/
+cp bin/delegate-tool tools/delegate/tool.toml tools/delegate/delegate.json tools/delegate/delegations.json tools/delegate/.placed/
 bmo-pocket put tools/delegate/.placed --placed --service agency --allow room.tools
 '''

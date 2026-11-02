@@ -1,10 +1,11 @@
 //! The roles an agent may hold as the store keeps them (docs/agent-roles.md, 「The roles」): a role's label,
-//! bundles, bound and prompt are read off its row at every use, so a change the owner makes holds from the
+//! bundles, bound, prompt and sessions setting are read off its row at every use, so a change the owner makes holds from the
 //! next read with no restart; and the places a bounded role's turns take.
 
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
+use policy::roles::Sessions;
 use sea_orm::{ConnectionTrait, QueryResult};
 use store::{Fault, all, one};
 use tokio::sync::{AcquireError, OwnedSemaphorePermit, Semaphore};
@@ -20,6 +21,8 @@ pub struct AgentRole {
   pub max_concurrent: Option<i64>,
   /// The prompt its agents are given before their own, where it carries one.
   pub prompt: Option<String>,
+  /// Whether its runs keep their sessions (docs/agent-roles.md, 「A role's sessions」).
+  pub sessions: Sessions,
 }
 
 impl AgentRole {
@@ -32,6 +35,7 @@ impl AgentRole {
       bundles: serde_json::from_str(&bundles).map_err(|error| Fault::new(error.to_string()))?,
       max_concurrent: row.try_get("", "max_concurrent")?,
       prompt: row.try_get("", "prompt")?,
+      sessions: Sessions::of(&row.try_get::<String>("", "sessions")?).unwrap_or_default(),
     })
   }
 }
@@ -78,6 +82,31 @@ pub async fn prompt_of<C: ConnectionTrait>(db: &C, name: &str) -> Result<Option<
       .and_then(|role| role.prompt)
       .filter(|prompt| !prompt.trim().is_empty()),
   )
+}
+
+/// The sessions setting of a role, where the store holds it.
+pub async fn sessions_of<C: ConnectionTrait>(db: &C, name: &str) -> Result<Option<Sessions>, Fault> {
+  Ok(named(db, name).await?.map(|role| role.sessions))
+}
+
+/// The role an agent's row names, where the store holds a row of that name naming one.
+pub async fn role_of_agent<C: ConnectionTrait>(db: &C, agent: &str) -> Result<Option<String>, Fault> {
+  Ok(
+    one(db, r#"SELECT "role" FROM "agents" WHERE "name" = $1"#, vec![agent.into()])
+      .await?
+      .map(|row| row.try_get::<Option<String>>("", "role"))
+      .transpose()?
+      .flatten()
+      .filter(|role| !role.trim().is_empty()),
+  )
+}
+
+/// The sessions setting of the role an agent's row names, where the store holds both.
+pub async fn sessions_of_agent<C: ConnectionTrait>(db: &C, agent: &str) -> Result<Option<Sessions>, Fault> {
+  match role_of_agent(db, agent).await? {
+    Some(role) => sessions_of(db, &role).await,
+    None => Ok(None),
+  }
 }
 
 /// The bound of the role an agent holds, where its row names a role the store bounds.

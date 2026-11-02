@@ -101,6 +101,7 @@ fn seeds() -> Seeds {
         bundles: vec!["room.send".into()],
         max_concurrent: Some(3),
         prompt: None,
+        sessions: "keep".into(),
       },
       RoleSeed {
         name: "maker".into(),
@@ -108,6 +109,7 @@ fn seeds() -> Seeds {
         bundles: vec![],
         max_concurrent: None,
         prompt: Some("Make things.".into()),
+        sessions: "fresh".into(),
       },
     ],
   }
@@ -165,6 +167,7 @@ async fn the_roles_are_given_once_and_a_row_the_store_holds_wins_over_the_seed()
     bundles: vec![],
     max_concurrent: None,
     prompt: None,
+    sessions: "keep".into(),
   });
   settle(scratch.db(), &later).await.unwrap();
 
@@ -174,6 +177,27 @@ async fn the_roles_are_given_once_and_a_row_the_store_holds_wins_over_the_seed()
   );
   assert_eq!(role(&scratch, "maker").await, None);
   assert_eq!(role(&scratch, "late").await.map(|(label, ..)| label), Some("Late".into()));
+}
+
+async fn sessions(scratch: &Scratch, name: &str) -> Option<String> {
+  store::one(
+    scratch.db(),
+    r#"SELECT "sessions" FROM "agent_roles" WHERE "name" = $1"#,
+    vec![name.into()],
+  )
+  .await
+  .unwrap()
+  .map(|row| row.try_get("", "sessions").unwrap())
+}
+
+#[tokio::test]
+async fn a_role_is_seeded_with_whether_its_runs_keep_their_sessions() {
+  let scratch = Scratch::blank().await;
+
+  settle(scratch.db(), &seeds()).await.unwrap();
+
+  assert_eq!(sessions(&scratch, "talker").await.as_deref(), Some("keep"));
+  assert_eq!(sessions(&scratch, "maker").await.as_deref(), Some("fresh"));
 }
 
 async fn assignment(scratch: &Scratch, key: &str) -> Option<String> {
