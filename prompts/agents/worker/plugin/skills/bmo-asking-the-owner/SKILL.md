@@ -1,7 +1,7 @@
 ---
 name: "bmo-asking-the-owner"
 bundle: worker
-version: "1.2.0"
+version: "1.2.1"
 description: "How a job puts something in front of the owner: a decision that is genuinely his (hard to undo, or settled by his own taste) asked with bmo job ask, and a document for him to read or approve filed in the deployment's 아카이브. Use before asking him anything and before handing him any document."
 ---
 
@@ -34,9 +34,10 @@ description: "How a job puts something in front of the owner: a decision that is
 - **A question waits for his answer, however long that takes.** No clock settles it for him and none
   cuts the talk short: the command returns only once he has chosen, or talked. Since your run waits
   holding its checkout's lock the whole while, put to him only what is really his.
-- **A wait can outlast the Bash tool's ten minutes.** The tool then moves the call to the background;
-  wait for it to end — the tool tells you when the task finishes, and until then read its output one
-  read to a call — and read what it printed before doing anything else.
+- **The Bash tool waits for the command however long it runs,** as long as the call names no
+  `timeout` or names the largest, 2147483647 ms, which the tool hook asks of this command. Where the
+  call does run in the background, wait for it to end — the tool tells you when the task finishes, and
+  until then read its output one read to a call — and read what it printed before doing anything else.
 
 ## A document for him to read
 

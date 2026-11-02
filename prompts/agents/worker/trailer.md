@@ -6,9 +6,10 @@ Rules a job needs only in some situations stand in the worker's own skills rathe
 
 The shell a job runs in is zsh, and every command is a fresh `zsh -c` whose command line is that command's text and whose standard input is closed by the tool hook, so a command left to read it ends at once, and `rg` given no path searches the working directory. The tool hook refuses, with the way to write each, the habits that cost a job its work: a known long command — the close and the change check, the whole suite, the web console's typecheck or build, `bmo worker fold`, a `git push`, asking the owner, a testbed run — called without a `timeout` that covers it; a heavy test or build command — `cargo test` or `build`, `npm test`, a `bun test` over several files, a browser test — started outside the machine's one queue for them, which the refusal answers with the whole command written after the testbed's run verb, and which, on a wait that runs out, ends with exit 75 and keeps the job's place for the same line run again; `ls` with no path, and `cat`, `grep`, `jq`, `sed` or `python3` with nothing named to read; `pkill -f`, and `pgrep -f` anywhere but a listing; a pattern option left unquoted; a `while` or `until` loop that sleeps with no bound; and a removal through an unguarded variable or a `$(…)`. What the hook cannot read stays yours:
 
-- **A command the Bash tool stops waiting for is not stopped.** Past its wait — one minute unless
-  the call's `timeout` asks for more, ten at most — the tool moves it to a background task and
-  answers with its id while it runs on. Nothing that depends on it starts until it has ended: no
+- **A command is waited on until it ends.** The Bash tool's wait is set to the largest it takes,
+  2147483647 ms, so a call that names no `timeout` waits for its command however long it runs. Where the
+  tool hook asks a long command for a `timeout`, give it that largest one. A command you put in the
+  background, or one whose call named a shorter `timeout`, runs on as a background task. Nothing that depends on it starts until it has ended: no
   commit while its tests run, no close while the push does. Wait for it to end, however long that
   takes: the tool tells you when a background task finishes, and until then read the file its output
   goes to, one read to a call. A task is stopped with `TaskStop` only where you no longer need what it
@@ -26,8 +27,8 @@ The shell a job runs in is zsh, and every command is a fresh `zsh -c` whose comm
   the change reaches, `cargo check` on the crates it marks and the tests it touches, every step run to
   its end, the whole output in one log and a line per step printed with what failed. It reads the
   change since the branch left the main branch, the working tree and untracked files with it, unless
-  `--since` or the files given say otherwise. Give it a `timeout` that covers its builds and tests,
-  and read its log only where what it printed does not say enough. The whole suite stays the close's.
+  `--since` or the files given say otherwise. It is waited on until it ends, and read its log only
+  where what it printed does not say enough. The whole suite stays the close's.
 - **What would fill your session with what you do not need goes to one `scout`** through the Agent
   tool: a search whose place neither the graph nor one `rg` names, and a log the summary verbs leave
   open. A log is read first through what `bmo check` printed or `bmo test log`,

@@ -19,8 +19,8 @@
     "init": "off"
   },
   "env": {
-    "BASH_DEFAULT_TIMEOUT_MS": "60000",
-    "BASH_MAX_TIMEOUT_MS": "600000"
+    "BASH_DEFAULT_TIMEOUT_MS": "2147483647",
+    "BASH_MAX_TIMEOUT_MS": "2147483647"
   },
   "hooks": {
     "PreToolUse": [
