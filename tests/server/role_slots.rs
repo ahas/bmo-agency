@@ -545,6 +545,20 @@ async fn a_delegation_follows_its_supervisor_until_the_owner_sets_the_role_an_or
     "an empty order needs its asker"
   );
 
+  // The entry a turn of the double goes out on, on any road, is the asking supervisor's for the provider; a run
+  // of a following role that names no supervisor is refused.
+  let entry = agency_server::order::row_entry(&ground.db, "delegator", "deepseek", Some("chat"))
+    .await
+    .unwrap();
+
+  assert_eq!((entry.model.as_str(), entry.effort.as_deref()), ("deepseek-flash", Some("max")));
+  assert!(
+    agency_server::order::row_entry(&ground.db, "delegator", "deepseek", None)
+      .await
+      .is_err_and(|why| why.contains("follows the supervisor")),
+    "a following role's run names its supervisor"
+  );
+
   scratch
     .run(
       r#"UPDATE "roles" SET "provider_order" = '[{"provider":"codex","model":"gpt-5.6-terra","effort":"high"}]'

@@ -457,8 +457,14 @@ pub async fn delegate_with(api: &Api, session: &Session, input: DelegateInput, h
 
     if answer.is_empty() {
       let outcome = ended.get("outcome").and_then(Value::as_str).unwrap_or("no outcome");
+      let reason = ended
+        .get("reason")
+        .and_then(Value::as_str)
+        .filter(|reason| !reason.trim().is_empty())
+        .map(|reason| format!(": {reason}"))
+        .unwrap_or_default();
 
-      return Err(format!("the delegated task ended with no answer ({outcome})"));
+      return Err(format!("the delegated task ended with no answer ({outcome}{reason})"));
     }
 
     Ok(answer)

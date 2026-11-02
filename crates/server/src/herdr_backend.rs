@@ -2132,6 +2132,7 @@ impl HerdrSessions {
   // compaction threshold (docs/sessions.md, 「Session compaction」): one more turn on the run's own road into the
   // same session, the fold word, before the run gives its slot back. A fold that answered leaves the session
   // kept and valid with its context unread; one that did not leaves it as it stood.
+  #[allow(clippy::too_many_arguments)]
   async fn fold_in_place(
     &self,
     run: &crate::lines::chat::ChatRun,
@@ -2140,6 +2141,7 @@ impl HerdrSessions {
     session: &str,
     share: Option<f64>,
     log: &mut RunLog,
+    supervisor: Option<&str>,
   ) {
     let ground = self.ground();
     let held = match crate::apart_sessions::take_for_fold(&ground.db, role, session, share).await {
@@ -2157,9 +2159,10 @@ impl HerdrSessions {
       ..run.clone()
     };
     // The fold reached the session only where it answered on that same session.
-    let folded = crate::chat_stand_in::job_turn_on(ground, log, &fold, role, taken, now_ms(), None)
-      .await
-      .is_ok_and(|reply| reply.session_id == held);
+    let folded =
+      crate::chat_stand_in::job_turn_on(ground, log, &fold, role, taken, now_ms(), None, supervisor)
+        .await
+        .is_ok_and(|reply| reply.session_id == held);
 
     ground.events.publish(crate::worker_session::told::SessionFolded {
       session: held.clone(),
@@ -2265,9 +2268,17 @@ impl HerdrSessions {
       account: None,
     };
     let opened_at = now_ms();
-    let came =
-      crate::chat_stand_in::job_turn_on(ground, &mut log, &chat_run, role, &taken, began, Some(shown))
-        .await;
+    let came = crate::chat_stand_in::job_turn_on(
+      ground,
+      &mut log,
+      &chat_run,
+      role,
+      &taken,
+      began,
+      Some(shown),
+      apart.supervisor.as_deref(),
+    )
+    .await;
 
     if let Some(key) = &key {
       let kept = match &came {
@@ -2296,7 +2307,15 @@ impl HerdrSessions {
         && !reply.session_id.is_empty()
       {
         self
-          .fold_in_place(&chat_run, role, &taken, &reply.session_id, reply.context_ratio, &mut log)
+          .fold_in_place(
+            &chat_run,
+            role,
+            &taken,
+            &reply.session_id,
+            reply.context_ratio,
+            &mut log,
+            apart.supervisor.as_deref(),
+          )
           .await;
       }
     }

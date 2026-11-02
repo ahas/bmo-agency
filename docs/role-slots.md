@@ -22,7 +22,9 @@ co-work branch works in. What a role is, is `docs/agent-roles.md`; which provide
 - **A slot is let in on its role's order unless its ask names a road.** An ask may name a provider and a model
   together, the road it then goes out on and waits for; or a model alone, whose provider the role's order
   gives: the first entry of the order naming that model, else the role's active provider as the ask is made,
-  else the order's first. The entry the provider has in the role's order gives the effort and the thinking.
+  else the order's first. The entry the provider has in the role's order gives the effort and the thinking; a
+  role whose order is empty takes the asking supervisor's entry for the provider, on every road, and a run of
+  such a role that names no supervisor is refused.
 - **A slot of a role whose order is empty goes out on the road of the supervisor that asks it,** the one its
   ask names as `askedBy` (「A delegated task」 below). Asked under no supervisor the store holds, it is
   refused 422 with why, and nothing starts.

@@ -409,15 +409,33 @@ pub async fn supervisor_entry<C: sea_orm::ConnectionTrait>(
     .ok_or_else(|| format!("{supervisor}'s order holds no entry for {provider}"))
 }
 
-/// The entry the row a run names — a supervisor's, else a role's of that name — holds for a provider.
+/// The entry the row a run names — a supervisor's, else a role's of that name — holds for a provider. A role
+/// whose order is empty follows the supervisor that asks it (docs/provider-order.md, 「Runs that do not walk
+/// their own role's order」): its entry is that supervisor's for the provider, and a run of such a role that
+/// names no supervisor is refused.
 pub async fn row_entry<C: sea_orm::ConnectionTrait>(
   db: &C,
   row: &str,
   provider: &str,
+  supervisor: Option<&str>,
 ) -> Result<Entry, String> {
   if crate::supervisors::named(db, row).await.map_err(|why| why.detail)?.is_some() {
     return supervisor_entry(db, row, provider).await;
   }
 
-  role_entry(db, row, provider).await
+  let held = crate::agent_roles::named(db, row).await.map_err(|why| why.detail)?;
+  let held = held.ok_or_else(|| crate::agent_roles::unknown(row))?;
+
+  if held.order.follows_supervisor() {
+    return match supervisor {
+      Some(supervisor) => supervisor_entry(db, supervisor, provider).await,
+      None => Err(format!("the {row} role follows the supervisor that asks it, and this run names none")),
+    };
+  }
+
+  held
+    .order
+    .entry(provider)
+    .cloned()
+    .ok_or_else(|| format!("the {row} role's order holds no entry for {provider}"))
 }
