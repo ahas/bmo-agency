@@ -19,7 +19,9 @@ Environment=BMO_DATA_DIR=%h/.local/share/bmo/data
 Environment=PATH=%h/.local/bin:%h/.bun/bin:%h/.cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 Restart=always
 RestartSec=2
-TimeoutStopSec=30
+# A stop waits for the server to end on its SIGTERM, however long that takes; it is never escalated to a
+# kill.
+TimeoutStopSec=infinity
 
 [Install]
 WantedBy=default.target

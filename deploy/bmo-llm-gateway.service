@@ -14,8 +14,9 @@ WorkingDirectory=%h/.local/share/bmo-agency/deploy
 ExecStart=%h/.local/share/bmo-agency/deploy/bin/llm-gateway
 Restart=always
 RestartSec=5
-# The launcher stops its children itself; the unit waits for that before it kills what is left.
-TimeoutStopSec=30
+# The launcher stops its children itself, and the unit waits for that however long it takes; a stop is
+# never escalated to a kill.
+TimeoutStopSec=infinity
 Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
 
 [Install]
