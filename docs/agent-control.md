@@ -2158,6 +2158,9 @@ The measured, fixed order.
    presses; none of them ends the turn.
 4. Wait for `idle` or `done` after seeing `working` once. The measured state order is `idle` → `working`
    → `idle`. **Without also seeing `working`**, the `idle` before the prompt went in is read as finished.
+   A turn back at rest that was never seen working and wrote no answer is over once its record closes a
+   turn after the prompt, or, for a command of the program's own, once its record has grown past the
+   prompt; it ends as silent. Until then it is waited on.
    - **A turn the program ended on its own error is over by its record, whatever the pane shows.** A full
      window comes back as an error the program writes in the answer's place, followed by the line a turn
      ends with, and the program then stands `blocked` at its own choice of what to do next (measured:
@@ -2174,9 +2177,6 @@ The measured, fixed order.
    reaches the file, and an answer read in that gap is empty; a turn of a second or two can stand at rest
    before any of its answer is in the file (measured: a one-word answer of a run apart reached the file
    after its pane had read as rest, and the turn read as silent). The turn's end is what the transcript says — a CLI that finished a turn writes a `system`
-   A turn back at rest that was never seen working and wrote no answer is over once its record closes a
-   turn after the prompt, or, for a command of the program's own, once its record has grown past the
-   prompt; it ends as silent. Until then it is waited on.
    line (`turn_duration`), after the last of the answer's words. So after seeing rest, the turn waits for
    that end line among the lines written for this turn, and reads its answer once it is there.
 6. Read the answer and the tokens from the transcript and the money and windows from the status line,
