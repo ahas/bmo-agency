@@ -30,16 +30,29 @@ use sha2::{Digest, Sha256};
 use sqlx::Row;
 use sqlx::postgres::{PgPool, PgPoolOptions};
 
-use crate::migration::Migrator;
+use crate::migration::{Migrator, TWO_AXES};
 
-/// The store's own migrations, run over the address.
-async fn migrate(address: &str) -> Result<(), String> {
+/// The store's own migrations, run over the address: those before the two axes where `before` says so, since
+/// the export is in the shape the agent rows stood in, else every one left, which carries what was written.
+async fn migrate(address: &str, before: bool) -> Result<(), String> {
   let mut options = ConnectOptions::new(address.to_owned());
   options.sqlx_logging(false);
   let db = Database::connect(options)
     .await
     .map_err(|error| format!("the migrations' connection: {error}"))?;
-  Migrator::up(&db, None).await.map_err(|error| format!("the migrations: {error}"))?;
+  let steps = if before {
+    let pending = Migrator::get_pending_migrations(&db)
+      .await
+      .map_err(|error| format!("the migrations: {error}"))?;
+
+    Some(pending.iter().take_while(|pending| pending.name() != TWO_AXES).count() as u32)
+  } else {
+    None
+  };
+
+  if steps != Some(0) {
+    Migrator::up(&db, steps).await.map_err(|error| format!("the migrations: {error}"))?;
+  }
   db.close().await.map_err(|error| format!("the migrations' connection: {error}"))?;
 
   Ok(())
@@ -1190,7 +1203,7 @@ async fn count(pool: &PgPool, table: &str, failures: &mut Vec<String>) -> i64 {
 /// what it wrote. A dry run rolls the transaction back and reports what would have been written.
 pub async fn run(database: &str, export: &Path, dry_run: bool) -> Result<Report, String> {
   let prepared = prepare(export)?;
-  migrate(database).await.map_err(|error| format!("the migrations: {error}"))?;
+  migrate(database, true).await.map_err(|error| format!("the migrations: {error}"))?;
   let pool = PgPoolOptions::new()
     .max_connections(1)
     .connect(database)
@@ -1245,6 +1258,11 @@ pub async fn run(database: &str, export: &Path, dry_run: bool) -> Result<Report,
   } else {
     compare(&pool, &prepared).await
   };
+
+  // What was written in the shape before the two axes is carried over as the rest of the migrations run.
+  if !dry_run {
+    migrate(database, false).await.map_err(|error| format!("the migrations: {error}"))?;
+  }
 
   let mut tables: Vec<Moved> = prepared
     .tables

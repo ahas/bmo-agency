@@ -50,6 +50,7 @@ mod m20261122_000002_delegation_titles;
 mod m20261122_000003_job_close_lease;
 mod m20261123_000001_turn_liveness;
 mod m20261124_000001_stream_events;
+mod m20261124_000001_renewal;
 
 use sea_orm_migration::prelude::*;
 
@@ -59,13 +60,26 @@ pub const MIGRATIONS_TABLE: &str = "agency_migrations";
 /// The migration that makes every table; a seed given once is given as it runs (`crate::seed`).
 pub const TABLES: &str = m20261016_000001_store::NAME;
 
+/// The migration that makes the supervisors, the roles and the repositories tables of their own and carries
+/// the agent rows over (docs/agents.md, 「Two axes」): what writes rows in the shape before it, the archive's
+/// import, runs the migrations up to it, writes, and then runs it.
+pub const TWO_AXES: &str = m20261124_000001_renewal::NAME;
+
 /// Every table the store's migrations make, beside the record of what ran: what reads every table of the
 /// store reads these and no other service's beside them (docs/store.md, 「Its tables」).
-pub const OWN_TABLES: [&str; 68] = [
-  "agents",
-  "agent_roles",
-  "agent_role_seeded",
-  "apart_sessions",
+pub const OWN_TABLES: [&str; 50] = [
+  "supervisors",
+  "roles",
+  "role_seeded",
+  "repositories",
+  "repository_node_checkouts",
+  "role_sessions",
+  "role_slot_requests",
+  "role_slot_reservations",
+  "role_slot_native",
+  "role_slot_native_reservations",
+  "role_slot_native_stops",
+  "place_writes",
   "gate_kinds",
   "chat_documents",
   "agent_log",
@@ -75,38 +89,12 @@ pub const OWN_TABLES: [&str; 68] = [
   "base_prompts",
   "base_prompt_seeded",
   "branch_agents",
-  "worker_sessions",
-  "worker_words",
   "session_resets",
   "claude_accounts",
   "usage_windows",
   "usage_balances",
-  "coworker_pool_limits",
-  "coworker_pool_meta",
-  "coworker_pool_native",
-  "coworker_pool_native_reservations",
-  "coworker_pool_native_stops",
-  "coworker_pool_pings",
-  "coworker_pool_place_writes",
-  "coworker_pool_requests",
-  "coworker_pool_reservation_meta",
-  "coworker_pool_reservations",
-  "coworker_pool_roles",
-  "coworker_pool_tier_limits",
-  "coworker_pool_tier_meta",
   "model_catalogue",
   "model_fallbacks",
-  "fallback_routes",
-  "fallback_sessions",
-  "model_tier_assignments",
-  "model_tier_backfilled",
-  "model_tier_conflicts",
-  "model_tier_legacy",
-  "model_tier_mappings",
-  "model_tier_meta",
-  "model_tier_seeded",
-  "fold_ratios",
-  "fold_ratio_seeded",
   "model_uses",
   "registered_models",
   "registered_model_addresses",
@@ -186,6 +174,7 @@ impl MigratorTrait for Migrator {
       Box::new(m20261122_000003_job_close_lease::Migration),
       Box::new(m20261123_000001_turn_liveness::Migration),
       Box::new(m20261124_000001_stream_events::Migration),
+      Box::new(m20261124_000001_renewal::Migration),
     ]
   }
 

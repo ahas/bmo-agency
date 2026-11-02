@@ -66,20 +66,10 @@ async fn the_columns_carried_beyond_a_tables_first_shape_stand_after_its_row_id(
     }
   };
 
-  let agents = columns("agents").await;
+  let roles = columns("roles").await;
   assert_eq!(
-    agents[agents.len() - 9..],
-    [
-      "rowid",
-      "node",
-      "role",
-      "session_scope",
-      "turn_shape",
-      "default_answerer",
-      "prompts",
-      "owner_account",
-      "prefix_documents"
-    ]
+    roles[roles.len() - 7..],
+    ["sessions", "description", "line", "provider_order", "quota_share", "fold_ratio", "callable"]
   );
   let accounts = columns("claude_accounts").await;
   assert_eq!(
@@ -97,8 +87,8 @@ async fn a_row_written_with_only_its_required_columns_takes_the_defaults_the_sto
 
   scratch
     .run(
-      r#"INSERT INTO "agents" ("name", "kind") VALUES ($1, $2)"#,
-      vec!["worker-one".into(), "worker".into()],
+      r#"INSERT INTO "repositories" ("name", "path", "created_at", "updated_at") VALUES ($1, $2, 0, 0)"#,
+      vec!["worker-one".into(), "/checkout".into()],
     )
     .await;
   scratch
@@ -110,15 +100,15 @@ async fn a_row_written_with_only_its_required_columns_takes_the_defaults_the_sto
 
   let row = store::one(
     scratch.db(),
-    r#"SELECT "default_answerer", "runs", "rowid" FROM "agents" WHERE "name" = $1"#,
+    r#"SELECT "downgrade_heal", "support_count", "rowid" FROM "repositories" WHERE "name" = $1"#,
     vec!["worker-one".into()],
   )
   .await
   .unwrap()
   .unwrap();
 
-  assert_eq!(row.try_get::<i64>("", "default_answerer").unwrap(), 0);
-  assert_eq!(row.try_get::<i64>("", "runs").unwrap(), 0);
+  assert_eq!(row.try_get::<i64>("", "downgrade_heal").unwrap(), 1);
+  assert_eq!(row.try_get::<i64>("", "support_count").unwrap(), 0);
   assert!(row.try_get::<i64>("", "rowid").unwrap() > 0);
   assert_eq!(scratch.count(r#"SELECT COUNT(*) FROM "settings""#, vec![]).await, 1);
 }

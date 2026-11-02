@@ -6,3 +6,4 @@ mod migration;
 mod read;
 mod registry;
 mod seed;
+mod two_axes;
