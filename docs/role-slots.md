@@ -52,6 +52,11 @@ co-work branch works in. What a role is, is `docs/agent-roles.md`; which provide
   - **A request whose provider has no quota is passed over** while it has none, keeping its place, so a run
     waiting for quota never holds up a run of the same role that could go; it is next again once its
     provider has quota.
+- **Request keys:** the key a caller asks under names one request for good. An ask repeated with that key
+  while its request stands — waiting, reserved or active — is answered with that request, unchanged, so a
+  caller that lost an answer asks again safely. Once the request is given back, released or cancelled, the
+  key is spent: an ask under it is refused 422 and opens nothing, and the caller's next run asks under a key
+  of its own.
 - **A place key:** a request may hold one, and only one active request per key exists. A job's run is keyed
   by its checkout, so one checkout carries one run at a time; a request blocked by its key does not block
   another request behind it.

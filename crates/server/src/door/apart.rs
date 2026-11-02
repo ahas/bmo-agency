@@ -12,13 +12,15 @@ use std::time::Duration;
 
 use harness_providers::claude_code::ClaudeCode;
 use herdr::Herdr;
+use policy::door_words::DOOR_WORDS;
 use policy::resident_turn::RESIDENT_TURN;
+use serde_json::Value;
 
 use super::execution::{Identity, execution_root, own_unit};
 use super::guard::launch_refusal;
-use super::record::Reply;
+use super::record::{Reply, Tail};
 use super::surface::interrupt_of;
-use super::turn::{Ending, Seat, Timings, Turn, Watch, put};
+use super::turn::{Ending, Quiet, Seat, Timings, Turn, Watch, put};
 use crate::apart_sessions;
 use crate::job_run::claude::failure::{Failure, RunEnding, of_errored};
 use crate::lines::claude::{Command, line_environment};
@@ -27,6 +29,8 @@ use crate::lines::token;
 use crate::now_ms;
 use crate::places::Ground;
 use crate::places::trust::{config_file, mark_onboarded};
+use crate::worker_session::fold::FOLD_WORD;
+use crate::worker_session::told::SessionFolded;
 
 // How long a run's tool session may stand if nothing takes its token back.
 const TOKEN_BACKSTOP: Duration = Duration::from_secs(24 * 3_600);
@@ -135,7 +139,19 @@ pub async fn run<W: Watch>(ground: &Ground, mut apart: Apart<'_>, watch: &mut W)
   let line = apart.line;
   let session = apart.session.clone();
   let opened_at = now_ms();
-  let ended = run_on(ground, herdr, apart, watch).await;
+  let fold = Folding {
+    agent: apart.agent,
+    role: apart.role,
+    line: apart.line,
+    provider: apart.provider,
+    command: apart.command.clone(),
+    model: apart.model.clone(),
+    effort: apart.effort.clone(),
+    account: apart.account.clone(),
+    parent: apart.parent.clone(),
+    root: apart.root.clone(),
+  };
+  let ended = run_on(ground, herdr.clone(), apart, watch).await;
 
   if let Some(key) = &kept {
     let kept = match &ended {
@@ -155,9 +171,90 @@ pub async fn run<W: Watch>(ground: &Ground, mut apart: Apart<'_>, watch: &mut W)
     if let Err(why) = kept {
       eprintln!("{line}: the session it ran on was not kept: {why:?}");
     }
+
+    if let Ok(Ending::Answered { reply, .. }) = &ended {
+      fold.fold(ground, herdr, &session, reply.context_ratio).await;
+    }
   }
 
   ended
+}
+
+/// What a run's fold goes out with: the run's own line, command, road and login, on the session it kept.
+struct Folding<'a> {
+  agent: &'a str,
+  role: &'a str,
+  line: &'a str,
+  provider: &'a str,
+  command: Command,
+  model: String,
+  effort: String,
+  account: Option<String>,
+  parent: Option<String>,
+  root: Option<String>,
+}
+
+impl Folding<'_> {
+  /// The session a run kept folded, where its turn left it at or past its role's compaction threshold
+  /// (docs/sessions.md, 「Session compaction」): one more turn into the same session on the same command, the
+  /// fold word, before the run gives its slot back. A fold that compacted leaves the session kept and valid
+  /// with its context unread; one that did not leaves it as it stood. Nothing here fails the run.
+  async fn fold(self, ground: &Ground, herdr: Herdr, session: &str, share: Option<f64>) {
+    let line = self.line;
+    let taken = match apart_sessions::take_for_fold(&ground.db, self.role, session, share).await {
+      Ok(Some(taken)) => taken,
+      Ok(None) => return,
+      Err(why) => {
+        eprintln!("{line}: whether its session is due a fold could not be read: {why:?}");
+        return;
+      }
+    };
+    let mut command = self.command;
+
+    command.args = resumed_command(&command.args, &taken);
+
+    let mut tail = Tail::new(record_of(ground, &command, &taken));
+    let from = tail.count();
+    let fold = Apart {
+      agent: self.agent,
+      role: self.role,
+      line,
+      provider: self.provider,
+      title: DOOR_WORDS.fold_title.clone(),
+      command,
+      session: taken.clone(),
+      prompt: FOLD_WORD.to_owned(),
+      model: self.model,
+      effort: self.effort,
+      account: self.account,
+      parent: self.parent,
+      root: self.root,
+    };
+    let ended = run_on(ground, herdr, fold, &mut Quiet).await;
+    let compacted = tail.look().into_iter().skip(from).any(|written| {
+      written.get("type").and_then(Value::as_str) == Some("system")
+        && written.get("subtype").and_then(Value::as_str) == Some("compact_boundary")
+    });
+
+    // Whatever a consumer sent the session to hold is folded away once the fold reached it, or may have.
+    if compacted || ended.is_ok() {
+      ground.events.publish(SessionFolded {
+        session: taken.clone(),
+      });
+    }
+
+    let given = if compacted {
+      println!("compact {line} {taken}: compacted");
+      apart_sessions::folded(&ground.db, &taken, now_ms()).await
+    } else {
+      eprintln!("compact {line} {taken}: no compacted marker, the session stands as it was");
+      apart_sessions::give_back(&ground.db, &taken).await
+    };
+
+    if let Err(why) = given {
+      eprintln!("{line}: the session it folded was not given back: {why:?}");
+    }
+  }
 }
 
 // The run on the session settled for it.

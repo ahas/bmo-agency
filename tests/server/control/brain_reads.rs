@@ -63,6 +63,12 @@ async fn a_running_server_answers_what_the_brain_reads() {
     ],
   )
   .await;
+  scratch
+    .run(
+      r#"INSERT INTO "settings" ("key", "value") VALUES ('reset_point:companion', '1700000000123')"#,
+      vec![],
+    )
+    .await;
 
   let server = standing::stand_server(home.path(), &data, &scratch.address(), token);
   let port = server.port;
@@ -82,6 +88,10 @@ async fn a_running_server_answers_what_the_brain_reads() {
 
   assert_eq!(agent("chat-agent")["brainFolder"], json!(""));
   assert_eq!(agent("companion")["brainFolder"], json!("agents/companion"));
+  // Its last reset's point is read again here, and whether its removal is refused as seeded.
+  assert_eq!(agent("companion")["resetPoint"], json!(1_700_000_000_123_i64));
+  assert_eq!(agent("chat-agent")["resetPoint"], json!(null));
+  assert_eq!(agent("companion")["seeded"], json!(false));
 
   for agent in listed["items"].as_array().unwrap() {
     let fields = agent.as_object().unwrap();

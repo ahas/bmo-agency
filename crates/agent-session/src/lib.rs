@@ -42,7 +42,8 @@ pub enum Scope {
   Conversation(Conversation),
 }
 
-/// What a thrown-away session is started on: the provider, the model and the folder its turns go out on,
+/// What a thrown-away session is started on: the provider, the model, the effort and the folder its turns go
+/// out on,
 /// the item and role a co-work branch's place labels its run with, none for any other. Its turns carry no
 /// clock: each lasts until it ends or is stopped. A session on a runner line names the line and hands its
 /// instructions in whole, with the labels its record carries — a JSON object's text — and the capabilities
@@ -52,6 +53,8 @@ pub enum Scope {
 pub struct Apart {
   pub provider: String,
   pub model: String,
+  /// The effort its slot was let in on, where its order names one.
+  pub effort: Option<String>,
   pub cwd: String,
   pub todo: Option<i64>,
   pub role: Option<String>,

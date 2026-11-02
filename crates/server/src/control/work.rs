@@ -99,9 +99,45 @@ async fn assignment(db: &sea_orm::DatabaseConnection, id: i64) -> Result<Value, 
   let row = one(db, &sql, vec![id.into()]).await?;
 
   match row {
-    Some(row) => Ok(assignment_value(&row)?),
+    Some(row) => {
+      let mut value = assignment_value(&row)?;
+
+      name_repositories(db, std::slice::from_mut(&mut value)).await?;
+      Ok(value)
+    }
     None => Err(missing(format!("assignment {id}"))),
   }
+}
+
+/// Each assignment's or job's `repositoryName` beside its `workerName`: the repository its checkout is of, or
+/// null for a checkout no repository holds any longer (docs/api.md, 「assignments and jobs」).
+async fn name_repositories(db: &sea_orm::DatabaseConnection, members: &mut [Value]) -> Result<(), Refused> {
+  let repositories = crate::queue::workers::repositories_by_checkout(db).await?;
+
+  for member in members {
+    let repository = member["workerName"].as_str().and_then(|checkout| repositories.get(checkout)).cloned();
+
+    member["repositoryName"] = json!(repository);
+  }
+
+  Ok(())
+}
+
+/// The checkouts of the repository a list is narrowed to, as the list's query parameter, or none where it is
+/// narrowed to none.
+async fn checkouts_named(
+  db: &sea_orm::DatabaseConnection,
+  repository: Option<&str>,
+) -> Result<Option<String>, Refused> {
+  let Some(repository) = repository else { return Ok(None) };
+  let checkouts: Vec<String> = crate::queue::workers::repositories_by_checkout(db)
+    .await?
+    .into_iter()
+    .filter(|(_, of)| of == repository)
+    .map(|(checkout, _)| checkout)
+    .collect();
+
+  Ok(Some(serde_json::to_string(&checkouts).unwrap_or_else(|_| "[]".to_owned())))
 }
 
 /// A running assignment whose job has ended is released before anything reads them. A held one stands
@@ -247,21 +283,35 @@ impl Route for ListAssignments {
     let holder = call.query("holderName").unwrap_or_default();
     let worker = call.query("workerName").unwrap_or_default();
     let state = call.query("state").unwrap_or_default();
+    let repository = call
+      .query("repositoryName")
+      .map(|name| name.trim().to_owned())
+      .filter(|name| !name.is_empty());
+    let checkouts = checkouts_named(db, repository.as_deref()).await?;
     let sql = format!(
       r#"SELECT {ASSIGNMENT_COLUMNS} FROM "assignments"
          WHERE "id" > $1 AND ($2 = '' OR "holder_name" = $2) AND ($3 = '' OR "worker_name" = $3)
            AND ($4 = '' OR "state" = $4)
+           AND ($6::jsonb IS NULL OR "worker_name" IN (SELECT jsonb_array_elements_text($6::jsonb)))
          ORDER BY "id" LIMIT $5"#
     );
     let rows = all(
       db,
       &sql,
-      vec![after.into(), holder.into(), worker.into(), state.into(), ((limit + 1) as i64).into()],
+      vec![
+        after.into(),
+        holder.into(),
+        worker.into(),
+        state.into(),
+        ((limit + 1) as i64).into(),
+        checkouts.into(),
+      ],
     )
     .await?;
     let mut items: Vec<Value> = rows.iter().map(assignment_value).collect::<Result<_, _>>()?;
     let more = items.len() > limit;
     items.truncate(limit);
+    name_repositories(db, &mut items).await?;
 
     Ok(answer(StatusCode::OK, page(items, more)))
   }
@@ -399,7 +449,12 @@ async fn job(db: &sea_orm::DatabaseConnection, id: i64) -> Result<(Value, String
   let row = one(db, &sql, vec![id.into()]).await?;
 
   match row {
-    Some(row) => Ok((job_value(&row)?, row.try_get("", "prompt")?)),
+    Some(row) => {
+      let mut value = job_value(&row)?;
+
+      name_repositories(db, std::slice::from_mut(&mut value)).await?;
+      Ok((value, row.try_get("", "prompt")?))
+    }
     None => Err(missing(format!("job {id}"))),
   }
 }
@@ -711,19 +766,6 @@ impl Route for CreateJob {
 }
 
 crate::moved!(CreateJob);
-
-/// The work parts a job's turn is carried with, on the road the resolution answered for it: its provider
-/// and model, and the effort its role's order names there.
-pub(crate) async fn work_parts(
-  ground: &Ground,
-  worker_name: &str,
-  room: i64,
-  name: &str,
-  title: &str,
-  taken: &Road,
-) -> Result<WorkParts, String> {
-  role_work_parts(ground, crate::agent_roles::job_role(), worker_name, room, name, title, taken).await
-}
 
 /// The work parts a run of `role` at a checkout is carried with on a road: its provider and model, and the
 /// effort the role's order names for that provider.
@@ -1473,6 +1515,7 @@ impl OnSession<'_> {
         scope: Scope::Apart(Apart {
           provider: taken.provider.clone(),
           model: taken.model.clone(),
+          effort: parts.mapping.effort.clone(),
           cwd: parts.cwd.clone(),
           role: Some(self.role.to_owned()),
           ..Apart::default()
@@ -1678,6 +1721,8 @@ impl Route for ListJobs {
            AND ($5::jsonb = '[]'::jsonb OR "state" IN (SELECT jsonb_array_elements_text($5::jsonb)))
            AND ($6::boolean IS NULL OR ("state" IN ('starting', 'running')) = $6)
            AND ($7::bigint IS NULL OR "room_id" = $7) AND ($8::bigint IS NULL OR "item_id" = $8)
+           AND ($10::jsonb IS NULL OR "worker_name" IN (SELECT jsonb_array_elements_text($10::jsonb)))
+           AND ($11::text IS NULL OR "role" = $11)
          ORDER BY "id" {} LIMIT $9"#,
       if upward { "ASC" } else { "DESC" }
     );
@@ -1695,11 +1740,15 @@ impl Route for ListJobs {
         asked.room.into(),
         asked.item.into(),
         ((asked.limit + 1) as i64).into(),
+        checkouts_named(db, asked.repository.as_deref()).await?.into(),
+        asked.role.into(),
       ],
     )
     .await?;
     let mut items: Vec<Value> = rows.iter().map(job_value).collect::<Result<_, _>>()?;
     let more = items.len() > asked.limit;
+
+    name_repositories(db, &mut items).await?;
 
     items.truncate(asked.limit);
 
@@ -1712,10 +1761,12 @@ impl Route for ListJobs {
 }
 
 /// Every name the jobs' list is asked by (docs/api.md, 「assignments and jobs」).
-const JOB_FILTERS: [&str; 9] = [
+const JOB_FILTERS: [&str; 11] = [
   "running",
   "itemId",
   "roomId",
+  "repositoryName",
+  "roleName",
   "workerName",
   "holderName",
   "state",
@@ -1733,7 +1784,9 @@ struct JobSearch {
   states: Vec<String>,
   item: Option<i64>,
   room: Option<i64>,
+  repository: Option<String>,
   worker: Option<String>,
+  role: Option<String>,
   holder: Option<String>,
 }
 
@@ -1779,7 +1832,9 @@ fn job_search(call: &Call) -> Result<JobSearch, Refused> {
       .unwrap_or_default(),
     item: number("itemId")?,
     room: number("roomId")?,
+    repository: named("repositoryName"),
     worker: named("workerName"),
+    role: named("roleName"),
     holder: named("holderName"),
   })
 }

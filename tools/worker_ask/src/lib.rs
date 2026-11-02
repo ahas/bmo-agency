@@ -256,25 +256,18 @@ pub async fn ask_with(api: &Api, session: &Session, input: AskInput) -> Answer {
   let Some(token) = text(&slot, "token").map(str::to_owned) else {
     return Answer::failure("agency answered the slot with no token");
   };
-  let slot = match admitted(api, &token, slot).await {
-    Ok(slot) => slot,
-    Err(why) => {
-      finish(api, &token, "cancelled: never let in", true).await;
+  // The run starts on the slot once it is let in; the slot's road is agency's to read (docs/api.md, 「sessions」).
+  if let Err(why) = admitted(api, &token, slot).await {
+    finish(api, &token, "cancelled: never let in", true).await;
 
-      return Answer::failure(why);
-    }
-  };
-  let road = |field: &str| text(&slot, field).unwrap_or_default().to_owned();
-  let (provider, model) = (road("provider"), road("model"));
+    return Answer::failure(why);
+  }
+
   let start = json!({
     "scope": "role",
     "agentName": ROLE,
-    "options": {
-      "role": ROLE,
-      "provider": provider,
-      "model": model,
-      "cwd": folder.display().to_string(),
-    },
+    "slot": token,
+    "cwd": folder.display().to_string(),
   });
   let run_session = match ok(api.post("/sessions", start).await, "the worker run was not started") {
     Ok(started) => match text(&started, "id") {
@@ -315,15 +308,10 @@ pub async fn ask_with(api: &Api, session: &Session, input: AskInput) -> Answer {
         &format!("/sessions/{run_session}/turns"),
         json!({
           "prompt": prompt,
-          "provider": provider,
-          "model": model,
-          "mapping": { "model": model, "effort": text(&slot, "effort") },
           "resume": { "kind": "auto" },
-          "cwd": folder.display().to_string(),
           "name": run,
           "title": format!("asked by {asker}"),
           "chat": Turn::of(session).chat.unwrap_or_default(),
-          "workKey": ROLE,
           "hearsWords": false,
           "variables": {},
         }),

@@ -249,9 +249,7 @@ async fn a_session_handing_no_instructions_keeps_the_worker_line_and_its_folder(
   assert_eq!(
     scope_asked(&json!({ "agentName": "a", "scope": "apart", "model": "claude-sonnet-5" })).unwrap(),
     Scope::Apart(Apart {
-      provider: "claude-code".into(),
       model: "claude-sonnet-5".into(),
-      cwd: ".".into(),
       ..Apart::default()
     }),
     "a session handing no instructions keeps the worker line's folder"

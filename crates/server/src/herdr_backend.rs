@@ -43,11 +43,10 @@ use crate::companion::handoff::{Companion, Due, hand_over};
 use crate::companion::overtaken;
 use crate::companion::run::{NoAnswer, Reply, Tally, let_go, run_turn};
 use crate::companion::sessions::{self, Harness, Kept, RoomSession, harness_road};
-use crate::control::claude_accounts::{Judging, account_open};
 use crate::control::companions::Settings;
 use crate::door::aside;
 use crate::door::record::{ModelSpend, UsageSpent};
-use crate::door::turn::{AsideOutcome, Quiet};
+use crate::door::turn::AsideOutcome;
 use crate::events::Event;
 use crate::job_run::claude::turn::{Shows, TASK_LOCKED, TURN_AGENT, WorkAsked, WorkSeat, carry, continues};
 use crate::lines::Trees;
@@ -61,9 +60,9 @@ use crate::run_log::{RunLog, Target};
 use crate::session_output::{OutputWatch, Outputs};
 use crate::session_questions::Questions;
 use crate::watches::machine::keep_worker_job;
+use crate::worker_session;
 use crate::worker_session::fold::{Folded, fold};
 use crate::worker_session::records::{self, note_answer, slot_account};
-use crate::worker_session::{self, Missed, Side};
 use crate::{Refusal, now_ms};
 
 // What a worker's session is told apart by in its id, after its agent.
@@ -525,7 +524,6 @@ fn generation_of(settings: &Settings) -> IndexMap<String, Value> {
 enum Came {
   /// The answer, with what the turn spent where its road reported it and the context it left where it read.
   Answered(String, Option<run_ledger::Spent>, Option<Context>),
-  Blocked,
   Stopped,
   Failed(String, Option<EngineError>),
   /// A job's turn, whose end is read whole where it is carried.
@@ -537,7 +535,6 @@ impl Came {
   fn end(self, run: &str) -> TurnEnd {
     match self {
       Self::Answered(text, _, _) => TurnEnd::answered(run, text),
-      Self::Blocked => TurnEnd::of(run, Outcome::Blocked),
       Self::Stopped => TurnEnd::of(run, Outcome::Stopped),
       Self::Failed(why, engine) => TurnEnd::failed(run, why, engine),
       Self::Ended(end) => *end,
@@ -830,106 +827,6 @@ impl HerdrSessions {
     }
 
     Ok(())
-  }
-
-  // The worker's session a turn goes on: the model its pin names now, or the model its row last ran on
-  // where it is unpinned; a held session on another model than the pin is left for the pin's fresh one,
-  // since the registration it named may no longer hold the address the program stood on.
-  async fn worker_session(&self, worker: &str) -> Result<(String, Option<String>), Fault> {
-    let ground = self.ground();
-    let pinned = pinned_worker_model(&ground.db, worker).await.map_err(|why| store_fault(why.into()))?;
-    let held = records::sessions(&ground.db, worker).await.map_err(store_fault)?;
-    let now = now_ms();
-
-    for session in held.iter().rev() {
-      if pinned.as_ref().is_some_and(|pin| pin != &session.model) {
-        continue;
-      }
-
-      let open = account_open(Judging::of(ground), &session.account, now)
-        .await
-        .map_err(|refused| fault(FaultKind::Unreachable, refused.error))?;
-
-      if open {
-        let ttl = crate::lines::standing::session_ttl_ms(ground, &session.model).await;
-        let resumed = records::resumable(&ground.db, worker, &session.model, &session.account, ttl)
-          .await
-          .map_err(store_fault)?;
-
-        return Ok((session.model.clone(), resumed));
-      }
-    }
-
-    let last = one(
-      &ground.db,
-      r#"SELECT "model" FROM "role_slot_requests" WHERE "place_key" = $1 AND "model" <> ''
-         ORDER BY "sequence" DESC LIMIT 1"#,
-      vec![worker.into()],
-    )
-    .await
-    .map_err(|why| store_fault(why.into()))?
-    .and_then(|row| row.try_get::<Option<String>>("", "model").ok().flatten());
-    let model = pinned.or(last);
-
-    match model {
-      Some(model) => Ok((model, None)),
-      None => Err(fault(FaultKind::Refused, format!("{worker} has run on no model to open a session on"))),
-    }
-  }
-
-  // The road other than Claude Code's a turn put to a worker directly crosses over on: the road
-  // resolution's answer for the worker's next job, where it can answer and is another provider's. None for
-  // a turn that goes into the worker's Claude session, and for a keepalive ping, which warms only that
-  // session.
-  async fn direct_road(&self, worker: &str, prompt: &str) -> Result<Option<crate::road::Road>, Fault> {
-    if prompt == policy::keepalive::KEEPALIVE.prompt {
-      return Ok(None);
-    }
-
-    let resolution = crate::road::for_job(self.ground(), None, Some(worker), None, &[])
-      .await
-      .map_err(|why| fault(FaultKind::Refused, why))?;
-
-    Ok(resolution.road().filter(|road| road.provider != worker_session::PROVIDER).cloned())
-  }
-
-  async fn worker_turn(
-    &self,
-    row: &AgentRow,
-    run: &str,
-    prompt: &str,
-    session: &SessionId,
-    turn: i64,
-  ) -> Result<Came, Fault> {
-    let ground = self.ground();
-    let (model, kept) = self.worker_session(&row.name).await?;
-    let turned = worker_session::turn(
-      &Side { ground },
-      worker_session::Asked {
-        worker: row,
-        model,
-        session: kept,
-        prompt: prompt.to_owned(),
-        name: run.to_owned(),
-        title: format!("{}: a turn", row.name),
-        label: "turn".to_owned(),
-        clock: None,
-      },
-      &mut Quiet,
-    )
-    .await
-    .map_err(|refusal| fault(FaultKind::Refused, refusal.detail))?;
-
-    if let Some(reply) = &turned.reply {
-      self.outputs.wrote(session, turn, std::slice::from_ref(&reply.text));
-    }
-
-    Ok(match (turned.reached, turned.missed) {
-      (_, Some(Missed::Person)) => Came::Blocked,
-      (_, Some(Missed::Stopped)) => Came::Stopped,
-      (false, missed) => Came::Failed(format!("the words did not reach the session ({missed:?})"), None),
-      (true, _) => Came::Answered(turned.reply.map(|reply| reply.text).unwrap_or_default(), None, None),
-    })
   }
 
   // The companion's session in the room its turn goes on in: the one it holds, or a new generation where it
@@ -2035,39 +1932,16 @@ impl HerdrSessions {
       turn: turn_id,
     };
     let came = match (&scope, &row) {
-      (Scope::Worker, Some(row)) => {
-        let db = &self.ground().db;
+      // A turn to a repository's transition address is a run of the worker role at its checkout, on a slot
+      // asked on the sender's behalf (docs/api.md, 「sessions」).
+      (Scope::Worker, Some(row)) => match work {
+        Some(work) => {
+          let began = turn.context.began.unwrap_or(at);
 
-        keep_worker_job(db, &agent, turn.context.job).await;
-
-        let began = turn.context.began.unwrap_or(at);
-        let came = match work {
-          // The worker's road is Claude where its key stands on it; a fallback road crosses over on the
-          // same stand-in walk a chat turn uses (docs/cache-fallback.md).
-          Some(work) if work.provider == worker_session::PROVIDER => {
-            self.carried(&turn, &agent, WorkSeat::Worker(row), work, turn_id).await
-          }
-          Some(work) => {
-            self.worker_stand_in(&agent, work, &turn.prompt, began, turn.context.job, shown).await
-          }
-          // A turn put to the worker directly goes out on the road its next job would take: its pin at the
-          // head of its walk, else the job key's road (docs/agent-control.md, 「Asking a worker directly」).
-          None => match self.direct_road(&agent, &turn.prompt).await? {
-            Some(road) => {
-              let title = format!("{agent}: a turn");
-              let work = crate::control::work::work_parts(self.ground(), &agent, 0, &run, &title, &road)
-                .await
-                .map_err(|why| fault(FaultKind::Refused, why))?;
-
-              self.worker_stand_in(&agent, &work, &turn.prompt, began, turn.context.job, shown).await
-            }
-            None => self.worker_turn(row, &run, &turn.prompt, &turn.session, turn_id).await,
-          },
-        };
-
-        keep_worker_job(db, &agent, None).await;
-        came
-      }
+          self.worker_address(&turn, &agent, row, work, turn_id, began, shown).await
+        }
+        None => Err(fault(FaultKind::Refused, format!("{}: the turn carries no parts", turn.session))),
+      },
       (Scope::Apart(apart), _) => match (&turn.context.gate, work) {
         (Some(gate), _) => {
           self.gate_turn(&turn, &agent, &apart.provider, &apart.cwd, gate, &run, shown).await
@@ -2212,103 +2086,142 @@ impl HerdrSessions {
     carry(&asked, &shown).await.map(|end| Came::Ended(Box::new(end)))
   }
 
-  // A worker's job turn carried on a road other than Claude Code's: the road the job's launch resolved and
-  // named in its work parts (`control::work`, the road resolution), on the stand-in roads a chat turn
-  // crosses over on, composing the worker's own line — its rules, tools, MCP and checkout. dsh keeps no
-  // session, so nothing of the worker's Claude session is read, judged or kept here.
-  async fn worker_stand_in(
+  // A turn sent to a repository's transition address carried as a run of the worker role at the repository's
+  // checkout: a slot of the role asked as the source `ask`, keyed by the checkout, waited for however long the
+  // line takes, the turn run on the slot's road in the session the role keeps there, and the slot given back
+  // as the turn ends. A slot given back from outside while it waits ends the turn stopped.
+  #[allow(clippy::too_many_arguments)]
+  async fn worker_address(
     &self,
+    turn: &Turn,
     agent: &str,
+    row: &AgentRow,
     work: &WorkParts,
-    prompt: &str,
+    turn_id: i64,
     began: i64,
-    job: Option<agent_session::JobMark>,
     shown: OutputWatch<'_>,
   ) -> Result<Came, Fault> {
+    use crate::order_run::dispatch;
+
     let ground = self.ground();
-    let trees = crate::lines::Trees::of(ground);
-    let row = AgentRow::named(&ground.db, agent)
-      .await
-      .map_err(|why| fault(FaultKind::Unknown, why.detail))?
-      .ok_or_else(|| fault(FaultKind::Unknown, format!("no worker is named {agent}")))?;
+    let refused = |why: String| fault(FaultKind::Refused, why);
+    let role = crate::agent_roles::job_role();
     let cwd = row.cwd.clone().unwrap_or_else(|| ground.source.to_string_lossy().into_owned());
-    let line = crate::lines::worker::worker_run(ground, &trees, Some(agent), None, &work.model, &cwd)
-      .await
-      .map_err(|why| fault(FaultKind::Refused, why.detail))?;
-    let mut env: std::collections::BTreeMap<String, String> = ground.env().clone();
-
-    for (name, value) in &work.variables {
-      env.insert(name.clone(), value.clone());
-    }
-    env.insert("BMO_TURN_AGENT".to_owned(), agent.to_owned());
-    if job.is_some() {
-      env.insert("BMO_TASK_LOCKED".to_owned(), "1".to_owned());
-    }
-
-    // The worker's whole system prompt where a base prompt composed one, else its rules file, which dsh
-    // carries after the headless opener as the worker's persona.
-    let system_path = line.system_prompt.clone().unwrap_or_else(|| line.rules.clone());
-    let run = crate::lines::chat::ChatRun {
-      line: crate::lines::worker::LINE,
-      agent: agent.to_owned(),
-      model: work.model.clone(),
-      effort: line.effort.clone(),
-      tier: work.mapping.tier.clone(),
-      reasoning: line.reasoning.clone().unwrap_or_default(),
-      thinking: line.thinking,
-      system_path,
-      system_parts: None,
-      room: RoomContext {
-        chat_id: 0,
-        text: String::new(),
-        mark: String::new(),
+    let key = format!("ask:{agent}:{turn_id}");
+    let asked = dispatch::Asked {
+      request_key: key.clone(),
+      owner: key,
+      wanted: dispatch::Wanted {
+        role,
+        path: Some(&cwd),
+        fixed: None,
       },
-      // The worker takes every dsh tool row but the web (its own server replaces it); the list only has to
-      // be non-empty for the road to hand it its working rows rather than none.
-      tools_shown: "Bash".to_owned(),
-      tools_allowed: "Bash".to_owned(),
-      mcp_config: line.mcp_config.clone(),
-      mcp_tools: None,
-      prompt: prompt.to_owned(),
-      persona_unused: None,
-      fold: false,
-      ping: false,
-      resume: None,
-      cwd,
-      env,
-      cards: Default::default(),
+      place_key: Some(agent),
+      title: Some(&work.title),
+      ..dispatch::Asked::default()
     };
-    let mut log = RunLog::new(Target {
-      agent: agent.to_owned(),
-      run: work.name.clone(),
-      chat_id: (work.chat != 0).then_some(work.chat),
-      job_id: job.map(|job| job.job),
+    let mut held = dispatch::enqueue(&ground.db, &asked, WORKER_ASK, async |_, _| Ok(()))
+      .await
+      .map_err(refused)?;
+    let lease = loop {
+      if let Some(let_in) = dispatch::acquire(ground, &held).await.map_err(refused)? {
+        break dispatch::bind(&ground.db, &let_in, &work.name).await.map_err(refused)?;
+      }
+
+      tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+
+      held = match dispatch::request(&ground.db, &held.token).await.map_err(refused)? {
+        Some(again) if again.state != "released" && again.state != "cancelled" => again,
+        _ => return Ok(Came::Stopped),
+      };
+    };
+    let apart = Apart {
+      provider: lease.provider.clone(),
+      model: lease.model.clone(),
+      effort: lease.effort.clone(),
+      cwd: cwd.clone(),
+      role: Some(role.to_owned()),
+      ..Apart::default()
+    };
+    let work = WorkParts {
+      provider: lease.provider.clone(),
+      model: lease.model.clone(),
+      mapping: agent_session::Mapping {
+        model: lease.model.clone(),
+        effort: lease.effort.clone(),
+        ..work.mapping.clone()
+      },
+      cwd,
+      ..work.clone()
+    };
+    let came = if apart.provider == worker_session::PROVIDER {
+      self.carried(turn, agent, WorkSeat::Apart(&apart), &work, turn_id).await
+    } else {
+      self
+        .apart_in_place(&turn.session, agent, &apart, &work, &turn.prompt, began, None, shown)
+        .await
+    };
+    let outcome = match &came {
+      Ok(Came::Answered(..)) => "answered".to_owned(),
+      Ok(Came::Stopped) => "stopped".to_owned(),
+      Ok(Came::Ended(end)) => format!("{:?}", end.outcome).to_lowercase(),
+      Ok(_) => "ended with no answer".to_owned(),
+      Err(why) => format!("failed: {}", why.message),
+    };
+
+    if let Err(why) = dispatch::finish(&ground.db, &lease.token, &outcome, false).await {
+      eprintln!("{}: its slot was not given back: {why}", turn.session);
+    }
+
+    came
+  }
+
+  // The session a run in a place of its own kept, folded where its turn left it at or past its role's
+  // compaction threshold (docs/sessions.md, 「Session compaction」): one more turn on the run's own road into the
+  // same session, the fold word, before the run gives its slot back. A fold that answered leaves the session
+  // kept and valid with its context unread; one that did not leaves it as it stood.
+  async fn fold_in_place(
+    &self,
+    run: &crate::lines::chat::ChatRun,
+    role: &str,
+    taken: &crate::road::Road,
+    session: &str,
+    share: Option<f64>,
+    log: &mut RunLog,
+  ) {
+    let ground = self.ground();
+    let held = match crate::apart_sessions::take_for_fold(&ground.db, role, session, share).await {
+      Ok(Some(held)) => held,
+      Ok(None) => return,
+      Err(why) => {
+        eprintln!("{session}: whether it is due a fold could not be read: {why:?}");
+        return;
+      }
+    };
+    let fold = crate::lines::chat::ChatRun {
+      prompt: crate::worker_session::fold::FOLD_WORD.to_owned(),
+      fold: true,
+      resume: Some(held.clone()),
+      ..run.clone()
+    };
+    // The fold reached the session only where it answered on that same session.
+    let folded = crate::chat_stand_in::job_turn_on(ground, log, &fold, role, taken, now_ms(), None)
+      .await
+      .is_ok_and(|reply| reply.session_id == held);
+
+    ground.events.publish(crate::worker_session::told::SessionFolded {
+      session: held.clone(),
     });
 
-    let taken = crate::road::Road {
-      provider: work.provider.clone(),
-      model: work.model.clone(),
-      account: None,
+    let given = if folded {
+      crate::apart_sessions::folded(&ground.db, &held, now_ms()).await
+    } else {
+      eprintln!("compact {role} {held}: the fold did not answer, the session stands as it was");
+      crate::apart_sessions::give_back(&ground.db, &held).await
     };
 
-    match crate::chat_stand_in::job_turn_on(
-      ground,
-      &mut log,
-      &run,
-      crate::queue::routes::JOB_WORK_KEY,
-      &taken,
-      began,
-      Some(shown),
-    )
-    .await
-    {
-      Ok(reply) => Ok(Came::Answered(reply.text.clone(), spent_of(&reply.spend), left(&reply))),
-      Err(NoAnswer::Overtaken) => Ok(Came::Stopped),
-      Err(no) => {
-        let (reason, engine) = failure_of(no);
-
-        Ok(Came::Failed(reason, engine))
-      }
+    if let Err(why) = given {
+      eprintln!("{session}: the session it folded was not given back: {why:?}");
     }
   }
 
@@ -2502,6 +2415,14 @@ impl HerdrSessions {
 
       if let Err(why) = kept {
         eprintln!("{session}: the session it ran on was not kept: {why:?}");
+      }
+
+      if let Ok(reply) = &came
+        && !reply.session_id.is_empty()
+      {
+        self
+          .fold_in_place(&chat_run, role, &taken, &reply.session_id, reply.context_ratio, &mut log)
+          .await;
       }
     }
 
@@ -3038,16 +2959,6 @@ impl Sessions for HerdrSessions {
       sessions.extend(listed(agent, Scope::Agent));
     }
 
-    let checkouts = crate::queue::workers::workers(db, std::path::Path::new(""))
-      .await
-      .map_err(store_fault)?;
-
-    for checkout in checkouts.into_iter().filter(|checkout| !checkout.builtin) {
-      if !records::sessions(db, &checkout.name).await.map_err(store_fault)?.is_empty() {
-        sessions.extend(listed(checkout.name, Scope::Worker));
-      }
-    }
-
     for (id, (agent, apart)) in self.apart().iter() {
       sessions.push(Session {
         id: id.clone(),
@@ -3106,6 +3017,9 @@ fn launch_on<'a>(
     cwd,
   }
 }
+
+// The source a turn to a repository's transition address asks its slot as, a worker ask's.
+const WORKER_ASK: &str = "ask";
 
 /// The backend shared by the routes that answer the contract.
 pub type Shared = Arc<HerdrSessions>;

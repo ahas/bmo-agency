@@ -114,11 +114,9 @@ async fn a_running_server_answers_what_a_job_s_run_asks_of_its_worker() {
     (200, json!({ "touched": ["prompts/agents/worker/plugin/skills/a.md", "CLAUDE.md"] }))
   );
 
-  // A session handed to another holder answers the session it then has.
+  // There is no worker scope: a repository's `@worker` address is no session to hand over.
   let (status, session) =
     patch(port, token, "/sessions/helper@worker", json!({ "holder": "runner" })).await;
 
-  assert_eq!(status, 200, "{session}");
-  assert_eq!(session["id"], json!("helper@worker"));
-  assert_eq!(session["holder"], json!("runner"));
+  assert_eq!(status, 404, "{session}");
 }

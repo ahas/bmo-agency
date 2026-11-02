@@ -210,6 +210,25 @@ pub async fn repository_of(db: &DatabaseConnection, checkout: &str) -> Result<Op
   Ok(repositories::named(db, &base).await?)
 }
 
+/// The repository every checkout is of, by the checkout's name: a base's own name, or the repository a support
+/// worktree or a node checkout stands beside.
+pub async fn repositories_by_checkout(
+  db: &DatabaseConnection,
+) -> Result<std::collections::HashMap<String, String>, Refusal> {
+  Ok(
+    workers(db, Path::new(""))
+      .await?
+      .into_iter()
+      .filter(|worker| !worker.builtin)
+      .map(|worker| {
+        let repository = worker.support_of.clone().unwrap_or_else(|| worker.name.clone());
+
+        (worker.name, repository)
+      })
+      .collect(),
+  )
+}
+
 /// Every name a repository or a supervisor stands under, with every checkout's: the names a new one may not
 /// take.
 pub async fn taken_names(db: &DatabaseConnection) -> Result<Vec<String>, Refusal> {

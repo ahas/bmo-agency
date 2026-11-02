@@ -317,7 +317,7 @@ pub async fn enqueue(
   let fixed = asked.wanted.fixed.as_ref();
   let written = db.begin().await.map_err(faulted)?;
 
-  run(
+  let opened = run(
     &written,
     r#"INSERT INTO "role_slot_requests" ("token", "request_key", "owner", "source", "role", "path", "provider",
          "model", "effort", "capacity", "state", "enqueued_at", "class", "place_key", "session", "title",
@@ -364,6 +364,15 @@ pub async fn enqueue(
     || held.place_key != place_key
   {
     return Err(format!("The slot request's identity changed: {}", asked.request_key));
+  }
+
+  // A key names one request for good: asked again while it stands it is answered with it, and once it was
+  // given back the key is spent (docs/role-slots.md, 「The line」).
+  if opened == 0 && (held.state == "released" || held.state == "cancelled") {
+    return Err(format!(
+      "The slot request {} was given back; a new slot is asked under a new request key",
+      asked.request_key
+    ));
   }
 
   retain(&written, &held).await?;

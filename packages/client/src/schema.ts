@@ -1711,26 +1711,46 @@ export interface components {
             options: unknown;
             /**
              * Format: double
-             * @description The share of its model's window the session may fill before it is folded once the turn that crossed it is over: the fold-ratio table's value for the provider it stands on and the tier its agent's work key is assigned, read with the session's state; none in a list, or where the state names no provider.
+             * @description The share of its model's window the session may fill before it is folded once the turn that crossed it is
+             *     over: the compaction threshold of its supervisor or its role, read afresh with each read.
              */
             foldRatio?: number | null;
             /**
-             * @description The tier the session's agent's work key is assigned, which its fold ratio is read at; none where the key
-             *     is assigned none.
+             * @description The context its last turn left, `carried` tokens against the model's `window`, or none.
              * @default null
              */
-            tier: string | null;
+            context: unknown;
+            /**
+             * @description Whether the session's program compacts itself at its fold ratio and takes no fold call.
+             * @default false
+             */
+            foldsItself: boolean;
+            /**
+             * @description The supervisor the session runs for, or none.
+             * @default null
+             */
+            supervisor: string | null;
+            /**
+             * @description The role the session runs for, or none.
+             * @default null
+             */
+            role: string | null;
         };
         /**
          * @description One of the values the API accepts.
          * @enum {string}
          */
-        SessionScope: "worker" | "room" | "agent" | "role" | "conversation";
+        SessionScope: "room" | "agent" | "role" | "conversation";
         /**
          * @description The body that starts a session: the agent, the scope, the room and the options, with the older
          *     top-level names read where the options name none.
          */
         SessionStart: {
+            /**
+             * @description The token of the slot request a role's run was let in on: the run takes its role, provider, model, effort
+             *     and, where the start names no folder, its path.
+             */
+            slot?: string | null;
             agentName?: string | null;
             agent?: string | null;
             scope: unknown;
@@ -1825,7 +1845,10 @@ export interface components {
          * @enum {string}
          */
         TurnState: "running" | "ended" | "interrupted";
-        /** @description The body that sends a turn: its prompt, the context around it, and a job turn's parts. */
+        /**
+         * @description The body that sends a turn: its prompt, the context around it, and what a role's session's turn names of its
+         *     own.
+         */
         TurnSend: {
             prompt: string;
             /** @description The context as the answer echoes it; the parts below are what the turn reads. */
@@ -1843,18 +1866,13 @@ export interface components {
             job?: number | null;
             /** Format: int64 */
             item?: number | null;
-            provider?: string | null;
-            model?: string | null;
-            mapping?: unknown;
             resume?: unknown;
-            cwd?: string | null;
             name?: string | null;
             title?: string | null;
             /** Format: int64 */
             chat?: number | null;
             unit?: string | null;
             user?: string | null;
-            workKey?: string | null;
             hearsWords?: boolean | null;
             variables?: unknown;
         };
@@ -2664,6 +2682,11 @@ export interface components {
             assignmentId: number;
             workerName: string;
             /**
+             * @description The repository the checkout `workerName` names is of, none for a checkout no repository holds any longer.
+             * @default null
+             */
+            repositoryName: string | null;
+            /**
              * @description The role the job runs as.
              * @default null
              */
@@ -2979,6 +3002,11 @@ export interface components {
             holderName: string;
             workerName: string;
             /**
+             * @description The repository the checkout `workerName` names is of, none for a checkout no repository holds any longer.
+             * @default null
+             */
+            repositoryName: string | null;
+            /**
              * @description The role the item's job runs as.
              * @default null
              */
@@ -3202,6 +3230,17 @@ export interface components {
             effort: string | null;
             /** @description why its turn waits where no provider of its order has quota, or null */
             waitingFor: string | null;
+            /**
+             * @description Whether the deployment seeds it or it is the default answerer: its removal is refused 409 `seeded`.
+             * @default false
+             */
+            seeded: boolean;
+            /**
+             * Format: int64
+             * @description The moment in epoch milliseconds its last reset cut its turns off at, none where it was never reset.
+             * @default null
+             */
+            resetPoint: number | null;
         };
         /** @description OrderEntry: one provider of a supervisor's or a role's order, and what the row runs on there. */
         OrderEntry: {

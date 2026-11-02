@@ -297,6 +297,26 @@ async fn a_running_assignment_whose_job_ended_is_released_as_the_assignments_are
     json!({ "inputTokens": 1, "outputTokens": 10, "cacheReadTokens": 1000, "cacheWriteTokens": 100 })
   );
   assert_eq!(job["tokenCount"], 1111);
+
+  // A job and an assignment name the repository their checkout is of beside the checkout, and narrow by it.
+  assert_eq!((&job["workerName"], &job["repositoryName"]), (&json!("helper"), &json!("helper")));
+  assert_eq!(get(port, token, "/assignments/7").await.1["repositoryName"], "helper");
+  assert_eq!(
+    get(port, token, "/jobs?repositoryName=helper").await.1["items"]
+      .as_array()
+      .unwrap()
+      .len(),
+    1
+  );
+  assert_eq!(get(port, token, "/jobs?repositoryName=elsewhere").await.1["items"], json!([]));
+  assert_eq!(get(port, token, "/jobs?roleName=nobody").await.1["items"], json!([]));
+  assert_eq!(
+    get(port, token, "/assignments?repositoryName=helper").await.1["items"]
+      .as_array()
+      .unwrap()
+      .len(),
+    1
+  );
   assigned(port, token, 42).await;
 }
 

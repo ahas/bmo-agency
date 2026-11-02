@@ -236,3 +236,25 @@ async fn a_double_waits_on_its_supervisors_provider_and_never_moves_to_the_roles
 
   assert!(admitted(&ground, &held).await);
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_request_key_answers_its_standing_request_and_is_spent_once_the_request_is_given_back() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = seeded(scratch.db(), home.path()).await;
+  let first = ask(&ground, "worker", "again").await;
+  let again = ask(&ground, "worker", "again").await;
+
+  assert_eq!(again.token, first.token, "asked again while it stands, the key answers its request");
+
+  assert!(finish(&ground.db, &first.token, "done", false).await.unwrap());
+
+  let spent = enqueue(&ground.db, &asked("worker", "again"), "job", async |_, _| Ok(())).await;
+
+  assert!(spent.is_err(), "a key whose request was given back opens nothing: {spent:?}");
+  assert_ne!(
+    ask(&ground, "worker", "afresh").await.token,
+    first.token,
+    "a new key opens a new request"
+  );
+}

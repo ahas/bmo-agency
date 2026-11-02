@@ -27,8 +27,6 @@ pub enum PromptDocumentKind {
 /// One of the values the API accepts.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub enum SessionScope {
-  #[serde(rename = "worker")]
-  Worker,
   #[serde(rename = "room")]
   Room,
   #[serde(rename = "agent")]
@@ -262,13 +260,22 @@ pub struct Session {
   pub holder: Option<String>,
   pub prefix_change_reason: Option<String>,
   pub options: Value,
-  /// The share of its model's window the session may fill before it is folded once the turn that crossed it is over: the fold-ratio table's value for the provider it stands on and the tier its agent's work key is assigned, read with the session's state; none in a list, or where the state names no provider.
+  /// The share of its model's window the session may fill before it is folded once the turn that crossed it is
+  /// over: the compaction threshold of its supervisor or its role, read afresh with each read.
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub fold_ratio: Option<f64>,
-  /// The tier the session's agent's work key is assigned, which its fold ratio is read at; none where the key
-  /// is assigned none.
+  /// The context its last turn left, `carried` tokens against the model's `window`, or none.
   #[serde(default)]
-  pub tier: Option<String>,
+  pub context: Option<Value>,
+  /// Whether the session's program compacts itself at its fold ratio and takes no fold call.
+  #[serde(default)]
+  pub folds_itself: bool,
+  /// The supervisor the session runs for, or none.
+  #[serde(default)]
+  pub supervisor: Option<String>,
+  /// The role the session runs for, or none.
+  #[serde(default)]
+  pub role: Option<String>,
 }
 
 /// Turn:
@@ -1471,6 +1478,9 @@ pub struct Assignment {
   pub item_id: i64,
   pub holder_name: String,
   pub worker_name: String,
+  /// The repository the checkout `workerName` names is of, none for a checkout no repository holds any longer.
+  #[serde(default)]
+  pub repository_name: Option<String>,
   /// The role the item's job runs as.
   #[serde(default)]
   pub role_name: Option<String>,
@@ -1536,6 +1546,9 @@ pub struct Job {
   pub holder_name: String,
   pub assignment_id: i64,
   pub worker_name: String,
+  /// The repository the checkout `workerName` names is of, none for a checkout no repository holds any longer.
+  #[serde(default)]
+  pub repository_name: Option<String>,
   /// The role the job runs as.
   #[serde(default)]
   pub role_name: Option<String>,
@@ -1816,6 +1829,10 @@ pub struct SessionOptions {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionStart {
+  /// The token of the slot request a role's run was let in on: the run takes its role, provider, model, effort
+  /// and, where the start names no folder, its path.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub slot: Option<String>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub agent_name: Option<String>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1892,26 +1909,22 @@ pub struct RoomBlockAsk {
   pub mark: Option<String>,
 }
 
-/// A job turn's parts as its runner names them.
+/// What a role's session's turn names of its own; its road, effort and folder are the session's.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkPartsAsk {
-  pub provider: Option<String>,
-  pub model: Option<String>,
-  pub mapping: Option<Value>,
   pub resume: Option<Value>,
-  pub cwd: Option<String>,
   pub name: Option<String>,
   pub title: Option<String>,
   pub chat: Option<i64>,
   pub unit: Option<String>,
   pub user: Option<String>,
-  pub work_key: Option<String>,
   pub hears_words: Option<bool>,
   pub variables: Option<Value>,
 }
 
-/// The body that sends a turn: its prompt, the context around it, and a job turn's parts.
+/// The body that sends a turn: its prompt, the context around it, and what a role's session's turn names of its
+/// own.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct TurnSend {
@@ -1939,15 +1952,7 @@ pub struct TurnSend {
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub item: Option<i64>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
-  pub provider: Option<String>,
-  #[serde(default, skip_serializing_if = "Option::is_none")]
-  pub model: Option<String>,
-  #[serde(default, skip_serializing_if = "Option::is_none")]
-  pub mapping: Option<Value>,
-  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub resume: Option<Value>,
-  #[serde(default, skip_serializing_if = "Option::is_none")]
-  pub cwd: Option<String>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub name: Option<String>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1958,8 +1963,6 @@ pub struct TurnSend {
   pub unit: Option<String>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub user: Option<String>,
-  #[serde(default, skip_serializing_if = "Option::is_none")]
-  pub work_key: Option<String>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub hears_words: Option<bool>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -2655,6 +2658,12 @@ pub struct Supervisor {
   pub effort: Option<String>,
   /// why its turn waits where no provider of its order has quota, or null
   pub waiting_for: Option<String>,
+  /// Whether the deployment seeds it or it is the default answerer: its removal is refused 409 `seeded`.
+  #[serde(default)]
+  pub seeded: bool,
+  /// The moment in epoch milliseconds its last reset cut its turns off at, none where it was never reset.
+  #[serde(default)]
+  pub reset_point: Option<i64>,
 }
 
 /// SupervisorList: every supervisor.

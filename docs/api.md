@@ -129,9 +129,12 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
   order (below); `warming`, for each provider of its order whether its prefix is kept warm there;
   `foldRatio`, its compaction threshold; `gates`, `voice` and `sampling`; and what it stands on now —
   `provider`, `model` and `effort` its last turn went out on, and `waitingFor`, why its turn waits where no
-  provider of its order has quota, or null. A companion's reset point is no field of it: the reset publishes
-  each move of the point as it makes it (「Events」), and whether a stand-in answers a supervisor now is
-  `GET /stand-in` (「accounts, rest and usage」).
+  provider of its order has quota, or null; `seeded`, true for a supervisor the deployment seeds or the
+  default answerer, which `DELETE` refuses 409 `seeded`; and `resetPoint`, the moment in epoch milliseconds
+  its last reset cut its turns off at (`docs/companions.md`, 「What the reset cuts off」), or null where it
+  was never reset. The reset also publishes each move of the point as it makes it (「Events」), so a consumer
+  that missed one reads the point again here. Whether a stand-in answers a supervisor now is `GET /stand-in`
+  (「accounts, rest and usage」).
 - **An order** is a list, each member a provider agency carries, once each: `provider`, `model`, `effort` (a
   level of the reasoning policy or null), `thinking` (`on`, `off` or null for the provider's own) and, on the
   registry's provider, `answerTokens` or null; beside it `quotaShare`, a fraction from 0 to 1, 0.01 where none
@@ -259,43 +262,65 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
 | POST | `/sessions/{sessionId}/turns/{turnId}/inputs` | Push words into a working turn. |
 | POST | `/sessions/{sessionId}/answers` | Answer a question a turn asked. |
 | POST | `/sessions/{sessionId}/folds` | Fold a session, compacting its context. |
+| POST | `/session-reset` | Ask to clear one agent's session in a room, answered with the session as it stands after; the next round opens a new one. |
 
-A job's run is a role's run with the work parts in the turn's context. A session is started at one scope —
-`agent` or `room` for a supervisor, `role` for a role's run, or `conversation` — and the scope says what is
-kept. Its id names its owner and the scope: the supervisor's name alone for its session, `<supervisor>@<room>`
-for a room's, and a number the service gives it for a role's run (`<role>@run:<n>`) and a conversation
+A job's run is a role's run at its checkout. A session is started at one scope — `agent` or `room` for a
+supervisor, `role` for a role's run, or `conversation` — and the scope says what is kept. Its id names its
+owner and the scope: the supervisor's name alone for its session, `<supervisor>@<room>` for a room's, and a
+number the service gives it for a role's run (`<role>@run:<n>`) and a conversation
 (`<supervisor>@conversation:<n>`), so every start of one of those is a session of its own.
 
-A conversation is the caller's: its start names the provider, the model and, where it names one, the
-folder its turns go out on, and its turns are ordinary prompts with the context around them and no work
-parts. A provider whose program keeps a session continues the one its last answered turn left. The session
-stands in the server's memory from its start to its end.
+A conversation is the caller's: its start names the model, the provider (Claude Code where it names none) and,
+where it names one, the folder its turns go out on, and its turns are ordinary prompts with the context around
+them and no work parts. A provider whose program keeps a session continues the one its last answered turn left.
+The session stands in the server's memory from its start to its end.
 
-A role's session is the session of one run of a role (`docs/agents.md`, 「A run in a pane of its own」). Its
-start names `role`, a role the store holds, refused 422 `unknown-role` otherwise, and `cwd`, the path the run
-works at, the line's own deployed directory where it names none; the run goes out on the role's line, holds a
-slot of the role its caller was let in on (「slots, reservations and places」), and goes out on the provider and
-model that slot carries. Every role's session but a co-work branch's carries the reference its first prompt's
-instruction calls for, picked by the gate's reference selection over the chat agent's brain and attached to
-that first prompt, the same way a job's is (「assignments and jobs」); a later turn of the same session is
-asked over it and not over it again. A co-work branch's prompt is composed by its parent and carries none.
+**There is no `worker` scope.** A run in a repository is a role's run at its checkout's path. A start naming
+`worker` is refused 400; no list names a `<repository>@worker` session, and its state, change, end and fold
+routes answer 404 `unknown`. One address of it stands for this step alone: a turn sent to
+`/sessions/{repository}@worker/turns`, a repository's name before the `@`, is carried as a run of the
+`worker` role at that repository's checkout. Agency asks the slot on the sender's behalf — the source `ask`,
+the checkout as its place key and path — waits in the role's line however long it takes, runs the turn on
+the slot's road in the session the role keeps at the checkout, and gives the slot back as the turn ends; its
+progress read, its interrupt and the words pushed into it answer as any turn's do, and a repository the store
+does not hold answers 404 `unknown`. The next step removes the address, and a sender asks the slot and starts
+the role's session itself.
 
-A role's session may be handed its instructions whole, for a consumer that composes its own — the research
-unit, which asks for the slots and the sessions its searches, browses, rounds and branches go out in, is one:
-the start names `systemPrompt`, the instructions — the platform's harness opening and then that text, as one
-system prompt, with the role's line's standing MCP configuration and the tools it allows
-(`docs/launch-lines.md`, 「Search runner」 and 「Browse runner」). A turn into such a session carries work parts
-as every role's session's turn does, and goes out on the role's line whole, never in a standing branch
-checkout. Its prompt is the caller's, whole, and its answer is the run's reply text. Its turns carry no clock:
-each lasts until it ends or is stopped. A start that hands no instructions opens on the role's prompt.
-Beside them the start may name:
+A role's session is the session of one run of a role (`docs/agents.md`, 「A run in a pane of its own」). It runs
+on the slot its caller was let in on (「slots, reservations and places」): its start names `slot`, that slot
+request's token, and the session runs as the slot's role on the provider, model and effort the slot was let
+in on, on the role's line.
 
-- **`provider` and `model`:** a named road its turns go out on in place of the slot's, any provider agency
-  carries whose program carries the line (`docs/launch-lines.md`, 「Providers and what a route may promise」)
-  — Claude Code, a member road such as DeepSeek's, or the registry's provider under a registration's name. A
-  provider agency does not carry, one the owner switched off, or one whose program does not carry the line is
-  refused 503 `line-not-carried`, the sentence saying which. A conversation names its road this way, and
-  Claude Code is a conversation's where it names none.
+- **`slot`** must name a request that is `active`; a token no request holds, or one waiting, reserved or given
+  back, is refused 422 `slot-not-active`.
+- **`role`**, where the start names one, is the slot's role; another is refused 422 `contradicts-slot`, and a
+  role the store does not hold 422 `unknown-role`.
+- **`provider` and `model`**, where the start names them, are the slot's own; either differing is refused 422
+  `contradicts-slot`, so a start never moves a run off the road its slot was let in on.
+- **`cwd`** is the path the run works at: the one the start names, else the slot's `path`, else the line's own
+  deployed directory.
+- **A start naming no `slot`** is the transition form this step still reads: it names `role`, `provider` and
+  `model` together and the session runs on that road, the slot its caller holds unread; a start naming neither
+  a slot nor both of provider and model is refused 400. The next step refuses every start without `slot`.
+
+Every role's session but a co-work branch's carries the reference its first prompt's instruction calls for,
+picked by the gate's reference selection over the chat agent's brain and attached to that first prompt, the same
+way a job's is (「assignments and jobs」); a later turn of the same session is asked over it and not over it
+again. A co-work branch's prompt is composed by its parent and carries none.
+
+A role's session may be handed its instructions whole, for a consumer that composes its own — the research unit,
+which asks for the slots and the sessions its searches, browses, rounds and branches go out in, is one: the
+start names `systemPrompt`, the instructions — the platform's harness opening and then that text, as one system
+prompt, with the role's line's standing MCP configuration and the tools it allows (`docs/launch-lines.md`,
+「Search runner」 and 「Browse runner」). A turn into such a session goes out on the role's line whole, never in a
+standing branch checkout. Its prompt is the caller's, whole, and its answer is the run's reply text. Its turns
+carry no clock: each lasts until it ends or is stopped. A start that hands no instructions opens on the role's
+prompt. Beside them its road is checked, and the start may name the rest below:
+
+- **The road's check:** a provider agency does not carry, one the owner switched off, or one whose program does
+  not carry the line — the slot's for a role's session, the one named for a conversation — is refused 503
+  `line-not-carried`, the sentence saying which (`docs/launch-lines.md`, 「Providers and what a route may
+  promise」).
 - **`demandId` and `within`:** on a registration naming a card service, a granted demand of the caller's
   own that every turn of the session stands on, with no other asked, or the caller's granted demand each
   turn's own is asked within (`docs/own-llm.md`, 「An engine the arbiter stands」); each a demand's id, a
@@ -305,6 +330,17 @@ Beside them the start may name:
   `archive`, `role` and `place` — is refused 400.
 - **`toolsAllowed`:** the capabilities the record keeps, of those the line and the session's role give it; a
   record keeps them all where the start names none, and the list never widens them.
+
+**A role's session's turn goes out on the session's road.** Its provider, model and effort are the session's,
+its folder the session's `cwd`, and its instructions and bundles its role's; a turn's body adds only what is
+the turn's own, every part optional: `name`, the run's name, one agency gives where none is named; `title`,
+what a person watching reads over the run, the role's name where none is named; `chat`, the room its run's
+lines stand under, none where it names none; `unit`, the unit it runs under; `resume`, which session it goes
+on — `{ "kind": "auto" }` where it names none, `{ "kind": "fresh" }`, or `{ "kind": "session", "id": … }`
+(`docs/sessions.md`, 「A role's session」); `hearsWords`, whether words pushed into the turn reach it, false
+where it names none; and `variables`, what its program is started with beside its own. `provider`, `model`,
+`mapping` and `workKey` are no part of a turn: a body naming them is read as if it did not, this step, and the
+next step refuses them.
 
 Each turn of a role's session goes out in a pane of its own, on the session the role gives it: the one kept
 for the role at the path on the provider and model where the role keeps sessions and it is valid, a new one
@@ -499,6 +535,11 @@ caller names and the path its run will work at, and is refused 422 `unknown-role
 (`docs/role-slots.md`, 「Who takes a slot」). An ask may name `provider` and `model`, a road the run goes out on
 in place of the role's order — a `delegator` run as its supervisor's double, a native call on its caller's
 provider — and `placeKey`, the key only one active request holds at once.
+
+A request key names one request for good (`docs/role-slots.md`, 「Request keys」). Asked again with the same key
+while that request stands — `waiting`, `reserved` or `active` — the ask answers 201 with that request and
+changes nothing of it; asked again once the request was given back, `released` or `cancelled`, it is refused
+422 `unprocessable-entity` and opens nothing, and a new run asks under a new key.
 
 A slot request answers its `state` — `waiting` in its role's line, `reserved` under a reservation, `active`
 once let in, and `released` or `cancelled` once given back — and the `role`, `path`, `provider`, `model` and
@@ -706,7 +747,7 @@ notice that holds nothing is withdrawn.
 | PATCH | `/accounts/{accountId}` | Record an account's usage and its rest. |
 | GET | `/rest` | Whether the deployment rests, until when, of what kind. |
 | PATCH | `/rest` | Set the rest, or clear a rest that has passed. |
-| GET | `/stand-in?agent=` | Whether a stand-in answers the agent named while Claude Code's road is closed. |
+| GET | `/stand-in` | Whether a stand-in answers the agent named in `agent` while Claude Code's road is closed. |
 | GET | `/usage` | Usage by model, agent, user, room or round over a span, with session contexts. |
 
 The stand-in is asked for an agent, and says whether a stand-in would answer that agent now, which a
@@ -816,13 +857,20 @@ A companion is answered with its provider order, in the shape a supervisor's is 
 | POST | `/instruction-texts` | The work-order step's line composed from an instruction. |
 | POST | `/item-filings` | File an item in the job service for the turn an agent is carrying now: its room as the item's `scope`, and `asked-by=owner` where every message of that turn is the owner's. |
 | POST | `/job-stops` | Stop a job, by its id or by its item, for the turn an agent is carrying now, only where every message of that turn is the owner's. |
+| POST | `/pane-deaths` | A head pane died: every job its worker (`agent`) is running ends failed with the exit `code` and the `last` stderr line as its report. |
 
 The list answers the newest jobs first, `limit` of them (50 where it names none, at most 500), and pages by a
 job's id as the runs' list does: with `before`, the jobs before that id; with `after`, the jobs after it nearest
 to it; `more` says whether more lie beyond the page in the direction it was asked. It narrows by `state`, one
 state or several comma-separated; by `running`, `true` the jobs starting or running and `false` every other;
-by `itemId`; by `roomId`; by `repositoryName`; by `roleName`; and by `holderName`, every filter named holding at once. A query
+by `itemId`; by `roomId`; by `repositoryName`, the jobs in any checkout of that repository; by `workerName`,
+the jobs in that one checkout; by `roleName`; and by `holderName`, every filter named holding at once. A query
 naming anything else, or a value that does not read as its filter's kind, is refused 400.
+
+- **A job and an assignment name where they run twice:** `workerName`, the checkout — the repository's base,
+  a support worktree or a checkout on a node — and `repositoryName`, the repository that checkout is of, or
+  null for a checkout no repository holds any longer. `GET /assignments` narrows by `repositoryName` and by
+  `workerName` alike.
 
 - **The role a job runs as is its assignment's.** `POST /assignments` takes `roleName`, a role the store
   holds, `worker` where it names none, and refuses another 422 `unknown-role`; an assignment and its job
@@ -1008,7 +1056,8 @@ notice to a reader resuming too late (「events」 above), never published as an
   Telling the owner is the consumer's: the moved road as what the system switched to, the closed road
   with its command passed over verbatim. No fact is the end of the matter, and none is said twice.
 - **`worker.changed`** carries a job's run that answered on a lesser model than it went out on
-  (`docs/cache-fallback.md`, 「Healing differs for a job」): `worker`, the checkout it ran in; `role`, the
+  (`docs/cache-fallback.md`, 「Healing differs for a job」): `worker`, the checkout it ran in; `repository`, the
+  repository that checkout is of, or null; `role`, the
   role it ran as; `launched`, the model it went out on; `answeredOn`, the models it answered on; `dropped`,
   whether the session its role kept there was dropped, false where the repository's heal is off; and `job`,
   the job, or null.

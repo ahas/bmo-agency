@@ -12,6 +12,8 @@ use crate::events::Event;
 #[serde(rename_all = "camelCase")]
 pub struct WorkerDowngraded {
   pub worker: String,
+  /// The repository the checkout is of, none for a checkout no repository holds any longer.
+  pub repository: Option<String>,
   pub role: Option<String>,
   pub launched: String,
   pub answered_on: Vec<String>,

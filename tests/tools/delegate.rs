@@ -218,10 +218,9 @@ async fn a_slot_waits_in_line_and_the_roles_run_answers_with_its_words_and_the_f
   let started = stub.started.clone().unwrap();
 
   assert_eq!(started["scope"], "role");
-  assert_eq!(started["options"]["role"], "delegator");
-  assert_eq!(started["options"]["provider"], "deepseek");
-  assert_eq!(started["options"]["model"], "deepseek-flash");
-  assert_eq!(started["options"]["cwd"], scratch.display().to_string());
+  assert_eq!(started["slot"], "t1", "the run starts on the slot it was let in on");
+  assert_eq!(started["cwd"], scratch.display().to_string());
+  assert!(started.get("options").is_none(), "the role and the road are the slot's");
   assert_eq!(stub.sends, ["delegator@run:1"]);
 
   let turned = stub.turned.clone().unwrap();
@@ -237,9 +236,12 @@ async fn a_slot_waits_in_line_and_the_roles_run_answers_with_its_words_and_the_f
       .starts_with(&format!("Work in {}.", scratch.display()))
   );
   assert!(turned["prompt"].as_str().unwrap().ends_with("ssh to the node and read its disk"));
-  assert_eq!(work["cwd"], scratch.display().to_string());
-  assert_eq!(work["provider"], "deepseek");
-  assert_eq!(work["mapping"], json!({ "model": "deepseek-flash", "effort": "high" }));
+  for retired in ["cwd", "provider", "model", "mapping", "workKey"] {
+    assert!(
+      work.get(retired).is_none(),
+      "the turn names no {retired}: the session's road and folder stand"
+    );
+  }
   assert_eq!(work["chat"], -7);
 
   // The slot is finished with what the run came to.

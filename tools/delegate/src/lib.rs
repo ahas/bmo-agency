@@ -381,16 +381,12 @@ pub async fn delegate_with(api: &Api, session: &Session, input: DelegateInput, h
       return Answer::failure(why);
     }
   };
-  // The role's run at the task's folder, on the road the slot was let in on (docs/api.md, 「sessions」).
+  // The role's run at the task's folder, on the slot it was let in on (docs/api.md, 「sessions」).
   let start = json!({
     "scope": "role",
     "agentName": seat.role,
-    "options": {
-      "role": seat.role,
-      "provider": seat.provider,
-      "model": seat.model,
-      "cwd": folder.display().to_string(),
-    },
+    "slot": seat.token,
+    "cwd": folder.display().to_string(),
   });
   let started = match api.ok(Method::POST, "/sessions", Some(start), "the role's run was not started").await
   {
@@ -426,15 +422,10 @@ pub async fn delegate_with(api: &Api, session: &Session, input: DelegateInput, h
 
   let body = json!({
     "prompt": format!("Work in {}.\n\n{instruction}", folder.display()),
-    "provider": seat.provider,
-    "model": seat.model,
-    "mapping": { "model": seat.model, "effort": seat.effort },
     "resume": { "kind": "auto" },
-    "cwd": folder.display().to_string(),
     "name": run,
     "title": format!("delegated by {asker}: {title}"),
     "chat": turn.chat.unwrap_or_default(),
-    "workKey": seat.role,
     "hearsWords": false,
     "variables": {},
   });

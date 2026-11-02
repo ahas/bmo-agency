@@ -203,6 +203,55 @@ pub async fn drop_session<C: ConnectionTrait>(db: &C, id: i64) -> Result<(), Fau
   Ok(())
 }
 
+/// Whether a run's session is due a fold as the run ends: its last turn left it at or past its role's
+/// compaction threshold (docs/sessions.md, 「Session compaction」). A turn that reports no share is not due.
+pub fn fold_due(context_share: Option<f64>, fold_ratio: f64) -> bool {
+  context_share.is_some_and(|share| share >= fold_ratio)
+}
+
+/// The session a run just kept, taken again for its fold where its last turn left it at or past its role's
+/// threshold, read afresh from the role's row: the session, held so no other run resumes it while it folds;
+/// none where no fold is due, the role is gone or another run took it first.
+pub async fn take_for_fold<C: ConnectionTrait>(
+  db: &C,
+  role: &str,
+  session: &str,
+  context_share: Option<f64>,
+) -> Result<Option<String>, Fault> {
+  let Some(role) = agent_roles::named(db, role).await? else {
+    return Ok(None);
+  };
+
+  if !fold_due(context_share, role.fold_ratio) {
+    return Ok(None);
+  }
+
+  let taken = run(
+    db,
+    r#"UPDATE "role_sessions" SET "held" = 1
+       WHERE "session" = $1 AND "role" = $2 AND "dropped" = 0 AND "held" = 0"#,
+    vec![session.into(), role.name.into()],
+  )
+  .await?;
+
+  Ok((taken == 1).then(|| session.to_owned()))
+}
+
+/// A session whose fold went through given back: answered at `at`, its context unread until its next run
+/// answers on it, and valid for that run.
+pub async fn folded<C: ConnectionTrait>(db: &C, session: &str, at: i64) -> Result<(), Fault> {
+  run(
+    db,
+    r#"UPDATE "role_sessions" SET "held" = 0, "answered_at" = $2, "context_tokens" = NULL,
+         "context_share" = NULL
+       WHERE "session" = $1 AND "dropped" = 0"#,
+    vec![session.into(), at.into()],
+  )
+  .await?;
+
+  Ok(())
+}
+
 /// The session a key's run went out on handed over: closed with its record, so the next run of its key opens a
 /// new one (docs/sessions.md, 「A role's session」).
 pub async fn hand_over<C: ConnectionTrait>(db: &C, session: &str) -> Result<u64, Fault> {
@@ -286,6 +335,24 @@ pub async fn give_back<C: ConnectionTrait>(db: &C, session: &str) -> Result<(), 
   .await?;
 
   Ok(())
+}
+
+/// The session kept for a role at a path on a provider and model handed over: closed with its record, so the next
+/// run of that role there opens a new one.
+pub async fn hand_over_key<C: ConnectionTrait>(
+  db: &C,
+  role: &str,
+  path: &str,
+  provider: &str,
+  model: &str,
+) -> Result<u64, Fault> {
+  run(
+    db,
+    r#"UPDATE "role_sessions" SET "dropped" = 1, "held" = 0
+       WHERE "role" = $1 AND "path" = $2 AND "provider" = $3 AND "model" = $4 AND "dropped" = 0"#,
+    vec![role.into(), path.into(), provider.into(), model.into()],
+  )
+  .await
 }
 
 /// Every session kept at a path handed over, whatever its role, provider and model: a reset of the checkout's

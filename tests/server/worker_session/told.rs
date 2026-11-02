@@ -10,7 +10,8 @@ fn a_downgrade_and_a_fold_travel_under_their_names_in_their_shapes() {
   assert_eq!(SessionFolded::NAME, "session.folded");
   assert_eq!(
     serde_json::to_value(WorkerDowngraded {
-      worker: "worker".into(),
+      worker: "worker-w2".into(),
+      repository: Some("worker".into()),
       role: Some("worker".into()),
       launched: "claude-opus-5".into(),
       answered_on: vec!["claude-opus-4-7".into()],
@@ -18,7 +19,7 @@ fn a_downgrade_and_a_fold_travel_under_their_names_in_their_shapes() {
       job: None,
     })
     .unwrap(),
-    json!({ "worker": "worker", "role": "worker", "launched": "claude-opus-5", "answeredOn": ["claude-opus-4-7"], "dropped": true, "job": null })
+    json!({ "worker": "worker-w2", "repository": "worker", "role": "worker", "launched": "claude-opus-5", "answeredOn": ["claude-opus-4-7"], "dropped": true, "job": null })
   );
   assert_eq!(
     serde_json::to_value(SessionFolded {

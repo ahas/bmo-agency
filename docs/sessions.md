@@ -240,8 +240,13 @@ statements below about either are kept for a rollback to the road a deployment l
   - inside a turn, its Claude Code is launched with no compaction setting of the deployment's, so the
     program compacts at its own default share of the model's window while the job goes on;
     compacting a large session early costs more than reading its cached context again;
-  - between turns, the runner folds a session past its role's compaction threshold by the same rule a
-    supervisor's session is folded by.
+  - between turns, a run folds the session it keeps once its turn has left the session at or past its
+    role's compaction threshold, the row's `foldRatio`, read afresh as the run ends — the rule a
+    supervisor's session is folded by. The fold is one more turn into the same session on the same command,
+    the program's fold word, made by the run before it gives its slot back, so it runs inside the run's slot
+    and holds the kept session while it goes; a fold that went through leaves the session kept and valid,
+    its context unread until the next run answers on it, and one that did not leaves it as it stood. A run
+    of a `fresh` role keeps nothing and folds nothing.
   - A run on a registered model's road is the one exception: it is launched with the share
     its registration leaves for the answer (`docs/own-llm.md`, 「A turn at the input limit」).
   - Whatever a consumer sent the session to hold — a co-work result among it — is folded away with

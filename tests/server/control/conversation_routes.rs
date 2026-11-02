@@ -135,7 +135,8 @@ async fn a_running_server_opens_a_conversation_on_a_named_road_and_switches_both
   )
   .await;
 
-  assert_eq!(status, 400, "a conversation names its provider: {refused}");
+  assert_eq!(status, 201, "a conversation naming no provider is Claude Code's: {refused}");
+  assert_eq!(refused["provider"], "claude-code");
 
   assert_eq!(delete(port, token, "/sessions/chat-agent@conversation:1").await, 204);
   assert_eq!(get(port, token, "/sessions/chat-agent@conversation:1").await.0, 404);

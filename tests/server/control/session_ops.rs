@@ -7,7 +7,7 @@
 use std::collections::BTreeMap;
 
 use agency_server::control::session_ops::{
-  answer_read, carried, context_read, scope_read, scope_value, state_value,
+  answer_read, carried, context_read, scope_read, scope_value, state_value, work_asked, work_of,
 };
 use agent_session::{
   AccountFailure, Answer, Apart, Asks, Context, Conversation, Failure, GateAsk, JobMark, Mapping, Outcome,
@@ -15,6 +15,8 @@ use agent_session::{
   TurnEnd, WentOut, WorkParts,
 };
 use serde_json::json;
+
+use crate::support::scratch::Scratch;
 
 #[test]
 fn a_gates_one_turn_reads_its_system_prompt_thinking_and_mapping() {
@@ -93,16 +95,17 @@ fn a_turns_context_reads_every_part_it_names_and_none_of_what_it_does_not() {
   assert!(context_read(&json!({ "answers": "7" })).is_err());
 }
 
-// A work turn's body as a job's runner sends it, every part named.
+// A role's session's turn as its caller sends it, every part of its own named, beside the parts a turn no
+// longer carries.
 fn work_body() -> serde_json::Value {
   json!({
-    "session": "worker-a@worker",
     "prompt": "p",
-    "provider": "claude-code",
-    "model": "opus",
-    "mapping": { "model": "opus-5", "effort": "high", "tier": "frontier", "answer_tokens": 32_000 },
+    "provider": "codex",
+    "model": "another",
+    "mapping": { "model": "another", "effort": "low", "tier": "frontier" },
+    "workKey": "job-worker",
+    "cwd": "/elsewhere",
     "resume": { "kind": "session", "id": "harness-1" },
-    "cwd": "/checkouts/a",
     "name": "job-41",
     "title": "#1802 build",
     "job": 41,
@@ -110,33 +113,43 @@ fn work_body() -> serde_json::Value {
     "chat": -5,
     "unit": "bmo-job-41",
     "user": "7",
-    "work_key": "job-worker",
-    "hears_words": true,
+    "hearsWords": true,
     "variables": { "BMO_EXTRA": "1" },
   })
 }
 
-#[test]
-fn a_work_turns_parts_read_whole_by_the_names_a_jobs_runner_sends() {
-  let context = context_read(&work_body()).unwrap();
+fn session_on_slot() -> Apart {
+  Apart {
+    provider: "claude-code".into(),
+    model: "opus-5".into(),
+    effort: Some("high".into()),
+    cwd: "/checkouts/a".into(),
+    role: Some("worker".into()),
+    ..Apart::default()
+  }
+}
+
+#[tokio::test]
+async fn a_role_sessions_turn_goes_out_on_the_sessions_road_with_the_parts_it_names_of_its_own() {
+  let scratch = Scratch::new().await;
+  let asked = work_asked(&work_body()).unwrap();
+  let work = work_of(scratch.db(), "worker", &session_on_slot(), asked).await;
 
   assert_eq!(
-    context.job,
-    Some(JobMark {
-      job: 41,
-      item: Some(1802)
-    })
+    context_read(&work_body()).unwrap().work,
+    None,
+    "the context carries no work parts of its own"
   );
   assert_eq!(
-    context.work,
-    Some(WorkParts {
+    work,
+    WorkParts {
       provider: "claude-code".into(),
-      model: "opus".into(),
+      model: "opus-5".into(),
       mapping: Mapping {
         model: "opus-5".into(),
         effort: Some("high".into()),
-        tier: Some("frontier".into()),
-        answer_tokens: Some(32_000),
+        tier: None,
+        answer_tokens: work.mapping.answer_tokens,
       },
       resume: Resume::Session {
         id: "harness-1".into()
@@ -147,62 +160,30 @@ fn a_work_turns_parts_read_whole_by_the_names_a_jobs_runner_sends() {
       chat: -5,
       unit: Some("bmo-job-41".into()),
       user: Some("7".into()),
-      work_key: "job-worker".into(),
+      work_key: "worker".into(),
       hears_words: true,
       variables: BTreeMap::from([("BMO_EXTRA".into(), "1".into())]),
-    })
+    },
+    "provider, model, mapping, workKey and cwd are the session's, whatever the body names"
   );
 
-  let mut least = work_body();
+  let least = work_of(
+    scratch.db(),
+    "worker",
+    &session_on_slot(),
+    work_asked(&json!({ "prompt": "p" })).unwrap(),
+  )
+  .await;
 
-  for optional in ["unit", "user", "hears_words", "variables"] {
-    least.as_object_mut().unwrap().remove(optional);
-  }
+  assert_eq!(least.resume, Resume::Auto);
+  assert_eq!((least.title.as_str(), least.chat, least.hears_words), ("worker", 0, false));
+  assert!(least.name.starts_with("worker-") && least.variables.is_empty() && least.unit.is_none());
 
-  least["mapping"] = json!({ "model": "opus-5" });
-  least["resume"] = json!({ "kind": "auto" });
-
-  let work = context_read(&least).unwrap().work.unwrap();
-
-  assert_eq!((work.unit, work.user), (None, None));
-  assert!(!work.hears_words && work.variables.is_empty());
-  assert_eq!((work.mapping.effort, work.mapping.tier, work.mapping.answer_tokens), (None, None, None));
-  assert_eq!(work.resume, Resume::Auto);
-
-  least["resume"] = json!({ "kind": "fresh" });
-  assert_eq!(context_read(&least).unwrap().work.unwrap().resume, Resume::Fresh);
-
-  for required in ["provider", "model", "resume", "cwd", "name", "title", "chat", "work_key"] {
-    let mut missing = work_body();
-
-    missing.as_object_mut().unwrap().remove(required);
-    assert!(context_read(&missing).is_err(), "a work turn with no {required} is refused");
-  }
-
-  let mut unknown = work_body();
-
-  unknown["resume"] = json!({ "kind": "latest" });
-  assert!(context_read(&unknown).is_err(), "a resume of no known kind is refused");
-  assert_eq!(context_read(&json!({ "mapping": null })).unwrap().work, None);
-}
-
-// The boundary names the work key and whether words reach the turn in camelCase, as `TurnSend` declares
-// them; the snake_case spellings read the same.
-#[test]
-fn a_work_turns_parts_read_by_the_boundary_s_camel_case_names() {
-  let snake = context_read(&work_body()).unwrap().work.unwrap();
-  let mut camel = work_body();
-  let body = camel.as_object_mut().unwrap();
-
-  body.remove("work_key");
-  body.remove("hears_words");
-  body.insert("workKey".into(), json!("job-worker"));
-  body.insert("hearsWords".into(), json!(true));
-
-  assert_eq!(context_read(&camel).unwrap().work.unwrap(), snake);
-
-  camel.as_object_mut().unwrap().remove("workKey");
-  assert!(context_read(&camel).is_err(), "a work turn with no work key is refused");
+  assert!(
+    work_asked(&json!({ "resume": { "kind": "latest" } })).is_err(),
+    "a resume of no known kind is refused"
+  );
+  assert!(work_asked(&json!({ "hears_words": true })).unwrap().hears_words == Some(true));
 }
 
 #[test]
@@ -241,12 +222,18 @@ fn a_thrown_away_scope_reads_its_provider_model_and_folder_and_answers_as_it_rea
     })
   );
 
-  for missing in ["provider", "model", "cwd"] {
-    let mut body = json!({ "scope": { "kind": "role", "provider": "p", "model": "m", "cwd": "/c" } });
-
-    body["scope"].as_object_mut().unwrap().remove(missing);
-    assert!(scope_read(&body).is_err(), "a thrown-away scope with no {missing} is refused");
-  }
+  assert_eq!(
+    scope_read(&json!({ "scope": { "kind": "role", "role": "scout" } })).unwrap(),
+    Scope::Apart(Apart {
+      role: Some("scout".into()),
+      ..Apart::default()
+    }),
+    "a role's road and folder are its slot's, laid on it as the start is answered"
+  );
+  assert!(
+    scope_read(&json!({ "scope": { "kind": "worker" } })).is_err(),
+    "there is no worker scope"
+  );
 
   assert!(
     scope_read(
@@ -286,12 +273,19 @@ fn a_conversations_scope_reads_its_provider_and_model_and_answers_as_it_read() {
     "a conversation with no folder named takes the deployment's own"
   );
 
-  for missing in ["provider", "model"] {
-    let mut body = json!({ "scope": { "kind": "conversation", "provider": "p", "model": "m" } });
-
-    body["scope"].as_object_mut().unwrap().remove(missing);
-    assert!(scope_read(&body).is_err(), "a conversation with no {missing} is refused");
-  }
+  assert_eq!(
+    scope_read(&json!({ "scope": { "kind": "conversation", "model": "m" } })).unwrap(),
+    Scope::Conversation(Conversation {
+      provider: "claude-code".into(),
+      model: "m".into(),
+      cwd: String::new(),
+    }),
+    "a conversation naming no provider is Claude Code's"
+  );
+  assert!(
+    scope_read(&json!({ "scope": { "kind": "conversation", "provider": "p" } })).is_err(),
+    "a conversation with no model is refused"
+  );
 }
 
 #[test]
@@ -494,4 +488,78 @@ async fn work_a_caller_lets_go_of_is_carried_to_its_end() {
     "ended"
   );
   assert_eq!(carried(async { "answered" }).await, "answered");
+}
+
+// A role's start laid on the slot its caller was let in on: the slot's role, road, effort and path, a field
+// contradicting it refused, a slot not let in refused, and the transition form naming the road whole.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_roles_start_runs_on_the_slot_it_names() {
+  use agency_server::control::session_ops::on_slot;
+  use agency_server::order_run::dispatch::{self, Asked, Wanted};
+
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = crate::support::grounds::seeded(scratch.db(), home.path()).await;
+
+  crate::support::grounds::deepseek_balance(&ground, 5.0).await;
+
+  let ask = |key: &str| Asked {
+    request_key: format!("test:{key}"),
+    owner: format!("owner:{key}"),
+    wanted: Wanted {
+      role: "worker",
+      path: Some("/checkouts/slot"),
+      fixed: None,
+    },
+    ..Asked::default()
+  };
+  let held = dispatch::enqueue(&ground.db, &ask("start"), "job", async |_, _| Ok(())).await.unwrap();
+  let refused_waiting = on_slot(&ground.db, &json!({ "slot": held.token }), &mut Apart::default()).await;
+
+  assert_eq!(refused_waiting.unwrap_err().code.as_deref(), Some("slot-not-active"));
+
+  let active = dispatch::acquire(&ground, &held).await.unwrap().expect("let in");
+  let mut apart = Apart::default();
+
+  on_slot(&ground.db, &json!({ "slot": active.token, "provider": active.provider }), &mut apart)
+    .await
+    .unwrap();
+  assert_eq!(
+    (apart.role.as_deref(), apart.provider.as_str(), apart.model.as_str(), apart.cwd.as_str()),
+    (Some("worker"), active.provider.as_str(), active.model.as_str(), "/checkouts/slot")
+  );
+  assert_eq!(apart.effort, active.effort);
+
+  let mut other_road = Apart {
+    model: "another-model".into(),
+    ..Apart::default()
+  };
+  let mut other_role = Apart {
+    role: Some("helper".into()),
+    ..Apart::default()
+  };
+
+  for apart in [&mut other_road, &mut other_role] {
+    let refused = on_slot(&ground.db, &json!({ "slot": active.token }), apart).await.unwrap_err();
+
+    assert_eq!(refused.code.as_deref(), Some("contradicts-slot"));
+  }
+
+  let mut named = Apart {
+    provider: "claude-code".into(),
+    model: "opus-5".into(),
+    role: Some("worker".into()),
+    ..Apart::default()
+  };
+
+  on_slot(&ground.db, &json!({}), &mut named).await.unwrap();
+  assert_eq!(
+    (named.provider.as_str(), named.cwd.as_str()),
+    ("claude-code", "."),
+    "the transition form"
+  );
+  assert!(
+    on_slot(&ground.db, &json!({}), &mut Apart::default()).await.is_err(),
+    "no slot and no road"
+  );
 }

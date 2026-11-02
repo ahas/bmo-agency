@@ -100,18 +100,88 @@ struct RoomRead {
   mark: String,
 }
 
-/// The turn's context a body names, or why it does not read as one. A work turn's parts are read, whole,
-/// where the body names the line its turn is laid on.
+/// What a role's session's turn names of its own (docs/api.md, 「sessions」), every part optional: the run's
+/// name and title, the room its lines stand under, its unit and user, which session it goes on, whether words
+/// pushed into it reach it, and its variables. The road, the effort and the folder are the session's, so a
+/// body's `provider`, `model`, `mapping` and `workKey` are read as if it did not name them.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkAsk {
+  #[serde(default)]
+  pub name: Option<String>,
+  #[serde(default)]
+  pub title: Option<String>,
+  #[serde(default)]
+  pub chat: Option<i64>,
+  #[serde(default)]
+  pub unit: Option<String>,
+  #[serde(default)]
+  pub user: Option<String>,
+  #[serde(default)]
+  pub resume: Option<agent_session::Resume>,
+  #[serde(default, alias = "hears_words")]
+  pub hears_words: Option<bool>,
+  #[serde(default)]
+  pub variables: Option<std::collections::BTreeMap<String, String>>,
+}
+
+/// The parts of its own a turn's body names, or why they do not read.
+pub fn work_asked(body: &Value) -> Result<WorkAsk, Refused> {
+  serde_json::from_value(body.clone()).map_err(|why| {
+    Refused::new(StatusCode::BAD_REQUEST, format!("the turn's own parts do not read: {why}"))
+  })
+}
+
+/// The work parts a role's session's turn goes out with: the session's provider, model, effort and folder, the
+/// answer ceiling its role's order names for that provider, and what the turn names of its own, a run name
+/// and a title given where it names none.
+pub async fn work_of(
+  db: &sea_orm::DatabaseConnection,
+  agent: &str,
+  apart: &Apart,
+  asked: WorkAsk,
+) -> WorkParts {
+  let role = apart.role.clone().unwrap_or_else(|| crate::agent_roles::job_role().to_owned());
+  let answer_tokens = match apart.provider.as_str() {
+    "" => None,
+    provider => crate::order::role_entry(db, &role, provider)
+      .await
+      .ok()
+      .and_then(|entry| entry.answer_tokens),
+  };
+
+  WorkParts {
+    provider: apart.provider.clone(),
+    model: apart.model.clone(),
+    mapping: agent_session::Mapping {
+      model: apart.model.clone(),
+      effort: apart.effort.clone(),
+      tier: None,
+      answer_tokens: answer_tokens.and_then(|tokens| u64::try_from(tokens).ok()),
+    },
+    resume: asked.resume.unwrap_or(agent_session::Resume::Auto),
+    cwd: apart.cwd.clone(),
+    name: asked
+      .name
+      .filter(|name| !name.trim().is_empty())
+      .unwrap_or_else(|| format!("{agent}-{}", crate::now_ms())),
+    title: asked.title.filter(|title| !title.trim().is_empty()).unwrap_or_else(|| role.clone()),
+    chat: asked.chat.unwrap_or_default(),
+    unit: asked.unit,
+    user: asked.user,
+    work_key: role,
+    hears_words: asked.hears_words.unwrap_or(false),
+    variables: asked.variables.unwrap_or_default(),
+  }
+}
+
+/// The turn's context a body names, or why it does not read as one. A role's session's work parts are no part
+/// of it: they are the session's, laid on the turn as it is sent (`work_of`).
 pub fn context_read(body: &Value) -> Result<TurnContext, Refused> {
   let read: ContextRead = serde_json::from_value(body.clone()).map_err(|why| {
     Refused::new(StatusCode::BAD_REQUEST, format!("the turn's context does not read: {why}"))
   })?;
-  let work = match body.get("mapping") {
-    None | Some(Value::Null) => None,
-    Some(_) => Some(serde_json::from_value::<WorkParts>(body.clone()).map_err(|why| {
-      Refused::new(StatusCode::BAD_REQUEST, format!("the work turn's parts do not read: {why}"))
-    })?),
-  };
+  let work = None;
   let named =
     |value: Option<String>| value.map(|value| value.trim().to_owned()).filter(|value| !value.is_empty());
 
@@ -211,7 +281,7 @@ pub fn scope_read(body: &Value) -> Result<Scope, Refused> {
 
   match scope.get("kind").and_then(Value::as_str) {
     Some("agent") => Ok(Scope::Agent),
-    Some("worker") => Ok(Scope::Worker),
+    Some("worker") => Err(bad(WORKER_RETIRED)),
     Some("room") => match scope.get("room") {
       Some(Value::String(room)) if !room.is_empty() => Ok(Scope::Room(room.clone())),
       Some(Value::Number(room)) => Ok(Scope::Room(room.to_string())),
@@ -229,10 +299,14 @@ pub fn scope_read(body: &Value) -> Result<Scope, Refused> {
         Some(_) => return Err(bad("a thrown-away scope's role is a string")),
       };
 
+      let optional = |field: &str| {
+        scope.get(field).and_then(Value::as_str).map(str::trim).unwrap_or_default().to_owned()
+      };
+
       Ok(Scope::Apart(Apart {
-        provider: named("provider")?,
-        model: named("model")?,
-        cwd: named("cwd")?,
+        provider: optional("provider"),
+        model: optional("model"),
+        cwd: optional("cwd"),
         todo,
         role,
         ..Apart::default()
@@ -240,14 +314,15 @@ pub fn scope_read(body: &Value) -> Result<Scope, Refused> {
     }
     Some("conversation") => {
       let named = |field: &str| text(scope, field).map(|value| value.trim().to_owned());
+      let provider = scope.get("provider").and_then(Value::as_str).map(str::trim).unwrap_or_default();
 
       Ok(Scope::Conversation(Conversation {
-        provider: named("provider")?,
+        provider: (if provider.is_empty() { CONVERSATION_PROVIDER } else { provider }).to_owned(),
         model: named("model")?,
         cwd: scope.get("cwd").and_then(Value::as_str).map(str::trim).unwrap_or_default().to_owned(),
       }))
     }
-    _ => Err(bad("scope.kind is agent, room, worker, apart or conversation")),
+    _ => Err(bad("scope.kind is agent, room, role or conversation")),
   }
 }
 
@@ -279,7 +354,7 @@ pub fn scope_asked(body: &Value) -> Result<Scope, Refused> {
   if let Some(scope) = body.get("scope").and_then(Value::as_str) {
     return match scope {
       "agent" => Ok(Scope::Agent),
-      "worker" => Ok(Scope::Worker),
+      "worker" => Err(bad(WORKER_RETIRED)),
       "room" => {
         let room = body
           .get("roomId")
@@ -298,19 +373,12 @@ pub fn scope_asked(body: &Value) -> Result<Scope, Refused> {
         };
         let runner = runner_asked(body)?;
 
-        if scope == "role" && field("role").is_none() {
-          return Err(bad("a role's run names its role"));
-        }
+        let cwd = field("cwd").unwrap_or_default().to_owned();
 
-        let cwd = match (field("cwd"), runner.system_prompt.is_some()) {
-          (Some(cwd), _) => cwd.to_owned(),
-          (None, true) => String::new(),
-          (None, false) => ".".to_owned(),
-        };
-
+        // The road is the slot's, read as the start is answered; a start naming no slot names it whole.
         Ok(Scope::Apart(Apart {
-          provider: field("provider").unwrap_or("claude-code").to_owned(),
-          model: field("model").ok_or_else(|| bad("a thrown-away scope names its model"))?.to_owned(),
+          provider: field("provider").unwrap_or_default().to_owned(),
+          model: field("model").unwrap_or_default().to_owned(),
           cwd,
           todo: number(&options, "todo").or_else(|| number(body, "todo")),
           role: field("role").map(str::to_owned),
@@ -327,19 +395,29 @@ pub fn scope_asked(body: &Value) -> Result<Scope, Refused> {
             .filter(|value| !value.is_empty())
         };
         Ok(Scope::Conversation(Conversation {
-          provider: field("provider")
-            .ok_or_else(|| bad("a conversation's scope names its provider"))?
-            .to_owned(),
+          provider: field("provider").unwrap_or(CONVERSATION_PROVIDER).to_owned(),
           model: field("model").ok_or_else(|| bad("a conversation's scope names its model"))?.to_owned(),
           cwd: field("cwd").map(str::to_owned).unwrap_or_default(),
         }))
       }
-      other => Err(bad(format!("scope is agent, room, worker, role or conversation, not {other}"))),
+      other => Err(bad(format!("scope is agent, room, role or conversation, not {other}"))),
     };
   }
 
   scope_read(body)
 }
+
+/// Why a start naming the `worker` scope is refused (docs/api.md, 「sessions」).
+pub const WORKER_RETIRED: &str = "There is no worker scope: a run in a repository is a role's run at its checkout, started with the role scope \
+   and the slot it was let in on";
+
+/// The fault a route answers for a session of the retired worker scope.
+fn retired(id: &str) -> Fault {
+  Fault::new(FaultKind::Unknown, format!("{id} is no session: {WORKER_RETIRED}"))
+}
+
+/// The provider a conversation's turns go out on where its start names none.
+const CONVERSATION_PROVIDER: &str = "claude-code";
 
 /// The labels keys agency writes into a record itself, which a start's labels may not name.
 const OWN_LABELS: [&str; 5] = ["line", "checkout", "archive", "role", "place"];
@@ -488,7 +566,12 @@ impl Route for SessionStart {
 
   async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
     let body = call.body().await?;
-    let scope = scope_asked(&body)?;
+    let mut scope = scope_asked(&body)?;
+
+    if let Scope::Apart(apart) = &mut scope {
+      on_slot(call.store(), &body, apart).await?;
+    }
+
     // A role's run goes under its role's name where its start names no other.
     let agent = match (&scope, agent_named(&body)) {
       (_, Ok(agent)) => agent.to_owned(),
@@ -543,6 +626,83 @@ impl Route for SessionStart {
 
 crate::moved!(SessionStart);
 
+// The token of the slot a role's start names: at the top of the body, among its options, or in its scope.
+fn slot_named(body: &Value) -> Option<String> {
+  [body.get("slot"), body.pointer("/options/slot"), body.pointer("/scope/slot")]
+    .into_iter()
+    .flatten()
+    .find_map(Value::as_str)
+    .map(str::trim)
+    .filter(|token| !token.is_empty())
+    .map(str::to_owned)
+}
+
+fn contradicts(why: String) -> Refused {
+  Refused::new(StatusCode::UNPROCESSABLE_ENTITY, why).with_code("contradicts-slot")
+}
+
+/// A role's start laid on the slot its caller was let in on (docs/api.md, 「sessions」): the slot's role, provider,
+/// model and effort, and its path where the start names no folder. The slot must be active; a role, provider or
+/// model the start names must be the slot's own. A start naming no slot names its role, provider and model
+/// together, and goes out on that road.
+pub async fn on_slot(
+  db: &sea_orm::DatabaseConnection,
+  body: &Value,
+  apart: &mut Apart,
+) -> Result<(), Refused> {
+  let Some(token) = slot_named(body) else {
+    if apart.provider.is_empty() || apart.model.is_empty() || apart.role.is_none() {
+      return Err(bad("a role's run names the slot it was let in on"));
+    }
+
+    if apart.cwd.is_empty() && !apart.on_runner_line() {
+      ".".clone_into(&mut apart.cwd);
+    }
+
+    return Ok(());
+  };
+  let held = crate::order_run::dispatch::request(db, &token)
+    .await
+    .map_err(Refused::failed)?
+    .filter(|held| held.state == "active")
+    .ok_or_else(|| {
+      Refused::new(
+        StatusCode::UNPROCESSABLE_ENTITY,
+        format!("No active slot request holds the token {token}"),
+      )
+      .with_code("slot-not-active")
+    })?;
+
+  if let Some(role) = &apart.role
+    && *role != held.role
+  {
+    return Err(contradicts(format!("The slot is the {} role's, not {role}'s", held.role)));
+  }
+
+  for (field, named, own) in
+    [("provider", &apart.provider, &held.provider), ("model", &apart.model, &held.model)]
+  {
+    if !named.is_empty() && named != own {
+      return Err(contradicts(format!("The slot was let in on the {field} {own}, not {named}")));
+    }
+  }
+
+  apart.role = Some(held.role.clone());
+  apart.provider.clone_from(&held.provider);
+  apart.model.clone_from(&held.model);
+  apart.effort.clone_from(&held.effort);
+
+  if apart.cwd.is_empty() {
+    apart.cwd = match (&held.path, apart.on_runner_line()) {
+      (Some(path), _) => path.clone(),
+      (None, true) => String::new(),
+      (None, false) => ".".to_owned(),
+    };
+  }
+
+  Ok(())
+}
+
 /// Why a thrown-away session on a runner line cannot go out on the provider its start names, in one sentence:
 /// a provider this build does not carry, one the owner switched off, or one whose program does not carry the
 /// line; none where it can, and for a session on the worker line, whose provider the backend judges.
@@ -594,13 +754,32 @@ impl Route for SessionTurn {
   async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
     let body = call.body().await?;
     let session = call.param("sessionId").unwrap_or_default().to_owned();
-    let turn = Turn {
+    let mut turn = Turn {
       session: SessionId(session.clone()),
       prompt: text(&body, "prompt")?.to_owned(),
       context: context_read(&body)?,
     };
-
+    let asked = work_asked(&body)?;
     let sessions = backend(&call)?;
+
+    // A role's session lays its own road on the turn; the transition address of a repository's worker run
+    // takes its road from the slot the backend asks, the turn's own parts beside it.
+    if turn.context.gate.is_none() {
+      match sessions.held_scope(&turn.session).await {
+        Ok((agent, Scope::Apart(apart))) => {
+          turn.context.work = Some(work_of(call.store(), &agent, &apart, asked).await);
+        }
+        Ok((agent, Scope::Worker)) => {
+          let apart = Apart {
+            role: Some(crate::agent_roles::job_role().to_owned()),
+            ..Apart::default()
+          };
+
+          turn.context.work = Some(work_of(call.store(), &agent, &apart, asked).await);
+        }
+        _ => {}
+      }
+    }
 
     Ok(match carried(async move { sessions.send_turn(turn).await }).await {
       Ok(end) => {
@@ -677,6 +856,7 @@ impl Route for SessionState {
     let model = call.query("model").filter(|model| !model.trim().is_empty());
     let backend = backend(&call)?;
     let (agent, scope) = match backend.held_scope(&session).await {
+      Ok((_, Scope::Worker)) => return Ok(faulted(retired(&id))),
       Ok(held) => held,
       Err(fault) => return Ok(faulted(fault)),
     };
@@ -750,9 +930,9 @@ async fn keep_holder(
   Ok((holder, reason))
 }
 
-/// A session moved: a conversation's or a thrown-away session's provider and model switched where the body
-/// names them, or a worker's session handed over to the holder the body names, the held session closed
-/// with its note for the next turn, its record dropped, and the new holder kept for the session's state.
+/// A session moved: a conversation's or a role's session's provider and model switched where the body names
+/// them, or a role's kept session handed over to the holder the body names, the session kept for its role at
+/// its path on its provider and model closed with its record, and the holder kept for the session's state.
 pub struct SessionHandover;
 
 impl Route for SessionHandover {
@@ -769,148 +949,64 @@ impl Route for SessionHandover {
       Err(fault) => return Ok(faulted(fault)),
     };
 
-    // A conversation's and a thrown-away session's provider and model move on the change route; a
-    // worker's model moves by its hand-over below, and every other scope's stands on its agent's row.
-    if !matches!(scope, Scope::Worker) {
-      let options = body.get("options").cloned().unwrap_or(Value::Null);
-      let given = |name: &str| {
-        options
-          .get(name)
-          .or_else(|| body.get(name))
-          .and_then(Value::as_str)
-          .map(str::trim)
-          .filter(|value| !value.is_empty())
-          .map(str::to_owned)
+    // A conversation's and a role's session's provider and model move on the change route; every other
+    // scope's stands on its row, and the worker scope is no session's (docs/api.md, 「sessions」).
+    if matches!(scope, Scope::Worker) {
+      return Ok(faulted(retired(&id)));
+    }
+
+    let options = body.get("options").cloned().unwrap_or(Value::Null);
+    let given = |name: &str| {
+      options
+        .get(name)
+        .or_else(|| body.get(name))
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_owned)
+    };
+    let (provider, model) = (given("provider"), given("model"));
+
+    // A role's kept session handed over: the session kept for its role at its path on its provider and model
+    // closed with its record, and the holder the body names kept for the session's state.
+    if let Scope::Apart(apart) = &scope
+      && provider.is_none()
+      && model.is_none()
+      && body.get("holder").is_some()
+    {
+      if let Some(role) = &apart.role {
+        crate::apart_sessions::hand_over_key(call.store(), role, &apart.cwd, &apart.provider, &apart.model)
+          .await
+          .map_err(Refused::failed)?;
+      }
+
+      let (holder, reason) = keep_holder(call.store(), &id, &body).await?;
+      let state = backend.read_state(&session, None).await.ok();
+      let started = Session {
+        id: session.clone(),
+        agent,
+        scope: scope.clone(),
       };
-      let (provider, model) = (given("provider"), given("model"));
+      let read = folded(call.store(), member(&started, state.as_ref(), &body)).await?;
 
-      if provider.is_none() && model.is_none() {
-        return Err(Refused::new(
-          StatusCode::UNPROCESSABLE_ENTITY,
-          format!("{id} is switched by naming the provider or the model it moves to"),
-        ));
-      }
-
-      return Ok(match backend.switch(&session, provider.as_deref(), model.as_deref()).await {
-        Ok(moved) => {
-          let state = backend.read_state(&moved.id, None).await.ok();
-
-          answer(StatusCode::OK, folded(call.store(), member(&moved, state.as_ref(), &body)).await?)
-        }
-        Err(fault) => faulted(fault),
-      });
+      return Ok(answer(StatusCode::OK, with_holder(read, holder, reason)));
     }
 
-    let ground = call.ground();
-    let db = &ground.db;
-    let model = body.get("model").and_then(Value::as_str).map(str::to_owned);
-    let state = match backend.read_state(&session, model.as_deref()).await {
-      Ok(state) => state,
-      // Nothing of the worker's is open to hand over: the holder is kept all the same, since the
-      // session is the worker's whether or not its record still stands.
-      Err(fault) if fault.kind == FaultKind::Unknown => {
-        if !AgentRow::named(db, &agent).await?.is_some_and(|row| row.kind == "worker") {
-          return Err(Refused::new(StatusCode::NOT_FOUND, format!("no worker is named {agent}")));
-        }
-
-        let (holder, reason) = keep_holder(db, &id, &body).await?;
-
-        return Ok(answer(
-          StatusCode::OK,
-          with_holder(member(&session_with(&id, &agent), None, &body), holder, reason),
-        ));
-      }
-      Err(fault) => return Ok(faulted(fault)),
-    };
-    let model = model.filter(|model| !model.trim().is_empty()).unwrap_or(state.model.clone());
-    let options = body.get("options").cloned().unwrap_or_else(|| json!({}));
-    let given = |key: &str| options.get(key).and_then(Value::as_str).map(str::to_owned);
-    let cwd = match given("cwd") {
-      Some(cwd) => cwd,
-      None => AgentRow::named(db, &agent)
-        .await
-        .ok()
-        .flatten()
-        .and_then(|row| row.cwd)
-        .unwrap_or_else(|| state.place.clone()),
-    };
-
-    // The session named, or with none named the kept session on the model under the login its newest
-    // record names.
-    let (held, kept_under) = match given("session") {
-      Some(session) => (session, None),
-      None => {
-        let kept = records::sessions(db, &agent)
-          .await?
-          .into_iter()
-          .filter(|held| held.model == model)
-          .max_by_key(|held| held.last_reply_at);
-        let Some(kept) = kept else {
-          let (holder, reason) = keep_holder(db, &id, &body).await?;
-          return Ok(answer(
-            StatusCode::OK,
-            with_holder(
-              folded(db, member(&session_with(&id, &agent), Some(&state), &body)).await?,
-              holder,
-              reason,
-            ),
-          ));
-        };
-        let ttl = session_ttl_ms(ground, &model).await;
-        let Some(session) = records::resumable(db, &agent, &model, &kept.account, ttl).await? else {
-          let (holder, reason) = keep_holder(db, &id, &body).await?;
-          return Ok(answer(
-            StatusCode::OK,
-            with_holder(
-              folded(db, member(&session_with(&id, &agent), Some(&state), &body)).await?,
-              holder,
-              reason,
-            ),
-          ));
-        };
-
-        (session, Some(kept.account))
-      }
-    };
-    let line = worker_run(ground, &Trees::of(ground), Some(&agent), None, &model, &cwd)
-      .await
-      .map_err(|why| Refused::failed(why.detail))?;
-    let run = SessionRun {
-      mode: crate::worker_session::PROVIDER,
-      line,
-      prompt: String::new(),
-      resume: Some(held),
-      account: None,
-      placement: None,
-    };
-
-    held_session::hand_over(ground, &agent, &run)
-      .await
-      .map_err(|why| Refused::failed(why.detail))?;
-
-    if let Some(account) = kept_under {
-      records::forget(db, &agent, &model, Some(&account)).await?;
+    if provider.is_none() && model.is_none() {
+      return Err(Refused::new(
+        StatusCode::UNPROCESSABLE_ENTITY,
+        format!("{id} is switched by naming the provider or the model it moves to"),
+      ));
     }
 
-    let (holder, reason) = keep_holder(db, &id, &body).await?;
+    Ok(match backend.switch(&session, provider.as_deref(), model.as_deref()).await {
+      Ok(moved) => {
+        let state = backend.read_state(&moved.id, None).await.ok();
 
-    Ok(answer(
-      StatusCode::OK,
-      with_holder(
-        folded(db, member(&session_with(&id, &agent), Some(&state), &body)).await?,
-        holder,
-        reason,
-      ),
-    ))
-  }
-}
-
-// The session a route read its state for, as the member builder takes it.
-fn session_with(id: &str, agent: &str) -> Session {
-  Session {
-    id: SessionId(id.to_owned()),
-    agent: agent.to_owned(),
-    scope: Scope::Worker,
+        answer(StatusCode::OK, folded(call.store(), member(&moved, state.as_ref(), &body)).await?)
+      }
+      Err(fault) => faulted(fault),
+    })
   }
 }
 
@@ -1057,8 +1153,13 @@ impl Route for SessionFold {
 
   async fn answer(&self, call: Call) -> Result<Response, Refused> {
     let session = SessionId(call.param("sessionId").unwrap_or_default().to_owned());
+    let backend = backend(&call)?;
 
-    Ok(match backend(&call)?.fold(&session).await {
+    if let Ok((_, Scope::Worker)) = backend.held_scope(&session).await {
+      return Ok(faulted(retired(&session.0)));
+    }
+
+    Ok(match backend.fold(&session).await {
       Ok(()) => answer(StatusCode::CREATED, json!({ "sessionId": session.0, "at": crate::now_ms() })),
       Err(fault) => faulted(fault),
     })
@@ -1076,8 +1177,13 @@ impl Route for SessionEnd {
 
   async fn answer(&self, call: Call) -> Result<Response, Refused> {
     let session = SessionId(call.param("sessionId").unwrap_or_default().to_owned());
+    let backend = backend(&call)?;
 
-    Ok(match backend(&call)?.end(&session).await {
+    if let Ok((_, Scope::Worker)) = backend.held_scope(&session).await {
+      return Ok(faulted(retired(&session.0)));
+    }
+
+    Ok(match backend.end(&session).await {
       Ok(()) => StatusCode::NO_CONTENT.into_response(),
       Err(fault) => faulted(fault),
     })

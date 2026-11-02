@@ -96,6 +96,8 @@ pub async fn view(ground: &Ground, supervisor: &Supervisor) -> Result<Value, Ref
     "model": supervisor.last_model,
     "effort": supervisor.last_effort,
     "waitingFor": waiting_for,
+    "seeded": supervisor.builtin || supervisor.default_answerer,
+    "resetPoint": crate::companion::overtaken::point(db, &supervisor.name).await,
   }))
 }
 

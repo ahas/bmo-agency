@@ -6765,14 +6765,31 @@
               "null"
             ],
             "format": "double",
-            "description": "The share of its model's window the session may fill before it is folded once the turn that crossed it is over: the fold-ratio table's value for the provider it stands on and the tier its agent's work key is assigned, read with the session's state; none in a list, or where the state names no provider."
+            "description": "The share of its model's window the session may fill before it is folded once the turn that crossed it is\nover: the compaction threshold of its supervisor or its role, read afresh with each read."
           },
-          "tier": {
+          "context": {
+            "description": "The context its last turn left, `carried` tokens against the model's `window`, or none.",
+            "default": null
+          },
+          "foldsItself": {
+            "type": "boolean",
+            "description": "Whether the session's program compacts itself at its fold ratio and takes no fold call.",
+            "default": false
+          },
+          "supervisor": {
             "type": [
               "string",
               "null"
             ],
-            "description": "The tier the session's agent's work key is assigned, which its fold ratio is read at; none where the key\nis assigned none.",
+            "description": "The supervisor the session runs for, or none.",
+            "default": null
+          },
+          "role": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The role the session runs for, or none.",
             "default": null
           }
         },
@@ -6788,14 +6805,16 @@
           "holder",
           "prefixChangeReason",
           "options",
-          "tier"
+          "context",
+          "foldsItself",
+          "supervisor",
+          "role"
         ],
         "description": "Session:"
       },
       "SessionScope": {
         "type": "string",
         "enum": [
-          "worker",
           "room",
           "agent",
           "role",
@@ -6806,6 +6825,13 @@
       "SessionStart": {
         "type": "object",
         "properties": {
+          "slot": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The token of the slot request a role's run was let in on: the run takes its role, provider, model, effort\nand, where the start names no folder, its path."
+          },
           "agentName": {
             "type": [
               "string",
@@ -7196,26 +7222,7 @@
             ],
             "format": "int64"
           },
-          "provider": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "model": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "mapping": true,
           "resume": true,
-          "cwd": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
           "name": {
             "type": [
               "string",
@@ -7247,12 +7254,6 @@
               "null"
             ]
           },
-          "workKey": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
           "hearsWords": {
             "type": [
               "boolean",
@@ -7264,7 +7265,7 @@
         "required": [
           "prompt"
         ],
-        "description": "The body that sends a turn: its prompt, the context around it, and a job turn's parts."
+        "description": "The body that sends a turn: its prompt, the context around it, and what a role's session's turn names of its\nown."
       },
       "RoomBlockAsk": {
         "type": "object",
@@ -9752,6 +9753,14 @@
           "workerName": {
             "type": "string"
           },
+          "repositoryName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The repository the checkout `workerName` names is of, none for a checkout no repository holds any longer.",
+            "default": null
+          },
           "roleName": {
             "type": [
               "string",
@@ -9860,6 +9869,7 @@
           "holderName",
           "assignmentId",
           "workerName",
+          "repositoryName",
           "roleName",
           "sessionId",
           "runId",
@@ -10698,6 +10708,14 @@
           "workerName": {
             "type": "string"
           },
+          "repositoryName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The repository the checkout `workerName` names is of, none for a checkout no repository holds any longer.",
+            "default": null
+          },
           "roleName": {
             "type": [
               "string",
@@ -10725,6 +10743,7 @@
           "itemId",
           "holderName",
           "workerName",
+          "repositoryName",
           "roleName",
           "state",
           "createdAt",
@@ -11363,6 +11382,20 @@
               "null"
             ],
             "description": "why its turn waits where no provider of its order has quota, or null"
+          },
+          "seeded": {
+            "type": "boolean",
+            "description": "Whether the deployment seeds it or it is the default answerer: its removal is refused 409 `seeded`.",
+            "default": false
+          },
+          "resetPoint": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The moment in epoch milliseconds its last reset cut its turns off at, none where it was never reset.",
+            "default": null
           }
         },
         "required": [
@@ -11386,7 +11419,9 @@
           "provider",
           "model",
           "effort",
-          "waitingFor"
+          "waitingFor",
+          "seeded",
+          "resetPoint"
         ],
         "description": "Supervisor: one supervisor as its row holds it, and what it stands on now."
       },

@@ -170,14 +170,20 @@ async fn a_slot_waits_in_line_and_the_worker_run_answers_with_its_words_and_the_
   let started = held.started.clone().unwrap();
 
   assert_eq!(started["scope"], "role");
-  assert_eq!(started["options"]["role"], "worker");
-  assert_eq!(started["options"]["provider"], "deepseek", "on the road the slot was let in on");
-  assert_eq!(started["options"]["cwd"], folder.display().to_string());
+  assert_eq!(started["slot"], "t1", "the run starts on the slot it was let in on");
+  assert_eq!(started["cwd"], folder.display().to_string());
+  assert!(
+    started.get("provider").is_none() && started.get("options").is_none(),
+    "the road is the slot's"
+  );
 
   let (session, body) = held.turned.clone().unwrap();
 
   assert_eq!(session, "worker@run:1");
-  assert_eq!(body["model"], "deepseek-flash");
+  assert!(
+    body.get("model").is_none() && body.get("mapping").is_none(),
+    "the turn's road is the session's"
+  );
   assert_eq!(held.finished, [json!({ "state": "finished", "outcome": "answered", "cancel": false })]);
 }
 

@@ -371,8 +371,15 @@ pub async fn heal(
     if dropped { "dropped" } else { "kept, the heal is off for this worker" }
   );
 
+  let repository = crate::queue::workers::repository_of(&ground.db, worker)
+    .await
+    .ok()
+    .flatten()
+    .map(|held| held.name);
+
   ground.events.publish(WorkerDowngraded {
     worker: worker.to_owned(),
+    repository,
     role: Some(job_role().to_owned()),
     launched: launched.to_owned(),
     answered_on: models.clone(),
@@ -413,8 +420,15 @@ pub async fn heal_role_run(
     if dropped { "dropped" } else { "kept, the heal is off for this repository" }
   );
 
+  let repository = crate::queue::workers::repository_of(&ground.db, checkout)
+    .await
+    .ok()
+    .flatten()
+    .map(|held| held.name);
+
   ground.events.publish(WorkerDowngraded {
     worker: checkout.to_owned(),
+    repository,
     role: Some(role.to_owned()),
     launched: launched.to_owned(),
     answered_on: models,

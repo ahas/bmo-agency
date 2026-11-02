@@ -2,7 +2,9 @@
 //! the provider and the model together with the command's key, resumed by the next run of the same key while
 //! its cache is warm and its window not full, held by one run at a time, and opened afresh otherwise.
 
-use agency_server::apart_sessions::{Answered, SessionKey, give_back, keep, take, valid};
+use agency_server::apart_sessions::{
+  Answered, Kept, SessionKey, fold_due, folded, give_back, keep, take, take_for_fold, valid,
+};
 use agency_server::now_ms;
 
 use crate::support::scratch::Scratch;
@@ -117,4 +119,72 @@ async fn a_resumed_session_counts_its_runs_and_stays_one_row_of_the_roles_histor
   assert!(!kept.held);
   assert!(valid(&kept, now), "the next run of its key would resume it");
   assert_eq!(scratch.count(r#"SELECT COUNT(*) FROM "role_sessions""#, vec![]).await, 1);
+}
+
+#[tokio::test]
+async fn a_kept_session_at_its_roles_compaction_threshold_is_taken_for_its_fold_and_kept_valid_after_it() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = crate::support::grounds::seeded(scratch.db(), home.path()).await;
+  let db = &ground.db;
+  let now = now_ms();
+  let held = key("worker", "/checkouts/folding", "claude-opus-5");
+
+  store::run(db, r#"UPDATE "roles" SET "fold_ratio" = 0.5 WHERE "name" = 'worker'"#, vec![])
+    .await
+    .unwrap();
+
+  assert!(fold_due(Some(0.5), 0.5) && fold_due(Some(0.9), 0.5));
+  assert!(
+    !fold_due(Some(0.49), 0.5) && !fold_due(None, 0.5),
+    "a turn under the threshold, or one reporting no share, is not due"
+  );
+
+  keep(
+    db,
+    &held,
+    "session-low",
+    Answered {
+      context_share: Some(0.3),
+      ..answered_at(now)
+    },
+  )
+  .await
+  .unwrap();
+  assert_eq!(take_for_fold(db, "worker", "session-low", Some(0.3)).await.unwrap(), None);
+
+  let full = key("worker", "/checkouts/full-fold", "claude-opus-5");
+
+  keep(
+    db,
+    &full,
+    "session-full",
+    Answered {
+      context_tokens: Some(900_000),
+      context_share: Some(0.9),
+      ..answered_at(now)
+    },
+  )
+  .await
+  .unwrap();
+
+  assert_eq!(
+    take_for_fold(db, "worker", "session-full", Some(0.9)).await.unwrap().as_deref(),
+    Some("session-full"),
+    "the role's own threshold makes it due"
+  );
+  assert_eq!(take(db, &full, now).await.unwrap(), None, "no run resumes a session while it folds");
+
+  folded(db, "session-full", now + 1).await.unwrap();
+
+  let row = store::one(db, r#"SELECT * FROM "role_sessions" WHERE "session" = 'session-full'"#, vec![])
+    .await
+    .unwrap()
+    .unwrap();
+  let kept = Kept::of(&row).unwrap();
+
+  assert_eq!((kept.context_tokens, kept.context_share, kept.answered_at), (None, None, Some(now + 1)));
+  assert!(valid(&kept, now + 2), "a folded session stays valid for the next run");
+  assert_eq!(take(db, &full, now + 2).await.unwrap().as_deref(), Some("session-full"));
+  assert_eq!(take_for_fold(db, "no-such-role", "session-full", Some(0.9)).await.unwrap(), None);
 }
