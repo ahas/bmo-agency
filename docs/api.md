@@ -495,7 +495,7 @@ out and the paths the call changed.
 A slot is asked under a role the store holds (「roles」), with the source, the owner and the request key its
 caller names and the path its run will work at, and is refused 422 `unknown-role` under any other
 (`docs/role-slots.md`, 「Who takes a slot」). An ask may name `provider` and `model`, a road the run goes out on
-in place of the role's order — a delegation as its supervisor's double, a native call on its caller's
+in place of the role's order — a `delegator` run as its supervisor's double, a native call on its caller's
 provider — and `placeKey`, the key only one active request holds at once.
 
 A slot request answers its `state` — `waiting` in its role's line, `reserved` under a reservation, `active`

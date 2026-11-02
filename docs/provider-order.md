@@ -93,8 +93,8 @@ quota is read is `docs/usage-windows.md`.
 - **A repository's pinned model** carries every job in the repository instead of the role's order, and its
   work waits while the pin has no quota or cannot answer; nothing falls back (`docs/repositories.md`, 「A
   pinned model」).
-- **A delegated task as the supervisor's double** goes out on the supervisor's own provider, model and
-  effort as they stand when it is asked, and waits, never moves, while that provider has no quota
+- **A delegated task as the supervisor's double** — a run of the `delegator` role a supervisor asked — goes
+  out on the supervisor's own provider, model and effort as they stand when it is asked, and waits, never moves, while that provider has no quota
   (`docs/role-slots.md`, 「A delegated task」).
 - **A native co-worker** stands inside its caller's program, so it goes out on the provider that program
   stands on, at the model and effort the co-worker role's order names for that provider; where the role's

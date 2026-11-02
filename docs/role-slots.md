@@ -97,11 +97,14 @@ co-work branch works in. What a role is, is `docs/agent-roles.md`; which provide
 ## A delegated task
 
 - **A task a supervisor hands off through `bmo/delegate`** (`docs/tools.md`, 「The delegate」) asks a slot of
-  the role its ask names — `helper` where it names none — as the source `delegate`, keyed by a request of its
-  own, and waits in that role's line however long it takes.
-- **By default it is the supervisor's double:** its lease carries the asking supervisor's provider, model and
-  effort as they stand when it is asked, not the role's order, and it waits while that provider has no
-  quota. It still holds a slot of the role it names, so the role's cap counts it.
+  the role its ask names — `delegator` where it names none — as the source `delegate`, keyed by a request of
+  its own, and waits in that role's line however long it takes.
+- **A task naming no role is the supervisor's double:** it holds a slot of the `delegator` role, and its lease
+  carries the asking supervisor's provider, model and effort as they stand when it is asked, not the
+  delegator role's order; it waits while that provider has no quota. The delegator role's cap counts every
+  supervisor's double together.
+- **A task naming a role** holds a slot of that role and goes out on that role's own order, like any run of
+  it.
 - **Once let in, its run goes out at the task's folder** under the role's prompt and bundles, resuming the
   session kept for that role at that folder on that provider and model where it is valid
   (`docs/sessions.md`, 「A role's session」).

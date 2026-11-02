@@ -128,10 +128,11 @@ supervisor owns apart from the others is `docs/agent-ownership.md`.
 
 ## What a supervisor hands to a role
 
-- **A delegation:** the supervisor hands a task off through `bmo/delegate`, naming any role, the helper
-  role where it names none (`docs/tools.md`, 「The delegate」). By default the run goes out on the
-  supervisor's own provider and model as they stand at that moment — the supervisor's double — and holds a
-  slot of the role it names (`docs/role-slots.md`, 「A delegated task」).
+- **A delegation:** the supervisor hands a task off through `bmo/delegate` (`docs/tools.md`, 「The
+  delegate」). Where it names no role, the run is the `delegator` role's, the supervisor's double: it goes
+  out on the supervisor's own provider and model as they stand at that moment and holds a slot of the
+  `delegator` role. Where it names a role, the run is that role's, on that role's own order, and holds a
+  slot of it (`docs/role-slots.md`, 「A delegated task」).
 - **A worker ask:** a small coding task as a run of the worker role in a repository's checkout or the
   supervisor's scratch folder (`docs/tools.md`, 「The worker ask」).
 - **A TODO item:** filed to the supervisor's repository, naming the role its job runs as, `worker` where it

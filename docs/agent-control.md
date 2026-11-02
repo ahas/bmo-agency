@@ -772,11 +772,12 @@ surface in the pane its run opens. The surface answers, in the provider's own te
 
 - **A supervisor may hand a task to a run of any role, with no item.** `delegate` names a one-line title,
   the instruction, with all the context it needs, an optional role and an optional folder
-  (`docs/tools.md`, 「The delegate」). The role is `helper` where none is named; a role the store does not
+  (`docs/tools.md`, 「The delegate」). The role is `delegator` where none is named; a role the store does not
   hold is refused with its name, and nothing starts.
-- **By default the run is the supervisor's double:** it goes out on the asking supervisor's own provider,
-  model and effort as they stand when it is asked, under the named role's prompt and bundles, and holds a
-  slot of that role (`docs/role-slots.md`, 「A delegated task」). It waits in the role's line however long
+- **A task naming no role is the supervisor's double:** a run of the `delegator` role that goes out on the
+  asking supervisor's own provider, model and effort as they stand when it is asked, and holds a slot of the
+  delegator role; a task naming a role goes out on that role's own order and holds a slot of it
+  (`docs/role-slots.md`, 「A delegated task」). It waits in the role's line however long
   that takes, and is never refused because every slot is taken.
 - **The task is a run of the role at the task's folder,** on the session kept for that role at that folder
   on that provider and model where one is valid; a later delegation there within the cache lifetime goes on

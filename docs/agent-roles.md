@@ -15,7 +15,7 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
   change anywhere else.
 - **A bundle is a capability of the tool host** (`mcp-host.md`, 「Namespaces and capabilities」): a named set
   of tools a session is shown once its record holds it, and the right the tools' own refusals read.
-- **The workers, the helper, the video producer, the searcher, the browser, the translator, the
+- **The workers, the delegator, the helper, the video producer, the searcher, the browser, the translator, the
   transliterator and every co-worker are roles alike.** Nothing tells a co-worker role from any other
   role but what its row says.
 
@@ -50,7 +50,7 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
 - **The policy keeps what is not a role's own,** `policy/roles.toml`, read by the bun side and the Rust side
   alike: the bundles a role may give, `[[bundles]]`, each with its label; the supervisor bundles every
   supervisor holds (`docs/supervisors.md`, 「The bundles a supervisor holds」); the role a job runs as where
-  its item names none, `worker`; the role delegated work goes to where its ask names none, `helper`; the
+  its item names none, `worker`; the role delegated work goes to where its ask names none, `delegator`; the
   role each of agency's own runs that stands for no one's work holds, `upkeep`; the bundle that opens
   sending; and the shape of a role's name.
 - **A role gives only bundles the policy declares,** and the control port refuses a role naming another.
@@ -73,6 +73,7 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
   | Role | Label | Line | Bundles | Cap | Prompt | Sessions | Co-worker |
   |---|---|---|---|---|---|---|---|
   | `worker` | Worker | worker | `graph.read`, `queue.read`, `web.read` | 8 | none | keep | no |
+  | `delegator` | Delegator | worker | `graph.read`, `queue.read`, `web.read` | 2 | `delegator.md` | keep | no |
   | `helper` | Helper | worker | `graph.read`, `queue.read`, `web.read` | 2 | `helper.md` | keep | no |
   | `video` | Video producer | worker | `queue.read`, `web.read`, `room.send` | 2 | `video.md` | keep | no |
   | `builder` | Builder | worker | `graph.read`, `queue.read`, `web.read` | 8 | none | keep | no |
@@ -104,10 +105,28 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
 - **Any job may name another role,** whichever the owner chose for the item (`docs/repositories.md`, 「A
   job」), and its run holds that role's prompt, bundles, order and cap in the same repository's checkout.
 
-## The helper role
+## The delegator role
 
 - **The role a supervisor's delegated task runs as where the ask names none** (`docs/tools.md`, 「The
-  delegate」). Its prompt, seeded from `prompts/roles/helper.md`, stands first in every run.
+  delegate」): the supervisor's double. Its prompt, seeded from `prompts/roles/delegator.md`, stands first in
+  every run.
+- **A run of it asked by a supervisor goes out on that supervisor's own provider, model and effort** as they
+  stand when it is asked, never on the role's own order, and waits while that provider has no quota
+  (`docs/role-slots.md`, 「A delegated task」). The role's own order is what a run of it goes out on where no
+  supervisor asked it.
+- **Its cap bounds every supervisor's delegations together,** 2 as seeded, a number the owner changes on the
+  role's row like any role's.
+- **Its runs work in the folder the task names,** the asking supervisor's scratch workspace under the data
+  root where none is named, so a delegation that follows another at the same folder on the same provider and
+  model goes on in the same session while it is valid (`docs/sessions.md`, 「A role's session」).
+- **Its bundles** are the worker's: `graph.read`, `queue.read` and `web.read`.
+
+## The helper role
+
+- **A role a supervisor names when it delegates a task to the helper** (`docs/tools.md`, 「The delegate」).
+  Its prompt, seeded from `prompts/roles/helper.md`, stands first in every run.
+- **Its runs go out on the helper role's own order** and hold a slot of the helper role, like any role named
+  in a delegation.
 - **Its runs work in the folder the task names,** the asking supervisor's scratch workspace under the data
   root where none is named, so a delegation that follows another at the same folder on the same provider and
   model goes on in the same session while it is valid (`docs/sessions.md`, 「A role's session」).
@@ -182,7 +201,7 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
 ## Which role a run holds
 
 - **A job's run:** the role its item names, `worker` where it names none (`docs/repositories.md`, 「A job」).
-- **A delegated task:** the role the ask names, `helper` where it names none (`docs/tools.md`, 「The
+- **A delegated task:** the role the ask names, `delegator` where it names none (`docs/tools.md`, 「The
   delegate」).
 - **A worker ask:** `worker` (`docs/tools.md`, 「The worker ask」).
 - **A co-worker:** the role the calling run names.
@@ -216,6 +235,6 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
   other than `keep` or `fresh`.
 - **`PATCH /roles/{roleName}`** changes any field of the row, each judged as the add judges it.
 - **`DELETE /roles/{roleName}`** removes a role, and is refused while a run of it goes or waits, and for a
-  role the policy names as a default — `worker`, `helper` and `upkeep`.
+  role the policy names as a default — `worker`, `delegator` and `upkeep`.
 - **A role added or changed is read at its next use;** nothing running is stopped for it, and a run already
   let in finishes under the row it began under.

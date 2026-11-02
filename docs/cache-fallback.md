@@ -484,7 +484,7 @@ When a demotion first catches — when a healthy session first drops — two thi
 - **The account.** Where the provider holds logins, the first login the account judgement offers
   (「The account judgement」), the chosen account and the login in use heading the walk.
 - **Runs that do not walk their own role's order** — a repository's pinned model, a delegated task as the
-  supervisor's double, a native co-worker on its caller's provider, a session whose caller names its
+  supervisor's double (the `delegator` role), a native co-worker on its caller's provider, a session whose caller names its
   provider and model — are `docs/provider-order.md`'s, 「Runs that do not walk their own role's order」; the
   account walk inside the Claude Code entry is the same for each of them.
 - **Every line asks it, and none keeps a walk of its own:** a supervisor's turn, a job's launch and its
