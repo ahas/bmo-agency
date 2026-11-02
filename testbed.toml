@@ -34,7 +34,7 @@ check_script = "check:types"
 dir = "tools"
 
 [check]
-quick = ["layout", "dependencies", "cargo-profile"]
+quick = ["layout", "dependencies", "cargo-profile", "shared-versions"]
 base_libraries = [
   "bmo-chat",
   "bmo-chat-client",
@@ -45,6 +45,10 @@ base_libraries = [
   "bmo-node-client",
   "bmo-pocket-client",
 ]
+
+# The repository whose root holds the shared versions the manifests and the lock hold to.
+[check.shared_versions]
+repository = "bmo-chat"
 
 [[check.step]]
 id = "check"
