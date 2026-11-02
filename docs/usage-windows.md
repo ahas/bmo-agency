@@ -40,7 +40,9 @@ all read them from here (`docs/cache-fallback.md`, 「The account judgement」, 
 - **Every registered directory and token account is asked on each pass,** on or off, with its own
   login, and an endpoint account never is: a GET of the
   provider's account-usage endpoint (`https://api.anthropic.com/oauth/usage`) carrying that account's
-  access token as a bearer token. A request that has not answered in 15 seconds is a failure.
+  access token as a bearer token. A request waits for its answer: it ends when the endpoint answers,
+  refuses the connection or breaks it, and the connection's keep-alive probes tell an endpoint that has
+  gone from one still working. No clock cuts it, and the next pass begins once this one has ended.
 - **The token is read out of the account's own credential file and dropped:** a directory account's
   file holds it as `claudeAiOauth.accessToken` beside its `expiresAt`, and a token found expired is not
   sent; a token account's file is the token. The token goes into the one request header and is never
@@ -60,7 +62,7 @@ all read them from here (`docs/cache-fallback.md`, 「The account judgement」, 
   the pause once as the account's failure.
 - **An account that cannot be asked keeps its last reading.** A failure is said once when it starts,
   on the server's error output, naming the account and its reason (the credential file unreadable, no
-  token, the token expired, the endpoint's HTTP status, no answer in time, no usable window), and its
+  token, the token expired, the endpoint's HTTP status, the request failing, no usable window), and its
   recovery once when it ends. A reading taken says nothing, so a log silent on the reader is every
   account read.
 - **The unread mark.** Where an account's token is found expired, or the endpoint refuses it as
@@ -103,8 +105,9 @@ all read them from here (`docs/cache-fallback.md`, 「The account judgement」, 
   kept as a fraction, its reset, its length in minutes and its limit's name.
 - **Otherwise the app-server is asked.** Codex's app-server is started over standard input and output,
   initialised, and asked `account/rateLimits/read`; the answer's windows by limit are read, or its
-  single `rateLimits` where it gives none by limit, in the same names and fields. The process is ended
-  with the reading, so none outlives it, and what it said on its error stream is carried beside a
+  single `rateLimits` where it gives none by limit, in the same names and fields. The read waits for that
+  answer or for the process to close its output, however long either takes. The process is ended with
+  the reading, so none outlives it, and what it had said on its error stream by then is carried beside a
   failure.
 - **It passes every minute where Codex is installed, and a reading stands for six passes.** Only the
   public meter fields are kept: no account id, credit balance or plan detail.
@@ -127,8 +130,8 @@ all read them from here (`docs/cache-fallback.md`, 「The account judgement」, 
   endpoint account whose base address stands on the same origin as the provider's balance address, with
   the account's own key file, its balance kept under the account. A key goes into the one request header
   and is never kept, returned or said.
-- **It passes every five minutes, and a reading stands for six passes,** thirty minutes, its ask failing
-  after 15 seconds. A failure is said once when it starts, naming the provider, the account and the
+- **It passes every five minutes, and a reading stands for six passes,** thirty minutes, its ask waiting
+  for its answer as the account reader's does. A failure is said once when it starts, naming the provider, the account and the
   reason, and its recovery once when it ends.
 - **What reads it:** the accounts list answers an endpoint account's balance, and the fallback's view its
   active slot's (`docs/api.md`, 「accounts, rest and usage」), each with the moment it was seen. The road

@@ -227,8 +227,7 @@ The owner's words:
   once are two panes (`docs/agents.md`, 「Runs apart」).
 - **A gate on Claude Code stands a pool of resident programs,** since its judgements are independent
   calls that overlap (「A gate's pool」 below; `gates.md`, 「A gate on Claude Code」).
-  - Each judgement stands alone, two of them for the same gate may run at once for two rooms, and a
-    gate runs under a deadline of a minute or a few.
+  - Each judgement stands alone, and two of them for the same gate may run at once for two rooms.
   - One interactive program holds one conversation and takes one turn at a time, so it would queue
     one room's judgement behind another's and carry one judgement's words into the next. A pool takes
     overlapping judgements in programs of their own and clears each program's conversation between
@@ -2606,7 +2605,7 @@ pane. So the earlier investigation's conclusion holds under herdr too.
   so `agent.list` answers with an empty array, and `-p` does not read input in a pty at all —
   `Error: Input must be provided either through stdin or as a prompt argument when using --print`. In a pty,
   stdin is a terminal, so print mode judges it has nothing to read.
-- **A gate takes none.** It is one prompt and one answer under a deadline, in a program of its pool
+- **A gate takes none.** It is one prompt and one answer, in a program of its pool
   (「A gate's pool」). There is no turn boundary to interject.
 - **Words for a surface that takes none mid-turn** stay in the store or the conversation's buffer and are
   delivered after the turn ends.

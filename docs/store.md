@@ -197,7 +197,7 @@ seeds. The other crates and the server reach the store only through it.
   once more on a fresh connection.
 - **A tool or a host handed the store's address opens one read-only connection:** every transaction on
   it is read-only, and an opening the server refuses while it restarts is tried again with a doubling
-  pause, for a minute or what `AGENCY_STORE_RECONNECT_MS` names.
+  pause until the server answers, however long its restart takes.
 - **Every number is bound at its widest,** a whole number as a 64-bit integer and a fraction as a
   double, so a statement prepared once takes every later value.
 - **The TypeScript side's transactions write one at a time:** each takes one transaction-scoped

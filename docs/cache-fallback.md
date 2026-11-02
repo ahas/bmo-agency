@@ -880,7 +880,7 @@ the same. "None" means that program has no such concept, with the reason.
 
 | Option | Claude Code | Codex | OpenRouter (dsh) | Registered models |
 |---|---|---|---|---|
-| Process time limit | A gate that gate's limit, a chat and a job no clock | Takes the same value | Takes the same value | A gate gives its whole limit to its one request; a run with tools is Claude Code on a registered model |
+| Process time limit | None: a gate, a chat and a job each run until they end | Same | Same | None: a gate's one request waits for its answer; a run with tools is Claude Code on a registered model |
 | Cache lifetime · ping interval | 1 hour · 40 minutes | 30 minutes · 20 minutes for models that announce it, else none | Follows the answering upstream, none if not listed | None. No announced lifetime |
 | Ping time limit | Chat 90 seconds, a gate that gate's limit, worker 2 minutes | Same | Same | No ping |
 | Keepalive stop · rest | Obeys global and per-agent stops, pauses during its own account's rest | Obeys stops but warms during a rest, since a rest is one Claude account's affair | As Codex | Not applicable |

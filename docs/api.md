@@ -616,8 +616,8 @@ model in the path. Each answer carries `name` beside its `key`, the registration
 an agent's fixed model holds on the registry's provider (`docs/model-tiers.md`, 「An agent's own model」). `provider` names the
 registry's provider alone, since every other provider's models are its own catalogue and no route changes
 them; `tier` narrows the list to the registrations that tier maps to.
-A create starts a registration under its own name as its label, at the registry's smallest window, answer
-and wait and with no address, and is refused where the name already stands. `tier`, `healthy` and
+A create starts a registration under its own name as its label, at the registry's smallest window and
+answer and with no address, and is refused where the name already stands. `tier`, `healthy` and
 `lastAnsweredAt` are read back: `healthy` is whether the engine answers now, and `lastAnsweredAt` the
 moment it last answered a probe, in seconds, so a screen tells a model that is down from one that has
 never answered; the model behind a registration is what the change edits. Each answer carries `cardService`,

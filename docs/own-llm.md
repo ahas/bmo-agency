@@ -7,7 +7,7 @@ roads, as registered models.
   completions address, an optional key, the model's name and its sizes — which one provider of
   agency's, the registry's, offers on every line it carries. A registration is the whole declaration
   of such a model: one is added, changed and removed with no commit and no deployment, and no model,
-  address, window, answer size or wait of one is written in the code.
+  address, window or answer size of one is written in the code.
   - A run with tools — the chat, a worker, a companion's turn — is Claude Code pointed at
     agency's gateway under the registration's name (「How requests go」 below).
   - A request with no tools — a gate — is one request to the gateway's chat completions path under the
@@ -47,7 +47,7 @@ roads, as registered models.
   companions. A line is a shape of the deployment's own work, so it is the deployment's to say
   which provider carries it.
 - **The gateway's address and key file,** read in one place by every caller (「The gateway」 below).
-- **Nothing else:** no model, address, window, answer size, wait or engine is named in the code beyond
+- **Nothing else:** no model, address, window, answer size or engine is named in the code beyond
   the seeds the store starts with (「The seeds」 below), which are the owner's once written.
 
 ### The own model and the engine behind it
@@ -106,7 +106,8 @@ never the model's name.
 - **Caching the list:** the list is kept for one minute, and the first request after that minute
   fetches it again, since the list rarely changes and fetching on every request would make each gate
   send two.
-- **One time limit:** the list fetch and the request share the same time limit.
+- **No time limit:** the list fetch and the request each wait for their answer; each ends when the
+  service answers or the connection is refused or broken.
 
 ## Registered models
 
@@ -125,10 +126,6 @@ never the model's name.
   window」 below).
 - **Its answer size:** the answer ceiling of a run on it where the key's tier names none, a whole
   number of tokens within the policy's bounds and smaller than its window.
-- **Its request wait:** how long one request is waited for, long enough for a whole default answer at
-  the model's speed. Claude Code waits it, and so does the gateway behind on a registration of
-  addresses; a request that names no wait on a registration naming a card service is waited for
-  however long the engine takes (「The gateway」 below).
 - **Its thinking default:** on or off, what a run on it does where its tier mapping leaves thinking to
   the registration.
 - **Whether it is walked:** whether the automatic walk asks the registry's provider when a key's tier
@@ -151,8 +148,8 @@ never the model's name.
   the take-away all read or write these rows, so what is listed is what can be changed and removed. The
   model catalogue is another resource, `/model-catalogue` (`docs/model-catalogue.md`).
 - **Read afresh by every run and every screen,** so a saved change reaches the next run with no
-  deployment and no restart of the bot. What the gateway carries — the addresses, the keys, the model
-  and the wait behind — reaches it as 「The gateway」 below says.
+  deployment and no restart of the bot. What the gateway carries — the addresses, the keys and the
+  model behind — reaches it as 「The gateway」 below says.
 - **A registration with no address and no card service** is listed, and offered nowhere: no tier, pin or run may name it,
   and the gateway's table leaves it out.
 
@@ -198,7 +195,7 @@ never the model's name.
   - `bmo-agency agent --registered` lists every registration and its addresses, each address with
     whether its key is usable.
   - `bmo-agency agent --register <name> [--label <label>] [--model <model>] [--context <tokens>]
-    [--answer <tokens>] [--wait <seconds>] [--thinking on|off] [--walked on|off] [--research on|off]
+    [--answer <tokens>] [--thinking on|off] [--walked on|off] [--research on|off]
     [--card-service <service>|none] [--role-files on|off]` makes a registration, every field but the
     label, the card service and the role files named, or changes the named fields of one; `--role-files`
     here says whether the card service's instances keep role files.
@@ -216,7 +213,7 @@ never the model's name.
   each of those answers for itself whether it names the registration. The last address of a
   registration something names is not removed either.
 - **The rules a save is held to** — what a name, a node label, a model and a key file may be, the
-  bounds of the window, the answer size and the wait, and how long a label may be — are agency's policy
+  bounds of the window and the answer size, and how long a label may be — are agency's policy
   (`policy/`), so the console's save is checked alike whichever side answers it.
 
 ### Nodes and sessions
@@ -238,8 +235,8 @@ never the model's name.
   refused by its node before any answer — a 502 or a 503, as a node answers when another service holds
   its card past the wait — the same run is placed again, by the same rule, until one answers or every
   address has been tried once in that run. The refused node was just given a session, so the next ones
-  pass it by too. A resumed session is never moved, since its state is on its node, and a run that timed
-  out is not placed again, since another node would have to compute it from the start.
+  pass it by too. A resumed session is never moved, since its state is on its node, and a run its node
+  began answering is not placed again, since another node would have to compute it from the start.
 - **A resumed session keeps its node:** the record of a held session keeps the node beside its model,
   as it keeps its login, and a program started to resume the session, or to fold it, is placed there
   again. A session whose node has left the registration is not resumed; the run opens a new one.
@@ -275,8 +272,7 @@ never the model's name.
 - **A run waits for its grant however long it takes,** its answer saying why — the engine starting, every
   card in use, a bench or a claim. A companion's or the chat agent's turn waits as it waits for an engine a
   job holds (`docs/companions.md`, 「The engine it shares」), the room shown the reason; a seat waits
-  outside its task's clock, as it waits for its pool place. Agency adds no clock to that wait; a caller's
-  own budget that already stands, such as a gate's time limit, stays its own.
+  outside its task's clock, as it waits for its pool place. Agency adds no clock to that wait.
 - **The demand is held for the run's turn and given back at its end.** Nothing takes the card from it but
   a bench or a claim, which stops the engine as the arbiter's lower tiers always have; the turn's request
   in hand is then cut, and its next request waits for its demand to be granted again. A demand whose run
@@ -381,8 +377,8 @@ never the model's name.
     registration's name and `<name>@<node>`.
   - `label`: what a screen shows in place of the name.
   - `provider`: the LiteLLM provider, one of `anthropic`, `deepseek`, `openrouter` and `openai`.
-  - `model`: the id the provider's API knows, with its `api_base`, its `key_file` under the data
-    root's `env/`, and its `wait_seconds`.
+  - `model`: the id the provider's API knows, with its `api_base` and its `key_file` under the data
+    root's `env/`.
   - `context_tokens`, `answer_tokens`, `thinking`: the window, the answer ceiling and the default
     thinking of a run on the member. A member of a road holds all three; a member of no road may
     leave them out.
@@ -431,8 +427,9 @@ never the model's name.
   environment holds nothing else but its `PATH` and `HOME`.
   - A registry not settled yet reads as nothing to serve for now, and is read again at the next beat.
     A launcher with no store address named at all does not start.
-  - A child is ready once its readiness check answers; one that ends or stays silent first is given up,
-    and the child serving goes on serving.
+  - A child is ready once its readiness check answers, however long it takes to come up; one that ends
+    first is given up, and the child serving goes on serving.
+  - A child is stopped by asking it to end and waiting until it has.
   - Tables left by a launcher that ended without stopping its children are removed as it starts.
 - **The launcher is the front:** it listens on the gateway's loopback port itself and streams every
   request through to the child it serves from, and every answer back, as they stand, reading neither. It
@@ -442,7 +439,7 @@ never the model's name.
   - Before any table stands it answers `503`, and where the child cannot be reached `502`, each with a
     line saying so.
   - A caller that leaves closes the front's connection to the child and its place among the requests in
-    hand; LiteLLM still holds the node until its own wait ends.
+    hand; LiteLLM still holds the node until the node has answered.
 - **What the table holds for a registration:** one entry under its name for every address, and, for a
   registration of several addresses, one more under `<name>@<node label>` for each (「Nodes and
   sessions」 above). A registration naming a card service holds the instances the arbiter's master reports
@@ -453,28 +450,17 @@ never the model's name.
   own environment, else those two entries alone of the server's settings file under the data root's
   `env/`. Each entry asks its address's chat completions path, with the address's key, for the
   registration's model, and sends `enable_thinking` off in `chat_template_kwargs` where a request names
-  nothing. An entry of a registration on addresses waits the registration's request wait for a whole
-  answer and for a stream alike; an entry of a registration naming a card service has no wait of its
-  own (「A request is waited for as long as its caller waits」 below).
-- **A request is waited for as long as its caller waits, and never longer.**
+  nothing. No entry holds a wait (「No request is given up on a clock」 below).
+- **No request is given up on a clock.** A request is waited for until its backend answers or its
+  connection is refused or broken.
   - A node sends nothing, not even its response headers, until it has read the whole prompt, so a long
     prompt is most of an hour of silence.
+  - LiteLLM has no value that means no wait — an entry naming none falls to the proxy-wide default, and
+    an infinite one fails the connection — so a hook of the gateway's own, run after the entry is chosen,
+    takes the wait off every request. The gateway-wide request wait is not read on the Messages path, so
+    the table sets none, and no entry names one.
   - The gateway does not pass on a caller that leaves: a request whose caller has gone goes on holding
-    the node's card until the gateway's own wait ends, and its own wait ending closes the connection to
-    the node.
-  - So every request names its caller's wait in the gateway's per-request wait headers, and the gateway
-    gives up where the caller does. The gateway's address and these words are read in one place by every
-    caller.
-  - An entry's own wait is that of a request naming none. The gateway-wide request wait is not read on
-    the Messages path, so the table sets none.
-  - **A request naming no wait on a card service's engine is waited for however long the engine takes.**
-    An engine the arbiter stands is the deployment's own, shared by every caller in the master's line,
-    so a request on it is never given up on a clock: its entry names no wait, and is marked in its model
-    information as one with none. LiteLLM has no value that means no wait — an entry naming none falls
-    to the proxy-wide default, and an infinite one fails the connection — so a hook of the gateway's
-    own, run after the entry is chosen, takes the wait off such a request where it names none in the
-    wait headers. A request that names a wait is waited for that wait, as on any entry. A request whose
-    caller has gone goes on holding the engine until the engine has answered it.
+    the backend, a node's card among them, until the backend has answered it.
 - **What holds for every entry:**
   - An OpenAI-compatible backend is asked at its chat completions path; left to itself the gateway asks
     the Responses API, which an engine's front may answer with a 404.
@@ -574,7 +560,7 @@ never the model's name.
   what it reads replaces the role's state. Each restore is a line in the gateway's log, with the
   instance, the role and how long it took.
 - **A restore that fails is a plain request:** a file the instance does not hold (`404`), another
-  refusal or no answer within the wait leaves the request to be sent as it stands, with a line in the
+  refusal or a refused or broken connection leaves the request to be sent as it stands, with a line in the
   log saying why, and that role is not asked of that instance again for ten minutes. What the hook keeps
   is the running gateway's: a new child starts with every instance on no role, and the first request of
   each role restores it.
@@ -590,8 +576,8 @@ never the model's name.
   (`docs/cache-fallback.md`, 「The per-key choice is automatic or one provider」). A key's row set to a
   provider that does not carry its line is refused on save.
 - **What the row does not hold:** the model on any other provider, the answer size and thinking — the
-  tier settings decide them (「Settings per tier」 below, `docs/model-tiers.md`) — and a gate's time
-  limit, which is the gate unit's (「Per-gate time limit」 below).
+  tier settings decide them (「Settings per tier」 below, `docs/model-tiers.md`) — and no time limit,
+  since a gate waits for its answer (「A gate waits for its answer」 below).
 - **A key with no row** reads the profile's initial values.
 
 ### A key's own registration
@@ -705,8 +691,8 @@ bmo-agency agent --route <work key> --provider <auto|claude-code|codex|openroute
   provider of the walk that can. On the registry's
   provider its model is its tier's cell, unless its key names a registration of its own (「A key's own
   registration」).
-- **One ask, and that is all.** It never moves to another provider or model — not on timeout, busy,
-  refusal or error.
+- **One ask, and that is all.** It never moves to another provider or model — not on busy, refusal or
+  error.
 - **Why:** waiting for one verdict costs a room more than the value of that verdict, and with one road
   the time a verdict took is the time that road took, so what is slow shows plainly in the record.
 
@@ -743,13 +729,11 @@ bmo-agency agent --route <work key> --provider <auto|claude-code|codex|openroute
   says it was stopped; and every other caller catches nothing of its own, so the
   stop ends the piece of work that asked for the judgement.
 
-### Each gate uses its whole time limit
+### A gate waits for its answer
 
-- **Nothing to share it with:** there is no road after a gate, so a gate's time limit has no reason to be
-  divided.
-- **All of it goes to its provider:** the gate gives its whole time limit to its provider, and ends in a
-  timeout if no answer comes within it.
-- **Set per gate** (「Per-gate time limit」 below).
+- **Its one ask waits for its provider however long it takes:** there is no road after a gate and no
+  clock on it. It ends when the provider answers, when the provider fails it, or when its caller stops it
+  (「A gate somebody stopped is not a gate with no answer」 above).
 
 ### Which road answered is recorded
 
@@ -792,8 +776,6 @@ bmo-agency agent --route <work key> --provider <auto|claude-code|codex|openroute
   key's answer size; and if nobody chose, a floor for gates and a larger floor for the rest.
 - **Fitting the context:** if the slot is larger than what remains of the context it shrinks to what
   remains, and if too little remains the request is not sent.
-- **The model's speed bounds the answer:** a gate's answer must be shorter than what its registration's
-  model can write within the gate's time limit.
 
 ### Too large
 
@@ -801,7 +783,7 @@ bmo-agency agent --route <work key> --provider <auto|claude-code|codex|openroute
   and requests the model returned for size, a 400 for exceeding context.
 - **How a splittable gate handles it:** it splits the request in two, each half becomes one run of that
   gate walking the same road again, a half still too large splits again, a half the model fails for
-  another reason ends as that half alone having no answer, each half gets the gate's full time limit, and
+  another reason ends as that half alone having no answer, each half waits for its own answer, and
   the answers are joined in original order the way the gate defines.
 - **Answer room:** a splittable gate sends a request only when it can get its full answer slot, and
   splits as far as needed otherwise.
@@ -928,14 +910,12 @@ bmo-agency agent --route <work key> --provider <auto|claude-code|codex|openroute
     refuses.
   - **The fold point leaves the whole answer:** the auto-compact override is the share of the window the
     answer ceiling leaves (「A turn at the input limit」 below).
-  - **The wait:** the API-timeout variables are the registration's request wait. The program's runtime
-    otherwise drops a connection silent for minutes and the program asks again, and a node reading a long
-    prompt keeps it silent far longer. The gateway is told the same wait with every request, in the
-    Anthropic custom headers (「The gateway」 above).
-  - **Its retries are Claude Code's own:** after a refused or dropped connection, a 408, 429 or 5xx, and
-    a request that ran out its wait. With the wait longer than a node's reading of the prompt, a retry
-    follows a node that went down or a card that stood still for the whole wait, and it reads the prompt
-    again from its start. The gateway retries nothing. A new session its node refuses before any answer
+  - **No wait cuts a request:** the program gives a request up after a wait of its own, and its runtime
+    drops a connection silent for minutes, and a node reading a long prompt keeps it silent far longer.
+    So both are told the longest wait their timers hold, about twenty-four days, which no request
+    reaches: a request ends when its answer comes or its connection is refused or broken.
+  - **Its retries are Claude Code's own:** after a refused or dropped connection, a 408, 429 or 5xx. A
+    retry reads the prompt again from its start. The gateway retries nothing. A new session its node refuses before any answer
     is placed on the next node (「Nodes and sessions」 above).
   - **The prefix stays still:** the attribution header is off, since the block Claude Code otherwise puts
     at the head of every request changes each time and defeats the backend's prefix cache. The traffic
@@ -947,7 +927,7 @@ bmo-agency agent --route <work key> --provider <auto|claude-code|codex|openroute
     the registration's thinking default otherwise.
   - **Sampling is the run's own:** a run that names sampling settings — a companion's turn, from its
     generation settings, and a worker's run, from its own sampling — sends them in the Anthropic custom
-    headers beside the wait, as the header the gateway writes into each request; a run that names none
+    headers, as the header the gateway writes into each request; a run that names none
     sends no such header, and the backend samples with what the program sent and its own defaults.
   - **The long tools go with every request:** the program's adapter names the tools whose calls wait long
     (`docs/agent-control.md`), and a run sends them in the Anthropic custom headers as the long-tools
@@ -1047,7 +1027,7 @@ bmo-agency agent --route <work key> --provider <auto|claude-code|codex|openroute
   MCP server, the project and local setting sources, so the checkout's `CLAUDE.md` is read in, every tool
   the line shows, and the worker's settings with its hooks, the job guard among them.
 - **What the road changes is the model and the endpoint alone:** the gateway's address and key, the
-  registration's name, window, answer ceiling and request wait (「How requests go」 above), beside the
+  registration's name, window and answer ceiling (「How requests go」 above), beside the
   effort word and the records home every run on a registration has.
 - **Its co-workers are the registry's:** the registry's provider lends co-workers, so the co-worker
   definitions a run on a registration is handed are resolved on the registry — each role's definition
@@ -1132,26 +1112,19 @@ bmo-agency agent --route <work key> --provider <auto|claude-code|codex|openroute
 - **The response** carries the thinking apart from the answer in `content`; agency uses only `content` as
   the answer, and keeps the thinking in neither logs nor records.
 - **Thinking eats the answer's budget:** it is spent within the same `max_tokens` as the answer, at the
-  same speed, so a gate with thinking on may not reach its answer within its time limit and then ends as
-  a gate with no answer, and a tier with thinking on should have its answer size raised too.
+  same speed, so a gate with thinking on takes longer to reach its answer and may spend its answer size
+  before it does, and a tier with thinking on should have its answer size raised too.
 - **A run with tools** is Claude Code's, and thinking reaches it as the effort word 「How requests go」
   above names.
 - **The record:** an answer to a request with no tools, with thinking on, is recorded with effort
   `thinking`; one with it off has no effort.
 
-## Per-gate time limit
+## No gate wait
 
-- **A gate's time limit is the gate unit's.** Each gate's wait stands in the gate unit's options, one value a
-  gate and an agent, set on the console's gate tab and read back with the gate's route (the gate unit's
-  `docs/api.md`, 「options」). Agency keeps no gate wait, no table of them and no default a gate would fall
-  back to.
-- **The gate waits it on the turn it sends.** A gate's question goes to agency as a turn of the gate's
-  conversation, and the gate unit waits that turn for its own time limit. Agency carries the turn until it
-  answers or its caller interrupts it, and names no wait of its own.
+- **A gate's turn is carried until it answers.** A gate's question goes to agency as a turn of the gate's
+  conversation, and agency carries the turn until it answers or its caller interrupts it: agency keeps
+  no gate wait, no table of them and no default a gate would fall back to.
 - **Its thinking and answer size are not the gate's options:** those come from the gate's tier on its
   road (「Settings per tier」 above).
-
-### Who waits by another clock
-
-- **Runs with tools** (Claude Code on a registered model) and non-gate keys: their time is the time their
-  walk gives them, and each request of theirs waits the registration's request wait.
+- **Runs with tools** (Claude Code on a registered model) and non-gate keys wait for their answers alike:
+  each request of theirs is waited for until it answers or its connection is refused or broken.

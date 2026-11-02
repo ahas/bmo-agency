@@ -83,9 +83,9 @@ providers and reaches none of them.
 Catalogue unavailability prevents new selections; it does not erase existing stored
 settings or prevent reading them. Launch-time provider eligibility and harness capability
 checks remain mandatory at the launch boundary. A nullable effort means no
-explicit effort; unsupported effort must never be silently discarded. A gate's timeout lives in
-`gate_options`, and its thinking and answer limit come from its tier, never below the gate's own
-floor.
+explicit effort; unsupported effort must never be silently discarded. A gate keeps no timeout: its
+turn is carried until it answers. Its thinking and answer limit come from its tier, never below the
+gate's own floor.
 
 ## Execution integration decision
 
@@ -238,8 +238,8 @@ Branch prefix digests include effective effort. A co-work reservation for a task
   selects another session or prefix exactly as a tier edit does.
 - **A support worker runs on its base's settings,** as it runs on its base's pin.
 - **Gates are not in this list.** A gate's thinking and effort are its tier's and its own
-  profile's (`docs/own-llm.md`, 「Settings per tier」), since a gate is one judgement asked under a
-  time limit rather than an agent that works.
+  profile's (`docs/own-llm.md`, 「Settings per tier」), since a gate is one judgement asked rather
+  than an agent that works.
 - **Changed in the console's general tab** (through `docs/api.md`, 「Agents」) **or with**
   `bmo-agency agent --reasoning <agent> [--thinking on|off|default] [--effort <level>|default]`;
   the change reaches the agent's next run.

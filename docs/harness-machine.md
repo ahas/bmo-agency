@@ -71,8 +71,9 @@ flowchart TD
 ## An engine's health
 
 - **Asked at each of a registration's addresses in order,** the address's origin with `/health`, under
-  the bearer key its key file holds, three seconds to each. The first that answers with an object is
-  the health; an address with no readable key is passed over.
+  the bearer key its key file holds, each ask waiting for its answer. The first that answers with an
+  object is the health; an address that refuses or breaks the connection, answers no object, or has no
+  readable key is passed over.
 - **What it reads of the answer:** the context of the cards it holds now, the model file it serves,
   the requests it has in hand, and why it stands aside and until when. A value of the wrong shape
   reads as none.
@@ -85,8 +86,9 @@ flowchart TD
   file that does not read or holds no such entry is no token.
 - **What it asks:** `POST /demands` for one card of a service, with the demand it is asked within, the work
   key and a shown reference where they are named; `GET /demands/{demandId}` with its answer held open up to
-  thirty seconds; `DELETE /demands/{demandId}`, a demand the master no longer holds counting as given back;
+  thirty seconds and asked again by a caller that waits on longer; `DELETE /demands/{demandId}`, a demand the master no longer holds counting as given back;
   and `GET /cluster`, the whole picture (the arbiter's `docs/api.md`, 「Demands」 and 「The cluster」).
+  Each call waits for the master's answer; its end is that answer, or the connection refused or broken.
 - **A demand's card** is the first card it is granted while its state is `granted` and nothing has taken
   it; what it waits on is the master's reason, else the occupant that took its card.
 - **A service in the picture** is its standing instances that name an address, each with its node and key
