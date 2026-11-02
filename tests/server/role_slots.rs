@@ -402,3 +402,104 @@ async fn a_slot_asked_for_a_model_alone_goes_out_on_the_provider_its_role_s_orde
 
   assert!(role.order.entries.iter().any(|one| one.provider == provider), "{provider}");
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_slot_carries_three_sessions_in_turn_and_is_given_back_with_the_last() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = seeded(scratch.db(), home.path()).await;
+
+  deepseek_balance(&ground, 5.0).await;
+
+  let held = ask(&ground, "worker", "rounds").await;
+  let read = async |token: &str| dispatch::request(&ground.db, token).await.unwrap().unwrap();
+
+  assert!(admitted(&ground, &held).await);
+
+  // The first answer's session, a run named on it by a binding.
+  dispatch::bind_session(&ground.db, &held.token, "worker@run:1").await.unwrap();
+  dispatch::bind(&ground.db, &read(&held.token).await, "research-1-answer").await.unwrap();
+  assert_eq!(read(&held.token).await.agent_name.as_deref(), Some("research-1-answer"));
+
+  // The round's session starts on the slot before the first ends: the lease moves onto it, and the first
+  // session's end no longer gives it back.
+  dispatch::bind_session(&ground.db, &held.token, "worker@run:2").await.unwrap();
+
+  let moved = read(&held.token).await;
+
+  assert_eq!(
+    (moved.child_id.as_deref(), moved.session.as_deref(), moved.agent_name.as_deref()),
+    (Some("worker@run:2"), Some("worker@run:2"), None),
+    "the run named on the session before stays with it"
+  );
+  assert_eq!(
+    dispatch::release_sessions(&ground.db, &["worker@run:1".to_owned()], "ended")
+      .await
+      .unwrap(),
+    0
+  );
+
+  // The review's session, the same way.
+  dispatch::bind_session(&ground.db, &held.token, "worker@run:3").await.unwrap();
+  assert_eq!(
+    dispatch::release_sessions(&ground.db, &["worker@run:2".to_owned()], "ended")
+      .await
+      .unwrap(),
+    0
+  );
+  assert_eq!(read(&held.token).await.state, "active", "still held across three sessions");
+
+  // Starting the same session again keeps what is named on it.
+  dispatch::bind(&ground.db, &read(&held.token).await, "research-1-review").await.unwrap();
+  dispatch::bind_session(&ground.db, &held.token, "worker@run:3").await.unwrap();
+  assert_eq!(read(&held.token).await.agent_name.as_deref(), Some("research-1-review"));
+
+  // The last session's end gives the lease back.
+  assert_eq!(
+    dispatch::release_sessions(&ground.db, &["worker@run:3".to_owned()], "ended")
+      .await
+      .unwrap(),
+    1
+  );
+
+  let ended = read(&held.token).await;
+
+  assert_eq!(
+    (ended.state.as_str(), ended.ended_by.as_deref()),
+    ("released", Some(dispatch::BY_RUN_ENDED))
+  );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_lease_let_in_whose_owner_never_starts_a_session_stands_until_its_owner_releases_it() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = seeded(scratch.db(), home.path()).await;
+
+  deepseek_balance(&ground, 5.0).await;
+
+  let mut lone = asked("worker", "never-started");
+
+  lone.owner = "research:185".to_owned();
+
+  let held = enqueue(&ground.db, &lone, "search", async |_, _| Ok(())).await.unwrap();
+
+  assert!(admitted(&ground, &held).await);
+
+  // Bound to nothing, the line's pass reads no end of it: it stands.
+  assert!(dispatch::bound_leases(&ground.db).await.unwrap().is_empty());
+  assert_eq!(dispatch::request(&ground.db, &held.token).await.unwrap().unwrap().state, "active");
+
+  let done = dispatch::release_owner(&ground.db, "research:185").await.unwrap();
+
+  assert_eq!((done.released, done.cancelled), (1, 0));
+  assert!(done.sessions.is_empty(), "no session was bound to it");
+
+  let ended = dispatch::request(&ground.db, &held.token).await.unwrap().unwrap();
+
+  assert_eq!(
+    (ended.state.as_str(), ended.ended_by.as_deref()),
+    ("released", Some(dispatch::BY_OWNER))
+  );
+  assert_eq!(used(&ground.db, "worker").await.unwrap(), 0, "its slot is free again");
+}

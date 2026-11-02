@@ -264,6 +264,9 @@ pub struct HerdrSessions {
   referenced: Mutex<HashSet<SessionId>>,
   // The context each room's and agent's session was left with by its last turn that read one.
   left: Mutex<HashMap<SessionId, Context>>,
+  // The runs cut because the slot their session was bound to was given back, each with the reason its end
+  // carries.
+  cut: Mutex<HashMap<String, String>>,
 }
 
 /// One turn a session carries while it goes: its id, and the run it goes out as.
@@ -632,6 +635,7 @@ impl HerdrSessions {
       outputs: Outputs::default(),
       referenced: Mutex::default(),
       left: Mutex::default(),
+      cut: Mutex::default(),
     }
   }
 
@@ -721,6 +725,53 @@ impl HerdrSessions {
   // Whether a session carries a turn now.
   fn in_turn(&self, session: &SessionId) -> bool {
     self.going().get(session).is_some_and(|runs| !runs.is_empty())
+  }
+
+  /// The run the turn a session carries now goes out as, none while it carries no turn.
+  pub fn turn_run(&self, session: &SessionId) -> Option<String> {
+    self
+      .going()
+      .get(session)
+      .and_then(|runs| runs.first())
+      .map(|running| running.run.clone())
+  }
+
+  /// A role session ended under whatever turn it carries, as giving back the slot it is bound to ends it
+  /// (docs/role-slots.md, 「The line」): each turn running in it cut, ending `stopped` with the reason given,
+  /// waited for until it has ended — on its end, never on a span — and the session then ended.
+  pub async fn end_under_turns(&self, session: &SessionId, reason: &str) -> Result<(), Fault> {
+    let mut ended = self.ground().events.subscribe::<TurnEnded>();
+
+    loop {
+      let runs = self.going().get(session).cloned().unwrap_or_default();
+
+      if runs.is_empty() {
+        break;
+      }
+
+      for running in &runs {
+        self
+          .cut
+          .lock()
+          .unwrap_or_else(|poisoned| poisoned.into_inner())
+          .insert(running.run.clone(), reason.to_owned());
+
+        match self.interrupt(session, running.turn).await {
+          // A turn that ended between the read and the cut is no longer there to cut.
+          Ok(()) => {}
+          Err(fault) if fault.kind == FaultKind::UnknownTurn => {}
+          Err(fault) => return Err(fault),
+        }
+      }
+
+      while self.in_turn(session) {
+        if ended.next().await.is_none() {
+          return Err(fault(FaultKind::Busy, format!("{session} is in a turn whose end cannot be heard")));
+        }
+      }
+    }
+
+    self.end(session).await
   }
 
   /// Whether a worker's own session carries a turn of this process's now, whatever job does or does not
@@ -1802,6 +1853,13 @@ impl HerdrSessions {
   // One turn sent into a session and carried to its end.
   async fn sent(&self, mut turn: Turn) -> Result<TurnEnd, Fault> {
     let (agent, scope) = self.scope_held(&turn.session)?;
+
+    // There is no worker scope: a run in a repository is a role's session on its slot (docs/api.md,
+    // 「sessions」).
+    if matches!(scope, Scope::Worker) {
+      return Err(no_worker_scope(&turn.session));
+    }
+
     let row = self.admitted(&agent, &scope).await?;
     let at = now_ms();
     let room = match &scope {
@@ -1932,16 +1990,6 @@ impl HerdrSessions {
       turn: turn_id,
     };
     let came = match (&scope, &row) {
-      // A turn to a repository's transition address is a run of the worker role at its checkout, on a slot
-      // asked on the sender's behalf (docs/api.md, 「sessions」).
-      (Scope::Worker, Some(row)) => match work {
-        Some(work) => {
-          let began = turn.context.began.unwrap_or(at);
-
-          self.worker_address(&turn, &agent, row, work, turn_id, began, shown).await
-        }
-        None => Err(fault(FaultKind::Refused, format!("{}: the turn carries no parts", turn.session))),
-      },
       (Scope::Apart(apart), _) => match (&turn.context.gate, work) {
         (Some(gate), _) => {
           self.gate_turn(&turn, &agent, &apart.provider, &apart.cwd, gate, &run, shown).await
@@ -1988,7 +2036,7 @@ impl HerdrSessions {
         }
         None => self.conversation_turn(&turn, &agent, conversation, &run, shown).await,
       },
-      (Scope::Worker, None) => Err(fault(FaultKind::Unknown, format!("no worker is named {agent}"))),
+      (Scope::Worker, _) => Err(no_worker_scope(&turn.session)),
       (Scope::Room(room), _) => match room_number(room) {
         Ok(chat_id) => self.room_turn(&agent, chat_id, &run, &turn.prompt, &turn.context, shown).await,
         Err(refused) => Err(refused),
@@ -1999,6 +2047,9 @@ impl HerdrSessions {
     self.ended(&turn.session, &run);
     crate::turn_marks::ended(&agent, &run);
     crate::turn_pickup::forget(&self.ground().db, &run).await;
+
+    // A turn cut because its session's slot was given back says so.
+    let cut = self.cut.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).remove(&run);
 
     // A turn refused once its start was published still ends, failed with the refusal.
     match came {
@@ -2017,6 +2068,11 @@ impl HerdrSessions {
         let mut end = came.end(&run);
 
         end.turn = turn_id;
+
+        if end.outcome != Outcome::Answered && end.reason.is_none() {
+          end.reason = cut;
+        }
+
         close_chat_run(&self.ground().db, ledger, &end, spent, context).await;
 
         Ok(self.published(&turn.session, end))
@@ -2084,96 +2140,6 @@ impl HerdrSessions {
     };
 
     carry(&asked, &shown).await.map(|end| Came::Ended(Box::new(end)))
-  }
-
-  // A turn sent to a repository's transition address carried as a run of the worker role at the repository's
-  // checkout: a slot of the role asked as the source `ask`, keyed by the checkout, waited for however long the
-  // line takes, the turn run on the slot's road in the session the role keeps there, and the slot given back
-  // as the turn ends. A slot given back from outside while it waits ends the turn stopped.
-  #[allow(clippy::too_many_arguments)]
-  async fn worker_address(
-    &self,
-    turn: &Turn,
-    agent: &str,
-    row: &AgentRow,
-    work: &WorkParts,
-    turn_id: i64,
-    began: i64,
-    shown: OutputWatch<'_>,
-  ) -> Result<Came, Fault> {
-    use crate::order_run::dispatch;
-
-    let ground = self.ground();
-    let refused = |why: String| fault(FaultKind::Refused, why);
-    let role = crate::agent_roles::job_role();
-    let cwd = row.cwd.clone().unwrap_or_else(|| ground.source.to_string_lossy().into_owned());
-    let key = format!("ask:{agent}:{turn_id}");
-    let asked = dispatch::Asked {
-      request_key: key.clone(),
-      owner: key,
-      wanted: dispatch::Wanted {
-        role,
-        path: Some(&cwd),
-        fixed: None,
-      },
-      place_key: Some(agent),
-      title: Some(&work.title),
-      ..dispatch::Asked::default()
-    };
-    let mut held = dispatch::enqueue(&ground.db, &asked, WORKER_ASK, async |_, _| Ok(()))
-      .await
-      .map_err(refused)?;
-    let lease = loop {
-      if let Some(let_in) = dispatch::acquire(ground, &held).await.map_err(refused)? {
-        break dispatch::bind(&ground.db, &let_in, &work.name).await.map_err(refused)?;
-      }
-
-      tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-
-      held = match dispatch::request(&ground.db, &held.token).await.map_err(refused)? {
-        Some(again) if again.state != "released" && again.state != "cancelled" => again,
-        _ => return Ok(Came::Stopped),
-      };
-    };
-    let apart = Apart {
-      provider: lease.provider.clone(),
-      model: lease.model.clone(),
-      effort: lease.effort.clone(),
-      cwd: cwd.clone(),
-      role: Some(role.to_owned()),
-      ..Apart::default()
-    };
-    let work = WorkParts {
-      provider: lease.provider.clone(),
-      model: lease.model.clone(),
-      mapping: agent_session::Mapping {
-        model: lease.model.clone(),
-        effort: lease.effort.clone(),
-        ..work.mapping.clone()
-      },
-      cwd,
-      ..work.clone()
-    };
-    let came = if apart.provider == worker_session::PROVIDER {
-      self.carried(turn, agent, WorkSeat::Apart(&apart), &work, turn_id).await
-    } else {
-      self
-        .apart_in_place(&turn.session, agent, &apart, &work, &turn.prompt, began, None, shown)
-        .await
-    };
-    let outcome = match &came {
-      Ok(Came::Answered(..)) => "answered".to_owned(),
-      Ok(Came::Stopped) => "stopped".to_owned(),
-      Ok(Came::Ended(end)) => format!("{:?}", end.outcome).to_lowercase(),
-      Ok(_) => "ended with no answer".to_owned(),
-      Err(why) => format!("failed: {}", why.message),
-    };
-
-    if let Err(why) = dispatch::finish(&ground.db, &lease.token, &outcome, false).await {
-      eprintln!("{}: its slot was not given back: {why}", turn.session);
-    }
-
-    came
   }
 
   // The session a run in a place of its own kept, folded where its turn left it at or past its role's
@@ -3029,11 +2995,16 @@ fn launch_on<'a>(
   }
 }
 
-// The source a turn to a repository's transition address asks its slot as, a worker ask's.
-const WORKER_ASK: &str = "ask";
-
 /// The backend shared by the routes that answer the contract.
 pub type Shared = Arc<HerdrSessions>;
+
+// What a turn sent to a `<repository>@worker` address is answered: no session stands there.
+fn no_worker_scope(session: &SessionId) -> Fault {
+  fault(
+    FaultKind::Unknown,
+    format!("{session} is no session: {}", crate::control::session_ops::WORKER_RETIRED),
+  )
+}
 
 // The worker's own session, as the contract names it.
 fn worker_session_id(worker: &str) -> Result<SessionId, Fault> {

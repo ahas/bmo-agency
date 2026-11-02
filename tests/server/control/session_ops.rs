@@ -95,15 +95,11 @@ fn a_turns_context_reads_every_part_it_names_and_none_of_what_it_does_not() {
   assert!(context_read(&json!({ "answers": "7" })).is_err());
 }
 
-// A role's session's turn as its caller sends it, every part of its own named, beside the parts a turn no
-// longer carries.
+// A role's session's turn as its caller sends it, every part of its own named, beside a folder the turn does
+// not read.
 fn work_body() -> serde_json::Value {
   json!({
     "prompt": "p",
-    "provider": "codex",
-    "model": "another",
-    "mapping": { "model": "another", "effort": "low", "tier": "frontier" },
-    "workKey": "job-worker",
     "cwd": "/elsewhere",
     "resume": { "kind": "session", "id": "harness-1" },
     "name": "job-41",
@@ -164,8 +160,16 @@ async fn a_role_sessions_turn_goes_out_on_the_sessions_road_with_the_parts_it_na
       hears_words: true,
       variables: BTreeMap::from([("BMO_EXTRA".into(), "1".into())]),
     },
-    "provider, model, mapping, workKey and cwd are the session's, whatever the body names"
+    "the road and the folder are the session's, whatever the body names"
   );
+
+  // A turn naming a road field is refused: its road is its session's.
+  for field in ["provider", "model", "mapping", "workKey", "tier"] {
+    let mut body = work_body();
+
+    body[field] = json!("another");
+    assert!(work_asked(&body).is_err(), "a turn naming {field} is refused");
+  }
 
   let least = work_of(
     scratch.db(),
@@ -491,7 +495,7 @@ async fn work_a_caller_lets_go_of_is_carried_to_its_end() {
 }
 
 // A role's start laid on the slot its caller was let in on: the slot's role, road, effort and path, a field
-// contradicting it refused, a slot not let in refused, and the transition form naming the road whole.
+// contradicting it refused, a slot not let in refused, and a start naming no slot refused whatever road it names.
 #[tokio::test(flavor = "multi_thread")]
 async fn a_roles_start_runs_on_the_slot_it_names() {
   use agency_server::control::session_ops::on_slot;
@@ -552,11 +556,9 @@ async fn a_roles_start_runs_on_the_slot_it_names() {
     ..Apart::default()
   };
 
-  on_slot(&ground.db, &json!({}), &mut named).await.unwrap();
-  assert_eq!(
-    (named.provider.as_str(), named.cwd.as_str()),
-    ("claude-code", "."),
-    "the transition form"
+  assert!(
+    on_slot(&ground.db, &json!({}), &mut named).await.is_err(),
+    "no slot, whatever road the start names"
   );
   assert!(
     on_slot(&ground.db, &json!({}), &mut Apart::default()).await.is_err(),

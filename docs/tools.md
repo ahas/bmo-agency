@@ -136,9 +136,10 @@ belongs to no one service is a repository of its own, not a folder here.
   one past the cache lifetime or the model's context opens a new one. The run works with its role's program
   and tools — a shell among them, so it reaches other machines as a job does.
   - The call waits for the run's end with no timeout, and nothing bounds the run by a clock.
-- **Once the run ends** the slot is finished with what the run came to. A call whose caller goes away while
-  its slot still waits cancels the slot, so nothing is left standing in the line; a run already sent is
-  carried to its end by agency, and its slot is finished as the call goes away.
+- **Once the run ends** the slot is finished with what the run came to, which ends the run's session. A call
+  whose caller goes away while its slot still waits cancels the slot, so nothing is left standing in the line;
+  one that goes away once its run was sent finishes the slot as it goes, which cuts the run and ends its
+  session (`docs/role-slots.md`, 「The line」), so nothing goes on running on a slot no call holds.
 - **Its answer** is the run's answer text and the paths of the files created or changed in the folder while
   the task ran, found by comparing the folder before and after, its `.git` directories passed over.
 - **Its stage stands on its slot** (`docs/api.md`, 「slots, reservations and places」): the slot is asked with

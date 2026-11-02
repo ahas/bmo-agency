@@ -64,6 +64,42 @@ fn shown(value: impl serde::Serialize) -> Result<Value, Refused> {
   serde_json::to_value(value).map_err(Refused::failed)
 }
 
+/// The reason a role session's turn cut because its slot was given back ends with (docs/api.md, 「sessions」).
+pub const RELEASED: &str = "released";
+
+/// The role session a request is bound to, where it is bound to one.
+fn bound_session(request: &dispatch::Request) -> Option<String> {
+  request.session.clone().filter(|session| request.child_id.as_ref() == Some(session))
+}
+
+/// The role sessions a given-back slot was bound to, ended: a turn running in one cut first and waited for, so
+/// nothing goes on running on a slot given back (docs/role-slots.md, 「The line」). The work is carried to its
+/// end whether or not the caller still waits; the ids of the sessions ended.
+async fn end_bound(
+  backend: Option<crate::herdr_backend::Shared>,
+  sessions: Vec<String>,
+  owner: &str,
+) -> Vec<String> {
+  let Some(backend) = backend else {
+    return vec![];
+  };
+  let owner = owner.to_owned();
+
+  super::session_ops::carried(async move {
+    let mut ended = vec![];
+
+    for session in sessions {
+      match backend.end_under_turns(&agent_session::SessionId(session.clone()), RELEASED).await {
+        Ok(()) => ended.push(session),
+        Err(fault) => eprintln!("{owner}: its role session {session} was not ended: {}", fault.message),
+      }
+    }
+
+    ended
+  })
+  .await
+}
+
 /// `POST /slot-requests`: a slot of a role asked under the source, owner and request key its caller names, at
 /// the path its run will work at; its provider and model are the role's order's unless the caller fixes them.
 pub struct SlotAsk;
@@ -173,7 +209,14 @@ impl Route for SlotMove {
       Some("finished") => {
         let outcome = body.get("outcome").and_then(Value::as_str).unwrap_or_default();
         let cancel = body.get("cancel").and_then(Value::as_bool).unwrap_or(false);
+        let session = bound_session(&held).filter(|_| held.state == "active");
         let held = finish(call.store(), &token, outcome, cancel).await.map_err(refused)?;
+
+        // The role session the lease was bound to ends with it, a turn running in it cut first.
+        if held && let Some(session) = session {
+          end_bound(call.sessions(), vec![session], &token).await;
+        }
+
         // The card the slot held goes back with it; where the asking run's own card was lent, the answer
         // waits until that run's engine is back and says so (docs/own-llm.md, 「An engine the arbiter
         // stands」).
@@ -336,18 +379,7 @@ impl Route for SlotOwnerRelease {
       .filter(|owner| !owner.is_empty())
       .ok_or_else(|| bad("owner is required"))?;
     let done = dispatch::release_owner(call.store(), &owner).await.map_err(refused)?;
-    let mut ended = vec![];
-
-    if let Some(sessions) = call.sessions() {
-      use agent_session::Sessions as _;
-
-      for session in &done.sessions {
-        match sessions.end(&agent_session::SessionId(session.clone())).await {
-          Ok(()) => ended.push(session.clone()),
-          Err(fault) => eprintln!("{owner}: its role session {session} was not ended: {}", fault.message),
-        }
-      }
-    }
+    let ended = end_bound(call.sessions(), done.sessions.clone(), &owner).await;
 
     Ok(answer(
       StatusCode::OK,
@@ -400,6 +432,7 @@ impl Route for Slots {
 
   async fn answer(&self, call: Call) -> Result<Response, Refused> {
     let open = dispatch::requests(call.store(), &OPEN).await.map_err(refused)?;
+    let backend = call.sessions();
     let mut items = vec![];
 
     for role in agent_roles::every(call.store()).await? {
@@ -409,8 +442,14 @@ impl Route for Slots {
         .iter()
         .filter(|request| request.state == "active")
         .map(|request| {
-          let session =
-            request.session.clone().filter(|session| request.child_id.as_ref() == Some(session));
+          let session = bound_session(request);
+          // A slot on a role session names the run its session's turn goes out as while one runs; a slot on
+          // anything else, the child it is bound to; a run name a binding named stands over either.
+          let going = match (&session, &backend) {
+            (Some(session), Some(backend)) => backend.turn_run(&agent_session::SessionId(session.clone())),
+            (Some(_), None) => None,
+            (None, _) => request.child_id.clone(),
+          };
 
           json!({
             "token": request.token,
@@ -420,7 +459,7 @@ impl Route for Slots {
             "model": request.model,
             "source": request.source,
             "since": request.leased_at,
-            "runName": request.agent_name.clone().or_else(|| request.child_id.clone()),
+            "runName": request.agent_name.clone().or(going),
             "session": session,
             "jobId": dispatch::job_of(request),
             "title": request.title,

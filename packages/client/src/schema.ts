@@ -257,7 +257,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Send a turn into a session; words to a worker are a turn into its session. */
+        /** Send a turn into a session. */
         post: operations["createSessionsTurns"];
         delete?: never;
         options?: never;
@@ -3752,7 +3752,10 @@ export interface components {
              * @description epoch milliseconds
              */
             since: number | null;
-            /** @description the run its binding named, or the child it is bound to; null until bound */
+            /**
+             * @description the run a binding named since the slot's last start; else, for a slot bound to a role session, the run
+             *     name of that session's running turn, null while none runs; else the child it is bound to, null until bound
+             */
             runName: string | null;
             /** @description the role session it is bound to, or null */
             session: string | null;
@@ -3853,10 +3856,18 @@ export interface components {
             sessionsEnded: string[];
         };
         /**
-         * @description SlotRequestMoved: what a move of a slot request answers: an admission, the request bound, or the request
-         *     given back.
+         * @description SlotRequestMoved: what a move of a slot request answers: the request bound, the request given back, or an
+         *     admission. Each is read in that order, the first whose required members the answer holds: a bound request
+         *     carries its token, a given-back one `held`, and an admission neither.
          */
-        SlotRequestMoved: components["schemas"]["SlotAdmission"] | components["schemas"]["SlotRequest"] | components["schemas"]["SlotFinished"];
+        SlotRequestMoved: components["schemas"]["SlotRequest"] | components["schemas"]["SlotFinished"] | components["schemas"]["SlotAdmission"];
+        /** @description SlotFinished: what giving a slot request back answers. */
+        SlotFinished: {
+            /** @description whether it was still held */
+            held: boolean;
+            stoodDown: boolean;
+            note: string | null;
+        };
         /** @description SlotAdmission: what an admission asked of a slot request answers. */
         SlotAdmission: {
             /** @description the request, active, where it is let in; null otherwise */
@@ -3869,13 +3880,6 @@ export interface components {
             endedBy: string | null;
             /** @description the words it was given back with, or null while it stands */
             outcome: string | null;
-        };
-        /** @description SlotFinished: what giving a slot request back answers. */
-        SlotFinished: {
-            /** @description whether it was still held */
-            held: boolean;
-            stoodDown: boolean;
-            note: string | null;
         };
         /** @description SlotRequestMove: a slot request asked for its admission, bound to its run, or given back. */
         SlotRequestMove: {
@@ -4681,6 +4685,7 @@ export interface operations {
                     "application/json": components["schemas"]["Turn"];
                 };
             };
+            400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
         };

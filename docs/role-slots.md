@@ -72,14 +72,27 @@ co-work branch works in. What a role is, is `docs/agent-roles.md`; which provide
   success, failure, a launch refusal or a cancel is confirmed. Each given-back request keeps who gave it
   back: `holder`, the token's holder; `owner`, its owner's release; or `run-ended`, the line on evidence its
   run ended.
+- **Giving back a lease bound to a role session ends that session,** whether its holder finishes it or its
+  owner releases it: a turn running in the session is cut, ending `stopped` with the reason `released`
+  (`docs/api.md`, 「sessions」), and the session is ended once that turn has ended. Nothing goes on running on
+  a slot given back.
 - **A lease is bound to what its run stands as:** a systemd unit, a herdr pane or an open execution by its
   name, or a role session by its id. A role's start that names the slot binds the lease to the session it
-  opens where the lease is bound to nothing yet (`docs/api.md`, 「sessions」), and a binding naming the id of a
-  session agency holds is bound to that session.
+  opens, whether or not the lease was bound before (`docs/api.md`, 「sessions」), and a binding naming the id
+  of a session agency holds is bound to that session.
+- **A slot carries several sessions in turn.** Each start naming the slot moves its lease onto the session
+  that start opens, and the session the lease was bound to before is bound to it no longer. A consumer that
+  runs sessions one after another on one slot — a first answer, its rounds, a review — starts the next
+  session on the slot before it ends the one before; ending the session the lease is still bound to gives
+  the lease back.
+- **An admitted lease bound to nothing is given back only by its holder or its owner:** the line reads no end
+  of a run that never named itself, so such a lease stands until its holder finishes it or its owner's release
+  gives it back, however long that is.
 - **A bound lease is given back only on an observed end, never for a span of time:**
-  - a lease bound to a session, once that session ends: ended by its caller or by an owner's release, or
-    gone with the agency process that held it, since a role session is held in memory from its start to its
-    end and a restart ends every one;
+  - a lease bound to a session, once that session ends while the lease is still bound to it: ended by its
+    caller, by its holder's finish or by an owner's release, or gone with the agency process that held it,
+    since a role session is held in memory from its start to its end and a restart ends every one. A
+    session the lease has moved off ends without touching the lease;
   - a lease bound to a unit, a pane or an execution, once the line's pass has seen that run standing and then
     sees no systemd unit, herdr pane or open execution holding it. A run not yet seen standing is never read
     as ended, however long it takes to come up. The pass reads from the server's start and each minute after;
@@ -96,7 +109,9 @@ co-work branch works in. What a role is, is `docs/agent-roles.md`; which provide
 - **An owner gives back everything it holds in one ask** (`docs/api.md`, 「slots, reservations and places」):
   every request it asked that still waits, stands reserved or is let in — a waiting or reserved one
   cancelled, an active one released — every reservation it holds, and every role session bound to one of its
-  leases, ended. A consumer that restarts asks it first, so it keeps no list of its own holds to give back.
+  leases, ended, a turn running in it cut first (「The line」). A consumer asks it as it starts and as its run
+  ends, so it keeps no list of its own holds to give back, and a lease let in whose run never started a
+  session is given back with the rest.
 - **The release is the owner's word, read as given:** agency judges nothing of why, and a request asked under
   another owner is not touched.
 

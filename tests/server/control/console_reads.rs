@@ -1,9 +1,11 @@
 //! What the console reads of a running server over its control routes (docs/api.md): each provider with its
 //! default compaction threshold and typed quota; a supervisor's reset point alone and the rooms its turns went
 //! into; the stand-in's provider; a repository's typed checkouts and sampling settings, an add with no path
-//! refused, a node checkout on a node that takes no jobs refused; the nodes with whether they take jobs; a
-//! seeded companion's removal refused as seeded; and a slot asked for a model alone, its runs on `/slots`, an
-//! owner's release and the admission's state after it — on a store the server settled itself.
+//! refused, a node checkout on a node that takes no jobs refused, a change refused for its sampling writing
+//! none of its node checkouts; the nodes with whether they take jobs; a seeded companion's removal refused as
+//! seeded; a slot asked for a model alone, its runs on `/slots`, an owner's release and the admission's state
+//! after it; and a slot carrying role sessions in turn, its tile naming its session and run, and the forms
+//! that are gone refused — on a store the server settled itself.
 
 use serde_json::{Value, json};
 
@@ -154,6 +156,32 @@ async fn a_running_server_answers_the_fields_the_console_reads() {
   assert_eq!((status, refused["field"].clone()), (400, json!("nodeCheckouts")), "{refused}");
   assert_eq!(get(port, token, "/repositories/kept").await.1["checkouts"].as_array().unwrap().len(), 1);
 
+  // A change is judged whole before anything of it is written: a sampling refused leaves the node checkouts
+  // the same change would have taken out standing.
+  scratch
+    .run(
+      r#"INSERT INTO "repository_node_checkouts" ("repository", "node", "path", "created_at")
+         VALUES ('kept', 'far', '/checkouts/kept-far', 1)"#,
+      vec![],
+    )
+    .await;
+
+  let (status, refused) = call(
+    port,
+    token,
+    reqwest::Method::PATCH,
+    "/repositories/kept",
+    Some(json!({ "nodeCheckouts": [], "sampling": { "no_such_setting": 1 } })),
+  )
+  .await;
+  let standing = r#"SELECT COUNT(*) FROM "repository_node_checkouts" WHERE "repository" = 'kept'"#;
+
+  assert_eq!(status, 400, "{refused}");
+  assert_eq!(scratch.count(standing, vec![]).await, 1, "the node checkout stands");
+  scratch
+    .run(r#"DELETE FROM "repository_node_checkouts" WHERE "repository" = 'kept'"#, vec![])
+    .await;
+
   // A companion added with its order whole is written with it, its share beside it.
   let (status, added) = call(
     port,
@@ -266,4 +294,130 @@ async fn a_running_server_answers_the_fields_the_console_reads() {
 
   assert_eq!(status, 200, "{slots}");
   assert!(slots["items"].as_array().unwrap().iter().any(|role| role["role"] == "scout"), "{slots}");
+
+  sessions_on_one_slot(port, token, &entry).await;
+}
+
+// The tile `/slots` answers for the slot its token names.
+async fn tile(port: u16, token: &str, slot: &str) -> Value {
+  let (status, slots) = get(port, token, "/slots").await;
+
+  assert_eq!(status, 200, "{slots}");
+  slots["items"]
+    .as_array()
+    .unwrap()
+    .iter()
+    .flat_map(|role| role["runs"].as_array().unwrap().clone())
+    .find(|run| run["token"] == slot)
+    .unwrap_or_else(|| panic!("no tile for {slot}: {slots}"))
+}
+
+// A slot carrying role sessions in turn: each start moves its lease onto the session it opens, a session the
+// lease moved off ends without giving the slot back, a tile names its session and a run only once one is
+// named, and the owner's release ends the session the slot is bound to with it. A turn sent to a
+// repository's worker address and a start naming no slot are refused.
+async fn sessions_on_one_slot(port: u16, token: &str, entry: &Value) {
+  let (status, asked) = call(
+    port,
+    token,
+    reqwest::Method::POST,
+    "/slot-requests",
+    Some(json!({
+      "role": "scout", "requestKey": "console:sessions", "owner": "console-sessions",
+      "provider": entry["provider"], "model": entry["model"],
+    })),
+  )
+  .await;
+
+  assert_eq!(status, 201, "{asked}");
+
+  let slot = asked["token"].as_str().unwrap().to_owned();
+  let (status, admission) =
+    call(port, token, reqwest::Method::PATCH, &format!("/slot-requests/{slot}"), Some(json!({}))).await;
+
+  assert_eq!((status, admission["state"].as_str()), (200, Some("active")), "{admission}");
+
+  let start = |slot: &str| json!({ "scope": "role", "slot": slot });
+  let (status, first) = call(port, token, reqwest::Method::POST, "/sessions", Some(start(&slot))).await;
+
+  assert_eq!(status, 201, "{first}");
+
+  let first = first["id"].as_str().unwrap().to_owned();
+  let read = tile(port, token, &slot).await;
+
+  assert_eq!(read["session"], json!(first), "{read}");
+  assert_eq!(read["runName"], Value::Null, "no turn runs and no run is named: {read}");
+
+  // The next session starts on the slot before the first ends.
+  let (status, second) = call(port, token, reqwest::Method::POST, "/sessions", Some(start(&slot))).await;
+
+  assert_eq!(status, 201, "{second}");
+
+  let second = second["id"].as_str().unwrap().to_owned();
+
+  assert_ne!(first, second);
+  assert_eq!(tile(port, token, &slot).await["session"], json!(second));
+
+  let (status, _) = call(port, token, reqwest::Method::DELETE, &format!("/sessions/{first}"), None).await;
+
+  assert!((200..300).contains(&status), "the first session ends: {status}");
+
+  let (_, standing) = get(port, token, &format!("/slot-requests/{slot}")).await;
+
+  assert_eq!(standing["state"], "active", "the slot moved off the first session stands: {standing}");
+
+  // A run a binding names stands on the tile.
+  let (status, bound) = call(
+    port,
+    token,
+    reqwest::Method::PATCH,
+    &format!("/slot-requests/{slot}"),
+    Some(json!({ "state": "bound", "childId": "console-review" })),
+  )
+  .await;
+
+  assert_eq!(status, 200, "{bound}");
+
+  let read = tile(port, token, &slot).await;
+
+  assert_eq!(
+    (read["session"].clone(), read["runName"].clone()),
+    (json!(second), json!("console-review"))
+  );
+
+  // The owner's release ends the session the slot is bound to.
+  let (status, released) =
+    call(port, token, reqwest::Method::DELETE, "/slot-requests?owner=console-sessions", None).await;
+
+  assert_eq!(status, 200, "{released}");
+  assert_eq!(
+    (released["released"].clone(), released["sessionsEnded"].clone()),
+    (json!(1), json!([second]))
+  );
+  assert_eq!(get(port, token, &format!("/sessions/{second}")).await.0, 404);
+
+  // The forms that are gone.
+  let (status, refused) = call(
+    port,
+    token,
+    reqwest::Method::POST,
+    "/sessions",
+    Some(
+      json!({ "scope": "role", "role": "scout", "provider": entry["provider"], "model": entry["model"] }),
+    ),
+  )
+  .await;
+
+  assert_eq!(status, 400, "a start naming no slot: {refused}");
+
+  let (status, refused) = call(
+    port,
+    token,
+    reqwest::Method::POST,
+    "/sessions/kept@worker/turns",
+    Some(json!({ "prompt": "do it" })),
+  )
+  .await;
+
+  assert_eq!(status, 404, "a repository's worker address: {refused}");
 }

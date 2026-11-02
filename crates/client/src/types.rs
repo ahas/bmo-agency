@@ -3190,14 +3190,15 @@ pub struct SlotFinished {
   pub note: Option<String>,
 }
 
-/// SlotRequestMoved: what a move of a slot request answers: an admission, the request bound, or the request
-/// given back.
+/// SlotRequestMoved: what a move of a slot request answers: the request bound, the request given back, or an
+/// admission. Each is read in that order, the first whose required members the answer holds: a bound request
+/// carries its token, a given-back one `held`, and an admission neither.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(untagged)]
 pub enum SlotRequestMoved {
-  Admission(SlotAdmission),
   Bound(SlotRequest),
   Finished(SlotFinished),
+  Admission(SlotAdmission),
 }
 
 /// OwnerRelease: what an owner's release gave back.
@@ -3305,7 +3306,8 @@ pub struct SlotRun {
   pub source: String,
   /// epoch milliseconds
   pub since: Option<i64>,
-  /// the run its binding named, or the child it is bound to; null until bound
+  /// the run a binding named since the slot's last start; else, for a slot bound to a role session, the run
+  /// name of that session's running turn, null while none runs; else the child it is bound to, null until bound
   pub run_name: Option<String>,
   /// the role session it is bound to, or null
   pub session: Option<String>,

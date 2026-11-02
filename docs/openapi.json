@@ -1060,7 +1060,7 @@
         "tags": [
           "sessions"
         ],
-        "summary": "Send a turn into a session; words to a worker are a turn into its session.",
+        "summary": "Send a turn into a session.",
         "responses": {
           "201": {
             "description": "Answered.",
@@ -1075,12 +1075,16 @@
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
           "404": {
             "$ref": "#/components/responses/NotFound"
           }
         },
         "x-codes": [
           "unauthorized",
+          "bad-request",
           "not-found"
         ],
         "parameters": [
@@ -13057,7 +13061,7 @@
               "string",
               "null"
             ],
-            "description": "the run its binding named, or the child it is bound to; null until bound"
+            "description": "the run a binding named since the slot's last start; else, for a slot bound to a role session, the run\nname of that session's running turn, null while none runs; else the child it is bound to, null until bound"
           },
           "session": {
             "type": [
@@ -13401,16 +13405,40 @@
       "SlotRequestMoved": {
         "anyOf": [
           {
-            "$ref": "#/components/schemas/SlotAdmission"
-          },
-          {
             "$ref": "#/components/schemas/SlotRequest"
           },
           {
             "$ref": "#/components/schemas/SlotFinished"
+          },
+          {
+            "$ref": "#/components/schemas/SlotAdmission"
           }
         ],
-        "description": "SlotRequestMoved: what a move of a slot request answers: an admission, the request bound, or the request\ngiven back."
+        "description": "SlotRequestMoved: what a move of a slot request answers: the request bound, the request given back, or an\nadmission. Each is read in that order, the first whose required members the answer holds: a bound request\ncarries its token, a given-back one `held`, and an admission neither."
+      },
+      "SlotFinished": {
+        "type": "object",
+        "properties": {
+          "held": {
+            "type": "boolean",
+            "description": "whether it was still held"
+          },
+          "stoodDown": {
+            "type": "boolean"
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "held",
+          "stoodDown",
+          "note"
+        ],
+        "description": "SlotFinished: what giving a slot request back answers."
       },
       "SlotAdmission": {
         "type": "object",
@@ -13456,30 +13484,6 @@
           "outcome"
         ],
         "description": "SlotAdmission: what an admission asked of a slot request answers."
-      },
-      "SlotFinished": {
-        "type": "object",
-        "properties": {
-          "held": {
-            "type": "boolean",
-            "description": "whether it was still held"
-          },
-          "stoodDown": {
-            "type": "boolean"
-          },
-          "note": {
-            "type": [
-              "string",
-              "null"
-            ]
-          }
-        },
-        "required": [
-          "held",
-          "stoodDown",
-          "note"
-        ],
-        "description": "SlotFinished: what giving a slot request back answers."
       },
       "SlotRequestMove": {
         "type": "object",
@@ -14049,6 +14053,10 @@
     {
       "what": "the routes GET, PUT and DELETE /session-summaries/{agentName} and GET /session-summaries/{agentName}/task, the webhook session-summarising, and the hand-over's note and thread",
       "why": "no session summary is kept anywhere: a closed session hands nothing over"
+    },
+    {
+      "what": "the turn address /sessions/{repository}@worker/turns, a role's start naming no slot, and the road fields provider, model, mapping, workKey and tier on a turn",
+      "why": "a run in a repository is a role's session started on the slot its sender was let in on, and a turn goes out on its session's road"
     },
     {
       "what": "the agent kind and role recollector, the session scope editor with a turn's run parts (run, parent, agent, chatId, step, steps, workdir, desk, registration), the work keys digest, people-digest and people-standing, the companion setting recollectorModel and the agent's recollectorRegistration",

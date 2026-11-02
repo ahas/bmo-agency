@@ -288,10 +288,7 @@ pub async fn ask_with(api: &Api, session: &Session, input: AskInput) -> Answer {
 
   if let Err(why) = ok(
     api
-      .patch(
-        &format!("/slot-requests/{token}"),
-        json!({ "state": "bound", "childId": run, "agentName": run_session }),
-      )
+      .patch(&format!("/slot-requests/{token}"), json!({ "state": "bound", "childId": run }))
       .await,
     "the slot was not bound",
   ) {

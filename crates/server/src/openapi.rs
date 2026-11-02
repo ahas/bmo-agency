@@ -391,7 +391,7 @@ pub const OPERATIONS: &[Operation] = &[
     path: "/sessions/{sessionId}/turns",
     id: "createSessionsTurns",
     tag: "sessions",
-    summary: "Send a turn into a session; words to a worker are a turn into its session.",
+    summary: "Send a turn into a session.",
     params: &[Param {
       name: "sessionId",
       place: "path",
@@ -401,7 +401,7 @@ pub const OPERATIONS: &[Operation] = &[
     }],
     body: Some("TurnSend"),
     answers: &[(201, Some("Turn"), false)],
-    codes: &["not-found"],
+    codes: &["bad-request", "not-found"],
   },
   Operation {
     method: "GET",
@@ -3078,6 +3078,10 @@ const REMOVED: &[(&str, &str)] = &[
   (
     "the routes GET, PUT and DELETE /session-summaries/{agentName} and GET /session-summaries/{agentName}/task, the webhook session-summarising, and the hand-over's note and thread",
     "no session summary is kept anywhere: a closed session hands nothing over",
+  ),
+  (
+    "the turn address /sessions/{repository}@worker/turns, a role's start naming no slot, and the road fields provider, model, mapping, workKey and tier on a turn",
+    "a run in a repository is a role's session started on the slot its sender was let in on, and a turn goes out on its session's road",
   ),
   (
     "the agent kind and role recollector, the session scope editor with a turn's run parts (run, parent, agent, chatId, step, steps, workdir, desk, registration), the work keys digest, people-digest and people-standing, the companion setting recollectorModel and the agent's recollectorRegistration",

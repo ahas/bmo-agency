@@ -1043,7 +1043,7 @@ impl AgencyClient {
   }
 
   /// `PATCH /slot-requests/{token}`: Move a slot request: admitted, bound to its launched run, finished.
-  pub async fn move_slot_request(&self, token: &str, body: &SlotRequestMove) -> Answer<serde_json::Value> {
+  pub async fn move_slot_request(&self, token: &str, body: &SlotRequestMove) -> Answer<SlotRequestMoved> {
     Self::answered(self.request(Method::PATCH, &["slot-requests", token]).json(body)).await
   }
 

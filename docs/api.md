@@ -296,16 +296,10 @@ where it names one, the folder its turns go out on, and its turns are ordinary p
 them and no work parts. A provider whose program keeps a session continues the one its last answered turn left.
 The session stands in the server's memory from its start to its end.
 
-**There is no `worker` scope.** A run in a repository is a role's run at its checkout's path. A start naming
-`worker` is refused 400; no list names a `<repository>@worker` session, and its state, change, end and fold
-routes answer 404 `unknown`. One address of it stands for this step alone: a turn sent to
-`/sessions/{repository}@worker/turns`, a repository's name before the `@`, is carried as a run of the
-`worker` role at that repository's checkout. Agency asks the slot on the sender's behalf — the source `ask`,
-the checkout as its place key and path — waits in the role's line however long it takes, runs the turn on
-the slot's road in the session the role keeps at the checkout, and gives the slot back as the turn ends; its
-progress read, its interrupt and the words pushed into it answer as any turn's do, and a repository the store
-does not hold answers 404 `unknown`. The next step removes the address, and a sender asks the slot and starts
-the role's session itself.
+**There is no `worker` scope.** A run in a repository is a role's run at its checkout's path: its sender asks
+the slot and starts the role's session on it. A start naming `worker` is refused 400; no list names a
+`<repository>@worker` session, and its state, change, end and fold routes and a turn sent to it answer 404
+`unknown`.
 
 A role's session is the session of one run of a role (`docs/agents.md`, 「A run in a pane of its own」). It runs
 on the slot its caller was let in on (「slots, reservations and places」): its start names `slot`, that slot
@@ -320,9 +314,11 @@ in on, on the role's line.
   `contradicts-slot`, so a start never moves a run off the road its slot was let in on.
 - **`cwd`** is the path the run works at: the one the start names, else the slot's `path`, else the line's own
   deployed directory.
-- **A start naming no `slot`** is the transition form this step still reads: it names `role`, `provider` and
-  `model` together and the session runs on that road, the slot its caller holds unread; a start naming neither
-  a slot nor both of provider and model is refused 400. The next step refuses every start without `slot`.
+- **A start naming no `slot`** is refused 400: a role's session runs on a slot and on nothing else.
+- **A slot carries several sessions in turn.** A start naming a slot binds its lease to the session it opens,
+  whether or not the lease was bound to another before, and that other session's end no longer gives the
+  lease back; ending the session the lease is bound to does (`docs/role-slots.md`, 「The line」). A caller
+  running sessions one after another on one slot starts the next before it ends the one before.
 
 Every role's session but a co-work branch's carries the reference its first prompt's instruction calls for,
 picked by the gate's reference selection over the chat agent's brain and attached to that first prompt, the same
@@ -359,9 +355,8 @@ what a person watching reads over the run, the role's name where none is named; 
 lines stand under, none where it names none; `unit`, the unit it runs under; `resume`, which session it goes
 on — `{ "kind": "auto" }` where it names none, `{ "kind": "fresh" }`, or `{ "kind": "session", "id": … }`
 (`docs/sessions.md`, 「A role's session」); `hearsWords`, whether words pushed into the turn reach it, false
-where it names none; and `variables`, what its program is started with beside its own. `provider`, `model`,
-`mapping` and `workKey` are no part of a turn: a body naming them is read as if it did not, this step, and the
-next step refuses them.
+where it names none; and `variables`, what its program is started with beside its own. A turn's road is its
+session's: a turn body naming `provider`, `model`, `mapping`, `workKey` or `tier` is refused 400.
 
 Each turn of a role's session goes out in a pane of its own, on the session the role gives it: the one kept
 for the role at the path on the provider and model where the role keeps sessions and it is valid, a new one
@@ -434,7 +429,9 @@ looks), `blocked`, `untrusted`, `unsubmitted`, `overran` or `stopped`
 (`docs/agent-control.md`, 「Telling that a turn's program is gone」); a turn that went out on a road with no
 such pane ends `answered`, `blocked`, `stopped` or `failed`, and a worker's turn put back before anything
 went in `reprepared`. No turn whose program cannot answer is left waiting: each of these is an observed
-event, and none is a clock's.
+event, and none is a clock's. A role's session's turn cut because the slot its session is bound to was given
+back — by its holder's finish or its owner's release (「slots, reservations and places」) — ends `stopped`
+with the reason `released`.
 
 Every route that takes a body names the request type it reads, holding only the fields that route reads;
 `docs/openapi.json` names that type, and no route's request is a response type reused.
@@ -580,12 +577,13 @@ line keeps the order requests were asked in, and a slot goes to the first waitin
 asking now and whose provider has quota (`docs/role-slots.md`, 「The line」). A `PATCH` with `{ "state":
 "bound", "childId": … }` binds an active request to the run it launched and answers the request: a unit's, a
 pane's or an execution's name, or the id of a role session agency holds, to which the lease is then bound
-(`docs/role-slots.md`, 「The line」). A role's start naming an active slot that is bound to nothing yet binds it
-to the session it opens; a later binding naming another child leaves it bound to that session and keeps the
-child as the run's name. A request is
+(`docs/role-slots.md`, 「The line」). A role's start naming an active slot binds it to the session it opens,
+whether or not it was bound before; a later binding naming another child leaves it bound to that session and
+keeps the child as the run's name until the next start on the slot. A request is
 given back with `{ "state": "finished", "outcome": … }`, and cancelled, where it never ran, with `{ "state":
 "finished", "cancel": true, "outcome": … }`; either answers `{ "held": <bool>, "stoodDown": <bool>, "note":
-<text or null> }`.
+<text or null> }`. A request given back while bound to a role session ends that session, a turn running in it
+cut first and the answer given once the session has ended (`docs/role-slots.md`, 「The line」).
 
 A slot on a registration naming a card service asks its demand once the line lets it in (`docs/own-llm.md`,
 「An engine the arbiter stands」): the admission answers `demand` beside `request` — its `id`, `state`,
@@ -602,16 +600,19 @@ none was named.
 
 `GET /slots` answers `items`, for every role its `role`, `maxConcurrent`, `active`, `reserved` and `waiting`, and
 `runs`, each active run: its `token`, `role`, `path`, `provider`, `model`, `source` and `since` in epoch
-milliseconds; `runName`, the run its binding named, or the child it is bound to, null until bound; `session`,
-the role session it is bound to, or null; `jobId`, the job whose run it is where its source is `job`, else
-null; and `title`. A screen opens a tile's log by its `runName`, or by its job's where `jobId` is named.
+milliseconds; `session`, the role session it is bound to, or null; `runName`, the run a binding named where one
+did since the slot's last start, else for a slot bound to a role session the run name of that session's
+running turn, null while no turn runs, and for any other slot the child it is bound to, null until bound;
+`jobId`, the job whose run it is where its source is `job`, else null; and `title`. A screen opens a tile's
+log by its job's where `jobId` is named, else by its `runName` where it stands, else by its `session`.
 
 `DELETE /slot-requests` takes `owner` in its query and gives back everything that owner holds
 (`docs/role-slots.md`, 「An owner's release」): each of its requests that waits or stands reserved, cancelled; each
 that is let in, released; each reservation it holds, released; and each role session one of its leases is bound
-to, ended. Every one is given back as `owner`. It answers 200 with `cancelled`, `released` and `reservations`,
-the counts given back, and `sessionsEnded`, the ids of the sessions it ended; 400 where no owner is named. An
-owner holding nothing answers zero counts.
+to, ended: a turn running in such a session is cut first, ending `stopped` with the reason `released`, and the
+session is ended once that turn has ended. Every one is given back as `owner`. It answers 200 with
+`cancelled`, `released` and `reservations`, the counts given back, and `sessionsEnded`, the ids of the sessions
+it ended; 400 where no owner is named. An owner holding nothing answers zero counts.
 
 `GET /delegations` answers `items`, the slot requests asked under the source `delegate` (`docs/tools.md`, 「The
 delegate」), narrowed to one asking supervisor by `askedBy`: the ones still waiting or running in the order
@@ -914,6 +915,8 @@ console, and 409 `seeded` for one the deployment seeds, as `DELETE /supervisors/
   jobs, and the repository's base must stand on this machine; one it leaves out is removed, refused 409
   `conflict` while a job holds it, and its checkout on the node stays on the node. An empty list removes every
   one; a body naming none leaves them as they stand.
+- **A change is judged whole before anything is written:** its fields, its placement, its node checkouts and its
+  sampling each judged first, and a refusal of any of them leaves the repository as it stood.
 - **A removal** answers 204, and is refused 409 while a job holds one of its checkouts; 404 for a repository
   the store does not hold.
 

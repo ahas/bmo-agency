@@ -227,8 +227,11 @@ async fn a_slot_waits_in_line_and_the_roles_run_answers_with_its_words_and_the_f
   let work = &turned;
   let run = work["name"].as_str().unwrap();
 
-  assert_eq!(stub.bound.clone().unwrap()["childId"], run, "the slot is bound to the run");
-  assert_eq!(stub.bound.clone().unwrap()["agentName"], "delegator@run:1");
+  assert_eq!(stub.bound.clone().unwrap()["childId"], run, "the slot names the run it carries");
+  assert!(
+    stub.bound.clone().unwrap().get("agentName").is_none(),
+    "the slot stays on the session its start bound it to"
+  );
   assert!(
     turned["prompt"]
       .as_str()

@@ -1300,14 +1300,18 @@ pub async fn reclaim_bound(
   release_ended(db, &leases, &standing).await
 }
 
-/// An active lease not bound yet bound to the role session a start laid on it opened, the session kept beside
-/// it, so the lease ends with that session (docs/role-slots.md, 「The line」). A lease already bound is left
-/// as it is.
+/// An active lease bound to the role session a start laid on it opened, whether or not it was bound before, the
+/// session kept beside it, so the lease ends with that session and no longer with the one it was bound to
+/// (docs/role-slots.md, 「The line」). The run name a binding named stays only while the lease stays on the same
+/// session; a lease moved onto another forgets it, and its child is read afresh.
 pub async fn bind_session(db: &DatabaseConnection, token: &str, session: &str) -> Result<(), Fault> {
   run(
     db,
-    r#"UPDATE "role_slot_requests" SET "child_id" = $1, "session" = $1
-       WHERE "token" = $2 AND "state" = 'active' AND "child_id" IS NULL"#,
+    r#"UPDATE "role_slot_requests"
+       SET "agent" = CASE WHEN "child_id" = $1 AND "session" = $1 THEN "agent" END,
+           "child_seen" = CASE WHEN "child_id" = $1 AND "session" = $1 THEN "child_seen" ELSE 0 END,
+           "child_id" = $1, "session" = $1
+       WHERE "token" = $2 AND "state" = 'active'"#,
     vec![session.into(), token.into()],
   )
   .await

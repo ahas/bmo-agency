@@ -146,15 +146,22 @@ async fn node_home(ground: &Ground, node: &str) -> Option<String> {
     .and_then(|place| place.home)
 }
 
-/// A repository's checkouts on the nodes set to the list a change names (docs/worker-slots.md, 「Checkouts on
-/// the nodes」): every node it adds judged to take jobs and the base standing on this machine, every one it
-/// leaves out held by no job, all judged before anything is written.
-async fn set_node_checkouts(
+/// The checkouts on the nodes a change writes, judged: the nodes it takes out and the node and path of each it
+/// keeps or adds.
+struct NodeCheckoutsJudged {
+  removed: Vec<String>,
+  written: Vec<(String, String)>,
+}
+
+/// A repository's checkouts on the nodes judged against the list a change names (docs/worker-slots.md,
+/// 「Checkouts on the nodes」): every node it adds judged to take jobs and the base standing on this machine,
+/// every one it leaves out held by no job. Nothing is written here.
+async fn judge_node_checkouts(
   ground: &Ground,
   repository: &Repository,
   base_node: Option<&str>,
   asked: &[NodeCheckout],
-) -> Result<(), Refused> {
+) -> Result<NodeCheckoutsJudged, Refused> {
   let field = "nodeCheckouts";
   let held = all(
     &ground.db,
@@ -199,10 +206,10 @@ async fn set_node_checkouts(
     written.push((one.node.clone(), crate::watches::links::node_path(&path, home.as_deref())));
   }
 
-  let removed: Vec<&String> = held
-    .iter()
+  let removed: Vec<String> = held
+    .into_iter()
     .map(|(node, _)| node)
-    .filter(|node| !asked.iter().any(|one| one.node == **node))
+    .filter(|node| !asked.iter().any(|one| one.node == *node))
     .collect();
 
   for node in &removed {
@@ -218,6 +225,17 @@ async fn set_node_checkouts(
       );
     }
   }
+
+  Ok(NodeCheckoutsJudged { removed, written })
+}
+
+/// A repository's checkouts on the nodes written as they were judged.
+async fn write_node_checkouts(
+  ground: &Ground,
+  repository: &Repository,
+  judged: NodeCheckoutsJudged,
+) -> Result<(), Refused> {
+  let NodeCheckoutsJudged { removed, written } = judged;
 
   for node in removed {
     run(
@@ -476,20 +494,35 @@ impl Route for RepositoryChange {
       fields.path = Some(crate::watches::links::node_path(&path, home.as_deref()));
     }
 
-    if let Some(asked) = &node_checkouts {
-      let base_node = fields.node.clone().unwrap_or(held.node.clone());
+    // The whole change is judged before anything of it is written, so a refusal leaves the repository as it
+    // stood (docs/api.md, 「repositories, prefix-checks and room-holdings」).
+    let sampling = match body.get("sampling") {
+      Some(sampling) => {
+        let key = agent_sampling::key(&name);
+        let kept = agent_sampling::held_values(settings::get(call.store(), &key).await?);
+        let next = agent_sampling::changed(sampling, kept).map_err(|fault| match fault {
+          super::fault::Fault::Field(_, error) => Refused::failed(error),
+          super::fault::Fault::Failed(failed) => failed,
+        })?;
 
-      set_node_checkouts(call.ground(), &held, base_node.as_deref(), asked).await?;
+        Some((key, next))
+      }
+      None => None,
+    };
+    let node_checkouts = match &node_checkouts {
+      Some(asked) => {
+        let base_node = fields.node.clone().unwrap_or(held.node.clone());
+
+        Some(judge_node_checkouts(call.ground(), &held, base_node.as_deref(), asked).await?)
+      }
+      None => None,
+    };
+
+    if let Some(judged) = node_checkouts {
+      write_node_checkouts(call.ground(), &held, judged).await?;
     }
 
-    if let Some(sampling) = body.get("sampling") {
-      let key = agent_sampling::key(&name);
-      let kept = agent_sampling::held_values(settings::get(call.store(), &key).await?);
-      let next = agent_sampling::changed(sampling, kept).map_err(|fault| match fault {
-        super::fault::Fault::Field(_, error) => Refused::failed(error),
-        super::fault::Fault::Failed(failed) => failed,
-      })?;
-
+    if let Some((key, next)) = sampling {
       settings::set(call.store(), &key, &Value::Object(next).to_string()).await?;
     }
 

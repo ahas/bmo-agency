@@ -102,8 +102,8 @@ struct RoomRead {
 
 /// What a role's session's turn names of its own (docs/api.md, 「sessions」), every part optional: the run's
 /// name and title, the room its lines stand under, its unit and user, which session it goes on, whether words
-/// pushed into it reach it, and its variables. The road, the effort and the folder are the session's, so a
-/// body's `provider`, `model`, `mapping` and `workKey` are read as if it did not name them.
+/// pushed into it reach it, and its variables. The road, the effort and the folder are the session's, and a
+/// body naming a road field is refused (`work_asked`).
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkAsk {
@@ -125,8 +125,15 @@ pub struct WorkAsk {
   pub variables: Option<std::collections::BTreeMap<String, String>>,
 }
 
-/// The parts of its own a turn's body names, or why they do not read.
+/// The road fields a turn's body may not name: a turn's road is its session's (docs/api.md, 「sessions」).
+pub const ROAD_FIELDS: [&str; 5] = ["provider", "model", "mapping", "workKey", "tier"];
+
+/// The parts of its own a turn's body names, or why they do not read: a body naming a road field is refused.
 pub fn work_asked(body: &Value) -> Result<WorkAsk, Refused> {
+  if let Some(field) = ROAD_FIELDS.iter().find(|field| body.get(**field).is_some()) {
+    return Err(bad(format!("a turn's road is its session's: a turn names no {field}")));
+  }
+
   serde_json::from_value(body.clone()).map_err(|why| {
     Refused::new(StatusCode::BAD_REQUEST, format!("the turn's own parts do not read: {why}"))
   })
@@ -651,23 +658,14 @@ fn contradicts(why: String) -> Refused {
 
 /// A role's start laid on the slot its caller was let in on (docs/api.md, 「sessions」): the slot's role, provider,
 /// model and effort, and its path where the start names no folder. The slot must be active; a role, provider or
-/// model the start names must be the slot's own. A start naming no slot names its role, provider and model
-/// together, and goes out on that road.
+/// model the start names must be the slot's own. A start naming no slot is refused.
 pub async fn on_slot(
   db: &sea_orm::DatabaseConnection,
   body: &Value,
   apart: &mut Apart,
 ) -> Result<(), Refused> {
   let Some(token) = slot_named(body) else {
-    if apart.provider.is_empty() || apart.model.is_empty() || apart.role.is_none() {
-      return Err(bad("a role's run names the slot it was let in on"));
-    }
-
-    if apart.cwd.is_empty() && !apart.on_runner_line() {
-      ".".clone_into(&mut apart.cwd);
-    }
-
-    return Ok(());
+    return Err(bad("a role's run names the slot it was let in on"));
   };
   let held = crate::order_run::dispatch::request(db, &token)
     .await
@@ -770,23 +768,13 @@ impl Route for SessionTurn {
     let asked = work_asked(&body)?;
     let sessions = backend(&call)?;
 
-    // A role's session lays its own road on the turn; the transition address of a repository's worker run
-    // takes its road from the slot the backend asks, the turn's own parts beside it.
-    if turn.context.gate.is_none() {
-      match sessions.held_scope(&turn.session).await {
-        Ok((agent, Scope::Apart(apart))) => {
-          turn.context.work = Some(work_of(call.store(), &agent, &apart, asked).await);
-        }
-        Ok((agent, Scope::Worker)) => {
-          let apart = Apart {
-            role: Some(crate::agent_roles::job_role().to_owned()),
-            ..Apart::default()
-          };
-
-          turn.context.work = Some(work_of(call.store(), &agent, &apart, asked).await);
-        }
-        _ => {}
+    // A role's session lays its own road on the turn; there is no worker scope to send one to.
+    match sessions.held_scope(&turn.session).await {
+      Ok((_, Scope::Worker)) => return Ok(faulted(retired(&session))),
+      Ok((agent, Scope::Apart(apart))) if turn.context.gate.is_none() => {
+        turn.context.work = Some(work_of(call.store(), &agent, &apart, asked).await);
       }
+      _ => {}
     }
 
     Ok(match carried(async move { sessions.send_turn(turn).await }).await {

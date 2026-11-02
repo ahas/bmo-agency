@@ -197,14 +197,14 @@ impl Held {
   }
 
   /// Give back what a stopped call holds: a slot whose run was never sent is cancelled, since it never ran,
-  /// and one whose run was sent is finished, the run going on to its end in agency whether or not this call
-  /// still waits.
+  /// and one whose run was sent is finished, which cuts the run and ends its session, so nothing goes on
+  /// running on a slot no call holds (docs/role-slots.md, 「The line」).
   pub async fn give_back(&self, api: &Api) {
     let now = self.now().clone();
     let Some(seat) = now.seat else { return };
 
     if now.sent {
-      finish(api, &seat, "stopped: the call went away while its run went on", false).await;
+      finish(api, &seat, "stopped: the call went away while its run went", false).await;
     } else {
       finish(api, &seat, "cancelled: the call was stopped", true).await;
     }
@@ -403,8 +403,8 @@ pub async fn delegate_with(api: &Api, session: &Session, input: DelegateInput, h
     return Answer::failure("agency answered the role's run with no session");
   };
   let run = format!("{SOURCE}-{}-{}", keyed(&asker), now_ms());
-  // The slot is bound to the run, so its line reads it standing while the run goes.
-  let bound = json!({ "state": "bound", "childId": run, "agentName": run_session });
+  // The slot stays on the session its start bound it to, the run named as the run it is.
+  let bound = json!({ "state": "bound", "childId": run });
 
   if let Err(why) = api
     .ok(
