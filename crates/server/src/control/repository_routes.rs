@@ -1,6 +1,7 @@
 //! The repositories' routes (docs/api.md, 「repositories, prefix-checks and room-holdings」;
 //! docs/repositories.md): every repository read with its checkouts, one added, changed — its fields, its
-//! checkouts, its node, its pin and its sampling — and removed while no job holds a checkout of it.
+//! checkouts, its node, its pin and its sampling — its bench readied, and removed while no job holds a
+//! checkout of it.
 
 use axum::http::{Method, StatusCode};
 use axum::response::{IntoResponse, Response};
@@ -337,6 +338,13 @@ impl Route for RepositoryChange {
       ],
     )
     .await?;
+
+    // The bench a job's runner readies as the job starts (docs/worker-bench.md, 「How it is kept」): the
+    // workbench made, what a job before asked of the dev server taken back, and the dev pane brought up.
+    if body.get("bench").and_then(Value::as_bool) == Some(true) {
+      crate::places::dev::job_workbench(call.ground(), &name);
+      crate::places::dev::dev_pane(call.ground(), &name).await;
+    }
 
     let repository = repositories::named(call.store(), &name).await?.ok_or_else(|| not_found(&name))?;
 

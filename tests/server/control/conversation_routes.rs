@@ -61,13 +61,7 @@ async fn a_running_server_opens_a_conversation_on_a_named_road_and_switches_both
   let token = "secret";
 
   std::fs::create_dir_all(&data).unwrap();
-  scratch
-    .run(
-      r#"INSERT INTO "agents" ("name", "kind", "session_scope", "turn_shape", "default_answerer")
-         VALUES ('chat-agent', 'chat', 'agent', 'window', 1)"#,
-      vec![],
-    )
-    .await;
+  crate::support::rows::supervisor(scratch.db(), "chat-agent", &[("default_answerer", 1i64.into())]).await;
 
   let server = standing::stand_server(home.path(), &data, &scratch.address(), token);
   let port = server.port;

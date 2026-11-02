@@ -11,7 +11,18 @@ use harness_providers::Machine;
 use policy::chat_line::CHAT_LINE;
 
 use super::token::{PARAGRAPH, tool_host};
+use crate::support::rows::supervisor;
 use crate::support::scratch::Scratch;
+
+// The chat agent: the default answerer, its session kept across every room or in each room as the scope says.
+async fn chat_agent(scratch: &Scratch, scope: &str) {
+  supervisor(
+    scratch.db(),
+    "chat-agent",
+    &[("session_scope", scope.into()), ("default_answerer", 1i64.into())],
+  )
+  .await;
+}
 
 // The line's words for a program whose files stand where it is handed them.
 fn line<'a>(dir: &'a Path, system: &'a Path) -> Words<'a> {
@@ -157,13 +168,7 @@ async fn a_chat_launch_opens_on_the_platform_s_harness_and_is_handed_whole() {
   let home = tempfile::tempdir().unwrap();
   let harness = std::fs::read_to_string(tree().join("prompts/harness.md")).unwrap();
 
-  scratch
-    .run(
-      r#"INSERT INTO "agents" ("name", "kind", "session_scope", "turn_shape", "default_answerer")
-         VALUES ('chat-agent', 'chat', 'room', 'window', 1)"#,
-      vec![],
-    )
-    .await;
+  chat_agent(&scratch, "room").await;
 
   let run = launched(&scratch, home.path(), &home.path().join("nobody.sock")).await;
   let system = std::fs::read_to_string(&run.system_path).unwrap();
@@ -199,13 +204,7 @@ async fn a_chat_launch_carries_the_tool_hosts_paragraph_where_the_host_answers()
   let header = &CHAT_LINE.persona.header;
 
   tool_host(&socket, "issuer");
-  scratch
-    .run(
-      r#"INSERT INTO "agents" ("name", "kind", "session_scope", "turn_shape", "default_answerer")
-         VALUES ('chat-agent', 'chat', 'room', 'window', 1)"#,
-      vec![],
-    )
-    .await;
+  chat_agent(&scratch, "room").await;
 
   let answered = launched_system(&scratch, home.path(), &socket).await;
   let unanswered = launched_system(&scratch, home.path(), &home.path().join("nobody.sock")).await;
@@ -448,13 +447,7 @@ async fn a_chat_with_no_folder_of_its_own_works_in_the_deploy_link() {
     Service::new(scratch.db().clone(), Config::read(|name| variables.get(name).cloned()).unwrap());
   let ground = Ground::new(&service, &machine, None);
 
-  scratch
-    .run(
-      r#"INSERT INTO "agents" ("name", "kind", "session_scope", "turn_shape", "default_answerer")
-         VALUES ('chat-agent', 'chat', 'agent', 'window', 1)"#,
-      vec![],
-    )
-    .await;
+  chat_agent(&scratch, "agent").await;
 
   let launch = ChatLaunch {
     agent: "chat-agent",

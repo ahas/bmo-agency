@@ -184,12 +184,13 @@ async fn the_fallback_s_view_answers_the_active_slot_s_balance_and_each_account_
       vec![],
     )
     .await;
-  scratch
-    .run(
-      r#"INSERT INTO "fallback_routes" ("key", "set_at", "route_mode") VALUES ('bmo', 0, 'deepseek')"#,
-      vec![],
-    )
-    .await;
+  // The chat agent stands on DeepSeek now.
+  crate::support::rows::supervisor(
+    scratch.db(),
+    "chat-agent",
+    &[("default_answerer", 1i64.into()), ("last_mode", "deepseek".into())],
+  )
+  .await;
 
   let server = standing::stand_server(home.path(), &data, &scratch.address(), token);
   let (status, fallback) = get(server.port, token, "/fallback").await;
@@ -198,7 +199,9 @@ async fn the_fallback_s_view_answers_the_active_slot_s_balance_and_each_account_
   assert_eq!(fallback["active"]["provider"], "deepseek");
 
   // A provider that cannot answer here says why twice over: the code a screen words, and the sentence.
-  for road in fallback["order"].as_array().unwrap() {
+  let (_, providers) = get(server.port, token, "/providers").await;
+
+  for road in providers["items"].as_array().unwrap() {
     assert_eq!(road["reason"].is_null(), road["reasonCode"].is_null(), "{road}");
 
     if road["name"] == "openrouter" && !road["reason"].is_null() {

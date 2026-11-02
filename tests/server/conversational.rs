@@ -2,6 +2,7 @@
 
 use agency_server::conversational::*;
 
+use crate::support::rows::supervisor;
 use crate::support::scratch::Scratch;
 
 #[test]
@@ -26,13 +27,8 @@ fn a_row_an_older_writer_left_is_read_by_its_kind() {
 async fn a_companion_s_prompt_folder_is_the_one_its_row_names_and_none_otherwise() {
   let scratch = Scratch::new().await;
 
-  scratch
-    .run(
-      r#"INSERT INTO "agents" ("name", "kind", "prompts")
-         VALUES ('pal', 'companion', 'pal-prompts'), ('added', 'companion', NULL)"#,
-      vec![],
-    )
-    .await;
+  supervisor(scratch.db(), "pal", &[("prompts", "pal-prompts".into())]).await;
+  supervisor(scratch.db(), "added", &[]).await;
 
   assert_eq!(prompt_folder(scratch.db(), "pal").await.unwrap().as_deref(), Some("pal-prompts"));
   assert_eq!(prompt_folder(scratch.db(), "added").await.unwrap(), None);

@@ -1,6 +1,6 @@
-//! The workers' places in herdr: every agent's head, its room panes, a worker's workbench, folder trust and
-//! dev pane, the nodes' workspaces and a renamed worker's checkout, each stood against a herdr of the test's
-//! own and agency's ground on a store of the test's own.
+//! The agents' places in herdr: every supervisor's head and its room panes, a repository's checkouts'
+//! workbenches, folder trust and dev panes, the nodes' workspaces and a renamed repository's checkout, each
+//! stood against a herdr of the test's own and agency's ground on a store of the test's own.
 
 use crate::integration::common;
 
@@ -14,6 +14,8 @@ use agency_server::places::nodes::{NodeList, NodesMoved};
 use agency_server::places::{Ground, Places, checkouts, dev, follow, heads, locks, nodes};
 use common::Scratch;
 use common::herdr::HerdrModel;
+
+use crate::support::rows::{repository, supervisor};
 use harness_providers::Machine;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -63,7 +65,8 @@ impl Bench {
     let listed = Arc::new(Listed::default());
     let places = Self::places_on(&scratch, home.path(), &herdr, listed.clone());
 
-    scratch.run(r#"DELETE FROM "agents""#, vec![]).await;
+    scratch.run(r#"DELETE FROM "supervisors""#, vec![]).await;
+    scratch.run(r#"DELETE FROM "repositories""#, vec![]).await;
 
     Self {
       scratch,
@@ -109,14 +112,8 @@ impl Bench {
     self.home.path().join(".local/share/bmo/data")
   }
 
-  async fn agent(&self, name: &str, kind: &str, label: &str) {
-    self
-      .scratch
-      .run(
-        r#"INSERT INTO "agents" ("name", "kind", "label") VALUES ($1, $2, $3)"#,
-        vec![name.into(), kind.into(), label.into()],
-      )
-      .await;
+  async fn supervisor(&self, name: &str, label: &str) {
+    supervisor(self.scratch.db(), name, &[("label", label.into())]).await;
   }
 
   fn head(&self, agent: &str) -> Vec<String> {
@@ -171,20 +168,20 @@ async fn every_head_on_the_hosts_is_stood_a_head_of_the_other_kind_replaced_once
   let bench = Bench::new().await;
   let herdr = &bench.herdr;
 
-  bench.agent("worker", "worker", "Main worker").await;
-  bench.agent("busy", "gate", "Busy gate").await;
+  bench.supervisor("chat-agent", "Chat agent").await;
+  bench.supervisor("busy", "Busy companion").await;
 
-  // The worker's home with a bun head left in it, and a shell a rebuilt herdr left.
-  let bun_head = bench.bun_head("worker");
-  let (worker_home, _) =
-    herdr.workspace("Main worker", json!({ "agent": "worker" }), Some(&as_words(&bun_head)));
+  // The chat agent's home with a bun head left in it, and a shell a rebuilt herdr left.
+  let bun_head = bench.bun_head("chat-agent");
+  let (chat_home, _) =
+    herdr.workspace("Chat agent", json!({ "agent": "chat-agent" }), Some(&as_words(&bun_head)));
 
-  herdr.tab(&worker_home, None);
+  herdr.tab(&chat_home, None);
 
-  // A gate whose bun head is still at work for an open execution keeps it.
+  // A companion whose bun head is still at work for an open execution keeps it.
   let busy_head = bench.bun_head("busy");
   let (_, busy_pane) =
-    herdr.workspace("Busy gate", json!({ "agent": "busy" }), Some(&as_words(&busy_head)));
+    herdr.workspace("Busy companion", json!({ "agent": "busy" }), Some(&as_words(&busy_head)));
 
   bench
     .scratch
@@ -202,31 +199,31 @@ async fn every_head_on_the_hosts_is_stood_a_head_of_the_other_kind_replaced_once
   herdr.workspace("role", json!({ "agent": "role" }), Some(&as_words(&role_head)));
   heads::stand_all(&bench.places).await;
 
-  assert_eq!(herdr.commands_of("agent", "worker"), [bench.head("worker")]);
+  assert_eq!(herdr.commands_of("agent", "chat-agent"), [bench.head("chat-agent")]);
   // Its last pane closed took the workspace with it, and the home stood again under its label.
   assert_eq!(
     herdr
       .workspaces()
       .iter()
-      .find(|one| one.tokens.as_ref().is_some_and(|tokens| tokens["agent"] == "worker"))
-      .map(|one| (one.id == worker_home, one.label.clone())),
-    Some((false, "Main worker".to_owned()))
+      .find(|one| one.tokens.as_ref().is_some_and(|tokens| tokens["agent"] == "chat-agent"))
+      .map(|one| (one.id == chat_home, one.label.clone())),
+    Some((false, "Chat agent".to_owned()))
   );
   assert_eq!(herdr.commands_of("agent", "busy"), [busy_head]);
   assert!(herdr.commands_of("agent", "hacking-gate").is_empty());
   assert_eq!(herdr.commands_of("agent", "role"), [bench.head("role")]);
 
-  // A gate with no workspace yet is given one under its label, its token reported.
-  bench.agent("fresh", "gate", "New gate").await;
+  // A supervisor with no workspace yet is given one under its label, its token reported.
+  bench.supervisor("fresh", "New companion").await;
   heads::stand_all(&bench.places).await;
 
-  let fresh = herdr.workspaces().into_iter().find(|one| one.label == "New gate").unwrap();
+  let fresh = herdr.workspaces().into_iter().find(|one| one.label == "New companion").unwrap();
 
   assert_eq!(fresh.tokens.unwrap()["agent"], "fresh");
   assert_eq!(herdr.commands_of("agent", "fresh"), [bench.head("fresh")]);
   // Standing again changes nothing.
-  assert_eq!(herdr.commands_of("agent", "worker"), [bench.head("worker")]);
-  assert_eq!(herdr.workspaces().iter().filter(|one| one.label == "New gate").count(), 1);
+  assert_eq!(herdr.commands_of("agent", "chat-agent"), [bench.head("chat-agent")]);
+  assert_eq!(herdr.workspaces().iter().filter(|one| one.label == "New companion").count(), 1);
 }
 
 // The follow pane each room session of a companion stands in.
@@ -235,7 +232,16 @@ async fn each_room_session_has_its_follow_pane_named_by_its_room_an_older_one_re
   let bench = Bench::new().await;
   let herdr = &bench.herdr;
 
-  bench.agent("pal", "companion", "Pal").await;
+  supervisor(
+    bench.scratch.db(),
+    "pal",
+    &[
+      ("label", "Pal".into()),
+      ("session_scope", "room".into()),
+      ("turn_shape", "pieces".into()),
+    ],
+  )
+  .await;
   bench
     .scratch
     .run(
@@ -290,14 +296,15 @@ async fn each_room_session_has_its_follow_pane_named_by_its_room_an_older_one_re
   assert_eq!(herdr.commands_of("agent", "pal"), [head, follow("7"), follow("9")]);
 }
 
-// A worker's dev pane, and its folder trusted as `agents/agent/claude-trust.test.ts` holds it for the
-// TypeScript side.
+// A repository's checkout's dev pane, and its folder trusted as `agents/agent/claude-trust.test.ts` holds it
+// for the TypeScript side; a support checkout runs its repository's command.
 #[tokio::test]
 async fn a_worker_is_settled_its_dev_pane_follows_its_row_and_comes_back_only_for_a_job_at_work() {
   let bench = Bench::new().await;
   let herdr = &bench.herdr;
   let checkout = bench.home.path().join("checkout");
-  // A job's request for the worker's dev server, as the start verb leaves it.
+  let support = bench.home.path().join("checkout-w2");
+  // A job's request for the checkout's dev server, as the start verb leaves it.
   let wanted = |worker: &str| bench.data().join("workbench").join(worker).join("dev-server.wanted");
   let ask = |worker: &str| {
     std::fs::create_dir_all(bench.data().join("workbench").join(worker)).unwrap();
@@ -306,21 +313,25 @@ async fn a_worker_is_settled_its_dev_pane_follows_its_row_and_comes_back_only_fo
 
   std::fs::create_dir_all(&checkout).unwrap();
   ask("w");
-  ask("w2");
-  bench
-    .scratch
-    .run(
-      r#"INSERT INTO "agents" ("name", "kind", "label", "cwd", "dev_command") VALUES
-         ('w', 'worker', 'Worker', $1, 'nuxi dev'),
-         ('w2', 'worker', 'Worker 2', $1, NULL),
-         ('quiet', 'worker', 'Quiet worker', '/nowhere', 'nuxi dev')"#,
-      vec![checkout.to_string_lossy().into_owned().into()],
-    )
-    .await;
-  bench
-    .scratch
-    .run(r#"UPDATE "agents" SET "support_of" = 'w' WHERE "name" = 'w2'"#, vec![])
-    .await;
+  ask("w-w2");
+  repository(
+    bench.scratch.db(),
+    "w",
+    &checkout.to_string_lossy(),
+    &[
+      ("label", "Worker".into()),
+      ("dev_command", "nuxi dev".into()),
+      ("support_count", 1i64.into()),
+    ],
+  )
+  .await;
+  repository(
+    bench.scratch.db(),
+    "quiet",
+    "/nowhere",
+    &[("label", "Quiet worker".into()), ("dev_command", "nuxi dev".into())],
+  )
+  .await;
 
   dev::settle(bench.ground(), "w").await;
 
@@ -352,28 +363,28 @@ async fn a_worker_is_settled_its_dev_pane_follows_its_row_and_comes_back_only_fo
   // The command taken off the row closes the pane.
   bench
     .scratch
-    .run(r#"UPDATE "agents" SET "dev_command" = NULL WHERE "name" = 'w'"#, vec![])
+    .run(r#"UPDATE "repositories" SET "dev_command" = NULL WHERE "name" = 'w'"#, vec![])
     .await;
   dev::settle(bench.ground(), "w").await;
   assert_eq!(herdr.commands_of("agent", "w"), [bench.head("w")]);
 
-  // Put back after herdr came back: only the worker whose checkout a job holds, a support worker
-  // running its base's command.
+  // Put back after herdr came back: only the checkout a job holds, a support checkout running its
+  // repository's command.
   bench
     .scratch
-    .run(r#"UPDATE "agents" SET "dev_command" = 'nuxi dev' WHERE "name" = 'w'"#, vec![])
+    .run(r#"UPDATE "repositories" SET "dev_command" = 'nuxi dev' WHERE "name" = 'w'"#, vec![])
     .await;
 
-  let hold = locks::try_hold(&locks::job_hold_path(&bench.data(), &checkout.to_string_lossy())).unwrap();
+  let hold = locks::try_hold(&locks::job_hold_path(&bench.data(), &support.to_string_lossy())).unwrap();
 
   dev::dev_panes(bench.ground()).await;
   drop(hold);
 
   assert!(
     herdr
-      .commands_of("agent", "w2")
+      .commands_of("agent", "w-w2")
       .iter()
-      .any(|command| command.get(2).map(String::as_str) == Some("w2"))
+      .any(|command| command.get(2).map(String::as_str) == Some("w-w2"))
   );
   assert!(herdr.commands_of("agent", "quiet").is_empty());
   assert!(bench.data().join("workbench").join("quiet").is_dir());
@@ -420,7 +431,7 @@ async fn the_nodes_workspaces_stand_last_in_the_lists_order_and_a_list_that_move
   assert_eq!(moved.ready(), None);
 }
 
-// A renamed worker's checkout.
+// A renamed repository's checkout.
 #[tokio::test]
 async fn a_renamed_workers_checkout_moves_with_its_row_unless_a_job_holds_it() {
   let bench = Bench::new().await;
@@ -444,13 +455,7 @@ async fn a_renamed_workers_checkout_moves_with_its_row_unless_a_job_holds_it() {
   git(&["init", "-q", &at(&repo)]);
   git(&["-C", &at(&repo), "commit", "-q", "--allow-empty", "-m", "start"]);
   git(&["-C", &at(&repo), "worktree", "add", "-q", "--detach", &at(&from)]);
-  bench
-    .scratch
-    .run(
-      r#"INSERT INTO "agents" ("name", "kind", "label", "cwd") VALUES ('renamed', 'worker', 'New name', $1)"#,
-      vec![at(&from).into()],
-    )
-    .await;
+  repository(bench.scratch.db(), "renamed", &at(&from), &[("label", "New name".into())]).await;
 
   let held = locks::try_hold(&locks::lock_path(&bench.data(), &at(&from))).unwrap();
 
@@ -461,7 +466,10 @@ async fn a_renamed_workers_checkout_moves_with_its_row_unless_a_job_holds_it() {
   assert_eq!(
     bench
       .scratch
-      .count(r#"SELECT COUNT(*) AS "count" FROM "agents" WHERE "cwd" = $1"#, vec![at(&to).into()])
+      .count(
+        r#"SELECT COUNT(*) AS "count" FROM "repositories" WHERE "path" = $1"#,
+        vec![at(&to).into()]
+      )
       .await,
     1
   );

@@ -165,12 +165,7 @@ async fn a_job_whose_turn_ended_after_the_restart_ends_with_its_report_and_a_cha
   let chat = Place::of(&ground.roots.data, "agent-a");
   let mut ended = ground.events.subscribe::<TurnEnded>();
 
-  scratch
-    .run(
-      r#"INSERT INTO "agents" ("name", "kind", "node") VALUES ('worker-a', 'worker', NULL)"#,
-      vec![],
-    )
-    .await;
+  crate::support::rows::repository(scratch.db(), "worker-a", "/checkouts/worker-a", &[]).await;
   scratch
     .run(
       r#"INSERT INTO "jobs" ("item_id", "lease_id", "holder_name", "assignment_id", "worker_name",

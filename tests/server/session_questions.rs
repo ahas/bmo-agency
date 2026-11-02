@@ -23,6 +23,7 @@ use harness_providers::Machine;
 use serde_json::json;
 use tokio::sync::oneshot;
 
+use crate::support::rows::supervisor;
 use crate::support::scratch::Scratch;
 
 fn permission() -> Confirmation {
@@ -222,13 +223,12 @@ async fn a_session_whose_turns_put_no_question_to_their_caller_takes_no_answer()
   let service =
     Service::new(scratch.db().clone(), Config::read(|name| variables.get(name).cloned()).unwrap());
   let sessions = HerdrSessions::new(Places::new(Ground::new(&service, &machine, None), Arc::default()));
-  scratch
-    .run(
-      r#"INSERT INTO "agents" ("name", "kind", "role", "session_scope", "turn_shape")
-         VALUES ('companion', 'chat', 'chat', 'room', 'pieces')"#,
-      vec![],
-    )
-    .await;
+  supervisor(
+    scratch.db(),
+    "companion",
+    &[("session_scope", "room".into()), ("turn_shape", "pieces".into())],
+  )
+  .await;
 
   let conversation = sessions
     .start(Start {

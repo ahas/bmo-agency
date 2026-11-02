@@ -17,6 +17,7 @@ use policy::queue_idle::QUEUE_IDLE;
 use serde_json::{Value, json};
 use tokio::net::TcpListener;
 
+use crate::support::rows::{repository, supervisor};
 use crate::support::scratch::Scratch;
 
 fn open(id: i64, assignee: Option<&str>) -> Open {
@@ -194,12 +195,9 @@ async fn a_pass_tells_the_owner_once_of_the_items_a_free_worker_could_take() {
   ]
   .into();
 
-  scratch
-    .run(
-      r#"INSERT INTO "agents" ("name", "kind") VALUES ('w1', 'worker'), ('w2', 'worker'), ('chat', 'chat')"#,
-      vec![],
-    )
-    .await;
+  repository(db, "w1", "/checkouts/w1", &[]).await;
+  repository(db, "w2", "/checkouts/w2", &[]).await;
+  supervisor(db, "chat", &[]).await;
   scratch
     .run(
       r#"INSERT INTO "jobs" ("item_id", "lease_id", "holder_name", "assignment_id", "worker_name", "state",

@@ -8,9 +8,12 @@ use agency_server::companion::sessions::{hand_over, open_generation};
 async fn a_fresh_generation_clears_the_spent_figures() {
   let scratch = Scratch::new().await;
 
-  scratch
-    .run(r#"INSERT INTO "agents" ("name", "kind") VALUES ('kakia-chat', 'chat')"#, vec![])
-    .await;
+  crate::support::rows::supervisor(
+    scratch.db(),
+    "kakia-chat",
+    &[("session_scope", "room".into()), ("turn_shape", "pieces".into())],
+  )
+  .await;
   scratch
     .run(
       r#"INSERT INTO "room_sessions" ("agent", "chat_id", "generation", "opened_at", "spent_calls", "spent_ms")

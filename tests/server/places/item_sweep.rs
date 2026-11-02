@@ -76,9 +76,7 @@ async fn a_finished_item_s_scratch_goes_once_its_open_items_are_answered() {
   let benches = home.path().join("data").join("workbench");
   let items = benches.join("helper").join(&JOB_PROMPT.workbench.scratch);
 
-  scratch
-    .run(r#"INSERT INTO "agents" ("name", "kind") VALUES ('helper', 'worker')"#, vec![])
-    .await;
+  crate::support::rows::repository(scratch.db(), "helper", "/checkouts/helper", &[]).await;
 
   for folder in [
     items.join("5"),

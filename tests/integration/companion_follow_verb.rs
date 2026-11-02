@@ -6,6 +6,7 @@ use std::time::{Duration, Instant};
 
 use crate::integration::common::Scratch;
 use crate::support::binary;
+use crate::support::rows::supervisor;
 
 // The room a companion answers in, as the hint prints it: a chat's number, which is negative.
 const ROOM: i64 = -9_000_000_000_002;
@@ -17,12 +18,16 @@ const ANSWER: &str = "The answer the companion wrote.";
 async fn the_follow_hint_a_room_prints_runs_with_a_negative_room_number() {
   let scratch = Scratch::new().await;
 
-  scratch
-    .run(
-      r#"INSERT INTO "agents" ("name", "kind", "label") VALUES ($1, 'companion', 'The companion')"#,
-      vec![AGENT.into()],
-    )
-    .await;
+  supervisor(
+    scratch.db(),
+    AGENT,
+    &[
+      ("label", "The companion".into()),
+      ("session_scope", "room".into()),
+      ("turn_shape", "pieces".into()),
+    ],
+  )
+  .await;
   scratch
     .run(
       r#"INSERT INTO "room_sessions" ("agent", "chat_id", "generation", "opened_at")

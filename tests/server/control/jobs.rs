@@ -12,6 +12,7 @@ use axum::http::StatusCode;
 use harness_providers::ARCHIVE_PROVIDERS;
 use serde_json::{Value, json};
 
+use crate::support::rows::repository;
 use crate::support::scratch::Scratch;
 use crate::support::standing;
 
@@ -55,6 +56,20 @@ async fn assigned(port: u16, token: &str, item_id: i64) -> i64 {
   assignment["id"].as_i64().unwrap()
 }
 
+// A tool host on the socket given, issuing one token to every record and taking every token back: a run's
+// program waits for its token until the host answers.
+fn tool_host(socket: &std::path::Path) {
+  let listener = tokio::net::UnixListener::bind(socket).unwrap();
+  let app = axum::Router::new()
+    .route(
+      "/tool-sessions",
+      axum::routing::post(|| async { (StatusCode::CREATED, axum::Json(json!({ "token": "job-token" }))) }),
+    )
+    .fallback(|| async { StatusCode::NO_CONTENT });
+
+  tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+}
+
 async fn run_job(port: u16, token: &str, assignment: i64, item_id: i64) -> (u16, Value) {
   post(
     port,
@@ -77,6 +92,7 @@ async fn a_job_waits_for_a_login_ends_with_why_and_frees_its_worker() {
   let home = tempfile::tempdir().unwrap();
   let data = home.path().join("data");
   let login = home.path().join("login-a");
+  let host = home.path().join("mcp-host.sock");
   let token = "secret";
   let resting = chrono::Utc::now().timestamp() + 3600;
 
@@ -105,9 +121,9 @@ async fn a_job_waits_for_a_login_ends_with_why_and_frees_its_worker() {
   });
 
   std::fs::create_dir_all(&login).unwrap();
-  scratch
-    .run(r#"INSERT INTO "agents" ("name", "kind") VALUES ('helper', 'worker')"#, vec![])
-    .await;
+  std::fs::create_dir_all(home.path().join("helper")).unwrap();
+  tool_host(&host);
+  repository(scratch.db(), "helper", &home.path().join("helper").to_string_lossy(), &[]).await;
   scratch.run(r#"DELETE FROM "claude_accounts""#, vec![]).await;
   scratch
     .run(
@@ -141,7 +157,12 @@ async fn a_job_waits_for_a_login_ends_with_why_and_frees_its_worker() {
     &data,
     &scratch.address(),
     token,
-    &[("BMO_RECEIVER_URL", leaked_address.as_str()), ("BMO_RECEIVER_TOKEN", "leaked")],
+    &[
+      ("BMO_RECEIVER_URL", leaked_address.as_str()),
+      ("BMO_RECEIVER_TOKEN", "leaked"),
+      ("BMO_MCP_HOST_SOCKET", &host.to_string_lossy()),
+      ("BMO_MCP_HOST_ISSUER_TOKEN", "issuer"),
+    ],
   );
   let port = server.port;
 
@@ -218,9 +239,7 @@ async fn a_running_assignment_whose_job_ended_is_released_as_the_assignments_are
   let token = "secret";
 
   std::fs::create_dir_all(&data).unwrap();
-  scratch
-    .run(r#"INSERT INTO "agents" ("name", "kind") VALUES ('helper', 'worker')"#, vec![])
-    .await;
+  repository(scratch.db(), "helper", &home.path().join("helper").to_string_lossy(), &[]).await;
   scratch
     .run(
       r#"INSERT INTO "assignments" ("id", "item_id", "holder_name", "worker_name", "state", "created_at", "changed_at")
@@ -272,9 +291,7 @@ async fn a_job_carries_its_instruction_whole_into_its_prompt_and_a_step_s_line()
   });
 
   std::fs::create_dir_all(&data).unwrap();
-  scratch
-    .run(r#"INSERT INTO "agents" ("name", "kind") VALUES ('helper', 'worker')"#, vec![])
-    .await;
+  repository(scratch.db(), "helper", &home.path().join("helper").to_string_lossy(), &[]).await;
   scratch.run(r#"DELETE FROM "claude_accounts""#, vec![]).await;
 
   let server = standing::stand_server(home.path(), &data, &scratch.address(), token);

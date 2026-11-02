@@ -14,6 +14,7 @@ use agency_server::watches::machine::{
 use agent_session::JobMark;
 use serde_json::json;
 
+use crate::support::rows::{repository, supervisor};
 use crate::support::scratch::Scratch;
 
 /// A node service reporting the standing the test names, which cannot be asked at all where it is `down`.
@@ -106,16 +107,15 @@ impl NodeService for Machine {
   }
 }
 
-// Workers w1 and w2 at work here, w3 idle, a worker at work on a node, and a chat agent with a run open.
+// Checkouts w1 and w2 at work here, w3 idle, a repository's checkout at work on a node, and a chat agent
+// with a run open.
 async fn workers(scratch: &Scratch) {
-  scratch
-    .run(
-      r#"INSERT INTO "agents" ("name", "kind", "node") VALUES
-         ('w1', 'worker', NULL), ('w2', 'worker', NULL), ('w3', 'worker', NULL), ('far', 'worker', 'n1'),
-         ('chat', 'chat', NULL)"#,
-      vec![],
-    )
-    .await;
+  for name in ["w1", "w2", "w3"] {
+    repository(scratch.db(), name, &format!("/checkouts/{name}"), &[]).await;
+  }
+
+  repository(scratch.db(), "far", "/remote/far", &[("node", "n1".into())]).await;
+  supervisor(scratch.db(), "chat", &[]).await;
 
   for (id, agent, ended) in [
     ("e1", "w1", None),

@@ -35,7 +35,8 @@
     "entry": "A harness holding an item asks for a worker with agency_assign_worker, hands the item and its lease over with agency_run_job, and reads the job's progress and outcome from the job's events and fields."
   },
   "x-events": [
-    "agent.changed",
+    "supervisor.changed",
+    "role.changed",
     "session.created",
     "session.changed",
     "session.folded",
@@ -47,10 +48,11 @@
     "run.changed",
     "run.stopped",
     "execution.changed",
-    "seat-request.changed",
+    "slot-request.changed",
     "reservation.changed",
+    "repository.changed",
+    "repository.deleted",
     "worker.changed",
-    "worker.deleted",
     "prompt-document.changed",
     "document-move.created",
     "overtime-request.created",

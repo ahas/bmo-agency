@@ -19,6 +19,7 @@ use agent_session::{EngineError, Failure, Outcome, TurnEnd};
 use harness_providers::Machine;
 use sea_orm::DatabaseConnection;
 
+use crate::support::rows::repository;
 use crate::support::scratch::Scratch;
 
 fn ground_on(db: DatabaseConnection, home: &std::path::Path) -> Ground {
@@ -57,8 +58,8 @@ impl Carrier for Ends {
   }
 }
 
-// A store whose order is DeepSeek, its key in place, then Claude Code on its one seeded login, and a job of a
-// worker on it; every other provider is missing on a machine with nothing on its path.
+// A store whose order is DeepSeek, its key in place, then Claude Code on its one seeded login, and a job in a
+// repository's checkout on it; every other provider is missing on a machine with nothing on its path.
 async fn standing(scratch: &Scratch, home: &std::path::Path) -> Ground {
   let data = home.join("data");
   let env = data.join("env");
@@ -92,9 +93,8 @@ async fn standing(scratch: &Scratch, home: &std::path::Path) -> Ground {
 
   store::seed::settle(scratch.db(), &deployment(&ground.machine())).await.unwrap();
   set_provider_order(scratch.db(), &order).await.unwrap();
-  scratch
-    .run(r#"INSERT INTO "agents" ("name", "kind") VALUES ('helper', 'worker')"#, vec![])
-    .await;
+  std::fs::create_dir_all(home.join("helper")).unwrap();
+  repository(scratch.db(), "helper", &home.join("helper").to_string_lossy(), &[]).await;
   scratch
     .run(
       r#"INSERT INTO "jobs" ("id", "item_id", "lease_id", "holder_name", "assignment_id", "worker_name", "state",
@@ -250,8 +250,8 @@ fn at(path: &Path) -> String {
   path.to_string_lossy().into_owned()
 }
 
-// A base worker in a repository of its own and a support worker whose worktree is not there: the base
-// stands on main, and the first road that can answer is the pane program's.
+// A repository whose base checkout stands on main and whose one support worktree is not there yet, and a job
+// in that support checkout: the first road that can answer is the pane program's.
 async fn support_standing(scratch: &Scratch, home: &Path) -> (Ground, PathBuf, PathBuf, String) {
   let data = home.join("data");
   let env = data.join("env");
@@ -306,19 +306,7 @@ async fn support_standing(scratch: &Scratch, home: &Path) -> (Ground, PathBuf, P
 
   let head = git(&base, &["rev-parse", "HEAD"]);
 
-  scratch
-    .run(
-      r#"INSERT INTO "agents" ("name", "kind", "cwd") VALUES ('web', 'worker', $1)"#,
-      vec![at(&base).into()],
-    )
-    .await;
-  scratch
-    .run(
-      r#"INSERT INTO "agents" ("name", "kind", "cwd", "support_of", "support_slot")
-         VALUES ('web-w2', 'worker', $1, 'web', 2)"#,
-      vec![at(&cwd).into()],
-    )
-    .await;
+  repository(scratch.db(), "web", &at(&base), &[("support_count", 1i64.into())]).await;
   scratch
     .run(
       r#"INSERT INTO "jobs" ("id", "item_id", "lease_id", "holder_name", "assignment_id", "worker_name", "state",
@@ -394,8 +382,8 @@ async fn a_first_launch_on_a_fresh_support_makes_its_worktree_before_the_pane_ro
   assert_eq!(git(&cwd, &["rev-parse", "HEAD"]), head);
 }
 
-// A worker with runs behind it gets its launch's turn: the carrier the launch hands it writes `start`
-// rather than the launch sitting silently in a program already carrying another turn
+// A checkout keeping a session with runs behind it gets its launch's turn: the carrier the launch hands it
+// writes `start` rather than the launch sitting silently in a program already carrying another turn
 // (docs/agent-control.md, 「A worker's pane lock」).
 struct Starts {
   lines: std::sync::Arc<std::sync::Mutex<Vec<String>>>,
@@ -418,7 +406,17 @@ async fn a_launch_on_a_worker_with_runs_writes_start() {
   let home = tempfile::tempdir().unwrap();
   let ground = standing(&scratch, home.path()).await;
 
-  scratch.run(r#"UPDATE "agents" SET "runs" = 3 WHERE "name" = 'helper'"#, vec![]).await;
+  agency_server::worker_session::records::record(
+    scratch.db(),
+    "helper",
+    "claude-opus-5",
+    "",
+    "kept",
+    None,
+    None,
+  )
+  .await
+  .unwrap();
 
   let started = Arc::new(Mutex::new(Vec::new()));
   let mut carrier = Starts {

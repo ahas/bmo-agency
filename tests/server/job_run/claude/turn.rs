@@ -462,7 +462,7 @@ async fn a_fresh_session_is_counted_as_a_generation_a_resumed_one_is_not_and_a_f
   assert_eq!(generation(db, "worker-a", "sonnet").await.unwrap(), 1, "each model counts its own");
 }
 
-// A ground on the test's own store and home, with the worker `worker-a` registered on it.
+// A ground on the test's own store and home, with the repository `worker-a` registered on it.
 async fn ground_on(scratch: &Scratch, home: &std::path::Path) -> Ground {
   let at = |path: std::path::PathBuf| path.to_string_lossy().into_owned();
   let machine = Machine::with_env(
@@ -474,9 +474,7 @@ async fn ground_on(scratch: &Scratch, home: &std::path::Path) -> Ground {
   );
 
   store::seed::settle(scratch.db(), &deployment(&machine)).await.unwrap();
-  scratch
-    .run(r#"INSERT INTO "agents" ("name", "kind") VALUES ('worker-a', 'worker')"#, vec![])
-    .await;
+  crate::support::rows::repository(scratch.db(), "worker-a", &at(home.join("worker-a")), &[]).await;
 
   let variables: HashMap<String, String> = HashMap::new();
   let service =
@@ -522,18 +520,6 @@ async fn an_answered_job_turns_usage_is_recorded_under_its_agent_and_the_run_it_
   };
 
   noted(&ground, "worker-a", "bmo-task-41", &reply).await.unwrap();
-
-  assert_eq!(
-    scratch
-      .count(
-        r#"SELECT COUNT(*) FROM "agents" WHERE "name" = 'worker-a' AND "last_mode" = 'claude-code'
-          AND "last_model" = 'claude-opus-5' AND "last_effort" = 'high'"#,
-        vec![]
-      )
-      .await,
-    1,
-    "the agent's last answer is written"
-  );
 
   let kept = ground.windows.read(second).await.unwrap().windows;
 
@@ -636,7 +622,7 @@ async fn a_workers_state_names_its_generation_its_context_and_the_session_its_ne
   assert_eq!(sessions.read_state(&session, Some("sonnet")).await.unwrap().continues, None);
 }
 
-// A worker's state answers the provider it is pinned to, not Claude Code whatever its pin.
+// A checkout's state answers the provider its repository is pinned to, not Claude Code whatever its pin.
 #[tokio::test]
 async fn a_workers_state_names_the_provider_its_pin_stands_on() {
   let scratch = Scratch::new().await;
@@ -647,7 +633,8 @@ async fn a_workers_state_names_the_provider_its_pin_stands_on() {
   record(db, "worker-a", "opus", "default", "harness-1", None, None).await.unwrap();
   scratch
     .run(
-      r#"UPDATE "agents" SET "pinned_provider" = 'openrouter' WHERE "name" = 'worker-a'"#,
+      r#"UPDATE "repositories" SET "pinned_provider" = 'openrouter', "pinned_model" = 'vendor/model'
+         WHERE "name" = 'worker-a'"#,
       vec![],
     )
     .await;

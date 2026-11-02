@@ -17,7 +17,6 @@ mod machine_verbs;
 mod nouns;
 mod places;
 mod runs;
-mod standby;
 mod stops;
 mod subcommands;
 mod work_node_verbs;

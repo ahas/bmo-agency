@@ -1,6 +1,6 @@
 //! A room's session read from its start: the state the start answers and the state a read answers at
-//! once, before any turn has opened a generation, the same session read after one has, and the tier its
-//! agent's work key is assigned named on it.
+//! once, before any turn has opened a generation, the same session read after one has, and the supervisor's
+//! compaction threshold named on it.
 
 use serde_json::{Value, json};
 
@@ -38,9 +38,7 @@ async fn a_room_session_is_readable_from_its_start_before_any_turn() {
   let token = "secret";
 
   std::fs::create_dir_all(&data).unwrap();
-  scratch
-    .run(r#"INSERT INTO "agents" ("name", "kind") VALUES ('helper', 'worker')"#, vec![])
-    .await;
+  crate::support::rows::repository(scratch.db(), "helper", "/checkouts/helper", &[]).await;
 
   let server = standing::stand_server(home.path(), &data, &scratch.address(), token);
   let port = server.port;
@@ -114,19 +112,13 @@ async fn a_room_session_is_readable_from_its_start_before_any_turn() {
     (Some("claude-code"), Some("opus"))
   );
   assert_eq!(opened["generation"], json!(1), "{opened}");
-  assert_eq!(opened["tier"], Value::Null, "a key assigned no tier names none: {opened}");
 
-  // The state names the tier its agent's work key is assigned, the one its fold ratio is read at.
+  // The state names the supervisor's compaction threshold, read afresh from its row.
   scratch
-    .run(
-      r#"INSERT INTO "model_tier_assignments" ("key", "tier") VALUES ('companion-a', 'Reliable')
-         ON CONFLICT ("key") DO UPDATE SET "tier" = excluded."tier""#,
-      vec![],
-    )
+    .run(r#"UPDATE "supervisors" SET "fold_ratio" = 0.6 WHERE "name" = 'companion-a'"#, vec![])
     .await;
 
-  let (_, tiered) = get(port, token, "/sessions/companion-a@-7").await;
+  let (_, folded) = get(port, token, "/sessions/companion-a@-7").await;
 
-  assert_eq!(tiered["tier"], json!("Reliable"), "{tiered}");
-  assert!(tiered["foldRatio"].as_f64().is_some(), "{tiered}");
+  assert_eq!(folded["foldRatio"], json!(0.6), "{folded}");
 }

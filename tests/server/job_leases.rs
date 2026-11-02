@@ -1,7 +1,7 @@
 //! A running job's lease kept on the harness's behalf (docs/api.md, 「assignments and jobs」), whatever became of
 //! the harness that took it, a restart of agency under the job among them: a lease that stands is renewed, one
 //! run out is taken again on the same item and the job keeps the new id, an item another holder took or one no
-//! longer open is left; a running job's worker reads as working on it and its item waits on no free worker.
+//! longer open is left; a running job's checkout reads as held by it and its item waits on no free worker.
 
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
@@ -14,6 +14,7 @@ use axum::response::IntoResponse;
 use serde_json::{Value, json};
 use tokio::net::TcpListener;
 
+use crate::support::rows::repository;
 use crate::support::scratch::Scratch;
 
 type Calls = Arc<Mutex<Vec<(String, String, Value)>>>;
@@ -165,32 +166,31 @@ async fn a_worker_with_a_running_job_reads_as_working_on_it() {
   let data = home.path().join("data");
 
   std::fs::create_dir_all(&data).unwrap();
-  scratch
-    .run(
-      r#"INSERT INTO "agents" ("name", "kind") VALUES ('worker-a', 'worker'), ('worker-c', 'worker')"#,
-      vec![],
-    )
-    .await;
+  for worker in ["worker-a", "worker-c"] {
+    repository(scratch.db(), worker, &format!("/checkouts/{worker}"), &[]).await;
+  }
   seeded(&scratch).await;
 
   let server = crate::support::standing::stand_server(home.path(), &data, &scratch.address(), "secret");
   let read = |name: &'static str| async move {
     reqwest::Client::new()
-      .get(format!("http://127.0.0.1:{}/workers/{name}", server.port))
+      .get(format!("http://127.0.0.1:{}/repositories/{name}", server.port))
       .bearer_auth("secret")
       .send()
       .await
       .unwrap()
       .json::<Value>()
       .await
-      .unwrap()
+      .unwrap()["checkouts"][0]["job"]
+      .clone()
   };
   let working = read("worker-a").await;
   let idle = read("worker-c").await;
 
   assert_eq!(
-    (working["state"].as_str(), working["jobId"].as_i64(), working["itemId"].as_i64()),
-    (Some("working"), Some(2), Some(21))
+    (working["jobId"].as_i64(), working["itemId"].as_i64()),
+    (Some(2), Some(21)),
+    "{working}"
   );
-  assert_eq!((idle["state"].as_str(), &idle["jobId"]), (Some("idle"), &Value::Null));
+  assert_eq!(idle, Value::Null);
 }

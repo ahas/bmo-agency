@@ -1,10 +1,11 @@
-//! What the brain reads of a running server over its control routes (docs/api.md, 「Agents」, 「Sessions」,
-//! 「Workers」): every agent with whether it is awake and its brain folder, and nothing of a recollector;
-//! the shared rulebooks by name; a work key's road; a verdict on an ask that is not there; and a reload
-//! naming the agent and the rooms carried as published — on a store the server settled itself.
+//! What the brain reads of a running server over its control routes (docs/api.md, 「supervisors」): every
+//! supervisor with its brain folder, and nothing of a recollector; the shared rulebooks by name; a verdict on
+//! an ask that is not there; and a reload naming the agent and the rooms carried as published — on a store
+//! the server settled itself.
 
 use serde_json::{Value, json};
 
+use crate::support::rows::supervisor;
 use crate::support::scratch::Scratch;
 use crate::support::standing;
 
@@ -51,20 +52,21 @@ async fn a_running_server_answers_what_the_brain_reads() {
   let token = "secret";
 
   std::fs::create_dir_all(&data).unwrap();
-  scratch
-    .run(
-      r#"INSERT INTO "agents" ("name", "kind", "brain_folder") VALUES ('chat-agent', 'chat', ''),
-           ('companion', 'companion', 'agents/companion/'), ('worker-one', 'worker', NULL)"#,
-      vec![],
-    )
-    .await;
-  scratch
-    .run(r#"UPDATE "agents" SET "resting_since" = 1 WHERE "name" = 'worker-one'"#, vec![])
-    .await;
+  supervisor(scratch.db(), "chat-agent", &[("brain_folder", "".into())]).await;
+  supervisor(
+    scratch.db(),
+    "companion",
+    &[
+      ("brain_folder", "agents/companion".into()),
+      ("session_scope", "room".into()),
+      ("turn_shape", "pieces".into()),
+    ],
+  )
+  .await;
 
   let server = standing::stand_server(home.path(), &data, &scratch.address(), token);
   let port = server.port;
-  let (status, listed) = get(port, token, "/agents").await;
+  let (status, listed) = get(port, token, "/supervisors").await;
 
   assert_eq!(status, 200, "{listed}");
 
@@ -77,11 +79,9 @@ async fn a_running_server_answers_what_the_brain_reads() {
       .cloned()
       .unwrap_or_else(|| panic!("{name} is listed"))
   };
-  let read = |agent: Value| (agent["awake"].clone(), agent["brainFolder"].clone());
 
-  assert_eq!(read(agent("chat-agent")), (json!(true), json!("")));
-  assert_eq!(read(agent("companion")), (json!(true), json!("agents/companion")));
-  assert_eq!(read(agent("worker-one")), (json!(false), Value::Null));
+  assert_eq!(agent("chat-agent")["brainFolder"], json!(""));
+  assert_eq!(agent("companion")["brainFolder"], json!("agents/companion"));
 
   for agent in listed["items"].as_array().unwrap() {
     let fields = agent.as_object().unwrap();
@@ -108,7 +108,6 @@ async fn a_running_server_answers_what_the_brain_reads() {
     404
   );
   assert_eq!(patch(port, token, "/overtime-requests/1", json!({ "verdict": "wait" })).await.0, 400);
-  assert_eq!(get(port, token, "/work-keys/translator?agentName=companion").await.0, 200);
 
   let moved =
     json!({ "paths": ["agents/companion/people/a.md"], "now": false, "agent": "companion", "rooms": [-7] });

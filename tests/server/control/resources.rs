@@ -113,12 +113,7 @@ async fn the_launch_room_answers_its_counts_and_keeps_the_launchers_notice() {
   let token = "secret";
 
   std::fs::create_dir_all(&data).unwrap();
-  scratch
-    .run(
-      r#"INSERT INTO "agents" ("name", "kind", "builtin") VALUES ('worker-a', 'worker', 0)"#,
-      vec![],
-    )
-    .await;
+  crate::support::rows::repository(scratch.db(), "worker-a", "/checkouts/worker-a", &[]).await;
   scratch
     .run(
       r#"INSERT INTO "agent_executions" ("id", "body") VALUES ('e-1', '{"agent":"worker-a"}')"#,
@@ -198,9 +193,9 @@ async fn usage_is_grouped_by_what_the_query_names_and_carries_the_sessions_conte
   scratch
     .run(
       &format!(
-        r#"INSERT INTO "worker_sessions" ("worker", "model", "account", "claude_session_id", "last_reply_at", "context_tokens")
-           VALUES ('worker-a', 'opus', 'default', 's-1', {}, 4_000)"#,
-        now / 1000
+        r#"INSERT INTO "role_sessions" ("role", "path", "provider", "model", "account", "command_key", "session",
+             "opened_at", "answered_at", "context_tokens")
+           VALUES ('worker', '/checkouts/worker-a', 'claude-code', 'opus', 'default', 'key', 's-1', {now}, {now}, 4_000)"#
       ),
       vec![],
     )

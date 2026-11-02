@@ -94,9 +94,17 @@ pub async fn at_work(db: &DatabaseConnection) -> Result<Vec<AtWork>, Refusal> {
     vec![WORKER_JOB.into()],
   )
   .await?;
+  // A checkout standing on a work node is at work there, not on this machine.
+  let elsewhere: Vec<String> = crate::queue::workers::workers(db, std::path::Path::new(""))
+    .await?
+    .into_iter()
+    .filter(|worker| worker.node.is_some())
+    .map(|worker| worker.name)
+    .collect();
 
   rows
     .iter()
+    .filter(|row| row.try_get::<String>("", "name").is_ok_and(|name| !elsewhere.contains(&name)))
     .map(|row| {
       let job = row
         .try_get::<Option<String>>("", "job")?

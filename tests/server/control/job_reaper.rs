@@ -11,6 +11,7 @@ use agency_server::now_ms;
 use agency_server::places::Ground;
 use harness_providers::Machine;
 
+use crate::support::rows::repository;
 use crate::support::scratch::Scratch;
 
 fn ground(scratch: &Scratch, machine: &Machine) -> Ground {
@@ -43,12 +44,8 @@ async fn a_job_with_no_live_execution_is_stopped_and_a_live_one_is_left() {
   let old = now - 20 * 60 * 1000;
   let later = now - 10 * 60 * 1000;
 
-  scratch
-    .run(
-      r#"INSERT INTO "agents" ("name", "kind", "node") VALUES ('bmo-cli', 'worker', NULL), ('node-worker', 'worker', 'n3')"#,
-      vec![],
-    )
-    .await;
+  repository(scratch.db(), "bmo-cli", "/checkouts/bmo-cli", &[]).await;
+  repository(scratch.db(), "node-worker", "/checkouts/node-worker", &[("node", "n3".into())]).await;
   scratch
     .run(
       r#"INSERT INTO "jobs" ("item_id", "lease_id", "holder_name", "assignment_id", "worker_name",

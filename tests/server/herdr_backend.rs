@@ -123,9 +123,7 @@ async fn an_agents_session_across_rooms_is_kept_on_its_row_and_let_go() {
 
   let scratch = crate::support::scratch::Scratch::new().await;
 
-  scratch
-    .run(r#"INSERT INTO "agents" ("name", "kind") VALUES ('chat-agent', 'chat')"#, vec![])
-    .await;
+  crate::support::rows::supervisor(scratch.db(), "chat-agent", &[]).await;
 
   assert_eq!(agent_session(scratch.db(), "chat-agent").await.unwrap(), None);
 
@@ -138,7 +136,7 @@ async fn an_agents_session_across_rooms_is_kept_on_its_row_and_let_go() {
   assert_eq!(agent_session(scratch.db(), "chat-agent").await.unwrap(), None);
   assert_eq!(
     scratch
-      .count(r#"SELECT "chat_id" FROM "agents" WHERE "name" = 'chat-agent'"#, vec![])
+      .count(r#"SELECT "chat_id" FROM "supervisors" WHERE "name" = 'chat-agent'"#, vec![])
       .await,
     -5,
     "the room its last turn answered stays"

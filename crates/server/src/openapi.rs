@@ -2696,8 +2696,9 @@ fn schema(g: &mut SchemaGenerator, name: &str) -> Schema {
 }
 
 /// The events the agency publishes.
-pub const EVENTS: [&str; 33] = [
-  "agent.changed",
+pub const EVENTS: [&str; 35] = [
+  "supervisor.changed",
+  "role.changed",
   "session.created",
   "session.changed",
   "session.folded",
@@ -2709,10 +2710,11 @@ pub const EVENTS: [&str; 33] = [
   "run.changed",
   "run.stopped",
   "execution.changed",
-  "seat-request.changed",
+  "slot-request.changed",
   "reservation.changed",
+  "repository.changed",
+  "repository.deleted",
   "worker.changed",
-  "worker.deleted",
   "prompt-document.changed",
   "document-move.created",
   "overtime-request.created",

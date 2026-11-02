@@ -1,20 +1,22 @@
-//! A pinned worker's model comes from its pin, never the last model its row ran on (docs/companions.md,
-//! 「The program on an ended session」): a pin moved to another registration makes the program stand the
-//! registration it names now.
+//! A pinned model is the one its pin names now (docs/repositories.md, 「A pinned model」; docs/companions.md,
+//! 「The program on an ended session」): a repository's jobs stand on the registration its pin names, a pin
+//! moved to another registration is that one, and a companion's program standing on another model than its
+//! order's registration is let go.
 
+use crate::support::rows::{repository, supervisor};
 use crate::support::scratch::Scratch;
 
 #[tokio::test]
 async fn a_worker_s_model_is_the_pin_s_never_its_last_model() {
   let scratch = Scratch::new().await;
 
-  scratch
-    .run(
-      r#"INSERT INTO "agents" ("name", "kind", "pinned_provider", "pinned_model", "last_model")
-         VALUES ('kakia', 'worker', 'registered', 'flash-next', 'flash-next-coder')"#,
-      vec![],
-    )
-    .await;
+  repository(
+    scratch.db(),
+    "kakia",
+    "/checkouts/kakia",
+    &[("pinned_provider", "registered".into()), ("pinned_model", "flash-next".into())],
+  )
+  .await;
 
   assert_eq!(
     agency_server::herdr_backend::pinned_worker_model(scratch.db(), "kakia").await.unwrap(),
@@ -23,8 +25,7 @@ async fn a_worker_s_model_is_the_pin_s_never_its_last_model() {
 
   scratch
     .run(
-      r#"UPDATE "agents" SET "pinned_model" = 'next-registration', "last_model" = 'flash-next-coder'
-         WHERE "name" = 'kakia'"#,
+      r#"UPDATE "repositories" SET "pinned_model" = 'next-registration' WHERE "name" = 'kakia'"#,
       vec![],
     )
     .await;
@@ -62,13 +63,15 @@ async fn a_companion_program_on_an_old_model_is_let_go_for_its_pin() {
   );
   let ground = Ground::new(&service, &machine, None);
 
-  scratch
-    .run(
-      r#"INSERT INTO "agents" ("name", "kind", "pinned_provider", "pinned_model", "last_model")
-         VALUES ('kakia-chat', 'chat', 'registered', 'flash-next', 'flash-next-coder')"#,
-      vec![],
-    )
-    .await;
+  supervisor(
+    scratch.db(),
+    "kakia-chat",
+    &[
+      ("provider_order", r#"[{"provider":"registered","model":"flash-next"}]"#.into()),
+      ("last_model", "flash-next-coder".into()),
+    ],
+  )
+  .await;
 
   let place = Place::of(&ground.roots.data, "kakia-chat");
   let program = Program {

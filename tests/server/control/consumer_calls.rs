@@ -1,12 +1,12 @@
 //! The routes a consumer holding the rooms asks beside a turn, asked of a running server in the shapes that
-//! consumer sends: a companion's agent row stood up and taken out, a save of its settings naming a field none
-//! takes, an agent's reset point, why a rest that has
-//! just passed silenced the deployment, words pushed into a session's working turn, and a run of the ledger
-//! read by its id and listed by its search beside its opening and closing, on a store the server settled
-//! itself.
+//! consumer sends: a companion's supervisor row stood up and taken out with its reset point, a save of its
+//! settings naming a field none takes, why a rest that has just passed silenced the deployment, words pushed
+//! into a session's working turn, and a run of the ledger read by its id and listed by its search beside its
+//! opening and closing, on a store the server settled itself.
 
 use serde_json::{Value, json};
 
+use crate::support::rows::{repository, supervisor};
 use crate::support::scratch::Scratch;
 use crate::support::standing;
 
@@ -64,12 +64,8 @@ async fn a_running_server_answers_the_calls_a_room_holder_makes_beside_its_turns
   let token = "secret";
 
   std::fs::create_dir_all(&data).unwrap();
-  scratch
-    .run(
-      r#"INSERT INTO "agents" ("name", "kind") VALUES ('helper', 'worker'), ('chat-agent', 'chat')"#,
-      vec![],
-    )
-    .await;
+  repository(scratch.db(), "helper", &home.path().join("helper").to_string_lossy(), &[]).await;
+  supervisor(scratch.db(), "chat-agent", &[]).await;
 
   let server = standing::stand_server(home.path(), &data, &scratch.address(), token);
   let port = server.port;
@@ -82,16 +78,18 @@ async fn a_running_server_answers_the_calls_a_room_holder_makes_beside_its_turns
     "room": -7,
   });
 
-  // A companion's row stood up from the fields the console's dialog gave, and refused once its name is taken
-  // or its worker is none.
+  // A companion's supervisor row stood up from the fields the console's dialog gave, its order the provider and
+  // model it names alone, and refused once its name is taken or its repository is none.
   assert_eq!(post(port, token, "/companions", added.clone()).await, (201, json!({ "ok": true })));
   assert_eq!(
     scratch
       .count(
-        r#"SELECT count(*) FROM "agents" WHERE "name" = 'companion-a' AND "kind" = 'chat'
-           AND "session_scope" = 'room' AND "default_answerer" = 0 AND "pinned_provider" = 'claude-code'
-           AND "pinned_model" = 'm' AND "item_worker" = 'helper' AND "brain_folder" = 'agents/companion-a'
-           AND "builtin" = 0"#,
+        r#"SELECT count(*) FROM "supervisors" WHERE "name" = 'companion-a'
+           AND "session_scope" = 'room' AND "default_answerer" = 0
+           AND jsonb_array_length("provider_order"::jsonb) = 1
+           AND "provider_order"::jsonb -> 0 ->> 'provider' = 'claude-code'
+           AND "provider_order"::jsonb -> 0 ->> 'model' = 'm'
+           AND "repository" = 'helper' AND "brain_folder" = 'agents/companion-a' AND "builtin" = 0"#,
         vec![],
       )
       .await,
@@ -111,17 +109,13 @@ async fn a_running_server_answers_the_calls_a_room_holder_makes_beside_its_turns
 
   assert_eq!((status, refused["field"].as_str()), (400, Some("worker")), "{refused}");
 
-  // Its reset point: none until a reset moves it, then the moment kept.
-  let (_, before) = get(port, token, "/agents/companion-a").await;
-  assert_eq!(before["resetAt"], Value::Null);
+  // A reset point is kept for it, which its removal takes with it.
   scratch
     .run(
       r#"INSERT INTO "settings" ("key", "value") VALUES ('reset_point:companion-a', '2000')"#,
       vec![],
     )
     .await;
-  let (_, after) = get(port, token, "/agents/companion-a").await;
-  assert_eq!(after["resetAt"], json!(2000));
 
   // A save naming a field no save takes — the recollectors' model among them — is refused by that field,
   // and nothing is written.
@@ -162,7 +156,7 @@ async fn a_running_server_answers_the_calls_a_room_holder_makes_beside_its_turns
   assert_eq!(
     scratch
       .count(
-        r#"SELECT (SELECT count(*) FROM "agents" WHERE "name" = 'companion-a')
+        r#"SELECT (SELECT count(*) FROM "supervisors" WHERE "name" = 'companion-a')
            + (SELECT count(*) FROM "settings" WHERE "key" = 'reset_point:companion-a')"#,
         vec![],
       )

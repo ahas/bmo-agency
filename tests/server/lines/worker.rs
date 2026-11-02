@@ -19,6 +19,7 @@ use agency_server::places::Ground;
 use harness_providers::Machine;
 use sea_orm::Value;
 
+use crate::support::rows::repository;
 use crate::support::scratch::Scratch;
 
 // No line sets the share of its model's window a session compacts at: a chat, an editor, a gate and a
@@ -46,6 +47,23 @@ async fn ground(scratch: &Scratch, home: &tempfile::TempDir) -> Ground {
     Service::new(scratch.db().clone(), Config::read(|name| variables.get(name).cloned()).unwrap());
 
   Ground::new(&service, &machine, None)
+}
+
+// The tracer, a callable role whose order holds Claude Code's Sonnet at low effort and, on the registry, a
+// registration of its own that thinks.
+async fn tracer(scratch: &Scratch) {
+  scratch
+    .run(
+      r#"INSERT INTO "roles" ("name", "label", "bundles", "max_concurrent", "prompt", "position", "created_at",
+           "updated_at", "description", "line", "provider_order", "callable")
+         VALUES ('tracer', 'Tracer', '[]', 1, 'Trace the road.', 0, 0, 0, 'Traces a road', 'worker',
+           '[{"provider":"claude-code","model":"claude-sonnet-5","effort":"low"},
+             {"provider":"registered","model":"coder-registration","effort":"thinking"}]', 1)
+         ON CONFLICT ("name") DO UPDATE SET "prompt" = excluded."prompt", "description" = excluded."description",
+           "provider_order" = excluded."provider_order", "callable" = 1"#,
+      vec![],
+    )
+    .await;
 }
 
 // An account of a kind, on no base prompt unless it is given one.
@@ -127,27 +145,7 @@ async fn a_directory_account_with_no_choice_hands_the_harness_and_the_rules_whol
   let scratch = Scratch::new().await;
   let home = tempfile::tempdir().unwrap();
 
-  scratch
-    .run(
-      r#"INSERT INTO "coworker_pool_roles" ("name", "description", "prompt", "tools", "skills", "enabled", "pooled", "set_at")
-         VALUES ('tracer', 'Traces a road', 'Trace the road.', '', '', 1, 1, 0) ON CONFLICT DO NOTHING"#,
-      vec![],
-    )
-    .await;
-  scratch
-    .run(
-      r#"INSERT INTO "model_tier_assignments" ("key", "tier") VALUES ('role:tracer', 'Light')
-         ON CONFLICT ("key") DO UPDATE SET "tier" = excluded."tier""#,
-      vec![],
-    )
-    .await;
-  scratch
-    .run(
-      r#"INSERT INTO "model_tier_mappings" ("provider", "tier", "model", "effort") VALUES ('claude-code', 'Light', 'claude-sonnet-5', 'low')
-         ON CONFLICT ("provider", "tier") DO UPDATE SET "model" = excluded."model", "effort" = excluded."effort""#,
-      vec![],
-    )
-    .await;
+  tracer(&scratch).await;
 
   let ground = ground(&scratch, &home).await;
   let trees = Trees::of(&ground);
@@ -199,12 +197,13 @@ async fn a_worker_s_prefix_documents_stand_last_in_its_rules_and_its_co_workers_
 
   let listed = serde_json::json!([umbrella.to_string_lossy(), "docs/area.md", "docs/gone.md"]).to_string();
 
-  scratch
-    .run(
-      r#"INSERT INTO "agents" ("name", "kind", "cwd", "prefix_documents") VALUES ('helper', 'worker', $1, $2)"#,
-      vec![Value::from(checkout.to_string_lossy().into_owned()), Value::from(listed)],
-    )
-    .await;
+  repository(
+    scratch.db(),
+    "helper",
+    &checkout.to_string_lossy(),
+    &[("prefix_documents", Value::from(listed))],
+  )
+  .await;
 
   let ground = ground(&scratch, &home).await;
   let trees = Trees::of(&ground);
@@ -233,13 +232,13 @@ async fn a_worker_s_rules_carry_the_report_trailer_before_its_documents_and_a_br
   std::fs::create_dir_all(checkout.join("docs")).unwrap();
   std::fs::write(checkout.join("docs").join("area.md"), "# The area\n").unwrap();
 
-  scratch
-    .run(
-      r#"INSERT INTO "agents" ("name", "kind", "cwd", "prefix_documents")
-         VALUES ('helper', 'worker', $1, '["docs/area.md"]')"#,
-      vec![Value::from(checkout.to_string_lossy().into_owned())],
-    )
-    .await;
+  repository(
+    scratch.db(),
+    "helper",
+    &checkout.to_string_lossy(),
+    &[("prefix_documents", r#"["docs/area.md"]"#.into())],
+  )
+  .await;
 
   let ground = ground(&scratch, &home).await;
   let trees = Trees::of(&ground);
@@ -267,24 +266,20 @@ async fn a_worker_s_rules_carry_the_report_trailer_before_its_documents_and_a_br
   assert!(!std::fs::read_to_string(&branch.rules).unwrap().contains(opening));
 }
 
-// A worker's co-worker definitions are resolved where its program's native calls take their seats: on
-// Claude Code each role names the Claude model and effort its tier maps to there, and on the registry the
-// registration its tier maps to there, with that mapping's thinking in Claude Code's effort word. A worker
-// standing on the registry leaves the subagent model to those definitions, while every model of its own run
-// stays its own registration (docs/model-tiers.md, 「Common co-worker capacity」; docs/own-llm.md, 「How
-// requests go」).
+// A worker's co-worker definitions are resolved where its program's native calls take their seats: each
+// callable role names the model and effort its own order holds for the provider the program stands on —
+// Claude Code's model and effort there, and on the registry the registration its entry names, with that
+// entry's thinking in Claude Code's effort word. A worker standing on the registry leaves the subagent model
+// to those definitions, while every model of its own run stays its own registration (docs/role-slots.md,
+// 「Native co-worker slots」; docs/own-llm.md, 「How requests go」).
 #[tokio::test]
 async fn a_worker_s_co_workers_are_defined_on_the_provider_its_program_stands_on() {
   let scratch = Scratch::new().await;
   let home = tempfile::tempdir().unwrap();
 
+  tracer(&scratch).await;
+
   for sql in [
-    r#"INSERT INTO "coworker_pool_roles" ("name", "description", "prompt", "tools", "skills", "enabled", "pooled", "set_at")
-       VALUES ('tracer', 'Traces a road', 'Trace the road.', '', '', 1, 1, 0) ON CONFLICT DO NOTHING"#,
-    r#"INSERT INTO "model_tier_assignments" ("key", "tier") VALUES ('role:tracer', 'Light')
-       ON CONFLICT ("key") DO UPDATE SET "tier" = excluded."tier""#,
-    r#"INSERT INTO "model_tier_mappings" ("provider", "tier", "model", "effort") VALUES ('claude-code', 'Light', 'claude-sonnet-5', 'low')
-       ON CONFLICT ("provider", "tier") DO UPDATE SET "model" = excluded."model", "effort" = excluded."effort""#,
     r#"INSERT INTO "registered_models" ("name", "label", "model", "context_tokens", "answer_tokens",
           "thinking", "walked", "added_at", "keeps_research")
        VALUES ('run-registration', 'Run', 'served', 200000, 8000, 1, 1, 1, 0)"#,
@@ -292,24 +287,6 @@ async fn a_worker_s_co_workers_are_defined_on_the_provider_its_program_stands_on
        VALUES ('run-registration', 'n1', 1, 'http://127.0.0.1:9/v1/chat/completions', NULL, 0)"#,
   ] {
     scratch.run(sql, vec![]).await;
-  }
-
-  // Every tier on the registry maps to the run's own registration but Light, the tracer's, which maps to
-  // another.
-  for (tier, model, effort) in [
-    ("Frontier", "run-registration", None),
-    ("Reliable", "run-registration", None),
-    ("Fine", "run-registration", None),
-    ("Light", "coder-registration", Some("thinking")),
-    ("Simple", "run-registration", None),
-  ] {
-    scratch
-      .run(
-        r#"INSERT INTO "model_tier_mappings" ("provider", "tier", "model", "effort") VALUES ('registered', $1, $2, $3)
-           ON CONFLICT ("provider", "tier") DO UPDATE SET "model" = excluded."model", "effort" = excluded."effort""#,
-        vec![Value::from(tier), Value::from(model), Value::from(effort.map(str::to_owned))],
-      )
-      .await;
   }
 
   let ground = ground(&scratch, &home).await;
@@ -348,9 +325,9 @@ async fn a_worker_s_co_workers_are_defined_on_the_provider_its_program_stands_on
   }
 }
 
-// A worker's own turn and its standing program on Claude Code go out on the model its pin names there
-// (docs/model-tiers.md, 「An agent's own model」), a support worker's on its base's, and an unpinned worker's
-// on the job key's mapping; a pin to Claude Code that the owner turned off reads as none.
+// A job's turn and its standing program on Claude Code go out on the model its repository's pin names there
+// (docs/repositories.md, 「A pinned model」), a support checkout's on its repository's, and an unpinned
+// repository's on the job role's own entry; a pin to Claude Code that the owner turned off reads as none.
 #[tokio::test]
 async fn a_worker_s_claude_run_goes_out_on_the_model_its_pin_names() {
   let scratch = Scratch::new().await;
@@ -360,15 +337,18 @@ async fn a_worker_s_claude_run_goes_out_on_the_model_its_pin_names() {
   store::seed::settle(scratch.db(), &agency_server::seeds::deployment(&ground.machine()))
     .await
     .unwrap();
-  scratch
-    .run(
-      r#"INSERT INTO "agents" ("name", "kind", "pinned_provider", "pinned_model", "support_of")
-         VALUES ('helper', 'worker', 'claude-code', 'claude-fable-5-1', NULL),
-                ('helper-support', 'worker', NULL, NULL, 'helper'),
-                ('plain', 'worker', NULL, NULL, NULL)"#,
-      vec![],
-    )
-    .await;
+  repository(
+    scratch.db(),
+    "helper",
+    "/checkouts/helper",
+    &[
+      ("support_count", 1i64.into()),
+      ("pinned_provider", "claude-code".into()),
+      ("pinned_model", "claude-fable-5-1".into()),
+    ],
+  )
+  .await;
+  repository(scratch.db(), "plain", "/checkouts/plain", &[]).await;
 
   let on = |enabled: bool| {
     vec![
@@ -393,7 +373,7 @@ async fn a_worker_s_claude_run_goes_out_on_the_model_its_pin_names() {
 
   for (worker, model) in [
     ("helper", "claude-fable-5-1"),
-    ("helper-support", "claude-fable-5-1"),
+    ("helper-w2", "claude-fable-5-1"),
     ("plain", mapped.model.as_str()),
   ] {
     let run = worker_run(&ground, &trees, Some(worker), None, model, "/work").await.unwrap();

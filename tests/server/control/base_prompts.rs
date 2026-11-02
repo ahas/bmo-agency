@@ -6,6 +6,7 @@ use agency_server::control::claude_account_changes::{self as changes, BasePrompt
 use agency_server::control::claude_accounts::accounts;
 use serde_json::{Value, json};
 
+use crate::support::rows::repository;
 use crate::support::scratch::Scratch;
 use crate::support::standing;
 
@@ -225,23 +226,25 @@ async fn saving_the_text_of_a_base_an_account_names_asks_no_reset_for_the_accoun
   .await
   .unwrap();
 
-  // A worker choosing it and holding a session, so a save reaches one agent.
-  scratch
-    .run(r#"INSERT INTO "agents" ("name", "kind") VALUES ('w', 'worker')"#, vec![])
-    .await;
+  // A repository's checkout choosing it and keeping a session there, so a save reaches one agent.
+  repository(scratch.db(), "w", &home.path().join("w").to_string_lossy(), &[]).await;
   scratch
     .run(
       r#"INSERT INTO "agent_base_prompts" ("agent", "prompt") VALUES ('w', 'harness-base')"#,
       vec![],
     )
     .await;
-  scratch
-    .run(
-      r#"INSERT INTO "worker_sessions" ("worker", "model", "claude_session_id", "last_reply_at")
-         VALUES ('w', 'claude-opus-5-5', 'session', 0)"#,
-      vec![],
-    )
-    .await;
+  agency_server::worker_session::records::record(
+    scratch.db(),
+    "w",
+    "claude-opus-5-5",
+    "",
+    "session",
+    None,
+    None,
+  )
+  .await
+  .unwrap();
 
   let (status, answer) = patch(
     port,

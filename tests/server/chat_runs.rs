@@ -15,6 +15,7 @@ use agency_server::seeds::deployment;
 use agent_session::{RoomBlock, Scope, Sessions, Start, Turn, TurnContext};
 use serde_json::{Value, json};
 
+use crate::support::rows::supervisor;
 use crate::support::scratch::Scratch;
 use crate::support::standing;
 
@@ -45,13 +46,12 @@ async fn a_chat_turn_s_run_carries_its_room_its_round_and_the_message_it_answers
   let machine = machine(home.path());
 
   store::seed::settle(scratch.db(), &deployment(&machine)).await.unwrap();
-  scratch
-    .run(
-      r#"INSERT INTO "agents" ("name", "kind", "session_scope", "turn_shape", "default_answerer")
-         VALUES ('chat-agent', 'chat', 'room', 'window', 1)"#,
-      vec![],
-    )
-    .await;
+  supervisor(
+    scratch.db(),
+    "chat-agent",
+    &[("session_scope", "room".into()), ("default_answerer", 1i64.into())],
+  )
+  .await;
 
   let sessions = HerdrSessions::new(Places::new(ground(&scratch, &machine), Arc::default()));
   let session = sessions

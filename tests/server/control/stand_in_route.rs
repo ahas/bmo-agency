@@ -1,6 +1,6 @@
-//! Whether a stand-in answers, asked of a running server over its control routes: the agent's read answers
-//! whether one answers for it, and a session is started at no scope the contract does not name — on a store
-//! the server settled itself.
+//! Whether a stand-in answers, asked of a running server over its control routes: the stand-in route answers
+//! whether one answers for a supervisor, and a session is started at no scope the contract does not name — on
+//! a store the server settled itself.
 
 use serde_json::{Value, json};
 
@@ -38,15 +38,13 @@ async fn a_running_server_answers_whether_a_stand_in_answers_and_starts_no_edito
   let token = "secret";
 
   std::fs::create_dir_all(&data).unwrap();
-  scratch
-    .run(r#"INSERT INTO "agents" ("name", "kind") VALUES ('chat-agent', 'chat')"#, vec![])
-    .await;
+  crate::support::rows::supervisor(scratch.db(), "chat-agent", &[]).await;
 
   let server = standing::stand_server(home.path(), &data, &scratch.address(), token);
   let port = server.port;
 
   // Claude Code stands open and no stand-in is pinned, so none answers for the agent.
-  assert_eq!(get(port, token, "/agents/chat-agent").await.1["standInAvailable"], json!(false));
+  assert_eq!(get(port, token, "/stand-in?agent=chat-agent").await.1["answers"], json!(false));
 
   let (status, refused) =
     post(port, token, "/sessions", json!({ "agentName": "digest", "scope": "editor" })).await;

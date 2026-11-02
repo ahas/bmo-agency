@@ -8,6 +8,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::os::unix::fs::PermissionsExt;
 
 use crate::support::grounds::{OrderEntry, set_provider_order};
+use crate::support::rows::supervisor;
 use agency_server::Service;
 use agency_server::chat_stand_in::{FallbackEnded, fallback_ended, stand_in_turn};
 use agency_server::companion::run::NoAnswer;
@@ -205,7 +206,7 @@ async fn an_openrouter_member_step_stands_claude_code_on_the_gateway() {
   );
   assert_eq!(composed.window.map(|window| window.context_tokens), Some(131_072));
 }
-// A store whose provider order holds the stand-ins alone, or Claude Code beside them, for the chat agent.
+// A store whose chat agent's provider order holds the stand-ins and Claude Code, each switched as the test says.
 async fn store_with(order: &[(&str, bool)]) -> Scratch {
   let scratch = Scratch::new().await;
   let entries: Vec<OrderEntry> = order
@@ -216,9 +217,27 @@ async fn store_with(order: &[(&str, bool)]) -> Scratch {
     })
     .collect();
 
-  scratch
-    .run(r#"INSERT INTO "agents" ("name", "kind") VALUES ('chat-agent', 'chat')"#, vec![])
-    .await;
+  let models = [
+    ("claude-code", "claude-opus-5"),
+    ("codex", "gpt-5.6-sol"),
+    ("openrouter", "vendor/model"),
+    ("registered", "no-such-registration"),
+  ];
+  let own: Vec<serde_json::Value> = order
+    .iter()
+    .map(|(name, _)| {
+      let model = models.iter().find(|(provider, _)| provider == name).map(|(_, model)| *model);
+
+      serde_json::json!({ "provider": name, "model": model.unwrap_or("a-model") })
+    })
+    .collect();
+
+  supervisor(
+    scratch.db(),
+    "chat-agent",
+    &[("provider_order", serde_json::Value::Array(own).to_string().into())],
+  )
+  .await;
   set_provider_order(scratch.db(), &entries).await.unwrap();
   scratch
 }

@@ -1,7 +1,7 @@
 //! A job stopped (docs/api.md, 「assignments and jobs」): the chat agent's stop only on a turn that is the owner's,
 //! refused for an agent carrying no turn and for anyone else's turn; a stop cutting the job's turn short and
-//! answering once that turn has ended, the job stopped with the stop's reason; and the worker reading working
-//! while its program carries a turn, and idle, taking the next item, once the stop has answered.
+//! answering once that turn has ended, the job stopped with the stop's reason; and the repository's checkout
+//! read as held by the job while its turn goes on, and free, taking the next item, once the stop has answered.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -15,11 +15,12 @@ use agency_server::lines::place::Place;
 use agency_server::now_ms;
 use agency_server::places::Ground;
 use agency_server::turn_marks::{self, Mark};
-use agency_server::turn_pickup::{InFlight, at_start, forget, keep};
+use agency_server::turn_pickup::{InFlight, at_start, keep};
 use harness_providers::Machine;
 use serde_json::{Value, json};
 use tokio::net::TcpListener;
 
+use crate::support::rows::repository;
 use crate::support::scratch::Scratch;
 
 const TOKEN: &str = "secret";
@@ -64,17 +65,12 @@ async fn call(port: u16, method: reqwest::Method, path: &str, body: Option<Value
   (answer.status().as_u16(), answer.json().await.unwrap_or(Value::Null))
 }
 
-// A worker with one running job on an item, its assignment running; the job's turn under `run` where it
-// names one.
+// A repository's checkout with one running job on an item, its assignment running; the job's turn under `run`
+// where it names one.
 async fn running(scratch: &Scratch, worker: &str, job: i64, item: i64, run: Option<&str>) {
   let now = now_ms();
 
-  scratch
-    .run(
-      r#"INSERT INTO "agents" ("name", "kind") VALUES ($1, 'worker') ON CONFLICT DO NOTHING"#,
-      vec![worker.into()],
-    )
-    .await;
+  repository(scratch.db(), worker, &format!("/checkouts/{worker}"), &[]).await;
   scratch
     .run(
       r#"INSERT INTO "assignments" ("id", "item_id", "holder_name", "worker_name", "state", "created_at",
@@ -91,6 +87,13 @@ async fn running(scratch: &Scratch, worker: &str, job: i64, item: i64, run: Opti
       vec![job.into(), item.into(), worker.into(), run.map(str::to_owned).into(), now.into()],
     )
     .await;
+}
+
+// The job holding a repository's base checkout, as the repository's view answers it; null where none does.
+async fn holding(port: u16, repository: &str) -> Value {
+  let (_, view) = call(port, reqwest::Method::GET, &format!("/repositories/{repository}"), None).await;
+
+  view["checkouts"][0]["job"].clone()
 }
 
 async fn job_stop(port: u16, body: Value) -> (u16, Value) {
@@ -209,7 +212,7 @@ async fn a_stopped_job_s_turn_is_cut_short_first_and_its_worker_takes_the_next_i
   );
   at_start(&ground).await.unwrap();
 
-  assert_eq!(call(port, reqwest::Method::GET, "/workers/worker-a", None).await.1["state"], "working");
+  assert_eq!(holding(port, "worker-a").await["jobId"], json!(8));
 
   // The program: its turn goes on until the stop's cancellation reaches it, and is then cut short.
   let db = scratch.db().clone();
@@ -254,8 +257,8 @@ async fn a_stopped_job_s_turn_is_cut_short_first_and_its_worker_takes_the_next_i
     "the stop takes its cancellation back"
   );
 
-  // Its worker reads idle and is held for the next item at once.
-  assert_eq!(call(port, reqwest::Method::GET, "/workers/worker-a", None).await.1["state"], "idle");
+  // Its checkout reads free and is held for the next item at once.
+  assert_eq!(holding(port, "worker-a").await, Value::Null);
 
   let (status, assignment) = call(
     port,
@@ -268,37 +271,4 @@ async fn a_stopped_job_s_turn_is_cut_short_first_and_its_worker_takes_the_next_i
 
   assert_eq!(status, 201, "{assignment}");
   assert_eq!(assignment["workerName"], "worker-a", "{assignment}");
-}
-
-#[tokio::test(flavor = "multi_thread")]
-async fn a_worker_whose_program_carries_a_turn_no_job_names_reads_working() {
-  let scratch = Scratch::new().await;
-  let home = tempfile::tempdir().unwrap();
-  let port = front(ground(&scratch, home.path())).await;
-
-  scratch
-    .run(r#"INSERT INTO "agents" ("name", "kind") VALUES ('worker-b', 'worker')"#, vec![])
-    .await;
-  keep(
-    scratch.db(),
-    &InFlight {
-      session: "worker-b@worker".into(),
-      turn: 1,
-      run: "job-9".into(),
-      agent: "worker-b".into(),
-      chat_id: None,
-      ledger: None,
-      job: Some(9),
-      started_at: now_ms() - 1_000,
-    },
-  )
-  .await;
-
-  let (_, worker) = call(port, reqwest::Method::GET, "/workers/worker-b", None).await;
-
-  assert_eq!((&worker["state"], &worker["jobId"]), (&json!("working"), &Value::Null), "{worker}");
-
-  forget(scratch.db(), "job-9").await;
-
-  assert_eq!(call(port, reqwest::Method::GET, "/workers/worker-b", None).await.1["state"], "idle");
 }

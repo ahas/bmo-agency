@@ -1,11 +1,11 @@
-//! What a job's run asks of its worker's runtime, asked of a running server in the shapes the job unit sends:
-//! a run noted on the row, the bench made ready with a job before's dev-server request taken back, the
-//! servers swept, the job documents read with the trailer's marks filled and a support worker's handoff
-//! instruction its base's, the files of a change that touch the prefix, and a session handed over — the
-//! kept one on the model with its record dropped where none is named, nothing where nothing is kept.
+//! What a job's run asks of its repository's runtime, asked of a running server in the shapes the job unit
+//! sends: the bench made ready with a job before's dev-server request taken back, the servers swept, the job
+//! documents read with the trailer's marks filled and a support checkout's handoff instruction its
+//! repository's, the files of a change that touch the prefix, and a session handed to another holder.
 
 use serde_json::{Value, json};
 
+use crate::support::rows::repository;
 use crate::support::scratch::Scratch;
 use crate::support::standing;
 
@@ -65,27 +65,29 @@ async fn a_running_server_answers_what_a_job_s_run_asks_of_its_worker() {
 
   std::fs::create_dir_all(&bench).unwrap();
   std::fs::write(bench.join("dev-server.wanted"), "").unwrap();
-  scratch
-    .run(
-      r#"INSERT INTO "agents" ("name", "kind", "support_of")
-         VALUES ('helper', 'worker', NULL), ('helper-2', 'worker', 'companion')"#,
-      vec![],
-    )
-    .await;
+  // A repository of its own, and one whose prompt folder holds a handoff instruction, with a support checkout.
+  repository(scratch.db(), "helper", &home.path().join("helper").to_string_lossy(), &[]).await;
+  repository(
+    scratch.db(),
+    "companion",
+    &home.path().join("companion").to_string_lossy(),
+    &[("support_count", 1i64.into())],
+  )
+  .await;
 
   let server = standing::stand_server(home.path(), &data, &scratch.address(), token);
   let port = server.port;
 
   // The bench made ready: the workbench stands, and a job before's request for its dev server is taken back.
-  assert_eq!(patch(port, token, "/workers/helper", json!({ "bench": true })).await.0, 200);
+  assert_eq!(patch(port, token, "/repositories/helper", json!({ "bench": true })).await.0, 200);
   assert!(bench.is_dir() && !bench.join("dev-server.wanted").exists());
 
   // Nothing listening is swept.
-  assert_eq!(delete(port, token, "/workers/helper/servers").await, (200, json!({ "lines": [] })));
+  assert_eq!(delete(port, token, "/repositories/helper/servers").await, (200, json!({ "lines": [] })));
 
   // The job documents: the graph text, the trailer with it and its paths filled in, and a handoff
-  // instruction only where the worker's own folder, or its base's, holds one.
-  let (status, documents) = get(port, token, "/workers/helper/definition").await;
+  // instruction only where the repository's folder holds one, a support checkout reading its repository's.
+  let (status, documents) = get(port, token, "/repositories/helper/definition").await;
   let graph = documents["graph"].as_str().unwrap_or_default();
   let trailer = documents["trailer"].as_str().unwrap_or_default();
 
@@ -95,7 +97,7 @@ async fn a_running_server_answers_what_a_job_s_run_asks_of_its_worker() {
   assert!(trailer.contains("plain-writing.md"), "{trailer}");
   assert_eq!(documents["handoff"], Value::Null);
 
-  let (_, support) = get(port, token, "/workers/helper-2/definition").await;
+  let (_, support) = get(port, token, "/repositories/companion-w2/definition").await;
 
   assert!(support["handoff"].as_str().is_some_and(|text| !text.is_empty()), "{support}");
 

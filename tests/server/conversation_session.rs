@@ -16,6 +16,7 @@ use agent_session::{
   Conversation, FaultKind, Resume, Scope, SessionId, Sessions, Start, Turn, TurnContext, WorkParts,
 };
 
+use crate::support::rows::{repository, supervisor};
 use crate::support::scratch::Scratch;
 
 fn machine(home: &std::path::Path) -> harness_providers::Machine {
@@ -54,16 +55,8 @@ fn start(agent: &str, conversation: Conversation) -> Start {
 }
 
 async fn agents(scratch: &Scratch) {
-  scratch
-    .run(
-      r#"INSERT INTO "agents" ("name", "kind", "session_scope", "turn_shape", "default_answerer")
-         VALUES ('chat-agent', 'chat', 'agent', 'window', 1)"#,
-      vec![],
-    )
-    .await;
-  scratch
-    .run(r#"INSERT INTO "agents" ("name", "kind") VALUES ('worker-a', 'worker')"#, vec![])
-    .await;
+  supervisor(scratch.db(), "chat-agent", &[("default_answerer", 1i64.into())]).await;
+  repository(scratch.db(), "worker-a", "/checkouts/worker-a", &[]).await;
 }
 
 #[test]
@@ -188,7 +181,7 @@ async fn a_conversation_stands_on_the_provider_and_model_it_names_and_switches_b
       .unwrap_err()
       .kind,
     FaultKind::Refused,
-    "a conversation is a conversational agent's"
+    "a conversation is a supervisor's"
   );
   assert_eq!(
     sessions

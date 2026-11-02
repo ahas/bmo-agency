@@ -151,7 +151,6 @@ mod queue {
   mod workers;
 }
 mod readiness;
-mod relay;
 mod rest;
 mod road;
 mod role_slots;

@@ -106,12 +106,7 @@ async fn a_ready_workplace_gets_its_spec_over_the_node_services_login_and_one_wi
       )
       .await;
   }
-  scratch
-    .run(
-      r#"INSERT INTO "agents" ("name", "kind", "node", "cwd") VALUES ('worker', 'worker', 'n1', '~/work')"#,
-      vec![],
-    )
-    .await;
+  crate::support::rows::repository(scratch.db(), "worker", "~/work", &[("node", "n1".into())]).await;
   std::fs::create_dir_all(trees.path().join("data/nodes/n1")).unwrap();
   std::fs::write(
     trees.path().join("data/nodes/n1/setup.json"),
