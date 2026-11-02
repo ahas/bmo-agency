@@ -36,7 +36,7 @@ export async function endpointTurn(options: ResidentTurnRequest & { surface: Res
   const turn = await runTurnInPane({
     provider: options.endpoint.provider,
     line: run.line,
-    identity: { root: options.root, parent: options.parent, workKey: run.line, model: run.model, effort: run.effort || null, tier: run.tier ?? null },
+    identity: { root: options.root, parent: options.parent, model: run.model, effort: run.effort || null },
     name: options.name,
     title: options.title,
     home: options.home,

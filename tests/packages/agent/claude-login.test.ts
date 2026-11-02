@@ -174,12 +174,12 @@ describe("a login that is gone", () => {
   test("is passed over by the walk, and its work goes to the login that is left", async () => {
     const { archive, second } = await twoAccounts();
 
-    expect((await claudeAccountWalk(archive, "bmo")).map((one) => one.id)).toEqual([SEED_ACCOUNT_ID, second]);
+    expect((await claudeAccountWalk(archive)).map((one) => one.id)).toEqual([SEED_ACCOUNT_ID, second]);
 
     await markLoginGone(archive, SEED_ACCOUNT_ID);
 
     expect(await claudeAccountOpen(archive, SEED_ACCOUNT_ID)).toBe(false);
-    expect((await claudeAccountWalk(archive, "bmo")).map((one) => one.id)).toEqual([second]);
+    expect((await claudeAccountWalk(archive)).map((one) => one.id)).toEqual([second]);
   });
 
   test("is offered again by the walk itself the moment its credential says somebody signed in", async () => {
@@ -192,7 +192,7 @@ describe("a login that is gone", () => {
     // While its own credential says the same thing the mark stands, and the walk passes it over.
     expect(await clearLoginIfBack(archive, gone.id)).toBe(false);
     expect(await claudeAccountOpen(archive, gone.id)).toBe(false);
-    expect((await claudeAccountWalk(archive, "bmo")).map((one) => one.id)).toEqual([SEED_ACCOUNT_ID]);
+    expect((await claudeAccountWalk(archive)).map((one) => one.id)).toEqual([SEED_ACCOUNT_ID]);
 
     // Signing in again writes a moment in the future, and nothing else has to be told: the walk's
     // own reading of that credential lifts the mark.
@@ -201,7 +201,7 @@ describe("a login that is gone", () => {
       JSON.stringify({ claudeAiOauth: { accessToken: token, expiresAt: Date.now() + 30 * 24 * 60 * 60_000 } }),
     );
 
-    expect((await claudeAccountWalk(archive, "bmo")).map((one) => one.id)).toEqual([SEED_ACCOUNT_ID, gone.id]);
+    expect((await claudeAccountWalk(archive)).map((one) => one.id)).toEqual([SEED_ACCOUNT_ID, gone.id]);
     expect((await archive.claudeAccounts().getClaudeAccount(gone.id))?.needsLoginAt).toBeNull();
   });
 });

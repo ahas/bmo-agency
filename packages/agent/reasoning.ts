@@ -3,7 +3,6 @@
 // its harness, which levels a run of one of its models takes, whether the thinking switch reaches it,
 // and the effort word a run goes out with. Nothing here knows a provider.
 
-import { archiveSeeds } from "@agency/archive/archive-seeding";
 import declaredScale from "@agency/policy/reasoning.toml";
 
 // The one scale an agent's level is named on, lowest first: agency's policy
@@ -45,13 +44,6 @@ export function levelReasoning(levels: (model: string) => Promise<readonly Reaso
     levels,
     effort: async (mapped, choice, model) => (choice.effort !== null && (await levels(model)).includes(choice.effort) ? choice.effort : mapped),
   };
-}
-
-// Whether an agent's own choice reaches its runs: not a gate's, a judgement asked under its tier, and
-// not a support worker's, which runs on its base's. What runs as a gate is the deployment's gate
-// order's to say, whatever kind the agent's row is.
-export function ownsReasoning(agent: { name: string; supportOf: string | null }): boolean {
-  return !archiveSeeds().gateKeys.includes(agent.name) && agent.supportOf === null;
 }
 
 // The scale's levels a vocabulary of effort words holds, in the scale's order.

@@ -1,4 +1,3 @@
-import type { AgentRecord } from "@agency/archive/agent-store";
 
 import type { RunLineDeclaration } from "./harness";
 
@@ -64,12 +63,4 @@ function declared(line: string): RunLineDeclaration | undefined {
 // own turns carry. A line the deployment never declared hands it none.
 export function lineComposesTypedLines(line: string): boolean {
   return runLineDeclarations().some((one) => one.name === line && one.composesTypedLines === true);
-}
-
-/**
- * The line an agent's work goes out on: a runner is named for its line, and every other agent's
- * kind is its line's name.
- */
-export function agentLine(agent: Pick<AgentRecord, "name" | "kind">): string {
-  return agent.kind === "runner" ? agent.name : agent.kind;
 }

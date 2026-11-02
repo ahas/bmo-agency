@@ -115,7 +115,8 @@ async function stand(agent: string, rooms: number): Promise<Stood> {
   const shared = -rooms - 1;
   const run = (sql: string, ...args: (string | number)[]) => db.sql.run(sql, ...args);
 
-  await db.agents().standCompanion({ name: agent, label: "Tester", icon: "i", provider: "registered", model: "m", itemWorker: "worker" });
+  // A companion as one added on the console stands: the room scope, the pieces shape, its brain folder its own.
+  await run("INSERT INTO supervisors (name, label, session_scope, turn_shape, default_answerer, brain_folder, created_at, updated_at) VALUES (?, 'Tester', 'room', 'pieces', 0, ?, 1, 1)", agent, `agents/${agent}`);
 
   for (const chatId of [alone, shared]) {
     await run("INSERT INTO room_sessions (agent, chat_id, generation, opened_at, harness_session, harness_road) VALUES (?, ?, 1, 1, ?, 'registered::m')", agent, chatId, `s-${agent}-${chatId}`);
@@ -224,7 +225,7 @@ describe("POST /companion-resets", () => {
   test("refuses an agent that is no companion, an ask naming no companion or no range, and a caller without the token", async () => {
     const stood = await stand("tester-none", 740);
 
-    await archive!.sql.run("INSERT INTO agents (name, kind, session_scope, turn_shape, default_answerer) VALUES ('chat-agent', 'chat', 'agent', 'window', 1)");
+    await archive!.sql.run("INSERT INTO supervisors (name, session_scope, turn_shape, default_answerer, created_at, updated_at) VALUES ('chat-agent', 'agent', 'window', 1, 1, 1)");
 
     expect(await refusal(reset({ agent: "chat-agent", conversation: true }))).toEqual([400, "chat-agent is not a companion, so it cannot be reset."]);
     expect(await refusal(reset({ agent: "nobody", conversation: true }))).toEqual([400, "nobody is not a companion, so it cannot be reset."]);

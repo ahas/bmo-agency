@@ -522,9 +522,6 @@ export interface AgentProvider {
   // The lines the provider carries, where it carries fewer than its program could: a key on any other
   // line is not offered it and never walks to it. Absent where every line its program carries is its.
   lines?: readonly RunLine[];
-  // Whether the automatic walk of a key asks it, where that turns on more than the line — on the model
-  // the key's tier maps it to, say. Absent where every key on a line it carries walks to it.
-  walks?(key: string, archive: Archive): Promise<boolean>;
   // Where a new session of this run is to stand, for a provider whose model is served in several
   // places and whose session must keep to one of them: the provider chooses, records its choice, and
   // answers the place, or null where the model has one place only. Absent on every other provider.

@@ -8,10 +8,9 @@ export interface ExecutionIdentity {
   agent?: string | null;
   root?: string;
   parent?: string | null;
-  workKey?: string;
+  role?: string | null;
   model?: string | null;
   effort?: string | null;
-  tier?: import("@agency/archive/model-tiers").ModelTier | null;
   sessionId?: string | null;
   panePath?: boolean;
 }
@@ -45,8 +44,8 @@ export function executionRoot(owner: string | null): string {
 export async function beginExecution(archive: Archive | null | undefined, provider: string, line: string, identity: ExecutionIdentity): Promise<ExecutionRecord> {
   const record: ExecutionRecord = {
     id: `bmo-execution-${randomUUID()}`, agent: identity.agent ?? null, root: identity.root ?? executionRoot(null),
-    parent: identity.parent ?? null, workKey: identity.workKey ?? line,
-    model: identity.model ?? null, effort: identity.effort ?? null, tier: identity.tier ?? null, sessionId: identity.sessionId ?? null,
+    parent: identity.parent ?? null, role: identity.role ?? null,
+    model: identity.model ?? null, effort: identity.effort ?? null, sessionId: identity.sessionId ?? null,
     provider, line, paneId: null, state: "launching", startedAt: Date.now(), endedAt: null, exitCode: null,
     panePath: identity.panePath,
   };
@@ -61,5 +60,5 @@ export function nativeExecution(parent: ExecutionRecord, nativeId: string): Exec
   // A child of a pane-path turn is not itself one: it has no pane of its own to be absent from,
   // so the evidence that ends it is its parent's ending and never a pane's.
   return { ...parent, id: `bmo-native-${digest}`, parent: parent.id, nativeId,
-    sessionId: null, model: null, effort: null, tier: null, line: "native-child", sharedPane: true, panePath: undefined, startedAt: Date.now(), endedAt: null, exitCode: null };
+    sessionId: null, model: null, effort: null, line: "native-child", sharedPane: true, panePath: undefined, startedAt: Date.now(), endedAt: null, exitCode: null };
 }

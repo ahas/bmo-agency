@@ -194,7 +194,7 @@ async function side(
         run: placeRun === null ? null : { name: placeRun.name, title: placeRun.title, person: placeRun.person, env: placeRun.env, ended: placeRun.endedAt !== null },
         program: program === null ? null : { command: program.command, restart: program.restart, opened: program.opened },
         row: row === null ? null : {
-          root: row.root, parent: row.parent, workKey: row.workKey, model: row.model, effort: row.effort, tier: row.tier, sessionId: row.sessionId,
+          root: row.root, parent: row.parent, role: row.role, model: row.model, effort: row.effort, sessionId: row.sessionId,
           provider: row.provider, line: row.line, state: row.state, panePath: row.panePath, attempt: row.attempt, exitCode: row.exitCode,
           ended: row.endedAt !== null, resident: row.resident === undefined ? null : { place: row.resident.place, record: row.resident.record, from: row.resident.from },
         },

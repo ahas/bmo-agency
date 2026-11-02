@@ -17,7 +17,6 @@ import {
   claudeAccountOpen,
   claudeAccountWalk,
   onClaudeAccounts,
-  pinnedClaudeAccount,
   walkingClaudeAccount,
 } from "@agency/agent/claude-dispatch";
 import { accountRestUntil, isAccountResting } from "@agency/agent/rest-state";
@@ -73,7 +72,7 @@ describe("the logins a work key is offered", () => {
   test("every open login, in the owner's order", async () => {
     const { archive, second } = await twoAccounts();
 
-    expect((await claudeAccountWalk(archive, "bmo")).map((one) => one.id)).toEqual([SEED_ACCOUNT_ID, second]);
+    expect((await claudeAccountWalk(archive)).map((one) => one.id)).toEqual([SEED_ACCOUNT_ID, second]);
     expect(await claudeAccountOpen(archive, second)).toBe(true);
   });
 
@@ -82,29 +81,8 @@ describe("the logins a work key is offered", () => {
 
     await setClaudeAccountEnabled(archive, second, false);
 
-    expect((await claudeAccountWalk(archive, "bmo")).map((one) => one.id)).toEqual([SEED_ACCOUNT_ID]);
+    expect((await claudeAccountWalk(archive)).map((one) => one.id)).toEqual([SEED_ACCOUNT_ID]);
     expect(await claudeAccountOpen(archive, second)).toBe(false);
-  });
-
-  test("a key pinned to one login is offered that login and no other", async () => {
-    const { archive, second } = await twoAccounts();
-
-    await archive.fallbacks().setFallbackRouteAccount("translator", second, 1);
-
-    expect((await pinnedClaudeAccount(archive, "translator"))?.id).toBe(second);
-    expect((await claudeAccountWalk(archive, "translator")).map((one) => one.id)).toEqual([second]);
-    // Another key is untouched by it.
-    expect((await claudeAccountWalk(archive, "bmo")).map((one) => one.id)).toEqual([SEED_ACCOUNT_ID, second]);
-  });
-
-  test("a key pinned to a login the owner has turned off walks like any other", async () => {
-    const { archive, second } = await twoAccounts();
-
-    await archive.fallbacks().setFallbackRouteAccount("translator", second, 1);
-    await setClaudeAccountEnabled(archive, second, false);
-
-    expect(await pinnedClaudeAccount(archive, "translator")).toBeNull();
-    expect((await claudeAccountWalk(archive, "translator")).map((one) => one.id)).toEqual([SEED_ACCOUNT_ID]);
   });
 
   test("an endpoint account is open while its key is there, and passed over while it is not", async () => {
@@ -121,13 +99,13 @@ describe("the logins a work key is offered", () => {
     });
 
     expect(await claudeAccountOpen(archive, added.id)).toBe(true);
-    expect((await claudeAccountWalk(archive, "bmo")).map((one) => one.id)).toEqual([SEED_ACCOUNT_ID, added.id]);
+    expect((await claudeAccountWalk(archive)).map((one) => one.id)).toEqual([SEED_ACCOUNT_ID, added.id]);
 
     // Nothing to hand a run is no account to run on: the walk passes it over rather than launching
     // one that cannot reach its key.
     rmSync(keyFile);
     expect(await claudeAccountOpen(archive, added.id)).toBe(false);
-    expect((await claudeAccountWalk(archive, "bmo")).map((one) => one.id)).toEqual([SEED_ACCOUNT_ID]);
+    expect((await claudeAccountWalk(archive)).map((one) => one.id)).toEqual([SEED_ACCOUNT_ID]);
 
     writeFileSync(keyFile, "");
     expect(await claudeAccountOpen(archive, added.id)).toBe(false);
@@ -145,15 +123,6 @@ describe("the logins a work key is offered", () => {
     expect(await walkingClaudeAccount(archive)).toBe(second);
   });
 
-  test("a pin is a row of its own and is taken off by naming none", async () => {
-    const { archive, second } = await twoAccounts();
-
-    await archive.fallbacks().setFallbackRouteAccount("translator", second, 1);
-    expect((await archive.fallbacks().fallbackRoute("translator"))?.account).toBe(second);
-
-    await archive.fallbacks().setFallbackRouteAccount("translator", null, 2);
-    expect(await archive.fallbacks().fallbackRoute("translator")).toBeNull();
-  });
 });
 
 // The account the owner chose to run on now is where the walk starts, and the order after it is the owner's order
@@ -173,18 +142,8 @@ describe("the account chosen to run on now", () => {
 
     await chooseClaudeAccount(archive, third);
 
-    expect((await claudeAccountWalk(archive, "bmo")).map((one) => one.id)).toEqual([third, SEED_ACCOUNT_ID, second]);
+    expect((await claudeAccountWalk(archive)).map((one) => one.id)).toEqual([third, SEED_ACCOUNT_ID, second]);
     expect(await walkingClaudeAccount(archive)).toBe(third);
-  });
-
-  test("leaves a key pinned to another login where it is", async () => {
-    const { archive, second } = await twoAccounts();
-
-    await archive.fallbacks().setFallbackRouteAccount("translator", SEED_ACCOUNT_ID, 1);
-    await chooseClaudeAccount(archive, second);
-
-    expect((await claudeAccountWalk(archive, "translator")).map((one) => one.id)).toEqual([SEED_ACCOUNT_ID]);
-    expect((await claudeAccountWalk(archive, "bmo"))[0]?.id).toBe(second);
   });
 
   test("carries a run it cannot answer on to the next login in the order", async () => {
@@ -272,14 +231,6 @@ describe("the login in use", () => {
     expect(await claudeAccountInUse(archive)).toBe(second);
   });
 
-  test("does not move a key pinned to another login", async () => {
-    const { archive, second } = await twoAccounts();
-
-    await carriedPastSpent(archive, second);
-    await archive.fallbacks().setFallbackRouteAccount("bmo", SEED_ACCOUNT_ID, 1);
-
-    expect((await claudeAccountWalk(archive, "bmo")).map((one) => one.id)).toEqual([SEED_ACCOUNT_ID]);
-  });
 });
 
 describe("what a failure is about", () => {
@@ -395,25 +346,6 @@ describe("one run carried by the logins", () => {
     ).rejects.toThrow("the work itself broke");
 
     expect(tried).toBe(1);
-  });
-
-  test("a key pinned to one login fails on that login rather than wandering", async () => {
-    const { archive, second } = await twoAccounts();
-    const asked: string[] = [];
-
-    await archive.fallbacks().setFallbackRouteAccount("translator", second, 1);
-
-    await expect(
-      onClaudeAccounts({ archive, config }, "translator", run(), async (attempt) => {
-        asked.push(attempt.account?.id ?? "none");
-
-        throw new ClaudeLimitError(hour);
-      }),
-    ).rejects.toThrow(ClaudeLimitError);
-
-    expect(asked).toEqual([second]);
-    expect(await isAccountResting(archive, second)).toBe(true);
-    expect(await isAccountResting(archive, SEED_ACCOUNT_ID)).toBe(false);
   });
 
   test("with no store in hand the run is made once, as every run was made before", async () => {

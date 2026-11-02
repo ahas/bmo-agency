@@ -1,6 +1,6 @@
 import "@agency/test-support/setup";
 
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 
 import { readClaudeOutput } from "@agency/agent/claude";
 import { ClaudeLimitError } from "@agency/agent/claude-failure";
@@ -8,7 +8,6 @@ import { Archive } from "@agency/archive/archive";
 import { SEED_ACCOUNT_ID } from "@agency/agent/claude-account";
 import { standClaudeCatalogue } from "./claude-catalogue-fixture";
 import { claudeCode } from "@agency/agent/claude-code";
-import { installModelSettings } from "@agency/agent/model-settings";
 import { installProviderSettings } from "@agency/agent/provider-order";
 import { codex } from "@agency/agent/codex";
 import { dsh } from "@agency/agent/dsh";
@@ -55,16 +54,9 @@ function chatRunFor(thinking: boolean, answerShape: HarnessRun["answerShape"] = 
   };
 }
 
-// A line reads its agent's own thinking and effort from a settings archive. A fresh one seeds each
-// agent's row, so the lines written out below are what a machine with nothing chosen on it would
-// launch. It is made at the file's top, as a scratch store must be.
-const settingsArchive = await scratchArchive();
-
 // What the providers answer about the machine is the harness-providers binary's, built as the file loads.
 crateBinary(codeRoot, "harness-providers");
 
-beforeAll(() => installModelSettings(settingsArchive));
-afterAll(() => installModelSettings(null));
 
 // Every line as it stands today, flag for flag and value for value. A flag that moves, is added
 // or is dropped fails here, which is the point: the prompt cache matches a byte-identical prefix,

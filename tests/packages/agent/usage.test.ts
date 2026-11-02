@@ -6,7 +6,6 @@ import { Archive } from "@agency/archive/archive";
 import { windowsOf } from "@agency/agent/claude";
 import { claudeSpendOf } from "@agency/agent/spend";
 import { figureText, kindFigures, kindsText, totalText } from "@agency/agent/usage";
-import { scratchArchive, scratchDatabase } from "@agency/test-support/store";
 
 describe("what a run's answer says about usage", () => {
   test("every window the API named is read, and one without a figure is not a window", () => {
@@ -99,23 +98,6 @@ describe("the words a run's cost is said in", () => {
       { label: "", text: "—" },
     ]);
     expect(kindsText(unmeasured, say)).toBe("— · — · — · —");
-  });
-});
-
-// A runner and an editor keep no session: every run opens its own context and lets it go. What
-// they leave behind is the row of what that run cost and the size it ended at, both under the
-// name the agent is read back by.
-describe("what a run that keeps no session leaves behind", () => {
-  test("a run that reported no size leaves the last real reading standing", async () => {
-    const archive = await scratchArchive();
-
-    await archive.agents().registerAgent({ name: "search", kind: "runner" });
-    await archive.agents().noteAgentContext("search", 44_100);
-    await archive.agents().noteAgentContext("search", null);
-
-    // Silence is not a reading of nothing: a run killed before it answered says nothing about
-    // the run before it.
-    expect((await archive.agents().getAgent("search"))?.contextTokens).toBe(44_100);
   });
 });
 

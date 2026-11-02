@@ -144,7 +144,7 @@ export async function residentCodexTurn(options: ResidentTurnRequest & {
   };
   const execution = await beginExecution(archive, "codex", run.line, {
     root: options.root ?? executionRoot(options.name), parent: options.parent ?? options.name,
-    model: run.model, effort: run.effort || null, tier: run.tier ?? null, sessionId: run.resumeSessionId, panePath: true,
+    model: run.model, effort: run.effort || null, sessionId: run.resumeSessionId, panePath: true,
   });
   const owner = { pid: process.pid, birth: processBirth(process.pid) };
   const cancelled = () => executionCancelled(archive.settings(), [options.name, execution.id, execution.root, execution.parent]);

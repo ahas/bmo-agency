@@ -27,38 +27,6 @@ afterAll(async () => {
   else process.env.XDG_CONFIG_HOME = previousPaneConfig;
 });
 
-const stand = "deepseek/deepseek-chat:free";
-
-describe("what the archive keeps", () => {
-  test("Codex and OpenRouter choices share a work key and reset independently", async () => {
-    const archive = await scratchArchive();
-
-    await archive.fallbacks().setCodexFallback("bmo", "gpt-5.6-terra", "high", 10);
-    await archive.fallbacks().setOpenRouterFallback("bmo", stand, 11);
-    await archive.fallbacks().setFallbackRouteMode("bmo", "codex", 12);
-
-    expect(await archive.fallbacks().fallbackRoute("bmo")).toEqual({
-      key: "bmo",
-      // Nothing pins this key to a login, so its runs walk the account order.
-      account: null,
-      claudeModel: null,
-      codexModel: "gpt-5.6-terra",
-      codexEffort: "high",
-      openrouterModel: stand,
-      setAt: 12,
-      routeMode: "codex",
-    });
-
-    await archive.fallbacks().resetCodexFallback("bmo", 13);
-    expect(await archive.fallbacks().fallbackRoute("bmo")).toMatchObject({ codexModel: null, codexEffort: null, openrouterModel: stand, routeMode: "codex" });
-    await archive.fallbacks().clearOpenRouterFallback("bmo", 14);
-    expect(await archive.fallbacks().fallbackRoute("bmo")).toMatchObject({ openrouterModel: null, routeMode: "codex" });
-    await archive.fallbacks().setFallbackRouteMode("bmo", "auto", 15);
-    expect(await archive.fallbacks().fallbackRoute("bmo")).toBeNull();
-  });
-
-});
-
 describe("no Claude launch line moved", () => {
   const root = codeRoot;
   const source = (path: string): string => readFileSync(join(root, path), "utf8");

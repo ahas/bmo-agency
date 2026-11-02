@@ -28,9 +28,10 @@ const COPY = "agency_ts_copy_";
 const MIGRATION_DIR = join(import.meta.dir, "..", "..", "..", "crates", "store", "src", "migration");
 const STORE_SQL = join(MIGRATION_DIR, "store.sql");
 
-// The migrations after it, in the order `crates/store/src/migration.rs` runs them: what a store this
-// process makes has to be the store the server's own migration leaves, or a column the TypeScript side
-// reads would be missing only in its tests.
+// The migrations after it, every file each runs, in the order `crates/store/src/migration.rs` runs them:
+// what a store this process makes has to be the store the server's own migration leaves, or a column the
+// TypeScript side reads would be missing only in its tests. What a migration runs between its files carries
+// rows, which a new store holds none of.
 const LATER_MIGRATIONS: readonly string[] = [
   "clocks.sql",
   "runs.sql",
@@ -41,7 +42,44 @@ const LATER_MIGRATIONS: readonly string[] = [
   "job_model.sql",
   "base_prompt_seeds.sql",
   "endpoint_accounts.sql",
+  "pool_session.sql",
+  "deepseek_provider.sql",
+  "mapping_thinking.sql",
+  "session_summaries_retired.sql",
+  "fold_ratios.sql",
+  "agent_owner.sql",
+  "recollectors_retired.sql",
+  "usage_balances.sql",
+  "run_rounds.sql",
+  "route_registration.sql",
+  "run_usage.sql",
+  "job_usage.sql",
+  "prefix_documents.sql",
+  "job_instruction.sql",
+  "run_tools.sql",
+  "gate_kinds.sql",
+  "job_roads.sql",
+  "worker_skill_names.sql",
+  "translator_runner.sql",
+  "pickers_retired.sql",
+  "moments_in_milliseconds.sql",
+  "picker_keys_retired.sql",
+  "role_files.sql",
+  "agent_log_prune.sql",
+  "chat_documents.sql",
+  "registration_last_answered.sql",
+  "agent_roles.sql",
+  "agent_log_run_id.sql",
+  "card_services.sql",
+  "pool_asks.sql",
   "registration_wait_retired.sql",
+  "clock_asks_unbounded.sql",
+  "assignments_unbounded.sql",
+  "role_sessions.sql",
+  "delegation_titles.sql",
+  "job_close_lease.sql",
+  "turn_liveness.sql",
+  "stream_events.sql",
   "renewal_tables.sql",
   "renewal_retired.sql",
 ];

@@ -285,12 +285,11 @@ export function lineEnvironment(
   return { ...namedEnvironment(env, name), ...job, ...own, [RUN_NAME_VARIABLE]: name };
 }
 
-// Where an agent stands in herdr: its workspace under the name the owner has herdr show it by, or
-// else the name the owner calls it, whose head pane is the agent's host. Every row of the agents table has
-// one, whatever its kind, and the table is asked rather than a list kept here, so an agent the owner
-// adds stands in herdr with nothing changed in the code, and a name the owner gives it is the name herdr
-// shows. A name with no row has no
-// home here; an interactive turn under such a name opens in a workspace of its own.
+// Where a supervisor or a repository's checkout stands in herdr: its workspace under the name the owner has
+// herdr show it by, or else the name the owner calls it, whose head pane is its host. The rows are asked
+// rather than a list kept here, so one the owner adds stands in herdr with nothing changed in the code,
+// and a name the owner gives it is the name herdr shows. A name no row stands under has no home here; an
+// interactive turn under such a name opens in a workspace of its own.
 export async function agentHome(archive: Archive | null, agent: string): Promise<AgentHome | null> {
   const record = await archive?.agents().getAgent(agent) ?? null;
 

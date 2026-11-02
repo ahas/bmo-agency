@@ -115,7 +115,7 @@ async function bun(side: Side, asked: Asked): Promise<unknown> {
     putDownLater(stopFile, asked.stopAfterMs);
 
     const proc = await spawnAgentProcess({ args: asked.command, cwd: side.data, env: { PATH: process.env.PATH }, stdin: null }, line, provider, {
-      agent, workKey: agent, model: "gpt-5.6-terra", effort: "low", parent: "bmo-test", root: asked.root,
+      agent, model: "gpt-5.6-terra", effort: "low", parent: "bmo-test", root: asked.root,
     });
 
     timer = asked.stopAfterMs === undefined ? null : setInterval(() => { if (existsSync(stopFile)) proc.kill(); }, 25);
@@ -148,7 +148,7 @@ async function rust(side: Side, asked: Asked): Promise<unknown> {
   writeFileSync(request, JSON.stringify({
     agent, line, provider,
     command: { args: asked.command, cwd: side.data, env: { PATH: process.env.PATH }, stdin: null },
-    workKey: agent, model: "gpt-5.6-terra", effort: "low", parent: "bmo-test", root: asked.root,
+    model: "gpt-5.6-terra", effort: "low", parent: "bmo-test", root: asked.root,
     ...(asked.stopAfterMs === undefined ? {} : { stopFile }),
   }));
 

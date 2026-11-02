@@ -2,13 +2,11 @@ import "@agency/test-support/setup";
 
 import { expect, test } from "bun:test";
 
-import { agentEffort, agentReasoning, mappedRun } from "@agency/agent/model-settings";
-import { scratchArchive } from "@agency/test-support/store";
+import { agentEffort, mappedRun } from "@agency/agent/model-settings";
 
 import type { HarnessRun } from "@agency/agent/harness";
 
-// An agent's own thinking and effort over its tier (docs/model-tiers.md, 「An agent's own thinking
-// and effort」).
+// The effort word each provider makes of a level (docs/provider-order.md, 「Effort and thinking」).
 
 test("each provider makes its own word of an agent's choice, and the tier's word stands where none reaches", async () => {
   const level = (effort: "high" | "max") => ({ thinking: null, effort });
@@ -26,15 +24,4 @@ test("each provider makes its own word of an agent's choice, and the tier's word
   expect(await agentEffort({ provider: "claude-code", model: "claude-unlisted", effort: "high" }, undefined)).toBe("high");
   expect(await mappedRun({ effort: "high" } as HarnessRun, { provider: "codex", model: "terra", effort: "low", tier: "Fine" })).toMatchObject({ model: "terra", effort: "low", tier: "Fine" });
   expect((await mappedRun({ effort: "high", reasoning: level("max") } as HarnessRun, { provider: "codex", model: "terra", effort: "low", tier: "Fine" })).effort).toBe("max");
-});
-
-test("a support worker runs on its base's choice", async () => {
-  const archive = await scratchArchive();
-
-  await archive.agents().addWorker({ name: "base", label: "Base", cwd: "/srv/base" });
-  await archive.sql.run("INSERT INTO agents (name, kind, support_of, support_slot, builtin) VALUES ('base-w2', 'worker', 'base', 2, 0)");
-  await archive.agents().setReasoning("base", { thinking: false, effort: "low" });
-
-  expect(await agentReasoning("base-w2", archive)).toEqual({ thinking: false, effort: "low" });
-  expect(await agentReasoning("nobody", archive)).toEqual({ thinking: null, effort: null });
 });

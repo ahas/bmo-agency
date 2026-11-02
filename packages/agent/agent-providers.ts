@@ -48,13 +48,6 @@ export function carriesWorkLine(name: AgentProviderName, line: string, providers
   return lines === undefined || lines.includes(line);
 }
 
-// Whether the automatic walk of one piece of work asks this provider: it carries the work's line,
-// and, where the provider says more for itself — on the model the key's tier maps it to, say — it
-// says the key walks to it.
-export async function walkedProvider(name: AgentProviderName, work: { key: string; line: string; archive: Archive }, providers: readonly AgentProvider[] = providerImplementations()): Promise<boolean> {
-  return carriesWorkLine(name, work.line, providers) && (await provider(name, providers).walks?.(work.key, work.archive) ?? true);
-}
-
 // The providers the common co-worker pool shows, counts, admits and warms, in the provider order:
 // those turned on that lend co-workers (docs/model-tiers.md, 「Common co-worker capacity」).
 export async function coworkerProviders(archive: Archive, providers: readonly AgentProvider[] = providerImplementations()): Promise<AgentProviderName[]> {

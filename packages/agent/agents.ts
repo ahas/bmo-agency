@@ -224,13 +224,13 @@ const workerDir = join(agentsDir, "worker");
 
 // What a job worker is given beyond its prompt, and where it comes from.
 //
-// The skills and co-worker definitions a job runs with come from this repository and the archive,
+// The skills and co-worker definitions a job runs with come from this repository and the store,
 // never from this machine's own configuration. Skills are repository assets. Role documents seed
-// the archive once; the enabled archive rows and shared tier mappings are what every launch
-// serializes, so the owner edits the catalogue without a second live list.
+// the roles once; the callable roles' rows, each with its own order, are what every launch
+// serializes, so the owner edits the roles without a second live list (docs/agent-roles.md).
 //
 // The skills are a plugin directory rather than a checkout's own configuration directory,
-// because a worker works in whichever checkout its row names and only one of those is this
+// because a run works in whichever repository's checkout its work names and only one of those is this
 // repository: a plugin is loaded by path and reaches every worker alike. The co-workers are
 // handed over as JSON instead, because a plugin's agents are named under the plugin and the
 // verification discipline names them plainly.

@@ -1,7 +1,7 @@
 import { openArchiveSql } from "@agency/archive/archive-place";
 import type { AgentProviderName } from "./harness";
 import { executionCancelKey } from "./execution-identity";
-import { storedProviderOrder } from "./provider-order";
+import { providerSwitchKey, switchedOn } from "./provider-order";
 import { spawn } from "node:child_process";
 import { appendFile, mkdir, readFile, writeFile, rename, rm } from "node:fs/promises";
 import { createWriteStream, existsSync, readdirSync, readFileSync } from "node:fs";
@@ -108,10 +108,8 @@ export async function supervisePane(directory: string, options: { stop?: AbortSi
       let enabled = false;
       let cancelled = false;
       try {
-        const row = await sql.get("SELECT value FROM settings WHERE key = 'provider_order'") as { value: string } | null;
-        // Read as the rest of the bot reads it, so an order saved before the build gained a provider
-        // is not taken for every provider switched off.
-        enabled = storedProviderOrder(row?.value ?? null).some(entry => entry.name === envelope.policy!.provider && entry.enabled);
+        const row = await sql.get("SELECT value FROM settings WHERE key = ?", providerSwitchKey(envelope.policy.provider)) as { value: string } | null;
+        enabled = switchedOn(row?.value ?? null);
         for (const name of envelope.policy.names ?? []) {
           if (await sql.get("SELECT value FROM settings WHERE key = ?", executionCancelKey(name)) !== null) cancelled = true;
         }

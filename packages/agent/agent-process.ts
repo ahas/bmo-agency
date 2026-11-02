@@ -58,7 +58,7 @@ const recordBackstopMs = 24 * 3_600_000;
 // from a process of its own. Placement does not change harness parsing.
 export async function spawnAgentProcess(command: HarnessCommand, line: RunLine, provider: AgentProviderName, identity: AgentExecution = {}) {
   identity = { root: executionRoot(ownUnit()), parent: ownUnit(), ...identity };
-  const agent = identity.agent ?? identity.workKey ?? line;
+  const agent = identity.agent ?? line;
   const check = async () => {
     const owner = ownUnit();
     // A launch refused because a cancellation stands over its name is that stop reaching this run:
@@ -168,7 +168,7 @@ export async function launchInHost(archive: Archive, run: {
   command: readonly string[];
   env: Record<string, string>;
 }): Promise<HerdrAnswer<unknown>> {
-  const record = await beginExecution(archive, deploymentNames().agentKey, "coordinator", { agent: run.agent, root: run.name, parent: null, workKey: run.agent, sessionId: null });
+  const record = await beginExecution(archive, deploymentNames().agentKey, "coordinator", { agent: run.agent, root: run.name, parent: null, sessionId: null });
   const finish = async (state: "launch-error", reason: string) => {
     record.state = state; record.endedAt = Date.now(); record.exitCode = 1; record.reconciliationEvidence = reason; await archive.executions().saveExecution(record);
   };

@@ -10,12 +10,10 @@ import { ClaudeAccountStore } from "./claude-account-store";
 import { ExecutionStore } from "./execution-store";
 import { FallbackStore } from "./fallback-store";
 import { ModelRegistryStore } from "./model-registry";
-import { ModelTierStore } from "./model-tiers";
 import { RunStore } from "./run-store";
 import { SettingStore } from "./setting-store";
 import { UsageStore } from "./usage-store";
 import { WorkNodeStore } from "./work-node-store";
-import { WorkerSessionStore } from "./worker-session-store";
 
 export class Archive {
   // The port every store reaches its tables through, and the connection under it.
@@ -28,10 +26,8 @@ export class Archive {
   private claudeAccountStore: ClaudeAccountStore | null = null;
   private fallbackStore: FallbackStore | null = null;
   private modelRegistryStore: ModelRegistryStore | null = null;
-  private modelTierStore: ModelTierStore | null = null;
   private usageStore: UsageStore | null = null;
   private workNodeStore: WorkNodeStore | null = null;
-  private workerSessionStore: WorkerSessionStore | null = null;
 
   /** The store at an address, as the store crate's migrations shaped it. */
   constructor(readonly path: string) {
@@ -64,9 +60,9 @@ export class Archive {
     return this.runStore ??= new RunStore(this.sql, this.agents());
   }
 
-  /** The agents table: every agent agency stands and its settings. */
+  /** The supervisors and the repositories' checkouts, as the TypeScript side reads them (docs/agents.md). */
   agents(): AgentStore {
-    return this.agentStore ??= new AgentStore(this.sql, this.workerSessions());
+    return this.agentStore ??= new AgentStore(this.sql);
   }
 
   /** The executions placed in panes (docs/agent-control.md). */
@@ -79,7 +75,7 @@ export class Archive {
     return this.claudeAccountStore ??= new ClaudeAccountStore(this.sql);
   }
 
-  /** The fallback roads and their sessions (docs/cache-fallback.md). */
+  /** The sessions kept on the roads other than a supervisor's own (docs/cache-fallback.md). */
   fallbacks(): FallbackStore {
     return this.fallbackStore ??= new FallbackStore(this.sql);
   }
@@ -87,11 +83,6 @@ export class Archive {
   /** The registered models (docs/own-llm.md). */
   modelRegistry(): ModelRegistryStore {
     return this.modelRegistryStore ??= new ModelRegistryStore(this.sql);
-  }
-
-  /** The tier mappings and the work keys' assignments (docs/model-tiers.md). */
-  modelTiers(): ModelTierStore {
-    return this.modelTierStore ??= new ModelTierStore(this.sql);
   }
 
   /** The prefix moves the sessions' system prompts made (docs/sessions.md). */
@@ -102,10 +93,5 @@ export class Archive {
   /** The nodes' workplaces (docs/work-nodes.md). */
   workNodes(): WorkNodeStore {
     return this.workNodeStore ??= new WorkNodeStore(this.sql);
-  }
-
-  /** The workers' sessions, one per model and login (docs/sessions.md). */
-  workerSessions(): WorkerSessionStore {
-    return this.workerSessionStore ??= new WorkerSessionStore(this.sql);
   }
 }

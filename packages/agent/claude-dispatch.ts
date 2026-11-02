@@ -1,5 +1,5 @@
 import { accountFailure, ClaudeLimitError } from "./claude-failure";
-import { chosenClaudeAccount, claudeAccountInUse, claudeAccounts, enabledClaudeAccounts, endpointKeyHeld, holdClaudeAccount, recordedAccount, runAccountFor } from "./claude-account";
+import { chosenClaudeAccount, claudeAccountInUse, claudeAccounts, enabledClaudeAccounts, endpointKeyHeld, holdClaudeAccount, recordedAccount } from "./claude-account";
 import { providerSettingsArchive } from "./provider-order";
 import { clearLoginIfBack, markLoginGone, tellAboutLogin, withRenewedLogin } from "./claude-login";
 import { isAccountResting, restFallbackDefaultMs, restUntilFor, writeRest } from "./rest-state";
@@ -54,22 +54,7 @@ async function needsLogin(archive: Archive, account: string): Promise<boolean> {
 }
 
 /**
- * The login a work key is pinned to, or nothing where it walks the order. A key pinned to a login
- * the owner has since removed or turned off walks like any other: a key that answered nothing at all
- * would be worse than one that answers on another login.
- */
-export async function pinnedClaudeAccount(archive: Archive, key: string): Promise<AgentAccount | null> {
-  const pinned = (await archive.fallbacks().fallbackRoute(key))?.account ?? null;
-
-  if (pinned === null || !(await enabledClaudeAccounts(archive)).some((one) => one.id === pinned)) {
-    return null;
-  }
-
-  return runAccountFor(archive, pinned);
-}
-
-/**
- * The logins the road offers a run that is pinned to none, in order: the login in use first while it can
+ * The logins the road offers a run, in order: the login in use first while it can
  * answer, then the open ones in the owner's order, started on the account the owner chose to run on now
  * where the owner chose one, and where none is open the chosen account and the order as they stand, so the
  * run fails honestly on the first login instead of not happening at all. A login in use is used to the end:
@@ -123,18 +108,11 @@ async function carriers(archive: Archive, user: number | null): Promise<(account
 }
 
 /**
- * The logins a work key's run is offered, in order, for the user it is made for. A key pinned to one
- * login is offered that one and no other — a pinned key fails on its own login rather than
- * wandering onto another, which is the whole point of pinning it. Every other key is offered the
- * walk above, the same for every key. Neither offers a login the run's user may not run on.
+ * The logins a run is offered, in order, for the user it is made for: the walk above, the same for every
+ * run, with no login the run's user may not run on (docs/cache-fallback.md, 「The account judgement」).
  */
-export async function claudeAccountWalk(archive: Archive, key: string, user: number | null = null): Promise<AgentAccount[]> {
+export async function claudeAccountWalk(archive: Archive, user: number | null = null): Promise<AgentAccount[]> {
   const carries = await carriers(archive, user);
-  const pinned = await pinnedClaudeAccount(archive, key);
-
-  if (pinned !== null) {
-    return carries(pinned.id) ? [pinned] : [];
-  }
 
   return (await openClaudeAccounts(archive))
     .filter((account) => carries(account.id))
@@ -144,7 +122,7 @@ export async function claudeAccountWalk(archive: Archive, key: string, user: num
 // What a run that answered leaves behind: the login it went out on becomes the one in use where no
 // login is in use or the one in use can no longer answer. A run that answers on another login while
 // the one in use still answers — one that went out before the road moved and finished after — does
-// not move it back, and neither does a pinned key's run, which says nothing about where the road is.
+// not move it back.
 async function holdWhereMoved(archive: Archive, account: string): Promise<void> {
   const inUse = await claudeAccountInUse(archive);
 
@@ -194,8 +172,7 @@ export async function onClaudeAccounts<T>(
   }
 
   const user = deps.user ?? null;
-  const walk = await claudeAccountWalk(archive, key, user);
-  const pinned = await pinnedClaudeAccount(archive, key) !== null;
+  const walk = await claudeAccountWalk(archive, user);
 
   if (walk.length === 0 && user !== null) {
     throw new Error(`claude ${key}: no Claude account of user ${user} is there to carry this run`);
@@ -214,9 +191,7 @@ export async function onClaudeAccounts<T>(
       // wrote. Away from that window nothing is held at all.
       const result = await withRenewedLogin({ archive }, account, () => attempt({ ...run, account }));
 
-      if (!pinned) {
-        await holdWhereMoved(archive, account.id);
-      }
+      await holdWhereMoved(archive, account.id);
 
       return result;
     } catch (error) {

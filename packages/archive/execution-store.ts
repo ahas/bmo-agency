@@ -18,10 +18,10 @@ export interface ExecutionRecord {
   agent?: string | null;
   parent: string | null;
   root?: string;
-  workKey?: string;
+  // The role the run holds, where it is a role's.
+  role?: string | null;
   model?: string | null;
   effort?: string | null;
-  tier?: import("./model-tiers").ModelTier | null;
   sessionId?: string | null;
   nativeId?: string;
   nativeState?: "requested" | "started" | "completed" | "failed" | "unresolved";
@@ -70,7 +70,7 @@ export class ExecutionStore {
       const held = await this.sql.get("SELECT body FROM agent_executions WHERE id = ?", record.id) as { body: string } | null;
       if (held) {
         const previous = JSON.parse(held.body) as ExecutionRecord;
-        for (const key of ["agent", "root", "parent", "attempt", "provider", "workKey", "nativeId", "tier", "effort"] as const) {
+        for (const key of ["agent", "root", "parent", "attempt", "provider", "role", "nativeId", "effort"] as const) {
           if (previous[key] !== record[key]) throw new Error(`execution identity cannot change: ${key}`);
         }
       }

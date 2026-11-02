@@ -224,18 +224,6 @@ async function unavailable(): Promise<string | null> {
   return null;
 }
 
-// Whether the automatic walk of a key asks the registry: only where the registration the key's tier
-// maps to there is walked.
-async function walks(key: string, archive: Archive): Promise<boolean> {
-  try {
-    const mapping = await archive.modelTiers().resolve(key, providerName);
-
-    return (await archive.modelRegistry().get(mapping.model))?.walked === true;
-  } catch {
-    return false;
-  }
-}
-
 export function registeredProvider(options: { lines: readonly RunLine[] }): AgentProvider {
   const carried = claudeCodeAt(registeredEndpoint);
 
@@ -255,7 +243,6 @@ export function registeredProvider(options: { lines: readonly RunLine[] }): Agen
     resident: claudeResidentAt(registeredEndpoint, declaredRegistered.resident as { interrupt: string[]; words_mid_turn: boolean }),
     serviceOf,
     lines: options.lines,
-    walks,
     runSettings,
     place: (run, archive, now) => placeRegistered(run, archive, now),
     // A worker pinned to a registration, and a job naming one, run on it with its own defaults.
