@@ -1,78 +1,115 @@
-//! The worker ask: a worker's turn carries the words he was given and the files it changed, a busy worker's
-//! once the turn it is in has ended; an unknown worker, a worker's own checkout outside the owner's turn and a
-//! worker on a node are refused (docs/tools.md, 「The worker ask」).
+//! The worker ask: a slot of the worker role asked under the source `ask` and waited for however long the line
+//! takes, one run of the role at the task's folder on the road the slot carries, its words and the files it
+//! changed answered and the slot finished; a repository's checkout outside the owner's turn and a checkout on
+//! a node are refused (docs/tools.md, 「The worker ask」).
 
 use std::collections::BTreeMap;
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
-use axum::routing::{get, post};
+use axum::routing::{get, patch, post};
 use axum::{Json, Router};
 use serde_json::{Value, json};
 use tool_call::Session;
 use tool_call::room_gate::{AccountService, room_turn_of_place};
 use worker_ask_tool::{Api, AskInput, ask_with, may_ask};
 
+#[derive(Default)]
+struct Asked {
+  slot: Option<Value>,
+  admissions: usize,
+  started: Option<Value>,
+  turned: Option<(String, Value)>,
+  finished: Vec<Value>,
+}
+
 #[derive(Clone)]
 struct Stub {
   folder: String,
-  // How many sends the busy worker's session still answers busy.
-  busy: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+  // How many admissions answer the slot not let in before one lets it in.
+  waits: usize,
+  asked: Arc<Mutex<Asked>>,
 }
 
-fn stub(folder: &std::path::Path) -> Stub {
+fn stub(folder: &std::path::Path, waits: usize) -> Stub {
   Stub {
     folder: folder.to_string_lossy().into_owned(),
-    busy: std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(2)),
+    waits,
+    asked: Arc::default(),
   }
 }
 
-async fn worker(State(stub): State<Stub>, Path(name): Path<String>) -> (StatusCode, Json<Value>) {
-  let body = match name.as_str() {
-    "helper" => json!({ "state": "idle", "sessionId": "s1", "cwd": "/work/helper" }),
-    "fresh" => json!({ "state": "idle", "sessionId": null, "cwd": "/work/fresh" }),
-    "busy" => json!({ "state": "working", "sessionId": "busy@worker", "cwd": "/work/busy" }),
-    "node" => {
-      json!({ "state": "idle", "sessionId": "s1", "cwd": "/work/node", "nodeName": "n1" })
+fn slot(state: &str) -> Value {
+  json!({ "token": "t1", "state": state, "role": "worker", "provider": "deepseek", "model": "deepseek-flash" })
+}
+
+async fn repositories() -> Json<Value> {
+  Json(json!({ "items": [
+    { "name": "bmo", "path": "/work/bmo", "nodeName": null,
+      "checkouts": [{ "name": "bmo-w1", "path": "/work/bmo-w1", "nodeName": null },
+                    { "name": "bmo@n3", "path": "/work/bmo-n3", "nodeName": "n3" }] },
+  ], "more": false }))
+}
+
+async fn ask_slot(State(stub): State<Stub>, Json(body): Json<Value>) -> (StatusCode, Json<Value>) {
+  stub.asked.lock().unwrap().slot = Some(body);
+
+  (StatusCode::CREATED, Json(slot("waiting")))
+}
+
+async fn move_slot(State(stub): State<Stub>, Json(body): Json<Value>) -> Json<Value> {
+  let mut asked = stub.asked.lock().unwrap();
+
+  match body["state"].as_str() {
+    Some("bound") => Json(slot("active")),
+    Some("finished") => {
+      asked.finished.push(body);
+      Json(json!({ "held": true }))
     }
-    "own" => json!({ "state": "idle", "sessionId": "s1", "cwd": stub.folder }),
-    _ => return (StatusCode::NOT_FOUND, Json(json!({ "error": "no worker" }))),
-  };
+    _ => {
+      asked.admissions += 1;
 
-  (StatusCode::OK, Json(body))
+      if asked.admissions > stub.waits {
+        Json(json!({ "request": slot("active"), "demand": null }))
+      } else {
+        Json(json!({ "request": null, "demand": null }))
+      }
+    }
+  }
 }
 
-async fn turn(Path(id): Path<String>, State(stub): State<Stub>) -> (StatusCode, Json<Value>) {
-  use std::sync::atomic::Ordering;
+async fn read_slot() -> Json<Value> {
+  Json(slot("waiting"))
+}
 
-  if id == "busy@worker"
-    && stub
-      .busy
-      .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |left| left.checked_sub(1))
-      .is_ok()
-  {
-    return (
-      StatusCode::CONFLICT,
-      Json(json!({ "code": "session-busy", "error": "busy@worker is in a turn" })),
-    );
-  }
+async fn start(State(stub): State<Stub>, Json(body): Json<Value>) -> (StatusCode, Json<Value>) {
+  stub.asked.lock().unwrap().started = Some(body);
 
-  (
-    StatusCode::OK,
-    Json(json!({ "answer": format!("Done in {} via {id}.", stub.folder), "state": "ended" })),
-  )
+  (StatusCode::CREATED, Json(json!({ "id": "worker@run:1" })))
+}
+
+async fn turn(Path(id): Path<String>, State(stub): State<Stub>, Json(body): Json<Value>) -> Json<Value> {
+  stub.asked.lock().unwrap().turned = Some((id.clone(), body));
+
+  Json(json!({ "answer": format!("Done in {} via {id}.", stub.folder), "state": "ended" }))
 }
 
 async fn lines(State(stub): State<Stub>) -> Json<Value> {
   Json(json!({ "lines": [
     { "kind": "bashEditDiff", "path": format!("{}/a.rs", stub.folder) },
-    { "kind": "edit", "path": format!("{}/b.rs", stub.folder) }
+    { "kind": "edit", "path": format!("{}/b.rs", stub.folder) },
+    { "kind": "edit", "path": "/elsewhere/c.rs" }
   ] }))
 }
 
-async fn server(stub: Stub) -> u16 {
+async fn server(stub: Stub) -> Api {
   let app = Router::new()
-    .route("/workers/{name}", get(worker))
+    .route("/repositories", get(repositories))
+    .route("/slot-requests", post(ask_slot))
+    .route("/slot-requests/{token}", patch(move_slot).get(read_slot))
+    .route("/sessions", post(start))
     .route("/sessions/{id}/turns", post(turn))
     .route("/log/agents/{name}/lines", get(lines))
     .with_state(stub);
@@ -81,7 +118,11 @@ async fn server(stub: Stub) -> u16 {
 
   tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
 
-  port
+  Api {
+    port,
+    token: None,
+    pace: Duration::from_millis(10),
+  }
 }
 
 fn session(root: &std::path::Path) -> Session {
@@ -94,100 +135,82 @@ fn session(root: &std::path::Path) -> Session {
   }
 }
 
-#[tokio::test]
-async fn a_round_trip_answers_with_the_words_and_the_files_the_turn_changed() {
-  let home = tempfile::tempdir().unwrap();
-  let folder = home.path().join("scratch");
-  std::fs::create_dir_all(&folder).unwrap();
-  let port = server(stub(&folder)).await;
-  let answer = ask_with(
-    &Api { port, token: None },
-    &session(home.path()),
-    AskInput {
-      worker: "helper".into(),
-      words: "add a file".into(),
-      folder: Some(folder.to_string_lossy().into_owned()),
-    },
-  )
-  .await;
-
-  let answer = serde_json::to_string(&answer).unwrap();
-
-  assert!(answer.contains("Done in"), "{answer}");
-  assert!(answer.contains("a.rs"), "{answer}");
-  assert!(answer.contains("b.rs"), "{answer}");
-}
-
-#[tokio::test]
-async fn a_worker_that_holds_no_session_yet_is_given_a_turn_into_its_own() {
-  let home = tempfile::tempdir().unwrap();
-  let folder = home.path().join("scratch");
-  std::fs::create_dir_all(&folder).unwrap();
-  let port = server(stub(&folder)).await;
-  let answer = ask_with(
-    &Api { port, token: None },
-    &session(home.path()),
-    AskInput {
-      worker: "fresh".into(),
-      words: "add a file".into(),
-      folder: Some(folder.to_string_lossy().into_owned()),
-    },
-  )
-  .await;
-
-  let answer = serde_json::to_string(&answer).unwrap();
-
-  assert!(answer.contains("via fresh@worker"), "{answer}");
-}
-
-#[tokio::test]
-async fn an_unknown_or_noded_worker_and_a_worker_s_own_checkout_are_refused() {
-  let home = tempfile::tempdir().unwrap();
-  let folder = home.path().join("scratch");
-  std::fs::create_dir_all(&folder).unwrap();
-  let port = server(stub(&folder)).await;
-  let asked = |worker: &str| AskInput {
-    worker: worker.into(),
-    words: "do it".into(),
+fn asked(words: &str, folder: &std::path::Path) -> AskInput {
+  AskInput {
+    words: words.into(),
     folder: Some(folder.to_string_lossy().into_owned()),
-  };
-
-  for (worker, said) in [("ghost", "no worker"), ("node", "stands on a node"), ("own", "own checkout")] {
-    let answer = serde_json::to_string(
-      &ask_with(&Api { port, token: None }, &session(home.path()), asked(worker)).await,
-    )
-    .unwrap();
-
-    assert!(answer.contains(said), "{worker}: {answer}");
   }
 }
 
 #[tokio::test]
-async fn a_busy_worker_is_waited_for_and_asked_once_its_turn_has_ended() {
+async fn a_slot_waits_in_line_and_the_worker_run_answers_with_its_words_and_the_files_it_changed() {
   let home = tempfile::tempdir().unwrap();
   let folder = home.path().join("scratch");
   std::fs::create_dir_all(&folder).unwrap();
-  let stub = stub(&folder);
-  let busy = stub.busy.clone();
-  let port = server(stub).await;
-  let answer = ask_with(
-    &Api { port, token: None },
-    &session(home.path()),
-    AskInput {
-      worker: "busy".into(),
-      words: "add a file".into(),
-      folder: Some(folder.to_string_lossy().into_owned()),
-    },
-  )
-  .await;
+  let stub = stub(&folder, 3);
+  let held = stub.asked.clone();
+  let api = server(stub).await;
+  let answer = ask_with(&api, &session(home.path()), asked("add a file", &folder)).await;
   let answer = serde_json::to_string(&answer).unwrap();
 
-  assert!(answer.contains("via busy@worker"), "{answer}");
-  assert_eq!(
-    busy.load(std::sync::atomic::Ordering::SeqCst),
-    0,
-    "it was sent again until the session took it"
-  );
+  assert!(answer.contains("Done in"), "{answer}");
+  assert!(answer.contains("via worker@run:1"), "{answer}");
+  assert!(answer.contains("a.rs") && answer.contains("b.rs"), "{answer}");
+  assert!(!answer.contains("c.rs"), "a file outside the folder is not the run's: {answer}");
+
+  let held = held.lock().unwrap();
+  let slot = held.slot.clone().unwrap();
+
+  assert_eq!(slot["role"], "worker");
+  assert_eq!(slot["source"], "ask");
+  assert_eq!(slot["askedBy"], "bmo");
+  assert_eq!(slot["path"], folder.display().to_string());
+  assert_eq!(held.admissions, 4, "it asked for its admission as long as the line held it");
+
+  let started = held.started.clone().unwrap();
+
+  assert_eq!(started["scope"], "role");
+  assert_eq!(started["options"]["role"], "worker");
+  assert_eq!(started["options"]["provider"], "deepseek", "on the road the slot was let in on");
+  assert_eq!(started["options"]["cwd"], folder.display().to_string());
+
+  let (session, body) = held.turned.clone().unwrap();
+
+  assert_eq!(session, "worker@run:1");
+  assert_eq!(body["context"]["work"]["model"], "deepseek-flash");
+  assert_eq!(held.finished, [json!({ "state": "finished", "outcome": "answered", "cancel": false })]);
+}
+
+#[tokio::test]
+async fn a_repository_checkout_outside_the_owners_turn_and_one_on_a_node_are_refused() {
+  let home = tempfile::tempdir().unwrap();
+  let stub = stub(home.path(), 0);
+  let held = stub.asked.clone();
+  let api = server(stub).await;
+
+  for (folder, said) in [("/work/bmo-w1", "owner's turn"), ("/work/bmo-n3", "on n3")] {
+    let answer = serde_json::to_string(
+      &ask_with(&api, &session(home.path()), asked("do it", std::path::Path::new(folder))).await,
+    )
+    .unwrap();
+
+    assert!(answer.contains(said), "{folder}: {answer}");
+  }
+
+  assert!(held.lock().unwrap().slot.is_none(), "nothing was asked");
+}
+
+#[tokio::test]
+async fn empty_words_are_refused_before_a_slot_is_asked() {
+  let home = tempfile::tempdir().unwrap();
+  let stub = stub(home.path(), 0);
+  let held = stub.asked.clone();
+  let api = server(stub).await;
+  let answer =
+    serde_json::to_string(&ask_with(&api, &session(home.path()), asked("  ", home.path())).await).unwrap();
+
+  assert!(answer.contains("words must not be empty"), "{answer}");
+  assert!(held.lock().unwrap().slot.is_none());
 }
 
 // An account service answering `POST /checks/message`: the messages it allows, every check it was asked kept.

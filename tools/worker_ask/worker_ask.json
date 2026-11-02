@@ -1,10 +1,9 @@
 {
   "type": "object",
   "additionalProperties": false,
-  "required": ["worker", "words"],
+  "required": ["words"],
   "properties": {
-    "worker": { "type": "string", "minLength": 1, "description": "The resident worker's name." },
-    "words": { "type": "string", "minLength": 1, "description": "The task, in the worker's words." },
-    "folder": { "type": ["string", "null"], "description": "Where to work; the asking agent's scratch workspace where none is named. A worker's own checkout may be named only in the owner's turn." }
+    "words": { "type": "string", "minLength": 1, "description": "The task, in the words the worker run is given." },
+    "folder": { "type": ["string", "null"], "description": "Where to work; the asking supervisor's scratch workspace where none is named. A repository's checkout may be named only in the owner's turn." }
   }
 }

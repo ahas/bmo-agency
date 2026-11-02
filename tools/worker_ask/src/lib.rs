@@ -1,6 +1,7 @@
-//! `worker_ask`: a chat agent hands a resident worker a small coding task as a turn into the worker's
-//! session, with no queue item, and reads the words it wrote and the files the turn changed
-//! (docs/tools.md, 「The worker ask」; docs/agent-control.md, 「Asking a worker directly」).
+//! `worker_ask`: a supervisor hands a small coding task to a run of the worker role, with no queue item: a
+//! slot of the role asked and waited for however long the line takes, one run of the role at the task's
+//! folder on the road the slot carries, and the words it wrote and the files it changed read back
+//! (docs/tools.md, 「The worker ask」).
 
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
@@ -8,21 +9,23 @@ use std::path::{Path, PathBuf};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use tool_call::room_gate::{self, AccountService, room_turn_of};
-use tool_call::{Answer, Asked, Handed, Session};
+use tool_call::{Answer, Asked, Handed, Session, Turn};
 
 /// The entry the manifest declares.
 pub const NAMESPACE: &str = "bmo";
 pub const NAME: &str = "worker_ask";
-pub const TITLE: &str = "Ask a worker";
-pub const DESCRIPTION: &str = "Give a resident worker a small coding task as a turn, without filing a queue item, and answer with what it wrote and the files it changed. A task worth keeping and reviewing is a queue item.";
+pub const TITLE: &str = "Ask a worker run";
+pub const DESCRIPTION: &str = "Give a run of the worker role a small coding task, without filing a queue item, and answer with what it wrote and the files it changed. A task worth keeping and reviewing is a queue item.";
 pub const CAPABILITIES: &[&str] = &["room.tools"];
+
+/// The role a worker ask runs as, and the source its slot is asked under (docs/role-slots.md, 「Who takes a
+/// slot」).
+pub const ROLE: &str = "worker";
+pub const SOURCE: &str = "ask";
 
 const DEFAULT_CONTROL_PORT: u16 = 3220;
 
-// The code agency answers a turn sent into a session already in one with.
-const SESSION_BUSY: &str = "session-busy";
-
-/// How often a turn answered busy is sent again: a pace, never a bound on how long the ask waits.
+/// How often a waiting slot asks again for its admission: a pace, never a bound on how long the ask waits.
 pub const LOOK_EVERY: std::time::Duration = std::time::Duration::from_secs(1);
 
 pub fn entry() -> String {
@@ -32,7 +35,6 @@ pub fn entry() -> String {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AskInput {
-  pub worker: String,
   pub words: String,
   #[serde(default)]
   pub folder: Option<String>,
@@ -42,6 +44,8 @@ pub struct AskInput {
 pub struct Api {
   pub port: u16,
   pub token: Option<String>,
+  /// The pace a waiting slot asks again at for its admission: never a bound on how long it waits.
+  pub pace: std::time::Duration,
 }
 
 impl Api {
@@ -68,6 +72,7 @@ impl Api {
           .map(|token| token.trim().to_owned())
           .filter(|token| !token.is_empty())
       }),
+      pace: LOOK_EVERY,
     }
   }
 
@@ -88,8 +93,22 @@ impl Api {
 
   // A send answered once agency answers, a turn's once the turn has ended, however long that takes.
   async fn post(&self, path: &str, body: Value) -> Result<(reqwest::StatusCode, Value), String> {
-    let mut request =
-      reqwest::Client::new().post(format!("http://127.0.0.1:{}{path}", self.port)).json(&body);
+    self.send(reqwest::Method::POST, path, body).await
+  }
+
+  async fn patch(&self, path: &str, body: Value) -> Result<(reqwest::StatusCode, Value), String> {
+    self.send(reqwest::Method::PATCH, path, body).await
+  }
+
+  async fn send(
+    &self,
+    method: reqwest::Method,
+    path: &str,
+    body: Value,
+  ) -> Result<(reqwest::StatusCode, Value), String> {
+    let mut request = reqwest::Client::new()
+      .request(method, format!("http://127.0.0.1:{}{path}", self.port))
+      .json(&body);
 
     if let Some(token) = &self.token {
       request = request.bearer_auth(token);
@@ -103,7 +122,7 @@ impl Api {
   }
 }
 
-/// The folder a turn works in: the named one, or the asking agent's scratch workspace under the data root.
+/// The folder a run works in: the named one, or the asking supervisor's scratch workspace under the data root.
 fn workspace(session: &Session, folder: Option<&str>) -> Result<PathBuf, String> {
   if let Some(folder) = folder.filter(|folder| !folder.trim().is_empty()) {
     let path = PathBuf::from(folder);
@@ -156,7 +175,7 @@ fn changed(lines: &[Value], folder: &Path) -> Vec<String> {
   found.into_iter().collect()
 }
 
-/// One worker ask, answered with the worker's words and the files its turn changed.
+/// One worker ask, answered with the run's words and the files it changed.
 pub async fn ask(session: &Session, input: AskInput) -> Answer {
   let accounts = AccountService::read(&session.data_root(), |name| std::env::var(name).ok());
 
@@ -169,7 +188,7 @@ pub async fn ask(session: &Session, input: AskInput) -> Answer {
   ask_with(&api, session, input).await
 }
 
-/// Whether the turn the call is made in may launch a worker (docs/launch-lines.md, 「The owner's gate」): the
+/// Whether the turn the call is made in may launch a worker run (docs/launch-lines.md, 「The owner's gate」): the
 /// owner's own turn, or one whose every message's sender the account service answers holds `launch` in the room.
 pub async fn may_ask(accounts: &AccountService, session: &Session) -> Result<(), String> {
   room_gate::gate(accounts, room_turn_of(session).as_ref(), room_gate::LAUNCH, "Asking a worker").await
@@ -177,109 +196,171 @@ pub async fn may_ask(accounts: &AccountService, session: &Session) -> Result<(),
 
 /// The same ask against the server the caller names, for a test of the refusals and the round trip.
 pub async fn ask_with(api: &Api, session: &Session, input: AskInput) -> Answer {
-  if input.worker.trim().is_empty() {
-    return Answer::failure("worker must not be empty");
-  }
-
   if input.words.trim().is_empty() {
     return Answer::failure("words must not be empty");
   }
 
   let owner = session.variables.get("BMO_TURN_PRIVILEGED").is_some_and(|flag| flag == "1");
-  let worker = input.worker.trim();
-  let (status, described) = match api.get(&format!("/workers/{worker}")).await {
-    Ok(answer) => answer,
-    Err(why) => return Answer::failure(why),
+  let named = input.folder.as_deref().map(str::trim).filter(|folder| !folder.is_empty()).map(PathBuf::from);
+  // A checkout is judged before anything is made: one on a node is no folder here.
+  let checkout = match &named {
+    Some(folder) => checkout_of(api, folder).await,
+    None => Ok(None),
   };
 
-  if status == reqwest::StatusCode::NOT_FOUND {
-    return Answer::failure(format!("no worker is named {worker}"));
-  }
-
-  if !status.is_success() {
-    return Answer::failure(
-      described
-        .get("error")
-        .and_then(Value::as_str)
-        .unwrap_or("agency refused the worker")
-        .to_owned(),
-    );
+  match checkout {
+    Ok(Some(checkout)) if checkout.node.is_some() => {
+      return Answer::failure(format!(
+        "{} is {}'s checkout on {}, and this tool names no folder on that node",
+        named.unwrap_or_default().display(),
+        checkout.repository,
+        checkout.node.unwrap_or_default()
+      ));
+    }
+    Ok(Some(checkout)) if !owner => {
+      return Answer::failure(format!(
+        "{} is {}'s checkout, which may be named only in the owner's turn; name another folder",
+        named.unwrap_or_default().display(),
+        checkout.repository
+      ));
+    }
+    Ok(_) => {}
+    Err(why) => return Answer::failure(why),
   }
 
   let folder = match workspace(session, input.folder.as_deref()) {
     Ok(folder) => folder,
     Err(why) => return Answer::failure(why),
   };
-  let cwd = described.get("cwd").and_then(Value::as_str).unwrap_or_default();
 
-  if !owner && Path::new(cwd) == folder {
-    return Answer::failure(format!(
-      "{worker}'s own checkout may be named only in the owner's turn; name another folder"
-    ));
-  }
+  let asker = asker(session);
+  let key = format!("{SOURCE}:{asker}:{}:{}", now_ms(), std::process::id());
+  let asked = json!({
+    "requestKey": key,
+    "owner": key,
+    "role": ROLE,
+    "source": SOURCE,
+    "title": first_line(&input.words),
+    "askedBy": asker,
+    "path": folder.display().to_string(),
+  });
+  let slot = match ok(api.post("/slot-requests", asked).await, "no slot was asked") {
+    Ok(slot) => slot,
+    Err(why) => return Answer::failure(why),
+  };
+  let Some(token) = text(&slot, "token").map(str::to_owned) else {
+    return Answer::failure("agency answered the slot with no token");
+  };
+  let slot = match admitted(api, &token, slot).await {
+    Ok(slot) => slot,
+    Err(why) => {
+      finish(api, &token, "cancelled: never let in", true).await;
 
-  if described.get("nodeName").and_then(Value::as_str).is_some_and(|node| !node.is_empty()) {
-    return Answer::failure(format!(
-      "{worker} stands on a node, and this tool names no folder on that node"
-    ));
-  }
-
-  // A worker's session is `<worker>@worker`; a worker that has not held one yet is answered no id, and
-  // the turn opens it (docs/api.md, 「sessions」).
-  let session_id = described
-    .get("sessionId")
-    .and_then(Value::as_str)
-    .filter(|id| !id.is_empty())
-    .map_or_else(|| format!("{worker}@worker"), str::to_owned);
-  let since = crate::now_ms();
-  let prompt = format!("Work in {}.\n\n{}", folder.display(), input.words.trim());
-  // A worker in a turn of its own, a job's or another ask's, is waited for: the turn is sent again at the
-  // pace until the session takes it, and runs once the worker is free (docs/tools.md, 「The worker ask」).
-  let (status, turned) = loop {
-    match api
-      .post(
-        &format!("/sessions/{session_id}/turns"),
-        json!({ "prompt": prompt, "context": { "cwd": folder } }),
-      )
-      .await
-    {
-      Ok((status, said))
-        if status == reqwest::StatusCode::CONFLICT
-          && said.get("code").and_then(Value::as_str) == Some(SESSION_BUSY) =>
-      {
-        tokio::time::sleep(LOOK_EVERY).await;
-      }
-      Ok(answer) => break answer,
-      Err(why) => return Answer::failure(why),
+      return Answer::failure(why);
     }
   };
+  let road = |field: &str| text(&slot, field).unwrap_or_default().to_owned();
+  let (provider, model) = (road("provider"), road("model"));
+  let start = json!({
+    "scope": "role",
+    "agentName": ROLE,
+    "options": {
+      "role": ROLE,
+      "provider": provider,
+      "model": model,
+      "cwd": folder.display().to_string(),
+    },
+  });
+  let run_session = match ok(api.post("/sessions", start).await, "the worker run was not started") {
+    Ok(started) => match text(&started, "id") {
+      Some(id) => id.to_owned(),
+      None => {
+        finish(api, &token, "cancelled: its run was not started", true).await;
 
-  if !status.is_success() {
-    return Answer::failure(
-      turned.get("error").and_then(Value::as_str).unwrap_or("the turn was refused").to_owned(),
-    );
+        return Answer::failure("agency answered the worker run with no session");
+      }
+    },
+    Err(why) => {
+      finish(api, &token, "cancelled: its run was not started", true).await;
+
+      return Answer::failure(why);
+    }
+  };
+  let run = format!("{SOURCE}-{asker}-{}", now_ms());
+
+  if let Err(why) = ok(
+    api
+      .patch(
+        &format!("/slot-requests/{token}"),
+        json!({ "state": "bound", "childId": run, "agentName": run_session }),
+      )
+      .await,
+    "the slot was not bound",
+  ) {
+    finish(api, &token, "cancelled: not bound", true).await;
+
+    return Answer::failure(why);
   }
 
-  let answer = turned
-    .get("answer")
-    .and_then(Value::as_str)
-    .or_else(|| {
-      turned
-        .get("text")
-        .and_then(Value::as_array)
-        .and_then(|text| text.first())
-        .and_then(Value::as_str)
-    })
-    .unwrap_or("")
-    .to_owned();
+  let since = now_ms();
+  let prompt = format!("Work in {}.\n\n{}", folder.display(), input.words.trim());
+  let turned = ok(
+    api
+      .post(
+        &format!("/sessions/{run_session}/turns"),
+        json!({
+          "prompt": prompt,
+          "context": { "work": {
+            "provider": provider,
+            "model": model,
+            "mapping": { "model": model, "effort": text(&slot, "effort") },
+            "resume": { "kind": "auto" },
+            "cwd": folder.display().to_string(),
+            "name": run,
+            "title": format!("asked by {asker}"),
+            "chat": Turn::of(session).chat.unwrap_or_default(),
+            "workKey": ROLE,
+            "hearsWords": false,
+            "variables": {},
+          } },
+        }),
+      )
+      .await,
+    "the run did not come back",
+  );
+  let answer = turned.as_ref().ok().and_then(|turned| {
+    turned
+      .get("answer")
+      .and_then(Value::as_str)
+      .or_else(|| {
+        turned
+          .get("text")
+          .and_then(Value::as_array)
+          .and_then(|text| text.first())
+          .and_then(Value::as_str)
+      })
+      .map(str::to_owned)
+  });
+  let outcome = match (&turned, &answer) {
+    (Ok(_), Some(_)) => "answered".to_owned(),
+    (Ok(_), None) => "failed: no answer".to_owned(),
+    (Err(why), _) => format!("failed: {why}"),
+  };
+
+  finish(api, &token, &outcome, false).await;
+
+  if let Err(why) = turned {
+    return Answer::failure(why);
+  }
+
   let lines: Vec<Value> = api
-    .get(&format!("/log/agents/{worker}/lines?since={since}"))
+    .get(&format!("/log/agents/{ROLE}/lines?since={since}"))
     .await
     .ok()
     .and_then(|(_, body)| body.get("lines").and_then(Value::as_array).cloned())
     .unwrap_or_default();
   let files = changed(&lines, &folder);
-  let mut text = answer.trim_end().to_owned();
+  let mut text = answer.unwrap_or_default().trim_end().to_owned();
 
   if !files.is_empty() {
     text.push_str("\n\nFiles changed:\n");
@@ -290,6 +371,104 @@ pub async fn ask_with(api: &Api, session: &Session, input: AskInput) -> Answer {
   }
 
   Answer::text(text)
+}
+
+/// A repository checkout a folder is: the repository's name and the node it stands on, where it is not this
+/// machine.
+struct Checkout {
+  repository: String,
+  node: Option<String>,
+}
+
+// The repository checkout the folder is, read from agency's repositories, or none.
+async fn checkout_of(api: &Api, folder: &Path) -> Result<Option<Checkout>, String> {
+  let said = ok(api.get("/repositories").await, "the repositories could not be read")?;
+
+  for repository in said.get("items").and_then(Value::as_array).into_iter().flatten() {
+    let name = text(repository, "name").unwrap_or_default();
+    let checkouts = repository.get("checkouts").and_then(Value::as_array).cloned().unwrap_or_default();
+
+    for place in std::iter::once(repository).chain(checkouts.iter()) {
+      if text(place, "path").is_some_and(|path| Path::new(path) == folder) {
+        return Ok(Some(Checkout {
+          repository: name.to_owned(),
+          node: text(place, "nodeName").map(str::to_owned),
+        }));
+      }
+    }
+  }
+
+  Ok(None)
+}
+
+/// The slot let in, asked for its admission at the pace however long the line takes; or why it never will
+/// be: it was given back before it was let in, or agency could not be asked.
+async fn admitted(api: &Api, token: &str, mut slot: Value) -> Result<Value, String> {
+  let path = format!("/slot-requests/{token}");
+
+  loop {
+    match text(&slot, "state") {
+      Some("active") => return Ok(slot),
+      Some(state @ ("released" | "cancelled" | "finished")) => {
+        return Err(format!("the slot was given back ({state}) before it was let in"));
+      }
+      _ => {}
+    }
+
+    tokio::time::sleep(api.pace).await;
+
+    let said = ok(api.patch(&path, json!({})).await, "the slot could not be let in")?;
+
+    slot = match said.get("request").filter(|request| !request.is_null()) {
+      Some(now) => now.clone(),
+      None => ok(api.get(&path).await, "the slot could not be read")?,
+    };
+
+    if text(&slot, "state") == Some("active") && said.get("request").is_none_or(Value::is_null) {
+      slot["state"] = json!("waiting");
+    }
+  }
+}
+
+// The slot given back with what its run came to, cancelled where it never ran.
+async fn finish(api: &Api, token: &str, outcome: &str, cancel: bool) {
+  let body = json!({ "state": "finished", "outcome": outcome, "cancel": cancel });
+
+  if let Err(why) = ok(api.patch(&format!("/slot-requests/{token}"), body).await, "the slot was not given back") {
+    eprintln!("{why}");
+  }
+}
+
+// A call whose answer must be a success: its body, or the error agency gave.
+fn ok(answered: Result<(reqwest::StatusCode, Value), String>, what: &str) -> Result<Value, String> {
+  let (status, said) = answered?;
+
+  if status.is_success() {
+    return Ok(said);
+  }
+
+  let why = said.get("error").and_then(Value::as_str).unwrap_or("no reason given");
+
+  Err(format!("{what}: agency answered {status}: {why}"))
+}
+
+fn text<'a>(value: &'a Value, field: &str) -> Option<&'a str> {
+  value.get(field).and_then(Value::as_str).filter(|text| !text.is_empty())
+}
+
+// The ask's first line, which its slot is listed by.
+fn first_line(words: &str) -> String {
+  words.trim().lines().next().unwrap_or_default().chars().take(120).collect()
+}
+
+// The supervisor the asking turn is, else the record's own, else the chat supervisor.
+fn asker(session: &Session) -> String {
+  Turn::of(session)
+    .agent
+    .or_else(|| session.variables.get(tool_call::AGENT_VARIABLE).cloned())
+    .map(|agent| agent.trim().to_owned())
+    .filter(|agent| !agent.is_empty())
+    .unwrap_or_else(|| "chat".to_owned())
 }
 
 pub async fn call(session: &Session, arguments: Value) -> Result<Answer, String> {

@@ -1,16 +1,15 @@
-//! `delegate`: a chat agent hands a task to the helper, with no queue item: a co-worker seat asked of the pool
-//! under the helper role and waited for in its line however long that takes, one turn sent into a helper
-//! agent's own worker session on the seat's model and waited on with no bound, the session going on from the
-//! last delegation while its cache holds, the seat finished, and the turn's words answered with the files it
-//! created or changed in the task's folder; and the asking agent's delegations listed by their titles and
-//! stages (docs/tools.md, 「The delegate」; docs/agent-control.md, 「Delegating a task to the helper」).
+//! `delegate`: a supervisor hands a task to a run of a role, with no queue item: a slot of the role asked —
+//! the delegator role, the supervisor's double, where the ask names none — and waited for in its line however
+//! long that takes, one run of the role at the task's folder on the provider and model the slot carries and
+//! waited on with no bound, the slot finished, and the run's words answered with the files it created or
+//! changed in the task's folder; and the asking supervisor's delegations listed by their titles and stages
+//! (docs/tools.md, 「The delegate」; docs/role-slots.md, 「A delegated task」).
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::{Duration, SystemTime};
 
-use policy::roles::ROLES;
 use reqwest::{Method, StatusCode};
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -21,32 +20,25 @@ use tool_call::{Answer, Asked, Handed, Session, Turn};
 pub const NAMESPACE: &str = "bmo";
 pub const NAME: &str = "delegate";
 pub const TITLE: &str = "Delegate a task";
-pub const DESCRIPTION: &str = "Hand a task that needs no queue item to the helper on a co-worker seat, under a one-line title, run with no time limit, and answer with what it wrote and the files it created or changed: run as bmo use bmo/delegate --async so its end wakes you in the room.";
+pub const DESCRIPTION: &str = "Hand a task that needs no queue item to a run of a role — your own double where you name none — under a one-line title, run with no time limit, and answer with what it wrote and the files it created or changed: run as bmo use bmo/delegate --async so its end wakes you in the room.";
 pub const CAPABILITIES: &[&str] = &["room.tools"];
 
-/// The entry that lists the asking agent's delegations.
+/// The entry that lists the asking supervisor's delegations.
 pub const LIST_NAME: &str = "delegations";
 pub const LIST_TITLE: &str = "List my delegations";
-pub const LIST_DESCRIPTION: &str = "List the tasks you delegated: each one's title, its stage (waiting for a seat, running on a helper, ended), the helper it runs on, when it was asked and, once ended, what it came to; the waiting and running ones first, then the latest ended.";
+pub const LIST_DESCRIPTION: &str = "List the tasks you delegated: each one's title, its stage (waiting for a slot, running, ended), its role, the provider and model it runs on, when it was asked and, once ended, what it came to; the waiting and running ones first, then the latest ended.";
 
-/// The source a delegated task's seat is asked under (docs/coworker-pool.md, 「Who takes a place」).
+/// The source a delegated task's slot is asked under (docs/role-slots.md, 「A delegated task」).
 pub const SOURCE: &str = "delegate";
 
-/// How often a waiting seat asks again for its admission, and a turn answered busy is sent again: a pace,
-/// never a bound on how long either waits.
+/// How often a waiting slot asks again for its admission: a pace, never a bound on how long it waits.
 pub const LOOK_EVERY: Duration = Duration::from_secs(1);
 
-// The provider the seat is asked on and the turn goes out on: a worker's own session, the one kept per model
-// and login, is Claude Code's (docs/sessions.md, 「A worker's session per model」).
-const PROVIDER: &str = "claude-code";
 const DEFAULT_CONTROL_PORT: u16 = 3220;
 const CONTROL_PORT: &str = "AGENCY_CONTROL_PORT";
 const CONTROL_TOKEN: &str = "AGENCY_CONTROL_TOKEN";
 
-// The code agency answers a turn sent into a session already in one with.
-const SESSION_BUSY: &str = "session-busy";
-
-// A seat's states it is let in at, and those it has been given back in.
+// A slot's states it is let in at, and those it has been given back in.
 const ADMITTED: [&str; 2] = ["active", "bound"];
 const GIVEN_BACK: [&str; 2] = ["released", "cancelled"];
 
@@ -72,7 +64,7 @@ pub struct DelegateInput {
 
 /// Agency's server as a placed tool reaches it: the port and the token the tool's own environment names, else
 /// those the data root's `env/agency.env` names (docs/api.md, 「The control port」), and the pace a waiting
-/// seat asks again at.
+/// slot asks again at.
 pub struct Api {
   pub port: u16,
   pub token: Option<String>,
@@ -151,15 +143,16 @@ impl Api {
   }
 }
 
-/// A seat as the pool answers it.
+/// A slot as the role's line answers it: its token, its state, the role it is of and the provider, model and
+/// effort it is let in on.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Seat {
   pub token: String,
   pub state: String,
+  pub role: String,
+  pub provider: String,
   pub model: String,
   pub effort: Option<String>,
-  pub tier: Option<String>,
-  pub work_key: String,
 }
 
 impl Seat {
@@ -169,10 +162,10 @@ impl Seat {
     Some(Self {
       token: text("token")?.to_owned(),
       state: text("state").unwrap_or_default().to_owned(),
+      role: text("role").unwrap_or_default().to_owned(),
+      provider: text("provider").unwrap_or_default().to_owned(),
       model: text("model").unwrap_or_default().to_owned(),
       effort: text("effort").map(str::to_owned),
-      tier: text("tier").map(str::to_owned),
-      work_key: text("workKey").unwrap_or_default().to_owned(),
     })
   }
 
@@ -185,7 +178,7 @@ impl Seat {
   }
 }
 
-/// What a delegation holds of agency's at the moment: its seat and whether its turn was sent, so a call
+/// What a delegation holds of agency's at the moment: its slot and whether its run was sent, so a call
 /// stopped midway gives back what it would otherwise leave standing.
 #[derive(Debug, Default)]
 pub struct Held {
@@ -203,22 +196,22 @@ impl Held {
     self.state.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
   }
 
-  /// Give back what a stopped call holds: a seat whose turn was never sent is cancelled, since it never ran,
-  /// and one whose turn was sent is finished, the turn going on to its end in agency whether or not this
-  /// call still waits.
+  /// Give back what a stopped call holds: a slot whose run was never sent is cancelled, since it never ran,
+  /// and one whose run was sent is finished, the run going on to its end in agency whether or not this call
+  /// still waits.
   pub async fn give_back(&self, api: &Api) {
     let now = self.now().clone();
     let Some(seat) = now.seat else { return };
 
     if now.sent {
-      finish(api, &seat, "stopped: the call went away while its turn went on", false).await;
+      finish(api, &seat, "stopped: the call went away while its run went on", false).await;
     } else {
       finish(api, &seat, "cancelled: the call was stopped", true).await;
     }
   }
 }
 
-/// The folder a task works in: the named one, or the asking agent's scratch workspace under the data root.
+/// The folder a task works in: the named one, or the asking supervisor's scratch workspace under the data root.
 fn workspace(session: &Session, folder: Option<&str>) -> Result<PathBuf, String> {
   let path = match folder.map(str::trim).filter(|folder| !folder.is_empty()) {
     Some(folder) => PathBuf::from(folder),
@@ -230,7 +223,7 @@ fn workspace(session: &Session, folder: Option<&str>) -> Result<PathBuf, String>
   Ok(path)
 }
 
-// The agent the asking turn is, else the record's own, else the chat agent's line.
+// The supervisor the asking turn is, else the record's own, else the chat supervisor.
 fn asker(session: &Session) -> String {
   Turn::of(session)
     .agent
@@ -240,7 +233,7 @@ fn asker(session: &Session) -> String {
     .unwrap_or_else(|| "chat".to_owned())
 }
 
-// A piece of a pool key: every character the key's shape does not hold made `-`.
+// A piece of a request key: every character the key's shape does not hold made `-`.
 fn keyed(text: &str) -> String {
   text
     .chars()
@@ -286,7 +279,7 @@ fn changed(
     .collect()
 }
 
-/// One delegation, past the owner's gate: answered with the co-worker's words and the files it created or
+/// One delegation, past the owner's gate: answered with the run's words and the files it created or
 /// changed, or why it could not be done. A termination signal while it runs gives back what it holds.
 pub async fn delegate(session: &Session, input: DelegateInput) -> Answer {
   let accounts = AccountService::read(&session.data_root(), |name| std::env::var(name).ok());
@@ -333,8 +326,8 @@ pub async fn may_delegate(accounts: &AccountService, session: &Session) -> Resul
   room_gate::gate(accounts, room_turn_of(session).as_ref(), room_gate::LAUNCH, "Delegating a task").await
 }
 
-/// The same delegation against the server the caller names, keeping what it holds in `held`: the agent that
-/// carries it, the seat, the turn and the folder's files read before and after it.
+/// The same delegation against the server the caller names, keeping what it holds in `held`: the slot, the
+/// run and the folder's files read before and after it.
 pub async fn delegate_with(api: &Api, session: &Session, input: DelegateInput, held: &Held) -> Answer {
   let instruction = input.instruction.trim();
 
@@ -348,38 +341,32 @@ pub async fn delegate_with(api: &Api, session: &Session, input: DelegateInput, h
     return Answer::failure("title must not be empty");
   }
 
-  let role = input
-    .role
-    .as_deref()
-    .map(str::trim)
-    .filter(|role| !role.is_empty())
-    .unwrap_or(&ROLES.delegate)
-    .to_owned();
+  // No role named leaves it to agency: the delegator role, on the asking supervisor's own road.
+  let role = input.role.as_deref().map(str::trim).filter(|role| !role.is_empty());
   let folder = match workspace(session, input.folder.as_deref()) {
     Ok(folder) => folder,
-    Err(why) => return Answer::failure(why),
-  };
-  let agent = match carrier(api, &role).await {
-    Ok(agent) => agent,
     Err(why) => return Answer::failure(why),
   };
   let turn = Turn::of(session);
   let asker = asker(session);
   let key = format!("{SOURCE}:{}:{}:{}", keyed(&asker), now_ms(), std::process::id());
-  let asked = json!({
+  let mut asked = json!({
     "requestKey": key,
     "owner": key,
-    "role": role,
-    "selection": "auto",
     "source": SOURCE,
-    "provider": PROVIDER,
     "title": title,
     "askedBy": asker,
+    "path": folder.display().to_string(),
   });
-  let seat = match api.ok(Method::POST, "/seat-requests", Some(asked), "the pool gave no seat").await {
+
+  if let Some(role) = role {
+    asked["role"] = json!(role);
+  }
+
+  let seat = match api.ok(Method::POST, "/slot-requests", Some(asked), "no slot was asked").await {
     Ok(said) => match Seat::of(&said) {
       Some(seat) => seat,
-      None => return Answer::failure("the pool answered the seat with no token"),
+      None => return Answer::failure("agency answered the slot with no token"),
     },
     Err(why) => return Answer::failure(why),
   };
@@ -394,18 +381,40 @@ pub async fn delegate_with(api: &Api, session: &Session, input: DelegateInput, h
       return Answer::failure(why);
     }
   };
-  let began = now_ms();
-  let run = format!("{SOURCE}-{}-{began}", keyed(&asker));
-  // The seat is bound to the turn's run, which the turn's execution names, so the pool reads it standing while
-  // the turn goes (docs/coworker-pool.md, 「Requests and leases」).
-  let bound = json!({ "state": "bound", "childId": run, "agentName": agent.name });
+  // The role's run at the task's folder, on the road the slot was let in on (docs/api.md, 「sessions」).
+  let start = json!({
+    "scope": "role",
+    "agentName": seat.role,
+    "options": {
+      "role": seat.role,
+      "provider": seat.provider,
+      "model": seat.model,
+      "cwd": folder.display().to_string(),
+    },
+  });
+  let started = match api.ok(Method::POST, "/sessions", Some(start), "the role's run was not started").await {
+    Ok(said) => said,
+    Err(why) => {
+      finish(api, &seat.token, "cancelled: its run was not started", true).await;
+
+      return Answer::failure(why);
+    }
+  };
+  let Some(run_session) = started.get("id").and_then(Value::as_str).map(str::to_owned) else {
+    finish(api, &seat.token, "cancelled: its run was not started", true).await;
+
+    return Answer::failure("agency answered the role's run with no session");
+  };
+  let run = format!("{SOURCE}-{}-{}", keyed(&asker), now_ms());
+  // The slot is bound to the run, so its line reads it standing while the run goes.
+  let bound = json!({ "state": "bound", "childId": run, "agentName": run_session });
 
   if let Err(why) = api
     .ok(
       Method::PATCH,
-      &format!("/seat-requests/{}", seat.token),
+      &format!("/slot-requests/{}", seat.token),
       Some(bound),
-      "the seat was not bound",
+      "the slot was not bound",
     )
     .await
   {
@@ -414,28 +423,29 @@ pub async fn delegate_with(api: &Api, session: &Session, input: DelegateInput, h
     return Answer::failure(why);
   }
 
-  // The turn stands in the agent's own checkout, the folder its session is kept in, so a delegation on the
-  // same model within the cache lifetime goes on in the session the last one left; the task's folder is
-  // named in its words.
   let body = json!({
     "prompt": format!("Work in {}.\n\n{instruction}", folder.display()),
-    "provider": PROVIDER,
-    "model": seat.model,
-    "mapping": { "model": seat.model, "effort": seat.effort, "tier": seat.tier },
-    "resume": { "kind": "auto" },
-    "cwd": agent.cwd,
-    "name": run,
-    "title": format!("delegated by {asker}"),
-    "chat": turn.chat.unwrap_or_default(),
-    "workKey": seat.work_key,
-    "hearsWords": false,
-    "variables": {},
+    "context": {
+      "work": {
+        "provider": seat.provider,
+        "model": seat.model,
+        "mapping": { "model": seat.model, "effort": seat.effort },
+        "resume": { "kind": "auto" },
+        "cwd": folder.display().to_string(),
+        "name": run,
+        "title": format!("delegated by {asker}: {title}"),
+        "chat": turn.chat.unwrap_or_default(),
+        "workKey": seat.role,
+        "hearsWords": false,
+        "variables": {},
+      },
+    },
   });
   let before = files(&folder);
 
   held.now().sent = true;
 
-  let ended = send_turn(api, &agent.session, &body).await;
+  let ended = send_turn(api, &run_session, &body).await;
   let after = files(&folder);
   let answered = ended.and_then(|ended| {
     let answer = ended.get("answer").and_then(Value::as_str).unwrap_or_default().trim().to_owned();
@@ -472,76 +482,22 @@ pub async fn delegate_with(api: &Api, session: &Session, input: DelegateInput, h
   Answer::text(text)
 }
 
-/// The agent a delegation goes to: its name, the session its turns go into and the checkout that session is
-/// kept in.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Carrier {
-  pub name: String,
-  pub session: String,
-  pub cwd: String,
-}
-
-/// The agent holding the role that carries the task: of the workers holding it that stand on this machine and
-/// do not rest, a free one first, else the first by name, whose turn the delegation then waits for.
-pub async fn carrier(api: &Api, role: &str) -> Result<Carrier, String> {
-  let said = api.ok(Method::GET, "/workers", None, "the workers could not be read").await?;
-  let text = |worker: &Value, field: &str| {
-    worker.get(field).and_then(Value::as_str).map(str::trim).unwrap_or_default().to_owned()
-  };
-  let mut holding: Vec<&Value> = said
-    .get("items")
-    .and_then(Value::as_array)
-    .into_iter()
-    .flatten()
-    .filter(|worker| text(worker, "role") == role)
-    .filter(|worker| text(worker, "nodeName").is_empty())
-    .filter(|worker| worker.get("restingSince").is_none_or(Value::is_null))
-    .collect();
-
-  holding.sort_by_key(|worker| (text(worker, "state") != "idle", text(worker, "name")));
-
-  let Some(worker) = holding.first() else {
-    return Err(format!("no agent on this machine holds the {role} role, so nobody can carry the task"));
-  };
-  let name = text(worker, "name");
-  let session = Some(text(worker, "sessionId"))
-    .filter(|id| !id.is_empty())
-    .unwrap_or(format!("{name}@worker"));
-
-  Ok(Carrier {
-    cwd: text(worker, "cwd"),
-    name,
-    session,
-  })
-}
-
-/// One turn into the agent's session, answered once it ends however long that takes; a send answered busy,
-/// the session being in a turn of its own, is sent again at the pace until the session takes it.
+/// One run of the role, answered once it ends however long that takes.
 async fn send_turn(api: &Api, session: &str, body: &Value) -> Result<Value, String> {
-  let path = format!("/sessions/{session}/turns");
-
-  loop {
-    let (status, said) = api.call(Method::POST, &path, Some(body.clone())).await?;
-
-    if status.is_success() {
-      return Ok(said);
-    }
-
-    if status == StatusCode::CONFLICT && said.get("code").and_then(Value::as_str) == Some(SESSION_BUSY) {
-      tokio::time::sleep(api.pace).await;
-      continue;
-    }
-
-    let why = said.get("error").and_then(Value::as_str).unwrap_or("no reason given");
-
-    return Err(format!("the turn did not come back: agency answered {status}: {why}"));
-  }
+  api
+    .ok(
+      Method::POST,
+      &format!("/sessions/{session}/turns"),
+      Some(body.clone()),
+      "the run did not come back",
+    )
+    .await
 }
 
-/// The seat let in, asked for its admission at the pace again and again however long the line takes; or why
-/// it never will be: the pool gave it back before it was let in, or agency could not be asked.
+/// The slot let in, asked for its admission at the pace again and again however long the line takes; or why
+/// it never will be: it was given back before it was let in, or agency could not be asked.
 async fn admitted(api: &Api, mut seat: Seat) -> Result<Seat, String> {
-  let path = format!("/seat-requests/{}", seat.token);
+  let path = format!("/slot-requests/{}", seat.token);
 
   loop {
     if seat.admitted() {
@@ -549,38 +505,38 @@ async fn admitted(api: &Api, mut seat: Seat) -> Result<Seat, String> {
     }
 
     if seat.given_back() {
-      return Err(format!("the pool gave the seat back ({}) before it was let in", seat.state));
+      return Err(format!("the slot was given back ({}) before it was let in", seat.state));
     }
 
     tokio::time::sleep(api.pace).await;
 
-    let said = api.ok(Method::PATCH, &path, Some(json!({})), "the seat could not be let in").await?;
+    let said = api.ok(Method::PATCH, &path, Some(json!({})), "the slot could not be let in").await?;
 
     seat = match said.get("request").and_then(Seat::of) {
       Some(now) => now,
-      // Not let in now: read where it stands, so a seat given back is told from one still waiting.
-      None => match Seat::of(&api.ok(Method::GET, &path, None, "the seat could not be read").await?) {
+      // Not let in now: read where it stands, so a slot given back is told from one still waiting.
+      None => match Seat::of(&api.ok(Method::GET, &path, None, "the slot could not be read").await?) {
         Some(now) if now.admitted() => Seat {
           state: "waiting".to_owned(),
           ..now
         },
         Some(now) => now,
-        None => return Err("agency answered the seat with no token".to_owned()),
+        None => return Err("agency answered the slot with no token".to_owned()),
       },
     };
   }
 }
 
-// The seat given back with what its work came to, cancelled where it never ran.
+// The slot given back with what its run came to, cancelled where it never ran.
 async fn finish(api: &Api, token: &str, outcome: &str, cancel: bool) {
   let body = json!({ "state": "finished", "outcome": outcome, "cancel": cancel });
 
   if let Err(why) = api
     .ok(
       Method::PATCH,
-      &format!("/seat-requests/{token}"),
+      &format!("/slot-requests/{token}"),
       Some(body),
-      "the seat was not given back",
+      "the slot was not given back",
     )
     .await
   {
@@ -603,8 +559,8 @@ pub struct ListInput {
   pub ended: Option<u32>,
 }
 
-/// The asking agent's delegations as agency answers them, one line each: the title, the stage and the helper
-/// it runs on, when it was asked and what it came to once ended.
+/// The asking supervisor's delegations as agency answers them, one line each: the title, the stage, the role
+/// and the road it runs on, when it was asked and what it came to once ended.
 pub async fn list_with(api: &Api, session: &Session, input: ListInput) -> Answer {
   let asker = asker(session);
   let mut path = format!("/delegations?askedBy={}", encoded(&asker));
@@ -632,21 +588,19 @@ pub async fn list_with(api: &Api, session: &Session, input: ListInput) -> Answer
 fn listed(item: &Value) -> String {
   let text = |field: &str| item.get(field).and_then(Value::as_str).filter(|value| !value.is_empty());
   let title = text("title").unwrap_or("(untitled)");
-  let stage = match (text("stage"), text("agentName")) {
-    (Some("waiting"), _) => "waiting for a seat".to_owned(),
-    (Some("running"), Some(agent)) => format!("running on {agent}"),
-    (Some("running"), None) => "running".to_owned(),
-    (Some("ended"), _) => format!("ended: {}", text("outcome").unwrap_or("no outcome")),
-    (other, _) => other.unwrap_or("unknown").to_owned(),
+  let stage = match text("stage") {
+    Some("waiting") => "waiting for a slot".to_owned(),
+    Some("ended") => format!("ended: {}", text("outcome").unwrap_or("no outcome")),
+    other => other.unwrap_or("unknown").to_owned(),
+  };
+  let role = text("role").unwrap_or("?");
+  let road = match (text("provider"), text("model")) {
+    (Some(provider), Some(model)) => format!(" on {provider} {model}"),
+    _ => String::new(),
   };
   let asked = item.get("askedAt").and_then(Value::as_i64).map_or_else(|| "?".to_owned(), moment);
-  let mut line = format!("- {title} — {stage} — asked {asked}");
 
-  if let (Some("ended"), Some(agent)) = (text("stage"), text("agentName")) {
-    line.push_str(&format!(" — ran on {agent}"));
-  }
-
-  line
+  format!("- {title} — {stage} — {role}{road} — asked {asked}")
 }
 
 // A moment in epoch milliseconds as a UTC time a reader takes in at a glance.

@@ -1,6 +1,6 @@
 [package]
 name = "worker-ask-tool"
-description = "Asks a resident worker a small coding task as a turn into its session, with no queue item, and answers with the words it wrote and the files it changed."
+description = "Hands a run of the worker role a small coding task on a slot of the role, with no queue item, and answers with the words it wrote and the files it changed."
 version.workspace = true
 edition.workspace = true
 license.workspace = true

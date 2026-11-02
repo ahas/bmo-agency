@@ -8,7 +8,7 @@
 //! carries a co-work branch's turns or a runner line's, each on a fresh harness session; and a conversation
 //! the caller opened, held there too, carries ordinary turns on the provider and model it names, resuming the
 //! session its road keeps. A session is known by its agent and its scope — `<agent>@worker`,
-//! `<agent>@<room>`, `<agent>`, `<agent>@apart:<n>`, `<agent>@conversation:<n>` — and stands across the
+//! `<agent>@<room>`, `<agent>`, `<agent>@run:<n>`, `<agent>@conversation:<n>` — and stands across the
 //! generations its harness opens.
 //!
 //! A turn is carried whole before *send a turn* answers with its end: whether the program took the words,
@@ -70,7 +70,7 @@ use crate::{Refusal, now_ms};
 const WORKER: &str = "worker";
 
 // What a thrown-away session is told apart by in its id, after its agent.
-const APART: &str = "apart";
+const APART: &str = "run";
 
 // What a conversation the caller opened is told apart by in its id, after its agent.
 const CONVERSATION: &str = "conversation";

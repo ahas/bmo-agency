@@ -287,7 +287,7 @@ pub fn scope_asked(body: &Value) -> Result<Scope, Refused> {
           .ok_or_else(|| bad("a room's scope names its roomId"))?;
         Ok(Scope::Room(room.to_string()))
       }
-      "apart" => {
+      "apart" | "role" => {
         let options = body.get("options").cloned().unwrap_or(Value::Null);
         let field = |name: &str| {
           options
@@ -297,6 +297,11 @@ pub fn scope_asked(body: &Value) -> Result<Scope, Refused> {
             .filter(|value| !value.is_empty())
         };
         let runner = runner_asked(body)?;
+
+        if scope == "role" && field("role").is_none() {
+          return Err(bad("a role's run names its role"));
+        }
+
         let cwd = match (field("cwd"), runner.system_prompt.is_some()) {
           (Some(cwd), _) => cwd.to_owned(),
           (None, true) => String::new(),
@@ -329,7 +334,7 @@ pub fn scope_asked(body: &Value) -> Result<Scope, Refused> {
           cwd: field("cwd").map(str::to_owned).unwrap_or_default(),
         }))
       }
-      other => Err(bad(format!("scope is agent, room, worker, apart or conversation, not {other}"))),
+      other => Err(bad(format!("scope is agent, room, worker, role or conversation, not {other}"))),
     };
   }
 
@@ -483,10 +488,24 @@ impl Route for SessionStart {
 
   async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
     let body = call.body().await?;
-    let mut start = Start {
-      agent: agent_named(&body)?.to_owned(),
-      scope: scope_asked(&body)?,
+    let scope = scope_asked(&body)?;
+    // A role's run goes under its role's name where its start names no other.
+    let agent = match (&scope, agent_named(&body)) {
+      (_, Ok(agent)) => agent.to_owned(),
+      (Scope::Apart(Apart { role: Some(role), .. }), Err(_)) => role.clone(),
+      (_, Err(refused)) => return Err(refused),
     };
+
+    if let Scope::Apart(Apart { role: Some(role), .. }) = &scope
+      && !crate::agent_roles::holds(call.store(), role).await?
+    {
+      return Err(
+        Refused::new(StatusCode::UNPROCESSABLE_ENTITY, crate::agent_roles::unknown(role))
+          .with_code("unknown-role"),
+      );
+    }
+
+    let mut start = Start { agent, scope };
 
     if let Scope::Conversation(conversation) = &mut start.scope
       && conversation.cwd.trim().is_empty()
