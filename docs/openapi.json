@@ -6194,13 +6194,17 @@
           },
           "422": {
             "$ref": "#/components/responses/UnknownRole"
+          },
+          "409": {
+            "$ref": "#/components/responses/DoubleWaitsOnDoubles"
           }
         },
         "x-codes": [
           "unauthorized",
           "bad-request",
           "unknown-role",
-          "unprocessable-entity"
+          "unprocessable-entity",
+          "double-waits-on-doubles"
         ],
         "requestBody": {
           "required": true,
@@ -13406,6 +13410,13 @@
               "string",
               "null"
             ]
+          },
+          "fromDouble": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "true where a supervisor's double asks, which delegated runs holding the role's whole cap refuse"
           }
         },
         "required": [
@@ -13781,6 +13792,16 @@
       },
       "Conflict": {
         "description": "conflict",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "DoubleWaitsOnDoubles": {
+        "description": "double-waits-on-doubles",
         "content": {
           "application/json": {
             "schema": {

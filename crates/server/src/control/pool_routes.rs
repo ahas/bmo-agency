@@ -64,6 +64,10 @@ fn shown(value: impl serde::Serialize) -> Result<Value, Refused> {
   serde_json::to_value(value).map_err(Refused::failed)
 }
 
+/// The code a double's ask that could wait on doubles is refused under (docs/api.md, 「slots, reservations and
+/// places」).
+pub const DOUBLE_WAITS: &str = "double-waits-on-doubles";
+
 /// The reason a role session's turn cut because its slot was given back ends with (docs/api.md, 「sessions」).
 pub const RELEASED: &str = "released";
 
@@ -123,6 +127,15 @@ impl Route for SlotAsk {
         Refused::new(StatusCode::UNPROCESSABLE_ENTITY, agent_roles::unknown(role))
           .with_code("unknown-role"),
       );
+    }
+
+    // A double's own ask never waits on doubles (docs/role-slots.md, 「A delegated task」).
+    if body.get("fromDouble").and_then(Value::as_bool).unwrap_or(false)
+      && let Some(why) = dispatch::double_would_wait(call.store(), role, text(&body, "requestKey")?)
+        .await
+        .map_err(refused)?
+    {
+      return Err(Refused::new(StatusCode::CONFLICT, why).with_code(DOUBLE_WAITS));
     }
 
     let fixed = match (optional(&body, "provider"), optional(&body, "model")) {

@@ -363,6 +363,12 @@ pub async fn delegate_with(api: &Api, session: &Session, input: DelegateInput, h
     asked["role"] = json!(role);
   }
 
+  // A double asking again says so, and agency refuses an ask that could wait on doubles with no end
+  // (docs/tools.md, 「The delegate」).
+  if session.is_double() {
+    asked["fromDouble"] = json!(true);
+  }
+
   let seat = match api.ok(Method::POST, "/slot-requests", Some(asked), "no slot was asked").await {
     Ok(said) => match Seat::of(&said) {
       Some(seat) => seat,

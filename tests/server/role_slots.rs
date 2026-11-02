@@ -559,3 +559,108 @@ async fn a_delegation_follows_its_supervisor_until_the_owner_sets_the_role_an_or
     "the owner's order stands over the supervisor's road: the slot walks the role's order"
   );
 }
+
+// Two doubles that each delegate again under the delegator role's cap of 2 would wait for each other with no
+// end: once delegated runs hold the whole cap, a double's ask is refused with why, while a supervisor's own ask,
+// an ask under a key already standing and an ask of a role whose slots a run of another source holds are not
+// (docs/role-slots.md, 「A delegated task」).
+#[tokio::test(flavor = "multi_thread")]
+async fn a_double_s_ask_is_refused_where_delegated_runs_hold_the_whole_cap() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = seeded(scratch.db(), home.path()).await;
+
+  deepseek_balance(&ground, 5.0).await;
+
+  let road = agency_server::order::Entry {
+    provider: "deepseek".into(),
+    model: "deepseek-flash".into(),
+    effort: None,
+    thinking: None,
+    answer_tokens: None,
+  };
+  let delegation = |key: &str, role: &'static str| Asked {
+    request_key: format!("delegate:{key}"),
+    owner: format!("delegate:{key}"),
+    wanted: Wanted {
+      role,
+      path: Some("/scratch/chat"),
+      fixed: Some(road.clone()),
+    },
+    asked_by: Some("chat"),
+    ..Asked::default()
+  };
+  let first = enqueue(&ground.db, &delegation("first", "delegator"), DELEGATE, async |_, _| Ok(()))
+    .await
+    .unwrap();
+
+  assert!(admitted(&ground, &first).await);
+  assert!(
+    dispatch::double_would_wait(&ground.db, "delegator", "delegate:again")
+      .await
+      .unwrap()
+      .is_none(),
+    "one double holds one of two slots: a double may ask"
+  );
+
+  let second = enqueue(&ground.db, &delegation("second", "delegator"), DELEGATE, async |_, _| Ok(()))
+    .await
+    .unwrap();
+
+  assert!(admitted(&ground, &second).await);
+
+  let why = dispatch::double_would_wait(&ground.db, "delegator", "delegate:again")
+    .await
+    .unwrap()
+    .expect("both slots are doubles': a double's ask could wait on itself");
+
+  assert!(why.contains("delegator") && why.contains("2 of the 2"), "{why}");
+  assert!(
+    dispatch::double_would_wait(&ground.db, "delegator", "delegate:second")
+      .await
+      .unwrap()
+      .is_none(),
+    "an ask under a key already standing is answered with its request"
+  );
+
+  // A role whose slots a job holds is waited on as the line says: that run ends of its own.
+  scratch
+    .run(r#"UPDATE "roles" SET "max_concurrent" = 1 WHERE "name" = 'helper'"#, vec![])
+    .await;
+
+  let job = enqueue(
+    &ground.db,
+    &Asked {
+      wanted: Wanted {
+        role: "helper",
+        path: Some("/checkouts/one"),
+        fixed: Some(road.clone()),
+      },
+      ..asked("helper", "job")
+    },
+    "job",
+    async |_, _| Ok(()),
+  )
+  .await
+  .unwrap();
+
+  assert!(admitted(&ground, &job).await);
+  assert!(
+    dispatch::double_would_wait(&ground.db, "helper", "delegate:helper")
+      .await
+      .unwrap()
+      .is_none()
+  );
+
+  // A closed role is waited on until the owner raises its cap.
+  scratch
+    .run(r#"UPDATE "roles" SET "max_concurrent" = 0 WHERE "name" = 'delegator'"#, vec![])
+    .await;
+
+  assert!(
+    dispatch::double_would_wait(&ground.db, "delegator", "delegate:closed")
+      .await
+      .unwrap()
+      .is_none()
+  );
+}

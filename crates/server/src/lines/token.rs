@@ -275,6 +275,9 @@ pub const RECORD_LABELS: &str = "BMO_RECORD_LABELS";
 /// JSON list's text.
 pub const RECORD_TOOLS: &str = "BMO_RECORD_TOOLS";
 
+/// The label a supervisor's double's record names the supervisor it stands for under.
+pub const DOUBLE_OF: &str = "doubleOf";
+
 /// The variable a role's run carries the supervisor whose double it is in, whose own record its record holds
 /// beside its role's (docs/tools.md, 「The delegate」).
 pub const RECORD_SUPERVISOR: &str = "BMO_RECORD_SUPERVISOR";
@@ -478,6 +481,12 @@ pub async fn issue_for_run(
 
   if let Some(place) = given("BMO_AGENT_PLACE") {
     labels.insert("place".to_owned(), json!(place));
+  }
+
+  // A double's record names the supervisor it stands for, which its delegate reads to say its ask comes from a
+  // double (docs/tools.md, 「The delegate」).
+  if let Some(supervisor) = &doubled {
+    labels.insert(DOUBLE_OF.to_owned(), json!(supervisor));
   }
 
   for (key, value) in named_labels(env) {

@@ -702,6 +702,51 @@ pub(crate) async fn in_the_way<C: ConnectionTrait>(
     .transpose()
 }
 
+/// Why a supervisor's double asking a slot of `role` could wait with no end, where it could (docs/role-slots.md,
+/// 「A delegated task」): the role's cap is above zero and delegated runs let in already hold that many of its
+/// slots or more. Each of them may be a double waiting on a slot of its own, so the line could move only when
+/// one of them ends; none where the request key already names a request, which its ask answers as it stands.
+pub async fn double_would_wait<C: ConnectionTrait>(
+  db: &C,
+  role: &str,
+  request_key: &str,
+) -> Result<Option<String>, Fault> {
+  let named = one(
+    db,
+    r#"SELECT 1 AS "named" FROM "role_slot_requests" WHERE "request_key" = $1"#,
+    vec![request_key.into()],
+  )
+  .await
+  .map_err(faulted)?;
+
+  if named.is_some() {
+    return Ok(None);
+  }
+
+  let cap = role_of(db, role).await?.max_concurrent;
+  let row = one(
+    db,
+    r#"SELECT COUNT(*) AS "count" FROM "role_slot_requests"
+       WHERE "role" = $1 AND "source" = $2 AND "state" = 'active'"#,
+    vec![role.into(), DELEGATE.into()],
+  )
+  .await
+  .map_err(faulted)?;
+  let held = row
+    .map(|row| row.try_get::<i64>("", "count"))
+    .transpose()
+    .map_err(faulted)?
+    .unwrap_or(0);
+
+  Ok((cap > 0 && held >= cap).then(|| {
+    format!(
+      "A supervisor's double may not wait on doubles: delegated runs already hold {held} of the {cap} slots of \
+       the role {role}, and each may itself be waiting on a delegation, so this ask could wait with no end. Do \
+       this part of the task inside your own run."
+    )
+  }))
+}
+
 /// How many slots of a role are taken: its runs let in and its reserved slots together.
 pub async fn used<C: ConnectionTrait>(db: &C, role: &str) -> Result<i64, Fault> {
   let row = one(

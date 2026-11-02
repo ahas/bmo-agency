@@ -12,6 +12,7 @@ pub mod ordered;
 pub mod persona;
 pub mod place;
 pub mod prefix;
+pub mod role;
 pub mod runner;
 pub mod stand_in;
 pub mod standing;

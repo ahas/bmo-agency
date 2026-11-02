@@ -3855,6 +3855,8 @@ export interface components {
             session?: string | null;
             title?: string | null;
             askedBy?: string | null;
+            /** @description true where a supervisor's double asks, which delegated runs holding the role's whole cap refuse */
+            fromDouble?: boolean | null;
         };
         /** @description OwnerRelease: what an owner's release gave back. */
         OwnerRelease: {
@@ -4006,6 +4008,15 @@ export interface components {
         };
         /** @description conflict */
         Conflict: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description double-waits-on-doubles */
+        DoubleWaitsOnDoubles: {
             headers: {
                 [name: string]: unknown;
             };
@@ -7575,6 +7586,7 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
+            409: components["responses"]["DoubleWaitsOnDoubles"];
             422: components["responses"]["UnknownRole"];
         };
     };

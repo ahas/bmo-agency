@@ -37,6 +37,9 @@ pub struct Labels {
   /// A resident program's place, where each request reads which run is going.
   #[serde(default)]
   pub place: Option<PathBuf>,
+  /// The supervisor a double's record stands for, on a supervisor's double's record alone.
+  #[serde(default)]
+  pub double_of: Option<String>,
 }
 
 /// One session's record, its field names camel case as the tool host writes them.
@@ -73,6 +76,11 @@ impl Session {
   /// The store's address.
   pub fn archive(&self) -> &str {
     &self.labels.archive
+  }
+
+  /// Whether the session is a supervisor's double's: its record names the supervisor it stands for.
+  pub fn is_double(&self) -> bool {
+    self.labels.double_of.as_deref().is_some_and(|supervisor| !supervisor.trim().is_empty())
   }
 
   /// One variable of the turn the request is made in: the run the resident program's place names — none for a

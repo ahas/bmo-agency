@@ -28,12 +28,13 @@ use super::companion::{ComposedTurn, LOST_SESSION, Window, walked_login};
 use super::dsh::Composed;
 use super::openrouter::resident_command;
 use super::ordered::Ordered;
-use super::place::{Holds, Place, write_place_settings};
+use super::place::{Holds, Place, read_settings, write_place_settings};
 use super::standing::{GatewayModel, OnGateway, Placing, gateway_command, status_root};
 use super::token::{self, facts};
-use super::worker::{Reasoning, effort_of, reasoning_of, rulebook, system_prompt_file};
+use super::worker::{Reasoning, WorkerRun, effort_of, reasoning_of, rulebook, system_prompt_file};
 use super::{Trees, fault, publish_text, read_required};
 use crate::Refusal;
+use crate::control::pool::native_provider;
 use crate::places::{Ground, file_variable, token_or_file};
 use crate::run_log::RunLog;
 use crate::run_log::lines::Line;
@@ -119,6 +120,11 @@ pub struct ChatRun {
   /// The demands of its own the run's caller handed in, on a registration whose engine the arbiter
   /// stands (docs/own-llm.md, 「An engine the arbiter stands」).
   pub cards: crate::cards::Ask,
+  /// The worker line whole, where the run is a role's run on it: a program that is Claude Code is started on
+  /// the worker line's own words — its permission mode, denied tools, settings, plugin, co-workers and MCP
+  /// configuration — on every road, never on the chat line's (docs/launch-lines.md, 「What a line's program is
+  /// allowed, by road」).
+  pub worker: Option<Box<WorkerRun>>,
 }
 
 /// The owner's own text of each of the chat's documents, by the name the store keeps (`chat_documents`): the
@@ -722,6 +728,7 @@ pub async fn chat_run(
       .unwrap_or_else(|| ground.roots.deploy.to_string_lossy().into_owned()),
     env,
     cards: Default::default(),
+    worker: None,
   })
 }
 
@@ -923,6 +930,7 @@ pub fn gate_run(
     cwd: cwd.to_owned(),
     env,
     cards: Default::default(),
+    worker: None,
   })
 }
 
@@ -1321,14 +1329,17 @@ pub async fn compose_stand_in(
         ),
         None => (None, None, None),
       };
+      // A role's run on the worker line stands on the line whole, as on Claude Code's own road: its settings
+      // and their hooks, its own guard among them, and its co-workers resolved on the road's provider.
+      let worker = sent_run.worker.as_deref();
       let on = OnGateway {
         agent: &sent_run.agent,
         model: &step.model,
         effort: &step.effort,
         cwd: &cwd,
-        settings: serde_json::Map::new(),
+        settings: worker.map(|worker| read_settings(&worker.settings)).unwrap_or_default(),
         compose_typed: RUN_LINES.composes_typed_lines(sent_run.line),
-        shell_guard: true,
+        shell_guard: worker.is_none(),
         sampling: None,
         // The chat agent's and a gate's runs are asked as the role their work key names, where it names one.
         role: policy::work_keys::WORK_KEYS
@@ -1337,7 +1348,7 @@ pub async fn compose_stand_in(
         thinking,
         claude_effort,
         backend_effort,
-        own_coworkers: false,
+        own_coworkers: worker.is_some() && native_provider(&step.provider) == step.provider,
       };
       let (mut command, _) = gateway_command(
         ground,
@@ -1346,15 +1357,31 @@ pub async fn compose_stand_in(
         on,
         step.answer_tokens,
         Placing::At(placement.clone()),
-        |name, effort, thinking, settings| {
-          let sent = ChatRun {
-            model: name.to_owned(),
-            effort: effort.to_owned(),
-            thinking,
-            ..sent_run.clone()
-          };
+        |name, effort, thinking, settings| match worker {
+          Some(worker) => {
+            let sent = WorkerRun {
+              model: name.to_owned(),
+              effort: effort.to_owned(),
+              thinking,
+              ..worker.clone()
+            };
+            let session = match &sent_run.resume {
+              Some(resumed) => Session::Resume(resumed.clone()),
+              None => Session::Open(opened.clone()),
+            };
 
-          resident_args(&sent, settings, &opened)
+            super::claude::worker_args(&sent, settings, Some(&session))
+          }
+          None => {
+            let sent = ChatRun {
+              model: name.to_owned(),
+              effort: effort.to_owned(),
+              thinking,
+              ..sent_run.clone()
+            };
+
+            resident_args(&sent, settings, &opened)
+          }
         },
       )
       .await?;

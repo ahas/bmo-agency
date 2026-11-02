@@ -351,13 +351,14 @@ prompt. Beside them its road is checked, and the start may name the rest below:
   positive whole number, refused 400 otherwise.
 - **`labels`:** an object the session's record carries, each key and its value written under that key of the
   record's `labels`, for the placed tools that read them; a key agency writes itself — `line`, `checkout`,
-  `archive`, `role` and `place` — is refused 400.
+  `archive`, `role`, `place` and `doubleOf` — is refused 400.
 - **`supervisor`:** on a role's session, the supervisor whose double the run is, one the store holds, else
   422 `unknown-supervisor`. Every turn of the session then runs with that supervisor's tools beside its role's
   (`docs/tools.md`, 「The delegate」): its record is held under the supervisor's name with the chat line's
   capabilities, namespaces, shown entries and variables and the supervisor bundles beside its line's and its
-  role's; the supervisor is the turn's agent; and its program is handed the supervisor's chat servers beside
-  its line's. The turn's room, road, privilege and messages are the turn's own `variables`
+  role's, and its `labels` name the supervisor as `doubleOf`; the supervisor is the turn's agent; and its
+  program is handed the supervisor's chat servers beside its line's, on its line's own words on every road
+  (`docs/launch-lines.md`, 「What a line's program is allowed, by road」). The turn's room, road, privilege and messages are the turn's own `variables`
   (`BMO_TURN_CHAT`, `BMO_TURN_VIA`, `BMO_TURN_PRIVILEGED`, `BMO_TURN_MESSAGES`).
 - **`toolsAllowed`:** the capabilities the record keeps, of those the line and the session's role give it; a
   record keeps them all where the start names none, and the list never widens them.
@@ -614,6 +615,12 @@ lease.
 A slot request may carry `title`, one line naming the work it is asked for, and `askedBy`, the supervisor
 that asked for it, each kept as given; a `PATCH` binding it may name the run its child is. Each is null where
 none was named.
+
+A slot request may carry `fromDouble`, true where the ask is made by a supervisor's double, a delegated run
+asking again (`docs/tools.md`, 「The delegate」). Such an ask is refused 409 `double-waits-on-doubles`, before
+it enters the line and with the role and its cap in the sentence, where the requests asked under the source
+`delegate` and let in already number the role's cap or more and the cap is above zero (`docs/role-slots.md`, 「A
+delegated task」). An ask whose request key already names a request is answered with that request as any is.
 
 `GET /slots` answers `items`, for every role its `role`, `maxConcurrent`, `active`, `reserved` and `waiting`, and
 `runs`, each active run: its `token`, `role`, `path`, `provider`, `model`, `source` and `since` in epoch

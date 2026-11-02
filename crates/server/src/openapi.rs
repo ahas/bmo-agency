@@ -2510,7 +2510,7 @@ pub const OPERATIONS: &[Operation] = &[
     params: &[],
     body: Some("SlotRequestAsk"),
     answers: &[(201, Some("SlotRequest"), false)],
-    codes: &["bad-request", "unknown-role", "unprocessable-entity"],
+    codes: &["bad-request", "unknown-role", "unprocessable-entity", "double-waits-on-doubles"],
   },
   Operation {
     method: "DELETE",
@@ -2843,7 +2843,13 @@ fn status_of(code: &str) -> u16 {
     "unauthorized" => 401,
     "forbidden" => 403,
     "no-route" | "not-found" | "no-job" => 404,
-    "conflict" | "name-taken" | "seeded" | "running" | "no-turn" | "not-owner" => 409,
+    "conflict"
+    | "name-taken"
+    | "seeded"
+    | "running"
+    | "no-turn"
+    | "not-owner"
+    | "double-waits-on-doubles" => 409,
     "gone" => 410,
     "too-large" => 413,
     "failed" => 500,

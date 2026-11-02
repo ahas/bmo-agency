@@ -24,7 +24,7 @@ use agent_session::{
   WorkParts,
 };
 use harness_providers::Machine;
-use serde_json::json;
+use serde_json::{Value, json};
 
 use crate::support::scratch::Scratch;
 
@@ -703,4 +703,200 @@ async fn a_double_s_record_carries_its_supervisor_s_tools_beside_its_role_s() {
     "a role's run alone holds its role's"
   );
   assert!(!alone.namespaces.contains(&"voice".to_owned()));
+}
+
+// A road whose program is Claude Code on agency's gateway: DeepSeek's member, its key where the settings' key
+// helper reads it.
+fn on_deepseek(ground: &Ground) -> agency_server::lines::chat::Door {
+  use std::os::unix::fs::PermissionsExt;
+
+  let key = ground.roots.data.join("env/llm-gateway.key");
+
+  std::fs::create_dir_all(key.parent().unwrap()).unwrap();
+  std::fs::write(&key, "sk-gateway\n").unwrap();
+  std::fs::set_permissions(&key, std::fs::Permissions::from_mode(0o600)).unwrap();
+
+  agency_server::lines::chat::Door::Gateway {
+    held: Box::new(agency_server::lines::standing::GatewayModel {
+      name: "deepseek-flash".into(),
+      label: "DeepSeek Flash".into(),
+      home: ground.roots.data.join("claude-roads/deepseek/deepseek-flash"),
+      context_tokens: 131_072,
+      answer_tokens: 16_384,
+      thinking: true,
+      registration: None,
+      road: Some("deepseek"),
+    }),
+    placement: None,
+  }
+}
+
+// A role session's turn on a gateway road, composed as the backend composes it and stood as the road stands
+// its program: the command's words, and the servers of the configuration it names.
+async fn stood_on_deepseek(ground: &Ground, apart: &Apart) -> (Vec<String>, Vec<String>) {
+  let trees = Trees {
+    code: std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")),
+    ..Trees::of(ground)
+  };
+  let mapping = Mapping {
+    model: apart.model.clone(),
+    effort: Some("high".into()),
+    tier: None,
+    answer_tokens: None,
+  };
+  let role = apart.role.clone().unwrap();
+  let composed = agency_server::lines::role::compose(ground, &trees, apart, &role, &mapping)
+    .await
+    .unwrap();
+  let run = composed.run(agency_server::lines::role::Turned {
+    place: "apart-run-1".into(),
+    model: apart.model.clone(),
+    prompt: "look around".into(),
+    resume: None,
+    env: BTreeMap::new(),
+    cards: Default::default(),
+  });
+  let step = agency_server::stand_in::Step {
+    provider: "deepseek".into(),
+    model: apart.model.clone(),
+    effort: "high".into(),
+    thinking: true,
+    answer_tokens: None,
+  };
+  let turn = agency_server::lines::chat::compose_stand_in(
+    ground,
+    &ground.machine(),
+    &run,
+    &step,
+    &on_deepseek(ground),
+    &[],
+    1,
+  )
+  .await
+  .unwrap();
+  let args = turn.command.args;
+  let config = args
+    .iter()
+    .position(|arg| arg == "--mcp-config")
+    .map(|at| args[at + 1].clone())
+    .unwrap();
+  let servers: Value = serde_json::from_str(&std::fs::read_to_string(config).unwrap()).unwrap();
+  let servers = servers["mcpServers"].as_object().unwrap().keys().cloned().collect();
+
+  (args, servers)
+}
+
+// The words a flag stands before.
+fn after<'a>(args: &'a [String], flag: &str) -> Option<&'a str> {
+  args.iter().position(|arg| arg == flag).map(|at| args[at + 1].as_str())
+}
+
+// A worker's run on DeepSeek holds the worker line's tools as one on Claude Code's own road does: the line's own
+// permission mode over every built-in but those it denies, its plugin, co-workers and settings, and its
+// configuration with the web and worker namespaces; a supervisor's double on the same road holds the
+// supervisor's servers beside them (docs/launch-lines.md, 「What a line's program is allowed, by road」).
+#[tokio::test]
+async fn a_worker_role_s_turn_on_a_gateway_road_holds_the_worker_line_s_tools_and_servers() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let machine = machine(home.path());
+
+  store::seed::settle(scratch.db(), &deployment(&machine)).await.unwrap();
+
+  let ground = ground(&scratch, &machine, None);
+  let work = home.path().join("work");
+
+  std::fs::create_dir_all(&work).unwrap();
+
+  let worker = Apart {
+    provider: "deepseek".into(),
+    model: "deepseek-flash".into(),
+    cwd: work.to_string_lossy().into_owned(),
+    role: Some("worker".into()),
+    ..Apart::default()
+  };
+  let (args, servers) = stood_on_deepseek(&ground, &worker).await;
+  let denied = policy::run_lines::RUN_LINES.line("worker").unwrap().tools_denied.join(",");
+
+  assert_eq!(args.first().map(String::as_str), Some("claude"), "{args:?}");
+  assert_eq!(after(&args, "--permission-mode"), Some("bypassPermissions"), "{args:?}");
+  assert_eq!(after(&args, "--disallowedTools"), Some(denied.as_str()), "{args:?}");
+  assert!(!args.iter().any(|arg| arg == "--tools"), "every built-in is shown: {args:?}");
+  assert!(!args.iter().any(|arg| arg == "--strict-mcp-config"), "{args:?}");
+
+  for flag in ["--plugin-dir", "--agents", "--settings", "--system-prompt-file"] {
+    assert!(after(&args, flag).is_some_and(|value| !value.is_empty()), "{flag}: {args:?}");
+  }
+
+  assert_eq!(after(&args, "--setting-sources"), Some("project,local"), "{args:?}");
+
+  for server in ["web", "worker"] {
+    assert!(servers.contains(&server.to_owned()), "{server}: {servers:?}");
+  }
+
+  scratch
+    .run(
+      r#"INSERT INTO "supervisors" ("name", "session_scope", "turn_shape", "provider_order", "created_at",
+           "updated_at")
+         VALUES ('bmo', 'agent', 'window', '[{"provider":"deepseek","model":"deepseek-flash"}]', 0, 0)"#,
+      vec![],
+    )
+    .await;
+
+  let double = Apart {
+    role: Some("delegator".into()),
+    supervisor: Some("bmo".into()),
+    ..worker
+  };
+  let (args, servers) = stood_on_deepseek(&ground, &double).await;
+
+  assert_eq!(after(&args, "--permission-mode"), Some("bypassPermissions"), "{args:?}");
+  assert!(!args.iter().any(|arg| arg == "--tools"), "the double keeps every built-in: {args:?}");
+
+  for server in ["bmo", "web", "worker"] {
+    assert!(servers.contains(&server.to_owned()), "the double's {server}: {servers:?}");
+  }
+}
+
+// A searcher's run on DeepSeek holds the search line's servers and nothing of its program's own, as on Claude
+// Code's own road, and its record the whole of the web namespace's bundles with the eye and research
+// namespaces (docs/agent-roles.md, 「The searcher and the browser roles」).
+#[tokio::test]
+async fn a_searcher_s_turn_on_a_gateway_road_holds_the_web_bundles_and_the_eye_and_research() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let machine = machine(home.path());
+
+  store::seed::settle(scratch.db(), &deployment(&machine)).await.unwrap();
+
+  let ground = ground(&scratch, &machine, None);
+  let searcher = Apart {
+    provider: "deepseek".into(),
+    model: "deepseek-flash".into(),
+    cwd: "/tmp".into(),
+    role: Some("searcher".into()),
+    line: Some("search".into()),
+    system_prompt: Some("FIND IT.".into()),
+    ..Apart::default()
+  };
+  let (args, servers) = stood_on_deepseek(&ground, &searcher).await;
+  let allowed: Vec<&str> = after(&args, "--allowedTools").unwrap().split(',').collect();
+
+  assert_eq!(after(&args, "--permission-mode"), Some("dontAsk"), "{args:?}");
+  assert_eq!(after(&args, "--tools"), Some(""), "no built-in tool is shown: {args:?}");
+
+  for server in ["bmo", "web", "eye", "research"] {
+    assert!(servers.contains(&server.to_owned()), "{server}: {servers:?}");
+    assert!(allowed.contains(&format!("mcp__{server}").as_str()), "{server}: {allowed:?}");
+  }
+
+  let carries = agency_server::lines::token::carried_by(&ground, &searcher).await.unwrap();
+
+  for bundle in ["web.read", "web.sites", "web.branches", "web.rulebooks"] {
+    assert!(carries.capabilities.contains(&bundle.to_owned()), "{bundle}: {carries:?}");
+  }
+
+  for namespace in ["eye", "research", "web"] {
+    assert!(carries.namespaces.contains(&namespace.to_owned()), "{namespace}: {carries:?}");
+  }
 }

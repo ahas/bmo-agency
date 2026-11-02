@@ -83,13 +83,30 @@
     names and the programs it starts beside them — with the role line's servers added where the chat's holds
     none of that name, written under the agents tree as `double.<supervisor>.<line>.mcp.json` by the run that
     composes it;
-  - **its program's own tools** are those a run of the role line reaches on Claude Code's own road; on a road
-    whose program is told what it is shown and allowed, the chat line's shown and allowed tools, with each
-    server of the role line's configuration allowed beside them.
+  - **its program's own tools** are the role line's own, on every road whose program is Claude Code — its own
+    road and every gateway road alike (`docs/launch-lines.md`, 「What a line's program is allowed, by road」):
+    on the worker line, every built-in tool but those the line denies, in bypass-permissions mode, so the
+    chat line's shell and file tools are among them and every server of its configuration is reached. On a
+    program that is a harness of its own and is told what it is shown and allowed — dsh and Codex, which no
+    provider of this build names — the chat line's shown and allowed tools, with each server of the role
+    line's configuration allowed beside them.
+- **A double may delegate in turn and is never let wait on doubles** (`docs/tools.md`, 「The delegate」): it holds
+  the delegate as its supervisor does, and an ask it makes is refused, saying why, where delegated runs already
+  hold the whole cap of the role it asks.
 - **Nothing of the receiver's is asked for it.** The receiver's tools are placed tools of the tool host, which
   serves them to any record holding their capabilities; a record agency issues under the supervisor's name
   holds them as the supervisor's does, and the receiver reads the turn's agent and room off the record as it
   does for the supervisor's own calls.
+
+## On every road
+
+- **A worker on any road calls these tools by name.** A run of the worker line goes out on whatever provider
+  its role's order gives it, and on every one of them its program is Claude Code — under an account on its own
+  road, pointed at agency's gateway on DeepSeek's, Codex's, OpenRouter's and the registry's — standing on the
+  worker line's own words: the same permission mode, the same tools shown and denied, and the same
+  configuration with this namespace in it (`docs/launch-lines.md`, 「What a line's program is allowed, by
+  road」). So a worker on DeepSeek holds `graph_search` and `todo_show` exactly as a worker on Claude Code
+  does, and no road is a case of its own.
 
 ## What they cost, and why the descriptions are short
 

@@ -341,7 +341,8 @@
   (`docs/own-llm.md`, 「A run on the worker line is composed as on Claude」).
 - **A run of the worker line on a DeepSeek, OpenRouter or Codex model**: Claude Code on the gateway under
   the member the role's order entry or the repository's pin names, exactly as a run on a registration
-  stands (`docs/own-llm.md`): the worker line whole — the platform's harness opening with the role's
+  stands (`docs/own-llm.md`) — a worker's standing program and a role session's turn in a place of its own
+  alike, a supervisor's double among them: the worker line whole — the platform's harness opening with the role's
   prompt and its rules after it, its plugin, its co-workers, the worker MCP server, its settings and
   hooks — with the member's home, window, answer ceiling and request wait, and the gateway's key read
   from its file by the settings' key helper. The member's effort word goes out in the effort header; no
@@ -480,6 +481,39 @@
     but it is part of the command a pane's program was started with, so the change starts each
     supervisor's resident program again on `--resume` of its own session at its next turn, and a run
     of a role started after it is another command and opens its own session.
+
+## What a line's program is allowed, by road
+
+- **A run is allowed what its line and its role give it, on every road.** The road a run goes out on changes
+  its model, its endpoint, its login and its records home; it changes nothing of the permission mode, the
+  tools shown, the tools allowed or denied, or the MCP configuration. Every road a provider of this build
+  names runs Claude Code — under an account on Claude Code's own road, pointed at agency's gateway on
+  DeepSeek's, Codex's, OpenRouter's and the registry's — so the program on a gateway road takes every word
+  the program on the own road is started with, and no road is a case of its own.
+- **One table, every road:**
+
+  | Line | Its runs | Permission mode | Built-in tools shown | Allowed | MCP configuration |
+  |---|---|---|---|---|---|
+  | chat | a supervisor's resident program, a companion's turn | don't-ask | Bash, Read, Write, Edit and the two MCP resource tools; none in a chat whose tools the owner turned off | those six and the servers its allow list names — `bmo`, `gate`, `job`, `agency`, `artifact` and `explorer` — by their prefixes | the supervisor's chat configuration, strict |
+  | worker | every role naming the line — a job, a worker ask, a delegated task, a co-work stage or branch, upkeep — and a supervisor's double | bypass-permissions | every built-in tool but the line's denied list | everything shown and every server of its configuration | `worker.mcp.json`, the tool host's `web` and `worker`; a double's `double.<supervisor>.worker.mcp.json`, the supervisor's chat servers with those beside them |
+  | search | a searcher's turn | don't-ask | none | `bmo`, `web`, `eye` and `research` by their prefixes | `search.mcp.json`, those four namespaces, strict |
+  | browse | a browser's turn | don't-ask | none | `bmo`, `chrome-devtools`, `web`, `eye` and `research` by their prefixes | the browse configuration, strict |
+  | translate, gate | a translation, a gate's judgement | don't-ask | none | none | none |
+
+- **What stands beside the tools goes with them.** A run of the worker line takes its whole line on every road:
+  the worker settings and their hooks — the guard on every shell command a job runs and the slot hooks of
+  native co-workers among them — the plugin and its skills, the co-worker definitions resolved on the run's own
+  provider, and the project and local setting sources. A gateway road writes the place's settings over the
+  line's own, as every program standing in a place has them (`docs/own-llm.md`, 「Claude Code in the pane」).
+- **Nothing a gateway road's program cannot take is on any line.** The one built-in a gateway's model could not
+  serve is the CLI's own web search, which runs on Anthropic's side, and it is denied on every line that shows
+  built-ins and shown on none that does not; the web reaches every line through the tool host's `web`
+  namespace.
+- **A program that is a harness of its own is told its tools another way.** dsh and Codex, carried for a
+  rollback and named by no provider of this build, take a shown and an allowed list rather than a permission
+  mode over every built-in: a run of the worker line on one of them is handed its line's MCP configuration and
+  allowed its servers, and a supervisor's double the chat line's shown and allowed tools beside them
+  (`docs/worker-mcp.md`, 「A supervisor's double」).
 
 ## The owner's gate
 

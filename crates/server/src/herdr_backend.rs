@@ -385,21 +385,6 @@ fn numbered_scope(id: &SessionId, word: &str) -> bool {
     .is_some_and(|rest| rest.strip_prefix(':').is_some_and(|number| number.parse::<u64>().is_ok()))
 }
 
-// What a role's run on a road other than Claude Code's own stands on: its line, effort and reasoning, its
-// whole system prompt, the tools it is allowed, its MCP configuration and its folder.
-struct RoleLine {
-  line: &'static str,
-  effort: String,
-  tier: Option<String>,
-  reasoning: crate::lines::worker::Reasoning,
-  thinking: bool,
-  system_path: std::path::PathBuf,
-  tools_shown: String,
-  tools_allowed: String,
-  mcp_config: std::path::PathBuf,
-  cwd: String,
-}
-
 // Whether a role's session's turns go into a place of its own: every road but Claude Code's own, whose runs
 // each stand in a pane of their own (docs/api.md, 「sessions」).
 fn in_places(apart: &Apart) -> bool {
@@ -2214,88 +2199,10 @@ impl HerdrSessions {
     let trees = Trees::of(ground);
     let place = crate::apart_places::place_name(session);
     let role = apart.role.as_deref().unwrap_or_else(|| crate::agent_roles::job_role());
-    let effort = work.mapping.effort.as_deref().unwrap_or_default();
-    let tier = work.mapping.tier.as_deref().unwrap_or_default();
     let refused = |why: String| fault(FaultKind::Refused, why);
-    let composed = match (apart.line.as_deref(), apart.system_prompt.as_deref()) {
-      (Some(line), Some(instructions)) => {
-        let run =
-          crate::lines::runner::given_run(ground, &trees, line, instructions, (&apart.model, effort, tier))
-            .await
-            .map_err(|why| refused(why.detail))?;
-        let thinking = crate::lines::worker::reasoning_of(ground, line)
-          .await
-          .map_err(|why| refused(why.detail))?
-          .thinking;
-
-        RoleLine {
-          line: run.line,
-          effort: run.effort.clone(),
-          tier: Some(run.tier.clone()).filter(|tier| !tier.is_empty()),
-          reasoning: crate::lines::worker::Reasoning {
-            thinking,
-            level: None,
-          },
-          thinking: run.thinking,
-          system_path: run.system_prompt.clone(),
-          tools_shown: String::new(),
-          tools_allowed: run.tools_allowed.to_owned(),
-          mcp_config: run.mcp_config.clone(),
-          cwd: run.cwd.to_string_lossy().into_owned(),
-        }
-      }
-      _ => {
-        let checkout = crate::queue::workers::checkout_at(&ground.db, &apart.cwd)
-          .await
-          .map_err(|why| refused(why.detail))?;
-        let line = crate::lines::worker::role_run(
-          ground,
-          &trees,
-          role,
-          checkout.as_deref(),
-          None,
-          &apart.model,
-          &apart.cwd,
-          &apart.provider,
-        )
-        .await
-        .map_err(|why| refused(why.detail))?;
-        // A supervisor's double is handed the supervisor's servers and the chat line's tools beside its line's
-        // (docs/worker-mcp.md, 「A supervisor's double」).
-        let double = match apart.supervisor.as_deref() {
-          Some(supervisor) => Some(
-            crate::lines::chat::double_of(
-              ground,
-              &trees,
-              supervisor,
-              crate::lines::worker::LINE,
-              &line.mcp_config,
-            )
-            .await
-            .map_err(|why| refused(why.detail))?,
-          ),
-          None => None,
-        };
-
-        RoleLine {
-          line: crate::lines::worker::LINE,
-          effort: work.mapping.effort.clone().unwrap_or(line.effort.clone()),
-          tier: work.mapping.tier.clone(),
-          reasoning: line.reasoning.clone().unwrap_or_default(),
-          thinking: line.thinking,
-          // The role's whole system prompt: the harness opening and the role's prompt before the rules.
-          system_path: line.system_prompt.clone().unwrap_or_else(|| line.harnessed.clone()),
-          tools_shown: double.as_ref().map(|double| double.tools_shown.clone()).unwrap_or_default(),
-          // The run takes every working row of the road; the list only has to be non-empty for the road to
-          // hand it them rather than none.
-          tools_allowed: double
-            .as_ref()
-            .map_or_else(|| "Bash".to_owned(), |double| double.tools_allowed.clone()),
-          mcp_config: double.map_or_else(|| line.mcp_config.clone(), |double| double.mcp_config),
-          cwd: apart.cwd.clone(),
-        }
-      }
-    };
+    let composed = crate::lines::role::compose(ground, &trees, apart, role, &work.mapping)
+      .await
+      .map_err(|why| refused(why.detail))?;
     let mut env = ground.env().clone();
 
     crate::apart_places::mark(ground, &place, session).map_err(refused)?;
@@ -2335,37 +2242,17 @@ impl HerdrSessions {
       }),
       None => None,
     };
-    let chat_run = crate::lines::chat::ChatRun {
-      line: composed.line,
-      agent: place.clone(),
+    let chat_run = composed.run(crate::lines::role::Turned {
+      place: place.clone(),
       model: apart.model.clone(),
-      effort: composed.effort,
-      tier: composed.tier,
-      reasoning: composed.reasoning,
-      thinking: composed.thinking,
-      system_path: composed.system_path,
-      system_parts: None,
-      room: RoomContext {
-        chat_id: 0,
-        text: String::new(),
-        mark: String::new(),
-      },
-      tools_shown: composed.tools_shown,
-      tools_allowed: composed.tools_allowed,
-      mcp_config: composed.mcp_config,
-      mcp_tools: None,
       prompt: prompt.to_owned(),
-      persona_unused: None,
-      fold: false,
-      ping: false,
       resume: resume.clone(),
-      cwd: composed.cwd,
       env,
       cards: crate::cards::Ask {
         own: apart.demand,
         within: apart.within,
       },
-    };
+    });
     let mut log = RunLog::new(Target {
       agent: agent.to_owned(),
       run: work.name.clone(),

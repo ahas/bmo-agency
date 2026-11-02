@@ -30,7 +30,8 @@ co-work branch works in. What a role is, is `docs/agent-roles.md`; which provide
 ## The cap
 
 - **A role's cap is the most of its runs that are let in at once,** the row's `max_concurrent`. A run beyond
-  it waits for a slot and none is refused.
+  it waits for a slot and none is refused, but for a double's own ask where delegated runs hold the whole cap
+  (「A delegated task」 below).
 - **The cap is the role's alone.** It is counted over every run of the role whatever its provider, its model
   or its path: a role's runs all go out on its active provider (`docs/provider-order.md`, 「Choosing the
   provider」), and no provider, model or path carries a limit of its own.
@@ -159,6 +160,12 @@ co-work branch works in. What a role is, is `docs/agent-roles.md`; which provide
   cap counts every supervisor's double together.
 - **A task naming a role** holds a slot of that role and goes out on that role's own order, like any run of
   it, or on the asking supervisor's road where that role's order is empty.
+- **A double's own ask never waits on doubles.** Every delegated run is a double, and a double may delegate in
+  turn; its ask says it comes from a double. Such an ask is refused, before it enters the line, where slots
+  asked under the source `delegate` and let in already number the role's cap or more, the cap being above
+  zero. Waiting there could have no end: each of those runs may be a double waiting on a slot of its own, and
+  in any ring of such waits the last double to ask found every slot it waited for held by delegated runs, so
+  refusing that ask leaves no ring to form. Any other ask, a supervisor's among them, waits as the line says.
 - **Once let in, its run goes out at the task's folder** under the role's prompt and bundles, with the asking
   supervisor's tools beside them (`docs/tools.md`, 「The delegate」), resuming the
   session kept for that role at that folder on that provider and model where it is valid

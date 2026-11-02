@@ -3271,6 +3271,9 @@ pub struct SlotRequestAsk {
   pub title: Option<String>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub asked_by: Option<String>,
+  /// true where a supervisor's double asks, which delegated runs holding the role's whole cap refuse
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub from_double: Option<bool>,
 }
 
 /// SlotRequestMove: a slot request asked for its admission, bound to its run, or given back.

@@ -38,6 +38,9 @@ struct Stub {
   turned: Option<Value>,
   // What the double's record holds, as the start answers it; everything the asking record holds where unset.
   carries: Option<Value>,
+  // Whether delegated runs hold the whole cap of the role asked, so a double's ask is refused as agency refuses
+  // it.
+  doubles_hold_the_cap: bool,
 }
 
 type Shared = Arc<Mutex<Stub>>;
@@ -59,7 +62,19 @@ async fn ask_seat(State(stub): State<Shared>, Json(body): Json<Value>) -> (Statu
     );
   }
 
-  stub.lock().unwrap().asked_seat = Some(body);
+  let mut stub = stub.lock().unwrap();
+
+  if body["fromDouble"] == json!(true) && stub.doubles_hold_the_cap {
+    return (
+      StatusCode::CONFLICT,
+      Json(json!({
+        "code": "double-waits-on-doubles",
+        "error": "A supervisor's double may not wait on doubles: delegated runs already hold 2 of the 2 slots",
+      })),
+    );
+  }
+
+  stub.asked_seat = Some(body);
 
   (StatusCode::CREATED, Json(seat("waiting")))
 }
@@ -509,4 +524,41 @@ async fn what_the_double_lacked_of_its_supervisor_s_tools_is_a_failure_naming_it
     "what the double holds beyond is no lack: {text}"
   );
   assert!(text.contains("I could not render the song"), "the run's words follow: {text}");
+}
+
+// A double holds the delegate as its supervisor does, and its ask says it comes from a double: where delegated
+// runs hold the whole cap of the role it asks, agency refuses it, and the call fails saying why with no run
+// started; a supervisor's own ask says nothing of the kind (docs/tools.md, 「The delegate」).
+#[tokio::test]
+async fn a_double_s_ask_says_so_and_is_refused_where_doubles_hold_the_whole_cap() {
+  let home = tempfile::tempdir().unwrap();
+  let (api, stub) = server(Stub {
+    waits: Some(0),
+    answer: Some("done".into()),
+    doubles_hold_the_cap: true,
+    ..Stub::default()
+  })
+  .await;
+  let double = Session {
+    labels: tool_call::Labels {
+      double_of: Some("bmo".into()),
+      ..tool_call::Labels::default()
+    },
+    ..session(home.path())
+  };
+  let refused =
+    serde_json::to_string(&delegate_with(&api, &double, input("look again"), &Held::default()).await)
+      .unwrap();
+
+  assert!(refused.contains("may not wait on doubles"), "{refused}");
+  assert!(refused.contains("\"isError\":true"), "{refused}");
+  assert!(stub.lock().unwrap().started.is_none(), "no run is started on a refused ask");
+
+  let answered = serde_json::to_string(
+    &delegate_with(&api, &session(home.path()), input("look"), &Held::default()).await,
+  )
+  .unwrap();
+
+  assert!(answered.contains("done"), "a supervisor's own ask goes on: {answered}");
+  assert!(stub.lock().unwrap().asked_seat.clone().unwrap().get("fromDouble").is_none());
 }

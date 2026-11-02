@@ -779,8 +779,9 @@ surface in the pane its run opens. The surface answers, in the provider's own te
   model and effort as they stand when it is asked; an order the owner sets on the role stands over that. A
   task naming a role goes out on that role's own order, or on the supervisor's road where that order is
   empty, and holds a slot of it (`docs/role-slots.md`, 「A delegated task」). It waits in the role's line
-  however long that takes, and is never refused because every slot is taken. Either runs with the
-  supervisor's tools beside its role's (`docs/tools.md`, 「The delegate」).
+  however long that takes, and is never refused because every slot is taken, but for a double's own ask
+  where delegated runs hold the role's whole cap. Either runs with the supervisor's tools beside its role's
+  (`docs/tools.md`, 「The delegate」).
 - **The task is a run of the role at the task's folder,** on the session kept for that role at that folder
   on that provider and model where one is valid; a later delegation there within the cache lifetime goes on
   in the same session (`docs/sessions.md`, 「A role's session」). Its run is never bounded by a clock, and
