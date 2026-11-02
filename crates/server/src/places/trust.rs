@@ -43,7 +43,7 @@ pub async fn trust_worker_folder(ground: &Ground, folder: &str, worker: &str) {
 
     match trust {
       Ok(Trust::Written) => println!("trust {worker}: {folder} is now trusted in {}", file.display()),
-      Ok(trust @ (Trust::Busy | Trust::Unreadable)) => {
+      Ok(trust @ Trust::Unreadable) => {
         eprintln!("trust {worker}: {folder} could not be trusted in {} ({trust:?})", file.display());
       }
       Ok(_) => {}

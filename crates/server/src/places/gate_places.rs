@@ -3,25 +3,20 @@
 //! one pane, so each program stays standing between judgements and the judgements of different programs run
 //! at once. A place is named after the agent, a digest of the program and a slot; it takes one turn at a
 //! time, a program stands in as many as its overlapping turns need up to a bound, and every program's places
-//! together stand up to another. A place unused longest makes room where that bound is reached, and the
-//! heads' clock ends each one unused past the idle bound. Each place keeps a record of what it is and when a
-//! turn last let it go, so a server started again takes the standing places over and the leftovers sweep
-//! counts them.
+//! together stand up to another. A place unused longest makes room where that bound is reached; no clock
+//! ends a place. Each place keeps a record of what it is and when a turn last let it go, so a server
+//! started again takes the standing places over and the leftovers sweep counts them.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard};
-use std::time::Duration;
 
-use harness_providers::providers;
 use policy::gate_places::GATE_PLACES;
-use policy::providers::Turns;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use super::Ground;
-use super::locks::{agent_lock_path, hold_within, try_hold};
-use crate::door::inbox::record_path;
+use super::locks::{agent_lock_path, hold};
 use crate::lines::place::{Place, places_dir};
 use crate::now_ms;
 
@@ -30,9 +25,6 @@ pub const RECORD: &str = "gate-place.json";
 
 // How many hex digits of a program's digest name its places.
 const KEY_CHARS: usize = 10;
-
-// How long ending a place waits for a turn still holding its lock.
-const END_WAIT: Duration = Duration::from_secs(60);
 
 /// What a gate's ask composes its program of: the conversation's agent, the road, the model, the effort,
 /// whether it thinks, the instructions and the folder.
@@ -111,7 +103,6 @@ pub fn recorded_place(data: &Path, name: &str) -> bool {
 pub struct Bounds {
   pub places: usize,
   pub per_program: usize,
-  pub idle_ms: i64,
 }
 
 impl Bounds {
@@ -119,7 +110,6 @@ impl Bounds {
     Self {
       places: GATE_PLACES.places,
       per_program: GATE_PLACES.per_program,
-      idle_ms: GATE_PLACES.idle_ms(),
     }
   }
 }
@@ -226,22 +216,6 @@ impl Board {
     }
   }
 
-  /// The places unused past the idle bound, taken off the board to be ended.
-  pub fn idle(&mut self, now: i64, bounds: Bounds) -> Vec<String> {
-    let idle: Vec<String> = self
-      .held
-      .iter()
-      .filter(|(_, held)| !held.busy && now - held.used_at >= bounds.idle_ms)
-      .map(|(name, _)| name.clone())
-      .collect();
-
-    for name in &idle {
-      self.held.remove(name);
-    }
-
-    idle
-  }
-
   /// A place a server before this one stood, free, as its record says it was last let go.
   pub fn adopt(&mut self, name: &str, record: &Record) {
     self.held.entry(name.to_owned()).or_insert_with(|| Held {
@@ -332,7 +306,7 @@ impl Seat {
         break;
       }
 
-      tokio::time::sleep(Duration::from_millis(50)).await;
+      tokio::time::sleep(std::time::Duration::from_millis(50)).await;
     }
 
     println!("gate place {}: its session passed its bound and starts afresh", self.name);
@@ -395,34 +369,18 @@ impl GatePlaces {
       freed.await;
     }
   }
-
-  /// Every place unused past the idle bound ended, and every agent's own pane program on a road whose
-  /// program carries its own turns that nothing has been put into for as long.
-  pub async fn fold_idle(&self, ground: &Ground) {
-    let data = &ground.roots.data;
-    let bounds = Bounds::policy();
-    let (idle, agents) = {
-      let mut board = self.adopted(data);
-
-      (board.idle(now_ms(), bounds), board.agents())
-    };
-
-    for name in &idle {
-      end_place(ground, name, "stood unused past its bound").await;
-    }
-
-    for agent in &agents {
-      fold_own_pane(ground, agent, bounds.idle_ms).await;
-    }
-  }
 }
 
-/// A gate place ended: its program released, its workspace closed and its record removed, under its lock, so
-/// a turn standing it again waits until it is down.
+/// A gate place ended: its program released, its workspace closed and its record removed, under its lock,
+/// taken once the turn holding it ends however long that takes, so a turn standing it again waits until it
+/// is down.
 pub async fn end_place(ground: &Ground, name: &str, why: &str) {
   let data = &ground.roots.data;
-  let Some(_held) = hold_within(agent_lock_path(data, name), END_WAIT).await else {
-    return eprintln!("gate place {name}: a turn still holds it, so it was not ended");
+  let _held = match hold(agent_lock_path(data, name)).await {
+    Ok(held) => held,
+    Err(fault) => {
+      return eprintln!("gate place {name}: its lock could not be taken ({fault}), so it was not ended");
+    }
   };
   let place = Place::of(data, name);
 
@@ -434,46 +392,4 @@ pub async fn end_place(ground: &Ground, name: &str, why: &str) {
 
   let _ = std::fs::remove_file(place.path.join(RECORD));
   println!("gate place {name}: ended, {why}");
-}
-
-// Whether a program stands on the pane program of a road whose program carries its own turns.
-fn inbox_program(args: &[String]) -> bool {
-  let Some(file) = args.first().and_then(|first| Path::new(first).file_name()) else {
-    return false;
-  };
-
-  providers()
-    .iter()
-    .filter_map(|provider| provider.declared().resident.as_ref())
-    .any(|resident| {
-      resident.turns == Turns::Inbox && resident.program.as_deref().is_some_and(|program| file == program)
-    })
-}
-
-// The agent's own pane program on such a road released where nothing has gone into it for the idle bound:
-// gate turns stand in places of their own, so one left in the agent's pane serves none of them.
-async fn fold_own_pane(ground: &Ground, agent: &str, idle_ms: i64) {
-  let data = &ground.roots.data;
-  let place = Place::of(data, agent);
-  let Some(program) = place.program() else { return };
-
-  if !inbox_program(&program.command.args) {
-    return;
-  }
-
-  let touched = std::fs::metadata(record_path(&place.path))
-    .and_then(|meta| meta.modified())
-    .ok()
-    .and_then(|at| at.duration_since(std::time::UNIX_EPOCH).ok())
-    .map_or(0, |since| since.as_millis() as i64);
-
-  if now_ms() - touched < idle_ms {
-    return;
-  }
-
-  let Some(_held) = try_hold(&agent_lock_path(data, agent)) else { return };
-
-  if place.release().await.is_some() {
-    println!("{agent}: its pane program served no gate place for its idle bound, and was taken down");
-  }
 }

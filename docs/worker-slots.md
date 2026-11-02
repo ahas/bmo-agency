@@ -55,7 +55,9 @@
 - **A support row whose worktree is missing gets it made again at its next launch,** by the same
   cut: detached at the base's main, the submodules first and the repository's setup after them. A
   directory holding anything that is not a checkout is somebody's and is refused rather than taken
-  over, and a worktree whose setup failed is taken away so that the next launch starts it afresh.
+  over, and a worktree whose setup failed is taken away so that the next launch starts it afresh. The
+  setup runs until its script exits, however long a cold install takes, and a second launch of the same
+  support worker waits for the first to finish making the worktree, then finds it standing.
 - **The setup is run again every time a checkout's files may have moved under its installs:**
   whenever the runner, a work order or a borrowing puts a checkout on a job's branch — a support
   worktree or a base checkout alike — and whenever a close has rebased a branch onto main. Main
@@ -246,8 +248,9 @@
 - **Whoever lands second rebases.** Two jobs that changed the same file each land on their own
   close: the first moves main, and the second's rebase, once its turn in the close line has come,
   meets the first's change and resolves it.
-- **Two landings do not race.** Landing holds the repository's landing lock, and waits up to ten
-  minutes for another landing to let it go — long enough for that landing's own check again. The
+- **Two landings do not race.** Landing holds the repository's landing lock, and waits for another
+  landing to let it go, however long that landing's own check again takes; a landing whose process
+  has ended holds nothing. The
   closes of this machine already land one after another through the close line; the lock is what
   keeps a close on a work node, which lands from outside it, from racing one of theirs.
 - **A commit lands only on the main it was checked against.** Inside the close line main moves only

@@ -45,13 +45,13 @@ function copyHostUnit(root: string): string {
 }
 
 // A copy's host, started as a transient user unit with the properties of the bot's own: its main
-// process alone stopped with it, the unit left standing when one process is killed for memory, and
-// standing down once it has had nothing to do for ten minutes.
+// process alone stopped with it, and the unit left standing when one process is killed for memory. It
+// stands until its root is taken away or its unit is stopped.
 async function startCopyHost(root: string): Promise<string | null> {
   const unit = copyHostUnit(root);
   const started = Bun.spawn(
     ["systemd-run", "--user", "--quiet", "--collect", `--unit=${unit}`, "-p", "KillMode=process", "-p", "OOMPolicy=continue",
-      hostBinary(), "serve", "--data-root", root, "--idle"],
+      hostBinary(), "serve", "--data-root", root],
     { env: userBus(), stdin: "ignore", stdout: "ignore", stderr: "pipe" },
   );
   const said = await new Response(started.stderr).text();

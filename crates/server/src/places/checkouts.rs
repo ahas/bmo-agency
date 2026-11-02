@@ -5,7 +5,6 @@
 
 use std::path::Path;
 use std::process::Stdio;
-use std::time::Duration;
 
 use policy::agent_renames::AGENT_RENAMES;
 use store::run;
@@ -15,11 +14,6 @@ use super::{AgentRow, Ground, locks};
 /// The command a repository sets a fresh worktree up with: the script of this name in its own
 /// `package.json`. The repository knows what it needs installed and linked; this side only runs it.
 pub const WORKTREE_SETUP_SCRIPT: &str = "worktree:setup";
-
-// How long a fresh worktree's setup may take: a warm cache installs in seconds, a cold one in minutes.
-const SETUP_WAIT: Duration = Duration::from_secs(10 * 60);
-// How long a launch waits for another launch of the same support worker to finish making its worktree.
-const MAKE_WAIT: Duration = Duration::from_secs(60);
 
 /// A support worker's worktree made where it is missing, before its program is stood: detached at its
 /// base checkout's main branch, the submodules first and the repository's own setup after them. A base
@@ -45,11 +39,10 @@ pub async fn ensure_support_checkout(ground: &Ground, worker: &str) -> Result<()
     return Ok(());
   };
 
-  // Two launches never make one worktree at once; the one that waits finds it standing when it looks.
+  // Two launches never make one worktree at once; the one that waits, however long the other's making
+  // takes, finds it standing when it looks.
   let lock = locks::lock_path(&ground.roots.data, cwd);
-  let Some(_held) = locks::hold_within(lock, MAKE_WAIT).await else {
-    return Err(format!("{worker}: another launch is making {cwd}, and it does not stand yet"));
-  };
+  let _held = locks::hold(lock).await.map_err(|why| format!("{worker}: the lock of {cwd}: {why}"))?;
 
   if Path::new(cwd).join(".git").exists() {
     return Ok(());
@@ -105,28 +98,27 @@ fn set_up(at: &Path, bun: &str) -> Result<(), String> {
     return Ok(());
   }
 
-  let child = std::process::Command::new(bun)
+  // The setup runs until its script exits, however long a cold install takes.
+  let done = std::process::Command::new(bun)
     .args(["run", WORKTREE_SETUP_SCRIPT])
     .current_dir(at)
     .stdin(Stdio::null())
-    .stdout(Stdio::piped())
-    .stderr(Stdio::piped())
-    .spawn()
+    .output()
     .map_err(|why| format!("{}: {why}", at.display()))?;
-  let (code, stdout, stderr) = waited(child, SETUP_WAIT);
+  let code = done.status.code();
 
   if code == Some(0) {
     return Ok(());
   }
 
-  let whole = format!("{}{}", String::from_utf8_lossy(&stdout), String::from_utf8_lossy(&stderr));
+  let whole = format!("{}{}", String::from_utf8_lossy(&done.stdout), String::from_utf8_lossy(&done.stderr));
   let lines: Vec<&str> = whole.trim().lines().collect();
   let said = lines[lines.len().saturating_sub(8)..].join("\n");
 
   Err(format!(
     "{WORKTREE_SETUP_SCRIPT} failed in {} ({}):\n{said}",
     at.display(),
-    code.map_or_else(|| "timed out".to_owned(), |code| code.to_string())
+    code.map_or_else(|| "ended by a signal".to_owned(), |code| code.to_string())
   ))
 }
 
@@ -198,47 +190,6 @@ fn git_at(cwd: &str, args: &[&str]) -> Result<String, String> {
   let said = String::from_utf8_lossy(&done.stderr).trim().to_owned();
 
   Err(if said.is_empty() { format!("git {} failed", args.join(" ")) } else { said })
-}
-
-// A command given a wait: read on threads of its own so a full pipe never holds it, and killed where it
-// is still going when the wait is over.
-fn waited(mut child: std::process::Child, wait: Duration) -> (Option<i32>, Vec<u8>, Vec<u8>) {
-  use std::io::Read;
-
-  let mut out = child.stdout.take();
-  let mut err = child.stderr.take();
-  let reading_out = std::thread::spawn(move || {
-    let mut bytes = Vec::new();
-
-    if let Some(out) = out.as_mut() {
-      let _ = out.read_to_end(&mut bytes);
-    }
-
-    bytes
-  });
-  let reading_err = std::thread::spawn(move || {
-    let mut bytes = Vec::new();
-
-    if let Some(err) = err.as_mut() {
-      let _ = err.read_to_end(&mut bytes);
-    }
-
-    bytes
-  });
-  let until = std::time::Instant::now() + wait;
-  let code = loop {
-    match child.try_wait() {
-      Ok(Some(status)) => break status.code(),
-      Ok(None) if std::time::Instant::now() < until => std::thread::sleep(Duration::from_millis(100)),
-      _ => {
-        let _ = child.kill();
-        let _ = child.wait();
-        break None;
-      }
-    }
-  };
-
-  (code, reading_out.join().unwrap_or_default(), reading_err.join().unwrap_or_default())
 }
 
 /// The submodules the commit a checkout stands on pins, each cloned where it is missing and put on the

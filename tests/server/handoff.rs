@@ -1,7 +1,7 @@
 //! The handoff a chat agent's session going away is asked for (docs/sessions.md, 「A restart hands the session
 //! over」), against a stand-in receiver: a turn that resumes its session asks nothing, one that replaces a
-//! session asks once and waits for the answer, a handoff under way is waited on and asked again, and an
-//! answer that never comes is let go at the bound so the fresh session still opens.
+//! session asks once and waits for the answer however long it takes, a handoff under way is waited on and
+//! asked again, and a receiver that refuses the connection is let go so the fresh session still opens.
 
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
@@ -71,15 +71,7 @@ fn only_a_fresh_session_in_place_of_one_the_agent_had_asks() {
 async fn a_session_replaced_asks_once_with_its_reason_and_room_and_waits_for_the_file() {
   let (vars, heard) = receiver(vec![200], Duration::from_millis(200)).await;
   let started = Instant::now();
-  let handed = ask(
-    &vars,
-    "agent",
-    "the reason",
-    Some(-5),
-    Duration::from_secs(5),
-    Duration::from_millis(50),
-  )
-  .await;
+  let handed = ask(&vars, "agent", "the reason", Some(-5), Duration::from_millis(50)).await;
 
   assert_eq!(
     handed,
@@ -102,35 +94,37 @@ async fn a_session_replaced_asks_once_with_its_reason_and_room_and_waits_for_the
 #[tokio::test]
 async fn a_handoff_under_way_is_waited_on_and_asked_again() {
   let (vars, heard) = receiver(vec![409, 409, 204], Duration::ZERO).await;
-  let handed = ask(&vars, "agent", "why", None, Duration::from_secs(5), Duration::from_millis(20)).await;
+  let handed = ask(&vars, "agent", "why", None, Duration::from_millis(20)).await;
 
   assert_eq!(handed, Handed::Nothing);
   assert_eq!(heard.lock().unwrap().len(), 3);
 }
 
 #[tokio::test]
-async fn an_answer_that_never_comes_is_let_go_at_the_bound_and_said() {
-  let (vars, _) = receiver(vec![200], Duration::from_secs(30)).await;
-  let started = Instant::now();
-  let handed =
-    ask(&vars, "agent", "why", None, Duration::from_millis(300), Duration::from_millis(20)).await;
+async fn a_slow_answer_is_waited_for_and_a_refused_connection_is_let_go_and_said() {
+  let (vars, _) = receiver(vec![204], Duration::from_millis(1_500)).await;
+
+  assert_eq!(ask(&vars, "agent", "why", None, Duration::from_millis(20)).await, Handed::Nothing);
+
+  // A port nothing listens on: the connection is refused, which ends the ask.
+  let closed = TcpListener::bind("127.0.0.1:0").await.unwrap();
+  let port = closed.local_addr().unwrap().port();
+
+  drop(closed);
+
+  let vars = BTreeMap::from([
+    ("BMO_RECEIVER_URL".to_owned(), format!("http://127.0.0.1:{port}")),
+    ("BMO_RECEIVER_TOKEN".to_owned(), "secret".to_owned()),
+  ]);
+  let handed = ask(&vars, "agent", "why", None, Duration::from_millis(20)).await;
 
   assert!(matches!(handed, Handed::Failed(_)), "{handed:?}");
-  assert!(started.elapsed() < Duration::from_secs(5), "the launch is not held past the bound");
   assert!(handed.said().contains("opens all the same"));
 }
 
 #[tokio::test]
 async fn a_deployment_that_names_no_receiver_asks_nothing() {
-  let handed = ask(
-    &BTreeMap::new(),
-    "agent",
-    "why",
-    None,
-    Duration::from_secs(1),
-    Duration::from_millis(10),
-  )
-  .await;
+  let handed = ask(&BTreeMap::new(), "agent", "why", None, Duration::from_millis(10)).await;
 
   assert_eq!(handed, Handed::NoReceiver);
 }

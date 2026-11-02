@@ -78,7 +78,7 @@ impl Places {
   /// process runs: the workbenches made and the renamed checkouts moved as it starts; the dev panes of
   /// the workers a job holds, the heads and the room panes as it attaches to herdr and after every drop;
   /// the heads, the room panes and the checkouts again every ten minutes, with each pane a consumer
-  /// claims and marks idle taken down and each gate place unused past its bound ended; the servers a job
+  /// claims and marks idle taken down; the servers a job
   /// left swept every ten minutes; and the nodes' workspaces and the links to the work nodes as it starts
   /// and every minute. A process on a copy of the data root moves no checkout, sweeps no server and keeps
   /// no link: the machine is not the copy's.
@@ -132,7 +132,6 @@ impl Places {
 
         places.stand_heads().await;
         retire_idle(&places.ground).await;
-        places.kept.gate_places.fold_idle(&places.ground).await;
 
         Ok(())
       }

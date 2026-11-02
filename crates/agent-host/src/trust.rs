@@ -7,7 +7,7 @@
 
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use indexmap::IndexMap;
 use serde_json::Value;
@@ -17,10 +17,11 @@ const CONFIG_NAME: &str = ".claude.json";
 const TRUST_KEY: &str = "hasTrustDialogAccepted";
 const ONBOARDED_KEY: &str = "hasCompletedOnboarding";
 
-// How long the CLI's own lock on the file is waited for, and how old a lock may be before it is taken
-// as one its holder left behind.
-const LOCK_WAIT: Duration = Duration::from_secs(1);
+// How old a lock may be before it is taken as one its holder left behind: the CLI's holder touches its
+// lock every few seconds while it holds it, so an untouched one is a holder gone, not a slow one.
 const LOCK_STALE: Duration = Duration::from_secs(10);
+// How often a held lock is looked at again.
+const LOCK_LOOK: Duration = Duration::from_millis(25);
 
 /// How a folder stands in one configuration file once asked to be trusted there.
 #[derive(Debug, PartialEq, Eq)]
@@ -29,7 +30,6 @@ pub enum Trust {
   Written,
   NoConfigDir,
   Unreadable,
-  Busy,
 }
 
 impl Trust {
@@ -40,7 +40,6 @@ impl Trust {
       Self::Written => "written",
       Self::NoConfigDir => "no-config-dir",
       Self::Unreadable => "unreadable",
-      Self::Busy => "busy",
     }
   }
 
@@ -50,13 +49,12 @@ impl Trust {
   }
 }
 
-// The CLI's lock taken: made where nobody holds it, a holder's left behind past its age taken away.
-fn take_lock(lock: &Path) -> bool {
-  let until = Instant::now() + LOCK_WAIT;
-
+// The CLI's lock taken: made once nobody holds it, waited for until its holder lets it go, and a holder's
+// left behind — untouched past its age — taken away.
+fn take_lock(lock: &Path) {
   loop {
     if std::fs::create_dir(lock).is_ok() {
-      return true;
+      return;
     }
 
     let stale = std::fs::metadata(lock)
@@ -68,11 +66,7 @@ fn take_lock(lock: &Path) -> bool {
       continue;
     }
 
-    if Instant::now() >= until {
-      return false;
-    }
-
-    std::thread::sleep(Duration::from_millis(25));
+    std::thread::sleep(LOCK_LOOK);
   }
 }
 
@@ -146,9 +140,7 @@ pub fn trust_folder(file: &Path, folder: &str) -> Trust {
 
   let lock = PathBuf::from(format!("{}.lock", file.display()));
 
-  if !take_lock(&lock) {
-    return Trust::Busy;
-  }
+  take_lock(&lock);
 
   let trust = write_trusted(file, folder);
 
@@ -215,9 +207,7 @@ pub fn mark_onboarded(file: &Path) -> Trust {
 
   let lock = PathBuf::from(format!("{}.lock", file.display()));
 
-  if !take_lock(&lock) {
-    return Trust::Busy;
-  }
+  take_lock(&lock);
 
   let marked = write_onboarded(file);
 

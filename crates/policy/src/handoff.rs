@@ -6,10 +6,6 @@ use serde::Deserialize;
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Handoff {
-  /// The receiver's own bound on a handoff, in seconds.
-  pub bound_seconds: u64,
-  /// How long past that bound agency waits for the answer, in seconds.
-  pub margin_seconds: u64,
   /// How long agency waits before asking again while a handoff is under way, in seconds.
   pub retry_seconds: u64,
   pub reasons: Reasons,

@@ -330,16 +330,18 @@ OpenRouter — a gate's turn goes instead into a place kept for the program it n
   bound in tokens lets that session go after it answers: the program is ended, the place's session
   record removed and the same program written back, so the next turn begins a fresh dsh session on a
   program already standing again.
-- **An idle place is ended.** On the heads' clock each gate place unused for longer than the idle
-  bound, its lock free, is ended: its program released and its workspace closed. So is the program left
-  standing in the agent's own pane on such a road, once nothing has been put into it for as long.
+- **No clock ends a place.** A place stands, unused or not, until room is made for another program by
+  the count above, or until it is ended outright; how long it has gone unused ends nothing. Ending one
+  waits for the turn holding its lock to end, however long that takes, and then releases its program and
+  closes its workspace. A program left standing in the agent's own pane on such a road stands as any
+  resident program does.
 - **Each place keeps a record** of its agent, program and slot and of when a turn last let it go, so a
   server started again takes over the places standing from before, the sweep after a job's end counts
-  them as standing, and the idle pass reaches them.
-- **Its bounds are agency's policy** (`policy/gate-places.toml`): the most gate places standing at once,
-  eight; the most one program stands in, four, the pool the gate's own profile names for the translator;
-  the minutes a place may stand unused, thirty; and the session bound, 200,000 tokens. A place is one
-  bmo-tui with its dsh, which hold some 170 MB between them, so the bound keeps them under 1.5 GB.
+  them as standing, and the place unused longest is the one that makes room.
+- **Its bounds are agency's policy** (`policy/gate-places.toml`), counts and nothing else: the most gate
+  places standing at once, eight; the most one program stands in, four, the pool the gate's own profile
+  names for the translator; and the session bound, 200,000 tokens. A place is one bmo-tui with its dsh,
+  which hold some 170 MB between them, so the bound keeps them under 1.5 GB.
 - **What it ran is the agent's.** The run's log, its usage and the road it walked are the conversation
   agent's; the execution is filed under the place, as a pool slot's is.
 - On every other road a gate's turn stands where it stood: Claude Code's in the agent's own pane, on a
@@ -879,7 +881,8 @@ The owner's words:
     a word being answered in it — and a pane at work on
     a person's turn, which herdr reads as working or blocked, or does not answer about, or where the
     pane program's record holds a turn begun since the program started and not ended. After a job's
-    end the pass waits up to a minute for the ending runner to let the lock go.
+    end the pass waits for the ending runner to let the lock go, however long its ending takes; the
+    runner's process ending lets it go too.
   - A pin that cannot build its program — no tier mapping for the job key on that provider — leaves
     the place as it is.
   - A worker with no pin keeps whatever stands in its place, and a place with no program is stood as
@@ -1258,9 +1261,10 @@ flowchart TD
     put in or asked.
 - **A copy's host.** A run against a copy of the data root finds no live claim there, and its
   launcher starts that copy's agent host as a transient user unit with the same properties. Nothing
-  stands a copy's agents up again and no pass tidies them (「What goes where」), so a copy's host
-  gives up its claim once it has run nothing and answered nothing for ten minutes, and ends. The next
-  run on that root starts a fresh one. The bot's own host stands for good.
+  stands a copy's agents up again and no pass tidies them (「What goes where」). A copy's host stands
+  until its root is taken away (below), its claim is taken from it or its unit is stopped; how long it
+  has had nothing to do ends nothing. The next run on a root whose host has ended starts a fresh one.
+  The bot's own host stands for good.
 - **Where it keeps its own.** Everything the host writes for itself stands in one directory,
   `agent-host/` under the data root's executions directory: the claim, the inbox, its record of what
   it took, and the agents' view files. The envelopes stand beside that directory, never inside it.
@@ -1366,7 +1370,7 @@ flowchart TD
   left standing after its leader ended on a stop still killed, a leader that takes its time over a stop
   waited for, a collector gone before the grant starting nothing, cancellation and eligibility refusals, the
   policy re-read at the child's start, a collector that dies, the detached lifecycle, a supervisor
-  killed outright, the copy's idle stand-down and inbox pointer validation. Beside them, **a running
+  killed outright and inbox pointer validation. Beside them, **a running
   execution survives a restart of the host:** the host is killed while a supervised child streams,
   the child's output and outcome arrive whole, and the new host adopts the envelope.
 
@@ -2091,6 +2095,10 @@ with no recorded trust, and the transcript did not even appear. On screen:
   configuration file the trust was written to — not as waiting on a person, since no person is meant to
   answer it. A screen with any other question is not touched: that is a place a person answers, and the
   job ends `blocked`. Answering trust is the worker's line's decision, not the pane-turn place's.
+  - The lock is waited for until its holder lets it go, however long that takes. The CLI's lock is a
+    directory whose holder touches it every few seconds while it holds it, so one left untouched for
+    ten seconds is a holder that has gone, and is taken over: that reading is the lock's own sign of
+    life, not a bound on how long a live holder may keep it.
 - **Measured** by launching a first job on a worker pointing at a freshly cloned checkout with the real
   runner (archive copy): the pane was `blocked` at 4.4s, the runner answered and it was `idle` at 4.6s,
   `working` at 6.2s, `idle` at 7.9s, and the job ended `done` with answer, session and usage written. That

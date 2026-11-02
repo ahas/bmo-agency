@@ -37,9 +37,6 @@ pub const HERDR_SESSION: &str = "bmo";
 /// work」).
 const JOBS_SERVICE: &str = "jobs";
 
-// The longest any one step may take there: a cold build of the node's binaries takes the most.
-const COMMAND_MOST_SECONDS: u32 = 2_400;
-
 // How long a link may go without a word from the node before it is taken as down.
 const HEARD_WITHIN_MS: i64 = 20_000;
 
@@ -310,13 +307,11 @@ async fn captured(mut command: tokio::process::Command) -> ShellRun {
 impl SetupShell for SharedLogin {
   fn run<'a>(&'a self, command: &'a str) -> BoxFuture<'a, ShellRun> {
     Box::pin(async move {
-      // Bounded on the node itself: the shared connection holds a command's output for as long as the
-      // command runs there, so only its end there ends the wait here.
+      // The shared connection holds a command's output for as long as the command runs there, so its end
+      // there, or the connection breaking, ends the wait here; no clock cuts it.
       let mut ssh = tokio::process::Command::new("ssh");
 
-      ssh
-        .args(&self.login)
-        .arg(format!("timeout {COMMAND_MOST_SECONDS} bash -c {}", shell_word(command)));
+      ssh.args(&self.login).arg(format!("bash -c {}", shell_word(command)));
       captured(ssh).await
     })
   }

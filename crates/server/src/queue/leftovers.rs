@@ -319,13 +319,13 @@ pub async fn sweep(
 
 /// What a job's end leaves in herdr swept, once the end has been answered: this machine's herdr, and each
 /// ready work node's whose link the node service reports up, on its own socket; then the pinned workers'
-/// programs stood again, waiting a while for the checkout's lock the ended runner still holds.
+/// programs stood again, waiting for the checkout's lock the ended runner still holds to be let go.
 pub async fn after_job_end(ground: &Ground) {
   if let Err(refusal) = sweep_everywhere(ground).await {
     eprintln!("agency: leftover sweep: {}", refusal.detail);
   }
 
-  crate::places::standby::restand_all(ground, Some(crate::places::standby::AFTER_JOB_LOCK_WAIT)).await;
+  crate::places::standby::restand_all(ground, true).await;
 }
 
 /// What a job's end leaves in herdr swept on this machine's herdr, where one stands, and on each ready work

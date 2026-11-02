@@ -1,8 +1,7 @@
 //! A gate's places (docs/agent-control.md, 「A gate's places」): one set of places per program its ask
 //! composes, gates whose asks compose one program sharing them; a place takes one turn at a time and a
 //! program stands in up to its bound, every program's places together up to theirs, the one unused longest
-//! making room; a place unused past the idle bound is folded; and the records a server leaves are taken
-//! over by the next.
+//! making room, whatever its age; and the records a server leaves are taken over by the next.
 
 use agency_server::places::gate_places::{
   Asked, Board, Bounds, Record, place_name, recorded, recorded_place,
@@ -11,7 +10,6 @@ use agency_server::places::gate_places::{
 const BOUNDS: Bounds = Bounds {
   places: 3,
   per_program: 2,
-  idle_ms: 1_000,
 };
 
 fn asked<'a>(system: &'a str, model: &'a str) -> Asked<'a> {
@@ -86,19 +84,16 @@ fn turns_run_at_once_up_to_the_program_s_bound_and_every_program_s_together() {
 }
 
 #[test]
-fn a_place_unused_past_the_idle_bound_is_folded_and_one_at_work_is_not() {
+fn a_place_unused_for_however_long_stands_and_is_taken_again() {
   let mut board = Board::default();
 
   board.take("gate", "rules", 0, BOUNDS).unwrap();
-  board.take("gate", "library", 0, BOUNDS).unwrap();
   board.let_go("gate-rules-1", 100);
 
-  assert!(board.idle(1_000, BOUNDS).is_empty());
-  assert_eq!(board.idle(1_100, BOUNDS), ["gate-rules-1"]);
-  assert_eq!(board.standing(), ["gate-library-1"], "the place at work stays however long it works");
+  // A day unused ends nothing: the next turn of its program takes the same place, standing as it was.
+  let again = board.take("gate", "rules", 100 + 24 * 3_600_000, BOUNDS).unwrap();
 
-  // A folded place is stood afresh by the next turn of its program.
-  assert!(board.take("gate", "rules", 1_200, BOUNDS).is_some_and(|seated| seated.fresh));
+  assert_eq!((again.name.as_str(), again.fresh, again.ended), ("gate-rules-1", false, None));
 }
 
 #[test]
@@ -136,6 +131,5 @@ fn the_places_a_server_left_are_read_back_and_taken_over() {
 
   assert_eq!((again.name.as_str(), again.fresh), ("gate-rules-1", false));
   board.let_go("gate-rules-1", 60);
-  assert_eq!(board.idle(1_059, BOUNDS), Vec::<String>::new());
-  assert_eq!(board.idle(1_060, BOUNDS), ["gate-rules-1"]);
+  assert_eq!(board.standing(), ["gate-rules-1"]);
 }

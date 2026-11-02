@@ -38,7 +38,9 @@ pub const FAILURE_KIND: &str = "failure";
 const HOLD_TASKS: &str = "--hold-tasks";
 const HOLD_WORDING: &str = "--hold-wording";
 const COMPOSE_TYPED: &str = "--compose-typed";
-const TYPED_HOOK_SECONDS: u64 = 120;
+// The program kills a hook that outlasts its limit, so the submit hook is given the longest the program
+// takes, a day, and the composing it waits on is never cut short by the program.
+const TYPED_HOOK_SECONDS: u64 = 86_400;
 
 // How long a link's word on a node's processes stands.
 const NODE_HEARD_WITHIN_MS: i64 = 20_000;
@@ -492,7 +494,8 @@ impl Place {
       BufReader::new(stream).read_line(&mut answer).await.ok()
     };
 
-    let _ = tokio::time::timeout(std::time::Duration::from_secs(5), send).await;
+    // The link's answer is waited for until it comes or its socket closes.
+    let _ = send.await;
   }
 
   // Written whole and private: the command carries the login a program goes out on.

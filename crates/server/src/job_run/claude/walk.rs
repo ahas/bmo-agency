@@ -22,8 +22,8 @@ use crate::rest::{self, DeploymentResting, RestKind};
 // How close to its end a login has to be for a run to take the account's lock on the way out.
 const REFRESH_WINDOW_MS: f64 = 30.0 * 60_000.0;
 
-// How long a run waits for another run renewing the same login.
-const REFRESH_WAIT: Duration = Duration::from_secs(30);
+// How often a run waiting on another run's renewal looks at the credential again.
+const REFRESH_LOOK: Duration = Duration::from_millis(500);
 
 // How long a full window rests where the run named no reset moment.
 pub const REST_FALLBACK_MS: i64 = 3_600_000;
@@ -182,7 +182,9 @@ async fn closed(walking: &Walking<'_>, key: &str, carried: &[Account]) -> Result
 }
 
 /// The login is renewed by one run and not by several: where its credential is close to its end, this run
-/// takes the account's own lock on the way out and the others wait for what it wrote.
+/// takes the account's own lock on the way out and the others wait for what it wrote. A waiting run waits
+/// for that renewal, not for a span: it goes out once the credential is no longer near its end, or takes
+/// the lock once the holder lets it go, its process ending among the ways.
 pub async fn renewed<T>(
   data_root: &std::path::Path,
   account: &Account,
@@ -196,11 +198,16 @@ pub async fn renewed<T>(
   }
 
   let path = data_root.join("locks").join(format!("claude-account-{}.lock", account.id));
-  let Some(held) = locks::hold_within(path, REFRESH_WAIT).await else {
-    // Nobody released it in time; the run goes out rather than being lost.
-    eprintln!("claude account {}: waited out the renewal lock, going out anyway", account.id);
+  let held = loop {
+    if let Some(held) = locks::try_hold(&path) {
+      break Some(held);
+    }
 
-    return go.await;
+    if !due() {
+      break None;
+    }
+
+    tokio::time::sleep(REFRESH_LOOK).await;
   };
 
   if !due() {

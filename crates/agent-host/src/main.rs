@@ -13,9 +13,6 @@ use agent_host::supervise::{guard, supervise};
 use agent_host::trust::trust_folder;
 use clap::{Parser, Subcommand};
 
-// How long a copy's host may do nothing before it stands down.
-const COPY_IDLE: Duration = Duration::from_secs(600);
-
 #[derive(Parser)]
 #[command(name = "agent-host", about = "The agent host")]
 struct Cli {
@@ -33,12 +30,6 @@ enum Verb {
     /// The tree the host's code was built from, whose revision the claim names.
     #[arg(long)]
     code_root: Option<PathBuf>,
-    /// Stand down after ten minutes with nothing run and nothing taken: a copy's host.
-    #[arg(long)]
-    idle: bool,
-    /// The idle bound in milliseconds, in place of ten minutes.
-    #[arg(long)]
-    idle_ms: Option<u64>,
     /// How often the inbox and the executions are looked at, in milliseconds.
     #[arg(long, default_value_t = 20)]
     poll_ms: u64,
@@ -69,8 +60,6 @@ fn main() -> ExitCode {
     Verb::Serve {
       data_root,
       code_root,
-      idle,
-      idle_ms,
       poll_ms,
     } => {
       let Some(data_root) = data_root.filter(|root| !root.as_os_str().is_empty()).or_else(own_data_root)
@@ -79,7 +68,6 @@ fn main() -> ExitCode {
         return ExitCode::FAILURE;
       };
       let options = HostOptions {
-        idle: idle_ms.map(Duration::from_millis).or(idle.then_some(COPY_IDLE)),
         code_root: code_root.unwrap_or_else(own_code_root),
         poll: Duration::from_millis(poll_ms.max(1)),
         data_root,
@@ -89,7 +77,6 @@ fn main() -> ExitCode {
         Ended::Duplicate => {
           eprintln!("agent-host: {} is served by another host", options.data_root.display())
         }
-        Ended::Idle => eprintln!("agent-host: stood down after nothing to do"),
         Ended::RootGone => eprintln!("agent-host: {} is gone", options.data_root.display()),
         Ended::Stopped => {}
       })

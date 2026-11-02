@@ -82,17 +82,15 @@ impl Route for WorkerChange {
 
 /// The pinned workers' programs stood again (docs/agent-control.md, 「A worker standing with nothing to
 /// do」): what is asked where a change — a worker's own sampling saved, a `workers` word — asks for the
-/// pass. Refused where the server stands no places; answered at once, the pass not waited on, a lock still
-/// held waited on for the seconds named.
+/// pass. Refused where the server stands no places; answered at once, the pass not waited on, and a place
+/// whose locks are held left to a later pass.
 pub struct WorkersStand;
 
 impl Route for WorkersStand {
   const METHOD: Method = Method::POST;
   const PATH: &'static str = "/workers/stand";
 
-  async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
-    let body = call.body().await.unwrap_or(Value::Null);
-    let wait = body.get("lockWaitSeconds").and_then(Value::as_u64).map(std::time::Duration::from_secs);
+  async fn answer(&self, call: Call) -> Result<Response, Refused> {
     let Some(places) = call.places().cloned() else {
       return Err(Refused::new(
         StatusCode::CONFLICT,
@@ -100,7 +98,7 @@ impl Route for WorkersStand {
       ));
     };
 
-    tokio::spawn(async move { crate::places::standby::restand_all(&places.ground, wait).await });
+    tokio::spawn(async move { crate::places::standby::restand_all(&places.ground, false).await });
 
     Ok(ok())
   }
@@ -251,7 +249,7 @@ impl Hands {
   // The pinned workers' programs stood again after a pin moved, not waited on.
   fn restand(&self) {
     if let Some(places) = self.places.clone() {
-      tokio::spawn(async move { crate::places::standby::restand_all(&places.ground, None).await });
+      tokio::spawn(async move { crate::places::standby::restand_all(&places.ground, false).await });
     }
   }
 

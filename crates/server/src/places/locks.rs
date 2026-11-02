@@ -102,24 +102,6 @@ pub async fn hold(path: PathBuf) -> std::io::Result<Held> {
   .map_err(std::io::Error::other)?
 }
 
-/// The lock taken once whoever holds it lets go, waited for as long as given and no longer; none
-/// where it stayed held or the file could not be opened.
-pub async fn hold_within(path: PathBuf, wait: std::time::Duration) -> Option<Held> {
-  let until = tokio::time::Instant::now() + wait;
-
-  loop {
-    if let Some(held) = try_hold(&path) {
-      return Some(held);
-    }
-
-    if tokio::time::Instant::now() >= until {
-      return None;
-    }
-
-    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-  }
-}
-
 /// Whether somebody holds the lock. A file that is not there is held by nobody; one that cannot be
 /// opened is not taken for free, since nobody could say.
 pub fn held(path: &Path) -> bool {

@@ -53,9 +53,6 @@ const AGENT_TABLES: [&str; 3] = ["companion_settings", "agent_base_prompts", "se
 /// The tables keyed by a worker whose rows go with it: its sessions and the words said to it.
 const WORKER_TABLES: [&str; 2] = ["worker_sessions", "worker_words"];
 
-// How long a removal waits for the companion's execution rows still open to close before it takes them anyway.
-const OPEN_ROWS_WAIT: Duration = Duration::from_secs(30);
-
 /// One field of the body, trimmed; empty where it is missing or no text.
 pub(super) fn text(body: &Value, field: &str) -> String {
   body.get(field).and_then(Value::as_str).map(str::trim).unwrap_or_default().to_owned()
@@ -304,7 +301,7 @@ impl Left {
       removed(&folder, &mut left);
     }
 
-    match crate::door::execution::forget_agent(&self.db, &self.data_root, agent, OPEN_ROWS_WAIT).await {
+    match crate::door::execution::forget_agent(&self.db, &self.data_root, agent).await {
       Ok(unremoved) => left.extend(unremoved),
       Err(refusal) => left.push(format!("its execution rows: {}", refusal.detail)),
     }

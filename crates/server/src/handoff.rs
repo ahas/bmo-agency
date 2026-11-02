@@ -4,7 +4,7 @@
 //! margin; a handoff already under way waited on and asked again; anything else let go, the turn going on.
 
 use std::collections::BTreeMap;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use policy::handoff::HANDOFF;
 use serde_json::{Value, json};
@@ -46,19 +46,14 @@ pub fn replaces(kept: bool, resuming: bool, standing: bool) -> bool {
   !resuming && (kept || standing)
 }
 
-/// How long the ask waits in all: the receiver's own bound and the margin.
-pub fn bound() -> Duration {
-  Duration::from_secs(HANDOFF.bound_seconds + HANDOFF.margin_seconds)
-}
-
 /// The receiver asked for `agent`'s handoff, with the reason and the room, under the deployment's address and
-/// token, and waited on until `bound` has passed: a 409 waited out `retry` and asked again.
+/// token, and waited on for its answer however long that takes: a 409 waited out `retry` and asked again,
+/// and only an error answer or a refused or broken connection ends the ask without a handoff.
 pub async fn ask(
   vars: &BTreeMap<String, String>,
   agent: &str,
   reason: &str,
   room: Option<i64>,
-  bound: Duration,
   retry: Duration,
 ) -> Handed {
   let (Some(url), Some(token)) = (
@@ -67,7 +62,6 @@ pub async fn ask(
   ) else {
     return Handed::NoReceiver;
   };
-  let deadline = Instant::now() + bound;
   let mut body = json!({ "reason": reason });
 
   if let Some(room) = room {
@@ -75,24 +69,14 @@ pub async fn ask(
   }
 
   loop {
-    let left = deadline.saturating_duration_since(Instant::now());
-
-    if left.is_zero() {
-      return Handed::Failed(format!("no answer within {} seconds", bound.as_secs()));
-    }
-
     let answer = reqwest::Client::new()
       .post(format!("{url}/handoffs/{agent}"))
       .bearer_auth(&token)
       .json(&body)
-      .timeout(left)
       .send()
       .await;
     let answer = match answer {
       Ok(answer) => answer,
-      Err(why) if why.is_timeout() => {
-        return Handed::Failed(format!("no answer within {} seconds", bound.as_secs()));
-      }
       Err(why) => return Handed::Failed(why.to_string()),
     };
 
@@ -106,22 +90,18 @@ pub async fn ask(
         };
       }
       204 => return Handed::Nothing,
-      409 => {
-        let wait = retry.min(deadline.saturating_duration_since(Instant::now()));
-
-        tokio::time::sleep(wait).await;
-      }
+      409 => tokio::time::sleep(retry).await,
       status => return Handed::Failed(format!("the receiver answered {status}")),
     }
   }
 }
 
-/// The handoff asked as the policy bounds it.
+/// The handoff asked as the policy paces it.
 pub async fn asked(
   vars: &BTreeMap<String, String>,
   agent: &str,
   reason: &str,
   room: Option<i64>,
 ) -> Handed {
-  ask(vars, agent, reason, room, bound(), Duration::from_secs(HANDOFF.retry_seconds)).await
+  ask(vars, agent, reason, room, Duration::from_secs(HANDOFF.retry_seconds)).await
 }

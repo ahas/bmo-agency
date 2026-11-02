@@ -9,7 +9,6 @@ use std::io;
 use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -28,9 +27,6 @@ use crate::view::{Views, began_line, ended_line, failure_lines, resting_line};
 pub struct HostOptions {
   pub data_root: PathBuf,
   pub code_root: PathBuf,
-  /// How long the host may run nothing and take nothing before it stands down: a copy's host. None
-  /// stands for good.
-  pub idle: Option<Duration>,
   pub poll: Duration,
 }
 
@@ -41,8 +37,6 @@ pub enum Ended {
   Duplicate,
   /// Asked to end, or its claim was taken from it.
   Stopped,
-  /// A copy's host that had nothing to do for its idle bound.
-  Idle,
   /// The data root was taken away, leaving nothing to serve.
   RootGone,
 }
@@ -134,7 +128,6 @@ struct Host {
   views: Views,
   me: ProcessIdentity,
   watched: BTreeMap<String, Watched>,
-  busy_at: Instant,
 }
 
 impl Host {
@@ -223,7 +216,6 @@ impl Host {
     }
 
     self.watched.insert(name, Watched { taken, child });
-    self.busy_at = Instant::now();
   }
 
   // One pointer read and removed, and its envelope taken where it is one to take.
@@ -368,7 +360,6 @@ impl Host {
 
       self.view(&one.taken.agent, &lines);
       let _ = fs::remove_file(self.taken_path(&name));
-      self.busy_at = Instant::now();
     }
   }
 }
@@ -388,7 +379,6 @@ pub fn serve(options: &HostOptions) -> io::Result<Ended> {
     layout,
     me: ProcessIdentity::own(),
     watched: BTreeMap::new(),
-    busy_at: Instant::now(),
   };
 
   if !host.claim(&options.code_root)? {
@@ -399,7 +389,6 @@ pub fn serve(options: &HostOptions) -> io::Result<Ended> {
 
   // The socket is bound only once the root is this host's, so a second host never takes it over.
   let asks = Arc::new(Mutex::new(Asks::new(&options.data_root)));
-  let asked_at = asks.lock().map_err(|_| io::Error::other("the answers are broken"))?.asked_at.clone();
   let socket = host.layout.socket();
 
   if let Err(why) = ask::listen(&socket, asks.clone()) {
@@ -409,7 +398,6 @@ pub fn serve(options: &HostOptions) -> io::Result<Ended> {
 
   let mut looked_at = Instant::now();
   let mut gave_way_at = Instant::now();
-  let mut last_ask = 0;
   let ended = loop {
     if signals::asked() {
       break Ended::Stopped;
@@ -436,20 +424,6 @@ pub fn serve(options: &HostOptions) -> io::Result<Ended> {
       if let Ok(mut asks) = asks.lock() {
         asks.give_way();
       }
-    }
-
-    // A head asking is the host being used as much as an execution running.
-    let asked = asked_at.load(Ordering::SeqCst);
-
-    if asked != last_ask {
-      last_ask = asked;
-      host.busy_at = Instant::now();
-    }
-
-    if !host.watched.is_empty() {
-      host.busy_at = Instant::now();
-    } else if options.idle.is_some_and(|idle| host.busy_at.elapsed() >= idle) {
-      break Ended::Idle;
     }
 
     thread::sleep(options.poll);

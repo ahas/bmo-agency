@@ -8,7 +8,6 @@ use std::io::{self, BufRead, BufReader, Write};
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -107,8 +106,6 @@ pub struct Asks {
   layout: Layout,
   // Since when each agent's written program has stood unheld.
   unheld_since: HashMap<String, Instant>,
-  // When anything was last asked, which keeps a copy's host from standing down.
-  pub asked_at: Arc<AtomicU64>,
 }
 
 impl Asks {
@@ -117,7 +114,6 @@ impl Asks {
       data_root: data_root.to_owned(),
       layout: Layout::new(data_root),
       unheld_since: HashMap::new(),
-      asked_at: Arc::new(AtomicU64::new(0)),
     }
   }
 
@@ -194,8 +190,6 @@ impl Asks {
 
   /// One request answered.
   pub fn answer(&mut self, request: Request) -> Answer {
-    self.asked_at.store(now_ms(), Ordering::SeqCst);
-
     match request {
       Request::Ask {
         agent,

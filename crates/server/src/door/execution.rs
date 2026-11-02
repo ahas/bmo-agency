@@ -88,17 +88,14 @@ const OPEN_POLL: Duration = Duration::from_millis(500);
 
 /// Every row naming this agent as the one it is for taken, once the agent itself is gone
 /// (docs/companions.md, 「Where a companion and its rooms come from」), with each row's envelope directory
-/// and the attempt count of a root no row holds any more. A row still open is waited on first, up to
-/// `wait`, since its collector writes it as it ends and would write back a row taken before then; past the
-/// wait every row goes. Answers what of the disk could not be removed.
+/// and the attempt count of a root no row holds any more. A row still open is waited on until it closes,
+/// however long that takes, since its collector writes it as it ends and would write back a row taken
+/// before then. Answers what of the disk could not be removed.
 pub async fn forget_agent(
   db: &DatabaseConnection,
   data_root: &Path,
   agent: &str,
-  wait: Duration,
 ) -> Result<Vec<String>, Refusal> {
-  let until = tokio::time::Instant::now() + wait;
-
   loop {
     let open = one(
       db,
@@ -109,13 +106,12 @@ pub async fn forget_agent(
     .await?
     .and_then(|row| row.try_get::<i64>("", "open").ok())
     .unwrap_or(0);
-    let now = tokio::time::Instant::now();
 
-    if open == 0 || now >= until {
+    if open == 0 {
       break;
     }
 
-    tokio::time::sleep(OPEN_POLL.min(until - now)).await;
+    tokio::time::sleep(OPEN_POLL).await;
   }
 
   let taken = all(

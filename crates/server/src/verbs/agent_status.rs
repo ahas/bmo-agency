@@ -14,7 +14,6 @@
 
 use std::collections::BTreeMap;
 use std::path::Path;
-use std::time::Duration;
 
 use serde_json::{Value, json};
 
@@ -29,10 +28,6 @@ use crate::door::record::{read_turn, turns_owed};
 use crate::door::turn::program_login;
 use crate::lines::place::{FAILURE_KIND, SHELL_KIND};
 use crate::wording::{banned_terms_in, banned_terms_line, read_glossary};
-
-/// How long the program gives the submit hook where its line composes typed lines; the hook gives up on the
-/// service a little before that, so the line always goes on with a word of what happened.
-pub const TYPED_HOOK_SECONDS: u64 = 120;
 
 const KINDS: [&str; 6] = ["status", "stop", FAILURE_KIND, "submit", "start", SHELL_KIND];
 
@@ -154,15 +149,10 @@ fn missing(why: &str) -> String {
 }
 
 /// What the submit hook prints for a typed line: the composition the service answers with, as the program's
-/// added context; or, where the service cannot be asked or does not answer within the wait, a line saying
-/// the composition is missing and why. Either way the line goes on.
-pub async fn typed_hook_output(
-  text: &str,
-  session: &str,
-  port: u16,
-  token: Option<&str>,
-  wait: Duration,
-) -> String {
+/// added context; or, where the service cannot be asked, refuses the connection or answers an error, a
+/// line saying the composition is missing and why. Either way the line goes on. The service's answer is
+/// waited for however long the composing takes.
+pub async fn typed_hook_output(text: &str, session: &str, port: u16, token: Option<&str>) -> String {
   let context = match token {
     None => missing(&format!("the program has no {CONTROL_TOKEN} to ask agency with")),
     Some(token) => {
@@ -170,7 +160,6 @@ pub async fn typed_hook_output(
         .post(format!("http://127.0.0.1:{port}/typed-line"))
         .bearer_auth(token)
         .json(&json!({ "text": text, "sessionId": session }))
-        .timeout(wait)
         .send()
         .await;
 
@@ -298,16 +287,7 @@ pub async fn agent_status(asked: &Asked, input: &str, ground: &Ground<'_>) -> Ve
     )
     .or_else(control_token);
 
-    printed.push(
-      typed_hook_output(
-        &text,
-        &session,
-        port,
-        token.as_deref(),
-        Duration::from_secs(TYPED_HOOK_SECONDS - 10),
-      )
-      .await,
-    );
+    printed.push(typed_hook_output(&text, &session, port, token.as_deref()).await);
   }
 
   printed

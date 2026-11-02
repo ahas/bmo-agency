@@ -2,21 +2,15 @@ import { mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
 
 // The holder keeps the OS lock across preparation, local summarising and delivery, not only
-// across the model process. Closing stdin releases it even when the owning runner dies.
-//
-// A caller that will not wait can still give the lock a moment: `waitSeconds` is for one that means
-// to refuse a holder who is really working but not one who is on the way out, since a holder
-// letting go is gone within a second or two and one at work is there for hours.
+// across the model process. Closing stdin releases it even when the owning runner dies. A caller
+// either takes it at once or not at all, or waits for the holder to let it go however long that takes.
 export async function withAgentLock<T>(
   path: string,
   nonBlocking: boolean,
   run: () => Promise<T>,
-  waitSeconds?: number,
 ): Promise<T | null> {
   await mkdir(dirname(path), { recursive: true });
-  const waiting = nonBlocking
-    ? [...(waitSeconds === undefined ? ["--nonblock"] : ["--wait", String(waitSeconds)]), "--conflict-exit-code", "75"]
-    : [];
+  const waiting = nonBlocking ? ["--nonblock", "--conflict-exit-code", "75"] : [];
   const holder = Bun.spawn(["flock", ...waiting, path,
     "sh", "-c", "printf 'locked\n'; cat >/dev/null"], { env: { ...process.env }, stdin: "pipe", stdout: "pipe", stderr: "pipe" });
   const errors = new Response(holder.stderr).text();

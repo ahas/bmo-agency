@@ -79,11 +79,6 @@ export const noticeAheadMs = declaredLogin.notice_ahead_hours * 60 * 60_000;
 // says nothing about its end, so the day its file was written is the day it was issued.
 export const tokenLifeMs = declaredLogin.token_life_days * 24 * 60 * 60_000;
 
-// How long a run waits for another run's renewal before going out anyway. A renewal is one
-// request; a wait longer than this is a lock nobody is going to release, and a run that never went
-// out is worse than one that went out beside another.
-const refreshWaitSeconds = 30;
-
 /**
  * Where an account's own lock sits: one file per login, under the runtime data root. The locks
  * directory is made by whichever holder of it runs first on a machine, so a renewal does not
@@ -421,8 +416,9 @@ export async function tellAboutLogin(
  * nowhere near its end — which is nearly always — nothing is taken and the run goes out at once.
  * Where it is close, the account's own lock is taken first: whoever holds it is the run whose CLI
  * renews the login, and every other run of that account waits and then goes out on what that
- * renewal wrote. The lock is the renewal's, not the run's: it is taken only inside that window,
- * and a wait that cannot be had in time lets the run go rather than losing it.
+ * renewal wrote. The lock is the renewal's, not the run's: it is taken only inside that window.
+ * A waiting run waits for its event, not for a span: the credential no longer near its end, or the
+ * holder letting the lock go, its process ending among the ways.
  */
 export async function withRenewedLogin<T>(
   deps: { archive: Archive | null },
@@ -444,12 +440,11 @@ export async function withRenewedLogin<T>(
     return go();
   }
 
-  const held = await takeLock(accountLockPath(recordedAccount(account)), refreshWaitSeconds);
+  const held = await takeLock(accountLockPath(recordedAccount(account)), { waitedOut: () => !due() });
 
   if (held === null) {
-    // Nobody released it in time. The run goes out rather than being lost; at worst it renews
-    // beside another, which is what the lock exists to make rare rather than impossible.
-    console.error(`claude account ${account.id}: waited out the renewal lock, going out anyway`);
+    // Another run renewed it while this one waited: what it wrote is what this run uses.
+    console.log(`claude account ${account.id}: another run renewed its login, using what it wrote`);
 
     return go();
   }

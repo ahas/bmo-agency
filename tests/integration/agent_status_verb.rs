@@ -8,7 +8,6 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
 
 use agency_server::door::place_run::{
   begin_run, end_run, hand_run, person_submits, read_hooks, read_run, read_status,
@@ -453,22 +452,20 @@ async fn a_typed_line_goes_on_with_a_line_saying_why_where_the_service_cannot_co
     assert_eq!(said["hookSpecificOutput"]["hookEventName"], "UserPromptSubmit");
     said["hookSpecificOutput"]["additionalContext"].as_str().unwrap().to_owned()
   };
-  let wait = Duration::from_secs(5);
   let refused = refusing().await;
   // A port nothing listens on: one bound and let go.
   let gone = TcpListener::bind("127.0.0.1:0").await.unwrap().local_addr().unwrap().port();
 
   assert!(
-    context(typed_hook_output("plan", SESSION, gone, None, wait).await)
+    context(typed_hook_output("plan", SESSION, gone, None).await)
       .contains("could not be composed (the program has no AGENCY_CONTROL_TOKEN to ask agency with)")
   );
   assert!(
-    context(typed_hook_output("plan", SESSION, refused, Some("t"), wait).await)
+    context(typed_hook_output("plan", SESSION, refused, Some("t")).await)
       .contains("(agency answered 501: no consumer composes a typed line)")
   );
   assert!(
-    context(typed_hook_output("plan", SESSION, gone, Some("t"), wait).await)
-      .ends_with("so it goes on as typed.")
+    context(typed_hook_output("plan", SESSION, gone, Some("t")).await).ends_with("so it goes on as typed.")
   );
 }
 

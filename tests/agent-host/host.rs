@@ -631,24 +631,6 @@ fn a_supervisor_killed_outright_takes_its_childs_group_with_it() {
 }
 
 #[test]
-fn a_copys_host_stands_down_once_idle_but_not_while_it_runs_something() {
-  let root = Root::new();
-  let mut host = root.start(&["--idle-ms", "400"]);
-  let dir = root.envelope("held", "sleep 0.8", json!({ "owner": null }));
-
-  root.grant(&dir);
-  root.place("gate", &dir);
-  thread::sleep(Duration::from_millis(600));
-  assert!(root.claim().is_some(), "stood down while it held something");
-
-  let status = host.ended(4_000).expect("never stood down");
-
-  assert!(status.success());
-  assert!(root.claim().is_none());
-  assert!(dir.join("outcome.json").exists());
-}
-
-#[test]
 fn only_an_agent_tagged_pointer_to_a_plain_envelope_among_the_envelopes_is_taken() {
   let root = Root::new();
   let _host = root.start(&[]);

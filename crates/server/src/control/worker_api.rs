@@ -298,7 +298,7 @@ impl Route for ChangeWorker {
       && body.get("stand").and_then(Value::as_bool) == Some(true)
       && let Some(places) = call.places().cloned()
     {
-      tokio::spawn(async move { crate::places::standby::restand_all(&places.ground, None).await });
+      tokio::spawn(async move { crate::places::standby::restand_all(&places.ground, false).await });
     }
 
     if body.get("bench").and_then(Value::as_bool) == Some(true) {

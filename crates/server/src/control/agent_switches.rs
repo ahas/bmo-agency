@@ -235,7 +235,7 @@ impl Route for AgentReasoning {
     if kind == "worker"
       && let Some(places) = call.places().cloned()
     {
-      tokio::spawn(async move { crate::places::standby::restand_all(&places.ground, None).await });
+      tokio::spawn(async move { crate::places::standby::restand_all(&places.ground, false).await });
     }
 
     Ok(answer(
@@ -393,7 +393,7 @@ impl Route for ChangeAgent {
         // A worker's standing program is stood again on its new pin, not waited on.
         Ok(kind) if kind == "worker" => {
           if let Some(places) = call.places().cloned() {
-            tokio::spawn(async move { crate::places::standby::restand_all(&places.ground, None).await });
+            tokio::spawn(async move { crate::places::standby::restand_all(&places.ground, false).await });
           }
         }
         Ok(_) => {}

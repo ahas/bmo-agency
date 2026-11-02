@@ -13,9 +13,8 @@ import { homeDir } from "@agency/support/roots";
 const configName = ".claude.json";
 const trustKey = "hasTrustDialogAccepted";
 
-// How long the CLI's own lock on the file is waited for, and how old a lock may be before it is
-// taken as one its holder left behind.
-const lockWaitMs = 1_000;
+// How old a lock may be before it is taken as one its holder left behind: the CLI's holder touches its
+// lock every few seconds while it holds it, so an untouched one is a holder gone, not a slow one.
 const lockStaleMs = 10_000;
 
 /**
@@ -49,14 +48,13 @@ function entryTrusts(entry: unknown): boolean {
 }
 
 // The CLI's lock on its configuration file is a directory beside it, and holding it is what keeps a
-// program saving its configuration from writing back a copy read before this one's entry.
-function takeLock(lock: string, waitMs: number): boolean {
-  const until = Date.now() + waitMs;
-
+// program saving its configuration from writing back a copy read before this one's entry. It is waited
+// for until its holder lets it go, however long that takes.
+function takeLock(lock: string): void {
   for (;;) {
     try {
       mkdirSync(lock);
-      return true;
+      return;
     } catch {
       // Held: by a writer at work, or by one that died holding it.
     }
@@ -70,27 +68,25 @@ function takeLock(lock: string, waitMs: number): boolean {
       continue;
     }
 
-    if (Date.now() >= until) return false;
-
     Bun.sleepSync(25);
   }
 }
 
 /** How a folder stands in one configuration file once asked to be trusted there. */
-export type FolderTrust = "trusted" | "written" | "no-config-dir" | "unreadable" | "busy";
+export type FolderTrust = "trusted" | "written" | "no-config-dir" | "unreadable";
 
 /**
  * The folder written as trusted in the file, every other entry kept as it stood. Nothing is written
  * where the folder is already trusted, where the configuration directory is not there — no login
  * lives in it — or where the file is there and is not the CLI's configuration.
  */
-export function trustFolder(file: string, folder: string, options: { lockWaitMs?: number } = {}): FolderTrust {
+export function trustFolder(file: string, folder: string): FolderTrust {
   if (!isAbsolute(folder)) throw new Error(`folder trust is kept by absolute path, not ${folder}`);
   if (!existsSync(dirname(file))) return "no-config-dir";
 
   const lock = `${file}.lock`;
 
-  if (!takeLock(lock, options.lockWaitMs ?? lockWaitMs)) return "busy";
+  takeLock(lock);
 
   try {
     const present = existsSync(file);
@@ -123,12 +119,12 @@ export function trustFolder(file: string, folder: string, options: { lockWaitMs?
  * interactive program started on one asks for a colour theme before it takes anything. Nothing is
  * written where the file says so already, or where the directory is not there.
  */
-export function markOnboarded(file: string, options: { lockWaitMs?: number } = {}): "onboarded" | "written" | "no-config-dir" | "unreadable" | "busy" {
+export function markOnboarded(file: string): "onboarded" | "written" | "no-config-dir" | "unreadable" {
   if (!existsSync(dirname(file))) return "no-config-dir";
 
   const lock = `${file}.lock`;
 
-  if (!takeLock(lock, options.lockWaitMs ?? lockWaitMs)) return "busy";
+  takeLock(lock);
 
   try {
     const present = existsSync(file);

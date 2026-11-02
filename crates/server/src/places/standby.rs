@@ -6,13 +6,12 @@
 //! road resolution」).
 //!
 //! The pass runs before every head is stood — as this process attaches to herdr and on the heads'
-//! clock — and over the pinned workers as a pin changes and after a job's end, then waiting a while for
-//! the checkout's lock the ended runner still holds. A job or a word at work holds a lock, and its place
+//! clock — and over the pinned workers as a pin changes and after a job's end, then waiting for the
+//! checkout's lock the ended runner still holds to be let go, however long that takes. A job or a word at work holds a lock, and its place
 //! is left to it; a person's turn at work leaves the place to a later pass. A process on a copy of the
 //! data root stands none, so a copy never holds a program per worker.
 
 use std::path::Path;
-use std::time::Duration;
 
 use harness_providers::{Machine, provider, standing_provider};
 use policy::fill_marks;
@@ -21,7 +20,7 @@ use policy::providers::Turns;
 use serde_json::{Value, json};
 use store::{all, one, run};
 
-use super::locks::{Held, hold_within, lock_path, pane_lock_path, try_hold};
+use super::locks::{Held, hold, lock_path, pane_lock_path, try_hold};
 use super::trust::trust_worker_folder;
 use super::{AgentRow, Ground};
 use crate::control::fallback::fallback_provider;
@@ -36,23 +35,14 @@ use crate::queue::routes::{JOB_WORK_KEY, worker_pin_held};
 use crate::road::{self, Ask};
 use crate::{Refusal, now_ms};
 
-/// How long the pass after a job's end waits for the checkout's lock the ended runner still holds.
-pub const AFTER_JOB_LOCK_WAIT: Duration = Duration::from_secs(60);
-
 const CLAUDE_CODE: &str = "claude-code";
 
 // The upkeep of a worker's pane takes the checkout's job lock and then the worker's pane lock, both
 // without waiting, so it never stands in the way of a job or a word, and is given up that round where
-// either is held; a caller that knows a lock is about to be let go says how long to wait for it.
-async fn worker_pane(
-  ground: &Ground,
-  worker: &str,
-  cwd: &str,
-  wait: Option<Duration>,
-) -> Option<(Held, Held)> {
-  let take = async |path: std::path::PathBuf| match wait {
-    None => try_hold(&path),
-    Some(wait) => hold_within(path, wait).await,
+// either is held; a caller that knows a lock is about to be let go waits for it to be.
+async fn worker_pane(ground: &Ground, worker: &str, cwd: &str, wait: bool) -> Option<(Held, Held)> {
+  let take = async |path: std::path::PathBuf| {
+    if wait { hold(path).await.ok() } else { try_hold(&path) }
   };
   let job = take(lock_path(&ground.roots.data, cwd)).await?;
   let pane = take(pane_lock_path(&ground.roots.data, worker)).await?;
@@ -85,16 +75,11 @@ fn record_turn_open(place: &Path, since: u64) -> bool {
   })
 }
 
-// What herdr says the agent in a pane is doing, its list call sent again once where it timed out; none
-// where herdr did not answer or no longer lists the pane.
+// What herdr says the agent in a pane is doing; none where herdr did not answer or no longer lists the
+// pane.
 async fn pane_status(ground: &Ground, pane: &str) -> Option<String> {
   let herdr = ground.herdr.as_ref()?;
-  let mut answer = herdr.call("agent.list", json!({}), None).await;
-
-  if answer.as_ref().is_err_and(|fault| fault.code == "timeout") {
-    answer = herdr.call("agent.list", json!({}), None).await;
-  }
-
+  let answer = herdr.call("agent.list", json!({}), None).await;
   let Ok(answer) = answer else { return Some("silent".to_owned()) };
   let found = answer.get("agents").and_then(Value::as_array).and_then(|agents| {
     agents.iter().find(|agent| agent.get("pane_id").and_then(Value::as_str) == Some(pane))
@@ -216,7 +201,7 @@ pub async fn stand_idle(ground: &Ground, row: &AgentRow) -> Result<(), Refusal> 
   claim_standby(ground, &row.name, &place).await?;
 
   if place.program().is_some() {
-    return restand_pinned(ground, row, None).await;
+    return restand_pinned(ground, row, false).await;
   }
 
   if !Path::new(&cwd).exists() {
@@ -227,7 +212,7 @@ pub async fn stand_idle(ground: &Ground, row: &AgentRow) -> Result<(), Refusal> 
   let pin = pinned_road(ground, &row.name).await?;
 
   if let Some((pinned, model)) = pin.as_ref().filter(|(pinned, _)| pinned != CLAUDE_CODE) {
-    let Some(_locks) = worker_pane(ground, &row.name, &cwd, None).await else {
+    let Some(_locks) = worker_pane(ground, &row.name, &cwd, false).await else {
       return Ok(());
     };
     let Some(standing) =
@@ -262,7 +247,7 @@ pub async fn stand_idle(ground: &Ground, row: &AgentRow) -> Result<(), Refusal> 
     return Ok(());
   }
 
-  let Some(_locks) = worker_pane(ground, &row.name, &cwd, None).await else {
+  let Some(_locks) = worker_pane(ground, &row.name, &cwd, false).await else {
     return Ok(());
   };
   let standing = claude_program(ground, &machine, &row.name, &cwd).await?;
@@ -333,11 +318,7 @@ async fn pinned_road(ground: &Ground, worker: &str) -> Result<Option<(String, Op
 /// one is ended, or — for a pin whose program stands only with a turn — the place handed back to the
 /// host. A worker with no pin, a place holding its pin's own program, and a checkout that is not there
 /// are left as they are; so is a place whose locks are held or whose pane is at work on a person's turn.
-pub async fn restand_pinned(
-  ground: &Ground,
-  row: &AgentRow,
-  wait: Option<Duration>,
-) -> Result<(), Refusal> {
+pub async fn restand_pinned(ground: &Ground, row: &AgentRow, wait: bool) -> Result<(), Refusal> {
   if row.kind != "worker" || ground.copy().is_some() {
     return Ok(());
   }
@@ -508,8 +489,9 @@ pub async fn release_stale_companions(ground: &Ground) {
   }
 }
 
-/// Every worker's pane checked against its pin, as a pin change or a job's end asks.
-pub async fn restand_all(ground: &Ground, wait: Option<Duration>) {
+/// Every worker's pane checked against its pin, as a pin change or a job's end asks; the job's end waits
+/// for the locks its ending runner still holds to be let go.
+pub async fn restand_all(ground: &Ground, wait: bool) {
   let rows = match AgentRow::standing(&ground.db).await {
     Ok(rows) => rows,
     Err(refusal) => return eprintln!("standby: {}", refusal.detail),

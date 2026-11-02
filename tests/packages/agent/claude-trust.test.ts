@@ -1,6 +1,6 @@
 import "@agency/test-support/setup";
 
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, describe, expect, test } from "bun:test";
 
@@ -44,7 +44,7 @@ describe("trusting a folder", () => {
     expect(readFileSync(file, "utf8")).toBe(text);
   });
 
-  test("leaves alone a directory that is not there, a file that is not the CLI's, and a file held by its lock", () => {
+  test("leaves alone a directory that is not there and a file that is not the CLI's, and takes over a lock its holder left behind", () => {
     const missing = join(root, "no-such-login", ".claude.json");
     const broken = join(configDir(), ".claude.json");
     const locked = join(configDir(), ".claude.json");
@@ -52,13 +52,15 @@ describe("trusting a folder", () => {
     writeFileSync(broken, "{ half");
     writeFileSync(locked, "{}");
     mkdirSync(`${locked}.lock`);
+    // Untouched for longer than a live holder ever leaves it: a holder that has gone.
+    utimesSync(`${locked}.lock`, new Date(Date.now() - 60_000), new Date(Date.now() - 60_000));
 
     expect(trustFolder(missing, "/work/a")).toBe("no-config-dir");
     expect(existsSync(join(root, "no-such-login"))).toBe(false);
     expect(trustFolder(broken, "/work/a")).toBe("unreadable");
     expect(readFileSync(broken, "utf8")).toBe("{ half");
-    expect(trustFolder(locked, "/work/a", { lockWaitMs: 0 })).toBe("busy");
-    expect(readFileSync(locked, "utf8")).toBe("{}");
+    expect(trustFolder(locked, "/work/a")).toBe("written");
+    expect(existsSync(`${locked}.lock`)).toBe(false);
     expect(() => trustFolder(broken, "work/a")).toThrow();
   });
 });

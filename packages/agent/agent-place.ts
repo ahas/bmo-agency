@@ -350,10 +350,10 @@ export const holdFlag = "--hold-tasks";
 export const wordingHoldFlag = "--hold-wording";
 
 // The word the submit hook is started with where its line composes a person's typed line, and how
-// long the program gives that hook: the composing asks the reference gates, and the hook gives up a
-// little before this so the line still goes on with a word of why.
+// long the program gives that hook: the program kills a hook that outlasts its limit, so the hook is
+// given the longest the program takes, a day, and the composing it waits on is never cut short.
 export const typedFlag = "--compose-typed";
-export const typedHookSeconds = 120;
+export const typedHookSeconds = 86_400;
 
 // Whether a submit opens a person's turn: no run of the bot's is going in the place, and the bot has
 // handed it no word still to arrive. Asked before the submit is recorded, since recording it opens

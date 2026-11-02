@@ -5,7 +5,6 @@
 //! thrown-away session does not outlive the process that started it.
 
 use std::path::Path;
-use std::time::Duration;
 
 use agent_session::SessionId;
 use serde_json::{Value, json};
@@ -13,13 +12,10 @@ use serde_json::{Value, json};
 use crate::lines::place::{Place, places_dir, token_of};
 use crate::lines::token;
 use crate::places::Ground;
-use crate::places::locks::{agent_lock_path, hold_within};
+use crate::places::locks::{agent_lock_path, hold};
 
 /// The record a thrown-away session's place keeps while the session stands, naming the session.
 pub const PLACE_RECORD: &str = "apart-place.json";
-
-// How long the end of a session's place waits for a turn still holding it.
-const END_WAIT: Duration = Duration::from_secs(30);
 
 /// The place a thrown-away session's turns go into, by the session's id: its agent and its number.
 pub fn place_name(session: &SessionId) -> String {
@@ -77,11 +73,13 @@ pub fn mark(ground: &Ground, name: &str, session: &SessionId) -> Result<(), Stri
 }
 
 /// A session's place ended: its program released, the session token it carried taken back, its workspace
-/// closed and its folder taken away, under its lock.
+/// closed and its folder taken away, under its lock, taken once a turn still holding it ends however long
+/// that takes.
 pub async fn end(ground: &Ground, name: &str) {
   let data = &ground.roots.data;
-  let Some(_held) = hold_within(agent_lock_path(data, name), END_WAIT).await else {
-    return eprintln!("thrown-away place {name}: a turn still holds it, so it was not ended");
+  let _held = match hold(agent_lock_path(data, name)).await {
+    Ok(held) => held,
+    Err(fault) => return eprintln!("thrown-away place {name}: its lock could not be taken ({fault})"),
   };
   let place = Place::of(data, name);
 

@@ -91,10 +91,10 @@ statements below about either are kept for a rollback to the road a deployment l
     a restart that opens a fresh session asks as any other does;
   - **the answer:** 200 with the handoff file's path and size where the old session wrote one, 204 where
     there was nothing to ask or it wrote nothing; a 409, a handoff already under way, is waited on and
-    asked again; the wait is bounded by the receiver's own handoff bound and a margin
-    (`policy/handoff.toml`), and an error, a refusal or the bound passing lets the turn go on — the
-    fresh session is opened all the same, and the run log says the handoff was not had and why. A
-    deployment that names no receiver asks nothing.
+    asked again a few seconds later (`policy/handoff.toml`); the ask waits for the receiver's answer
+    however long the handoff takes, and no clock cuts it. An error answer, a refusal or a broken
+    connection lets the turn go on — the fresh session is opened all the same, and the run log says the
+    handoff was not had and why. A deployment that names no receiver asks nothing.
 
 ## Document reload
 

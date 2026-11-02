@@ -135,9 +135,8 @@ fn installer(url: &str, args: &str) -> String {
   )
 }
 
-// Claude Code's own installer, bounded, and its binary put where the installer puts it where its own
-// install step did not finish: under a login with no terminal that step can spin without end with the
-// binary it fetched already whole beside it.
+// Claude Code's own installer, waited on until it exits, and its binary put where the installer puts it
+// where its own install step did not finish with the binary it fetched already whole beside it.
 fn claude_installer() -> String {
   let place = [
     r#"f=$(ls -t "$HOME"/.claude/downloads/claude-*-linux-* 2>/dev/null | head -1)"#,
@@ -146,7 +145,7 @@ fn claude_installer() -> String {
   .join("; ");
 
   format!(
-    r#"curl -fsSL https://claude.ai/install.sh -o /tmp/bmo-install-claude.sh && timeout 300 bash /tmp/bmo-install-claude.sh </dev/null; rm -f /tmp/bmo-install-claude.sh; test -x "$HOME/.local/bin/claude" || {{ {place}; }}"#
+    r#"curl -fsSL https://claude.ai/install.sh -o /tmp/bmo-install-claude.sh && bash /tmp/bmo-install-claude.sh </dev/null; rm -f /tmp/bmo-install-claude.sh; test -x "$HOME/.local/bin/claude" || {{ {place}; }}"#
   )
 }
 

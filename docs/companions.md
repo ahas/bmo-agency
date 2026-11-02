@@ -36,7 +36,8 @@ are the companion unit's, not agency's. This document covers only what agency ho
     its sampling, its reset point and its row;
   - then what stands for it: its program killed, so it writes no record of what the removal took, its
     workspace closed, its place and home folder taken away, its execution rows with their envelopes —
-    an open row waited on for thirty seconds first, since its collector writes it as it ends — the
+    an open row waited on until it closes, however long that takes, since its collector writes it as it
+    ends — the
     agent host's view and head records of it, its agent lock, and the brain asked to forget its
     folder's editing lock. What could not go is logged and refuses nothing, since the removal is
     written.

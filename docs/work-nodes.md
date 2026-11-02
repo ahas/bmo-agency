@@ -14,13 +14,16 @@ side of a remote agent, the rotation, and what a dropped node does.
   the node's home unless named.
 - **Every command of a setup goes over one connection,** which the first makes and the rest share,
   held under the runtime directory: a node may refuse a run of logins made in quick succession, as a
-  firewall limiting SSH does. Each command is bounded on the node itself, since the shared connection
-  holds a command's output for as long as it runs there.
+  firewall limiting SSH does. Each command runs there until it ends, however long a cold build takes:
+  the shared connection holds a command's output for as long as it runs, and the command's end there, or
+  the connection breaking, is what ends the wait here. No clock cuts a step.
 - **What setup makes, each step checked before the next, and everything still missing said:**
   1. the login, and the node's home read through it;
   2. the tools: git, rsync and curl are the machine's to have; the JavaScript runtime, the Rust
      toolchain and Claude Code are installed into the node's account with `--install`, each installer
-     fetched into a file and run with nothing on its standing input. The runtime is the version this
+     fetched into a file and run with nothing on its standing input, and waited on until it exits;
+     where Claude Code's own install step ended without putting the binary in place, the binary it
+     fetched is put there from its downloads. The runtime is the version this
      machine runs, since a newer one may refuse the repository's own configuration, and the Rust
      toolchain is this machine's version, installed beside the account's own and named for the node's
      build alone, so the account's default stays as it was;

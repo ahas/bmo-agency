@@ -417,8 +417,9 @@ When a demotion first catches — when a healthy session first drops — two thi
   two of them renewing at once would leave each holding a credential the other has replaced. So a run
   whose login is near its end takes that account's own lock on the way out: the holder is the run whose
   CLI renews, and the others wait and then go out on what that renewal wrote. The lock is held only
-  while the login is inside the last half hour of its life, and a wait that cannot be had in time lets
-  the run go out rather than losing the work.
+  while the login is inside the last half hour of its life. A waiting run waits for its event, not for a
+  span: the credential file showing the renewal written, the holder letting the lock go, or the holder's
+  process ending, whichever comes first.
 - **A long-lived token removes the renewal:** an account pointed at one needs no browser for a year, so
   none of the above happens for it; it is warned about before that year is out like any other account.
 - **An endpoint account has no login to end.** Its key states no ending and is renewed by nobody, so it

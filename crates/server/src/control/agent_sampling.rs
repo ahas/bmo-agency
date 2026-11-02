@@ -159,7 +159,7 @@ impl Route for AgentSamplingSave {
     match saved.await {
       Ok(view) => {
         if let Some(places) = call.places().cloned() {
-          tokio::spawn(async move { crate::places::standby::restand_all(&places.ground, None).await });
+          tokio::spawn(async move { crate::places::standby::restand_all(&places.ground, false).await });
         }
 
         Ok(answer(StatusCode::OK, view))
