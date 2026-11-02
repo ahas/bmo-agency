@@ -2174,6 +2174,9 @@ The measured, fixed order.
    reaches the file, and an answer read in that gap is empty; a turn of a second or two can stand at rest
    before any of its answer is in the file (measured: a one-word answer of a run apart reached the file
    after its pane had read as rest, and the turn read as silent). The turn's end is what the transcript says — a CLI that finished a turn writes a `system`
+   A turn back at rest that was never seen working and wrote no answer is over once its record closes a
+   turn after the prompt, or, for a command of the program's own, once its record has grown past the
+   prompt; it ends as silent. Until then it is waited on.
    line (`turn_duration`), after the last of the answer's words. So after seeing rest, the turn waits for
    that end line among the lines written for this turn, and reads its answer once it is there.
 6. Read the answer and the tokens from the transcript and the money and windows from the status line,
@@ -2183,9 +2186,6 @@ The measured, fixed order.
 
 ### Pushing words into a running turn works
 
-   A turn back at rest that was never seen working and wrote no answer is over once its record closes a
-   turn after the prompt, or, for a command of the program's own, once its record has grown past the
-   prompt; it ends as silent. Until then it is waited on.
 This is why this item came to be. When a prompt was taken via stdin and closed, there was no place to put
 one in while running, so words appended were delivered only after the run answered, and at a work-step
 stage were skipped entirely.
