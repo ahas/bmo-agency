@@ -293,8 +293,8 @@ and 「Browse runner」). `systemPrompt` with no line is refused 400. A turn int
 parts as every thrown-away session's turn does, and goes out on that line whole, on the model the scope
 names and the effort and tier the turn's mapping names, never in a standing branch checkout. Its folder is
 the scope's `cwd`, or the line's own deployed directory where the start names none. Its prompt is the
-caller's, whole, and its answer is the run's reply text. `boundMs` on the start bounds each of its turns,
-which is cut past it and ends failed. A start that hands no instructions goes out on the worker line.
+caller's, whole, and its answer is the run's reply text. Its turns carry no clock: each lasts until it ends
+or is stopped. A start that hands no instructions goes out on the worker line.
 Beside them the start may name:
 
 - **`provider` and `model`:** the road its turns go out on, any provider agency carries whose program carries
@@ -401,7 +401,7 @@ Every route that takes a body names the request type it reads, holding only the 
 |---|---|---|
 | GET | `/runs` | Runs newest first: open or closed, by agent, room, round, names or the search they carried; with the tokens spent so far. |
 | POST | `/runs` | Open a run in the ledger. |
-| GET | `/runs/{runId}` | One run, its clock bound among its fields. |
+| GET | `/runs/{runId}` | One run, its clock among its fields. |
 | PATCH | `/runs/{runId}` | Close a run, or stop it, or attach the message its answer went out as. |
 
 A run is a row of the ledger (`docs/run-records.md`, 「The run ledger」): a unit the job unit opens and
@@ -1090,7 +1090,7 @@ input, so `bmo` finds it from any directory.
 | `dev-pane` | `<worker>` | the worker's dev-server pane, and the store |
 | `companion follow` | `<room> --agent <agent> [--version <version>]` | the store, as the room is kept and its turns are appended |
 | `companion reset` | `<agent>`, `--conversation`, `--person`, `--dry-run`, `--alone <rooms>` and `--shared <rooms>` | the service's `/companion-resets` route |
-| `claude batch` | `--model`, `--effort`, `--config-dir`, `--system-file`, `--title` and `--bound-seconds`, with the batch on standard input | the provider's program on this machine |
+| `claude batch` | `--model`, `--effort`, `--config-dir`, `--system-file` and `--title`, with the batch on standard input; the run lasts until it ends | the provider's program on this machine |
 | `live-claude` | `--purpose <what it measures and why>`, or `--list` | the store's run ledger |
 | `run list` | `--json`, or `--full` for every row whole | the store, herdr, and the machine's proc files |
 | `run stop` | `<kind>:<id>` — `unit:`, `execution:` or `item:` — `--why <reason>` for an item, `--all`, or no target to list what is running | the store, herdr and systemd |

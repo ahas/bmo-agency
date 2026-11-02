@@ -882,7 +882,7 @@ the same. "None" means that program has no such concept, with the reason.
 |---|---|---|---|---|
 | Process time limit | None: a gate, a chat and a job each run until they end | Same | Same | None: a gate's one request waits for its answer; a run with tools is Claude Code on a registered model |
 | Cache lifetime · ping interval | 1 hour · 40 minutes | 30 minutes · 20 minutes for models that announce it, else none | Follows the answering upstream, none if not listed | None. No announced lifetime |
-| Ping time limit | Chat 90 seconds, a gate that gate's limit, worker 2 minutes | Same | Same | No ping |
+| Ping time limit | None: a ping goes until it answers or fails on its own | Same | Same | No ping |
 | Keepalive stop · rest | Obeys global and per-agent stops, pauses during its own account's rest | Obeys stops but warms during a rest, since a rest is one Claude account's affair | As Codex | Not applicable |
 | Session continuation | Resumes chat and worker sessions | Resumes a thread per run scope, model and effort | The session stands in bmo-tui's pane and carries the next turn; agency stores no id and resumes none | None for a tool-less request; a run with tools is Claude Code's |
 | Context folding | The caller folds with the CLI's compaction | The Codex CLI compacts its own thread | dsh compacts its own session; agency folds nothing | Not applicable |

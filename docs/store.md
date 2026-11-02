@@ -85,10 +85,10 @@ seeds. The other crates and the server reach the store only through it.
     companion's reset of its conversation takes the companion's and those of the rooms it answers alone
     (`docs/companions.md`, 「Starting it afresh」);
   - the clocks runs are held to and the asks past them: `run_clocks`, one row a clocked run — its name,
-    the name it runs under, its work key and agent, what it is doing, when it started, its bound and when
-    it ended — and `clock_asks`, one row an ask — the run, the facts it carried, when it was asked and
-    when its answer is due, the verdict, until when a keep holds, who gave it, why and when it closed
-    (`docs/agent-control.md`, 「A clock asks before it cuts」); a row ended a week ago goes as the next
+    the name it runs under, its work key and agent, what it is doing, when it started, its clock and when
+    it ended — and `clock_asks`, one row an ask — the run, the facts it carried, when it was asked, the
+    verdict, until when a keep holds, who gave it, why and when it closed
+    (`docs/agent-control.md`, 「A clock asks, it never cuts」); a row ended a week ago goes as the next
     clock is opened;
   - the companions' sessions and settings: `room_sessions`, `room_session_turns`, `companion_settings`;
     the window a room holds open for an agent is the room's owner's, and agency keeps none;

@@ -211,11 +211,9 @@ side of a remote agent, the rotation, and what a dropped node does.
 ## When a node drops
 
 - **The program keeps working:** it stands in the node's herdr session, which no connection holds.
-- **A turn waits for the link** for up to ten minutes where the node's herdr does not answer, instead
-  of the two a silent herdr here is given; the mirror catches the transcript up when the link is back,
-  and the turn reads on from where it stood.
-- **Past that wait the turn ends as unanswered,** the job ends as failed, and its work stays committed
-  or parked on its branch on the node for the next launch on that checkout.
+- **A turn waits for the link** however long the node's herdr does not answer, as a turn here waits
+  for a silent herdr; the mirror catches the transcript up when the link is back, and the turn reads on
+  from where it stood. It ends on the link's answer — its own end, its pane gone — or on a stop.
 - **Nothing new goes to a node whose link is down:** neither a launch nor a heavy run.
 
 ## In herdr

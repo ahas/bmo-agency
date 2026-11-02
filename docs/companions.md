@@ -87,7 +87,7 @@ are the companion unit's, not agency's. This document covers only what agency ho
   follow pane and the console read it; no run is built from it.
 - **A restart loses nothing.** The session row keeps the last message the agent took, so a message
   that woke the agent and was not yet answered when the bot stopped is taken again at the start. What
-  the cut run had spent on it is kept with it, so the restart takes the turn up within the same nets
+  the cut run had spent on it is kept with it, so the restart takes the turn up within the same net
   rather than afresh.
 
 ### Its limit
@@ -341,22 +341,21 @@ are the companion unit's, not agency's. This document covers only what agency ho
   - **eight calls in a row that repeat themselves and learn nothing:** each the same tool as one of the
     eight calls before it, with an input at least 90% alike by its pairs of characters, and each
     failing or answering what that alike call answered;
-  - **the last nets:** 80 tool calls in the turn, or 30 minutes of its run, the wait for its engine not
-    counted.
-- **The nets bound the words, not one run of them.** Words a run did not answer stay untaken, and the
+  - **the last net:** 80 tool calls in the turn. No clock cuts a turn: however long its run goes, it is
+    cut only by what it does.
+- **The net bounds the words, not one run of them.** Words a run did not answer stay untaken, and the
   next turn in the room asks them again: after a restart cut the run in flight, or after a run that
   failed. Each of those runs is the same turn spending again, so what they spend adds up:
   - the room's session row keeps the tally of the words not yet taken: the tool calls made and the
     minutes run, the wait for the engine not counted;
   - a run writes its tally as it goes, at each tool call and each result and once a minute, so a
     restart loses at most a minute of it;
-  - a run starts with the tally the runs before it left: its calls count on from there, and its clock
-    has only what is left of the 30 minutes;
-  - a turn whose words already stand at a net is cut before its run starts, as any cut is;
+  - a run starts with the tally the runs before it left: its calls count on from there;
+  - a turn whose words already stand at the net is cut before its run starts, as any cut is;
   - a turn that takes its words, answered, skipped or cut, clears the tally;
   - repetition is read within one run alone, since a fresh run's calls are not the ones before it.
-- **Repetition is read first and the nets last,** since a turn going nowhere repeats itself long
-  before it reaches either.
+- **Repetition is read first and the net last,** since a turn going nowhere repeats itself long
+  before it reaches it.
 - **What a cut does:**
   - the run is stopped, and the turn ends failed with the reason, as any failure does;
   - the room is told in one short line under the chat agent's number, naming the companion and the

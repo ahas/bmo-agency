@@ -480,12 +480,13 @@ in the provider's own terms:
     the title-making Haiku call included (measured).
     - A turn's money is the reading after its end minus the reading before its start: the whole
       turn, with no split by model.
-    - The reader waits a bounded time after the turn's end for the status-line call that follows
-      it. Following it means stamped later than the end: a reading stamped in the same millisecond
-      as the `Stop` hook may be the program's call at startup or one inside the turn, and such a
-      reading, with no windows in it or an earlier total, is never the one after the turn. Where
-      that call does not come in time, or where it and the `Stop` hook name different sessions,
-      the transcript's tokens stand and the turn's money is left empty rather than guessed.
+    - The reader waits after the turn's end for the status-line call that follows it, until it
+      comes or the program is no longer alive. Following it means stamped later than the end: a
+      reading stamped in the same millisecond as the `Stop` hook may be the program's call at
+      startup or one inside the turn, and such a reading, with no windows in it or an earlier
+      total, is never the one after the turn. Where the program is gone before that call comes, or
+      where it and the `Stop` hook name different sessions, the transcript's tokens stand and the
+      turn's money is left empty rather than guessed.
     - The split by model is the `cost-state` line, which the program writes when its session
       changes or the program ends — at `/clear`, at `/exit`, on SIGTERM and as a pane closed — and
       never at `/cost`, at `/compact` or on an Escape that interrupts a turn (measured). It settles
@@ -790,9 +791,9 @@ in the provider's own terms:
   - the bot's own turn does not touch the program while it works: while the place names a person's
     turn still open and the pane reads working or waiting on a question, the turn that arrives — a
     round, a job's turn, a keepalive — neither stands, replaces nor resets the program nor puts words
-    in, and waits, bounded at thirty minutes, for that turn to end. Past the bound it goes on as it
-    would, since a person's turn whose end was never recorded — an Escape fires no hook — must not
-    hold the agent for ever.
+    in, and waits for that turn to end. A person's turn whose end was never recorded — an Escape
+    fires no hook — is over once the pane reads neither working nor waiting on a question, so the
+    wait ends on what the pane shows as well as on the place's record.
   - A person typing into a turn the bot put in is a word into that turn, and the program takes it as
     it takes a pushed word; the round or job turn that is working reads the answer as it stands.
 - **Where a session starts and ends** is drawn by the program itself: a program's opening screen,
@@ -974,8 +975,8 @@ The owner's words:
   and when, and hands the paragraph to the session's push (`docs/api.md`, 「Sessions」). Agency offers
   it to the run the session's turn is carrying; the door takes it at its next look at the working
   program, only where the turn's provider declares that it takes words mid-turn, and answers what
-  became of it. An offer no look takes within the resident turn policy's `push_take_ms` is withdrawn
-  and answered refused, and a turn that ends answers every offer it did not take refused.
+  became of it. An offer stands until a look takes it or the turn ends, and a turn that ends answers
+  every offer it did not take refused, since its words belong to the next turn.
 - **A word that lands after the end anyway is still the round's.** The end can come between that
   last reading and the keys reaching the program, which then submits the word as a prompt of its
   own. The bot marks the run in the place as handed a word just before typing it, and takes the mark
@@ -987,9 +988,9 @@ The owner's words:
   - any submit takes the mark away, so the next prompt is judged afresh;
   - the round reads that turn as one it owes (below), and its answer goes to the round's room as the
     paragraph pushed with the word says;
-  - a push that went in is waited on, bounded, until the record holds it — queued, or submitted as a
-    prompt — before the round reads its end again, so the program writing it down a moment late does
-    not end the round without it.
+  - a push that went in is waited on until the record holds it — queued, or submitted as a prompt —
+    or the round reads as no longer working, before the round reads its end again, so the program
+    writing it down a moment late does not end the round without it.
 - **A later run of the round reads the push too.** Every paragraph a push put in is carried behind
   the round's own prompt by any run of that round after the one that took it — a login moved to, a
   lost session opened again — so a run that starts the answer again answers the pushed words as
@@ -1071,10 +1072,11 @@ The owner's words:
   - A background task's notice queued twice under one task id is kept once: the later notice
     replaces the earlier, and the record has two entries enqueued, one taken off and no removal
     (measured). The count then says one word is still queued when none is.
-  - So the wait for the owed end lines has a floor under it: where the program is at rest and its
-    record has not grown for a while, the round is read as over, and the run log says what the count
-    still expected. A program with words still queued takes them the moment a turn ends, so a quiet
-    record beside a program at rest has nothing still to come.
+  - So the wait for the owed end lines has a floor under it: where the program reads at rest on two
+    looks in a row, its record unchanged between them and its last line of the conversation the end
+    line of a turn, the round is read as over, and the run log says what the count still expected. A
+    program with words still queued takes them the moment a turn ends, so a record ending on a turn's
+    end beside a program at rest has nothing still to come.
 - **A surface that takes no words mid-turn** keeps the buffer: the batch waits there and the next
   round carries it.
 
@@ -1110,48 +1112,48 @@ The owner's words:
   - A pane that is gone — closed by a person, or taken by a herdr that died — is stood up again by the
     bot's standing pass on attach and every ten minutes, and a turn that finds it missing waits for
     that rather than opening a pane of its own.
-  - **A place that will not stand is rebuilt, once per turn.** A program that does not come up within
-    the turn's wait, or one in a start loop, has its pane closed and its start history cleared, and the
-    workspace is stood again and waited on once more. A place is rebuilt at most once a minute; a
-    turn whose second wait also runs out ends as a transport failure naming why.
+  - **A place that will not stand is rebuilt, once per turn.** A turn waits for its program to come up
+    however long that takes, and ends early only on what the place says. A program in a start loop has
+    its pane closed and its start history cleared, and the workspace is stood again and waited on once
+    more. A place is rebuilt at most once a minute, a loop met inside that minute waited out until it
+    may be; a turn whose program loops again after the rebuild ends as a transport failure naming why.
   - **A program that cannot be started at all is not waited for.** Where the head cannot start the
     program — its executable is not on the `PATH` it was handed, or is not runnable — the agent host
     writes into the place which program failed, when and why, naming the executable and that `PATH`,
     and counts the try as a start so the loop does not spin. A turn waiting on that program reads the failure as soon
     as it is written for the program it asked for, and ends at once as `program_not_started` with that
-    reason, rather than waiting out its wait and a rebuild that would fail the same way.
+    reason, rather than waiting on a program that will not come and a rebuild that would fail the same
+    way.
 - **A deployment** does not end a resident program by itself, since the program is not agency's code.
   Where a deployment changed the program's command — a prompt file composed into the chat's system
   prompt, a flag — the comparison before the next turn finds it.
 
-### A clock asks before it cuts
+### A clock asks, it never cuts
 
 ```mermaid
 flowchart TD
-  A[run passes its bound] --> B{policy given?}
-  B -- no --> C[cut at once]
-  B -- yes --> D[ask the chat agent: order in the owner's chat]
+  A[run passes its clock] --> D[ask the chat agent: order in the owner's chat]
   D --> E{the chat agent answers}
   E -- keep --> F[watch on, ask again when the keep runs out]
-  E -- cut --> G[cut, the chat agent's call]
-  E -- no answer in 30 min --> H[cut, the bot's call]
+  E -- cut --> G[stopped, the chat agent's call]
+  E -- no answer yet --> H[the run goes on, the ask stands]
   D --> I[run ends on its own: ask withdrawn]
 ```
 
-- **Which runs carry a clock.** A job's turn and a chat round carry none. A word said to a worker
-  while nothing of its own runs carries ten minutes, since the worker's queue waits on its lock while
-  it runs; past it the clock asks, as every clocked run's does. The keepalive ping and a fold
-  carry bounds of their own. A turn of a thrown-away session carries the bound its start named (`docs/api.md`,
-  「sessions」), and a voice run ten minutes for the speaking of
-  its line, on this machine's card or a node.
+- **No run is cut on a clock.** A run ends when it finishes, when it fails on its own or when somebody
+  stops it. A clock on a run only says when to ask about it.
+- **Which runs carry a clock.** A job's turn, a chat round, a keepalive ping, a fold and a turn of a
+  thrown-away session carry none. A word said to a worker while nothing of its own runs carries ten
+  minutes, since the worker's queue waits on its lock while it runs, and a voice run ten minutes for
+  the speaking of its line, on this machine's card or a node; past it the clock asks.
 - **The mechanism is the run's, the policy its caller's.** A pane turn, and a run that is one
-  process or one call, may each be handed an overtime policy, asked each time the bound passes with
-  the facts the run can say of itself — when it started, the bound, and its last sign of work: when
-  it was and what it was. The policy answers either cut or the next moment to look again, and the run
-  goes on in between, so a run that ends on its own ends as it always does. A run handed none is cut
-  at its bound, and so is one whose policy cannot answer.
-- **A clocked run of work is never cut on its clock alone.** A word's turn, a browse and a voice run
-  each hand their clock a policy that asks the chat agent first:
+  process or one call, may each be handed an overtime policy, asked each time the clock passes with
+  the facts the run can say of itself — when it started, the clock, and its last sign of work: when
+  it was and what it was. The policy answers either cut or the next moment to ask again, and the run
+  goes on in between, so a run that ends on its own ends as it always does. A run handed no policy
+  carries no clock. A policy that cannot answer leaves the run going, asked again once the clock's
+  own length has passed.
+- **The ask goes to the chat agent:**
   1. The ask is an order queued for the chat agent's session in the owner's private chat, carrying the facts:
      which agent and run it is and what it is doing, how long it has run, when it last did anything
      and what that was, and the clock with its length. The order names the procedure `overtime`. Agency
@@ -1161,33 +1163,26 @@ flowchart TD
   2. The chat agent decides alone — keep or cut — and never asks the owner. It answers an ask of agency's
      with `bmo-agency overtime`, which the event names, or `PATCH /overtime-requests/{requestId}`; a keep names how long,
      the clock's own length where it names none and two hours at most, and the run is asked about again
-     when that runs out. The run's door looks for the verdict every five seconds while the ask stands.
+     when that runs out. A cut is the chat agent stopping the run. The run's door looks for the verdict
+     every five seconds while the ask stands.
   3. A fault the chat agent sees in the run is filed as a TODO item and fixed by a job, as every change to the
      system is.
-  4. Nothing is cut before an answer. Thirty minutes with none — the chat agent resting, its session down, the
-     order never delivered — and the bot cuts the run, recorded as its own call for want of an
-     answer: the run holds a lock or a place others wait on, and a queue held behind a run nobody
-     decides on costs more than the cut.
+  4. Nothing is cut without a verdict. An ask with no answer — the chat agent resting, its session down,
+     the order never delivered — stands for as long as the run goes, and the run goes on under it.
   5. A run that ends on its own while asked closes its ask as ended, published as `clock-ask-closed` so an
      order not yet delivered is withdrawn; a verdict given afterwards is refused as too late.
 - **Every ask is a record.** A clocked run of agency's is a row of the store's `run_clocks` — its name,
-  the name it runs under, its bound and when it started and ended — and each ask on it a row of
-  `clock_asks`: the facts the order carried, when its answer is due, the verdict, who gave it — the chat
-  agent, or agency for want of an answer — why, and when (`docs/store.md`). A consumer whose waits are
-  sized on the run reads its clock through `GET /runs/{runId}`: when its bound runs out, and until when a
-  keep or an open ask on it stands. A word cut on its clock also says so in the worker's own log under the word, with
-  whose call it was; any other run cut on its clock gives the clock and whose call it was as its
-  failure's cause, which is what its room or the owner hears.
-- **A wait sized on a run's clock follows its keep.** Whatever waits behind a clocked run for as long
-  as that run's clock and a slack goes on waiting while an ask on the run stands — until its answer is
-  due while the chat agent has not answered, until the keep ends once it has — and the same slack after:
-  - A voice node's own asker cannot be told of a keep once started, so it is given the cap and the
-    longest one keep. A voice line kept a second time ends at the node's wait at the latest, and the
-    room hears it as the node's timeout.
-- **Upkeep is cut without asking.** A keepalive ping or a fold past its bound holds nothing of
-  anyone's work and the next round does it again; asking would wake the chat agent for a warming nobody asked
-  for.
-- **A gate's clock does not ask.** A gate's judgement time is a wait the chat agent itself is in.
+  the name it runs under, its clock and when it started and ended — and each ask on it a row of
+  `clock_asks`: the facts the order carried, the verdict, who gave it, why, and when (`docs/store.md`).
+  A consumer reads a run's clock through `GET /runs/{runId}`: when its clock passes, and until when a
+  keep on it stands. A word cut on the chat agent's verdict also says so in the worker's own log under
+  the word; any other run cut on one gives the clock and the chat agent's call as its failure's cause,
+  which is what its room or the owner hears.
+- **What waits behind a clocked run waits for its end.** A run is never cut for its clock, so whatever
+  waits behind one — a queue on a worker's lock, a voice node's asker — waits until the run ends,
+  however long that is.
+- **A gate has no clock.** A gate's judgement is a wait the chat agent itself is in, and it lasts
+  until the gate answers.
 
 ### What standing costs
 
@@ -1526,25 +1521,22 @@ is gone, and a question nobody could answer.
   missing from an agent list herdr answered asks again, a short gap apart, and the pane is gone
   only when three looks in a row are herdr answering a pane list without it. One answered look that
   still lists it, or one look herdr does not answer, is not gone.
-- **Herdr not answering is waited out.** A turn whose look herdr does not answer goes on reading its
-  record and looks again. Herdr can stall for seconds under a burst of calls — dozens of workspaces
-  moving at once — and every turn on the machine asks it at the same moment, so a stall read as a
-  gone pane ends them all together.
-- **A look that timed out is asked once more.** A stall under load runs a few seconds past one
-  call's wait, so a list call herdr let time out is sent again at once, and only the second going
-  unanswered makes the look herdr's silence. A refusal or a broken connection is not asked again.
+- **Herdr not answering is waited out.** A call to herdr waits for its answer however long herdr
+  takes; its end is the answer, a refused connection or one that closes. Herdr can stall for seconds
+  under a burst of calls — dozens of workspaces moving at once — and every turn on the machine asks it
+  at the same moment, so a stall read as a gone pane would end them all together. A turn whose look
+  meets a socket that refuses or closes goes on reading its record and looks again.
 - **A silence is written down where it begins and where it ends.** The turn notes in the run's log
   the first look herdr does not answer, with why, and notes again at the first look it answers after
   that, with how long it was silent and what it answered about the pane. The newest line of a job
   therefore never stands on a silence that has already ended: the console's log and the quiet
   job's tell both read the newest line, and a recovered herdr is that line until the job writes
   another.
-- **A silence that outlasts the patience is an ending of its own.** Herdr answering none of a
-  turn's looks for two minutes ends the turn as `unanswered`, with herdr named as what did not
-  answer. It is never recorded as a pane gone, and the pane is left to the reconciliation's own
-  three answers below. A turn still waiting for its program to come to rest ends the same way when
-  herdr has answered none of its looks by the end of the ready time, rather than resetting a program
-  nobody has seen.
+- **A silence ends nothing.** However long herdr answers none of a turn's looks, the turn waits:
+  it ends when herdr answers again — the pane gone, the turn's own end — or when it is stopped. A
+  silence is never recorded as a pane gone, and the pane is left to the reconciliation's own three
+  answers below. A turn still waiting for its program to come to rest waits the same way, rather
+  than resetting a program nobody has seen.
 - **Every place that asks whether a pane is there asks it this way**: the turn in a pane, the wait
   for a program to come to rest, the wait on a person's turn, and the Codex resident turn. The
   inbox turn asks the process itself rather than herdr, so a stall of herdr never
@@ -1700,13 +1692,13 @@ line too.
   node's link to `nodes/<node>/herdr.sock` under the data root. The agent's home names that socket, so
   every call about the home and every turn in it goes there, and pane and agent ids are always that
   herdr's (`docs/work-nodes.md`, 「The bot's side of a remote agent」). A node's herdr that does not
-  answer is its link, never written down as this machine short of room, and a turn there waits ten
-  minutes for it before it ends on the silence, where a turn here waits two.
+  answer is its link, never written down as this machine short of room, and a turn there waits for it
+  as a turn here waits for its own herdr.
 - **One request per connection.** Writing a second request on the same connection is cut with EPIPE.
   The exception is the one connection that sent `events.subscribe`, which the server keeps open and
   streams events on.
 - **A request that never reached herdr is sent again**, three times at most over about two seconds.
-  That is a connection refused or failing, closed or timed out before the request line was written
+  That is a connection refused or failing, or closed before the request line was written
   whole. herdr waits a few seconds for the line and drops a connection whose line never came, so a
   caller whose thread was held for that long finds its connection gone though herdr is well; one
   held moment does not fail a turn. A request written whole is never sent twice, since herdr may
@@ -2039,9 +2031,10 @@ An interactive run has no print-mode `result` frame, yet there is no scraping of
     call with no answer at all was cut mid-way. The session holds all earlier turns, so **only what that
     turn launched** is counted — what an earlier run abandoned, that run was judged for.
 
-- **A prompt received but not started is not waited on.** Neither a job's turn nor a chat round has a time limit, but a run that
-  never showed `working` after the prompt went in and sits `idle` writing nothing is not doing work. If it
-  does so even after waiting as long as it waits for a pane to appear, that turn ends `silent`.
+- **A prompt received but not started ends on its record.** Neither a job's turn nor a chat round has a
+  time limit. A run that never showed `working` after the prompt went in and sits `idle` with no answer
+  ends `silent` once its record closes a turn after the prompt, or, for a command of the program's own,
+  once its record has grown past it; until then it is waited on.
 
 ### A first interactive run stops at the trust-this-folder check
 
@@ -2112,9 +2105,10 @@ The measured, fixed order.
    there, and wait for `agent_status` to read it at rest: `idle` for a program that has just come up,
    `done` for one that has finished a turn, which is how herdr reads a resident program between its
    turns (measured). If `blocked` here with a trust-this-folder screen, the folder-trust line answers as
-   above and waits again. Other `blocked` is a place a person answers, and a ready time spent with the
-   program at neither rest nor a question is a wedge the round clears itself (「When a program will not
-   come to rest」 below).
+   above and waits again. Other `blocked` is a place a person answers, or a wedge the round clears itself
+   where nobody is coming to answer it (「When a program will not come to rest」 below). The wait has no
+   clock: it lasts until the program is at rest, stands at a question, writes its start failure, loses
+   its pane or is stopped, and a herdr that does not answer meanwhile is waited out.
    - **At rest counts only from the program standing now.** A program started again for the turn is
      not ready when its process is: herdr goes on reading the pane at rest from the program before it
      for the second or two the new one takes to come up, and words put in then reach no input box and
@@ -2122,8 +2116,8 @@ The measured, fixed order.
      seconds before the new program's `SessionStart` reached neither its box nor its record). So the wait
      also asks the place whether the program standing has drawn itself: a status-line call written at
      or after the moment the loop started it. Claude Code runs the status line once its prompt footer
-     is drawn, about 200ms after `SessionStart` (measured over 34 starts). A program that has drawn
-     nothing by the end of the ready time is gone on with as it stands, and step 3 is what catches it.
+     is drawn, about 200ms after `SessionStart` (measured over 34 starts). The wait goes on until that
+     call is written.
 2. Put the prompt in as two pieces of one message: a lead line typed with `pane.send_text`, then the
    prompt itself with `agent.prompt` — no `wait` object — which pastes it after the lead and submits both.
    - **Why the lead.** Claude Code records whatever arrives by paste as pasted material, and on its
@@ -2146,15 +2140,14 @@ The measured, fixed order.
      the paste is the round and grants nothing beyond what the chat's own instructions give it.
 3. See that the prompt was submitted, not only pasted. A prompt `agent.prompt` accepted can still stand in
    the input box unsent, and a program at rest with words in its box looks exactly like one that finished,
-   so without this look the turn waits out the whole ready time and then reads as silent. Submitted is the
+   so without this look the turn would wait on a program that was never told anything. Submitted is the
    program's record gaining a person's prompt line after the point the prompt went in, or the pane reading
    `working`. Any other line is not the prompt: a program started again for the turn writes lines of its
    own as it comes up. The turn's own reading of its record
    begins at the same point. Where
-   neither has come within ten seconds, `enter` is pressed once and the same is looked for again. Where it
-   still has not come, the turn ends there as `unsubmitted`, naming it in words, and a resident program is
-   ended so its loop starts it again on the same session with an empty box — the words left in it would
-   otherwise be sent in front of the next turn's prompt.
+   neither has come ten seconds after the words went in, `enter` is pressed, and again each ten seconds
+   after that, until one of them comes, the pane is gone or the turn is stopped. The ten seconds pace the
+   presses; none of them ends the turn.
 4. Wait for `idle` or `done` after seeing `working` once. The measured state order is `idle` → `working`
    → `idle`. **Without also seeing `working`**, the `idle` before the prompt went in is read as finished.
    - **A turn the program ended on its own error is over by its record, whatever the pane shows.** A full
@@ -2173,14 +2166,18 @@ The measured, fixed order.
    reaches the file, and an answer read in that gap is empty; a turn of a second or two can stand at rest
    before any of its answer is in the file (measured: a one-word answer of a run apart reached the file
    after its pane had read as rest, and the turn read as silent). The turn's end is what the transcript says — a CLI that finished a turn writes a `system`
-   line (`turn_duration`). So after seeing rest, a turn seen at work waits for its answer and then for
-   that end line among the lines written for this turn, both within one 15-second bound so the wait does
-   not stand forever on a turn that ends without writing either.
+   line (`turn_duration`), after the last of the answer's words. So after seeing rest, the turn waits for
+   that end line among the lines written for this turn, and reads its answer once it is there.
 6. Read the answer and the tokens from the transcript and the money and windows from the status line,
-   and leave the program standing for the next turn.
+   and leave the program standing for the next turn. The status line's reading after the turn is waited
+   for until it is written or the program is no longer alive; the program makes it about a second after
+   the turn's end.
 
 ### Pushing words into a running turn works
 
+   A turn back at rest that was never seen working and wrote no answer is over once its record closes a
+   turn after the prompt, or, for a command of the program's own, once its record has grown past the
+   prompt; it ends as silent. Until then it is waited on.
 This is why this item came to be. When a prompt was taken via stdin and closed, there was no place to put
 one in while running, so words appended were delivered only after the run answered, and at a work-step
 stage were skipped entirely.
@@ -2199,19 +2196,19 @@ stage were skipped entirely.
   are read on the same round and pushed in one call, each behind its own paragraph — the item's first,
   because that one is the document the job is already reading going on. A job that could not be handed
   them leaves both kinds unmarked, so they go again.
-- **`stopUnit` uses the same channel.** A resident turn first takes those words, and if it ends itself
-  within the grace it ends there; if not, the surface's interrupt stands behind it then.
+- **`stopUnit` uses the same channel.** A resident turn takes those words and is waited on until it ends
+  itself; no interrupt stands behind them.
 
 ### blocked before the prompt is an end in itself
 
-- `agent_blocked` means a person must answer, and is not a failure. A pane that is still `blocked` when
-  its wait to come up ends — any question other than the folder-trust one, which ends `untrusted` and
+- `agent_blocked` means a person must answer, and is not a failure. A pane that stands `blocked` while
+  its turn waits for it to come up — any question other than the folder-trust one, which ends `untrusted` and
   a job as a named error (「A first interactive run stops at the trust-this-folder check」) — ends the job with its own
   ending word (`blocked`), and that job is not counted as an attempt on the item — only an end an agent
   reached itself is counted, and stopping while waiting for a person is not that.
-- **A question standing is not the same thing as a program that never came to rest.** The wait ends the
-  same way for both, so the two are easy to read as one and must not be. A question has a person's name
-  on it and is left standing for them; a program that reached no state at all has nobody to wait for,
+- **A question standing is not the same thing as a program that never came to rest.** Both stand
+  `blocked` in front of the turn, so the two are easy to read as one and must not be. A question has a
+  person's name on it and is left standing for them; a question nobody is coming to answer is a wedge,
   and the turn clears it itself (「When a program will not come to rest」 below).
 - Words being pushed in that meet this refusal stay undelivered: not marked delivered in the store, so
   they go again at the next chance. While the pane stays blocked they are not pushed again — measured:
@@ -2221,15 +2218,14 @@ stage were skipped entirely.
 
 A resident program stands between its turns, so the state a round leaves it in is the state the next
 round finds. A round that gives up and walks away hands the same wedge to the round after it, which
-spends its own ready time and ends the same way, and to the one after that. The room goes quiet with
+meets it and ends the same way, and to the one after that. The room goes quiet with
 nothing in the record saying why, and the only way left to reach the agent is around the bot
 altogether.
 
-- **The round clears the wedge rather than reporting it.** Where the ready time is spent and the
-  program has reached neither rest nor a question a person could answer, the screen it stood at is
-  written to the run's log as evidence, the program is ended and started again on its own session with
-  an empty input box — the same reset step 3 above makes for a prompt that was never submitted — and
-  the round is put in once more from the top.
+- **The round clears the wedge rather than reporting it.** Where the program stands at a question
+  nobody is coming to answer, or in a start loop, the screen it stood at is written to the run's log as
+  evidence, the program is ended and started again on its own session with an empty input box, and the
+  round is put in once more from the top.
 - **A question is one only where the turn can put it to somebody.** A job's turn is given a way to
   ask — the runner puts the pane's question to the owner and answers it with what the owner chose — so a
   job's pane standing at one is left exactly as it is, and whoever answers finds it where it stands.
@@ -2246,7 +2242,7 @@ altogether.
   program is started again with its box empty on the way out, since the typed lead is still in it.
   The note on the run's log names what the call answered, so the cause is read there rather than
   guessed from the screen.
-- **One reset and one retry per round, never a loop.** A second ready time spent the same way is the
+- **One reset and one retry per round, never a loop.** The same wedge met again after the reset is the
   round's end, reported as a failure that names what it could not do. A round cancelled or stopped
   while the reset is under way ends as a stop, as any other round does.
 - **A turn with no resident program is untouched by this.** Nothing of such a turn outlives it and
@@ -2494,8 +2490,10 @@ all three, and if any holds it, take it as alive.**
   not enter the picture, and even a pane with a token enters only if `layout.export` answers a `command`
   for it — because even a handoff like herdr taking over a process may carry a token, a pane with no
   command is not a run. The runs that were in that pane are all read as ended — that is the fact. It never
-  leans toward assuming alive on no answer. Past the grace while cut, the picture answers as holding
-  nothing. A ghost living forever is the one dangerous direction in the union.
+  leans toward assuming alive on no answer. While the subscription is cut and herdr's socket still takes
+  a connection, the last picture stands; once the socket refuses one, no herdr is there and the picture
+  answers as holding nothing, since what ran in herdr's panes went with it. A ghost living forever is
+  the one dangerous direction in the union.
 - Confirmation is only against the snapshot. The stream tells what herdr just did, so if it says a token
   was attached, that named run really is in that pane.
 - **A script not holding a subscription** has no picture, so it waits once for `session.snapshot` and reads
@@ -2951,8 +2949,8 @@ them run a browser, and whose a place is.
   chat agent as a fact.
 - **No job is launched while the disk is under its launch line,** since the room holds it; what to free
   is the chat agent's to find.
-- **herdr not answering is the same fact.** Every call herdr leaves unanswered within its wait is
-  written to the machine's own record of them, a line per call in the temporary directory
+- **herdr not answering is the same fact.** Every call herdr leaves unanswered for five seconds is
+  written to the machine's own record of them, and goes on waiting for its answer; a line per call in the temporary directory
   (`BMO_HERDR_SILENCES` names another file). Agency's watch tells new ones as `machine-pressure` (cause
   `herdr`) with the calls and how many, at most once in ten minutes.
 

@@ -9,7 +9,8 @@ or a voice line being spoken.
 - Which agent and run it is and what it is doing, how long it has run, when it last did anything and
   what that was, and which clock it reached with its length.
 - The ask's number, which every command below takes.
-- Nothing has been cut. The run goes on while you decide, and nothing is cut until you answer.
+- Nothing has been cut. The run goes on while you decide, and only your cut ends it: a clock never
+  does.
 
 ## Deciding
 
@@ -24,7 +25,7 @@ or a voice line being spoken.
   wait, the same thing repeated, a question nobody is going to answer, or work that has gone off what
   it was asked.
 - A fault you see in the run or in the clock itself (a run that keeps running long for a reason in
-  the system, a bound that is wrong for the work) is filed as a queue item and fixed by a job, as
+  the system, a clock that asks too soon for the work) is filed as a queue item and fixed by a job, as
   todo.md says.
 
 ## Answering
@@ -36,9 +37,9 @@ or a voice line being spoken.
 - Cut: `bmo-agency overtime --cut <number> --why '<one line>'`
   - The run is cut within seconds, and the record says it was your call and why.
 - List the asks still open: `bmo-agency overtime --list`
-- A refusal saying the run already ended means it finished on its own, or was cut for want of an
-  answer: there is nothing left to decide.
-- With no answer in thirty minutes agency cuts the run itself and records it as its own call.
+- A refusal saying the run already ended means it finished on its own or was stopped: there is
+  nothing left to decide.
+- Until you answer, the run goes on and the ask stands; nothing cuts it for want of an answer.
 
 ## Telling the owner
 

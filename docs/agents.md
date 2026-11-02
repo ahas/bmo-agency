@@ -126,7 +126,7 @@ flowchart TD
   a run's spend against.
 - **A person watches the program itself:** its thinking and its tool calls on its own screen, while
   the pane stands.
-- **Its clock and its stop are the door's:** a bound asks its caller before the run is cut, and a stop
+- **Its stop is the door's:** a run apart carries no clock and lasts until it ends, and a stop
   — a cancellation over the run's names, or its runner told to stop — interrupts the program and closes
   its pane, its record standing for what it wrote by then.
 - **Its tool token is its own,** issued as the run is composed and taken back once it ends.
