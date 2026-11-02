@@ -7667,6 +7667,22 @@
               "null"
             ]
           },
+          "ending": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The word the turn's wait ended on, typed: for a turn put into a program's pane `answered`, `silent`,\n`errored`, `vanished`, `program-lost`, `silent-peer`, `blocked`, `untrusted`, `unsubmitted`,\n`overran` or `stopped`; for any other its outcome's word; none while the turn runs.",
+            "default": null
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why a turn with no answer has none; none where it answered or still runs.",
+            "default": null
+          },
           "answer": {
             "type": [
               "string",
@@ -7686,6 +7702,8 @@
           "state",
           "delivery",
           "outcome",
+          "ending",
+          "reason",
           "answer",
           "text"
         ],

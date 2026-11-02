@@ -268,6 +268,14 @@ pub struct Turn {
   pub state: TurnState,
   pub delivery: Option<String>,
   pub outcome: Option<String>,
+  /// The word the turn's wait ended on, typed: for a turn put into a program's pane `answered`, `silent`,
+  /// `errored`, `vanished`, `program-lost`, `silent-peer`, `blocked`, `untrusted`, `unsubmitted`,
+  /// `overran` or `stopped`; for any other its outcome's word; none while the turn runs.
+  #[serde(default)]
+  pub ending: Option<String>,
+  /// Why a turn with no answer has none; none where it answered or still runs.
+  #[serde(default)]
+  pub reason: Option<String>,
   pub answer: Option<String>,
   pub text: Vec<Value>,
 }

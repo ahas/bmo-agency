@@ -96,6 +96,13 @@ async fn serve(args: Args) -> Result<(), String> {
   // The gate's kinds read before the routes stand, so an agent's switches list its gates from the
   // gate's own declaration and not from a copy agency would keep.
   agency_server::gate_kinds::refresh(&ground).await;
+  // Every turn's liveness row the last process left open is closed with what is found of its program now,
+  // and the same written to the log, before anything that process left is picked up or taken down
+  // (docs/agent-control.md, 「Telling that a turn's program is gone」).
+  if let Err(why) = agency_server::door::liveness::close_left_open(&ground.db).await {
+    eprintln!("agency: the turns' liveness rows the last process left open: {why:?}");
+  }
+
   // A turn the last process left in flight is handed back where its program's record holds its end, and
   // waited on where the program goes on with it, before anything else reads what that process left.
   if let Err(why) = agency_server::turn_pickup::at_start(&ground).await {

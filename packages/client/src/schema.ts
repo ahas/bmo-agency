@@ -2036,6 +2036,18 @@ export interface components {
             state: components["schemas"]["TurnState"];
             delivery: string | null;
             outcome: string | null;
+            /**
+             * @description The word the turn's wait ended on, typed: for a turn put into a program's pane `answered`, `silent`,
+             *     `errored`, `vanished`, `program-lost`, `silent-peer`, `blocked`, `untrusted`, `unsubmitted`,
+             *     `overran` or `stopped`; for any other its outcome's word; none while the turn runs.
+             * @default null
+             */
+            ending: string | null;
+            /**
+             * @description Why a turn with no answer has none; none where it answered or still runs.
+             * @default null
+             */
+            reason: string | null;
             answer: string | null;
             text: unknown[];
         };

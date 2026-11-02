@@ -35,7 +35,8 @@ import { transcriptRecords } from "./transcript-tail";
 import { herdrCall, isBlocked } from "./herdr";
 import { closePane, openPane, relabelHome, stopInstruction, type AgentHome } from "./herdr-run";
 import { agentPlace, beginPlaceRun, endPlaceRun, endsTurn, handPlaceRun, readHooks, readRun, residentEnvironment, runVariables, statusAfterTurn } from "./agent-place";
-import { interruptProgram, programAlive, programDrawn, readRunning, standResident, type ResidentProgram } from "./resident-pane";
+import type { ProcessIdentity } from "./agent-host";
+import { interruptProgram, placeAlive, programAlive, programDrawn, readRunning, standResident, type ResidentProgram, type RunningProgram } from "./resident-pane";
 import { commandDigest } from "./resident";
 import declaredTurn from "@agency/policy/resident-turn.toml";
 import turnWords from "@agency/policy/door-words.toml";
@@ -205,7 +206,10 @@ export type PaneTurn =
   // Ended from outside while it was running: a cancellation stood over this run's own name or its
   // root, and the turn ended itself on meeting it. It is its own ending rather than a failure,
   // because nothing about the work went wrong and nothing is to be retried on another road.
-  | { outcome: "stopped"; screen: string };
+  | { outcome: "stopped"; screen: string }
+  // The program's process the turn was put into is gone, or its place stands another in its stead, and its
+  // record never closed the turn (`docs/agent-control.md`, 「Telling that a turn's program is gone」).
+  | { outcome: "program-lost"; screen: string };
 
 const activityDetailLimit = 160;
 
@@ -781,6 +785,25 @@ export async function runTurnInPane(options: {
 
   let attemptedPrompt = false;
   let promptedAt = Date.now();
+  // The process the turn's words went into, named by its place as they go in, and whether a wait after rest
+  // ended on its going (`docs/agent-control.md`, 「Telling that a turn's program is gone」).
+  let turnProgram: RunningProgram | null = null;
+  let lostAfterRest = false;
+  // Whether that process is gone: no longer alive, or its place stands another in its stead.
+  const programGone = (): boolean => {
+    if (resident === null || turnProgram === null) return false;
+
+    const now = readRunning(resident.place);
+
+    if (now !== null && now.pid > 0 && now.pid !== turnProgram.pid) return true;
+
+    return !placeAlive(resident.place)({ pid: turnProgram.pid, birth: turnProgram.birth } as ProcessIdentity);
+  };
+  const lostProgram = async (): Promise<PaneTurn> => {
+    const why = `program-lost: the program ${turnProgram?.pid ?? "?"} the turn was put into is gone, and its record never closed the turn`;
+
+    return { outcome: "program-lost", screen: await keptScreen(why, await screenOf(pane, where)) };
+  };
   let stopAskedAt: number | null = null;
   // The questions the pane puts to the caller while the turn is watched. Held out here so a turn
   // that ends while one is out withdraws it.
@@ -874,6 +897,8 @@ export async function runTurnInPane(options: {
       // when nothing stands before it.
       promptedAt = Date.now();
       if (resident !== null) beginPlaceRun(resident.place, options.name, options.title, promptedAt, runVariables(options.env));
+      // The program the words go into is the one standing now, a reset before them included.
+      turnProgram = resident === null ? null : programAlive(resident.place);
       from = Math.max(from, lines(path).length);
       if (execution.resident !== undefined && execution.resident !== null) execution.resident.from = from;
       const sent = options.prompt.startsWith("/")
@@ -1044,6 +1069,17 @@ export async function runTurnInPane(options: {
         askAt = Math.max(answer.askAgainAt, Date.now() + 1);
       }
 
+      // The program is read before herdr, so a program gone ends the turn while herdr does not answer as
+      // well; a record that closed the turn meanwhile is read as it stands.
+      if (programGone()) {
+        if (turnClosedSince(lines(path), answerFrom)) break;
+
+        await readOn(seen);
+
+        ending = "exited";
+        return lostProgram();
+      }
+
       const now = await statusOf(pane, where, goneConfirm);
 
       if (now === null) {
@@ -1144,11 +1180,26 @@ export async function runTurnInPane(options: {
     // writes no such line.
     if (!options.prompt.startsWith("/")) {
       while (!turnClosedSince(lines(path), answerFrom) && residentReading(lines(path).slice(answerFrom), execution).state !== "interrupted" && !await cancelled()) {
+        // A program gone before the line comes writes nothing more.
+        if (programGone()) {
+          lostAfterRest = true;
+          break;
+        }
+
         if (await statusOf(pane, where, goneConfirm) === null) break;
 
         seen = await readOn(seen);
         await Bun.sleep(everyMs);
       }
+    }
+
+    // A program gone with nothing of an answer written is the turn's ending; one that answered is read as
+    // its record stands.
+    if (lostAfterRest && !answeredSince(lines(path), answerFrom) && !turnClosedSince(lines(path), answerFrom)) {
+      await readOn(seen);
+
+      ending = "exited";
+      return lostProgram();
     }
 
     // A resident program holds on to what it was handed and takes it as a turn of its own once the

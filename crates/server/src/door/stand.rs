@@ -12,7 +12,7 @@ use policy::resident_turn::RESIDENT_TURN;
 use serde::Deserialize;
 use serde_json::json;
 
-use super::looks::{GoneConfirm, Look, send_keys, status_of};
+use super::looks::{GoneConfirm, Look, pane_listed, send_keys, status_of};
 use super::place_run::read_run;
 use crate::lines::place::{Place, Program, token_of};
 use crate::lines::token;
@@ -129,8 +129,10 @@ const RECORD_BACKSTOP: Duration = Duration::from_secs(24 * 3_600);
 /// same pane; a pane that is not there is stood up. The turn then waits for the program to be up, for
 /// its start failure to be written, or for `stop` to say the turn was stopped, however long that takes.
 /// A program in a start loop has its place rebuilt and is waited on once more; one still in a loop
-/// after that is not coming up. A program about to be written is handed its session token first, and a
-/// tool host that does not answer refuses the turn before anything is written.
+/// after that is not coming up. A head pane herdr says is gone is stood again once, since nothing in a pane
+/// that is not there starts the program; one gone again after that is not coming up. A program about to be
+/// written is handed its session token first, and a tool host that does not answer refuses the turn before
+/// anything is written.
 pub async fn stand_resident<F, Fut>(
   ground: &Ground,
   place: &Place,
@@ -206,6 +208,7 @@ where
   let asked_at = now_ms();
   let mut rebuilt =
     looping(place.running().as_ref(), &program.identity, now_ms()) && rebuild(place, home, None).await;
+  let mut restood = false;
 
   loop {
     let stood = home.stand().await?;
@@ -256,6 +259,22 @@ where
           rebuilt = true;
           break;
         }
+      }
+
+      // The pane the program was to come up in is gone, on herdr's own word.
+      if pane_listed(&home.herdr, &stood.head_pane).await == Some(false) {
+        if restood {
+          return Err(fault(
+            "pane_gone",
+            format!(
+              "the pane {}'s resident program was to come up in went away twice while it was stood",
+              home.agent
+            ),
+          ));
+        }
+
+        restood = true;
+        break;
       }
 
       tokio::time::sleep(poll).await;

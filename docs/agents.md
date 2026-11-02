@@ -139,6 +139,11 @@ flowchart TD
 - **Its stop is the door's:** a run apart carries no clock and lasts until it ends, and a stop
   — a cancellation over the run's names, or its runner told to stop — interrupts the program and closes
   its pane, its record standing for what it wrote by then.
+- **Its life is its program's:** the program is the process whose command line carries the run's
+  session, and the run ends `program-lost` once that process is gone with its record not closing the
+  turn, `vanished` once herdr says its pane is gone, and `silent-peer` where no such process can be found
+  and the pane shows none while nothing the program writes moves (`docs/agent-control.md`, 「Telling that
+  a turn's program is gone」). Its liveness row says which of these it last read.
 - **Its tool token is its own,** issued as the run is composed and taken back once it ends.
 - **A run on a registration** is the same program on the gateway under the registration's name, its
   record under the registration's home (`docs/own-llm.md`, 「Claude Code in the pane」).

@@ -313,11 +313,12 @@ pub struct Composed {
   pub clock: Option<Duration>,
 }
 
-/// What an ending that is no answer says: the program's own error, or the screen it stood at, which a
-/// judgement reads and nobody is told.
+/// What an ending that is no answer says: the program's own error, why its program was lost, or the screen
+/// it stood at, which a judgement reads and nobody is told.
 pub fn evidence(ending: &Ending) -> &str {
   match ending {
     Ending::Errored { error, .. } => error,
+    Ending::ProgramLost { why, .. } | Ending::SilentPeer { why, .. } => why,
     Ending::Blocked { screen }
     | Ending::Untrusted { screen, .. }
     | Ending::Vanished { screen }

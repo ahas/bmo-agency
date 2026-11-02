@@ -92,6 +92,7 @@ mod door {
   mod execution;
   mod guard;
   mod inbox;
+  mod liveness;
   mod looks;
   mod place_run;
   mod record;

@@ -584,6 +584,27 @@ pub fn spent_of(spend: &[ModelSpend]) -> Option<run_ledger::Spent> {
   })
 }
 
+/// The word a turn's end goes by: an answer and a turn put back go by their outcome; any other by the
+/// ending the door's last turn under its send came to, where one went through it and did not answer, else
+/// by its outcome.
+pub fn ending_of(end: &TurnEnd) -> &'static str {
+  let outcome = match end.outcome {
+    Outcome::Answered => "answered",
+    Outcome::Blocked => "blocked",
+    Outcome::Stopped => "stopped",
+    Outcome::Failed => "failed",
+    Outcome::Reprepared => "reprepared",
+  };
+
+  match end.outcome {
+    Outcome::Answered | Outcome::Reprepared => outcome,
+    _ => match crate::door::liveness::door_ending() {
+      Some("answered") | None => outcome,
+      Some(word) => word,
+    },
+  }
+}
+
 /// Why a run came to no answer, and the engine's error where its engine ended it with one.
 pub fn failure_of(no: NoAnswer) -> (String, Option<EngineError>) {
   match no {
@@ -1924,7 +1945,245 @@ impl HerdrSessions {
   }
 
   // A turn's end published as `turn-ended`, before its send is answered with it.
-  fn published(&self, session: &SessionId, end: TurnEnd) -> TurnEnd {
+  // One turn sent into a session and carried to its end.
+  async fn sent(&self, mut turn: Turn) -> Result<TurnEnd, Fault> {
+    let (agent, scope) = self.scope_held(&turn.session)?;
+    let row = self.admitted(&agent, &scope).await?;
+    let _role_place = self.role_turn(&agent).await?;
+    let at = now_ms();
+    let room = match &scope {
+      Scope::Room(room) => Some(room.clone()),
+      Scope::Agent => turn.context.room.as_ref().map(|room| room.chat_id.to_string()),
+      Scope::Worker | Scope::Apart(_) | Scope::Conversation(_) => None,
+    };
+
+    // A job's turn goes out under the run name its runner gives it, on Claude Code alone; a thrown-away
+    // session carries nothing else.
+    let work = match scope {
+      Scope::Worker | Scope::Apart(_) => turn.context.work.as_ref(),
+      _ => None,
+    };
+
+    // A gate's turn carries the gate's ask instead of work, and goes out on the gate road.
+    if matches!(scope, Scope::Apart(_)) && work.is_none() && turn.context.gate.is_none() {
+      return Err(fault(
+        FaultKind::Refused,
+        format!("{}: a thrown-away session's turn names its work parts", turn.session),
+      ));
+    }
+
+    if matches!(scope, Scope::Conversation(_)) && turn.context.work.is_some() {
+      return Err(fault(
+        FaultKind::Refused,
+        format!("{}: a conversation's turn carries no work parts", turn.session),
+      ));
+    }
+
+    // A thrown-away session's first prompt carries the reference the gate picks over its instruction; a
+    // co-work branch's prompt is composed by its parent and carries none, and a gate's turn is a
+    // judgement of its own. A session whose pick fails keeps its own words and nothing else, and a later
+    // turn of the same session is asked over the reference its first prompt already carries.
+    if let Scope::Apart(apart) = &scope
+      && !(apart.todo.is_some() && apart.role.is_some())
+      && turn.context.gate.is_none()
+      && self.referenced().insert(turn.session.clone())
+    {
+      let lines: Vec<String> = turn.prompt.lines().map(str::to_owned).collect();
+
+      match self.ground().peers.gate.reference(lines).await {
+        Ok(entries) => turn.prompt = crate::peers::gate::attach(&turn.prompt, &entries),
+        Err(why) => eprintln!("{}: the gate's reference was not picked: {why}", turn.session),
+      }
+    }
+
+    let run = match (&room, work) {
+      (_, Some(work)) => work.name.clone(),
+      (Some(room), None) => {
+        fill_marks(&COMPANION_RUNNER.runs.turn, &[("chat", room.as_str()), ("at", &at.to_string())])
+      }
+      (None, None) => format!("turn:{agent}:{at}"),
+    };
+
+    let turn_id;
+
+    {
+      let mut going = self.going();
+      let runs = going.entry(turn.session.clone()).or_default();
+
+      if !runs.is_empty() {
+        return Err(fault(FaultKind::Busy, format!("{} is in a turn", turn.session)));
+      }
+
+      turn_id = self.next_turn();
+      runs.push(Running {
+        turn: turn_id,
+        run: run.clone(),
+      });
+    }
+
+    self.outputs.begun(&turn.session, turn_id, &run);
+
+    // A chat turn's run stands in the ledger from its start: a turn into a room that is no job's and no
+    // gate's.
+    let ledger = match (&room, work, &turn.context.gate) {
+      (Some(room), None, None) => {
+        open_chat_run(&self.ground().db, &agent, room, &run, &turn.context, at).await
+      }
+      _ => None,
+    };
+
+    if !hears_words(work) {
+      self.deaf().insert(turn.session.clone());
+    }
+
+    // The turn is kept while it goes, so a server started after this one goes down hands its end back to
+    // the caller (docs/sessions.md, 「A restart hands the session over」).
+    crate::turn_pickup::keep(
+      &self.ground().db,
+      &crate::turn_pickup::InFlight {
+        session: turn.session.0.clone(),
+        turn: turn_id,
+        run: run.clone(),
+        agent: agent.clone(),
+        chat_id: room.as_deref().and_then(|room| room.parse().ok()),
+        ledger,
+        job: turn.context.job.as_ref().map(|job| job.job),
+        started_at: at,
+      },
+    )
+    .await;
+
+    // A room turn of a conversational agent is what an item it files is filed under.
+    if let (Some(room), None, None) = (&room, work, &turn.context.gate) {
+      crate::turn_marks::carrying(
+        &agent,
+        &run,
+        crate::turn_marks::Mark {
+          chat_id: room.parse().unwrap_or_default(),
+          privileged: turn.context.privileged,
+        },
+      );
+    }
+
+    self.ground().events.publish(TurnStarted {
+      session: turn.session.0.clone(),
+      run: run.clone(),
+      turn_id,
+      at,
+    });
+
+    let shown = OutputWatch {
+      outputs: &self.outputs,
+      session: &turn.session,
+      turn: turn_id,
+    };
+    let came = match (&scope, &row) {
+      (Scope::Worker, Some(row)) => {
+        let db = &self.ground().db;
+
+        keep_worker_job(db, &agent, turn.context.job).await;
+
+        let began = turn.context.began.unwrap_or(at);
+        let came = match work {
+          // The worker's road is Claude where its key stands on it; a fallback road crosses over on the
+          // same stand-in walk a chat turn uses (docs/cache-fallback.md).
+          Some(work) if work.provider == worker_session::PROVIDER => {
+            self.carried(&turn, &agent, WorkSeat::Worker(row), work, turn_id).await
+          }
+          Some(work) => {
+            self.worker_stand_in(&agent, work, &turn.prompt, began, turn.context.job, shown).await
+          }
+          // A turn put to the worker directly goes out on the road its next job would take: its pin at the
+          // head of its walk, else the job key's road (docs/agent-control.md, 「Asking a worker directly」).
+          None => match self.direct_road(&agent, &turn.prompt).await? {
+            Some(road) => {
+              let title = format!("{agent}: a turn");
+              let work = crate::control::work::work_parts(self.ground(), &agent, 0, &run, &title, &road)
+                .await
+                .map_err(|why| fault(FaultKind::Refused, why))?;
+
+              self.worker_stand_in(&agent, &work, &turn.prompt, began, turn.context.job, shown).await
+            }
+            None => self.worker_turn(row, &run, &turn.prompt, &turn.session, turn_id).await,
+          },
+        };
+
+        keep_worker_job(db, &agent, None).await;
+        came
+      }
+      (Scope::Apart(apart), _) => match (&turn.context.gate, work) {
+        (Some(gate), _) => {
+          self.gate_turn(&turn, &agent, &apart.provider, &apart.cwd, gate, &run, shown).await
+        }
+        (None, Some(work)) if apart.provider != worker_session::PROVIDER => {
+          let began = turn.context.began.unwrap_or(at);
+
+          self
+            .apart_in_place(&turn.session, &agent, apart, work, &turn.prompt, began, shown)
+            .await
+        }
+        (None, Some(work)) => self.carried(&turn, &agent, WorkSeat::Apart(apart), work, turn_id).await,
+        (None, None) => Err(apart_refused(&agent)),
+      },
+      (Scope::Conversation(conversation), _) => match &turn.context.gate {
+        Some(gate) => {
+          self
+            .gate_turn(&turn, &agent, &conversation.provider, &conversation.cwd, gate, &run, shown)
+            .await
+        }
+        None => self.conversation_turn(&turn, &agent, conversation, &run, shown).await,
+      },
+      (Scope::Worker, None) => Err(fault(FaultKind::Unknown, format!("no worker is named {agent}"))),
+      (Scope::Room(room), _) => match room_number(room) {
+        Ok(chat_id) => self.room_turn(&agent, chat_id, &run, &turn.prompt, &turn.context, shown).await,
+        Err(refused) => Err(refused),
+      },
+      (Scope::Agent, _) => self.agent_turn(&agent, &run, &turn.prompt, &turn.context, shown).await,
+    };
+
+    self.ended(&turn.session, &run);
+    crate::turn_marks::ended(&agent, &run);
+    crate::turn_pickup::forget(&self.ground().db, &run).await;
+
+    // A turn refused once its start was published still ends, failed with the refusal.
+    match came {
+      Ok(came) => {
+        let spent = came.spent();
+        let context = came.context();
+
+        if let (Some(context), Scope::Room(_) | Scope::Agent) = (context, &scope) {
+          self
+            .left
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .insert(turn.session.clone(), context);
+        }
+
+        let mut end = came.end(&run);
+
+        end.turn = turn_id;
+        close_chat_run(&self.ground().db, ledger, &end, spent, context).await;
+
+        Ok(self.published(&turn.session, end))
+      }
+      Err(refused) => {
+        let mut end = TurnEnd::failed(&run, refused.message.clone(), None);
+
+        end.turn = turn_id;
+        close_chat_run(&self.ground().db, ledger, &end, None, None).await;
+        self.published(&turn.session, end);
+        Err(refused)
+      }
+    }
+  }
+
+  // A turn's end published, its `ending` the word the door's last turn under the send ended on where the
+  // turn did not answer, else its outcome's own.
+  fn published(&self, session: &SessionId, mut end: TurnEnd) -> TurnEnd {
+    if end.ending.is_none() {
+      end.ending = Some(ending_of(&end).to_owned());
+    }
+
     self.ground().events.publish(TurnEnded {
       session: session.0.clone(),
       end: end.clone(),
@@ -2354,235 +2613,10 @@ impl Sessions for HerdrSessions {
     Ok((&mut offer.answer).await.map_or(Aside::Refused, said))
   }
 
-  async fn send_turn(&self, mut turn: Turn) -> Result<TurnEnd, Fault> {
-    let (agent, scope) = self.scope_held(&turn.session)?;
-    let row = self.admitted(&agent, &scope).await?;
-    let _role_place = self.role_turn(&agent).await?;
-    let at = now_ms();
-    let room = match &scope {
-      Scope::Room(room) => Some(room.clone()),
-      Scope::Agent => turn.context.room.as_ref().map(|room| room.chat_id.to_string()),
-      Scope::Worker | Scope::Apart(_) | Scope::Conversation(_) => None,
-    };
-
-    // A job's turn goes out under the run name its runner gives it, on Claude Code alone; a thrown-away
-    // session carries nothing else.
-    let work = match scope {
-      Scope::Worker | Scope::Apart(_) => turn.context.work.as_ref(),
-      _ => None,
-    };
-
-    // A gate's turn carries the gate's ask instead of work, and goes out on the gate road.
-    if matches!(scope, Scope::Apart(_)) && work.is_none() && turn.context.gate.is_none() {
-      return Err(fault(
-        FaultKind::Refused,
-        format!("{}: a thrown-away session's turn names its work parts", turn.session),
-      ));
-    }
-
-    if matches!(scope, Scope::Conversation(_)) && turn.context.work.is_some() {
-      return Err(fault(
-        FaultKind::Refused,
-        format!("{}: a conversation's turn carries no work parts", turn.session),
-      ));
-    }
-
-    // A thrown-away session's first prompt carries the reference the gate picks over its instruction; a
-    // co-work branch's prompt is composed by its parent and carries none, and a gate's turn is a
-    // judgement of its own. A session whose pick fails keeps its own words and nothing else, and a later
-    // turn of the same session is asked over the reference its first prompt already carries.
-    if let Scope::Apart(apart) = &scope
-      && !(apart.todo.is_some() && apart.role.is_some())
-      && turn.context.gate.is_none()
-      && self.referenced().insert(turn.session.clone())
-    {
-      let lines: Vec<String> = turn.prompt.lines().map(str::to_owned).collect();
-
-      match self.ground().peers.gate.reference(lines).await {
-        Ok(entries) => turn.prompt = crate::peers::gate::attach(&turn.prompt, &entries),
-        Err(why) => eprintln!("{}: the gate's reference was not picked: {why}", turn.session),
-      }
-    }
-
-    let run = match (&room, work) {
-      (_, Some(work)) => work.name.clone(),
-      (Some(room), None) => {
-        fill_marks(&COMPANION_RUNNER.runs.turn, &[("chat", room.as_str()), ("at", &at.to_string())])
-      }
-      (None, None) => format!("turn:{agent}:{at}"),
-    };
-
-    let turn_id;
-
-    {
-      let mut going = self.going();
-      let runs = going.entry(turn.session.clone()).or_default();
-
-      if !runs.is_empty() {
-        return Err(fault(FaultKind::Busy, format!("{} is in a turn", turn.session)));
-      }
-
-      turn_id = self.next_turn();
-      runs.push(Running {
-        turn: turn_id,
-        run: run.clone(),
-      });
-    }
-
-    self.outputs.begun(&turn.session, turn_id, &run);
-
-    // A chat turn's run stands in the ledger from its start: a turn into a room that is no job's and no
-    // gate's.
-    let ledger = match (&room, work, &turn.context.gate) {
-      (Some(room), None, None) => {
-        open_chat_run(&self.ground().db, &agent, room, &run, &turn.context, at).await
-      }
-      _ => None,
-    };
-
-    if !hears_words(work) {
-      self.deaf().insert(turn.session.clone());
-    }
-
-    // The turn is kept while it goes, so a server started after this one goes down hands its end back to
-    // the caller (docs/sessions.md, 「A restart hands the session over」).
-    crate::turn_pickup::keep(
-      &self.ground().db,
-      &crate::turn_pickup::InFlight {
-        session: turn.session.0.clone(),
-        turn: turn_id,
-        run: run.clone(),
-        agent: agent.clone(),
-        chat_id: room.as_deref().and_then(|room| room.parse().ok()),
-        ledger,
-        job: turn.context.job.as_ref().map(|job| job.job),
-        started_at: at,
-      },
-    )
-    .await;
-
-    // A room turn of a conversational agent is what an item it files is filed under.
-    if let (Some(room), None, None) = (&room, work, &turn.context.gate) {
-      crate::turn_marks::carrying(
-        &agent,
-        &run,
-        crate::turn_marks::Mark {
-          chat_id: room.parse().unwrap_or_default(),
-          privileged: turn.context.privileged,
-        },
-      );
-    }
-
-    self.ground().events.publish(TurnStarted {
-      session: turn.session.0.clone(),
-      run: run.clone(),
-      turn_id,
-      at,
-    });
-
-    let shown = OutputWatch {
-      outputs: &self.outputs,
-      session: &turn.session,
-      turn: turn_id,
-    };
-    let came = match (&scope, &row) {
-      (Scope::Worker, Some(row)) => {
-        let db = &self.ground().db;
-
-        keep_worker_job(db, &agent, turn.context.job).await;
-
-        let began = turn.context.began.unwrap_or(at);
-        let came = match work {
-          // The worker's road is Claude where its key stands on it; a fallback road crosses over on the
-          // same stand-in walk a chat turn uses (docs/cache-fallback.md).
-          Some(work) if work.provider == worker_session::PROVIDER => {
-            self.carried(&turn, &agent, WorkSeat::Worker(row), work, turn_id).await
-          }
-          Some(work) => {
-            self.worker_stand_in(&agent, work, &turn.prompt, began, turn.context.job, shown).await
-          }
-          // A turn put to the worker directly goes out on the road its next job would take: its pin at the
-          // head of its walk, else the job key's road (docs/agent-control.md, 「Asking a worker directly」).
-          None => match self.direct_road(&agent, &turn.prompt).await? {
-            Some(road) => {
-              let title = format!("{agent}: a turn");
-              let work = crate::control::work::work_parts(self.ground(), &agent, 0, &run, &title, &road)
-                .await
-                .map_err(|why| fault(FaultKind::Refused, why))?;
-
-              self.worker_stand_in(&agent, &work, &turn.prompt, began, turn.context.job, shown).await
-            }
-            None => self.worker_turn(row, &run, &turn.prompt, &turn.session, turn_id).await,
-          },
-        };
-
-        keep_worker_job(db, &agent, None).await;
-        came
-      }
-      (Scope::Apart(apart), _) => match (&turn.context.gate, work) {
-        (Some(gate), _) => {
-          self.gate_turn(&turn, &agent, &apart.provider, &apart.cwd, gate, &run, shown).await
-        }
-        (None, Some(work)) if apart.provider != worker_session::PROVIDER => {
-          let began = turn.context.began.unwrap_or(at);
-
-          self
-            .apart_in_place(&turn.session, &agent, apart, work, &turn.prompt, began, shown)
-            .await
-        }
-        (None, Some(work)) => self.carried(&turn, &agent, WorkSeat::Apart(apart), work, turn_id).await,
-        (None, None) => Err(apart_refused(&agent)),
-      },
-      (Scope::Conversation(conversation), _) => match &turn.context.gate {
-        Some(gate) => {
-          self
-            .gate_turn(&turn, &agent, &conversation.provider, &conversation.cwd, gate, &run, shown)
-            .await
-        }
-        None => self.conversation_turn(&turn, &agent, conversation, &run, shown).await,
-      },
-      (Scope::Worker, None) => Err(fault(FaultKind::Unknown, format!("no worker is named {agent}"))),
-      (Scope::Room(room), _) => match room_number(room) {
-        Ok(chat_id) => self.room_turn(&agent, chat_id, &run, &turn.prompt, &turn.context, shown).await,
-        Err(refused) => Err(refused),
-      },
-      (Scope::Agent, _) => self.agent_turn(&agent, &run, &turn.prompt, &turn.context, shown).await,
-    };
-
-    self.ended(&turn.session, &run);
-    crate::turn_marks::ended(&agent, &run);
-    crate::turn_pickup::forget(&self.ground().db, &run).await;
-
-    // A turn refused once its start was published still ends, failed with the refusal.
-    match came {
-      Ok(came) => {
-        let spent = came.spent();
-        let context = came.context();
-
-        if let (Some(context), Scope::Room(_) | Scope::Agent) = (context, &scope) {
-          self
-            .left
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .insert(turn.session.clone(), context);
-        }
-
-        let mut end = came.end(&run);
-
-        end.turn = turn_id;
-        close_chat_run(&self.ground().db, ledger, &end, spent, context).await;
-
-        Ok(self.published(&turn.session, end))
-      }
-      Err(refused) => {
-        let mut end = TurnEnd::failed(&run, refused.message.clone(), None);
-
-        end.turn = turn_id;
-        close_chat_run(&self.ground().db, ledger, &end, None, None).await;
-        self.published(&turn.session, end);
-        Err(refused)
-      }
-    }
+  // The door's ending of every turn the send puts through a program's pane is kept for its end
+  // (docs/api.md, 「sessions」, a turn's `ending`).
+  async fn send_turn(&self, turn: Turn) -> Result<TurnEnd, Fault> {
+    crate::door::liveness::keeping_endings(self.sent(turn)).await
   }
 
   async fn read_state(&self, session: &SessionId, model: Option<&str>) -> Result<State, Fault> {

@@ -12,6 +12,7 @@ pub mod endpoint;
 pub mod execution;
 pub mod guard;
 pub mod inbox;
+pub mod liveness;
 pub mod looks;
 pub mod place_run;
 pub mod record;

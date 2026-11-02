@@ -31,13 +31,17 @@ use super::aside;
 use super::confirm::{Asking, Confirmation, Questions};
 use super::execution::{Children, Identity, Row, cancelled, publish_envelope};
 use super::guard::{socket_refusal, turn_refusal};
+use super::liveness::{
+  Judge, Liveness, Lost, Peer, Phase, Program, Signals, own_peer, program_of_session, signals_of,
+  standing_peer,
+};
 use super::looks::{
   GoneConfirm, Look, folder_trust_keys, is_blocked, pane_listed, prompt, prompt_with_lead, screen_of,
   send_keys, status_of,
 };
 use super::place_run::{
-  HookRecord, ProgramLogin, begin_run, end_run, hand_run, latest_failure, program_drawn, read_hooks,
-  read_run, run_variables, status_after_turn,
+  HookRecord, ProgramLogin, begin_run, end_run, hand_run, hooks_file, latest_failure, program_drawn,
+  read_hooks, read_run, run_variables, status_after_turn, status_file,
 };
 use super::record::{
   ChildReader, ModelSpend, Reply, ReplyWindow, RoundState, Tail, answered_since, ended_on_error,
@@ -269,6 +273,23 @@ pub enum Ending {
   },
   /// Ended from outside: a cancellation stood over this run's name or its root.
   Stopped { screen: String },
+  /// The program's process the turn was put into is gone, or its place stands another in its stead, and its
+  /// record never closed the turn (docs/agent-control.md, 「Telling that a turn's program is gone」).
+  #[serde(rename = "program-lost")]
+  ProgramLost {
+    screen: String,
+    // Read where the turn ends, never written out, like the error's kind above.
+    #[serde(skip)]
+    why: String,
+  },
+  /// No program can be named for the turn, its pane shows none, and nothing the program writes moved
+  /// between two looks: the other end is gone.
+  #[serde(rename = "silent-peer")]
+  SilentPeer {
+    screen: String,
+    #[serde(skip)]
+    why: String,
+  },
 }
 
 impl Ending {
@@ -284,6 +305,20 @@ impl Ending {
       Self::Errored { .. } => "errored",
       Self::Unsubmitted { .. } => "unsubmitted",
       Self::Stopped { .. } => "stopped",
+      Self::ProgramLost { .. } => "program-lost",
+      Self::SilentPeer { .. } => "silent-peer",
+    }
+  }
+
+  /// What the ending stood on, for the turn's liveness row: why it lost its program, the error, why its
+  /// words never became a turn, or its word.
+  pub fn detail(&self) -> String {
+    match self {
+      Self::ProgramLost { why, .. } | Self::SilentPeer { why, .. } | Self::Unsubmitted { why, .. } => {
+        why.clone()
+      }
+      Self::Errored { error, .. } => error.clone(),
+      other => other.word().to_owned(),
     }
   }
 }
@@ -389,9 +424,89 @@ struct Door<'a, W: Watch> {
   fed: Option<usize>,
   questions: Questions,
   trust_config: PathBuf,
+  // The turn's row in the store's liveness table, and the program its words went into: for a standing
+  // program the process its place records as they go in, for a pane of the turn's own the process whose
+  // command line carries the session, once found.
+  liveness: Liveness,
+  program: Option<Program>,
+  judge: Judge,
 }
 
 impl<W: Watch> Door<'_, W> {
+  // What can be said of the turn's program now: a pane of the turn's own looks for its process until it
+  // finds it.
+  fn peer(&mut self) -> Peer {
+    if let Some((place, _)) = &self.standing {
+      return standing_peer(place, self.program.as_ref());
+    }
+
+    if self.program.is_none() {
+      self.program = program_of_session(&self.turn.session);
+      self.liveness.program(self.program.as_ref());
+    }
+
+    own_peer(self.program.as_ref())
+  }
+
+  // The program's own signals now: its record's length, and its place's status-line calls and hook events.
+  fn signals(&mut self) -> Signals {
+    let signals =
+      signals_of(self.tail.path(), self.standing.as_ref().map(|(place, _)| place.path.as_path()));
+
+    self.liveness.signals(&signals);
+    signals
+  }
+
+  // A look's reading of herdr kept on the turn's row, written where something in it changed.
+  async fn looked(&mut self, look: &Look) {
+    self.liveness.herdr(look);
+    self.liveness.write(&self.ground.db).await;
+  }
+
+  // The program standing in the place named as the one the turn's words go into.
+  fn name_standing(&mut self) {
+    if let Some((place, _)) = &self.standing {
+      self.program = place.program_alive().map(|running| Program {
+        pid: running.pid,
+        birth: running.birth,
+      });
+      self.liveness.program(self.program.as_ref());
+    }
+  }
+
+  // The turn ended on what a look observed and the record does not say, its screen kept as evidence.
+  async fn lost(&mut self, pane: &str, lost: Lost, herdr: &str) -> Ending {
+    let why = match (lost, &self.program) {
+      (Lost::Program, Some(program)) => {
+        let instead = self
+          .standing
+          .as_ref()
+          .and_then(|(place, _)| place.running())
+          .filter(|running| running.pid != program.pid && running.pid > 0)
+          .map(|running| format!(", and its place stands program {} in its stead", running.pid))
+          .unwrap_or_default();
+
+        format!(
+          "{}: the program {} the turn was put into is gone{instead}, and its record never closed the turn",
+          lost.word(),
+          program.pid
+        )
+      }
+      (Lost::Program, None) => format!("{}: the turn's program is gone", lost.word()),
+      (Lost::SilentPeer, _) => format!(
+        "{}: no program can be named for the turn, herdr reads its pane {herdr}, and nothing its program writes moved between two looks",
+        lost.word()
+      ),
+    };
+    let shown = self.screen(pane).await;
+    let screen = self.kept_screen(&why, shown).await;
+
+    match lost {
+      Lost::Program => Ending::ProgramLost { screen, why },
+      Lost::SilentPeer => Ending::SilentPeer { screen, why },
+    }
+  }
+
   fn lines(&mut self) -> Vec<Value> {
     self.tail.look()
   }
@@ -451,7 +566,10 @@ impl<W: Watch> Door<'_, W> {
         return spend_since(&records, from);
       }
 
-      if pane_listed(self.herdr, pane).await == Some(false) {
+      // herdr saying the pane is gone, or the program's own process gone, is the program done writing.
+      if pane_listed(self.herdr, pane).await == Some(false)
+        || matches!(own_peer(self.program.as_ref()), Peer::Gone(_))
+      {
         let records = self.lines();
 
         return written(&records).then(|| spend_since(&records, from)).flatten();
@@ -764,13 +882,14 @@ impl<W: Watch> Door<'_, W> {
     said
   }
 
-  // Whether the turn's program still stands: a standing place's program alive, or a pane of the turn's
-  // own that herdr has not said is gone.
-  async fn program_stands(&self, pane: &str) -> bool {
-    match &self.standing {
-      Some((place, _)) => place.program_alive().is_some(),
-      None => status_of(self.herdr, pane, GoneConfirm::default()).await != Look::Gone,
+  // Whether the turn's program still stands: the process its words went into not gone, and for a pane of
+  // the turn's own a pane herdr has not said is gone.
+  async fn program_stands(&mut self, pane: &str) -> bool {
+    if matches!(self.peer(), Peer::Gone(_)) {
+      return false;
     }
+
+    self.standing.is_some() || status_of(self.herdr, pane, GoneConfirm::default()).await != Look::Gone
   }
 
   fn round_state(&mut self, from: usize) -> RoundState {
@@ -841,6 +960,22 @@ pub async fn put<W: Watch>(ground: &Ground, turn: &Turn, watch: &mut W) -> Resul
     Seat::Standing(home) => Some((Place::of(&ground.roots.data, &home.agent), home)),
     Seat::Own(_) => None,
   };
+  // The turn's liveness row names every record its wait reads: the session's, and a standing program's
+  // status line and hooks in its place.
+  let mut read = vec![record.clone()];
+
+  if let Some((place, _)) = &standing {
+    read.extend([status_file(&place.path), hooks_file(&place.path)]);
+  }
+
+  let mut liveness = Liveness::new(row.id(), &turn.name, &turn.line, &turn.session, read);
+
+  if let Err(why) = super::liveness::prune(&ground.db, now_ms()).await {
+    eprintln!("{}: the liveness rows past their week: {why:?}", turn.name);
+  }
+
+  liveness.write(&ground.db).await;
+
   let mut door = Door {
     ground,
     turn,
@@ -855,6 +990,9 @@ pub async fn put<W: Watch>(ground: &Ground, turn: &Turn, watch: &mut W) -> Resul
     fed: None,
     questions: Questions::new(turn.timings.redraw),
     trust_config,
+    liveness,
+    program: None,
+    judge: Judge::default(),
   };
   let opened = match &turn.seat {
     Seat::Standing(home) => stand(&mut door, home).await,
@@ -864,12 +1002,15 @@ pub async fn put<W: Watch>(ground: &Ground, turn: &Turn, watch: &mut W) -> Resul
     Ok(pane) => pane,
     Err(why) => {
       door.close("launch-error").await;
+      door.liveness.close(&ground.db, "failed", &why).await;
 
       return Err(why);
     }
   };
 
   door.row.set("paneId", json!(pane));
+  door.liveness.pane(&pane);
+  door.liveness.write(&ground.db).await;
 
   // A turn of a standing program says so on its row, with where its record is read from and which process
   // the program was, since the pane outlives the turn and cannot be what closes it.
@@ -888,7 +1029,8 @@ pub async fn put<W: Watch>(ground: &Ground, turn: &Turn, watch: &mut W) -> Resul
 
   let mut attempted = false;
   let mut ending = End::Exited;
-  let watched = watch_turn(&mut door, &pane, from, &mut attempted, &mut ending).await;
+  // Held on the heap: the wait is the deepest future of a turn.
+  let watched = Box::pin(watch_turn(&mut door, &pane, from, &mut attempted, &mut ending)).await;
   let watched = match watched {
     Ok(done) => Ok(done),
     Err(why) => {
@@ -900,6 +1042,14 @@ pub async fn put<W: Watch>(ground: &Ground, turn: &Turn, watch: &mut W) -> Resul
   door.feed().await;
   // A question still being put is about a pane that is going away.
   door.questions.withdraw();
+
+  match &watched {
+    Ok(ended) => {
+      super::liveness::kept_ending(ended.word());
+      door.liveness.close(&ground.db, ended.word(), &ended.detail()).await
+    }
+    Err(why) => door.liveness.close(&ground.db, "failed", why).await,
+  }
 
   match &turn.seat {
     Seat::Standing(home) => {
@@ -1192,6 +1342,11 @@ async fn watch_turn<W: Watch>(
       resident["from"] = json!(from);
     }
 
+    // The program the words go into is the one standing now, a reset before them included.
+    door.name_standing();
+    door.liveness.phase(Phase::Prompting);
+    door.liveness.write(&door.ground.db).await;
+
     let sent = if turn.prompt.starts_with('/') {
       prompt(door.herdr, pane, &turn.prompt).await
     } else if door.standing.is_some() {
@@ -1256,6 +1411,13 @@ async fn watch_turn<W: Watch>(
       return Err("execution cancelled".to_owned());
     }
 
+    // A program gone takes no `enter`: the words went into nothing that can answer them.
+    if matches!(door.peer(), Peer::Gone(_)) && !turn_closed_since(&door.lines(), from) {
+      *ending = End::Exited;
+
+      return Ok(door.lost(pane, Lost::Program, "unsubmitted").await);
+    }
+
     door.watch.note(&DOOR_WORDS.notes.enter_pressed).await;
     let _ = send_keys(door.herdr, pane, &["enter"]).await;
     taken = door.taken(pane, from).await;
@@ -1264,6 +1426,8 @@ async fn watch_turn<W: Watch>(
   door.row.set("state", json!("running"));
   door.save().await;
   door.fed = Some(from);
+  door.liveness.phase(Phase::Working);
+  door.liveness.write(&door.ground.db).await;
 
   let mut worked = matches!(taken, Submit::Working);
   // When the caller's overtime policy is asked next; none once it asks nothing.
@@ -1365,7 +1529,31 @@ async fn watch_turn<W: Watch>(
       }
     }
 
+    // The program is read before herdr, so a program gone ends the turn while herdr does not answer as
+    // well; a record that closed the turn meanwhile is read as it stands.
+    let signals = door.signals();
+    let peer = door.peer();
+    let closed = {
+      let records = door.lines();
+
+      turn_closed_since(&records, answer_from)
+        || ended_on_error(&records, answer_from)
+        || door.failure_since(failed_from).is_some()
+    };
+
+    if matches!(peer, Peer::Gone(_)) {
+      if closed {
+        break;
+      }
+
+      *ending = End::Exited;
+
+      return Ok(door.lost(pane, Lost::Program, "").await);
+    }
+
     let now = status_of(door.herdr, pane, timings.gone).await;
+
+    door.looked(&now).await;
 
     if now == Look::Gone {
       // Gone mid-turn, as herdr has said look after look: somebody closing it.
@@ -1409,6 +1597,14 @@ async fn watch_turn<W: Watch>(
 
     if now.is("working") {
       worked = true;
+    }
+
+    // No program to name while the pane shows none, and nothing it writes moved since the look before:
+    // the other end is gone.
+    if let Some(lost) = door.judge.look(&peer, closed, &now, &signals) {
+      *ending = End::Cancelled;
+
+      return Ok(door.lost(pane, lost, now.word()).await);
     }
 
     // Over where the program ended the turn on its own error, whatever the pane shows: a full window leaves
@@ -1508,16 +1704,55 @@ async fn watch_turn<W: Watch>(
   // At rest is not over: the program's screen can come to rest before the answer of a turn of a second or
   // two has reached its record, and the record's closing line comes after the last of the answer's words.
   // So a turn seen at work, or one that answered, is over once that line is written, waited for until it
-  // is; one a person interrupted writes the interrupted marker instead, and a turn stopped meanwhile, or
-  // one whose program is gone, is read as it stands.
+  // is; one a person interrupted writes the interrupted marker instead, and a turn stopped meanwhile, one
+  // whose pane herdr says is gone, or one whose program is gone, is read as it stands. No program to name,
+  // a pane showing none and nothing it writes moving between two looks is the other end gone. Where
+  // nothing of an answer was written, a program gone or a silent peer is the turn's ending.
+  let mut lost_after_rest: Option<(Lost, String)> = None;
+
   if worked || answered_since(&door.lines(), answer_from) {
-    while !turn_closed_since(&door.lines(), answer_from)
-      && door.round_state(answer_from) != RoundState::Interrupted
-      && door.program_stands(pane).await
-      && !door.cancelled().await
-    {
+    loop {
+      if turn_closed_since(&door.lines(), answer_from)
+        || door.round_state(answer_from) == RoundState::Interrupted
+        || door.cancelled().await
+      {
+        break;
+      }
+
+      let signals = door.signals();
+      let peer = door.peer();
+
+      if matches!(peer, Peer::Gone(_)) {
+        lost_after_rest = Some((Lost::Program, String::new()));
+        break;
+      }
+
+      let now = status_of(door.herdr, pane, GoneConfirm::default()).await;
+
+      door.looked(&now).await;
+
+      if now == Look::Gone {
+        break;
+      }
+
+      if let Some(lost) = door.judge.look(&peer, false, &now, &signals) {
+        lost_after_rest = Some((lost, now.word().to_owned()));
+        break;
+      }
+
       tokio::time::sleep(every).await;
     }
+  }
+
+  if let Some((lost, herdr)) = lost_after_rest
+    && !answered_since(&door.lines(), answer_from)
+    && !turn_closed_since(&door.lines(), answer_from)
+    && !ended_on_error(&door.lines(), answer_from)
+    && door.failure_since(failed_from).is_none()
+  {
+    *ending = if lost == Lost::Program { End::Exited } else { End::Cancelled };
+
+    return Ok(door.lost(pane, lost, &herdr).await);
   }
 
   // The program holds on to what it was handed and takes it as a turn of its own once the turn it was

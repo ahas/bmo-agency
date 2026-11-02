@@ -2138,7 +2138,9 @@ The measured, fixed order.
    above and waits again. Other `blocked` is a place a person answers, or a wedge the round clears itself
    where nobody is coming to answer it (「When a program will not come to rest」 below). The wait has no
    clock: it lasts until the program is at rest, stands at a question, writes its start failure, loses
-   its pane or is stopped, and a herdr that does not answer meanwhile is waited out.
+   its pane or is stopped, and a herdr that does not answer meanwhile is waited out. A head pane herdr
+   says is gone while the program is being stood is stood again rather than waited on, since nothing in
+   a pane that is not there will ever start the program.
    - **At rest counts only from the program standing now.** A program started again for the turn is
      not ready when its process is: herdr goes on reading the pane at rest from the program before it
      for the second or two the new one takes to come up, and words put in then reach no input box and
@@ -2182,7 +2184,8 @@ The measured, fixed order.
    → `idle`. **Without also seeing `working`**, the `idle` before the prompt went in is read as finished.
    A turn back at rest that was never seen working and wrote no answer is over once its record closes a
    turn after the prompt, or, for a command of the program's own, once its record has grown past the
-   prompt; it ends as silent. Until then it is waited on.
+   prompt; it ends as silent. Until then it is waited on, or until its program is gone (「Telling that a
+   turn's program is gone」 below).
    - **A turn the program ended on its own error is over by its record, whatever the pane shows.** A full
      window comes back as an error the program writes in the answer's place, followed by the line a turn
      ends with, and the program then stands `blocked` at its own choice of what to do next (measured:
@@ -2200,11 +2203,66 @@ The measured, fixed order.
    before any of its answer is in the file (measured: a one-word answer of a run apart reached the file
    after its pane had read as rest, and the turn read as silent). The turn's end is what the transcript says — a CLI that finished a turn writes a `system`
    line (`turn_duration`), after the last of the answer's words. So after seeing rest, the turn waits for
-   that end line among the lines written for this turn, and reads its answer once it is there.
+   that end line among the lines written for this turn, and reads its answer once it is there. A program
+   that is gone before that line comes writes nothing more: the turn is read as its record stands, an
+   answer it wrote kept, and one that wrote none ends `program-lost`.
 6. Read the answer and the tokens from the transcript and the money and windows from the status line,
    and leave the program standing for the next turn. The status line's reading after the turn is waited
    for until it is written or the program is no longer alive; the program makes it about a second after
    the turn's end.
+
+### Telling that a turn's program is gone
+
+A turn waits for events, never for a span (the platform's 「No clock bounds」). What it waits on is a
+program, and a program can go without saying so: it ends, it crashes, somebody ends it, or the pane is
+left holding none. Telling that the other end is gone is observing an event, and every wait of a turn
+reads it.
+
+- **The turn's program is a process,** named by its pid and its birth. For a standing program it is the
+  process its place records as the prompt goes in; for a pane of the run's own it is the process whose
+  command line carries the run's session, looked for on each look until it is found. A program on a
+  node is read by what the node's link last told of it.
+- **Its liveness row** is one row per turn in the store's `turn_liveness`, keyed by the turn's
+  execution (`docs/store.md`). It holds the turn's run, line and session, its phase, the pane, the
+  program's pid and birth, the record files the turn reads, what herdr last read the pane as and when,
+  the record's length and when it last grew, and when the place last took a status-line call and a hook
+  event. It is written as the turn opens, in the phase `standing` while its program is stood, `prompting`
+  as the words go in and `working` once they are seen taken; it is written again on each look where
+  something in it changed, and it is closed with the turn's ending and the reading the ending stood on.
+- **The program's own signals are its heartbeat:** its record growing, its status-line calls and its hook
+  events. herdr's reading is the pane's, not the program's: it says what is drawn there, never that the
+  program behind it can still answer.
+- **A turn whose words went in ends at the first of these, each observed:**
+  - **its record closed the turn:** the line a turn ends with, or the program's error in the answer's
+    place — `answered`, `silent` or `errored`, read as the steps above read them;
+  - **its pane is gone:** herdr says so look after look — `vanished`;
+  - **its program is gone:** the process on its liveness row is no longer alive, or its place now records
+    another process in its stead, and the record has not closed the turn — `program-lost`. The record
+    is read once more first, and a turn it closed meanwhile ends as the record says;
+  - **the other end is silent:** no program can be named for the turn — none found by its session, none
+    alive in its place — while herdr reads the pane as holding no running program (`unknown`), standing
+    `blocked`, or back at rest with no turn-end after the words were seen taken, and between two such
+    looks in a row the record did not grow and the place took neither a status-line call nor a hook
+    event — `silent-peer`;
+  - **a stop,** as every wait of the turn ends on one.
+- **Where each is read.** Every look of the main wait reads the program first, before herdr, so a program
+  gone ends the turn while herdr does not answer as well. The wait for the end line after rest, the
+  wait for the turns a program still owes and the submit wait between its presses of `enter` read it too.
+  Whether the program is alive is asked on every look, never only once the turn is at rest.
+- **What is no ending.** A program alive and working, however long, is a live peer and is waited on. A
+  program alive at rest whose record has not yet closed its turn is waited on, since its process
+  standing is what says it can still write. herdr not answering is written down and ends nothing; the
+  program's own process is read meanwhile.
+- **Handed on typed.** The ending's word is the turn's `ending` on its end (`docs/api.md`, 「sessions」),
+  so a caller tells a program gone from a turn that answered nothing and from a pane closed under it, and
+  no caller waits on a turn whose program cannot answer.
+- **A restart leaves the evidence.** A server that starts closes every liveness row the process before it
+  left open with the ending `restarted` and what it finds of the turn then — its phase and pane, whether
+  the process on the row is still alive, herdr's last reading and when the record last grew — and writes
+  the same to its log, before anything that process left is picked up or taken down. Each thrown-away
+  session's place it takes down is written to the log first as well: the program the place records,
+  whether that process is alive, and what the pane's head was last answered. A later reading says what
+  the turn was waiting on when its server went.
 
 ### Pushing words into a running turn works
 

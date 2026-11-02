@@ -234,7 +234,9 @@ pub fn said(ended: &Result<Ending, String>) -> Result<&str, &str> {
   match ended {
     Ok(Ending::Answered { reply, .. }) => Ok(&reply.text),
     Ok(Ending::Errored { error, .. }) => Err(error),
-    Ok(Ending::Unsubmitted { why, .. }) => Err(why),
+    Ok(Ending::Unsubmitted { why, .. })
+    | Ok(Ending::ProgramLost { why, .. })
+    | Ok(Ending::SilentPeer { why, .. }) => Err(why),
     Ok(other) => Err(other.word()),
     Err(why) => Err(why),
   }
@@ -242,8 +244,8 @@ pub fn said(ended: &Result<Ending, String>) -> Result<&str, &str> {
 
 /// A run's ending in the words a walk of logins reads: its reply where it answered, and otherwise what kept
 /// it from answering — the program's own error read as a login's failure where it is one, a stop, the pane
-/// failing under it, a person's question, or a run that ended with no answer. `key` is the work the run was
-/// for, which a gone login's failure names.
+/// or the program failing under it, a person's question, or a run that ended with no answer. `key` is the
+/// work the run was for, which a gone login's failure names.
 pub fn answered(ending: Ending, key: &str) -> Result<Reply, Failure> {
   let died = |message: String| Failure::Died {
     ending: RunEnding::Exit { code: 1 },
@@ -257,6 +259,11 @@ pub fn answered(ending: Ending, key: &str) -> Result<Reply, Failure> {
     Ending::Stopped { .. } => Err(Failure::Stopped),
     Ending::Vanished { .. } => Err(Failure::Transport {
       message: format!("{key}: the run's pane went away under it"),
+    }),
+    // The program the run was put into failed under it, as a pane gone does: the road and the work are
+    // not what failed.
+    Ending::ProgramLost { why, .. } | Ending::SilentPeer { why, .. } => Err(Failure::Transport {
+      message: format!("{key}: {why}"),
     }),
     Ending::Blocked { .. } => Err(Failure::Person),
     Ending::Untrusted { folder, config, .. } => Err(Failure::Untrusted { folder, config }),

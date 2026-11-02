@@ -97,6 +97,13 @@ seeds. The other crates and the server reach the store only through it.
     verdict, until when a keep holds, who gave it, why and when it closed
     (`docs/agent-control.md`, 「A clock asks, it never cuts」); a row ended a week ago goes as the next
     clock is opened;
+  - the life of a turn: `turn_liveness`, one row a turn put into a program's pane, keyed by the turn's
+    execution — its run, line and session, its phase, the pane, the program's pid and birth, the record
+    files it reads, herdr's last reading of the pane and when, the record's length and when it last grew,
+    when the place last took a status-line call and a hook event, when it opened and was last written,
+    and its ending, when it ended and the reading the ending stood on — opened as the turn opens, written
+    as its wait looks and closed with its ending (`docs/agent-control.md`, 「Telling that a turn's program
+    is gone」); a row ended a week ago goes as a turn's next row is opened;
   - the companions' sessions and settings: `room_sessions`, `room_session_turns`, `companion_settings`;
     the window a room holds open for an agent is the room's owner's, and agency keeps none;
   - the settings, below.

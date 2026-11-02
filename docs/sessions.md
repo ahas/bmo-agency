@@ -62,6 +62,10 @@ statements below about either are kept for a rollback to the road a deployment l
     (`docs/api.md`, 「assignments and jobs」);
   - a turn no record names — one on a program that keeps no such record — is ended failed for its
     caller, and a job's is left to the pass that ends a job left running.
+  - every turn's liveness row the process before it left open is closed first, with the ending
+    `restarted` and what the server then finds of the turn's program, and the same is written to its log,
+    before any place that process left is taken down (`docs/agent-control.md`, 「Telling that a turn's
+    program is gone」).
   The progress read of a turn picked up this way answers `unknown-turn`; its caller reads its end on the
   event stream.
 - **A program is stood afresh only between turns** (`docs/launch-lines.md`, 「What is fixed」). A
@@ -257,6 +261,10 @@ statements below about either are kept for a rollback to the road a deployment l
   instruction opens at once and the words the dead turn did not answer come to that next turn.
 - **No replacement session is started where a pane is kept:** the pane is left as it stands, and the
   next turn opens the session it needs.
+- **A turn still being watched reads the same death itself.** Its wait asks on every look whether the
+  process its liveness row names is alive, and ends `program-lost` once it is not and its record has not
+  closed the turn (`docs/agent-control.md`, 「Telling that a turn's program is gone」); the queue's pass
+  closes what no live wait is left to close.
 
 ## A worker's session per model
 

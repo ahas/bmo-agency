@@ -411,6 +411,10 @@ pub struct TurnEnd {
   pub delivery: Delivery,
   pub run: String,
   pub outcome: Outcome,
+  /// The word the turn's wait ended on, typed (docs/api.md, 「sessions」): for a turn put into a program's
+  /// pane, the door's ending — `answered`, `silent`, `errored`, `vanished`, `program-lost`, `silent-peer`
+  /// and the rest; for any other, the outcome's own word.
+  pub ending: Option<String>,
   pub answer: Option<String>,
   pub reason: Option<String>,
   #[serde(rename = "engineError")]
@@ -432,6 +436,7 @@ impl TurnEnd {
       delivery: if outcome == Outcome::Blocked { Delivery::Blocked } else { Delivery::Taken },
       run: run.into(),
       outcome,
+      ending: None,
       answer: None,
       reason: None,
       engine_error: None,

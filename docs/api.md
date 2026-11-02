@@ -322,8 +322,10 @@ the session's own, the program composed as a worker's job on that road is, the l
 prompt and the line's servers its tools; the place is marked as the session's, stands under no agent's row,
 and is ended with the session — its program released, the session token it carried taken back, its workspace
 closed and its folder taken away. A server that starts ends every such place the process before it left, since
-an apart session does not outlive the process that started it. Agency asks nothing of such a session
-after a turn's answer: any further turn, a round among them, is its caller's.
+an apart session does not outlive the process that started it; before it takes one down it writes to its log
+what it found there — the program the place records, whether that process is alive, and what the pane's head
+was last answered — after closing the liveness rows that process left open. Agency asks nothing of such a
+session after a turn's answer: any further turn, a round among them, is its caller's.
 
 A conversation whose agent is a gate work key carries a gate's one turn: the turn's `gate` part holds the
 gate's instructions as the program's whole system prompt, whether it thinks, and the model, effort and
@@ -389,6 +391,18 @@ answers the turn named while it runs, and the session's last turn once it has en
 the words pushed into a turn act on the turn going now. Each answers `unknown-turn` where the session
 carries no turn of that id. A session's turn that has ended keeps what it wrote until the session's next
 turn begins.
+
+A turn's end — the send's answer and `turn.ended` alike — carries `ending` beside `outcome`: the word the
+turn's wait ended on, typed, and `reason`, why a turn with no answer has none, or null. A turn put into a
+program's pane ends `answered`, `silent` (back at rest, its record closing the turn with no answer),
+`errored` (the program's own error in the answer's place), `vanished` (herdr says its pane is gone),
+`program-lost` (the program's process is gone and its record never closed the turn), `silent-peer` (no
+program can be named for the turn, the pane shows none, and nothing the program writes moved between two
+looks), `blocked`, `untrusted`, `unsubmitted`, `overran` or `stopped`
+(`docs/agent-control.md`, 「Telling that a turn's program is gone」); a turn that went out on a road with no
+such pane ends `answered`, `blocked`, `stopped` or `failed`, and a worker's turn put back before anything
+went in `reprepared`. No turn whose program cannot answer is left waiting: each of these is an observed
+event, and none is a clock's.
 
 Every route that takes a body names the request type it reads, holding only the fields that route reads;
 `docs/openapi.json` names that type, and no route's request is a response type reused.

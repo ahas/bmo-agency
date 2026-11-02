@@ -382,6 +382,10 @@ pub async fn hand_back(ground: &Ground, place: &Place, turn: &InFlight, came: Ca
     close_chat_run(db, turn.ledger, &end, spent, None).await;
   }
 
+  if end.ending.is_none() {
+    end.ending = Some(crate::herdr_backend::ending_of(&end).to_owned());
+  }
+
   ground.events.publish(TurnEnded {
     session: turn.session.clone(),
     end: end.clone(),

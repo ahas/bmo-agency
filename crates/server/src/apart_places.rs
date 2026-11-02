@@ -95,10 +95,15 @@ pub async fn end(ground: &Ground, name: &str) {
 }
 
 /// Every thrown-away session's place the process before this one left, ended as a server starts: how many.
+/// What each held is written to the log first — the program its record names, whether that process runs,
+/// and what its pane's head was last answered — since taking the place down takes that evidence with it.
 pub async fn sweep(ground: &Ground) -> usize {
   let left = apart_places(&ground.roots.data);
 
   for name in &left {
+    let found = crate::door::liveness::place_found(&Place::of(&ground.roots.data, name));
+
+    println!("agency: thrown-away place {name} as the last process left it: {found}");
     end(ground, name).await;
   }
 
