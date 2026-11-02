@@ -113,9 +113,11 @@ co-work branch works in. What a role is, is `docs/agent-roles.md`; which provide
 - **An owner gives back everything it holds in one ask** (`docs/api.md`, 「slots, reservations and places」):
   every request it asked that still waits, stands reserved or is let in — a waiting or reserved one
   cancelled, an active one released — every reservation it holds, and every role session bound to one of its
-  leases, ended, a turn running in it cut first (「The line」). A consumer asks it as it starts and as its run
-  ends, so it keeps no list of its own holds to give back, and a lease let in whose run never started a
-  session is given back with the rest.
+  leases, ended, a turn running in it cut first (「The line」). The ask is answered once the requests and
+  reservations are given back; the sessions' ending is carried on by agency after the answer, so a consumer
+  asking at its start is never held on a program's turn that is slow to stop. A consumer asks it as it starts
+  and as its run ends, so it keeps no list of its own holds to give back, and a lease let in whose run never
+  started a session is given back with the rest.
 - **The release is the owner's word, read as given:** agency judges nothing of why, and a request asked under
   another owner is not touched.
 

@@ -394,7 +394,10 @@ async fn sessions_on_one_slot(port: u16, token: &str, entry: &Value) {
     (released["released"].clone(), released["sessionsEnded"].clone()),
     (json!(1), json!([second]))
   );
-  assert_eq!(get(port, token, &format!("/sessions/{second}")).await.0, 404);
+  // The session's ending is carried on after the answer, so it is gone once that work has run.
+  while get(port, token, &format!("/sessions/{second}")).await.0 != 404 {
+    tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+  }
 
   // The forms that are gone.
   let (status, refused) = call(

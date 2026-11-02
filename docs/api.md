@@ -634,9 +634,11 @@ log by its job's where `jobId` is named, else by its `runName` where it stands, 
 (`docs/role-slots.md`, 「An owner's release」): each of its requests that waits or stands reserved, cancelled; each
 that is let in, released; each reservation it holds, released; and each role session one of its leases is bound
 to, ended: a turn running in such a session is cut first, ending `stopped` with the reason `released`, and the
-session is ended once that turn has ended. Every one is given back as `owner`. It answers 200 with
-`cancelled`, `released` and `reservations`, the counts given back, and `sessionsEnded`, the ids of the sessions
-it ended; 400 where no owner is named. An owner holding nothing answers zero counts.
+session is ended once that turn has ended. Every one is given back as `owner`. It answers as soon as the
+requests and reservations are given back, 200 with `cancelled`, `released` and `reservations`, the counts given
+back, and `sessionsEnded`, the ids of the bound sessions it ends; their ending is carried on by agency after
+the answer, whether or not the caller waits, since a turn's end is an event of its program and may be long in coming,
+and the caller is never held on it. 400 where no owner is named. An owner holding nothing answers zero counts.
 
 `GET /delegations` answers `items`, the slot requests asked under the source `delegate` (`docs/tools.md`, 「The
 delegate」), narrowed to one asking supervisor by `askedBy`: the ones still waiting or running in the order

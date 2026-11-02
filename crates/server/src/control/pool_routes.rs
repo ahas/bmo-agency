@@ -76,10 +76,11 @@ fn bound_session(request: &dispatch::Request) -> Option<String> {
   request.session.clone().filter(|session| request.child_id.as_ref() == Some(session))
 }
 
-/// The role sessions a given-back slot was bound to, ended: a turn running in one cut first and waited for, so
-/// nothing goes on running on a slot given back (docs/role-slots.md, 「The line」). The work is carried to its
-/// end whether or not the caller still waits; the ids of the sessions ended.
-async fn end_bound(
+/// The role sessions a given-back slot was bound to, set out to be ended: a turn running in one cut first and
+/// waited for, so nothing goes on running on a slot given back (docs/role-slots.md, 「The line」). The ending is
+/// carried on after the caller is answered, since a turn's end is its program's event and may be long in
+/// coming; the ids of the sessions set out to end.
+fn end_bound(
   backend: Option<crate::herdr_backend::Shared>,
   sessions: Vec<String>,
   owner: &str,
@@ -88,20 +89,19 @@ async fn end_bound(
     return vec![];
   };
   let owner = owner.to_owned();
+  let ending = sessions.clone();
 
-  super::session_ops::carried(async move {
-    let mut ended = vec![];
-
+  tokio::spawn(async move {
     for session in sessions {
-      match backend.end_under_turns(&agent_session::SessionId(session.clone()), RELEASED).await {
-        Ok(()) => ended.push(session),
-        Err(fault) => eprintln!("{owner}: its role session {session} was not ended: {}", fault.message),
+      if let Err(fault) =
+        backend.end_under_turns(&agent_session::SessionId(session.clone()), RELEASED).await
+      {
+        eprintln!("{owner}: its role session {session} was not ended: {}", fault.message);
       }
     }
+  });
 
-    ended
-  })
-  .await
+  ending
 }
 
 /// `POST /slot-requests`: a slot of a role asked under the source, owner and request key its caller names, at
@@ -225,9 +225,10 @@ impl Route for SlotMove {
         let session = bound_session(&held).filter(|_| held.state == "active");
         let held = finish(call.store(), &token, outcome, cancel).await.map_err(refused)?;
 
-        // The role session the lease was bound to ends with it, a turn running in it cut first.
+        // The role session the lease was bound to ends with it, a turn running in it cut first; the
+        // ending is carried on after the answer.
         if held && let Some(session) = session {
-          end_bound(call.sessions(), vec![session], &token).await;
+          end_bound(call.sessions(), vec![session], &token);
         }
 
         // The card the slot held goes back with it; where the asking run's own card was lent, the answer
@@ -392,7 +393,7 @@ impl Route for SlotOwnerRelease {
       .filter(|owner| !owner.is_empty())
       .ok_or_else(|| bad("owner is required"))?;
     let done = dispatch::release_owner(call.store(), &owner).await.map_err(refused)?;
-    let ended = end_bound(call.sessions(), done.sessions.clone(), &owner).await;
+    let ending = end_bound(call.sessions(), done.sessions.clone(), &owner);
 
     Ok(answer(
       StatusCode::OK,
@@ -400,7 +401,7 @@ impl Route for SlotOwnerRelease {
         "cancelled": done.cancelled,
         "released": done.released,
         "reservations": done.reservations,
-        "sessionsEnded": ended,
+        "sessionsEnded": ending,
       }),
     ))
   }
