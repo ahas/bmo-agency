@@ -16,7 +16,14 @@ fn reads_its_lines() {
 fn the_chat_line_denies_the_cli_s_web_its_wake_ups_and_the_job_plugin_s_item_creation() {
   let denied = &RUN_LINES.line("chat").unwrap().tools_denied;
 
-  for tool in ["WebSearch", "WebFetch", "Monitor", "ScheduleWakeup", "mcp__job__job_item_create", "Agent"] {
+  for tool in [
+    "WebSearch",
+    "WebFetch",
+    "Monitor",
+    "ScheduleWakeup",
+    "mcp__job__job_item_create",
+    "Agent",
+  ] {
     assert!(denied.contains(&tool.to_owned()), "{tool}: {denied:?}");
   }
 }
