@@ -29,7 +29,6 @@ pub struct RegistryRules {
   pub label_most: usize,
   pub context_tokens: WholeBounds,
   pub answer_tokens: WholeBounds,
-  pub wait_seconds: WholeBounds,
 }
 
 crate::part!(pub REGISTRY: RegistryRules = "registry.toml");

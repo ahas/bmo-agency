@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { dataPath } from "@agency/support/roots";
 
 import { claudeCodeAt, claudeResidentAt } from "./claude-code";
-import { gatewayLongToolHeaders, gatewaySamplingHeaders, gatewayUrl, gatewayWaitHeaders } from "./gateway/address";
+import { gatewayLongToolHeaders, gatewaySamplingHeaders, gatewayUrl } from "./gateway/address";
 import { memberKeyPath, memberNamed, roadMembers, usableKeyFile } from "./members";
 import { providerDeclaration } from "./provider-declaration";
 import declaredRegistered from "@agency/policy/providers/registered.toml";
@@ -59,7 +59,6 @@ function memberEndpoint(provider: AgentProviderName, policy: MemberPolicy): Clau
         throw new Error(`${member.name} names no window or no answer ceiling`);
       }
 
-      const waitMs = (member.wait_seconds ?? 300) * 1_000;
       const effort = run.effort.trim();
 
       return {
@@ -67,9 +66,7 @@ function memberEndpoint(provider: AgentProviderName, policy: MemberPolicy): Clau
         label: member.label ?? member.name,
         contextTokens: member.context_tokens,
         answerTokens: member.answer_tokens,
-        requestWaitMs: waitMs,
         headers: {
-          ...gatewayWaitHeaders(waitMs),
           ...gatewaySamplingHeaders(run.sampling),
           ...gatewayLongToolHeaders(longTools),
           ...(effort === "" ? {} : { "x-bmo-effort": effort }),
@@ -145,7 +142,6 @@ export function memberProvider(options: {
         effort: mapping?.effort ?? null,
         thinking: member?.thinking ?? false,
         answerTokens: mapping?.answerTokens ?? member?.answer_tokens ?? 4_096,
-        requestWaitMs: (member?.wait_seconds ?? 300) * 1_000,
         ...(member?.context_tokens === undefined ? {} : { contextTokens: member.context_tokens }),
       };
     },

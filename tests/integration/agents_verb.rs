@@ -124,7 +124,7 @@ impl Bench {
     std::fs::create_dir_all(&members).unwrap();
     std::fs::write(
       members.join("members.json"),
-      r#"[{"name":"deepseek-flash","road":"deepseek","provider":"deepseek","model":"deepseek-flash","api_base":"https://api.deepseek.com/v1","key_file":"deepseek.key","wait_seconds":300,"context_tokens":1048576,"answer_tokens":32768,"thinking":true}]"#,
+      r#"[{"name":"deepseek-flash","road":"deepseek","provider":"deepseek","model":"deepseek-flash","api_base":"https://api.deepseek.com/v1","key_file":"deepseek.key","context_tokens":1048576,"answer_tokens":32768,"thinking":true}]"#,
     )
     .unwrap();
 
@@ -517,9 +517,9 @@ async fn a_key_s_own_registration_is_set_and_taken_away_from_the_command_line() 
     .scratch
     .run(
       r#"INSERT INTO "registered_models" ("name", "label", "model", "context_tokens", "answer_tokens",
-            "wait_seconds", "thinking", "walked", "added_at", "keeps_research")
-         VALUES ('own-pick', 'Own pick', 'served', 100000, 4000, 60, 0, 1, 1, 0),
-                ('unplaced', 'Unplaced', 'served', 100000, 4000, 60, 0, 1, 1, 0)"#,
+            "thinking", "walked", "added_at", "keeps_research")
+         VALUES ('own-pick', 'Own pick', 'served', 100000, 4000, 0, 1, 1, 0),
+                ('unplaced', 'Unplaced', 'served', 100000, 4000, 0, 1, 1, 0)"#,
       vec![],
     )
     .await;
@@ -574,8 +574,6 @@ async fn a_registration_is_made_given_an_address_and_a_key_listed_without_it_and
       "65,536",
       "--answer",
       "2048",
-      "--wait",
-      "120",
       "--thinking",
       "on",
     ])
@@ -583,7 +581,7 @@ async fn a_registration_is_made_given_an_address_and_a_key_listed_without_it_and
 
   assert_eq!(ended(&made), (0, ""));
   assert!(printed(&made).contains(
-    "local (local): local-model, context 65,536, answer 2,048, wait 120s, thinking on, not walked, research elsewhere"
+    "local (local): local-model, context 65,536, answer 2,048, thinking on, not walked, research elsewhere"
   ));
   assert_eq!(made.out.last().unwrap(), "gateway: no status written");
 

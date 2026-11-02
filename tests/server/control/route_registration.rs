@@ -16,8 +16,8 @@ async fn seeded() -> Scratch {
     scratch
       .run(
         r#"INSERT INTO "registered_models" ("name", "label", "model", "context_tokens", "answer_tokens",
-              "wait_seconds", "thinking", "walked", "added_at", "keeps_research")
-           VALUES ($1, $1, 'served', 100000, $2, 60, $3, 1, 1, 0)"#,
+              "thinking", "walked", "added_at", "keeps_research")
+           VALUES ($1, $1, 'served', 100000, $2, $3, 1, 1, 0)"#,
         vec![name.into(), (answer as i64).into(), (thinking as i64).into()],
       )
       .await;

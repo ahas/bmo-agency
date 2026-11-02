@@ -175,7 +175,6 @@ async fn an_openrouter_member_step_stands_claude_code_on_the_gateway() {
     home: home_dir.clone(),
     context_tokens: 131_072,
     answer_tokens: 16_384,
-    wait_seconds: 300,
     thinking: true,
     registration: None,
     road: Some("openrouter"),

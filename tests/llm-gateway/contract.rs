@@ -77,14 +77,14 @@ Bun.serve({
 
 // A registration served by two nodes.
 const PAIR: &str = "
-  INSERT INTO registered_models VALUES ('pair-0-1', 'Pair 0.1', 'pair-model', 32768, 4096, 2400, 0, 0, 1, 0);
+  INSERT INTO registered_models VALUES ('pair-0-1', 'Pair 0.1', 'pair-model', 32768, 4096, 0, 0, 1, 0);
   INSERT INTO registered_model_addresses VALUES ('pair-0-1', 'alpha', 1, 'http://127.0.0.1:18021/v1/chat/completions', 'alpha-llm.token', 0, NULL);
   INSERT INTO registered_model_addresses VALUES ('pair-0-1', 'bravo', 2, 'http://127.0.0.1:18023/v1/chat/completions', NULL, 0, NULL);
 ";
 
 // A registration served by one address.
 const SINGLE: &str = "
-  INSERT INTO registered_models VALUES ('single', 'Single', 'single-model', 65536, 8192, 90, 0, 0, 2, 0);
+  INSERT INTO registered_models VALUES ('single', 'Single', 'single-model', 65536, 8192, 0, 0, 2, 0);
   INSERT INTO registered_model_addresses VALUES ('single', 'd-vex', 1, 'https://llm.example.com/v1/chat/completions', NULL, 0, NULL);
 ";
 
@@ -586,7 +586,7 @@ async fn echo_backend() -> (u16, std::sync::Arc<std::sync::Mutex<Vec<Value>>>) {
 async fn a_runs_long_tools_reach_the_backend_through_litellm_in_the_field_the_engines_read() {
   let (port, seen) = echo_backend().await;
   let echo = format!(
-    "INSERT INTO registered_models VALUES ('echo', 'Echo', 'echo-model', 32768, 4096, 120, 0, 0, 3, 0);
+    "INSERT INTO registered_models VALUES ('echo', 'Echo', 'echo-model', 32768, 4096, 0, 0, 3, 0);
      INSERT INTO registered_model_addresses VALUES ('echo', 'local', 1, 'http://127.0.0.1:{port}/v1/chat/completions', NULL, 0, NULL);"
   );
   let world = World::new(&echo).await.on_litellm().start().await;

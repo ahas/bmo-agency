@@ -30,7 +30,7 @@ fn keys_in(data: &std::path::Path) {
   std::fs::create_dir_all(&members).unwrap();
   std::fs::write(
     members.join("members.json"),
-    r#"[{"name":"deepseek-flash","road":"deepseek","provider":"deepseek","model":"deepseek-flash","api_base":"https://api.deepseek.com/v1","key_file":"deepseek.key","wait_seconds":300,"context_tokens":1048576,"answer_tokens":32768,"thinking":true}]"#,
+    r#"[{"name":"deepseek-flash","road":"deepseek","provider":"deepseek","model":"deepseek-flash","api_base":"https://api.deepseek.com/v1","key_file":"deepseek.key","context_tokens":1048576,"answer_tokens":32768,"thinking":true}]"#,
   )
   .unwrap();
 }
@@ -212,8 +212,8 @@ async fn a_route_read_with_no_provider_begins_on_the_key_s_own_road_and_registra
     scratch
       .run(
         r#"INSERT INTO "registered_models" ("name", "label", "model", "context_tokens", "answer_tokens",
-              "wait_seconds", "thinking", "walked", "added_at", "keeps_research")
-           VALUES ($1, $1, 'served', 100000, 2000, 60, 0, 1, 1, 0)"#,
+              "thinking", "walked", "added_at", "keeps_research")
+           VALUES ($1, $1, 'served', 100000, 2000, 0, 1, 1, 0)"#,
         vec![name.into()],
       )
       .await;

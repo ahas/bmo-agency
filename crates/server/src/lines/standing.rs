@@ -514,7 +514,7 @@ pub enum Placing {
 }
 
 /// The model a run on the gateway goes out on: a registration, or a member of an external provider's road.
-/// The home, the window, the answer ceiling, the wait and the thinking default are the model's own.
+/// The home, the window, the answer ceiling and the thinking default are the model's own.
 #[derive(Clone, Debug)]
 pub struct GatewayModel {
   /// The name the run is sent under.
@@ -525,7 +525,6 @@ pub struct GatewayModel {
   pub home: PathBuf,
   pub context_tokens: i64,
   pub answer_tokens: i64,
-  pub wait_seconds: i64,
   /// Whether a run on it thinks where its effort names neither thinking nor no thinking.
   pub thinking: bool,
   /// The registration behind it, where it is one; none for a member.
@@ -543,7 +542,6 @@ impl GatewayModel {
       home: Registered::home(machine, &held.name),
       context_tokens: held.context_tokens,
       answer_tokens: held.answer_tokens,
-      wait_seconds: held.wait_seconds,
       thinking: held.thinking,
       registration: Some(held.clone()),
       road: None,
@@ -558,7 +556,6 @@ impl GatewayModel {
       home: harness_providers::member::home(machine, road, &held.member.name),
       context_tokens: held.context_tokens,
       answer_tokens: held.answer_tokens,
-      wait_seconds: held.member.wait_seconds,
       thinking: held.thinking,
       registration: None,
       road: Some(road),
@@ -668,8 +665,7 @@ pub async fn gateway_command(
     args[at + 1] = keyed_settings(machine, &home, Some(&given))?.to_string_lossy().into_owned();
   }
 
-  let wait_ms = held.wait_seconds * 1_000;
-  let mut headers = gateway_headers(wait_ms, on.sampling.as_deref(), ClaudeCode.long_tools(), on.role);
+  let mut headers = gateway_headers(on.sampling.as_deref(), ClaudeCode.long_tools(), on.role);
 
   if let Some(word) = on.backend_effort {
     headers.push(format!("x-bmo-effort: {word}"));
@@ -818,18 +814,11 @@ pub(crate) fn keyed_settings_at(
   Ok(path)
 }
 
-/// The headers every request of a run on the gateway carries: how long it is waited for, the run's own
-/// sampling where it names any, the tools of its program whose calls wait long where it names any, and the
-/// role its prompt is where its work key names one (docs/own-llm.md, 「Role files」).
-pub fn gateway_headers(
-  wait_ms: i64,
-  sampling: Option<&str>,
-  long_tools: &[String],
-  role: Option<&str>,
-) -> Vec<String> {
-  let seconds = ((wait_ms + 999) / 1_000).max(1);
-  let mut headers =
-    vec![format!("x-litellm-timeout: {seconds}"), format!("x-litellm-stream-timeout: {seconds}")];
+/// The headers a request of a run on the gateway carries: the run's own sampling where it names any, the
+/// tools of its program whose calls wait long where it names any, and the role its prompt is where its work
+/// key names one (docs/own-llm.md, 「Role files」).
+pub fn gateway_headers(sampling: Option<&str>, long_tools: &[String], role: Option<&str>) -> Vec<String> {
+  let mut headers = Vec::new();
 
   if let Some(sampling) = sampling {
     headers.push(format!("x-bmo-sampling: {sampling}"));
@@ -856,12 +845,17 @@ pub fn fold_share(window: i64, answer: i64) -> String {
   format!("{}.{:04}", millionths / 10_000, millionths % 10_000)
 }
 
+/// The longest wait Claude Code's timers hold, about twenty-four days: the program gives a request up after a
+/// wait of its own and its runtime drops a connection silent past one, and neither takes a value meaning
+/// none, so both are told this one, which no request reaches (docs/own-llm.md, 「How requests go」).
+const NO_WAIT_MS: i64 = 2_147_483_647;
+
 /// What Claude Code is pointed at the gateway with for a run on a registration, under the name the run is
 /// sent as (docs/own-llm.md, 「How requests go」): no login of its own, the registration's home, the
 /// gateway's address, the name in every model slot of the run's own and `subagent` in the subagent slot,
 /// left unset where it is none so each co-worker definition's own model governs, the window and answer it
-/// is sized to and the fold that leaves the answer room, and how long a request is waited for, by the
-/// program and by the runtime under it, with the headers given.
+/// is sized to and the fold that leaves the answer room, the longest wait the program and the runtime under
+/// it take, so no request is given up on their clocks, and the headers given.
 pub(crate) fn gateway_variables(
   ground: &Ground,
   held: &GatewayModel,
@@ -871,8 +865,6 @@ pub(crate) fn gateway_variables(
   answer_tokens: i64,
   headers: &[String],
 ) -> Vec<(&'static str, Option<String>)> {
-  let wait_ms = held.wait_seconds * 1_000;
-
   vec![
     ("CLAUDE_CODE_OAUTH_TOKEN", None),
     ("ANTHROPIC_API_KEY", None),
@@ -897,8 +889,8 @@ pub(crate) fn gateway_variables(
     // Behind a base URL the program defers its MCP tools behind a tool search the model must call first; a
     // registered model is shown every tool outright instead.
     ("ENABLE_TOOL_SEARCH", Some("false".to_owned())),
-    ("API_TIMEOUT_MS", Some(wait_ms.to_string())),
-    ("BUN_CONFIG_HTTP_IDLE_TIMEOUT", Some(((wait_ms + 999) / 1_000).to_string())),
+    ("API_TIMEOUT_MS", Some(NO_WAIT_MS.to_string())),
+    ("BUN_CONFIG_HTTP_IDLE_TIMEOUT", Some((NO_WAIT_MS / 1_000).to_string())),
     ("ANTHROPIC_CUSTOM_HEADERS", (!headers.is_empty()).then(|| headers.join("\n"))),
   ]
 }

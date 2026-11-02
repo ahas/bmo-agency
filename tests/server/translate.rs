@@ -358,8 +358,8 @@ async fn a_translation_on_a_card_service_with_no_engine_standing_asks_its_demand
   scratch
     .run(
       r#"INSERT INTO "registered_models" ("name", "label", "model", "context_tokens", "answer_tokens",
-            "wait_seconds", "thinking", "walked", "added_at", "keeps_research", "card_service", "role_files")
-         VALUES ('hy', 'hy', 'served', 32768, 2048, 60, 0, 0, 1, 0, 'gguf', 0)"#,
+            "thinking", "walked", "added_at", "keeps_research", "card_service", "role_files")
+         VALUES ('hy', 'hy', 'served', 32768, 2048, 0, 0, 1, 0, 'gguf', 0)"#,
       vec![],
     )
     .await;
@@ -491,8 +491,8 @@ async fn a_translation_on_the_registry_names_no_wait_and_is_waited_for_however_l
   scratch
     .run(
       r#"INSERT INTO "registered_models" ("name", "label", "model", "context_tokens", "answer_tokens",
-            "wait_seconds", "thinking", "walked", "added_at", "keeps_research")
-         VALUES ('hy', 'hy', 'served', 32768, 2048, 1, 0, 0, 1, 0)"#,
+            "thinking", "walked", "added_at", "keeps_research")
+         VALUES ('hy', 'hy', 'served', 32768, 2048, 0, 0, 1, 0)"#,
       vec![],
     )
     .await;

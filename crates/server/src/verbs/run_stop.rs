@@ -20,14 +20,8 @@ use crate::queue::cancels;
 use crate::queue::running::Running;
 use crate::queue::stops::Stops;
 
-/// How long a run in a pane is given to reach its own ending before its pane is closed.
-const PANE_GRACE: Duration = Duration::from_secs(5);
-/// How long a stop waits for what it asked to be seen gone.
-const CONFIRM_WAIT: Duration = Duration::from_secs(8);
+/// How often a stop looks again whether what it asked is gone.
 const LOOK_EVERY: Duration = Duration::from_secs(1);
-/// How long the server is given to take a job's stop past its own wait for the turn to end, before the verb
-/// writes it where it stands.
-const SERVER_MARGIN: Duration = Duration::from_secs(5);
 
 /// What `bmo-agency run stop` is asked.
 #[derive(Parser, Debug, Default)]
@@ -136,24 +130,24 @@ fn targets(picture: &Picture) -> (Vec<(String, String)>, usize) {
   (rows, left_out)
 }
 
-async fn attached(watch: &herdr::picture::Watch) -> bool {
-  for _ in 0..20 {
+// The picture of herdr waited for until it has attached, or herdr refuses to be asked at all.
+async fn attached(herdr: &herdr::Herdr, watch: &herdr::picture::Watch) -> bool {
+  loop {
     if watch.attached() {
       return true;
     }
 
+    if herdr.snapshot().await.is_err() {
+      return false;
+    }
+
     tokio::time::sleep(Duration::from_millis(100)).await;
   }
-
-  false
 }
 
 async fn pane_holds(ground: &Ground, unit: &str) -> bool {
   let Some(herdr) = &ground.herdr else { return false };
-  let snapshot = match tokio::time::timeout(Duration::from_secs(5), herdr.snapshot()).await {
-    Ok(Ok(snapshot)) => snapshot,
-    _ => return false,
-  };
+  let Ok(snapshot) = herdr.snapshot().await else { return false };
 
   snapshot.panes.iter().any(|pane| pane.run() == Some(unit))
 }
@@ -171,7 +165,7 @@ async fn systemctl_stop(ground: &Ground, unit: &str) {
 }
 
 // A unit and every execution it owns asked to end: the cancellation written, a run in a pane asked and
-// closed after its grace, and the unit stopped by systemd where it still stands.
+// waited on until it has ended, and the unit stopped by systemd where it still stands after that.
 async fn ask_unit(
   ground: &Ground,
   stops: &Stops,
@@ -183,7 +177,7 @@ async fn ask_unit(
 
   if in_pane && let Some(herdr) = &ground.herdr {
     asked = true;
-    let _ = Stops::stop_run(&ground.db, herdr, unit, PANE_GRACE).await;
+    let _ = Stops::stop_run(&ground.db, herdr, unit).await;
   }
 
   if running.systemd(&[unit.to_owned()]).await.is_some_and(|alive| alive.contains(unit)) {
@@ -194,16 +188,15 @@ async fn ask_unit(
   Ok(asked)
 }
 
+// A unit waited on until nothing of it still runs.
 async fn unit_gone(running: &Running, unit: &str) -> bool {
-  for _ in 0..CONFIRM_WAIT.as_secs() {
+  loop {
     if running.active(&[unit.to_owned()]).await.is_ok_and(|alive| alive.is_empty()) {
       return true;
     }
 
     tokio::time::sleep(LOOK_EVERY).await;
   }
-
-  false
 }
 
 async fn execution_open(db: &sea_orm::DatabaseConnection, id: &str) -> bool {
@@ -214,16 +207,15 @@ async fn execution_open(db: &sea_orm::DatabaseConnection, id: &str) -> bool {
   })
 }
 
+// An execution waited on until its row has closed.
 async fn execution_gone(db: &sea_orm::DatabaseConnection, id: &str) -> bool {
-  for _ in 0..CONFIRM_WAIT.as_secs() {
+  loop {
     if !execution_open(db, id).await {
       return true;
     }
 
     tokio::time::sleep(LOOK_EVERY).await;
   }
-
-  false
 }
 
 // The open jobs of an item, as the reading stands them.
@@ -238,20 +230,9 @@ async fn stop_job(ground: &Ground, job: &JobRow, why: &str) -> Result<bool, Verb
   let body = serde_json::json!({ "state": "stopped", "outcome": "stopped", "report": why });
 
   if let Some(token) = super::control_token()
-    && super::control_call(
-      &token,
-      reqwest::Method::PATCH,
-      &format!("/jobs/{}", job.id),
-      Some(&body),
-      Duration::from_secs(policy::run_stop::RUN_STOP.job_wait_seconds) + SERVER_MARGIN,
-    )
-    .await
-    .is_ok_and(|(status, answer)| {
-      // A stop the server keeps while the job's turn still goes is taken all the same.
-      let pending = answer.as_ref().and_then(|answer| answer["code"].as_str()) == Some("stop-pending");
-
-      (200..300).contains(&status) || pending
-    })
+    && super::control_call(&token, reqwest::Method::PATCH, &format!("/jobs/{}", job.id), Some(&body))
+      .await
+      .is_ok_and(|(status, _)| (200..300).contains(&status))
   {
     return Ok(true);
   }
@@ -400,8 +381,8 @@ pub async fn run_stop(data_root: &Path, asked: &StopArgs) -> Result<Answer, Verb
 
   let watch = ground.herdr.clone().map(herdr::picture::Watch::start);
 
-  if let Some(watch) = &watch {
-    attached(watch).await;
+  if let (Some(herdr), Some(watch)) = (&ground.herdr, &watch) {
+    attached(herdr, watch).await;
   }
 
   let stops = Stops::of(&ground, watch.clone());
@@ -419,8 +400,6 @@ pub async fn run_stop(data_root: &Path, asked: &StopArgs) -> Result<Answer, Verb
 
       asked_targets.push((target, was_asked));
     }
-
-    tokio::time::sleep(Duration::from_secs(2)).await;
 
     let mut count_asked = 0;
     let mut count_confirmed = 0;

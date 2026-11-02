@@ -17,7 +17,6 @@ const member = (name: string, label: string) => ({
   model: name,
   api_base: "https://api.deepseek.com/v1",
   key_file: "deepseek.key",
-  wait_seconds: 300,
   context_tokens: 1_048_576,
   answer_tokens: 32_768,
   thinking: true,

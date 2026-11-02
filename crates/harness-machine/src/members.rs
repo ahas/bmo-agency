@@ -14,9 +14,6 @@ use url::Url;
 /// The LiteLLM providers a member may name.
 pub const PROVIDERS: [&str; 4] = ["anthropic", "deepseek", "openrouter", "openai"];
 
-/// The wait a member names none at, in seconds.
-pub const DEFAULT_WAIT_SECONDS: i64 = 300;
-
 /// One member the gateway serves beside the registry. The file names its key by a key file and never by a
 /// key.
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
@@ -38,9 +35,6 @@ pub struct Member {
   pub api_base: Option<String>,
   /// The key file under the data root's `env/`.
   pub key_file: String,
-  /// The request wait in seconds.
-  #[serde(default = "default_wait")]
-  pub wait_seconds: i64,
   /// The window a run on the member is sized to, in tokens.
   #[serde(default)]
   pub context_tokens: Option<i64>,
@@ -59,10 +53,6 @@ pub struct RoadMember<'a> {
   pub context_tokens: i64,
   pub answer_tokens: i64,
   pub thinking: bool,
-}
-
-fn default_wait() -> i64 {
-  DEFAULT_WAIT_SECONDS
 }
 
 /// Where the deployment's members stand: the path `BMO_LLM_GATEWAY_MEMBERS` names, or
@@ -135,9 +125,6 @@ pub fn validate(members: &[Member]) -> Result<(), String> {
       && Url::parse(base).is_err()
     {
       return Err(format!("{who} names an API base that is no address"));
-    }
-    if !REGISTRY.wait_seconds.holds(member.wait_seconds) {
-      return Err(format!("{who} names a wait outside the registry's bounds"));
     }
     if let Some(context) = member.context_tokens
       && !REGISTRY.context_tokens.holds(context)

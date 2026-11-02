@@ -57,7 +57,6 @@ fn a_registration_is_a_service_on_the_gateway_and_a_mapping_its_settings() {
       effort: Some("thinking".into()),
       thinking: true,
       answer_tokens: 2_048,
-      request_wait_ms: None,
       context_tokens: None,
     }
   );
@@ -69,7 +68,6 @@ fn a_registration_is_a_service_on_the_gateway_and_a_mapping_its_settings() {
       effort: None,
       thinking: false,
       answer_tokens: DEFAULT_ANSWER_TOKENS,
-      request_wait_ms: None,
       context_tokens: None,
     }
   );
@@ -95,7 +93,7 @@ async fn an_address_keeps_role_files_as_its_change_names_and_as_it_stands_where_
     data.path(),
     &serde_json::json!({
       "action": "save", "name": "nodes", "model": "m",
-      "contextTokens": 32_768, "answerTokens": 4_096, "waitSeconds": 90,
+      "contextTokens": 32_768, "answerTokens": 4_096,
     }),
   )
   .await

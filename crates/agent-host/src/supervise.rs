@@ -1,7 +1,7 @@
 //! One execution's supervisor, the `supervise` verb (docs/agent-control.md, 「The host」): it holds
 //! its envelope, waits for the grant, asks the store once more, starts the child in a process
-//! group of its own, copies its output byte for byte, stops the group when it must, and publishes the
-//! outcome once the output is whole. It does what one execution needs and nothing else, and outlives
+//! group of its own, copies its output byte for byte, stops the group when it is asked to, and publishes
+//! the outcome once the output is whole and the group is gone. It does what one execution needs and nothing else, and outlives
 //! the host that started it.
 
 use std::fs;
@@ -10,19 +10,15 @@ use std::os::unix::process::CommandExt;
 use std::path::Path;
 use std::process::{Child, ChildStdin, Command, Stdio};
 use std::thread::{self, JoinHandle};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
-use crate::disk::{now_ms, private_file, publish};
+use crate::disk::{private_file, publish};
 use crate::envelope::{Cause, Envelope, EnvelopeDir, Outcome, Started};
 use crate::identity::{ProcessIdentity, group_running, process_birth};
 use crate::policy::{Refusal, refusal};
 use crate::signals::{self, signal_group};
 
 const LOOK_EVERY: Duration = Duration::from_millis(25);
-const DEFAULT_GRACE_MS: u64 = 500;
-// How long a group already sent SIGKILL is waited on before its outcome goes out regardless: a
-// member stuck in an uninterruptible wait must not hold the outcome for ever.
-const KILL_SETTLE: Duration = Duration::from_secs(5);
 
 /// This program, as the kernel holds it: still runnable after a deployment renamed a new binary over
 /// the path it was started from.
@@ -78,10 +74,11 @@ impl Supervision {
     )
   }
 
-  // The grant, waited for until the deadline; false where the wait ended without one.
+  // The grant, waited for until it comes; false where the cancel file, a signal to this process or its
+  // collector's disappearance said not to start first.
   fn granted(&self) -> bool {
     while !self.dir.has("grant") {
-      if now_ms() >= self.envelope.deadline || self.cancelled() || signals::asked() || self.owner_gone() {
+      if self.cancelled() || signals::asked() || self.owner_gone() {
         return false;
       }
 
@@ -106,12 +103,8 @@ impl Supervision {
       }
     }
 
-    // A detached execution is granted before it is placed, so its deadline only bounds the wait for
-    // a host to take it.
-    let expired = self.envelope.owner.is_some() && now_ms() >= self.envelope.deadline;
-
-    (expired || self.cancelled() || self.owner_gone())
-      .then(|| (Cause::LaunchError, "Error: launch grant expired or cancelled".to_owned()))
+    (self.cancelled() || self.owner_gone())
+      .then(|| (Cause::LaunchError, "Error: launch cancelled or its collector gone".to_owned()))
   }
 
   fn spawn(&self) -> io::Result<Child> {
@@ -182,7 +175,7 @@ pub fn supervise(directory: &Path) -> io::Result<()> {
   }
 
   if !run.granted() {
-    return run.refuse(Cause::LaunchError, "launch grant expired or cancelled");
+    return run.refuse(Cause::LaunchError, "launch cancelled or its collector gone before the grant");
   }
 
   if run.cancelled() || signals::asked() {
@@ -242,7 +235,9 @@ pub fn supervise(directory: &Path) -> io::Result<()> {
   ];
   let outcome = watch(&run, &mut child, group);
 
-  // Descendants must not keep pipes or model work alive after the leader exits.
+  // The run is over once its leader has ended, so a descendant still standing is an orphan of it and
+  // must not keep pipes or model work alive: it is killed at once, and the outcome waits for the group
+  // to be gone.
   signal_group(group, libc::SIGKILL);
   group_ended(group);
   let _ = feeding.join();
@@ -255,14 +250,12 @@ pub fn supervise(directory: &Path) -> io::Result<()> {
   publish(&run.dir.outcome(), &outcome)
 }
 
-// The child watched until it ends: stopped on the cancel file, its collector's disappearance, a
-// signal to this process or its timeout — asked first, forced after the grace.
+// The child watched until its leader ends. The cancel file, its collector's disappearance or a signal to
+// this process asks the group to stop once, and the leader is then waited on however long its own ending
+// takes.
 fn watch(run: &Supervision, child: &mut Child, group: i32) -> Outcome {
-  let started = Instant::now();
-  let grace = Duration::from_millis(run.envelope.grace_ms.unwrap_or(DEFAULT_GRACE_MS));
-  let timeout = run.envelope.timeout_ms.map(Duration::from_millis);
   let mut cause = Cause::Exited;
-  let mut forced_at: Option<Instant> = None;
+  let mut asked = false;
 
   loop {
     if let Ok(Some(status)) = child.try_wait() {
@@ -272,22 +265,10 @@ fn watch(run: &Supervision, child: &mut Child, group: i32) -> Outcome {
       };
     }
 
-    if forced_at.is_none() {
-      let stop = if run.cancelled() || run.owner_gone() || signals::asked() {
-        Some(Cause::Cancelled)
-      } else if timeout.is_some_and(|timeout| started.elapsed() >= timeout) {
-        Some(Cause::Timeout)
-      } else {
-        None
-      };
-
-      if let Some(stop) = stop {
-        cause = stop;
-        signal_group(group, libc::SIGTERM);
-        forced_at = Some(Instant::now() + grace);
-      }
-    } else if forced_at.is_some_and(|at| Instant::now() >= at) {
-      signal_group(group, libc::SIGKILL);
+    if !asked && (run.cancelled() || run.owner_gone() || signals::asked()) {
+      cause = Cause::Cancelled;
+      asked = true;
+      signal_group(group, libc::SIGTERM);
     }
 
     thread::sleep(LOOK_EVERY);
@@ -295,11 +276,9 @@ fn watch(run: &Supervision, child: &mut Child, group: i32) -> Outcome {
 }
 
 // A SIGKILL is delivered when the kernel next runs its target, which on a busy machine is a while
-// after the signal is sent; what follows the kill waits for the group to be gone, bounded.
+// after the signal is sent; what follows the kill waits for the group to be gone.
 fn group_ended(group: i32) {
-  let until = Instant::now() + KILL_SETTLE;
-
-  while group_running(group) && Instant::now() < until {
+  while group_running(group) {
     thread::sleep(LOOK_EVERY);
   }
 }

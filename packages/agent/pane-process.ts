@@ -37,10 +37,6 @@ export interface PaneEnvelope {
   command: HarnessCommand;
   // What the host's pane shows for this execution.
   title?: string;
-  deadline: number;
-  timeoutMs: number | null;
-  // How long the child group is given after it is told to end before it is killed.
-  graceMs?: number;
   // The collector that owns the execution; an execution with none is detached and outlives its
   // launcher.
   owner?: ProcessIdentity;
@@ -51,7 +47,7 @@ export interface PaneEnvelope {
   policy?: { address: string; provider: AgentProviderName; names?: string[]; providers?: readonly string[] };
 }
 export interface PaneOutcome extends HarnessOutput {
-  cause: "exited" | "cancelled" | "timeout" | "launch-error";
+  cause: "exited" | "cancelled" | "launch-error";
 }
 const pause = () => Bun.sleep(25);
 async function exists(path: string): Promise<boolean> { return Bun.file(path).exists(); }
@@ -62,10 +58,6 @@ async function publish(path: string, value: unknown): Promise<void> {
 function readJson(path: string): any {
   try { return JSON.parse(readFileSync(path, "utf8")); } catch { return null; }
 }
-const defaultGraceMs = 500;
-// How long a group already sent SIGKILL is waited on before its outcome goes out regardless: a
-// member stuck in an uninterruptible wait must not hold the outcome for ever.
-const killSettleMs = 5_000;
 
 // Whether any member of a process group is still running. A zombie counts as ended: it runs nothing,
 // and reaping it is its new parent's business.
@@ -81,10 +73,9 @@ function groupRunning(group: number): boolean {
 }
 
 // A SIGKILL is delivered when the kernel next runs its target, which on a busy machine is a while
-// after the signal is sent; what follows the kill waits for the group to be gone, bounded.
+// after the signal is sent; what follows the kill waits for the group to be gone.
 async function groupEnded(group: number): Promise<void> {
-  const until = Date.now() + killSettleMs;
-  while (groupRunning(group) && Date.now() < until) await pause();
+  while (groupRunning(group)) await pause();
 }
 
 // One execution, supervised in this process as the `agent-host` crate's supervisor supervises it,
@@ -101,8 +92,8 @@ export async function supervisePane(directory: string, options: { stop?: AbortSi
   };
   const ownerGone = () => envelope.owner !== undefined && processBirth(envelope.owner.pid) !== envelope.owner.birth;
   while (!(await exists(join(directory, "grant")))) {
-    if (Date.now() >= envelope.deadline || await exists(join(directory, "cancel")) || options.stop?.aborted || ownerGone()) {
-      await refuse("launch-error", "launch grant expired or cancelled");
+    if (await exists(join(directory, "cancel")) || options.stop?.aborted || ownerGone()) {
+      await refuse("launch-error", "launch cancelled or its collector gone before the grant");
       return;
     }
     await pause();
@@ -137,9 +128,7 @@ export async function supervisePane(directory: string, options: { stop?: AbortSi
         return;
       }
     }
-    // A detached execution is granted before it is placed, so its deadline only bounds the wait for
-    // a host to take it.
-    if ((envelope.owner !== undefined && Date.now() >= envelope.deadline) || existsSync(join(directory, "cancel")) || ownerGone()) throw new Error("launch grant expired or cancelled");
+    if (existsSync(join(directory, "cancel")) || ownerGone()) throw new Error("launch cancelled or its collector gone");
   } catch (error) {
     await refuse("launch-error", String(error));
     return;
@@ -154,21 +143,16 @@ export async function supervisePane(directory: string, options: { stop?: AbortSi
   const guarded = guardian ? new Promise<void>(resolve => { guardian.once("exit", () => resolve()); guardian.once("error", () => resolve()); }) : Promise.resolve();
   guardian?.stdin?.on("error", () => {});
   const signalGroup = (signal: NodeJS.Signals) => { if (child.pid) { try { process.kill(-child.pid, signal); } catch {} } };
+  // Asked to stop, the group is sent a SIGTERM once and its leader is waited on however long its own
+  // ending takes; nothing forces it.
   let stopped = false;
-  let escalation: ReturnType<typeof setTimeout> | undefined;
-  const stop = (reason: PaneOutcome["cause"]) => {
+  const stop = () => {
     if (stopped) return;
-    stopped = true; cause = reason; signalGroup("SIGTERM");
-    escalation = setTimeout(() => signalGroup("SIGKILL"), envelope.graceMs ?? defaultGraceMs);
+    stopped = true; cause = "cancelled"; signalGroup("SIGTERM");
   };
-  const onStop = () => stop("cancelled");
-  options.stop?.addEventListener("abort", onStop);
-  const started = Date.now();
+  options.stop?.addEventListener("abort", stop);
   const timer = setInterval(() => {
-    void exists(join(directory, "cancel")).then(cancelled => {
-      if (cancelled || ownerGone()) stop("cancelled");
-      else if (envelope.timeoutMs !== null && Date.now() - started >= envelope.timeoutMs) stop("timeout");
-    });
+    void exists(join(directory, "cancel")).then(cancelled => { if (cancelled || ownerGone()) stop(); });
   }, 25);
   let outcome: Pick<PaneOutcome, "exitCode" | "cause"> | undefined;
   const copy = (name: string, input: NodeJS.ReadableStream) => pipeline(input, createWriteStream(join(directory, name), { mode: 0o600 }));
@@ -181,9 +165,10 @@ export async function supervisePane(directory: string, options: { stop?: AbortSi
     child.stdin.on("error", () => {});
     child.stdin.end(envelope.command.stdin ?? undefined);
     const streams = Promise.all([copy("stdout", child.stdout), copy("stderr", child.stderr)]);
-    if (options.stop?.aborted) onStop();
+    if (options.stop?.aborted) stop();
     const exitCode = await exited;
-    // Descendants must not keep pipes or model work alive after the leader exits.
+    // The run is over once its leader has ended, so a descendant still standing is an orphan of it and
+    // must not keep pipes or model work alive: it is killed at once.
     signalGroup("SIGKILL");
     await streams.catch(error => { if (cause !== "launch-error") throw error; });
     // A program that never started has its streams torn down, on a busy machine before their files
@@ -192,9 +177,9 @@ export async function supervisePane(directory: string, options: { stop?: AbortSi
     if ((cause as PaneOutcome["cause"]) === "launch-error") await Promise.all(["stdout", "stderr"].map(name => appendFile(join(directory, name), "", { mode: 0o600 })));
     outcome = { exitCode, cause };
   } finally {
-    clearInterval(timer); clearTimeout(escalation); signalGroup("SIGKILL");
+    clearInterval(timer); signalGroup("SIGKILL");
     if (child.pid) await groupEnded(child.pid);
-    options.stop?.removeEventListener("abort", onStop);
+    options.stop?.removeEventListener("abort", stop);
     guardian?.stdin?.end();
     await guarded;
   }
@@ -254,10 +239,6 @@ export async function runPaneProcess(options: {
   title: string;
   // The agent this runs for.
   home: AgentHome;
-  timeoutMs?: number | null;
-  startMs?: number;
-  grantMs?: number;
-  graceMs?: number;
   policy?: PaneEnvelope["policy"];
   signal?: AbortSignal;
   beforeGrant: () => void | Promise<void>;
@@ -287,51 +268,42 @@ export async function runPaneProcess(options: {
   };
   const cancel = () => { void writeFile(join(directory, "cancel"), "", { mode: 0o600 }).catch(() => {}); };
   try {
-    const envelope: PaneEnvelope = {
-      command: options.command, title: options.title, deadline: 0,
-      timeoutMs: options.timeoutMs ?? null, graceMs: options.graceMs, policy: options.policy, owner: ownIdentity(),
-    };
+    const envelope: PaneEnvelope = { command: options.command, title: options.title, policy: options.policy, owner: ownIdentity() };
     const placed = await placeRecovering({
       agent: options.home.agent,
       request: { agent: options.home.agent, name: options.name, title: options.title, directory },
       place: options.place,
       retryMs: options.placeRetryMs,
       signal: options.signal,
-      ready: async () => {
-        envelope.deadline = Date.now() + (options.grantMs ?? 30_000);
-        await publish(join(directory, "command.json"), envelope);
-      },
+      ready: async () => { await publish(join(directory, "command.json"), envelope); },
     });
     // The code alone does not say which wait ran out; the host's own reason goes with it.
     if (!placed.ok) throw new Error(`herdr launch failed: ${placed.error.code}: ${placed.error.message}`);
     placement = placed.result;
     await options.onPane?.(placement.paneId);
-    let grantTimer: ReturnType<typeof setTimeout> | undefined;
     let aborted: (() => void) | undefined;
     try {
       await Promise.race([
         Promise.resolve().then(options.beforeGrant),
         new Promise<never>((_, reject) => {
-          grantTimer = setTimeout(() => reject(new Error("launch grant expired")), Math.max(0, envelope.deadline - Date.now()));
           aborted = () => reject(new Error("execution cancelled before launch"));
           options.signal?.addEventListener("abort", aborted, { once: true });
           if (options.signal?.aborted) aborted();
         }),
       ]);
     } finally {
-      clearTimeout(grantTimer);
       if (aborted) options.signal?.removeEventListener("abort", aborted);
     }
-    if (Date.now() >= envelope.deadline) throw new Error("launch grant expired");
     if (options.signal?.aborted) throw new Error("execution cancelled before launch");
     options.signal?.addEventListener("abort", cancel);
     await publish(join(directory, "grant"), { nonce: randomUUID() });
     let acknowledged = false;
     let lastLook = 0;
-    const startDeadline = Date.now() + (options.startMs ?? 20_000);
     while (!(await exists(join(directory, "outcome.json")))) {
       if (!acknowledged && await exists(join(directory, "started.json"))) { acknowledged = true; await options.onStarted?.(); }
-      if (!acknowledged && Date.now() > startDeadline) throw new Error("supervisor did not acknowledge child start");
+      // Stopped before any supervisor has the run, nothing is waited for: the cancel file stands for the
+      // host that takes the pointer, whose supervisor then starts nothing.
+      if (!acknowledged && options.signal?.aborted && !existsSync(join(directory, "supervisor"))) throw new Error("execution cancelled before launch");
       await drain();
       if (Date.now() - lastLook >= 200) {
         lastLook = Date.now();
@@ -357,8 +329,8 @@ export async function runPaneProcess(options: {
     options.signal?.removeEventListener("abort", cancel);
     if (!collected) {
       await writeFile(join(directory, "cancel"), "", { mode: 0o600 });
-      // Give the supervisor time to terminate its group and publish the cancellation.
-      if (placement) for (let i = 0; i < 40 && !(await exists(join(directory, "outcome.json"))); i++) await pause();
+      // The supervisor is given until it has published the cancellation or is gone itself.
+      if (placement) while (!(await exists(join(directory, "outcome.json"))) && supervisorState(directory, placement) === "started") await pause();
     }
     if (collected || !placement) await rm(directory, { recursive: true, force: true });
   }
@@ -366,15 +338,14 @@ export async function runPaneProcess(options: {
 
 // A run that is launched and left: granted before it is placed, owned by nobody, collected by
 // nobody. What it reports it reports itself, and reconciliation closes its record from the outcome
-// its host publishes. The launch waits only until the host has started it.
+// its host publishes. The launch waits only until the host has started it, however long that takes,
+// and ends early only where its host is gone and cannot stand again.
 export async function launchDetachedExecution(options: {
   command: HarnessCommand;
   root: string;
   name: string;
   title: string;
   home: AgentHome;
-  graceMs?: number;
-  startMs?: number;
   place: Placer;
   placeRetryMs?: readonly number[];
 }): Promise<HerdrAnswer<Placement>> {
@@ -382,10 +353,7 @@ export async function launchDetachedExecution(options: {
   if (!/^[a-zA-Z0-9_-]+$/.test(options.name)) throw new Error("invalid execution identity");
   const directory = join(options.root, options.name);
   await mkdir(directory, { mode: 0o700 });
-  const envelope: PaneEnvelope = {
-    command: options.command, title: options.title, deadline: 0,
-    timeoutMs: null, graceMs: options.graceMs ?? 30_000,
-  };
+  const envelope: PaneEnvelope = { command: options.command, title: options.title };
   let placed: HerdrAnswer<Placement>;
   try {
     placed = await placeRecovering({
@@ -394,7 +362,6 @@ export async function launchDetachedExecution(options: {
       place: options.place,
       retryMs: options.placeRetryMs,
       ready: async () => {
-        envelope.deadline = Date.now() + (options.startMs ?? 30_000);
         await publish(join(directory, "command.json"), envelope);
         await publish(join(directory, "grant"), { nonce: randomUUID() });
       },
@@ -408,12 +375,7 @@ export async function launchDetachedExecution(options: {
     return placed;
   }
   let placement = placed.result;
-  const deadline = Date.now() + (options.startMs ?? 30_000);
   while (!existsSync(join(directory, "started.json")) && !existsSync(join(directory, "outcome.json"))) {
-    if (Date.now() >= deadline) {
-      await writeFile(join(directory, "cancel"), "", { mode: 0o600 });
-      return { ok: false, error: { code: "host-unavailable", message: "the host did not start the run" } };
-    }
     if (supervisorState(directory, placement) === "missing") {
       const again = await placement.reensure();
       if (!again.ok) { await writeFile(join(directory, "cancel"), "", { mode: 0o600 }); return again; }

@@ -8,7 +8,7 @@ import { scratchDir } from "@agency/test-support/scratch";
 import { claudeCode, claudeCodeAt, type ClaudeEndpoint } from "@agency/agent/claude-code";
 import { codex } from "@agency/agent/codex";
 import { dsh } from "@agency/agent/dsh";
-import { gatewayLongToolHeaders, gatewayWaitHeaders } from "@agency/agent/gateway/address";
+import { gatewayLongToolHeaders } from "@agency/agent/gateway/address";
 import type { HarnessRun } from "@agency/agent/harness";
 
 // Each program names its own tools whose calls wait long, and a run on the gateway sends them with every
@@ -31,7 +31,7 @@ describe("a program's long tools", () => {
     expect(gatewayLongToolHeaders(undefined)).toEqual({});
   });
 
-  test("stand in the custom-headers line of a run of Claude Code on a road, beside its wait", async () => {
+  test("stand in the custom-headers line of a run of Claude Code on a road", async () => {
     let handed: readonly string[] | undefined;
     const endpoint: ClaudeEndpoint = {
       provider: "registered",
@@ -43,8 +43,7 @@ describe("a program's long tools", () => {
           name: "qwen-test",
           contextTokens: 100_000,
           answerTokens: 8_000,
-          requestWaitMs: 90_000,
-          headers: { ...gatewayWaitHeaders(90_000), ...gatewayLongToolHeaders(longTools) },
+          headers: gatewayLongToolHeaders(longTools),
           thinking: true,
           home,
         };
@@ -62,8 +61,8 @@ describe("a program's long tools", () => {
     const command = await claudeCodeAt(endpoint).command(run);
 
     expect(handed).toEqual(claudeCode.longTools);
-    expect(command.env?.ANTHROPIC_CUSTOM_HEADERS).toBe(
-      "x-litellm-timeout: 90\nx-litellm-stream-timeout: 90\nx-bmo-long-tools: Bash,Agent,Task,WebFetch,WebSearch",
-    );
+    expect(command.env?.ANTHROPIC_CUSTOM_HEADERS).toBe("x-bmo-long-tools: Bash,Agent,Task,WebFetch,WebSearch");
+    expect(command.env?.API_TIMEOUT_MS).toBe("2147483647");
+    expect(command.env?.BUN_CONFIG_HTTP_IDLE_TIMEOUT).toBe("2147483");
   });
 });

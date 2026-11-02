@@ -230,7 +230,7 @@ async fn interrupt(ground: &Ground, run: &str) {
     let directory = ground.roots.data.join("executions").join(row.id());
     let body = Value::Object(row.body);
 
-    Stops::interrupt_resident(&ground.db, herdr, &body, &directory, Duration::ZERO).await;
+    Stops::interrupt_resident(&ground.db, herdr, &body, &directory, true).await;
   }
 }
 

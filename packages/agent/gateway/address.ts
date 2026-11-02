@@ -14,15 +14,6 @@ export function gatewayUrl(env: Record<string, string | undefined> = process.env
   return named === "" ? defaultGatewayUrl : named.replace(/\/+$/, "");
 }
 
-// The gateway's own words for how long a request's caller waits, for an answer and for a streamed one,
-// in seconds: the gateway gives up where its caller does rather than holding a node's card for a
-// caller gone (docs/own-llm.md, 「The gateway」).
-export function gatewayWaitHeaders(waitMs: number): Record<string, string> {
-  const seconds = String(Math.max(1, Math.ceil(waitMs / 1_000)));
-
-  return { "x-litellm-timeout": seconds, "x-litellm-stream-timeout": seconds };
-}
-
 // The header a run names its sampling settings in, which the gateway's sampling hook writes into the
 // request the backend reads (docs/own-llm.md, 「The gateway」); none where the run names none.
 export function gatewaySamplingHeaders(sampling: Sampling | undefined): Record<string, string> {

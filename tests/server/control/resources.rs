@@ -342,8 +342,8 @@ async fn a_provider_s_switch_and_a_registered_model_s_name_are_changed_as_their_
   scratch
     .run(
       r#"INSERT INTO "registered_models" ("name", "label", "model", "context_tokens", "answer_tokens",
-            "wait_seconds", "thinking", "walked", "added_at", "keeps_research")
-         VALUES ('mine', 'Mine', 'old-model', 100000, 4000, 60, 0, 1, 1, 0)"#,
+            "thinking", "walked", "added_at", "keeps_research")
+         VALUES ('mine', 'Mine', 'old-model', 100000, 4000, 0, 1, 1, 0)"#,
       vec![],
     )
     .await;
@@ -448,8 +448,8 @@ async fn the_model_resource_is_one_record() {
   scratch
     .run(
       r#"INSERT INTO "registered_models" ("name", "label", "model", "context_tokens", "answer_tokens",
-            "wait_seconds", "thinking", "walked", "added_at", "keeps_research")
-         VALUES ('mine', 'Mine', 'old-model', 100000, 4000, 60, 0, 1, 1, 0)"#,
+            "thinking", "walked", "added_at", "keeps_research")
+         VALUES ('mine', 'Mine', 'old-model', 100000, 4000, 0, 1, 1, 0)"#,
       vec![],
     )
     .await;

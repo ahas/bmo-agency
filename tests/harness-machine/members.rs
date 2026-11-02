@@ -13,7 +13,6 @@ fn member(name: &str, road: Option<&str>) -> Member {
     model: format!("{name}-model"),
     api_base: Some("https://api.deepseek.com/v1".into()),
     key_file: "deepseek.key".into(),
-    wait_seconds: 300,
     context_tokens: Some(1_048_576),
     answer_tokens: Some(32_768),
     thinking: Some(true),
@@ -33,7 +32,6 @@ fn a_file_is_read_and_a_road_is_handed_its_members_with_what_a_run_is_sized_to()
       "model": "deepseek-flash",
       "api_base": "https://api.deepseek.com/v1",
       "key_file": "deepseek.key",
-      "wait_seconds": 300,
       "context_tokens": 1048576,
       "answer_tokens": 32768,
       "thinking": true
@@ -85,10 +83,6 @@ fn a_file_that_does_not_read_or_a_member_that_breaks_a_rule_is_refused() {
   let mut bad_key = member("deepseek-flash", Some("deepseek"));
   bad_key.key_file = "../deepseek.key".into();
   assert!(validate(&[bad_key]).is_err());
-
-  let mut bad_wait = member("deepseek-flash", Some("deepseek"));
-  bad_wait.wait_seconds = 1;
-  assert!(validate(&[bad_wait]).is_err());
 
   let mut bad_answer = member("deepseek-flash", Some("deepseek"));
   bad_answer.answer_tokens = Some(1_048_576);

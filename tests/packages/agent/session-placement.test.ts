@@ -40,9 +40,9 @@ beforeAll(async () => {
 
   const registry = archive.modelRegistry();
 
-  await registry.create({ name: "multi", label: "Multi", model: "m", contextTokens: 65_536, answerTokens: 4_096, waitSeconds: 60, thinking: false, walked: false, keepsResearch: false });
+  await registry.create({ name: "multi", label: "Multi", model: "m", contextTokens: 65_536, answerTokens: 4_096, thinking: false, walked: false, keepsResearch: false });
   for (const node of NODES) await registry.setAddress("multi", { node, url: urlOf(node), keyFile: null, keyOwned: false });
-  await registry.create({ name: "single", label: "Single", model: "s", contextTokens: 65_536, answerTokens: 4_096, waitSeconds: 60, thinking: false, walked: false, keepsResearch: false });
+  await registry.create({ name: "single", label: "Single", model: "s", contextTokens: 65_536, answerTokens: 4_096, thinking: false, walked: false, keepsResearch: false });
   await registry.setAddress("single", { node: "only", url: "http://127.0.0.1:19009/v1/chat/completions", keyFile: null, keyOwned: false });
   installProviderSettings(archive);
 });

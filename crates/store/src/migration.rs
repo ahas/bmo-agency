@@ -42,6 +42,7 @@ mod m20261115_000001_agent_roles;
 mod m20261116_000001_agent_log_run_id;
 mod m20261117_000001_card_services;
 mod m20261118_000001_pool_asks;
+mod m20261119_000001_registration_wait_retired;
 
 use sea_orm_migration::prelude::*;
 
@@ -167,6 +168,7 @@ impl MigratorTrait for Migrator {
       Box::new(m20261116_000001_agent_log_run_id::Migration),
       Box::new(m20261117_000001_card_services::Migration),
       Box::new(m20261118_000001_pool_asks::Migration),
+      Box::new(m20261119_000001_registration_wait_retired::Migration),
     ]
   }
 

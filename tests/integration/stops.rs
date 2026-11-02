@@ -1,5 +1,5 @@
-//! A run stopped from outside (docs/agent-control.md, 「Stopping」): a run in a pane asked and closed after
-//! its grace, an execution's cancellation reaching each run it owns by what can reach it, and the runs a
+//! A run stopped from outside (docs/agent-control.md, 「Stopping」): a run in a pane asked and waited on until
+//! it has ended, an execution's cancellation reaching each run it owns by what can reach it, and the runs a
 //! change ended confirmed gone before their cancellation is taken back.
 
 use crate::common;
@@ -110,32 +110,46 @@ impl Bench {
 }
 
 #[tokio::test]
-async fn a_run_in_a_pane_is_asked_to_end_and_closed_only_where_it_did_not() {
+async fn a_run_in_a_pane_is_asked_to_end_and_waited_on_however_long_its_ending_takes() {
   let bench = Bench::new().await;
   let herdr = bench.ground.herdr.clone().unwrap();
   let db = bench.scratch.db();
+
+  assert_eq!(Stops::stop_run(db, &herdr, "bmo-task-nowhere").await, Ok(RunStop::Absent));
+
+  // Asked, it takes its time over its ending, and is waited on until it has gone by itself.
   let (_, pane) = bench.herdr.workspace("work", serde_json::Value::Null, Some(&["claude"]));
 
   bench.herdr.carry(&pane, UNIT);
 
-  assert_eq!(
-    Stops::stop_run(db, &herdr, "bmo-task-nowhere", Duration::ZERO).await,
-    Ok(RunStop::Absent)
-  );
-  // Asked, and still there once its grace is over: its pane is closed.
-  assert_eq!(Stops::stop_run(db, &herdr, UNIT, Duration::ZERO).await, Ok(RunStop::Closed));
+  let ends = {
+    let (model, pane) = (bench.herdr.clone(), pane.clone());
+
+    tokio::spawn(async move {
+      tokio::time::sleep(Duration::from_millis(2_500)).await;
+      model.call("pane.close", json!({ "pane_id": pane }));
+    })
+  };
+
+  assert_eq!(Stops::stop_run(db, &herdr, UNIT).await, Ok(RunStop::Ended));
+  assert!(ends.is_finished(), "the stop answered before the run ended");
   assert_eq!(bench.herdr.prompts(), [(pane.clone(), RUN_STOP.instruction.clone())]);
-  assert!(bench.herdr.panes().is_empty());
+  assert_eq!(bench.herdr.asked("pane.close"), 0, "the stop never closed the pane under its run");
 
   // A run that ends itself once asked is never closed.
   let (_, pane) = bench.herdr.workspace("work", serde_json::Value::Null, Some(&["claude"]));
 
   bench.herdr.carry(&pane, "bmo-task-2");
   bench.herdr.ends_when_asked();
-  assert_eq!(
-    Stops::stop_run(db, &herdr, "bmo-task-2", Duration::from_secs(5)).await,
-    Ok(RunStop::Ended)
-  );
+  assert_eq!(Stops::stop_run(db, &herdr, "bmo-task-2").await, Ok(RunStop::Ended));
+  assert_eq!(bench.herdr.asked("pane.close"), 0);
+
+  // A pane that will not take the words is closed at once, since nothing said to it would arrive.
+  let (_, pane) = bench.herdr.workspace("work", serde_json::Value::Null, Some(&["claude"]));
+
+  bench.herdr.carry(&pane, "bmo-task-3");
+  bench.herdr.refuses_prompts();
+  assert_eq!(Stops::stop_run(db, &herdr, "bmo-task-3").await, Ok(RunStop::Closed));
   assert_eq!(bench.herdr.asked("pane.close"), 1);
 }
 
@@ -144,6 +158,7 @@ async fn a_cancellation_reaches_each_run_it_owns_by_what_can_reach_it() {
   let bench = Bench::new().await;
   let (_, run_pane) = bench.herdr.workspace("work", serde_json::Value::Null, Some(&["claude"]));
   let (_, resident_pane) = bench.herdr.workspace("worker", serde_json::Value::Null, Some(&["claude"]));
+  let (_, job_pane) = bench.herdr.workspace("job worker", serde_json::Value::Null, Some(&["claude"]));
 
   bench.herdr.carry(&run_pane, UNIT);
   bench.herdr.ends_when_asked();
@@ -154,7 +169,13 @@ async fn a_cancellation_reaches_each_run_it_owns_by_what_can_reach_it() {
   bench.execution(json!({ "id": "supervised", "parent": UNIT, "endedAt": null })).await;
   bench
     .execution(json!({
-      "id": "resident", "parent": UNIT, "paneId": resident_pane, "provider": "claude-code",
+      "id": "resident", "parent": UNIT, "paneId": resident_pane, "provider": "claude-code", "line": "chat",
+      "resident": { "place": "/nowhere", "record": "/nowhere/record.jsonl" }, "endedAt": null,
+    }))
+    .await;
+  bench
+    .execution(json!({
+      "id": "resident-job", "parent": UNIT, "paneId": job_pane, "provider": "claude-code", "line": "job",
       "resident": { "place": "/nowhere", "record": "/nowhere/record.jsonl" }, "endedAt": null,
     }))
     .await;
@@ -167,13 +188,14 @@ async fn a_cancellation_reaches_each_run_it_owns_by_what_can_reach_it() {
 
   assert_eq!(stops.cancel(UNIT).await.unwrap(), (true, true));
 
-  for name in [UNIT, "supervised", "resident", "shared"] {
+  for name in [UNIT, "supervised", "resident", "resident-job", "shared"] {
     assert!(bench.marked(name).await, "{name} is marked");
   }
 
   assert!(!bench.marked("other").await);
   // A supervised child is reached by its cancel file, a turn that is its own pane's process by being
-  // asked, and a resident turn whose collector is gone by its provider's interrupt.
+  // asked, a chat turn whose collector is gone by its provider's interrupt, and a job's resident turn
+  // not at all: it ends on the stop words its collector put in.
   assert!(bench.executions().join("supervised").join("cancel").exists());
   assert!(
     bench
@@ -185,6 +207,8 @@ async fn a_cancellation_reaches_each_run_it_owns_by_what_can_reach_it() {
       .eventually(|herdr| herdr.keys() == [(resident_pane.clone(), vec!["escape".to_owned()])])
       .await
   );
+  assert!(!bench.herdr.prompts().iter().any(|(pane, _)| *pane == job_pane));
+  assert!(!bench.herdr.keys().iter().any(|(pane, _)| *pane == job_pane));
 }
 
 #[tokio::test]

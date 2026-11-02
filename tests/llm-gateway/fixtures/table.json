@@ -6,8 +6,6 @@
         "model": "openai/RVN-model",
         "api_base": "http://127.0.0.1:18021/v1",
         "api_key": "os.environ/BMO_KEY_ALPHA_LLM_TOKEN",
-        "timeout": 2400,
-        "stream_timeout": 2400,
         "chat_template_kwargs": {
           "enable_thinking": false
         }
@@ -19,8 +17,6 @@
         "model": "openai/RVN-model",
         "api_base": "http://127.0.0.1:18021/v1",
         "api_key": "os.environ/BMO_KEY_ALPHA_LLM_TOKEN",
-        "timeout": 2400,
-        "stream_timeout": 2400,
         "chat_template_kwargs": {
           "enable_thinking": false
         }
@@ -32,8 +28,6 @@
         "model": "openai/RVN-model",
         "api_base": "http://127.0.0.1:18023/v1",
         "api_key": "no-key",
-        "timeout": 2400,
-        "stream_timeout": 2400,
         "chat_template_kwargs": {
           "enable_thinking": false
         }
@@ -45,8 +39,6 @@
         "model": "openai/RVN-model",
         "api_base": "http://127.0.0.1:18023/v1",
         "api_key": "no-key",
-        "timeout": 2400,
-        "stream_timeout": 2400,
         "chat_template_kwargs": {
           "enable_thinking": false
         }
@@ -58,8 +50,6 @@
         "model": "openai/served-model",
         "api_base": "https://llm.example.com/v1",
         "api_key": "os.environ/BMO_KEY_REGISTERED_SINGLE_D_VEX_KEY",
-        "timeout": 90,
-        "stream_timeout": 90,
         "chat_template_kwargs": {
           "enable_thinking": false
         }

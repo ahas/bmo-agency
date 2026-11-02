@@ -833,7 +833,7 @@ crate::moved!(CatalogueChange);
 fn restand(call: &crate::control::Call) {
   if let Some(places) = call.places().cloned() {
     tokio::spawn(async move {
-      crate::places::standby::restand_all(&places.ground, None).await;
+      crate::places::standby::restand_all(&places.ground, false).await;
       crate::places::standby::release_stale_companions(&places.ground).await;
     });
   }
@@ -937,7 +937,6 @@ impl Route for CreateModel {
       "model": model,
       "contextTokens": REGISTRY.context_tokens.min,
       "answerTokens": REGISTRY.answer_tokens.min,
-      "waitSeconds": REGISTRY.wait_seconds.min,
     });
 
     for field in ["cardService", "roleFiles"] {

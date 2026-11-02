@@ -383,7 +383,7 @@ async fn a_native_co_worker_s_card_is_asked_within_the_demand_its_caller_s_turn_
     data.path(),
     &json!({
       "action": "save", "name": "flash", "model": "m", "contextTokens": 32_768, "answerTokens": 4_096,
-      "waitSeconds": 90, "cardService": "lab-arena", "roleFiles": true,
+      "cardService": "lab-arena", "roleFiles": true,
     }),
   )
   .await
@@ -458,7 +458,6 @@ async fn naming_a_card_service_takes_the_addresses_away_and_refuses_new_ones() {
   let save = |more: Value| {
     let mut body = json!({
       "action": "save", "name": "flash", "model": "m", "contextTokens": 32_768, "answerTokens": 4_096,
-      "waitSeconds": 90,
     });
 
     body.as_object_mut().unwrap().extend(more.as_object().unwrap().clone());
@@ -527,7 +526,7 @@ async fn shared_ask(
     data.path(),
     &json!({
       "action": "save", "name": "flash", "model": "m", "contextTokens": 32_768, "answerTokens": 4_096,
-      "waitSeconds": 90, "cardService": "lab-arena", "roleFiles": true,
+      "cardService": "lab-arena", "roleFiles": true,
     }),
   )
   .await
@@ -667,7 +666,7 @@ async fn a_seat_s_admission_reads_its_demand_as_it_stands_and_answers_at_once() 
     data.path(),
     &json!({
       "action": "save", "name": "flash", "model": "m", "contextTokens": 32_768, "answerTokens": 4_096,
-      "waitSeconds": 90, "cardService": "lab-arena", "roleFiles": true,
+      "cardService": "lab-arena", "roleFiles": true,
     }),
   )
   .await
@@ -716,7 +715,7 @@ async fn a_seat_standing_on_its_caller_s_own_demand_asks_none_and_leaves_it_to_i
     data.path(),
     &json!({
       "action": "save", "name": "flash", "model": "m", "contextTokens": 32_768, "answerTokens": 4_096,
-      "waitSeconds": 90, "cardService": "lab-arena", "roleFiles": true,
+      "cardService": "lab-arena", "roleFiles": true,
     }),
   )
   .await

@@ -286,8 +286,8 @@ async fn a_worker_s_co_workers_are_defined_on_the_provider_its_program_stands_on
     r#"INSERT INTO "model_tier_mappings" ("provider", "tier", "model", "effort") VALUES ('claude-code', 'Light', 'claude-sonnet-5', 'low')
        ON CONFLICT ("provider", "tier") DO UPDATE SET "model" = excluded."model", "effort" = excluded."effort""#,
     r#"INSERT INTO "registered_models" ("name", "label", "model", "context_tokens", "answer_tokens",
-          "wait_seconds", "thinking", "walked", "added_at", "keeps_research")
-       VALUES ('run-registration', 'Run', 'served', 200000, 8000, 600, 1, 1, 1, 0)"#,
+          "thinking", "walked", "added_at", "keeps_research")
+       VALUES ('run-registration', 'Run', 'served', 200000, 8000, 1, 1, 1, 0)"#,
     r#"INSERT INTO "registered_model_addresses" ("registration", "node", "position", "url", "key_file", "key_owned")
        VALUES ('run-registration', 'n1', 1, 'http://127.0.0.1:9/v1/chat/completions', NULL, 0)"#,
   ] {

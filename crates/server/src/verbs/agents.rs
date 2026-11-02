@@ -76,8 +76,6 @@ pub struct AgentsArgs {
   #[arg(long)]
   pub answer: Option<String>,
   #[arg(long)]
-  pub wait: Option<String>,
-  #[arg(long)]
   pub walked: Option<String>,
   #[arg(long)]
   pub research: Option<String>,
@@ -459,7 +457,6 @@ async fn registry_change(stand: &Stand<'_>, args: &AgentsArgs) -> Result<Said, V
       ("model", args.model.as_ref().map(|model| json!(model))),
       ("contextTokens", count(args.context.as_deref())),
       ("answerTokens", count(args.answer.as_deref())),
-      ("waitSeconds", count(args.wait.as_deref())),
     ] {
       if let Some(value) = value {
         body[field] = value;
@@ -526,13 +523,12 @@ async fn registry_change(stand: &Stand<'_>, args: &AgentsArgs) -> Result<Said, V
     let flag = |field: &str| one[field].as_bool().unwrap_or_default();
 
     said.line(format!(
-      "{} ({}): {}, context {}, answer {}, wait {}s, thinking {}, {}, {}",
+      "{} ({}): {}, context {}, answer {}, thinking {}, {}, {}",
       text(&one["name"]),
       text(&one["label"]),
       text(&one["model"]),
       number("contextTokens"),
       number("answerTokens"),
-      one["waitSeconds"],
       if flag("thinking") { "on" } else { "off" },
       if flag("walked") { "walked" } else { "not walked" },
       if flag("keepsResearch") { "keeps its research" } else { "research elsewhere" },

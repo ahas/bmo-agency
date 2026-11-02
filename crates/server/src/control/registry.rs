@@ -56,7 +56,6 @@ pub struct Registration {
   pub model: String,
   pub context_tokens: i64,
   pub answer_tokens: i64,
-  pub wait_seconds: i64,
   pub thinking: bool,
   pub walked: bool,
   pub keeps_research: bool,
@@ -117,7 +116,6 @@ pub async fn registrations<C: ConnectionTrait>(db: &C) -> Result<Vec<Registratio
       model: row.try_get("", "model")?,
       context_tokens: row.try_get("", "context_tokens")?,
       answer_tokens: row.try_get("", "answer_tokens")?,
-      wait_seconds: row.try_get("", "wait_seconds")?,
       thinking: flag(&row, "thinking")?,
       walked: flag(&row, "walked")?,
       keeps_research: flag(&row, "keeps_research")?,
@@ -349,8 +347,8 @@ pub async fn service_of<C: ConnectionTrait>(db: &C, model: &str) -> Result<Optio
 /// The answer ceiling of a key that is no gate, where its tier names none.
 pub const DEFAULT_ANSWER_TOKENS: i64 = 4_096;
 
-/// What one work key's tier mapping on an own service asks it for, with the registration's wait and
-/// window where the settings were read for a run on it.
+/// What one work key's tier mapping on an own service asks it for, with the registration's window where
+/// the settings were read for a run on it.
 #[derive(Clone, Debug, PartialEq)]
 pub struct OwnLlmSettings {
   pub provider: &'static str,
@@ -358,12 +356,11 @@ pub struct OwnLlmSettings {
   pub effort: Option<String>,
   pub thinking: bool,
   pub answer_tokens: i64,
-  pub request_wait_ms: Option<i64>,
   pub context_tokens: Option<i64>,
 }
 
 impl OwnLlmSettings {
-  /// The settings as a screen reads them, the wait and the window only where they were read.
+  /// The settings as a screen reads them, the window only where it was read.
   pub fn view(&self) -> Value {
     let mut view = json!({
       "provider": self.provider,
@@ -372,10 +369,6 @@ impl OwnLlmSettings {
       "thinking": self.thinking,
       "answerTokens": self.answer_tokens,
     });
-
-    if let Some(wait) = self.request_wait_ms {
-      view["requestWaitMs"] = json!(wait);
-    }
 
     if let Some(window) = self.context_tokens {
       view["contextTokens"] = json!(window);
@@ -414,7 +407,6 @@ pub fn own_llm_settings(service: &OwnLlmService, mapping: Option<&Mapping>) -> O
     effort: mapping.and_then(|one| one.effort.clone()),
     thinking: mapping.and_then(|one| one.effort.as_deref()) == Some("thinking"),
     answer_tokens: mapping.and_then(|one| one.answer_tokens).unwrap_or(DEFAULT_ANSWER_TOKENS),
-    request_wait_ms: None,
     context_tokens: None,
   }
 }
@@ -431,7 +423,7 @@ fn thinks(registration: &Registration, effort: Option<&str>) -> bool {
 
 /// What a mapping of the registry asks a run for: its registration, thinking as the mapping names it
 /// or else as the registration does, the mapping's answer ceiling or else the registration's, and the
-/// registration's wait and window. A mapping naming a registration the registry does not hold asks for
+/// registration's window. A mapping naming a registration the registry does not hold asks for
 /// it all the same, and the run is refused where it is launched.
 pub async fn run_settings<C: ConnectionTrait>(
   db: &C,
@@ -455,7 +447,6 @@ pub async fn run_settings<C: ConnectionTrait>(
       .and_then(|one| one.answer_tokens)
       .or(held.as_ref().map(|held| held.answer_tokens))
       .unwrap_or(DEFAULT_ANSWER_TOKENS),
-    request_wait_ms: held.as_ref().map(|held| held.wait_seconds * 1_000),
     context_tokens: held.as_ref().map(|held| held.context_tokens),
   })
 }
@@ -584,7 +575,6 @@ pub async fn view<C: ConnectionTrait>(db: &C, data_root: &Path) -> Result<Value,
       "model": one.model,
       "contextTokens": one.context_tokens,
       "answerTokens": one.answer_tokens,
-      "waitSeconds": one.wait_seconds,
       "thinking": one.thinking,
       "walked": one.walked,
       "keepsResearch": one.keeps_research,
@@ -684,7 +674,6 @@ struct Fields {
   model: String,
   context_tokens: i64,
   answer_tokens: i64,
-  wait_seconds: i64,
   thinking: bool,
   walked: bool,
   keeps_research: bool,
@@ -719,12 +708,6 @@ impl Fields {
       &REGISTRY.answer_tokens,
       &CONTROL_WORDS.registry.answer_label,
     )?;
-    let wait_seconds = whole(
-      "waitSeconds",
-      fields.get("waitSeconds"),
-      &REGISTRY.wait_seconds,
-      &CONTROL_WORDS.registry.wait_label,
-    )?;
 
     if answer_tokens >= context_tokens {
       return refused("answerTokens", CONTROL_WORDS.registry.answer_under_window.as_str());
@@ -745,7 +728,6 @@ impl Fields {
       model,
       context_tokens,
       answer_tokens,
-      wait_seconds,
       thinking,
       walked,
       keeps_research,
@@ -758,7 +740,6 @@ impl Fields {
       self.model.clone().into(),
       self.context_tokens.into(),
       self.answer_tokens.into(),
-      self.wait_seconds.into(),
       i64::from(self.thinking).into(),
       i64::from(self.walked).into(),
       i64::from(self.keeps_research).into(),
@@ -795,7 +776,6 @@ impl<C: ConnectionTrait> Change<'_, C> {
       "model": body.get("model").and_then(Value::as_str).map(|model| json!(model.trim())).unwrap_or_else(|| stands(|held| json!(held.model))),
       "contextTokens": or_held("contextTokens", |held| json!(held.context_tokens)),
       "answerTokens": or_held("answerTokens", |held| json!(held.answer_tokens)),
-      "waitSeconds": or_held("waitSeconds", |held| json!(held.wait_seconds)),
       "thinking": given(body, "thinking").cloned().unwrap_or_else(|| json!(held.as_ref().is_some_and(|held| held.thinking))),
       "walked": given(body, "walked").cloned().unwrap_or_else(|| json!(held.as_ref().is_some_and(|held| held.walked))),
       "keepsResearch": given(body, "keepsResearch").cloned()
@@ -812,8 +792,8 @@ impl<C: ConnectionTrait> Change<'_, C> {
       values.push((now_ms() / 1000).into());
       run(
         self.db,
-        "INSERT INTO registered_models (name, label, model, context_tokens, answer_tokens, wait_seconds, thinking,
-         walked, keeps_research, added_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
+        "INSERT INTO registered_models (name, label, model, context_tokens, answer_tokens, thinking, walked,
+         keeps_research, added_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
         values,
       )
       .await?;
@@ -824,7 +804,7 @@ impl<C: ConnectionTrait> Change<'_, C> {
       run(
         self.db,
         "UPDATE registered_models SET label = $1, model = $2, context_tokens = $3, answer_tokens = $4,
-         wait_seconds = $5, thinking = $6, walked = $7, keeps_research = $8 WHERE name = $9",
+         thinking = $5, walked = $6, keeps_research = $7 WHERE name = $8",
         values,
       )
       .await?;

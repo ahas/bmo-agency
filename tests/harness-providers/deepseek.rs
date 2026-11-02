@@ -24,7 +24,6 @@ fn member(name: &str, label: &str) -> Value {
     "model": name,
     "api_base": "https://api.deepseek.com/v1",
     "key_file": "deepseek.key",
-    "wait_seconds": 300,
     "context_tokens": 1048576,
     "answer_tokens": 32768,
     "thinking": true

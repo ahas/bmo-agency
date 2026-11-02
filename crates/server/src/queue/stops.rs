@@ -1,6 +1,6 @@
 //! A run asked to stop from outside (docs/agent-control.md, 「Stopping」; docs/api.md, 「Workers」, stopping
 //! runs), on agency's server: the cancellation of its execution and every execution it owns, a run in a
-//! pane asked to end and closed after its grace, a unit stopped by systemd, and the runs a change to a work
+//! pane asked to end and waited on until it has, a unit stopped by systemd, and the runs a change to a work
 //! order ended, confirmed gone before their pool places are given back; and a job's stop mark, kept for
 //! whoever closes the job's record.
 //!
@@ -59,14 +59,11 @@ pub async fn clear_job_stop(db: &DatabaseConnection, job_id: i64) -> Result<(), 
 // The file a pane turn's collector writes in its execution's directory, naming who collects it.
 const PANE_ENVELOPE: &str = "collector.json";
 
-// How long a stop lets the collectors of the runs it signalled see their outcomes before it goes on.
-const SIGNAL_SETTLE: Duration = Duration::from_millis(1_500);
-
 // How often a waiting stop looks again.
 const LOOK_EVERY: Duration = Duration::from_secs(2);
 
-/// How a run in a pane was ended: asked and finished itself, its pane closed after the asking did not
-/// end it, or a name herdr is not holding at all.
+/// How a run in a pane was ended: asked and finished itself, its pane closed at once because it could
+/// not be asked, or a name herdr is not holding at all.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RunStop {
   Ended,
@@ -141,15 +138,11 @@ impl Stops {
       .and_then(|pane| pane.pane_id)
   }
 
-  /// A run in a pane ended by asking first: the stop's words put in, a while given for it to reach its
-  /// own ending, and its pane closed only where it did not. A run that cannot be asked — one already
-  /// waiting on a person, or one whose program's provider is off — is closed at once.
-  pub async fn stop_run(
-    db: &DatabaseConnection,
-    herdr: &Herdr,
-    name: &str,
-    grace: Duration,
-  ) -> Result<RunStop, String> {
+  /// A run in a pane ended by asking: the stop's words put in and the run waited on until it has reached
+  /// its own ending, however long that takes. A run whose pane will not take the words — one already
+  /// waiting on a person — is closed at once, since nothing said to it would arrive; one whose program's
+  /// provider is off is refused, since no words go into a pane then.
+  pub async fn stop_run(db: &DatabaseConnection, herdr: &Herdr, name: &str) -> Result<RunStop, String> {
     let Some(pane) = Self::pane_of(herdr, name).await else {
       return Ok(RunStop::Absent);
     };
@@ -168,7 +161,9 @@ impl Stops {
       .await
       .is_ok();
 
-    if asked && Self::wait_for_run(herdr, name, grace).await {
+    if asked {
+      Self::wait_for_run(herdr, name).await;
+
       return Ok(RunStop::Ended);
     }
 
@@ -177,10 +172,8 @@ impl Stops {
     Ok(RunStop::Closed)
   }
 
-  // Whether a run in a pane finished within the while: a herdr that cannot be asked holds nothing.
-  async fn wait_for_run(herdr: &Herdr, name: &str, wait: Duration) -> bool {
-    let until = tokio::time::Instant::now() + wait;
-
+  // A run in a pane waited on until herdr no longer holds it: a herdr that cannot be asked holds nothing.
+  async fn wait_for_run(herdr: &Herdr, name: &str) {
     loop {
       let holds = match herdr.snapshot().await {
         Ok(snapshot) => snapshot.panes.iter().any(|pane| pane.run() == Some(name)),
@@ -188,16 +181,10 @@ impl Stops {
       };
 
       if !holds {
-        return true;
+        return;
       }
 
-      let now = tokio::time::Instant::now();
-
-      if now >= until {
-        return false;
-      }
-
-      tokio::time::sleep(LOOK_EVERY.min(until - now)).await;
+      tokio::time::sleep(LOOK_EVERY).await;
     }
   }
 
@@ -211,15 +198,18 @@ impl Stops {
     row.get("panePath").and_then(Value::as_bool).unwrap_or_else(|| !directory.exists())
   }
 
-  /// The stop's own reach into a resident turn, behind the turn's collector: it waits while the
-  /// collector lives and the row is open, and types its provider's interrupt into the program's pane
-  /// only where the collector is gone or the while ran out with the row still open.
+  /// The stop's own reach into a resident turn. Behind the turn's collector it waits while the collector
+  /// lives and the row is open, and reaches the program only where the collector is gone with the row
+  /// still open; reached `now`, it goes at once. A chat turn's program is interrupted by its provider's
+  /// interrupt, since a round has no work of its own to wind down. A job's turn is asked, never cut: from
+  /// behind a collector the stop words are already in, and reached at once they are put in here.
+  /// Answers whether anything was typed into the pane.
   pub async fn interrupt_resident(
     db: &DatabaseConnection,
     herdr: &Herdr,
     row: &Value,
     directory: &Path,
-    wait: Duration,
+    now: bool,
   ) -> bool {
     let (Some(id), Some(pane), Some(provider)) =
       (text(row, "id"), text(row, "paneId"), text(row, "provider"))
@@ -231,26 +221,33 @@ impl Stops {
       return false;
     }
 
-    let until = tokio::time::Instant::now() + wait;
+    if !now {
+      loop {
+        let open = Self::execution(db, id)
+          .await
+          .is_some_and(|now| now.get("endedAt").is_none_or(Value::is_null));
 
-    loop {
-      let open = Self::execution(db, id)
-        .await
-        .is_some_and(|now| now.get("endedAt").is_none_or(Value::is_null));
+        if !open {
+          return false;
+        }
 
-      if !open {
-        return false;
+        let collector =
+          read_json(&directory.join(PANE_ENVELOPE)).and_then(|envelope| envelope.get("owner").cloned());
+
+        if collector.as_ref().is_none_or(gone) {
+          break;
+        }
+
+        tokio::time::sleep(Duration::from_secs(1)).await;
       }
+    }
 
-      let collector =
-        read_json(&directory.join(PANE_ENVELOPE)).and_then(|envelope| envelope.get("owner").cloned());
-      let now = tokio::time::Instant::now();
-
-      if collector.as_ref().is_none_or(gone) || now >= until {
-        break;
-      }
-
-      tokio::time::sleep(Duration::from_secs(1).min(until - now)).await;
+    if text(row, "line") != Some("chat") {
+      return now
+        && herdr
+          .call("agent.prompt", json!({ "target": pane, "text": RUN_STOP.instruction }), None)
+          .await
+          .is_ok();
     }
 
     let Some(keys) = harness_providers::provider(provider)
@@ -300,10 +297,9 @@ impl Stops {
         resident = true;
 
         if let Some(herdr) = self.herdr.clone() {
-          let (db, row, wait) =
-            (self.db.clone(), row.clone(), Duration::from_secs(RUN_STOP.resident_backstop_seconds));
+          let (db, row) = (self.db.clone(), row.clone());
 
-          tokio::spawn(async move { Self::interrupt_resident(&db, &herdr, &row, &directory, wait).await });
+          tokio::spawn(async move { Self::interrupt_resident(&db, &herdr, &row, &directory, false).await });
         }
 
         continue;
@@ -337,12 +333,34 @@ impl Stops {
     let (db, name) = (self.db.clone(), name.to_owned());
 
     tokio::spawn(async move {
-      if let Err(why) =
-        Self::stop_run(&db, &herdr, &name, Duration::from_secs(RUN_STOP.grace_seconds)).await
-      {
+      if let Err(why) = Self::stop_run(&db, &herdr, &name).await {
         eprintln!("agency: execution stop: {why}");
       }
     });
+  }
+
+  // The supervised children a stop of `parent` signalled, waited on until each has published its outcome
+  // or its supervisor is gone: a row still open is not evidence of life, a supervisor that acknowledged
+  // the child's start and is still alive is.
+  async fn owned_closed(&self, parent: &str) {
+    loop {
+      let Ok(rows) = cancels::executions(&self.db).await else { return };
+      let owned = cancels::covered(&rows, parent);
+      let live = owned.iter().any(|id| {
+        let directory = self.executions.join(id);
+
+        !directory.join("outcome.json").exists()
+          && read_json(&directory.join("started.json"))
+            .and_then(|started| started.get("supervisor").cloned())
+            .is_some_and(|supervisor| !gone(&supervisor))
+      });
+
+      if !live {
+        return;
+      }
+
+      tokio::time::sleep(LOOK_EVERY).await;
+    }
   }
 
   // Whether systemd holds the unit, asked of it alone.
@@ -351,8 +369,8 @@ impl Stops {
   }
 
   /// One run asked to stop by its name, a unit's or an execution's: its execution cancelled, a resident
-  /// turn left to its collector, a run in a pane asked and closed after its grace, and anything still
-  /// standing stopped by systemd.
+  /// turn left to its collector, a run in a pane asked and waited on until it has ended, and a unit still
+  /// standing once its runs have ended stopped by systemd.
   pub async fn stop(&self, unit: &str) {
     let mut signalled = false;
 
@@ -360,15 +378,16 @@ impl Stops {
       Ok((asked, resident)) => {
         signalled = asked;
 
-        if asked {
-          // The collectors observe their outcomes before their coordinator is stopped.
-          tokio::time::sleep(SIGNAL_SETTLE).await;
-        }
-
         // A resident turn is wound down by its own collector inside its coordinator, which ends once
         // the turn has; stopping the coordinator now would take the collector with it.
         if resident {
           return;
+        }
+
+        // The runs signalled end on their own, and their collectors observe their outcomes before their
+        // coordinator is stopped.
+        if asked {
+          self.owned_closed(unit).await;
         }
       }
       Err(refusal) => eprintln!("agency: execution cancellation: {}", refusal.detail),
@@ -377,7 +396,7 @@ impl Stops {
     if let (Some(herdr), Some(held)) = (&self.herdr, &self.held)
       && held.names().contains(unit)
     {
-      match Self::stop_run(&self.db, herdr, unit, Duration::from_secs(RUN_STOP.grace_seconds)).await {
+      match Self::stop_run(&self.db, herdr, unit).await {
         Ok(RunStop::Ended | RunStop::Closed) => return,
         Ok(RunStop::Absent) => {}
         Err(why) => eprintln!("agency: failed to stop {unit}: {why}"),

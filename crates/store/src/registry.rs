@@ -15,8 +15,6 @@ pub struct Registration {
   pub model: String,
   pub context_tokens: i64,
   pub answer_tokens: i64,
-  /// How long a request on it is waited for, in seconds.
-  pub wait_seconds: i64,
   pub thinking: bool,
   pub walked: bool,
   pub keeps_research: bool,
@@ -58,7 +56,7 @@ fn flag(row: &AnyRow, column: &str) -> Result<bool, sqlx::Error> {
 /// Every registration with its addresses.
 pub async fn registrations(store: &mut AnyConnection) -> Result<Vec<Registration>, sqlx::Error> {
   let models = sqlx::query(
-    "SELECT name, label, model, context_tokens, answer_tokens, wait_seconds, thinking, walked, keeps_research, \
+    "SELECT name, label, model, context_tokens, answer_tokens, thinking, walked, keeps_research, \
      card_service, role_files FROM registered_models ORDER BY added_at, name",
   )
   .fetch_all(&mut *store)
@@ -92,7 +90,6 @@ pub async fn registrations(store: &mut AnyConnection) -> Result<Vec<Registration
       model: row.try_get("model")?,
       context_tokens: whole(row, "context_tokens")?.unwrap_or(0),
       answer_tokens: whole(row, "answer_tokens")?.unwrap_or(0),
-      wait_seconds: whole(row, "wait_seconds")?.unwrap_or(0),
       thinking: flag(row, "thinking")?,
       walked: flag(row, "walked")?,
       keeps_research: flag(row, "keeps_research")?,

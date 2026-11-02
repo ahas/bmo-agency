@@ -26,12 +26,6 @@ use crate::door::execution::{Row, cancelled, execution_root};
 use crate::lines::token;
 use crate::places::Ground;
 
-// How long the host is given to take the pointer before the grant runs out, how long it is given to
-// say the child started once granted, and how long a launch waits for a host to stand.
-const GRANT_WAIT: Duration = Duration::from_secs(30);
-const START_WAIT: Duration = Duration::from_secs(20);
-const HOST_WAIT: Duration = Duration::from_secs(20);
-
 // The waits before a launch whose host did not come up tries again; a test names a shorter one, which
 // stands for each.
 const PLACE_RETRIES: [Duration; 2] = [Duration::from_secs(2), Duration::from_secs(5)];
@@ -43,13 +37,11 @@ fn place_retries() -> [Duration; 2] {
   }
 }
 
-// How often the envelope is looked at, and how often whoever answers for it is asked after.
+// How often the envelope is looked at, how often whoever answers for it is asked after, and how often a
+// launch looks again for a host to stand.
 const POLL: Duration = Duration::from_millis(25);
 const LOOK: Duration = Duration::from_millis(200);
-
-// How long a run that was not collected is given to publish its cancellation before its directory is
-// left for the reconciler.
-const CANCEL_SETTLE: Duration = Duration::from_secs(1);
+const HOST_LOOK: Duration = Duration::from_millis(100);
 
 /// The program a run starts: its words, the directory it works in, its environment and what it reads
 /// on its standard input.
@@ -62,7 +54,7 @@ pub struct Command {
 }
 
 /// One run as its caller names it: whose host takes it, the line and the provider it runs, the program,
-/// who its row says it is, and how long it may take before its caller stops it.
+/// and who its row says it is.
 pub struct Asked<'a> {
   pub agent: &'a str,
   pub line: &'a str,
@@ -75,7 +67,6 @@ pub struct Asked<'a> {
   pub effort: Option<String>,
   pub tier: Option<Value>,
   pub session: Option<String>,
-  pub timeout: Option<Duration>,
 }
 
 /// What a run came to: how its program ended, what it wrote, and its row as it was left.
@@ -115,35 +106,63 @@ fn host_claim(data: &Path) -> Option<ProcessIdentity> {
   held.alive().then_some(held)
 }
 
-// The data root's agent host, waited for: started first where a copy of the data root has none.
-async fn ensure_host(ground: &Ground) -> Result<ProcessIdentity, String> {
+// The data root's agent host, waited for until it takes the claim: started first where a copy of the data
+// root has none. The bot's own host is its unit's, which systemd stands up again however long that takes;
+// a copy's is the transient unit started here, and its ending without a claim is what ends the wait. A
+// launch whose run is cancelled meanwhile stops waiting.
+async fn ensure_host(ground: &Ground, names: &[&str]) -> Result<ProcessIdentity, String> {
   let data = &ground.roots.data;
 
   if let Some(held) = host_claim(data) {
     return Ok(held);
   }
 
-  if ground.copy().is_some() {
-    start_copy_host(ground).await.map_err(|why| {
+  let copy_unit = match ground.copy() {
+    Some(_) => Some(start_copy_host(ground).await.map_err(|why| {
       format!("host-unavailable: agent-host for {} could not be started: {why}", data.display())
-    })?;
-  }
+    })?),
+    None => None,
+  };
 
-  let deadline = Instant::now() + HOST_WAIT;
-
-  while Instant::now() < deadline {
-    tokio::time::sleep(Duration::from_millis(100)).await;
+  loop {
+    tokio::time::sleep(HOST_LOOK).await;
 
     if let Some(held) = host_claim(data) {
       return Ok(held);
     }
-  }
 
-  Err(format!(
-    "host-unavailable: no host holds the claim at {} after {}ms",
-    Layout::new(data).claim().display(),
-    HOST_WAIT.as_millis()
-  ))
+    if cancelled(&ground.db, names).await.unwrap_or(false) {
+      return Err("cancelled: the run was cancelled while it waited for its host".to_owned());
+    }
+
+    if let Some(unit) = &copy_unit
+      && !unit_standing(ground, unit).await
+      && host_claim(data).is_none()
+    {
+      return Err(format!(
+        "host-unavailable: the copy's agent-host unit {unit} ended without taking the claim at {}",
+        Layout::new(data).claim().display()
+      ));
+    }
+  }
+}
+
+// Whether a user unit is still standing: anything but systemd saying it is inactive or failed.
+async fn unit_standing(ground: &Ground, unit: &str) -> bool {
+  let Some(program) = ground.machine().program("systemctl") else { return true };
+  let mut command = std::process::Command::new(program);
+
+  command
+    .args(["--user", "is-active", &format!("{unit}.service")])
+    .stdin(std::process::Stdio::null())
+    .stderr(std::process::Stdio::null());
+  harness_machine::model_use::with_user_bus(&mut command);
+
+  match tokio::process::Command::from(command).output().await {
+    Ok(done) => !matches!(String::from_utf8_lossy(&done.stdout).trim(), "inactive" | "failed"),
+    // A systemctl that cannot be asked has not said the unit is gone.
+    Err(_) => true,
+  }
 }
 
 // The pointer to the envelope put in the host's inbox, written beside its name and moved into place.
@@ -155,9 +174,9 @@ fn point(data: &Path, agent: &str, name: &str, directory: &Path) -> std::io::Res
   publish_bytes(&inbox.join(name), body.as_bytes())
 }
 
-// A copy's host, started as a transient user unit with the properties of the bot's own, standing down
-// once it has had nothing to do for a while.
-async fn start_copy_host(ground: &Ground) -> Result<(), String> {
+// A copy's host, started as a transient user unit with the properties of the bot's own; answers the unit's
+// name.
+async fn start_copy_host(ground: &Ground) -> Result<String, String> {
   let root = ground.roots.data.to_string_lossy().into_owned();
   let unit = format!("bmo-agent-host-copy-{}", &format!("{:x}", Sha256::digest(root.as_bytes()))[..12]);
   let binary = [ground.roots.deploy.clone(), ground.code_root()]
@@ -187,7 +206,7 @@ async fn start_copy_host(ground: &Ground) -> Result<(), String> {
   let done = command.output().await.map_err(|why| why.to_string())?;
 
   if done.status.success() {
-    return Ok(());
+    return Ok(unit);
   }
 
   let said = String::from_utf8_lossy(&done.stderr).trim().to_owned();
@@ -201,8 +220,6 @@ async fn start_copy_host(ground: &Ground) -> Result<(), String> {
 struct Envelope<'a> {
   command: &'a Command,
   title: &'a str,
-  deadline: u64,
-  timeout_ms: Option<u64>,
   policy: Policy<'a>,
   owner: ProcessIdentity,
 }
@@ -442,14 +459,7 @@ pub struct Left<'a> {
 struct LeftEnvelope<'a> {
   command: &'a Command,
   title: &'a str,
-  deadline: u64,
-  timeout_ms: Option<u64>,
-  grace_ms: u64,
 }
-
-// How long a run left in its host is given to stop once asked, and how long the host is given to start it.
-const LEFT_GRACE: Duration = Duration::from_secs(30);
-const LEFT_START: Duration = Duration::from_secs(30);
 
 /// One run started and left in its agent's host — a runner's coordinator — its
 /// execution row rooted on the run's own name, which is what makes the name read as alive while it runs and
@@ -468,7 +478,6 @@ pub async fn leave(ground: &Ground, left: Left<'_>) -> Result<(), String> {
     effort: None,
     tier: None,
     session: None,
-    timeout: None,
   };
   let mut body = first_body(&asked);
 
@@ -515,6 +524,7 @@ async fn left_in_host(ground: &Ground, asked: &Asked<'_>, title: &str, row: &Row
   private_dir(&data.join("executions")).map_err(|why| why.to_string())?;
   std::fs::create_dir(&directory).map_err(|why| why.to_string())?;
 
+  let names = [row.id(), row.root()];
   let mut placed = Err(String::new());
 
   for wait in std::iter::once(None).chain(place_retries().into_iter().map(Some)) {
@@ -534,15 +544,12 @@ async fn left_in_host(ground: &Ground, asked: &Asked<'_>, title: &str, row: &Row
     let envelope = LeftEnvelope {
       command: &asked.command,
       title,
-      deadline: now_ms() + LEFT_START.as_millis() as u64,
-      timeout_ms: None,
-      grace_ms: LEFT_GRACE.as_millis() as u64,
     };
 
     publish(&directory.join("command.json"), &envelope).map_err(|why| why.to_string())?;
     publish(&directory.join("grant"), &json!({ "nonce": uuid::Uuid::new_v4().to_string() }))
       .map_err(|why| why.to_string())?;
-    placed = match ensure_host(ground).await {
+    placed = match ensure_host(ground, &names).await {
       Ok(held) => point(data, asked.agent, row.id(), &directory)
         .map(|()| held)
         .map_err(|why| format!("host-unavailable: {why}")),
@@ -562,18 +569,13 @@ async fn left_in_host(ground: &Ground, asked: &Asked<'_>, title: &str, row: &Row
       return Err(why.split(':').next().unwrap_or("launch-error").to_owned());
     }
   };
-  let start_by = Instant::now() + LEFT_START;
-
+  // The host's start is waited for until it says the run started or how it ended; a host gone meanwhile
+  // is waited for again, and only one that can no longer stand ends the wait.
   while !directory.join("started.json").exists() && !directory.join("outcome.json").exists() {
     let cancel = || publish_bytes(&directory.join("cancel"), b"");
 
-    if Instant::now() >= start_by {
-      let _ = cancel();
-      return Err("host-unavailable".to_owned());
-    }
-
     if !holder.alive() {
-      holder = match ensure_host(ground).await {
+      holder = match ensure_host(ground, &names).await {
         Ok(held) => held,
         Err(why) => {
           let _ = cancel();
@@ -635,11 +637,12 @@ async fn placed_run<H: Heard>(
   let placed = launch.placed;
   let collected = carried.is_ok();
 
+  // A run not collected is cancelled, and its supervisor is given until it has published the
+  // cancellation or is gone itself.
   if !collected {
     let _ = publish_bytes(&directory.join("cancel"), b"");
-    let settle = Instant::now() + CANCEL_SETTLE;
 
-    while placed && !directory.join("outcome.json").exists() && Instant::now() < settle {
+    while placed && !directory.join("outcome.json").exists() && supervisor_answers(&directory) {
       tokio::time::sleep(POLL).await;
     }
   }
@@ -694,6 +697,14 @@ async fn placed_run<H: Heard>(
   }
 }
 
+// Whether the supervisor that acknowledged the run's start is still alive; one that never acknowledged has
+// nothing of the run's to publish.
+fn supervisor_answers(directory: &Path) -> bool {
+  let started: Option<Started> = read_json(&directory.join("started.json"));
+
+  started.is_some_and(|started| started.supervisor.alive())
+}
+
 // What a run is shown as: its title, its envelope's directory, and whether its pointer has been put in the
 // host's inbox.
 struct Launch {
@@ -715,11 +726,9 @@ async fn carry<H: Heard>(
   let title = launch.title.as_str();
   let directory = launch.directory.as_path();
   let transport = |why: String| Failure::Transport(why);
-  let envelope = |deadline: u64| Envelope {
+  let envelope = || Envelope {
     command: &asked.command,
     title,
-    deadline,
-    timeout_ms: None,
     policy: Policy {
       address: crate::archive_place(data).unwrap_or_default(),
       provider: asked.provider,
@@ -732,7 +741,8 @@ async fn carry<H: Heard>(
     },
     owner: ProcessIdentity::own(),
   };
-  let mut deadline = 0;
+  let names = [row.id().to_owned(), row.root().to_owned()];
+  let names: Vec<&str> = names.iter().map(String::as_str).collect();
   let mut placed = Err(String::new());
 
   for wait in std::iter::once(None).chain(place_retries().into_iter().map(Some)) {
@@ -747,10 +757,8 @@ async fn carry<H: Heard>(
       tokio::time::sleep(wait).await;
     }
 
-    deadline = now_ms() + GRANT_WAIT.as_millis() as u64;
-    publish(&directory.join("command.json"), &envelope(deadline))
-      .map_err(|why| transport(why.to_string()))?;
-    placed = match ensure_host(ground).await {
+    publish(&directory.join("command.json"), &envelope()).map_err(|why| transport(why.to_string()))?;
+    placed = match ensure_host(ground, &names).await {
       Ok(held) => point(data, asked.agent, row.id(), directory)
         .map(|()| held)
         .map_err(|why| format!("host-unavailable: {why}")),
@@ -762,7 +770,13 @@ async fn carry<H: Heard>(
     }
   }
 
-  let mut holder = placed.map_err(|why| transport(format!("herdr launch failed: {why}")))?;
+  let mut holder = placed.map_err(|why| {
+    if why.starts_with("cancelled") {
+      Failure::Stopped(why)
+    } else {
+      transport(format!("herdr launch failed: {why}"))
+    }
+  })?;
 
   launch.placed = true;
 
@@ -771,15 +785,9 @@ async fn carry<H: Heard>(
     return Err(failure);
   }
 
-  if now_ms() >= deadline {
-    return Err(transport("launch grant expired".to_owned()));
-  }
-
   publish(&directory.join("grant"), &json!({ "nonce": uuid::Uuid::new_v4().to_string() }))
     .map_err(|why| transport(why.to_string()))?;
 
-  let stop_at = asked.timeout.map(|timeout| Instant::now() + timeout);
-  let start_by = Instant::now() + START_WAIT;
   let mut acknowledged = false;
   let mut stopped_by_caller = false;
   let mut last_look = Instant::now();
@@ -791,13 +799,15 @@ async fn carry<H: Heard>(
       let _ = row.save(&ground.db).await;
     }
 
-    if !acknowledged && Instant::now() > start_by {
-      return Err(transport("supervisor did not acknowledge child start".to_owned()));
-    }
-
-    if !stopped_by_caller && (stop_at.is_some_and(|at| Instant::now() >= at) || follow.heard.stopping()) {
+    if !stopped_by_caller && follow.heard.stopping() {
       stopped_by_caller = true;
       let _ = publish_bytes(&directory.join("cancel"), b"");
+    }
+
+    // Stopped before any supervisor holds the run, nothing is waited for: the cancel file stands for the
+    // host that takes the pointer, whose supervisor then starts nothing.
+    if stopped_by_caller && !acknowledged && !directory.join("supervisor").exists() {
+      return Err(Failure::Stopped("execution cancelled before launch".to_owned()));
     }
 
     follow.look(ground, directory, row, false).await;
@@ -815,7 +825,7 @@ async fn carry<H: Heard>(
           return Err(transport("herdr execution missing".to_owned()));
         }
 
-        holder = ensure_host(ground)
+        holder = ensure_host(ground, &names)
           .await
           .map_err(|why| transport(format!("herdr execution unavailable: {why}")))?;
       }

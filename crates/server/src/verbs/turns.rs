@@ -5,7 +5,6 @@
 //! turn or run through the TypeScript side and compares what each came to.
 
 use std::path::Path;
-use std::time::Duration;
 
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -63,7 +62,7 @@ async fn surface_turn(ground: &Ground, provider: &str, asked: Value) -> Result<V
 }
 
 /// One run as the request names it: whose host takes it, the line and the provider, the program, who its
-/// row says it is, and how long it may take.
+/// row says it is, and the file whose appearing is its caller stopping it.
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct HostAsked {
@@ -86,7 +85,18 @@ struct HostAsked {
   #[serde(default)]
   session_id: Option<String>,
   #[serde(default)]
-  timeout_ms: Option<u64>,
+  stop_file: Option<std::path::PathBuf>,
+}
+
+// The caller of a host run that stops it by putting a file down.
+struct StopOnFile(Option<std::path::PathBuf>);
+
+impl host_run::Heard for StopOnFile {
+  async fn heard(&mut self, _lines: &[String]) {}
+
+  fn stopping(&mut self) -> bool {
+    self.0.as_ref().is_some_and(|file| file.exists())
+  }
 }
 
 /// One run carried in its agent's host: how its program ended, what it wrote and its row as it was left, or
@@ -95,7 +105,8 @@ pub async fn host_run(data_root: &Path, request: &Path) -> Result<Answer, VerbEr
   let asked: HostAsked = serde_json::from_value(read(request)?)
     .map_err(|why| VerbError::Refused(format!("{}: {why}", request.display())))?;
   let ground = super::ground(data_root).await?;
-  let ran = host_run::run(
+  let mut caller = StopOnFile(asked.stop_file);
+  let ran = host_run::run_heard(
     &ground,
     host_run::Asked {
       agent: &asked.agent,
@@ -109,8 +120,8 @@ pub async fn host_run(data_root: &Path, request: &Path) -> Result<Answer, VerbEr
       effort: asked.effort,
       tier: asked.tier,
       session: asked.session_id,
-      timeout: asked.timeout_ms.map(Duration::from_millis),
     },
+    &mut caller,
   )
   .await;
   let came = match ran {

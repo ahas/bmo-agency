@@ -128,7 +128,6 @@ fn the_gateway_and_member_key_files_are_the_whole_of_its_presence() {
       "model": "vendor/model",
       "api_base": "https://openrouter.ai/api/v1",
       "key_file": "openrouter.key",
-      "wait_seconds": 300,
       "context_tokens": 131072,
       "answer_tokens": 16384,
       "thinking": true

@@ -23,8 +23,3 @@ max = 16777216
 [answer_tokens]
 min = 1024
 max = 131072
-
-# How long one request is waited for, in seconds.
-[wait_seconds]
-min = 10
-max = 7200

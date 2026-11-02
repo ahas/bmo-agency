@@ -64,27 +64,17 @@ const call = (info: Kwargs | undefined, headers: Record<string, string>): Kwargs
 });
 
 describe("the gateway's unclocked hook", () => {
-  test("hands a request naming no wait on an unclocked entry a wait with no limit", async () => {
-    const [plain, beside] = await hook([call({ unclocked: true }, {}), call({ unclocked: true, role_files: true }, { "x-bmo-role": "translator" })]);
-
-    expect(plain?.timeout).toBe("unlimited");
-    expect(plain).not.toHaveProperty("stream_timeout");
-    expect(beside?.timeout).toBe("unlimited");
-  });
-
-  test("leaves a request that names its wait, whatever the header's case, to that wait", async () => {
-    const [named, upper, stream] = await hook([
-      call({ unclocked: true }, { "x-litellm-timeout": "1800" }),
-      call({ unclocked: true }, { "X-LiteLLM-Timeout": "1800" }),
-      call({ unclocked: true }, { "x-litellm-stream-timeout": "1800" }),
+  test("hands every request a wait with no limit, whatever its entry and its headers say", async () => {
+    const answers = await hook([
+      call(undefined, {}),
+      call({ role_files: true }, { "x-bmo-role": "translator" }),
+      call(undefined, { "x-litellm-timeout": "1800" }),
+      call(undefined, { "X-LiteLLM-Stream-Timeout": "1800" }),
     ]);
 
-    expect([named, upper, stream]).toEqual([null, null, null]);
-  });
-
-  test("leaves an entry with a wait of its own as it stands", async () => {
-    const [none, roles, off] = await hook([call(undefined, {}), call({ role_files: true }, {}), call({ unclocked: false }, {})]);
-
-    expect([none, roles, off]).toEqual([null, null, null]);
+    for (const answer of answers) {
+      expect(answer?.timeout).toBe("unlimited");
+      expect(answer).not.toHaveProperty("stream_timeout");
+    }
   });
 });

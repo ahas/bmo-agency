@@ -15,7 +15,7 @@ import type { HarnessRun } from "@agency/agent/harness";
 const archive = await scratchArchive();
 
 // The registration the turn goes out on, served at one address, as the owner registers one.
-await archive.modelRegistry().create({ name: "local-0-1", label: "Local", model: "local-0-1", contextTokens: 131_072, answerTokens: 8_192, waitSeconds: 60, thinking: false, walked: false, keepsResearch: false });
+await archive.modelRegistry().create({ name: "local-0-1", label: "Local", model: "local-0-1", contextTokens: 131_072, answerTokens: 8_192, thinking: false, walked: false, keepsResearch: false });
 await archive.modelRegistry().setAddress("local-0-1", { node: "able", url: "http://127.0.0.1:19001/v1/chat/completions", keyFile: null, keyOwned: false });
 installHarnessRegistry(archive);
 afterAll(() => installProviderSettings(null));

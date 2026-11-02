@@ -818,11 +818,7 @@ export interface EndpointModel {
   contextTokens: number;
   // The answer ceiling of a run that names none.
   answerTokens: number;
-  // How long one request is waited for: long enough for the model to read the prompt and write a
-  // whole answer at its speed.
-  requestWaitMs: number;
-  // The headers every request of the run carries, the endpoint's own words for how long it is waited
-  // for among them; none where the endpoint reads none.
+  // The headers every request of the run carries; none where the endpoint reads none.
   headers?: Record<string, string>;
   // Whether the run thinks.
   thinking: boolean;
@@ -830,6 +826,11 @@ export interface EndpointModel {
   // no login.
   home: string;
 }
+
+// The longest wait the program's timers hold, about twenty-four days: the program gives a request up after a
+// wait of its own and its runtime drops a connection silent past one, and neither takes a value meaning none,
+// so both are told this one, which no request reaches.
+const noWaitMs = 2_147_483_647;
 
 // The endpoint's headers as the program reads them, one `name: value` to a line; none where it has none.
 function customHeaders(headers: Record<string, string> | undefined): string | undefined {
@@ -853,10 +854,10 @@ function foldShare(window: number, answer: number): string {
 // the road does not serve. The window and the answer ceiling are said outright, since the program
 // sizes a model it does not know at a window and an answer the road would refuse. The block the
 // program puts at the head of every request, which changes each time, is left out, so the road's
-// prefix cache holds; nothing is sent to the program's own services beside the model; and a request is
-// waited for as long as the road's model takes to read the prompt and write a whole answer, by the
-// program and by the runtime under it, which otherwise drops a connection silent for five minutes, a
-// model still reading a long prompt among them (docs/own-llm.md, 「How requests go」). No login
+// prefix cache holds; nothing is sent to the program's own services beside the model; and no request is
+// given up on a clock: the program and the runtime under it, which otherwise drops a connection silent for
+// minutes, a model still reading a long prompt among them, are told the longest wait their timers hold
+// (docs/own-llm.md, 「How requests go」). No login
 // goes with it: any a launching process carried is cleared, and the key is the settings' helper's.
 async function endpointRun(endpoint: ClaudeEndpoint, run: HarnessRun): Promise<HarnessRun> {
   const held = await endpoint.model(run, claudeLongTools);
@@ -885,8 +886,8 @@ async function endpointRun(endpoint: ClaudeEndpoint, run: HarnessRun): Promise<H
       CLAUDE_CODE_MAX_OUTPUT_TOKENS: String(run.answerTokens ?? held.answerTokens),
       CLAUDE_AUTOCOMPACT_PCT_OVERRIDE: foldShare(held.contextTokens, run.answerTokens ?? held.answerTokens),
       CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1",
-      API_TIMEOUT_MS: String(held.requestWaitMs),
-      BUN_CONFIG_HTTP_IDLE_TIMEOUT: String(Math.ceil(held.requestWaitMs / 1_000)),
+      API_TIMEOUT_MS: String(noWaitMs),
+      BUN_CONFIG_HTTP_IDLE_TIMEOUT: String(Math.floor(noWaitMs / 1_000)),
       ANTHROPIC_CUSTOM_HEADERS: customHeaders(held.headers),
     },
   };

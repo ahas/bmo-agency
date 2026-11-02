@@ -16,7 +16,6 @@ fn registration(name: &str, addresses: Vec<RegisteredAddress>) -> Registration {
     model: "served-model".into(),
     context_tokens: 32_768,
     answer_tokens: 4_096,
-    wait_seconds: 90,
     thinking: false,
     walked: false,
     keeps_research: false,
@@ -40,7 +39,6 @@ fn address(node: &str, url: &str, key_file: Option<&str>) -> RegisteredAddress {
 fn nodes() -> Registration {
   Registration {
     model: "RVN-model".into(),
-    wait_seconds: 2_400,
     ..registration(
       "nodes",
       vec![
@@ -94,7 +92,7 @@ fn each_registration_is_served_under_its_name_and_each_node_of_several_on_its_ow
 }
 
 #[test]
-fn each_address_is_asked_for_the_model_with_its_wait_and_thinking_off_and_keys_named_by_variable() {
+fn each_address_is_asked_for_the_model_with_no_wait_and_thinking_off_and_keys_named_by_variable() {
   let table = table();
   let config: Value = serde_json::from_str(&table.text).unwrap();
   assert_eq!(
@@ -103,8 +101,6 @@ fn each_address_is_asked_for_the_model_with_its_wait_and_thinking_off_and_keys_n
       "model": "openai/RVN-model",
       "api_base": "http://127.0.0.1:18021/v1",
       "api_key": "os.environ/BMO_KEY_ALPHA_LLM_TOKEN",
-      "timeout": 2400,
-      "stream_timeout": 2400,
       "chat_template_kwargs": { "enable_thinking": false },
     })
   );
@@ -219,7 +215,6 @@ fn members_are_served_under_their_own_names_on_their_providers() {
       model: "deepseek-flash".into(),
       api_base: Some("https://api.deepseek.com/v1".into()),
       key_file: "deepseek.key".into(),
-      wait_seconds: 300,
       context_tokens: Some(1_048_576),
       answer_tokens: Some(32_768),
       thinking: Some(true),
@@ -232,7 +227,6 @@ fn members_are_served_under_their_own_names_on_their_providers() {
       model: "deepseek/deepseek-v4.1-flash-1017".into(),
       api_base: Some("https://openrouter.ai/api/v1".into()),
       key_file: "openrouter.key".into(),
-      wait_seconds: 300,
       context_tokens: Some(1_048_576),
       answer_tokens: Some(32_768),
       thinking: Some(true),
@@ -264,7 +258,6 @@ fn a_member_naming_a_registration_refuses_the_table() {
     model: "taken-model".into(),
     api_base: None,
     key_file: "deepseek.key".into(),
-    wait_seconds: 300,
     context_tokens: None,
     answer_tokens: None,
     thinking: None,
@@ -310,9 +303,8 @@ fn a_registration_naming_a_card_service_is_served_by_the_master_s_standing_insta
 
     assert!(
       params.get("timeout").is_none() && params.get("stream_timeout").is_none(),
-      "an entry of a card service's engine names no wait: {entry}"
+      "no entry names a wait: {entry}"
     );
-    assert_eq!(entry["model_info"]["unclocked"], true, "and is marked as one with none: {entry}");
   }
 
   assert!(

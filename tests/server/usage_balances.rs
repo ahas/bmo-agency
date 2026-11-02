@@ -66,7 +66,7 @@ async fn the_road_and_each_endpoint_account_on_the_provider_s_origin_are_asked_w
   std::fs::create_dir_all(&members).unwrap();
   std::fs::write(
     members.join("members.json"),
-    r#"[{"name":"deepseek-flash","road":"deepseek","provider":"deepseek","model":"deepseek-flash","api_base":"https://api.deepseek.com/v1","key_file":"deepseek.key","wait_seconds":300,"context_tokens":1048576,"answer_tokens":32768,"thinking":true}]"#,
+    r#"[{"name":"deepseek-flash","road":"deepseek","provider":"deepseek","model":"deepseek-flash","api_base":"https://api.deepseek.com/v1","key_file":"deepseek.key","context_tokens":1048576,"answer_tokens":32768,"thinking":true}]"#,
   )
   .unwrap();
 

@@ -70,7 +70,7 @@ impl Bench {
     std::fs::create_dir_all(&members).unwrap();
     std::fs::write(
       members.join("members.json"),
-      r#"[{"name":"deepseek-flash","road":"deepseek","provider":"deepseek","model":"deepseek-flash","api_base":"https://api.deepseek.com/v1","key_file":"deepseek.key","wait_seconds":300,"context_tokens":1048576,"answer_tokens":32768,"thinking":true}]"#,
+      r#"[{"name":"deepseek-flash","road":"deepseek","provider":"deepseek","model":"deepseek-flash","api_base":"https://api.deepseek.com/v1","key_file":"deepseek.key","context_tokens":1048576,"answer_tokens":32768,"thinking":true}]"#,
     )
     .unwrap();
 
@@ -80,8 +80,8 @@ impl Bench {
       r#"INSERT INTO "model_tier_assignments" ("key", "tier") VALUES ('job-worker', 'Frontier')"#,
       r#"INSERT INTO "model_tier_mappings" ("provider", "tier", "model", "effort") VALUES ('claude-code', 'Frontier', 'claude-opus-5', 'high')"#,
       r#"INSERT INTO "model_tier_mappings" ("provider", "tier", "model", "effort") VALUES ('deepseek', 'Frontier', 'deepseek-flash', 'high')"#,
-      r#"INSERT INTO "registered_models" ("name", "label", "model", "context_tokens", "answer_tokens", "wait_seconds", "thinking", "walked", "keeps_research", "added_at")
-         VALUES ('member', 'Member', 'member-model', 32768, 4096, 60, 1, 0, 0, 1)"#,
+      r#"INSERT INTO "registered_models" ("name", "label", "model", "context_tokens", "answer_tokens", "thinking", "walked", "keeps_research", "added_at")
+         VALUES ('member', 'Member', 'member-model', 32768, 4096, 1, 0, 0, 1)"#,
       r#"INSERT INTO "registered_model_addresses" ("registration", "node", "position", "url", "key_file", "key_owned")
          VALUES ('member', 'n1', 1, 'http://127.0.0.1:1/v1/chat/completions', NULL, 0)"#,
     ] {
@@ -310,7 +310,7 @@ async fn a_member_pins_own_program_is_stood_as_claude_code_and_a_current_one_is_
     &[],
   );
 
-  standby::restand_all(&bench.ground, None).await;
+  standby::restand_all(&bench.ground, false).await;
 
   let program = bench.place("member-worker").program().unwrap();
 
@@ -332,7 +332,7 @@ async fn a_member_pins_own_program_is_stood_as_claude_code_and_a_current_one_is_
   assert!(ended(&mut old));
 
   // Composed again on the same words, the program is the same one, and nothing is stood twice.
-  standby::restand_all(&bench.ground, None).await;
+  standby::restand_all(&bench.ground, false).await;
 
   assert_eq!(bench.place("member-worker").program().unwrap().identity, program.identity);
   assert_eq!(bench.notes("member-worker").await.len(), 1);
@@ -350,7 +350,7 @@ async fn a_worker_pinned_to_claude_code_has_a_members_program_replaced_by_claude
     &[("CLAUDE_CONFIG_DIR", &home), ("ANTHROPIC_BASE_URL", "http://127.0.0.1:18030")],
   );
 
-  standby::restand_all(&bench.ground, None).await;
+  standby::restand_all(&bench.ground, false).await;
 
   let place = bench.place("back-worker");
 

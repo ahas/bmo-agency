@@ -30,7 +30,6 @@ export interface Registration {
   model: string;
   contextTokens: number;
   answerTokens: number;
-  waitSeconds: number;
   thinking: boolean;
   walked: boolean;
   // Whether it keeps its research: a flag the caller that sends a search or a browse out reads.
@@ -50,11 +49,10 @@ export interface RegistrationSeed extends Omit<Registration, "addresses"> {
   formerWindowSetting?: string;
 }
 
-// The bounds of the sizes and the wait, as the shared policy declares them.
-export const registrationBounds: Record<"contextTokens" | "answerTokens" | "waitSeconds", { min: number; max: number }> = {
+// The bounds of the sizes, as the shared policy declares them.
+export const registrationBounds: Record<"contextTokens" | "answerTokens", { min: number; max: number }> = {
   contextTokens: declaredRegistry.context_tokens,
   answerTokens: declaredRegistry.answer_tokens,
-  waitSeconds: declaredRegistry.wait_seconds,
 };
 
 // A refusal the owner reads: the field it is about, and why.
@@ -139,7 +137,6 @@ export function checkRegistrationFields(fields: RegistrationFields): Registratio
 
   const contextTokens = whole("contextTokens", fields.contextTokens, "The context window");
   const answerTokens = whole("answerTokens", fields.answerTokens, "The answer size");
-  const waitSeconds = whole("waitSeconds", fields.waitSeconds, "The request wait in seconds");
 
   if (answerTokens >= contextTokens) {
     throw new RegistrationRefused("answerTokens", "The answer size is smaller than the context window.");
@@ -158,7 +155,6 @@ export function checkRegistrationFields(fields: RegistrationFields): Registratio
     model: fields.model,
     contextTokens,
     answerTokens,
-    waitSeconds,
     thinking: fields.thinking,
     walked: fields.walked,
     keepsResearch: fields.keepsResearch,
@@ -171,7 +167,6 @@ interface RegistrationRow {
   model: string;
   contextTokens: number;
   answerTokens: number;
-  waitSeconds: number;
   thinking: number;
   walked: number;
   keepsResearch: number;
@@ -202,7 +197,6 @@ export function settleModelRegistry(db: Database, seeds: readonly RegistrationSe
         model TEXT NOT NULL,
         context_tokens INTEGER NOT NULL,
         answer_tokens INTEGER NOT NULL,
-        wait_seconds INTEGER NOT NULL,
         thinking INTEGER NOT NULL,
         walked INTEGER NOT NULL,
         added_at INTEGER NOT NULL,
@@ -262,10 +256,10 @@ function seedRegistration(db: Database, registration: Omit<Registration, "addres
 
   db
     .query(`
-      INSERT INTO registered_models (name, label, model, context_tokens, answer_tokens, wait_seconds, thinking, walked, keeps_research, added_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO registered_models (name, label, model, context_tokens, answer_tokens, thinking, walked, keeps_research, added_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
-    .run(name, fields.label, fields.model, fields.contextTokens, fields.answerTokens, fields.waitSeconds, fields.thinking ? 1 : 0, fields.walked ? 1 : 0, fields.keepsResearch ? 1 : 0, Math.floor(now / 1000));
+    .run(name, fields.label, fields.model, fields.contextTokens, fields.answerTokens, fields.thinking ? 1 : 0, fields.walked ? 1 : 0, fields.keepsResearch ? 1 : 0, Math.floor(now / 1000));
 }
 
 // A seed's address, checked and placed last as the store's own `setAddress` does, on the
@@ -295,7 +289,7 @@ export class ModelRegistryStore {
   async list(): Promise<Registration[]> {
     const rows = await this.sql.all(`
         SELECT name, label, model, context_tokens AS "contextTokens", answer_tokens AS "answerTokens",
-               wait_seconds AS "waitSeconds", thinking, walked, keeps_research AS "keepsResearch"
+               thinking, walked, keeps_research AS "keepsResearch"
         FROM registered_models ORDER BY added_at, name
       `) as RegistrationRow[];
     const addresses = await this.sql.all(`
@@ -309,7 +303,6 @@ export class ModelRegistryStore {
       model: row.model,
       contextTokens: row.contextTokens,
       answerTokens: row.answerTokens,
-      waitSeconds: row.waitSeconds,
       thinking: row.thinking === 1,
       walked: row.walked === 1,
       keepsResearch: row.keepsResearch === 1,
@@ -331,9 +324,9 @@ export class ModelRegistryStore {
       if (await this.exists(name)) throw new RegistrationRefused("name", `The name is already registered: ${name}`);
 
       await this.sql.run(`
-          INSERT INTO registered_models (name, label, model, context_tokens, answer_tokens, wait_seconds, thinking, walked, keeps_research, added_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `, name, fields.label, fields.model, fields.contextTokens, fields.answerTokens, fields.waitSeconds, fields.thinking ? 1 : 0, fields.walked ? 1 : 0, fields.keepsResearch ? 1 : 0, Math.floor(now / 1000));
+          INSERT INTO registered_models (name, label, model, context_tokens, answer_tokens, thinking, walked, keeps_research, added_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `, name, fields.label, fields.model, fields.contextTokens, fields.answerTokens, fields.thinking ? 1 : 0, fields.walked ? 1 : 0, fields.keepsResearch ? 1 : 0, Math.floor(now / 1000));
     });
   }
 
@@ -344,9 +337,9 @@ export class ModelRegistryStore {
 
       await this.sql.run(`
           UPDATE registered_models
-          SET label = ?, model = ?, context_tokens = ?, answer_tokens = ?, wait_seconds = ?, thinking = ?, walked = ?, keeps_research = ?
+          SET label = ?, model = ?, context_tokens = ?, answer_tokens = ?, thinking = ?, walked = ?, keeps_research = ?
           WHERE name = ?
-        `, fields.label, fields.model, fields.contextTokens, fields.answerTokens, fields.waitSeconds, fields.thinking ? 1 : 0, fields.walked ? 1 : 0, fields.keepsResearch ? 1 : 0, name);
+        `, fields.label, fields.model, fields.contextTokens, fields.answerTokens, fields.thinking ? 1 : 0, fields.walked ? 1 : 0, fields.keepsResearch ? 1 : 0, name);
     });
   }
 

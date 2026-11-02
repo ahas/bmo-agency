@@ -34,19 +34,21 @@ export function rootHostClaim(): ProcessIdentity | null {
   }
 }
 
-// How long a launch waits for the unit's host to stand, longer than a deployment's restart of it.
-const waitMs = 20_000;
-
 /** The binary a copy's host runs: the deploy tree's. */
 function hostBinary(): string {
   return join(deployedTree(join("bin", "agent-host")), "bin", "agent-host");
+}
+
+// The transient user unit a copy's host runs as, named for the copy's root.
+function copyHostUnit(root: string): string {
+  return `bmo-agent-host-copy-${createHash("sha256").update(root).digest("hex").slice(0, 12)}`;
 }
 
 // A copy's host, started as a transient user unit with the properties of the bot's own: its main
 // process alone stopped with it, the unit left standing when one process is killed for memory, and
 // standing down once it has had nothing to do for ten minutes.
 async function startCopyHost(root: string): Promise<string | null> {
-  const unit = `bmo-agent-host-copy-${createHash("sha256").update(root).digest("hex").slice(0, 12)}`;
+  const unit = copyHostUnit(root);
   const started = Bun.spawn(
     ["systemd-run", "--user", "--quiet", "--collect", `--unit=${unit}`, "-p", "KillMode=process", "-p", "OOMPolicy=continue",
       hostBinary(), "serve", "--data-root", root, "--idle"],
@@ -57,16 +59,34 @@ async function startCopyHost(root: string): Promise<string | null> {
   return (await started.exited) === 0 ? null : said.trim() || `systemd-run exited ${started.exitCode}`;
 }
 
+// Whether a user unit is still standing: anything but systemd saying it is inactive or failed. A
+// systemctl that cannot be asked has not said the unit is gone.
+async function unitStanding(unit: string): Promise<boolean> {
+  try {
+    const asked = Bun.spawn(["systemctl", "--user", "is-active", `${unit}.service`], { env: userBus(), stdin: "ignore", stdout: "pipe", stderr: "ignore" });
+    const said = (await new Response(asked.stdout).text()).trim();
+
+    await asked.exited;
+
+    return !["inactive", "failed"].includes(said);
+  } catch {
+    return true;
+  }
+}
+
 /**
- * The data root's host, waited for: on the bot's own root the unit's host, which a launch never
- * starts; on a copy's, the copy's host, started first where none holds its claim.
+ * The data root's host, waited for until it takes the claim: on the bot's own root the unit's host,
+ * which a launch never starts and systemd stands up again however long that takes; on a copy's, the
+ * copy's host, started first where none holds its claim, and its unit ending without a claim ends
+ * the wait.
  */
-export async function ensureRootHost(options: { waitMs?: number } = {}): Promise<HerdrAnswer<ProcessIdentity>> {
+export async function ensureRootHost(): Promise<HerdrAnswer<ProcessIdentity>> {
   const standing = rootHostClaim();
 
   if (standing !== null) return { ok: true, result: standing };
 
   const copy = dataRootCopy();
+  const unit = copyHostUnit(dataRoot());
 
   if (copy !== null) {
     const refused = await startCopyHost(dataRoot());
@@ -74,26 +94,26 @@ export async function ensureRootHost(options: { waitMs?: number } = {}): Promise
     if (refused !== null) return { ok: false, error: { code: "host-unavailable", message: `agent-host for ${copy.root} could not be started: ${refused}` } };
   }
 
-  const deadline = Date.now() + (options.waitMs ?? waitMs);
-
-  while (Date.now() < deadline) {
+  for (;;) {
     await Bun.sleep(100);
 
     const claim = rootHostClaim();
 
     if (claim !== null) return { ok: true, result: claim };
-  }
 
-  return { ok: false, error: { code: "host-unavailable", message: `agent-host holds no claim on ${dataRoot()} after ${options.waitMs ?? waitMs}ms` } };
+    if (copy !== null && !(await unitStanding(unit)) && rootHostClaim() === null) {
+      return { ok: false, error: { code: "host-unavailable", message: `the copy's agent-host unit ${unit} ended without taking the claim on ${dataRoot()}` } };
+    }
+  }
 }
 
 /**
  * Where an execution is put on a line standing on the agent host: a pointer naming the agent and the
  * envelope, written beside its name and renamed into the host's inbox once the host is up.
  */
-export function rootHostPlacer(options: { waitMs?: number } = {}): Placer {
+export function rootHostPlacer(): Placer {
   return async (request): Promise<HerdrAnswer<Placement>> => {
-    const host = await ensureRootHost(options);
+    const host = await ensureRootHost();
 
     if (!host.ok) return host;
 
@@ -104,7 +124,7 @@ export function rootHostPlacer(options: { waitMs?: number } = {}): Placer {
     writeFileSync(`${pointer}.new`, JSON.stringify({ agent: request.agent, envelope: request.directory }), { mode: 0o600 });
     renameSync(`${pointer}.new`, pointer);
 
-    return { ok: true, result: { paneId: null, host: host.result, reensure: () => ensureRootHost(options) } };
+    return { ok: true, result: { paneId: null, host: host.result, reensure: () => ensureRootHost() } };
   };
 }
 

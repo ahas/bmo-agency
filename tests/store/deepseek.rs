@@ -14,10 +14,10 @@ async fn settled() -> Scratch {
   scratch
     .run(
       r#"INSERT INTO "registered_models" ("name", "label", "model", "context_tokens", "answer_tokens",
-           "wait_seconds", "thinking", "walked", "added_at")
-         VALUES ('deepseek-flash', 'DeepSeek V4.1 Flash', 'deepseek-flash', 1048576, 32768, 1800, 1, 0, 1),
-                ('deepseek-v4-pro', 'DeepSeek V4 Pro', 'deepseek-v4-pro', 1048576, 32768, 1800, 1, 0, 1),
-                ('engine', 'Engine', 'engine-model', 32768, 4096, 90, 0, 1, 1)"#,
+           "thinking", "walked", "added_at")
+         VALUES ('deepseek-flash', 'DeepSeek V4.1 Flash', 'deepseek-flash', 1048576, 32768, 1, 0, 1),
+                ('deepseek-v4-pro', 'DeepSeek V4 Pro', 'deepseek-v4-pro', 1048576, 32768, 1, 0, 1),
+                ('engine', 'Engine', 'engine-model', 32768, 4096, 0, 1, 1)"#,
       vec![],
     )
     .await;

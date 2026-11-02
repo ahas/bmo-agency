@@ -43,6 +43,7 @@ struct Arrangement {
   prompts: Vec<(String, String)>,
   keys: Vec<(String, Vec<String>)>,
   ends_when_asked: bool,
+  refuses_prompts: bool,
 }
 
 impl Arrangement {
@@ -201,7 +202,7 @@ impl Arrangement {
       "agent.prompt" => {
         let pane = text("target");
 
-        if !self.panes.iter().any(|one| one.id == pane) {
+        if self.refuses_prompts || !self.panes.iter().any(|one| one.id == pane) {
           return Value::Null;
         }
 
@@ -383,6 +384,11 @@ impl HerdrModel {
   /// A run asked to stop ends itself from here on, its pane going with it.
   pub fn ends_when_asked(&self) {
     self.held.lock().unwrap().ends_when_asked = true;
+  }
+
+  /// Words put into a pane are refused from here on, as a pane waiting on a person refuses them.
+  pub fn refuses_prompts(&self) {
+    self.held.lock().unwrap().refuses_prompts = true;
   }
 
   /// A pane carrying a run's token.

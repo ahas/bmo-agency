@@ -8,14 +8,3 @@
 # One basic string with its line breaks escaped, which every TOML reader on both sides reads alike.
 instruction = "Stop here. Do not start anything further and do not carry on with what you were doing.\n\nEnd properly rather than simply stopping: commit and push what you have, write your report covering what you did and what you are leaving unfinished, and exit normally."
 
-# How long a run in a pane that was asked is given to reach its own ending before its pane is closed.
-grace_seconds = 120
-
-# How long a stopped resident turn's collector is given to end it — a job's grace for its stop words
-# and a margin for the interrupt — before the stop reaches the program itself.
-resident_backstop_seconds = 150
-
-# How long a job's stop (docs/api.md, 「assignments and jobs」) waits for the job's turn to end once its run
-# is cancelled, before it answers that the stop stands and the turn still goes: the door's look and its
-# settle after the interrupt, with a margin.
-job_wait_seconds = 30

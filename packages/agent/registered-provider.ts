@@ -6,7 +6,7 @@ import { claudeCodeAt, claudeResidentAt } from "./claude-code";
 import { defaultOwnLlmAnswerTokens } from "./own-llm";
 import { providerSettingsArchive } from "./provider-order";
 import { dataPath } from "@agency/support/roots";
-import { gatewayLongToolHeaders, gatewaySamplingHeaders, gatewayUrl, gatewayWaitHeaders } from "./gateway/address";
+import { gatewayLongToolHeaders, gatewaySamplingHeaders, gatewayUrl } from "./gateway/address";
 import { missingOnMachine } from "./provider-facts";
 import { providerDeclaration } from "./provider-declaration";
 import declaredRegistered from "@agency/policy/providers/registered.toml";
@@ -109,9 +109,7 @@ export const registeredEndpoint: ClaudeEndpoint = {
       label: registration.label,
       contextTokens: registration.contextTokens,
       answerTokens: registration.answerTokens,
-      requestWaitMs: registration.waitSeconds * 1_000,
       headers: {
-        ...gatewayWaitHeaders(registration.waitSeconds * 1_000),
         ...gatewaySamplingHeaders(run.sampling),
         ...gatewayLongToolHeaders(longTools),
       },
@@ -207,7 +205,7 @@ async function runSettings(mapping: TierMapping | null): Promise<OwnLlmSettings>
     effort,
     thinking: held === null ? effort === "thinking" : thinks(held, effort ?? ""),
     answerTokens: mapping?.answerTokens ?? held?.answerTokens ?? defaultOwnLlmAnswerTokens,
-    ...(held === null ? {} : { requestWaitMs: held.waitSeconds * 1_000, contextTokens: held.contextTokens }),
+    ...(held === null ? {} : { contextTokens: held.contextTokens }),
   };
 }
 

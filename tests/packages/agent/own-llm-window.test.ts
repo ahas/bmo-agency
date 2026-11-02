@@ -29,7 +29,7 @@ afterEach(() => installProviderSettings(null));
 async function archiveWithSmall(): Promise<Archive> {
   const archive = await scratchArchive();
 
-  await archive.modelRegistry().create({ name: "small", label: "Small", model: "m", contextTokens: 32_768, answerTokens: 4_096, waitSeconds: 60, thinking: false, walked: false, keepsResearch: false });
+  await archive.modelRegistry().create({ name: "small", label: "Small", model: "m", contextTokens: 32_768, answerTokens: 4_096, thinking: false, walked: false, keepsResearch: false });
 
   return archive;
 }

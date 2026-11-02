@@ -4,26 +4,21 @@ use harness_providers::claude_code::ClaudeCode;
 use agency_server::lines::standing::{fold_share, gateway_headers};
 
 #[test]
-fn a_run_on_the_gateway_names_its_wait_its_sampling_and_its_programs_long_tools() {
+fn a_run_on_the_gateway_names_its_sampling_and_its_programs_long_tools_and_no_wait() {
   let tools = ClaudeCode.long_tools();
 
   assert_eq!(tools, ["Bash", "Agent", "Task", "WebFetch", "WebSearch"]);
   assert_eq!(
-    gateway_headers(90_500, Some(r#"{"top_k":20}"#), tools, None),
+    gateway_headers(Some(r#"{"top_k":20}"#), tools, None),
     [
-      "x-litellm-timeout: 91",
-      "x-litellm-stream-timeout: 91",
       r#"x-bmo-sampling: {"top_k":20}"#,
       "x-bmo-long-tools: Bash,Agent,Task,WebFetch,WebSearch",
     ]
   );
+  assert!(gateway_headers(None, &[], None).is_empty(), "a request names no wait");
   assert_eq!(
-    gateway_headers(1, None, &[], None),
-    ["x-litellm-timeout: 1", "x-litellm-stream-timeout: 1"]
-  );
-  assert_eq!(
-    gateway_headers(1, None, &[], Some("chat")),
-    ["x-litellm-timeout: 1", "x-litellm-stream-timeout: 1", "x-bmo-role: chat"],
+    gateway_headers(None, &[], Some("chat")),
+    ["x-bmo-role: chat"],
     "a run whose work key names a role says it on every request"
   );
 }

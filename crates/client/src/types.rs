@@ -2207,8 +2207,6 @@ pub struct ModelChange {
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub answer_tokens: Option<i64>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
-  pub wait_seconds: Option<i64>,
-  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub thinking: Option<bool>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub walked: Option<bool>,

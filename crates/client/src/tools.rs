@@ -15,7 +15,7 @@ pub struct Tool {
 }
 
 /// What `stop_job` does, as its server and the document both say it.
-pub const STOP_JOB: &str = "Stop a running job on the owner's word, by its job id or by its item, with a short reason that becomes the job's report: only a turn whose every message is the owner's stops one. The job's turn is cut short first, and the answer is the job once its turn has ended, stopped; a turn still going after the wait is refused stop-pending, and the job ends stopped when it does.";
+pub const STOP_JOB: &str = "Stop a running job on the owner's word, by its job id or by its item, with a short reason that becomes the job's report: only a turn whose every message is the owner's stops one. The job's turn is asked to end first, and the answer is the job once its turn has ended, stopped, however long that takes.";
 
 /// The tools the agency's MCP server lists.
 pub const TOOLS: [Tool; 4] = [

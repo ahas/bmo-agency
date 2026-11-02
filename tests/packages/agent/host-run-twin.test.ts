@@ -82,7 +82,8 @@ function program(exit: number, sleep = 0): string[] {
 
 interface Asked {
   command: string[];
-  timeoutMs?: number;
+  // How long after the run is put in its caller stops it, by putting a file down.
+  stopAfterMs?: number;
   // Named always, so neither side counts the run under the unit the test itself runs in.
   root: string;
 }
@@ -107,14 +108,17 @@ async function bun(side: Side, asked: Asked): Promise<unknown> {
   process.env.BMO_DATA_DIR = side.data;
   installProviderSettings(side.archive);
 
-  let timer: ReturnType<typeof setTimeout> | null = null;
+  let timer: ReturnType<typeof setInterval> | null = null;
+  const stopFile = join(side.data, "stop");
 
   try {
+    putDownLater(stopFile, asked.stopAfterMs);
+
     const proc = await spawnAgentProcess({ args: asked.command, cwd: side.data, env: { PATH: process.env.PATH }, stdin: null }, line, provider, {
       agent, workKey: agent, model: "gpt-5.6-terra", effort: "low", parent: "bmo-test", root: asked.root,
     });
 
-    timer = asked.timeoutMs === undefined ? null : setTimeout(() => proc.kill(), asked.timeoutMs);
+    timer = asked.stopAfterMs === undefined ? null : setInterval(() => { if (existsSync(stopFile)) proc.kill(); }, 25);
     const [stdout, stderr] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text()]);
     const exitCode = await proc.exited;
     const rows = await side.archive.executions().executions();
@@ -125,18 +129,27 @@ async function bun(side: Side, asked: Asked): Promise<unknown> {
 
     return seen(side, { thrown: `${(error as Error).name}: ${(error as Error).message}`, row: (rows.at(-1) ?? null) as unknown as Record<string, unknown> | null });
   } finally {
-    if (timer !== null) clearTimeout(timer);
+    if (timer !== null) clearInterval(timer);
   }
+}
+
+// The caller's stop, put down by a process of its own, since the Rust side's run holds this one's loop.
+function putDownLater(file: string, afterMs: number | undefined): void {
+  if (afterMs === undefined) return;
+
+  Bun.spawn(["sh", "-c", `sleep ${afterMs / 1000}; : > '${file}'`], { stdin: "ignore", stdout: "ignore", stderr: "ignore" });
 }
 
 async function rust(side: Side, asked: Asked): Promise<unknown> {
   const request = join(side.data, "host-run.json");
+  const stopFile = join(side.data, "stop");
 
+  putDownLater(stopFile, asked.stopAfterMs);
   writeFileSync(request, JSON.stringify({
     agent, line, provider,
     command: { args: asked.command, cwd: side.data, env: { PATH: process.env.PATH }, stdin: null },
     workKey: agent, model: "gpt-5.6-terra", effort: "low", parent: "bmo-test", root: asked.root,
-    ...(asked.timeoutMs === undefined ? {} : { timeoutMs: asked.timeoutMs }),
+    ...(asked.stopAfterMs === undefined ? {} : { stopFile }),
   }));
 
   const ran = Bun.spawnSync([binary, "host-run", request], {
@@ -171,8 +184,8 @@ async function twins(prepare: (side: Side) => Promise<void>, asked: Asked): Prom
 setDefaultTimeout(60_000);
 
 describe("one run carried in its agent's host, by either side", () => {
-  test("a run its caller stops at its time: cancelled, with what it said up to then", async () => {
-    const seenBy = await twins(async () => undefined, { command: program(0, 30), timeoutMs: 500, root: "bmo-root-test" });
+  test("a run its caller stops: cancelled, with what it said up to then", async () => {
+    const seenBy = await twins(async () => undefined, { command: program(0, 30), stopAfterMs: 500, root: "bmo-root-test" });
 
     expect(seenBy.rust).toEqual(seenBy.bun);
     expect(seenBy.bun).toMatchObject({ row: { state: "cancelled" } });

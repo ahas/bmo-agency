@@ -498,20 +498,25 @@ describe("waiting for a run in a pane", () => {
 
     setTimeout(() => herdr.model.exit(opened.ok ? opened.result.paneId : ""), 150);
 
-    expect(await waitForRun("bmo-search-7", { timeoutMs: 5_000, everyMs: 50, socket: herdr.path })).toBe(true);
+    await waitForRun("bmo-search-7", { everyMs: 50, socket: herdr.path });
+
+    expect(herdr.model.panes().some((pane) => pane.pane_id === (opened.ok ? opened.result.paneId : ""))).toBe(false);
   });
 
-  // Bounded on purpose: a wait that cannot fall would hold the launcher open for ever.
-  test("and it gives up at its bound rather than waiting for ever", async () => {
-    const herdr = herdrLike("bound");
+  // No clock ends the wait: a run that takes its time over its ending is waited on until it has ended.
+  test("and it waits for a run that takes its time, however long", async () => {
+    const herdr = herdrLike("long");
+    const opened = await openPane(run("bmo-search-7"), { socket: herdr.path });
+    let ended = false;
 
-    await openPane(run("bmo-search-7"), { socket: herdr.path });
+    setTimeout(() => { ended = true; herdr.model.exit(opened.ok ? opened.result.paneId : ""); }, 600);
+    await waitForRun("bmo-search-7", { everyMs: 50, socket: herdr.path });
 
-    expect(await waitForRun("bmo-search-7", { timeoutMs: 250, everyMs: 50, socket: herdr.path })).toBe(false);
+    expect(ended).toBe(true);
   });
 
   test("a herdr that cannot be asked is not holding anything, so the wait is over", async () => {
-    expect(await waitForRun("bmo-search-7", { timeoutMs: 5_000, socket: absent("wait") })).toBe(true);
+    await waitForRun("bmo-search-7", { socket: absent("wait") });
   });
 });
 
@@ -525,7 +530,7 @@ describe("stopping a run in a pane", () => {
     // It goes as soon as it is asked, which is what a run that commits and reports looks like.
     setTimeout(() => herdr.model.exit(opened.ok ? opened.result.paneId : ""), 100);
 
-    expect(await stopRun("bmo-work-9-build-0-1", { graceMs: 5_000, everyMs: 50, socket: herdr.path })).toBe("ended");
+    expect(await stopRun("bmo-work-9-build-0-1", { everyMs: 50, socket: herdr.path })).toBe("ended");
 
     const asked = herdr.asked.filter((one) => one.method === "agent.prompt");
 
@@ -535,21 +540,21 @@ describe("stopping a run in a pane", () => {
     expect(herdr.asked.some((one) => one.method === "pane.close")).toBe(false);
   });
 
-  test("a run that does not end when asked has its pane taken away, and nothing else", async () => {
-    const herdr = herdrLike("stubborn");
+  test("a run that takes its time over its ending is waited on, and its pane is never taken away", async () => {
+    const herdr = herdrLike("slow");
+    const opened = await openPane(run("bmo-work-9-build-0-1", { home: home() }), { socket: herdr.path });
 
-    await openPane(run("bmo-work-9-build-0-1", { home: home() }), { socket: herdr.path });
+    setTimeout(() => herdr.model.exit(opened.ok ? opened.result.paneId : ""), 600);
 
-    expect(await stopRun("bmo-work-9-build-0-1", { graceMs: 200, everyMs: 50, socket: herdr.path })).toBe("closed");
+    expect(await stopRun("bmo-work-9-build-0-1", { everyMs: 50, socket: herdr.path })).toBe("ended");
     expect(herdr.asked.filter((one) => one.method === "agent.prompt")).toHaveLength(1);
-    expect(herdr.asked.some((one) => one.method === "workspace.close")).toBe(false);
-    expect(herdr.model.workspaces().map((one) => one.label)).toEqual(["mother worker"]);
+    expect(herdr.asked.some((one) => one.method === "pane.close" || one.method === "workspace.close")).toBe(false);
   });
 
   test("a name herdr is not holding is nothing to stop", async () => {
     const herdr = herdrLike("nothing");
 
-    expect(await stopRun("bmo-work-9-build-0-1", { graceMs: 200, socket: herdr.path })).toBe("absent");
+    expect(await stopRun("bmo-work-9-build-0-1", { socket: herdr.path })).toBe("absent");
     expect(herdr.asked.map((one) => one.method)).toEqual(["session.snapshot"]);
   });
 
@@ -570,11 +575,11 @@ describe("stopping a run that is waiting on a person", () => {
     await openPane(run("bmo-work-9-build-0-1"), { socket: herdr.path });
 
     const began = Bun.nanoseconds();
-    const how = await stopRun("bmo-work-9-build-0-1", { graceMs: 10_000, everyMs: 50, socket: herdr.path });
+    const how = await stopRun("bmo-work-9-build-0-1", { everyMs: 50, socket: herdr.path });
     const held = (Bun.nanoseconds() - began) / 1e6;
 
     expect(how).toBe("closed");
-    // Nowhere near the grace: the refusal is the answer, so there is nothing to wait out.
+    // The refusal is the answer, so there is nothing to wait out.
     expect(held).toBeLessThan(2_000);
     expect(herdr.asked.some((one) => one.method === "pane.close")).toBe(true);
   });

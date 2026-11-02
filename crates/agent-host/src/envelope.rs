@@ -40,11 +40,6 @@ pub struct Envelope {
   pub command: Command,
   #[serde(default)]
   pub title: Option<String>,
-  pub deadline: u64,
-  #[serde(default)]
-  pub timeout_ms: Option<u64>,
-  #[serde(default)]
-  pub grace_ms: Option<u64>,
   /// The collector that owns the execution; an execution with none is detached.
   #[serde(default)]
   pub owner: Option<ProcessIdentity>,
@@ -58,7 +53,6 @@ pub struct Envelope {
 pub enum Cause {
   Exited,
   Cancelled,
-  Timeout,
   LaunchError,
 }
 
@@ -67,7 +61,6 @@ impl Cause {
     match self {
       Self::Exited => "exited",
       Self::Cancelled => "cancelled",
-      Self::Timeout => "timeout",
       Self::LaunchError => "launch-error",
     }
   }

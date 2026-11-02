@@ -157,8 +157,6 @@ impl Root {
     let mut envelope = json!({
       "command": { "args": [SH, "-c", script], "cwd": self.executions(), "env": { "PATH": std::env::var("PATH").unwrap() }, "stdin": null },
       "title": "test",
-      "deadline": now_ms() + 30_000,
-      "timeoutMs": null,
       "owner": ProcessIdentity::own(),
     });
 
@@ -378,34 +376,50 @@ fn a_second_host_ends_at_once_and_a_name_already_running_is_not_started_again() 
   assert_eq!(fs::read_to_string(&counted).unwrap(), "x\n");
 }
 
+// A stop asks once and waits: the leader is given however long its own ending takes, and what it leaves of
+// its group once it has ended is killed.
 #[test]
-fn a_timeout_kills_a_descendant_that_ignores_the_stop() {
+fn a_stop_waits_for_the_leader_and_kills_what_it_leaves() {
   let root = Root::new();
   let _host = root.start(&[]);
   let dir = root.envelope(
-    "stubborn",
-    "sh -c 'trap \"\" TERM; while :; do sleep 0.1; done' & echo $!; while :; do sleep 0.1; done",
-    json!({ "timeoutMs": 250 }),
+    "slow-to-stop",
+    "sh -c 'trap \"\" TERM; while :; do sleep 0.1; done' & echo $!; trap 'sleep 1; exit 3' TERM; while :; do sleep 0.1; done",
+    json!({}),
   );
 
   root.place("gate", &dir);
   root.grant(&dir);
+  root.started(&dir, 3_000);
+  assert!(within(3_000, || fs::read(dir.join("stdout")).is_ok_and(|out| out.ends_with(b"\n"))));
 
-  let answer = root.collect(&dir, 5_000);
+  let asked = Instant::now();
+
+  fs::write(dir.join("cancel"), "").unwrap();
+
+  let answer = root.collect(&dir, 10_000);
   let descendant: i32 = String::from_utf8(answer.stdout).unwrap().trim().parse().unwrap();
 
-  assert_eq!(answer.cause, "timeout");
-  assert_ne!(answer.exit_code, 0);
+  assert_eq!((answer.cause.as_str(), answer.exit_code), ("cancelled", 3));
+  assert!(asked.elapsed() >= Duration::from_millis(900), "the leader's own ending was cut short");
   assert!(within(1_000, || !alive(descendant)), "the descendant outlived its execution");
 }
 
 #[test]
-fn an_expired_grant_or_a_cancel_starts_no_child_and_a_cancel_stops_one_running() {
+fn a_collector_gone_before_the_grant_or_a_cancel_starts_no_child_and_a_cancel_stops_one_running() {
   let root = Root::new();
   let _host = root.start(&[]);
   let marker = root.mark("started");
   let script = format!("touch {}", marker.display());
-  let expired = root.envelope("expired", &script, json!({ "deadline": now_ms() + 100 }));
+  let mut collector = Command::new("sleep").arg("1000").spawn().unwrap();
+  let expired = root.envelope(
+    "collector-gone",
+    &script,
+    json!({ "owner": ProcessIdentity::of(collector.id() as i32).unwrap() }),
+  );
+
+  collector.kill().unwrap();
+  collector.wait().unwrap();
   let cancelled = root.envelope("cancelled-early", &script, json!({}));
   let pending = root.envelope("cancelled-pending", &script, json!({}));
 
@@ -422,7 +436,7 @@ fn an_expired_grant_or_a_cancel_starts_no_child_and_a_cancel_stops_one_running()
 
   assert_eq!(
     (expired.cause.as_str(), expired.stderr.as_str()),
-    ("launch-error", "launch grant expired or cancelled")
+    ("launch-error", "launch cancelled or its collector gone before the grant")
   );
   assert_eq!(
     (cancelled.cause.as_str(), cancelled.stderr.as_str()),
@@ -551,7 +565,7 @@ fn a_detached_run_is_started_left_and_shows_its_end() {
   let dir = root.envelope(
     "detached",
     &format!("sleep 0.1; printf yes > {}", marker.display()),
-    json!({ "owner": null, "title": "detached", "graceMs": 30_000 }),
+    json!({ "owner": null, "title": "detached" }),
   );
 
   root.grant(&dir);
@@ -645,7 +659,7 @@ fn only_an_agent_tagged_pointer_to_a_plain_envelope_among_the_envelopes_is_taken
   fs::create_dir(&outside).unwrap();
   fs::write(
     outside.join("command.json"),
-    json!({ "command": { "args": [SH, "-c", format!("touch {}", marker.display())], "cwd": "/", "env": {}, "stdin": null }, "deadline": now_ms() + 30_000 }).to_string(),
+    json!({ "command": { "args": [SH, "-c", format!("touch {}", marker.display())], "cwd": "/", "env": {}, "stdin": null } }).to_string(),
   )
   .unwrap();
   root.grant(&outside);
@@ -753,8 +767,8 @@ fn an_envelope_a_supervisor_already_holds_is_watched_and_not_run_again() {
 
   let _host = root.start(&[]);
 
-  fs::write(dir.join("outcome.json"), r#"{"exitCode":1,"cause":"timeout"}"#).unwrap();
-  assert!(within(5_000, || root.view("gate").iter().any(|line| line.ends_with("test timeout"))));
+  fs::write(dir.join("outcome.json"), r#"{"exitCode":1,"cause":"cancelled"}"#).unwrap();
+  assert!(within(5_000, || root.view("gate").iter().any(|line| line.ends_with("test cancelled"))));
   assert!(!dir.join("stdout").exists());
 }
 

@@ -1672,10 +1672,9 @@ crate::moved!(ReadJob);
 // How often a stop looks again whether the job's turn has ended.
 const STOP_LOOK: std::time::Duration = std::time::Duration::from_millis(250);
 
-/// A job stopped by cutting its turn short (docs/api.md, 「assignments and jobs」): the reason kept as its stop
-/// mark and its run cancelled, then waited on until the turn's end has written the job stopped with that
-/// reason. A job no turn carries is written stopped at once. Refused 409 `stop-pending` where the turn still
-/// goes once the wait runs out; the stop stands, and the turn's end writes it.
+/// A job stopped by asking its turn to end (docs/api.md, 「assignments and jobs」): the reason kept as its stop
+/// mark and its run cancelled, then waited on, however long the turn's own ending takes, until the turn's
+/// end has written the job stopped with that reason. A job no turn carries is written stopped at once.
 pub async fn stop_job(
   ground: &Ground,
   stops: &crate::queue::stops::Stops,
@@ -1703,9 +1702,6 @@ pub async fn stop_job(
   }
 
   if is_carrying(id) || kept {
-    let wait = std::time::Duration::from_secs(policy::run_stop::RUN_STOP.job_wait_seconds);
-    let until = tokio::time::Instant::now() + wait;
-
     // The turn has ended once the job's end is written and nothing carries or keeps the turn any more, so
     // the worker reads idle by the time the stop answers.
     loop {
@@ -1721,18 +1717,6 @@ pub async fn stop_job(
         }
 
         return Ok(member);
-      }
-
-      if tokio::time::Instant::now() >= until {
-        return Err(
-          Refused::new(
-            StatusCode::CONFLICT,
-            format!(
-              "job {id} was asked to stop and its turn still goes; it ends stopped the moment its turn does"
-            ),
-          )
-          .with_code("stop-pending"),
-        );
       }
 
       tokio::time::sleep(STOP_LOOK).await;
@@ -1819,7 +1803,7 @@ impl Route for PaneDeath {
 
 crate::moved!(PaneDeath);
 
-/// End a job with its outcome, or stop it, its turn cut short first.
+/// End a job with its outcome, or stop it, its turn asked to end first.
 pub struct ChangeJob;
 
 impl Route for ChangeJob {

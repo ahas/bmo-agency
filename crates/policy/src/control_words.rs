@@ -230,7 +230,6 @@ pub struct RegistryWords {
   pub model: String,
   pub context_label: String,
   pub answer_label: String,
-  pub wait_label: String,
   pub answer_under_window: String,
   pub switches: String,
   pub keeps_research: String,

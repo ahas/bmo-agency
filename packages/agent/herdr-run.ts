@@ -810,26 +810,24 @@ async function paneOf(name: string, options: { socket?: string } = {}): Promise<
   return (answer.result.panes ?? []).find((pane) => runOfPane(pane) === name)?.pane_id ?? null;
 }
 
-// What a run is told when it is being stopped from outside, and how long it is given before its
-// pane is closed, as the shared policy declares them (docs/agent-control.md, 「Stopping」).
+// What a run is told when it is being stopped from outside, as the shared policy declares it
+// (docs/agent-control.md, 「Stopping」).
 export const stopInstruction: string = declaredStop.instruction;
-const stopGraceMs: number = declaredStop.grace_seconds * 1000;
 
 // How a run in a pane was ended.
 //
 // `ended` is the one worth having: it was asked, and it finished itself. `closed` is the pane taken
-// away after the asking did not end it, which is what a kill always was. `absent` is a name herdr
-// is not holding at all.
+// away at once because the run could not be asked. `absent` is a name herdr is not holding at all.
 export type RunStop = "ended" | "closed" | "absent";
 
-// Ending a run in a pane by asking first.
+// Ending a run in a pane by asking.
 //
-// A kill is what there used to be, and it is what this avoids: the words go in, the run is given a
-// while to reach its own ending, and the pane is only taken away if it does not. A run that cannot
-// be asked — one already waiting on a person — is closed, because nothing said to it would arrive.
+// The words go in and the run is waited on until it has reached its own ending, however long that
+// takes; nothing takes the pane away under a run that was told. A run that cannot be asked — one
+// already waiting on a person — is closed at once, because nothing said to it would arrive.
 export async function stopRun(
   name: string,
-  options: { graceMs?: number; everyMs?: number; socket?: string } = {},
+  options: { everyMs?: number; socket?: string } = {},
 ): Promise<RunStop> {
   const paneId = await paneOf(name, options);
 
@@ -842,8 +840,10 @@ export async function stopRun(
 
   // Only a run that was actually told something is waited for. A refusal — a run already waiting
   // on a person, most of all, which leaves the pane byte-identical — is a run that was told
-  // nothing, so there is nothing to wait for and the pane goes now rather than after the grace.
-  if (asked.ok && (await waitForRun(name, { timeoutMs: options.graceMs ?? stopGraceMs, everyMs: options.everyMs, socket: options.socket }))) {
+  // nothing, so there is nothing to wait for and the pane goes now.
+  if (asked.ok) {
+    await waitForRun(name, { everyMs: options.everyMs, socket: options.socket });
+
     return "ended";
   }
 
@@ -865,15 +865,11 @@ export async function closeRun(name: string, options: { socket?: string } = {}):
   return await closePane(paneId, options);
 }
 
-// Waiting for a run in a pane to finish, for a caller that has an ending of its own and used to
-// get this from a unit it launched with a wait on it. Bounded on purpose: a wait that cannot fall
-// is worse than a wait that gives up and says so, and the caller already has a cap for the run it
-// is waiting on.
+// Waiting for a run in a pane to finish, until herdr no longer holds it.
 export async function waitForRun(
   name: string,
-  options: { timeoutMs: number; everyMs?: number; socket?: string },
-): Promise<boolean> {
-  const deadline = Date.now() + options.timeoutMs;
+  options: { everyMs?: number; socket?: string } = {},
+): Promise<void> {
   const everyMs = options.everyMs ?? 2_000;
 
   for (;;) {
@@ -882,13 +878,9 @@ export async function waitForRun(
     // A herdr that cannot be asked is not one holding the run, so the wait is over — there is
     // nothing left for it to be waiting on.
     if (!answer.ok || !liveRuns(answer.result, [name]).has(name)) {
-      return true;
+      return;
     }
 
-    if (Date.now() >= deadline) {
-      return false;
-    }
-
-    await Bun.sleep(Math.min(everyMs, Math.max(0, deadline - Date.now())));
+    await Bun.sleep(everyMs);
   }
 }

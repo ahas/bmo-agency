@@ -15,7 +15,6 @@ export interface Member {
   model: string;
   api_base?: string;
   key_file: string;
-  wait_seconds?: number;
   context_tokens?: number;
   answer_tokens?: number;
   thinking?: boolean;

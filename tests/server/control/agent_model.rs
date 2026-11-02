@@ -55,8 +55,8 @@ async fn a_chat_agents_model_is_kept_on_a_registration_and_returned_to_its_key_r
   scratch
     .run(
       r#"INSERT INTO "registered_models" ("name", "label", "model", "context_tokens", "answer_tokens",
-            "wait_seconds", "thinking", "walked", "added_at", "keeps_research")
-         VALUES ('local-model', 'Local', 'served', 100000, 4000, 60, 1, 1, 1, 0)"#,
+            "thinking", "walked", "added_at", "keeps_research")
+         VALUES ('local-model', 'Local', 'served', 100000, 4000, 1, 1, 1, 0)"#,
       vec![],
     )
     .await;
@@ -134,8 +134,8 @@ async fn a_companions_pin_is_cleared_and_it_answers_on_the_supervisor_route_agai
   scratch
     .run(
       r#"INSERT INTO "registered_models" ("name", "label", "model", "context_tokens", "answer_tokens",
-            "wait_seconds", "thinking", "walked", "added_at", "keeps_research")
-         VALUES ('local-model', 'Local', 'served', 100000, 4000, 60, 1, 1, 1, 0)"#,
+            "thinking", "walked", "added_at", "keeps_research")
+         VALUES ('local-model', 'Local', 'served', 100000, 4000, 1, 1, 1, 0)"#,
       vec![],
     )
     .await;
@@ -193,8 +193,8 @@ async fn any_agent_keeps_a_providers_model_its_catalogue_names_and_is_refused_on
   scratch
     .run(
       r#"INSERT INTO "registered_models" ("name", "label", "model", "context_tokens", "answer_tokens",
-            "wait_seconds", "thinking", "walked", "added_at", "keeps_research")
-         VALUES ('local-model', 'Local', 'served', 100000, 4000, 60, 1, 1, 1, 0)"#,
+            "thinking", "walked", "added_at", "keeps_research")
+         VALUES ('local-model', 'Local', 'served', 100000, 4000, 1, 1, 1, 0)"#,
       vec![],
     )
     .await;

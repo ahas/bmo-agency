@@ -23,7 +23,6 @@ fn member(name: &str, label: &str) -> Value {
     "model": name,
     "api_base": "https://api.openai.com/v1",
     "key_file": "openai.key",
-    "wait_seconds": 300,
     "context_tokens": 400000,
     "answer_tokens": 32768,
     "thinking": true

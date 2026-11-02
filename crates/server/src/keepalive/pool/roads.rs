@@ -260,7 +260,6 @@ async fn stand_in<S: StandIn>(ground: &Ground, place: &WarmPlace, road: &S) -> R
       effort: (!run.effort.is_empty()).then(|| run.effort.clone()),
       tier: tier_of(run.tier.as_ref()),
       session: None,
-      timeout: Some(place.timeout),
     },
   )
   .await;

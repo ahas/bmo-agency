@@ -364,10 +364,9 @@ impl Asks {
   }
 }
 
-/// One connection answered: a request line in, an answer line out.
+/// One connection answered: a request line in, an answer line out. Its asker's line is waited for until it
+/// comes or the connection closes.
 fn serve_one(asks: &Mutex<Asks>, stream: UnixStream) -> io::Result<()> {
-  stream.set_read_timeout(Some(Duration::from_secs(5)))?;
-
   let mut line = String::new();
 
   BufReader::new(&stream).read_line(&mut line)?;
@@ -389,7 +388,8 @@ fn serve_one(asks: &Mutex<Asks>, stream: UnixStream) -> io::Result<()> {
   (&stream).write_all(&said)
 }
 
-/// The socket bound, readable by the owner alone, and answered on a thread of its own.
+/// The socket bound, readable by the owner alone, and answered on a thread of its own, each connection on
+/// one of its own, so an asker slow to say its line holds up nobody else's.
 pub fn listen(socket: &Path, asks: Arc<Mutex<Asks>>) -> io::Result<()> {
   let _ = fs::remove_file(socket);
 
@@ -398,22 +398,23 @@ pub fn listen(socket: &Path, asks: Arc<Mutex<Asks>>) -> io::Result<()> {
   fs::set_permissions(socket, fs::Permissions::from_mode(0o600))?;
   thread::spawn(move || {
     for stream in listener.incoming().flatten() {
-      if let Err(why) = serve_one(&asks, stream) {
-        eprintln!("agent-host: a question went unanswered: {why}");
-      }
+      let asks = Arc::clone(&asks);
+
+      thread::spawn(move || {
+        if let Err(why) = serve_one(&asks, stream) {
+          eprintln!("agent-host: a question went unanswered: {why}");
+        }
+      });
     }
   });
 
   Ok(())
 }
 
-/// A question put to the host at `socket`, as a head puts it.
+/// A question put to the host at `socket`, as a head puts it, and its answer waited for until it comes or
+/// the host closes the connection.
 pub fn ask(socket: &Path, request: &Request) -> io::Result<Answer> {
   let stream = UnixStream::connect(socket)?;
-
-  stream.set_read_timeout(Some(Duration::from_secs(5)))?;
-  stream.set_write_timeout(Some(Duration::from_secs(5)))?;
-
   let mut said = serde_json::to_vec(request)?;
 
   said.push(b'\n');
