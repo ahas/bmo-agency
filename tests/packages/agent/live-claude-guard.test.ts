@@ -172,7 +172,7 @@ describe("a job driving herdr through the bot's own client", () => {
     const dir = scratchDir("bmo-live-claude-herdr-");
     const socket = join(dir, "herdr.sock");
     const script = join(dir, "drive.ts");
-    const where = JSON.stringify({ socket, timeoutMs: 500 });
+    const where = JSON.stringify({ socket });
 
     writeFileSync(
       script,

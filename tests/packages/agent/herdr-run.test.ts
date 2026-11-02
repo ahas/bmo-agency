@@ -185,7 +185,7 @@ describe("opening a pane for a run of its own", () => {
   });
 
   test("a herdr that is not there is a carried failure, which is what the fallback reads", async () => {
-    const opened = await openPane(run("bmo-search-9"), { socket: absent("open"), timeoutMs: 500 });
+    const opened = await openPane(run("bmo-search-9"), { socket: absent("open") });
 
     expect(opened.ok).toBe(false);
     expect(opened.ok ? "" : opened.error.code).not.toBe("");

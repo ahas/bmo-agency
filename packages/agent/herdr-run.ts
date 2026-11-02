@@ -132,7 +132,7 @@ interface LayoutApplied {
   layout?: { tab_id?: string; root?: { pane_id?: string } };
 }
 
-type Where = { socket?: string; timeoutMs?: number };
+type Where = { socket?: string };
 
 export async function openPane(
   run: {
