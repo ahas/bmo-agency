@@ -49,8 +49,8 @@ mod m20261122_000001_role_sessions;
 mod m20261122_000002_delegation_titles;
 mod m20261122_000003_job_close_lease;
 mod m20261123_000001_turn_liveness;
-mod m20261124_000001_stream_events;
 mod m20261124_000001_renewal;
+mod m20261124_000001_stream_events;
 
 use sea_orm_migration::prelude::*;
 
