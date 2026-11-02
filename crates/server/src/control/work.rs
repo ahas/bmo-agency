@@ -28,10 +28,6 @@ use crate::run_log::lines::Line;
 use crate::run_log::{RunLog, Target};
 use store::{all, one, run};
 
-/// The longest a worker is held for an item where the caller names no hold, and the longest it may be held.
-const HELD_MS: i64 = 15 * 60 * 1000;
-const HELD_MOST_MS: i64 = 24 * 60 * 60 * 1000;
-
 fn bad(error: impl Into<String>) -> Refused {
   Refused::new(StatusCode::BAD_REQUEST, error)
 }
@@ -88,14 +84,13 @@ fn assignment_value(row: &QueryResult) -> Result<Value, sea_orm::DbErr> {
     "holderName": row.try_get::<String>("", "holder_name")?,
     "workerName": row.try_get::<String>("", "worker_name")?,
     "state": row.try_get::<String>("", "state")?,
-    "expiresAt": row.try_get::<i64>("", "expires_at")?,
     "createdAt": row.try_get::<i64>("", "created_at")?,
     "changedAt": row.try_get::<i64>("", "changed_at")?,
   }))
 }
 
-const ASSIGNMENT_COLUMNS: &str = r#""id", "item_id", "holder_name", "worker_name", "state", "expires_at",
-  "created_at", "changed_at""#;
+const ASSIGNMENT_COLUMNS: &str =
+  r#""id", "item_id", "holder_name", "worker_name", "state", "created_at", "changed_at""#;
 
 async fn assignment(db: &sea_orm::DatabaseConnection, id: i64) -> Result<Value, Refused> {
   let sql = format!(r#"SELECT {ASSIGNMENT_COLUMNS} FROM "assignments" WHERE "id" = $1"#);
@@ -107,17 +102,10 @@ async fn assignment(db: &sea_orm::DatabaseConnection, id: i64) -> Result<Value, 
   }
 }
 
-/// A hold that ran out is expired, and a running assignment whose job has ended is released, before
-/// anything reads them.
-async fn expire(db: &sea_orm::DatabaseConnection) -> Result<(), Refused> {
+/// A running assignment whose job has ended is released before anything reads them. A held one stands
+/// until its job starts or its harness releases it: no clock lets a hold go.
+async fn release_ended(db: &sea_orm::DatabaseConnection) -> Result<(), Refused> {
   let now = now_ms();
-  run(
-    db,
-    r#"UPDATE "assignments" SET "state" = 'expired', "changed_at" = $1
-       WHERE "state" = 'held' AND "expires_at" <= $1"#,
-    vec![now.into()],
-  )
-  .await?;
   run(
     db,
     r#"UPDATE "assignments" a SET "state" = 'released', "changed_at" = $1
@@ -163,10 +151,9 @@ impl Route for CreateAssignment {
       .and_then(Value::as_str)
       .map(str::trim)
       .filter(|name| !name.is_empty());
-    let hold = number(&asked, "holdMs").unwrap_or(HELD_MS).clamp(1000, HELD_MOST_MS);
     let db = &call.ground().db;
 
-    expire(db).await?;
+    release_ended(db).await?;
 
     let sql = r#"SELECT a."name", a."cwd" FROM "agents" a
       WHERE a."kind" = 'worker' AND a."resting_since" IS NULL
@@ -194,10 +181,10 @@ impl Route for CreateAssignment {
     let now = now_ms();
     let row = one(
       db,
-      r#"INSERT INTO "assignments" ("item_id", "holder_name", "worker_name", "state", "expires_at",
-              "created_at", "changed_at")
-         VALUES ($1, $2, $3, 'held', $4, $5, $5) RETURNING "id""#,
-      vec![item_id.into(), holder.into(), worker_name.into(), (now + hold).into(), now.into()],
+      r#"INSERT INTO "assignments" ("item_id", "holder_name", "worker_name", "state", "created_at",
+              "changed_at")
+         VALUES ($1, $2, $3, 'held', $4, $4) RETURNING "id""#,
+      vec![item_id.into(), holder.into(), worker_name.into(), now.into()],
     )
     .await?
     .ok_or_else(|| Refused::failed("the assignment was written but not answered"))?;
@@ -221,7 +208,7 @@ impl Route for ListAssignments {
 
   async fn answer(&self, call: Call) -> Result<Response, Refused> {
     let db = &call.ground().db;
-    expire(db).await?;
+    release_ended(db).await?;
 
     let after = call.query("after").and_then(|after| after.parse::<i64>().ok()).unwrap_or(0);
     let limit = limit(&call);
@@ -262,7 +249,7 @@ impl Route for ReadAssignment {
       .param("assignmentId")
       .and_then(|id| id.parse().ok())
       .ok_or_else(|| bad("assignmentId is a number"))?;
-    expire(&call.ground().db).await?;
+    release_ended(&call.ground().db).await?;
 
     Ok(answer(StatusCode::OK, assignment(&call.ground().db, id).await?))
   }
@@ -270,7 +257,7 @@ impl Route for ReadAssignment {
 
 crate::moved!(ReadAssignment);
 
-/// Release an assignment, or hold it longer.
+/// Release an assignment.
 pub struct ChangeAssignment;
 
 impl Route for ChangeAssignment {
@@ -303,16 +290,6 @@ impl Route for ChangeAssignment {
       }
       Some(other) => return Err(bad(format!("an assignment is released, not {other}"))),
       None => {}
-    }
-
-    if let Some(hold) = number(&asked, "holdMs").filter(|hold| *hold > 0) {
-      let expires = now + hold.clamp(1000, HELD_MOST_MS);
-      run(
-        db,
-        r#"UPDATE "assignments" SET "expires_at" = $1, "changed_at" = $2 WHERE "id" = $3"#,
-        vec![expires.into(), now.into(), id.into()],
-      )
-      .await?;
     }
 
     let member = assignment(db, id).await?;
@@ -628,7 +605,7 @@ impl Route for CreateJob {
     let db = &call.ground().db;
     let now = now_ms();
 
-    expire(db).await?;
+    release_ended(db).await?;
     let held = assignment(db, assignment_id).await?;
     let state = held["state"].as_str().unwrap_or_default();
     if state != "held" {

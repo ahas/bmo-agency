@@ -223,8 +223,8 @@ async fn a_running_assignment_whose_job_ended_is_released_as_the_assignments_are
     .await;
   scratch
     .run(
-      r#"INSERT INTO "assignments" ("id", "item_id", "holder_name", "worker_name", "state", "expires_at", "created_at", "changed_at")
-         VALUES (7, 41, 'harness', 'helper', 'running', 0, 0, 0)"#,
+      r#"INSERT INTO "assignments" ("id", "item_id", "holder_name", "worker_name", "state", "created_at", "changed_at")
+         VALUES (7, 41, 'harness', 'helper', 'running', 0, 0)"#,
       vec![],
     )
     .await;

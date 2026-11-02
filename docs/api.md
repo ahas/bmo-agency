@@ -872,9 +872,9 @@ nothing of its placement.
 | Method | Path | Does |
 |---|---|---|
 | GET | `/assignments` | Worker assignments, by holder, worker or state. |
-| POST | `/assignments` | Assign a worker to an item for the harness holding it, and hold it until the job starts or the hold runs out. |
+| POST | `/assignments` | Assign a worker to an item for the harness holding it, and hold it until its job starts and ends, or the harness releases it; no clock ends a hold. |
 | GET | `/assignments/{assignmentId}` | One assignment. |
-| PATCH | `/assignments/{assignmentId}` | Release an assignment, or hold it longer. |
+| PATCH | `/assignments/{assignmentId}` | Release an assignment. |
 | GET | `/jobs` | Jobs newest first: by state or running, by item, room, worker or holder. |
 | POST | `/jobs` | Run an item on its assigned worker: the harness hands over the item's content and the lease it holds, and the agency launches the worker's session on it; refused only while no provider of the order can answer. |
 | GET | `/jobs/{jobId}` | One job and what its turn spent, `usage`. |

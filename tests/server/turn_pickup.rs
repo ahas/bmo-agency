@@ -188,9 +188,9 @@ async fn a_job_whose_turn_ended_after_the_restart_ends_with_its_report_and_a_cha
     .await;
   scratch
     .run(
-      r#"INSERT INTO "assignments" ("id", "item_id", "holder_name", "worker_name", "state", "expires_at",
-           "created_at", "changed_at")
-         VALUES (60, 1, 'harness', 'worker-a', 'running', $1, $1, $1)"#,
+      r#"INSERT INTO "assignments" ("id", "item_id", "holder_name", "worker_name", "state", "created_at",
+           "changed_at")
+         VALUES (60, 1, 'harness', 'worker-a', 'running', $1, $1)"#,
       vec![now_ms().into()],
     )
     .await;

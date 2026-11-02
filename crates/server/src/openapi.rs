@@ -2158,7 +2158,7 @@ pub const OPERATIONS: &[Operation] = &[
     path: "/assignments",
     id: "createAssignments",
     tag: "assignments",
-    summary: "Assign a worker to an item for the harness holding it: the agency picks the worker from the item's content and the assignee it names, and holds it until the job starts or the hold runs out.",
+    summary: "Assign a worker to an item for the harness holding it: the agency picks the worker from the item's content and the assignee it names, and holds it until its job starts and ends, or the harness releases it.",
     params: &[],
     body: Some("AssignWorker"),
     answers: &[(201, Some("Assignment"), false)],
@@ -2186,7 +2186,7 @@ pub const OPERATIONS: &[Operation] = &[
     path: "/assignments/{assignmentId}",
     id: "changeAssignmentsByAssignmentId",
     tag: "assignments",
-    summary: "Release an assignment, or hold it longer.",
+    summary: "Release an assignment.",
     params: &[Param {
       name: "assignmentId",
       place: "path",

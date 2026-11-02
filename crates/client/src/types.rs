@@ -142,8 +142,6 @@ pub enum AssignmentState {
   Running,
   #[serde(rename = "released")]
   Released,
-  #[serde(rename = "expired")]
-  Expired,
 }
 
 /// One of the values the API accepts.
@@ -1399,7 +1397,7 @@ pub struct WorkerPage {
   pub more: bool,
 }
 
-/// Assignment: A worker held for one item for the harness that asked. held until POST /jobs uses it or it runs out at expiresAt; running while its job runs; released when the harness lets it go or the job ends.
+/// Assignment: A worker held for one item for the harness that asked. held until POST /jobs uses it; running while its job runs; released when the harness lets it go or the job ends. No clock ends a hold.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Assignment {
@@ -1408,8 +1406,6 @@ pub struct Assignment {
   pub holder_name: String,
   pub worker_name: String,
   pub state: AssignmentState,
-  /// epoch milliseconds
-  pub expires_at: i64,
   /// epoch milliseconds
   pub created_at: i64,
   /// epoch milliseconds
@@ -1555,18 +1551,14 @@ pub struct AssignWorker {
   pub item: JobItem,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub assignee_name: Option<String>,
-  #[serde(default, skip_serializing_if = "Option::is_none")]
-  pub hold_ms: Option<i64>,
 }
 
-/// The body that releases an assignment or holds it longer.
+/// The body that releases an assignment.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct AssignmentChange {
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub state: Option<AssignmentState>,
-  #[serde(default, skip_serializing_if = "Option::is_none")]
-  pub hold_ms: Option<i64>,
 }
 
 /// The body that hands an item and its lease over to be run.

@@ -24,9 +24,10 @@ file `AGENCY_CONTROL_TOKEN_FILE` names, or in `--token`.
 ## Running an item
 
 1. `assign_worker` with `itemId`, `holderName` and `item` (the item as you read it: `title`, `brief`,
-   `workOrder`, `notes`, `labels`). `assigneeName` asks for one worker; `holdMs` says how long the worker is
-   held. The answer is an `Assignment` with its `workerName` and `expiresAt`. When no worker is free the call
-   fails with a 422 `no-worker-free`; ask again later or name another assignee.
+   `workOrder`, `notes`, `labels`). `assigneeName` asks for one worker. The answer is an `Assignment` with its
+   `workerName`; the worker stays held until its job starts and ends, or until you release the assignment, and
+   no clock lets it go, so release one you will not run. When no worker is free the call fails with a 422
+   `no-worker-free`; ask again later or name another assignee.
 2. `run_job` with the assignment's `assignmentId`, the item's `itemId`, the `leaseId` you hold, your
    `holderName` and the same `item`. The answer is a `Job` in state `starting`; the worker's session is
    launched on it.

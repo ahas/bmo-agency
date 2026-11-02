@@ -35,7 +35,7 @@ pub const TOOLS: [Tool; 4] = [
   },
   Tool {
     name: "assign_worker",
-    description: "Assign a worker to an item for the harness holding it: the agency picks the worker from the item's content and the assignee it names, and holds it until the job starts or the hold runs out.",
+    description: "Assign a worker to an item for the harness holding it: the agency picks the worker from the item's content and the assignee it names, and holds it until its job starts and ends, or the harness releases it.",
     input: "AssignWorker",
     output: "Assignment",
     route: "POST /assignments",

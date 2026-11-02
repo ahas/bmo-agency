@@ -77,10 +77,10 @@ async fn running(scratch: &Scratch, worker: &str, job: i64, item: i64, run: Opti
     .await;
   scratch
     .run(
-      r#"INSERT INTO "assignments" ("id", "item_id", "holder_name", "worker_name", "state", "expires_at",
-           "created_at", "changed_at")
-         VALUES ($1, $2, 'harness', $3, 'running', $4, $4, $4)"#,
-      vec![job.into(), item.into(), worker.into(), (now + 600_000).into()],
+      r#"INSERT INTO "assignments" ("id", "item_id", "holder_name", "worker_name", "state", "created_at",
+           "changed_at")
+         VALUES ($1, $2, 'harness', $3, 'running', $4, $4)"#,
+      vec![job.into(), item.into(), worker.into(), now.into()],
     )
     .await;
   scratch

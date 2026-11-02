@@ -94,13 +94,13 @@ async fn a_job_with_no_live_execution_is_stopped_and_a_live_one_is_left() {
     .await;
   scratch
     .run(
-      r#"INSERT INTO "assignments" ("id", "item_id", "holder_name", "worker_name", "state", "expires_at",
-           "created_at", "changed_at")
-         VALUES (10, 1, 'harness', 'bmo-cli', 'running', $1, $1, $1),
-                (20, 2, 'harness', 'bmo-cli', 'running', $1, $1, $1),
-                (30, 3, 'harness', 'node-worker', 'running', $1, $1, $1),
-                (40, 4, 'harness', 'bmo-cli', 'running', $1, $1, $1),
-                (50, 5, 'harness', 'bmo-cli', 'running', $1, $1, $1)"#,
+      r#"INSERT INTO "assignments" ("id", "item_id", "holder_name", "worker_name", "state", "created_at",
+           "changed_at")
+         VALUES (10, 1, 'harness', 'bmo-cli', 'running', $1, $1),
+                (20, 2, 'harness', 'bmo-cli', 'running', $1, $1),
+                (30, 3, 'harness', 'node-worker', 'running', $1, $1),
+                (40, 4, 'harness', 'bmo-cli', 'running', $1, $1),
+                (50, 5, 'harness', 'bmo-cli', 'running', $1, $1)"#,
       vec![now.into()],
     )
     .await;

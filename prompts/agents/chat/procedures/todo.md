@@ -135,11 +135,12 @@ launching its run. When to file is in the manual; this is how. Your tools are th
 
 ## Assigning and launching
 
-1. **`assign_worker`** with `itemId`, `holderName` `harness`, `assigneeName` the worker, `holdMs`
-   the same span as the lease, and `item` the content you read: `title`, `brief`, `workOrder`,
+1. **`assign_worker`** with `itemId`, `holderName` `harness`, `assigneeName` the worker, and `item`
+   the content you read: `title`, `brief`, `workOrder`,
    `notes`, `labels` and `scope`, the room the item was filed from. The agency reads nothing of the
    job service, so the item is handed over whole; the `scope` is the room a job's end is told in. It
-   answers the assignment and the worker it holds; the hold lasts until the job starts or it runs out.
+   answers the assignment and the worker it holds; the hold stands until the job starts and ends, or
+   until you release it, and no clock lets it go: release one you will not run.
 2. **`run_job`** with `assignmentId`, `itemId`, `leaseId`, `holderName` `harness` and the same
    `item`, `scope` among it. It launches the worker's session on the item and the lease, and answers
    the job; as the job ends, the agency gives its lease back and tells the room its report.
