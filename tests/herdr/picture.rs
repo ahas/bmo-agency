@@ -95,3 +95,69 @@ fn a_snapshot_replaces_everything() {
   picture.install(&snapshot);
   assert_eq!(picture.names(), HashSet::from(["run-x".to_owned()]));
 }
+
+#[tokio::test]
+async fn the_last_picture_stands_while_the_subscription_is_down_and_goes_once_the_socket_refuses() {
+  let dir = tempfile::tempdir().unwrap();
+  let socket = dir.path().join("herdr.sock");
+  let listener = tokio::net::UnixListener::bind(&socket).unwrap();
+
+  // One attachment whose snapshot holds a run at work in its pane; the subscription then ends and the
+  // socket goes away.
+  let serving = tokio::spawn(async move {
+    for _ in 0..3 {
+      let (stream, _) = listener.accept().await.unwrap();
+      let mut reader = BufReader::new(stream);
+      let mut line = String::new();
+
+      reader.read_line(&mut line).await.unwrap();
+
+      let asked: Value = serde_json::from_str(&line).unwrap();
+      let result = match asked["method"].as_str() {
+        Some("session.snapshot") => json!({ "snapshot": { "panes": [pane("p1", "t1", Some("run-x"))] } }),
+        Some("layout.export") => {
+          json!({ "layout": { "root": { "pane_id": "p1", "command": ["claude"] } } })
+        }
+        _ => json!({}),
+      };
+      let mut stream = reader.into_inner();
+
+      stream
+        .write_all(format!("{}\n", json!({ "id": asked["id"], "result": result })).as_bytes())
+        .await
+        .unwrap();
+
+      if asked["method"] == "events.subscribe" {
+        // Held open until the snapshot is in, then dropped with the listener.
+        tokio::time::sleep(Duration::from_millis(300)).await;
+      }
+    }
+  });
+
+  let watch = Watch::start(Herdr::there(socket.clone()));
+  let mut attachments = watch.attachments();
+
+  tokio::time::timeout(Duration::from_secs(5), attachments.changed())
+    .await
+    .unwrap()
+    .unwrap();
+  assert!(watch.names().contains("run-x"));
+
+  serving.await.unwrap();
+  std::fs::remove_file(&socket).unwrap();
+
+  // Dropped, the picture still names the run until a reattach is refused.
+  let mut gone = false;
+
+  for _ in 0..50 {
+    if watch.names().is_empty() {
+      gone = true;
+      break;
+    }
+
+    tokio::time::sleep(Duration::from_millis(100)).await;
+  }
+
+  assert!(gone, "a herdr whose socket refuses holds nothing");
+  assert!(!watch.attached());
+}

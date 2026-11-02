@@ -7,7 +7,6 @@
 //! session, and an answer writes the row again with the prefix it read.
 
 use std::sync::Arc;
-use std::time::Duration;
 
 use policy::fill_marks;
 use policy::pool_warm::POOL_WARM;
@@ -111,7 +110,6 @@ async fn branch_place(
       title: fill_marks(&POOL_WARM.branch.title, &[("place", &label)]),
       usage_name: format!("branch-agent-{pool}-{}", row.slot),
       lock: lock_path(&ground.roots.data, &cwd),
-      timeout: Duration::from_secs(POOL_WARM.branch.ping_seconds),
       // The worker line pings in the place's own pane, where its branches run.
       run: PlaceRun {
         agent: place_agent(pool, row.slot),

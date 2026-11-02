@@ -16,12 +16,12 @@ use policy::providers::Turns;
 use serde_json::{Value, json};
 use store::all;
 
-use super::guard::{Guard, Spent, overtime};
+use super::guard::{Guard, Spent};
 use super::sessions::mark_spent;
 use crate::door::execution::{Identity, execution_root, own_unit};
 use crate::door::record::{ModelSpend, Reply as Recorded};
 use crate::door::surface::{Run, SurfaceEnding, SurfaceTurn, interrupt_of};
-use crate::door::turn::{Ending, Overrun, Overtime, Seat, Timings, Turn, Watch, pasted_lead, put};
+use crate::door::turn::{Ending, Seat, Timings, Turn, Watch, pasted_lead, put};
 use crate::lines::companion::ComposedTurn;
 use crate::lines::place::{Place, Program, token_of};
 use crate::lines::token;
@@ -72,7 +72,7 @@ pub struct Tally<'a> {
 }
 
 /// The reader of the program's record: the turn's log, its lines labelled by the provider the turn went out on,
-/// its guard, its tally and its clock; and the run it stops by the run's own cancellation once its guard cuts it.
+/// its guard and its tally; and the run it stops by the run's own cancellation once its guard cuts it.
 pub struct Watched<'a> {
   pub ground: &'a Ground,
   pub log: &'a mut RunLog,
@@ -142,12 +142,6 @@ impl Watch for Watched<'_> {
     let db = self.ground.db.clone();
 
     self.log.write(&db, Line::note(text)).await;
-  }
-
-  async fn overtime(&mut self, _asked: &Overrun) -> Overtime {
-    self.cut = self.cut.take().or_else(|| Some(overtime(&COMPANION_RUNNER.limits)));
-
-    Overtime::Cut
   }
 
   async fn record(&mut self, lines: &[String]) {
@@ -372,7 +366,6 @@ pub async fn run_turn(
   let _held = hold(agent_lock(ground, agent)).await.map_err(|why| failure(why.to_string()))?;
   let limits = &COMPANION_RUNNER.limits;
   let carried = tally.map_or(Spent::default(), |tally| tally.carried);
-  let bound = guarded.then(|| Duration::from_millis((limits.ms() - carried.ms).max(0) as u64));
   let run = log.run().to_owned();
   let title = fill_marks(&COMPANION_RUNNER.log.title, &[("agent", agent)]);
   let own = own_unit(ground.env());
@@ -415,7 +408,7 @@ pub async fn run_turn(
       provider: provider.to_owned(),
       lead: pasted_lead(),
       trusts_folder: true,
-      bound,
+      clock: None,
       interrupt: interrupt_of(resident),
       timings: Timings::default(),
     };
@@ -442,7 +435,6 @@ pub async fn run_turn(
       home,
       name: run.clone(),
       title,
-      timeout: bound,
       root,
       parent: own,
       command: composed.command.clone(),

@@ -349,7 +349,7 @@ pub struct VerbWords {
   pub run_stop: RunStopWords,
 }
 
-/// The chat agent's verdict on a run past its clock (docs/agent-control.md, 「A clock asks before it cuts」).
+/// The chat agent's verdict on a run past its clock (docs/agent-control.md, 「A clock asks, it never cuts」).
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct OvertimeWords {

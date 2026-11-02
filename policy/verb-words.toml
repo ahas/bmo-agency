@@ -252,7 +252,7 @@ generation = "══ generation {generation}"
 generation_opened = "══ generation {generation} · opened {at}"
 
 # The chat agent's verdict on a run past its clock, as `bmo-agency overtime` gives it
-# (docs/agent-control.md, 「A clock asks before it cuts」).
+# (docs/agent-control.md, 「A clock asks, it never cuts」).
 [overtime]
 # How the verb is run, said where it was run otherwise.
 usage = "usage: bmo-agency overtime --list | --keep <ask> [--for <length>] --why '<one line>' | --cut <ask> --why '<one line>'"
@@ -260,8 +260,9 @@ usage = "usage: bmo-agency overtime --list | --keep <ask> [--for <length>] --why
 length = "overtime: {length} is no length; give 20m, 1h or a number of minutes"
 # No ask stands open.
 none_open = "(no run is waiting on a verdict)"
-# One open ask: its number, the run and what it is doing, and the moment agency cuts it with no verdict.
-open = "#{ask} {run}: {what}; cut at {answer_by} without a verdict"
+# One open ask: its number, the run and what it is doing, and when it was asked; it stands until a verdict
+# or the run's end.
+open = "#{ask} {run}: {what}; asked at {asked_at}, waiting on a verdict"
 # A verdict taken: kept until a moment, or cut within seconds.
 kept = "#{ask} {run}: kept until {until}"
 cut = "#{ask} {run}: cut; the run ends within seconds"

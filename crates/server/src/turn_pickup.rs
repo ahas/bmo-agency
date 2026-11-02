@@ -212,9 +212,11 @@ async fn attach(ground: &Ground, place: Place, turn: InFlight) {
       interrupt(ground, &turn.run).await;
     }
 
+    // The program gone is the turn's end; read so on as many looks in a row as a pane gone is confirmed
+    // on, so one read caught between its record's writes does not end a turn that goes on.
     unseen = if place.program_alive().is_some() { 0 } else { unseen + 1 };
 
-    if unseen >= 40 {
+    if unseen >= RESIDENT_TURN.gone_looks {
       return hand_back(ground, &place, &turn, Came::Failed(GONE.to_owned())).await;
     }
 

@@ -7,6 +7,5 @@ fn the_first_pass_and_a_ping_land_inside_the_cache_they_hold() {
   let life = CLAUDE_CODE.cache.ttl_minutes as u64 * 60;
 
   assert!(idle + KEEPALIVE.start_delay_seconds + KEEPALIVE.tick_seconds < life);
-  assert!(KEEPALIVE.line_ping_seconds <= KEEPALIVE.worker_ping_seconds);
   assert!(!KEEPALIVE.prompt.trim().is_empty());
 }

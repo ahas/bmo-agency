@@ -422,19 +422,12 @@ async fn put<W: Watch>(
 ) -> Result<SurfaceEnding, String> {
   let herdr = &turn.home.herdr;
   let every = turn.clocks.poll.unwrap_or(Duration::from_millis(RESIDENT_TURN.poll_ms));
-  let ready = turn.clocks.ready.unwrap_or(Duration::from_secs(RESIDENT_TURN.ready_seconds));
-  let patience = Duration::from_secs(RESIDENT_TURN.herdr_patience_seconds);
   let root = sessions_of(&Homes::of(ground).resident);
   let interrupt = interrupt_of(resident);
-  let stood = match stand_resident(
-    ground,
-    place,
-    &turn.home,
-    program,
-    &turn.run.line,
-    ready,
-    Duration::from_millis(250),
-  )
+  let shared: &Execution = execution;
+  let stood = match stand_resident(ground, place, &turn.home, program, &turn.run.line, every, || {
+    shared.cancelled(ground, turn)
+  })
   .await
   {
     Ok(stood) => stood,
@@ -446,22 +439,24 @@ async fn put<W: Watch>(
     }
   };
   let pane = stood.pane;
-  let ready_by = tokio::time::Instant::now() + ready;
 
   execution.set("paneId", json!(pane));
 
   // Ready once herdr reads its input box — idle, or done after a turn that ended, failed or was
-  // interrupted — and the screen is not the trust question herdr reads the same way.
+  // interrupted — and the screen is not the trust question herdr reads the same way. Waited for until
+  // then, the program stands at a question, its pane is gone or the turn is stopped.
   loop {
+    if execution.cancelled(ground, turn).await {
+      execution.ending = "cancelled";
+
+      return Ok(SurfaceEnding::Error("the turn was stopped before it went in".to_owned()));
+    }
+
     match status_of(herdr, &pane, GoneConfirm::default()).await {
       Look::Gone => return Err("codex's pane went away before its turn".to_owned()),
       // Herdr answering none of the looks says nothing of the program, and never that a person is asked
-      // something.
-      Look::Silent(_) => {
-        if tokio::time::Instant::now() >= ready_by {
-          return Err("herdr did not answer about codex's pane before its turn".to_owned());
-        }
-      }
+      // something: it is waited out.
+      Look::Silent(_) => {}
       now if now.at_rest() => {
         let screen = screen_of(herdr, &pane).await;
         let flat = screen.split_whitespace().collect::<Vec<_>>().join(" ");
@@ -479,7 +474,7 @@ async fn put<W: Watch>(
         return Ok(SurfaceEnding::Error(format!("codex's program is waiting on a person: {screen}")));
       }
       now => {
-        if now.is("blocked") || tokio::time::Instant::now() >= ready_by {
+        if now.is("blocked") {
           execution.ending = "cancelled";
 
           return Ok(SurfaceEnding::Error(format!(
@@ -543,8 +538,6 @@ async fn put<W: Watch>(
   execution.set("state", json!("running"));
   execution.save(ground, turn).await;
 
-  let deadline = turn.timeout.map(|bound| prompted_at + bound.as_millis() as i64);
-  let mut silent_since: Option<tokio::time::Instant> = None;
   let reading = loop {
     if execution.cancelled(ground, turn).await {
       interrupt_program(place, &turn.home, &pane, &interrupt).await;
@@ -553,31 +546,14 @@ async fn put<W: Watch>(
       return Ok(SurfaceEnding::Error("the turn was stopped".to_owned()));
     }
 
-    if deadline.is_some_and(|deadline| now_ms() >= deadline) {
-      interrupt_program(place, &turn.home, &pane, &interrupt).await;
-      execution.ending = "timeout";
-
-      return Ok(SurfaceEnding::Error("the turn ran past its time".to_owned()));
-    }
-
     let now = status_of(herdr, &pane, GoneConfirm::default()).await;
 
     if now == Look::Gone {
       return Err("codex's pane went away during the turn".to_owned());
     }
 
-    // A herdr that does not answer is waited out while the rollout is read on; only a silence past the
-    // patience ends the turn, as herdr's and not as a pane gone.
-    silent_since = if matches!(now, Look::Silent(_)) {
-      Some(silent_since.unwrap_or_else(tokio::time::Instant::now))
-    } else {
-      None
-    };
-
-    if silent_since.is_some_and(|since| since.elapsed() >= patience) {
-      return Err("herdr did not answer about codex's pane during the turn".to_owned());
-    }
-
+    // A herdr that does not answer is waited out while the rollout is read on, however long it is
+    // silent, and never read as a pane gone.
     let alive = place.program_alive();
 
     if alive.is_none()

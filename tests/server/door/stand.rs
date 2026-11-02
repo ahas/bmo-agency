@@ -81,8 +81,8 @@ async fn a_changed_program_is_not_ended_while_its_record_says_a_turn_works() {
     &home_of,
     &program("new", home.path()),
     "chat",
-    Duration::from_millis(100),
     Duration::from_millis(10),
+    || async { false },
   )
   .await
   .unwrap();

@@ -41,17 +41,15 @@ pub struct Run {
   pub resume_session_id: Option<String>,
 }
 
-/// The clocks a caller sets over the door's own.
+/// The pace a caller sets over the door's own.
 #[derive(Clone, Debug, Default)]
 pub struct Clocks {
-  pub ready: Option<Duration>,
   pub poll: Option<Duration>,
-  pub settle: Option<Duration>,
 }
 
 /// One turn handed to a surface: the run it is, the agent whose pane holds the program, what the run is
-/// called and what it is, how long it may take, the work it belongs to, and the command its program
-/// stands on as its provider composed it for this run.
+/// called and what it is, the work it belongs to, and the command its program stands on as its provider
+/// composed it for this run. A turn carries no clock: it lasts until it ends or is stopped.
 #[derive(Clone, Debug)]
 pub struct SurfaceTurn {
   pub run: Run,
@@ -59,7 +57,6 @@ pub struct SurfaceTurn {
   pub home: Home,
   pub name: String,
   pub title: String,
-  pub timeout: Option<Duration>,
   pub root: Option<String>,
   pub parent: Option<String>,
   pub command: ResidentCommand,

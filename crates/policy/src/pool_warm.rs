@@ -18,7 +18,6 @@ pub struct PoolWarm {
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Branch {
-  pub ping_seconds: u64,
   pub title: String,
 }
 
@@ -37,7 +36,6 @@ pub struct PingWords {
   pub no_prefix: String,
   pub no_account: String,
   pub no_pane: String,
-  pub limit: String,
   pub no_key: String,
   pub no_upstream: String,
   pub other_upstream: String,

@@ -247,7 +247,6 @@ pub struct Session {
   pub generation: i64,
   pub holder: Option<String>,
   pub prefix_change_reason: Option<String>,
-  pub bound_ms: Option<i64>,
   pub options: Value,
   /// The share of its model's window the session may fill before it is folded once the turn that crossed it is over: the fold-ratio table's value for the provider it stands on and the tier its agent's work key is assigned, read with the session's state; none in a list, or where the state names no provider.
   #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1748,8 +1747,6 @@ pub struct SessionStart {
   pub scope: Value,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub room_id: Option<i64>,
-  #[serde(default, skip_serializing_if = "Option::is_none")]
-  pub bound_ms: Option<i64>,
   /// The runner line a thrown-away session goes out on with the instructions its caller hands in whole.
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub line: Option<String>,

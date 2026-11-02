@@ -4,7 +4,6 @@
 //! purpose asked.
 
 use std::sync::{Arc, LazyLock};
-use std::time::Duration;
 
 use bmo_agency_client::TranslationTerm;
 use harness_providers::registered::Registered;
@@ -33,9 +32,6 @@ pub const ROLE: &str = "translator";
 
 // The agent folder the purposes' instructions stand in, and the folder a run apart works in.
 const AGENT: &str = "translator";
-
-// How long one translation on Claude Code is waited for; one on the registry's provider names no wait.
-const ANSWER_WITHIN: Duration = Duration::from_secs(180);
 
 // The card the translations out at once on a registration share.
 static TRANSLATING: LazyLock<Arc<cards::Sharing>> = LazyLock::new(Arc::default);
@@ -353,7 +349,6 @@ impl Attempt<String> for OnLogin<'_> {
         model: self.model.to_owned(),
         effort: self.effort.clone(),
         tier: None,
-        bound: Some(ANSWER_WITHIN),
         parent: None,
         root: None,
       },

@@ -15,11 +15,6 @@ round_lead = "The text pasted after this line is this round, put in by the bot y
 # task of a run that keeps no session, carried out as the program's own instructions say.
 apart_lead = "The text pasted after this line is the task of this run, put in by the bot you run inside: carry it out as your instructions say."
 
-# How long a program is given to come up ready to be told something: the prefix is read off disk and the
-# program draws itself before it is idle, which is seconds. It also bounds a turn that was taken and never
-# started anything.
-ready_seconds = 120
-
 # How often the agent is asked what it is doing. A turn runs for minutes or hours, so this is paced for
 # the watching rather than for the answer.
 poll_ms = 1000
@@ -32,44 +27,13 @@ redraw_ms = 5000
 # typed did not take and the question still stands.
 trust_answers = 3
 
-# How long a person's turn working in the program is waited out before a turn of the bot's goes on
-# regardless (「Runs and sessions in one pane」).
-person_turn_minutes = 30
-
-# How long the status line's reading after a turn is waited for: the program makes it about a second
-# after the turn's end.
-account_ms = 5000
-
-# How long a pane back at rest is given to write the line that closes its turn: the words of a long answer
-# land after its thinking, and the pane can read as at rest first.
-settle_ms = 15000
-
-# How long a prompt that went in is given to be seen submitted, before `enter` is pressed once and again
-# after it. A submitted prompt shows within a second or two.
+# How long after a prompt went in, and between presses after that, `enter` is pressed again while the
+# prompt is not seen submitted. A submitted prompt shows within a second or two; the presses go on until
+# it is, and none of them ends the turn.
 submit_ms = 10000
 
-# How long words pushed into a working turn wait for a look at the working program to take them before
-# they are withdrawn and answered refused: the turn is looked at every poll, so words no look takes in a
-# few polls meet a program that is blocked, at rest or gone, and belong to the next turn.
-push_take_ms = 5000
-
-# How long a turn told to stop is given to end its work before it is cut short.
-stop_grace_seconds = 120
-
-# How long a program at rest may leave its record unchanged, while the count of the turns its round owes
-# still expects one, before the round is read as over. A program with words queued takes them within a
-# second of its turn ending.
-quiet_ms = 30000
-
-# How long herdr may answer none of a turn's looks before the turn ends on that silence, here and on a
-# work node, whose link may be down while its program keeps working there (docs/work-nodes.md, 「When a
-# node drops」).
-herdr_patience_seconds = 120
-node_patience_seconds = 600
-
-# The pane program that carries its own turn comes up in a second and writes its record line by line, so it
-# is given less time to stand and looked at more often (「The interactive surface a provider declares」).
-inbox_ready_seconds = 60
+# The pane program that carries its own turn writes its record line by line, so it is looked at more often
+# (「The interactive surface a provider declares」).
 inbox_poll_ms = 250
 
 # The most lines of a pane program's error stream one turn's run log takes (docs/run-records.md, 「Agent
@@ -81,10 +45,9 @@ stderr_lines = 300
 gone_looks = 3
 gone_gap_ms = 500
 
-# How long a program ended is waited on until its process is gone, looked at this often: until then
+# How often a program ended is looked at until its process is gone, however long that takes: until then
 # the place still names it and reads it alive (docs/agent-control.md, 「Stopping, falling back and
 # standing up again」).
-end_wait_ms = 3000
 end_poll_ms = 20
 
 # How full a session's context may be, as a share of its window, before it is folded once the turn that

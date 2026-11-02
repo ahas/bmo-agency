@@ -373,17 +373,10 @@ async fn put<W: Watch>(
   watch: &mut W,
 ) -> Result<SurfaceEnding, String> {
   let every = turn.clocks.poll.unwrap_or(Duration::from_millis(RESIDENT_TURN.inbox_poll_ms));
-  let ready = turn.clocks.ready.unwrap_or(Duration::from_secs(RESIDENT_TURN.inbox_ready_seconds));
-  let settle = turn.clocks.settle.unwrap_or(Duration::from_millis(RESIDENT_TURN.settle_ms));
-  let stood = match stand_resident(
-    ground,
-    place,
-    &turn.home,
-    program,
-    &turn.run.line,
-    ready,
-    Duration::from_millis(250),
-  )
+  let shared: &Execution = execution;
+  let stood = match stand_resident(ground, place, &turn.home, program, &turn.run.line, every, || {
+    shared.cancelled(ground, turn)
+  })
   .await
   {
     Ok(stood) => stood,
@@ -443,7 +436,6 @@ async fn put<W: Watch>(
       "id": id,
       "name": turn.name,
       "title": turn.title,
-      "timeoutMs": turn.timeout.map(|bound| bound.as_millis() as i64),
       "run": run,
     }),
     &id,
@@ -452,7 +444,6 @@ async fn put<W: Watch>(
   execution.set("state", json!("running"));
   execution.save(ground, turn).await;
 
-  let deadline = turn.timeout.map(|bound| prompted_at + bound.as_millis() as i64);
   let read = |records: &[Value]| {
     lines_of(records.get(from..).unwrap_or_default(), &id)
       .map(|lines| read_turn(lines, &turn.run, provider))
@@ -460,36 +451,25 @@ async fn put<W: Watch>(
   // How many of the turn's own lines the watch has been handed.
   let mut fed = 0;
   // The program this turn was put under, as the place first showed it: a program seen after it, or none
-  // at all once one stood, is the turn's own gone and the turn ended rather than waited on forever.
+  // at all once one stood, is the turn's own gone and the turn ended rather than waited on forever. A
+  // place that has named no program yet is waited on until it does.
   let mut known = started.as_ref().map(|running| (running.pid, running.birth.clone()));
-  let mut unseen = 0u32;
 
   loop {
-    let cut = if execution.cancelled(ground, turn).await {
-      Some(("the turn was stopped", "cancelled"))
-    } else if deadline.is_some_and(|deadline| now_ms() >= deadline) {
-      Some(("the turn ran past its time", "timeout"))
-    } else {
-      None
-    };
-
-    // A turn cut short is given a while to write that it was.
-    if let Some((why, ending)) = cut {
+    // A turn stopped is interrupted and waited on until it has written that it was, or its program is
+    // gone.
+    if execution.cancelled(ground, turn).await {
       interrupt_program(place, &turn.home, &pane, &interrupt_of(resident)).await;
 
-      let settle_by = tokio::time::Instant::now() + settle;
-
-      while tokio::time::Instant::now() < settle_by {
-        if read(&read_record(&place.path)).is_none_or(|(state, _, _)| state != State::Working) {
-          break;
-        }
-
+      while place.program_alive().is_some()
+        && read(&read_record(&place.path)).is_some_and(|(state, _, _)| state == State::Working)
+      {
         tokio::time::sleep(every).await;
       }
 
-      execution.ending = ending;
+      execution.ending = "cancelled";
 
-      return Ok(SurfaceEnding::Error(why.to_owned()));
+      return Ok(SurfaceEnding::Error("the turn was stopped".to_owned()));
     }
 
     let alive = place.program_alive();
@@ -500,11 +480,7 @@ async fn put<W: Watch>(
 
         true
       }
-      (None, None) => {
-        unseen += 1;
-
-        unseen < 40
-      }
+      (None, None) => true,
       (Some(_), None) => false,
     };
 

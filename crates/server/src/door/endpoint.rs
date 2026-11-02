@@ -94,12 +94,10 @@ pub async fn turn<W: Watch>(
       pasted_lead()
     },
     trusts_folder: true,
-    bound: asked.timeout,
+    clock: None,
     interrupt: interrupt_of(resident),
     timings: Timings {
-      ready: asked.clocks.ready.unwrap_or(base.ready),
       poll: asked.clocks.poll.unwrap_or(base.poll),
-      settle: asked.clocks.settle.unwrap_or(base.settle),
       ..base
     },
   };

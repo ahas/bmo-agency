@@ -291,15 +291,8 @@ async fn the_reading_before_a_turn_is_found_however_far_back_and_the_one_after_a
       append_lines(&path, &[reading(ended_at + 800, "other", 8), after]);
     })
   };
-  let around = status_after_turn(
-    dir.path(),
-    started_at,
-    ended_at,
-    Some("s"),
-    Duration::from_secs(10),
-    Duration::from_secs(1),
-  )
-  .await;
+  let around =
+    status_after_turn(dir.path(), started_at, ended_at, Some("s"), Duration::from_secs(1), || true).await;
 
   arriving.await.unwrap();
 

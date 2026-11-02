@@ -1,7 +1,7 @@
 //! A turn that goes nowhere: a tool failing again and again, calls repeating what answered before, and the
-//! calls and time the runs on the same words spent.
+//! calls the runs on the same words spent; however long they ran, time cuts nothing.
 
-use agency_server::companion::guard::{Guard, Spent, likeness, overtime, spent_out};
+use agency_server::companion::guard::{Guard, Spent, likeness, spent_out};
 use agency_server::run_log::lines::Line;
 use policy::companion_runner::Limits;
 
@@ -12,7 +12,6 @@ fn limits() -> Limits {
     repeat_window: 4,
     likeness: 0.9,
     calls: 10,
-    minutes: 1,
   }
 }
 
@@ -87,19 +86,10 @@ fn the_calls_count_on_from_what_the_runs_before_spent() {
       &limits,
       Spent {
         calls: 3,
-        ms: 60_000
-      }
-    ),
-    Some(overtime(&limits))
-  );
-  assert_eq!(
-    spent_out(
-      &limits,
-      Spent {
-        calls: 3,
-        ms: 59_999
+        ms: 24 * 60 * 60_000
       }
     ),
     None
   );
+  assert!(spent_out(&limits, Spent { calls: 10, ms: 0 }).is_some_and(|said| said.contains("10")));
 }

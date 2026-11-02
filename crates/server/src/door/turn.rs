@@ -41,8 +41,8 @@ use super::place_run::{
 };
 use super::record::{
   ChildReader, ModelSpend, Reply, ReplyWindow, RoundState, Tail, answered_since, ended_on_error,
-  last_activity, prompted_since, read_round, read_turn, status_figures, turn_closed_since, turn_error,
-  turns_owed, word_written_down,
+  ends_on_turn_end, last_activity, prompted_since, read_round, read_turn, status_figures,
+  turn_closed_since, turn_error, turns_owed, word_written_down,
 };
 use super::stand::{Interrupt, interrupt_program, person_turn_done, stand_resident, stood_again};
 use crate::control::claude_accounts;
@@ -61,63 +61,28 @@ pub fn pasted_lead() -> String {
 // The work key a pushed word's guard names: the job worker's.
 const JOB_WORK_KEY: &str = "job-worker";
 
-/// The clocks a turn keeps, as the shared policy declares them; a test shortens them.
+/// The paces a turn keeps, as the shared policy declares them; a test shortens them. None of them ends
+/// the turn or a wait in it: each says when to look again.
 #[derive(Clone, Debug)]
 pub struct Timings {
-  /// How long a program is given to come up ready to be told something; also the bound on a turn that
-  /// was taken and never started anything.
-  pub ready: Duration,
   /// How often the agent is asked what it is doing.
   pub poll: Duration,
   /// How long a question just answered may still stand on the screen before it is answered again.
   pub redraw: Duration,
-  /// How long a person's turn working in the program is waited out before this turn goes on.
-  pub person: Duration,
-  /// How long the status line's reading after the turn is waited for.
-  pub account: Duration,
-  /// How long a pane back at rest is given to write the line that closes its turn.
-  pub settle: Duration,
-  /// How long a prompt that went in is given to be seen submitted, before and after `enter`.
+  /// How long after the words went in, and between presses after that, `enter` is pressed again while
+  /// the prompt is not seen submitted.
   pub submit: Duration,
-  /// How long a turn told to stop is given to end its work before it is cut short.
-  pub stop_grace: Duration,
-  /// How long a program at rest may leave its record unchanged before a round whose count still
-  /// expects a turn is read as over.
-  pub quiet: Duration,
-  /// How long herdr may answer none of the turn's looks before the turn ends on that silence; none
-  /// for the policy's own, which is longer on a work node, whose link may be down while its program
-  /// keeps working there.
-  pub patience: Option<Duration>,
   pub gone: GoneConfirm,
 }
 
 impl Default for Timings {
   fn default() -> Self {
     let declared = &*RESIDENT_TURN;
-    // A test whose stand-in program is made to stay silent shortens the wait for it to come up.
-    let ready = std::env::var("BMO_PANE_READY_MS")
-      .ok()
-      .and_then(|named| named.parse::<u64>().ok())
-      .filter(|ms| *ms > 0)
-      .unwrap_or(declared.ready_seconds * 1000);
-    // A test whose stand-in program never writes the turn its round still owes shortens the wait for it.
-    let quiet = std::env::var("BMO_TURN_QUIET_MS")
-      .ok()
-      .and_then(|named| named.parse::<u64>().ok())
-      .filter(|ms| *ms > 0)
-      .unwrap_or(declared.quiet_ms);
 
     Self {
-      ready: Duration::from_millis(ready),
       poll: Duration::from_millis(declared.poll_ms),
       redraw: Duration::from_millis(declared.redraw_ms),
-      person: Duration::from_secs(declared.person_turn_minutes * 60),
-      account: Duration::from_millis(declared.account_ms),
-      settle: Duration::from_millis(declared.settle_ms),
       submit: Duration::from_millis(declared.submit_ms),
-      stop_grace: Duration::from_secs(declared.stop_grace_seconds),
-      quiet: Duration::from_millis(quiet),
-      patience: None,
       gone: GoneConfirm::default(),
     }
   }
@@ -166,8 +131,9 @@ pub struct Turn {
   pub lead: String,
   /// Whether the run trusts the directory it works in, which a caller says of its place.
   pub trusts_folder: bool,
-  /// How long the turn may take before its caller is asked about it; none for an unbounded turn.
-  pub bound: Option<Duration>,
+  /// How long the turn goes before its caller's overtime policy is asked about it; none for a turn
+  /// whose caller asks nothing. The clock ends nothing by itself.
+  pub clock: Option<Duration>,
   /// How the program's working turn is cut short.
   pub interrupt: Interrupt,
   pub timings: Timings,
@@ -183,7 +149,7 @@ pub enum AsideOutcome {
   Refused,
 }
 
-/// What a turn past its bound tells its caller: when it started, its bound, and the last thing its
+/// What a turn past its clock tells its caller: when it started, its clock, and the last thing its
 /// record says it did.
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -194,20 +160,21 @@ pub struct Overrun {
   pub last_activity: Option<String>,
 }
 
-/// What a caller answers a turn past its bound.
+/// What a caller answers a turn past its clock. Only `Cut` ends the turn, as the caller's own stop of it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Overtime {
-  /// The caller asks nothing at the bound, and the turn is cut there.
+  /// The caller asks nothing at the clock: the turn goes on, and is asked nothing again.
   NotAsked,
+  /// The caller stops the turn.
   Cut,
   /// Go on, and ask again at this moment.
   AskAgainAt(i64),
-  /// The one asked could not answer, and the turn is cut as a turn asked nothing is.
+  /// The one asked could not answer: the turn goes on, asked again once the clock's length has passed.
   Failed(String),
 }
 
 /// What a turn's caller is told while the turn runs and may say into it: the words it still has for
-/// the working turn, what became of them, what to do at the bound, and the notes a log would keep.
+/// the working turn, what became of them, what to do at the clock, and the notes a log would keep.
 /// Every method has the answer a caller with nothing to say gives.
 pub trait Watch {
   /// The execution row the turn runs under, once it is open: the name a stop of the turn is aimed at.
@@ -225,7 +192,7 @@ pub trait Watch {
     async {}
   }
 
-  /// Asked each time the turn's bound passes.
+  /// Asked each time the turn's clock passes.
   fn overtime(&mut self, _asked: &Overrun) -> impl Future<Output = Overtime> + Send {
     async { Overtime::NotAsked }
   }
@@ -280,9 +247,7 @@ pub enum Ending {
   },
   /// The pane went away under the run.
   Vanished { screen: String },
-  /// herdr answered none of the turn's looks for the whole of its patience.
-  Unanswered { screen: String },
-  /// The turn did not finish inside its bound.
+  /// The turn was cut on its caller's verdict once its clock had passed.
   Overran { screen: String },
   /// The turn came back to rest with no answer in its record.
   Silent { screen: String },
@@ -314,7 +279,6 @@ impl Ending {
       Self::Blocked { .. } => "blocked",
       Self::Untrusted { .. } => "untrusted",
       Self::Vanished { .. } => "vanished",
-      Self::Unanswered { .. } => "unanswered",
       Self::Overran { .. } => "overran",
       Self::Silent { .. } => "silent",
       Self::Errored { .. } => "errored",
@@ -328,7 +292,6 @@ impl Ending {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum End {
   Exited,
-  Timeout,
   Cancelled,
 }
 
@@ -336,7 +299,6 @@ impl End {
   fn word(self) -> &'static str {
     match self {
       Self::Exited => "exited",
-      Self::Timeout => "timeout",
       Self::Cancelled => "cancelled",
     }
   }
@@ -471,24 +433,28 @@ impl<W: Watch> Door<'_, W> {
     self.save().await;
   }
 
-  // What the record's account line written after `from` says the run spent, waited for as long as given;
-  // none where it does not come.
-  async fn account_line(&mut self, from: usize, wait: Duration) -> Option<Vec<ModelSpend>> {
-    let by = tokio::time::Instant::now() + wait;
+  // What the record's account line written after `from` says the run spent, written as the program of a
+  // pane closed ends: waited for until it comes or herdr says the pane is gone, and read once more then;
+  // none where it never came.
+  async fn account_line(&mut self, pane: &str, from: usize) -> Option<Vec<ModelSpend>> {
+    let written = |records: &[Value]| {
+      records
+        .iter()
+        .skip(from)
+        .any(|record| record.get("type").and_then(Value::as_str) == Some(COST_STATE))
+    };
 
     loop {
       let records = self.lines();
 
-      if records
-        .iter()
-        .skip(from)
-        .any(|record| record.get("type").and_then(Value::as_str) == Some(COST_STATE))
-      {
+      if written(&records) {
         return spend_since(&records, from);
       }
 
-      if tokio::time::Instant::now() >= by {
-        return None;
+      if pane_listed(self.herdr, pane).await == Some(false) {
+        let records = self.lines();
+
+        return written(&records).then(|| spend_since(&records, from)).flatten();
       }
 
       tokio::time::sleep(Duration::from_millis(100)).await;
@@ -594,10 +560,9 @@ impl<W: Watch> Door<'_, W> {
           ))
           .await;
       }
-      Trust::NoConfigDir | Trust::Unreadable | Trust::Busy => {
+      Trust::NoConfigDir | Trust::Unreadable => {
         let word = match trust {
           Trust::NoConfigDir => "no-config-dir".to_owned(),
-          Trust::Busy => "busy".to_owned(),
           _ if Path::new(&cwd).is_absolute() => "unreadable".to_owned(),
           _ => format!("Error: folder trust is kept by absolute path, not {cwd}"),
         };
@@ -654,7 +619,7 @@ impl<W: Watch> Door<'_, W> {
     let ground = self.ground;
     let names = [self.turn.name.clone(), self.row.id().to_owned(), self.row.root().to_owned()];
 
-    stood_again(place, was.as_ref(), self.turn.timings.ready, self.turn.timings.poll, || async {
+    stood_again(place, was.as_ref(), self.turn.timings.poll, || async {
       let names: Vec<&str> = names.iter().map(String::as_str).collect();
 
       cancelled(&ground.db, &names).await.unwrap_or(false)
@@ -663,14 +628,16 @@ impl<W: Watch> Door<'_, W> {
   }
 
   // Waiting for the program to be ready to be told something, keeping what its screen said meanwhile —
-  // the most worth reading is said by a program about to be gone. The folder-trust question a run that
-  // trusts its folder may answer is answered here, a bounded number of times, and the wait goes on.
+  // the most worth reading is said by a program about to be gone. The wait lasts until the program is at
+  // rest, stands at a question, or its pane is gone, and a herdr that does not answer is waited out. The
+  // folder-trust question a run that trusts its folder may answer is answered here, a counted number of
+  // times, and the wait goes on.
   async fn settled(&mut self, pane: &str) -> Result<(Look, String), String> {
     let timings = self.turn.timings.clone();
-    let deadline = tokio::time::Instant::now() + timings.ready;
     let mut screen = String::new();
     let mut answers = 0;
     let mut answered_at: Option<tokio::time::Instant> = None;
+    let mut silent = false;
 
     loop {
       self.check_launch().await?;
@@ -681,14 +648,20 @@ impl<W: Watch> Door<'_, W> {
         return Ok((now, screen));
       }
 
-      if matches!(now, Look::Silent(_)) {
-        if tokio::time::Instant::now() >= deadline {
-          return Ok((now, screen));
+      if let Look::Silent(cause) = &now {
+        if !silent {
+          silent = true;
+          self
+            .watch
+            .note(&fill_marks(&DOOR_WORDS.notes.herdr_silent, &[("cause", cause.as_str())]))
+            .await;
         }
 
         tokio::time::sleep(timings.poll).await;
         continue;
       }
+
+      silent = false;
 
       let seen = self.screen(pane).await;
 
@@ -699,10 +672,6 @@ impl<W: Watch> Door<'_, W> {
       // A program started again for this turn reads at rest from the one before it until it is up, and
       // words put in meanwhile are lost whole. A pane of the turn's own has only its own program.
       if now.at_rest() && self.standing.as_ref().is_none_or(|(place, _)| program_drawn(place)) {
-        return Ok((now, screen));
-      }
-
-      if tokio::time::Instant::now() >= deadline {
         return Ok((now, screen));
       }
 
@@ -718,6 +687,9 @@ impl<W: Watch> Door<'_, W> {
         self.watch.note(&DOOR_WORDS.notes.trusted_folder).await;
         answers += 1;
         answered_at = Some(tokio::time::Instant::now());
+      } else if now.is("blocked") && due {
+        // A question that is not the folder's, or one its answers did not clear: the turn's to handle.
+        return Ok((now, screen));
       }
 
       tokio::time::sleep(timings.poll).await;
@@ -725,8 +697,9 @@ impl<W: Watch> Door<'_, W> {
   }
 
   // Whether a prompt put in was submitted: the record gained a person's prompt after the turn began, or
-  // the pane went to work, within the wait. A pane gone, or stopped on a question, counts as taken, so
-  // the turn's own watching reads what it is doing.
+  // the pane went to work, within the submit pace; `Unsent` once the pace has passed with neither, for
+  // `enter` to be pressed again. A pane gone, or stopped on a question, counts as taken, so the turn's own
+  // watching reads what it is doing.
   async fn taken(&mut self, pane: &str, from: usize) -> Submit {
     let by = tokio::time::Instant::now() + self.turn.timings.submit;
 
@@ -782,13 +755,22 @@ impl<W: Watch> Door<'_, W> {
       return said;
     }
 
-    let by = tokio::time::Instant::now() + self.turn.timings.submit;
-
-    while !word_written_down(&self.lines(), at) && tokio::time::Instant::now() < by {
+    // Waited on until the record holds it, or the round no longer works and the word is the next
+    // round's.
+    while !word_written_down(&self.lines(), at) && self.round_state(from) == RoundState::Working {
       tokio::time::sleep(self.turn.timings.poll).await;
     }
 
     said
+  }
+
+  // Whether the turn's program still stands: a standing place's program alive, or a pane of the turn's
+  // own that herdr has not said is gone.
+  async fn program_stands(&self, pane: &str) -> bool {
+    match &self.standing {
+      Some((place, _)) => place.program_alive().is_some(),
+      None => status_of(self.herdr, pane, GoneConfirm::default()).await != Look::Gone,
+    }
   }
 
   fn round_state(&mut self, from: usize) -> RoundState {
@@ -965,22 +947,20 @@ async fn stand<W: Watch>(door: &mut Door<'_, W>, home: &Home) -> Result<String, 
   let waited = {
     let door = &*door;
 
-    person_turn_done(&place, home, turn.timings.person, turn.timings.poll, || door.check_launch()).await?
+    person_turn_done(&place, home, turn.timings.poll, || door.check_launch()).await?
   };
 
   if waited {
     door.watch.note(&DOOR_WORDS.notes.person_turn).await;
   }
 
-  stand_resident(
-    ground,
-    &place,
-    home,
-    &program,
-    &turn.line,
-    turn.timings.ready,
-    Duration::from_millis(250),
-  )
+  let names = [turn.name.clone(), door.row.id().to_owned(), door.row.root().to_owned()];
+
+  stand_resident(ground, &place, home, &program, &turn.line, Duration::from_millis(250), || async {
+    let names: Vec<&str> = names.iter().map(String::as_str).collect();
+
+    cancelled(&ground.db, &names).await.unwrap_or(false)
+  })
   .await
   .map(|stood| stood.pane)
   .map_err(|fault| format!("herdr would not take {}: {}: {}", turn.name, fault.code, fault.message))
@@ -1149,15 +1129,6 @@ async fn watch_turn<W: Watch>(
       return Ok(Ending::Vanished { screen });
     }
 
-    if matches!(ready, Look::Silent(_)) {
-      door.watch.note(&DOOR_WORDS.notes.herdr_silent_ready).await;
-      *ending = End::Cancelled;
-
-      return Ok(Ending::Unanswered {
-        screen: "herdr did not answer while the turn waited for its program".to_owned(),
-      });
-    }
-
     if !ready.at_rest() {
       // A question nobody is coming to answer, or no state at all: a wedge, given its one reset. The
       // folder-trust question in a run that trusts its folder is nobody's to answer: the trust is
@@ -1276,28 +1247,18 @@ async fn watch_turn<W: Watch>(
 
   // Accepted is not submitted: pasted words can stand in the input box unsent, and a program at rest
   // with words in its box reads exactly like one that has finished.
+  // `enter` is pressed again at each submit pace until the words are seen taken; an unsent box ends
+  // nothing.
   let mut taken = door.taken(pane, from).await;
 
-  if matches!(taken, Submit::Unsent) {
+  while matches!(taken, Submit::Unsent) {
+    if door.cancelled().await {
+      return Err("execution cancelled".to_owned());
+    }
+
     door.watch.note(&DOOR_WORDS.notes.enter_pressed).await;
     let _ = send_keys(door.herdr, pane, &["enter"]).await;
     taken = door.taken(pane, from).await;
-
-    if matches!(taken, Submit::Unsent) {
-      let shown = door.screen(pane).await;
-
-      door.watch.note(&DOOR_WORDS.notes.unsubmitted).await;
-      // The words left in the box would go out in front of the next turn's prompt.
-      door.interrupt(pane, &Interrupt::EndProgram).await;
-      *ending = End::Cancelled;
-
-      let screen = door.kept_screen(&DOOR_WORDS.screens.unsubmitted, shown).await;
-
-      return Ok(Ending::Unsubmitted {
-        screen,
-        why: "the words stood unsent in the input box after Enter".to_owned(),
-      });
-    }
   }
 
   door.row.set("state", json!("running"));
@@ -1305,34 +1266,26 @@ async fn watch_turn<W: Watch>(
   door.fed = Some(from);
 
   let mut worked = matches!(taken, Submit::Working);
-  let mut deadline = turn.bound.map(|bound| now_ms() + bound.as_millis() as i64);
-  // A prompt taken that never started anything, given as long as a program is given to come up, is a
-  // turn that came back silent rather than one to wait on for ever.
-  let mut unstarted_by = now_ms() + timings.ready.as_millis() as i64;
+  // When the caller's overtime policy is asked next; none once it asks nothing.
+  let mut ask_at = turn.clock.map(|clock| now_ms() + clock.as_millis() as i64);
+  // A command of the program's own writes no answer; it is over once its record has grown past it.
+  let command = turn.prompt.starts_with('/');
   let mut answer_from = from;
   // The moment since which a failed request's end is this turn's, moved with the words owed after a
   // refusal.
   let mut failed_from = prompted_at;
-  let mut stop_asked_at: Option<i64> = None;
+  let mut stop_asked = false;
   let mut silent_since: Option<i64> = None;
-  let patience = timings.patience.unwrap_or_else(|| {
-    Duration::from_secs(if door.standing.as_ref().and_then(|(place, _)| place.node()).is_some() {
-      RESIDENT_TURN.node_patience_seconds
-    } else {
-      RESIDENT_TURN.herdr_patience_seconds
-    })
-  });
 
   loop {
-    // Stopped from outside while the turn was running. A job is asked to end its work first and cut
-    // short with the surface's interrupt once the grace is spent while it still works; a chat round has
-    // no work of its own to wind down and is cut short at once. A pane of the turn's own is closed with
-    // the turn, which ends its program.
+    // Stopped from outside while the turn was running. A job is asked to end its work and waited on
+    // until it has, however long its ending takes; a chat round has no work of its own to wind down and
+    // is cut short at once. A pane of the turn's own is closed with the turn, which ends its program.
     if door.watch.stopping() || door.cancelled().await {
       let asks_first = turn.line != "chat";
 
-      if door.standing.is_some() && stop_asked_at.is_none() {
-        stop_asked_at = Some(now_ms());
+      if door.standing.is_some() && !stop_asked {
+        stop_asked = true;
 
         if asks_first {
           if let Some(why) =
@@ -1348,22 +1301,23 @@ async fn watch_turn<W: Watch>(
         }
       }
 
-      if let Some(asked) = stop_asked_at {
+      if stop_asked {
         let standing = status_of(door.herdr, pane, GoneConfirm::default()).await;
 
-        if asks_first && now_ms() - asked < timings.stop_grace.as_millis() as i64 && standing.is("working")
-        {
+        // A job told to stop ends its turn itself; a herdr that does not answer has not said it has.
+        if asks_first && (standing.is("working") || matches!(standing, Look::Silent(_))) {
           tokio::time::sleep(every).await;
           continue;
         }
 
         if standing.is("working") {
           door.interrupt(pane, &turn.interrupt).await;
-          // The row closes as a stop on the interrupted marker the program writes, looked for a bounded
-          // while.
-          let settle_by = now_ms() + timings.settle.as_millis() as i64;
 
-          while door.round_state(from) == RoundState::Working && now_ms() < settle_by {
+          // The row closes as a stop on the interrupted marker the program writes, looked for until it
+          // is written or the program reads at rest or gone.
+          while door.round_state(from) == RoundState::Working
+            && status_of(door.herdr, pane, GoneConfirm::default()).await.is("working")
+          {
             tokio::time::sleep(every).await;
           }
         }
@@ -1377,37 +1331,38 @@ async fn watch_turn<W: Watch>(
       return Ok(Ending::Stopped { screen });
     }
 
-    if let (Some(at), Some(bound)) = (deadline, turn.bound)
+    // Past its clock the caller's policy is asked, and only its verdict cuts the turn.
+    if let (Some(at), Some(clock)) = (ask_at, turn.clock)
       && now_ms() >= at
     {
       let activity = last_activity(&door.lines(), from);
       let asked = Overrun {
         started_at: prompted_at,
-        bound_ms: bound.as_millis() as i64,
+        bound_ms: clock.as_millis() as i64,
         last_activity_at: activity.at,
         last_activity: activity.what,
       };
 
       match door.watch.overtime(&asked).await {
-        Overtime::AskAgainAt(again) => deadline = Some(again.max(now_ms() + 1)),
+        Overtime::AskAgainAt(again) => ask_at = Some(again.max(now_ms() + 1)),
+        Overtime::NotAsked => ask_at = None,
         Overtime::Failed(why) => {
           door
             .watch
             .note(&fill_marks(&DOOR_WORDS.notes.overrun_unasked, &[("why", &why.to_string())]))
             .await;
+          ask_at = Some(now_ms() + clock.as_millis() as i64);
         }
-        Overtime::Cut | Overtime::NotAsked => {}
+        Overtime::Cut => {
+          door.interrupt(pane, &turn.interrupt).await;
+          *ending = End::Cancelled;
+
+          let shown = door.screen(pane).await;
+          let screen = door.kept_screen(&DOOR_WORDS.screens.overran, shown).await;
+
+          return Ok(Ending::Overran { screen });
+        }
       }
-    }
-
-    if deadline.is_some_and(|at| now_ms() >= at) {
-      door.interrupt(pane, &turn.interrupt).await;
-      *ending = End::Timeout;
-
-      let shown = door.screen(pane).await;
-      let screen = door.kept_screen(&DOOR_WORDS.screens.overran, shown).await;
-
-      return Ok(Ending::Overran { screen });
     }
 
     let now = status_of(door.herdr, pane, timings.gone).await;
@@ -1421,33 +1376,15 @@ async fn watch_turn<W: Watch>(
       });
     }
 
-    // herdr said nothing either way: the record is read on and herdr asked again, and only a silence
-    // that outlasts the patience ends the turn, as the silence it is.
+    // herdr said nothing either way: the record is read on and herdr asked again, however long the
+    // silence lasts; it ends nothing.
     if let Look::Silent(cause) = &now {
-      let since = match silent_since {
-        Some(since) => since,
-        None => {
-          door
-            .watch
-            .note(&fill_marks(&DOOR_WORDS.notes.herdr_silent, &[("cause", &cause.to_string())]))
-            .await;
-          *silent_since.insert(now_ms())
-        }
-      };
-
-      if now_ms() - since >= patience.as_millis() as i64 {
+      if silent_since.is_none() {
         door
           .watch
-          .note(&fill_marks(
-            &DOOR_WORDS.notes.herdr_gave_up,
-            &[("seconds", &((now_ms() - since) as f64 / 1000.0).round().to_string())],
-          ))
+          .note(&fill_marks(&DOOR_WORDS.notes.herdr_silent, &[("cause", &cause.to_string())]))
           .await;
-        *ending = End::Cancelled;
-
-        return Ok(Ending::Unanswered {
-          screen: "herdr did not answer while the turn was running".to_owned(),
-        });
+        silent_since = Some(now_ms());
       }
 
       tokio::time::sleep(every).await;
@@ -1511,7 +1448,6 @@ async fn watch_turn<W: Watch>(
         answer_from = door.lines().len();
         failed_from = now_ms();
         worked = false;
-        unstarted_by = now_ms() + timings.ready.as_millis() as i64;
         tokio::time::sleep(every).await;
         continue;
       }
@@ -1523,8 +1459,14 @@ async fn watch_turn<W: Watch>(
       break;
     }
 
-    if now.at_rest() && !worked && now_ms() >= unstarted_by {
-      break;
+    // Back at rest never seen working and with no answer: over once the record closes a turn after the
+    // prompt, or, for a command of the program's own, once the record has grown past it.
+    if now.at_rest() && !worked {
+      let records = door.lines();
+
+      if turn_closed_since(&records, answer_from) || (command && records.len() > answer_from) {
+        break;
+      }
     }
 
     // Only while it is working: a word pushed at an agent that has not started is one the turn's own
@@ -1564,30 +1506,30 @@ async fn watch_turn<W: Watch>(
   }
 
   // At rest is not over: the program's screen can come to rest before the answer of a turn of a second or
-  // two has reached its record, so a turn seen at work is given the settling while for its answer to be
-  // written, and the record's closing line comes after the last of the answer's words.
-  let settle_by = now_ms() + timings.settle.as_millis() as i64;
-
-  while worked && !answered_since(&door.lines(), answer_from) && now_ms() < settle_by {
-    tokio::time::sleep(every).await;
-  }
-
-  if answered_since(&door.lines(), answer_from) {
-    while !turn_closed_since(&door.lines(), answer_from) && now_ms() < settle_by {
+  // two has reached its record, and the record's closing line comes after the last of the answer's words.
+  // So a turn seen at work, or one that answered, is over once that line is written, waited for until it
+  // is; one a person interrupted writes the interrupted marker instead, and a turn stopped meanwhile, or
+  // one whose program is gone, is read as it stands.
+  if worked || answered_since(&door.lines(), answer_from) {
+    while !turn_closed_since(&door.lines(), answer_from)
+      && door.round_state(answer_from) != RoundState::Interrupted
+      && door.program_stands(pane).await
+      && !door.cancelled().await
+    {
       tokio::time::sleep(every).await;
     }
   }
 
   // The program holds on to what it was handed and takes it as a turn of its own once the turn it was
   // in has ended, so the round is over only once nothing it was handed is still queued and every turn
-  // it owes has written its end. A program at rest whose record has stopped growing has nothing still
-  // to come, and the wait ends there and says what the count still expected. A program of the turn's own
-  // is handed nothing past its prompt.
+  // it owes has written its end. The count can expect a turn none is coming for — a notice queued twice
+  // under one task — so a program reading at rest on two looks in a row, its record unchanged between
+  // them and ending on a turn's end, has nothing still to come, and the wait ends there and says what the
+  // count still expected. A program of the turn's own is handed nothing past its prompt.
   if door.standing.is_some() && answered_since(&door.lines(), from) {
-    let mut grown = door.lines().len();
-    let mut quiet_since = now_ms();
+    let mut rested_at: Option<usize> = None;
 
-    while !door.cancelled().await && deadline.is_none_or(|at| now_ms() < at) {
+    while !door.cancelled().await {
       let records = door.lines();
       let round = records.get(from..).unwrap_or_default();
 
@@ -1595,13 +1537,15 @@ async fn watch_turn<W: Watch>(
         break;
       }
 
-      if from + round.len() != grown {
-        grown = from + round.len();
-        quiet_since = now_ms();
-      } else if now_ms() - quiet_since >= timings.quiet.as_millis() as i64 {
-        let now = status_of(door.herdr, pane, GoneConfirm::default()).await;
+      let now = status_of(door.herdr, pane, GoneConfirm::default()).await;
 
-        if now.at_rest() {
+      // A program gone owes nothing more.
+      if now == Look::Gone || !door.program_stands(pane).await {
+        break;
+      }
+
+      if now.at_rest() && ends_on_turn_end(round) {
+        if rested_at == Some(records.len()) {
           let owed = turns_owed(round);
           let ended = round
             .iter()
@@ -1616,7 +1560,6 @@ async fn watch_turn<W: Watch>(
             .note(&fill_marks(
               &DOOR_WORDS.notes.quiet,
               &[
-                ("seconds", &((now_ms() - quiet_since) as f64 / 1000.0).round().to_string()),
                 ("queued", &owed.queued.to_string()),
                 ("owed", &owed.owed.to_string()),
                 ("ended", &ended.to_string()),
@@ -1625,6 +1568,10 @@ async fn watch_turn<W: Watch>(
             .await;
           break;
         }
+
+        rested_at = Some(records.len());
+      } else {
+        rested_at = None;
       }
 
       tokio::time::sleep(every).await;
@@ -1666,7 +1613,7 @@ async fn watch_turn<W: Watch>(
     // price.
     let _ = door.herdr.call("pane.close", json!({ "pane_id": pane }), None).await;
 
-    let spend = door.account_line(records.len(), timings.account).await;
+    let spend = door.account_line(pane, records.len()).await;
 
     door.close("exited").await;
 
@@ -1688,8 +1635,11 @@ async fn watch_turn<W: Watch>(
     .rev()
     .find(|hook| hook.ends_turn())
     .map_or_else(now_ms, |hook| hook.at);
-  let around =
-    status_after_turn(&place, prompted_at, stopped_at, Some(&turn.session), timings.account, every).await;
+  let standing = door.standing.as_ref().map(|(standing, _)| standing);
+  let around = status_after_turn(&place, prompted_at, stopped_at, Some(&turn.session), every, || {
+    standing.is_some_and(|standing| standing.program_alive().is_some())
+  })
+  .await;
   // The windows are the login's that made the reading, named by the reading itself; a reading that
   // names no registered login is written under nobody.
   let data = &door.ground.roots.data;

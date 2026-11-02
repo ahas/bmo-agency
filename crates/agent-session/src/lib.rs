@@ -42,8 +42,8 @@ pub enum Scope {
 }
 
 /// What a thrown-away session is started on: the provider, the model and the folder its turns go out on,
-/// the item and role a co-work branch's place labels its run with, none for any other, and how long each of
-/// its turns may take, none for no bound. A session on a runner line names the line and hands its
+/// the item and role a co-work branch's place labels its run with, none for any other. Its turns carry no
+/// clock: each lasts until it ends or is stopped. A session on a runner line names the line and hands its
 /// instructions in whole, with the labels its record carries — a JSON object's text — and the capabilities
 /// that record keeps, none keeping every one the line and its agent's role give; a session naming no
 /// instructions goes out on the worker line.
@@ -54,7 +54,6 @@ pub struct Apart {
   pub cwd: String,
   pub todo: Option<i64>,
   pub role: Option<String>,
-  pub bound_ms: Option<i64>,
   pub line: Option<String>,
   pub system_prompt: Option<String>,
   pub labels: Option<String>,

@@ -5,9 +5,6 @@
 //! place's own lock without waiting, keeps no session, and publishes what it spent under the place's own
 //! name.
 
-use std::time::Instant;
-
-use agent_host::envelope::Cause;
 use policy::fill_marks;
 use policy::keepalive::KEEPALIVE;
 use policy::pool_warm::POOL_WARM;
@@ -125,7 +122,7 @@ async fn in_place(
     name: place.name.clone(),
     title: place.title.clone(),
     prompt: KEEPALIVE.prompt.clone(),
-    bound: Some(place.timeout),
+    clock: None,
   };
   let turn = compose_at(ground, &run.agent, home, &run.line, account, None, composed)
     .await
@@ -245,7 +242,6 @@ async fn stand_in<S: StandIn>(ground: &Ground, place: &WarmPlace, road: &S) -> R
     Err(why) => return Ok(Pinged::Failed(why.detail)),
   };
   let own = own_unit(ground.env());
-  let started = Instant::now();
   let ran = host_run::run(
     ground,
     host_run::Asked {
@@ -268,13 +264,6 @@ async fn stand_in<S: StandIn>(ground: &Ground, place: &WarmPlace, road: &S) -> R
     Err(host_run::Failure::Transport(why)) => return Err(fault(why)),
     Err(failure) => return Ok(Pinged::Failed(failure.said())),
   };
-
-  // A run cut at its wait is that, whatever its program last said on the way out.
-  if ran.cause != Cause::Exited && started.elapsed() >= place.timeout {
-    let minutes = (place.timeout.as_secs_f64() / 60.0).round().to_string();
-
-    return Ok(Pinged::Failed(fill_marks(&POOL_WARM.pings.limit, &[("minutes", &minutes)])));
-  }
 
   let reply = road.answer(ground, &run, &ran);
 

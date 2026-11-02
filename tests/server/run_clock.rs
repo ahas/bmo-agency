@@ -1,8 +1,8 @@
-//! A run held to a clock is asked about past its bound rather than cut (docs/agent-control.md, 「A clock asks
-//! before it cuts」): its clock read by its name and the unit it runs under, an ask opened and published past
-//! the bound, a keep holding it until its moment, a cut and a want of a verdict cutting it with whose call it
-//! was, a verdict on a closed ask refused, and the run's end closing what stood open — on a store of the
-//! test's own.
+//! A run held to a clock is asked about past it, never cut by it (docs/agent-control.md, 「A clock asks, it
+//! never cuts」): its clock read by its name and the unit it runs under, an ask opened and published past the
+//! clock, a keep holding it until its moment, the chat agent's cut cutting it, an ask with no verdict standing
+//! for as long as the run goes, a verdict on a closed ask refused, and the run's end closing what stood open —
+//! on a store of the test's own.
 
 use std::time::Duration;
 
@@ -22,7 +22,7 @@ fn clocked(run: &str) -> Clocked {
     work_key: "voice-reading".to_owned(),
     agent: Some("companion".to_owned()),
     what: "The voice-reading run".to_owned(),
-    bound: Duration::from_secs(60),
+    clock: Duration::from_secs(60),
   }
 }
 
@@ -63,7 +63,7 @@ async fn a_clocked_run_is_asked_about_kept_and_cut_on_the_chat_agents_verdict() 
     (ask.run.as_str(), ask.agent.as_str(), ask.verb.as_str()),
     ("run-one", "companion", "bmo-agency overtime")
   );
-  assert_eq!(clock_of(db, "run-one").await.unwrap().kept_until, Some(ask.answer_by));
+  assert_eq!(clock_of(db, "run-one").await.unwrap().kept_until, None);
   assert_eq!(open_asks(db).await.unwrap().len(), 1);
 
   let kept = settle(db, &bus, ask.ask, &Verdict::Keep(Some(20)), "still reading").await.unwrap();
@@ -97,7 +97,7 @@ async fn a_clocked_run_is_asked_about_kept_and_cut_on_the_chat_agents_verdict() 
 }
 
 #[tokio::test]
-async fn an_ask_with_no_verdict_by_its_moment_is_cut_by_agency_and_one_open_at_the_end_closes_as_ended() {
+async fn an_ask_with_no_verdict_stands_while_the_run_goes_and_closes_as_ended_at_its_end() {
   let scratch = Scratch::new().await;
   let db = scratch.db();
   let bus = Bus::default();
@@ -110,18 +110,19 @@ async fn an_ask_with_no_verdict_by_its_moment_is_cut_by_agency_and_one_open_at_t
   let mut watch = Asked::new(Quiet, db, &bus, &clock);
 
   watch.overtime(&overdue()).await;
-  scratch.run(r#"UPDATE "clock_asks" SET "answer_by" = 1"#, vec![]).await;
 
-  assert_eq!(watch.overtime(&overdue()).await, Overtime::Cut);
-  assert!(watch.cut.as_deref().unwrap().contains("no verdict came"));
-  assert_eq!(closed_events.ready().unwrap().by.as_deref(), Some("agency"));
-
-  let mut other = Asked::new(Quiet, db, &bus, &clock);
-
-  other.overtime(&overdue()).await;
-
-  let _cut = asked_events.ready();
   let open_ask = asked_events.ready().unwrap();
+
+  // However long it stands unanswered, the run is only looked at again.
+  scratch.run(r#"UPDATE "clock_asks" SET "asked_at" = 1"#, vec![]).await;
+
+  for _ in 0..3 {
+    assert!(matches!(watch.overtime(&overdue()).await, Overtime::AskAgainAt(_)));
+  }
+
+  assert!(watch.cut.is_none());
+  assert!(closed_events.ready().is_none());
+  assert_eq!(open_asks(db).await.unwrap().len(), 1);
 
   close(db, &bus, "run-two").await.unwrap();
 

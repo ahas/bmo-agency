@@ -64,13 +64,10 @@ pub fn is_blocked(fault: &Fault) -> bool {
   fault.code == AGENT_BLOCKED
 }
 
-// One of a look's list calls, sent again once where herdr let the first time out: a stall under load runs
-// a few seconds past one call's wait. A refusal or a broken connection is herdr's answer as it stands.
+// One of a look's list calls, waited on until herdr answers it: a stall under load is waited out. A
+// refusal or a broken connection is herdr's answer as it stands.
 async fn list_call(herdr: &Herdr, method: &str) -> Result<Value, Fault> {
-  match herdr.call(method, json!({}), None).await {
-    Err(fault) if fault.code == "timeout" => herdr.call(method, json!({}), None).await,
-    answer => answer,
-  }
+  herdr.call(method, json!({}), None).await
 }
 
 /// Whether herdr lists a pane, or none where it did not answer.

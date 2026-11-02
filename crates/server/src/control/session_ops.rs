@@ -310,7 +310,6 @@ pub fn scope_asked(body: &Value) -> Result<Scope, Refused> {
           cwd,
           todo: number(&options, "todo").or_else(|| number(body, "todo")),
           role: field("role").map(str::to_owned),
-          bound_ms: number(body, "boundMs").filter(|bound| *bound > 0),
           ..runner
         }))
       }
@@ -442,7 +441,6 @@ fn member(session: &Session, state: Option<&State>, body: &Value) -> Value {
     "generation": state.map(|state| state.generation).unwrap_or(0),
     "holder": Value::Null,
     "prefixChangeReason": Value::Null,
-    "boundMs": number(body, "boundMs"),
     "options": body.get("options").cloned().unwrap_or_else(|| json!({})),
     "context": state
       .and_then(|state| state.context)

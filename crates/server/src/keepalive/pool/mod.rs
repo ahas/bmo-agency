@@ -16,7 +16,6 @@ use std::collections::HashSet;
 use std::future::Future;
 use std::path::PathBuf;
 use std::pin::Pin;
-use std::time::Duration;
 
 use store::{one, run};
 
@@ -64,7 +63,6 @@ pub struct WarmPlace {
   pub usage_name: String,
   /// The place's own lock, asked for without waiting: a place a task is working in is that task's.
   pub lock: PathBuf,
-  pub timeout: Duration,
 }
 
 /// One place as its kind keeps it: the prefix, whether work is in it now, and what an answered ping does

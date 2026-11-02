@@ -1,6 +1,6 @@
 //! Words offered to a run's working turn: taken only while its door listens, answered with what became of
-//! them, withdrawn where no look took them, refused as the door stops listening, and carried by a later run
-//! of the same turn until its session lets the run go.
+//! them, standing until a look takes them or the door stops listening, which refuses them, and carried by a
+//! later run of the same turn until its session lets the run go.
 
 use agency_server::door::aside;
 use agency_server::door::turn::AsideOutcome;
@@ -14,7 +14,6 @@ async fn an_offer_is_taken_while_the_door_listens_and_answered_with_its_outcome(
   let taken = listening.take().unwrap();
 
   assert_eq!(taken.words, "more words");
-  assert!(!offer.withdraw(), "the door has it");
 
   listening.said(taken, AsideOutcome::Delivered);
 
@@ -28,17 +27,14 @@ async fn an_offer_is_taken_while_the_door_listens_and_answered_with_its_outcome(
 }
 
 #[tokio::test]
-async fn an_offer_no_look_took_is_withdrawn_or_refused_as_the_door_stops() {
+async fn an_offer_no_look_took_stands_until_the_door_stops_and_is_refused_then() {
   let listening = aside::listen("aside-untaken");
-  let withdrawn = aside::offer("aside-untaken", "first").unwrap();
-
-  assert!(withdrawn.withdraw());
-  assert!(listening.take().is_none());
-
-  let waiting = aside::offer("aside-untaken", "second").unwrap();
+  let first = aside::offer("aside-untaken", "first").unwrap();
+  let second = aside::offer("aside-untaken", "second").unwrap();
 
   drop(listening);
 
-  assert_eq!(waiting.answer.await.unwrap(), AsideOutcome::Refused);
+  assert_eq!(first.answer.await.unwrap(), AsideOutcome::Refused);
+  assert_eq!(second.answer.await.unwrap(), AsideOutcome::Refused);
   assert!(aside::offer("aside-untaken", "third").is_none());
 }

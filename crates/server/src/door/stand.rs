@@ -126,19 +126,24 @@ const RECORD_BACKSTOP: Duration = Duration::from_secs(24 * 3_600);
 /// The program the turn needs, standing. A place already running it is left as it is, and so is one
 /// running another program while its record says a turn of it works. A different program is written and
 /// the one standing ended, which the loop answers by starting the new one in the
-/// same pane; a pane that is not there is stood up. The turn then waits, bounded, for the program to be
-/// up. A program in a start loop, or one that does not come up in that wait, has its place rebuilt and
-/// is waited on once more. A program about to be written is handed its session token first, and a tool
-/// host that does not answer refuses the turn before anything is written.
-pub async fn stand_resident(
+/// same pane; a pane that is not there is stood up. The turn then waits for the program to be up, for
+/// its start failure to be written, or for `stop` to say the turn was stopped, however long that takes.
+/// A program in a start loop has its place rebuilt and is waited on once more; one still in a loop
+/// after that is not coming up. A program about to be written is handed its session token first, and a
+/// tool host that does not answer refuses the turn before anything is written.
+pub async fn stand_resident<F, Fut>(
   ground: &Ground,
   place: &Place,
   home: &Home,
   program: &Program,
   line: &str,
-  wait: Duration,
   poll: Duration,
-) -> Result<Stood, Fault> {
+  stop: F,
+) -> Result<Stood, Fault>
+where
+  F: Fn() -> Fut,
+  Fut: Future<Output = bool>,
+{
   // A program is stood afresh only between its turns: one whose own record says a turn works is left
   // standing, the turn asking for it going in as it stands, and the next stand after that turn replaces it.
   if let Some(up) = place.program_alive()
@@ -204,7 +209,6 @@ pub async fn stand_resident(
 
   loop {
     let stood = home.stand().await?;
-    let deadline = tokio::time::Instant::now() + wait;
 
     loop {
       if let Some(up) = place.program_alive()
@@ -228,26 +232,34 @@ pub async fn stand_resident(
         ));
       }
 
-      if tokio::time::Instant::now() >= deadline {
-        break;
+      if stop().await {
+        return Err(fault(
+          "stopped",
+          format!("the turn on {} was stopped while its program came up", home.agent),
+        ));
+      }
+
+      // A program in a start loop has its place rebuilt once, as soon as the place may be rebuilt again;
+      // one that loops again after that is not coming up.
+      if looping(place.running().as_ref(), &program.identity, now_ms()) {
+        if rebuilt {
+          return Err(fault(
+            "program_not_up",
+            format!(
+              "the resident program of {} keeps ending as it starts, its place rebuilt once already",
+              home.agent
+            ),
+          ));
+        }
+
+        if rebuild(place, home, Some(&stood.head_pane)).await {
+          rebuilt = true;
+          break;
+        }
       }
 
       tokio::time::sleep(poll).await;
     }
-
-    if rebuilt || !rebuild(place, home, Some(&stood.head_pane)).await {
-      return Err(fault(
-        "program_not_up",
-        format!(
-          "the resident program of {} did not come up within {}ms{}",
-          home.agent,
-          wait.as_millis(),
-          if rebuilt { " of its place being rebuilt" } else { "" }
-        ),
-      ));
-    }
-
-    rebuilt = true;
   }
 }
 
@@ -268,24 +280,20 @@ pub async fn interrupt_program(place: &Place, home: &Home, pane: &str, interrupt
   }
 }
 
-// A program just ended, waited on until its process is gone, bounded: until then the place still
-// names it and reads it alive, and whatever reads the place next would take it for the one standing.
+// A program just ended, waited on until its process is gone: until then the place still names it and
+// reads it alive, and whatever reads the place next would take it for the one standing.
 async fn gone(place: &Place, running: &RunningProgram) {
-  let by = tokio::time::Instant::now() + Duration::from_millis(RESIDENT_TURN.end_wait_ms);
-
-  while place.alive(running.pid, running.birth.as_deref()) && tokio::time::Instant::now() < by {
+  while place.alive(running.pid, running.birth.as_deref()) {
     tokio::time::sleep(Duration::from_millis(RESIDENT_TURN.end_poll_ms)).await;
   }
 }
 
 /// Whether a program ended for a reset stands again: its place's record naming a different process from
 /// the one just ended. The record is what says so, since a pane whose program is gone can still read as
-/// it did a moment before. Given as long as a pane is given to come up; a turn cancelled while it waits
-/// stops here.
+/// it did a moment before. Waited for until it does; a turn cancelled while it waits stops here.
 pub async fn stood_again<F, Fut>(
   place: &Place,
   was: Option<&RunningProgram>,
-  wait: Duration,
   every: Duration,
   stop: F,
 ) -> bool
@@ -293,8 +301,6 @@ where
   F: Fn() -> Fut,
   Fut: Future<Output = bool>,
 {
-  let by = tokio::time::Instant::now() + wait;
-
   loop {
     if let Some(now) = place.running()
       && was.is_none_or(|was| now.pid != was.pid || now.started_at != was.started_at)
@@ -302,7 +308,7 @@ where
       return true;
     }
 
-    if stop().await || tokio::time::Instant::now() >= by {
+    if stop().await {
       return false;
     }
 
@@ -312,13 +318,13 @@ where
 
 /// A person's turn working in the place's program, waited out: while the place names a person's turn
 /// still open and the pane reads working or waiting on a question, a turn of the bot's neither stands,
-/// replaces nor resets the program nor puts words in. Bounded, since a person's turn cut short by an
-/// Escape never has its end recorded. Answers whether there was one to wait for; `check` refuses the
-/// wait where the turn was cancelled meanwhile.
+/// replaces nor resets the program nor puts words in. A person's turn cut short by an Escape never has
+/// its end recorded, so the pane reading neither working nor waiting on a question ends the wait as well.
+/// Answers whether there was one to wait for; `check` refuses the wait where the turn was cancelled
+/// meanwhile.
 pub async fn person_turn_done<F, Fut>(
   place: &Place,
   home: &Home,
-  wait: Duration,
   every: Duration,
   check: F,
 ) -> Result<bool, String>
@@ -326,7 +332,6 @@ where
   F: Fn() -> Fut,
   Fut: Future<Output = Result<(), String>>,
 {
-  let deadline = tokio::time::Instant::now() + wait;
   let mut waited = false;
 
   loop {
@@ -343,10 +348,6 @@ where
     let now = status_of(&home.herdr, &pane, GoneConfirm::default()).await;
 
     if !(now.is("working") || now.is("blocked") || matches!(now, Look::Silent(_))) {
-      return Ok(waited);
-    }
-
-    if tokio::time::Instant::now() >= deadline {
       return Ok(waited);
     }
 

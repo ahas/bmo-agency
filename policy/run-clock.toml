@@ -1,9 +1,6 @@
-# The clock a run of work is held to and the ask put past it (docs/agent-control.md, 「A clock asks
-# before it cuts」), read by the server as it carries a clocked run and by the verb that answers an ask.
-
-# How long an ask waits for the chat agent's verdict before agency cuts the run itself: the run holds a
-# lock or a place others wait on the whole while.
-answer_wait_seconds = 1800
+# The clock a run of work is held to and the ask put past it (docs/agent-control.md, 「A clock asks, it
+# never cuts」), read by the server as it carries a clocked run and by the verb that answers an ask. An ask
+# stands until the chat agent's verdict or the run's end; nothing cuts a run for want of a verdict.
 
 # How often a run waiting on a verdict looks for one.
 look_every_seconds = 5
@@ -17,6 +14,5 @@ kept_days = 7
 # The command a verdict is given with, which an ask names for the order that carries it.
 verb = "bmo-agency overtime"
 
-# Why a run cut on its clock failed: whose call it was, with the clock's length in minutes.
+# Why a run cut on its clock failed: the chat agent's call, with the clock's length in minutes.
 cut_by_agent = "cut at its {minutes}-minute clock on the chat agent's call: {why}"
-cut_by_agency = "cut at its {minutes}-minute clock: no verdict came within {wait} minutes"

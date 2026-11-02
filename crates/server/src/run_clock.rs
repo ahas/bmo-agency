@@ -1,8 +1,8 @@
-//! A run held to a clock is asked about past its bound rather than cut (docs/agent-control.md, 「A clock
-//! asks before it cuts」). The clocked run is a row of `run_clocks` while it goes; past its bound an ask is a
-//! row of `clock_asks`, published as `clock-asked` for the consumer that queues the order in the owner's
-//! chat, and the run's door looks for the verdict on each pass until one comes or the wait for it runs
-//! out, when agency cuts the run itself. A run that ends while asked closes its ask as ended.
+//! A run held to a clock is asked about past it, never cut by it (docs/agent-control.md, 「A clock asks, it
+//! never cuts」). The clocked run is a row of `run_clocks` while it goes; past its clock an ask is a row of
+//! `clock_asks`, published as `clock-asked` for the consumer that queues the order in the owner's chat, and
+//! the run's door looks for the verdict on each pass for as long as the run goes. Only the chat agent's
+//! verdict cuts it. A run that ends while asked closes its ask as ended.
 
 use std::time::Duration;
 
@@ -37,7 +37,6 @@ pub struct ClockAsked {
   pub bound_ms: i64,
   pub last_activity_at: Option<i64>,
   pub last_activity: Option<String>,
-  pub answer_by: i64,
   pub verb: String,
 }
 
@@ -45,7 +44,7 @@ impl Event for ClockAsked {
   const NAME: &'static str = "overtime-request.created";
 }
 
-/// An ask settled: by a verdict, by agency for want of one, or by its run ending while asked.
+/// An ask settled: by the chat agent's verdict, or by its run ending while asked.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ClockAskClosed {
@@ -63,10 +62,9 @@ const KEEP: &str = "keep";
 const CUT: &str = "cut";
 const ENDED: &str = "ended";
 const BY_AGENT: &str = "agent";
-const BY_AGENCY: &str = "agency";
 
 /// One clocked run as it opens: its name and the name it runs under, the work key and agent it is for,
-/// what it is doing, and its bound.
+/// what it is doing, and its clock.
 #[derive(Clone, Debug)]
 pub struct Clocked {
   pub run: String,
@@ -74,12 +72,12 @@ pub struct Clocked {
   pub work_key: String,
   pub agent: Option<String>,
   pub what: String,
-  pub bound: Duration,
+  pub clock: Duration,
 }
 
 impl Clocked {
-  fn bound_ms(&self) -> i64 {
-    i64::try_from(self.bound.as_millis()).unwrap_or(i64::MAX)
+  fn clock_ms(&self) -> i64 {
+    i64::try_from(self.clock.as_millis()).unwrap_or(i64::MAX)
   }
 }
 
@@ -110,7 +108,7 @@ pub async fn open(db: &DatabaseConnection, clocked: &Clocked) -> Result<(), Refu
       clocked.agent.clone().into(),
       clocked.what.clone().into(),
       now.into(),
-      clocked.bound_ms().into(),
+      clocked.clock_ms().into(),
     ],
   )
   .await?;
@@ -154,8 +152,8 @@ pub async fn close(db: &DatabaseConnection, events: &Bus, run_name: &str) -> Res
   Ok(())
 }
 
-/// A name's clock as a consumer reads it: when the latest bound of the runs standing under it runs out,
-/// and until when the latest keep or open ask on them stands, each none where none stands.
+/// A name's clock as a consumer reads it: when the latest clock of the runs standing under it passes, and
+/// until when the latest keep on them stands, each none where none stands. Neither ends a run.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ClockRead {
@@ -169,8 +167,7 @@ pub async fn clock_of<C: ConnectionTrait>(db: &C, name: &str) -> Result<ClockRea
   let row = one(
     db,
     r#"SELECT MAX(c."started_at" + c."bound_ms") AS "cap_ends",
-         MAX(CASE WHEN a."closed_at" IS NULL THEN a."answer_by"
-                  WHEN a."verdict" = 'keep' THEN a."kept_until" END) AS "kept_until"
+         MAX(CASE WHEN a."verdict" = 'keep' THEN a."kept_until" END) AS "kept_until"
        FROM "run_clocks" c LEFT JOIN "clock_asks" a ON a."run" = c."run"
        WHERE c."ended_at" IS NULL AND (c."run" = $1 OR c."parent" = $1)"#,
     vec![name.into()],
@@ -199,14 +196,13 @@ pub struct OpenAsk {
   pub run: String,
   pub what: String,
   pub asked_at: i64,
-  pub answer_by: i64,
 }
 
 /// Every ask still open, oldest first.
 pub async fn open_asks<C: ConnectionTrait>(db: &C) -> Result<Vec<OpenAsk>, Refusal> {
   let rows = all(
     db,
-    r#"SELECT a."id", a."run", a."asked_at", a."answer_by", c."agent", c."what"
+    r#"SELECT a."id", a."run", a."asked_at", c."agent", c."what"
        FROM "clock_asks" a JOIN "run_clocks" c ON c."run" = a."run"
        WHERE a."closed_at" IS NULL ORDER BY a."id""#,
     vec![],
@@ -222,7 +218,6 @@ pub async fn open_asks<C: ConnectionTrait>(db: &C) -> Result<Vec<OpenAsk>, Refus
         run: row.try_get("", "run")?,
         what: row.try_get("", "what")?,
         asked_at: row.try_get("", "asked_at")?,
-        answer_by: row.try_get("", "answer_by")?,
       })
     })
     .collect()
@@ -274,7 +269,7 @@ pub struct Settled {
   pub kept_until: Option<i64>,
 }
 
-/// The chat agent's verdict on an ask, closing it: a keep holds for the minutes named, the run's own bound
+/// The chat agent's verdict on an ask, closing it: a keep holds for the minutes named, the run's own clock
 /// where none is, and never longer than the policy's longest keep; the run's door reads it on its next look.
 pub async fn settle(
   db: &DatabaseConnection,
@@ -347,9 +342,9 @@ pub async fn settle(
   })
 }
 
-/// A run's door watch with the clock's ask put in front of it: past the bound an ask is opened and
-/// published, its verdict looked for on each pass, the run kept while a keep holds, and cut on a verdict
-/// to cut or once the wait for one runs out; every other word of the door goes to the watch it wraps.
+/// A run's door watch with the clock's ask put in front of it: past the clock an ask is opened and
+/// published, its verdict looked for on each pass for as long as the run goes, the run kept while a keep
+/// holds and cut on a verdict to cut; every other word of the door goes to the watch it wraps.
 pub struct Asked<'a, W> {
   pub inner: W,
   db: &'a DatabaseConnection,
@@ -377,12 +372,11 @@ impl<'a, W: Watch + Send> Asked<'a, W> {
   }
 
   fn minutes(&self) -> String {
-    (self.clocked.bound_ms() / MINUTE_MS).to_string()
+    (self.clocked.clock_ms() / MINUTE_MS).to_string()
   }
 
   async fn ask_now(&mut self, overdue: &Overrun) -> Result<Overtime, Refusal> {
     let now = now_ms();
-    let answer_by = now + seconds_ms(RUN_CLOCK.answer_wait_seconds);
     let agent = self.clocked.agent.clone().unwrap_or_else(|| self.clocked.work_key.clone());
     let facts = json!({
       "agent": agent,
@@ -396,9 +390,8 @@ impl<'a, W: Watch + Send> Asked<'a, W> {
     });
     let row = one(
       self.db,
-      r#"INSERT INTO "clock_asks" ("run", "facts", "asked_at", "answer_by") VALUES ($1, $2, $3, $4)
-         RETURNING "id""#,
-      vec![self.clocked.run.clone().into(), facts.to_string().into(), now.into(), answer_by.into()],
+      r#"INSERT INTO "clock_asks" ("run", "facts", "asked_at") VALUES ($1, $2, $3) RETURNING "id""#,
+      vec![self.clocked.run.clone().into(), facts.to_string().into(), now.into()],
     )
     .await?
     .ok_or_else(|| Refusal::failed("the ask was not written"))?;
@@ -414,7 +407,6 @@ impl<'a, W: Watch + Send> Asked<'a, W> {
       bound_ms: overdue.bound_ms,
       last_activity_at: overdue.last_activity_at,
       last_activity: overdue.last_activity.clone(),
-      answer_by,
       verb: RUN_CLOCK.verb.clone(),
     });
 
@@ -422,11 +414,11 @@ impl<'a, W: Watch + Send> Asked<'a, W> {
   }
 
   // The verdict on the open ask, read once more: a keep holds the run until it runs out, when a new ask
-  // is opened; a cut cuts it; and with none past the answer's due moment agency cuts it itself.
+  // is opened; a cut cuts it; and with none the run goes on and the ask stands.
   async fn looked(&mut self, ask: i64, overdue: &Overrun) -> Result<Overtime, Refusal> {
     let Some(row) = one(
       self.db,
-      r#"SELECT "verdict", "kept_until", "why", "answer_by", "closed_at" FROM "clock_asks" WHERE "id" = $1"#,
+      r#"SELECT "verdict", "kept_until", "why", "closed_at" FROM "clock_asks" WHERE "id" = $1"#,
       vec![ask.into()],
     )
     .await?
@@ -447,30 +439,6 @@ impl<'a, W: Watch + Send> Asked<'a, W> {
         self.cut = Some(fill_marks(
           &RUN_CLOCK.cut_by_agent,
           &[("minutes", &self.minutes()), ("why", why.as_deref().unwrap_or_default())],
-        ));
-
-        Ok(Overtime::Cut)
-      }
-      _ if row.try_get::<i64>("", "answer_by")? <= now => {
-        run(
-          self.db,
-          r#"UPDATE "clock_asks" SET "verdict" = $2, "decided_by" = $3, "closed_at" = $4
-             WHERE "id" = $1 AND "closed_at" IS NULL"#,
-          vec![ask.into(), CUT.into(), BY_AGENCY.into(), now.into()],
-        )
-        .await?;
-        self.events.publish(ClockAskClosed {
-          ask,
-          run: self.clocked.run.clone(),
-          verdict: CUT.to_owned(),
-          by: Some(BY_AGENCY.to_owned()),
-        });
-        self.cut = Some(fill_marks(
-          &RUN_CLOCK.cut_by_agency,
-          &[
-            ("minutes", &self.minutes()),
-            ("wait", &(RUN_CLOCK.answer_wait_seconds / 60).to_string()),
-          ],
         ));
 
         Ok(Overtime::Cut)

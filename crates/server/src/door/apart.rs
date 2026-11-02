@@ -29,9 +29,9 @@ const TOKEN_BACKSTOP: Duration = Duration::from_secs(24 * 3_600);
 
 /// One run apart as its caller names it: the agent it runs for, the line and provider it goes out on, what
 /// a person watching herdr reads it as, the line's command for it — its words opening `session` — the words
-/// it is told, the work key, model, effort and tier its execution row keeps, how long it may take before its
-/// caller is asked about it, and the run its execution is a child of and the root it is counted under, where
-/// the caller names them rather than this process's own unit.
+/// it is told, the work key, model, effort and tier its execution row keeps, and the run its execution is a
+/// child of and the root it is counted under, where the caller names them rather than this process's own
+/// unit. A run apart carries no clock: it lasts until it ends or is stopped.
 pub struct Apart<'a> {
   pub agent: &'a str,
   pub line: &'a str,
@@ -44,7 +44,6 @@ pub struct Apart<'a> {
   pub model: String,
   pub effort: String,
   pub tier: Option<String>,
-  pub bound: Option<Duration>,
   pub parent: Option<String>,
   pub root: Option<String>,
 }
@@ -164,7 +163,7 @@ pub async fn run<W: Watch>(ground: &Ground, apart: Apart<'_>, watch: &mut W) -> 
     // A run apart works in a folder of its line's own or one made for it, and a line told to ask no
     // permission there trusts the folder by the same decision.
     trusts_folder: true,
-    bound: apart.bound,
+    clock: None,
     interrupt: interrupt_of(resident),
     timings: Timings::default(),
   };
@@ -204,12 +203,12 @@ pub fn answered(ending: Ending, key: &str) -> Result<Reply, Failure> {
     Ending::Answered { reply, .. } => Ok(*reply),
     Ending::Errored { error, .. } => Err(of_errored(&error, key)),
     Ending::Stopped { .. } => Err(Failure::Stopped),
-    Ending::Vanished { .. } | Ending::Unanswered { .. } => Err(Failure::Transport {
+    Ending::Vanished { .. } => Err(Failure::Transport {
       message: format!("{key}: the run's pane went away under it"),
     }),
     Ending::Blocked { .. } => Err(Failure::Person),
     Ending::Untrusted { folder, config, .. } => Err(Failure::Untrusted { folder, config }),
-    Ending::Overran { .. } => Err(died(format!("{key}: the run was cut at its bound"))),
+    Ending::Overran { .. } => Err(died(format!("{key}: the run was cut on its caller's verdict"))),
     Ending::Silent { .. } => {
       Err(died(format!("{key}: the run came back to rest with no answer in its record")))
     }

@@ -20,7 +20,7 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::atomic::{AtomicI64, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 pub use agent_session::EngineError;
 use agent_session::{
@@ -32,7 +32,6 @@ use policy::companion_runner::COMPANION_RUNNER;
 use policy::fill_marks;
 use policy::gate_places::GATE_PLACES;
 use policy::handoff::HANDOFF;
-use policy::resident_turn::RESIDENT_TURN;
 use serde::Serialize;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -925,7 +924,7 @@ impl HerdrSessions {
         name: run.to_owned(),
         title: format!("{}: a turn", row.name),
         label: "turn".to_owned(),
-        bound: None,
+        clock: None,
       },
       &mut Quiet,
     )
@@ -1081,9 +1080,9 @@ impl HerdrSessions {
     let limits = &COMPANION_RUNNER.limits;
     let guarded = provider.declared().resident.as_ref().is_some_and(|resident| resident.turn_limits);
 
-    // A room session carried over its bound by a turn that never ended opens a fresh generation rather
-    // than judging every new turn over the bound at once.
-    if guarded && (session.spent.ms >= limits.ms() || session.spent.calls >= limits.calls) {
+    // A room session carried over its net by a turn that never ended opens a fresh generation rather
+    // than judging every new turn over the net at once.
+    if guarded && session.spent.calls >= limits.calls {
       session = sessions::open_generation(&db, agent, chat_id).await.map_err(store_fault)?;
       log.write(&db, Line::note(COMPANION_RUNNER.log.cleared.clone())).await;
     }
@@ -2351,13 +2350,8 @@ impl Sessions for HerdrSessions {
       AsideOutcome::Waiting => Aside::Waiting,
       AsideOutcome::Refused => Aside::Refused,
     };
-    let wait = Duration::from_millis(RESIDENT_TURN.push_take_ms);
-
-    Ok(match tokio::time::timeout(wait, &mut offer.answer).await {
-      Ok(answered) => answered.map_or(Aside::Refused, said),
-      Err(_) if offer.withdraw() => Aside::Refused,
-      Err(_) => (&mut offer.answer).await.map_or(Aside::Refused, said),
-    })
+    // The offer stands until a look takes it or the turn ends, which answers every offer it did not take.
+    Ok((&mut offer.answer).await.map_or(Aside::Refused, said))
   }
 
   async fn send_turn(&self, mut turn: Turn) -> Result<TurnEnd, Fault> {
@@ -3085,7 +3079,7 @@ impl WordRoad for HerdrSessions {
             name: asked.name.clone(),
             title: asked.title,
             label: "word".to_owned(),
-            bound: Some(asked.bound),
+            clock: Some(asked.clock),
           },
           watch,
         )

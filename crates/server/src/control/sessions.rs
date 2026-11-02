@@ -609,7 +609,6 @@ impl Route for Sessions {
           "generation": session.generation.unwrap_or(0),
           "holder": holder,
           "prefixChangeReason": reason,
-          "boundMs": Value::Null,
           "options": {},
         })
       })
@@ -620,10 +619,10 @@ impl Route for Sessions {
       && let Ok(held) = backend.list().await
     {
       for session in held {
-        let (kind, provider, model, bound) = match &session.scope {
-          agent_session::Scope::Apart(apart) => ("apart", &apart.provider, &apart.model, apart.bound_ms),
+        let (kind, provider, model) = match &session.scope {
+          agent_session::Scope::Apart(apart) => ("apart", &apart.provider, &apart.model),
           agent_session::Scope::Conversation(conversation) => {
-            ("conversation", &conversation.provider, &conversation.model, None)
+            ("conversation", &conversation.provider, &conversation.model)
           }
           _ => continue,
         };
@@ -651,7 +650,6 @@ impl Route for Sessions {
           "generation": 1,
           "holder": Value::Null,
           "prefixChangeReason": Value::Null,
-          "boundMs": bound,
           "options": {},
         }));
       }

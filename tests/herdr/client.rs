@@ -98,3 +98,36 @@ async fn a_request_past_herdrs_line_is_refused_and_never_sent() {
   assert!(refused.message.contains("agent.prompt"));
   assert!(tokio::time::timeout(Duration::ZERO, listener.accept()).await.is_err());
 }
+
+#[tokio::test]
+async fn a_call_herdr_answers_late_is_waited_for_and_written_down_as_a_silence_meanwhile() {
+  let dir = tempfile::tempdir().unwrap();
+  let socket = dir.path().join("herdr.sock");
+  let silences = dir.path().join("silences.jsonl");
+  let listener = tokio::net::UnixListener::bind(&socket).unwrap();
+
+  tokio::spawn(async move {
+    let (stream, _) = listener.accept().await.unwrap();
+    let mut reader = BufReader::new(stream);
+    let mut line = String::new();
+
+    reader.read_line(&mut line).await.unwrap();
+    tokio::time::sleep(Duration::from_millis(400)).await;
+
+    let asked: Value = serde_json::from_str(&line).unwrap();
+
+    reader
+      .into_inner()
+      .write_all(format!("{}\n", json!({ "id": asked["id"], "result": { "late": true } })).as_bytes())
+      .await
+      .unwrap();
+  });
+
+  let herdr = Herdr::here(socket, silences.clone());
+
+  assert_eq!(
+    herdr.call("agent.list", json!({}), Some(Duration::from_millis(50))).await,
+    Ok(json!({ "late": true }))
+  );
+  assert!(std::fs::read_to_string(&silences).unwrap().contains("agent.list"));
+}

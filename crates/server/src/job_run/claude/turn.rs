@@ -18,8 +18,6 @@
 //! instead of the worker line, whole, in a pane of its own, its variables the run's record variables
 //! (docs/api.md, 「sessions」).
 
-use std::time::Duration;
-
 use agent_session::{
   self as contract, Apart, EngineError, Fault, FaultKind, JobMark, Outcome, Resume, SessionId, TurnEnd,
   WentOut, WorkParts,
@@ -728,7 +726,6 @@ impl Attempting<'_, '_> {
         model: run.model.clone(),
         effort: run.effort.clone(),
         tier: Some(run.tier.clone()),
-        bound: apart.bound_ms.and_then(|bound| u64::try_from(bound).ok()).map(Duration::from_millis),
         parent: work.unit.clone(),
         root: work.unit.as_deref().map(execution_root),
       },
@@ -860,7 +857,7 @@ impl Attempting<'_, '_> {
       name: work.name.clone(),
       title: work.title.clone(),
       prompt: sent.prompt.clone(),
-      bound: None,
+      clock: None,
     };
     let account = sent.account.as_ref();
     let composed = match seat {

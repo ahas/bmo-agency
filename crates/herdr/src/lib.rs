@@ -35,8 +35,9 @@ pub const AGENT_BLOCKED: &str = "agent_blocked";
 const RESEND_PAUSES: [Duration; 3] =
   [Duration::from_millis(250), Duration::from_millis(600), Duration::from_millis(1_200)];
 
-// How long a call waits for its answer where its caller names no wait.
-const DEFAULT_WAIT: Duration = Duration::from_secs(5);
+// How long a call goes unanswered, where its caller names no other span, before it is written down as
+// one of herdr's silences. The call goes on waiting for its answer.
+const SILENT_AFTER: Duration = Duration::from_secs(5);
 
 // Past this size the record of unanswered calls starts over beside its last stretch.
 const SILENCES_CAP_BYTES: u64 = 256 * 1024;
@@ -56,9 +57,10 @@ impl Fault {
     }
   }
 
-  /// Whether the call never went out, or went out and got no answer: only these may be sent again.
+  /// Whether the call never went out, or its connection closed before an answer: only these may be
+  /// sent again.
   fn connection(&self) -> bool {
-    matches!(self.code.as_str(), "unreachable" | "closed" | "timeout")
+    matches!(self.code.as_str(), "unreachable" | "closed")
   }
 }
 
@@ -117,17 +119,25 @@ impl Herdr {
     &self.socket
   }
 
-  /// One request, answered with its result or what herdr said instead. A request that never reached
-  /// herdr is sent again a few times over about two seconds; one written whole is never sent again,
-  /// since herdr may have acted on it, and nor is one to a socket that is not there at all. One longer
-  /// than herdr reads is refused without being sent.
-  pub async fn call(&self, method: &str, params: Value, wait: Option<Duration>) -> Result<Value, Fault> {
+  /// One request, answered with its result or what herdr said instead, however long herdr takes: its
+  /// end is the answer, a refused connection or one that closes. A request that never reached herdr is
+  /// sent again a few times over about two seconds; one written whole is never sent again, since herdr
+  /// may have acted on it, and nor is one to a socket that is not there at all. One longer than herdr
+  /// reads is refused without being sent. A call unanswered for `silent_after` — five seconds where
+  /// none is named — is written down as a silence of herdr's, and goes on waiting.
+  pub async fn call(
+    &self,
+    method: &str,
+    params: Value,
+    silent_after: Option<Duration>,
+  ) -> Result<Value, Fault> {
     let id = format!("agency-{}", now_ms());
 
     let mut pauses = RESEND_PAUSES.iter();
 
     loop {
-      let (answer, delivered) = self.send_once(&id, method, &params, wait.unwrap_or(DEFAULT_WAIT)).await;
+      let (answer, delivered) =
+        self.send_once(&id, method, &params, silent_after.unwrap_or(SILENT_AFTER)).await;
 
       match answer {
         Err(fault) if !delivered && fault.connection() && self.socket.exists() => match pauses.next() {
@@ -144,9 +154,8 @@ impl Herdr {
     id: &str,
     method: &str,
     params: &Value,
-    wait: Duration,
+    silent_after: Duration,
   ) -> (Result<Value, Fault>, bool) {
-    let mut delivered = false;
     let line = json!({ "id": id, "method": method, "params": params }).to_string();
 
     if line.len() > LINE_CAP_BYTES {
@@ -166,7 +175,6 @@ impl Herdr {
         .write_all(line.as_bytes())
         .await
         .map_err(|why| Fault::new("unreachable", why.to_string()))?;
-      delivered = true;
 
       let mut answer = String::new();
       let read = BufReader::new(stream)
@@ -181,14 +189,20 @@ impl Herdr {
       read_frame(answer.trim_end())
     };
 
-    match tokio::time::timeout(wait, exchange).await {
-      Ok(answer) => (answer, delivered),
-      Err(_) => {
+    let mut exchange = std::pin::pin!(exchange);
+    let answer = tokio::select! {
+      answer = &mut exchange => answer,
+      () = tokio::time::sleep(silent_after) => {
         self.note_silence(method);
 
-        (Err(Fault::new("timeout", format!("herdr did not answer {method}"))), delivered)
+        exchange.await
       }
-    }
+    };
+
+    // The line went out whole unless the connection or the write failed, which is all `unreachable` says.
+    let delivered = !matches!(&answer, Err(fault) if fault.code == "unreachable");
+
+    (answer, delivered)
   }
 
   // An unanswered call written down for the machine, this machine's herdr alone. A record that cannot

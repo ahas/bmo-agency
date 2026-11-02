@@ -11,10 +11,4 @@ start_delay_seconds = 30
 # How often the pass comes round.
 tick_seconds = 60
 
-# How long one ping on a launch line or a gate may take before it is killed.
-line_ping_seconds = 90
-
-# How long a ping on a worker's own session may take. It resumes a session, which reads its own context
-# back where the cache has gone cold, and it holds the worker's locks while it runs, so this is as long as
-# a job launched meanwhile can be made to wait.
-worker_ping_seconds = 120
+# A ping carries no clock: it goes until it answers or fails on its own, like any other turn.

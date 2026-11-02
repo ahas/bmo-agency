@@ -96,12 +96,12 @@ pub async fn told(ground: &Ground, worker: &str, way: Way, words: &[Word]) -> St
 }
 
 /// A word's turn as it is asked of the road: what is said, the run's name, what a person watching reads over
-/// it, and its bound.
+/// it, and its clock, past which the chat agent is asked about it.
 pub struct WordTurn {
   pub prompt: String,
   pub name: String,
   pub title: String,
-  pub bound: Duration,
+  pub clock: Duration,
 }
 
 /// Where the words go: the turn working on a worker's session, or a turn of their own on it.
@@ -342,7 +342,7 @@ impl<R: WordRoad> Words<R> {
       return Ok(Delivery::None);
     }
 
-    let bound = Duration::from_secs(WORKER_WORDS.answer_minutes * 60);
+    let clock = Duration::from_secs(WORKER_WORDS.answer_minutes * 60);
     let name = format!("{}-word-{worker}", policy::deployment::DEPLOYMENT.agent_key);
     let clocked = Clocked {
       run: name.clone(),
@@ -350,7 +350,7 @@ impl<R: WordRoad> Words<R> {
       work_key: WORKER_WORDS.work_key.clone(),
       agent: Some(worker.clone()),
       what: fill_marks(&WORKER_WORDS.what, &[("worker", worker)]),
-      bound,
+      clock,
     };
     let watch = WordWatch {
       ground,
@@ -363,7 +363,7 @@ impl<R: WordRoad> Words<R> {
       prompt: told(ground, worker, Way::Task, &words).await,
       name: name.clone(),
       title: fill_marks(&WORKER_WORDS.title, &[("worker", worker)]),
-      bound,
+      clock,
     };
 
     if let Err(why) = run_clock::open(&ground.db, &clocked).await {

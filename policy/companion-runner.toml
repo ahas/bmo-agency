@@ -35,9 +35,8 @@ repeats = 8
 repeat_window = 8
 # How alike two inputs of one tool are, from 0 to 1, to be one call repeated.
 likeness = 0.9
-# The most tool calls a turn's words take, and the longest their runs go on.
+# The most tool calls a turn's words take. No clock cuts a turn.
 calls = 80
-minutes = 30
 
 # How a room's words read in a turn (「Whose words are whose」).
 [words]
@@ -95,7 +94,6 @@ empty = "{name}'s answer was empty."
 # A turn its guard cut short: why, what the session keeps in place of an answer, the line the room is told
 # under the chat agent's number, and the quiet instruction the chat agent is told in the owner's chat, with its kind and sort.
 [cut]
-overtime = "The turn went past {minutes} minutes."
 too_many_calls = "No answer came after {calls} tool calls."
 failing = "The {tool} tool failed {count} times in a row."
 repeating = "It repeated nearly the same {tool} call {count} times and learned nothing."

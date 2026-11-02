@@ -39,33 +39,17 @@ pub struct Asked {
   pub lead: Option<String>,
   #[serde(default)]
   pub trusts_folder: bool,
-  #[serde(default)]
-  pub turn_ms: Option<u64>,
   /// The keys that interrupt the program, or none where its program is ended instead.
   #[serde(default)]
   pub interrupt: Option<Value>,
   #[serde(default)]
   pub identity: Option<AskedIdentity>,
   #[serde(default)]
-  pub ready_ms: Option<u64>,
-  #[serde(default)]
   pub poll_ms: Option<u64>,
   #[serde(default)]
   pub redraw_ms: Option<u64>,
   #[serde(default)]
-  pub person_turn_ms: Option<u64>,
-  #[serde(default)]
-  pub account_ms: Option<u64>,
-  #[serde(default)]
-  pub settle_ms: Option<u64>,
-  #[serde(default)]
   pub submit_ms: Option<u64>,
-  #[serde(default)]
-  pub stop_grace_ms: Option<u64>,
-  #[serde(default)]
-  pub quiet_ms: Option<u64>,
-  #[serde(default)]
-  pub herdr_patience_ms: Option<u64>,
   /// Words said to the turn while it works, one at each look at a working program until none is left.
   #[serde(default)]
   pub words: Vec<String>,
@@ -121,19 +105,13 @@ pub struct SurfaceAsked {
   pub name: String,
   pub title: String,
   #[serde(default)]
-  pub timeout_ms: Option<u64>,
-  #[serde(default)]
   pub root: Option<String>,
   #[serde(default)]
   pub parent: Option<String>,
   pub run: Value,
   pub command: ResidentCommand,
   #[serde(default)]
-  pub ready_ms: Option<u64>,
-  #[serde(default)]
   pub poll_ms: Option<u64>,
-  #[serde(default)]
-  pub settle_ms: Option<u64>,
   /// Words said to the turn while it works, where its surface takes them.
   #[serde(default)]
   pub words: Vec<String>,
@@ -156,14 +134,11 @@ impl SurfaceAsked {
         home,
         name: self.name,
         title: self.title,
-        timeout: self.timeout_ms.map(Duration::from_millis),
         root: self.root,
         parent: self.parent,
         command: self.command,
         clocks: Clocks {
-          ready: self.ready_ms.map(Duration::from_millis),
           poll: self.poll_ms.map(Duration::from_millis),
-          settle: self.settle_ms.map(Duration::from_millis),
         },
       },
       Scripted {
@@ -230,19 +205,12 @@ impl Asked {
         provider: self.provider.unwrap_or_else(|| "claude-code".to_owned()),
         lead: self.lead.unwrap_or_else(pasted_lead),
         trusts_folder: self.trusts_folder,
-        bound: self.turn_ms.map(Duration::from_millis),
+        clock: None,
         interrupt,
         timings: Timings {
-          ready: ms(self.ready_ms, base.ready),
           poll: ms(self.poll_ms, base.poll),
           redraw: ms(self.redraw_ms, base.redraw),
-          person: ms(self.person_turn_ms, base.person),
-          account: ms(self.account_ms, base.account),
-          settle: ms(self.settle_ms, base.settle),
           submit: ms(self.submit_ms, base.submit),
-          stop_grace: ms(self.stop_grace_ms, base.stop_grace),
-          quiet: ms(self.quiet_ms, base.quiet),
-          patience: self.herdr_patience_ms.map(Duration::from_millis),
           gone: GoneConfirm::default(),
         },
       },

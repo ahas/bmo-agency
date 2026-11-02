@@ -525,6 +525,19 @@ pub fn turn_closed_since(records: &[Value], from: usize) -> bool {
   records.get(from..).unwrap_or_default().iter().any(is_turn_end)
 }
 
+/// Whether the last line of the conversation in these records — a prompt, an answer, words queued or a
+/// turn's end — is a turn's end: nothing was handed to the program or written by it after its last turn
+/// closed.
+pub fn ends_on_turn_end(records: &[Value]) -> bool {
+  records
+    .iter()
+    .rev()
+    .find(|record| {
+      is_turn_end(record) || matches!(kind(record), Some("user" | "assistant" | "queue-operation"))
+    })
+    .is_some_and(is_turn_end)
+}
+
 /// Whether the turn begun at `from` is over on the program's own error: the line a turn ends with has
 /// come, and the last answer before it is an error the program wrote in the answer's place. The program
 /// can stand at a question of its own after such an end, which says nothing about the turn: the record

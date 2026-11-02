@@ -13,8 +13,8 @@ fold_title = "fold"
 
 # What a turn put into a standing program writes into its run's log as it goes, read by a person on the
 # console and by whoever follows the run up: the {config} and the {cwd} whose trust was written, {why} the
-# trouble, the run's {title}, {model} and {attempt}, the {seconds} herdr or the record stood silent and the
-# {state} the pane came back in, and what the record counted at a quiet end: {queued} words waiting,
+# trouble, the run's {title}, {model} and {attempt}, the {seconds} herdr stood silent and the {state} the
+# pane came back in, and what the record counted at a quiet end: {queued} words waiting,
 # {owed} turns owed and {ended} turns ended.
 [notes]
 title = "{title} · {model} · attempt {attempt}"
@@ -26,26 +26,22 @@ stand_again = "{why}, so the program is stood up again and this turn put in once
 untrusted = "The program did not get past the folder-trust question"
 not_ready = "The program did not come to wait for input"
 not_taken = "The program did not take the words put in"
-herdr_silent_ready = "herdr did not answer the question about the pane before the ready time ran out, so the turn ends as herdr not answering"
-enter_pressed = "The words put in stayed on the input line unsubmitted, so Enter was pressed once"
-unsubmitted = "The words put in were not submitted even with Enter pressed, so this turn ends"
-overrun_unasked = "The turn ran past its time limit and nothing could be asked about it, so it is cut at the limit: {why}"
+enter_pressed = "The words put in stayed on the input line unsubmitted, so Enter was pressed again"
+overrun_unasked = "The turn ran past its clock and nothing could be asked about it, so it goes on and is asked again: {why}"
 herdr_silent = "herdr is not answering the question about the pane, so the turn waits reading the record ({cause})"
-herdr_gave_up = "herdr did not answer the question about the pane for {seconds} seconds, so the turn ends as herdr not answering"
 herdr_back = "herdr answered again after {seconds} seconds; the pane is {state}"
-quiet = "The program is at rest and the record has not grown for {seconds} seconds, so the round is read as ended. Counted from the record: {queued} waiting, {owed} turns owed, {ended} turns ended"
+quiet = "The program is at rest and its record ends on a turn's end, so the round is read as ended. Counted from the record: {queued} waiting, {owed} turns owed, {ended} turns ended"
 error_menu = "The turn ended on the program's error with a menu of what to do next standing, so it was closed with Esc"
 
 # The heading a kept screen is filed under as a turn ends without its answer: the pane gone, the program
-# never ready or not taking the words ({code}, {message}), the words never submitted, the turn stopped,
-# overrun or silent, or a window the reading does not know with its {screen}.
+# standing at a question nobody answers or not taking the words ({code}, {message}), the turn stopped, cut
+# on its caller's verdict or silent, or a window the reading does not know with its {screen}.
 [screens]
 vanished = "The pane went away before it was ready. The screen at that moment:"
-not_ready = "The program did not come to wait for input before the ready time ran out. The screen at that moment:"
+not_ready = "The program stood at a question nobody is coming to answer. The screen at that moment:"
 not_taken = "The program did not take the words put in ({code}: {message}). The screen at that moment:"
-unsubmitted = "The screen the pane stood at with the words put in unsubmitted"
 stopped = "The turn was stopped from outside. The screen at that moment:"
-overran = "The turn did not end within its time. The screen at that moment:"
+overran = "The turn was cut on its caller's verdict past its clock. The screen at that moment:"
 silent = "The turn wrote no answer into the record. The screen at that moment:"
 unknown_window = "The turn stopped at a window this reading does not know. The screen at that moment:\n\n{screen}"
 

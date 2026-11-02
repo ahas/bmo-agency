@@ -579,8 +579,9 @@ impl StatusRecord {
   }
 }
 
-/// The readings either side of a turn, waiting a bounded while for the one after it: the program makes
-/// that call about a second after the turn's end, and the reader goes without where it does not come.
+/// The readings either side of a turn, waiting for the one after it until it comes or `alive` says the
+/// program is gone: the program makes that call about a second after the turn's end, and the reader goes
+/// without where the program ended before it.
 /// The reading before is read once; each later look reads back no further than a crossing's while
 /// before the turn's end.
 pub async fn status_after_turn(
@@ -588,14 +589,13 @@ pub async fn status_after_turn(
   started_at: i64,
   ended_at: i64,
   session: Option<&str>,
-  wait: Duration,
   every: Duration,
+  alive: impl Fn() -> bool,
 ) -> StatusAround {
-  let deadline = tokio::time::Instant::now() + wait;
   let path = status_file(place);
   let mut around = status_around(records_back(&path), started_at, ended_at, session);
 
-  while around.after.is_none() && tokio::time::Instant::now() < deadline {
+  while around.after.is_none() && alive() {
     tokio::time::sleep(every).await;
 
     let after = records_back(&path)

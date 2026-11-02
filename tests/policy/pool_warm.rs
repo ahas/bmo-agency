@@ -1,10 +1,8 @@
 use policy::fill_marks;
-use policy::keepalive::KEEPALIVE;
 use policy::pool_warm::POOL_WARM;
 
 #[test]
-fn a_place_ping_is_cut_inside_the_pass_and_the_margin_leaves_a_lifetime() {
-  assert!(POOL_WARM.branch.ping_seconds <= KEEPALIVE.worker_ping_seconds);
+fn the_margin_leaves_a_lifetime() {
   assert!(POOL_WARM.margin_minutes > 0);
   assert!(!POOL_WARM.native.refusal.trim().is_empty());
 }
@@ -18,7 +16,6 @@ fn a_pings_words_read_with_the_marks_they_are_filled_by() {
     "Warming co-worker repo 03"
   );
   assert!(words.off.contains("{mode}"));
-  assert!(words.limit.contains("{minutes}"));
   assert!(words.no_key.contains("{variable}"));
   assert!(words.other_upstream.contains("{upstream}"));
 

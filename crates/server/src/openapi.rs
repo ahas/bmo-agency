@@ -470,7 +470,7 @@ pub const OPERATIONS: &[Operation] = &[
     path: "/sessions",
     id: "createSessions",
     tag: "sessions",
-    summary: "Start a session for an agent at a scope, readable at once before its first turn; a throwaway one is scope apart with boundMs and its own options. A run on a runner line (search, browse) is such a session naming the line and handing its instructions in whole as systemPrompt; it calls the upstreams it needs through their own MCP servers.",
+    summary: "Start a session for an agent at a scope, readable at once before its first turn; a throwaway one is scope apart with its own options. A run on a runner line (search, browse) is such a session naming the line and handing its instructions in whole as systemPrompt; it calls the upstreams it needs through their own MCP servers.",
     params: &[],
     body: Some("SessionStart"),
     answers: &[(201, Some("Session"), false)],
@@ -769,7 +769,7 @@ pub const OPERATIONS: &[Operation] = &[
     path: "/runs/{runId}",
     id: "getRun",
     tag: "runs",
-    summary: "One run, its clock bound among its fields.",
+    summary: "One run, its clock among its fields.",
     params: &[Param {
       name: "runId",
       place: "path",

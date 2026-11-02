@@ -7,7 +7,6 @@
 
 use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
-use std::time::Duration;
 
 use harness_providers::claude_code::ClaudeCode;
 use policy::door_words::DOOR_WORDS;
@@ -28,9 +27,6 @@ use crate::lines::standing::worker_prefix_digest;
 use crate::lines::worker::{configured, worker_run};
 use crate::lines::{Trees, fault};
 use crate::places::{AgentRow, Ground};
-
-/// How long a fold is given.
-pub const FOLD_BOUND: Duration = Duration::from_secs(5 * 60);
 
 /// The fold word Claude Code takes.
 pub const FOLD_WORD: &str = "/compact";
@@ -192,7 +188,7 @@ async fn folded(
       name: format!("bmo-fold-{worker}"),
       title: DOOR_WORDS.fold_title.clone(),
       prompt: FOLD_WORD.to_owned(),
-      bound: Some(FOLD_BOUND),
+      clock: None,
     },
   )
   .await?;

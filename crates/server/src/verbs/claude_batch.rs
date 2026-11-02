@@ -12,7 +12,6 @@ use std::io::Read as _;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Duration;
 
 use clap::Args;
 use harness_providers::claude_code::ClaudeCode;
@@ -54,9 +53,6 @@ pub struct ClaudeBatch {
   /// What a person watching herdr reads the run as.
   #[arg(long)]
   title: String,
-  /// How long the run may take before it is cut.
-  #[arg(long, value_parser = clap::value_parser!(u64).range(1..))]
-  bound_seconds: u64,
 }
 
 /// The program's words for one batch: safe mode, so none of the machine's instructions, hooks, plugins,
@@ -212,7 +208,6 @@ pub async fn run(asked: ClaudeBatch, data_root: &Path) -> Result<Vec<String>, Ve
       model: asked.model,
       effort: asked.effort,
       tier: None,
-      bound: Some(Duration::from_secs(asked.bound_seconds)),
       parent: None,
       root: None,
     },

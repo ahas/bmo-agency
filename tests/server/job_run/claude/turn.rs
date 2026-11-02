@@ -144,7 +144,7 @@ fn composed() -> Turn {
     provider: "claude-code".into(),
     lead: String::new(),
     trusts_folder: true,
-    bound: None,
+    clock: None,
     interrupt: Interrupt::EndProgram,
     timings: Timings::default(),
   }

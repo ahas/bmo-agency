@@ -8,9 +8,7 @@
 margin_minutes = 5
 
 [branch]
-# A standing branch checkout's ping: one word on a cold network, short enough that it never holds up a
-# work order's tick.
-ping_seconds = 120
+# A standing branch checkout's ping: one word on a cold network, which goes until it answers.
 
 # What a ping is titled as in the place's own pane; {place} is the place as a person reads it.
 title = "Warming {place}"
@@ -33,9 +31,6 @@ no_account = "No account answered."
 
 # The place stands where this machine names no herdr, so there is no pane to ping in.
 no_pane = "There is no pane to ping this place in."
-
-# The ping ran to its wait; {minutes} is the wait in minutes.
-limit = "Stopped at its {minutes}-minute limit."
 
 # The OpenRouter key is not set; {variable} names where it is read from.
 no_key = "{variable} is not set."

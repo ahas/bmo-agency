@@ -143,7 +143,7 @@ fn a_clock_hold_becomes_its_clock_and_its_ask() {
   };
   assert_eq!(get(&clock, "run"), Cell::Text("r".to_owned()));
   assert_eq!(get(&clock, "bound_ms"), Cell::Int(1000));
-  assert_eq!(get(&ask, "answer_by"), Cell::Int(4000));
+  assert_eq!(get(&ask, "asked_at"), Cell::Int(3000));
 }
 
 #[tokio::test]

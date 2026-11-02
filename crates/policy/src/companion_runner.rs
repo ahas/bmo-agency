@@ -12,14 +12,6 @@ pub struct Limits {
   pub repeat_window: usize,
   pub likeness: f64,
   pub calls: i64,
-  pub minutes: i64,
-}
-
-impl Limits {
-  /// The longest the runs on one turn's words go on, in milliseconds.
-  pub fn ms(&self) -> i64 {
-    self.minutes * 60_000
-  }
 }
 
 /// How a room's words read in a turn.
@@ -93,7 +85,6 @@ pub struct Refused {
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Cut {
-  pub overtime: String,
   pub too_many_calls: String,
   pub failing: String,
   pub repeating: String,

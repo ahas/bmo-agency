@@ -98,7 +98,7 @@ impl Turned {
 
 /// One turn as its caller names it: the worker, the model and session it goes on, what is said, the
 /// pane's run name with what a person watching herdr reads above it, the word the machine's log lines
-/// call it by, and how long it may take before its caller is asked.
+/// call it by, and how long it goes before its caller is asked about it, none where its caller asks nothing.
 pub struct Asked<'a> {
   pub worker: &'a AgentRow,
   pub model: String,
@@ -107,7 +107,7 @@ pub struct Asked<'a> {
   pub name: String,
   pub title: String,
   pub label: String,
-  pub bound: Option<Duration>,
+  pub clock: Option<Duration>,
 }
 
 /// What a session turn stands on: the ground, whose bus a downgrade and the turn's usage are published on.
@@ -269,7 +269,7 @@ fn turn_on(
     // A worker's place is the directory the owner named for it or a branch place the bot made, and a
     // line told to ask no permission there trusts the folder by the same decision.
     trusts_folder: true,
-    bound: turn.bound,
+    clock: turn.clock,
     interrupt: interrupt_of(resident),
     timings: Timings::default(),
   })
@@ -305,12 +305,12 @@ async fn idle_turn_stands(
   )
 }
 
-/// What a composed turn is beside its line: its run name, its title, its words and its bound.
+/// What a composed turn is beside its line: its run name, its title, its words and its clock.
 pub struct Composed {
   pub name: String,
   pub title: String,
   pub prompt: String,
-  pub bound: Option<Duration>,
+  pub clock: Option<Duration>,
 }
 
 /// What an ending that is no answer says: the program's own error, or the screen it stood at, which a
@@ -321,7 +321,6 @@ pub fn evidence(ending: &Ending) -> &str {
     Ending::Blocked { screen }
     | Ending::Untrusted { screen, .. }
     | Ending::Vanished { screen }
-    | Ending::Unanswered { screen }
     | Ending::Overran { screen }
     | Ending::Silent { screen }
     | Ending::Unsubmitted { screen, .. }
@@ -336,10 +335,9 @@ fn failure_line(ending: &Ending) -> String {
   }
 
   match ending {
-    Ending::Overran { .. } => "the run did not finish in time".to_owned(),
+    Ending::Overran { .. } => "the run was cut on its caller's verdict".to_owned(),
     Ending::Silent { .. } => "the run wrote no answer to its record".to_owned(),
     Ending::Errored { error, .. } => format!("the CLI answered with an error: {error}"),
-    Ending::Unanswered { .. } => "herdr did not answer about the pane".to_owned(),
     _ => "the pane went away before it answered".to_owned(),
   }
 }
@@ -450,7 +448,7 @@ pub async fn turn<W: Watch>(side: &Side<'_>, asked: Asked<'_>, watch: &mut W) ->
       name: asked.name,
       title: asked.title,
       prompt: run.prompt.clone(),
-      bound: asked.bound,
+      clock: asked.clock,
     },
   )
   .await?;

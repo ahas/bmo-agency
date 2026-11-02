@@ -11,7 +11,7 @@
 
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use serde_json::{Value, json};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -31,10 +31,6 @@ pub const WATCHED_EVENTS: [&str; 7] = [
   "pane.closed",
   "pane.exited",
 ];
-
-// How long the last picture stands once the stream has dropped: past it a herdr unreachable this long
-// is one whose panes are gone.
-const STALE_AFTER: Duration = Duration::from_secs(60);
 
 // How long before a dropped subscription is opened again.
 const RETRY_AFTER: Duration = Duration::from_secs(2);
@@ -175,8 +171,11 @@ pub async fn carrying_work(herdr: &Herdr, snapshot: Snapshot) -> Snapshot {
 #[derive(Default)]
 struct State {
   picture: Picture,
-  // Since when the subscription stands dropped; set until the first attachment.
-  dropped_at: Option<Instant>,
+  // Whether the subscription stands dropped; set until the first attachment.
+  dropped: bool,
+  // Whether the socket refused the last attempt to attach again: no herdr is there, and the panes it
+  // held went with it.
+  refused: bool,
 }
 
 /// One herdr watched for as long as the process stands.
@@ -193,7 +192,8 @@ impl Watch {
     let watch = Self {
       state: Arc::new(Mutex::new(State {
         picture: Picture::default(),
-        dropped_at: Some(Instant::now()),
+        dropped: true,
+        refused: false,
       })),
       attached: Arc::new(tokio::sync::watch::channel(0).0),
     };
@@ -223,16 +223,12 @@ impl Watch {
   }
 
   fn lost(&self) {
-    let mut state = self.state();
-
-    if state.dropped_at.is_none() {
-      state.dropped_at = Some(Instant::now());
-    }
+    self.state().dropped = true;
   }
 
   /// Whether the subscription stands.
   pub fn attached(&self) -> bool {
-    self.state().dropped_at.is_none()
+    !self.state().dropped
   }
 
   /// Each attachment as it comes — the first, and every one after a drop — counted from the first, so
@@ -242,11 +238,13 @@ impl Watch {
     self.attached.subscribe()
   }
 
-  /// The runs herdr holds, or none once the picture has stood unmaintained past its while.
+  /// The runs herdr holds: the last picture while the subscription is down but herdr's socket still
+  /// takes a connection, and none once the socket refuses one, since a herdr that is not there holds
+  /// nothing.
   pub fn names(&self) -> HashSet<String> {
     let state = self.state();
 
-    if state.dropped_at.is_some_and(|dropped| dropped.elapsed() > STALE_AFTER) {
+    if state.dropped && state.refused {
       return HashSet::new();
     }
 
@@ -256,7 +254,11 @@ impl Watch {
   // One attachment, held until the stream ends: the subscription acknowledged, the snapshot installed,
   // what arrived meanwhile applied after it, and every event after that as it comes.
   async fn attach(&self, herdr: &Herdr) -> Result<(), String> {
-    let mut stream = UnixStream::connect(herdr.socket()).await.map_err(|why| why.to_string())?;
+    let connected = UnixStream::connect(herdr.socket()).await;
+
+    self.state().refused = connected.is_err();
+
+    let mut stream = connected.map_err(|why| why.to_string())?;
     let subscribe = json!({
       "id": "agency-watch",
       "method": "events.subscribe",
@@ -300,7 +302,7 @@ impl Watch {
       let mut state = self.state();
 
       state.picture.install(&snapshot);
-      state.dropped_at = None;
+      state.dropped = false;
     }
 
     self.attached.send_modify(|count| *count += 1);

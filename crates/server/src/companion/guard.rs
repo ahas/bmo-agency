@@ -1,8 +1,8 @@
 //! A turn that goes nowhere, read off its run as it streams (docs/companions.md, 「A turn that goes
 //! nowhere」): the tool calls and results its log takes, judged by repetition first — the same tool failing
-//! again and again, calls that repeat themselves and learn nothing — and by a cap on its calls and its time
-//! last. The caps bound the words a turn takes rather than one run of them: a run starts from what the runs
-//! before it on the same words spent, which the room's session keeps.
+//! again and again, calls that repeat themselves and learn nothing — and by a cap on its calls last. No
+//! clock cuts a turn. The cap bounds the words a turn takes rather than one run of them: a run starts from
+//! what the runs before it on the same words spent, which the room's session keeps.
 
 use policy::companion_runner::{COMPANION_RUNNER, Limits};
 use policy::fill_marks;
@@ -17,22 +17,13 @@ pub struct Spent {
   pub ms: i64,
 }
 
-/// Why a turn whose run has gone on this long is cut.
-pub fn overtime(limits: &Limits) -> String {
-  fill_marks(&COMPANION_RUNNER.cut.overtime, &[("minutes", &limits.minutes.to_string())])
-}
-
 fn too_many_calls(calls: i64) -> String {
   fill_marks(&COMPANION_RUNNER.cut.too_many_calls, &[("calls", &calls.to_string())])
 }
 
 /// Why a turn whose words already stand at a net is cut before its run starts, or nothing.
 pub fn spent_out(limits: &Limits, spent: Spent) -> Option<String> {
-  if spent.calls >= limits.calls {
-    return Some(too_many_calls(spent.calls));
-  }
-
-  (spent.ms >= limits.ms()).then(|| overtime(limits))
+  (spent.calls >= limits.calls).then(|| too_many_calls(spent.calls))
 }
 
 /// How alike two texts are by their pairs of characters (the Sørensen–Dice coefficient), from 0 to 1, the

@@ -13,7 +13,6 @@ use super::turn::AsideOutcome;
 
 /// Words offered to a run, and where what became of them is answered.
 pub struct Offered {
-  id: u64,
   pub words: String,
   answer: oneshot::Sender<AsideOutcome>,
 }
@@ -27,7 +26,6 @@ struct Run {
 
 #[derive(Default)]
 struct Asides {
-  next: u64,
   runs: HashMap<String, Run>,
 }
 
@@ -88,47 +86,23 @@ impl Drop for Listening {
   }
 }
 
-/// An offer standing for a run's door, until it is taken or withdrawn.
+/// An offer standing for a run's door, until a look takes it or the turn ends.
 pub struct Offer {
-  run: String,
-  id: u64,
   pub answer: oneshot::Receiver<AsideOutcome>,
 }
 
 /// Words offered to the run, where its door listens; none where it does not, so they did not go in.
 pub fn offer(run: &str, words: &str) -> Option<Offer> {
   let mut asides = asides();
-  let id = asides.next;
-
-  asides.next += 1;
-
   let held = asides.runs.get_mut(run).filter(|held| held.listening)?;
   let (answer, answered) = oneshot::channel();
 
   held.offered.push_back(Offered {
-    id,
     words: words.to_owned(),
     answer,
   });
 
-  Some(Offer {
-    run: run.to_owned(),
-    id,
-    answer: answered,
-  })
-}
-
-impl Offer {
-  /// The offer taken back where no look took it yet; false where the door has it and answers it.
-  pub fn withdraw(&self) -> bool {
-    let mut asides = asides();
-    let Some(run) = asides.runs.get_mut(&self.run) else { return false };
-    let before = run.offered.len();
-
-    run.offered.retain(|offered| offered.id != self.id);
-
-    run.offered.len() < before
-  }
+  Some(Offer { answer: answered })
 }
 
 /// The prompt a later run of the same turn goes in with: the turn's own, and behind it every word the turn
