@@ -109,8 +109,9 @@
 ### When the hook cannot run
 
 - If the hook cannot run the guard — the worker's line names no source checkout, the deployment names
-  no guard, the guard is missing, or it fails, runs past ten seconds or reads no input — the command is
-  not blocked.
+  no guard, the guard is missing, or it fails or reads no input — the command is not blocked. The
+  guard's judgement is waited for until the guard ends: the hook's limit is the longest the program
+  takes, a day, and nothing cuts the guard short.
 - One hook failing to run must not stop every shell command of every worker, and the second layer
   stands behind it.
 

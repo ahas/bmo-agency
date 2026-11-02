@@ -2079,6 +2079,10 @@ with no recorded trust, and the transcript did not even appear. On screen:
   - The write takes the CLI's own lock beside the file, writes the whole file anew beside it and moves
     it into place, keeps every other entry as it stood, and writes nothing where the entry already says
     trusted. A configuration directory that does not exist is left alone.
+  - The lock is waited for until its holder lets it go, however long that takes. The CLI's lock is a
+    directory whose holder touches it every few seconds while it holds it, so one left untouched for
+    ten seconds is a holder that has gone, and is taken over: that reading is the lock's own sign of
+    life, not a bound on how long a live holder may keep it.
   - On a work node the setup writes the same trust, in the same way, through the node's own agent
     host: `agent-host trust <configuration file> <folder>` says whether the folder is trusted in that
     file and ends non-zero where the trust does not hold (`docs/work-nodes.md`, 「The workplace on a
@@ -2095,10 +2099,6 @@ with no recorded trust, and the transcript did not even appear. On screen:
   configuration file the trust was written to — not as waiting on a person, since no person is meant to
   answer it. A screen with any other question is not touched: that is a place a person answers, and the
   job ends `blocked`. Answering trust is the worker's line's decision, not the pane-turn place's.
-  - The lock is waited for until its holder lets it go, however long that takes. The CLI's lock is a
-    directory whose holder touches it every few seconds while it holds it, so one left untouched for
-    ten seconds is a holder that has gone, and is taken over: that reading is the lock's own sign of
-    life, not a bound on how long a live holder may keep it.
 - **Measured** by launching a first job on a worker pointing at a freshly cloned checkout with the real
   runner (archive copy): the pane was `blocked` at 4.4s, the runner answered and it was `idle` at 4.6s,
   `working` at 6.2s, `idle` at 7.9s, and the job ended `done` with answer, session and usage written. That
@@ -2571,8 +2571,9 @@ of asking the chat agent to go and look.
   with no running job, a target that is not alive when marked, and an end that is not in the future.
 - **The code believes the target, never the job.** Once a minute the sweep asks each mark's target:
   a unit is alive while systemd reads it active, activating, deactivating or reloading, and a pid while
-  the process exists. The mark stands only while its target lives and its end has not come; a probe
-  that could not be asked leaves it standing until its end. A mark whose job is no longer open is
+  the process exists. The mark mutes the quiet watch while its target lives and its end has not come;
+  past its end it still stands and the watch tells of it once (below), and nothing ends the job's wait
+  for it. A probe that could not be asked leaves it standing. A mark whose job is no longer open is
   removed.
 - **A target that ends releases the mark by itself.** The sweep writes down when it first found the
   target gone; the mark no longer shows as a wait, and the job's next line removes it. A job that forgot

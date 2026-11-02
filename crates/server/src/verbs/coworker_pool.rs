@@ -15,7 +15,7 @@ use serde_json::{Value, json};
 use super::VerbError;
 use crate::control::harness::named;
 use crate::control::pool::{NATIVE_PROVIDER, roles};
-use crate::control::tiers::{self, Mapping};
+use crate::control::tiers;
 use crate::now_ms;
 use crate::order_run::dispatch::{
   self, Asked, NATIVE, Seats, Wanted, acquire, bind, enqueue_native, finish, held_reservations,
@@ -29,8 +29,6 @@ pub const NESTED_REFUSAL: &str = "The co-worker gate refused this: a co-worker c
 /// What a call on a run that stands on a single model meets: it has no co-worker apart from itself.
 pub const SINGLE_MODEL_REFUSAL: &str = "The co-worker gate refused this: this run stands on a single model, which has no co-workers apart from the run itself. Do this part yourself with the tools you have.";
 
-/// How long a native call waits for a place before it is refused.
-pub const NATIVE_WAIT: Duration = Duration::from_secs(4 * 60);
 const POLL: Duration = Duration::from_millis(500);
 const RECLAIM_EVERY: Duration = Duration::from_secs(5);
 
@@ -251,15 +249,14 @@ pub enum Admission {
 /// A native call admitted to the pool: its role held to the pooled ones and resolved to its tier on `on`,
 /// the provider its program stands on (Claude Code where none is named), its request put in the line on
 /// that provider — counted under a reservation the calling CLI holds for that tier, where it holds one —
-/// and waited on until it is let in, ended, or the wait runs out. `waiting` hears the request's token once
-/// it stands, so a stopped hook can end it.
+/// and waited on until it is let in or ended, however long that takes. `waiting` hears the request's token
+/// once it stands, so a stopped hook can end it.
 pub async fn admit(
   db: &DatabaseConnection,
   input: &HookInput,
   on: Option<&str>,
   waiter: &ProcessMark,
   owner: &ProcessMark,
-  wait: Duration,
   waiting: &mut impl FnMut(&str),
 ) -> Result<Admission, String> {
   let HookInput::Pre {
@@ -354,7 +351,6 @@ pub async fn admit(
 
   waiting(&held.token);
 
-  let deadline = tokio::time::Instant::now() + wait;
   let mut reclaimed = tokio::time::Instant::now();
 
   loop {
@@ -374,19 +370,12 @@ pub async fn admit(
       return Ok(ended(role));
     }
 
-    if tokio::time::Instant::now() >= deadline {
-      finish(db, &held.token, "native call found no place in time", true).await?;
-
-      return Ok(Admission::Refused(no_place(role, &mapping, wait)));
-    }
-
     if reclaimed.elapsed() >= RECLAIM_EVERY {
       reclaim_native(db).await?;
       reclaimed = tokio::time::Instant::now();
     }
 
-    // The last look falls on the deadline, so a wait shorter than a poll is refused once it has run out.
-    tokio::time::sleep(POLL.min(deadline.saturating_duration_since(tokio::time::Instant::now()))).await;
+    tokio::time::sleep(POLL).await;
   }
 }
 
@@ -394,15 +383,6 @@ fn ended(role: &str) -> Admission {
   Admission::Refused(format!(
     "The co-worker gate refused this: the pool request for this {role} call was ended before it got a place."
   ))
-}
-
-fn no_place(role: &str, mapping: &Mapping, wait: Duration) -> String {
-  format!(
-    "The co-worker gate refused this: the common spawning pool had no free {} place ({}) for a {role} within {} seconds. Do this part yourself with the tools you have. Before opening several co-workers of one tier, hold their places first with `~/.local/share/bmo-agency/deploy/bin/bmo-agency coworker pool reserve --role <role> --count <n>` and give them back with `~/.local/share/bmo-agency/deploy/bin/bmo-agency coworker pool release`.",
-    mapping.tier,
-    mapping.model,
-    wait.as_secs()
-  )
 }
 
 /// A waiting request whose hook is being stopped, ended so it never stands at the head of its line.
@@ -648,7 +628,7 @@ async fn judged(data_root: &std::path::Path, text: &str) -> Result<Vec<String>, 
   let mut terminate = signal(SignalKind::terminate()).map_err(|why| why.to_string())?;
   let mut heard = |token: &str| *waiting.borrow_mut() = Some(token.to_owned());
   let admitted = tokio::select! {
-    admitted = admit(&db, &input, on, &waiter, &owner, NATIVE_WAIT, &mut heard) => Some(admitted?),
+    admitted = admit(&db, &input, on, &waiter, &owner, &mut heard) => Some(admitted?),
     _ = interrupt.recv() => None,
     _ = terminate.recv() => None,
   };

@@ -277,9 +277,10 @@ The worker settings' hook takes the place for one native `Agent` call.
 - **Before the call:** the pre-call hook reads the type as a role, sets model and tier by the
   `role:<type>` mapping on the provider the program stands on — the registry's for a worker on a
   registration, Claude Code's for one on Claude Code — puts in a request on that provider keyed by the
-  session and tool-use id, and waits for a place FIFO. The wait is a few minutes, shorter than the
-  hook limit, and if no place comes in it, the request is cancelled and the call refused with a reason.
-  The refused call's work is done by the caller with its own tools. A call that got a place is allowed while its input is edited: the
+  session and tool-use id, and waits for a place FIFO, however long that takes: no clock refuses it.
+  The wait ends without a place only where the request is ended — its waiting hook stopped or gone,
+  or its calling program gone — and a call refused then has its work done by the caller with its own
+  tools. A call that got a place is allowed while its input is edited: the
   caller's prompt is appended the way to read the code dependency graph, so whatever role it is called
   as, and whether the caller mentioned the graph or not, the co-worker receives that text.
 - **The call ends:** a call that received its result releases the lease. If it answers that it handed

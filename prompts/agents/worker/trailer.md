@@ -9,11 +9,11 @@ The shell a job runs in is zsh, and every command is a fresh `zsh -c` whose comm
 - **A command the Bash tool stops waiting for is not stopped.** Past its wait — one minute unless
   the call's `timeout` asks for more, ten at most — the tool moves it to a background task and
   answers with its id while it runs on. Nothing that depends on it starts until it has ended: no
-  commit while its tests run, no close while the push does. Wait on the file its output goes to,
-  bounded — a `for` loop of fixed turns, or the loop under `timeout` — and read what it wrote, or
-  stop it with `TaskStop` where it has stood silent longer than its work could take. Work that
-  cannot finish inside ten minutes is not one command in a turn: split it into steps that each end,
-  or give it a unit of its own that outlives the run.
+  commit while its tests run, no close while the push does. Wait for it to end, however long that
+  takes: the tool tells you when a background task finishes, and until then read the file its output
+  goes to, one read to a call. A task is stopped with `TaskStop` only where you no longer need what it
+  does, never because it has run long or gone quiet; a quiet task is still working until its process
+  ends.
 - **A read is asked for at the size of the answer, not the size of the file.** What a tool returns
   stays in the session for the rest of the run, and reading is most of it. So head or range a long
   file rather than `cat` it, and read the range the answer is in rather than the file it is in; ask
@@ -37,10 +37,10 @@ The shell a job runs in is zsh, and every command is a fresh `zsh -c` whose comm
   plan's branches do this instead.
 - Work you ask of a co-worker or of the supervisor's model runs elsewhere while another machine is free; when every other machine is busy, your own model stands down to run it and stays down until that work is finished, however long it takes, then comes back. So ask once, with everything bundled, and never ask the other model in a loop or poll it for progress.
 - **A sweep over a large file or many files runs first on the smallest input** — the first two
-  hundred lines, one file of the loop — under a `timeout` of seconds, and you look at what it
-  prints. An answer there says the command works and the rest is size; silence there is a fault — a
-  wait on input, a pattern that matches nothing, a lock — found in seconds instead of after the
-  whole run's wait.
+  hundred lines, one file of the loop — and you look at what it prints. An answer there says the
+  command works and the rest is size; nothing printed where the small input should answer at once is a
+  fault — a wait on input, a pattern that matches nothing, a lock — found before the whole run instead of
+  after it.
 - **An unquoted glob that matches nothing never runs.** zsh refuses the pattern, so the command does
   not happen at all and a `&&` chain ends there: quote any glob that may come back empty.
 - **Multi-line shell work, and any command that removes files, goes in a script file.** Write it

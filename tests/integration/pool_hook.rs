@@ -114,8 +114,6 @@ async fn the_pool_admits_waits_gives_back_and_reclaims_native_calls() {
   let scratch = &archive;
 
   a_pooled_native_call_gets_a_place_on_the_roles_own_model_and_gives_it_back_when_it_returns(scratch).await;
-  a_full_bucket_makes_the_call_wait_then_refuses_it_and_leaves_no_waiting_request_at_the_head(scratch)
-    .await;
   a_waiting_call_gets_the_place_the_moment_the_holder_gives_it_back(scratch).await;
   a_tiers_new_model_and_a_roles_new_tier_still_let_a_native_call_in_counted_under_that_tier(scratch).await;
   a_background_child_holds_its_place_until_it_stops_whichever_of_launch_and_stop_is_seen_first(scratch)
@@ -168,9 +166,8 @@ async fn admitted(
   input: &HookInput,
   waiter: &ProcessMark,
   owner: &ProcessMark,
-  wait: Duration,
 ) -> Admission {
-  admit(scratch.db(), input, None, waiter, owner, wait, &mut |_| {}).await.unwrap()
+  admit(scratch.db(), input, None, waiter, owner, &mut |_| {}).await.unwrap()
 }
 
 fn token(admission: &Admission) -> String {
@@ -186,9 +183,7 @@ async fn a_pooled_native_call_gets_a_place_on_the_roles_own_model_and_gives_it_b
 ) {
   reset(scratch).await;
   let mapping = fixture(scratch, 2).await;
-  let held = token(
-    &admitted(scratch, &call("toolu_a", Some("scout"), None), &own(), &own(), Duration::from_secs(5)).await,
-  );
+  let held = token(&admitted(scratch, &call("toolu_a", Some("scout"), None), &own(), &own()).await);
   let request = agency_server::order_run::dispatch::request(scratch.db(), &held).await.unwrap().unwrap();
 
   assert_eq!(
@@ -207,57 +202,15 @@ async fn a_pooled_native_call_gets_a_place_on_the_roles_own_model_and_gives_it_b
   assert_eq!(state(scratch, &held).await, "released");
 }
 
-// "a full bucket makes the call wait, then refuses it and leaves no waiting request at the head"
-async fn a_full_bucket_makes_the_call_wait_then_refuses_it_and_leaves_no_waiting_request_at_the_head(
-  scratch: &Scratch,
-) {
-  reset(scratch).await;
-
-  fixture(scratch, 1).await;
-  token(
-    &admitted(scratch, &call("toolu_a", Some("scout"), None), &own(), &own(), Duration::from_secs(5)).await,
-  );
-
-  let refused = admitted(
-    scratch,
-    &call("toolu_b", Some("scout"), None),
-    &own(),
-    &own(),
-    Duration::from_millis(100),
-  )
-  .await;
-  let Admission::Refused(why) = refused else { panic!("let in on a full bucket") };
-
-  assert!(why.contains("no free"));
-  // The refusal names the way to hold places ahead of such calls.
-  assert!(why.contains("bmo-agency coworker pool reserve --role <role> --count <n>"));
-  assert_eq!(waiting_requests(scratch).await, 0);
-
-  give_back(
-    scratch.db(),
-    &HookInput::Failure {
-      session: "session-1".into(),
-      tool_use_id: "toolu_a".into(),
-    },
-  )
-  .await
-  .unwrap();
-  token(
-    &admitted(scratch, &call("toolu_c", Some("scout"), None), &own(), &own(), Duration::from_secs(5)).await,
-  );
-}
-
 // "a waiting call gets the place the moment the holder gives it back"
 async fn a_waiting_call_gets_the_place_the_moment_the_holder_gives_it_back(scratch: &Scratch) {
   reset(scratch).await;
 
   fixture(scratch, 1).await;
-  token(
-    &admitted(scratch, &call("toolu_a", Some("scout"), None), &own(), &own(), Duration::from_secs(5)).await,
-  );
+  token(&admitted(scratch, &call("toolu_a", Some("scout"), None), &own(), &own()).await);
 
   let (asked, me) = (call("toolu_b", Some("scout"), None), own());
-  let (second, ()) = tokio::join!(admitted(scratch, &asked, &me, &me, Duration::from_secs(20)), async {
+  let (second, ()) = tokio::join!(admitted(scratch, &asked, &me, &me), async {
     until_one_waits(scratch).await;
     give_back(scratch.db(), &returned("toolu_a", "completed", None)).await.unwrap();
   });
@@ -279,9 +232,7 @@ async fn a_tiers_new_model_and_a_roles_new_tier_still_let_a_native_call_in_count
     )
     .await;
 
-  let light = token(
-    &admitted(scratch, &call("toolu_a", Some("scout"), None), &own(), &own(), Duration::from_secs(5)).await,
-  );
+  let light = token(&admitted(scratch, &call("toolu_a", Some("scout"), None), &own(), &own()).await);
   let request = agency_server::order_run::dispatch::request(scratch.db(), &light)
     .await
     .unwrap()
@@ -320,9 +271,7 @@ async fn a_tiers_new_model_and_a_roles_new_tier_still_let_a_native_call_in_count
     .await;
 
   let (_, _, reliable_model) = coworker_pool::role_mapping(scratch.db(), "scout").await.unwrap();
-  let reliable = token(
-    &admitted(scratch, &call("toolu_b", Some("scout"), None), &own(), &own(), Duration::from_secs(5)).await,
-  );
+  let reliable = token(&admitted(scratch, &call("toolu_b", Some("scout"), None), &own(), &own()).await);
   let request = agency_server::order_run::dispatch::request(scratch.db(), &reliable)
     .await
     .unwrap()
@@ -349,7 +298,7 @@ async fn a_tiers_new_model_and_a_roles_new_tier_still_let_a_native_call_in_count
     .await;
 
   let Admission::Refused(why) =
-    admitted(scratch, &call("toolu_c", Some("scout"), None), &own(), &own(), Duration::from_secs(1)).await
+    admitted(scratch, &call("toolu_c", Some("scout"), None), &own(), &own()).await
   else {
     panic!("let in with no tier assignment");
   };
@@ -366,9 +315,7 @@ async fn a_background_child_holds_its_place_until_it_stops_whichever_of_launch_a
 
   fixture(scratch, 4).await;
 
-  let launched = token(
-    &admitted(scratch, &call("toolu_a", Some("scout"), None), &own(), &own(), Duration::from_secs(5)).await,
-  );
+  let launched = token(&admitted(scratch, &call("toolu_a", Some("scout"), None), &own(), &own()).await);
 
   give_back(scratch.db(), &returned("toolu_a", "async_launched", Some("agent-a")))
     .await
@@ -384,9 +331,7 @@ async fn a_background_child_holds_its_place_until_it_stops_whichever_of_launch_a
   .unwrap();
   assert_eq!(state(scratch, &launched).await, "released");
 
-  let quick = token(
-    &admitted(scratch, &call("toolu_b", Some("scout"), None), &own(), &own(), Duration::from_secs(5)).await,
-  );
+  let quick = token(&admitted(scratch, &call("toolu_b", Some("scout"), None), &own(), &own()).await);
 
   give_back(
     scratch.db(),
@@ -411,8 +356,7 @@ async fn a_type_outside_the_pool_and_a_call_from_inside_a_coworker_are_refused_w
   fixture(scratch, 4).await;
 
   for role in [Some("general-purpose"), Some("builder"), None] {
-    let Admission::Refused(why) =
-      admitted(scratch, &call("toolu_a", role, None), &own(), &own(), Duration::from_secs(1)).await
+    let Admission::Refused(why) = admitted(scratch, &call("toolu_a", role, None), &own(), &own()).await
     else {
       panic!("{role:?} let in");
     };
@@ -421,14 +365,7 @@ async fn a_type_outside_the_pool_and_a_call_from_inside_a_coworker_are_refused_w
   }
 
   assert_eq!(
-    admitted(
-      scratch,
-      &call("toolu_c", Some("scout"), Some("agent-x")),
-      &own(),
-      &own(),
-      Duration::from_secs(1)
-    )
-    .await,
+    admitted(scratch, &call("toolu_c", Some("scout"), Some("agent-x")), &own(), &own()).await,
     Admission::Refused(NESTED_REFUSAL.into())
   );
   assert_eq!(scratch.count(r#"SELECT COUNT(*) FROM "coworker_pool_requests""#, vec![]).await, 0);
@@ -442,13 +379,8 @@ async fn reclaim_ends_a_place_only_on_evidence_that_its_process_is_gone_never_fo
 
   fixture(scratch, 2).await;
 
-  let alive = token(
-    &admitted(scratch, &call("toolu_a", Some("scout"), None), &own(), &own(), Duration::from_secs(5)).await,
-  );
-  let orphaned = token(
-    &admitted(scratch, &call("toolu_b", Some("scout"), None), &own(), &gone(), Duration::from_secs(5))
-      .await,
-  );
+  let alive = token(&admitted(scratch, &call("toolu_a", Some("scout"), None), &own(), &own()).await);
+  let orphaned = token(&admitted(scratch, &call("toolu_b", Some("scout"), None), &own(), &gone()).await);
 
   assert_eq!(reclaim_native(scratch.db()).await.unwrap(), 1);
   assert_eq!(state(scratch, &alive).await, "active");
@@ -456,16 +388,13 @@ async fn reclaim_ends_a_place_only_on_evidence_that_its_process_is_gone_never_fo
 
   // The bucket full again, a call waiting in the line whose own waiting hook is gone is ended while it
   // waits, and the place its holder keeps is left alone.
-  token(
-    &admitted(scratch, &call("toolu_c", Some("scout"), None), &own(), &own(), Duration::from_secs(5)).await,
-  );
+  token(&admitted(scratch, &call("toolu_c", Some("scout"), None), &own(), &own()).await);
 
   let (asked, waiter, owner) = (call("toolu_d", Some("scout"), None), gone(), own());
-  let (refused, reclaimed) =
-    tokio::join!(admitted(scratch, &asked, &waiter, &owner, Duration::from_secs(30)), async {
-      until_one_waits(scratch).await;
-      reclaim_native(scratch.db()).await.unwrap()
-    });
+  let (refused, reclaimed) = tokio::join!(admitted(scratch, &asked, &waiter, &owner), async {
+    until_one_waits(scratch).await;
+    reclaim_native(scratch.db()).await.unwrap()
+  });
 
   assert_eq!(reclaimed, 1);
   assert!(matches!(refused, Admission::Refused(why) if why.contains("was ended before it got a place")));
@@ -492,22 +421,19 @@ async fn a_clis_reserved_seats_let_its_native_calls_in_without_waiting_and_go_ba
     )]
   );
 
-  // Another CLI's call finds the only place held and gets no place.
-  let outsider = admitted(
-    scratch,
-    &call("toolu_out", Some("scout"), None),
-    &own(),
-    &other,
-    Duration::from_millis(100),
-  )
-  .await;
+  // Another CLI's call finds the only place held and waits in the line, however long, until it is ended:
+  // here its waiting hook is gone, which the reclaim reads.
+  let (outside, gone_waiter) = (call("toolu_out", Some("scout"), None), gone());
+  let (outsider, reclaimed) = tokio::join!(admitted(scratch, &outside, &gone_waiter, &other), async {
+    until_one_waits(scratch).await;
+    reclaim_native(scratch.db()).await.unwrap()
+  });
 
+  assert_eq!(reclaimed, 1);
   assert!(matches!(outsider, Admission::Refused(_)));
 
   let started = std::time::Instant::now();
-  let mine = token(
-    &admitted(scratch, &call("toolu_own", Some("scout"), None), &own(), &cli, Duration::from_secs(5)).await,
-  );
+  let mine = token(&admitted(scratch, &call("toolu_own", Some("scout"), None), &own(), &cli).await);
 
   assert!(started.elapsed() < Duration::from_millis(400));
   assert_eq!(state(scratch, &mine).await, "active");
@@ -544,17 +470,10 @@ async fn a_worker_on_a_lending_provider_takes_its_native_seats_there_and_one_on_
   }
 
   let seat = async |on: Option<&str>, tool_use_id: &str| {
-    let admitted = admit(
-      scratch.db(),
-      &call(tool_use_id, Some("scout"), None),
-      on,
-      &own(),
-      &own(),
-      Duration::from_secs(5),
-      &mut |_| {},
-    )
-    .await
-    .unwrap();
+    let admitted =
+      admit(scratch.db(), &call(tool_use_id, Some("scout"), None), on, &own(), &own(), &mut |_| {})
+        .await
+        .unwrap();
     let request = agency_server::order_run::dispatch::request(scratch.db(), &token(&admitted))
       .await
       .unwrap()

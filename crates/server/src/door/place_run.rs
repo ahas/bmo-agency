@@ -477,7 +477,7 @@ pub fn stop_hold(place: &Path, payload: &Value, limit: usize) -> Option<String> 
   let mut said = vec![
     format!("Not ended: background work this session started is still running — {named}."),
     "A turn that ends now is read as the job's answer, and the work is cut off with it.".to_owned(),
-    "Wait for each on the file its output goes to, bounded — a for loop of fixed turns, or the loop under timeout — and read what it wrote, or stop it with TaskStop where it is a helper you no longer need, a dev server or a stand-in; then answer.".to_owned(),
+    "Wait for each until it ends — on its end mark or its process exiting, however long it takes — and read what it wrote, or stop it with TaskStop where it is a helper you no longer need, a dev server or a stand-in; then answer.".to_owned(),
   ];
 
   if open.held + 1 >= limit {

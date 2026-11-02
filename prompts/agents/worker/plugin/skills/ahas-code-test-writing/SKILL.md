@@ -9,7 +9,7 @@ description: "The three rules a test is written to, since every test is paid for
 
 - **A test is paid for on every run of the suite after it**, so write it to these three rules.
 - **A test never waits on the real clock.**
-  - Where the code under it waits on an interval or a deadline, the module owning the wait gives a
+  - Where the code under it paces itself by an interval, the module owning the pace gives a
     seam — a parameter, or an environment override it reads itself — and the test sets it short, so
     what it checks still holds and only the seconds go.
   - A `sleep` standing in for a condition is replaced by a bounded wait on that condition.
