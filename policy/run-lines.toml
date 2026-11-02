@@ -44,7 +44,7 @@ shown = [
 tools_denied = [
   "WebSearch", "WebFetch", "Artifact", "ArtifactCheck", "ArtifactComments", "ArtifactData",
   "mcp__claude_ai_Claude_Docs", "Monitor", "ScheduleWakeup", "CronCreate", "CronDelete", "CronList",
-  "mcp__job__job_item_create",
+  "mcp__job__job_item_create", "Agent", "Task",
 ]
 # The gate's address and the path of its token file, which the gate's translate tool calls it with.
 variables = ["BMO_GATE_URL", "BMO_GATE_TOKEN_FILE"]

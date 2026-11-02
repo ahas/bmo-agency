@@ -196,8 +196,10 @@
   started with, and the chat line's denied list is its only restriction (`policy/run-lines.toml`, the chat
   line's `tools_denied`): the CLI's web search and fetch, its Artifact tools, the claude.ai Docs connector,
   the tools that bring a session back after its turn has ended — `Monitor`, `ScheduleWakeup` and the
-  session cron tools, since a supervisor's turns are the ones its runner puts into its program — and the
-  job plugin's own item creation. The program is shown every other tool of its own, no `--tools` list
+  session cron tools, since a supervisor's turns are the ones its runner puts into its program — the
+  job plugin's own item creation, and the CLI's own subagent tool, since every run beside a supervisor's turn is
+  a role's slot (`docs/role-slots.md`) and a delegation is asked through the delegate tool. The program is
+  shown every other tool of its own, no `--tools` list
   narrows it and no allow list is written, and every call of every tool it holds goes ahead unasked, every
   server of its configuration among them, in every run of every supervisor, whoever wrote the turn's
   messages. The place's settings pass over the CLI's warning on the bypass mode, as every place's do, so
