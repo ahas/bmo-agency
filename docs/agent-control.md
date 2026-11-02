@@ -1085,14 +1085,15 @@ The owner's words:
   execution id, and the reach is the surface's interrupt.
   - Claude Code's is Escape: the turn stops within seconds and the session stays usable (measured),
     and the reader closes the row as a stop.
-  - A job's stop still asks first: the words to commit, report and exit go in, and the interrupt
-    stands behind them after the grace.
+  - A job's stop asks and waits: the words to commit, report and exit go in, and the turn is left to
+    end on them however long its ending takes; no interrupt follows them. A chat round has no work of
+    its own to wind down and is interrupted at once.
   - A surface with no measured interrupt ends the program, and the loop starts it again on the same
     session.
   - A stop never closes a resident pane.
 - **A turn that ends its program** — the interrupt of a surface with none measured, a reset, words
-  left unsent in the box — sends its process a SIGTERM, here or through its node's link, and waits,
-  briefly and bounded, until the process is gone. Until then the place still names it and reads it
+  left unsent in the box — sends its process a SIGTERM, here or through its node's link, and waits
+  until the process is gone. Until then the place still names it and reads it
   alive, so whatever reads the place next — the next turn, a reset watching for the program its loop
   starts after it — would take the program on its way out for the one standing.
 - **Fallback.** A round that moves to another provider moves the pane's program with it. The command
@@ -1296,8 +1297,8 @@ flowchart TD
   1. holds the envelope by creating its `supervisor` file exclusively, with its own identity, and ends
      at once, touching nothing, where another supervisor already holds it, so an envelope is never
      run twice;
-  2. waits for the grant until the envelope's deadline, and ends with no child where the grant, the
-     cancel file or its collector says not to start;
+  2. waits for the grant until it is written, and ends with no child where the cancel file, a signal
+     to the supervisor or its collector's disappearance says not to start first;
   3. reads the store at the PostgreSQL address the envelope's policy names, read-only, for the
      provider order and the cancellation markers over the execution's ids, the same reading the
      launcher made, and refuses the child where either forbids it — a provider the stored order does
@@ -1307,12 +1308,13 @@ flowchart TD
        naming one twice or leaving none on reads as every provider on;
   4. starts the child in a process group of its own and its guardian beside it, then writes its
      acknowledgement with the child and its own identity, and copies the child's output byte for byte into the envelope's output files;
-  5. stops the child's group on the cancel file, the deadline or its collector's disappearance —
-     asked first, forced after the envelope's grace — and stops it again once the leader has ended,
-     so no descendant outlives it;
+  5. asks the child's group to stop — a SIGTERM, once — on the cancel file, a signal to the supervisor
+     or its collector's disappearance, and waits for the leader to end however long its own ending
+     takes; nothing forces it. Once the leader has ended the run is over, so whatever of its group is
+     still standing is an orphan of it and is killed at once, and no descendant outlives it;
   6. publishes the outcome atomically once the output files are closed and no member of the child's
-     group is left running: a forced kill lands when the kernel next runs its target, which on a busy
-     machine is later than the signal, so the supervisor waits it out, bounded, rather than taking the
+     group is left running: a kill lands when the kernel next runs its target, which on a busy machine
+     is later than the signal, so the supervisor waits for the group to be gone rather than taking the
      signal for the death.
   - A guardian process holding a pipe from the supervisor kills the child's group if the supervisor
     itself is killed outright. It stands before the acknowledgement does, so a child anyone has been
@@ -1340,8 +1342,10 @@ flowchart TD
   - An agent's view file is named for the agent under the host's `views/`, a name that is not a
     plain word hashed rather than trusted as a path.
 - **Starting a host never touches herdr.** A launcher that finds no live claim on the bot's own root
-  waits, bounded, for the unit's host to come up, and fails the launch as a transport failure naming
-  the agent host where it does not; on a copy's root it starts the copy's host first. Structured
+  waits for the unit's host to come up and take the claim, however long the unit's restart takes; on a
+  copy's root it starts the copy's host first, and fails the launch as a transport failure naming the
+  agent host where that copy's unit could not be started or has ended without taking the claim. A
+  launch whose run is cancelled while it waits stops waiting. Structured
   executions run with herdr down: only the panes that show them, and the resident programs, need it.
 - **Liveness.** A collector asks whether the supervisor named by the start acknowledgement is alive,
   and before that whether the claim holder is. A supervisor gone before the outcome is published is a
@@ -1350,7 +1354,8 @@ flowchart TD
   launched and left, and reports on its own. It is an execution with no owner: the launcher grants
   it before putting it in, nothing collects it, and a bot restart does not stop it. It carries an
   execution record whose root is the run's name, which is how the run reads as alive and how a
-  stop reaches it; its grace before a forced kill is long enough for it to salvage what it has.
+  stop reaches it; asked to stop, it is given whatever time its own salvage of what it has takes, and
+  nothing forces it.
 - **Herdr down costs the resident agents and the runs apart, not the host agents.** With herdr
   unreachable no pane can be stood and no resident turn put in, so chat turns on a resident program and
   every run apart fail as transport failures; gates go on through the agent host. herdr runs as a `Restart=always` unit for
@@ -1364,7 +1369,8 @@ flowchart TD
   its own」).
 - **Tests.** The agent host's own tests start its binary on a scratch data root and keep what the bun
   host's tests held: exact output bytes, executions side by side, a duplicate refused, a descendant
-  that ignores the stop still killed, grant expiry, cancellation and eligibility refusals, the
+  left standing after its leader ended on a stop still killed, a leader that takes its time over a stop
+  waited for, a collector gone before the grant starting nothing, cancellation and eligibility refusals, the
   policy re-read at the child's start, a collector that dies, the detached lifecycle, a supervisor
   killed outright, the copy's idle stand-down and inbox pointer validation. Beside them, **a running
   execution survives a restart of the host:** the host is killed while a supervised child streams,
@@ -1387,9 +1393,10 @@ carries a run on another agent's behalf, that other agent. A native child's row 
 own names none. This is what a companion's removal finds its rows by (`docs/companions.md`, 「Where a
 companion and its rooms come from」); neither a root, a place's path nor a work key says it.
 
-The supervisor waits for a bounded start grant. The launcher puts the execution into its agent's
-host, records the host's pane as the execution's pane and then grants execution. A failed
-placement, an expired grant or lost ownership means no model starts. The interactive path keeps
+The supervisor waits for the start grant until it is written. The launcher puts the execution into
+its agent's host, records the host's pane as the execution's pane and then grants execution. A failed
+placement, a cancellation before the grant or lost ownership — the collector's process gone — means no
+model starts. The interactive path keeps
 the equivalent handshake — the pane's metadata before the prompt — without altering Claude's
 launch specification. Recheck #378 provider
 eligibility at the actual child launch and prompt-delivery boundary after asynchronous waits
@@ -1425,20 +1432,20 @@ The run's session record in the tool host is the lifetime boundary for one run's
 jar and its isolated standard-Chrome fallback (`mcp-host.md`, 「What a record's tools keep」). The
 Chrome process is not a model child and consumes no co-worker pool lease. It is nevertheless owned
 work: the web tools start it only after a classified direct refusal or JavaScript shell, keep its
-temporary profile inside that run, and terminate and reap it when the record is revoked or its
-deadline passes, on cancellation, timeout, signal, startup failure, and the host's own exit. An
+temporary profile inside that run, and terminate and reap it when the record is revoked as its run
+ends, on cancellation, signal, startup failure, and the host's own exit. An
 execution is not cleanly finished while its owned Chrome or temporary profile remains.
 
 The browser fallback uses a loopback DevTools endpoint and a fresh agency-owned profile. It never
 attaches to a person's browser, transfers direct-request credentials, patches automation
 fingerprints, solves a CAPTCHA, or treats a challenge screen as a result. Host admission happens
-before both direct requests and browser navigation and refuses work that cannot start before the
-run's web deadline. The detailed transport, refusal, and privacy contract is in
+before both direct requests and browser navigation and refuses work only where the run's record has
+been revoked. The detailed transport, refusal, and privacy contract is in
 `web-access.md`.
 
 ### Completion, cancellation and loss
 
-The supervisor publishes exit code, cancellation/timeout cause and output locations atomically
+The supervisor publishes exit code, cancellation cause and output locations atomically
 before it exits. A successful transport result still requires successful harness parsing.
 Collect a resident Claude turn's money from the status line and the session's `cost-state` when the
 session changes, a host child's from its own output, and deduplicate usage once. Keep business completion and transport completion separate and idempotent. An execution record that ended more than seven days
@@ -1450,8 +1457,8 @@ resources. Herdr transport failure is infrastructure failure, not a provider quo
 never route around it by launching an invisible process.
 
 Cancellation uses the interactive adapter only where conversational stop is supported.
-Structured children receive a termination signal, a bounded grace period and then forced
-termination of their owned process group. Pane closure, parent cancellation and supervisor
+Structured children receive a termination signal and are waited on until their leader ends; what
+of their owned process group is still standing then is killed at once. Pane closure, parent cancellation and supervisor
 loss must not leave descendants or loopback bridges alive. Retain output/outcome until the
 collector acknowledges it; clean private envelopes afterwards and reconcile abandoned
 attempts on startup. Do not delete completed business records.
@@ -1621,8 +1628,8 @@ Unfinished native tasks retain unknown outcomes when their parent ends.
 The structured supervisor independently reads the store's provider switch before
 spawning, and the cancellation markers standing over the execution's own id and the names it runs
 under, so a stop that lands before the execution's envelope exists still refuses the child as a stop. A launch handed no store address carries no policy, so only the launcher's check runs for it; the
-independent check has a regression of its own against a scratch store. A private child-start acknowledgement bounds empty-wrapper
-failures. The supervisor stops its process group when its collecting process disappears, and a
+independent check has a regression of its own against a scratch store. A private child-start acknowledgement tells a started child from
+an empty wrapper that never started one. The supervisor stops its process group when its collecting process disappears, and a
 pipe-owned guardian kills that group if the supervisor is abruptly killed. Root stop writes
 cancellation markers for recorded descendants. Herdr attachment reconciles durable outcomes and
 keeps missing terminal evidence unknown. Transport errors stop provider recovery; they are not
@@ -1650,7 +1657,7 @@ Original Stage 7 suite evidence was 3,899 passes and 13 skips. Stage 10's correc
 reported 3,904 passes and 13 skips, followed by additional targeted checks recorded under
 the worker workbench's `379-repair-*` files. Each result supports its tested revision and
 does not establish the broader native-child or coordinator lifecycle claims. Live publication checks have not run.
-Native records represent emitted lifecycle evidence; they do not invent states for unreported provider work. A cancellation holds for the names it covers while it stands and prevents the stopped run's later fallback launches; 「What a cancellation reaches, and how long it stands」 above is what ends it. Coordinator stopping allows a bounded collection grace period; complete shutdown/resource-retention coverage remains unverified (build-4).
+Native records represent emitted lifecycle evidence; they do not invent states for unreported provider work. A cancellation holds for the names it covers while it stands and prevents the stopped run's later fallback launches; 「What a cancellation reaches, and how long it stands」 above is what ends it. A stopped coordinator is waited on until it has collected what it can and ended; complete shutdown/resource-retention coverage remains unverified (build-4).
 
 ### Repairs and acceptance evidence
 
@@ -1837,21 +1844,25 @@ Two calls do it. What launches into which workspace is set by "What goes where" 
     on the interrupted marker.
   - **A runner and a job** each stand in a unit of their own, and the id is that unit's name. A
     run in a host is ended through the cancellation markers its execution records lead to, and its host
-    signals its group and forces it after its grace; a unit whose run is a turn of a resident program is
-    asked over the channel to stop, given a bounded grace period to end its turn, and only then
-    interrupted, the program and its pane staying; anything else is stopped as its own unit.
+    signals its group and waits for its leader to end; a unit whose run is a turn of a resident program
+    is asked over the channel to stop and left to end its turn on the stop words, the program and its
+    pane staying; a run in a pane of its own is asked the same way and waited on until it has ended,
+    its pane never closed under it; a unit still standing once its run has ended is stopped as its own
+    unit.
   - **A resident turn is wound down by its own collector.** The collector reads the cancellation,
-    puts the stop words in where a job gets them and interrupts the program, so the unit whose
-    coordinator holds that collector is not stopped under it: the coordinator ends on its own once
-    the turn has. Behind the collector the stop keeps a reach of its own, bounded by the grace and a
-    margin: where the turn's row is still open once the collector is gone or the bound has run out,
-    the stop interrupts the program itself by its surface's interrupt. The row a resident turn
+    puts the stop words in where a job gets them and waits for the turn to end on them, or interrupts
+    a chat turn's program at once, so the unit whose coordinator holds that collector is not stopped
+    under it: the coordinator ends on its own once the turn has. Behind the collector the stop keeps a
+    reach of its own for one event: where the collector is gone while the turn's row is still open, the
+    stop interrupts a chat turn's program itself by its surface's interrupt, and leaves a job's turn to
+    end on the stop words already in, the reconciliation closing its row on the program's record. The row a resident turn
     opens says it is one, and names the program's record and the process the program was, which
     is what its collector and the reconciliation both close it on.
   - **A job stopped through agency's routes** — `PATCH /jobs/{jobId}`, and the chat agent's `stop_job`
     on the owner's word (`docs/api.md`, 「assignments and jobs」) — is the same cancellation of the job's
     run, read by the door carrying its turn or by the pass that picked the turn up across a restart, each
-    of which cuts the turn short with its surface's interrupt. The route answers once the turn has ended,
+    of which puts the stop words in and waits for the turn to end on them. The route answers once the
+    turn has ended, however long that takes,
     so the job's worker reads idle, and takes the next launch, only when its program no longer carries
     the turn.
   - **A work order** is named by its item, and the item's stop is its stop (the job unit's
@@ -1915,8 +1926,8 @@ Two calls do it. What launches into which workspace is set by "What goes where" 
 - **The asking outlives the coordinator, and nothing waits on it.** The words to commit, report and
   exit go into the pane from the bot rather than from whatever collects the turn, and the pane is
   herdr's — so a coordinator stopped a moment later does not cut the run's own ending short, and the
-  turn is interrupted after its grace whether or not anything is left reading it; the pane and the
-  program stay. What such a run loses is only the collecting of its report, which under a stop is not
+  turn ends on those words whether or not anything is left reading it; the pane and the program
+  stay. What such a run loses is only the collecting of its report, which under a stop is not
   a report about work.
 - **`pane.close`** sends SIGHUP to the process running in that pane and removes the pane — measured: a
   process that logs on HUP logged and ended. A workspace with only that pane disappears with it, and in a
@@ -3009,16 +3020,17 @@ what the target's kind is, the reach 「Stopping」 above holds.
   back to the other. A row with nothing to aim at is left out of the list and counted in a line of its
   own, because a short list read as the whole of what is running is the one way this can mislead.
 - **Called with a target, it stops that one run.** `unit:` for a run in a unit of its own, its
-  cancellation written, a pane asked and closed after its grace, and the unit stopped by systemd where it
-  still stands; `execution:` for a chat turn or a gate, the cancellation walked from its record; `item:`
+  cancellation written, a pane asked and waited on until its run has ended, and the unit stopped by
+  systemd where it still stands after that; `execution:` for a chat turn or a gate, the cancellation walked from its record; `item:`
   for a work order, its job marked stopped and its run stopped, and `--why '<reason>'` because the item
   carries that reason until it is taken up again. A word that is not a target is refused before anything
   is asked.
 - **`--all` stops every target the reading names**, which is the owner's "stop every agent's running
   work" asked in one call, in the order the reading stands them.
 - **It says which of the two a stop got to.** Asked is the run told to end, confirmed is the run seen
-  gone, and the answer never says the second when it only reached the first; stopping everything says how
-  many were asked and how many of those were confirmed.
+  gone, which the verb waits for however long the run's own ending takes; a target that could not be
+  asked is never said to be confirmed, and stopping everything says how many were asked and how many of
+  those were confirmed.
 - **It is not on the worker's MCP server** and is not to be put on it (`docs/worker-mcp.md`).
 
 ## What was not confirmed

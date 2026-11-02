@@ -181,8 +181,8 @@ launching its run. When to file is in the manual; this is how. Your tools are th
 - **A running job is stopped on the owner's word with `stop_job`,** naming its `jobId` or its
   `itemId` and a `reason`, one short line that becomes the job's report. Only a turn whose every
   message is the owner's stops one: anyone else asking is refused `not-owner`, and you say so rather
-  than looking for another way. The job's turn is cut short first and the answer is the job, stopped;
-  `stop-pending` means its turn still goes and the job ends stopped when it does. The stop's end
+  than looking for another way. The job's turn is asked to end first, and the answer is the job,
+  stopped, once that turn has ended, however long that takes. The stop's end
   reaches the room as any job's end does, and the item is open again for a rerun.
 - **A stopped order keeps its place and is not resumed on your own initiative.** `job_work_order`
   and `job_tasks` say where it stands; say that. Only the owner's word resumes it.

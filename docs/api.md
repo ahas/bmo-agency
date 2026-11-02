@@ -878,7 +878,7 @@ nothing of its placement.
 | GET | `/jobs` | Jobs newest first: by state or running, by item, room, worker or holder. |
 | POST | `/jobs` | Run an item on its assigned worker: the harness hands over the item's content and the lease it holds, and the agency launches the worker's session on it; refused only while no provider of the order can answer. |
 | GET | `/jobs/{jobId}` | One job and what its turn spent, `usage`. |
-| PATCH | `/jobs/{jobId}` | End a job with its outcome, or stop it, its turn cut short first; its assignment is released. |
+| PATCH | `/jobs/{jobId}` | End a job with its outcome, or stop it, its turn asked to end first; its assignment is released. |
 | GET | `/jobs/{jobId}/prompt` | The prompt the job was launched with. |
 | POST | `/instruction-texts` | The work-order step's line composed from an instruction. |
 | POST | `/item-filings` | File an item in the job service for the turn an agent is carrying now: its room as the item's `scope`, and `asked-by=owner` where every message of that turn is the owner's. |
@@ -928,17 +928,15 @@ and the filing of an item.
   - an item with no job `starting` or `running` is 404 `no-job`, and a job already ended or stopped 409.
   The stop is the one below, and its answer is that stop's.
 
-- **A job is stopped by cutting its turn short.** `PATCH /jobs/{jobId}` with `state` `stopped` and
+- **A job is stopped by asking its turn to end.** `PATCH /jobs/{jobId}` with `state` `stopped` and
   `POST /job-stops` stop a job alike:
   - the reason, the `report` the stop names, is kept as the job's stop mark, and the job's run is cancelled:
-    the cancellation the turn's door reads in the worker's program, cutting the turn short with its surface's
-    interrupt, a turn picked up across a restart included;
-  - the answer waits for that turn to end, up to `job_wait_seconds` of `policy/run-stop.toml`. The turn's end
-    writes the job `stopped`, outcome `stopped`, with the reason as its report, releases its assignment,
-    returns its lease and tells its room, so the worker takes the next launch as soon as the stop answers;
-  - a job no turn carries is written so at once;
-  - a turn still going once the wait runs out is refused 409 `stop-pending`: the stop stands, and the job ends
-    stopped the moment its turn does.
+    the cancellation the turn's door reads in the worker's program, which puts the stop words in — commit,
+    report, exit — and leaves the turn to end on them, a turn picked up across a restart included;
+  - the answer waits for that turn to end, however long its own ending takes. The turn's end writes the job
+    `stopped`, outcome `stopped`, with the reason as its report, releases its assignment, returns its lease
+    and tells its room, so the worker takes the next launch as soon as the stop answers;
+  - a job no turn carries is written so at once.
   A job's end never writes over a job already ended or stopped.
 
 - **A job's end reaches the room and gives its lease back.** However a job ends — its run finishing, failing,
