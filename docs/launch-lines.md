@@ -287,8 +287,9 @@
   on the provider the worker's program stands on where it lends co-workers and on Claude Code otherwise,
   and the plugin skills a
   type is started with, the settings the worker is
-  held to — which is also where the Bash tool's wait for a job's command is set, a minute by
-  default and ten at most, and where the hook stands that reads every shell command a job runs
+  held to — which is also where the Bash tool's wait for a job's command is set, its default and its
+  most both the largest the program takes, so a command is waited on until it ends, and where the hook
+  stands that reads every shell command a job runs
   before it runs and refuses one that would open a Claude Code session or write into the CLI's
   session records until the job has said what for with `bmo-agency live-claude --purpose`,
   which asks nobody and keeps a count of every run it lets through for the item's report

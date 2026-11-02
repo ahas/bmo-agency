@@ -174,12 +174,10 @@
   background included, and a reader given nothing ends at once: `cat` or `grep` reads an empty
   input, and `rg` given no path searches the working directory, as it does from a terminal. A pipe,
   a redirect, a heredoc and a here-string still feed the command they stand on.
-- **The tool's wait does not end such a command.** Past its wait — one minute unless the call's
-  `timeout` asks for more, ten at most — the tool moves the command to a background task and lets it
-  run on. Only switching background tasks off for the whole session would make it stop the command
-  instead, and that would take `run_in_background` and co-workers running beside the job with it. A
-  call that names its own `timeout` is never under the one-minute default, and the long commands
-  below must name one. So closing the input is what ends a reader's wait.
+- **The tool's wait does not end such a command.** The worker's settings set the tool's wait, the
+  default and the most a call may ask, to the largest the program takes, so a call that names no
+  `timeout` waits for its command to end. A call that names a shorter one has the tool move the command
+  to a background task past it, where it runs on. So closing the input is what ends a reader's wait.
 - **When the hook cannot run,** the command goes to the tool as written.
 
 ## The same hook refuses the shell habits that stall a job
