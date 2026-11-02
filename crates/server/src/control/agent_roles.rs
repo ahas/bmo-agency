@@ -1,7 +1,6 @@
-//! The roles an agent may hold, as the owner lists, adds, changes and removes them (docs/agent-roles.md,
-//! 「Changing the roles」; docs/api.md, 「agent-roles」): each a row of the store, its tier the assignment
-//! of its work key `role:<name>`, and the bundles it may give the policy's. A field is judged before
-//! anything is written, and a role with its key's assignment is written in one transaction.
+//! The roles as the owner lists, adds, changes and removes them (docs/agent-roles.md, 「Changing the roles」;
+//! docs/api.md, 「roles」): each a row of the store with its own provider order, cap, sessions setting,
+//! compaction threshold and bundles. A field is judged before anything is written.
 
 use std::sync::LazyLock;
 
@@ -10,19 +9,27 @@ use axum::response::{IntoResponse, Response};
 use policy::control_words::CONTROL_WORDS;
 use policy::fill_marks;
 use policy::roles::{ROLES, Sessions};
-use policy::tiers::TIERS;
+use policy::run_lines::RUN_LINES;
 use regex::Regex;
-use sea_orm::{ConnectionTrait, TransactionTrait};
+use sea_orm::ConnectionTrait;
 use serde_json::{Value, json};
 
-use super::{Call, Refused, Route, answer, tiers, whole};
+use super::claude_accounts::Judging;
+use super::{Call, Refused, Route, answer, whole};
 use crate::agent_roles::{self, AgentRole};
 use crate::now_ms;
+use crate::order::{self, Order};
+use crate::order_run::dispatch;
+use crate::places::Ground;
+use crate::road::{self, Ask, Row};
 use crate::text::length;
 use store::{all, one, run};
 
 static NAME: LazyLock<Regex> =
   LazyLock::new(|| Regex::new(&ROLES.name_pattern).expect("the policy's role name pattern reads"));
+
+// The lines a role may name: every line agency carries but the supervisors' and the gate's.
+const NOT_A_ROLES_LINE: [&str; 2] = ["chat", "gate"];
 
 fn unprocessable(error: impl Into<String>) -> Refused {
   Refused::new(StatusCode::UNPROCESSABLE_ENTITY, error)
@@ -30,11 +37,6 @@ fn unprocessable(error: impl Into<String>) -> Refused {
 
 fn unknown(name: &str) -> Refused {
   Refused::new(StatusCode::NOT_FOUND, fill_marks(&CONTROL_WORDS.agent_roles.unknown, &[("name", name)]))
-}
-
-/// The work key a role's tier is the assignment of.
-pub fn key_of(role: &str) -> String {
-  format!("role:{role}")
 }
 
 fn label_refusal() -> String {
@@ -47,62 +49,110 @@ fn bundles_refusal() -> String {
   fill_marks(&CONTROL_WORDS.agent_roles.bundles, &[("bundles", &declared.join(", "))])
 }
 
-fn bundle_view(name: &str) -> Value {
-  json!({ "name": name, "label": ROLES.bundle_label(name) })
+/// Every line a role may name.
+pub fn role_lines() -> Vec<String> {
+  RUN_LINES
+    .0
+    .keys()
+    .filter(|line| !NOT_A_ROLES_LINE.contains(&line.as_str()))
+    .cloned()
+    .collect()
 }
 
-/// One role as the routes answer it: its row, its key's tier, how many agents hold it and whether a kind's
-/// own is it.
-async fn view<C: ConnectionTrait>(db: &C, role: &AgentRole) -> Result<Value, Refused> {
-  let tier: Option<String> = one(
-    db,
-    r#"SELECT "tier" FROM "model_tier_assignments" WHERE "key" = $1"#,
-    vec![key_of(&role.name).into()],
-  )
-  .await?
-  .map(|row| row.try_get("", "tier"))
-  .transpose()?;
+fn line_refusal() -> String {
+  fill_marks(&CONTROL_WORDS.agent_roles.line, &[("lines", &role_lines().join(", "))])
+}
+
+/// A bundle as a screen is handed it: its name, its kebab-case code and its label.
+pub fn bundle_view(name: &str) -> Value {
+  json!({ "name": name, "code": name.replace('.', "-"), "label": ROLES.bundle_label(name) })
+}
+
+/// What stands of a role now: how many of its runs go and wait, its active provider and why its runs wait.
+async fn standing(ground: &Ground, role: &AgentRole) -> Result<Value, Refused> {
+  let count = |state: &'static str| {
+    let db = &ground.db;
+    let name = role.name.clone();
+
+    async move {
+      one(
+        db,
+        r#"SELECT COUNT(*) AS "count" FROM "role_slot_requests" WHERE "role" = $1 AND "state" = $2"#,
+        vec![name.into(), state.into()],
+      )
+      .await
+      .map(|row| row.and_then(|row| row.try_get::<i64>("", "count").ok()).unwrap_or(0))
+    }
+  };
+  let running = count("active").await?;
+  let waiting = count("waiting").await?;
+  let resolution = road::resolve(ground, &Ask::of(Row::Role(&role.name), &role.line, &role.order))
+    .await
+    .map_err(Refused::failed)?;
+  let provider = resolution.road().map(|road| road.provider.clone());
+  let waiting_for = provider.is_none().then(|| resolution.sentence());
 
   Ok(json!({
-    "name": role.name,
-    "label": role.label,
-    "bundles": role.bundles.iter().map(|bundle| bundle_view(bundle)).collect::<Vec<_>>(),
-    "maxConcurrent": role.max_concurrent,
-    "prompt": role.prompt,
-    "tier": tier,
-    "sessions": role.sessions.word(),
-    "agents": holders(db, &role.name).await?.len(),
-    "kindDefault": ROLES.kind_default(&role.name),
+    "running": running,
+    "waiting": waiting,
+    "provider": provider,
+    "waitingFor": waiting_for,
   }))
 }
 
-/// The agents whose rows hold a role, in name order.
-async fn holders<C: ConnectionTrait>(db: &C, role: &str) -> Result<Vec<String>, Refused> {
-  all(
-    db,
-    r#"SELECT "name" FROM "agents" WHERE "role" = $1 ORDER BY "name""#,
-    vec![role.into()],
-  )
-  .await?
-  .iter()
-  .map(|row| row.try_get("", "name").map_err(Refused::from))
-  .collect()
+/// One role as the routes answer it: every field of its row, and what stands of it now.
+pub async fn view(ground: &Ground, role: &AgentRole) -> Result<Value, Refused> {
+  let mut shown = json!({
+    "name": role.name,
+    "code": role.name,
+    "label": role.label,
+    "prompt": role.prompt,
+    "description": role.description,
+    "bundles": role.bundles.iter().map(|bundle| bundle_view(bundle)).collect::<Vec<_>>(),
+    "line": role.line,
+    "order": role.order.entries,
+    "quotaShare": role.order.quota_share,
+    "maxConcurrent": role.max_concurrent,
+    "sessions": role.sessions.word(),
+    "foldRatio": role.fold_ratio,
+    "callable": role.callable,
+  });
+
+  if let (Some(shown), Value::Object(now)) = (shown.as_object_mut(), standing(ground, role).await?) {
+    shown.extend(now);
+  }
+
+  Ok(shown)
 }
 
-/// What a body asks of a role's fields: each one it names, judged. A field left out is `None`; a bound, a
-/// prompt or a tier given as null is `Some(None)`.
+/// What a body asks of a role's fields: each one it names, judged. A field left out is `None`; a prompt or a
+/// description given as null is `Some(None)`.
 #[derive(Default)]
 struct Fields {
   label: Option<String>,
   bundles: Option<Vec<String>>,
-  bound: Option<Option<i64>>,
+  line: Option<String>,
+  order: Option<Order>,
+  bound: Option<i64>,
   prompt: Option<Option<String>>,
-  tier: Option<Option<String>>,
+  description: Option<Option<String>>,
   sessions: Option<Sessions>,
+  fold_ratio: Option<f64>,
+  callable: Option<bool>,
+}
+
+fn optional_text(value: &Value, refusal: &str) -> Result<Option<String>, Refused> {
+  match value {
+    Value::Null => Ok(None),
+    Value::String(text) if text.trim().is_empty() => Ok(None),
+    Value::String(text) => Ok(Some(text.clone())),
+    _ => Err(unprocessable(refusal)),
+  }
 }
 
 impl Fields {
-  fn of(body: &Value) -> Result<Self, Refused> {
+  // The fields a body names, judged; an order against the line the body names, else the one the role holds.
+  async fn of(ground: &Ground, body: &Value, held_line: Option<&str>) -> Result<Self, Refused> {
     let words = &CONTROL_WORDS.agent_roles;
     let mut fields = Self::default();
 
@@ -111,9 +161,7 @@ impl Fields {
         Some(label) if !label.is_empty() && length(label) <= ROLES.label_most => {
           fields.label = Some(label.to_owned());
         }
-        _ => {
-          return Err(unprocessable(label_refusal()));
-        }
+        _ => return Err(unprocessable(label_refusal())),
       }
     }
 
@@ -135,31 +183,36 @@ impl Fields {
       fields.bundles = Some(given);
     }
 
+    if let Some(line) = body.get("line") {
+      match line.as_str().filter(|line| role_lines().iter().any(|one| one == line)) {
+        Some(line) => fields.line = Some(line.to_owned()),
+        None => return Err(unprocessable(line_refusal())),
+      }
+    }
+
+    if let Some(entries) = body.get("order") {
+      let line = fields.line.as_deref().or(held_line).unwrap_or("worker");
+      let judged =
+        order::judge(Judging::of(ground), &ground.machine(), line, entries, body.get("quotaShare"))
+          .await
+          .map_err(|refusal| unprocessable(format!("{}: {}", refusal.field, refusal.error)))?;
+
+      fields.order = Some(judged);
+    }
+
     if let Some(bound) = body.get("maxConcurrent") {
-      fields.bound = Some(match bound {
-        Value::Null => None,
-        given => match whole(given).filter(|bound| *bound >= 1) {
-          Some(bound) => Some(bound),
-          None => return Err(unprocessable(words.bound.as_str())),
-        },
-      });
+      match whole(bound).filter(|bound| *bound >= 0) {
+        Some(bound) => fields.bound = Some(bound),
+        None => return Err(unprocessable(words.bound.as_str())),
+      }
     }
 
     if let Some(prompt) = body.get("prompt") {
-      fields.prompt = Some(match prompt {
-        Value::Null => None,
-        Value::String(text) if text.trim().is_empty() => None,
-        Value::String(text) => Some(text.clone()),
-        _ => return Err(unprocessable(words.prompt.as_str())),
-      });
+      fields.prompt = Some(optional_text(prompt, &words.prompt)?);
     }
 
-    if let Some(tier) = body.get("tier") {
-      fields.tier = Some(match tier {
-        Value::Null => None,
-        Value::String(tier) if TIERS.holds(tier) => Some(tier.clone()),
-        _ => return Err(unprocessable(fill_marks(&words.tier, &[("tiers", &TIERS.ladder.join(", "))]))),
-      });
+    if let Some(description) = body.get("description") {
+      fields.description = Some(optional_text(description, &words.description)?);
     }
 
     if let Some(sessions) = body.get("sessions") {
@@ -169,60 +222,88 @@ impl Fields {
       }
     }
 
+    if let Some(ratio) = body.get("foldRatio") {
+      match ratio.as_f64().filter(|ratio| *ratio > 0.0 && *ratio <= 1.0) {
+        Some(ratio) => fields.fold_ratio = Some(ratio),
+        None => return Err(unprocessable(words.fold_ratio.as_str())),
+      }
+    }
+
+    if let Some(callable) = body.get("callable") {
+      match callable.as_bool() {
+        Some(callable) => fields.callable = Some(callable),
+        None => return Err(unprocessable(words.callable.as_str())),
+      }
+    }
+
     Ok(fields)
   }
 }
 
-/// A role's key given the tier asked, or its assignment taken away where none is.
-async fn set_tier<C: ConnectionTrait + TransactionTrait>(
-  db: &C,
-  role: &str,
-  tier: Option<&str>,
-) -> Result<(), Refused> {
-  match tier {
-    Some(tier) => tiers::assign(db, &key_of(role), tier).await.map_err(Refused::failed),
-    None => {
-      run(
-        db,
-        r#"DELETE FROM "model_tier_assignments" WHERE "key" = $1"#,
-        vec![key_of(role).into()],
-      )
-      .await?;
-
-      Ok(())
-    }
-  }
+/// How many runs of a role go or wait now.
+async fn holding<C: ConnectionTrait>(db: &C, role: &str) -> Result<i64, Refused> {
+  Ok(
+    one(
+      db,
+      r#"SELECT COUNT(*) AS "count" FROM "role_slot_requests"
+         WHERE "role" = $1 AND "state" IN ('waiting', 'reserved', 'active')"#,
+      vec![role.into()],
+    )
+    .await?
+    .map(|row| row.try_get::<i64>("", "count"))
+    .transpose()?
+    .unwrap_or(0),
+  )
 }
 
-/// `GET /agent-roles`: every role the store holds, and every bundle a role may give.
-pub struct AgentRoleList;
+/// `GET /roles`: every role the store holds, every bundle a role may give and every line a role may name.
+pub struct RoleList;
 
-impl Route for AgentRoleList {
+impl Route for RoleList {
   const METHOD: Method = Method::GET;
-  const PATH: &'static str = "/agent-roles";
+  const PATH: &'static str = "/roles";
 
   async fn answer(&self, call: Call) -> Result<Response, Refused> {
-    let db = call.store();
     let mut roles = vec![];
 
-    for role in agent_roles::every(db).await? {
-      roles.push(view(db, &role).await?);
+    for role in agent_roles::every(call.store()).await? {
+      roles.push(view(call.ground(), &role).await?);
     }
 
     let bundles: Vec<Value> = ROLES.bundles.iter().map(|bundle| bundle_view(&bundle.name)).collect();
 
-    Ok(answer(StatusCode::OK, json!({ "roles": roles, "bundles": bundles })))
+    Ok(answer(
+      StatusCode::OK,
+      json!({ "roles": roles, "bundles": bundles, "lines": role_lines() }),
+    ))
   }
 }
 
-crate::moved!(AgentRoleList);
+crate::moved!(RoleList);
 
-/// `POST /agent-roles`: a role added, with its key's tier where one is given.
-pub struct AgentRoleCreate;
+/// `GET /roles/{roleName}`: one role, with how many of its runs go and wait.
+pub struct RoleRead;
 
-impl Route for AgentRoleCreate {
+impl Route for RoleRead {
+  const METHOD: Method = Method::GET;
+  const PATH: &'static str = "/roles/{roleName}";
+
+  async fn answer(&self, call: Call) -> Result<Response, Refused> {
+    let name = call.param("roleName").unwrap_or_default().to_owned();
+    let role = agent_roles::named(call.store(), &name).await?.ok_or_else(|| unknown(&name))?;
+
+    Ok(answer(StatusCode::OK, view(call.ground(), &role).await?))
+  }
+}
+
+crate::moved!(RoleRead);
+
+/// `POST /roles`: a role added.
+pub struct RoleCreate;
+
+impl Route for RoleCreate {
   const METHOD: Method = Method::POST;
-  const PATH: &'static str = "/agent-roles";
+  const PATH: &'static str = "/roles";
 
   async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
     let body = call.body().await?;
@@ -233,153 +314,189 @@ impl Route for AgentRoleCreate {
       return Err(unprocessable(fill_marks(&words.name, &[("most", &ROLES.name_most.to_string())])));
     }
 
-    let fields = Fields::of(&body)?;
-    let Some(label) = fields.label.clone() else {
-      return Err(unprocessable(label_refusal()));
-    };
-    let Some(bundles) = fields.bundles.clone() else {
-      return Err(unprocessable(bundles_refusal()));
-    };
-    let written = call.store().begin().await?;
-
-    if agent_roles::holds(&written, &name).await? {
+    if agent_roles::holds(call.store(), &name).await? {
       return Err(unprocessable(fill_marks(&words.taken, &[("name", &name)])));
     }
 
-    if one(
-      &written,
-      r#"SELECT 1 FROM "coworker_pool_roles" WHERE "name" = $1"#,
-      vec![name.clone().into()],
-    )
-    .await?
-    .is_some()
-    {
-      return Err(unprocessable(fill_marks(&words.coworker, &[("name", &name)])));
-    }
-
+    let fields = Fields::of(call.ground(), &body, None).await?;
+    let label = fields.label.clone().ok_or_else(|| unprocessable(label_refusal()))?;
+    let bundles = fields.bundles.clone().ok_or_else(|| unprocessable(bundles_refusal()))?;
+    let line = fields.line.clone().ok_or_else(|| unprocessable(line_refusal()))?;
+    let order = fields
+      .order
+      .clone()
+      .ok_or_else(|| unprocessable("order: A role names its provider order."))?;
+    let bound = fields.bound.ok_or_else(|| unprocessable(words.bound.as_str()))?;
     let now = now_ms();
-    let bundles = serde_json::to_string(&bundles).map_err(Refused::failed)?;
 
     run(
-      &written,
-      r#"INSERT INTO "agent_roles" ("name", "label", "bundles", "max_concurrent", "prompt", "position", "created_at", "updated_at", "sessions")
-         VALUES ($1, $2, $3, $4, $5, (SELECT COALESCE(MAX("position"), -1) + 1 FROM "agent_roles"), $6, $6, $7)"#,
+      call.store(),
+      r#"INSERT INTO "roles" ("name", "label", "bundles", "max_concurrent", "prompt", "position", "created_at",
+           "updated_at", "sessions", "description", "line", "provider_order", "quota_share", "fold_ratio", "callable")
+         VALUES ($1, $2, $3, $4, $5, (SELECT COALESCE(MAX("position"), -1) + 1 FROM "roles"), $6, $6, $7, $8, $9, $10,
+           $11, $12, $13)"#,
       vec![
         name.clone().into(),
         label.into(),
-        bundles.into(),
-        fields.bound.flatten().into(),
+        serde_json::to_string(&bundles).map_err(Refused::failed)?.into(),
+        bound.into(),
         fields.prompt.flatten().into(),
         now.into(),
         fields.sessions.unwrap_or_default().word().into(),
+        fields.description.flatten().into(),
+        line.into(),
+        order.entries_text().into(),
+        order.quota_share.into(),
+        fields.fold_ratio.unwrap_or_else(|| order.default_fold_ratio()).into(),
+        i64::from(fields.callable.unwrap_or(false)).into(),
       ],
     )
     .await?;
 
-    if let Some(tier) = fields.tier.flatten() {
-      set_tier(&written, &name, Some(&tier)).await?;
-    }
+    let role = agent_roles::named(call.store(), &name).await?.ok_or_else(|| unknown(&name))?;
 
-    let role = agent_roles::named(&written, &name).await?.ok_or_else(|| unknown(&name))?;
-    let shown = view(&written, &role).await?;
-
-    written.commit().await?;
-
-    Ok(answer(StatusCode::CREATED, shown))
+    Ok(answer(StatusCode::CREATED, view(call.ground(), &role).await?))
   }
 }
 
-crate::moved!(AgentRoleCreate);
+crate::moved!(RoleCreate);
 
-/// `PATCH /agent-roles/{roleName}`: a role's label, bundles, bound, prompt, tier or sessions changed.
-pub struct AgentRoleChange;
+/// `PATCH /roles/{roleName}`: any field of a role changed; a raised cap lets in at once the reserved slots it
+/// frees.
+pub struct RoleChange;
 
-impl Route for AgentRoleChange {
+impl Route for RoleChange {
   const METHOD: Method = Method::PATCH;
-  const PATH: &'static str = "/agent-roles/{roleName}";
+  const PATH: &'static str = "/roles/{roleName}";
 
   async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
     let name = call.param("roleName").unwrap_or_default().to_owned();
     let body = call.body().await?;
-    let fields = Fields::of(&body)?;
-    let written = call.store().begin().await?;
-    let Some(held) = agent_roles::named(&written, &name).await? else {
+    let Some(held) = agent_roles::named(call.store(), &name).await? else {
       return Err(unknown(&name));
     };
-    let bundles =
-      serde_json::to_string(&fields.bundles.unwrap_or(held.bundles)).map_err(Refused::failed)?;
+    let fields = Fields::of(call.ground(), &body, Some(&held.line)).await?;
+    let order = fields.order.unwrap_or(held.order);
 
     run(
-      &written,
-      r#"UPDATE "agent_roles" SET "label" = $1, "bundles" = $2, "max_concurrent" = $3, "prompt" = $4, "updated_at" = $5,
-           "sessions" = $7
+      call.store(),
+      r#"UPDATE "roles" SET "label" = $1, "bundles" = $2, "max_concurrent" = $3, "prompt" = $4, "updated_at" = $5,
+           "sessions" = $7, "description" = $8, "line" = $9, "provider_order" = $10, "quota_share" = $11,
+           "fold_ratio" = $12, "callable" = $13
          WHERE "name" = $6"#,
       vec![
         fields.label.unwrap_or(held.label).into(),
-        bundles.into(),
+        serde_json::to_string(&fields.bundles.unwrap_or(held.bundles)).map_err(Refused::failed)?.into(),
         fields.bound.unwrap_or(held.max_concurrent).into(),
         fields.prompt.unwrap_or(held.prompt).into(),
         now_ms().into(),
         name.clone().into(),
         fields.sessions.unwrap_or(held.sessions).word().into(),
+        fields.description.unwrap_or(held.description).into(),
+        fields.line.unwrap_or(held.line).into(),
+        order.entries_text().into(),
+        order.quota_share.into(),
+        fields.fold_ratio.unwrap_or(held.fold_ratio).into(),
+        i64::from(fields.callable.unwrap_or(held.callable)).into(),
       ],
     )
     .await?;
 
-    if let Some(tier) = &fields.tier {
-      set_tier(&written, &name, tier.as_deref()).await?;
-    }
+    dispatch::promote_role(call.store(), &name, now_ms()).await.map_err(Refused::failed)?;
 
-    let role = agent_roles::named(&written, &name).await?.ok_or_else(|| unknown(&name))?;
-    let shown = view(&written, &role).await?;
+    let role = agent_roles::named(call.store(), &name).await?.ok_or_else(|| unknown(&name))?;
 
-    written.commit().await?;
-
-    Ok(answer(StatusCode::OK, shown))
+    Ok(answer(StatusCode::OK, view(call.ground(), &role).await?))
   }
 }
 
-crate::moved!(AgentRoleChange);
+crate::moved!(RoleChange);
 
-/// `DELETE /agent-roles/{roleName}`: a role no agent holds and no kind is for removed, with its key's
-/// assignment.
-pub struct AgentRoleDelete;
+/// `DELETE /roles/{roleName}`: a role no run holds or waits for and no default names, removed.
+pub struct RoleDelete;
 
-impl Route for AgentRoleDelete {
+impl Route for RoleDelete {
   const METHOD: Method = Method::DELETE;
-  const PATH: &'static str = "/agent-roles/{roleName}";
+  const PATH: &'static str = "/roles/{roleName}";
 
   async fn answer(&self, call: Call) -> Result<Response, Refused> {
     let words = &CONTROL_WORDS.agent_roles;
     let name = call.param("roleName").unwrap_or_default().to_owned();
-    let written = call.store().begin().await?;
 
-    if !agent_roles::holds(&written, &name).await? {
+    if !agent_roles::holds(call.store(), &name).await? {
       return Err(unknown(&name));
     }
 
-    if let Some((kind, _)) = ROLES.kinds.iter().find(|(_, role)| **role == name) {
-      return Err(Refused::new(
-        StatusCode::CONFLICT,
-        fill_marks(&words.kind_default, &[("name", &name), ("kind", kind)]),
-      ));
+    if ROLES.default_role(&name) {
+      return Err(Refused::new(StatusCode::CONFLICT, fill_marks(&words.default_role, &[("name", &name)])));
     }
 
-    let holding = holders(&written, &name).await?;
-
-    if !holding.is_empty() {
-      return Err(Refused::new(
-        StatusCode::CONFLICT,
-        fill_marks(&words.held, &[("name", &name), ("agents", &holding.join(", "))]),
-      ));
+    if holding(call.store(), &name).await? > 0 {
+      return Err(Refused::new(StatusCode::CONFLICT, fill_marks(&words.held, &[("name", &name)])));
     }
 
-    run(&written, r#"DELETE FROM "agent_roles" WHERE "name" = $1"#, vec![name.clone().into()]).await?;
-    set_tier(&written, &name, None).await?;
-    written.commit().await?;
+    run(call.store(), r#"DELETE FROM "roles" WHERE "name" = $1"#, vec![name.into()]).await?;
 
     Ok(StatusCode::NO_CONTENT.into_response())
   }
 }
 
-crate::moved!(AgentRoleDelete);
+crate::moved!(RoleDelete);
+
+// The most sessions a history page holds.
+const HISTORY_PAGE: i64 = 50;
+
+/// `GET /roles/{roleName}/sessions`: the sessions the role's runs opened, newest first (docs/sessions.md,
+/// 「The session history of a role」).
+pub struct RoleSessions;
+
+impl Route for RoleSessions {
+  const METHOD: Method = Method::GET;
+  const PATH: &'static str = "/roles/{roleName}/sessions";
+
+  async fn answer(&self, call: Call) -> Result<Response, Refused> {
+    let name = call.param("roleName").unwrap_or_default().to_owned();
+
+    if !agent_roles::holds(call.store(), &name).await? {
+      return Err(unknown(&name));
+    }
+
+    let before = call.query("before").and_then(|before| before.parse::<i64>().ok()).unwrap_or(i64::MAX);
+    let limit = call
+      .query("limit")
+      .and_then(|limit| limit.parse::<i64>().ok())
+      .filter(|limit| *limit > 0)
+      .unwrap_or(HISTORY_PAGE);
+    let rows = all(
+      call.store(),
+      r#"SELECT * FROM "role_sessions" WHERE "role" = $1 AND "id" < $2 ORDER BY "id" DESC LIMIT $3"#,
+      vec![name.into(), before.into(), (limit + 1).into()],
+    )
+    .await?;
+    let more = i64::try_from(rows.len()).unwrap_or(i64::MAX) > limit;
+    let mut items = vec![];
+
+    for row in rows.iter().take(usize::try_from(limit).unwrap_or(usize::MAX)) {
+      let held = crate::apart_sessions::Kept::of(row).map_err(Refused::failed)?;
+
+      items.push(json!({
+        "id": held.id,
+        "sessionId": held.session,
+        "path": held.path,
+        "provider": held.provider,
+        "model": held.model,
+        "effort": (!held.effort.is_empty()).then_some(held.effort.clone()),
+        "account": held.account,
+        "openedAt": held.opened_at,
+        "lastAnsweredAt": held.answered_at,
+        "runs": held.runs,
+        "context": { "tokens": held.context_tokens, "share": held.context_share },
+        "valid": crate::apart_sessions::valid(&held, now_ms()),
+      }));
+    }
+
+    Ok(answer(StatusCode::OK, json!({ "items": items, "more": more })))
+  }
+}
+
+crate::moved!(RoleSessions);

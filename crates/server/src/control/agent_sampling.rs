@@ -6,10 +6,9 @@
   clippy::let_and_return,
   clippy::unnecessary_to_owned
 )]
-//! A worker's own sampling (docs/own-llm.md, 「A worker pinned to a provider」): the settings it takes with
-//! their bounds, the values it holds, and a save of them, kept in the store's settings under its name. A
-//! support worker runs on its base's, so only a worker of its own holds any. A save stands the pinned
-//! workers' programs again, as a new pin does, so the next run carries the new values.
+//! A supervisor's or a repository's own sampling (docs/api.md, 「supervisors」, 「repositories」): the settings
+//! it takes with their bounds, the values it holds, and a save of them, kept in the store's settings under its
+//! name; a repository's is what a run on its pinned registration is sent.
 
 use axum::http::{Method, StatusCode};
 use axum::response::Response;
@@ -57,29 +56,21 @@ pub fn held_values(text: Option<String>) -> Map<String, Value> {
     .collect()
 }
 
-// The worker a name stands for, where it holds sampling of its own: its name as the store keeps it.
+// The supervisor or repository a name stands for, which keeps a sampling of its own: its name as the store
+// keeps it.
 pub async fn sampling_owner(db: &DatabaseConnection, name: &str) -> Result<String, Fault> {
   let words = &CONTROL_WORDS.workers.sampling;
-  let Some(row) = one(
+  let held = one(
     db,
-    r#"SELECT "name", "kind", "label", "support_of" FROM "agents" WHERE "name" = $1"#,
+    r#"SELECT "name" FROM "supervisors" WHERE "name" = $1 UNION SELECT "name" FROM "repositories" WHERE "name" = $1"#,
     vec![name.into()],
   )
-  .await?
-  else {
-    return refused(WHOLE, fill_marks(&words.no_agent, &[("agent", name)]));
-  };
-  let label = row.try_get::<Option<String>>("", "label")?.unwrap_or_else(|| name.to_owned());
+  .await?;
 
-  if row.try_get::<String>("", "kind")? != "worker" {
-    return refused(WHOLE, fill_marks(&words.not_worker, &[("label", &label)]));
+  match held {
+    Some(row) => Ok(row.try_get("", "name")?),
+    None => refused(WHOLE, fill_marks(&words.no_agent, &[("agent", name)])),
   }
-
-  if row.try_get::<Option<String>>("", "support_of")?.is_some() {
-    return refused(WHOLE, fill_marks(&words.follows_base, &[("label", &label)]));
-  }
-
-  Ok(row.try_get("", "name")?)
 }
 
 pub async fn view(db: &DatabaseConnection, agent: &str) -> Result<Value, Fault> {
@@ -114,57 +105,4 @@ pub fn changed(asked: &Value, mut held: Map<String, Value>) -> Result<Map<String
   }
 
   Ok(held)
-}
-
-/// One worker's own sampling with the settings it takes.
-pub struct AgentSampling;
-
-impl Route for AgentSampling {
-  const METHOD: Method = Method::GET;
-  const PATH: &'static str = "/agent-sampling";
-
-  async fn answer(&self, call: Call) -> Result<Response, Refused> {
-    let db = call.store();
-    let name = call.query("agent").unwrap_or_default().trim().to_owned();
-    let shown = async { view(db, &sampling_owner(db, &name).await?).await };
-
-    match shown.await {
-      Ok(view) => Ok(answer(StatusCode::OK, view)),
-      Err(fault) => fault.answer(),
-    }
-  }
-}
-
-/// A worker's own sampling saved, answered as it then stands.
-pub struct AgentSamplingSave;
-
-impl Route for AgentSamplingSave {
-  const METHOD: Method = Method::POST;
-  const PATH: &'static str = "/agent-sampling";
-
-  async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
-    let body = call.body().await?;
-    let name = body.get("agent").and_then(Value::as_str).map(str::trim).unwrap_or_default();
-    let db = call.store();
-    let saved = async {
-      let agent = sampling_owner(db, name).await?;
-      let held = held_values(settings::get(db, &key(&agent)).await?);
-      let next = changed(body.get("sampling").unwrap_or(&Value::Null), held)?;
-
-      settings::set(db, &key(&agent), &Value::Object(next).to_string()).await?;
-
-      view(db, &agent).await
-    };
-
-    match saved.await {
-      Ok(view) => {
-        if let Some(places) = call.places().cloned() {
-          tokio::spawn(async move { crate::places::standby::restand_all(&places.ground, false).await });
-        }
-
-        Ok(answer(StatusCode::OK, view))
-      }
-      Err(fault) => fault.answer(),
-    }
-  }
 }

@@ -1,37 +1,28 @@
-#![allow(
-  dead_code,
-  unused_imports,
-  unused_variables,
-  clippy::needless_lifetimes,
-  clippy::let_and_return,
-  clippy::unnecessary_to_owned
-)]
-//! The co-worker pool's routes (docs/api.md, 「Co-worker pool」; docs/coworker-pool.md): a branch's seat or a
-//! builder turn's place asked of the pool, let in at the head of its line, bound to the unit it launched
-//! and given back with what it came to; the seats an owner reserves and gives back; and the standing
-//! checkouts a branch's place is taken, laid, recorded and taken down in. The labels and keys of a
-//! consumer's work arrive with each request, and agency reads none of its orders.
+//! The role slots' routes (docs/api.md, 「slots, reservations and places」; docs/role-slots.md): a slot of a
+//! role asked, let in at the head of its role's line, bound to the run it launched and given back with what
+//! it came to; the slots an owner reserves and gives back; every role's slots; a supervisor's delegations;
+//! and the standing checkouts a branch's place is taken, laid, recorded and taken down in. The labels and keys
+//! of a consumer's work arrive with each request, and agency reads none of its orders.
 
 use std::path::Path;
 
 use axum::http::{Method, StatusCode};
 use axum::response::{IntoResponse, Response};
 use bmo_chat::{ErrorCode, WireError};
+use policy::roles::ROLES;
 use serde_json::{Value, json};
 use store::run;
 
-use super::{Call, Refused, Route, answer, pool, whole};
+use super::{Call, Refused, Route, answer, whole};
+use crate::agent_roles;
 use crate::now_ms;
 use crate::order_run::dispatch::{
-  self, Asked, COWORK, Seats, Wanted, acquire, bind, enqueue_seat, enqueue_turn, finish, held_reservations,
+  self, Asked, COWORK, DELEGATE, Seats, Wanted, acquire, bind, finish, held_reservations,
   release_reservation,
 };
 use crate::order_run::places::{self, Held};
 use crate::places::dev;
 use crate::watches::links::checkout_shadow;
-
-// The source a builder turn's place is asked under.
-const TURN: &str = "turn";
 
 fn bad(error: impl Into<String>) -> Refused {
   Refused::new(StatusCode::BAD_REQUEST, error)
@@ -44,7 +35,7 @@ fn place_named(call: &Call) -> String {
     .into_owned()
 }
 
-// A pool step that did not go through, in the dispatch's own words.
+// A slot step that did not go through, in the line's own words.
 fn refused(fault: dispatch::Fault) -> Refused {
   Refused::new(StatusCode::UNPROCESSABLE_ENTITY, fault)
 }
@@ -61,16 +52,6 @@ fn optional<'a>(body: &'a Value, field: &str) -> Option<&'a str> {
   body.get(field).and_then(Value::as_str).filter(|value| !value.is_empty())
 }
 
-fn wanted(body: &Value) -> Result<Wanted<'_>, Refused> {
-  Ok(Wanted {
-    role: text(body, "role")?,
-    selection: text(body, "selection")?,
-    requested_tier: optional(body, "tier"),
-    provider: optional(body, "provider"),
-    work_key: optional(body, "workKey"),
-  })
-}
-
 fn held(body: &Value) -> Vec<Held> {
   body
     .get("held")
@@ -83,98 +64,88 @@ fn shown(value: impl serde::Serialize) -> Result<Value, Refused> {
   serde_json::to_value(value).map_err(Refused::failed)
 }
 
-/// A seat or a place asked of the pool: a branch's, as a child of its order, or a builder turn's, as the
-/// worker itself on its checkout.
-pub struct PoolEnqueue;
+/// `POST /slot-requests`: a slot of a role asked under the source, owner and request key its caller names, at
+/// the path its run will work at; its provider and model are the role's order's unless the caller fixes them.
+pub struct SlotAsk;
 
-impl Route for PoolEnqueue {
+impl Route for SlotAsk {
   const METHOD: Method = Method::POST;
-  const PATH: &'static str = "/seat-requests";
+  const PATH: &'static str = "/slot-requests";
 
   async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
     let body = call.body().await?;
+    let source = optional(&body, "source").unwrap_or(COWORK);
+    let asked_by = optional(&body, "askedBy");
+    let role = match optional(&body, "role") {
+      Some(role) => role,
+      None if source == DELEGATE => ROLES.delegate.as_str(),
+      None => return Err(bad("role (string) is required")),
+    };
+
+    if !agent_roles::holds(call.store(), role).await? {
+      return Err(
+        Refused::new(StatusCode::UNPROCESSABLE_ENTITY, agent_roles::unknown(role))
+          .with_code("unknown-role"),
+      );
+    }
+
+    let fixed = match (optional(&body, "provider"), optional(&body, "model")) {
+      (Some(provider), Some(model)) => {
+        Some(dispatch::named_road(call.store(), role, provider, model).await.map_err(refused)?)
+      }
+      (None, None) => dispatch::fixed_road(call.store(), role, source, asked_by).await.map_err(refused)?,
+      _ => return Err(bad("A slot's road names its provider and its model together")),
+    };
     let asked = Asked {
       request_key: text(&body, "requestKey")?.to_owned(),
       owner: text(&body, "owner")?.to_owned(),
-      wanted: wanted(&body)?,
-      generation: body.get("generation").and_then(whole).unwrap_or(1),
+      wanted: Wanted {
+        role,
+        path: optional(&body, "path"),
+        fixed,
+      },
       yielding: body.get("yielding").and_then(Value::as_bool).unwrap_or(false),
       token: optional(&body, "token"),
       place_key: optional(&body, "placeKey"),
+      session: optional(&body, "session"),
+      title: optional(&body, "title"),
+      asked_by,
     };
-    // A builder turn's place is the one source of its own; any other label is a branch's seat, kept as sent.
-    let request = match body.get("source").and_then(Value::as_str).unwrap_or(COWORK) {
-      TURN => enqueue_turn(call.ground(), &asked, async |_, _| Ok(())).await,
-      source => enqueue_seat(call.store(), &asked, source, async |_, _| Ok(())).await,
-    }
-    .map_err(refused)?;
-    // The title and the asking agent a seat is listed by, kept as its asker named them (docs/api.md, 「pool,
-    // seat-requests, reservations and roles」).
-    let request = match (optional(&body, "title"), optional(&body, "askedBy")) {
-      (None, None) => request,
-      (title, asked_by) => {
-        run(
-          call.store(),
-          "UPDATE coworker_pool_requests SET title = COALESCE($1, title), asked_by = COALESCE($2, asked_by)
-           WHERE token = $3",
-          vec![
-            title.map(str::to_owned).into(),
-            asked_by.map(str::to_owned).into(),
-            request.token.clone().into(),
-          ],
-        )
-        .await?;
-
-        dispatch::request(call.store(), &request.token)
-          .await
-          .map_err(refused)?
-          .unwrap_or(request)
-      }
-    };
+    let request = dispatch::enqueue(call.store(), &asked, source, async |_, _| Ok(()))
+      .await
+      .map_err(refused)?;
 
     Ok(answer(StatusCode::CREATED, shown(request)?))
   }
 }
 
-crate::moved!(PoolEnqueue);
+crate::moved!(SlotAsk);
 
-async fn request_named(
-  db: &sea_orm::DatabaseConnection,
-  body: &Value,
-) -> Result<crate::control::pool::Request, Refused> {
-  let token = text(body, "token")?;
+/// `PATCH /slot-requests/{token}`: a slot request asked for its admission, bound to the run it launched, or
+/// given back.
+pub struct SlotMove;
 
-  dispatch::request(db, token)
-    .await
-    .map_err(refused)?
-    .ok_or_else(|| Refused::new(StatusCode::NOT_FOUND, format!("no pool request holds the token {token}")))
-}
-
-/// A request let in where its turn has come, or none where it waits on.
-pub struct PoolAcquire;
-
-impl Route for PoolAcquire {
+impl Route for SlotMove {
   const METHOD: Method = Method::PATCH;
-  const PATH: &'static str = "/seat-requests/{token}";
+  const PATH: &'static str = "/slot-requests/{token}";
 
   async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
     let body = call.body().await?;
     let token = call.param("token").unwrap_or_default().to_owned();
     let held = dispatch::request(call.store(), &token).await.map_err(refused)?.ok_or_else(|| {
-      Refused::new(StatusCode::NOT_FOUND, format!("no pool request holds the token {token}"))
+      Refused::new(StatusCode::NOT_FOUND, format!("No slot request holds the token {token}"))
     })?;
-    let move_to = body.get("state").or_else(|| body.get("action")).and_then(Value::as_str);
 
-    match move_to {
+    match body.get("state").and_then(Value::as_str) {
       Some("bound") => {
         let child = text(&body, "childId")?;
         let mut bound = bind(call.store(), &held, child).await.map_err(refused)?;
 
-        // The agent the seat's child runs on, kept where the binding names it.
+        // The run the slot's child is, kept where the binding names it.
         if let Some(agent) = optional(&body, "agentName") {
           run(
             call.store(),
-            "UPDATE coworker_pool_requests SET agent = $1 WHERE token = $2",
+            r#"UPDATE "role_slot_requests" SET "agent" = $1 WHERE "token" = $2"#,
             vec![agent.into(), token.clone().into()],
           )
           .await?;
@@ -183,23 +154,24 @@ impl Route for PoolAcquire {
 
         Ok(answer(StatusCode::OK, shown(bound)?))
       }
-      Some("finished") | Some("finish") => {
+      Some("finished") => {
         let outcome = body.get("outcome").and_then(Value::as_str).unwrap_or_default();
         let cancel = body.get("cancel").and_then(Value::as_bool).unwrap_or(false);
         let held = finish(call.store(), &token, outcome, cancel).await.map_err(refused)?;
-        // The card the seat held goes back with it; where the asking run's own card was lent, the answer
+        // The card the slot held goes back with it; where the asking run's own card was lent, the answer
         // waits until that run's engine is back and says so (docs/own-llm.md, 「An engine the arbiter
         // stands」).
         let note = crate::cards::give_back_seat(call.ground(), &token).await.map_err(Refused::from)?;
+
         Ok(answer(
           StatusCode::OK,
           json!({ "held": held, "stoodDown": note.is_some(), "note": note }),
         ))
       }
-      _ => {
-        // The demands of the caller's own an admission names: one granted the seat stands on, or the run's
-        // demand the seat's own is asked within (docs/api.md, 「pool, seat-requests, reservations and
-        // roles」).
+      Some(other) => Err(bad(format!("{other} is no state a slot request is moved to"))),
+      None => {
+        // The demands of the caller's own an admission names: one granted the slot stands on, or the run's
+        // demand the slot's own is asked within.
         let demand = |field: &str| match body.get(field) {
           None | Some(Value::Null) => Ok(None),
           Some(value) => value
@@ -212,8 +184,8 @@ impl Route for PoolAcquire {
           own: demand("demandId")?,
           within: demand("within")?,
         };
-        let admitted = acquire(call.store(), &held).await.map_err(refused)?;
-        // A seat on a registration whose engine the arbiter stands is let out once its card is granted; while
+        let admitted = acquire(call.ground(), &held).await.map_err(refused)?;
+        // A slot on a registration whose engine the arbiter stands is let out once its card is granted; while
         // its demand waits it answers none and the demand says why, and the caller asks again.
         let card = match admitted.as_ref().filter(|seat| seat.state == "active") {
           Some(seat) => crate::cards::seat_card(call.ground(), seat, ask).await.map_err(Refused::from)?,
@@ -223,18 +195,19 @@ impl Route for PoolAcquire {
           Some(card) if !card.granted() => Value::Null,
           _ => shown(admitted)?,
         };
+
         Ok(answer(StatusCode::OK, json!({ "request": request, "demand": card })))
       }
     }
   }
 }
 
-crate::moved!(PoolAcquire);
+crate::moved!(SlotMove);
 
-/// Seats of one tier on one provider held for an owner.
-pub struct PoolReserve;
+/// `POST /reservations`: slots of a role held for an owner.
+pub struct SlotReserve;
 
-impl Route for PoolReserve {
+impl Route for SlotReserve {
   const METHOD: Method = Method::POST;
   const PATH: &'static str = "/reservations";
 
@@ -244,48 +217,47 @@ impl Route for PoolReserve {
       reservation_key: text(&body, "reservationKey")?.to_owned(),
       owner: text(&body, "owner")?.to_owned(),
       source: text(&body, "source")?,
-      wanted: wanted(&body)?,
+      role: text(&body, "role")?,
       count: body
         .get("count")
         .and_then(whole)
         .ok_or_else(|| bad("count (a whole number) is required"))?,
     };
     let reservation = dispatch::reserve(call.store(), &seats).await.map_err(refused)?;
+    let slots = dispatch::seats(call.store(), &reservation.token).await.map_err(refused)?;
 
-    Ok(answer(StatusCode::CREATED, shown(reservation)?))
+    Ok(answer(
+      StatusCode::CREATED,
+      json!({ "reservation": shown(reservation)?, "requests": shown(slots)? }),
+    ))
   }
 }
 
-crate::moved!(PoolReserve);
+crate::moved!(SlotReserve);
 
-/// A reservation given back.
-pub struct PoolReservationRelease;
+/// `PATCH /reservations/{token}`: a reservation given back.
+pub struct SlotReservationRelease;
 
-impl Route for PoolReservationRelease {
+impl Route for SlotReservationRelease {
   const METHOD: Method = Method::PATCH;
   const PATH: &'static str = "/reservations/{token}";
 
   async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
     let body = call.body().await?;
     let token = call.param("token").unwrap_or_default().to_owned();
-    let held = release_reservation(
-      call.store(),
-      &token,
-      body.get("outcome").and_then(Value::as_str).unwrap_or_default(),
-    )
-    .await
-    .map_err(refused)?;
+    let outcome = body.get("outcome").and_then(Value::as_str).unwrap_or_default();
+    let held = release_reservation(call.store(), &token, outcome).await.map_err(refused)?;
 
     Ok(answer(StatusCode::OK, json!({ "held": held })))
   }
 }
 
-crate::moved!(PoolReservationRelease);
+crate::moved!(SlotReservationRelease);
 
-/// The reservations an owner holds, or every one held where none is named.
-pub struct PoolReservations;
+/// `GET /reservations`: the reservations an owner holds, or every one held where none is named.
+pub struct SlotReservations;
 
-impl Route for PoolReservations {
+impl Route for SlotReservations {
   const METHOD: Method = Method::GET;
   const PATH: &'static str = "/reservations";
 
@@ -297,59 +269,108 @@ impl Route for PoolReservations {
   }
 }
 
-crate::moved!(PoolReservations);
+crate::moved!(SlotReservations);
 
-// The request states that are still open: asked, or let in.
-const OPEN: [&str; 2] = ["waiting", "active"];
+// The request states that are still open: asked, reserved, or let in.
+const OPEN: [&str; 3] = ["waiting", "reserved", "active"];
 
-/// The request a token holds, whatever its state.
-pub struct PoolRequestRead;
+/// `GET /slot-requests/{token}`: the request a token holds, whatever its state.
+pub struct SlotRequestRead;
 
-impl Route for PoolRequestRead {
+impl Route for SlotRequestRead {
   const METHOD: Method = Method::GET;
-  const PATH: &'static str = "/seat-requests/{token}";
+  const PATH: &'static str = "/slot-requests/{token}";
 
   async fn answer(&self, call: Call) -> Result<Response, Refused> {
     let token = call.param("token").unwrap_or_default();
 
     Ok(match dispatch::request(call.store(), token).await.map_err(refused)? {
       Some(request) => answer(StatusCode::OK, shown(request)?),
-      None => WireError::new(ErrorCode::NotFound, format!("no pool request holds the token {token}"))
+      None => WireError::new(ErrorCode::NotFound, format!("No slot request holds the token {token}"))
         .into_response(),
     })
   }
 }
 
-crate::moved!(PoolRequestRead);
+crate::moved!(SlotRequestRead);
 
-/// The requests still open, in the order they came, only an owner's where one is named.
-pub struct PoolOpenRequests;
+/// `GET /slot-requests`: the requests still open, in the order they came, narrowed by role, by owner, or to
+/// the ones waiting.
+pub struct SlotOpenRequests;
 
-impl Route for PoolOpenRequests {
+impl Route for SlotOpenRequests {
   const METHOD: Method = Method::GET;
-  const PATH: &'static str = "/seat-requests";
+  const PATH: &'static str = "/slot-requests";
 
   async fn answer(&self, call: Call) -> Result<Response, Refused> {
     let owner = call.query("owner");
+    let role = call.query("role");
+    let waiting = call.query("waiting").as_deref() == Some("true");
     let open: Vec<_> = dispatch::requests(call.store(), &OPEN)
       .await
       .map_err(refused)?
       .into_iter()
       .filter(|request| owner.as_ref().is_none_or(|owner| &request.owner == owner))
+      .filter(|request| role.as_ref().is_none_or(|role| &request.role == role))
+      .filter(|request| !waiting || request.state == "waiting")
       .collect();
 
     Ok(answer(StatusCode::OK, json!({ "items": shown(open)?, "more": false })))
   }
 }
 
-crate::moved!(PoolOpenRequests);
+crate::moved!(SlotOpenRequests);
 
-// The source a delegated task's seat is asked under (docs/tools.md, 「The delegate」), and the most ended
-// delegations a listing names where it asks for no count.
-const DELEGATE: &str = "delegate";
+/// `GET /slots`: every role's slots — its cap, the runs let in, reserved and waiting, and what holds each
+/// active one.
+pub struct Slots;
+
+impl Route for Slots {
+  const METHOD: Method = Method::GET;
+  const PATH: &'static str = "/slots";
+
+  async fn answer(&self, call: Call) -> Result<Response, Refused> {
+    let open = dispatch::requests(call.store(), &OPEN).await.map_err(refused)?;
+    let mut items = vec![];
+
+    for role in agent_roles::every(call.store()).await? {
+      let of_role: Vec<_> = open.iter().filter(|request| request.role == role.name).collect();
+      let count = |state: &str| of_role.iter().filter(|request| request.state == state).count();
+      let runs: Vec<Value> = of_role
+        .iter()
+        .filter(|request| request.state == "active")
+        .map(|request| {
+          json!({
+            "role": request.role,
+            "path": request.path,
+            "provider": request.provider,
+            "model": request.model,
+            "source": request.source,
+            "since": request.leased_at,
+          })
+        })
+        .collect();
+
+      items.push(json!({
+        "role": role.name,
+        "maxConcurrent": role.max_concurrent,
+        "active": count("active"),
+        "reserved": count("reserved"),
+        "waiting": count("waiting"),
+        "runs": runs,
+      }));
+    }
+
+    Ok(answer(StatusCode::OK, json!({ "items": items })))
+  }
+}
+
+crate::moved!(Slots);
+
+// The most ended delegations a listing names where it asks for no count.
 const ENDED_LISTED: i64 = 10;
 
-/// A delegation's stage as its seat stands: waiting in the line, running once let in, ended once given back.
+/// A delegation's stage as its slot stands: waiting in the line, running once let in, ended once given back.
 fn stage(state: &str) -> &'static str {
   match state {
     "waiting" | "reserved" => "waiting",
@@ -358,7 +379,7 @@ fn stage(state: &str) -> &'static str {
   }
 }
 
-/// `GET /delegations`: the seats asked under the source `delegate`, one asking agent's where `askedBy`
+/// `GET /delegations`: the slots asked under the source `delegate`, one asking supervisor's where `askedBy`
 /// names one — the ones still waiting or running in the order they were asked, then the latest ended,
 /// newest first.
 pub struct Delegations;
@@ -377,7 +398,7 @@ impl Route for Delegations {
         .filter(|count| *count >= 0)
         .ok_or_else(|| bad("ended is a whole number from 0"))?,
     };
-    let narrowed = if asked_by.is_some() { " AND asked_by = $2" } else { "" };
+    let narrowed = if asked_by.is_some() { r#" AND "asked_by" = $2"# } else { "" };
     let mut values: Vec<sea_orm::Value> = vec![DELEGATE.into()];
 
     if let Some(asker) = &asked_by {
@@ -387,8 +408,8 @@ impl Route for Delegations {
     let open = store::all(
       call.store(),
       &format!(
-        "SELECT * FROM coworker_pool_requests WHERE source = $1 AND state IN ('waiting', 'reserved', 'active'){narrowed}
-         ORDER BY sequence"
+        r#"SELECT * FROM "role_slot_requests" WHERE "source" = $1 AND "state" IN ('waiting', 'reserved', 'active'){narrowed}
+           ORDER BY "sequence""#
       ),
       values.clone(),
     )
@@ -401,8 +422,8 @@ impl Route for Delegations {
     let closed = store::all(
       call.store(),
       &format!(
-        "SELECT * FROM coworker_pool_requests WHERE source = $1 AND state NOT IN ('waiting', 'reserved', 'active'){narrowed}
-         ORDER BY sequence DESC LIMIT {limit}"
+        r#"SELECT * FROM "role_slot_requests" WHERE "source" = $1 AND "state" NOT IN ('waiting', 'reserved', 'active'){narrowed}
+           ORDER BY "sequence" DESC LIMIT {limit}"#
       ),
       closed_values,
     )
@@ -410,15 +431,17 @@ impl Route for Delegations {
     let mut items = vec![];
 
     for row in open.iter().chain(closed.iter()) {
-      let seat = crate::control::pool::request_of(row)?;
+      let seat = dispatch::request_of(row).map_err(Refused::failed)?;
+      let on = |value: &str| (!value.is_empty()).then(|| value.to_owned());
 
       items.push(json!({
         "token": seat.token,
         "title": seat.title,
         "askedBy": seat.asked_by,
         "stage": stage(&seat.state),
-        "agentName": seat.agent_name,
         "role": seat.role,
+        "provider": on(&seat.provider),
+        "model": on(&seat.model),
         "askedAt": seat.enqueued_at,
         "runningSince": seat.leased_at,
         "endedAt": seat.ended_at,
@@ -431,91 +454,6 @@ impl Route for Delegations {
 }
 
 crate::moved!(Delegations);
-
-/// Every role the pool knows, with the tier its assignment names.
-pub struct PoolRoles;
-
-impl Route for PoolRoles {
-  const METHOD: Method = Method::GET;
-  const PATH: &'static str = "/roles";
-
-  async fn answer(&self, call: Call) -> Result<Response, Refused> {
-    let db = call.store();
-    let mut listed = vec![];
-
-    for role in pool::roles(db, false).await? {
-      let tier = dispatch::role_tier(db, &role.name).await.unwrap_or_default();
-
-      listed.push(json!({
-        "name": role.name,
-        "description": role.description,
-        "enabled": role.enabled,
-        "pooled": role.pooled,
-        "tier": tier,
-      }));
-    }
-
-    Ok(answer(StatusCode::OK, json!({ "items": listed, "more": false })))
-  }
-}
-
-crate::moved!(PoolRoles);
-
-/// How many children of one co-worker tier may be alive on one provider, written, and the places it frees
-/// let in at once (docs/coworker-pool.md, 「Concurrency limits」). A capacity that is no whole number is
-/// handed on as one below nothing, so the refusal is the one the limit's own range gives.
-pub struct PoolLimitChange;
-
-impl Route for PoolLimitChange {
-  const METHOD: Method = Method::PATCH;
-  const PATH: &'static str = "/pool/limits";
-
-  async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
-    let body = call.body().await?;
-    let provider = optional(&body, "provider").unwrap_or_default();
-    let tier = optional(&body, "tier").unwrap_or_default();
-    let capacity = body.get("capacity").and_then(whole).unwrap_or(-1);
-
-    match pool::set_limit(call.store(), provider, tier, capacity, now_ms()).await? {
-      Ok(()) => Ok(answer(
-        StatusCode::OK,
-        json!({ "provider": provider, "tier": tier, "capacity": capacity }),
-      )),
-      Err(refusal) => Err(Refused::new(StatusCode::UNPROCESSABLE_ENTITY, refusal.0)),
-    }
-  }
-}
-
-crate::moved!(PoolLimitChange);
-
-/// What a place's line was last written with, the place keeping the latest moment.
-pub struct PlaceWrite;
-
-impl Route for PlaceWrite {
-  const METHOD: Method = Method::PUT;
-  const PATH: &'static str = "/pool/places/{place}/write";
-
-  async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
-    let place = call.param("place").unwrap_or_default().to_owned();
-    let body = call.body().await?;
-
-    if place.is_empty() {
-      return Err(bad("a place's key is required"));
-    }
-
-    pool::place_written(
-      call.store(),
-      &place,
-      text(&body, "provider")?,
-      text(&body, "model")?,
-      optional(&body, "effort"),
-      optional(&body, "upstream"),
-    )
-    .await?;
-
-    Ok(StatusCode::NO_CONTENT.into_response())
-  }
-}
 
 /// A branch's place in its order's pool of standing checkouts, taken.
 pub struct PlaceTake;
@@ -530,7 +468,7 @@ impl Route for PlaceTake {
       cwd: text(&body, "cwd")?,
       selection: text(&body, "selection")?,
       role: text(&body, "role")?,
-      tier: optional(&body, "tier"),
+      effort: optional(&body, "effort"),
     };
     let slot = places::take_slot(call.ground(), &asked, &held(&body), now_ms())
       .await
@@ -546,76 +484,6 @@ impl Route for PlaceTake {
 }
 
 crate::moved!(PlaceTake);
-
-/// A place laid to its order's checkout: its head and its open change.
-pub struct PlacePrepare;
-
-impl Route for PlacePrepare {
-  const METHOD: Method = Method::POST;
-  const PATH: &'static str = "/places/prepare";
-
-  async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
-    let body = call.body().await?;
-
-    places::prepare_slot(text(&body, "source")?, Path::new(text(&body, "cwd")?))
-      .await
-      .map_err(refused)?;
-
-    Ok(answer(StatusCode::OK, json!({ "ok": true })))
-  }
-}
-
-/// What a finished branch left in its place, recorded.
-pub struct PlaceRemember;
-
-impl Route for PlaceRemember {
-  const METHOD: Method = Method::POST;
-  const PATH: &'static str = "/places/remember";
-
-  async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
-    let body = call.body().await?;
-    let slot = body
-      .get("slot")
-      .and_then(whole)
-      .ok_or_else(|| bad("slot (a whole number) is required"))?;
-
-    places::remember_slot(
-      call.ground(),
-      text(&body, "cwd")?,
-      slot,
-      text(&body, "role")?,
-      optional(&body, "mode"),
-      optional(&body, "model"),
-      optional(&body, "effort"),
-      optional(&body, "upstream"),
-    )
-    .await
-    .map_err(refused)?;
-
-    Ok(answer(StatusCode::OK, json!({ "ok": true })))
-  }
-}
-
-/// What stands in herdr for the places an ended order worked in that no task still sits in, taken down.
-pub struct PlacesRetire;
-
-impl Route for PlacesRetire {
-  const METHOD: Method = Method::POST;
-  const PATH: &'static str = "/places/retire";
-
-  async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
-    let body = call.body().await?;
-    let used: Vec<i64> = body
-      .get("used")
-      .and_then(Value::as_array)
-      .map(|used| used.iter().filter_map(whole).collect())
-      .unwrap_or_default();
-
-    places::retire_places(call.ground(), text(&body, "cwd")?, &used, &held(&body)).await;
-
-    Ok(answer(StatusCode::OK, json!({ "ok": true })))
-  }
-}
 
 /// The places the agency holds, by node and checkout.
 pub struct PlaceList;
@@ -672,7 +540,7 @@ impl Route for ReadPlace {
     let row = store::one(
       call.store(),
       r#"SELECT "place", "provider", "model", "effort", "upstream", "written_at"
-         FROM "coworker_pool_place_writes" WHERE "place" = $1"#,
+         FROM "place_writes" WHERE "place" = $1"#,
       vec![place.clone().into()],
     )
     .await?;
@@ -773,7 +641,7 @@ async fn held_places(ground: &crate::places::Ground, only: Option<&str>) -> Resu
   for row in store::all(
     &ground.db,
     r#"SELECT "place", "provider", "model", "effort", "upstream", "written_at"
-       FROM "coworker_pool_place_writes""#,
+       FROM "place_writes""#,
     vec![],
   )
   .await?
@@ -794,7 +662,7 @@ async fn held_places(ground: &crate::places::Ground, only: Option<&str>) -> Resu
 
   for row in store::all(
     &ground.db,
-    r#"SELECT DISTINCT "place_key" FROM "coworker_pool_requests"
+    r#"SELECT DISTINCT "place_key" FROM "role_slot_requests"
        WHERE "state" = 'active' AND "place_key" IS NOT NULL"#,
     vec![],
   )
@@ -933,7 +801,7 @@ impl Route for ChangePlace {
         places::retire_places(call.ground(), text(&body, "cwd")?, &used, &held(&body)).await;
       }
       _ => {
-        pool::place_written(
+        super::pool::place_written(
           call.store(),
           &place,
           text(&body, "provider")?,

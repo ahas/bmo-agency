@@ -1,35 +1,24 @@
-//! The fallback settings (docs/cache-fallback.md): every work key with its road, its Claude login and the
-//! roads it is offered; the provider order and the Claude accounts; and the agent serving the chat now
-//! with what it has used, its windows read off agency's own keeping. What a caller may know of a
+//! The fallback's view (docs/api.md, 「providers, models and model files」): the Claude accounts, the account in
+//! use and the chosen one, and the provider the chat agent stands on now with what it has used, its windows read
+//! off agency's own keeping. What a caller may know of a
 //! credential is the path it is reached by, and of the OpenRouter key whether there is one. A gate's own
 //! options are its consumer's, kept beside its own judgement.
-
-use std::collections::BTreeMap;
 
 use axum::http::{Method, StatusCode};
 use axum::response::Response;
 use cache_siren::{Keeping, KeptBalance, Slot};
-use harness_providers::{ARCHIVE_PROVIDERS, Machine, Window, providers};
+use harness_providers::{ARCHIVE_PROVIDERS, Window, providers};
 use policy::control_words::CONTROL_WORDS;
 use policy::fill_marks;
-use policy::work_keys::{Profile, WORK_KEYS};
 use sea_orm::DatabaseConnection;
 use serde_json::{Value, json};
 
-use super::claude_account_changes::{self as changes, BasePromptGiven, CredentialGiven, account_named};
+use super::claude_account_changes::{self as changes, BasePromptGiven, CredentialGiven};
 use super::claude_accounts::{
   self, Account, CredentialKind, EndpointModels, Judging, SEED_ACCOUNT, accounts, leading_integer, walk_for,
 };
-use super::harness::{
-  OrderEntry, is_default_order, missing, named, order_shape_reason, order_to_save, provider_enabled,
-  provider_order, set_provider_order,
-};
-use super::roads::{
-  OfferedRoad, is_route_mode, mode_refusal, offered_roads, pinned_provider, profile, registration_refusal,
-  route_row, set_account, set_mode, set_registration,
-};
-use super::{Call, Refused, Route, answer, registry, setting, tiers};
-use crate::now_ms;
+use super::harness::{missing, named};
+use super::{Call, Refused, Route, answer, setting};
 
 // When the fallback began answering, absent while Claude is answering, and the stand-in it answers on.
 const SINCE_KEY: &str = "fallback_since";
@@ -53,15 +42,6 @@ pub async fn fallback_provider(db: &DatabaseConnection) -> Result<Option<String>
     Some(name) if name != "claude-code" && ARCHIVE_PROVIDERS.contains(&name.as_str()) => name,
     _ => "openrouter".to_owned(),
   }))
-}
-
-/// The work key the deployment's chat runs under: the profile of its own kind.
-pub fn chat_key() -> &'static str {
-  WORK_KEYS
-    .profile
-    .iter()
-    .find(|one| one.kind == "bmo")
-    .map_or("bmo", |one| one.key.as_str())
 }
 
 /// One slot's two headline windows, the session's and the week's, as the provider picks them out of every
@@ -171,17 +151,13 @@ pub(super) async fn account_balance(windows: &Keeping, account: &Account) -> Res
 /// it walks to where the provider holds logins, that slot's two headline windows and its balance.
 pub(super) async fn active_agent_usage(judging: Judging<'_>) -> Result<Value, Refused> {
   let db = judging.db;
-  let key = chat_key();
-  let name = match pinned_provider(db, key).await? {
-    Some(pinned) => pinned,
+  let chat = crate::conversational::default_answerer(db, &policy::deployment::DEPLOYMENT.agent_key).await?;
+  let name = match crate::supervisors::named(db, &chat).await?.and_then(|held| held.last_mode) {
+    Some(provider) => provider,
     None => fallback_provider(db).await?.unwrap_or_else(|| "claude-code".to_owned()),
   };
   let provider = named(&name)?;
-  let account = if provider.holds_logins() {
-    walk_for(judging, key).await?.into_iter().next()
-  } else {
-    None
-  };
+  let account = if provider.holds_logins() { walk_for(judging).await?.into_iter().next() } else { None };
   let id = account.as_ref().map(|one| one.id.clone());
   let marked = account.as_ref().and_then(|one| one.needs_login_at);
   let (session, week) = headline_windows(judging.windows, &name, id.as_deref(), marked).await?;
@@ -215,110 +191,6 @@ pub(super) async fn active_agent_usage(judging: Judging<'_>) -> Result<Value, Re
   }))
 }
 
-/// One work key as the screen reads it: its road and login, what its tier resolves to on each
-/// provider or why it cannot, what it asks each own service for, the roads it is offered, and why it has
-/// no road at all where it has none.
-async fn profile_view(
-  db: &DatabaseConnection,
-  machine: &Machine,
-  profile: &Profile,
-) -> Result<Value, Refused> {
-  let key = profile.key.as_str();
-  let row = route_row(db, key).await?;
-  let mut choices = BTreeMap::new();
-  let mut errors = BTreeMap::new();
-
-  for provider in ARCHIVE_PROVIDERS {
-    match tiers::resolve(db, key, provider).await {
-      Ok(mapping) => {
-        choices.insert(provider, mapping);
-      }
-      Err(error) => {
-        errors.insert(provider, error);
-      }
-    }
-  }
-
-  let mut services = Vec::new();
-
-  for provider in providers() {
-    if provider.unregistered().is_none() || !provider.declared().carries(&profile.line) {
-      continue;
-    }
-
-    let mapping = choices.get(provider.name()).map(registry::Mapping::from);
-
-    services.push(registry::run_settings(db, mapping.as_ref()).await?.view());
-  }
-
-  let route_mode = row
-    .as_ref()
-    .filter(|row| is_route_mode(&row.route_mode))
-    .map_or_else(|| profile.default_route_mode.clone(), |row| row.route_mode.clone());
-  let offered = offered_roads(db, machine, key).await?;
-  let mut available = false;
-
-  for one in &offered {
-    if one.reason.is_none()
-      && !errors.contains_key(one.name.as_str())
-      && provider_enabled(db, &one.name).await?
-    {
-      available = true;
-      break;
-    }
-  }
-
-  let no_route = &CONTROL_WORDS.fallback.no_provider;
-  let model = |provider: &str| choices.get(provider).map(|one| one.model.clone());
-  let codex = choices.get("codex");
-  let view = json!({
-    "key": key,
-    "code": super::model_tiers::key_code(key),
-    "label": profile.label,
-    "kind": profile.kind,
-    "line": profile.line,
-    "configurationErrors": errors,
-    "claudeModel": model("claude-code").unwrap_or_default(),
-    "services": services,
-    "codexModel": model("codex").unwrap_or_default(),
-    "codexEffort": codex.and_then(|one| one.effort.clone()).unwrap_or_default(),
-    // The retained fields describe the shared choice, never a competing default.
-    "defaultCodexModel": model("codex").unwrap_or_default(),
-    "defaultCodexEffort": codex.and_then(|one| one.effort.clone()).unwrap_or_default(),
-    "codexOverridden": false,
-    "openrouterModel": model("openrouter"),
-    "routeMode": route_mode,
-    "account": row.as_ref().and_then(|row| row.account.clone()),
-    "registration": row.as_ref().and_then(|row| row.registration.clone()),
-    "setAt": row.as_ref().map(|row| row.set_at),
-    "offered": offered.iter().map(OfferedRoad::view).collect::<Vec<_>>(),
-    "noRoute": (!available).then_some(no_route),
-  });
-
-  Ok(view)
-}
-
-/// The order as the screen shows it, each provider with its own word on whether it can answer here.
-async fn order_view(db: &DatabaseConnection, machine: &Machine) -> Result<Vec<Value>, Refused> {
-  let mut views = Vec::new();
-
-  for one in provider_order(db).await? {
-    let provider = named(&one.name)?;
-    let reason = missing(db, machine, provider).await?;
-
-    views.push(json!({
-      "name": one.name,
-      "code": one.name,
-      "enabled": one.enabled,
-      "label": provider.declared().label,
-      "reason": reason.as_ref().map(|reason| &reason.text),
-      "reasonCode": reason.as_ref().map(|reason| &reason.code),
-    }));
-  }
-
-  Ok(views)
-}
-
 /// Everything the fallback settings show.
 pub struct FallbackView;
 
@@ -345,27 +217,17 @@ impl Route for FallbackView {
       }
     }
 
-    let mut profiles = Vec::new();
-
-    for profile in &WORK_KEYS.profile {
-      profiles.push(profile_view(db, machine, profile).await?);
-    }
-
     let active = active_agent_usage(judging).await?;
     Ok(answer(
       StatusCode::OK,
       json!({
-        "routes": order_view(db, machine).await?,
         "answering": !active.is_null(),
         "codexPresent": missing(db, machine, named("codex")?).await?.is_none(),
         "keyPresent": missing(db, machine, named("openrouter")?).await?.is_none(),
         "services": services,
         "since": fallback_since(db).await?,
         "active": active,
-        "order": order_view(db, machine).await?,
-        "orderIsDefault": is_default_order(&provider_order(db).await?),
         "accounts": claude_accounts::views(judging).await?,
-        "profiles": profiles,
       }),
     ))
   }
@@ -375,10 +237,6 @@ crate::moved!(FallbackView);
 
 fn bad(error: impl Into<String>) -> Refused {
   Refused::failed(error.into())
-}
-
-async fn order_answer(db: &DatabaseConnection) -> Result<Response, Refused> {
-  Ok(answer(StatusCode::OK, json!({ "ok": true, "order": provider_order(db).await? })))
 }
 
 async fn accounts_answer(judging: Judging<'_>) -> Result<Response, Refused> {
@@ -440,49 +298,13 @@ pub fn base_prompt_given(body: &Value) -> Result<BasePromptGiven, Refused> {
   }
 }
 
-/// A change that stands on its own — the provider order or the Claude accounts — answered, or nothing
-/// where the action is none of them.
+/// A change of the Claude accounts answered, or nothing where the action is none of them.
 async fn own_change(judging: Judging<'_>, action: &str, body: &Value) -> Result<Option<Response>, Refused> {
   let db = judging.db;
   let text = |field: &str| body.get(field).and_then(Value::as_str);
   let switch = body.get("enabled").and_then(Value::as_bool);
 
   match action {
-    "set-provider-order" => {
-      let held = provider_order(db).await?;
-      let order = order_to_save(body.get("order").unwrap_or(&Value::Null), &held)
-        .ok_or_else(|| bad(order_shape_reason()))?;
-
-      set_provider_order(db, &order).await?;
-    }
-    "reset-provider-order" => {
-      let order: Vec<OrderEntry> = ARCHIVE_PROVIDERS
-        .iter()
-        .map(|name| OrderEntry {
-          name: (*name).into(),
-          enabled: true,
-        })
-        .collect();
-
-      set_provider_order(db, &order).await?;
-    }
-    "set-provider-enabled" => {
-      let (Some(name), Some(enabled)) =
-        (text("provider").filter(|name| ARCHIVE_PROVIDERS.contains(name)), switch)
-      else {
-        return Err(bad(CONTROL_WORDS.fallback.provider_switch.as_str()));
-      };
-      let order: Vec<OrderEntry> = provider_order(db)
-        .await?
-        .into_iter()
-        .map(|one| OrderEntry {
-          enabled: if one.name == name { enabled } else { one.enabled },
-          name: one.name,
-        })
-        .collect();
-
-      set_provider_order(db, &order).await?;
-    }
     "set-account-order" => {
       let held = accounts(db).await?;
       let order = changes::order_to_save(body.get("order").unwrap_or(&Value::Null), &held)
@@ -543,84 +365,6 @@ async fn own_change(judging: Judging<'_>, action: &str, body: &Value) -> Result<
 
       return accounts_answer(judging).await.map(Some);
     }
-    _ => return Ok(None),
-  }
-
-  order_answer(db).await.map(Some)
-}
-
-/// A change to one work key's own row, answered, or nothing where the action is none of them.
-async fn key_change(
-  db: &DatabaseConnection,
-  machine: &Machine,
-  action: &str,
-  key: &str,
-  body: &Value,
-) -> Result<Option<Response>, Refused> {
-  let at = now_ms().div_euclid(1000);
-
-  match action {
-    "set-route-mode" => {
-      let mode = body
-        .get("mode")
-        .and_then(Value::as_str)
-        .filter(|mode| is_route_mode(mode))
-        .ok_or_else(|| bad(CONTROL_WORDS.fallback.run_mode.as_str()))?;
-
-      if let Some(refusal) = mode_refusal(db, machine, key, mode).await? {
-        return Err(bad(refusal));
-      }
-
-      set_mode(db, key, mode, at).await?;
-
-      Ok(Some(answer(StatusCode::OK, json!({ "ok": true, "key": key, "mode": mode }))))
-    }
-    // Which Claude login this key runs on: one account, or none to walk the order. An account the
-    // owner turned off is refused, so the screen and the run never disagree.
-    "set-route-account" => {
-      let asked = body
-        .get("account")
-        .and_then(Value::as_str)
-        .ok_or_else(|| bad(CONTROL_WORDS.accounts.choice.as_str()))?;
-
-      if asked == "auto" || asked.is_empty() {
-        set_account(db, key, None, at).await?;
-
-        return Ok(Some(answer(StatusCode::OK, json!({ "ok": true, "key": key, "account": null }))));
-      }
-
-      let held = account_named(db, asked)
-        .await?
-        .ok_or_else(|| bad(fill_marks(&CONTROL_WORDS.accounts.unknown, &[("id", asked)])))?;
-
-      if !held.enabled {
-        return Err(bad(fill_marks(&CONTROL_WORDS.accounts.off, &[("name", &held.name)])));
-      }
-
-      set_account(db, key, Some(&held.id), at).await?;
-
-      Ok(Some(answer(StatusCode::OK, json!({ "ok": true, "key": key, "account": held.id }))))
-    }
-    // Which registration this key runs on at the registry's provider in place of its tier's cell: one
-    // registration with an address, or none to read the cell again (docs/own-llm.md, 「A key's own
-    // registration」).
-    "set-route-registration" => {
-      let asked = body.get("registration").and_then(Value::as_str).map(str::trim).unwrap_or_default();
-
-      if asked == "auto" || asked.is_empty() {
-        set_registration(db, key, None, at).await?;
-
-        return Ok(Some(answer(StatusCode::OK, json!({ "ok": true, "key": key, "registration": null }))));
-      }
-
-      if let Some(refusal) = registration_refusal(db, asked).await? {
-        return Err(bad(refusal));
-      }
-
-      set_registration(db, key, Some(asked), at).await?;
-
-      Ok(Some(answer(StatusCode::OK, json!({ "ok": true, "key": key, "registration": asked }))))
-    }
     _ => Ok(None),
   }
 }
@@ -644,20 +388,10 @@ impl Route for FallbackChange {
 
   async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
     let body = call.body().await?;
-    let db = call.store();
+    let _db = call.store();
     let action = body.get("action").and_then(Value::as_str).unwrap_or_default();
 
     if let Some(answered) = own_change(Judging::of(call.ground()), action, &body).await? {
-      return Ok(answered);
-    }
-
-    let key = body.get("key").and_then(Value::as_str).map(str::trim).unwrap_or_default();
-
-    if profile(key).is_none() {
-      return Err(bad(fill_marks(&CONTROL_WORDS.fallback.unknown_key, &[("key", key)])));
-    }
-
-    if let Some(answered) = key_change(db, call.machine(), action, key, &body).await? {
       return Ok(answered);
     }
 
