@@ -104,7 +104,7 @@ fn the_points_a_consumer_registers_at_are_each_named_once() {
 
   assert_eq!(names.len(), count);
 
-  for wanted in ["cowork-places", "pane-claims", "road-verbs", "room-title", "typed-line"] {
+  for wanted in ["pane-claims", "road-verbs", "room-title", "typed-line"] {
     assert!(names.contains(&wanted), "{wanted} is not a point a consumer registers at");
   }
 }

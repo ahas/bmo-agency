@@ -985,6 +985,14 @@ async fn insert(
 pub async fn refused_if_holding(pool: &PgPool) -> Result<(), String> {
   let mut holding = Vec::new();
   for table in targets() {
+    // A table the two axes carried away and dropped holds nothing to write over.
+    let stands: Option<String> = sqlx::query_scalar(&format!("SELECT to_regclass('\"{table}\"')::text"))
+      .fetch_one(pool)
+      .await
+      .unwrap_or(None);
+    if stands.is_none() {
+      continue;
+    }
     let count: i64 = sqlx::query_scalar(&format!("SELECT COUNT(*) FROM \"{table}\""))
       .fetch_one(pool)
       .await

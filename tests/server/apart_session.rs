@@ -487,7 +487,7 @@ async fn a_session_on_a_road_carrying_its_own_turns_stands_only_where_it_hands_i
   assert_eq!(placed.id, SessionId("search@run:1".into()));
   assert_eq!(
     agency_server::apart_places::place_name(&placed.id),
-    "apart-search-apart-1",
+    "apart-search-run-1",
     "its place is named after it"
   );
 

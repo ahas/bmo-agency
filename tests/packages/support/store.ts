@@ -42,6 +42,8 @@ const LATER_MIGRATIONS: readonly string[] = [
   "base_prompt_seeds.sql",
   "endpoint_accounts.sql",
   "registration_wait_retired.sql",
+  "renewal_tables.sql",
+  "renewal_retired.sql",
 ];
 
 let made: Promise<string> | null = null;

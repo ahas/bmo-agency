@@ -48,7 +48,6 @@ pub const MISSED: &str = "events.missed";
 // The kinds agency keeps to its own processes, which the boundary does not publish.
 const INTERNAL: &[&str] = &[
   "companion-run-going",
-  "cowork-places",
   "herdr-leftovers",
   "machine-pressure",
   "nodes-moved",

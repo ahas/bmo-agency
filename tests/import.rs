@@ -62,7 +62,7 @@ fn fixture() -> (tempfile::TempDir, PathBuf) {
       ],
       vec!["session_id"],
     ),
-    ("settings", vec![json!({"key": "provider_order", "value": "x"})], vec!["key"]),
+    ("settings", vec![json!({"key": "owner_language", "value": "x"})], vec!["key"]),
   ];
 
   let mut sources: Vec<&str> = import::TABLES.iter().map(|table| table.source).collect();
