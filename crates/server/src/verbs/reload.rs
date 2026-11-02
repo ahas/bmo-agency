@@ -275,16 +275,15 @@ pub async fn reload(
     ));
   }
 
-  // A worker session cannot be told: what moved is the prefix it was opened on, read only when a session is
-  // opened. So a reload that named one says what to do about it instead.
+  // A role's session cannot be told: what moved is the prefix it was opened on, read only when a session is
+  // opened, so the next run of each kept session pays the move once. A reload that named one says so.
   let moved = touches_prefix(&paths);
 
   if !moved.is_empty() {
-    said.push(format!("reload: this moved the worker's prefix: {}", moved.join(", ")));
-    said.push(
-      "reload: fold the worker sessions with: ~/.local/share/bmo-agency/deploy/bin/bmo-agency worker fold"
-        .to_owned(),
-    );
+    said.push(format!(
+      "reload: this moved the worker's prefix: {}; each kept session takes it on its next run",
+      moved.join(", ")
+    ));
   }
 
   if said.is_empty() {

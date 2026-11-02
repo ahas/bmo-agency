@@ -65,7 +65,7 @@ pub async fn set_provider_enabled(db: &DatabaseConnection, name: &str, on: bool)
   named(name)?;
 
   if !on && enabled_providers(db).await?.iter().all(|one| one == name) {
-    return Err(Refused::failed(CONTROL_WORDS.fallback.all_off.as_str()));
+    return Err(Refused::new(axum::http::StatusCode::CONFLICT, CONTROL_WORDS.fallback.all_off.as_str()));
   }
 
   set_setting(db, &format!("{SWITCH}:{name}"), if on { "on" } else { "off" }).await

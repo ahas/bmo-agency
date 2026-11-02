@@ -392,7 +392,8 @@ pub async fn delegate_with(api: &Api, session: &Session, input: DelegateInput, h
       "cwd": folder.display().to_string(),
     },
   });
-  let started = match api.ok(Method::POST, "/sessions", Some(start), "the role's run was not started").await {
+  let started = match api.ok(Method::POST, "/sessions", Some(start), "the role's run was not started").await
+  {
     Ok(said) => said,
     Err(why) => {
       finish(api, &seat.token, "cancelled: its run was not started", true).await;

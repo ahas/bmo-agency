@@ -845,7 +845,7 @@ fn faulted(fault: Fault) -> Refused {
   }
 }
 
-/// Every model the boundary holds: the registry's registrations, narrowed by the tier the query names.
+/// Every model the boundary holds: the registry's registrations, each with the orders and pins that name it.
 /// A provider the query names is the registry's alone, since every other provider's models are its own
 /// catalogue.
 pub struct ListModels;

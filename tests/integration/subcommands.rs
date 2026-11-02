@@ -20,7 +20,6 @@ const SUBCOMMANDS: &[&[&str]] = &[
   &["dev-server", "stop"],
   &["dev-server", "list"],
   &["dev-server", "pane"],
-  &["worker", "fold"],
   &["model"],
   &["reload"],
   &["companion", "follow"],

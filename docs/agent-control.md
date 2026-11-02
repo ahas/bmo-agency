@@ -2525,8 +2525,7 @@ enters the prefix.
   changes, and a warm worker session dies whole once. Measuring side by side in the worker cwd with the same
   prompt: print mode `cache_read_input_tokens` 12518 with `cache_creation_input_tokens` 19793; interactive
   **read 0, create 54741**. Read being 0 is what says the prefix moved, and the interactive prefix being
-  larger is because the CLI lays more of its own on interactive. That change carries `bmo
-  worker fold` with it.
+  larger is because the CLI lays more of its own on interactive.
 - **The move is paid once per session.** A supervisor's turns, pings and folds all stand on the
   interactive prefix. The chat's session moves once, on its first resident turn, which the fresh-start path
   treats like any other prefix that changed (`unified-bmo.md`).

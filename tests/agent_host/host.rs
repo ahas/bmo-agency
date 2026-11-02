@@ -275,8 +275,6 @@ fn rand_suffix() -> u32 {
   NEXT.fetch_add(1, Ordering::SeqCst)
 }
 
-const ORDER: &str = r#"[{"name":"claude-code","enabled":true},{"name":"codex","enabled":false},{"name":"openrouter","enabled":true},{"name":"registered","enabled":true}]"#;
-
 #[test]
 fn an_execution_runs_in_the_host_and_its_raw_streams_come_back_exact() {
   let root = Root::new();
@@ -460,7 +458,7 @@ fn a_switched_off_provider_a_cancelled_name_or_a_missing_program_starts_nothing(
   let _host = root.start(&[]);
   let marker = root.mark("forbidden");
   let script = format!("touch {}", marker.display());
-  let off = Store::new(&[("provider_order", ORDER)]);
+  let off = Store::new(&[("provider_switch:codex", "off")]);
   let stopped = Store::new(&[("execution_cancel:execution-stopped", "1")]);
   let nowhere = address_of(&format!("agency_rs_missing_{}", std::process::id()));
   let cases = [
@@ -489,13 +487,10 @@ fn a_switched_off_provider_a_cancelled_name_or_a_missing_program_starts_nothing(
 }
 
 #[test]
-fn the_provider_order_is_read_again_at_the_childs_start() {
+fn the_providers_switch_is_read_again_at_the_childs_start() {
   let root = Root::new();
   let _host = root.start(&[]);
-  let store = Store::new(&[(
-    "provider_order",
-    r#"[{"name":"claude-code","enabled":true},{"name":"codex","enabled":true}]"#,
-  )]);
+  let store = Store::new(&[]);
   let marker = root.mark("started");
   let switched = root.envelope(
     "switched",
@@ -506,31 +501,30 @@ fn the_provider_order_is_read_again_at_the_childs_start() {
   root.place("gate", &switched);
   // Switched off after the launcher read it on and before the grant.
   thread::sleep(Duration::from_millis(100));
-  store.set("provider_order", ORDER);
+  store.set("provider_switch:codex", "off");
   root.grant(&switched);
   assert_eq!(root.collect(&switched, 5_000).cause, "launch-error");
   assert!(!marker.exists());
 
-  // An order saved before the build gained a provider keeps that one on, and keeps on what it kept on.
-  let older = Store::new(&[("provider_order", ORDER)]);
-  let providers = json!(["claude-code", "codex", "openrouter", "registered", "gained"]);
-  let gained = root.envelope(
-    "gained",
+  // A provider no switch names, and one switched back on, run.
+  let on = Store::new(&[("provider_switch:claude-code", "on")]);
+  let unnamed = root.envelope(
+    "unnamed",
     "printf ran",
-    json!({ "policy": { "address": older.address(), "provider": "gained", "providers": providers } }),
+    json!({ "policy": { "address": on.address(), "provider": "gained" } }),
   );
   let kept = root.envelope(
     "kept",
     "printf ran",
-    json!({ "policy": { "address": older.address(), "provider": "claude-code", "providers": providers } }),
+    json!({ "policy": { "address": on.address(), "provider": "claude-code" } }),
   );
 
-  for dir in [&gained, &kept] {
+  for dir in [&unnamed, &kept] {
     root.place("gate", dir);
     root.grant(dir);
   }
 
-  assert_eq!(root.collect(&gained, 5_000).stdout, b"ran");
+  assert_eq!(root.collect(&unnamed, 5_000).stdout, b"ran");
   assert_eq!(root.collect(&kept, 5_000).stdout, b"ran");
 }
 

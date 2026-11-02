@@ -39,14 +39,14 @@ async fn a_running_server_answers_a_worker_s_workbench_and_its_items_scratches()
   let shown = |path: std::path::PathBuf| path.to_string_lossy().into_owned();
 
   assert_eq!(
-    get(port, token, "/workers/helper/workbench").await,
+    get(port, token, "/repositories/helper/workbench").await,
     (
       200,
       json!({ "root": shown(bench.clone()), "scratches": [shown(items.join("3")), shown(items.join("12"))] })
     )
   );
   assert_eq!(
-    get(port, token, "/workers/newcomer/workbench").await,
+    get(port, token, "/repositories/newcomer/workbench").await,
     (200, json!({ "root": shown(data.join("workbench").join("newcomer")), "scratches": [] }))
   );
 }

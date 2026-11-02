@@ -146,7 +146,7 @@ fn a_clock_hold_becomes_its_clock_and_its_ask() {
 #[tokio::test]
 async fn the_import_writes_its_rows_refuses_a_second_run_and_the_compare_finds_a_changed_row() {
   let (_folder, export) = fixture();
-  let scratch = Scratch::new().await;
+  let scratch = Scratch::blank().await;
   let address = scratch.address();
 
   let report = import::run(&address, &export, false).await.expect("the import");
@@ -177,12 +177,20 @@ async fn the_import_writes_its_rows_refuses_a_second_run_and_the_compare_finds_a
   let passes = import::verify(&address, &export).await.expect("the compare");
   assert!(passes.failures.is_empty(), "{:?}", passes.failures);
 
+  // The agent row the export held was carried into the supervisors as the migrations went on.
+  assert_eq!(
+    scratch
+      .count("SELECT COUNT(*) FROM \"supervisors\" WHERE \"name\" = 'bmo'", vec![])
+      .await,
+    1
+  );
+
   scratch
-    .run("UPDATE \"agents\" SET \"kind\" = 'changed' WHERE \"name\" = 'bmo'", vec![])
+    .run("UPDATE \"runs\" SET \"outcome\" = 'changed' WHERE \"id\" = 1", vec![])
     .await;
   let changed = import::verify(&address, &export).await.expect("the compare");
   assert!(
-    changed.failures.iter().any(|failure| failure.contains("kind")),
+    changed.failures.iter().any(|failure| failure.contains("outcome")),
     "{:?}",
     changed.failures
   );
@@ -191,7 +199,7 @@ async fn the_import_writes_its_rows_refuses_a_second_run_and_the_compare_finds_a
 #[tokio::test]
 async fn a_dry_run_writes_nothing() {
   let (_folder, export) = fixture();
-  let scratch = Scratch::new().await;
+  let scratch = Scratch::blank().await;
   let address = scratch.address();
 
   let report = import::run(&address, &export, true).await.expect("the dry run");

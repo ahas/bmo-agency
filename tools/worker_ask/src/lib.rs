@@ -201,7 +201,12 @@ pub async fn ask_with(api: &Api, session: &Session, input: AskInput) -> Answer {
   }
 
   let owner = session.variables.get("BMO_TURN_PRIVILEGED").is_some_and(|flag| flag == "1");
-  let named = input.folder.as_deref().map(str::trim).filter(|folder| !folder.is_empty()).map(PathBuf::from);
+  let named = input
+    .folder
+    .as_deref()
+    .map(str::trim)
+    .filter(|folder| !folder.is_empty())
+    .map(PathBuf::from);
   // A checkout is judged before anything is made: one on a node is no folder here.
   let checkout = match &named {
     Some(folder) => checkout_of(api, folder).await,
@@ -434,7 +439,9 @@ async fn admitted(api: &Api, token: &str, mut slot: Value) -> Result<Value, Stri
 async fn finish(api: &Api, token: &str, outcome: &str, cancel: bool) {
   let body = json!({ "state": "finished", "outcome": outcome, "cancel": cancel });
 
-  if let Err(why) = ok(api.patch(&format!("/slot-requests/{token}"), body).await, "the slot was not given back") {
+  if let Err(why) =
+    ok(api.patch(&format!("/slot-requests/{token}"), body).await, "the slot was not given back")
+  {
     eprintln!("{why}");
   }
 }

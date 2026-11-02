@@ -102,8 +102,8 @@
   quotes it is a character of the word, so nothing in a quoted report, commit message or judgement
   is read as a program: ``--report 'added the node (`bot/claude`)'`` names a graph node and starts
   nothing, while ``(`echo claude`)`` outside quotes still does. A `$(` is read the same way.
-- **Never caught as a live Claude session:** `bun run test`, `bun test`, `bmo-agency worker fold`,
-  the deploy unit's commit, and git commands. Some of them still have to ask for a wait that covers
+- **Never caught as a live Claude session:** `bun run test`, `bun test`, the deploy unit's commit,
+  and git commands. Some of them still have to ask for a wait that covers
   them (「The same hook refuses the shell habits that stall a job」).
 
 ### When the hook cannot run
@@ -118,8 +118,9 @@
 ### The hook moves the worker's prefix
 
 - The hook is in the worker settings file, so it moves the mark of the worker's prefix.
-- After a deployment that changed these settings, run `bmo-agency worker fold`
-  (the deploy unit's `deploy.md`).
+- A role's kept session stands on the prefix it was opened on, so a run after a deployment that changed
+  these settings resumes a session whose prefix moved once, and pays that move once
+  (`docs/sessions.md`, 「A role's session」).
 
 ## The same hook holds the owner's statement of the system
 
@@ -192,7 +193,7 @@
   which is text:
   - **A known long command with no wait asked for.** The close and the check of a change, by their
     script or their command, the whole suite (or `bun test` with no file), the web console's typecheck
-    or build, `bmo-agency worker fold`, asking the owner, the landing verb, a testbed run and
+    or build, asking the owner, the landing verb, a testbed run and
     `git push`, in a Bash call whose `timeout` is under five minutes and which does not
     run in the background. Past its wait the tool moves the command to the background and answers
     at once, so what depends on it would start before it ends.
@@ -276,10 +277,8 @@
 
 ### A run the procedure requires declares itself
 
-- The session fold after a deployment that changed the worker's prefix
-  (`bmo-agency worker fold`) is such a run.
-- That verb declares the purpose of its run to the guard in agency's server code before it opens anything,
-  and the guard opens for the process that declared it.
+- A verb whose run the procedure requires declares the purpose of its run to the guard in agency's server
+  code before it opens anything, and the guard opens for the process that declared it.
 - A test holds the list of files allowed to declare. Any other file that declares fails the test.
 
 ## A job opens it by saying what for

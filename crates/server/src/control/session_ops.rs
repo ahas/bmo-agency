@@ -492,11 +492,18 @@ impl Route for SessionStart {
     // A role's run goes under its role's name where its start names no other.
     let agent = match (&scope, agent_named(&body)) {
       (_, Ok(agent)) => agent.to_owned(),
-      (Scope::Apart(Apart { role: Some(role), .. }), Err(_)) => role.clone(),
+      (
+        Scope::Apart(Apart {
+          role: Some(role), ..
+        }),
+        Err(_),
+      ) => role.clone(),
       (_, Err(refused)) => return Err(refused),
     };
 
-    if let Scope::Apart(Apart { role: Some(role), .. }) = &scope
+    if let Scope::Apart(Apart {
+      role: Some(role), ..
+    }) = &scope
       && !crate::agent_roles::holds(call.store(), role).await?
     {
       return Err(

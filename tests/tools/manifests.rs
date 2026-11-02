@@ -82,7 +82,7 @@ fn the_worker_ask_entry_is_declared_as_its_tool_answers_it() {
   let schema: serde_json::Value =
     serde_json::from_str(&std::fs::read_to_string(folder.join(text(entry, &["input"]))).unwrap()).unwrap();
 
-  assert_eq!(schema["required"], serde_json::json!(["worker", "words"]));
+  assert_eq!(schema["required"], serde_json::json!(["words"]));
   assert!(schema["properties"].get("timeBoundSeconds").is_none(), "the ask takes no time bound");
 }
 

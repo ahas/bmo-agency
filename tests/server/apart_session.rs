@@ -68,9 +68,9 @@ fn start(agent: &str, apart: Apart) -> Start {
 
 #[test]
 fn a_thrown_away_sessions_id_names_its_agent_and_its_number() {
-  assert_eq!(apart_id("branch-a", 3), SessionId("branch-a@apart:3".into()));
+  assert_eq!(apart_id("branch-a", 3), SessionId("branch-a@run:3".into()));
   assert!(is_apart(&apart_id("branch-a", 3)));
-  assert!(!is_apart(&SessionId("branch-a@apart".into())));
+  assert!(!is_apart(&SessionId("branch-a@run".into())));
   assert!(!is_apart(&SessionId("branch-a@worker".into())));
   assert!(!is_apart(&SessionId("branch-a@-7".into())));
 }
@@ -89,8 +89,8 @@ async fn a_thrown_away_session_stands_from_its_start_to_its_end_and_keeps_nothin
   let first = sessions.start(start("branch-a", apart("claude-code", "/tmp/run-a"))).await.unwrap();
   let second = sessions.start(start("branch-a", apart("claude-code", "/tmp/run-b"))).await.unwrap();
 
-  assert_eq!(first.id, SessionId("branch-a@apart:1".into()));
-  assert_eq!(second.id, SessionId("branch-a@apart:2".into()), "every start is a session of its own");
+  assert_eq!(first.id, SessionId("branch-a@run:1".into()));
+  assert_eq!(second.id, SessionId("branch-a@run:2".into()), "every start is a session of its own");
   assert_eq!(first.scope, Scope::Apart(apart("claude-code", "/tmp/run-a")));
 
   let listed = sessions.list().await.unwrap();
@@ -141,7 +141,7 @@ async fn a_thrown_away_session_stands_from_its_start_to_its_end_and_keeps_nothin
   assert!(!sessions.list().await.unwrap().contains(&first));
   assert!(sessions.list().await.unwrap().contains(&second));
   assert_eq!(
-    sessions.read_state(&SessionId("branch-a@apart:9".into()), None).await.unwrap_err().kind,
+    sessions.read_state(&SessionId("branch-a@run:9".into()), None).await.unwrap_err().kind,
     FaultKind::Unknown,
     "a number never given names no session"
   );
@@ -484,7 +484,7 @@ async fn a_session_on_a_road_carrying_its_own_turns_stands_only_where_it_hands_i
 
   let placed = sessions.start(start("search", handed("registered", "flash-next"))).await.unwrap();
 
-  assert_eq!(placed.id, SessionId("search@apart:1".into()));
+  assert_eq!(placed.id, SessionId("search@run:1".into()));
   assert_eq!(
     agency_server::apart_places::place_name(&placed.id),
     "apart-search-apart-1",

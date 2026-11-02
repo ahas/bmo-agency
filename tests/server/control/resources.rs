@@ -286,11 +286,11 @@ async fn the_place_list_reads_the_standing_checkouts_and_their_last_write() {
   scratch
     .run(
       &format!(
-        r#"INSERT INTO "coworker_pool_requests"
-             ("token", "request_key", "owner", "source", "role", "work_key", "provider", "model", "effort", "tier",
-              "capacity", "generation", "state", "enqueued_at", "place_key")
-           VALUES ('t-1', 'k-1', 'order:1', 'cowork', 'tracer', 'role:tracer', 'claude-code', 'opus', 'low', 'Light',
-              4, 1, 'active', 100, '{path}')"#
+        r#"INSERT INTO "role_slot_requests"
+             ("token", "request_key", "owner", "source", "role", "provider", "model", "effort",
+              "capacity", "state", "enqueued_at", "place_key")
+           VALUES ('t-1', 'k-1', 'order:1', 'cowork', 'tracer', 'claude-code', 'opus', 'low',
+              4, 'active', 100, '{path}')"#
       ),
       vec![],
     )
@@ -380,12 +380,21 @@ async fn a_provider_s_switch_and_a_registered_model_s_name_are_changed_as_their_
   );
 
   // The last provider on is not turned off, since nothing would answer.
-  assert_eq!(
-    send(port, token, reqwest::Method::PATCH, "/providers/deepseek", json!({ "enabled": false }))
+  for other in ["deepseek", "openrouter", "registered"] {
+    assert_eq!(
+      send(
+        port,
+        token,
+        reqwest::Method::PATCH,
+        &format!("/providers/{other}"),
+        json!({ "enabled": false })
+      )
       .await
       .0,
-    200
-  );
+      200,
+      "{other}"
+    );
+  }
   assert_eq!(
     send(
       port,
@@ -471,26 +480,13 @@ async fn the_model_resource_is_one_record() {
       "model": "old-model",
       "cardService": Value::Null,
       "roleFiles": false,
-      "tier": Value::Null,
+      "usedBy": [],
       "healthy": false,
       "lastAnsweredAt": Value::Null,
     }])
   );
 
-  // The list narrows by the tier a registration is mapped at, and a provider that is not the registry's
-  // has no models here.
-  scratch
-    .run(
-      r#"INSERT INTO "model_tier_mappings" ("provider", "tier", "model") VALUES ('registered', 'Reliable', 'mine')"#,
-      vec![],
-    )
-    .await;
-
-  let (_, by_tier) = get(port, token, "/models?tier=Reliable").await;
-
-  assert_eq!(by_tier["items"][0]["tier"], json!("Reliable"));
-  assert_eq!(get(port, token, "/models?tier=Light").await.1["items"], json!([]));
-  assert_eq!(get(port, token, "/models?tier=Nope").await.0, 400);
+  // A provider that is not the registry's has no models here.
   assert_eq!(get(port, token, "/models?provider=registered").await.0, 200);
   assert_eq!(get(port, token, "/models?provider=claude-code").await.0, 404);
 

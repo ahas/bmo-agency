@@ -415,10 +415,14 @@ async fn the_listing_names_each_delegation_by_its_title_stage_role_road_and_star
 
   assert_eq!(lines.len(), 3, "{text}");
   assert!(
-    lines[0].starts_with("- Read the node's disk — running — delegator on deepseek deepseek-flash — asked 2026-"),
+    lines[0]
+      .starts_with("- Read the node's disk — running — delegator on deepseek deepseek-flash — asked 2026-"),
     "{text}"
   );
-  assert!(lines[1].starts_with("- Find the slow query — waiting for a slot — helper — asked "), "{text}");
+  assert!(
+    lines[1].starts_with("- Find the slow query — waiting for a slot — helper — asked "),
+    "{text}"
+  );
   assert!(
     lines[2].starts_with("- Check the backup — ended: answered — delegator on claude-code claude-opus-5"),
     "{text}"

@@ -1047,6 +1047,14 @@ async fn compare(pool: &PgPool, prepared: &Prepared) -> Sample {
       Some(entry) => entry,
       None => continue,
     };
+    // A table the two axes carried into their own rows and dropped is compared no more.
+    let stands: Option<String> = sqlx::query_scalar(&format!("SELECT to_regclass('\"{target}\"')::text"))
+      .fetch_one(pool)
+      .await
+      .unwrap_or(None);
+    if stands.is_none() {
+      continue;
+    }
     let count: Result<i64, _> =
       sqlx::query_scalar(&format!("SELECT COUNT(*) FROM \"{target}\"")).fetch_one(pool).await;
     match count {

@@ -43,7 +43,7 @@ fn what_a_turn_wrote_is_every_text_block_its_answers_wrote_in_order() {
 }
 
 fn session() -> SessionId {
-  SessionId("branch-a@apart:1".into())
+  SessionId("branch-a@run:1".into())
 }
 
 #[test]
@@ -121,7 +121,7 @@ fn an_attempt_that_goes_out_again_and_the_next_turn_begin_the_words_again() {
     None,
     "the turn before stands only until the session's next turn begins"
   );
-  outputs.wrote(&SessionId("branch-b@apart:2".into()), 8, &["elsewhere".into()]);
+  outputs.wrote(&SessionId("branch-b@run:2".into()), 8, &["elsewhere".into()]);
   assert_eq!(
     outputs.read(&session(), Some(8)).unwrap().text,
     "",
@@ -186,7 +186,7 @@ async fn every_scope_answers_a_turn_it_never_carried_as_nothing_found() {
   assert_eq!(sessions.output(&apart.id, Some(7)).await.unwrap_err().kind, FaultKind::UnknownTurn);
   assert_eq!(sessions.output(&apart.id, None).await.unwrap_err().kind, FaultKind::Unknown);
   assert_eq!(
-    sessions.output(&SessionId("branch-a@apart:99".into()), None).await.unwrap_err().kind,
+    sessions.output(&SessionId("branch-a@run:99".into()), None).await.unwrap_err().kind,
     FaultKind::Unknown,
     "a session never started names nothing"
   );
