@@ -12,8 +12,7 @@ fn the_verb_words_read_with_the_marks_they_are_filled_by() {
   assert!(words.agents.node_placing.no_jobs.contains("{why}"));
   assert!(words.dev_servers.server.up.contains("{done}") && words.dev_servers.server.up.contains("{log}"));
   assert!(words.dev_servers.listing.worker.contains("{megabytes}"));
-  assert!(
-    words.dev_servers.pane.idle.contains("{short}") && words.dev_servers.pane.idle.contains("{minutes}")
-  );
+  assert!(words.dev_servers.server.not_started.contains("{log}"));
+  assert!(!words.dev_servers.pane.pressed.contains('{'));
   assert!(words.dev_servers.pane.closing.contains("{why}"));
 }
