@@ -97,6 +97,9 @@ seeds. The other crates and the server reach the store only through it.
     verdict, until when a keep holds, who gave it, why and when it closed
     (`docs/agent-control.md`, 「A clock asks, it never cuts」); a row ended a week ago goes as the next
     clock is opened;
+  - the events the stream carries: `stream_events`, one row an event — its number, its kind, when it was
+    published in epoch milliseconds and its data as JSON — the newest 50,000 kept, its numbering kept in
+    two settings rows (below; `docs/api.md`, 「events」);
   - the life of a turn: `turn_liveness`, one row a turn put into a program's pane, keyed by the turn's
     execution — its run, line and session, its phase, the pane, the program's pid and birth, the record
     files it reads, herdr's last reading of the pane and when, the record's length and when it last grew,
@@ -136,6 +139,9 @@ seeds. The other crates and the server reach the store only through it.
   - a turn in flight, `turn_in_flight:*` by its run, as JSON: the session, the turn's id, the agent, the
     room, the chat turn's run in the ledger, the job and when it began, kept while the turn goes and read
     by the next server's start (`docs/sessions.md`, 「A restart hands the session over」);
+  - the event stream's numbering: `event_numbers_reserved`, the number every number a process gave
+    stays below, written ahead of the numbers a process gives, and `events_dropped_through`, the
+    highest number the store has dropped (`docs/api.md`, 「events」);
   - a companion's reset point, `reset_point:*` (`docs/companions.md`, 「What the reset cuts off」);
   - the machine watch's notes: `doctor_standing_failure`, `herdr_leftovers_told`;
   - the logins watch's notes: `claude_node_token_gone:*` and its notice keys;

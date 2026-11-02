@@ -86,6 +86,15 @@ async fn serve(args: Args) -> Result<(), String> {
 
   let config = Config::read(|name| std::env::var(name).ok())?;
   let service = Service::new(db.clone(), config);
+
+  // The stream's events are kept in the store and numbered above every number a process before this one
+  // gave, before anything publishes one (docs/api.md, 「events」).
+  service
+    .events
+    .durable(&db, agency_server::events::STORED)
+    .await
+    .map_err(|fault| format!("the event stream's store: {fault}"))?;
+
   let herdr = herdr::socket_path(machine.var("XDG_CONFIG_HOME"), machine.var("HOME"))
     .map(|socket| herdr::Herdr::here(socket, herdr::silences_path(machine.var("BMO_HERDR_SILENCES"))));
   let watch = herdr.clone().map(herdr::picture::Watch::start);

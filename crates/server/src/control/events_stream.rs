@@ -8,8 +8,10 @@
 )]
 //! The events agency publishes, read across the boundary (docs/api.md, 「Events」): one stream of server-sent
 //! events, each named by its kind and carrying its JSON, of the kinds the caller names or every kind where
-//! it names none, from the moment it is opened until the caller lets it go; and the events a verb's own
-//! process published, posted to the server before the verb ends and published on its streams.
+//! it names none, from the moment it is opened until the caller lets it go, the kept events after the
+//! number a resuming reader names sent first, after the notice where those are no longer kept; and the
+//! events a verb's own process published, posted to the server before the verb ends and published on its
+//! streams.
 
 use std::convert::Infallible;
 
@@ -20,8 +22,29 @@ use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::{IntoResponse, Response};
 use serde_json::{Value, json};
 
+use futures_util::StreamExt;
+
 use super::{Call, Refused, Route, answer};
-use crate::events::Named;
+use crate::events::{MISSED, Missed, Named};
+
+// How many kept events a resuming stream reads at a time.
+const REPLAY_PAGE: usize = 1000;
+
+// The notice that what a resuming reader asked for is no longer kept: no id of its own, so the reader's own
+// cursor stays where it was.
+fn missed_event(missed: &Missed) -> Event {
+  let envelope = json!({ "kind": MISSED, "at": crate::now_ms(), "data": missed.data() });
+
+  Event::default().event(MISSED).json_data(envelope).unwrap_or_default()
+}
+
+fn sent(named: &Named) -> Event {
+  Event::default()
+    .id(named.id.to_string())
+    .event(named.name.to_string())
+    .json_data(named.envelope())
+    .unwrap_or_default()
+}
 
 /// The agency's one stream: server-sent events, or a page of them for a caller that polls.
 pub struct EventStream;
@@ -60,29 +83,56 @@ impl Route for EventStream {
         .and_then(|limit| limit.parse::<usize>().ok())
         .unwrap_or(200)
         .min(1000);
-      let (events, more) = call.events().page(after, kinds.as_deref(), limit);
-      let items: Vec<Value> = events.iter().map(Named::envelope).collect();
+      let replay = call.events().replay(after, kinds.as_deref(), limit).await;
+      let items: Vec<Value> = replay.events.iter().map(Named::envelope).collect();
 
-      return Ok(answer(StatusCode::OK, json!({ "items": items, "more": more })));
+      return Ok(answer(
+        StatusCode::OK,
+        json!({ "items": items, "more": replay.more, "missed": replay.missed.as_ref().map(Missed::data) }),
+      ));
     }
 
-    let subscription = call.events().subscribe_wire(kinds);
-    let stream =
-      futures_util::stream::unfold((subscription, after), |(mut subscription, after)| async move {
-        loop {
-          let named = subscription.next().await?;
-          if after.is_some_and(|after| named.id <= after) {
-            continue;
-          }
-          let event = Event::default()
-            .id(named.id.to_string())
-            .event(named.name.to_string())
-            .json_data(named.envelope())
-            .unwrap_or_default();
+    // The live stream is taken first, so nothing published while the kept events are read falls between
+    // them; what both carry is sent once.
+    let subscription = call.events().subscribe_wire(kinds.clone());
+    let mut first: Vec<Event> = vec![];
+    let mut last = after;
 
-          return Some((Ok::<_, Infallible>(event), (subscription, after)));
+    if let Some(after) = after {
+      // A number this numbering never gave reads on from the newest it has: what comes next is sent.
+      let mut cursor = after.min(call.events().newest());
+
+      if let Some(missed) = call.events().replay(Some(after), kinds.as_deref(), 0).await.missed {
+        first.push(missed_event(&missed));
+      }
+
+      loop {
+        let replay = call.events().replay(Some(cursor), kinds.as_deref(), REPLAY_PAGE).await;
+
+        for named in &replay.events {
+          first.push(sent(named));
+          cursor = named.id;
         }
-      });
+
+        if !replay.more || replay.events.is_empty() {
+          break;
+        }
+      }
+
+      last = Some(cursor);
+    }
+
+    let live = futures_util::stream::unfold((subscription, last), |(mut subscription, last)| async move {
+      loop {
+        let named = subscription.next().await?;
+        if last.is_some_and(|last| named.id <= last) {
+          continue;
+        }
+
+        return Some((Ok::<_, Infallible>(sent(&named)), (subscription, Some(named.id))));
+      }
+    });
+    let stream = futures_util::stream::iter(first.into_iter().map(Ok::<_, Infallible>)).chain(live);
 
     Ok(Sse::new(stream).keep_alive(KeepAlive::default()).into_response())
   }

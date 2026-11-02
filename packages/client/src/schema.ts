@@ -1657,6 +1657,12 @@ export interface components {
         EventPage: {
             items: components["schemas"]["Event"][];
             more: boolean;
+            /**
+             * @description The notice that events after the number asked are no longer kept, or that it is a number the service
+             *     never gave; none otherwise. The reader reads afresh the state it follows.
+             * @default null
+             */
+            missed: components["schemas"]["EventsMissed"] | null;
         };
         /** @description Event: */
         Event: {
@@ -1669,6 +1675,19 @@ export interface components {
              */
             at: number;
             data: unknown;
+        };
+        /** @description EventsMissed: what the stream's `events.missed` notice and a page's `missed` carry. */
+        EventsMissed: {
+            /**
+             * Format: int64
+             * @description the number the reader named
+             */
+            after: number;
+            /**
+             * Format: int64
+             * @description the oldest number kept, none where none is
+             */
+            keptFrom: number | null;
         };
         /** @description PublishedEvent: */
         PublishedEvent: {

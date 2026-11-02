@@ -6431,11 +6431,24 @@
           },
           "more": {
             "type": "boolean"
+          },
+          "missed": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EventsMissed"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The notice that events after the number asked are no longer kept, or that it is a number the service\nnever gave; none otherwise. The reader reads afresh the state it follows.",
+            "default": null
           }
         },
         "required": [
           "items",
-          "more"
+          "more",
+          "missed"
         ],
         "description": "EventPage:"
       },
@@ -6463,6 +6476,29 @@
           "data"
         ],
         "description": "Event:"
+      },
+      "EventsMissed": {
+        "type": "object",
+        "properties": {
+          "after": {
+            "type": "integer",
+            "format": "int64",
+            "description": "the number the reader named"
+          },
+          "keptFrom": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "the oldest number kept, none where none is"
+          }
+        },
+        "required": [
+          "after",
+          "keptFrom"
+        ],
+        "description": "EventsMissed: what the stream's `events.missed` notice and a page's `missed` carry."
       },
       "PublishedEvent": {
         "type": "object",

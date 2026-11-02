@@ -79,7 +79,24 @@ a field's exact shape matters, the OpenAPI document is the one to read.
 
 An event's SSE name is `<resource>.<change>`, its id is the service's event number, and its data is
 `{"id","kind","at","data"}`, the inner `data` the member as a GET answers it, or its key alone for a
-deleted member. A reader resumes with `Last-Event-ID` or `after`, and narrows with `kinds`.
+deleted member. A reader narrows with `kinds`.
+
+- **Numbers only rise.** An event's number is never given twice and keeps rising across the service's
+  restarts: a server that starts goes on above every number a process before it gave.
+- **What is kept.** Every event the stream carries is kept in the store, the newest 50,000 of them; an
+  older one is dropped as newer ones come. A restart drops none.
+- **Resuming.** A reader resumes with `Last-Event-ID` or `after`, the last number it read: the stream
+  sends every kept event after that number, of the kinds it reads, oldest first, and then the live ones
+  as they come, none twice. The page answers the same kept events, `limit` at a time, with `more` where
+  there are others after them. A stream opened with no number is sent what is published from then on; a
+  page asked with none answers from the oldest kept. A number this numbering never gave is read on from
+  the newest number it has given, so what is published after the notice is sent.
+- **Told when it is too late.** Where events after the number named are no longer kept — it is older
+  than the oldest kept — or the number is one the service never gave, the stream first sends
+  `events.missed`, with no id of its own, its data `after`, the number named, and `keptFrom`, the oldest
+  number kept or null where none is; the page answers the same as `missed`, null otherwise. What happened
+  between is not told again: the reader reads afresh the state it follows, then reads on from the
+  events sent after the notice.
 
 ### hooks
 
@@ -1083,7 +1100,8 @@ Agency publishes one stream, `GET /events`. The kinds are:
 `road.changed`, `launch-room.changed`, `companion-reset.created`, `place.changed`, `assignment.created`,
 `assignment.changed`, `job.created`, `job.changed`, `job.ended`.
 
-A kind agency keeps to its own processes does not cross the stream.
+A kind agency keeps to its own processes does not cross the stream. `events.missed` is the stream's own
+notice to a reader resuming too late (「events」 above), never published as an event and never kept.
 
 - **`road.changed`** carries one fact of a work key's road (`docs/cache-fallback.md`, 「One road
   resolution」), published once per move, after the system has acted, and named in its `fact`:

@@ -49,6 +49,7 @@ mod m20261122_000001_role_sessions;
 mod m20261122_000002_delegation_titles;
 mod m20261122_000003_job_close_lease;
 mod m20261123_000001_turn_liveness;
+mod m20261124_000001_stream_events;
 
 use sea_orm_migration::prelude::*;
 
@@ -60,7 +61,7 @@ pub const TABLES: &str = m20261016_000001_store::NAME;
 
 /// Every table the store's migrations make, beside the record of what ran: what reads every table of the
 /// store reads these and no other service's beside them (docs/store.md, 「Its tables」).
-pub const OWN_TABLES: [&str; 67] = [
+pub const OWN_TABLES: [&str; 68] = [
   "agents",
   "agent_roles",
   "agent_role_seeded",
@@ -128,6 +129,7 @@ pub const OWN_TABLES: [&str; 67] = [
   "session_work",
   "session_loads",
   "turn_liveness",
+  "stream_events",
 ];
 
 pub struct Migrator;
@@ -183,6 +185,7 @@ impl MigratorTrait for Migrator {
       Box::new(m20261122_000002_delegation_titles::Migration),
       Box::new(m20261122_000003_job_close_lease::Migration),
       Box::new(m20261123_000001_turn_liveness::Migration),
+      Box::new(m20261124_000001_stream_events::Migration),
     ]
   }
 

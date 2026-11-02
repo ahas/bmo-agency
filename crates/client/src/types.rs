@@ -192,6 +192,20 @@ pub struct Event {
 pub struct EventPage {
   pub items: Vec<Event>,
   pub more: bool,
+  /// The notice that events after the number asked are no longer kept, or that it is a number the service
+  /// never gave; none otherwise. The reader reads afresh the state it follows.
+  #[serde(default)]
+  pub missed: Option<EventsMissed>,
+}
+
+/// EventsMissed: what the stream's `events.missed` notice and a page's `missed` carry.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct EventsMissed {
+  /// the number the reader named
+  pub after: i64,
+  /// the oldest number kept, none where none is
+  pub kept_from: Option<i64>,
 }
 
 /// Agent:
