@@ -277,7 +277,7 @@ export interface paths {
         /** Every session, by agent or scope. */
         get: operations["listSessions"];
         put?: never;
-        /** Start a session for an agent at a scope, readable at once before its first turn; a throwaway one is scope apart with boundMs and its own options. A run on a runner line (search, browse) is such a session naming the line and handing its instructions in whole as systemPrompt; it calls the upstreams it needs through their own MCP servers. */
+        /** Start a session for an agent at a scope, readable at once before its first turn; a throwaway one is scope apart with its own options. A run on a runner line (search, browse) is such a session naming the line and handing its instructions in whole as systemPrompt; it calls the upstreams it needs through their own MCP servers. */
         post: operations["createSessions"];
         delete?: never;
         options?: never;
@@ -449,7 +449,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** One run, its clock bound among its fields. */
+        /** One run, its clock among its fields. */
         get: operations["getRun"];
         put?: never;
         post?: never;
@@ -1346,7 +1346,7 @@ export interface paths {
         /** Worker assignments, by holder, worker or state. */
         get: operations["listAssignments"];
         put?: never;
-        /** Assign a worker to an item for the harness holding it: the agency picks the worker from the item's content and the assignee it names, and holds it until the job starts or the hold runs out. */
+        /** Assign a worker to an item for the harness holding it: the agency picks the worker from the item's content and the assignee it names, and holds it until its job starts and ends, or the harness releases it. */
         post: operations["createAssignments"];
         delete?: never;
         options?: never;
@@ -1368,7 +1368,7 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Release an assignment, or hold it longer. */
+        /** Release an assignment. */
         patch: operations["changeAssignmentsByAssignmentId"];
         trace?: never;
     };
@@ -1911,8 +1911,6 @@ export interface components {
             generation: number;
             holder: string | null;
             prefixChangeReason: string | null;
-            /** Format: int64 */
-            boundMs: number | null;
             options: unknown;
             /**
              * Format: double
@@ -1941,8 +1939,6 @@ export interface components {
             scope: unknown;
             /** Format: int64 */
             roomId?: number | null;
-            /** Format: int64 */
-            boundMs?: number | null;
             /** @description The runner line a thrown-away session goes out on with the instructions its caller hands in whole. */
             line?: string | null;
             /** @description The line's instructions, handed in whole after the platform's harness opening; needs `line`. */
@@ -2641,8 +2637,6 @@ export interface components {
             contextTokens?: number | null;
             /** Format: int64 */
             answerTokens?: number | null;
-            /** Format: int64 */
-            waitSeconds?: number | null;
             thinking?: boolean | null;
             walked?: boolean | null;
             keepsResearch?: boolean | null;
@@ -3376,7 +3370,7 @@ export interface components {
             items: components["schemas"]["Assignment"][];
             more: boolean;
         };
-        /** @description Assignment: A worker held for one item for the harness that asked. held until POST /jobs uses it or it runs out at expiresAt; running while its job runs; released when the harness lets it go or the job ends. */
+        /** @description Assignment: A worker held for one item for the harness that asked. held until POST /jobs uses it; running while its job runs; released when the harness lets it go or the job ends. No clock ends a hold. */
         Assignment: {
             /** Format: int64 */
             id: number;
@@ -3385,11 +3379,6 @@ export interface components {
             holderName: string;
             workerName: string;
             state: components["schemas"]["AssignmentState"];
-            /**
-             * Format: int64
-             * @description epoch milliseconds
-             */
-            expiresAt: number;
             /**
              * Format: int64
              * @description epoch milliseconds
@@ -3405,7 +3394,7 @@ export interface components {
          * @description One of the values the API accepts.
          * @enum {string}
          */
-        AssignmentState: "held" | "running" | "released" | "expired";
+        AssignmentState: "held" | "running" | "released";
         /** @description The body that asks for a worker to be assigned to an item. */
         AssignWorker: {
             /** Format: int64 */
@@ -3413,8 +3402,6 @@ export interface components {
             holderName: string;
             item: components["schemas"]["JobItem"];
             assigneeName?: string | null;
-            /** Format: int64 */
-            holdMs?: number | null;
         };
         /** @description JobItem: The item's content as the harness read it from the job service; the agency reads nothing there. */
         JobItem: {
@@ -3437,11 +3424,9 @@ export interface components {
              */
             instruction: components["schemas"]["JobInstruction"] | null;
         };
-        /** @description The body that releases an assignment or holds it longer. */
+        /** @description The body that releases an assignment. */
         AssignmentChange: {
             state?: components["schemas"]["AssignmentState"] | null;
-            /** Format: int64 */
-            holdMs?: number | null;
         };
         /** @description JobPage: */
         JobPage: {

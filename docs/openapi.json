@@ -1264,7 +1264,7 @@
         "tags": [
           "sessions"
         ],
-        "summary": "Start a session for an agent at a scope, readable at once before its first turn; a throwaway one is scope apart with boundMs and its own options. A run on a runner line (search, browse) is such a session naming the line and handing its instructions in whole as systemPrompt; it calls the upstreams it needs through their own MCP servers.",
+        "summary": "Start a session for an agent at a scope, readable at once before its first turn; a throwaway one is scope apart with its own options. A run on a runner line (search, browse) is such a session naming the line and handing its instructions in whole as systemPrompt; it calls the upstreams it needs through their own MCP servers.",
         "responses": {
           "201": {
             "description": "Answered.",
@@ -1966,7 +1966,7 @@
         "tags": [
           "runs"
         ],
-        "summary": "One run, its clock bound among its fields.",
+        "summary": "One run, its clock among its fields.",
         "responses": {
           "200": {
             "description": "Answered.",
@@ -5309,7 +5309,7 @@
         "tags": [
           "assignments"
         ],
-        "summary": "Assign a worker to an item for the harness holding it: the agency picks the worker from the item's content and the assignee it names, and holds it until the job starts or the hold runs out.",
+        "summary": "Assign a worker to an item for the harness holding it: the agency picks the worker from the item's content and the assignee it names, and holds it until its job starts and ends, or the harness releases it.",
         "responses": {
           "201": {
             "description": "Answered.",
@@ -5394,7 +5394,7 @@
         "tags": [
           "assignments"
         ],
-        "summary": "Release an assignment, or hold it longer.",
+        "summary": "Release an assignment.",
         "responses": {
           "200": {
             "description": "Answered.",
@@ -7274,13 +7274,6 @@
               "null"
             ]
           },
-          "boundMs": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64"
-          },
           "options": true,
           "foldRatio": {
             "type": [
@@ -7310,7 +7303,6 @@
           "generation",
           "holder",
           "prefixChangeReason",
-          "boundMs",
           "options",
           "tier"
         ],
@@ -7344,13 +7336,6 @@
           },
           "scope": true,
           "roomId": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64"
-          },
-          "boundMs": {
             "type": [
               "integer",
               "null"
@@ -9527,13 +9512,6 @@
             "format": "int64"
           },
           "answerTokens": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64"
-          },
-          "waitSeconds": {
             "type": [
               "integer",
               "null"
@@ -11960,11 +11938,6 @@
           "state": {
             "$ref": "#/components/schemas/AssignmentState"
           },
-          "expiresAt": {
-            "type": "integer",
-            "format": "int64",
-            "description": "epoch milliseconds"
-          },
           "createdAt": {
             "type": "integer",
             "format": "int64",
@@ -11982,19 +11955,17 @@
           "holderName",
           "workerName",
           "state",
-          "expiresAt",
           "createdAt",
           "changedAt"
         ],
-        "description": "Assignment: A worker held for one item for the harness that asked. held until POST /jobs uses it or it runs out at expiresAt; running while its job runs; released when the harness lets it go or the job ends."
+        "description": "Assignment: A worker held for one item for the harness that asked. held until POST /jobs uses it; running while its job runs; released when the harness lets it go or the job ends. No clock ends a hold."
       },
       "AssignmentState": {
         "type": "string",
         "enum": [
           "held",
           "running",
-          "released",
-          "expired"
+          "released"
         ],
         "description": "One of the values the API accepts."
       },
@@ -12016,13 +11987,6 @@
               "string",
               "null"
             ]
-          },
-          "holdMs": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64"
           }
         },
         "required": [
@@ -12097,16 +12061,9 @@
                 "type": "null"
               }
             ]
-          },
-          "holdMs": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64"
           }
         },
-        "description": "The body that releases an assignment or holds it longer."
+        "description": "The body that releases an assignment."
       },
       "JobPage": {
         "type": "object",
@@ -12807,7 +12764,7 @@
     },
     {
       "name": "assign_worker",
-      "description": "Assign a worker to an item for the harness holding it: the agency picks the worker from the item's content and the assignee it names, and holds it until the job starts or the hold runs out.",
+      "description": "Assign a worker to an item for the harness holding it: the agency picks the worker from the item's content and the assignee it names, and holds it until its job starts and ends, or the harness releases it.",
       "input": {
         "$ref": "#/components/schemas/AssignWorker"
       },
