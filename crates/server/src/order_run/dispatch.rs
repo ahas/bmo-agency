@@ -255,23 +255,31 @@ pub async fn provider_for_model(
     .ok_or_else(|| format!("The {role} role's order names no provider"))
 }
 
-/// The road a slot naming none is fixed to: for a delegation as the supervisor's double — the delegate role
-/// asked by a supervisor — the asking supervisor's own road as it stands now: the provider, model and effort its
-/// last turn went out on, else its order's first (docs/role-slots.md, 「A delegated task」). Any other slot is
-/// fixed to nothing and walks its role's order.
+/// The road a slot naming none is fixed to: for a role whose order is empty — the supervisor's double, the
+/// delegator role, as seeded — the road of the supervisor the ask names as its asker, as it stands now: the
+/// provider, model and effort its last turn went out on, else its order's first (docs/role-slots.md, 「A
+/// delegated task」). A slot of such a role no supervisor asks is refused, since it has no road. A role whose
+/// order holds an entry is fixed to nothing and walks that order, whoever asks it.
 pub async fn fixed_road<C: ConnectionTrait>(
   db: &C,
   role: &str,
-  source: &str,
   asked_by: Option<&str>,
 ) -> Result<Option<Entry>, Fault> {
-  if source != DELEGATE || role != policy::roles::ROLES.delegate {
+  let held = role_of(db, role).await?;
+
+  if !held.order.follows_supervisor() {
     return Ok(None);
   }
 
-  let Some(supervisor) = asked_by else { return Ok(None) };
-  let Some(supervisor) = crate::supervisors::named(db, supervisor).await.map_err(faulted)? else {
-    return Ok(None);
+  let supervisor = match asked_by {
+    Some(name) => crate::supervisors::named(db, name).await.map_err(faulted)?,
+    None => None,
+  };
+  let Some(supervisor) = supervisor else {
+    return Err(format!(
+      "The {role} role's order is empty, so it goes out on the road of the supervisor that asks it, and no \
+       supervisor asked this slot"
+    ));
   };
   let stands = supervisor
     .last_mode
@@ -286,7 +294,10 @@ pub async fn fixed_road<C: ConnectionTrait>(
       model,
     });
 
-  Ok(stands.or_else(|| supervisor.order.first().cloned()))
+  stands
+    .or_else(|| supervisor.order.first().cloned())
+    .map(Some)
+    .ok_or_else(|| format!("The supervisor {} names no provider to go out on", supervisor.name))
 }
 
 /// The request a token names.

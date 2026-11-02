@@ -276,6 +276,18 @@ pub struct Session {
   /// The role the session runs for, or none.
   #[serde(default)]
   pub role: Option<String>,
+  /// What the record of every run of a role's session holds, its supervisor's among them where it is a
+  /// supervisor's double; none for any other scope and wherever a session is read rather than started.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub carries: Option<SessionCarries>,
+}
+
+/// SessionCarries: the capabilities and the namespaces a role's session's record holds.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionCarries {
+  pub capabilities: Vec<String>,
+  pub namespaces: Vec<String>,
 }
 
 /// Turn:
@@ -1894,6 +1906,10 @@ pub struct SessionStart {
   /// The capabilities the session's record keeps, of those its line and its agent's role give.
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub tools_allowed: Option<Vec<String>>,
+  /// On a role's session, the supervisor whose double the run is: every turn holds that supervisor's tools
+  /// beside its role's.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub supervisor: Option<String>,
   /// A granted demand of the caller's own on the arbiter's master, which each turn of a thrown-away session
   /// on a registration naming a card service stands on, with no other asked.
   #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -2846,9 +2862,13 @@ pub struct Role {
   pub sessions: RoleSessions,
   pub fold_ratio: f64,
   pub callable: bool,
+  /// Whether its order is empty, so its runs go out on the road of the supervisor that asks them; a screen
+  /// shows its road as the supervisor's.
+  #[serde(default)]
+  pub follows_supervisor: bool,
   pub running: i64,
   pub waiting: i64,
-  /// its active provider, or null where none of its order has quota
+  /// its active provider, or null where none of its order has quota or its order is empty
   pub provider: Option<String>,
   pub waiting_for: Option<String>,
 }

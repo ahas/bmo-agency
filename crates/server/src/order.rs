@@ -65,6 +65,11 @@ impl Order {
     self.entries.iter().find(|entry| entry.provider == provider)
   }
 
+  /// Whether the order is empty, so the row's runs follow the supervisor that asks them.
+  pub fn follows_supervisor(&self) -> bool {
+    self.entries.is_empty()
+  }
+
   /// The first entry, where the order holds one.
   pub fn first(&self) -> Option<&Entry> {
     self.entries.first()
@@ -104,8 +109,16 @@ fn refused(field: impl Into<String>, error: impl Into<String>) -> Refusal {
   }
 }
 
+/// Whether an empty list is an order: a supervisor's never is, and a role's is, its runs then following the
+/// supervisor that asks them (docs/provider-order.md, 「What an order is」).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Empty {
+  Refused,
+  FollowsSupervisor,
+}
+
 /// An order a write hands in, judged for a row whose runs go out on `line` (docs/api.md, 「supervisors」): a
-/// non-empty list of providers agency carries, each once, whose program carries the line, each on a model it
+/// list of providers agency carries, empty only where `empty` takes one, each once, whose program carries the line, each on a model it
 /// holds at an effort the model takes, and a share from 0 to 1. A catalogue that cannot be read refuses
 /// nothing.
 pub async fn judge(
@@ -114,11 +127,12 @@ pub async fn judge(
   line: &str,
   entries: &Value,
   share: Option<&Value>,
+  empty: Empty,
 ) -> Result<Order, Refusal> {
   let read: Vec<Entry> = serde_json::from_value(entries.clone())
     .map_err(|_| refused("order", "The order is a list of providers, each with its model."))?;
 
-  if read.is_empty() {
+  if read.is_empty() && empty == Empty::Refused {
     return Err(refused("order", "An order names at least one provider."));
   }
 

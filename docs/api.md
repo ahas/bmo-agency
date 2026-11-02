@@ -209,9 +209,12 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
   name; `label`; `prompt`, its text or null; `description`, its text or null; `bundles`, each `name`, `code`
   (the name with each dot a hyphen, so `room.chat` is `room-chat`) and `label`; `line`; `order`, its provider
   order in the shape a supervisor's is (「supervisors」); `maxConcurrent`, its cap; `sessions`, `keep` or
-  `fresh`; `foldRatio`, its compaction threshold; `callable`, whether a run may call it as a co-worker; and
+  `fresh`; `foldRatio`, its compaction threshold; `callable`, whether a run may call it as a co-worker;
+  `followsSupervisor`, true while its order is empty, so its runs go out on the road of the supervisor that
+  asks them (`docs/role-slots.md`, 「A delegated task」) and a screen shows its road as the supervisor's; and
   what stands of it now: `running` and `waiting`, how many of its runs go and wait, `provider`, its active
-  provider, or null where none of its order has quota, and `waitingFor`, why its runs wait, or null.
+  provider, or null where none of its order has quota or its order is empty, and `waitingFor`, why its runs
+  wait, or null, null too while it follows the supervisor.
 - **`GET /roles` answers `roles`, `bundles` and `lines`:** every role in the order a screen lists them, every
   bundle the policy declares with its `name`, `code` and `label`, and every line agency carries a role may
   name.
@@ -221,7 +224,8 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
   is refused 422 `unprocessable-entity`, with one English sentence and nothing written, for a name out of the
   roles policy's pattern or past its length or already held; an empty label or one past the policy's
   length; a bundle the policy does not declare; a line agency does not carry; an order refused as a
-  supervisor's is, its provider judged against the role's line; a cap that is no whole number of zero or
+  supervisor's is, its provider judged against the role's line, but for an empty list, which a role's order
+  may be; a cap that is no whole number of zero or
   more; a prompt or description that is not text; and `sessions` other than `keep` or `fresh`.
 - **`PATCH /roles/{roleName}` changes the fields the body names** and answers 200 with the role, each judged as
   `POST` judges it; a `prompt` or `description` given as null clears it. 404 `not-found` for a role the store
@@ -315,6 +319,9 @@ in on, on the role's line.
 - **`cwd`** is the path the run works at: the one the start names, else the slot's `path`, else the line's own
   deployed directory.
 - **A start naming no `slot`** is refused 400: a role's session runs on a slot and on nothing else.
+- **A role's session answers `carries`** beside the session: `capabilities` and `namespaces`, what the record
+  of each of its runs holds, its supervisor's among them where the start names one; every other scope answers
+  it null.
 - **A slot carries several sessions in turn.** A start naming a slot binds its lease to the session it opens,
   whether or not the lease was bound to another before, and that other session's end no longer gives the
   lease back; ending the session the lease is bound to does (`docs/role-slots.md`, 「The line」). A caller
@@ -345,6 +352,13 @@ prompt. Beside them its road is checked, and the start may name the rest below:
 - **`labels`:** an object the session's record carries, each key and its value written under that key of the
   record's `labels`, for the placed tools that read them; a key agency writes itself — `line`, `checkout`,
   `archive`, `role` and `place` — is refused 400.
+- **`supervisor`:** on a role's session, the supervisor whose double the run is, one the store holds, else
+  422 `unknown-supervisor`. Every turn of the session then runs with that supervisor's tools beside its role's
+  (`docs/tools.md`, 「The delegate」): its record is held under the supervisor's name with the chat line's
+  capabilities, namespaces, shown entries and variables and the supervisor bundles beside its line's and its
+  role's; the supervisor is the turn's agent; and its program is handed the supervisor's chat servers beside
+  its line's. The turn's room, road, privilege and messages are the turn's own `variables`
+  (`BMO_TURN_CHAT`, `BMO_TURN_VIA`, `BMO_TURN_PRIVILEGED`, `BMO_TURN_MESSAGES`).
 - **`toolsAllowed`:** the capabilities the record keeps, of those the line and the session's role give it; a
   record keeps them all where the start names none, and the list never widens them.
 
@@ -555,7 +569,10 @@ caller names and the path its run will work at, and is refused 422 `unknown-role
 out on in place of the role's order — a `delegator` run as its supervisor's double, a native call on its caller's
 provider; or `model` alone, whose provider is the first entry of the role's order naming that model, else the
 role's active provider, else the order's first; a `provider` named alone is refused 400. It may name
-`placeKey`, the key only one active request holds at once.
+`placeKey`, the key only one active request holds at once. A slot naming no road under a role whose order is
+empty goes out on the road of the supervisor its `askedBy` names, as that supervisor's last turn went out on,
+else its order's first; asked under no supervisor the store holds, it is refused 422 `unprocessable-entity`
+saying the role follows the supervisor that asks it.
 
 A request key names one request for good (`docs/role-slots.md`, 「Request keys」). Asked again with the same key
 while that request stands — `waiting`, `reserved` or `active` — the ask answers 201 with that request and

@@ -64,10 +64,18 @@ fn the_worker_goes_out_on_deepseeks_flash_model_first() {
 
 #[test]
 fn every_order_names_a_provider_once_and_every_role_names_its_line() {
+  let delegator = ROLES.roles.iter().find(|role| role.name == ROLES.delegate).unwrap();
+
+  assert!(delegator.order.is_empty(), "the double's order is empty, so it follows its supervisor");
+
   for role in &ROLES.roles {
     let providers: BTreeSet<&str> = role.order.iter().map(|entry| entry.provider.as_str()).collect();
 
-    assert!(!role.order.is_empty(), "{} names an order", role.name);
+    assert!(
+      !role.order.is_empty() || role.name == ROLES.delegate,
+      "{} names an order; only the supervisor's double follows its supervisor",
+      role.name
+    );
     assert_eq!(providers.len(), role.order.len(), "{} names a provider twice", role.name);
     assert!(
       ["worker", "search", "browse", "translate"].contains(&role.line.as_str()),

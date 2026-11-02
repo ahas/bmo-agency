@@ -425,19 +425,20 @@ async fn put<W: Watch>(
   let root = sessions_of(&Homes::of(ground).resident);
   let interrupt = interrupt_of(resident);
   let shared: &Execution = execution;
-  let stood = match stand_resident(ground, place, &turn.home, program, &turn.run.line, every, || {
-    shared.cancelled(ground, turn)
-  })
-  .await
-  {
-    Ok(stood) => stood,
-    Err(fault) => {
-      return Ok(SurfaceEnding::Error(format!(
-        "codex's program did not stand: {}: {}",
-        fault.code, fault.message
-      )));
-    }
-  };
+  let stood =
+    match stand_resident(ground, place, &turn.home, program, &turn.run.env, &turn.run.line, every, || {
+      shared.cancelled(ground, turn)
+    })
+    .await
+    {
+      Ok(stood) => stood,
+      Err(fault) => {
+        return Ok(SurfaceEnding::Error(format!(
+          "codex's program did not stand: {}: {}",
+          fault.code, fault.message
+        )));
+      }
+    };
   let pane = stood.pane;
 
   execution.set("paneId", json!(pane));

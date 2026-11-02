@@ -99,49 +99,14 @@ belongs to no one service is a repository of its own, not a folder here.
   and model where one is valid (`docs/sessions.md`, 「A role's session」).
 - **It waits for the run to end,** however long the run takes: no bound of its own and no timeout on its
   wait for agency's answer.
-- **Its answer** is the run's answer text and the paths of the files the run created or changed in the
-  folder, read from the run's recorded edit diffs. The run is logged like any other, so the console shows it.
-- **It refuses only what cannot be asked at all:** a folder on no machine the worker role can run on and a
-  checkout named outside the owner's turn, besides the owner's gate. A task worth keeping and reviewing is a
-  queue item, filed with `file_item`, not asked this way.
-
-## The delegate
-
-- **`tools/delegate`** declares `bmo/delegate` to a session holding `room.tools`: a supervisor hands a task —
-  an investigation, a lookup on another machine, reading code, a problem it cannot settle in its turn,
-  anything longer than moments that needs no queue item — to a run of a role, with no item, lease or report.
-  The supervisor calls it with `bmo use bmo/delegate --async`, so its turn goes on and the answer comes back
-  to it as a wake.
-- **It asks only past the owner's gate** (`docs/launch-lines.md`, 「The owner's gate」), as the worker ask
-  does, before it asks anything of a slot: a refused turn starts nothing.
-- **Its arguments** are the title, one line naming the task, which the delegation is listed by; the
-  instruction, carrying every piece of context the task needs, since the run sees nothing of the
-  conversation; an optional role; and an optional folder.
-  - The role is any role the store holds; where none is named it is the one agency's roles policy names for
-    delegated work, `delegator`, the supervisor's double. A role the store does not hold is an error: the call
-    is refused with the name and starts nothing.
-  - The folder is where the task works: the asking supervisor's scratch workspace under the data root where
-    none is named, made on first use, the same one the worker ask defaults to.
-- **A task naming no role runs as the supervisor's double:** a run of the `delegator` role, on the asking
-  supervisor's own provider, model and effort as they stand when it is asked, rather than the role's order
-  (`docs/role-slots.md`, 「A delegated task」), under the delegator role's prompt and bundles. A task naming a
-  role runs on that role's own order, under its prompt and bundles.
-- **It takes a slot of the role and waits in its line however long the line takes.** It asks for its
-  admission again at a steady pace until it is let in, is never refused for the role being full and never
-  gives up for having waited; a slot given back before it was let in ends the call with that said.
-- **The work is a run of the role at the task's folder** (`docs/sessions.md`, 「A role's session」): one turn
-  carrying the instruction and the asking turn's room, on the session kept for that role at that folder on
-  that provider and model where one is valid. So a delegation that follows another at the same folder on the
-  same model within the provider's cache lifetime goes on in the same session and reads what came before, and
-  one past the cache lifetime or the model's context opens a new one. The run works with its role's program
-  and tools — a shell among them, so it reaches other machines as a job does.
-  - The call waits for the run's end with no timeout, and nothing bounds the run by a clock.
-- **Once the run ends** the slot is finished with what the run came to, which ends the run's session. A call
-  whose caller goes away while its slot still waits cancels the slot, so nothing is left standing in the line;
-  one that goes away once its run was sent finishes the slot as it goes, which cuts the run and ends its
-  session (`docs/role-slots.md`, 「The line」), so nothing goes on running on a slot no call holds.
 - **Its answer** is the run's answer text and the paths of the files created or changed in the folder while
   the task ran, found by comparing the folder before and after, its `.git` directories passed over.
+- **What the double could not hold is a defect, said in the answer.** The session's start answers `carries`,
+  the capabilities and namespaces its record holds; the delegate compares them with its own record, the asking
+  supervisor's session as the tool host handed it, and every capability or namespace the supervisor holds that
+  the double's record does not is named. The run still goes, and the answer is then a failure (`isError`) that
+  names what the double lacked before the run's words, so it stands in the turn's log as a failed call, never
+  as the double's polite refusal.
 - **Its stage stands on its slot** (`docs/api.md`, 「slots, reservations and places」): the slot is asked with
   the title and the asking supervisor. A delegation is waiting while its slot waits in the line, running once
   its slot is let in and bound to its run, and ended once the slot is finished, with what it came to.

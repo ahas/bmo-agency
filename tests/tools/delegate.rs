@@ -36,6 +36,8 @@ struct Stub {
   finished: Vec<Value>,
   sends: Vec<String>,
   turned: Option<Value>,
+  // What the double's record holds, as the start answers it; everything the asking record holds where unset.
+  carries: Option<Value>,
 }
 
 type Shared = Arc<Mutex<Stub>>;
@@ -63,9 +65,15 @@ async fn ask_seat(State(stub): State<Shared>, Json(body): Json<Value>) -> (Statu
 }
 
 async fn start(State(stub): State<Shared>, Json(body): Json<Value>) -> (StatusCode, Json<Value>) {
-  stub.lock().unwrap().started = Some(body);
+  let mut stub = stub.lock().unwrap();
+  let carries = stub
+    .carries
+    .clone()
+    .unwrap_or_else(|| json!({ "capabilities": ["room.tools"], "namespaces": ["bmo"] }));
 
-  (StatusCode::CREATED, Json(json!({ "id": "delegator@run:1" })))
+  stub.started = Some(body);
+
+  (StatusCode::CREATED, Json(json!({ "id": "delegator@run:1", "carries": carries })))
 }
 
 async fn move_seat(State(stub): State<Shared>, Json(body): Json<Value>) -> Json<Value> {
@@ -156,7 +164,10 @@ fn session(root: &std::path::Path) -> Session {
       ("BMO_DATA_DIR".to_owned(), root.to_string_lossy().into_owned()),
       ("BMO_TURN_AGENT".to_owned(), "bmo".to_owned()),
       ("BMO_TURN_CHAT".to_owned(), "-7".to_owned()),
+      ("BMO_TURN_VIA".to_owned(), "telegram".to_owned()),
     ]),
+    capabilities: ["room.tools".to_owned()].into(),
+    namespaces: ["bmo".to_owned()].into(),
     ..Session::default()
   }
 }
@@ -219,6 +230,7 @@ async fn a_slot_waits_in_line_and_the_roles_run_answers_with_its_words_and_the_f
 
   assert_eq!(started["scope"], "role");
   assert_eq!(started["slot"], "t1", "the run starts on the slot it was let in on");
+  assert_eq!(started["supervisor"], "bmo", "the run is the asking supervisor's double");
   assert_eq!(started["cwd"], scratch.display().to_string());
   assert!(started.get("options").is_none(), "the role and the road are the slot's");
   assert_eq!(stub.sends, ["delegator@run:1"]);
@@ -246,6 +258,12 @@ async fn a_slot_waits_in_line_and_the_roles_run_answers_with_its_words_and_the_f
     );
   }
   assert_eq!(work["chat"], -7);
+  assert_eq!(
+    work["variables"],
+    json!({ "BMO_TURN_CHAT": "-7", "BMO_TURN_VIA": "telegram" }),
+    "the double's turn stands in the asking turn's room on its road"
+  );
+  assert!(!answer.is_error, "the double held all its supervisor holds: {text}");
 
   // The slot is finished with what the run came to.
   assert_eq!(stub.finished, [json!({ "state": "finished", "outcome": "answered", "cancel": false })]);
@@ -460,4 +478,35 @@ async fn a_turn_not_the_owner_s_delegates_only_past_the_owner_s_gate() {
   let refused = may_delegate(&AccountService::default(), &turn).await.unwrap_err();
 
   assert!(refused.starts_with("Delegating a task is refused"), "{refused}");
+}
+
+// Where the double's session would not hold what the supervisor's own holds, the delegation still runs and its
+// answer is a failure naming each missing capability and namespace before the run's words, so the turn's log
+// shows a failed call (docs/tools.md, 「The delegate」).
+#[tokio::test]
+async fn what_the_double_lacked_of_its_supervisor_s_tools_is_a_failure_naming_it() {
+  let home = tempfile::tempdir().unwrap();
+  let (api, _stub) = server(Stub {
+    waits: Some(0),
+    answer: Some("I could not render the song: no tool for it.".into()),
+    carries: Some(json!({ "capabilities": ["room.tools"], "namespaces": ["bmo", "worker"] })),
+    ..Stub::default()
+  })
+  .await;
+  let mut asking = session(home.path());
+
+  asking.capabilities.insert("room.send".to_owned());
+  asking.namespaces.insert("voice".to_owned());
+
+  let answer = delegate_with(&api, &asking, input("render the song"), &Held::default()).await;
+  let text = serde_json::to_string(&answer).unwrap();
+
+  assert!(text.contains("\"isError\":true"), "a defect, never a polite refusal: {text}");
+  assert!(text.contains("the capability room.send"), "{text}");
+  assert!(text.contains("the namespace voice"), "{text}");
+  assert!(
+    !text.contains("the namespace worker"),
+    "what the double holds beyond is no lack: {text}"
+  );
+  assert!(text.contains("I could not render the song"), "the run's words follow: {text}");
 }

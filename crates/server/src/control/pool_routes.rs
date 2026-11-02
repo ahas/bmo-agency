@@ -134,7 +134,7 @@ impl Route for SlotAsk {
 
         Some(dispatch::named_road(call.store(), role, &provider, model).await.map_err(refused)?)
       }
-      (None, None) => dispatch::fixed_road(call.store(), role, source, asked_by).await.map_err(refused)?,
+      (None, None) => dispatch::fixed_road(call.store(), role, asked_by).await.map_err(refused)?,
       (Some(_), None) => return Err(bad("A slot's road names its provider together with its model")),
     };
     let asked = Asked {

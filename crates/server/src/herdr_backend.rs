@@ -394,6 +394,7 @@ struct RoleLine {
   reasoning: crate::lines::worker::Reasoning,
   thinking: bool,
   system_path: std::path::PathBuf,
+  tools_shown: String,
   tools_allowed: String,
   mcp_config: std::path::PathBuf,
   cwd: String,
@@ -2237,6 +2238,7 @@ impl HerdrSessions {
           },
           thinking: run.thinking,
           system_path: run.system_prompt.clone(),
+          tools_shown: String::new(),
           tools_allowed: run.tools_allowed.to_owned(),
           mcp_config: run.mcp_config.clone(),
           cwd: run.cwd.to_string_lossy().into_owned(),
@@ -2258,6 +2260,22 @@ impl HerdrSessions {
         )
         .await
         .map_err(|why| refused(why.detail))?;
+        // A supervisor's double is handed the supervisor's servers and the chat line's tools beside its line's
+        // (docs/worker-mcp.md, 「A supervisor's double」).
+        let double = match apart.supervisor.as_deref() {
+          Some(supervisor) => Some(
+            crate::lines::chat::double_of(
+              ground,
+              &trees,
+              supervisor,
+              crate::lines::worker::LINE,
+              &line.mcp_config,
+            )
+            .await
+            .map_err(|why| refused(why.detail))?,
+          ),
+          None => None,
+        };
 
         RoleLine {
           line: crate::lines::worker::LINE,
@@ -2267,10 +2285,13 @@ impl HerdrSessions {
           thinking: line.thinking,
           // The role's whole system prompt: the harness opening and the role's prompt before the rules.
           system_path: line.system_prompt.clone().unwrap_or_else(|| line.harnessed.clone()),
+          tools_shown: double.as_ref().map(|double| double.tools_shown.clone()).unwrap_or_default(),
           // The run takes every working row of the road; the list only has to be non-empty for the road to
           // hand it them rather than none.
-          tools_allowed: "Bash".to_owned(),
-          mcp_config: line.mcp_config.clone(),
+          tools_allowed: double
+            .as_ref()
+            .map_or_else(|| "Bash".to_owned(), |double| double.tools_allowed.clone()),
+          mcp_config: double.map_or_else(|| line.mcp_config.clone(), |double| double.mcp_config),
           cwd: apart.cwd.clone(),
         }
       }
@@ -2280,7 +2301,8 @@ impl HerdrSessions {
     crate::apart_places::mark(ground, &place, session).map_err(refused)?;
     env.extend(work.variables.iter().map(|(name, value)| (name.clone(), value.clone())));
     env.extend(crate::lines::token::record_variables(apart));
-    env.insert(TURN_AGENT.to_owned(), agent.to_owned());
+    // A supervisor's double runs as a turn of that supervisor, so every tool and script acts as it.
+    env.insert(TURN_AGENT.to_owned(), apart.supervisor.clone().unwrap_or_else(|| agent.to_owned()));
 
     if job.is_some() {
       env.insert(TASK_LOCKED.to_owned(), "1".to_owned());
@@ -2328,7 +2350,7 @@ impl HerdrSessions {
         text: String::new(),
         mark: String::new(),
       },
-      tools_shown: String::new(),
+      tools_shown: composed.tools_shown,
       tools_allowed: composed.tools_allowed,
       mcp_config: composed.mcp_config,
       mcp_tools: None,

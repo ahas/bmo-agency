@@ -572,3 +572,135 @@ async fn a_run_naming_its_role_is_issued_that_role_s_bundles_under_any_name() {
     "no bundle the role does not give: {capabilities:?}"
   );
 }
+
+// A standing program's environment holds no turn's variables, the role its run holds among them: the record it
+// is handed is issued with the run's variables laid over the program's own, so a role's session on a road whose
+// program stands in a place holds its role's bundles (docs/agent-roles.md, 「Where the role is read」).
+#[tokio::test]
+async fn a_standing_program_of_a_role_s_session_is_issued_its_role_s_bundles() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let socket = home.path().join("mcp-host.sock");
+  let issued = issuing_host(&socket);
+  let machine = hosted(home.path(), &socket);
+
+  store::seed::settle(scratch.db(), &deployment(&machine)).await.unwrap();
+
+  let ground = ground(&scratch, &machine, None);
+  let searcher = Apart {
+    provider: "registered".into(),
+    model: "flash-next".into(),
+    cwd: "/tmp".into(),
+    role: Some("searcher".into()),
+    line: Some("search".into()),
+    system_prompt: Some("THE INSTRUCTIONS".into()),
+    ..Apart::default()
+  };
+  let run_env: BTreeMap<String, String> =
+    agency_server::lines::token::record_variables(&searcher).into_iter().collect();
+  let place = home.path().join("apart-searcher-run-1");
+  let program_env = agency_server::door::place_run::resident_environment(&run_env, &place);
+
+  assert!(
+    !program_env.contains_key(agency_server::lines::token::RUN_ROLE),
+    "the program's own environment holds no turn's variable"
+  );
+
+  agency_server::lines::token::issue_for_program(
+    &ground,
+    "search",
+    "search",
+    &place,
+    std::path::Path::new("/tmp"),
+    &program_env,
+    &run_env,
+    u64::MAX,
+  )
+  .await
+  .unwrap()
+  .expect("a token");
+
+  let record = issued.lock().unwrap().pop().expect("a record was issued");
+  let capabilities: Vec<String> = serde_json::from_value(record["capabilities"].clone()).unwrap();
+
+  assert_eq!(record["labels"]["role"], json!("searcher"), "{record}");
+
+  for bundle in ["web.read", "web.sites", "web.branches", "web.rulebooks"] {
+    assert!(capabilities.contains(&bundle.to_owned()), "the searcher's {bundle}: {capabilities:?}");
+  }
+}
+
+// A delegation's run is its supervisor's double: its record is held under the supervisor's name with the chat
+// line's capabilities, namespaces and the supervisor bundles beside its line's and its role's, and names the
+// supervisor as the turn's agent; the start answers the same as `carries` (docs/tools.md, 「The delegate」).
+#[tokio::test]
+async fn a_double_s_record_carries_its_supervisor_s_tools_beside_its_role_s() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let socket = home.path().join("mcp-host.sock");
+  let issued = issuing_host(&socket);
+  let machine = hosted(home.path(), &socket);
+
+  store::seed::settle(scratch.db(), &deployment(&machine)).await.unwrap();
+
+  let ground = ground(&scratch, &machine, None);
+  let double = Apart {
+    provider: "deepseek".into(),
+    model: "deepseek-flash".into(),
+    cwd: "/tmp".into(),
+    role: Some("delegator".into()),
+    supervisor: Some("bmo".into()),
+    ..Apart::default()
+  };
+  let mut env: BTreeMap<String, String> =
+    agency_server::lines::token::record_variables(&double).into_iter().collect();
+
+  env.insert("BMO_TURN_CHAT".into(), "-7".into());
+
+  agency_server::lines::token::issue_for_run(&ground, "worker", "delegator", "/tmp", &env, u64::MAX)
+    .await
+    .unwrap()
+    .expect("a token");
+
+  let record = issued.lock().unwrap().pop().expect("a record was issued");
+  let capabilities: Vec<String> = serde_json::from_value(record["capabilities"].clone()).unwrap();
+  let namespaces: Vec<String> = serde_json::from_value(record["namespaces"].clone()).unwrap();
+
+  assert_eq!(record["holderName"], json!("bmo"), "held under the supervisor's name: {record}");
+  assert_eq!(record["variables"]["BMO_TURN_AGENT"], json!("bmo"), "{record}");
+  assert_eq!(record["variables"]["BMO_TURN_CHAT"], json!("-7"), "the asking turn's room: {record}");
+  assert_eq!(record["labels"]["role"], json!("delegator"), "{record}");
+
+  for capability in ["room.tools", "room.chat", "room.send", "web.read", "graph.read", "queue.read"] {
+    assert!(capabilities.contains(&capability.to_owned()), "{capability}: {capabilities:?}");
+  }
+
+  for namespace in ["bmo", "voice", "research", "worker", "web"] {
+    assert!(namespaces.contains(&namespace.to_owned()), "{namespace}: {namespaces:?}");
+  }
+
+  let carries = agency_server::lines::token::carried_by(&ground, &double).await.unwrap();
+
+  assert_eq!(
+    (carries.capabilities.iter().collect::<std::collections::BTreeSet<_>>()),
+    capabilities.iter().collect::<std::collections::BTreeSet<_>>(),
+    "the start answers what the record holds"
+  );
+  assert_eq!(carries.namespaces, namespaces);
+
+  let alone = agency_server::lines::token::carried_by(
+    &ground,
+    &Apart {
+      supervisor: None,
+      ..double
+    },
+  )
+  .await
+  .unwrap();
+
+  assert!(
+    !alone.capabilities.contains(&"room.send".to_owned()),
+    "a role's run alone holds its role's"
+  );
+  assert!(!alone.namespaces.contains(&"voice".to_owned()));
+}

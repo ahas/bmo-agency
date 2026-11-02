@@ -6990,6 +6990,17 @@
             ],
             "description": "The role the session runs for, or none.",
             "default": null
+          },
+          "carries": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SessionCarries"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What the record of every run of a role's session holds, its supervisor's among them where it is a\nsupervisor's double; none for any other scope and wherever a session is read rather than started."
           }
         },
         "required": [
@@ -7020,6 +7031,28 @@
           "conversation"
         ],
         "description": "One of the values the API accepts."
+      },
+      "SessionCarries": {
+        "type": "object",
+        "properties": {
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "namespaces": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "capabilities",
+          "namespaces"
+        ],
+        "description": "SessionCarries: the capabilities and the namespaces a role's session's record holds."
       },
       "SessionStart": {
         "type": "object",
@@ -7082,6 +7115,13 @@
               "type": "string"
             },
             "description": "The capabilities the session's record keeps, of those its line and its agent's role give."
+          },
+          "supervisor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "On a role's session, the supervisor whose double the run is: every turn holds that supervisor's tools\nbeside its role's."
           },
           "demandId": {
             "type": [
@@ -12133,6 +12173,11 @@
           "callable": {
             "type": "boolean"
           },
+          "followsSupervisor": {
+            "type": "boolean",
+            "description": "Whether its order is empty, so its runs go out on the road of the supervisor that asks them; a screen\nshows its road as the supervisor's.",
+            "default": false
+          },
           "running": {
             "type": "integer",
             "format": "int64"
@@ -12146,7 +12191,7 @@
               "string",
               "null"
             ],
-            "description": "its active provider, or null where none of its order has quota"
+            "description": "its active provider, or null where none of its order has quota or its order is empty"
           },
           "waitingFor": {
             "type": [
@@ -12169,6 +12214,7 @@
           "sessions",
           "foldRatio",
           "callable",
+          "followsSupervisor",
           "running",
           "waiting",
           "provider",

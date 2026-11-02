@@ -24,7 +24,8 @@ quota is read is `docs/usage-windows.md`.
   a fraction of its quota, 1% where the row sets none.
 - **An order names only providers agency carries and whose program carries the row's line** (the chat line
   for a supervisor, the role's own line for a role); a write naming another is refused with the provider and
-  why. An order is never empty.
+  why. A supervisor's order is never empty. A role's may be: a role whose order is empty has no road of its
+  own and follows the supervisor that asks it (「Runs that do not walk their own role's order」 below).
 
 ## Quota: what a provider has left
 
@@ -97,9 +98,10 @@ quota is read is `docs/usage-windows.md`.
 - **A repository's pinned model** carries every job in the repository instead of the role's order, and its
   work waits while the pin has no quota or cannot answer; nothing falls back (`docs/repositories.md`, 「A
   pinned model」).
-- **A delegated task as the supervisor's double** — a run of the `delegator` role a supervisor asked — goes
-  out on the supervisor's own provider, model and effort as they stand when it is asked, and waits, never moves, while that provider has no quota
-  (`docs/role-slots.md`, 「A delegated task」).
+- **A run of a role whose order is empty** — the supervisor's double, the `delegator` role, as seeded — goes
+  out on the asking supervisor's own provider, model and effort as they stand when it is asked, and waits,
+  never moves, while that provider has no quota (`docs/role-slots.md`, 「A delegated task」). An order the
+  owner sets on the role stands over that, and its runs then walk that order.
 - **A native co-worker** stands inside its caller's program, so it goes out on the provider that program
   stands on, at the model and effort the co-worker role's order names for that provider; where the role's
   order holds no entry for that provider, the call is refused and the caller does that part itself

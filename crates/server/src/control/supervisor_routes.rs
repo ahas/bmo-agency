@@ -209,10 +209,17 @@ crate::moved!(SupervisorRooms);
 async fn order_of(ground: &Ground, body: &Value) -> Result<Option<Order>, Refused> {
   let Some(entries) = body.get("order") else { return Ok(None) };
 
-  order::judge(Judging::of(ground), &ground.machine(), CHAT_LINE, entries, body.get("quotaShare"))
-    .await
-    .map(Some)
-    .map_err(|refusal| bad(&refusal.field, refusal.error))
+  order::judge(
+    Judging::of(ground),
+    &ground.machine(),
+    CHAT_LINE,
+    entries,
+    body.get("quotaShare"),
+    order::Empty::Refused,
+  )
+  .await
+  .map(Some)
+  .map_err(|refusal| bad(&refusal.field, refusal.error))
 }
 
 // A compaction threshold a body names: a fraction above 0 and at most 1.

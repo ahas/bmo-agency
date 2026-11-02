@@ -23,7 +23,7 @@ pub const PROVIDER: &str = "claude-code";
 
 // The web reaches every runner through the deployment's own server, and no built-in tool is shown to any.
 // A hosted tool the namespaces do not show is reached with `bmo use`.
-const WEB_TOOLS: &str = "mcp__bmo,mcp__web,mcp__eye";
+const WEB_TOOLS: &str = "mcp__bmo,mcp__web,mcp__eye,mcp__research";
 
 /// One runner line: the line, the work key and the agent it is all at once.
 pub trait Runner {
@@ -141,9 +141,11 @@ impl Runner for Search {
     WEB_TOOLS
   }
 
-  // The web namespace alone, on the tool host.
+  // Every namespace the search line names, on the tool host.
   fn mcp_config(&self, ground: &Ground, trees: &Trees) -> Result<PathBuf, Refusal> {
-    handed_config(trees.agents.join("search.mcp.json"), || Ok(line_servers(ground, &["bmo", "web"])))
+    handed_config(trees.agents.join("search.mcp.json"), || {
+      Ok(line_servers(ground, &named_namespaces("search")))
+    })
   }
 }
 
@@ -153,7 +155,7 @@ impl Runner for Browse {
   }
 
   fn tools_allowed(&self) -> &'static str {
-    "mcp__bmo,mcp__chrome-devtools,mcp__web"
+    "mcp__bmo,mcp__chrome-devtools,mcp__web,mcp__eye,mcp__research"
   }
 
   // The browse agent's servers as a run on the headless strategy is handed them.
@@ -230,11 +232,16 @@ pub fn browse_servers(
     servers.insert("chrome-devtools".to_owned(), Ordered::Map(started));
   }
 
-  for (name, server) in line_servers(ground, &["bmo", "web"]).entries().into_iter().flatten() {
+  for (name, server) in line_servers(ground, &named_namespaces("browse")).entries().into_iter().flatten() {
     servers.insert(name.clone(), server.clone());
   }
 
   Ok(Ordered::Map(servers))
+}
+
+// The tool host namespaces a line names, each a server of its configuration.
+fn named_namespaces(line: &str) -> Vec<&'static str> {
+  policy::run_lines::RUN_LINES.namespaces(line).iter().map(String::as_str).collect()
 }
 
 /// The runner lines a thrown-away session may name to go out on with instructions its caller hands in whole

@@ -389,6 +389,7 @@ pub fn scope_asked(body: &Value) -> Result<Scope, Refused> {
           cwd,
           todo: number(&options, "todo").or_else(|| number(body, "todo")),
           role: field("role").map(str::to_owned),
+          supervisor: field("supervisor").map(str::to_owned),
           ..runner
         }))
       }
@@ -602,6 +603,27 @@ impl Route for SessionStart {
       );
     }
 
+    // A session naming the supervisor whose double it is names one the store holds (docs/api.md, 「sessions」).
+    if let Scope::Apart(Apart {
+      supervisor: Some(supervisor),
+      ..
+    }) = &scope
+      && crate::supervisors::named(call.store(), supervisor).await?.is_none()
+    {
+      return Err(
+        Refused::new(StatusCode::UNPROCESSABLE_ENTITY, format!("No supervisor named {supervisor} is held"))
+          .with_code("unknown-supervisor"),
+      );
+    }
+
+    let carries = match &scope {
+      Scope::Apart(apart) => Some(
+        crate::lines::token::carried_by(call.ground(), apart)
+          .await
+          .map_err(|refused| Refused::new(StatusCode::INTERNAL_SERVER_ERROR, refused.detail))?,
+      ),
+      _ => None,
+    };
     let mut start = Start { agent, scope };
 
     if let Scope::Conversation(conversation) = &mut start.scope
@@ -629,10 +651,11 @@ impl Route for SessionStart {
         }
 
         let state = backend.read_state(&session.id, None).await.ok();
-        Ok(answer(
-          StatusCode::CREATED,
-          folded(call.store(), member(&session, state.as_ref(), &body)).await?,
-        ))
+        let mut answered = folded(call.store(), member(&session, state.as_ref(), &body)).await?;
+
+        answered["carries"] = json!(carries);
+
+        Ok(answer(StatusCode::CREATED, answered))
       }
       Err(fault) => Ok(faulted(fault)),
     }

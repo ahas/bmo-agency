@@ -381,13 +381,19 @@ pub async fn delegate_with(api: &Api, session: &Session, input: DelegateInput, h
       return Answer::failure(why);
     }
   };
-  // The role's run at the task's folder, on the slot it was let in on (docs/api.md, 「sessions」).
-  let start = json!({
+  // The role's run at the task's folder, on the slot it was let in on, as the asking supervisor's double where a
+  // supervisor's turn asks (docs/api.md, 「sessions」; docs/tools.md, 「The delegate」).
+  let mut start = json!({
     "scope": "role",
     "agentName": seat.role,
     "slot": seat.token,
     "cwd": folder.display().to_string(),
   });
+
+  if let Some(supervisor) = &turn.agent {
+    start["supervisor"] = json!(supervisor);
+  }
+
   let started = match api.ok(Method::POST, "/sessions", Some(start), "the role's run was not started").await
   {
     Ok(said) => said,
@@ -396,6 +402,11 @@ pub async fn delegate_with(api: &Api, session: &Session, input: DelegateInput, h
 
       return Answer::failure(why);
     }
+  };
+  // Only a supervisor's double is held to its supervisor's record.
+  let lacked = match &turn.agent {
+    Some(_) => lacks(session, started.get("carries")),
+    None => vec![],
   };
   let Some(run_session) = started.get("id").and_then(Value::as_str).map(str::to_owned) else {
     finish(api, &seat.token, "cancelled: its run was not started", true).await;
@@ -427,7 +438,7 @@ pub async fn delegate_with(api: &Api, session: &Session, input: DelegateInput, h
     "title": format!("delegated by {asker}: {title}"),
     "chat": turn.chat.unwrap_or_default(),
     "hearsWords": false,
-    "variables": {},
+    "variables": asking_turn(session),
   });
   let before = files(&folder);
 
@@ -455,7 +466,7 @@ pub async fn delegate_with(api: &Api, session: &Session, input: DelegateInput, h
 
   let mut text = match answered {
     Ok(answer) => answer,
-    Err(why) => return Answer::failure(why),
+    Err(why) => return Answer::failure(lacked_first(&lacked, why)),
   };
   let made = changed(&before, &after);
 
@@ -467,7 +478,80 @@ pub async fn delegate_with(api: &Api, session: &Session, input: DelegateInput, h
     }
   }
 
-  Answer::text(text)
+  // What the double lacked of the supervisor's is a defect: the answer is a failure naming it, before the run's
+  // words.
+  if lacked.is_empty() {
+    Answer::text(text)
+  } else {
+    Answer::failure(lacked_first(&lacked, text))
+  }
+}
+
+/// The turn variables of the asking turn its double's turn carries: the room, the road, the privilege and the
+/// messages it answers, each where the asking turn names it.
+pub fn asking_turn(session: &Session) -> Value {
+  let mut variables = serde_json::Map::new();
+
+  for name in [
+    tool_call::CHAT_VARIABLE,
+    tool_call::VIA_VARIABLE,
+    "BMO_TURN_PRIVILEGED",
+    "BMO_TURN_MESSAGES",
+  ] {
+    if let Some(value) = session.turn_variable(name).filter(|value| !value.trim().is_empty()) {
+      variables.insert(name.to_owned(), json!(value));
+    }
+  }
+
+  Value::Object(variables)
+}
+
+/// What the asking supervisor's record holds that the double's, as its start answers it under `carries`, does
+/// not: each capability and each namespace, named. A start answering no `carries` holds nothing it can be
+/// compared by, which is itself a lack.
+pub fn lacks(session: &Session, carries: Option<&Value>) -> Vec<String> {
+  let Some(carries) = carries.filter(|carries| carries.is_object()) else {
+    return vec![
+      "agency answered no record for the double's session, so none of your tools is known to be in it"
+        .to_owned(),
+    ];
+  };
+  let held = |field: &str| -> Vec<String> {
+    carries
+      .get(field)
+      .and_then(Value::as_array)
+      .map(|names| names.iter().filter_map(Value::as_str).map(str::to_owned).collect())
+      .unwrap_or_default()
+  };
+  let capabilities = held("capabilities");
+  let namespaces = held("namespaces");
+  let mut lacked: Vec<String> = session
+    .capabilities
+    .iter()
+    .filter(|capability| !capabilities.contains(capability))
+    .map(|capability| format!("the capability {capability}"))
+    .collect();
+
+  lacked.extend(
+    session
+      .namespaces
+      .iter()
+      .filter(|namespace| !namespaces.contains(namespace))
+      .map(|namespace| format!("the namespace {namespace}")),
+  );
+  lacked
+}
+
+// The answer with what the double lacked said first.
+fn lacked_first(lacked: &[String], words: String) -> String {
+  if lacked.is_empty() {
+    return words;
+  }
+
+  format!(
+    "Defect: the delegated run's session lacked what your own session holds: {}. Its words follow.\n\n{words}",
+    lacked.join(", ")
+  )
 }
 
 /// One run of the role, answered once it ends however long that takes.

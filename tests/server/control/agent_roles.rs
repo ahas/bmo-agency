@@ -43,6 +43,12 @@ async fn a_role_is_added_changed_and_removed_on_the_control_port() {
   assert_eq!(status, 200, "{listing}");
   assert_eq!(listing["roles"].as_array().unwrap().len(), 14, "{listing}");
   assert_eq!(role(&listing, "delegator").unwrap()["maxConcurrent"], 2);
+  // The double's order is seeded empty: its road follows the supervisor that asks it, which a screen shows.
+  assert_eq!(role(&listing, "delegator").unwrap()["order"], json!([]));
+  assert_eq!(role(&listing, "delegator").unwrap()["followsSupervisor"], true);
+  assert_eq!(role(&listing, "delegator").unwrap()["provider"], Value::Null);
+  assert_eq!(role(&listing, "delegator").unwrap()["waitingFor"], Value::Null);
+  assert_eq!(role(&listing, "worker").unwrap()["followsSupervisor"], false);
   assert_eq!(role(&listing, "worker").unwrap()["maxConcurrent"], 3);
   assert_eq!(role(&listing, "worker").unwrap()["order"][0]["model"], "deepseek-flash");
   assert_eq!(role(&listing, "scout").unwrap()["callable"], true);

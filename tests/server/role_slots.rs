@@ -159,7 +159,7 @@ async fn a_delegation_naming_no_role_is_the_supervisors_double_and_holds_a_deleg
     )
     .await;
 
-  let fixed = dispatch::fixed_road(&ground.db, "delegator", DELEGATE, Some("chat"))
+  let fixed = dispatch::fixed_road(&ground.db, "delegator", Some("chat"))
     .await
     .unwrap()
     .expect("the supervisor's own road");
@@ -502,4 +502,60 @@ async fn a_lease_let_in_whose_owner_never_starts_a_session_stands_until_its_owne
     ("released", Some(dispatch::BY_OWNER))
   );
   assert_eq!(used(&ground.db, "worker").await.unwrap(), 0, "its slot is free again");
+}
+
+// The delegator role is seeded with an empty order, so a delegation follows its supervisor; an order the owner
+// sets on the role stands over the supervisor's road, and a slot of a role with an empty order that no
+// supervisor asks has no road and is refused (docs/role-slots.md, 「A delegated task」).
+#[tokio::test(flavor = "multi_thread")]
+async fn a_delegation_follows_its_supervisor_until_the_owner_sets_the_role_an_order() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = seeded(scratch.db(), home.path()).await;
+
+  scratch
+    .run(
+      r#"INSERT INTO "supervisors" ("name", "session_scope", "turn_shape", "provider_order", "last_mode",
+           "last_model", "last_effort", "created_at", "updated_at")
+         VALUES ('chat', 'agent', 'window', '[{"provider":"deepseek","model":"deepseek-flash","effort":"max"}]',
+           NULL, NULL, NULL, 0, 0)"#,
+      vec![],
+    )
+    .await;
+
+  let seeded_role = agency_server::agent_roles::named(&ground.db, "delegator").await.unwrap().unwrap();
+
+  assert!(seeded_role.order.follows_supervisor(), "the double's order is seeded empty");
+
+  let followed = dispatch::fixed_road(&ground.db, "delegator", Some("chat"))
+    .await
+    .unwrap()
+    .expect("the supervisor's road");
+
+  assert_eq!(
+    (followed.provider.as_str(), followed.model.as_str(), followed.effort.as_deref()),
+    ("deepseek", "deepseek-flash", Some("max")),
+    "a supervisor with no turn yet goes by its order's first"
+  );
+
+  let nobody = dispatch::fixed_road(&ground.db, "delegator", None).await;
+
+  assert!(
+    nobody.is_err_and(|why| why.contains("no supervisor asked")),
+    "an empty order needs its asker"
+  );
+
+  scratch
+    .run(
+      r#"UPDATE "roles" SET "provider_order" = '[{"provider":"codex","model":"gpt-5.6-terra","effort":"high"}]'
+         WHERE "name" = 'delegator'"#,
+      vec![],
+    )
+    .await;
+
+  assert_eq!(
+    dispatch::fixed_road(&ground.db, "delegator", Some("chat")).await.unwrap(),
+    None,
+    "the owner's order stands over the supervisor's road: the slot walks the role's order"
+  );
 }

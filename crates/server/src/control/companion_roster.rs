@@ -119,6 +119,7 @@ async fn checked(
     "chat",
     entries,
     asked.quota_share.as_ref(),
+    crate::order::Empty::Refused,
   )
   .await
   .or_else(|refusal| refused(&refusal.field, refusal.error))?;

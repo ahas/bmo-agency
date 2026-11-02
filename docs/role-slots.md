@@ -23,6 +23,9 @@ co-work branch works in. What a role is, is `docs/agent-roles.md`; which provide
   together, the road it then goes out on and waits for; or a model alone, whose provider the role's order
   gives: the first entry of the order naming that model, else the role's active provider as the ask is made,
   else the order's first. The entry the provider has in the role's order gives the effort and the thinking.
+- **A slot of a role whose order is empty goes out on the road of the supervisor that asks it,** the one its
+  ask names as `askedBy` (「A delegated task」 below). Asked under no supervisor the store holds, it is
+  refused 422 with why, and nothing starts.
 
 ## The cap
 
@@ -148,13 +151,16 @@ co-work branch works in. What a role is, is `docs/agent-roles.md`; which provide
 - **A task a supervisor hands off through `bmo/delegate`** (`docs/tools.md`, 「The delegate」) asks a slot of
   the role its ask names — `delegator` where it names none — as the source `delegate`, keyed by a request of
   its own, and waits in that role's line however long it takes.
-- **A task naming no role is the supervisor's double:** it holds a slot of the `delegator` role, and its lease
-  carries the asking supervisor's provider, model and effort as they stand when it is asked, not the
-  delegator role's order; it waits while that provider has no quota. The delegator role's cap counts every
-  supervisor's double together.
+- **A task naming no role is the supervisor's double:** it holds a slot of the `delegator` role. The delegator
+  role is seeded with an empty order, so its lease carries the asking supervisor's provider, model and effort
+  as they stand when it is asked — the provider, model and effort its last turn went out on, else its order's
+  first — and it waits, never moves, while that provider has no quota. An order the owner sets on the role
+  stands over that, and the slot is then let in on that order like any run of the role. The delegator role's
+  cap counts every supervisor's double together.
 - **A task naming a role** holds a slot of that role and goes out on that role's own order, like any run of
-  it.
-- **Once let in, its run goes out at the task's folder** under the role's prompt and bundles, resuming the
+  it, or on the asking supervisor's road where that role's order is empty.
+- **Once let in, its run goes out at the task's folder** under the role's prompt and bundles, with the asking
+  supervisor's tools beside them (`docs/tools.md`, 「The delegate」), resuming the
   session kept for that role at that folder on that provider and model where it is valid
   (`docs/sessions.md`, 「A role's session」).
 - **Its stage stands on its slot:** waiting while its slot waits, running once let in and bound to its run,

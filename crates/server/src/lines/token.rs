@@ -176,22 +176,24 @@ async fn capabilities(
   Ok((role, held))
 }
 
-// A record for a run of `line`, held by `holder`, with the namespaces and shown entries its line
-// declares, an empty grant list, the data root every call reads, and the labels agency's tools read.
+// A record for a run of `lines`, held by `holder`, with the namespaces and shown entries those lines
+// declare, an empty grant list, the data root every call reads, and the labels agency's tools read.
 fn record(
-  line: &str,
+  lines: &[&str],
   holder: &str,
   capabilities: Vec<String>,
   variables: BTreeMap<String, String>,
   labels: Map<String, Value>,
   ttl_ms: Option<u64>,
 ) -> SessionRequest {
+  let shown = lines.iter().flat_map(|line| RUN_LINES.shown(line)).cloned().collect();
+
   SessionRequest {
     holder_name: holder.to_owned(),
-    namespaces: RUN_LINES.namespaces(line).iter().cloned().collect::<BTreeSet<_>>(),
+    namespaces: namespaces_of(lines),
     capabilities: capabilities.into_iter().collect(),
     grants: Vec::new(),
-    shown: RUN_LINES.shown(line).iter().cloned().collect(),
+    shown,
     variables,
     variables_file: None,
     labels,
@@ -241,7 +243,7 @@ pub async fn issue(
     labels.insert("role".to_owned(), json!(role));
   }
 
-  let request = record(line, agent, capabilities, variables, labels, None);
+  let request = record(&[line], agent, capabilities, variables, labels, None);
 
   issue_record(ground, &request).await.map(Some)
 }
@@ -273,6 +275,73 @@ pub const RECORD_LABELS: &str = "BMO_RECORD_LABELS";
 /// JSON list's text.
 pub const RECORD_TOOLS: &str = "BMO_RECORD_TOOLS";
 
+/// The variable a role's run carries the supervisor whose double it is in, whose own record its record holds
+/// beside its role's (docs/tools.md, 「The delegate」).
+pub const RECORD_SUPERVISOR: &str = "BMO_RECORD_SUPERVISOR";
+
+/// The line a supervisor's own session runs on, whose capabilities, namespaces, shown entries and variables a
+/// supervisor's double holds beside its role line's.
+const SUPERVISOR_LINE: &str = "chat";
+
+// The namespaces the lines name, each once.
+fn namespaces_of(lines: &[&str]) -> BTreeSet<String> {
+  lines.iter().flat_map(|line| RUN_LINES.namespaces(line)).cloned().collect()
+}
+
+// Each capability once, in the order first named.
+fn each_once<'a>(capabilities: impl IntoIterator<Item = &'a String>) -> Vec<String> {
+  let mut held: Vec<String> = Vec::new();
+
+  for capability in capabilities {
+    if !held.contains(capability) {
+      held.push(capability.clone());
+    }
+  }
+
+  held
+}
+
+/// What a supervisor's own record holds that its double's holds beside its role's: the chat line's
+/// capabilities and the supervisor bundles.
+pub fn supervisor_capabilities() -> Vec<String> {
+  each_once(RUN_LINES.capabilities(SUPERVISOR_LINE).iter().chain(&ROLES.supervisor))
+}
+
+/// What the record of every run of a role's session holds: the capabilities and the namespaces, as the start
+/// answers them under `carries` (docs/api.md, 「sessions」).
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize)]
+pub struct Carries {
+  pub capabilities: Vec<String>,
+  pub namespaces: Vec<String>,
+}
+
+/// What every run of a role's session will carry in its record: its line's capabilities and its role's bundles,
+/// with the supervisor's own beside them where it is a supervisor's double, narrowed to those its caller lets
+/// it keep; and the namespaces of its line, with the chat line's beside them for a double.
+pub async fn carried_by(ground: &Ground, apart: &agent_session::Apart) -> Result<Carries, Refusal> {
+  let line = apart.line.as_deref().unwrap_or(super::worker::LINE);
+  let bundles = match apart.role.as_deref() {
+    Some(role) => crate::agent_roles::bundles_of(&ground.db, role).await?,
+    None => vec![],
+  };
+  let doubled = apart.supervisor.as_ref().map(|_| supervisor_capabilities()).unwrap_or_default();
+  let mut capabilities = each_once(RUN_LINES.capabilities(line).iter().chain(&bundles).chain(&doubled));
+
+  if let Some(allowed) = &apart.tools_allowed {
+    capabilities.retain(|capability| allowed.contains(capability));
+  }
+
+  let lines: Vec<&str> = match apart.supervisor {
+    Some(_) => vec![line, SUPERVISOR_LINE],
+    None => vec![line],
+  };
+
+  Ok(Carries {
+    capabilities,
+    namespaces: namespaces_of(&lines).into_iter().collect(),
+  })
+}
+
 /// The variable a role's run carries the role it holds in, whose bundles its record is given whatever the
 /// name the run is carried under (docs/agent-roles.md, 「Where the role is read」). It is a turn's variable, so
 /// every road hands it to the program its run stands.
@@ -295,14 +364,28 @@ pub fn record_variables(apart: &agent_session::Apart) -> Vec<(String, String)> {
     variables.push((RECORD_TOOLS.to_owned(), json!(allowed).to_string()));
   }
 
+  if let Some(supervisor) = apart.supervisor.as_deref().filter(|supervisor| !supervisor.is_empty()) {
+    variables.push((RECORD_SUPERVISOR.to_owned(), supervisor.to_owned()));
+  }
+
   variables
+}
+
+/// The variables a run names the record its caller asked for in, beside its role: its labels, the capabilities
+/// it keeps and the supervisor whose double it is. Every road hands them to the program its run stands.
+pub const RECORD_VARIABLES: [&str; 3] = [RECORD_LABELS, RECORD_TOOLS, RECORD_SUPERVISOR];
+
+/// The supervisor whose double a run is, as its variables name it.
+pub fn doubled_supervisor(env: &BTreeMap<String, String>) -> Option<&str> {
+  env.get(RECORD_SUPERVISOR).map(|name| name.trim()).filter(|name| !name.is_empty())
 }
 
 /// Whether a run's variables name a record of its own: its role, or labels or the capabilities its caller lets
 /// it keep.
 pub fn names_record(env: &BTreeMap<String, String>) -> bool {
-  [RUN_ROLE, RECORD_LABELS, RECORD_TOOLS]
+  [RUN_ROLE]
     .iter()
+    .chain(RECORD_VARIABLES.iter())
     .any(|name| env.get(*name).is_some_and(|value| !value.is_empty()))
 }
 
@@ -337,9 +420,20 @@ pub async fn issue_for_run(
   deadline: u64,
 ) -> Result<Option<String>, Refusal> {
   let given = |name: &str| env.get(name).filter(|value| !value.is_empty()).cloned();
-  let agent = given("BMO_TURN_AGENT").map_or_else(|| agent.to_owned(), |named| named.trim().to_owned());
+  let doubled = doubled_supervisor(env).map(str::to_owned);
+  // A supervisor's double holds its record under the supervisor's name, as the turn of that supervisor it
+  // stands for.
+  let agent = match &doubled {
+    Some(supervisor) => supervisor.clone(),
+    None => given("BMO_TURN_AGENT").map_or_else(|| agent.to_owned(), |named| named.trim().to_owned()),
+  };
   let run_role = given(RUN_ROLE);
   let (role, mut capabilities) = capabilities(ground, line, &agent, cwd, run_role.as_deref()).await?;
+
+  // A supervisor's double holds the supervisor's own capabilities beside its line's and its role's.
+  if doubled.is_some() {
+    capabilities = each_once(capabilities.iter().chain(&supervisor_capabilities()));
+  }
 
   if let Some(allowed) = named_tools(env) {
     capabilities.retain(|capability| allowed.contains(capability));
@@ -358,6 +452,11 @@ pub async fn issue_for_run(
 
   variables.insert("BMO_DATA_DIR".to_owned(), data_root);
   variables.extend(line_variables(ground, line));
+
+  if let Some(supervisor) = &doubled {
+    variables.extend(line_variables(ground, SUPERVISOR_LINE));
+    variables.insert("BMO_TURN_AGENT".to_owned(), supervisor.clone());
+  }
 
   // A runner line's brain tools write the chat agent's brain, the agent whose row answers every room that
   // names nobody: the record names that agent as the turn its tools run for, while the run itself stays the
@@ -386,9 +485,46 @@ pub async fn issue_for_run(
   }
 
   let now = u64::try_from(crate::now_ms()).unwrap_or_default();
-  let request = record(line, &agent, capabilities, variables, labels, Some(deadline.saturating_sub(now)));
+  let lines: Vec<&str> = match &doubled {
+    Some(_) => vec![line, SUPERVISOR_LINE],
+    None => vec![line],
+  };
+  let request = record(&lines, &agent, capabilities, variables, labels, Some(deadline.saturating_sub(now)));
 
   issue_record(ground, &request).await.map(Some)
+}
+
+/// The token a standing program is handed, issued as it is written into its place: where the run it stands
+/// for names a record of its own — its role, labels or the capabilities its caller lets it keep — one issued
+/// for that run, and otherwise the place's resident record. The run's variables of `run_env` are laid over
+/// the program's own environment first, since a program's environment holds no turn's variables and the role
+/// a run holds stands among them: a record issued from the program's environment alone would hold none of
+/// its role's bundles.
+#[allow(clippy::too_many_arguments)]
+pub async fn issue_for_program(
+  ground: &Ground,
+  line: &str,
+  agent: &str,
+  place: &Path,
+  checkout: &Path,
+  program_env: &BTreeMap<String, String>,
+  run_env: &BTreeMap<String, String>,
+  deadline: u64,
+) -> Result<Option<String>, Refusal> {
+  let mut env = program_env.clone();
+
+  env.extend(
+    run_env
+      .iter()
+      .filter(|(name, _)| turn_variable(name) || RECORD_VARIABLES.contains(&name.as_str()))
+      .map(|(name, value)| (name.clone(), value.clone())),
+  );
+
+  if names_record(&env) {
+    issue_for_run(ground, line, line, &checkout.to_string_lossy(), &env, deadline).await
+  } else {
+    issue(ground, line, agent, place, checkout).await
+  }
 }
 
 // A token asked of the host for a record.

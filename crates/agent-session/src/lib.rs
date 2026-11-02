@@ -27,6 +27,9 @@ impl fmt::Display for SessionId {
 
 /// The scope a session is kept for, the caller's declaration: one harness session is kept per scope
 /// (docs/agents.md, 「The session's scope」).
+// A scope is made once as a session starts and read by reference after, so the size of its largest variant
+// costs no copy worth boxing it against.
+#[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Scope {
   /// One session across every room the agent answers.
@@ -66,6 +69,8 @@ pub struct Apart {
   pub demand: Option<i64>,
   /// The caller's granted demand each turn's own is asked within.
   pub within: Option<i64>,
+  /// The supervisor whose double the run is, whose tools every turn of the session holds beside its role's.
+  pub supervisor: Option<String>,
 }
 
 impl Apart {

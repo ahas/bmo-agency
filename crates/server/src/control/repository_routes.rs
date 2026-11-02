@@ -376,6 +376,7 @@ impl Fields {
             crate::queue::routes::job_line(),
             &entry,
             None,
+            crate::order::Empty::Refused,
           )
           .await
           .map_err(|refusal| bad("pin", refusal.error))?;

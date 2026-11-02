@@ -1787,12 +1787,22 @@ export interface components {
              * @default null
              */
             role: string | null;
+            /**
+             * @description What the record of every run of a role's session holds, its supervisor's among them where it is a
+             *     supervisor's double; none for any other scope and wherever a session is read rather than started.
+             */
+            carries?: components["schemas"]["SessionCarries"] | null;
         };
         /**
          * @description One of the values the API accepts.
          * @enum {string}
          */
         SessionScope: "room" | "agent" | "role" | "conversation";
+        /** @description SessionCarries: the capabilities and the namespaces a role's session's record holds. */
+        SessionCarries: {
+            capabilities: string[];
+            namespaces: string[];
+        };
         /**
          * @description The body that starts a session: the agent, the scope, the room and the options, with the older
          *     top-level names read where the options name none.
@@ -1818,6 +1828,11 @@ export interface components {
             } | null;
             /** @description The capabilities the session's record keeps, of those its line and its agent's role give. */
             toolsAllowed?: string[] | null;
+            /**
+             * @description On a role's session, the supervisor whose double the run is: every turn holds that supervisor's tools
+             *     beside its role's.
+             */
+            supervisor?: string | null;
             /**
              * Format: int64
              * @description A granted demand of the caller's own on the arbiter's master, which each turn of a thrown-away session
@@ -3496,11 +3511,17 @@ export interface components {
             /** Format: double */
             foldRatio: number;
             callable: boolean;
+            /**
+             * @description Whether its order is empty, so its runs go out on the road of the supervisor that asks them; a screen
+             *     shows its road as the supervisor's.
+             * @default false
+             */
+            followsSupervisor: boolean;
             /** Format: int64 */
             running: number;
             /** Format: int64 */
             waiting: number;
-            /** @description its active provider, or null where none of its order has quota */
+            /** @description its active provider, or null where none of its order has quota or its order is empty */
             provider: string | null;
             waitingFor: string | null;
         };

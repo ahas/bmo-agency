@@ -51,6 +51,7 @@ mod m20261122_000003_job_close_lease;
 mod m20261123_000001_turn_liveness;
 mod m20261124_000001_renewal;
 mod m20261124_000001_stream_events;
+mod m20261125_000001_delegator_follows_supervisor;
 
 use sea_orm_migration::prelude::*;
 
@@ -176,6 +177,7 @@ impl MigratorTrait for Migrator {
       Box::new(m20261123_000001_turn_liveness::Migration),
       Box::new(m20261124_000001_stream_events::Migration),
       Box::new(m20261124_000001_renewal::Migration),
+      Box::new(m20261125_000001_delegator_follows_supervisor::Migration),
     ]
   }
 

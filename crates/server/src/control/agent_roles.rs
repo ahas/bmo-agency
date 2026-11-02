@@ -86,6 +86,17 @@ async fn standing(ground: &Ground, role: &AgentRole) -> Result<Value, Refused> {
   };
   let running = count("active").await?;
   let waiting = count("waiting").await?;
+
+  // A role whose order is empty has no road of its own: its runs go out on the asking supervisor's.
+  if role.order.follows_supervisor() {
+    return Ok(json!({
+      "running": running,
+      "waiting": waiting,
+      "provider": Value::Null,
+      "waitingFor": Value::Null,
+    }));
+  }
+
   let resolution = road::resolve(ground, &Ask::of(Row::Role(&role.name), &role.line, &role.order))
     .await
     .map_err(Refused::failed)?;
@@ -116,6 +127,7 @@ pub async fn view(ground: &Ground, role: &AgentRole) -> Result<Value, Refused> {
     "sessions": role.sessions.word(),
     "foldRatio": role.fold_ratio,
     "callable": role.callable,
+    "followsSupervisor": role.order.follows_supervisor(),
   });
 
   if let (Some(shown), Value::Object(now)) = (shown.as_object_mut(), standing(ground, role).await?) {
@@ -192,10 +204,16 @@ impl Fields {
 
     if let Some(entries) = body.get("order") {
       let line = fields.line.as_deref().or(held_line).unwrap_or("worker");
-      let judged =
-        order::judge(Judging::of(ground), &ground.machine(), line, entries, body.get("quotaShare"))
-          .await
-          .map_err(|refusal| unprocessable(format!("{}: {}", refusal.field, refusal.error)))?;
+      let judged = order::judge(
+        Judging::of(ground),
+        &ground.machine(),
+        line,
+        entries,
+        body.get("quotaShare"),
+        order::Empty::FollowsSupervisor,
+      )
+      .await
+      .map_err(|refusal| unprocessable(format!("{}: {}", refusal.field, refusal.error)))?;
 
       fields.order = Some(judged);
     }

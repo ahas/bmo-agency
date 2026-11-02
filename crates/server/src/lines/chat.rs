@@ -312,6 +312,82 @@ pub fn mcp_config(
   Ok(path)
 }
 
+/// What a supervisor's double is handed of the supervisor's servers and tools (docs/worker-mcp.md, 「A
+/// supervisor's double」): its MCP configuration and the tools its program is shown and allowed on a road that
+/// is told them.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Double {
+  pub mcp_config: PathBuf,
+  pub tools_shown: String,
+  pub tools_allowed: String,
+}
+
+/// The servers and tools of `supervisor`'s double on a role line whose own configuration is `line_config`:
+/// the supervisor's chat configuration — a companion's carrying no agency plugin, as its own does — with each
+/// server of the line's configuration the chat's holds none of beside it, written as
+/// `double.<supervisor>.<line>.mcp.json` under the agents tree where it differs from what stands there; and the
+/// chat line's shown and allowed tools, each server of the line's configuration allowed beside them.
+pub async fn double_of(
+  ground: &Ground,
+  trees: &Trees,
+  supervisor: &str,
+  line: &str,
+  line_config: &std::path::Path,
+) -> Result<Double, Refusal> {
+  let companion = !crate::supervisors::named(&ground.db, supervisor)
+    .await
+    .map_err(|why| fault(format!("the supervisor {supervisor} could not be read: {why}")))?
+    .ok_or_else(|| fault(format!("No supervisor named {supervisor} is held")))?
+    .default_answerer;
+  let mut servers: indexmap::IndexMap<String, Ordered> =
+    harness_servers(ground, supervisor, companion).entries().cloned().unwrap_or_default();
+  let read: Ordered = serde_json::from_str(
+    &std::fs::read_to_string(line_config)
+      .map_err(|why| fault(format!("{}: {why}", line_config.display())))?,
+  )
+  .map_err(|why| fault(format!("{}: {why}", line_config.display())))?;
+  let mut allowed: Vec<String> = CHAT_LINE
+    .tools
+    .allowed
+    .split(',')
+    .map(str::trim)
+    .filter(|tool| !tool.is_empty())
+    .map(str::to_owned)
+    .collect();
+
+  for (name, server) in read
+    .entries()
+    .and_then(|top| top.get("mcpServers"))
+    .and_then(Ordered::entries)
+    .into_iter()
+    .flatten()
+  {
+    servers.entry(name.clone()).or_insert_with(|| server.clone());
+
+    let tool = format!("mcp__{name}");
+
+    if !allowed.contains(&tool) {
+      allowed.push(tool);
+    }
+  }
+
+  let path = trees.agents.join(format!("double.{supervisor}.{line}.mcp.json"));
+  let text = format!("{}\n", Ordered::map([("mcpServers", Ordered::Map(servers))]).pretty());
+
+  if std::fs::read_to_string(&path).ok().as_deref() != Some(text.as_str()) {
+    agent_host::disk::private_dir(&trees.agents)
+      .map_err(|why| fault(format!("{}: {why}", trees.agents.display())))?;
+    agent_host::disk::publish_bytes(&path, text.as_bytes())
+      .map_err(|why| fault(format!("{}: {why}", path.display())))?;
+  }
+
+  Ok(Double {
+    mcp_config: path,
+    tools_shown: CHAT_LINE.tools.shown.clone(),
+    tools_allowed: allowed.join(","),
+  })
+}
+
 // The shell in front of a stdio plugin that takes its job token from its environment alone: the token read from
 // the file `BMO_JOB_TOKEN_FILE` names, and the plugin, its first word, started on its own words with it.
 const TOKEN_FROM_FILE: &str = r#"BMO_JOB_TOKEN=$(cat "$BMO_JOB_TOKEN_FILE") || exit 1; export BMO_JOB_TOKEN; unset BMO_JOB_TOKEN_FILE; exec "$0" "$@""#;
@@ -1284,8 +1360,7 @@ pub async fn compose_stand_in(
       .await?;
 
       command.env.extend(env.into_iter().filter(|(name, _)| {
-        name.starts_with("BMO_TURN_")
-          || [token::RECORD_LABELS, token::RECORD_TOOLS].contains(&name.as_str())
+        name.starts_with("BMO_TURN_") || token::RECORD_VARIABLES.contains(&name.as_str())
       }));
 
       Ok(ComposedTurn {

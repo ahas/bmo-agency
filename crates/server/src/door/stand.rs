@@ -120,7 +120,8 @@ async fn rebuild(place: &Place, home: &Home, pane: Option<&str>) -> bool {
   true
 }
 
-// How long a thrown-away session's place's session token may stand where nothing takes it back first.
+// How long a thrown-away session's place's session token may stand where nothing takes it back first: the
+// token is taken back as the session ends, and this is only the tool host's own sweep past that.
 const RECORD_BACKSTOP: Duration = Duration::from_secs(24 * 3_600);
 
 /// The program the turn needs, standing. A place already running it is left as it is, and so is one
@@ -132,12 +133,17 @@ const RECORD_BACKSTOP: Duration = Duration::from_secs(24 * 3_600);
 /// after that is not coming up. A head pane herdr says is gone is stood again once, since nothing in a pane
 /// that is not there starts the program; one gone again after that is not coming up. A program about to be
 /// written is handed its session token first, and a tool host that does not answer refuses the turn before
-/// anything is written.
+/// anything is written. The token's record is issued from the program's own environment with the run's
+/// variables of `run_env` laid over it: a program's environment holds no turn's variables, and the role a run
+/// holds, the record its caller named and the supervisor whose double it is stand among them, so a record
+/// issued from the program's environment alone would hold none of its role's bundles.
+#[allow(clippy::too_many_arguments)]
 pub async fn stand_resident<F, Fut>(
   ground: &Ground,
   place: &Place,
   home: &Home,
   program: &Program,
+  run_env: &std::collections::BTreeMap<String, String>,
   line: &str,
   poll: Duration,
   stop: F,
@@ -171,16 +177,18 @@ where
     .is_none_or(|standing| standing.identity != program.identity || token_of(standing).is_none())
   {
     let checkout = token::record_checkout(ground, &place.path, &program.command.cwd.to_string_lossy());
-    let issued = if token::names_record(&program.command.env) {
-      // A thrown-away session's place holds the record its caller named; the token is taken back as the
-      // session ends, and the backstop past that is a day's.
-      let deadline = u64::try_from(now_ms()).unwrap_or_default() + RECORD_BACKSTOP.as_millis() as u64;
-
-      token::issue_for_run(ground, line, line, &checkout.to_string_lossy(), &program.command.env, deadline)
-        .await
-    } else {
-      token::issue(ground, line, &home.agent, &place.path, &checkout).await
-    }
+    let deadline = u64::try_from(now_ms()).unwrap_or_default() + RECORD_BACKSTOP.as_millis() as u64;
+    let issued = token::issue_for_program(
+      ground,
+      line,
+      &home.agent,
+      &place.path,
+      &checkout,
+      &program.command.env,
+      run_env,
+      deadline,
+    )
+    .await
     .map_err(|refused| fault("tool-host-down", refused.detail))?;
 
     if let Some(issued) = issued {

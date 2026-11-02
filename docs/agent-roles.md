@@ -39,9 +39,13 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
   - **its compaction threshold,** the share of its model's window a run's session may fill before the
     session is folded between turns (`docs/sessions.md`, 「Session compaction」);
   - **whether it may be called as a co-worker,** by a run of another role naming it.
-- **A role's order is its own.** No order is shared between roles, and none is read from a supervisor or a
-  table of providers: every run of the role goes out on the role's active provider, the first of its order
-  that has quota above the share and can answer now.
+- **A role's order is its own.** No order is shared between roles, and none is read from a table of
+  providers: every run of the role goes out on the role's active provider, the first of its order that has
+  quota above the share and can answer now.
+- **A role's order may be empty, and it then follows the supervisor that asks it.** A run of such a role a
+  supervisor asks goes out on that supervisor's own provider, model and effort as they stand when it is
+  asked; one no supervisor asks is refused with why (`docs/role-slots.md`, 「A delegated task」). The role's
+  row answers `followsSupervisor` true while its order is empty (`docs/api.md`, 「roles」).
 - **The owner adds, changes and removes roles on the control port** (「Changing the roles」 below), and every
   reader takes a change at its next read, with no deployment and no restart.
 
@@ -97,7 +101,8 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
   | `upkeep` | Upkeep | worker | none | 1 | none | fresh | no |
 
 - **Each seeded role's provider order and compaction threshold are the policy's,** given with the row and
-  changed by the owner afterwards like any field.
+  changed by the owner afterwards like any field. The `delegator` role's seeded order is empty, so it follows
+  the supervisor that asks it until the owner sets one.
 - **Whatever role writes it, a result written for a person is written in the language of the person who
   asked** (`docs/agent-documents.md`): a job's report and the documents it files, in the language the item's
   brief names for its requester, else its room; a searcher's result, in its question's language. What
@@ -119,23 +124,25 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
 - **The role a supervisor's delegated task runs as where the ask names none** (`docs/tools.md`, 「The
   delegate」): the supervisor's double. Its prompt, seeded from `prompts/roles/delegator.md`, stands first in
   every run.
-- **A run of it asked by a supervisor goes out on that supervisor's own provider, model and effort** as they
-  stand when it is asked, never on the role's own order, and waits while that provider has no quota
-  (`docs/role-slots.md`, 「A delegated task」). The role's own order is what a run of it goes out on where no
-  supervisor asked it.
+- **Its order is seeded empty, so a run of it goes out on the asking supervisor's own provider, model and
+  effort** as they stand when it is asked, and waits while that provider has no quota (`docs/role-slots.md`,
+  「A delegated task」). An order the owner sets on the role stands over that: its runs then walk that order
+  like any role's.
 - **Its cap bounds every supervisor's delegations together,** 2 as seeded, a number the owner changes on the
   role's row like any role's.
 - **Its runs work in the folder the task names,** the asking supervisor's scratch workspace under the data
   root where none is named, so a delegation that follows another at the same folder on the same provider and
   model goes on in the same session while it is valid (`docs/sessions.md`, 「A role's session」).
-- **Its bundles** are the worker's: `graph.read`, `queue.read` and `web.read`.
+- **Its bundles** are the worker's: `graph.read`, `queue.read` and `web.read`; a run a supervisor asks holds
+  that supervisor's tools beside them (`docs/tools.md`, 「The delegate」).
 
 ## The helper role
 
 - **A role a supervisor names when it delegates a task to the helper** (`docs/tools.md`, 「The delegate」).
   Its prompt, seeded from `prompts/roles/helper.md`, stands first in every run.
 - **Its runs go out on the helper role's own order** and hold a slot of the helper role, like any role named
-  in a delegation.
+  in a delegation, and a run a supervisor asks holds that supervisor's tools beside its bundles
+  (`docs/tools.md`, 「The delegate」).
 - **Its runs work in the folder the task names,** the asking supervisor's scratch workspace under the data
   root where none is named, so a delegation that follows another at the same folder on the same provider and
   model goes on in the same session while it is valid (`docs/sessions.md`, 「A role's session」).
@@ -223,7 +230,10 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
 
 - **The session record.** Every record is issued for the run and holds its line's capabilities with the
   bundles its role gives, read from the store as the record is issued (`mcp-host.md`, 「The session
-  record」).
+  record」). A run names its role among its turn's variables, which a standing program's own environment
+  does not hold, so the record of a program standing in a place for a run is issued from the program's
+  environment with the run's variables laid over it. A run a supervisor asks holds that supervisor's record
+  beside its role's (`docs/tools.md`, 「The delegate」).
 - **The catalogue a call is served.** The system's own MCP server serves a record the whole catalogue where
   it holds `room.tools`, and otherwise the catalogue's tools whose bundles it holds.
 - **The send guard,** for every sending tool and script.

@@ -23,7 +23,8 @@
 #   the co-worker definition under prompts/agents/worker/coworkers/ whose body is its prompt and whose
 #   description is its description, whether its runs keep their sessions, whether a run may call it as a
 #   co-worker, and its provider order, each entry a provider once with the model, the effort and the thinking
-#   it runs on there. Its compaction threshold is its first provider's declared default.
+#   it runs on there, or none for a role that follows the supervisor asking it. Its compaction threshold is
+#   its first provider's declared default.
 
 job = "worker"
 delegate = "delegator"
@@ -87,8 +88,9 @@ order = [
   { provider = "openrouter", model = "google/gemma-4-31b-it:free" },
 ]
 
-# The supervisor's double: a delegation naming no role runs as it, on the asking supervisor's own provider and
-# model; its order stands for a run of it no supervisor asked.
+# The supervisor's double: a delegation naming no role runs as it. Its order is empty, so its runs go out on
+# the asking supervisor's own provider, model and effort until the owner sets an order on it
+# (docs/role-slots.md, 「A delegated task」).
 [[roles]]
 name = "delegator"
 label = "Delegator"
@@ -96,11 +98,7 @@ line = "worker"
 prompt = "delegator.md"
 max_concurrent = 2
 bundles = ["graph.read", "queue.read", "web.read"]
-order = [
-  { provider = "claude-code", model = "claude-sonnet-5", effort = "high" },
-  { provider = "codex", model = "gpt-5.6-terra", effort = "high" },
-  { provider = "deepseek", model = "deepseek-flash", effort = "high" },
-]
+order = []
 
 [[roles]]
 name = "helper"

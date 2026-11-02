@@ -1106,11 +1106,20 @@ async fn stand<W: Watch>(door: &mut Door<'_, W>, home: &Home) -> Result<String, 
 
   let names = [turn.name.clone(), door.row.id().to_owned(), door.row.root().to_owned()];
 
-  stand_resident(ground, &place, home, &program, &turn.line, Duration::from_millis(250), || async {
-    let names: Vec<&str> = names.iter().map(String::as_str).collect();
+  stand_resident(
+    ground,
+    &place,
+    home,
+    &program,
+    &turn.env,
+    &turn.line,
+    Duration::from_millis(250),
+    || async {
+      let names: Vec<&str> = names.iter().map(String::as_str).collect();
 
-    cancelled(&ground.db, &names).await.unwrap_or(false)
-  })
+      cancelled(&ground.db, &names).await.unwrap_or(false)
+    },
+  )
   .await
   .map(|stood| stood.pane)
   .map_err(|fault| format!("herdr would not take {}: {}: {}", turn.name, fault.code, fault.message))
