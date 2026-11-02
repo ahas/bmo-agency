@@ -1,16 +1,27 @@
 # agency
 
-The service that supplies, delivers and controls agents. A caller asks for a session of a role and a
-model; agency places it, starts it, carries its turns, reads what it says and ends it. herdr is one
-backend behind the session contract, and the co-worker pool hands out places under the limits each
-provider and tier is given.
+The service that supplies, delivers and controls agents. Two axes run in it: the supervisors, who own rooms
+and talk with people, and the roles, which execute work. A caller asks for a run of a role at a path; agency
+lets it in under the role's cap, gives it the provider its role's order holds quota on, starts it, carries
+its turns, reads what it says and ends it. herdr is one backend behind the session contract.
 
 ## Documents
 
 - `docs/api.md`: the boundary contract, every route and event agency exposes or calls.
+- `docs/agents.md`: the two axes, supervisors and roles, a run, and the one interface every agent is reached
+  through.
+- `docs/supervisors.md`: what a supervisor row holds and how one runner carries every supervisor's turns.
+- `docs/agent-roles.md`: what a role row holds, the roles the policy seeds, their bundles and sessions.
+- `docs/repositories.md`: what a repository row holds, what a run there is handed, a job and a pinned model.
+- `docs/provider-order.md`: how a run gets its provider and model: the order, quota, falling over and waiting.
+- `docs/role-slots.md`: how a role's runs are let in under its cap: the line, reservations, delegated tasks,
+  native co-workers and the standing branch checkouts.
+- `docs/sessions.md`: how supervisor sessions and role sessions are kept, reused, folded and replaced.
+- `docs/keepalive-schedule.md`: when a supervisor's prefix is pinged warm.
 - `docs/PERSONAL-DATA.md`: the personal data the repository keeps out, and the check that holds it.
-- The rest of `docs/`: sessions, places, launch lines, the co-worker pool, workers, accounts, the
-  model registry and the links to other machines.
+- The rest of `docs/`: putting words into a running program (`agent-control.md`), the launch lines, the
+  accounts and their fallback, usage windows, the registered models and model files, a repository's
+  checkouts and workbench, the work nodes, the tools and the run records.
 
 ## Folders
 
@@ -42,7 +53,7 @@ provider and tier is given.
 | `crates/policy` | the readers of `policy/` |
 | `crates/store` | agency's tables, their migrations and the statements over them |
 | `crates/tool-call` | agency's side of the tool host's call protocol, which its tools share |
-| `crates/server` | the service: sessions, places, lines, the co-worker pool, control routes, verbs; its binaries `agency-server` and `bmo-agency` |
+| `crates/server` | the service: sessions, places, lines, the role slots, control routes, verbs; its binaries `agency-server` and `bmo-agency` |
 | `tools/` | the tools agency provides to the tool host: the procedures and the rulebook reader |
 | `packages/` | the TypeScript packages, one Bun workspace |
 | `policy/`, `prompts/` | the fixed values and the prompts agency runs by |

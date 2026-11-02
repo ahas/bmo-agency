@@ -1,20 +1,20 @@
 # Pull request reviews
 
-How a pull request opened on one of the deployment's repositories reaches the worker that holds that
-repository, with no person reading GitHub and no model watching it: GitHub tells agency, agency files a review
-item for the worker, and a merge lets the item that waited on the pull request go on.
+How a pull request opened on one of the deployment's repositories reaches a job in that repository, with no
+person reading GitHub and no model watching it: GitHub tells agency, agency files a review item for the
+repository, and a merge lets the item that waited on the pull request go on.
 
 ## What is watched
 
-- **The repositories the workers hold.** A worker whose checkout's `origin` remote is a GitHub repository holds
-  that repository's pull requests. Agency reads each worker's remote from its checkout as a delivery or the
-  fallback needs it; a repository no worker holds is let be.
+- **The repositories agency holds.** A repository row whose base checkout's `origin` remote is a GitHub
+  repository holds that repository's pull requests. Agency reads each repository's remote from its checkout as
+  a delivery or the fallback needs it; a GitHub repository no row holds is let be.
 - **No model watches.** The watch is GitHub's delivery and one search an hour; a model runs only inside the
   review job of a pull request that exists.
 
 ## The delivery
 
-- **GitHub pushes.** Each repository a worker holds sends its `pull_request` events
+- **GitHub pushes.** Each repository agency holds sends its `pull_request` events
   (opened, reopened, synchronize, closed) to the public address, where the console's gateway hands each
   delivery, its body as it came and its headers, to agency's `POST /github/deliveries` (`docs/api.md`,
   「pull request reviews」).
@@ -56,12 +56,12 @@ item for the worker, and a merge lets the item that waited on the pull request g
 
 ## The review item
 
-- **One item per pull request and head.** An open pull request a worker holds is filed in the job service as an
-  item for that worker (`POST /items`), the worker whose checkout's repository the pull request belongs to named as its
-  `assigneeName`, so only that worker takes it and the idle queue's alarm tells the chat agent once it waits a
-  minute on that worker while the worker is free (`docs/agent-control.md`, 「An idle queue is told to the
+- **One item per pull request and head.** An open pull request on a repository agency holds is filed in the job
+  service as an item for that repository (`POST /items`), the repository the pull request belongs to named as its
+  `assigneeName`, so only a job in that repository takes it and the idle queue's alarm tells the chat agent once
+  it waits a minute on that repository while one of its checkouts is free (`docs/agent-control.md`, 「An idle queue is told to the
   owner」): its title names the repository and the pull request's number and title, and its
-  brief is the review the worker runs — hold the change to the base-library rule where the repository is a
+  brief is the review the job runs — hold the change to the base-library rule where the repository is a
   base library (the general case only, the base's own tests, nothing of one asker's), run the repository's
   checks on the pull request's branch, use bmo-review where it helps, then merge it or send it back with the
   reason as a review comment on the pull request, and tell the owner's room what became of it in one line.

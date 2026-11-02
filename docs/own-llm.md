@@ -8,15 +8,15 @@ roads, as registered models.
   agency's, the registry's, offers on every line it carries. A registration is the whole declaration
   of such a model: one is added, changed and removed with no commit and no deployment, and no model,
   address, window or answer size of one is written in the code.
-  - A run with tools — the chat, a worker, a companion's turn — is Claude Code pointed at
-    agency's gateway under the registration's name (「How requests go」 below).
-  - A request with no tools — a gate — is one request to the gateway's chat completions path under the
-    same name, asked in the agent's host (「A request with no tools」 below).
+  - A run with tools — a supervisor's turn, a role's run — is Claude Code pointed at agency's gateway
+    under the registration's name (「How requests go」 below).
+  - A request with no tools — a translation's part — is one request to the gateway's chat completions
+    path under the same name, asked in the agent's host (「A request with no tools」 below).
 - **The model catalogue** holds the model files the deployment's own engines serve, each with where it
   comes from, where it lies and how it is asked by default; choosing one for an engine fetches, checks
   and installs it (`docs/model-catalogue.md`).
-- **No gate has a provider of its own.** Every gate goes out on the providers the other keys do; a route row
-  naming a road this build does not carry reads as the key's default road.
+- **A gate's run is not agency's.** Agency keeps no gate row, no route and no order for a gate, and
+  chooses no provider for one (「Gates are not agency's runs」 below).
 
 ## A request with no tools
 
@@ -26,8 +26,8 @@ roads, as registered models.
   registration's name as its model, the system prompt as the first message where it is not empty, then
   the input, `max_tokens`, and `enable_thinking` in `chat_template_kwargs` as the run says. No request
   names a sampling setting unless the run carries one, so otherwise the engine's own defaults hold.
-- **No line of a run with tools:** a gate is asked with no tools, so the request is the whole of the
-  run and no program stands in a pane for it.
+- **No line of a run with tools:** such a request is asked with no tools, so the request is the whole
+  of the run and no program stands in a pane for it.
 - **The model list:** the gateway's authenticated `/v1/models` names every registration, and a
   request's registration must stand in it (「The model list」 below).
 - **The context window is its registration's:** every request is sized to the window of the
@@ -43,9 +43,9 @@ roads, as registered models.
 - **The providers are programs, so they are code:** Claude Code, Codex, OpenRouter and the registry's
   provider are each a program or a client with its own launch line, its own records and its own reading
   of an answer, and a build carries the ones it was written with.
-- **Which lines the registry's provider carries:** the chat, the worker, the gates and the
-  companions. A line is a shape of the deployment's own work, so it is the deployment's to say
-  which provider carries it.
+- **Which lines the registry's provider carries:** every line but the browse (「Choosing a registered
+  model」 below). A line is a shape of the deployment's own work, so it is the deployment's to say which
+  provider carries it.
 - **The gateway's address and key file,** read in one place by every caller (「The gateway」 below).
 - **Nothing else:** no model, address, window, answer size or engine is named in the code beyond
   the seeds the store starts with (「The seeds」 below), which are the owner's once written.
@@ -56,14 +56,14 @@ A registered model is what every line on the registry's provider runs on. Its mo
 its own, so what it is told is the line it holds, and the line a run goes out on decides what that is,
 never the model's name.
 
-- **On the worker line it is a worker.** A worker's jobs and the words said to it are handed the job
-  worker line whole, and what that line appends closes on that worker's own rules
-  (`docs/launch-lines.md`): it answers as a worker of the deployment's, never as the harness it runs
-  on, whichever model that is; and it takes no destructive action and none that harms anyone else
-  without the owner's order or permission, which only the owner's own words in the item give.
+- **On the worker line it is a worker.** A run on the worker line — a job's among them — is handed the
+  worker line whole, and what that line appends closes on the rules of the repository it works in
+  (`docs/launch-lines.md`, `docs/repositories.md`): it answers as a worker of the deployment's, never as the
+  harness it runs on, whichever model that is; and it takes no destructive action and none that harms anyone
+  else without the owner's order or permission, which only the owner's own words in the item give.
 - **Its system prompt opens on its base prompt** (`docs/base-prompts.md`): where the base prompt is a
   harness's own prompt, that prompt is kept whole in the store and handed to the program as the whole
-  of its system prompt, with the worker's rules after it. The harness, the tools, the rules on
+  of its system prompt, with the worker line's rules after it. The harness, the tools, the rules on
   confirming and reporting, and the context management stay, since the program needs them to run; so
   does the program's own opening line, which the identity layer the rules carry answers. Another prompt
   chosen in its place — one written for another harness — is handed the same way.
@@ -75,20 +75,23 @@ never the model's name.
 - **The rule against destroying the system is on every line that acts,** since every agent that acts is
   given the self-preservation rule (`prompts/rules/self-preservation.md`): the worker and chat lines,
   a companion's prompt after its base prompt.
-- **An agent's rules follow the agent, not the model:** a support worker is handed its base's rules,
-  and another agent's run on the same registered model is not.
-- **A worker's session closes with nothing handed over.** As a worker's job ends, the session it ran
-  in is handed over — closed — and the next run opens on its own words alone: no note of the closed
-  session, the worker's own or any other, is carried (`docs/sessions.md`, 「Session replacement」).
+- **A repository's rules follow the path, not the model:** a run in a repository's support worktree is
+  handed that repository's rules, and a run elsewhere on the same registered model is not.
+- **A job's session closes with nothing handed over.** Where a job's runner hands its session over as
+  the job ends, the session is closed and the next run at that path opens on its own words alone: no
+  note of the closed session is carried (`docs/sessions.md`, 「A role's session」, 「Session
+  replacement」).
 - **Whether a registration keeps its research is a flag for the caller that sends research out.** Agency
   stores it with the registration and answers it with every read of one; it routes nothing by it, since it
   sends no search or browse out itself.
 - **Thinking is the only reasoning setting of a registered model:** each registration carries a
-  thinking default, which a chat turn on it follows, and an agent's own thinking setting overrides it
-  where it names one (`docs/model-tiers.md`). A registered model takes no effort level.
-- **Each line samples by its own settings:** a worker by its own sampling, a companion by its
-  generation settings (`docs/companions.md`), a gate by its own profile's (「Sampling per gate」 below);
-  a chat round names none, so the engine's defaults hold.
+  thinking default, which a run on it follows where its order's entry leaves thinking to the
+  registration, and the entry's thinking overrides it where it names one (`docs/provider-order.md`,
+  「Effort and thinking」). A registered model takes no effort level.
+- **Each run samples by its own settings:** a job on a repository's pinned registration by the
+  repository's sampling (「A repository pinned to a registration」 below), a companion by its generation
+  settings (`docs/companions.md`); a run that names none — the chat agent's turn among them — leaves the
+  engine's defaults to hold.
 - **The model behind a registration is the engine's, and the engine's model is a catalogue entry.** The
   deployment's own engine serves the file its placement names — an entry of the model catalogue
   (`docs/model-catalogue.md`) — and every request reaches whatever file that is, since the gateway
@@ -104,8 +107,8 @@ never the model's name.
 - **Checked on call:** a request whose registration the list does not name is refused as a changed
   list, and the run returns to the existing run policy.
 - **Caching the list:** the list is kept for one minute, and the first request after that minute
-  fetches it again, since the list rarely changes and fetching on every request would make each gate
-  send two.
+  fetches it again, since the list rarely changes and fetching on every request would make each
+  request send two.
 - **No time limit:** the list fetch and the request each wait for their answer; each ends when the
   service answers or the connection is refused or broken.
 
@@ -114,8 +117,8 @@ never the model's name.
 ### What a registration holds
 
 - **Its name:** lowercase letters, digits and hyphens, beginning with a letter, unique in the registry.
-  It is the name the gateway serves it under, the model the registry's provider lists, and what a tier
-  mapping, a worker's pin and a held session name. It is fixed once made.
+  It is the name the gateway serves it under, the model the registry's provider lists, and what an
+  order's entry, a repository's pin and a held session name. It is fixed once made.
 - **Its label:** how a screen shows it.
 - **Its addresses,** one or more, each a node the same model is served on: an OpenAI-compatible chat
   completions address ending in `/chat/completions`; a short label, unique within the registration,
@@ -124,12 +127,11 @@ never the model's name.
 - **Its model:** the model's name as every one of its addresses serves it.
 - **Its context window:** a whole number of tokens within the bounds the policy sets (「The context
   window」 below).
-- **Its answer size:** the answer ceiling of a run on it where the key's tier names none, a whole
+- **Its answer size:** the answer ceiling of a run on it where its order's entry names none, a whole
   number of tokens within the policy's bounds and smaller than its window.
-- **Its thinking default:** on or off, what a run on it does where its tier mapping leaves thinking to
+- **Its thinking default:** on or off, what a run on it does where its order's entry leaves thinking to
   the registration.
-- **Whether it is walked:** whether the automatic walk asks the registry's provider when a key's tier
-  maps to it (「Own services in the provider order」 below).
+- **Whether it is walked:** on or off, kept with the registration.
 - **Its card service:** the arbiter service its engine is, or none, and whether that service's instances
   keep role files. A registration naming one holds no addresses of its own: where its engine stands, and so
   where a run on it goes, is the arbiter's to say at that moment (「An engine the arbiter stands」 below).
@@ -150,8 +152,8 @@ never the model's name.
 - **Read afresh by every run and every screen,** so a saved change reaches the next run with no
   deployment and no restart of the bot. What the gateway carries — the addresses, the keys and the
   model behind — reaches it as 「The gateway」 below says.
-- **A registration with no address and no card service** is listed, and offered nowhere: no tier, pin or run may name it,
-  and the gateway's table leaves it out.
+- **A registration with no address and no card service** is listed, and offered nowhere: no order, pin
+  or run may name it, and the gateway's table leaves it out.
 
 ### The context window
 
@@ -179,18 +181,20 @@ never the model's name.
 - **Every node takes its key:** a request to a node's front with no key is refused, so a seed's address
   carries a key even where its model runs on the deployment's own machines.
 
-### A worker's own registration
+### A repository's own registration
 
 - **A registration the owner makes** with the registry's command, like any other and not a seed, may be
-  the model a worker is pinned to (「A worker pinned to a provider」 below), while a companion stays on
-  another. What this document says of the worker line holds there alike: the worker reads the job worker
-  line and the model it is pinned to answers as that worker.
+  the model a repository pins (「A repository pinned to a registration」 below), while a companion stays
+  on another. What this document says of the worker line holds there alike: a job in the repository reads
+  the worker line, and the pinned model answers as a worker of that repository.
 
 ### Where it is set
 
-- **The console:** the registered-models section of the agent management screen's general tab lists
-  every registration and adds, changes and removes one; the same screen's tier table and a worker's
-  settings dialog offer every registration where a model is chosen.
+- **The console:** the registered-models tab of the agent management screen lists every registration
+  and adds, changes and removes one. The model files behind them are a tab of their own beside it
+  (`docs/model-catalogue.md`, 「Where it is set」). An order's entry on the registry's provider, on the
+  supervisor and role tabs, and a repository's pin, on the repository tab, offer every registration where
+  a model is chosen.
 - **The command:**
   - `bmo-agency agent --registered` lists every registration and its addresses, each address with
     whether its key is usable.
@@ -207,10 +211,10 @@ never the model's name.
     such an address.
   - `bmo-agency agent --unregister <name> [<node label>]` removes a registration, or one of its
     addresses.
-- **What a removal is refused for:** a registration a tier mapping, an agent's pin — a worker's or a
-  companion's — a work key's own registration or a model catalogue entry names is not removed, and the
-  refusal names each of them;
-  each of those answers for itself whether it names the registration. The last address of a
+- **What a removal is refused for:** a registration an order's entry — a supervisor's or a role's — a
+  repository's pin or a model catalogue entry names is not removed, and the refusal names each of them
+  (`docs/provider-order.md`, 「Models a provider holds」); each of those answers for itself whether it
+  names the registration. The last address of a
   registration something names is not removed either.
 - **The rules a save is held to** — what a name, a node label, a model and a key file may be, the
   bounds of the window and the answer size, and how long a label may be — are agency's policy
@@ -222,9 +226,9 @@ never the model's name.
   its own disk and loads it back for the conversation's next request (`docs/work-nodes.md`). A request
   that reaches another node is computed from its first token, which on a long conversation is minutes
   of reading where the saved state loads in a fraction of a second.
-- **The gateway serves a registration twice over:** under its name, spread over all its addresses, for
-  a request that belongs to no session — a gate, a model list; and under `<name>@<node label>`, one
-  address alone, for each address of a registration that has more than one.
+- **The gateway serves a registration twice over:** under its name, spread over all its addresses, for a
+  request that belongs to no session — a translation's part, a model list; and under `<name>@<node label>`,
+  one address alone, for each address of a registration that has more than one.
 - **A program is placed on one node:** a Claude Code program started for a new session on a
   registration with several addresses is given the name of one node, and every request of that session
   asks that node alone.
@@ -257,33 +261,34 @@ never the model's name.
   ones the master reports standing, each with the address callers reach it at and the file its key is
   read from, as the engine's own deployment reports them; whether they keep role files is the
   registration's.
-- **Every run on it asks a demand first:** a turn of the chat agent, a companion or a worker, a
-  apart session's turn, a co-worker seat's child and a gate's request alike ask the master for one
-  card of the card service, with the session's key as the work it continues and agency's holder as the
-  demand's shown reference. A caller that holds a granted demand of its own hands its id in with its seat or
-  session request, and no other is asked for that run. A translation shares one with those out beside it
-  (below).
+- **Every run on it asks a demand first:** a supervisor's turn, a role's run — a translation's request among
+  them — and a native co-worker's child alike ask the master for one card of the card service, with the
+  session's key as the work it continues and agency's holder as the demand's shown reference. A caller that
+  holds a granted demand of its own hands its id in with its slot or session request, and no other is asked
+  for that run. A translation shares one with those out beside it (below).
 - **The run goes where the demand is granted.** A new session is placed on the card granted; a resumed
   session asks with its key, which brings it back to the card holding its state wherever that card is
   open, and is computed from its first token where another card answers. The run names the card's entry,
   `<name>@<node>`, once the gateway serves it, an engine the grant started being taken into the gateway's
-  table on the launcher's next beat. A program standing with nothing put in, a worker's waiting for its
-  next job, names the registration alone.
+  table on the launcher's next beat. A program standing with nothing put in, a supervisor's between its
+  turns, names the registration alone.
 - **A run waits for its grant however long it takes,** its answer saying why — the engine starting, every
   card in use, a bench or a claim. A companion's or the chat agent's turn waits as it waits for an engine a
-  job holds (`docs/companions.md`, 「The engine it shares」), the room shown the reason; a seat waits
-  outside its task's clock, as it waits for its pool place. Agency adds no clock to that wait.
+  job holds (`docs/companions.md`, 「The engine it shares」), the room shown the reason; a role's run
+  waits for its grant as it waits for its slot (`docs/role-slots.md`, 「On a registration the arbiter
+  stands」). Agency adds no clock to that wait.
 - **The demand is held for the run's turn and given back at its end.** Nothing takes the card from it but
   a bench or a claim, which stops the engine as the arbiter's lower tiers always have; the turn's request
   in hand is then cut, and its next request waits for its demand to be granted again. A demand whose run
   has ended without giving it back is given back by agency at its start and with its lease: every demand
-  agency asks is kept in the store's `card_demands` with its holder, the seat's lease where one holds it and
-  the demand it was asked within, until it is given back; the server gives back every demand kept there as
-  it starts, and on its pool's minute every demand of a lease no longer active.
+  agency asks is kept in the store's `card_demands` with its holder, the slot's lease where one holds it
+  and the demand it was asked within, until it is given back; the server gives back every demand kept
+  there as it starts, and every minute every demand of a lease no longer active (`docs/role-slots.md`,
+  「The line」).
 - **The translations out at once on a registration share one card.** Each translation is one request
   of its own (`docs/api.md`, 「translations」), and its caller sends a document's parts together, so what
   holds the card is the translations agency has out on the registration at that moment: the first asks a
-  demand, with no work key and `translator` as its holder; every one asked while that demand waits or stands
+  demand, with `translator` as its holder; every one asked while that demand waits or stands
   waits on the same grant and is sent to the granted card's entry, the parts reaching the engine together
   as its slots take them. The demand is the line's, not the first translation's: a translation ends when it
   is answered, when it has failed, or when its caller goes away before its answer, and whichever ends, the
@@ -291,8 +296,8 @@ never the model's name.
   given back, granted or still waiting, so a line with no translation out holds no card and no place in the
   master's line. A demand the master refuses fails every translation waiting on it. A translation asked
   after the last has ended asks a new one.
-- **Work a run asks holds the run's card as its own.** A native co-worker, a search branch, a gate or a
-  session asked from a run whose own demand is granted asks its demand within the run's. Work on the
+- **Work a run asks holds the run's card as its own.** A native co-worker, a search branch or a session
+  asked from a run whose own demand is granted asks its demand within the run's. Work on the
   model the run already stands on is granted on the run's own card, beside the run, which waits on it.
   Work on another registration naming a card service goes to any other card with that engine idle, or a
   card free or idle, and only where none is does the run hand its own card over: the self-swap. The run's
@@ -308,8 +313,8 @@ never the model's name.
   program stands in; the gate's hook before the call waits for the grant and the hook after it holds the
   caller and hands it the sentence, each hook's limit a day. The co-worker's own requests are its caller's
   program's, sent under its definition's model, so they name the registration's spread entry, which lists
-  the standing instances, the card granted among them. A seat asks within the demand its admission
-  names, and the seat's finish answers the sentence.
+  the standing instances, the card granted among them. A slot asks within the demand its admission
+  names, and the slot's finish answers the sentence.
 - **The gateway never sends to an engine that is down.** Its table holds, for such a registration, one
   entry for each instance the master reports standing, and the entry under the registration's name alone
   spread over exactly those; the launcher reads the master's picture on its beat, and a change starts a
@@ -318,30 +323,28 @@ never the model's name.
   and one that is stopped is no outage. The registration is `healthy` while its card service is placed on
   a node no claim and no lower tier holds, and a walk that would pass it for an outage asks the master
   (`docs/cache-fallback.md`, 「Automatic walks only on providers, in order」).
-- **A stopped engine never closes the road.** Such a registration is offered whether or not any
-  instance stands at the moment, so the registry's provider can answer for a key that names it with no
+- **A stopped engine never closes the road.** Such a registration is offered whether or not any instance
+  stands at the moment, so the registry's provider can answer for an order or a pin that names it with no
   engine up anywhere (`docs/cache-fallback.md`, 「Availability: whether a provider can answer now」). The
-  road resolution never reads the instances standing, nor the gateway's table: the run goes out on the
-  registry, asks its demand, the grant starts the engine, and the run sends once the gateway serves the
+  provider order's choice never reads the instances standing, nor the gateway's table: the run goes out on
+  the registry, asks its demand, the grant starts the engine, and the run sends once the gateway serves the
   granted card's entry. A run leaves the registration only on a real refusal — the master refusing the
-  demand, or the engine failing the request — and then as a registered model that does not answer
-  (「When a registered model does not answer」 below), never because nothing stood when it asked.
+  demand, or the engine failing the request — and then as a registered model that does not answer (「When a
+  registered model does not answer」 below), never because nothing stood when it asked.
 
 ## What leaves the machine
 
 - **A registration sends its runs to its addresses,** wherever the owner points them: an address off
-  the machine is a service that receives everything its runs carry — a gate's system prompt and input,
-  and a run with tools' prompt and every file and command output its tools read.
+  the machine is a service that receives everything its runs carry — a request with no tools' system
+  prompt and input, and a run with tools' prompt and every file and command output its tools read.
   - Where that address is an external operator's service, its retention is the operator's word, not a
     boundary agency enforces locally, and the owner is warned of it where the service asks for no
     personal data.
 - **A registration on the deployment's own machines stays on them:** its requests go to loopback — the
   gateway, and behind it the engine on its node and the cards it uses on the internal network — and
   what each hop logs of a request is the node's own concern (`docs/work-nodes.md`).
-- **What the gates that may stand on an external registration send about people:** the person-book
-  search sends person-book indexes and pieces; the translator sends parts of documents
-  the console asked to translate, a person book's text as it is where that is the document; the document
-  seek gate sends document indexes and the owner's question.
+- **What a translation on an external registration sends about people:** parts of documents the console
+  asked to translate, a person book's text as it is where that is the document.
 
 ## The keys
 
@@ -467,9 +470,9 @@ never the model's name.
   - A parameter a backend does not take is dropped, and a failed request is not retried there: the run
     that asked reads the failure.
   - Thinking off where a request names nothing, and a request that names `enable_thinking` in
-    `chat_template_kwargs` — a gate's, as its tier says — is asked as it named it. Left to the template's
-    own default a model may think for minutes even on a turn that asked for none, so the default is never
-    the template's.
+    `chat_template_kwargs` — a request with no tools', as its run says — is asked as it named it. Left to
+    the template's own default a model may think for minutes even on a turn that asked for none, so the
+    default is never the template's.
   - **The caller decides thinking on the Messages path, and the gateway carries it.** LiteLLM translates
     a Messages request's `thinking` into an OpenAI reasoning effort the template does not read, so a hook
     of the gateway's own rewrites a Messages request before it is routed: `thinking` of type `enabled` or
@@ -545,11 +548,10 @@ never the model's name.
   Which files stand and whether one is still valid are the engine deployment's own: it builds them and
   builds them again when the prompt or a setting bound into them changes, so a file that stands is the
   role's. Agency never saves one.
-- **Which requests name a role:** a run whose work key's profile names one (`policy/work-keys.toml`,
-  `prefix_role`) sends it in the role header on every request it makes through the gateway: the chat
-  agent's runs name `chat`, and the output-format gate's `gate`. A request naming no role — the
-  translator's among them, and every run of a key whose profile names none — is asked as it stands. `session-summary` is a role an engine deployment may build a file for; no work key of agency's
-  names it.
+- **Which requests name a role file:** the chat agent's runs send `chat` in the role header on every
+  request they make through the gateway. A request naming no role file — a translation's among them, and
+  every role's run — is asked as it stands. An engine deployment may build files under other names, such
+  as `gate` or `session-summary`, which no run of agency's names.
 - **Which instances keep them:** an address of a registration says so (「What a registration holds」
   above), and the gateway's table carries that on each entry the address stands behind. An address that
   does not say so is never asked to restore.
@@ -565,68 +567,21 @@ never the model's name.
   is the running gateway's: a new child starts with every instance on no role, and the first request of
   each role restores it.
 
-## Routes and modes
+## Where a registration is named
 
-### The route table
-
-- **One row per work key** in the run route table.
-- **What a row holds:** the key's run mode, and — where the owner pins one — the registration the key
-  runs on at the registry's provider (「A key's own registration」 below).
-- **Run modes:** automatic, or one provider — Claude Code, Codex, OpenRouter, the registry's provider
-  (`docs/cache-fallback.md`, 「The per-key choice is automatic or one provider」). A key's row set to a
-  provider that does not carry its line is refused on save.
-- **What the row does not hold:** the model on any other provider, the answer size and thinking — the
-  tier settings decide them (「Settings per tier」 below, `docs/model-tiers.md`) — and no time limit,
-  since a gate waits for its answer (「A gate waits for its answer」 below).
-- **A key with no row** reads the profile's initial values.
-
-### A key's own registration
-
-- **One key may name one registration** in place of its tier's registry cell. It stands for that key
-  alone: every other key assigned to the tier keeps the cell, so a gate can move to a registration of
-  its own without moving the tier.
-- **What it may name:** a registration the registry offers, with an address or naming a card service,
-  checked on saving; none takes the pin away, and the key reads its tier's cell again.
-- **Where it stands:** wherever the key is resolved on the registry's provider — its own runs on that
-  provider, the model a gate's request names to the gateway, whether the automatic walk asks the
-  registry for the key, and the route `GET /work-keys/{workKey}` answers, whichever tier its caller names
-  there — a gate names its own. A registration that has left the registry or holds no address is refused
-  where the key is resolved, never given back to the tier. The registration's answer size and thinking
-  default are its own,
-  unless the key's tier cell maps to that same registration, whose answer size and thinking then stand,
-  as a worker pinned to a registration takes them (「A worker pinned to a provider」 below).
-- **It is no run mode:** the pin chooses the registration and nothing else, so a key on automatic
-  reaches it only where its walk reaches the registry's provider, and a key set to another provider
-  runs there.
-- **Where it is set:** the route row's change on the console, or with this command, `auto` taking the pin
-  away; the command may set the key's provider in the same line:
-
-```
-bmo-agency agent --route <work key> [--provider registered] --registration <registration|auto>
-```
-
-### Initial modes
-
-- **The registry's provider:** the gates each start on the registration their tier maps to there, as
-  the tiers are seeded (`docs/model-tiers.md`).
-- **The formatting gate** starts on the registry's provider as the other gates do.
-- **No key that is no gate starts on the registry's provider:** the chat or the worker key is
-  put on it only by the owner's choice, and the automatic walk reaches it as 「Own services in the
-  provider order」 below says.
-- **Owner changes persist:** rows the owner changed stand as they are on the next start.
-
-### Choosing
-
-- **Where:** the run-route and gate tabs of the agent management screen, or with this command:
-
-```
-bmo-agency agent --route <work key> --provider <auto|claude-code|codex|openrouter|registered|deepseek>
-```
-
-- **Model check:** a registry cell's registration is checked against the registry on saving.
-- **Display:** the management screen and the `bmo-agency agent` listing show the configured
-  provider/model beside the road that actually answered recently; the gate test screen's title bar reads
-  the same settings.
+- **An order's entry on the registry's provider names one registration,** with the answer ceiling and the
+  thinking a run on it goes out with, or none for the registration's own (`docs/provider-order.md`, 「What
+  an order is」). A supervisor's or a role's runs reach it where their order walks to the registry
+  (「The registry in an order」 below).
+- **A repository's pin may name one,** and every job in the repository runs on it (「A repository pinned to
+  a registration」 below).
+- **A session whose caller names one** goes out on exactly that registration, as a named road
+  (`docs/provider-order.md`, 「Runs that do not walk their own role's order」).
+- **A registration named is checked against the registry on saving:** one the registry does not offer is
+  refused. One that has left the registry, or holds no address, by the time a run reads it is refused
+  there, never replaced by another.
+- **What shows it:** the console and the `bmo-agency agent` listing show each supervisor's and each role's
+  order beside the provider and model its last run went out on.
 
 ## Limits, retries and walking
 
@@ -645,117 +600,79 @@ bmo-agency agent --route <work key> --provider <auto|claude-code|codex|openroute
 
 ### When a registered model does not answer
 
-- **A key set to the registry's provider does not walk.** If it does not answer, that run fails.
-- **An automatic key** reaches a registered model only as a turn of its walk, and moves on to the next
-  turn when it does not answer (`docs/cache-fallback.md`).
-- **Gates do not walk** (「A gate has one road」 below).
-- **A provider disabled in the provider order:** even a key set to it does not ask it; it walks like
-  automatic.
-- **A job worker's run** uses only the one provider it was given; moving to the next provider is job
-  recovery's job.
+- **A run on the registry's provider that does not answer moves to the next provider of its order,** as on
+  any provider (`docs/provider-order.md`, 「Falling over and coming back」, `docs/cache-fallback.md`,
+  「Automatic walks only on providers, in order」).
+- **A job in a repository that pins a registration does not move:** it waits until the registration can
+  answer again (`docs/repositories.md`, 「A pinned model」).
+- **A session whose caller named the registration** never moves off it; a run that does not answer there
+  fails.
+- **A provider the owner switched off** is asked by no order, and a job on a pin to one of its
+  registrations waits.
+- **A job's turn goes out on one provider;** moving it to the next is the job's relaunch on its role's
+  order, never a turn's own retry.
 
-### Own services in the provider order
+### The registry in an order
 
-- **The registry's provider is one turn,** after OpenRouter: the default order is Claude Code → Codex →
-  OpenRouter → registered models. Its switch there governs every key set to it, a gate's and a
-  companion's among them.
-- **The walk asks it only for a walked registration:** an automatic key reaches the registry's provider
-  only where the registration its tier maps to there is walked, and otherwise passes it by. A walked
-  registration is the walk's last turn, so a key whose other providers have all failed is answered on it,
-  sharing its one slot with everything else on it. A registration that is not walked stays registered,
-  reached only where the owner names it.
-- **How it answers there:** with the registration, thinking and answer size of the key's tier.
-- **The walking rules:** order, enablement and walking are in `docs/cache-fallback.md`.
+- **The registry's provider is a provider of an order like any other:** it stands where a supervisor's or
+  a role's order puts it, on the registration its entry names. The owner's switch on it governs every order
+  that names it and every repository that pins one of its registrations.
+- **It always has quota:** a registered model runs on the deployment's own engine
+  (`docs/usage-windows.md`, 「What reads a provider's quota」), so an order that walks to it is answered
+  there whenever it can answer now, sharing the engine's slot with everything else on it.
+- **How it answers there:** with the registration, the thinking and the answer ceiling of the entry.
+- **The walking rules:** order and quota are in `docs/provider-order.md`, availability and the accounts in
+  `docs/cache-fallback.md`.
 - **Nothing to keep warm:** a registered model has no known cache lifetime, so it sends no keepalive and
   produces no cost or account window.
 
-## A gate has one road
+## A request with no tools on an engine
 
 ### How the services behave
 
-- **One request is one HTTP POST.** There is no session and no prompt cache, so the gate's system prompt
-  is carried whole every time.
-- **The request is the gate's alone:** its system message is the gate's own instructions and its one
-  user message the gate's input. Nothing of the agent whose turn it judges goes with it — no persona, no
-  room context, no companion's settings — and it joins no conversation on the same registration.
-- **An engine with one slot answers one request at a time,** shared by every line on it — companions'
-  rooms, workers' jobs, every gate on it and every key the walk brings to it. A gate waits behind
-  whatever holds the slot, a long answer being written holds it for minutes, and a gate that takes the
-  slot from a conversation leaves the front to save that conversation's state and load it back on its
-  next request. The engine stays up between requests; one that finds it stopped waits for its start.
+- **One request is one HTTP POST.** There is no session and no prompt cache, so the request's system
+  prompt is carried whole every time.
+- **The request is its caller's alone:** its system message is the caller's instructions and its one user
+  message the caller's input. Nothing of a conversation goes with it — no persona, no room context, no
+  companion's settings — and it joins no conversation on the same registration.
+- **An engine with one slot answers one request at a time,** shared by everything on it — supervisors'
+  turns, roles' runs and every request with no tools. A request waits behind whatever holds the slot, a
+  long answer being written holds it for minutes, and a request that takes the slot from a conversation
+  leaves the front to save that conversation's state and load it back on its next request. The engine
+  stays up between requests; one that finds it stopped waits for its start.
 
-### A gate runs on its one provider
+### A request waits for its answer
 
-- **Which provider:** the road resolution's answer for the gate's key (`docs/cache-fallback.md`, 「One road
-  resolution」): the provider its run mode names whenever that one can answer now, otherwise the first
-  provider of the walk that can. On the registry's
-  provider its model is its tier's cell, unless its key names a registration of its own (「A key's own
-  registration」).
-- **One ask, and that is all.** It never moves to another provider or model — not on busy, refusal or
-  error.
-- **Why:** waiting for one verdict costs a room more than the value of that verdict, and with one road
-  the time a verdict took is the time that road took, so what is slow shows plainly in the record.
-
-### Sampling per gate
-
-- **Each gate samples by its own profile,** in agency's policy, each setting by the name the engine reads
-  it under: never the engine's defaults, which are a conversation's, and never a chat's or a companion's
-  settings. A verdict gate samples cold, a faithful rewrite a little warmer, and a gate rephrasing for
-  the ear warmer still, each with the sampling its model's family is advised for a run without thinking.
-- **How it travels:** a request with no tools names it in the gateway's sampling header, which the
-  gateway's sampling hook writes into the request's body (「The gateway」 above).
-- **A road with no such words** — a gate on Claude Code — takes none: the program fixes its own.
-
-### A gate that did not answer is a gate with no answer
-
-- **A failure ends as a failure on the spot.** The gate run is not rerun whole, and the same thing is
-  not asked of another model.
-- **Retries within the same provider** — transient network errors and 408, 429, 5xx — follow that
-  provider's rules. If they bring no answer, the gate has no answer.
-- **Each caller keeps its own fallback** for a gate with no answer: a formatting gate not answering sends
-  the answer without a formatting verdict.
-- **What is lost is one verdict,** not the room's answer.
-
-### A gate somebody stopped is not a gate with no answer
-
-- **A stop is not a verdict that did not come.** The run was ended on purpose, so nothing stands in for
-  it: the road records a stop and the gate raises it to whoever asked (`docs/agent-control.md`,
-  「Stopping」).
-- **It is carried nowhere.** Not to the next login of the same provider, not to another provider, not
-  asked again. Whatever the gate had walked up to that point is the whole of its record.
-- **Each caller's own ending under a stop,** since it arrives as a raised stop rather than a missing
-  verdict: a formatting gate ends where it stands and the message goes out as the writer wrote it; the
-  sanitiser ends the round as a stop rather than redacting locally; the translator writes nothing and
-  says it was stopped; and every other caller catches nothing of its own, so the
-  stop ends the piece of work that asked for the judgement.
-
-### A gate waits for its answer
-
-- **Its one ask waits for its provider however long it takes:** there is no road after a gate and no
-  clock on it. It ends when the provider answers, when the provider fails it, or when its caller stops it
-  (「A gate somebody stopped is not a gate with no answer」 above).
+- **Its one ask waits for its provider however long it takes:** there is no clock on it. It ends when the
+  provider answers, when the provider fails it, or when its caller stops it.
 
 ### Which road answered is recorded
 
-- **One line per road walked** by a gate run, in the gate road record.
-- **What a line holds:** work key, room and message, provider and model, outcome (answered, timed out,
-  size refused, error, none), the time taken, and the input, output, cache-read and cache-write tokens
-  the run reported (empty where it reported none), and, on a line of a session's own run, the share of
-  its context window that run ended carrying (empty on a gate's line and wherever the session reported
-  none). The room screen's context chip reads it.
+- **One line per provider a run went out on,** in the road record.
+- **What a line holds:** the supervisor or the role it ran for, room and message, provider and model,
+  outcome (answered, timed out, size refused, error, none), the time taken, and the input, output,
+  cache-read and cache-write tokens the run reported (empty where it reported none), and, on a line of a
+  session's own run, the share of its context window that run ended carrying (empty on a request with no
+  tools and wherever the session reported none). The room screen's context chip reads it.
 - **What a registration reports:** the chat completions path answers with its token usage, and that is
   kept.
-- **A chat turn is a line too,** under its own work key, with the room and the last message the turn
-  read, so a turn's figures and its gates' figures are read from one record. A second asking the round
-  makes of itself is a line the same way, under the key for the kind of second asking it is. A turn or a
-  rewrite whose call failed still writes its line, with the outcome error and no tokens.
+- **A supervisor's turn is a line,** under its supervisor, with the room and the last message the turn
+  read, so a turn's figures are read from one record. A second asking the round makes of itself is a line
+  the same way, under the name of the kind of second asking it is. A turn whose call failed still writes
+  its line, with the outcome error and no tokens.
 - **The round and the run:** a line written inside a round of a room's session names that round, so
   everything one answer cost is read by that name, and names the run its log lines are kept under; a line
   written outside any round names none.
-- **How many lines:** there is one road, so one run has one line. Only a run split by size has one line
-  per part.
-- **Two records together:** the time in the judgement record is the whole stage's time; the road record
-  says which road that time was spent on.
+- **How many lines:** one for each provider the run went out on; a request with no tools goes out on one,
+  so it has one line.
+
+## Gates are not agency's runs
+
+- **A gate's run is the gate service's own.** No gate is a supervisor or a role (`docs/agents.md`, 「Two
+  axes」): agency keeps no gate row, route, order, sampling profile or answer size, and chooses no provider
+  for a gate.
+- **What a gate is told, how it samples, how it splits a long text and what its caller does when it has no
+  answer or is stopped** are the gate service's to state, not this document's.
 
 ## Input size
 
@@ -772,8 +689,9 @@ bmo-agency agent --route <work key> --provider <auto|claude-code|codex|openroute
 - **Estimating input tokens from characters:** a non-ASCII character counts as 0.8 tokens, an ASCII
   character as 0.3, which comes out slightly above what the service actually counts, so nothing overruns
   from an underestimate.
-- **Which answer size:** for a gate, the gate's answer size; for the chat and workers, the
-  key's answer size; and if nobody chose, a floor for gates and a larger floor for the rest.
+- **Which answer size:** for a request with no tools, the size its run names; for a supervisor's turn or a
+  role's run, the answer ceiling its order's entry names on the registry's provider; and if nobody chose,
+  a floor for a request with no tools and a larger floor for the rest.
 - **Fitting the context:** if the slot is larger than what remains of the context it shrinks to what
   remains, and if too little remains the request is not sent.
 
@@ -781,107 +699,72 @@ bmo-agency agent --route <work key> --provider <auto|claude-code|codex|openroute
 
 - **What counts as too large:** requests not sent because of size — an input with too little room left —
   and requests the model returned for size, a 400 for exceeding context.
-- **How a splittable gate handles it:** it splits the request in two, each half becomes one run of that
-  gate walking the same road again, a half still too large splits again, a half the model fails for
-  another reason ends as that half alone having no answer, each half waits for its own answer, and
-  the answers are joined in original order the way the gate defines.
-- **Answer room:** a splittable gate sends a request only when it can get its full answer slot, and
-  splits as far as needed otherwise.
-- **A gate that cannot split** sends with the answer slot that remains, and if it is still too large ends
-  as a gate with no answer.
-
-### The three gates that split
-
-1. **The sanitiser gate** cuts text in two around the middle — at a paragraph boundary, else a line
-   boundary, else by character count (`docs/cache-fallback.md`, 「The sanitiser gate」).
-2. **The translator** splits the part it got in two, at a paragraph boundary else a line boundary, and
-   joins the two translated halves in original order; if either half has no answer the whole part stays
-   untranslated, since a half-translated section misleads the reader.
-3. **The document seek gate** splits the index lines in half and joins the slugs each half picked in
-   original order; a half with no answer picked nothing, and since seeking produces candidates one
-   half's candidates are still useful. When split picks yield two or more candidates the same question is
-   asked once more over only the collected candidates to set the order, and if that does not answer the
-   joined order stands.
+- **A request with no tools that is too large** sends with the answer slot that remains, and if it is
+  still too large ends refused for size; agency splits nothing, and its caller cuts the text smaller — a
+  translation's caller is answered 413 `too-large` (`docs/api.md`, 「translations」).
 
 ### What does not split
 
-- **Gates that must read everything at once:** the formatting judgement of one answer, picking pieces
-  for one turn.
-- **Runs with tools** (chat, workers, a companion's turn): the whole conversation is one
-  request, so they cannot split; a turn that meets the limit ends as 「A turn at the input limit」 below
-  says.
-- **A registration's turn of a provider walk** carries the prompt of the run the walk assembled, not a
-  gate's request, so it does not split either.
-- **Answer slots** are sized as above. A non-gate key's answer size is its tier's answer size on the
-  registry's provider, and is the registration's answer size where the tier names none, never below the
-  floor its own work declares: a work that writes a whole document in one tool call declares a floor
+- **Runs with tools** (a supervisor's turn, a role's run): the whole conversation is one request, so they
+  cannot split; a turn that meets the limit ends as 「A turn at the input limit」 below says.
+- **A run that fell over onto the registry** carries the prompt its run assembled, not a request with no
+  tools, so it does not split either.
+- **Answer slots** are sized as above. A supervisor's or a role's answer ceiling is its order's entry's on
+  the registry's provider, and is the registration's answer size where the entry names none, never below
+  the floor its own work declares: a work that writes a whole document in one tool call declares a floor
   that holds one. A run that thinks writes its thinking out of the same room, so a work may declare a
   larger floor for such a run, given as far as a fraction of the registration's window allows.
 - **Only registered models limit input.** Claude Code, Codex and OpenRouter runs have no place where
   agency blocks by request size.
 
-## Chat and workers
+## Supervisors and roles on a registered model
 
 ### Choosing a registered model
 
-- **The registry's provider carries every line but the browse:** the chat, the job worker, the
-  companions and a search's own run as a Claude Code road, and the gates as requests with no tools
-  (「A request with no tools」 above). No search key is offered it by the fallback table's defaults, so a
-  search reaches a registration where its caller names that road for an apart session on the search line
-  (`docs/api.md`, 「sessions」); the browse line, which needs a browser the registration's window does not carry, stays off it.
-- **Jobs:** manual job runs, items and work-order models pick a registered model with
-  `registered::<registration>`; automatic jobs go down the provider order as far as the registry's
-  provider where the registration the worker key's tier maps to is walked, unless the worker is pinned or
-  the worker key is set to one provider, which is then the only one they run on.
+- **The registry's provider carries every line but the browse:** the chat line every supervisor runs on,
+  the worker line and the search line as a Claude Code road, and the translate line as requests with no
+  tools (「A request with no tools」 above). A supervisor's or a role's order may name it on any of those
+  lines; the browse line, which needs a browser the registration's window does not carry, stays off it,
+  so the browser role's order cannot name it (`docs/provider-order.md`, 「What an order is」).
+- **Jobs:** a job goes out on its role's order, reaching the registry where the order names it, or on the
+  registration its repository pins (「A repository pinned to a registration」 below). A manual job run, an
+  item or a work order that names a model of its own names a registration as `registered::<registration>`.
 
-### A worker pinned to a provider
+### A repository pinned to a registration
 
-- **Every worker shares one work key,** so the worker key's road is every worker's. A worker of its own
-  may also be pinned, which then stands for that worker alone in place of the key's road; a worker with
-  no pin follows the key.
-- **What the pin holds:** a provider that carries the worker's line, and — for a provider that says it
-  takes one — one of its models. The registry's provider takes one: a worker pinned to a registration,
-  and a job naming `registered::<registration>`, runs on it with the registration's own answer size and
-  thinking default, unless the worker key's tier maps to that same registration, whose mapping then
-  stands; a pin to a registration the registry does not hold, or one with no address, is refused. A pin
-  to a provider alone takes the model, effort and answer size from the worker key's tier mapping on that
-  provider (`docs/model-tiers.md`). Claude Code takes one its CLI's catalogue names, and a provider
-  with a road of its own one of that road's members; the run goes out on the model named, at the effort
-  the worker key's tier mapping on that provider gives, read for that model.
+- **A repository may pin a registration** (`docs/repositories.md`, 「A pinned model」): every job in the
+  repository, whatever role it runs as, goes out on it instead of its role's order. A pin to a
+  registration the registry does not hold, or one with no address and no card service, is refused.
+- **Its answer ceiling and thinking** are those the role's order names on the registry's provider where
+  its entry names that same registration, and the registration's own answer size and thinking default
+  otherwise.
 - **What runs on it:**
-  - Automatic jobs of the worker run on the pin alone, and recovery tries no other; a job that names its
-    own `<provider>::<model>` still asks that first.
-  - The words said to the worker on its own screen wait in its log while it is pinned to a provider that
-    is on, with a line saying so, since no run on the pin carries words (`docs/agent-control.md`, 「The
-    keepalive ping goes into the same program as the turns」). A worker pinned to Claude Code, pinned to
-    a provider that is switched off, or not pinned, is spoken to in its Claude session.
-  - A worker pinned to a provider other than Claude Code is not kept warm on Claude.
-- **Its sampling is its own,** apart from any companion's on the same registration: a worker holds
-  sampling settings of its own, kept in the store's settings under its name, and every run of its jobs
-  and of the words said to it names them (「How requests go」 below). They are the companions' generation
+  - Every job of the repository runs on the pin alone, and its relaunch tries no other: a pin that cannot
+    answer — its registration's engine down, the registry's provider switched off — makes the
+    repository's work wait, and nothing falls back (`docs/repositories.md`, 「A pinned model」).
+  - A job that names its own `<provider>::<model>` still asks that first.
+  - A pinned job holds a slot of its role like any other run (`docs/role-slots.md`).
+- **Its sampling is the repository's,** apart from any companion's on the same registration: a repository
+  holds sampling settings of its own (`docs/repositories.md`, 「What a repository row holds」), and every run
+  on its pinned registration names them (「How requests go」 below). They are the companions' generation
   settings, by the same names and bounds, less the answer ceiling, which stays the registration's
-  (`docs/companions.md`); one left empty is the engine's own default. Only a run on a registration
-  carries them, since only the gateway reads them; a support worker runs on its base's; a save checks
-  each against its bounds, refuses one out of them, stands the worker's program again and lets the next
-  run carry the new values; it is set in the sampling block of the worker's settings dialog, shown while
-  its provider is a registration.
-- **A pin to a provider that is switched off** reads as no pin, as a key set to one does.
-- **A support worker** runs its base's jobs and is on its base's pin; its own row carries none.
-- **Where it is set:** the provider field of the worker's settings dialog, which lists every
-  registration beside the providers, `bmo-agency agent --set <worker> --provider
-  <auto|provider|provider::model>`, where `auto` takes the pin away, or the agent's own model on
-  `PATCH /agents/{agentName}` (`docs/model-tiers.md`, 「An agent's own model」).
-- **What shows it:** the worker's configured provider and model in the agent list and the `bmo-agency
-  agent` listing are its pin's, and the answered road beside them is what last answered.
+  (`docs/companions.md`); one left empty is the engine's own default. Only a run on a registration carries
+  them, since only the gateway reads them; a run in a support worktree runs on its repository's; a save
+  checks each against its bounds, refuses one out of them, and lets the next run carry the new values; it
+  is set in the sampling block of the repository's settings, shown while its pin is a registration.
+- **Where it is set:** the pin on the repository tab, which lists every registration beside the
+  providers, or the repository routes (`docs/api.md`, 「repositories, prefix-checks and room-holdings」).
+- **What shows it:** the repository's pin in the repository list, and beside it the provider and model its
+  last job went out on.
 
 ### How requests go
 
-- **A gate** is one request to the gateway's chat completions path, asked in the agent's host (「A
-  request with no tools」 above).
+- **A request with no tools** is one request to the gateway's chat completions path, asked in the
+  agent's host (「A request with no tools」 above).
 - **Runs with tools go to Claude Code,** the program every line was written for, pointed at the gateway
   under the registration's name (「The gateway」 above). The line is the one a Claude run of it takes — the
-  chat's, the worker's, a companion's (「A worker on a registered model is composed as on
-  Claude」 below). Its program carries the search line, and an apart session on that line goes out in a place
+  chat line for a supervisor, a role's own line (「A run on the worker line is composed as on Claude」
+  below). Its program carries the search line, and an apart session on that line goes out in a place
   of its own as a member road's does, its program composed as a worker's job on the registration is
   (`docs/api.md`, 「sessions」); the session's caller names the registration, since a registration's window
   decides whether the instructions it hands in fit at all. The road changes only what
@@ -890,22 +773,23 @@ bmo-agency agent --route <work key> --provider <auto|claude-code|codex|openroute
     of the run's own — its Opus, Sonnet and Haiku defaults — is the registration's gateway name, with its
     node where the run is placed on one (「Nodes and sessions」 above), so nothing the run itself does
     asks a model the gateway does not serve and no request of the run's own session leaves its node.
-  - **Its co-workers' requests go where their tier maps:** a worker's run carries co-worker definitions
-    resolved on the registry's provider, each naming the registration its role's tier maps to there, and
-    its subagent model is left unset, so a native co-worker asks the gateway for its own definition's
-    registration under its name alone. Those requests are spread over that registration's addresses,
-    which may stand on other nodes than the run's (「A worker on a registered model is composed as on
-    Claude」 below). Where every tier maps to the run's own registration, its co-workers are that
-    registration again. A run that carries no co-worker definitions — a chat's, a companion's — has its
-    subagent model set to the registration's gateway name like the defaults.
+  - **Its co-workers' requests go where their role's order names:** a run on the worker line carries
+    co-worker definitions resolved on the registry's provider, each naming the registration its role's
+    order names there, and its subagent model is left unset, so a native co-worker asks the gateway for
+    its own definition's registration under its name alone. Those requests are spread over that
+    registration's addresses, which may stand on other nodes than the run's (「A run on the worker line is
+    composed as on Claude」 below). Where every co-worker role names the run's own registration, its
+    co-workers are that registration again. A run that carries no co-worker definitions — a supervisor's
+    — has its subagent model set to the registration's gateway name like the defaults.
   - **No login of the Claude road:** the run's records go under a configuration home of the
     registration's own under the data root, which holds no login, and no account's token or directory is
     handed over. It is the data root's since a session resumed across a deployment needs its record
     there, and the agents root is laid anew at every start of the bot. The key is the gateway's, from the
     key helper (「The keys」 above).
   - **The window and the answer:** the context-tokens variable is the registration's context window, and
-    the output-tokens variable the key's tier's answer ceiling on the registry's provider, or the
-    registration's answer size where the tier names none or the worker is pinned to the registration.
+    the output-tokens variable the answer ceiling the run's order's entry names on the registry's
+    provider, or the registration's answer size where the entry names none (「A repository pinned to a
+    registration」 above).
     Claude Code sizes a model it does not know at a large default window and answer, which a backend
     refuses.
   - **The fold point leaves the whole answer:** the auto-compact override is the share of the window the
@@ -923,10 +807,10 @@ bmo-agency agent --route <work key> --provider <auto|claude-code|codex|openroute
   - **Thinking is an effort word:** a run with thinking on is sent `medium`, which Claude Code sends as
     `thinking` of type `adaptive`; one with it off is sent `low` with its thinking tokens at zero, so it
     names no thinking at all. The gateway carries either to the backend. Whether a run thinks is its
-    agent's own thinking setting where that names one, the tier mapping's word where it names one, and
-    the registration's thinking default otherwise.
+    order's entry's thinking where that names one, and the registration's thinking default otherwise.
   - **Sampling is the run's own:** a run that names sampling settings — a companion's turn, from its
-    generation settings, and a worker's run, from its own sampling — sends them in the Anthropic custom
+    generation settings, and a job on a repository's pinned registration, from the repository's
+    sampling — sends them in the Anthropic custom
     headers, as the header the gateway writes into each request; a run that names none
     sends no such header, and the backend samples with what the program sent and its own defaults.
   - **The long tools go with every request:** the program's adapter names the tools whose calls wait long
@@ -934,9 +818,9 @@ bmo-agency agent --route <work key> --provider <auto|claude-code|codex|openroute
     header, the names joined by commas, which the gateway writes into each request. An engine reads it to
     give up its cards at once once an answer calls one of them, and to keep them while a short tool runs.
     A program whose adapter names none sends no such header.
-- **What comes back** is Claude Code's own record — its transcript in a pane, a standing one or one of a
-  run apart's own — read as a Claude run's is. An apart session's turn has each
-  line of its record written into its run log as it is written; a gate's run in the host prints one object at its
+- **What comes back** is Claude Code's own record — its transcript in a pane, a supervisor's standing one
+  or a role's run's own — read as a Claude run's is. An apart session's turn has each line of its record
+  written into its run log as it is written; a request with no tools in the host prints one object at its
   end, whose answer text is all its log is given; a job's turn in the pane has its transcript written
   into the job's run log as the program writes it, so a long turn on a slow engine is never a job
   standing silent. Each is filed under the registry's provider with the registration's name as its
@@ -960,82 +844,70 @@ bmo-agency agent --route <work key> --provider <auto|claude-code|codex|openroute
 ### No keepalive
 
 - **The registered models run no keepalive.**
-- **Nothing else is warmed either:** keys, gates and workers running on the registry's provider do not
-  warm earlier Claude or Codex sessions.
+- **Nothing else is warmed either:** a supervisor standing on the registry's provider warms no earlier
+  session of another provider, and nothing of a role is warmed on any provider.
 - **Calls only for real work:** a registered model is called only when there is a real work request.
 
 ### Claude Code in the pane
 
 - **The registry's provider declares Claude Code's interactive program over the gateway as its
-  interactive surface,** and nothing outside the provider names a registration for that. A gate stands no
-  program until its stage (`docs/agents.md`, 「The stages」); a companion's turn goes into its own program
-  as the chat agent's does.
+  interactive surface,** and nothing outside the provider names a registration for that. A request with
+  no tools stands no program; a companion's turn goes into its own program as the chat agent's does.
 - **The top of its screen names the registration by its label:** the program's settings carry a model
   picker row for the model it is started on, the node placement included, labelled with the
   registration's label, so Claude Code shows that label where it would show the gateway's name and its
   node.
 - **Which program is whose:** a Claude Code program standing in a pane is a registration's where its
   records home is that registration's, and the Claude road's own only where it is pointed at no endpoint
-  of another's. So a pin moved between Claude Code and a registration, or from one registration to
-  another, is a different program in the pane.
-- **Who stands it:** an agent whose line keeps a session — the chat agent, every companion, every worker
-  — stands it in its pane for as long as its turns go out on a registered model. A job, the words said to
-  the worker on its screen and a conversational agent's turn are each one turn the bot puts into it, and
-  a person attached to the console types into it as into any Claude Code program.
-- **A conversational agent's turn goes on in its scope's session,** the chat agent's and a companion's
-  alike, on the node that session stands on: the agent's one session, or the room's where its scope is
-  the room, a turn for another room then starting the program again on that room's session in the same
-  pane (`docs/agents.md`, 「The session's scope」). A full session is handed over by the handoff this
+  of another's. So a supervisor's move between Claude Code and a registration, or from one registration
+  to another, is a different program in the pane.
+- **Who stands it:** a supervisor stands it in its head pane for as long as its turns go out on a
+  registered model, and a role's run stands it in a pane of its own for the run (`docs/agents.md`, 「A run
+  in a pane of its own」). A supervisor's turn and a role's run are each one turn the bot puts into it,
+  and a person attached to the console types into it as into any Claude Code program.
+- **A supervisor's turn goes on in its scope's session,** the chat agent's and a companion's alike, on the
+  node that session stands on: the supervisor's one session, or the room's where its scope is the room, a
+  turn for another room then starting the program again on that room's session in the same pane
+  (`docs/supervisors.md`, 「The session's scope」). A full session is handed over by the handoff this
   provider declares rather than folded (`docs/companions.md`, 「Its limit」).
-- **The words said to a worker go on in the session its program stands on:** where the worker holds a
-  session on the registration — on its model, effort and directory, on a node the registration still has
-  — and the program standing in its pane stands on it, the words are one more turn of that session, on
-  its node, and the program is not started again. Claude Code folds the session as it nears the
-  registration's window (「A turn at the input limit」 below).
-- **Every other turn the bot puts in opens a session of its own:** a job is stood up on a fresh session,
-  placed on a node as a new session is (「Nodes and sessions」 above), so no earlier job rides along into a
-  window that may hold tens of thousands of tokens; so are words that find no session to go on in, and
-  words after a turn on the held session that gave no answer. A person's lines typed after a turn go on
-  in its session, on its node.
+- **A role's run goes on in its role's kept session:** where the role holds a valid session on the
+  registration at the run's path — on its model, effort and login, on a node the registration still has
+  — the run resumes it on its node (`docs/sessions.md`, 「A role's session」); otherwise it opens a
+  session of its own, placed on a node as a new session is (「Nodes and sessions」 above). Claude Code folds
+  the session as it nears the registration's window (「A turn at the input limit」 below). A person's lines
+  typed after a turn go on in its session, on its node, while the run's pane stands.
 - **Words mid-turn are taken:** words for the agent that arrive while a turn works go into that turn, as
   Claude Code's pane takes them on the claude-code provider; a registration's window carries them.
 - **A line a person types into the chat agent's program is composed by the program, not the gateway:**
   the chat's submit hook hands it what a round of the owner's chat would carry, on this road as on
   Claude's, which never passes the gateway. The gateway rewrites no prompt.
-- **What stays in the host:** a gate with no tool is one request and one answer, asked in the agent's
-  host (「How requests go」 above). A gate on a registration stays a host agent; only a gate on Claude Code
-  stands programs of its own (`gates.md`). An apart session on a runner line on a registration goes out in a
-  place of its own (`docs/api.md`, 「sessions」); any other runner's run on a registration is a run apart
-  (`docs/agents.md`, 「Runs apart」).
-- **Standing with nothing to do:** a worker pinned to a registered model has the program written into its
-  place by the standing pass where the place holds no program, on the job line's run for the registration
-  and a fresh session, so its pane shows Claude Code's input box before any job has run
-  (`docs/agent-control.md`, 「A worker standing with nothing to do」). The registration is the one the pin
-  names, or else the one the worker key's tier maps to on the registry. A place holding another
-  provider's program has the registry's written in its stead and the old one ended by the same pass,
-  without waiting for a turn on it. A program of the registry on another registration stands until the
-  next turn, which opens a session of its own on the pinned one. A pane at work on a turn, or a checkout
-  a job holds, is left until that turn has ended.
+- **What stays in the host:** a request with no tools is one request and one answer, asked in the agent's
+  host (「How requests go」 above). An apart session on a runner line on a registration goes out in a place
+  of its own (`docs/api.md`, 「sessions」), and every other role's run on a registration in a pane of its
+  own (`docs/agents.md`, 「A run in a pane of its own」).
+- **Nothing stands with nothing to do but a supervisor's program:** a role keeps no program between its
+  runs, so no pane of a role or a repository shows a registration's program before a run comes.
 
-### A worker on a registered model is composed as on Claude
+### A run on the worker line is composed as on Claude
 
-- **Every worker is handed one line, whatever its road:** a worker's run on a registered model is the job
-  worker line (`docs/launch-lines.md`) — the platform's harness opening with the worker's rules after it
-  (the owner's standing rules, the rule against destroying the system and the worker's own where it has
-  them), or the worker's base prompt with the same rules after it where it chooses one
-  (`docs/base-prompts.md`), the worker's plugin and its skills, the co-worker definitions, the worker's
-  MCP server, the project and local setting sources, so the checkout's `CLAUDE.md` is read in, every tool
-  the line shows, and the worker's settings with its hooks, the job guard among them.
+- **Every run on the worker line is handed one line, whatever its provider:** a run on a registered model
+  is the worker line (`docs/launch-lines.md`) — the platform's harness opening and the role's prompt with
+  the line's rules after it (the owner's standing rules, the rule against destroying the system and the
+  repository's own where it works in one), or a base prompt with the same rules after it where one is
+  chosen for the run (`docs/base-prompts.md`), the worker plugin and its skills, the co-worker
+  definitions, the worker's MCP server, the project and local setting sources, so the checkout's
+  `CLAUDE.md` is read in, every tool the line shows, and the worker settings with their hooks, the job
+  guard among them.
 - **What the road changes is the model and the endpoint alone:** the gateway's address and key, the
   registration's name, window and answer ceiling (「How requests go」 above), beside the
   effort word and the records home every run on a registration has.
-- **Its co-workers are the registry's:** the registry's provider lends co-workers, so the co-worker
-  definitions a run on a registration is handed are resolved on the registry — each role's definition
-  names the registration its `role:<name>` key maps to there, with the Claude Code effort word of that
-  mapping's thinking — and a native agent call of the run takes its seat on the registry, at that
-  registration, held to the registry's limit of that tier (`docs/model-tiers.md`, 「Common co-worker
-  capacity」; `docs/coworker-pool.md`, 「Native co-worker places」). The child runs on its definition's
-  registration, which is its parent's only where its tier maps there (「How requests go」 above).
+- **Its co-workers are the registry's:** a native co-worker stays on its caller's provider, so the
+  co-worker definitions a run on a registration is handed are resolved on the registry — each callable
+  role's definition names the registration that role's order names there, with the Claude Code effort
+  word of that entry's thinking — and a native agent call of the run takes a slot of the co-worker role
+  (`docs/role-slots.md`, 「Native co-worker slots」). A role whose order holds no entry for the registry is
+  refused, and the caller does that part itself. The child runs on its definition's registration, which
+  is its parent's only where the role's entry names it (「How requests go」 above).
 - **Its first request** is the whole line — the tool definitions, the MCP server among them, the system
   prompt, and the opening lines that carry the checkout's `CLAUDE.md` and the skill listing — plus a
   job's prompt where there is one, read by the engine before its first byte. A job writes nothing to its
@@ -1067,43 +939,41 @@ bmo-agency agent --route <work key> --provider <auto|claude-code|codex|openroute
   keeps for its summary stands as the margin for its estimate.
 - **At the limit the turn ends, failed, on the request's own refusal.** A request the backend refuses for
   size comes back as a 400 naming the size, Claude Code ends the turn on that error, and the turn is
-  recorded as failed with it. A job or a word on it is a run that did not answer, never a success.
+  recorded as failed with it. A role's run on it is a run that did not answer, never a success.
 - **A refused request is the work's failure, never the road's.** A 400, a 413 or a 422 is the backend
-  answering, so a job whose turn ended on one ends failed with that line as its reason: its
-  registration's road is not closed for an outage, and the walk does not move on to another road, where
+  answering, so a job whose turn ended on one ends failed with that line as its reason: its registration's
+  road is not closed for an outage, and the run does not move on to the next provider of its order, where
   the same conversation would be refused again (`docs/cache-fallback.md`, 「Automatic walks only on
   providers, in order」).
 - **The next turn is a new session:** a turn on the held session that ended without an answer lets that
   session go, so the words said next do not go on in it either.
 
-## Settings per tier
+## Settings of an order's registry entry
 
-### What a tier's mapping holds for the registry
+### What an entry holds for the registry
 
-- **Three settings:** the model, the answer size and whether thinking is on.
-- **Where:** the registry's column of the tier table on the agent management screen's model tab; a cell's
-  dropdown sets them for that tier, offering every registration by its name.
-- **Who reads them:** every key assigned to that tier that runs on the registry's provider — a gate, the
-  chat, a worker — save a key that names a registration of its own (「A key's own registration」 above),
-  which reads its registration in place of the cell.
-- **The registry's cell may leave two of them to the registration:** an empty answer size is the
-  registration's answer size, and the default thinking choice is the registration's thinking default; the
-  on and off choices override it.
-- **A gate's model is its tier,** never a provider-specific model: a gate chooses a tier, and the tier's
-  mapping on the registry's provider is the registration it runs on there.
+- **Three settings:** the registration, the answer ceiling and whether thinking is on
+  (`docs/provider-order.md`, 「What an order is」).
+- **Where:** the registry's entry of a supervisor's order on the supervisor tab, or of a role's order on
+  the role tab; the entry's dropdown offers every registration by its name.
+- **Who reads them:** every run of that supervisor or that role that goes out on the registry's provider.
+  A job on a repository's pinned registration reads the pin's registration, and the entry's ceiling and
+  thinking only where the entry names that same registration (「A repository pinned to a registration」
+  above).
+- **The entry may leave two of them to the registration:** an empty answer ceiling is the registration's
+  answer size, and the default thinking choice is the registration's thinking default; the on and off
+  choices override it.
 
 ### Answer size is the ceiling of the answer slot
 
 - **Choices:** a small set of token sizes, or none.
-- **None means the work's default:** a floor for a gate, and for the chat and workers on a
-  registered model the registration's answer size.
-- **A gate's own floor:** the translator never runs below a size that holds a part, whatever its tier
-  says; the other gates'
-  answers are one verdict line or a few.
+- **None means the work's default:** a floor for a request with no tools, and for a supervisor's or a
+  role's run on a registered model the registration's answer size.
+- **The translator's own floor:** a translation never runs below a size that holds a part, whatever its
+  entry says.
 - **The rules of 「Input size」 above still hold:** a ceiling larger than what remains of the context
-  shrinks to what remains; with too little remaining nothing is sent; a splittable gate sends only when
-  it can get its full ceiling.
-- **So:** raising the ceiling splits long inputs earlier; lowering it shortens answers.
+  shrinks to what remains, and with too little remaining nothing is sent.
+- **So:** raising the ceiling leaves less room for a long input; lowering it shortens answers.
 
 ### Thinking is on or off
 
@@ -1112,19 +982,16 @@ bmo-agency agent --route <work key> --provider <auto|claude-code|codex|openroute
 - **The response** carries the thinking apart from the answer in `content`; agency uses only `content` as
   the answer, and keeps the thinking in neither logs nor records.
 - **Thinking eats the answer's budget:** it is spent within the same `max_tokens` as the answer, at the
-  same speed, so a gate with thinking on takes longer to reach its answer and may spend its answer size
-  before it does, and a tier with thinking on should have its answer size raised too.
+  same speed, so a request with thinking on takes longer to reach its answer and may spend its answer size
+  before it does, and an entry with thinking on should have its answer ceiling raised too.
 - **A run with tools** is Claude Code's, and thinking reaches it as the effort word 「How requests go」
   above names.
 - **The record:** an answer to a request with no tools, with thinking on, is recorded with effort
   `thinking`; one with it off has no effort.
 
-## No gate wait
+## No wait on a request
 
-- **A gate's turn is carried until it answers.** A gate's question goes to agency as a turn of the gate's
-  conversation, and agency carries the turn until it answers or its caller interrupts it: agency keeps
-  no gate wait, no table of them and no default a gate would fall back to.
-- **Its thinking and answer size are not the gate's options:** those come from the gate's tier on its
-  road (「Settings per tier」 above).
-- **Runs with tools** (Claude Code on a registered model) and non-gate keys wait for their answers alike:
-  each request of theirs is waited for until it answers or its connection is refused or broken.
+- **Every request is carried until it answers.** A request with no tools and each request of a run with
+  tools (Claude Code on a registered model) is waited for until it answers or its connection is refused or
+  broken, or its caller interrupts it: agency keeps no wait, no table of them and no default to fall back
+  to.

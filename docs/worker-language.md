@@ -60,8 +60,8 @@ screens, the rooms — is read in the owner's language by the units that show it
 - **No translation for a job's prompt.** Whoever hands a job its prompt, agency hands it to the
   worker as written, through the sanitiser alone. A part in another language that a person handed
   over anyway reaches the worker as written, and the worker reads it as it stands.
-- **The hand that translates is the translator gate** (`translator`), asked through the gate road
-  agency's gates run on (`docs/own-llm.md`, 「A gate has one road」), under instructions for a worker:
+- **The hand that translates is the gate service's translator** (`translator`), which runs its own
+  judgements outside agency (`docs/own-llm.md`, 「Gates are not agency's runs」), under instructions for a worker:
   quoted speech is translated too, since the person who said it is not the reader. A part already in
   English, a fenced quote in it included, passes untouched and asks nothing of the gate.
 - **Nothing a worker runs calls the translator.** The queue tools read translations that are already

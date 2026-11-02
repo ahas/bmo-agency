@@ -4,7 +4,7 @@ This document is agency's boundary: every route it exposes, every event it publi
 consumer registers, and the tables whose shape a consumer reads or writes. A consumer reaches agency
 only across this boundary and never into a crate or a module behind it; agency reaches a consumer only
 by publishing an event or calling a hook the consumer registered. What a turn is told, whom an agent
-answers, which role and model a piece of work needs, and whether an answer may go out are the
+answers, which role a piece of work runs as, and whether an answer may go out are the
 consumer's, decided above this boundary and handed in; agency supplies, carries and controls, and judges
 none of it.
 
@@ -109,132 +109,106 @@ deleted member. A reader narrows with `kinds`.
 
 The hook point is `turn-submitting`, registered by the gate and the receiver. `road-verbs` is what the procedures tool asks a room's road.
 
-### agents
+### supervisors
 
 | Method | Path | Does |
 |---|---|---|
-| GET | `/agents` | Every agent, each with the login account that owns it. |
-| POST | `/agents` | Register an agent of any kind; one that converses is given its brain. |
-| GET | `/agents/{agentName}` | One agent: role, gates, reasoning, voice, reset point, stand-in. |
-| PATCH | `/agents/{agentName}` | Change an agent's gates, reasoning, role, voice or model. |
-| DELETE | `/agents/{agentName}` | End an agent's registration; `forgetBrain` lets its brain go with it. |
+| GET | `/supervisors` | Every supervisor, each with the login account that owns it. |
+| POST | `/supervisors` | Register a supervisor; it is given its brain. |
+| GET | `/supervisors/{supervisorName}` | One supervisor: its order, warming, threshold, gates, voice, reset point, stand-in. |
+| PATCH | `/supervisors/{supervisorName}` | Change a supervisor's order, warming, threshold, gates, sampling or voice. |
+| DELETE | `/supervisors/{supervisorName}` | End a supervisor's registration; `forgetBrain` lets its brain go with it. |
 
-- **Every agent is a registration row** (`docs/agents.md`), and these routes add, change and end any of
-  them: the chat agent and the companions, a worker, a gate and a runner alike.
-- **An agent is shown with its kind's mark,** `icon`: the mark agency's policy names for its kind
-  (`policy/roles.toml`, `[icons]`), so every chat agent, every worker, every runner and every gate looks
-  alike wherever an agent is answered — its row, a companion, a session, a worker. A row's own `icon` is kept
-  as written and answered only for a kind the policy names no mark for.
-- **An agent is owned by a login account,** `ownerAccount`: the id of the user it belongs to, the same id
-  an account's `user_id` names (`docs/store.md`). None means the administrator's, and every agent
-  registered without an owner reads so. `GET /agents` and `GET /agents/{agentName}` answer it on every
-  agent.
-- **`GET /agents` answers `roles` beside the agents:** every role the store holds (「agent-roles」), each
-  with its `name`, its `code`, its English `label` and its `bundles`, each bundle with its `name`, its `code` and its
-  `label`. A code is the kebab-case word a screen words the role or bundle by in its own language: a role's
-  is its name, and a bundle's its name with each dot a hyphen, so `room.chat` is `room-chat`.
-- **Who may register or end which agent is the caller's to judge.** The agent screen is the
-  administrator's, and a user registers agents of their own under a permission the caller holds; agency
-  writes the owner it is handed and judges no permission.
-- **`POST /agents` takes the registration,** each field judged in this order and nothing written until
-  all have passed:
-  - `name`, the agent's key: a lowercase letter, then lowercase letters, digits and hyphens, forty
-    characters at most (the companions policy's `name_pattern`), and held by no agent yet;
-  - `label`, given;
-  - `kind`, one the roles policy names a role for: `chat`, `worker`, `runner` or `gate`;
-  - `role`, a role the store holds, the kind's own where none is given (`docs/agent-roles.md`);
-  - `ownerAccount`, none where the caller gives none;
-  - for any kind, `icon`, `thinking`, and `effort`, a level the reasoning policy holds;
-  - for the `chat` kind, its pin and its worker, judged as a companion's are (`docs/companions.md`,
-    「Where a companion and its rooms come from」): `provider`, `model` and `worker`. The row is written
-    as a companion added on the console is: the `room` scope, the `pieces` shape, not the default
-    answerer, the brain folder `agents/<name>`, and no prompt folder;
-  - for the `worker` kind, `cwd`, the code tree's root where none is given, and `nodeName`.
-  - A row of the `runner` or `gate` kind is its name, label, role and owner: what its runs
-    go out on is read by its name off the work keys (`docs/model-tiers.md`), so it runs nothing until a
-    work key's profile names it.
-  - No agent registered here is seeded or the default answerer.
-- **A refusal names its field:** 400 `bad-request` with `field` beside `error`, and 409 `name-taken`
-  for a name an agent already holds.
-- **The answer is 201,** `agent`, the agent as `GET /agents/{agentName}` answers it, and `brain`, what
-  became of its brain: `made`, `kept` where one already stood under its key, `none` where no brain is
-  deployed or the agent is given none, or `failed`, the failure logged. The registration stands whatever
-  the brain answers.
-- **An agent of the `chat` kind, or holding the chat role, is given its brain as it is registered,**
-  through the brain (「Calls agency makes」): filed under its owner's id as the account key where it names
-  an owner, and under `AGENCY_BRAIN_ACCOUNT` where it names none.
-- **`PATCH /agents/{agentName}` changes the fields the body names:** `gates`, `reasoning`, `role`,
-  `voice`, and `model`, the agent's own model (`docs/model-tiers.md`, 「An agent's own model」):
-  - `{"method": "fixed", "provider": <provider>, "model": <model>}` pins an agent of any kind to one model
-    of a provider: a model the Claude CLI's catalogue names on `claude-code`, a member of a provider's own
-    road, an offered registration on `registered` — one with an address or naming a card service;
-  - `{"method": "fixed", "registration": <name>}` pins it to a registered model by the registration's
-    name alone;
-  - `{"method": "route"}` lets the supervisor key's road carry it and clears its pin, and is taken by a
-    chat agent alone — the chat agent and every companion alike.
-  - A refusal of the model is 400 `bad-request` with `field` beside `error`: `model.method` for a method
-    that is neither or a route asked for an agent that is no supervisor, `model.provider` for a provider
-    agency does not carry or one whose program does not carry the agent's line, `model.model` for a
-    model the provider does not hold — a catalogue that reads and does not name it, a member its road does
-    not hold, a registration with no address — and `model.registration` for a name the registry holds no
-    registration under. A catalogue that cannot be read refuses nothing. A worker's standing program is
-    stood again on a new pin.
-  - A `role` the store does not hold is refused 400.
-- **`DELETE /agents/{agentName}` ends a registration,** taking `force`, `forgetBrain` and `rooms` in its
-  query:
-  - 404 `not-found` for no agent of the name;
-  - 409 `seeded` for an agent the deployment seeds or the default answerer, whatever `force` says, since
-    the deployment stands it again;
-  - 409 `running` for an agent a turn holds now — its agent lock, or a worker's pane lock — unless
-    `force`, which ends it under the turn.
-  - A companion's conversation is reset first, as its removal resets it (`docs/companions.md`, 「Starting
-    it afresh」), each of the `rooms` named read as a room it shares, so the rooms keep their record.
-  - Then in one write its settings, its base prompt choice, its session reset asks, its gate switches, its
-    sampling, its reset point, a worker's sessions and the words said to it, and its row; then what
-    stands for it: its program, its workspace, its place and home folder, its execution rows, the agent
-    host's records of it and its lock. What could not go is logged.
-  - **Its brain is data and stays,** unless `forgetBrain` is true: then the brain is let go whole, with
-    the harness records kept in its folder.
+- **Every supervisor is a row** (`docs/supervisors.md`), and these routes add, change and end any of them:
+  the chat agent and the companions alike.
+- **A supervisor is owned by a login account,** `ownerAccount`: the id of the user it belongs to, the same id
+  an account's `user_id` names (`docs/store.md`). None means the administrator's. Who may register or end
+  which supervisor is the caller's to judge; agency writes the owner it is handed.
+- **A supervisor answers its row:** `name`, `label`, `ownerAccount`, `aliases`, `sessionScope`, `turnShape`,
+  `defaultAnswerer`, `brainFolder`, `repository`, the repository its TODO items go to; `order`, its provider
+  order (below); `warming`, for each provider of its order whether its prefix is kept warm there;
+  `foldRatio`, its compaction threshold; `gates`, `voice` and `sampling`; and what it stands on now —
+  `provider`, `model` and `effort` its last turn went out on, and `waitingFor`, why its turn waits where no
+  provider of its order has quota, or null.
+- **An order** is a list, each member a provider agency carries, once each: `provider`, `model`, `effort` (a
+  level of the reasoning policy or null), `thinking` (`on`, `off` or null for the provider's own) and, on the
+  registry's provider, `answerTokens` or null; beside it `quotaShare`, a fraction from 0 to 1, 0.01 where none
+  is set (`docs/provider-order.md`, 「What an order is」). The same shape is a role's.
+- **`POST /supervisors` takes the registration,** each field judged in this order and nothing written until
+  all have passed: `name`, a lowercase letter, then lowercase letters, digits and hyphens, forty characters at
+  most, held by no supervisor yet; `label`, given; `order`, judged as an order is (below); `repository`, a
+  repository the store holds; `ownerAccount`, none where the caller gives none; and `foldRatio`, the first
+  provider's declared default where none is given. The row is written as a companion added on the console
+  is: the `room` scope, the `pieces` shape, not the default answerer, the brain folder `agents/<name>`, and no
+  prompt folder.
+- **An order is refused** 400 `bad-request` with `field` beside `error`, naming the member: an empty order, a
+  provider agency does not carry or named twice, a provider whose program does not carry the chat line, a
+  model the provider does not hold — a catalogue that reads and does not name it, a member its road does not
+  hold, a registration with no address — an effort the model does not take, and a share outside 0 to 1. A
+  catalogue that cannot be read refuses nothing.
+- **The answer is 201,** `supervisor`, as the read answers it, and `brain`, what became of its brain:
+  `made`, `kept` where one already stood under its key, `none` where no brain is deployed, or `failed`, the
+  failure logged. The registration stands whatever the brain answers; the brain is filed under its owner's
+  id as the account key where it names an owner, and under `AGENCY_BRAIN_ACCOUNT` where it names none.
+- **`PATCH /supervisors/{supervisorName}` changes the fields the body names:** `label`, `order`, `warming`,
+  `foldRatio`, `repository`, `gates`, `sampling` and `voice`, each judged as the registration judges it. A
+  changed order reaches the supervisor's next turn; a turn already going finishes where it went out.
+- **`DELETE /supervisors/{supervisorName}` ends a registration,** taking `force`, `forgetBrain` and `rooms` in
+  its query:
+  - 404 `not-found` for no supervisor of the name;
+  - 409 `seeded` for a supervisor the deployment seeds or the default answerer, whatever `force` says;
+  - 409 `running` for a supervisor a turn holds now, unless `force`, which ends it under the turn.
+  - A companion's conversation is reset first, as its removal resets it (`docs/companions.md`, 「Starting it
+    afresh」), each of the `rooms` named read as a room it shares, so the rooms keep their record.
+  - Then in one write its settings, its session reset asks, its gate switches, its sampling, its reset point
+    and its row; then what stands for it: its program, its workspace, its place and home folder, its
+    execution rows, the agent host's records of it and its lock. What could not go is logged.
+  - **Its brain is data and stays,** unless `forgetBrain` is true.
   - The answer is 204.
 
-### agent-roles
+### roles
 
 | Method | Path | Does |
 |---|---|---|
-| GET | `/agent-roles` | Every role an agent may hold, and every bundle a role may give. |
-| POST | `/agent-roles` | Add a role. |
-| PATCH | `/agent-roles/{roleName}` | Change a role's label, bundles, bound, prompt, tier or sessions. |
-| DELETE | `/agent-roles/{roleName}` | Remove a role no agent holds and no kind is for. |
+| GET | `/roles` | Every role, every bundle a role may give and every line a role may name. |
+| POST | `/roles` | Add a role. |
+| GET | `/roles/{roleName}` | One role, with how many of its runs go and wait. |
+| PATCH | `/roles/{roleName}` | Change any field of a role. |
+| DELETE | `/roles/{roleName}` | Remove a role no run holds or waits for and no default names. |
+| GET | `/roles/{roleName}/sessions` | The sessions the role's runs opened, newest first. |
 
-- **The roles are the store's rows** (`docs/agent-roles.md`, 「The roles」), and these routes are the one
-  way to change them; `GET /roles` is the co-worker pool's and lists the co-worker roles, not these.
-- **`GET /agent-roles` answers `roles` and `bundles`.** Each role, in the order a screen lists them, is
-  `name`; `label`; `bundles`, each `name` and `label`; `maxConcurrent`, its bound or null; `prompt`, its
-  text or null; `tier`, the assignment of its work key `role:<name>` or null where none is assigned;
-  `sessions`, `keep` where its runs go on in the session an earlier run left while its cache is warm and
-  `fresh` where each run opens its own (`docs/agent-roles.md`, 「A role's sessions」); `agents`, how many
-  agent rows hold it; and `kindDefault`, whether a kind's own is it. `bundles` beside
-  them is every bundle the policy declares, each `name` and `label`, in the policy's order.
-- **`POST /agent-roles` takes `name`, `label` and `bundles`,** and may add `maxConcurrent`, `prompt`,
-  `tier` and `sessions`, `keep` where it names none, and answers 201 with the role as the listing answers it. It is refused 422
-  `unprocessable-entity`, with one English sentence and nothing written, for:
-  - a name out of the roles policy's pattern or past its length, or one a role or a co-worker role holds;
-  - an empty label, or one past the policy's length;
-  - `bundles` that is no list of names, or a bundle the policy does not declare;
-  - a bound that is no whole number of one or more;
-  - a prompt that is not text;
-  - a tier the ladder does not hold;
-  - `sessions` other than `keep` or `fresh`.
-- **A tier given is the role's key's assignment,** written in the same write as the role, as the tier
-  settings write one (「work-keys, road-blocks and launch-room」), so the key stands in `GET /work-keys` from
-  then on and is changed there as well as here.
-- **`PATCH /agent-roles/{roleName}` changes the fields the body names** and answers 200 with the role: any
-  of `label`, `bundles`, `maxConcurrent`, `prompt`, `tier` and `sessions`, each judged as `POST` judges it. A
-  `maxConcurrent` or a `prompt` given as null clears it, and a `tier` given as null takes the key's
-  assignment away. 404 `not-found` for a role the store does not hold.
-- **`DELETE /agent-roles/{roleName}`** answers 204, the role and its key's assignment gone in one write;
-  404 `not-found` for a role the store does not hold, and 409 `conflict` while an agent row holds it or a
-  kind's own is it.
+- **The roles are the store's rows** (`docs/agent-roles.md`, 「What a role row holds」), and these routes are
+  the one way to change them.
+- **A role is answered with every field of its row:** `name`; `code`, its kebab-case word, which is its
+  name; `label`; `prompt`, its text or null; `description`, its text or null; `bundles`, each `name`, `code`
+  (the name with each dot a hyphen, so `room.chat` is `room-chat`) and `label`; `line`; `order`, its provider
+  order in the shape a supervisor's is (「supervisors」); `maxConcurrent`, its cap; `sessions`, `keep` or
+  `fresh`; `foldRatio`, its compaction threshold; `callable`, whether a run may call it as a co-worker; and
+  what stands of it now: `running` and `waiting`, how many of its runs go and wait, `provider`, its active
+  provider, or null where none of its order has quota, and `waitingFor`, why its runs wait, or null.
+- **`GET /roles` answers `roles`, `bundles` and `lines`:** every role in the order a screen lists them, every
+  bundle the policy declares with its `name`, `code` and `label`, and every line agency carries a role may
+  name.
+- **`POST /roles` takes `name`, `label`, `bundles`, `line`, `order` and `maxConcurrent`,** and may add
+  `prompt`, `description`, `sessions` (`keep` where it names none), `foldRatio` (the first provider's declared
+  default where none is given) and `callable` (false where it names none), and answers 201 with the role. It
+  is refused 422 `unprocessable-entity`, with one English sentence and nothing written, for a name out of the
+  roles policy's pattern or past its length or already held; an empty label or one past the policy's
+  length; a bundle the policy does not declare; a line agency does not carry; an order refused as a
+  supervisor's is, its provider judged against the role's line; a cap that is no whole number of zero or
+  more; a prompt or description that is not text; and `sessions` other than `keep` or `fresh`.
+- **`PATCH /roles/{roleName}` changes the fields the body names** and answers 200 with the role, each judged as
+  `POST` judges it; a `prompt` or `description` given as null clears it. 404 `not-found` for a role the store
+  does not hold. A change reaches the role's next run; a run already let in finishes under the row it began
+  under, and a raised cap lets in at once the waiting runs it frees.
+- **`DELETE /roles/{roleName}`** answers 204; 404 `not-found` for a role the store does not hold, and 409
+  `conflict` while a run of it goes or waits, or for a role the roles policy names as a default.
+- **`GET /roles/{roleName}/sessions` answers `items`,** the sessions the role's runs opened, newest first, a
+  page asked with `before` and `limit`, each with its `sessionId`, `path`, `provider`, `model`, `effort`,
+  `account` (null off a provider that holds logins), `openedAt` and `lastAnsweredAt` in epoch milliseconds,
+  `runs`, how many runs it carried, `context`, the tokens its last answered turn carried and the share of the
+  window they filled, and `valid`, whether the next run of that key would resume it (`docs/sessions.md`,
+  「The session history of a role」).
 
 ### prompt-documents
 
@@ -273,55 +247,53 @@ The hook point is `turn-submitting`, registered by the gate and the receiver. `r
 | Method | Path | Does |
 |---|---|---|
 | GET | `/sessions` | Every session, by agent or scope. |
-| POST | `/sessions` | Start a session for an agent at a scope. A run on a runner line is an apart session handed that line's instructions. |
+| POST | `/sessions` | Start a session at a scope: a supervisor's, a role's run at a path, or a conversation. |
 | GET | `/sessions/{sessionId}` | A session's state: provider, model, place, holder, why the prefix changed, the fold ratio. |
-| PATCH | `/sessions/{sessionId}` | Move a conversation's provider and model, or an apart session's model, or hand a worker's session over to another holder. |
+| PATCH | `/sessions/{sessionId}` | Move a conversation's provider and model, or hand a role's kept session over. |
 | DELETE | `/sessions/{sessionId}` | End a session, or clear a room's session. |
-| POST | `/sessions/{sessionId}/turns` | Send a turn into a session; words to a worker are a turn into its session. |
+| POST | `/sessions/{sessionId}/turns` | Send a turn into a session. |
 | GET | `/sessions/{sessionId}/turns/{turnId}` | A turn and what it has written so far. |
 | PATCH | `/sessions/{sessionId}/turns/{turnId}` | Interrupt a turn. |
 | POST | `/sessions/{sessionId}/turns/{turnId}/inputs` | Push words into a working turn. |
 | POST | `/sessions/{sessionId}/answers` | Answer a question a turn asked. |
 | POST | `/sessions/{sessionId}/folds` | Fold a session, compacting its context. |
 
-A job's run is a worker's session turn with the work parts in the turn's context. A session is started at
-one scope — `agent`, `room`, `worker`, `apart` or `conversation` — and the scope says what is
-kept. Its id names the agent and the scope: the agent's name alone for an agent's session,
-`<agent>@<room>` or `<agent>@worker` for a room's or a worker's, and a
-number the service gives it for an apart session (`<agent>@apart:<n>`) and a conversation
-(`<agent>@conversation:<n>`), so every start of one of those is a session of its own.
+A job's run is a role's run with the work parts in the turn's context. A session is started at one scope —
+`agent` or `room` for a supervisor, `role` for a role's run, or `conversation` — and the scope says what is
+kept. Its id names its owner and the scope: the supervisor's name alone for its session, `<supervisor>@<room>`
+for a room's, and a number the service gives it for a role's run (`<role>@run:<n>`) and a conversation
+(`<supervisor>@conversation:<n>`), so every start of one of those is a session of its own.
 
 A conversation is the caller's: its start names the provider, the model and, where it names one, the
 folder its turns go out on, and its turns are ordinary prompts with the context around them and no work
-parts. A provider whose program keeps a session continues the one its last answered turn left; OpenRouter
-keeps its dsh session inside bmo-tui's pane, which carries the next turn although agency stores no id for
-it. The session stands in the server's memory from its start to its end.
+parts. A provider whose program keeps a session continues the one its last answered turn left. The session
+stands in the server's memory from its start to its end.
 
-An apart session's turn is a co-work branch's, or a run on a runner line whose instructions the session's
-caller handed in (below). Every apart session but a co-work branch's — one whose scope names no branch
-role — carries the reference its first prompt's instruction calls for, picked by the gate's reference
-selection over the chat agent's brain and attached to that first prompt, the same way a job's is
-(「assignments and jobs」); a later turn of the same session is asked over it and not over it again. A co-work
-branch's prompt is composed by its parent and carries none.
+A role's session is the session of one run of a role (`docs/agents.md`, 「A run in a pane of its own」). Its
+start names `role`, a role the store holds, refused 422 `unknown-role` otherwise, and `cwd`, the path the run
+works at, the line's own deployed directory where it names none; the run goes out on the role's line, holds a
+slot of the role its caller was let in on (「slots, reservations and places」), and goes out on the provider and
+model that slot carries. Every role's session but a co-work branch's carries the reference its first prompt's
+instruction calls for, picked by the gate's reference selection over the chat agent's brain and attached to
+that first prompt, the same way a job's is (「assignments and jobs」); a later turn of the same session is
+asked over it and not over it again. A co-work branch's prompt is composed by its parent and carries none.
 
-An apart session goes out on a runner line with its instructions handed in whole, for a consumer that
-composes its own — the research unit, which asks for the seats and the sessions its searches, browses,
-rounds and branches go out in, is one: the start names `line`, the runner line (`search` or `browse`), and
-`systemPrompt`, the instructions — the platform's harness opening and then that text, as one system prompt,
-with the line's standing MCP configuration and the tools it allows (`docs/launch-lines.md`, 「Search runner」
-and 「Browse runner」). `systemPrompt` with no line is refused 400. A turn into such a session carries work
-parts as every apart session's turn does, and goes out on that line whole, on the model the scope
-names and the effort and tier the turn's mapping names, never in a standing branch checkout. Its folder is
-the scope's `cwd`, or the line's own deployed directory where the start names none. Its prompt is the
-caller's, whole, and its answer is the run's reply text. Its turns carry no clock: each lasts until it ends
-or is stopped. A start that hands no instructions goes out on the worker line.
+A role's session may be handed its instructions whole, for a consumer that composes its own — the research
+unit, which asks for the slots and the sessions its searches, browses, rounds and branches go out in, is one:
+the start names `systemPrompt`, the instructions — the platform's harness opening and then that text, as one
+system prompt, with the role's line's standing MCP configuration and the tools it allows
+(`docs/launch-lines.md`, 「Search runner」 and 「Browse runner」). A turn into such a session carries work parts
+as every role's session's turn does, and goes out on the role's line whole, never in a standing branch
+checkout. Its prompt is the caller's, whole, and its answer is the run's reply text. Its turns carry no clock:
+each lasts until it ends or is stopped. A start that hands no instructions opens on the role's prompt.
 Beside them the start may name:
 
-- **`provider` and `model`:** the road its turns go out on, any provider agency carries whose program carries
-  the line (`docs/launch-lines.md`, 「Providers and what a route may promise」) — Claude Code, a
-  member road such as DeepSeek's, or the registry's provider under a registration's name — Claude Code where
-  the start names no provider. A provider agency does not carry, one the owner switched off, or one whose
-  program does not carry the line is refused 503 `line-not-carried`, the sentence saying which.
+- **`provider` and `model`:** a named road its turns go out on in place of the slot's, any provider agency
+  carries whose program carries the line (`docs/launch-lines.md`, 「Providers and what a route may promise」)
+  — Claude Code, a member road such as DeepSeek's, or the registry's provider under a registration's name. A
+  provider agency does not carry, one the owner switched off, or one whose program does not carry the line is
+  refused 503 `line-not-carried`, the sentence saying which. A conversation names its road this way, and
+  Claude Code is a conversation's where it names none.
 - **`demandId` and `within`:** on a registration naming a card service, a granted demand of the caller's
   own that every turn of the session stands on, with no other asked, or the caller's granted demand each
   turn's own is asked within (`docs/own-llm.md`, 「An engine the arbiter stands」); each a demand's id, a
@@ -329,27 +301,17 @@ Beside them the start may name:
 - **`labels`:** an object the session's record carries, each key and its value written under that key of the
   record's `labels`, for the placed tools that read them; a key agency writes itself — `line`, `checkout`,
   `archive`, `role` and `place` — is refused 400.
-- **`toolsAllowed`:** the capabilities the record keeps, of those the line and its agent's role give it; a
+- **`toolsAllowed`:** the capabilities the record keeps, of those the line and the session's role give it; a
   record keeps them all where the start names none, and the list never widens them.
 
-On Claude Code each turn of such a session goes out in a pane of its own, a run apart on the session the
-role of the session's agent gives it: a warm one the agent's last run of the same command left where the
-role keeps sessions, a new one where it does not (`docs/agents.md`, 「Runs apart」). On a road whose program carries its own turns each turn goes into a place of
-the session's own, the program composed as a worker's job on that road is, the line's instructions its system
-prompt and the line's servers its tools; the place is marked as the session's, stands under no agent's row,
-and is ended with the session — its program released, the session token it carried taken back, its workspace
-closed and its folder taken away. A server that starts ends every such place the process before it left, since
-an apart session does not outlive the process that started it; before it takes one down it writes to its log
-what it found there — the program the place records, whether that process is alive, and what the pane's head
-was last answered — after closing the liveness rows that process left open. Agency asks nothing of such a
-session after a turn's answer: any further turn, a round among them, is its caller's.
-
-A conversation whose agent is a gate work key carries a gate's one turn: the turn's `gate` part holds the
-gate's instructions as the program's whole system prompt, whether it thinks, and the model, effort and
-answer room its mapping resolved to. The turn goes out with no tools and no MCP server, and its answer is
-the gate's verdict. On a road whose program carries its own turns it goes into a place standing for the
-program its ask composes, whose session goes on across judgements up to a bound, several such places
-running at once (`docs/agent-control.md`, 「A gate's places」); on every other road it keeps no session.
+Each turn of a role's session goes out in a pane of its own, on the session the role gives it: the one kept
+for the role at the path on the provider and model where the role keeps sessions and it is valid, a new one
+otherwise (`docs/sessions.md`, 「A role's session」). Agency asks nothing of such a session after a turn's
+answer: any further turn, a round among them, is its caller's. A server that starts ends every role's session
+the process before it left, since a role's session does not outlive the process that started it; before it
+takes one down it writes to its log what it found there — the program the place records, whether that process
+is alive, and what the pane's head was last answered — after closing the liveness rows that process left
+open. The kept session it answered on stays for the next run of its key.
 
 A turn's context may name `round`, the receiver's name for the round of the room the turn belongs to,
 which the turn's run keeps (「runs」 below).
@@ -359,38 +321,32 @@ brain, read at the turn's launch (「Calls agency makes」). The turn context's 
 standing in that place only where the brain gives none (`docs/sessions.md`, 「Document reload」).
 
 A room's session is readable by its id from its start, before its first turn has opened a generation:
-the read answers the provider, model and place its agent's row names, at generation 0, and its first
-turn opens the first generation on that road. A start writes nothing of the session, so the list of
-sessions names a room's once its first turn has opened one. An agent's session is readable once its
-agent holds one; an agent whose provider's program carries its own turns, dsh's, holds no session id of
-its own, its turns going through its resident's inbox, so its session is readable from its start as a
-room's is: the provider and model its row pins it to, else those its last answer went out on, its
-resident's context and that provider's `foldRatio`.
+the read answers the provider and model its supervisor's order gives it now and its place, at generation 0,
+and its first turn opens the first generation on that road. A start writes nothing of the session, so the
+list of sessions names a room's once its first turn has opened one. A supervisor's session is readable once
+the supervisor holds one; a supervisor whose provider's program carries its own turns, dsh's, holds no session
+id of its own, its turns going through its resident's inbox, so its session is readable from its start as a
+room's is: the provider and model its last answer went out on, else those its order gives it now, its
+resident's context and its `foldRatio`.
 
 A conversation moves its provider and model on the change route, each left as it stands where the body
-names only the other, and starts its next turn on a fresh session where the road keeps one. An
-apart session's provider and model move the same way, onto a provider whose program carries its line;
-one that names no line goes out on Claude Code alone. A hand-over is a worker's alone: it closes the worker's held
-session on the model and drops the record, handing nothing to the next turn, and the holder the body
-names is kept for the session's state; a worker with nothing open keeps the holder alone. An agent's and
-a room's session go out on the provider and model their agent's row names, and that row is where those
-move. `holder` and `prefixChangeReason` are read back on the session wherever it is listed or read. A
-worker's state answers the provider its session stands on: the provider the worker is pinned to, else the
-one its held session last answered on, else `claude-code`.
+names only the other, and starts its next turn on a fresh session where the road keeps one. A hand-over is a
+role's kept session's: it closes the session kept for the role at that path on that provider and model and
+drops its record, handing nothing to the next run, and the holder the body names is kept for the session's
+state. A supervisor's and a room's session go out on the provider and model the supervisor's order gives
+them, and its row is where those move. `holder` and `prefixChangeReason` are read back on the session wherever
+it is listed or read.
 
 A session's state carries `foldRatio`: the share of its model's window its context may fill before the
-session is folded once the turn that crossed it is over. It is the fold-ratio table's value for the
-provider the state names and the tier its agent's work key is assigned (「fold-ratios」 below), read
-afresh with each read, so a change on the console reaches the next read of every session. A room's and an
-agent's session carry `context` beside it,
-the context their last turn left — `carried`, its tokens, and `window`, the model's window — or null
-where no turn has ended on it since agency's process started or since it last folded or ended; on a
-resident program that carries its own turns it is read off the program's record, its last answer against
-the latest window the record names (`docs/sessions.md`, 「Session compaction」). Beside it stands
-`foldsItself`: true for a room's or an agent's session on such a program, which compacts itself at the
-session's `foldRatio` and takes no fold call, and false for every other session. It carries
-`tier` beside it: that tier, by its name, or null where the key is assigned none, so a consumer keyed by
-tier matches the session by the tier the agency reads it at.
+session is folded once the turn that crossed it is over, the compaction threshold of its supervisor or its
+role, read afresh with each read, so a change on the console reaches the next read of every session. A room's
+and a supervisor's session carry `context` beside it, the context their last turn left — `carried`, its
+tokens, and `window`, the model's window — or null where no turn has ended on it since agency's process
+started or since it last folded or ended; on a resident program that carries its own turns it is read off the
+program's record (`docs/sessions.md`, 「Session compaction」). Beside it stands `foldsItself`: true for a
+room's or a supervisor's session on such a program, which compacts itself at the session's `foldRatio` and
+takes no fold call, and false for every other session. It carries `supervisor` or `role` beside them, the row
+the session runs for, so a consumer whose settings are kept per supervisor matches the session by it.
 
 A turn sent is carried to its end whether or not its sender still waits on the send: a sender that lets
 go of the request, or goes down while the turn works, leaves the turn running, and the turn ends as it
@@ -518,240 +474,164 @@ out and the paths the call changed.
 | PUT | `/stop-marks/{jobId}` | Mark a job to stop: its turn's end writes it `stopped` with the mark's reason, and it goes out on no further road. |
 | DELETE | `/stop-marks/{jobId}` | Clear a job's stop mark. |
 
-### pool, seat-requests, reservations and roles
+### slots, reservations and places
 
 | Method | Path | Does |
 |---|---|---|
-| GET | `/pool` | The co-worker pool: buckets, seats, waiting work. |
-| GET | `/seat-requests` | Open seat requests, by owner or waiting. |
-| POST | `/seat-requests` | Ask for a co-worker seat; the tier is resolved from the work key. |
-| GET | `/seat-requests/{token}` | One seat request. |
-| PATCH | `/seat-requests/{token}` | Move a seat request: admitted, bound to its launched unit, finished. |
-| GET | `/delegations` | The tasks an agent delegated, each with its title, stage, helper agent and start. |
-| GET | `/reservations` | Held seat reservations. |
-| POST | `/reservations` | Reserve seats for an owner. |
+| GET | `/slots` | Every role's slots: the runs let in, reserved and waiting. |
+| GET | `/slot-requests` | Open slot requests, by role, by owner or waiting. |
+| POST | `/slot-requests` | Ask for a slot of a role; its provider and model are the role's order's. |
+| GET | `/slot-requests/{token}` | One slot request. |
+| PATCH | `/slot-requests/{token}` | Move a slot request: admitted, bound to its launched run, finished. |
+| GET | `/delegations` | The tasks a supervisor delegated, each with its title, stage, role and start. |
+| GET | `/reservations` | Held slot reservations. |
+| POST | `/reservations` | Reserve slots of a role for an owner. |
 | PATCH | `/reservations/{token}` | Release a reservation with its outcome. |
-| GET | `/roles` | The roles the pool can lend. |
-| PATCH | `/pool/limits` | Set how many children of one co-worker tier may be alive on one provider. |
-
-A seat is asked under a role: a co-worker role the pool lends (`GET /roles`), or an agent role whose
-`role:<name>` key is assigned a tier a co-worker is borrowed at (「agent-roles」), and is refused 422 under
-any other.
-
-A seat request answers its `state` — `waiting` in its bucket's line, `reserved` under a reservation,
-`active` once let in, and `released` or `cancelled` once given back — and the `provider`, `model`,
-`effort` and `tier` its work key resolved to, `effort` null where the mapping names none. A seat is asked
-for admission by a `PATCH` naming no `bound` or `finished` state, which answers `{ "request": <seat or
-null> }`: the seat, `active`, where it is let in now or was already, and null where its turn has not come,
-a reservation lets it in rather than its token, or it was given back; a seat still `waiting` is asked
-again. A seat's admissions are its owner asking: the line keeps the order seats were asked for in, and a
-place goes to the first waiting seat whose owner is asking now (`docs/coworker-pool.md`, 「Requests and
-leases」). A seat ahead whose owner has not asked since the asker's own last admission keeps its place and
-is passed over, never dropped, and is next again once its owner asks again; an owner that knows itself
-gone takes its seat out by cancelling it. A `PATCH` with `{ "state": "bound", "childId": … }`
-binds an active seat to the unit it launched and answers the seat. A seat is given back with `{ "state":
-"finished", "outcome": … }`, and cancelled, where it never ran, with `{ "state": "finished", "cancel":
-true, "outcome": … }`; either answers `{ "held": <bool>, "stoodDown": <bool>, "note": <text or null> }`,
-whether the seat was still held, and whether the asking run's own card was lent for it.
-
-A seat on a registration naming a card service asks its demand once the pool lets it in (`docs/own-llm.md`,
-「An engine the arbiter stands」): the admission answers `demand` beside `request` — its `id`, `state`,
-`nodeName` once a card is granted and `reason` while it waits, null on any other seat — and answers
-`request` null until the card is granted, the caller asking again, with no clock of agency's. The demand is
-read as it stands, never held open at the master, so every admission answers at once and the caller's own
-pace sets how long it waits for its card. An admission
-may name `demandId`, a granted demand of the caller's own the seat stands on: the seat then asks none of its
-own, whatever registration it resolved to, and the admission answers that demand, read as it stands, as
-`demand`, and `request` null while no card is granted it; a demand the master no longer holds is refused
-400 `demand-gone`, and the seat's finish gives nothing back, the demand staying the caller's. An admission
-may instead name `within`, the asking run's granted demand the seat's own is asked within. Either is a
-demand's id, a positive whole number, refused 400 otherwise. The seat's child stands on the demand the seat
-stands on, the caller's own or the one the seat asked, by naming its id as the session's `demandId`. A
-demand the seat asked is given back as the seat is finished, or, whatever ended its lease, on the pool's next
-minute; where the asking run's card was lent, the finish answers once the run's demand is granted again and
-its engine answers health, with `stoodDown` true and `note` the sentence the run is told.
-
-`PATCH /pool/limits` takes `provider`, `tier` and `capacity` and answers 200 with the three as written
-(`docs/coworker-pool.md`, 「Concurrency limits」). It is refused 422 `unprocessable-entity`, with one English
-sentence, for a provider agency does not carry, a tier the ladder does not hold or one no co-worker is
-borrowed at, and a capacity that is no whole number from 0 to the most the pool policy allows. The
-written limit lets in at once the waiting places it frees.
-
-A seat request may carry `title`, one line naming the work it is asked for, and `askedBy`, the agent that
-asked for it, each kept as given and answered on the seat; a `PATCH` binding it may name `agentName`, the
-agent its child runs on, kept and answered as `agentName`. Each is null where none was named.
-
-`GET /delegations` answers `items`, the seats asked under the source `delegate` (`docs/tools.md`, 「The
-delegate」), narrowed to one asking agent by `askedBy`: the ones still waiting or running in the order they
-were asked, then the latest ended, newest first, `ended` of them (10 where it names none). Each is `token`;
-`title`; `askedBy`; `stage`, `waiting` while its seat waits in the line, `running` once it is let in, and
-`ended` once it is finished or cancelled; `agentName`, the helper agent its turn runs on, or null before it
-is bound; `role`; `askedAt`, `runningSince` and `endedAt` in epoch milliseconds, each null until it comes;
-and `outcome`, what it came to once ended. A count that is no whole number from 0 is refused 400.
-
-A seat request carries its `session` where it stands for a project's own turn: the session that turn
-continues, or null where the worker's earlier session was cold or past its model's context
-(`docs/coworker-pool.md`, 「A project's own session」). A borrowed child's seat names no session.
-
-### places
-
-| Method | Path | Does |
-|---|---|---|
 | GET | `/places` | Branch places, by node and checkout. |
 | POST | `/places` | Take a branch place and its folder. |
 | GET | `/places/{placeId}` | One place. |
 | PATCH | `/places/{placeId}` | Prepare, remember or retire a place, or record its last write. |
 
-A place's id is its path, percent-encoded in the path segment. A list without a node names the standing
-branch checkouts under the data root — one for each slot of each pool, its slot, the role that last ran in
-it, whether a pool request holds it now (`taken`) or a branch last answered in it (`remembered`), and the
-write it last took. `checkout` narrows the list to that checkout's pool; `nodeName` with `checkout` names
-the shadow the node's link keeps of that checkout instead.
+A slot is asked under a role the store holds (「roles」), with the source, the owner and the request key its
+caller names and the path its run will work at, and is refused 422 `unknown-role` under any other
+(`docs/role-slots.md`, 「Who takes a slot」). An ask may name `provider` and `model`, a road the run goes out on
+in place of the role's order — a delegation as its supervisor's double, a native call on its caller's
+provider — and `placeKey`, the key only one active request holds at once.
 
-### providers, models, pin-checks, tiers and fallback
+A slot request answers its `state` — `waiting` in its role's line, `reserved` under a reservation, `active`
+once let in, and `released` or `cancelled` once given back — and the `role`, `path`, `provider`, `model` and
+`effort` it is let in on, `effort` null where the order names none, and `heldFor`, why it waits where its
+provider has no quota, or null. A request is asked for admission by a `PATCH` naming no `bound` or
+`finished` state, which answers `{ "request": <request or null> }`: the request, `active`, where it is let in
+now or was already, and null where its turn has not come, a reservation lets it in rather than its token, or
+it was given back; a request still `waiting` is asked again. A request's admissions are its owner asking: the
+line keeps the order requests were asked in, and a slot goes to the first waiting request whose owner is
+asking now and whose provider has quota (`docs/role-slots.md`, 「The line」). A `PATCH` with `{ "state":
+"bound", "childId": … }` binds an active request to the run it launched and answers the request. A request is
+given back with `{ "state": "finished", "outcome": … }`, and cancelled, where it never ran, with `{ "state":
+"finished", "cancel": true, "outcome": … }`; either answers `{ "held": <bool>, "stoodDown": <bool>, "note":
+<text or null> }`.
+
+A slot on a registration naming a card service asks its demand once the line lets it in (`docs/own-llm.md`,
+「An engine the arbiter stands」): the admission answers `demand` beside `request` — its `id`, `state`,
+`nodeName` once a card is granted and `reason` while it waits, null on any other slot — and answers `request`
+null until the card is granted, the caller asking again, with no clock of agency's. An admission may name
+`demandId`, a granted demand of the caller's own the slot stands on, refused 400 `demand-gone` where the
+master no longer holds it; or `within`, the asking run's granted demand the slot's own is asked within. A
+demand the slot asked is given back as the slot is finished, or on the line's next minute whatever ended its
+lease.
+
+A slot request may carry `title`, one line naming the work it is asked for, and `askedBy`, the supervisor
+that asked for it, each kept as given; a `PATCH` binding it may name the run its child is. Each is null where
+none was named.
+
+`GET /slots` answers, for every role, its `role`, `maxConcurrent`, `active`, `reserved` and `waiting`, and each
+active run's role, path, provider, model, source and since when, so a screen shows what holds each role's
+slots.
+
+`GET /delegations` answers `items`, the slot requests asked under the source `delegate` (`docs/tools.md`, 「The
+delegate」), narrowed to one asking supervisor by `askedBy`: the ones still waiting or running in the order
+they were asked, then the latest ended, newest first, `ended` of them (10 where it names none). Each is
+`token`; `title`; `askedBy`; `role`; `stage`, `waiting` while its slot waits, `running` once it is let in, and
+`ended` once it is finished or cancelled; `provider` and `model` it runs on; `askedAt`, `runningSince` and
+`endedAt` in epoch milliseconds, each null until it comes; and `outcome`, what it came to once ended. A count
+that is no whole number from 0 is refused 400.
+
+A reservation is asked under a role, an owner, a key and a count, and answers its token and the requests that
+stand for its slots; reserving again with the same key changes only the count (`docs/role-slots.md`,
+「Reserving slots」).
+
+A place's id is its path, percent-encoded in the path segment. A list without a node names the standing branch
+checkouts under the data root — one for each place of each pool, its number, the role that last ran in it,
+whether a run holds it now (`taken`) or a branch last answered in it (`remembered`), and the write it last
+took. `checkout` narrows the list to that checkout's pool; `nodeName` with `checkout` names the shadow the
+node's link keeps of that checkout instead.
+
+### providers, models and model files
 
 | Method | Path | Does |
 |---|---|---|
-| GET | `/providers` | Providers in walk order. |
+| GET | `/providers` | Every provider agency carries, with its switch and what it has left. |
 | GET | `/providers/{providerName}` | One provider. |
-| PATCH | `/providers/{providerName}` | Change a provider. |
-| GET | `/models` | The registry's models, narrowed by provider or tier. |
+| PATCH | `/providers/{providerName}` | Throw the owner's switch on a provider. |
+| GET | `/models` | The registered models. |
 | POST | `/models` | Register a model. |
-| GET | `/models/{modelKey}` | One model and its health. |
+| GET | `/models/{modelKey}` | One registered model and its health. |
 | PATCH | `/models/{modelKey}` | Change a model's registration. |
 | DELETE | `/models/{modelKey}` | Take a model's registration away. |
+| GET | `/provider-models/{providerName}` | The models a provider holds, for an order's chooser. |
 | GET | `/model-catalogue` | The model files the deployment's engines serve, and each engine's latest choice. |
-| POST | `/model-catalogue` | Save or remove a catalogue entry, or choose one for its engine. |
-| POST | `/pin-checks` | Read a worker pin value: auto, a provider, or a provider's model. |
-| GET | `/tiers` | Tiers in ladder order, each with its mapping. |
-| PATCH | `/tiers/{tierName}` | Change a tier's mapping for a role. |
-| GET | `/fallback` | The fallback roads, the Claude accounts and whether the fallback is answering. |
-| PATCH | `/fallback` | Change the fallback roads and the Claude accounts. |
+| POST | `/model-catalogue` | Save or remove a model file's entry, or choose one for its engine. |
+| GET | `/fallback` | The Claude accounts, the account in use and the chosen one. |
+| PATCH | `/fallback` | Add, change, order, switch or choose the Claude accounts. |
 
-Each provider answers `name`, `label`, `enabled`, `registered`, `gateway`, `coworker` and its `lines`. `gateway`
-says its models are served by agency's model gateway — the registry's registrations and the member roads of
-Codex, OpenRouter and DeepSeek — so a gate on it is one request through the gateway; `registered` says the
-models are the registry's registrations alone. |
-
-The fallback's view answers, beside the roads and the work keys, `active`, the agent serving the chat
-now: the `provider` its road answers on, the `account` it walks to where the provider holds logins, its
-`accountName`, how many `accounts` are on, that slot's two headline windows, `session` and `week`, and
-its `balance`, the same shape the accounts list answers, for a provider or an endpoint account that
-offers one and null otherwise;
-and `accounts`, every Claude account with its kind, path, place, switch, login standing, whether it is
-chosen and serving, its rest and its own `session`, `week` and `balance`, the same the accounts list
-answers.
+Each provider answers `name`, `code` (its name, the kebab-case word a screen words it by), `label`,
+`enabled`, `registered`, `gateway`, its `lines`, and `quota`: what it has left as the order reads it
+(`docs/provider-order.md`, 「Quota: what a provider has left」) — `left`, a fraction from 0 to 1 or null where
+it reports none, `window`, the name of the window that counted, `balance` for a provider that keeps one,
+and `resetsAt` in epoch seconds where the counting window names one. `gateway` says its models are served by
+agency's model gateway — the registry's registrations and the member roads of Codex, OpenRouter and
+DeepSeek — and `registered` says the models are the registry's registrations alone. A provider that cannot
+answer now says why twice over (`docs/provider-presence.md`): `reason`, the English sentence, and
+`reasonCode`, its kebab-case code, both null on a provider that can answer.
 
 A provider's change throws the owner's switch on it; the last provider left on is not thrown off, since
-nothing would answer.
+nothing would answer. A provider that is off is passed over by every order (`docs/provider-order.md`, 「The
+owner's switch on a provider」).
 
-A road that cannot be taken says why twice over (`docs/provider-presence.md`): each member of the
-fallback's `order`, and each road a work key is `offered`, answers `reason`, the English sentence, and
-`reasonCode`, its kebab-case code, both null on a road that can be taken; a tier's cell answers its
-provider's as `error` and `errorCode`, the code null where the error is the resolution's own. The codes
-are a provider's own, from its policy file, and agency's `line-not-carried`, a provider whose program does
-not carry the key's line.
+`GET /provider-models/{providerName}` answers the models an order's entry may name on that provider
+(`docs/provider-order.md`, 「Models a provider holds」): Claude Code's from the CLI's catalogue, each with the
+efforts its entry names and whether it is served or superseded, the catalogue's fetch and stale moments, and
+whether the read is the last one kept; a gateway road's members, each with its window, answer ceiling and
+thinking default; the registry's offered registrations. A catalogue that cannot be read answers the
+provider's refusal, never an empty list.
 
-Each work key's member of the fallback's `routes` answers, beside its `routeMode` and `account`, its
-`registration`: the registration the key runs on at the registry's provider in place of its tier's cell,
-or null where it names none (`docs/own-llm.md`, 「A key's own registration」). `PATCH /fallback` with the
-action `set-route-registration`, the `key` and a `registration` sets it; `auto`, an empty name or null
-takes it away. A registration the registry does not hold, or holds with no address, is `bad-request`, and
-the answer is the key and the registration it now names. Every resolution of the key on the registry's
-provider names that registration as its model, `GET /work-keys/{workKey}` among them, with or without a
-`tier` in its query.
-
-A model is one registration of the registry's provider: the list, the create, the read, the change and the
-take-away all read or write the registrations, so the list holds exactly what can be changed and removed. A
-model's key names its provider and the model apart — `provider::model`, or the provider as a query and the
-model in the path. Each answer carries `name` beside its `key`, the registration's own name, which is what
-an agent's fixed model holds on the registry's provider (`docs/model-tiers.md`, 「An agent's own model」). `provider` names the
-registry's provider alone, since every other provider's models are its own catalogue and no route changes
-them; `tier` narrows the list to the registrations that tier maps to.
-A create starts a registration under its own name as its label, at the registry's smallest window and
-answer and with no address, and is refused where the name already stands. `tier`, `healthy` and
-`lastAnsweredAt` are read back: `healthy` is whether the engine answers now, and `lastAnsweredAt` the
-moment it last answered a probe, in seconds, so a screen tells a model that is down from one that has
-never answered; the model behind a registration is what the change edits. Each answer carries `cardService`,
-the arbiter service the registration's engine is or null, and `roleFiles`, whether that service's instances
-keep role files; the create and the change take both, `cardService` a service's name or `none` or null, and a
+A registered model is one registration of the registry's provider: the list, the create, the read, the change
+and the take-away all read or write the registrations, so the list holds exactly what can be changed and
+removed. A model's key names its provider and the model apart — `provider::model`, or the provider as a query
+and the model in the path. Each answer carries `name` beside its `key`, the registration's own name, which is
+what an order's entry and a repository's pin name on the registry's provider. A create starts a registration
+under its own name as its label, at the registry's smallest window and answer and with no address, and is
+refused where the name already stands. `healthy` and `lastAnsweredAt` are read back: `healthy` is whether the
+engine answers now, and `lastAnsweredAt` the moment it last answered a probe, in seconds. Each answer carries
+`usedBy`, every supervisor, role and repository whose order or pin names it, and a take-away is refused 409
+while any does. Each answer carries `cardService`, the arbiter service the registration's engine is or null,
+and `roleFiles`, whether that service's instances keep role files; the create and the change take both, and a
 change names at least one of `model`, `cardService` and `roleFiles`. Naming a card service takes the
 registration's addresses away, and its `healthy` is the arbiter master's (`docs/own-llm.md`, 「An engine the
-arbiter stands」). A registration's addresses are the registry's: each carries `roleFiles`, whether the instance behind it keeps role files
-(`docs/own-llm.md`, 「Role files」), set with `bmo-agency agent --register-address … --role-files on|off`
-(`docs/own-llm.md`, 「Where it is set」), left as it stands where the command names none and off on a new
-address; no route of this boundary sets an address.
+arbiter stands」). A registration's addresses are the registry's, set with `bmo-agency agent
+--register-address`; no route of this boundary sets an address.
 
 The model catalogue is a resource of its own, never of `/models`: the files the deployment's own engines
 serve, each with its sizes, its source, its nodes and the registration it stands behind, and the latest
-choice for each engine. Its entries are not models, and `/models` neither lists nor changes them.
+choice for each engine (`docs/model-catalogue.md`). Its entries are not models, and `/models` neither lists
+nor changes them.
 
-### fold-ratios
+The fallback's view answers `accounts`, every Claude account with its kind, path, place, switch, login
+standing, whether it is chosen and in use, its rest and its own `session`, `week` and `balance`, the same the
+accounts list answers (「accounts, rest and usage」); and `active`, the account runs on Claude Code go out on
+now. Its change takes the account actions `add-account`, `update-account`, `remove-account`, `set-account-order`,
+`set-account-enabled`, `choose-account` and `clear-account-choice` (`docs/cache-fallback.md`, 「The Claude
+Code road is a list of accounts」); the provider order and the route actions are no part of it.
 
-| Method | Path | Does |
-|---|---|---|
-| GET | `/fold-ratios` | Every provider's fold ratio at every tier, each with where it comes from. |
-| PUT | `/fold-ratios/{provider}/{tier}` | Set a provider's fold ratio at a tier. |
-
-A fold ratio is the share of a model's window a session's context may fill before the session is folded
-once the turn that crossed it is over (`docs/sessions.md`, 「Session compaction」), kept per provider and
-abstract tier. The list holds one member for every provider agency declares and every tier in ladder
-order — the grid a console shows — each with its `provider`, `tier`, `ratio` and `source`: `set` where
-the table holds a row, `provider` where the row is missing and the provider's own declared default
-stands, `default` where the provider declares none either and 0.85 stands. A set takes `ratio`, a
-number above 0 and at most 1, writes the row and answers the member; a provider or a tier that is not
-declared is `not-found`, a ratio outside that range `bad-request`. A set reaches the next turn that
-reads it; no session is folded by the set itself.
-
-### work-keys, road-blocks and launch-room
+### road-blocks and launch-room
 
 | Method | Path | Does |
 |---|---|---|
-| GET | `/work-keys` | Every work key with the tier it is assigned, the tiers it may be, and what it resolves to on each provider. |
-| GET | `/work-keys/{workKey}` | Where a work key goes: provider, model, effort, answer tokens, run bound, run mode. |
-| GET | `/road-blocks` | Roads blocked now, by model or worker; none means open. |
+| GET | `/road-blocks` | Roads blocked now, by model or role; none means open. |
 | POST | `/road-blocks` | Block a road until a time. |
 | DELETE | `/road-blocks/{blockId}` | Open a road again. |
 | GET | `/launch-room` | Whether a launch may start, why not, and the jobs and browsers running. |
 | PATCH | `/launch-room` | Record that launches are held, and why. |
 
-The work keys' list is what a tier screen shows beside the ladder `GET /tiers` answers: each member's `key`,
-its `code`, the key in kebab case a screen words it by (`search:basic` is `search-basic`), its `label`, the
-English name its profile gives or null for a key no profile declares, its `tier`, `choices`, the tiers it
-may be assigned, `conflicts`, each `provider`, `previous` and `accepted` for an owner's choice from before the
-tiers kept for review (`docs/model-tiers.md`), and `effective`, for each provider of the registry's archive
-its `provider`, `selection`, the mapping the key resolves to there, and where it cannot go there `error`,
-one short clause, `detail`, the whole of why, and `errorCode`, the kebab-case code every such error
-carries: `provider-off`, `tier-migration-unsettled`, `line-not-carried`, a provider's own presence codes,
-or `tier-unresolved` for a mapping its tier does not give. The fallback's work keys carry the same `code`. A key is assigned a tier by `PATCH /tiers/{tierName}`
-with the action `assign`.
-
-A provider is answered with its `label`, the English name a log keeps, and its `code`, the kebab-case word
-a screen words it by, which is its name: `GET /providers`, the fallback's roads and order, a work key's
-offered roads and the tier screens alike.
-
-A work key's read that names no `provider` walks the road resolution's walk for the key
-(`docs/cache-fallback.md`, 「One road resolution」): the provider the key's route is set to first, then the
-rest of the owner's order from it, each only where it can answer now, and the first that serves the key
-answers. The walk passes over a provider whose program does not carry the key's line (a gate's
-`gate`), the registry's provider where the registration the key's tier maps to there is not walked, a
-provider that cannot answer now — off, its credential missing, its balance spent, no login of it open —
-and a model that is not healthy now: its road shut by a failure still standing or, for Claude Code, by the
-deployment's rest, or a registration whose engine says it stands aside. So a gate, which reads its road this
-way, goes out on the provider its key is set to, and a key set to the registry's provider with a registration
-of its own goes out on that registration.
-
-`runMode` is the road the key stands on: the route the owner wrote for it, else its profile's default —
-`auto` for the walk or a provider's name. A route row naming a road this build does not carry reads as the
-profile's default.
-
 A block is a resource with an id: its selection — `provider::model` — the moment it opens again in epoch
-milliseconds and the reason it was closed. A list returns the blocks whose moment is still ahead, narrowed
-to the roads a named model or worker would walk, and a deletion by that id opens the road again.
+milliseconds and the reason it was closed. A list returns the blocks whose moment is still ahead, narrowed to
+the roads a named model or role's order would take, and a deletion by that id opens the road again
+(`docs/provider-order.md`, 「Falling over and coming back」).
 
-The launch room answers `held`, every reason it is held, the jobs at work and, of those, the ones whose
-place runs a browser. The launcher's own notice is kept beside the machine's reasons and read back with
-them; a notice that holds nothing is withdrawn.
+The launch room answers `held`, every reason it is held, the jobs at work and, of those, the ones whose place
+runs a browser. The launcher's own notice is kept beside the machine's reasons and read back with them; a
+notice that holds nothing is withdrawn.
 
 ### gate kinds
 
@@ -760,16 +640,14 @@ them; a notice that holds nothing is withdrawn.
 | GET | `/gate-kinds` | The gate kinds the gate declared, each with the part of a turn it stands in and its step there. |
 | PUT | `/gate-kinds` | The gate declares its kinds and their order, over the declaration standing. |
 
-- **The gate declares its kinds; agency keeps no copy of the gate order.** A gate kind is a work key whose
-  line is the gate's, and its order — which of them stand before a reply, which after it and which outside
-  any turn — is the gate's own policy (`docs/agent-roles.md`). The agency reads `GET /gates` from the gate
+- **The gate declares its kinds; agency keeps no copy of the gate order.** A gate kind is a judgement the
+  gate service runs on its own, and its order — which of them stand before a reply, which after it and which
+  outside any turn — is the gate's own policy; agency runs no gate and holds no row for one. The agency reads `GET /gates` from the gate
   as it starts and once a minute after, and keeps what the gate answers; `PUT /gate-kinds` is the route the
   gate declares through when it has more to say than that page carries. The declaration is written over
   the one standing whole: a kind the gate no longer names is no kind of a turn.
-- **What a turn reads.** An agent's gate switches (`GET /agents/{agentName}`) and whether its own thinking
-  and effort reach its runs are read from the declared kinds: a gate named there owns no reasoning, and an
-  agent whose turns answer in no room has no gates to switch. Every conversational agent's turn passes the
-  declared kinds; agency keeps no subset of its own.
+- **What a turn reads.** A supervisor's gate switches (`GET /supervisors/{supervisorName}`) are read from the
+  declared kinds. Every supervisor's turn passes the declared kinds; agency keeps no subset of its own.
 - **A declaration names its gates,** each as the gate publishes it: `gateName`, `part` (`pre`, `post` or
   `apart`), `step`, `condition` or null, `switchable`, `layaProbe`, `defaultLayaMode` and `answerTokens`.
   An empty declaration, or one whose kind stands in no turn part, is refused 400 `bad-request`. A gate
@@ -785,7 +663,7 @@ them; a notice that holds nothing is withdrawn.
   (`BMO_GITHUB_WEBHOOK_SECRET` or `BMO_GITHUB_WEBHOOK_SECRET_FILE`); one that does not match is 401
   `bad-signature`, and a deployment naming no secret answers 503 `no-webhook-secret`. An event or an action it
   does not act on is answered 202 as well.
-- **What it does after:** an open pull request a worker holds is filed once as a review item in the job service,
+- **What it does after:** an open pull request on a repository agency holds is filed once as a review item in the job service,
   in the unattended lane only where its author is the repository's `OWNER` or a `MEMBER` and its head stands in
   the same repository, and otherwise as a draft that waits for the owner's approval and is never merged by the
   review; a push is told on that item; a merge opens the held items labelled with the same pull request, and a close is
@@ -813,10 +691,10 @@ them; a notice that holds nothing is withdrawn.
   written. They stand at the head of the input as the translation model's own reference translations, one
   line each, and the instruction after them asks for the translation alone (`docs/launch-lines.md`,
   「Translate runner」). An empty list, or none, asks with the language line alone.
-- **Refusals:** 400 `bad-request` for a purpose it does not know or an empty text or language; 503
-  `no-login-open` with the road resolution's sentence where nothing can carry it; 413 `too-large` where the
+- **Refusals:** 400 `bad-request` for a purpose it does not know or an empty text or language; 413 `too-large` where the
   model refused the part as longer than its window takes, so the caller cuts it smaller; 502 `no-answer`
-  where the road answered with nothing or failed otherwise, naming why.
+  where the road answered with nothing or failed otherwise, naming why. A translation whose role's order has
+  no quota left waits, as every run does (`docs/provider-order.md`, 「When every provider is out」).
 
 ### accounts, rest and usage
 
@@ -835,7 +713,7 @@ consumer gating a room's turn on the rest reads before it lets that turn wait fo
 
 An account is reached one of three ways: a directory holding a login, a token file, or an endpoint — an
 Anthropic-compatible base URL with a key file and an optional map from the `opus`, `sonnet` and `haiku`
-family words to the endpoint's model ids. It may also name a base prompt that a worker's run on it opens
+family words to the endpoint's model ids. It may also name a base prompt that a worker-line run on it opens
 with. The list reports each account's kind, its home and, for an endpoint account, its base URL, key-file
 path and model map; a key's content is never reported. Each directory and token account carries its
 two headline windows, `session` and `week`, as the usage-window store holds them under the account
@@ -852,9 +730,9 @@ change and null on the list. Accounts are added and changed through
 and `--account-set`.
 
 Usage groups the jobs whose turns started in the span by the key the query names — the model the job's
-turn went out on, the worker (`agent`), the job's holder (`user`) or its room — summing the tokens each
-job's model spent, the jobs behind the figure and the span they cover, and the tokens the workers'
-sessions on that key currently carry (`contextTokens`). `round` groups the chat turns' runs instead, those
+turn went out on, the role it ran as (`role`), its repository (`repository`), the job's holder (`user`) or
+its room — summing the tokens each job's model spent, the jobs behind the figure and the span they cover, and
+the tokens the roles' kept sessions on that key currently carry (`contextTokens`). `round` groups the chat turns' runs instead, those
 started in the span that name a round, by that round: each group's `tokens` is what its turns spent,
 `turns` how many there were, `inputTokens`, `outputTokens`, `cacheReadTokens` and `cacheWriteTokens` the
 spend apart, and `firstAt` and `lastAt` the span they cover; its `jobs` is 0 and its `contextTokens` null. The span is two moments in epoch milliseconds,
@@ -864,71 +742,72 @@ yesterday to now where none is given.
 
 | Method | Path | Does |
 |---|---|---|
-| GET | `/settings` | Agency's own switches: keepalive, downgrade return. |
+| GET | `/settings` | Agency's own switches: downgrade return. |
 | PATCH | `/settings` | Change agency's switches. |
 
 ### companions and companion-resets
 
 | Method | Path | Does |
 |---|---|---|
-| GET | `/companions` | Companion agents, by room. |
-| POST | `/companions` | Add a companion agent. |
+| GET | `/companions` | Companion supervisors, by room. |
+| POST | `/companions` | Add a companion supervisor. |
 | PATCH | `/companions/{companionName}` | Change a companion and the rooms it answers in. |
 | DELETE | `/companions/{companionName}` | Remove a companion from the deployment. |
 | POST | `/companion-resets` | Reset a companion's person ranges and rooms; `dryRun` counts it first. |
 
-A companion's settings are its reference switch, its persona, its generation settings, its model method and
-its thinking; its system prompt is its base prompt, every companion's role whole and its persona, and no
+A companion's settings are its reference switch, its persona, its generation settings, its provider order and
+its thinking; its system prompt is the platform's harness opening, every companion's prompt whole and its persona, and no
 section of it is chosen per companion (`docs/companions.md`, 「What a turn is given」). `pieces` and
 `ownPieces` are no setting: a change naming them is refused 400 as naming no field, and the settings a
 companion is answered with name neither.
 
-A companion is answered with the model method it stands on, `method`: `fixed` on a registration, or `route`
-on the supervisor key's road (`docs/model-tiers.md`, 「An agent's own model」), with `provider` and `model`
-the ones it answers on now. A change takes `registration` as a registered model's name, or null to clear the
-pin and answer on the route.
+A companion is answered with its provider order, in the shape a supervisor's is (「supervisors」), and the
+`provider` and `model` it answers on now. A change takes `order`, judged as a supervisor's is.
 
-### workers, prefix-checks and room-holdings
+### repositories, prefix-checks and room-holdings
 
 | Method | Path | Does |
 |---|---|---|
-| GET | `/workers` | Every worker. |
-| POST | `/workers` | Add a worker. |
-| GET | `/workers/{workerName}` | One worker: checkout, node, role, prefix documents, sampling, session, runs. |
-| PATCH | `/workers/{workerName}` | Change a worker: fields, node placement, sampling, stand it again, ready its bench. |
-| DELETE | `/workers/{workerName}` | Remove a worker. |
-| GET | `/workers/{workerName}/definition` | The worker's agent definition: graph, trailer, handoff. |
-
-A worker's `state` is `resting` while it rests; `working` while a job of its is `starting` or `running` —
-`jobId` naming that job and `itemId` its item — or while its program still carries a turn no such job
-names, one going on in this process or one kept in flight across a restart, `jobId` and `itemId` then null;
-and `idle` otherwise, `jobId` and `itemId` null. A worker reads `idle` only where a launch on it can go in.
-
-A worker carries `prefixDocuments`, the paths of the documents its session's prefix carries, in order
-(`docs/worker-bench.md`, 「Prefix documents」); `POST /workers` and `PATCH /workers/{workerName}` take
-the list whole, an empty list clearing it, and refuse an empty path or one that climbs with `..`.
-
-A change that names a node other than the one the worker stands on places it there, and one that names
-none brings it back: the node must be one the node service keeps and that takes jobs, the worker must
-stand for itself, and the path is written as the node reads it. The checkout this machine reads the
-worker through follows the placement. A body that names the node the worker already stands on changes
-nothing of its placement.
-| GET | `/workers/{workerName}/workbench` | The worker's workbench and scratch folders. |
-| DELETE | `/workers/{workerName}/servers` | End the job servers a worker left running. |
-| POST | `/prefix-checks` | Which of these files are in a worker's session prefix. |
+| GET | `/repositories` | Every repository. |
+| POST | `/repositories` | Add a repository. |
+| GET | `/repositories/{repositoryName}` | One repository: checkouts, node, prefix documents, preamble, rules, pin, jobs. |
+| PATCH | `/repositories/{repositoryName}` | Change a repository: fields, checkouts, node placement, pin, sampling, ready its bench. |
+| DELETE | `/repositories/{repositoryName}` | Remove a repository no job holds a checkout of. |
+| GET | `/repositories/{repositoryName}/definition` | The definitions a run there is handed: graph, trailer, handoff, the callable roles. |
+| GET | `/repositories/{repositoryName}/workbench` | The repository's workbench and scratch folders. |
+| DELETE | `/repositories/{repositoryName}/servers` | End the job servers a job of the repository left running. |
+| POST | `/prefix-checks` | Which of these files are in the prefix of a run at a repository's path. |
 | GET | `/room-holdings/{roomId}` | What the agency holds of a room. |
 | DELETE | `/room-holdings/{roomId}` | Let a room's data go; `dryRun` says what would go. |
+
+- **Every repository is a row** (`docs/repositories.md`, 「What a repository row holds」): `name`, `label`,
+  `ownerAccount`, `path`, `nodeName`, `supportCount` and its node checkouts (`docs/worker-slots.md`),
+  `prefixDocuments`, `preamble`, `rules`, `devCommand`, `pin` — `{provider, model}` or null — and `sampling`,
+  the sampling a run on a pinned registration is sent.
+- **A repository answers its checkouts,** each its path, whether a job holds it and which (`jobId`, `itemId`,
+  the `role` the job runs as), so a screen reads which of its checkouts are free.
+- **`prefixDocuments`** is the paths of the documents a run's prefix carries at the repository's path, in order
+  (`docs/worker-bench.md`, 「Prefix documents」); the add and the change take the list whole, an empty list
+  clearing it, and refuse an empty path or one that climbs with `..`.
+- **A pin** names a provider agency carries whose program carries the worker line and a model it holds,
+  judged as an order's entry is (「supervisors」); null clears it. A changed pin reaches the repository's next
+  job; a job already going finishes where it went out.
+- **A change that names a node other than the one the repository stands on places it there,** and one that
+  names none brings it back: the node must be one the node service keeps and that takes jobs, and the path is
+  written as the node reads it. The checkout this machine reads the repository through follows the placement.
+- **A removal** answers 204, and is refused 409 while a job holds one of its checkouts; 404 for a repository
+  the store does not hold.
 
 ### assignments and jobs
 
 | Method | Path | Does |
 |---|---|---|
-| GET | `/assignments` | Worker assignments, by holder, worker or state. |
-| POST | `/assignments` | Assign a worker to an item for the harness holding it, and hold it until its job starts and ends, or the harness releases it; no clock ends a hold. |
+| GET | `/assignments` | Assignments, by holder, repository or state. |
+| POST | `/assignments` | Assign an item to a repository and the role it runs as, for the harness holding it, and hold it until its job starts and ends, or the harness releases it; no clock ends a hold. |
 | GET | `/assignments/{assignmentId}` | One assignment. |
 | PATCH | `/assignments/{assignmentId}` | Release an assignment. |
-| GET | `/jobs` | Jobs newest first: by state or running, by item, room, worker or holder. |
-| POST | `/jobs` | Run an item on its assigned worker: the harness hands over the item's content and the lease it holds, and the agency launches the worker's session on it; refused only while no provider of the order can answer. |
+| GET | `/jobs` | Jobs newest first: by state or running, by item, room, repository, role or holder. |
+| POST | `/jobs` | Run an item as its assignment's role in its repository: the harness hands over the item's content and the lease it holds, and agency launches the run once a slot of the role and a checkout are free; never refused for quota, it waits. |
 | GET | `/jobs/{jobId}` | One job and what its turn spent, `usage`. |
 | PATCH | `/jobs/{jobId}` | End a job with its outcome, or stop it, its turn asked to end first; its assignment is released. |
 | GET | `/jobs/{jobId}/prompt` | The prompt the job was launched with. |
@@ -940,7 +819,7 @@ The list answers the newest jobs first, `limit` of them (50 where it names none,
 job's id as the runs' list does: with `before`, the jobs before that id; with `after`, the jobs after it nearest
 to it; `more` says whether more lie beyond the page in the direction it was asked. It narrows by `state`, one
 state or several comma-separated; by `running`, `true` the jobs starting or running and `false` every other;
-by `itemId`; by `roomId`; by `workerName`; and by `holderName`, every filter named holding at once. A query
+by `itemId`; by `roomId`; by `repositoryName`; by `roleName`; and by `holderName`, every filter named holding at once. A query
 naming anything else, or a value that does not read as its filter's kind, is refused 400.
 
 A job's `itemId` and `leaseId` are the harness's references, kept as given. The harness reads the job's
@@ -983,11 +862,11 @@ and the filing of an item.
 - **A job is stopped by asking its turn to end.** `PATCH /jobs/{jobId}` with `state` `stopped` and
   `POST /job-stops` stop a job alike:
   - the reason, the `report` the stop names, is kept as the job's stop mark, and the job's run is cancelled:
-    the cancellation the turn's door reads in the worker's program, which puts the stop words in — commit,
+    the cancellation the turn's door reads in the run's program, which puts the stop words in — commit,
     report, exit — and leaves the turn to end on them, a turn picked up across a restart included;
   - the answer waits for that turn to end, however long its own ending takes. The turn's end writes the job
     `stopped`, outcome `stopped`, with the reason as its report, releases its assignment, returns its lease
-    and tells its room, so the worker takes the next launch as soon as the stop answers;
+    and tells its room, so its slot and its checkout take the next launch as soon as the stop answers;
   - a job no turn carries is written so at once.
   A job's end never writes over a job already ended or stopped.
 
@@ -1003,7 +882,7 @@ and the filing of an item.
   so the item is open again for a rerun.
 - **A job's end reaches the room.** However a job ends, agency queues the job's report for the agent
   that filed the item through the receiver's `POST /instructions`: an order under the sort `job`, naming the
-  requester its item names, and carrying the item, the worker, the outcome and the report whole, under the
+  requester its item names, and carrying the item, the repository, the role, the outcome and the report whole, under the
   event `job-ended:#<item>`; an ended job's order names the lease that still stands on the item, which the
   close ends. The receiver keeps the instruction until a turn takes it, so a chat session
   being replaced when the job ended loses nothing, and it queues the notice for that requester and no other
@@ -1023,11 +902,11 @@ and the filing of an item.
   go away with agency's own restart before the run writes its end, on a program that keeps no record the
   next server can read it from. On start, after the turns in flight are picked up, and on the reconcile
   pass that keeps the execution rows, a job still `starting` or `running` whose turn is not kept in flight
-  is read against the records the store already keeps: an open execution row of its worker's on the worker line begun at the job's start is a live
+  is read against the records the store already keeps: an open execution row of its run's on its role's line begun at the job's start is a live
   execution, and an open run in the ledger is a live run. A job with neither — or whose run is already
   closed — ends as `stopped` with a report saying the process that ran it went away, its open run is closed,
   its assignment released, and its lease returned and its report told to the room through the same delivery
-  as any other end. A job younger than the launch window is left for the next pass, and one whose worker
+  as any other end. A job younger than the launch window is left for the next pass, and one whose checkout
   stands on another machine is left, since its execution is no record this machine keeps. A job with a live
   execution is left running, and so is one this process is still carrying — waiting for a road, or between
   one road and the next.
@@ -1039,48 +918,50 @@ and the filing of an item.
 - **A job's prompt carries its item's newest notes, as many as fit the policy's bytes**
   (`policy/job-prompt.toml`, `[notes]`): the notes that do not fit are left out from the oldest, and one
   line says how many were left out and that they stand on the item. The report trailer every job is held
-  to is no part of the prompt; it stands in the worker's cached prefix (`docs/launch-lines.md`).
+  to is no part of the prompt; it stands in the run's cached prefix (`docs/launch-lines.md`).
 - **A job's first prompt carries the reference its instruction calls for.** As the job is launched, its
   instruction is handed to the gate's reference selection (`POST /reference/selected` of the gate), and
   the entries the gate picks from the chat agent's brain — knowledge, rules and documents — are attached
   to the prompt under a `## Reference` heading. A job with no instruction, or a gate that picks nothing,
-  stands on its own words; a worker reads the brain only through what the gate picked here.
-- **A job goes out on the road the road resolution answers** (`docs/cache-fallback.md`, 「One road
-  resolution」): its worker's pin, else the job key's setting, as the head of the owner's provider order,
-  the first provider of that walk that can answer now carrying it. A job is refused only where nothing in
-  the order can answer: then `POST /jobs` answers 503 `no-login-open`, its sentence naming every
-  provider's reason — each Claude login's own, with the moment the first of them reopens — and what a
-  person must do for the first road a person can reopen, a sign-in command or where a balance is topped
-  up; nothing is written and the assignment stays held.
+  stands on its own words; a job's run reads the brain only through what the gate picked here.
+- **A job goes out on its role's active provider** (`docs/provider-order.md`, 「Choosing the provider」): the
+  first provider of the role's order that has quota above the role's share and can answer now, on the model
+  and effort the order names there; or on its repository's pinned model where the repository pins one
+  (`docs/repositories.md`, 「A pinned model」). A job is never refused for quota: where no provider of the
+  order has quota, or the pin cannot answer, `POST /jobs` takes the job and it waits `running`, answering
+  `heldFor`, its sentence naming every provider's reason — each Claude login's own, with the moment the first
+  of them reopens — and what a person must do for the first provider a person can reopen, a sign-in command
+  or where a balance is topped up.
 - **A job moves when its road stops answering.** A turn that fails for its provider's availability — its
   quota, window, balance or credential refused, its last login closing under it, or its road found unable
-  to answer as the turn ends — is launched again on the resolution's next answer: the same job, item,
+  to answer as the turn ends — is launched again on the order's next provider: the same job, item,
   lease and checkout, at most once on each provider in one job, its prompt opened with a line saying it
   continues work already in the checkout. A job answers `roads`, every road its turns went out on in
   order — each `provider`, `model`, `account` (null off a provider that holds logins), `at` in epoch
   milliseconds and `reason`, why the road before it was left, null on the first — and its report ends
-  saying where it ran and why it moved. Where nothing in the order can answer, the job stays `running`
-  and answers `heldFor`, the reason it waits; it goes out again as soon as a provider can answer, and
-  `heldFor` is null whenever a turn is out. A failure of the work itself moves nothing.
+  saying where it ran and why it moved. Where no provider of the order has quota, the job stays `running`
+  and answers `heldFor`, the reason it waits; it goes out again as soon as a provider has quota, and
+  `heldFor` is null whenever a turn is out. A job on a pinned model never moves: it waits for its pin. A
+  failure of the work itself moves nothing.
 - **A job ends by itself as its turn ends.** A turn that answered ends the job `ended` with its answer as
   the report. A turn that did not answer ends it `ended` with its outcome (`failed`, `blocked`, `stopped`
   or `reprepared`) and the reason the turn gave as the report. A launch that never reached its turn — no
   session, no line, no herdr — ends it `stopped`, outcome `failed`, with why as the report. Every end that
   is not an answer is also written as a note into the job's log, so the job's lines say why it ended.
 - **A job's turn is a run of the ledger.** As the turn goes out, the job's runner opens a run under the
-  job's run name, its worker as the agent and its room, and the job carries it as `runId`; as the turn
+  job's run name, its role, its repository and its room, and the job carries it as `runId`; as the turn
   ends the run is closed with how it ended, the tokens its context held and what it spent. A job answers
   `usage`, what its turn spent: `inputTokens`, `outputTokens`, `cacheReadTokens` and `cacheWriteTokens`,
   each summed over the models that answered it, and `tokenCount`, the four together. `usage` is null, and
   `tokenCount` 0, until the turn ends and where its road reported no figures.
-- **A job's end releases its assignment,** whichever way it ended, so its worker is free for the next
-  assignment. A `running` assignment whose job has ended is released as the assignments are next read.
+- **A job's end releases its assignment, its slot and its checkout,** whichever way it ended, so the next
+  job can take them. A `running` assignment whose job has ended is released as the assignments are next read.
 
 ### session-work and session-loads
 
 | Method | Path | Does |
 |---|---|---|
-| GET | `/session-work/{sessionId}` | The item and results a worker session holds. |
+| GET | `/session-work/{sessionId}` | The item and results a role's session holds. |
 | PATCH | `/session-work/{sessionId}` | Record the item a session serves. |
 | PUT | `/session-work/{sessionId}/results/{resultKey}` | Record a result sent into a session. |
 | DELETE | `/session-work/{sessionId}/results` | Forget a session's results as it folds. |
@@ -1092,9 +973,9 @@ and the filing of an item.
 
 Agency publishes one stream, `GET /events`. The kinds are:
 
-`agent.changed`, `session.created`, `session.changed`, `session.folded`, `session.deleted`,
+`supervisor.changed`, `role.changed`, `session.created`, `session.changed`, `session.folded`, `session.deleted`,
 `turn.created`, `turn.ended`, `question.created`, `run.created`, `run.changed`, `run.stopped`,
-`execution.changed`, `seat-request.changed`, `reservation.changed`, `worker.changed`, `worker.deleted`,
+`execution.changed`, `slot-request.changed`, `reservation.changed`, `repository.changed`, `repository.deleted`,
 `prompt-document.changed`, `document-move.created`, `overtime-request.created`,
 `overtime-request.changed`, `rest.changed`, `fallback.changed`, `account.changed`, `usage.changed`,
 `road.changed`, `launch-room.changed`, `companion-reset.created`, `place.changed`, `assignment.created`,
@@ -1103,13 +984,14 @@ Agency publishes one stream, `GET /events`. The kinds are:
 A kind agency keeps to its own processes does not cross the stream. `events.missed` is the stream's own
 notice to a reader resuming too late (「events」 above), never published as an event and never kept.
 
-- **`road.changed`** carries one fact of a work key's road (`docs/cache-fallback.md`, 「One road
-  resolution」), published once per move, after the system has acted, and named in its `fact`:
-  - `road-moved`: `key`, `from` and `to` — each a road, its `provider`, `model` and `account`, the
+- **`road.changed`** carries one fact of a supervisor's or a role's provider (`docs/provider-order.md`, 「The
+  facts told」), published once per move, after the system has acted, and named in its `fact`; each names its
+  row as `supervisor` or `role`, the other null:
+  - `road-moved`: `from` and `to` — each a road, its `provider`, `model` and `account`, the
     account null off a provider that holds logins — and `reasons`, why each provider passed could not
     answer, each a `provider` and its `reason`;
-  - `road-returned`: `key`, `from`, the road it had moved to, and `to`, the head of its walk it is back on;
-  - `road-closed`: `key`, `reasons`, every provider's reason, and `command`, what a person does to reopen
+  - `road-returned`: `from`, the road it had moved to, and `to`, the head of its walk it is back on;
+  - `road-closed`: `reasons`, every provider's reason, and `command`, what a person does to reopen
     the first road a person can reopen — the sign-in command with the account's own configuration
     directory, or where a spent balance is topped up — or null where every road only waits for a reset,
     with `reopensAt`, the epoch second the first of them reopens, or null.
@@ -1138,20 +1020,20 @@ input, so `bmo` finds it from any directory.
 
 | Noun | Takes | Calls |
 |---|---|---|
-| `agent` (`agents`) | the agent flags `--help` prints: the provider and account orders, the accounts and their kinds, an account's endpoint, key file, model map and base prompt, the registered models, a route and its model, and a worker's rows and an agent's thinking, effort and gates | the store at the data root, and the service for what it must be told |
+| `agent` (`agents`) | the agent flags `--help` prints: the providers' switches and the account order, the accounts and their kinds, an account's endpoint, key file, model map and base prompt, the registered models, the supervisors, roles and repositories with their orders, and a supervisor's gates | the store at the data root, and the service for what it must be told |
 | `agent status` (`agent-status`) | `status`, `stop`, `failure`, `submit`, `start` or `shell`, `--place <dir>`, `--hold-tasks`, `--hold-wording` or `--compose-typed` | the agent's place, and the service for a typed line |
 | `model` (`models`) | `add`, `set`, `remove`, `use` or `run-use`, with an entry's file, bytes, hash, engine, registration and settings; `--entry` and `--placed` for an installer; `--json` | the store's model catalogue |
-| `coworker pool` | `reserve --role <role> [--tier <tier>] --count <n>` or `release` | the store's pool |
-| `coworker hook` | the hook's input on standard input | the store's pool |
-| `worker fold` | `--worker <worker>`, `--model <model>`, `--all` or `--dry-run` | the workers' sessions, and the store |
+| `coworker pool` | `reserve --role <role> --count <n>` or `release` | the store's role slots |
+| `coworker hook` | the hook's input on standard input | the store's role slots |
+| `session fold` | `--role <role>`, `--path <path>`, `--model <model>`, `--all` or `--dry-run` | the roles' kept sessions, and the store |
 | `reload` | `--path <file>`, repeatable, and `--now` | the store, the checkouts and the deploy tree, and the service for the documents moved |
 | `node work` (`work-node`) | `setup <node> [--root <dir>] [--install]`, `check`, `sync`, `runs <node> on\|off` or `remove <node>`; no step lists the workplaces | the store, the node service and herdr |
 | `node claude-token` | `<account>`, and `--paste` to take a token from standard input | the store, and the account's program on this machine |
 | `node pane` (`node-pane`) | `<node>` | the node service, and the login its pane starts |
-| `dev-server` | `start`, `restart` or `stop <worker>`; `list [--sweep]`; `pane <worker>` | the worker's workbench and dev-server pane, and the store |
-| `dev-pane` | `<worker>` | the worker's dev-server pane, and the store |
-| `companion follow` | `<room> --agent <agent> [--version <version>]` | the store, as the room is kept and its turns are appended |
-| `companion reset` | `<agent>`, `--conversation`, `--person`, `--dry-run`, `--alone <rooms>` and `--shared <rooms>` | the service's `/companion-resets` route |
+| `dev-server` | `start`, `restart` or `stop <checkout>`; `list [--sweep]`; `pane <checkout>` | the repository's workbench and the checkout's dev-server pane, and the store |
+| `dev-pane` | `<checkout>` | the checkout's dev-server pane, and the store |
+| `companion follow` | `<room> --supervisor <supervisor> [--version <version>]` | the store, as the room is kept and its turns are appended |
+| `companion reset` | `<supervisor>`, `--conversation`, `--person`, `--dry-run`, `--alone <rooms>` and `--shared <rooms>` | the service's `/companion-resets` route |
 | `claude batch` | `--model`, `--effort`, `--config-dir`, `--system-file` and `--title`, with the batch on standard input; the run lasts until it ends | the provider's program on this machine |
 | `live-claude` | `--purpose <what it measures and why>`, or `--list` | the store's run ledger |
 | `run list` | `--json`, or `--full` for every row whole | the store, herdr, and the machine's proc files |
@@ -1173,7 +1055,7 @@ tool is a thin call of one route through the agency's own client.
   item creation on every program, and no prompt names it.
 - `stop_job` calls `POST /job-stops` the same way, naming the agent its server was started for, and is
   listed beside `file_item` only where the server was started for one.
-- `assign_worker` calls `POST /assignments`.
+- `assign_worker` calls `POST /assignments`, naming the repository and the role.
 - `run_job` calls `POST /jobs`.
 
 ## The clients
@@ -1213,7 +1095,7 @@ base layer of the agent's persona that prompt ends with. Of the tool host it ask
 with the issuer token, a session token for each program and run that holds a capability, which it takes
 back, a namespace's facts, the paragraph on finding and using tools that a chat launch's
 system prompt carries, and, after a chat program's first turn, the servers its session token's clients
-reached (`GET /tool-sessions/{token}`, its `connected`), where a host that saw none says nothing. Of the gate it asks the reference a job's or an apart session's instruction
+reached (`GET /tool-sessions/{token}`, its `connected`), where a host that saw none says nothing. Of the gate it asks the reference a job's or a role's session's instruction
 calls for, picked over the chat agent's brain, and attaches the picked entries to the run's first prompt; and it
 reads the gate kinds and their order as the gate publishes them, so no copy of the gate order stands here.
 
@@ -1225,7 +1107,7 @@ reads the gate kinds and their order as the gate publishes them, so no copy of t
   engine the arbiter stands」). With no address, no demand is asked and a run on such a registration is
   refused.
 - **Where the gate is.** `BMO_GATE_URL` names its address and `BMO_GATE_TOKEN_FILE` the path of the file
-  its token stands in. With no address, no reference is asked and a job or an apart session carries only
+  its token stands in. With no address, no reference is asked and a job or a role's session carries only
   its own words.
 - **Where the brain is.** `AGENCY_BRAIN_URL` names its address and `AGENCY_BRAIN_TOKEN` the token it is
   called with, or `AGENCY_BRAIN_TOKEN_FILE` the file it stands in; the node's token is read the same way
@@ -1271,7 +1153,17 @@ above for everything else.
   that wants a stand-in calls the call itself with a map of its own, never through a test server's
   ground.
 
-## What the redesign took out
+## Not on this boundary
+
+- **No agent rows, worker rows or tiers stand behind this boundary,** so these are no routes of it: `/agents`
+  and `/agents/{agentName}` (a supervisor is `/supervisors`, a role `/roles`); `/agent-roles` (`/roles`);
+  `/workers` and every route under it (`/repositories`); `/seat-requests` (`/slot-requests`); the pool's
+  `GET /pool`, `GET /roles` of co-worker roles and `PATCH /pool/limits` (a role's cap is a field of its row);
+  `/tiers`, `/work-keys`, `/fold-ratios` and `/pin-checks` (an order's entries and a row's compaction
+  threshold); and the route table, the provider order and the per-key choices of `/fallback`, which keeps the
+  Claude accounts alone.
+- **No warming route:** agency's settings carry no keepalive switch; a supervisor's warming is a field of its
+  row.
 
 `GET/POST /digests`, `GET/POST /searches`, `GET /searches/{searchId}` and `GET/PATCH /research-settings`,
 with the tools `browse`, `remote_browser`, `research_branch`, `unread_pages`, `song` and `news_due`, are

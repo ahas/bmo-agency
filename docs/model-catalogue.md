@@ -20,7 +20,7 @@ entry is the file behind it, where the file is the system's own to serve.
 - **Its engine:** the engine that serves it, by the name of that engine's installer (`own-llm`), or
   none for a file no engine of the system installs.
 - **Its registration:** the registration the engine is reached by (`own-0-1`), or none. A
-  companion pinned to that registration is offered the entry (`docs/companions.md`, 「Its
+  companion whose order names that registration is offered the entry (`docs/companions.md`, 「Its
   settings」).
 - **Its nodes:** the nodes the file lies on now, by their names in the node list, as the engine's
   installer records them; nothing in the code names a node.
@@ -55,8 +55,8 @@ entry is the file behind it, where the file is the system's own to serve.
 
 ## Choosing a model for an engine
 
-- **Where:** the companion's settings, which offer the entries of its registration, the catalogue's
-  own list on the console, or `bmo-agency model use <entry>`.
+- **Where:** the companion's settings, which offer the entries of its registration, the model files tab
+  on the console, or `bmo-agency model use <entry>`.
 - **What it does, in order,** as one run of its own that outlives the screen that started it:
   1. checks the entry has an engine, and that no other choice for the same engine is running;
   2. asks the engine's health, at the addresses of the entry's registration, and refuses while the
@@ -76,20 +76,20 @@ entry is the file behind it, where the file is the system's own to serve.
   the end of. A run that fails leaves the engine as its installer left it and says at which step.
 - **Every file once served stays on the head,** so choosing one served before is the placement
   pointed back at it and the head's install, with nothing fetched.
-- **Every agent on the registration then answers on the new file:** the worker pinned to it, the
-  companions pinned to it and any gate whose tier maps to it.
+- **Every run on the registration then answers on the new file:** a job in a repository that pins it,
+  and every supervisor's turn and role's run whose order's entry names it.
 - **The machine's part is the harness-machine crate's** (`docs/harness-machine.md`, 「A model's use on
   its engine」): the engine's health, the unit, the installer with its log and the end of the log a
   screen is shown, for agency's server and the TypeScript that asks alike. The rows are each side's own.
 
 ## Where it is set
 
-- **The console:** the model files section of the agent management screen's general tab lists every
-  entry with the file each engine serves now, and adds, changes and removes one; the latest choice for
-  each engine stands above the list with how it is going.
-- **At the boundary:** the catalogue is the `/model-catalogue` resource (`docs/api.md`, 「Models, registry,
-  tiers, roads and fallback」), never `/models`: a catalogue entry is the file behind a model, never the
-  model.
+- **The console:** the model files tab of the agent management screen lists every entry with the file
+  each engine serves now, and adds, changes and removes one; the latest choice for each engine stands
+  above the list with how it is going. Registered models are a tab of their own beside it
+  (`docs/own-llm.md`, 「Where it is set」).
+- **At the boundary:** the catalogue is the `/model-catalogue` resource (`docs/api.md`, 「providers, models
+  and model files」), never `/models`: a catalogue entry is the file behind a model, never the model.
 - **The command:**
   - `bmo-agency model` lists every entry and the latest choice for each engine.
   - `bmo-agency model add <name> --file <file> --bytes <n> --sha256 <hash> [--label <label>]

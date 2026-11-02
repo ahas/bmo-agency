@@ -1,12 +1,12 @@
 # Agency's policy
 
 The fixed numbers and words agency runs by, kept as declarations rather than in the code: how long a
-clock runs, which tier a piece of work stands on, what a provider's program is launched with, what a line
+clock runs, which roles a store is seeded with, what a provider's program is launched with, what a line
 says. Each is a TOML file under `policy/`, one file to a part, and the `policy` crate reads them.
 
 ## A part
 
-- **Its file** stands under `policy/`, named after the part (`tiers.toml`, `run-stop.toml`); the
+- **Its file** stands under `policy/`, named after the part (`roles.toml`, `run-stop.toml`); the
   providers' files stand under `policy/providers/`, one to a provider. A comment at the head of each file
   says what the part is and which document states the behaviour it serves.
 - **Its reader** is a module of the `policy` crate with the part's type. The file is compiled into the
@@ -29,8 +29,8 @@ notices and the browser's launch. Of each, agency's file holds only the keys age
 scratch folder under a worker's workbench, the account of a dead run and the notice of one that came back,
 how a Chrome agency starts stands apart). Agency owns those keys:
 a caller that needs one has it from agency rather than keeping a copy of its own, and every other key of
-those settings is the caller's. The gate order is not among them: it is the gate's, declared to agency
-(`docs/api.md`, 「Gate kinds」), and agency's file holds only the companion's own part of a turn.
+those settings is the caller's. The gates are not among them: a gate's run is the gate service's own, not
+agency's, and agency's file holds only the companion's own part of a turn.
 
 ## The deployment's names
 
@@ -50,10 +50,10 @@ once, on first use.
 
 ## The renames
 
-An agent that stood under another name is declared in `policy/agent-renames.toml`: the name it had and
-the one it has now, its label and aliases as the row was seeded and as it reads now, and what its
-places moved by. The store's settling renames the rows by it, and the side that keeps the agents'
-places closes the old name's workspace and moves a renamed worker's checkout by it
+A supervisor or a repository that stood under another name is declared in `policy/agent-renames.toml`:
+the name it had and the one it has now, its label and aliases as the row was seeded and as it reads now,
+and what its places moved by. The store's settling renames the rows by it, and the side that keeps the
+places closes the old name's workspace and moves a renamed repository's checkout by it
 (`docs/agent-control.md`, `docs/worker-slots.md`).
 
 ## A line's shown entries

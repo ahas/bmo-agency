@@ -8,31 +8,39 @@ seeds. The other crates and the server reach the store only through it.
 
 - **Made by the store's migrations,** each table carried from the archive in the shape the archive holds
   it, columns, keys and indexes alike, and the clocks' two tables and the run ledger in agency's own,
-  each made by a migration of its own after the first. A column of agency's own beside an archive shape
-  is added by a migration of its own too: a worker's session record keeps the tokens its last answered
-  turn carried and the share of the window they filled, an agent's row the login account that owns
-  it, a co-worker pool request the number of its owner's last ask, drawn from `coworker_pool_asks`,
-  a sequence of the store's own (`docs/coworker-pool.md`, 「Requests and leases」), and the title, the
-  asking agent and the agent its child runs on that a seat's asker names (`docs/api.md`, 「pool,
-  seat-requests, reservations and roles」). The words said to a worker stand in the
-  archive's shape, made by a migration of their own after the first.
+  each made by a migration of its own after the first. The supervisors, the roles, the repositories, the
+  roles' sessions and the role slots are agency's own tables, each made by a migration of its own; a slot
+  request keeps the number of its owner's last ask, drawn from `role_slot_asks`, a sequence of the store's
+  own (`docs/role-slots.md`, 「The line」).
 - **The record of what ran is `agency_migrations`,** a table of the store's own, so the store may stand
   in a database beside another service's tables without either's record in the other's way.
 - **A migration is not undone:** a store that must go back is dropped and made again.
 - **The store names its own tables,** the ones its migration makes, so what reads every table of the
   store — a room forgotten among them — reads them and no other service's beside them in one database.
 - **The tables, by what they keep:**
-  - the roles an agent may hold: `agent_roles`, one row a role — its name, its label, the bundles it gives
-    as a JSON list, its bound or none, its prompt or none, its `sessions`, `keep` or `fresh`, the place a
-    screen lists it at, and when it was made and last changed in epoch milliseconds — and `agent_role_seeded`, the name of every role the
-    policy's seed has given (`docs/agent-roles.md`, 「The roles」);
-  - the agents and what they did: `agents`, `agent_log`, `agent_executions`, `execution_attempts`,
-    `branch_agents`, `worker_sessions`, `session_resets`, and `worker_words`, the words said to a
-    worker, each kept until a turn has taken it;
-  - the sessions runs apart keep: `apart_sessions`, one row an agent's command — the key the command is
-    kept by, the agent, the line, the session and when it last answered in epoch milliseconds — taken by a
-    run as it starts and written again once it has answered (`docs/sessions.md`, 「A run apart's kept
-    session」);
+  - the supervisors: `supervisors`, one row a supervisor — its name, label, owner account, the words that
+    call it, its prompt and brain folders, its session scope, turn shape and whether it is the default
+    answerer, its provider order as a JSON list with its quota share, its warming per provider as a JSON
+    object, its compaction threshold, the repository its items go to, and when it was made and last
+    changed in epoch milliseconds (`docs/supervisors.md`, 「What a supervisor row holds」);
+  - the roles: `roles`, one row a role — its name, its label, its prompt or none, its description or none,
+    the bundles it gives as a JSON list, its line, its provider order as a JSON list with its quota share,
+    its cap, its `sessions`, `keep` or `fresh`, its compaction threshold, whether it may be called as a
+    co-worker, the place a screen lists it at, and when it was made and last changed in epoch milliseconds
+    — and `role_seeded`, the name of every role the policy's seed has given (`docs/agent-roles.md`, 「What a
+    role row holds」);
+  - the repositories: `repositories`, one row a repository — its name, label, owner account, path, node,
+    support count, prefix documents, preamble, rules folder, dev command, pinned provider and model or
+    none, and the sampling a run on a pinned registration is sent (`docs/repositories.md`, 「What a
+    repository row holds」); and `repository_node_checkouts`, its checkouts on the work nodes;
+  - what ran: `agent_log`, `agent_executions`, `execution_attempts`, `branch_agents` and `session_resets`,
+    each naming the supervisor or the role and path a line, an execution or a reset is of;
+  - the sessions roles keep: `role_sessions`, one row a session a role's run opened — the role, the path,
+    the provider, model, effort and login, the command's key, the session, when it opened and last
+    answered in epoch milliseconds, how many runs it carried, the tokens its last answered turn carried and
+    the share of the window they filled, and whether a run holds it now — taken by a run as it starts and
+    written again once it has answered, and read for the role's session history (`docs/sessions.md`, 「A
+    role's session」);
   - the base prompts: `base_prompts`, `agent_base_prompts`, and `base_prompt_seeded`, the name of
     every seed the store has been given (`docs/base-prompts.md`, 「The seeds」);
   - the chat agent's own documents the owner keeps a text of: `chat_documents`, one row a document's
@@ -53,19 +61,15 @@ seeds. The other crates and the server reach the store only through it.
     or none and its limit's name or none (`docs/usage-windows.md`); and `usage_balances`, one row a
     slot's balance — its `mode` and `account` naming it, its `amount`, its `currency` and when it was
     seen (`docs/usage-windows.md`, 「Balances」);
-  - the co-worker pool: the thirteen `coworker_pool_` tables, `limits`, `meta`, `native`,
-    `native_reservations`, `native_stops`, `pings`, `place_writes`, `requests`, `reservation_meta`,
-    `reservations`, `roles`, `tier_limits` and `tier_meta`;
+  - the role slots: `role_slot_requests`, one row a slot request with its lease; `role_slot_reservations`;
+    `role_slot_native`, `role_slot_native_reservations` and `role_slot_native_stops`, the native calls'
+    bindings; and `place_writes`, the standing branch checkouts' list (`docs/role-slots.md`);
   - the models and their roads: `model_catalogue`, `model_uses`, `registered_models` — a registration's
     card service and its instances' role files among its columns —,
     `registered_model_addresses`, `card_demands`, one row a demand agency asked of the arbiter's master and
-    has not yet given back — its id, the service, the registration, its holder, the seat's lease and the
+    has not yet given back — its id, the service, the registration, its holder, the slot's lease and the
     demand it was asked within where they stand, and when it was asked (`docs/own-llm.md`, 「An engine the
-    arbiter stands」) —, `model_fallbacks`, `fallback_routes`, `fallback_sessions`, and the
-    seven `model_tier_` tables, `assignments`, `backfilled`, `conflicts`, `legacy`, `mappings`, `meta`
-    and `seeded`; and `fold_ratios`, the share of a model's window a session may fill before it is
-    folded, one row a provider and tier, with `fold_ratio_seeded`, the providers whose ratios were given
-    (`docs/api.md`, 「fold-ratios」);
+    arbiter stands」) —, and `model_fallbacks`;
   - the work nodes: `node_workplaces`, `node_rotation`, `node_assignments`; the nodes themselves, how
     each is reached among it, are the node service's and read from it (`docs/api.md`, 「The node
     service」);
@@ -76,15 +80,15 @@ seeds. The other crates and the server reach the store only through it.
     it was opened for, `run`, and carries its job and item only where a caller names them, since a
     job's rows are the job unit's (`docs/live-claude-guard.md`);
   - the moves of the cache prefix: `prefix_moves`;
-  - the work a harness hands over: `assignments`, one row a worker held for an item — the item, the
-    holder, the worker and its state — and `jobs`, one row the item's run on that
-    worker — the item and lease the harness named, the assignment, the worker, the session and run it
-    opened, the model its turn went out on, every road its turns went out on and why each was left, the
+  - the work a harness hands over: `assignments`, one row an item held for a repository — the item, the
+    holder, the repository, the role it runs as and its state — and `jobs`, one row the item's run — the
+    item and lease the harness named, the assignment, the repository, the role, the checkout, the session
+    and run it opened, the model its turn went out on, every road its turns went out on and why each was left, the
     reason it waits where no road can answer, its state, outcome and report, whether its ended job's
     lease is kept standing for the item's close, what its turn spent (its
     input, output, cache-read and cache-write tokens) and their sum, and the prompt it was launched with; and what a session carries: `session_work`, its item and results, and `session_loads`,
     the documents loaded into it (`docs/api.md`, 「Assignments and jobs」);
-  - the run ledger: `runs`, one row a run of an agent's unit — its agent and room, its unit, how deep
+  - the run ledger: `runs`, one row a run — its supervisor or its role and path, its room, its unit, how deep
     it runs, its bound, when it started and finished in epoch milliseconds, how it ended, who started it, the
     tokens its context held, what it spent (its input, output, cache-read and cache-write tokens), the
     search it carried, the round it belongs to and the message its answer went out as — opened and closed by the job unit, and a job turn's and a chat turn's by agency (`docs/api.md`,
@@ -92,7 +96,7 @@ seeds. The other crates and the server reach the store only through it.
     companion's reset of its conversation takes the companion's and those of the rooms it answers alone
     (`docs/companions.md`, 「Starting it afresh」);
   - the clocks runs are held to and the asks past them: `run_clocks`, one row a clocked run — its name,
-    the name it runs under, its work key and agent, what it is doing, when it started, its clock and when
+    the name it runs under, its role or supervisor, what it is doing, when it started, its clock and when
     it ended — and `clock_asks`, one row an ask — the run, the facts it carried, when it was asked, the
     verdict, until when a keep holds, who gave it, why and when it closed
     (`docs/agent-control.md`, 「A clock asks, it never cuts」); a row ended a week ago goes as the next
@@ -115,12 +119,12 @@ seeds. The other crates and the server reach the store only through it.
   shares」).
 - **An account's `user_id`** names the user it belongs to, or none for the owner's; agency reads it and
   never fills it in itself, since who the users are is the caller's.
-- **An agent's `owner_account`** names the id of the user it belongs to, the same id an account's
+- **A supervisor's and a repository's `owner_account`** names the id of the user it belongs to, the same id an account's
   `user_id` names, or none for the administrator's; agency writes the one its registration is handed and
   never chooses one itself.
-- **An agent's `prompts`** names the folder under `prompts/agents/` that holds what that agent alone is
-  given, one plain name, or none for an agent given no folder of its own, as a companion added on the
-  console starts. A companion's system prompt and its persona are read from this folder, never from the
+- **A supervisor's `prompts`** names the folder under `prompts/agents/` that holds what that supervisor alone
+  is given, one plain name, or none for one given no folder of its own, as a companion added on the console
+  starts; a repository's names the folder its rules are read from. A companion's system prompt and its persona are read from this folder, never from the
   agent's name (`docs/harness-machine.md`, 「A companion's system prompt」). Whoever makes the row writes
   it, a companion's seed among them; a row written without it names none.
 
@@ -128,14 +132,14 @@ seeds. The other crates and the server reach the store only through it.
 
 - **One row per key, a text value each,** for the values agency keeps that need no table of their own.
 - **The families it holds,** a family being a key or a key with a suffix after its colon:
-  - a run's cancellation, `execution_cancel:*`, and the provider order, `provider_order`, which the
-    agent host's supervisor reads again before it starts a child (`docs/agent-control.md`, 「The host」);
+  - a run's cancellation, `execution_cancel:*`, and the owner's switch on each provider,
+    `provider_switch:*` by the provider, which the agent host reads again before it starts a child
+    (`docs/agent-control.md`, 「The host」);
   - an agent's sampling, `agent_sampling:*`, and its own gate switches, `agent_gate:*`, which agency keeps
     and a turn's consumer reads;
   - the Claude account chosen to run on and the one in use, `claude_account_chosen` and
     `claude_account_in_use`;
-  - a session's record, `agent_session:*`, and the sessions a worker set aside on other models,
-    `agent_session_shelf:*`;
+  - a supervisor's session record, `agent_session:*`;
   - a turn in flight, `turn_in_flight:*` by its run, as JSON: the session, the turn's id, the agent, the
     room, the chat turn's run in the ledger, the job and when it began, kept while the turn goes and read
     by the next server's start (`docs/sessions.md`, 「A restart hands the session over」);
@@ -147,14 +151,12 @@ seeds. The other crates and the server reach the store only through it.
   - the logins watch's notes: `claude_node_token_gone:*` and its notice keys;
   - a job's road and its stop: `job_route_block:*`, `job_stop:*`;
   - the machine's room: its six limits, `machine_limit:<name>`, the launcher's notice of launches held,
-    `machine_launch_held`, its `at` and `held` as JSON; and the job and item a worker's turn named while
-    it goes, `worker_job:*` by the worker, as JSON (`docs/agent-control.md`, 「Room on the machine」);
+    `machine_launch_held`, its `at` and `held` as JSON; and the job and item a job's run named while it
+    goes, `worker_job:*` by the checkout, as JSON (`docs/agent-control.md`, 「Room on the machine」);
   - the fallback and the rest: `fallback_since`, `fallback_provider`, `rest_until`, `rest_until:*`,
     `rest_kind`;
   - an account's unread mark, `usage_windows_unread:*` by the account, the moment its reader first found
     its token could not be read with (`docs/usage-windows.md`, 「The Claude account reader」);
-  - the owner's warming switch, `keepalive_stopped`, standing while it holds `1`
-    (`docs/keepalive-schedule.md`);
   - the data move's mark, `users_moved_at`, and the user who administers the platform,
     `users_administrator`, carried with the rows of a store moved across; agency reads them and never
     writes them, and a store without them reads as not moved and as naming no administrator.
@@ -166,28 +168,15 @@ seeds. The other crates and the server reach the store only through it.
 - **Agency's server settles the store as it starts** with the values agency's policy declares
   (`docs/policy.md`): the account `policy/seeds.toml` names, its credential the Claude Code login
   directory of the machine the server runs on — `CLAUDE_CONFIG_DIR`, else `.claude` under the home
-  folder; the ladder `policy/tiers.toml` declares; the first seed's mapping of every tier on Claude Code,
-  Codex and OpenRouter, and the work keys beyond the profiles with the tier each starts on, both in
-  `policy/seeds.toml`; every profile's work key at the tier `policy/work-keys.toml` gives it; and the
-  catalogue entries `policy/seeds.toml` declares, of which the repository's own declares none, since a
-  model file is a deployment's; the base prompts `policy/base-prompts.toml` declares, each with the
-  text of its seed file under the code tree's `prompts/base/`; the tiers DeepSeek maps to, declared
-  after the first seed in the same file; the roles `policy/roles.toml` declares, each with the text of
-  the prompt file it names under the code tree's `prompts/roles/`; and every provider's fold ratio, the
-  default its own declaration under `policy/providers/` names, else the one `policy/resident-turn.toml`
-  names. The registry's provider is given its mappings by the owner.
+  folder; the catalogue entries `policy/seeds.toml` declares, of which the repository's own declares none,
+  since a model file is a deployment's; the base prompts `policy/base-prompts.toml` declares, each with the
+  text of its seed file under the code tree's `prompts/base/`; and the roles `policy/roles.toml` declares,
+  each with the text of the prompt file it names under the code tree's `prompts/roles/`, its provider order
+  and its compaction threshold. A supervisor and a repository are the deployment's to add; the registry's
+  provider is named in an order by the owner.
 - **The settling** runs the migrations and then writes every seed in one transaction.
 - **The account:** a store holding no account is given the one the seed names, the login the machine
   already has; a list the owner has written to is left alone.
-- **The tiers:** the plan's mappings are written once, with the tier store's versions; every work key
-  the plan declares is given the tier it starts on once, the first time the store is settled with it,
-  and recorded as given; every provider the plan declares after the first seed gains the mappings it
-  names, and the co-worker pool's starting places at the tiers a co-worker is borrowed at, once. A
-  mapping, an assignment or a place the owner removed stays removed, and one that stands is never
-  touched. A plan naming a tier its ladder does not hold is refused before anything is written.
-- **The fold ratios:** every provider the plan names is given its ratio at every tier of the ladder
-  once, the first time the store is settled with it, and recorded as given; a ratio the owner set is
-  never touched, and a tier the ladder gains later reads its provider's default until one is set.
 - **The model catalogue:** its entries are written once, as its table is made (`docs/model-catalogue.md`,
   「Where it is kept」).
 - **The roles:** each is given once by its name and recorded as given, a role of its name already held

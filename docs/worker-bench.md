@@ -1,32 +1,33 @@
-# The worker's workbench
+# A repository's workbench
 
-## What a worker holds outside its jobs
+## What a repository holds outside its jobs
 
-Each job worker holds three things beside the work of its jobs:
+Each repository holds three things beside the work of its jobs:
 
 1. the **preamble**, which stands ahead of the job prompt
 2. the **workbench folder**, which remains regardless of sessions
-3. the **dev server** its row names, which agency stands for each of its jobs and which a job does not start
-   beside the pane but restarts when it needs to
+3. the **dev server** its row names, which agency stands for each of its jobs in that job's checkout and which a
+   job does not start beside the pane but restarts when it needs to
 
-- **Where they come from:** all three follow from what the worker's row says, and differ per worker.
-- **None of them is part of the worker session's prefix.** What the row puts into the prefix is its list of
+- **Where they come from:** all three follow from what the repository's row says, and differ per repository.
+- **None of them is part of a session's prefix.** What the row puts into the prefix is its list of
   prefix documents (「Prefix documents」 below).
 
 ## Prefix documents
 
-- **A field of the worker row, `prefixDocuments`:** a list of paths, in order, set and read through
-  agency's worker routes (`docs/api.md`, 「workers, prefix-checks and room-holdings」). Left empty, there
+- **A field of the repository row, `prefixDocuments`:** a list of paths, in order, set and read through
+  agency's repository routes (`docs/api.md`, 「repositories, prefix-checks and room-holdings」). Left empty, there
   are none.
-- **A path is the caller's choice and the code decides none.** A relative path is read from the worker's
+- **A path is the caller's choice and the code decides none.** A relative path is read from the run's
   checkout, the directory its row names; an absolute path is read where it stands, such as the umbrella
   checkout's `STRUCTURE.md` or another repository's document under the umbrella. A path is refused where
   it is empty or climbs with `..`.
-- **They stand in the worker's system prompt,** after its standing rules and its own rules, one after the
+- **They stand in the system prompt of every run at the repository's path,** after the worker line's standing
+  rules and the repository's rules, one after the
   other in the list's order, each headed by its path as written. A launch reads each fresh from disk; a
   document that cannot be read is left out and the launch says so in agency's log, so a path that moved
   never stops a job.
-- **They are part of the prefix.** The worker's composed rules file carries them, so the session's prefix
+- **They are part of the prefix.** The run's composed rules file carries them, so the session's prefix
   digest moves when the list or a document's text changes, and the session is folded or opened afresh
   as any other change to the prefix asks (`docs/launch-lines.md`, 「Why a line is held steady」).
 - **What they are for:** the documents a small model needs before it touches the repository — its
@@ -59,18 +60,17 @@ Each job worker holds three things beside the work of its jobs:
 
 ### What it is
 
-- **A field of the worker row.**
-  - It is written where the worker line is edited in the console's agent management screen
-    through agency's worker routes (`docs/api.md`, 「Workers」); `bmo-agency agent` edits the same
-    field.
+- **A field of the repository row.**
+  - It is written in the console's repository tab through agency's repository routes (`docs/api.md`,
+    「repositories, prefix-checks and room-holdings」); `bmo-agency agent` edits the same field.
   - Left empty, there is none.
 - **The owner's text, and the owner's choice.** For example: which port the dev server stands on,
   what its outside address is, and to check it rather than start a new one.
 
 ### It stands at the very front of the prompt that opens a job
 
-- **Read fresh:** every time the runner hands a job's text to the worker, it reads the preamble from the
-  worker row at that moment and attaches it.
+- **Read fresh:** every time the runner hands a job's text to its run, it reads the preamble from the
+  repository row at that moment and attaches it.
 - **Every job gets it:**
   - ordinary jobs
   - each stage of a work order, since each is its own job — builder turns continuing the same session,
@@ -83,7 +83,7 @@ Each job worker holds three things beside the work of its jobs:
   4. the knowledge its item calls for, where the knowledge gate picked any (the reference unit's
      `reference-selection.md`, 「Work beyond a turn」)
 
-  The report trailer is no part of it: it stands in the worker's prefix, after its rules
+  The report trailer is no part of it: it stands in the run's prefix, after its rules
   (`docs/launch-lines.md`).
 - **Reshape requests:** a request to reshape repeats the whole job prompt, so the preamble goes along
   inside it.
@@ -91,18 +91,16 @@ Each job worker holds three things beside the work of its jobs:
 
 ### What it is not attached to
 
-- **Two pings:** the keepalive ping and the ping that warms a place the pool reserved are fixed
-  one-word texts.
 - **Two kinds of added words:** added words pushed into a running turn, and added words asked after an
   answer, are said to a session that already has the job prompt.
-- **So none of these four** carries the preamble.
+- **So neither** carries the preamble.
 
 ### It is not the prefix
 
 - **Where the prefix comes from:** the command line and the files it points at — the CLAUDE.md chain,
   settings, MCP config, plugins and skills (`docs/launch-lines.md`).
 - **The preamble is in none of them,** nor in the run line's arguments or environment.
-- **So editing the field** leaves agency's `worker_prefix_digest` unchanged: no session fold, no cold cache.
+- **So editing the field** leaves agency's prefix digest unchanged: no session fold, no cold cache.
 
 ### It is attached outside sanitising
 
@@ -114,9 +112,9 @@ Each job worker holds three things beside the work of its jobs:
 
 ### The bundle is agency's header plus the owner's text
 
-- **The header:** if the worker has a preamble or a dev-server command, or works in a directory that is
+- **The header:** if the repository has a preamble or a dev-server command, or works in a directory that is
   not a git checkout, the job's prompt opens with a header:
-  - the path of this worker's workbench folder, and where in it what one item alone needs goes
+  - the path of this checkout's workbench folder, and where in it what one item alone needs goes
     (「An item's scratch」 below)
   - if the directory is not a checkout, that there is nothing to commit, push or deploy, so the closing
     steps that need git are skipped and no repository is made
@@ -124,18 +122,19 @@ Each job worker holds three things beside the work of its jobs:
     its log file, and the exact line that restarts it — with the rule that a job restarts a dev server
     that is down, failing or serving stale code and carries on, rather than leaving it as unfinished
 - **Below it** stands the owner's text as written.
-- **None present:** a worker with none of the three has no bundle at all in its job prompt.
-- **Language:** the header, like the report trailer, is the deployment speaking to the worker, so it is
+- **None present:** a repository with none of the three has no bundle at all in its job prompt.
+- **Language:** the header, like the report trailer, is the deployment speaking to the job's run, so it is
   written in English.
 - **Its lines** are the job unit's, which composes the job's prompt; agency keeps what it is composed
-  from: the worker's preamble and dev-server command on its row, and its workbench folder
+  from: the repository's preamble and dev-server command on its row, and the checkout's workbench folder
   (「Workbench folder」 below).
 
 ## Workbench folder
 
 ### What it is
 
-- **Where:** `workbench/<worker name>/` under the runtime data root.
+- **Where:** `workbench/<checkout name>/` under the runtime data root, one for each checkout of the repository
+  — the base's under the repository's name, a support checkout's under its own.
 - **What goes there:** things a job has no reason to remake each time, such as a check copy of the
   data, check logins and the dev-server log.
 - **Not the session scratchpad:** that is made fresh per session and never reused, so it is no place for
@@ -144,24 +143,24 @@ Each job worker holds three things beside the work of its jobs:
 ### How it is kept
 
 - **Agency creates it:**
-  - for every worker when it starts
-  - for a worker when that worker is added
-  - for a job's worker when the job starts, which the job's runner asks of agency with the rest of the
+  - for every checkout of every repository when it starts
+  - for a repository's checkouts when the repository is added or its support count raised
+  - for a job's checkout when the job starts, which the job's runner asks of agency with the rest of the
     bench: what a job before it asked of the dev server taken back, and the dev pane brought up where
-    the worker has a dev command (`docs/api.md`, 「Workers」)
+    the repository has a dev command (`docs/api.md`, 「repositories, prefix-checks and room-holdings」)
   - leaving it as is if it already exists
-- **A co-work branch has none:** its name lives one task and stands in no agents row
-  (`docs/coworker-pool.md`, 「Standing branch checkouts and their list」), so a branch's job makes no workbench and its prompt
+- **A co-work branch has none:** its place lives one task and stands in no repository's row
+  (`docs/role-slots.md`, 「Standing branch checkouts and their list」), so a branch's job makes no workbench and its prompt
   names none.
-- **Deleting a worker does not delete what the folder holds,** since agency does not know what is inside.
-  A workbench no agent's row names and that holds nothing goes with the item scratch sweep below.
+- **Removing a repository does not delete what the folder holds,** since agency does not know what is
+  inside. A workbench no repository's checkout names and that holds nothing goes with the item scratch sweep below.
 - **Inside no checkout,** for the same reason the data root is outside every checkout.
 - **Left out of deployment backups:** its contents can be remade, and one data copy exceeds a hundred
   megabytes.
 - **How a job learns the path:** only from the header line of the preamble bundle. It is not passed as an
-  environment variable, since the job worker's run-line environment is fixed. The job unit that composes
+  environment variable, since the worker line's environment is fixed. The job unit that composes
   that header asks agency for the path, with the item scratch folders standing under it (`docs/api.md`,
-  「Co-worker pool」, a worker's workbench).
+  「repositories, prefix-checks and room-holdings」, a repository's workbench).
 
 ### An item's scratch
 
@@ -178,8 +177,8 @@ Each job worker holds three things beside the work of its jobs:
   of every workbench whose item has no open job is removed, and every `bmo_item_<n>_…` database on the
   store's cluster likewise dropped. Which items have an open job is the job unit's, which holds the jobs:
   agency asks it at the open items point (`docs/api.md`, 「Hooks」), and where nobody answers, no item's
-  scratch and no database is touched. The same look removes every empty workbench folder no agent's row
-  names, whoever answers. A database the account cannot drop stays, and agency's journal names it.
+  scratch and no database is touched. The same look removes every empty workbench folder no repository's
+  checkout names, whoever answers. A database the account cannot drop stays, and agency's journal names it.
 - **What outlives the item stays beside it,** in the workbench folder itself: the dev server's data
   copy, logins, a tool's environment several items reuse. Nothing outside `items/` is removed by the
   watch.
@@ -188,38 +187,39 @@ Each job worker holds three things beside the work of its jobs:
 
 ## Working directory
 
-- **Named or made.** A worker is added with a directory, or with none; a worker added with none works in
-  `worker-homes/<worker name>/` under the runtime data root, made when the worker is accepted.
-  - A worker name holds no path separator and cannot start with a dot, so the directory cannot reach
+- **Named or made.** A repository is added with a directory, or with none; one added with none works in
+  `worker-homes/<repository name>/` under the runtime data root, made when the repository is accepted.
+  - A repository name holds no path separator and cannot start with a dot, so the directory cannot reach
     outside that folder.
-  - A directory left there by a removed worker of the same name is taken over as it stands.
-  - Removing the worker does not remove the directory, for the same reason as the workbench.
+  - A directory left there by a removed repository of the same name is taken over as it stands.
+  - Removing the repository does not remove the directory, for the same reason as the workbench.
 - **A checkout or not.** Any existing directory is accepted; whether it holds `.git` (a directory, or the
-  file a worktree carries) decides what the worker's jobs do.
+  file a worktree carries) decides what the repository's jobs do.
   - **A checkout:** everything a job does, co-work included.
-  - **Not a checkout:** ordinary jobs only — in effect a chat worker.
+  - **Not a checkout:** ordinary jobs only.
     - A launch that asks for co-work (the item's flag, `--cowork`, or the sentinel in the text) runs as an
       ordinary job, and the launcher says so; agency refuses a co-work place in such a directory.
     - The job's steps that read git — the work-tree baseline, the commits a job made, the graph check —
       find nothing and count as nothing, not as a failure.
     - The preamble header tells the job to skip committing, pushing and deploying.
-  - The worker screen marks such a worker as not a checkout.
-- **The lock stays the directory's.** A made directory is one per worker, so such a worker never waits
-  for another.
+  - The repository tab marks such a repository as not a checkout.
+- **The lock stays the directory's.** A made directory is one per repository, so such a repository never
+  waits for another.
 
 ## Dev server
 
 ### The command
 
-- **Another field of the worker row: the dev-server command.**
-  - One shell line; left empty, that worker has no dev server.
+- **Another field of the repository row: the dev-server command.**
+  - One shell line; left empty, that repository has no dev server.
   - The command decides the port, bind address and base path. Agency does not pick ports.
 - **The outside address** is the machine's own web server's, which splits paths onto ports; the command
   must listen on the port that site expects.
 
-### It stands only while a job of the worker runs
+### It stands only while a job runs
 
-- **Every worker alike:** a base worker's, a support worker's and a worker of any other repository.
+- **Every checkout alike:** a repository's base checkout, a support checkout and a checkout of any other
+  repository, each its own dev server in its own tree.
 - **And only once that job has asked for it.** A job's start stands no server; a job that is about to
   look at what the server serves starts it (「A job starts, restarts and stops it」), and a job that
   never does holds none.
@@ -233,10 +233,8 @@ Each job worker holds three things beside the work of its jobs:
 - **What counts as a job running:** the job hold, a lock of the checkout's own that the job's runner
   holds beside the checkout's job lock for the whole job. Nothing but a job's runner takes it, and it
   goes with the runner's process, so a runner that died holds nothing.
-- **Why not the job lock:** the keepalive ping, the fold and the standing pass take the checkout's job
-  lock too, for as long as each runs. A dev server read off that lock would come up for a keepalive and
-  live for as long as the keepalive kept the worker's session warm. The keepalive keeps the session's
-  cache and nothing else.
+- **Why not the job lock:** a fold and a worker ask take the checkout's job lock too, for as long as each
+  runs, and neither looks at what a dev server serves.
 - **The job ends, the server ends:** once no job holds the hold, the pane stops the server, removes the
   request and closes itself; the next job starts it again where it needs it.
 - **No clock ends it:** a server stands for as long as the job that asked for it runs and has not
@@ -256,18 +254,18 @@ Each job worker holds three things beside the work of its jobs:
   request removed and the pane closed. One a browser is on stays. A job that needs it again starts it
   again.
 
-### It stands in that worker's fixed workspace
+### It stands in that checkout's fixed workspace
 
-- **Where:** the workspace where the head pane stands (`docs/agent-control.md`) has one dev-server tab,
-  and that tab's pane runs `bmo-agency dev-server pane` with the worker's name.
-- **Why not in the head tab:** the head tab's one pane is the worker's resident program itself — the job
-  turns, the keepalive and the fold all go into it and no run opens a pane beside it — so the dev
-  server stands in a tab of its own and never shares that pane.
+- **Where:** each checkout has one fixed workspace of its own holding one dev-server tab, whose pane runs
+  `bmo-agency dev-server pane` with the checkout's name.
+- **Why apart from the run's pane:** a job's run stands in a pane of its own that closes with the run
+  (`docs/agents.md`, 「A run in a pane of its own」), while the dev server's life is the job hold's, so it
+  stands in a workspace that outlives every run.
 
 ### What the script in the pane does
 
 - **Starts the command.**
-  - It runs the row's command with zsh, with the worker's checkout as the working directory.
+  - It runs the row's command with zsh, with the checkout as the working directory.
   - The command gets its own session and process group, and that group number is written to
     `dev-server.pid` in the workbench folder.
 - **Clears a leftover first.**
@@ -290,7 +288,7 @@ Each job worker holds three things beside the work of its jobs:
 - **Follows the row.**
   - It rereads the row every few seconds.
   - If the command changed, it ends the running command with its process group and starts the new one.
-  - If the command is empty or the worker is gone, it ends it and ends itself; herdr collects a pane
+  - If the command is empty or the repository or the checkout is gone, it ends it and ends itself; herdr collects a pane
     whose command has ended.
   - So editing the field alone changes or brings down the dev server.
 - **Follows the job and its use.**
@@ -306,22 +304,23 @@ Each job worker holds three things beside the work of its jobs:
 ### Agency sets it up
 
 - **Idempotent:** setting it up ends in the same result however many times it is called.
-- **A pane stands only where the request stands** (「It stands only while a job of the worker runs」);
+- **A pane stands only where the request stands** (「It stands only while a job runs」);
   everywhere else setting it up closes any pane it finds.
 - **Called at five moments:**
-  1. When agency's server starts, for every worker with a dev-server command whose checkout a job holds.
+  1. When agency's server starts, for every checkout a job holds of a repository with a dev-server command.
   2. When the herdr subscription is reattached. If herdr died and came back, the pane front's process is
      dead.
-  3. Right after agency's worker routes change a worker's dev-server command, for that worker.
-  4. When that worker's job starts, before the runner hands over the first prompt, with the request
+  3. Right after agency's repository routes change a repository's dev-server command, for its checkouts a
+     job holds.
+  4. When a job starts in that checkout, before the runner hands over the first prompt, with the request
      left from before removed first: the pane a job that died left standing is closed.
   5. When a job starts or restarts the server, by the verb.
 
 #### The setup order
 
-1. **Find the workspace:** find or create the fixed workspace and set up the head.
+1. **Find the workspace:** find or create the checkout's fixed workspace.
 2. **Find the pane:** a pane in that workspace with no run token, which `layout.export` says runs the
-   dev-server script under this worker's name, is the dev-server pane.
+   dev-server script under this checkout's name, is the dev-server pane.
 3. **Otherwise start one:** in a new tab with `layout.apply` given only `workspace_id`.
 4. **No `tab.focus`:** it would steal the screen a person was looking at.
 
@@ -334,14 +333,14 @@ Each job worker holds three things beside the work of its jobs:
     replaces panes of the old version.
 - **One setup at a time.**
   - Agency's server, a job's runner and the verb are separate processes and may try to set up the same
-    worker's dev server at once.
-  - So setup holds a file lock, one per worker, in the data root's lock directory; whoever comes later
+    checkout's dev server at once.
+  - So setup holds a file lock, one per checkout, in the data root's lock directory; whoever comes later
     finds the pane the earlier one started.
-  - If two or more dev-server panes of the same worker are still seen (say, a person started another),
+  - If two or more dev-server panes of the same checkout are still seen (say, a person started another),
     only the first in the snapshot is kept and the rest are closed.
   - Inside the lock only one side closes, so there is no disagreement about which to keep.
-- **Not closed when the head is set up anew.**
-  - Whoever resets the head closes panes with no run token, but keeps panes whose command is the
+- **Not closed when the workspace is tidied.**
+  - Whoever tidies the workspace closes panes with no run token, but keeps panes whose command is the
     dev-server script.
   - A pane herdr revived has no command, so it is still closed, and moment 2 starts a new one.
 
@@ -349,17 +348,17 @@ Each job worker holds three things beside the work of its jobs:
 
 - **No run token:** the dev-server pane has none.
 - **So it is outside the run bookkeeping:** it is not in the picture that tracks liveness, not in the run
-  list the head pane writes, and takes no lock a job waits on; it only reads the job hold.
+  list a run writes, and takes no lock a job waits on; it only reads the job hold.
 - **Tied to the job by the hold alone:** it outlives no job; a job never starts a second server beside it
   and never ends the pane, but starts, restarts and stops the server through the verb (below).
 
 ### A job starts, restarts and stops it
 
-- **The lines:** `<agency binary> dev-server start|restart|stop <worker>`, given in full
-  in the preamble header, since a worker's checkout may be any repository.
+- **The lines:** `<agency binary> dev-server start|restart|stop <checkout>`, given in full
+  in the preamble header, since a job's checkout may be any repository's.
 - **`start`:**
-  1. Refuses a name that is not a worker, or a worker with no dev-server command — a support
-     worker's being its base's (`docs/worker-slots.md`) — or a worker no job of which is running.
+  1. Refuses a name that is no checkout, a checkout whose repository has no dev-server command
+     (`docs/worker-slots.md`), or a checkout no job holds.
   2. Leaves the request in the workbench folder, which counts as use as well.
   3. Brings the dev-server pane to the row, as agency does, so a pane that is missing is started.
   4. Where a live server stands already, says so at once. Otherwise waits until the pid file names a
@@ -369,8 +368,8 @@ Each job worker holds three things beside the work of its jobs:
 - **`restart`:** the same, with a restart request left beside the request, and the wait is for a
   process group other than the one standing.
 - **`stop`:** removes the request, then waits until the server's group has gone,
-  the pane having stopped it on its next look; a worker with nothing running is told so. It refuses
-  only a name that is not a worker.
+  the pane having stopped it on its next look; a checkout with nothing running is told so. It refuses
+  only a name that is no checkout.
 - **What the pane does with the request:** on its next look it takes the request away; a running server
   is stopped and started again at once, and a server waiting out the delay after failures is started
   at once with the failure count cleared. A pane that starts fresh drops a request left from before,
@@ -385,30 +384,29 @@ Each job worker holds three things beside the work of its jobs:
 
 ## Servers a job leaves listening
 
-- **What they are:** a process listening on a TCP port whose environment names a worker's agent place
-  (`BMO_AGENT_PLACE`), which is to say something the worker's program started: a `nuxi dev` a job ran
+- **What they are:** a process listening on a TCP port whose environment names a run's place
+  (`BMO_AGENT_PLACE`), which is to say something a job's program started: a `nuxi dev` a job ran
   itself, in the background or detached.
-- **What they are not:** the worker's dev server carries no `BMO_` variable (「What the script in the
+- **What they are not:** a checkout's dev server carries no `BMO_` variable (「What the script in the
   pane does」); a server a person started in a shell of their own and the owner's units name no place.
   None of them is ever a candidate.
-- **Why they outlive the job:** the worker's resident program stays up between jobs, kept warm by the
-  keepalive, and whatever a job's turn left running stays with it.
+- **Why they outlive the job:** a process a job's turn started in the background or detached leaves the run's
+  process group, so closing the run's pane does not end it.
 - **When they are swept:**
-  - The job's runner sweeps its own worker's as the job ends, before it hands the job over, by asking
-    agency across the boundary (`docs/api.md`, 「Workers」).
-  - Agency sweeps every worker's every ten minutes, which catches a runner that died. It takes a server
-    whose worker has no job holding its checkout's job hold; one whose worker's job still runs is
-    kept, however long it has run.
+  - The job's runner sweeps its own checkout's as the job ends, before it hands the job over, by asking
+    agency across the boundary (`docs/api.md`, 「repositories, prefix-checks and room-holdings」).
+  - Agency sweeps every checkout's every ten minutes, which catches a runner that died. It takes a server
+    whose checkout no job's hold holds; one whose job still runs is kept, however long it has run.
   - An agency server on a copy of the data root sweeps nothing: the machine is not the copy's.
 - **What is ended:** the server's process group, by TERM, waited on until the group has gone, and only where
-  every process in that group names the same place. The worker's program shares its group with its
-  head, which names no place, so a group holding the program is never signalled; a server in such a
+  every process in that group names the same place. A run's program shares its group with its head,
+  which names no place, so a group holding the program is never signalled; a server in such a
   group is reported and left.
 - **What is recorded:** each server ended is written to the runner's or agency's journal with the
-  worker, the checkout it ran in, its age, its memory and its command. Which job's run it started in
+  repository, the checkout it ran in, its age, its memory and its command. Which job's run it started in
   is the job service's to read off its own jobs' times, so agency's line names no job.
-- **Not swept:** co-worker places and the places of agents that are not workers.
-- **Reading them:** `bmo-agency dev-server list` lists every worker's dev server and every server a job
+- **Not swept:** co-work places and the places of supervisors.
+- **Reading them:** `bmo-agency dev-server list` lists every checkout's dev server and every server a job
   left, with the memory each holds and what the sweep would do with it; `--sweep` does it.
 
 ## A repository's own bench
@@ -417,8 +415,8 @@ Each job worker holds three things beside the work of its jobs:
   stand-in services, its ports, its address and its authentication, and the tools a job uses to
   measure or picture a screen there. That repository's documents state them.
 - **What agency holds to of any of them** is what this document says: the command is one field of
-  the worker row, it runs in the worker's checkout from its workbench folder, it carries no `BMO_`
-  variable but its workbench path and its use mark, a support worker is told its number in `BMO_WORKER_SLOT`
-  (`docs/worker-slots.md`, 「Dev servers」), and it stands only while a job of the worker runs and has
-  asked for it.
+  the repository row, it runs in a job's checkout from that checkout's workbench folder, it carries no `BMO_`
+  variable but its workbench path and its use mark, a support checkout is told its number in
+  `BMO_WORKER_SLOT` (`docs/worker-slots.md`, 「Dev servers」), and it stands only while a job in that
+  checkout runs and has asked for it.
 

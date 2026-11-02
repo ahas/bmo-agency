@@ -17,40 +17,41 @@ composed into a system prompt, and what the chat agent's own prompt is made of.
     markdown into, kept beside the rulebooks it points to for the marks and the fold;
   - `document-writing.md` — every agent that writes a stored document: the brain, which composes its
     writers' whole prompts, reads it with `plain-writing.md` and `self-preservation.md` through the
-    rulebook read (`docs/api.md`, 「Agents」);
-  - `agent-words.md` — every designated agent: the chat session and every companion, for the turns
+    rulebook read (`docs/api.md`, 「prompt-documents」);
+  - `agent-words.md` — every supervisor: the chat session and every companion, for the turns
     another agent's words woke it in;
-  - `self-preservation.md` — every agent that acts: the chat session, every job worker and
-    co-worker and the news page writer; never a gate, which holds no tool.
-- **`prompts/agents/<worker>/own-rules.md`** is what one worker alone is appended after every
-  worker's rules, where it has one; no worker carried in this repository has one.
+  - `self-preservation.md` — every agent that acts: the chat session, every run of the worker line,
+    every co-worker and the news page writer.
+- **`prompts/agents/<folder>/own-rules.md`** is a repository's own rules, appended after the worker
+  line's standing rules for a run in that repository's checkout, from the prompt folder the repository's
+  row names (`docs/repositories.md`, 「What a repository row holds」); no repository carried in this
+  repository has one.
 - **`prompts/agents/<name>/` holds what one agent alone is given:** `chat/manual.md`,
   `chat/procedures/` and `chat/rules.md`, the browse line's `.mcp.json`, and `worker/trailer.md`.
   The search and browse lines' instructions are not here: whoever starts a session on either hands them in
   whole (`docs/api.md`, 「sessions」), and the research unit keeps its own, with the search rulebooks.
 - **`prompts/harness.md` is the platform's harness opening,** agency's own and no program's: what the
   harness around the agent is, how words reach it, where its memory is and what the platform around it
-  holds. Every line on Claude Code opens its whole system prompt with it unless a base prompt stands in
-  its place — the chat session, every companion that chooses no base, every job worker and co-worker,
-  and every session on the search and browse lines, before the instructions its caller hands in
-  (`docs/base-prompts.md`, 「The harness layer」).
-  No gate and not the translator, whose prompts are handed whole by their caller and their role, and
-  not dsh, whose own prompt is its harness.
-- **No gate's prompt stands here.** A gate's instructions, rulebooks and order are the gate unit's: it
-  hands its whole system prompt with each turn it sends, and agency reads the order of the gate kinds
-  from the gate's declaration (`docs/api.md`, 「gate kinds」).
+  holds. Every line on Claude Code opens its whole system prompt with it — the chat session, every
+  companion, every run of the worker line and every co-worker, and every session on the search and
+  browse lines, before the instructions its caller hands in — but a run of the worker line on an account
+  that names a base prompt, which opens on that base instead (`docs/base-prompts.md`, 「The harness
+  layer」).
+  Not the translator, whose prompt is handed whole by its role and its caller, and not dsh, whose own
+  prompt is its harness.
+- **No gate's prompt stands here.** A gate's instructions, rulebooks and order are the gate unit's.
 - **A job's documents:** `worker/graph.md`, what a job is told of the code graph; `worker/trailer.md`,
   the trailer every job is held to, with the graph text, the path of the worker plugin's skills and the
-  path of `plain-writing.md` filled in as the deployment shows them, which stands in the worker's prefix
-  — the rules its line hands after the harness opening in its whole system prompt
-  (`docs/launch-lines.md`) — so a session
-  pays for it once rather than on every turn; and `handoff.md` in a worker's own folder — its base's for
-  a support worker — the instruction it writes its own handoff note by, where it holds one. The
-  worker's definition route answers all three (`docs/api.md`, 「Workers」).
+  path of `plain-writing.md` filled in as the deployment shows them, which stands in the worker line's
+  prefix — the rules its line hands after the harness opening in its whole system prompt
+  (`docs/launch-lines.md`) — so a session pays for it once rather than on every turn; and `handoff.md` in
+  a repository's prompt folder, the instruction a run there writes its own handoff note by, where the
+  repository holds one. A repository's definition route answers all three (`docs/api.md`,
+  「repositories, prefix-checks and room-holdings」).
 
 ## The web reaches agents through the tool host
 
-- **Agency's deployment writes `worker.mcp.json`,** the job worker's own configuration and the only
+- **Agency's deployment writes `worker.mcp.json`,** the worker line's own configuration and the only
   line handed it, naming the tool host's `worker` namespace beside its `web` namespace
   (`mcp-host.md`). The chat line's `chat.mcp.json` is not the deployment's to write: the chat line
   composes it on every turn, the tool host's `bmo`, `web` and `gate` namespaces beside the two harness
@@ -64,10 +65,10 @@ composed into a system prompt, and what the chat agent's own prompt is made of.
 ## How the documents are composed
 
 - **Agency's prompt composer composes these into what each agent sees** — the chat session's system
-  prompt, each gate's, each runner's standing instructions and the request of each run — and the
+  prompt, each runner's standing instructions and the request of each run — and the
   launch lines read from it, fresh on every run, so an edited document applies at the next launch.
 - **A system prompt reaches the CLI as a file,** written under the deploy root's `prompts/` for that
-  launch and named after the chat line or the gate, never on the command line: a chat's runs tens of
+  launch and named after its line, never on the command line: a chat's runs tens of
   kilobytes.
 - **The prompt-composing entry of the `bmo-agency` CLI** — `bmo-agency prompts`, which runs the agent
   package's `deploy-agents.ts` on Bun out of the code tree; run by the reload path whenever a document
@@ -75,7 +76,7 @@ composed into a system prompt, and what the chat agent's own prompt is made of.
   writes the same composition out under the agents directory the data root holds (`BMO_AGENTS_DIR`):
   agency's own agents' prompts for inspection, and for each runner the directory it runs in, which sits
   outside the repository on purpose so that neither a project instruction file up the tree nor the
-  repository's git status can enter a runner's prefix. It writes no gate's prompt.
+  repository's git status can enter a runner's prefix.
 
 ## The chat agent
 
@@ -138,8 +139,7 @@ composed into a system prompt, and what the chat agent's own prompt is made of.
   `brain_list`, by its subject and type, or `brain_similar`, by the question's words, and a document or a
   rule with the gate's `reference_search` and then `reference_piece`. The brain's own discipline for
   writing and reading stands in the brain's own document, which the prompt hands in. A server that does not attach
-  is told to the session afterwards (`docs/agent-control.md`, 「dsh's providers: OpenRouter and
-  DeepSeek」).
+  is told to the session afterwards (`docs/agent-control.md`, 「What a resident turn reads」).
 - **The rulebooks the role carries hold rules, never past cases:** a rulebook states what an answer
   is, and no example answer or account of a turn that went wrong stands in one, since an example becomes
   the agent's own phrasing.

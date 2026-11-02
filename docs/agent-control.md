@@ -14,26 +14,26 @@ The owner's words for the scope are:
 
 ### Ownership and scope
 
-- **Every model invocation runs through herdr, for every provider.** That is the chat agent's turns,
-  every gate, chat compaction, chat and gate warming, workers, repository-managed co-work
-  branches, search and browse runners, their fallback attempts, keepalive and worker
-  compaction.
+- **Every model invocation runs through herdr, for every provider.** That is every supervisor's turns,
+  its compaction and its keepalive, and every run of a role — a job's turn, a worker ask, a delegated
+  task, a repository-managed co-work branch, a search and a browse — with their fallback attempts and
+  their compaction.
 - **There is one launch path, and nothing branches on the line.** No line, provider or caller
   keeps a process of its own beside it, and none calls a model over HTTP from the bot.
-  - A gate's one request to a registered model with no tools is itself a command run in the gate's pane.
   - The harness adapters stay what they are: a harness is how a program is spoken to, and a
     bridge or a tap that a harness needs runs where the harness asks for it.
 - **Ownership and placement are separate questions.**
-  - A chat turn and a gate stay the bot's own runs: the bot waits for them, reads their answers,
-    and a bot that stops has them stopped.
-  - Where their process runs is the agent's pane, like everybody else's.
+  - A supervisor's turn stays the bot's own run: the bot waits for it, reads its answer, and a bot
+    that stops has it stopped.
+  - Where its process runs is the supervisor's pane, as a role's run stands in a pane of its own.
 - **Not model invocations.** Utility commands, model discovery and service supervision need no
   agent pane of their own.
-- **The agents table is authoritative** for names, kinds and standing workspaces. A name a run is
-  launched under that has no row still gets a workspace of its own under that name. No roster is
-  kept in the code: a row is written by whoever registers its agent — a companion from the seed its
-  deployment hands in, a worker the owner adds — and what each agent is called on a screen is the
-  console's own wording.
+- **The `supervisors` and `roles` tables are authoritative** for names (`docs/agents.md`, 「Two
+  axes」): a supervisor stands in a standing workspace under its name, and a run of a role in a
+  workspace opened for the run. A name a run is launched under that has no row still gets a workspace
+  of its own under that name. No roster is kept in the code: a row is written by whoever registers it —
+  a companion from the seed its deployment hands in, a role the owner adds — and what each is called on
+  a screen is the console's own wording.
 
 ### A pane carries the real execution
 
@@ -54,24 +54,26 @@ Drain stdout and stderr concurrently; preserve byte boundaries through increment
 Display provider/model, lifecycle and readable progress without corrupting raw result data.
 Existing harness readers remain responsible for reply, usage and session interpretation.
 
-### One standing pane per agent
+### One standing pane per supervisor
 
 The owner's words:
-
-> Don't keep throwing panes away; keep using them, one pane per agent.
 
 > For example, if it is a Claude Code session, just show the screen with Claude Code running. Always make it possible to give it instructions directly there too; I asked for this so I can also see what it is doing and what it is thinking.
 
 > Stand every agent provider up interactively. A request with no tools to a registered model can't be, so leave it as the exception. It is abstracted anyway, so it is the same interface.
 
-- **Every agent has one pane that stays.** It is the head pane of the agent's standing workspace
-  (「What goes where」). It does not come and go with the work, and the workspace holds nothing else
-  of the agent's: no shell tab, no drawn status beside it, no pane opened for one turn.
-- **What stands in that pane is one of two things.**
-  - **A resident agent's pane is its program.** The provider's own interactive program — Claude
+- **Every supervisor has one pane that stays.** It is the head pane of the supervisor's standing
+  workspace (「What goes where」). It does not come and go with the work, and the workspace holds
+  nothing else of the supervisor's: no shell tab, no drawn status beside it, no pane opened for one turn.
+- **Every run of a role has a pane of its own,** opened for the run in a workspace of its own and closed
+  with it (`docs/agents.md`, 「A run in a pane of its own」). Nothing of a role stands between its runs —
+  no head, no program, no place — so the heads, the places and the standing pass below are a
+  supervisor's alone.
+- **What stands in a supervisor's pane is one of two things.**
+  - **A resident supervisor's pane is its program.** The provider's own interactive program — Claude
     Code's screen, Codex's screen — stands in the pane between turns and during them. A person
     attached to herdr reads the tool calls and the thinking as the program draws them, and can type
-    into it at any time. Every turn of that agent, keepalive and fold included, goes into that one
+    into it at any time. Every turn of that supervisor, keepalive and fold included, goes into that one
     program.
   - **A host agent's pane shows its host's view** of the agent: each structured execution the agent
     host runs for it, as it begins, streams and ends (「The host」 below). No process of the agent's
@@ -102,10 +104,6 @@ The owner's words:
     asks again a second later.
   - **One program per place.** A second head in the same workspace that finds the program already held
     by a live head is answered the view instead of a second copy.
-  - **A gate's pool is the one agent with more than one program:** each of its slots is a place of
-    its own, with its own head and program, beside the gate's own place, which shows its host's view
-    (「A gate's pool」). A gate's turns on a road whose program carries its own turns stand in places
-    of their own the same way, one set for each program they need (「A gate's places」).
   - **A head opened for a host lets go.** A head started with the host-head variable — a pane a bun
     launcher opened for a host beside the program — never races the program's own loop: it is answered
     the program only once nothing has held it for ten seconds, the view while no program is written,
@@ -135,19 +133,19 @@ The owner's words:
     ID`, and the same `--session-id` starts again cleanly (measured). So the agent host answers the
     resuming command only once the record the launcher named exists, and the opening command until
     then; a program written with no record named is started again on its resuming command.
-  - **Written with nothing to do.** An agent whose own launcher has a program to stand while no turn
-    has asked for one has it written by the standing pass below, into a place that holds none, and the
-    head starts it with nothing put in. The pass offers each agent to its launcher and writes what that
-    launcher answers; which agents answer, and with what, is each launcher's own. The worker line is the
-    one that answers (「A worker standing with nothing to do」). The heads, the launchers and the pass are
-    agency's server's, the chat receiver's, and a head stood before the offer takes the program as a view
-    gives way (below).
-  - **Handed back.** Where the agent's provider declares no program or its line keeps no session, the
+  - **Written with nothing to do.** A supervisor whose own launcher has a program to stand while no
+    turn has asked for one has it written by the standing pass below, into a place that holds none, and
+    the head starts it with nothing put in. The pass offers each supervisor to its launcher and writes
+    what that launcher answers; which answer, and with what, is each launcher's own. No role is offered:
+    a role's program stands only in the pane its run opens (「Nothing of a role stands between runs」).
+    The heads, the launchers and the pass are agency's server's, the chat receiver's, and a head stood
+    before the offer takes the program as a view gives way (below).
+  - **Handed back.** Where the supervisor's provider declares no program or its line keeps no session, the
     launcher takes the program out of the place and ends it, and the head, starting again, is answered
     the view. The chat does this on every round it runs on the host, so a program written while its
     provider still declared one never keeps the pane.
 - **The pane runs a loop, and the program stands inside it.** The pane's command is a shell loop
-  that starts `pane-head` with the agent's name, under the mark `bmo-head-<agent>` by which a head pane
+  that starts `pane-head` with the supervisor's name, under the mark `bmo-head-<agent>` by which a head pane
   is told apart from everything else. Where what the head became ends — the program crashed, a person
   typed its exit, the bot ended it to start a different command, the agent host ended a view — the
   loop starts the head again in the same pane, waiting a second between tries so a head that cannot
@@ -166,17 +164,16 @@ The owner's words:
   - **A place that keeps dying is stood up anew.** Six starts of its program within five minutes is a
     program in a loop, and the next turn does not put its prompt into it: the place is rebuilt first
     (「Stopping, falling back and standing up again」).
-- **Every agent's pane is stood up, not waited for.** The chat receiver stands them all up as it
+- **Every supervisor's pane is stood up, not waited for.** The chat receiver stands them all up as it
   attaches to herdr, on every reattachment and every ten minutes (`chat-providers.md`, 「Where the
-  receiver runs」), so an agent that has not run since the machine
-  came up has its pane and its program all the same, and a worker that has never been given a job
-  stands its program all the same.
+  receiver runs」), so a supervisor that has not run since the machine came up has its pane and its
+  program all the same.
 - **A head of another kind is replaced once nothing runs on it.** A head loop that starts anything
   but `pane-head` — a head a herdr kept standing from an earlier deployment — is closed by the
   standing pass once no open execution names its pane, and `pane-head` is stood in its place. A pane at work keeps its head
   until a later pass finds it idle: closing it would end the program standing in it.
-  - **A name with no row is covered too.** Message sending, a voice briefing, a watch and a co-work
-    role launch under a name the store keeps no agent for, and their workspaces carry that name as
+  - **A name with no row is covered too.** Message sending, a voice briefing and a watch launch under
+    a name the store keeps no supervisor or role for, and their workspaces carry that name as
     their agent's token. The pass reads every such name off herdr's workspaces of this data root and
     replaces their heads of another kind the same way, so no head of another kind outlives the pass.
   - **A workspace whose token herdr lost still counts.** A restarted herdr revives workspaces with
@@ -186,21 +183,18 @@ The owner's words:
     head in it, counts under no name.
 - **The leftovers go with it.** A pane of the agent's workspace with no run in it and no command of
   its own — a shell a rebuilt herdr left, a pane whose loop let go — is closed as the panes are
-  stood up. A worker's dev server runs its own command and is kept, and so is a standing pane — one
+  stood up. A job's dev server runs its own command and is kept, and so is a standing pane — one
   whose command line carries the standing mark (`bmo-standing-*`), such as a companion's follow pane
   (`docs/companions.md`, 「What a turn shows」).
 - **A job's end sweeps the whole of herdr the same way.** When a job ends, and on agency's own clock
   every ten minutes, agency reads every workspace and every pane in it, on this machine and on each ready work node whose
-  link the node service reports up. Every agent standing counts, a pane a consumer claims among them
-  (`docs/api.md`, 「Hooks」, the pane claims). A pane carrying a run, a head (`bmo-head-*`, the
+  link the node service reports up. Every supervisor standing and every run open counts, a pane a
+  consumer claims among them (`docs/api.md`, 「hooks」, the pane claims). A pane carrying a run, a head (`bmo-head-*`, the
   head script), a node's pane (`bmo-node-*`), a dev server or a standing pane (`bmo-standing-*`) is kept whatever else is true, since what
-  it runs is an agent's or a node's standing process. In a workspace this system marked — one carrying
-  an agent's or a node's token — a pane carrying none of those is closed, and a workspace of an agent
-  that no longer stands, left with nothing kept in it, is closed whole. A standing agent's workspace is
-  left to the standing pass.
-  - **A resting worker's workspace is closed whole** where no pane of it carries a run: its head and
-    its program stand for a worker that takes no work (`jobs.md`, 「There can be more than
-    one job worker」). One with a run in it waits for the next sweep.
+  it runs is a run's, a supervisor's or a node's standing process. In a workspace this system marked —
+  one carrying an agent's or a node's token — a pane carrying none of those is closed, and a workspace
+  of a supervisor that no longer stands, or of a run that has ended, left with nothing kept in it, is
+  closed whole. A standing supervisor's workspace is left to the standing pass.
   - **What the sweep will not close is told, not closed.** A workspace of an agent that no longer
     stands but still carries something, and a workspace no token marks whose panes carry nothing, are
     published as one `herdr-leftovers` event — how many panes, in which workspaces, and whether each is
@@ -210,143 +204,45 @@ The owner's words:
 ### Which agents are resident
 
 - **Every agent runs as an interactive program in a pane; none runs in print mode**
-  (`docs/agents.md`, 「No print mode」). Where each kind stands on the way there is that document's
-  「The stages」.
-- **An agent is resident when its current provider declares an interactive surface and its line
-  keeps a session.** That is every conversational agent — the chat agent and every companion
-  (`docs/agents.md`, 「Conversational agents」) — every worker, and each co-work place of the pool.
-  Their turns follow one another on one program: the chat's rounds come off one common queue, a
-  companion's turns in its rooms take the agent's own lock in turn, and a worker's turns are held one
-  at a time by its pane lock (「A worker's pane lock」).
+  (`docs/agents.md`, 「No print mode」).
+- **A supervisor is resident when its current provider declares an interactive surface and its line
+  keeps a session.** That is every supervisor — the chat agent and every companion (`docs/supervisors.md`,
+  「One runner」) — and nothing else. Its turns follow one another on one program: the chat's rounds come
+  off one common queue, and a companion's turns in its rooms take the supervisor's own lock in turn.
   - A companion keeps a session in each room it answers, and its one program goes on in the session of
     the room its turn is for: a turn for another room changes the command, which starts the program
     again on that room's session in the same pane (「The interactive surface a provider declares」).
-- **A run of a line no standing program carries is a run apart:** the turns of apart sessions on the
-  search and browse lines and the news page's writer each stand the interactive program in a pane of
-  their own, opened for the run and closed with it, so two runs of one agent at once are two panes; the
-  session each opens on, a new one or the warm one its role keeps, is its role's setting (`docs/agents.md`,
-  「Runs apart」).
-- **A gate on Claude Code stands a pool of resident programs,** since its judgements are independent
-  calls that overlap (「A gate's pool」 below; `gates.md`, 「A gate on Claude Code」).
-  - Each judgement stands alone, and two of them for the same gate may run at once for two rooms.
-  - One interactive program holds one conversation and takes one turn at a time, so it would queue
-    one room's judgement behind another's and carry one judgement's words into the next. A pool takes
-    overlapping judgements in programs of their own and clears each program's conversation between
-    them.
-  - A gate on a road whose program carries its own turns — bmo-tui on a dsh session, for DeepSeek and
-    OpenRouter — stands in places kept for the programs its asks compose, each one standing between
-    judgements (「A gate's places」).
-  - A gate on any other road stays a host agent: one request asked in its host and shown in its pane.
-- **The registry's provider stands Claude Code on the gateway.** What stands in the pane of an
-  agent on a registered model is Claude Code's interactive program pointed at agency's gateway under the
-  registration's name, the words said to a worker going on in the session the program stands on, a
-  conversational agent's turn going on in its scope's session, and every other turn the bot puts in
-  opening a session of its own (`docs/own-llm.md`, 「Claude Code in the pane」). The registry's
-  provider declares this, and nothing outside it names a registration.
-- **A provider may declare no surface,** and an agent is then a host agent for as long as it runs on
+- **Every run of a role stands apart:** a job's turn, a worker ask, a delegated task, a co-work branch,
+  a search, a browse, a translation and the news page's writer each stand the interactive program in a
+  pane of their own, opened for the run and closed with it, so two runs of one role at once are two
+  panes; the session each opens on, a new one or the one its role keeps at that path, is its role's
+  setting (`docs/agents.md`, 「A run in a pane of its own」; `docs/sessions.md`, 「A role's session」).
+- **The registry's provider stands Claude Code on the gateway.** What stands in the pane of a run or a
+  supervisor on a registered model is Claude Code's interactive program pointed at agency's gateway
+  under the registration's name: a supervisor's turn goes on in its scope's session, and a role's run on
+  the session its role's setting gives it at its path (`docs/own-llm.md`, 「Claude Code in the pane」).
+  The registry's provider declares this, and nothing outside it names a registration.
+- **A provider may declare no surface,** and a supervisor is then a host agent for as long as it runs on
   that provider: its calls run as structured executions of the agent host and its pane shows their
   view.
-- **Resident or not is read off the declaration, never off a name.** The launcher asks the agent's
+- **Resident or not is read off the declaration, never off a name.** The launcher asks the supervisor's
   current provider for its surface and the line for whether it keeps a session. The receiver, the
   conversation and the runners never read which provider they are talking to.
 
-### A worker's pane lock
+### A checkout's lock
 
-- **Two locks, two things guarded.** A checkout's job lock guards the directory — its files and its
-  git index — and is taken by whatever does work there. A worker's pane lock guards that worker's one
-  resident program, and is taken by whatever puts a turn of the bot's into it. Each worker has its
-  own, named by the worker rather than by its directory.
-- **Who takes which.**
-  - A job takes its checkout's job lock, then its worker's pane lock, and holds both until the job is
-    recorded. Waiting on the pane lock is waiting out a word's turn already running there.
-  - The keepalive ping, the fold and the standing pass take the job lock and then the pane lock, both
-    without waiting, and skip that round when either is held.
-  - A word said to the worker takes the pane lock alone, without waiting (「The keepalive ping goes
-    into the same program as the turns」).
-- **So a word never waits on another worker.** Two workers pointed at one checkout share its job lock
-  and nothing else: while one runs a job there, a word to the other goes into the other's own pane at
-  once, and the two programs work in the one directory side by side. The owner tells a worker something on
-  its screen to have it done now, which is why the checkout is not what a word waits on.
-- **A worker reads working while a turn is its.** It reads working while a job of its is starting or
-  running, or while its program carries a turn no such job names — one this process carries, or one
-  kept in flight — and idle only where a launch on it can go in. The queue reads that state, so a
-  second launch is never written into a program already carrying a turn: bmo-tui would take the
-  inbox file and its dsh session would start nothing, leaving the job silently running.
-- **No cycle.** The job lock is always taken before the pane lock, and the word takes no job lock.
-
-### A gate's pool
-
-What a pool is for, how large it grows and when a program is cleared or ended is `gates.md`, 「A
-gate on Claude Code」. How it stands on the places:
-
-- **A slot is a place of its own,** named `gate-<gate>-<n>`, with its own workspace, head pane, loop and
-  program, stood by the judgement that first needs it as any resident program is stood for a turn.
-  Its settings are the place's own: the status line and the `Stop`, `StopFailure`,
-  `UserPromptSubmit` and `SessionStart` hooks, and no shell guard, since a gate holds no shell. Its place keeps a record of
-  which gate and slot it is and when a judgement last let it go.
-- **A slot's lock is its own lock file,** taken without waiting by the judgement that goes into it and
-  held until its program is clear again, so a slot takes one judgement at a time whichever process
-  asks.
-- **Which session a judgement is read from** is the last one the slot's program opened: the session id
-  its session-start hook named after the program last started or was cleared. The command names
-  none, so a program started again, by its loop or by a changed command, opens a new one.
-- **Clean** is a program that has taken no prompt since that hook: no submit hook stands after it in
-  the place.
-- **The clearing is `/clear`,** put in as a command of the program's own with nothing before it; the
-  hook it fires carries the source `clear`. A program is ended rather than cleared by stopping it at
-  its process, and its loop starts it again.
-- **A judgement's turn is looked at more often than a job's,** every fifth of a second instead of every
-  second, and the status line's reading after it is waited for two seconds at most, since a
-  judgement's answer is waited on by a room. A reading that does not come in that while leaves the
-  judgement's tokens standing with no money, as for any resident turn.
-- **A slot is a pane its gate claims** (`docs/api.md`, 「Hooks」, the pane claims), so it counts as
-  standing for the sweep after a job's end and its workspace is never told as a leftover. The heads'
-  pass takes down each slot its gate marks idle — its program released from the place and its
-  workspace closed — where its lock is free; how long a slot stands unused before it is marked idle is
-  the gate's.
-
-### A gate's places
-
-The gate unit asks every judgement on a provider's program as a conversation of one agent
-(`docs/api.md`, 「sessions」), whichever gate it is, and a gate's instructions are the program's whole
-system prompt, so one pane would hold another program from one gate to the next and take one judgement
-at a time. On a road whose program carries its own turns — bmo-tui on a dsh session, for DeepSeek and
-OpenRouter — a gate's turn goes instead into a place kept for the program it needs:
-
-- **A place stands for one program.** The program is what the turn's ask composes: the conversation's
-  agent, the provider, the model, the effort, whether it thinks, the instructions and the folder. A place
-  is named after the agent, a digest of that program and a slot, `<agent>-<digest>-<n>`, with a workspace,
-  head pane and loop of its own. Two gates whose asks compose the same program share its places, and a
-  gate whose instructions change stands in new ones.
-- **It stays standing between turns.** Its program is written into it and stood by the first turn that
-  needs it, as any resident program is, and every later turn of that program finds it standing on the
-  same command and goes in with no start. Its dsh session goes on from one judgement to the next.
-- **One turn at a time in a place, several places at once.** A turn takes a free place of its program,
-  the lowest slot first. Where every place of the program is at work it stands another slot, up to the
-  most one program may stand in, so overlapping judgements of one gate run side by side; places of
-  different programs run at once. Where the most gate places that may stand together already stand,
-  the one of another program unused longest is ended to make room; where every one is at work, the turn
-  waits for one to come free.
-- **A long session starts afresh.** A turn whose answer shows its session holding at least the session
-  bound in tokens lets that session go after it answers: the program is ended, the place's session
-  record removed and the same program written back, so the next turn begins a fresh dsh session on a
-  program already standing again.
-- **No clock ends a place.** A place stands, unused or not, until room is made for another program by
-  the count above, or until it is ended outright; how long it has gone unused ends nothing. Ending one
-  waits for the turn holding its lock to end, however long that takes, and then releases its program and
-  closes its workspace. A program left standing in the agent's own pane on such a road stands as any
-  resident program does.
-- **Each place keeps a record** of its agent, program and slot and of when a turn last let it go, so a
-  server started again takes over the places standing from before, the sweep after a job's end counts
-  them as standing, and the place unused longest is the one that makes room.
-- **Its bounds are agency's policy** (`policy/gate-places.toml`), counts and nothing else: the most gate
-  places standing at once, eight; the most one program stands in, four, the pool the gate's own profile
-  names for the translator; and the session bound, 200,000 tokens. A place is one bmo-tui with its dsh,
-  which hold some 170 MB between them, so the bound keeps them under 1.5 GB.
-- **What it ran is the agent's.** The run's log, its usage and the road it walked are the conversation
-  agent's; the execution is filed under the place, as a pool slot's is.
-- On every other road a gate's turn stands where it stood: Claude Code's in the agent's own pane, on a
-  session the turn opens, and a registered model's as one request to the gateway.
+- **A checkout's job lock guards the directory** — its files and its git index — and is taken by
+  whatever does work there: a job's run, and a worker ask in a repository's checkout. It is held until
+  the run is recorded, so one checkout carries one run at a time (`docs/role-slots.md`, 「The line」, a
+  place key).
+- **No lock guards a role's program.** Each run stands its program in a pane of its own, so no turn of
+  the bot's waits on another run's pane; two runs that are let into one folder a caller named — a
+  scratch folder, which no checkout lock covers — are two programs working there side by side.
+- **A supervisor's program is guarded by its own turn order** (「Which agents are resident」): one turn at
+  a time per supervisor, its keepalive and its fold skipping a round while a turn is at work in it.
+- **A run reads working while its program carries its turn,** and a repository's checkout reads free only
+  once no run holds its lock. The queue reads that state, so a second launch is never written into a
+  checkout a run already holds.
 
 ### What an agent provider is made of
 
@@ -379,17 +275,15 @@ OpenRouter — a gate's turn goes instead into a place kept for the program it n
 ### The interactive surface a provider declares
 
 A provider that can stand as a resident program declares its surface beside its harness; one that
-cannot declares that it has none, and an agent on it is a host agent. A gate stands Claude Code's
-surface in the programs of its pool (「A gate's pool」) and no other provider's: on any other road its
-run is one request in the host (`docs/own-llm.md`, 「A request with no tools」). The surface answers,
-in the provider's own terms:
+cannot declares that it has none, and a supervisor on it is a host agent. A role's run stands the same
+surface in the pane its run opens. The surface answers, in the provider's own terms:
 
-- **How the resident program is started:** the line's command with the print-mode flags taken out,
-  on the session the agent resumes, with what lets agency read the program while it stays up — for
+- **How the resident program is started:** the line's command with the print-mode flags taken out, on the
+  session the supervisor or the run resumes, with what lets agency read the program while it stays up — for
   Claude Code, a settings file naming agency's status-line command and its `Stop`, `StopFailure`,
-  `UserPromptSubmit` and `SessionStart` hooks, and on a conversational agent's program the shell guard, a `PreToolUse` hook on the shell
-  that refuses a command starting Claude Code or reaching another unit's store (`docs/agents.md`, 「No print
-  mode」 and 「No agent reaches another unit's store」).
+  `UserPromptSubmit` and `SessionStart` hooks, and on a supervisor's program the shell guard, a `PreToolUse`
+  hook on the shell that refuses a command starting Claude Code or reaching another unit's store
+  (`docs/agents.md`, 「No print mode」 and 「No agent reaches another unit's store」).
 - **How one turn goes in:** `agent.prompt` for a program herdr recognises as an agent, the pane
   program's own inbox for one it does not.
 - **Whether words go into a turn that is working.** A surface that takes them says so; one that
@@ -409,18 +303,17 @@ in the provider's own terms:
     own file of agency's policy (`policy/providers/`), which agency's server's resident door and
     the TypeScript surfaces both read: the server puts a turn through the door the provider
     names there and never through one chosen by the provider's name.
-- **Whether it stands with nothing put in.** A surface whose program can be stood from the agent's
+- **Whether it stands with nothing put in.** A surface whose program can be stood from a supervisor's
   own line alone, before any turn has asked for it, says how: the command, with whatever a person's
-  first turn at the program needs laid down beside it in the place. The inbox surface does —
-  bmo-tui takes a typed line into the same dsh session it keeps, so no run need be laid down — and
-  the standing pass stands it for a worker pinned to its provider (「A worker standing with nothing to
-  do」). Claude Code's standing program is its worker line's own; Codex's surface stands only with a
-  turn.
+  first turn at the program needs laid down beside it in the place. The inbox surface does — bmo-tui
+  takes a typed line into the same dsh session it keeps, so no run need be laid down — and Codex's
+  surface stands only with a turn. The standing pass reads it for a supervisor alone; no role's program
+  stands before its run (「Nothing of a role stands between runs」).
 - **Whether a standing program is its own,** read off the command the program was started on: Claude
   Code's and Codex's by the executable, bmo-tui's by the program's file name and the provider its
   model choice names, `[provider, model]`, so a program started from another tree, wherever that tree
-  keeps the binary, is still its own. A place holding a program no surface of the pinned provider owns
-  is one the standing pass replaces (「A worker standing with nothing to do」).
+  keeps the binary, is still its own. A supervisor's place holding a program no surface of its current
+  provider owns is one the next turn stands again on its own provider's program.
 
 - **The command is the program's identity.** Before every turn the launcher compares the command the
   surface would build now with the one the standing program was started on.
@@ -452,7 +345,7 @@ in the provider's own terms:
 | codex | Claude Code's interactive screen on the gateway under the member's name, its records under `claude-roads/codex/<member>` | `agent.prompt` | Taken | Transcript | None | Escape | `/compact` and `/clear`; a conversation is handed over by a turn asking for its note |
 | openrouter | Claude Code's interactive screen on the gateway under the member's name, its records under `claude-roads/openrouter/<member>` | `agent.prompt` | Taken | Transcript | None | Escape | `/compact` and `/clear`; a conversation is handed over by a turn asking for its note |
 | deepseek | Claude Code's interactive screen on the gateway under the member's name, its records under `claude-roads/deepseek/<member>` | `agent.prompt` | Taken | Transcript | None | Escape | `/compact` and `/clear`; a conversation is handed over by a turn asking for its note |
-| registered | Claude Code's interactive screen on the gateway under the registration's name, its records under a home of the registration's own | `agent.prompt`; words said to a worker on the session the program stands on, a conversational agent's turn on its scope's session, every other turn on a session of its own | Taken | Transcript | None | Escape | `/compact` and `/clear`; a conversation is handed over by a turn asking for its note rather than folded, the program folds itself before the registration's window, and a turn at the limit fails |
+| registered | Claude Code's interactive screen on the gateway under the registration's name, its records under a home of the registration's own | `agent.prompt`; a supervisor's turn on its scope's session, a role's run on the session its role's setting gives it | Taken | Transcript | None | Escape | `/compact` and `/clear`; a conversation is handed over by a turn asking for its note rather than folded, the program folds itself before the registration's window, and a turn at the limit fails |
 
 ### What a resident turn reads
 
@@ -532,7 +425,7 @@ in the provider's own terms:
       is let through as it stands, so a program that will not settle its work cannot be kept turning
       for ever; what it left running is then the runner's to judge, as below. A person's turn is
       never held.
-    - The job worker's line asks for both holds; the chat line asks for neither, its answer being
+    - The worker line asks for both holds; the chat line asks for neither, its answer being
       held to the same words by the round (`answer-checks.md`, 「The banned words」).
   - **Outage retries.** A request that fails is written as the program's own words in the answer's
     place (「The session record and usage」), and the `StopFailure` hook follows it. That ends a
@@ -601,8 +494,9 @@ in the provider's own terms:
     reading returns, named the same way. The bot's minute-by-minute reading of them takes them from
     the newest rollout where a turn wrote them within that minute, and asks the account otherwise,
     since an idle machine's rollouts say what the windows were rather than what they are.
-  - An agent's own turn that the fallback walk gives to Codex is a turn of this program in the
-    agent's pane, on the thread the walk resumes. A gate's and an ephemeral turn's stay in the host.
+  - A supervisor's turn that goes out on Codex is a turn of this program in the supervisor's pane, on
+    the thread the walk resumes, and a role's run on Codex is this program in the run's own pane. An
+    ephemeral turn's stays in the host.
   - Words put in with `agent.prompt` while a turn works are held on the screen and taken inside
     the same task: after the turn's next tool call, or, where the response ends with no tool call,
     as the task's next request (measured). Nothing is lost and no task of their own is opened, so
@@ -626,17 +520,16 @@ in the provider's own terms:
     「The Claude Code road is a list of accounts」). An endpoint of its own does not take a program off
     the Claude Code road: it is closed when Claude Code is off, like any of that road's.
   - It is read the way Claude Code's program is: the turn goes in with `agent.prompt` and its answer
-    is read out of the transcript. The words said to a worker go on in the session the program
-    stands on, where the worker holds it on the same road, so the program stays standing between
-    them. Every other turn the bot puts in opens a session of its own — the program is stood up
-    again on it — since a registration's window may hold only tens of thousands of tokens and no
-    earlier job is worth carrying into it. A person's lines typed after a turn go on in its session.
+    is read out of the transcript. A supervisor's turn goes on in its scope's session, and a role's run
+    on the session its role's setting gives it at its path (`docs/sessions.md`, 「A role's session」),
+    under the registration's window as its last answered turn left it. A person's lines typed after a
+    turn go on in its session.
   - The home's first-run questions — the colour theme a home with no login asks for, and the folder
-    trust — are answered in its configuration file before the program comes up, and the warning a
-    worker's bypass mode stands on is passed over by the settings it is handed, as every login's own
+    trust — are answered in its configuration file before the program comes up, and the warning the
+    worker line's bypass mode stands on is passed over by the settings it is handed, as every login's own
     settings pass it.
-  - A worker's program on a registered model is the worker line a Claude run takes, the model and
-    endpoint aside (`docs/own-llm.md`, 「A worker on a registered model is composed as on Claude」).
+  - A run of the worker line on a registered model is the worker line a Claude run takes, the model
+    and endpoint aside (`docs/own-llm.md`, 「A run on the worker line is composed as on Claude」).
 - **dsh's providers are kept for a rollback; no provider of this build names dsh.** The statements below
   hold for the dsh harness a deployment may return to.
   - Both providers' programs were dsh, and everything below holds for either; they differed in dsh's one
@@ -669,7 +562,7 @@ in the provider's own terms:
     working-directory tool, plan mode and the user question — and switches off the web row, since the web
     the model reaches is the deployment's own, handed in through its MCP configuration. A standing session goes without the
     goal row too: it keeps a session working past the turn that was put in, and a chat's
-    turn ends with its answer. A line shown no tools, a gate's among them, has every tool row off. A
+    turn ends with its answer. A line shown no tools has every tool row off. A
     worker takes the whole working set but the web, as a job always has.
   - **The MCP servers are agency's.** They are read from the same configuration file the Claude Code
     line is handed and mounted in the overlay as dsh's own MCP clients. The profile holds no row of
@@ -744,22 +637,15 @@ in the provider's own terms:
     interrupt.
   - **On the screen** a turn opens with a line naming it and when it started, dsh's words and
     thoughts follow as it streams them, then the answer.
-  - An agent's own turn that the fallback walk gives to OpenRouter or DeepSeek, or that goes out on
-    either as the provider a worker is pinned to, is a turn of this program in the agent's pane. A gate's turn on
-    an OpenRouter conversation is one too, with no tools and no MCP server; an ephemeral turn's stays in
-    the host, on dsh's headless profile.
-  - **A gate's turn on that program stands in a place of its program's own,** never in the agent's
-    pane (「A gate's places」).
-  - **A gate's turn is the gate road wherever its session stands.** A turn carrying the gate's own ask —
-    its instructions as the program's whole system prompt, the model and effort its mapping names, the
-    thinking it asks for, no tools and no MCP server — goes out on that road in a conversation and in a
-    session apart alike; the ask is never left to the chat line, which would answer with the chat
-    agent's own persona.
+  - A supervisor's turn that goes out on OpenRouter or DeepSeek is a turn of this program in the
+    supervisor's pane, and a role's run on either is this program in the run's own pane; an ephemeral
+    turn's stays in the host, on dsh's headless profile.
 
 ### Runs and sessions in one pane
 
-- **A run** in a resident pane is one turn the bot put in — a round, a job's turn, a keepalive, a
-  fold. **A session** is the program's own conversation, which runs across many of them.
+- **A run** in a supervisor's resident pane is one turn the bot put in — a round, a keepalive, a
+  fold — and a run of a role is the turn its own pane carries. **A session** is the program's own
+  conversation, which runs across many of them.
 - **Where a run starts.** The first line of every prompt the bot puts in names the run: its run
   name, what it is — the room, the job and its item, a keepalive — and the time it went in. On a
   Claude Code program that line is the typed lead, followed by the words saying the paste after it
@@ -793,7 +679,7 @@ in the provider's own terms:
     line typed into the chat agent's program」);
   - the bot's own turn does not touch the program while it works: while the place names a person's
     turn still open and the pane reads working or waiting on a question, the turn that arrives — a
-    round, a job's turn, a keepalive — neither stands, replaces nor resets the program nor puts words
+    round, a keepalive — neither stands, replaces nor resets the program nor puts words
     in, and waits for that turn to end. A person's turn whose end was never recorded — an Escape
     fires no hook — is over once the pane reads neither working nor waiting on a question, so the
     wait ends on what the pane shows as well as on the place's record.
@@ -813,100 +699,26 @@ in the provider's own terms:
     written yet, each piece once, through its provider's own reader. It reads the output once more
     after the supervisor has closed it, and writes the end line only after that, so whatever that read
     finds — the unended last line included — stands above the end line.
-  - So a program that prints its whole answer at once and ends inside a second — a gate's request
-    with no tools on a registration, an OpenRouter gate run through dsh — still shows that answer. The
-    registry's reader reads a typed event as Claude Code's and shows every other line as it stands.
+  - So a program that prints its whole answer at once and ends inside a second — a request with no tools on
+    a registration — still shows that answer. The registry's reader reads a typed event as Claude Code's and
+    shows every other line as it stands.
   - Every line goes through the same flattening and width as a streamed one, whether the answer
     came as one line or many.
 
-### A worker standing with nothing to do
+### Nothing of a role stands between runs
 
-The owner's words:
-
-> Every worker that isn't awake just shows 'resting'. I'd like at least the conversation panel to be up. Put it up and just don't say anything to it.
-
-> I should be able to send the first request from herdr rather than from here, and like this I can't send it.
-
-- **Every worker stands its conversation screen, job or none.** Where a worker's place holds no
-  program, the standing pass writes the program the worker's next job would start and nothing is put
-  into it, so the pane shows Claude Code's own input box rather than the host's resting line, and a
-  person attached to herdr can type the worker's first request there.
-  - The program is the job's own line: the configured job model and effort — the model the worker's pin
-    names on Claude Code where it names one, the job key's mapping there otherwise — the login the job's
-    walk offers now, the worker's checkout as its directory and the place's settings, so its status line and
-    hooks write into the place exactly as a job's program does.
-  - It stands on the worker's kept session for that model and login where one is recorded and
-    resumable, and opens a fresh session under a name it chose otherwise.
-  - It is not written while the worker's job lock or pane lock is held, while Claude Code is switched off or the
-    worker's road is another provider's — the road resolution's answer for it (`docs/cache-fallback.md`,
-    「One road resolution」): its pin while the pin can answer, the next road of its walk while it cannot,
-    the job key's road where it has no pin — for a checkout that is not there, or in a copy of the data
-    root.
-  - **A pinned worker stands its road's program, not always its pin's:** while the pinned provider cannot
-    answer, the pane is stood on the program of the road its walk answers instead, and once the pin can
-    answer again the next pass stands the pin's program back, never while a turn is at work in the pane.
-  - **A worker pinned to a provider whose surface stands with nothing put in** — bmo-tui for
-    OpenRouter, Claude Code on the gateway for a registered model — has that program written
-    instead, on the job line's run for that provider: the registration the worker is pinned to, or
-    the model its tier maps the job key to there, and the worker's checkout; bmo-tui's session opens
-    on that run and a line typed at it goes into the same session, and the registration's program
-    stands on a session it opens itself, placed on a node, its home's first-run
-    questions answered. The same conditions hold, but for Claude Code's switch, which is not asked. A
-    worker pinned to a provider whose surface stands only with a turn has nothing written, and its
-    pane stands as a host until one comes.
-  - The checkout is trusted in the configuration file of the login the program goes out on before
-    the program is stood up, and the worker's folder in every login's file on every such pass
-    (「A first interactive run stops at the trust-this-folder check」).
-  - A place that already holds a program keeps it where the worker has no pin, or where the
-    program is its pin's provider's on whatever model or session: a worker that ran a job stands on
-    that job's program between jobs, as it always has.
-- **A pinned worker's pane holding another provider's program has it replaced at once,** without
-  waiting for a turn on the pin. So has a pane holding its own pin's bmo-tui program, where the pin's
-  turns go through that program's inbox and the program it would stand now is another: one whose
-  words changed under it — a deployment that moved its line, its overlay or its environment — is stood
-  afresh.
-  - What replaces it: the program the pin stands with nothing put in — bmo-tui for OpenRouter and
-    DeepSeek, Claude Code on the gateway for a registered model, and Claude Code's standing program
-    above for Claude Code. A pin whose
-    surface stands only with a turn, Codex's, has the other program ended and the place handed back
-    to the host, and its own program stands with the first turn on it.
-  - The new program is written into the place before the old one is ended, so the head starts it in
-    the same pane rather than falling back to the host between the two.
-  - When: on every standing pass — the chat receiver's start, which follows every deployment, its
-    reattachment to herdr and its ten-minute clock — and at once when a pin changes, from the console
-    or from `bmo-agency agent`, and when a job ends. The pass is agency's server's, the chat receiver's
-    (`chat-providers.md`, 「The job queue」), and it composes the worker's line as a job's turn
-    does, so the program it stands is the one the turns find.
-  - What is left alone for now and replaced on a later pass: a place whose checkout's job lock is
-    held — a job or a ping at work there, whichever worker it is of — or whose own pane lock is held —
-    a word being answered in it — and a pane at work on
-    a person's turn, which herdr reads as working or blocked, or does not answer about, or where the
-    pane program's record holds a turn begun since the program started and not ended. After a job's
-    end the pass waits for the ending runner to let the lock go, however long its ending takes; the
-    runner's process ending lets it go too.
-  - A pin that cannot build its program — no tier mapping for the job key on that provider — leaves
-    the place as it is.
-  - A worker with no pin keeps whatever stands in its place, and a place with no program is stood as
-    above.
-  - Each replacement is one note in the worker's own log, naming the program ended and the pin's
-    program stood, or that the pane went back to the host.
-- **A person's first request is a person's turn** of that program (「Runs and sessions in one pane」):
-  answered in the worker's own checkout, under the worker's own line and tools, recorded under the
-  agent and in the session's own record, and sent to no room.
-- **The session a person opened there becomes the worker's.** Once its record exists, the session the
-  standing program opened is recorded as the worker's kept session on that program's model and login.
-  That happens at the next standing pass, or before a job or a keepalive asks for the worker's session,
-  whichever comes first, so the job that follows resumes it and reads what the person said.
-- **A job goes into the same program, on the same session where it can.**
-  - A job on the program's model and login continues its session: the kept one it resumes is the one
-    the program stands on, and a job that would open a fresh session opens the one the standing
-    program already opened while nothing has gone into it yet. Either way the command is the one
-    standing and the program is not started again.
-  - A job on another model or another login is another command, so the program is started again in
-    the same pane on the job's command, between turns (「The interactive surface a provider
-    declares」). A session a person had opened there stays recorded under its own model and login.
-  - A person's turn still working when a job arrives is waited out before the job touches the program
-    (「Runs and sessions in one pane」).
+- **No role's program stands with nothing put in.** A run's pane is opened when its slot is let in
+  (`docs/role-slots.md`, 「Who takes a slot」) and closed when the run ends, so between runs no pane, no
+  program and no session of a role stands to be shown or typed into.
+- **A person speaks to a run while its pane stands.** A line typed into a run's program is a person's turn
+  of that program (「Runs and sessions in one pane」), answered in the run's folder under its line and
+  tools, recorded in the session's own record, and sent to no room; between runs nothing of a repository
+  stands to be spoken to (`docs/repositories.md`, 「The words said to a repository」).
+- **A run's folder is trusted before its program comes up,** on the login the run goes out on
+  (「A first interactive run stops at the trust-this-folder check」).
+- **What a later run reads of an earlier one is the session its role keeps,** resumed at the same path on
+  the same provider and model while it is valid (`docs/sessions.md`, 「A role's session」); nothing keeps
+  it warm in between (`docs/keepalive-schedule.md`).
 
 ### A pane nobody uses
 
@@ -927,55 +739,54 @@ The owner's words:
 
 ### A pane that dies
 
-- **A head pane's loop reports every end but letting go.** A program that ends with any code but the
-  deliberate 3 sends that code and the last line of its stderr to agency's `POST /pane-deaths`; agency
-  ends every job that worker is running failed, with the code and the line whole in its report, and the
-  ordinary end releases the lease and leaves the report on the item.
-- **A job is not silently reborn.** Restarting the pane is the loop's business; the job it was running
-  stays failed and its item stays open.
-- **Three deaths inside a minute stop the loop,** which says why on the pane and ends; the same report
-  path has already carried each death's code and last line.
-- **The job's record carries the pane's stderr at death** in its report, so a failed run names what the
-  pane said as it went, not only that it restarted.
+- **A run whose program dies in its turn ends failed.** The turn ends as a lost transport (「Stopping,
+  falling back and standing up again」): a job's run ends failed with what the pane said as it went in
+  its report, its slot is freed and the ordinary end releases the lease and leaves the report on the
+  item.
+- **A job is not silently reborn.** Nothing starts a run again in a pane that died; the job it was
+  running stays failed and its item stays open.
+- **A supervisor's program that dies is started again by its head pane's loop** (「One standing pane per
+  supervisor」), bounded as that section says, and the turn it was carrying ends as a lost transport.
 
 ### Asking a worker directly
 
-- **A chat agent may hand a worker a small coding task as a turn, with no item.** `worker_ask` names
-  the worker, the words and an optional folder; agency puts the words into the worker's session on its
-  usual road, the ask waits for the turn's end however long it takes, and it answers with the turn's
-  answer and the files it changed in the folder.
-- **The road is the one the worker's next job would take** (`docs/cache-fallback.md`, 「One road
-  resolution」): its own fixed model at the head of its walk where it keeps one (`docs/model-tiers.md`,
-  「An agent's own model」), the job key's road where it keeps none. On Claude Code the turn goes into the
-  worker's session on that road's model, the pin's model where the pin names one; on any other road it
-  crosses over on the stand-in walk a job's turn takes there, composing the worker's own line. A
-  keepalive ping is no such turn: it warms only the Claude session it stands on.
-- **The folder** is the asking agent's scratch workspace under the data root where none is named, made on
-  first use. A worker's own checkout may be named only in the owner's turn.
-- **A busy worker is waited for.** A worker that is working, queued or carrying a turn is never a
-  refusal: the ask goes in behind what it is doing, for every asker past the owner's gate, and runs when the
-  worker is free. The ask counts against the same one turn at a time and the same concurrency cap as a job.
-- **A worker that stands on a node** is refused unless the folder is on that node.
-- **The exchange is a turn of the worker's**, written to its log like any other, so the console shows it.
-  No item, lease or report is written. A task worth keeping and reviewing is filed as an item.
+- **A supervisor may hand a small coding task to a run of the `worker` role, with no item.**
+  `worker_ask` names the words and an optional folder (`docs/tools.md`, 「The worker ask」); agency runs
+  one `worker` run on the words in that folder, the ask waits for the run's end however long it takes,
+  and it answers with the run's answer and the files it changed in the folder.
+- **The run goes out on the worker role's active provider** (`docs/provider-order.md`, 「Choosing the
+  provider」), on the session kept for the worker role at that folder on that provider and model where
+  one is valid (`docs/sessions.md`, 「A role's session」).
+- **The folder** is the asking supervisor's scratch workspace under the data root where none is named,
+  made on first use. A repository's checkout may be named only in the owner's turn, and the run is then
+  handed that repository's own (`docs/repositories.md`, 「What a run in a repository is handed」).
+- **A busy role or checkout is waited for.** The ask takes a slot of the worker role, as the source `ask`,
+  and a repository's checkout where it names one, and waits for both however long it takes; it is never
+  refused for either being taken (`docs/role-slots.md`, 「The line」).
+- **A folder on no machine the worker role can run on** is refused, as is a checkout named outside the
+  owner's turn.
+- **The exchange is a run of the worker role,** written to its run log like any other, so the console
+  shows it. No item, lease or report is written. A task worth keeping and reviewing is filed as an item.
 
-### Delegating a task to the helper
+### Delegating a task
 
-- **A chat agent may hand a task to the helper, with no item.** `delegate` names a one-line title, the
-  instruction, with all the context it needs, an optional role and an optional folder (`docs/tools.md`,
-  「The delegate」).
-  It names no worker: an agent holding the helper role carries it (`docs/agent-roles.md`, 「The helper
-  role」), once the task's seat is let in from the pool's line at the role's tier (`docs/coworker-pool.md`,
-  「Who takes a place」), however long that takes; it is never refused because every seat is taken.
-- **The task is a turn of the helper's own session,** on the seat's model, in the helper's checkout,
-  working in the folder its words name; a later delegation on the same model within the cache lifetime
-  goes on in the same session (`docs/sessions.md`, 「A worker's session per model」). Its turn is never
-  bounded by a clock, and its seat is finished once the turn has answered.
-- **The chat agent calls it apart,** with `bmo use bmo/delegate --async`, so its own turn is not held by
-  the work: the room is told the task was handed off, and the answer — the turn's text and the files
+- **A supervisor may hand a task to a run of any role, with no item.** `delegate` names a one-line title,
+  the instruction, with all the context it needs, an optional role and an optional folder
+  (`docs/tools.md`, 「The delegate」). The role is `helper` where none is named; a role the store does not
+  hold is refused with its name, and nothing starts.
+- **By default the run is the supervisor's double:** it goes out on the asking supervisor's own provider,
+  model and effort as they stand when it is asked, under the named role's prompt and bundles, and holds a
+  slot of that role (`docs/role-slots.md`, 「A delegated task」). It waits in the role's line however long
+  that takes, and is never refused because every slot is taken.
+- **The task is a run of the role at the task's folder,** on the session kept for that role at that folder
+  on that provider and model where one is valid; a later delegation there within the cache lifetime goes on
+  in the same session (`docs/sessions.md`, 「A role's session」). Its run is never bounded by a clock, and
+  its slot is finished once the run has answered.
+- **The supervisor calls it apart,** with `bmo use bmo/delegate --async`, so its own turn is not held by
+  the work: the room is told the task was handed off, and the answer — the run's text and the files
   created or changed in the folder — comes back as a wake.
-- **A chat agent reads what it has delegated,** each delegation by its title, its stage — waiting for a
-  seat, running on a helper agent, ended — when it was asked and the helper agent it runs on
+- **A supervisor reads what it has delegated,** each delegation by its title, its stage — waiting for a
+  slot, running, ended — its role, the provider and model it runs on and when it was asked
   (`docs/tools.md`, 「The delegate」), so it answers how its delegated work stands and hands off no task
   already running.
 
@@ -997,7 +808,7 @@ The owner's words:
     ended, or a record whose round has nothing queued and every owed turn ended, refuses the push,
     and its words go back to the buffer for the next round.
 - **The consumer pushes; agency puts the words in.** The consumer holding the room decides what goes
-  and when, and hands the paragraph to the session's push (`docs/api.md`, 「Sessions」). Agency offers
+  and when, and hands the paragraph to the session's push (`docs/api.md`, 「sessions」). Agency offers
   it to the run the session's turn is carrying; the door takes it at its next look at the working
   program, only where the turn's provider declares that it takes words mid-turn, and answers what
   became of it. An offer stands until a look takes it or the turn ends, and a turn that ends answers
@@ -1116,23 +927,26 @@ The owner's words:
     its own to wind down and is interrupted at once.
   - A surface with no measured interrupt ends the program, and the loop starts it again on the same
     session.
-  - A stop never closes a resident pane.
+  - A stop never closes a supervisor's resident pane; a run's own pane closes once its run has ended.
 - **A turn that ends its program** — the interrupt of a surface with none measured, a reset, words
   left unsent in the box — sends its process a SIGTERM, here or through its node's link, and waits
   until the process is gone. Until then the place still names it and reads it
   alive, so whatever reads the place next — the next turn, a reset watching for the program its loop
   starts after it — would take the program on its way out for the one standing.
-- **Fallback.** A round that moves to another provider moves the pane's program with it. The command
-  changes, so the program is ended between turns and the next provider's program starts in the same
-  pane, on a fresh session with nothing of the previous one carried over. While the agent runs on a provider with no surface, the pane stands as a host; coming back
-  stands the resident program again.
-- **Keepalive** is a turn put into the resident program, and it is skipped while a turn is working.
+- **Fallback.** A supervisor's turn that moves to another provider moves the pane's program with it.
+  The command changes, so the program is ended between turns and the next provider's program starts in
+  the same pane, on that provider's session for the supervisor's scope (`docs/supervisors.md`, 「Where a
+  supervisor's turn runs」). While the supervisor runs on a provider with no surface, the pane stands as a
+  host; coming back stands the resident program again. A role's run that moves goes out again on the next
+  provider of its order, in a pane of its own (`docs/provider-order.md`, 「Falling over and coming back」).
+- **A supervisor's keepalive** is a turn put into its resident program, and it is skipped while a turn is
+  working.
 - **Fold** is the surface's fold typed into the program — `/compact` in Claude Code, which keeps the
   session id (measured), so its fold and its turns stand on one prefix.
 - **A login change** is a command change: the program is started again on the new login between
   turns.
 - **Standing up again.**
-  - A program that ends is started again by its loop in the same pane, resuming the agent's
+  - A supervisor's program that ends is started again by its loop in the same pane, resuming its
     session. A turn it was running ends as a lost transport, never as an answer.
   - A pane that is gone — closed by a person, or taken by a herdr that died — is stood up again by the
     bot's standing pass on attach and every ten minutes, and a turn that finds it missing waits for
@@ -1167,10 +981,9 @@ flowchart TD
 
 - **No run is cut on a clock.** A run ends when it finishes, when it fails on its own or when somebody
   stops it. A clock on a run only says when to ask about it.
-- **Which runs carry a clock.** A job's turn, a chat round, a keepalive ping, a fold and a turn of a
-  apart session carry none. A word said to a worker while nothing of its own runs carries ten
-  minutes, since the worker's queue waits on its lock while it runs, and a voice run ten minutes for
-  the speaking of its line, on this machine's card or a node; past it the clock asks.
+- **Which runs carry a clock.** A role's run, a chat round, a keepalive ping and a fold carry none. A
+  voice run carries ten minutes for the speaking of its line, on this machine's card or a node; past it
+  the clock asks.
 - **The mechanism is the run's, the policy its caller's.** A pane turn, and a run that is one
   process or one call, may each be handed an overtime policy, asked each time the clock passes with
   the facts the run can say of itself — when it started, the clock, and its last sign of work: when
@@ -1183,8 +996,7 @@ flowchart TD
      which agent and run it is and what it is doing, how long it has run, when it last did anything
      and what that was, and the clock with its length. The order names the procedure `overtime`. Agency
      opens the ask on a run it carries and publishes it as `clock-asked` (`docs/api.md`, 「Events」); the
-     consumer holding the owner's chat queues the order, since agency sends nothing to a room. A word's
-     turn is asked by the job unit, which holds it.
+     consumer holding the owner's chat queues the order, since agency sends nothing to a room.
   2. The chat agent decides alone — keep or cut — and never asks the owner. It answers an ask of agency's
      with `bmo-agency overtime`, which the event names, or `PATCH /overtime-requests/{requestId}`; a keep names how long,
      the clock's own length where it names none and two hours at most, and the run is asked about again
@@ -1200,14 +1012,10 @@ flowchart TD
   the name it runs under, its clock and when it started and ended — and each ask on it a row of
   `clock_asks`: the facts the order carried, the verdict, who gave it, why, and when (`docs/store.md`).
   A consumer reads a run's clock through `GET /runs/{runId}`: when its clock passes, and until when a
-  keep on it stands. A word cut on the chat agent's verdict also says so in the worker's own log under
-  the word; any other run cut on one gives the clock and the chat agent's call as its failure's cause,
+  keep on it stands. A run cut on one gives the clock and the chat agent's call as its failure's cause,
   which is what its room or the owner hears.
 - **What waits behind a clocked run waits for its end.** A run is never cut for its clock, so whatever
-  waits behind one — a queue on a worker's lock, a voice node's asker — waits until the run ends,
-  however long that is.
-- **A gate has no clock.** A gate's judgement is a wait the chat agent itself is in, and it lasts
-  until the gate answers.
+  waits behind one — a voice node's asker — waits until the run ends, however long that is.
 
 ### What standing costs
 
@@ -1215,17 +1023,16 @@ Measured on this machine: one resident chat program and one resident worker prog
 throwaway workspaces, both on Sonnet 5 at low effort, with the machine read before they stood and while
 both did.
 
-- **Agents.** The agents table holds 23 rows: one chat, eight workers, twelve gates and two runners.
-  Resident are `bmo` and the eight workers — nine agents — and each co-work place of the
-  pool adds one.
-- **Panes.** One pane and one workspace per resident agent, and nothing more: standing the two added
+- **What stands.** One resident program per supervisor stands for good; every run of a role adds one
+  pane and one workspace while it goes, and takes them away as it ends.
+- **Panes.** One pane and one workspace per resident program, and nothing more: standing the two added
   two workspaces and two panes to the machine (29 → 31 workspaces, 33 → 35 panes), and the job turns,
   the keepalives, the fold and the stop that followed opened no pane and closed none. There is no
   shell tab. Taking the two away brought the machine back to 29 and 33.
-- **Processes.** A resident agent's pane holds two processes: the pane's loop and the program, which
+- **Processes.** A supervisor's pane holds two processes: the pane's loop and the program, which
   the head became. Its tools are served by the one tool host (`mcp-host.md`) and its head's
   decisions made by the one agent host, so neither adds a process per pane.
-- **Memory, per resident agent, measured as each pane's process tree:**
+- **Memory, per program, measured as each pane's process tree:**
 
   | Process | Chat (after one round) | Worker (after five turns) |
   |---|---|---|
@@ -1237,8 +1044,10 @@ both did.
   - What the agent host and the tool host hold together for every pane is read by
     `bmo-agency machine memory` (「What each program holds」, `rust-migration.md`
     「The target」).
-  - So nine resident Claude Code agents — `bmo` and eight workers — hold about 4 GB at the chat's
-    footprint and about 6.4 GB at the worker's, against 33 GB available of 49 GB.
+  - So each resident supervisor on Claude Code holds about 270 MB at the chat's footprint, and each
+    run of the worker line about 340 MB while it goes, against 33 GB available of 49 GB; how many runs
+    go at once is bounded by the roles' caps (`docs/role-slots.md`, 「The cap」) and the machine's room
+    (「Room on the machine」).
 - **Standing up again, measured.**
   - A program killed outright was started again by its pane's loop in 1.5 seconds, in the same pane, on
     `--resume` of the session it had, and it answered its next turn.
@@ -1248,13 +1057,14 @@ both did.
     35,721 prompt tokens from cache.
 - **Cache.** Moving a line to the interactive program moves its prefix once (「The cache prefix」): the
   chat's session is written again in full on its first resident turn. After that the turns read it:
-  the worker's keepalive, two turns after its first, read 34,476 tokens from cache and wrote 60.
+  a keepalive into the measured worker program, two turns after its first, read 34,476 tokens from
+  cache and wrote 60.
 
 ### The host
 
 The agent host, `agent-host`, is one Rust process per data root that runs every structured execution
-of every agent — a gate's judgement, a runner's coordinator, a stand-in's run on Codex or OpenRouter, a
-call on a provider with no surface — and answers every head pane (「One standing pane per agent」).
+of every agent — a runner's coordinator, a stand-in's run on Codex or OpenRouter, a call on a provider
+with no surface — and answers every head pane (「One standing pane per supervisor」).
 
 ```mermaid
 flowchart TD
@@ -1376,9 +1186,10 @@ flowchart TD
   execution record whose root is the run's name, which is how the run reads as alive and how a
   stop reaches it; asked to stop, it is given whatever time its own salvage of what it has takes, and
   nothing forces it.
-- **Herdr down costs the resident agents and the runs apart, not the host agents.** With herdr
-  unreachable no pane can be stood and no resident turn put in, so chat turns on a resident program and
-  every run apart fail as transport failures; gates go on through the agent host. herdr runs as a `Restart=always` unit for
+- **Herdr down costs the supervisors' programs and the roles' runs, not the host's executions.** With
+  herdr unreachable no pane can be stood and no resident turn put in, so a supervisor's turn on a
+  resident program and every role's run fail as transport failures; structured executions go on
+  through the agent host. herdr runs as a `Restart=always` unit for
   the rest.
 - **One process out of memory costs its own execution or pane.** The kernel's OOM killer takes one
   process at a time, and when the machine as a whole runs out it takes the largest. herdr's unit and
@@ -1398,20 +1209,20 @@ flowchart TD
 
 ### Identity and launch handshake
 
-Allocate a durable execution row before launch: unique execution ID, parent/root ID, attempt,
-agent/work key, purpose, provider/model, optional session ID, timestamps, pane ID and terminal
-outcome. Existing job/run rows remain business records; executions link to them rather than
-pretending each retry is a separate job. Use a unique run token per physical execution;
-root identity and parent identity are separate metadata, not duplicate run tokens.
-Running views join children to roots and show the current attempt; stopping a root addresses
-its owned execution tree. Claim the launch identity atomically so concurrent launches cannot
-create two executions for the same claim.
+Allocate a durable execution row before launch: unique execution ID, parent/root ID, attempt, the supervisor
+or role it runs for, purpose, provider/model, optional session ID, timestamps, pane ID and terminal outcome.
+Existing job/run rows remain business records; executions link to them rather than pretending each retry is
+a separate job. Use a unique run token per physical execution; root identity and parent identity are
+separate metadata, not duplicate run tokens. Running views join children to roots and show the current
+attempt; stopping a root addresses its owned execution tree. Claim the launch identity atomically so
+concurrent launches cannot create two executions for the same claim.
 
-The row also names the agent it is for, among the keys that never change once written: the agent
-whose program a resident turn goes into, the agent whose host a run is left in, or, where a host
-carries a run on another agent's behalf, that other agent. A native child's row carries its parent's. A turn in a pane of its
-own names none. This is what a companion's removal finds its rows by (`docs/companions.md`, 「Where a
-companion and its rooms come from」); neither a root, a place's path nor a work key says it.
+The row also names the supervisor it is for, among the keys that never change once written: the
+supervisor whose program a resident turn goes into, the supervisor whose host a run is left in, or,
+where a host carries a run on a supervisor's behalf, that supervisor. A native child's row carries its
+parent's. A role's run in a pane of its own names none. This is what a companion's removal finds its rows
+by (`docs/companions.md`, 「Where a companion and its rooms come from」); neither a root nor a place's
+path says it.
 
 The supervisor waits for the start grant until it is written. The launcher puts the execution into
 its agent's host, records the host's pane as the execution's pane and then grants execution. A failed
@@ -1425,14 +1236,14 @@ and lock acquisition. A denied launch records its reason and cleans private reso
 ### Nested work
 
 Repository-managed branches receive their own execution records, linked to the co-work task and
-parent execution, reserve the common co-worker pool before launch, and run as turns of the reserved
-place's resident program. New
-search/browse side work enters through the same agency-owned dispatcher with a configured role;
+parent execution, take a slot of the task's role before launch, and run as runs of that role in a
+pane of their own at the place they work in (`docs/role-slots.md`, 「A co-work branch」). New
+search/browse side work enters through the same agency-owned dispatcher with the role it names;
 it is not a native provider child and never inherits the parent model. Native Claude Code subagents
-remain descendants of their actual herdr-hosted parent. On the job worker's line a native
-`Agent` call reserves the common pool through the worker settings' hooks before the CLI starts
-the child, and gives the place back when the child ends (`docs/coworker-pool.md`); on every other
-line a native creation request is refused. Represent each reported native child as
+remain descendants of their actual herdr-hosted parent. On the worker line a native `Agent` call takes
+a slot of the role it names through the worker settings' hooks before the CLI starts the child, and
+gives the slot back when the child ends (`docs/role-slots.md`, 「Native co-worker slots」); on every
+other line a native creation request is refused. Represent each reported native child as
 a child execution with its provider-native ID, parent, shared owning pane, purpose and lifecycle,
 and render it in that pane's activity display and running state. A shared pane must be explicitly
 identified as shared; do not claim a separate pane or session when the provider supplies neither.
@@ -1450,7 +1261,7 @@ this work order can claim complete coverage.
 
 The run's session record in the tool host is the lifetime boundary for one run's direct cookie
 jar and its isolated standard-Chrome fallback (`mcp-host.md`, 「What a record's tools keep」). The
-Chrome process is not a model child and consumes no co-worker pool lease. It is nevertheless owned
+Chrome process is not a model child and holds no role's slot. It is nevertheless owned
 work: the web tools start it only after a classified direct refusal or JavaScript shell, keep its
 temporary profile inside that run, and terminate and reap it when the record is revoked as its run
 ends, on cancellation, signal, startup failure, and the host's own exit. An
@@ -1465,16 +1276,16 @@ been revoked. The detailed transport, refusal, and privacy contract is in
 
 ### Completion, cancellation and loss
 
-The supervisor publishes exit code, cancellation cause and output locations atomically
-before it exits. A successful transport result still requires successful harness parsing.
-Collect a resident Claude turn's money from the status line and the session's `cost-state` when the
-session changes, a host child's from its own output, and deduplicate usage once. Keep business completion and transport completion separate and idempotent. An execution record that ended more than seven days
-ago is removed: every gate and chat turn leaves one, and the job, run, usage and road rows are the
-business record that stays. Reconciliation reads the open records and the envelopes still on disk,
-never the whole table.
-Fallback creates a new attempt only after the prior execution has terminated and released its
-resources. Herdr transport failure is infrastructure failure, not a provider quota failure;
-never route around it by launching an invisible process.
+The supervisor publishes exit code, cancellation cause and output locations atomically before it exits. A
+successful transport result still requires successful harness parsing. Collect a resident Claude turn's
+money from the status line and the session's `cost-state` when the session changes, a host child's from its
+own output, and deduplicate usage once. Keep business completion and transport completion separate and
+idempotent. An execution record that ended more than seven days ago is removed: every supervisor's turn and
+every role's run leaves one, and the job, run, usage and road rows are the business record that stays.
+Reconciliation reads the open records and the envelopes still on disk, never the whole table. Fallback
+creates a new attempt only after the prior execution has terminated and released its resources. Herdr
+transport failure is infrastructure failure, not a provider quota failure; never route around it by
+launching an invisible process.
 
 Cancellation uses the interactive adapter only where conversational stop is supported.
 Structured children receive a termination signal and are waited on until their leader ends; what
@@ -1490,12 +1301,12 @@ execution that name owns. While a row stands, every launch under that name is re
 
 - **A cancellation stands until it is taken back.** A stop of several runs at once takes its own back
   once the runs are gone; any other is taken back by whoever asked for the stop, through the control
-  port, before a run of that name starts again (`docs/api.md`, 「Workers」). An execution reads as
+  port, before a run of that name starts again (`docs/api.md`, 「executions」). An execution reads as
   cancelled while a row stands over its own name or over the name of an execution owning it.
 
 - **A stop belongs to the run it was asked of, never to the place that run stands in.** A root is
   shared by every run of the same place — a work task's retries, which differ only in their closing
-  number, a task's own turn and the gate it asks for — so it is never one of the names a
+  number, and a task's own turn — so it is never one of the names a
   cancellation covers. Every launch asks under its own execution id, its unit and the execution
   that owns it, which is what a cancellation does cover, and the next run of the same place
   launches as if no stop had been asked.
@@ -1620,13 +1431,14 @@ exclusively. Placement in the host precedes the grant. Raw output files and an a
 carry results; an AbortSignal or timeout terminates the child process group. Uncollected attempts
 retain private evidence for reconciliation rather than discarding it.
 
-`packages/agent/agent-process.ts` is the one launch for every harness command — chat, gates, workers,
-search and browse, including fallback, warming and compaction. Each caller names the agent whose host runs it. Incremental raw-file collection feeds
-the existing stream readers while the command is running. The adapter checks eligibility before
-placement and before granting execution. A gate's request to a registered model with no tools is run through the same launch as a
-small command that makes the request and prints the reply; the catalogue check that names the
-model stays in the bot, since it is model discovery. Transport tests start the real agent host
-binary on a scratch data root; they do not contact a live model provider.
+`packages/agent/agent-process.ts` is the one launch for every harness command — a supervisor's turns, every
+role's run, search and browse, including fallback, warming and compaction. Each caller names the agent whose
+host runs it. Incremental raw-file collection feeds the existing stream readers while the command is
+running. The adapter checks eligibility before placement and before granting execution. A request to a
+registered model with no tools is run through the same launch as a small command that makes the request and
+prints the reply; the catalogue check that names the model stays in the bot, since it is model discovery.
+Transport tests start the real agent host binary on a scratch data root; they do not contact a live model
+provider.
 
 Each side of the boundary carries the same run and the same turn, so a check holds the two to one
 outcome: the server binary's `bmo-agency host-run <request.json>` carries one run in its agent's host
@@ -1663,11 +1475,10 @@ four-provider byte test does not establish provider support for an otherwise uns
 
 | Execution family | Claude Code | Codex | OpenRouter | Registry, no tools |
 | --- | --- | --- | --- | --- |
-| Gates | Host fixture | Host fixture | Host fixture; tap stays in the bot | Host fixture; direct request as a host command |
-| Resident turns: chat, worker, keepalive, fold, co-work places | Transcript, hook and status-line fixture | Rollout fixture; words mid-turn and interrupt unmeasured | bmo-tui fixture over a dsh ACP session; the session stands, no tokens recorded | Claude Code's transcript on a registered model; words on the standing session, every other turn on one of its own |
-| Structured worker and co-work task | Pane fixture | Pane fixture; thread semantics retained | Pane fixture; the session stands in bmo-tui's pane | Pane fixture; stateless |
+| Supervisor turns: chat, keepalive, fold | Transcript, hook and status-line fixture | Rollout fixture; words mid-turn and interrupt unmeasured | bmo-tui fixture over a dsh ACP session; the session stands, no tokens recorded | Claude Code's transcript on a registered model, on the supervisor's scope's session |
+| A role's run and co-work task | Pane fixture | Pane fixture; thread semantics retained | Pane fixture; the session stands in bmo-tui's pane | Pane fixture; stateless |
 | Search/browse | Pane fixture | Unsupported by harness | Unsupported by harness | Unsupported by harness |
-| Worker warming/compaction | Pane fixture | Existing provider-specific warming only | Existing provider-specific warming only | Existing provider-specific warming only |
+| A role's session compaction | Pane fixture | Existing provider-specific compaction only | Existing provider-specific compaction only | Existing provider-specific compaction only |
 | Native children | Request/start/notification reducer fixtures; external format and Claude Workflow branch coverage incomplete | Receiver-state reducer fixtures; installed CLI format coverage incomplete | Native tools disabled by the chat agent overlay; inapplicable | Native tools disabled by the chat agent overlay; inapplicable |
 
 Original Stage 7 suite evidence was 3,899 passes and 13 skips. Stage 10's corrected suite
@@ -1686,10 +1497,10 @@ failure, concurrent claims, cancellation, timeout, restart and fallback. Verify 
 usage and provider switches independently of transport success. Browser checks use the
 standing isolated dev console; live publication checks verify actual panes and run records.
 
-The search and browse runners put their runs in their agent's
-host first; worker compaction is agency's server's worker fold, a turn into the worker's resident program. Stateless dsh and the lack of automatic
-relaunch after herdr restart are intentional semantics, not defects to repair by invention.
-The native Claude Workflow gate-bypass claim is not established by fixture notifications alone.
+The search and browse runners put their runs in their agent's host first; a role's session compaction is the
+fold typed into a run's program between its turns. Stateless dsh and the lack of automatic relaunch after
+herdr restart are intentional semantics, not defects to repair by invention. The native Claude Workflow
+gate-bypass claim is not established by fixture notifications alone.
 
 
 ## Why this channel exists
@@ -1853,12 +1664,10 @@ Two calls do it. What launches into which workspace is set by "What goes where" 
   a stop target: a kind, and the id that kind is named by. The kind is what decides the reach, there is
   exactly one reach per kind, and nothing in the bot kills a pane's process or stops a unit with
   `systemctl` in its place.
-  - **A chat turn and a gate** are the bot's own runs. They stand in no unit of their own — a gate
-    carries no unit name at all — so the id is the execution's own, and the reach is the cancellation
-    walked from that record. A gate's supervised child reads the cancel file its supervisor watches
-    for, ends itself, and its collector closes the row as a stop. A chat turn stands in the chat agent's resident
-    program and is interrupted by the surface's interrupt, and its collector closes the row as a stop
-    on the interrupted marker.
+  - **A chat turn** is the bot's own run. It stands in no unit of its own, so the id is the
+    execution's own, and the reach is the cancellation walked from that record. It stands in its
+    supervisor's resident program and is interrupted by the surface's interrupt, and its collector
+    closes the row as a stop on the interrupted marker.
   - **A runner and a job** each stand in a unit of their own, and the id is that unit's name. A
     run in a host is ended through the cancellation markers its execution records lead to, and its host
     signals its group and waits for its leader to end; a unit whose run is a turn of a resident program
@@ -1880,19 +1689,19 @@ Two calls do it. What launches into which workspace is set by "What goes where" 
     run, read by the door carrying its turn or by the pass that picked the turn up across a restart, each
     of which puts the stop words in and waits for the turn to end on them. The route answers once the
     turn has ended, however long that takes,
-    so the job's worker reads idle, and takes the next launch, only when its program no longer carries
-    the turn.
+    so the job's checkout reads free, and takes the next launch, only when its run's program no longer
+    carries the turn.
   - **A work order** is named by its item, and the item's stop is its stop (the job unit's
     `work-orders.md`, 「The owner stops an item now」): it reaches every run the order holds, each by the reach that run's own kind
     has. A skipped or folded branch is stopped the same way.
   - **A co-worker has no reach of its own.** It shares its parent's pane and has no unit, no envelope and
     no cancel file of its own, and it cannot outlive the parent — so a stop aimed at one is refused, and
     the refusal names the parent as the target to aim at instead.
-- **Every row of the picture names its own stop.** The bot says per row what a stop on it is aimed at
-  — a runner and a worker by their unit, a gate and a chat turn by the execution each
-  opened, a co-worker tile by the run it works inside — so no screen and no script works a target out
-  of a row's shape, and the one place that decides which kind is reached by what stays the verb's. A
-  row with nothing to aim at says so, and wears no stop.
+- **Every row of the picture names its own stop.** The bot says per row what a stop on it is aimed at — a
+  runner and a job by their unit, a chat turn by the execution it opened, a co-worker tile by the run it
+  works inside — so no screen and no script works a target out of a row's shape, and the one place that
+  decides which kind is reached by what stays the verb's. A row with nothing to aim at says so, and wears no
+  stop.
 - **Everything running stops on one call.** The owner's "stop every agent's running work" is the same verb asked
   of every target the picture names at that moment, walked in the order the picture stands them in — what
   stands apart first, the bot's own runs last, so the turn that may be doing the asking is asked last of
@@ -1933,10 +1742,11 @@ Two calls do it. What launches into which workspace is set by "What goes where" 
   that ending once, as a stop; the chat gets no breakdown notice, no failure order is raised, and nothing
   is counted against the item's launches or attempts.
 - **A job of an item stopped by its unit keeps counting as work until its run is gone.** Its item has not
-  left the line, unlike an item's stop, so the job still holds its worker and its item while the run winds down:
-  a second run of the same item is never launched in another checkout beside the one going down.
+  left the line, unlike an item's stop, so the job still holds its checkout, its slot and its item while the
+  run winds down: a second run of the same item is never launched in another checkout beside the one going
+  down.
 - **A unit is more than one name.** What a unit collects can be standing in a pane under a name of its
-  own — a job's own turn stands in its worker's resident program, under its execution's id — so the
+  own — a job's own turn stands in its run's pane, under its execution's id — so the
   program is reached through the cancellation's own walk of the execution records rather than by
   asking herdr for the unit's name. A stop that reached only the unit would take the collector away
   and leave the turn in the program running with nobody reading it.
@@ -1966,7 +1776,7 @@ When a target is already blocked, `agent.prompt` refuses without sending the inp
 - This means a place a person must answer, and is not counted as a failure. Pushing it again returns the
   same refusal.
 - A first interactive CLI in a new checkout stands up a "do you trust this folder" check and sits in that
-  state, so this place **comes first at the launch moment, not while running**. A worker's line answers
+  state, so this place **comes first at the launch moment, not while running**. The worker line answers
   that one check itself (below).
 
 ### Reading is done only over the socket
@@ -2082,22 +1892,23 @@ with no recorded trust, and the transcript did not even appear. On screen:
   file `.claude.json` inside the configuration directory the run is handed (`CLAUDE_CONFIG_DIR`, which a
   directory account sets to its own folder and an endpoint account to its own home), or `.claude.json` in the home where the run is handed none.
   A directory trusted under one login still asks under another. What hits the check is a **directory
-  with no recorded trust in the file of the login the run goes out on**: a new worker, a new support
+  with no recorded trust in the file of the login the run goes out on**: a new repository, a new support
   worktree or branch place, or a known checkout on a login it has not run under before.
 - **The cursor stands on `No, exit`.** So sending one Enter ends the CLI, and sending `esc` ends it too
   (measured: both make the pane disappear). The answer is `pane.send_keys` moving the cursor down to
   `Yes, I trust this folder` and pressing Enter — measured: sending `["down","enter"]` went `idle` after 4
   seconds, and that directory's entry got `hasTrustDialogAccepted: true`. A directory answered once comes
   straight up `idle` afterward.
-- **A worker's folder is trusted before its program comes up.** A worker works only in a directory the
-  owner set on that worker's row, a support worktree or a branch place the bot made, and it is a line
-  already decided to run without asking permission, so trusting that folder is the same decision. The
-  trust is written as `hasTrustDialogAccepted: true` on that directory's entry:
-  - in the configuration file the turn's own environment names, just before a job's or an upkeep turn's
-    program comes up and before a worker's standing program is stood up, whichever login it goes out on;
-  - in the configuration file of every registered Claude login and the machine's own, when a worker is
-    added or settled and on every standing pass over the workers, so every registered worker's folder
-    that exists is trusted under every login before any run needs it.
+- **A run's folder is trusted before its program comes up.** A run of the worker line works only in a
+  repository's checkout the owner set on the repository's row, a support worktree, a branch place or a
+  scratch folder the bot made, and it is a line already decided to run without asking permission, so
+  trusting that folder is the same decision. The trust is written as `hasTrustDialogAccepted: true` on
+  that directory's entry:
+  - in the configuration file the run's own environment names, just before its program comes up,
+    whichever login it goes out on;
+  - in the configuration file of every registered Claude login and the machine's own, when a repository
+    is added or settled, so every repository's checkout that exists is trusted under every login before
+    any run needs it.
   - The write takes the CLI's own lock beside the file, writes the whole file anew beside it and moves
     it into place, keeps every other entry as it stood, and writes nothing where the entry already says
     trusted. A configuration directory that does not exist is left alone.
@@ -2280,7 +2091,7 @@ stage were skipped entirely.
   your own end**. What makes stopping clean is not the channel but that one paragraph — the channel does
   not tell killing from asking.
 - **Two kinds of words ride this one channel.** Words appended to the item the job is a run of, and words
-  said to the worker itself from the console, which belong to no item and reach a job that has none. They
+  said to the run itself from the console, which belong to no item. They
   are read on the same round and pushed in one call, each behind its own paragraph — the item's first,
   because that one is the document the job is already reading going on. A job that could not be handed
   them leaves both kinds unmarked, so they go again.
@@ -2406,11 +2217,11 @@ question used to stand until somebody attached to herdr and answered it.
     what is read, both from the question a person is asked and from what tells one question from the
     next, so a question that is only ticking down is the same question on every look.
   - It hands the question to its caller once per question and keeps polling while the caller decides.
-  - **Who is asked is the scope's.** On a worker's and an apart session's turn the caller is the
-    one that sent the turn over the session contract: the question stands on the session's state, is
-    published as `turn-question`, and is answered through `POST /session/answer` (`docs/api.md`,
-    「Sessions」, 「A question in the middle of a turn」). On a companion's and an agent's
-    turn nothing is put to anybody and the question stands for a person in the pane.
+  - **Who is asked is the scope's.** On a role's run the caller is the one that sent the turn over the
+    session contract: the question stands on the session's state, is published as `turn-question`, and
+    is answered through `POST /session/answer` (`docs/api.md`, 「sessions」, 「A question in the middle
+    of a turn」). On a supervisor's turn nothing is put to anybody and the question stands for a person
+    in the pane.
   - **Agency judges no question.** Which command a job may run of itself, which question goes to the
     owner, what is recommended and what a question nobody answers settles on are the caller's: a job's
     runner holds the job's places and the owner's chat, and agency holds neither (「A command the runner
@@ -2459,24 +2270,28 @@ the rest goes to the owner.
 What a person attached to herdr reads in the sidebar is a workspace label, so places are split by an
 agent's character.
 
-- **Every agent stands in one workspace.** Every row of agency's `agents` table — the chat agent, each gate, each
-  worker and runner; the table answers the list — has one workspace, its label the row's herdr
-  name where the row carries one and its calling name otherwise. The herdr name is the owner's,
-  for an agent the owner wants shown in herdr under another name than the console's, such as a Latin
-  spelling of a name the console writes in another script. A name a run is launched under with no row — a co-work role, message sending, a voice briefing —
-  has one too, labelled with that name.
-  - **A renamed agent's old workspace is closed** as the bot starts, head and all, since nothing
+- **Every supervisor stands in one workspace.** Every row of agency's `supervisors` table — the chat
+  agent and every companion — has one workspace, its label the row's herdr name where the row carries
+  one and its calling name otherwise. The herdr name is the owner's, for a supervisor the owner wants
+  shown in herdr under another name than the console's, such as a Latin spelling of a name the console
+  writes in another script. A name a run is launched under with no row — message sending, a voice
+  briefing — has one too, labelled with that name.
+  - **A renamed supervisor's old workspace is closed** as the bot starts, head and all, since nothing
     answers to its old name any more and the new name stands its own.
-  - **That workspace's first pane is the head pane** (「One standing pane per agent」). A resident agent's
-    head is its interactive program, whose status line says what run is going or since when it has been
-    resting; a host agent's head follows its view, which shows each execution's readable progress and a
-    resting line between them. Because there is a head pane, the workspace stays even with no runs, and because the
-    bot stands every agent's head up as it attaches, an agent that has not run at all has one too.
-  - **Every turn of a resident agent goes into its head** — a chat round, a job's turn, a keepalive, a fold —
-    and **every structured execution of a host agent runs in the agent host and shows in its head** — a
-    gate's judgement, a search's coordinator and its model run, one room's sort — so none of them opens a
-    pane.
-- **What still stands beside a head stands in a tab of its own:** a run apart from the agent's
+  - **That workspace's first pane is the head pane** (「One standing pane per supervisor」). A resident
+    supervisor's head is its interactive program, whose status line says what run is going or since when
+    it has been resting; a host agent's head follows its view, which shows each execution's readable
+    progress and a resting line between them. Because there is a head pane, the workspace stays even with
+    no runs, and because the bot stands every supervisor's head up as it attaches, one that has not run at
+    all has one too.
+  - **Every turn of a resident supervisor goes into its head** — a chat round, a keepalive, a fold — and
+    **every structured execution of a host agent runs in the agent host and shows in its head** — a
+    search's coordinator, one room's sort — so none of them opens a pane.
+- **Every run of a role stands in a workspace of its own,** opened for the run and labelled with what the
+  run is, its role and its model, and closed with the run (`docs/agents.md`, 「A run in a pane of its
+  own」). A co-work branch's workspace is labelled with its task (`#721 scout 01`), as its place names it
+  (`docs/role-slots.md`, 「Standing branch checkouts and their list」).
+- **What still stands beside a head stands in a tab of its own:** a run apart from the supervisor's
   program. `layout.apply` given only `workspace_id` makes a new tab running the
   command in that workspace. Nothing is split into the head's tab and nothing is moved into it.
   - `pane.move` with a `destination` of `{type:"tab", tab_id:<head tab>, split, target_pane_id}` would move
@@ -2508,27 +2323,19 @@ agent's character.
     `bmo-head-<agent>` — the mark is a word of the pane's command line, whichever head the loop runs. A
     revived workspace has no such pane, so the head is relaunched as a new tab. The rest of the panes with
     no run token are closed whether or not a head had to be relaunched, since beside a live head a pane of
-    nothing is a tab nobody would look at again. Only a pane whose command is the worker's dev-server
+    nothing is a tab nobody would look at again. Only a pane whose command is a job's dev-server
     script is not closed even with no run token.
-- **A worker's fixed workspace** has one more tab, the dev-server tab, if the worker has a dev-server command. That
-  tab's pane is not a run and comes up and stays with the job — who sets it up when and how it is revived is
-  in `docs/worker-bench.md`.
+- **A job's dev server** stands in a tab of its own beside the job's run where its repository has a
+  dev-server command. That tab's pane is not a run and comes up and stays with the job — who sets it up
+  when and how it is revived is in `docs/worker-bench.md`.
 - **Two may first-make the same workspace at once.** The maker rereads the snapshot after making, and if
   there is more than one workspace for the same agent, uses the one with the smallest `number` and closes
   the one it made. Both gather on the same one by the same rule.
 - **If the fixed workspace cannot be set up,** a run apart comes up as its own workspace, and runs.
 
-- **A worker's job, keepalive and words going into one program is why this shape exists.** Each of
-  them holds the worker's pane lock while it drives the program (「A worker's pane lock」), so a
-  worker's turns follow one another in its one resident program, which a person reads as one
-  continuous conversation.
-
-- **A co-work place of the pool is an agent of its own**, whose workspace is labelled with the co-work
-  task running in it (`#721 scout 01`) and rests on the place itself (`co-worker bmo-c9e91129fa 01`) while
-  none is (`docs/coworker-pool.md`, 「Standing branch checkouts and their list」). Its resident program
-  carries the tasks placed there and the pings that warm it; a task in another copy's directory is a
-  different working directory, so the program is started again there in the same pane (「The
-  interactive surface a provider declares」).
+- **A supervisor's rounds, keepalive and folds going into one program is why this shape exists:** its
+  turns follow one another in its one resident program, which a person reads as one continuous
+  conversation. A role's runs share no program, so each is read in its own pane.
 
 ## Asking whether it is alive
 
@@ -2562,7 +2369,7 @@ all three, and if any holds it, take it as alive.**
   - **Appearing** is a `pane_updated` with a token attached. A pane comes first as `pane_created`, but has
     no token then, and attaching the token makes `pane_updated` carry `tokens.run`. A pane with no `run`
     token is not a run this repository launched, so it does not enter the picture — not the head pane, not
-    the worker's dev-server pane, not a shell a person opened.
+    a job's dev-server pane, not a shell a person opened.
   - **Moving** is `pane_moved`. It carries the whole moved pane (`pane`), `previous_pane_id`,
     `previous_tab_id`, and the emptied closed tab (`closed_tab_id`). Order matters: measured, the emptied
     tab's `tab_closed` comes **before** `pane_moved`. So a pane dropped from the picture by a closed tab
@@ -2628,10 +2435,10 @@ agency's server's.
   that moves and then stands again is told again. The fact carries `command` beside `lastLine` — how
   many of the call's processes stand and when they were last found working — and the account says the
   command is still running with its processes idle, rather than that the job did nothing.
-- **A worker standing idle.** A worker whose checkout has nothing in it while its own queue holds work,
-  for five minutes. It is told once for the stretch; the record goes when the worker takes a job or its
-  queue empties, and a later stretch is told again. The owner's pause is not a stall and is never
-  counted as one, and neither is a machine short of room (「Room on the machine」 below).
+- **A repository standing idle.** A repository none of whose checkouts holds a job while its own queue holds
+  work, for five minutes. It is told once for the stretch; the record goes when a job takes one of its
+  checkouts or its queue empties, and a later stretch is told again. The owner's pause is not a stall and is
+  never counted as one, and neither is a machine short of room (「Room on the machine」 below).
 - A stage of a managed co-work is left to the co-work runner, which watches its own stages.
 
 ### A job's own mark on a long wait
@@ -2692,16 +2499,17 @@ pane. So the earlier investigation's conclusion holds under herdr too.
   so `agent.list` answers with an empty array, and `-p` does not read input in a pty at all —
   `Error: Input must be provided either through stdin or as a prompt argument when using --print`. In a pty,
   stdin is a terminal, so print mode judges it has nothing to read.
-- **A gate takes none.** It is one prompt and one answer, in a program of its pool
-  (「A gate's pool」). There is no turn boundary to interject.
 - **Words for a surface that takes none mid-turn** stay in the store or the conversation's buffer and are
   delivered after the turn ends.
 
 ## Folding travels with the resident program
 
-- **A resident agent folds inside its own program.** The fold is the surface's fold put in as a turn —
-  `/compact` in Claude Code, which writes its compacted marker and keeps the session id (measured) — so
-  the fold stands on the same prefix as every other turn of that agent.
+- **A supervisor folds inside its own resident program.** The fold is the surface's fold put in as a
+  turn — `/compact` in Claude Code, which writes its compacted marker and keeps the session id
+  (measured) — so the fold stands on the same prefix as every other turn of that supervisor.
+- **A role's session folds inside a run's program,** between turns, once it is past its role's compaction
+  threshold (`docs/sessions.md`, 「Session compaction」), so the fold stands on the prefix its runs stand
+  on.
 - **No agent on Claude Code folds outside its program:** the chat agent's fold with no pane to stand in fails
   as its turn does, and a host agent on another harness folds as that harness does.
 
@@ -2718,7 +2526,7 @@ enters the prefix.
   **read 0, create 54741**. Read being 0 is what says the prefix moved, and the interactive prefix being
   larger is because the CLI lays more of its own on interactive. That change carries `bmo
   worker fold` with it.
-- **The move is paid once per session.** A resident agent's turns, pings and folds all stand on the
+- **The move is paid once per session.** A supervisor's turns, pings and folds all stand on the
   interactive prefix. The chat's session moves once, on its first resident turn, which the fresh-start path
   treats like any other prefix that changed (`unified-bmo.md`).
 - **The settings file and the slash commands do not move it.** On the chat line's argv, a run with the
@@ -2737,45 +2545,24 @@ enters the prefix.
 
 ### The keepalive ping goes into the same program as the turns
 
-- The ping exists to warm the agent's prefix, so it must stand on the agent's line. A resident agent's
-  turns go into its resident program, so the ping does too: wait for the program to sit `idle`, put one
-  `«keepalive»` in with the same `agent.prompt` a turn takes its work with, and read the answer from the
-  record. A ping that finds a turn working is skipped: that turn is keeping the prefix warm itself.
+- The ping exists to warm a supervisor's prefix, so it must stand on the supervisor's line. A
+  supervisor's turns go into its resident program, so the ping does too: wait for the program to sit
+  `idle`, put one `«keepalive»` in with the same `agent.prompt` a turn takes its work with, and read the
+  answer from the record. A ping that finds a turn working is skipped: that turn is keeping the prefix
+  warm itself.
   - A ping is known by the mark its run carries, never by its words. agency's own touch is composed by
     the one window like every turn of the chat agent's, so it carries the room's memories and reference ahead
     of the `«keepalive»` line (`bmo-window.md`).
   - A person attached to herdr sees the ping in the same program as the turns.
   - The cache the ping reads and writes is the cache the next turn reads. Pinging on another line warms a
-    prefix no turn uses. The ping the pool uses to warm a Claude Code co-work place goes into that place's
-    resident program for the same reason.
-- **A word said to the worker while nothing of its own is running is the same run with something else
-  said.** A word is first offered to the turn the worker's session is working, a job's, which takes it
-  where it hears words; where none takes it, it goes into the worker's resident program on the session a
-  job would resume, in a turn of its own that holds the session as any turn of the session contract
-  does, so neither goes in over the other. Whichever of them ran, the session, the login it went out on,
-  the downgrade heal and the fold are decided in one place.
-- **A word's turn reads further words too.** A word said while the worker is answering an earlier one
-  goes into that same working turn at its next look; the answer then stands under the last word it took.
-- **The words are worded by their consumer.** How the worker is told them — in a turn of their own, into a
-  job's working turn, or into the turn answering earlier words — is the consumer's to word at the
-  worker's words point (`docs/api.md`, 「Hooks」); where nobody words them, they go in as said.
-- **A word to a worker pinned to another provider waits.** A worker pinned to a provider other than
-  Claude Code that is on holds no Claude session to say it into, and no run on that pin carries words,
-  so the word waits in the worker's log with a line saying so.
-- **Nothing waits for a slow round.** A word is offered the moment it is said, and the words still
-  waiting are offered again every few seconds, one worker apart from another, so a word left by a
-  job that ended, a ping or a fold goes in seconds after its pane is free. A worker already being
-  handed words by this bot is not offered them a second time over it.
-- **What held a word stands under it, once.** A word whose turn found the pane waiting on a person's
-  answer, the folder-trust question, a machine at rest or Claude Code switched off leaves a line under
-  that word in the worker's log saying which; the same reason is not written twice. A word held by a
-  pane waiting on a person is offered again a minute later rather than every few seconds, or at once
-  when the owner says another word. A word a running job's turn took says so under it as well.
-- **A ping or a word that brings a session up names the login a job's walk offers now.** A turn on a held
-  session goes out on the login that session was opened under; one opening a session names the account the
-  job on it will go out on, rather than none. A line naming no account carries no configuration directory,
-  the job's line does, and the job resuming that session would find a different program standing and start
-  it again before its prompt goes in.
+    prefix no turn uses.
+- **Only a supervisor is pinged,** on the providers its row switches warming on for
+  (`docs/keepalive-schedule.md`, 「Whose prefix is warmed」). No role's run is pinged: a run's pane closes
+  with the run, and its kept session is resumed while its cache is still warm and opened afresh once it
+  has gone (`docs/sessions.md`, 「A role's session」).
+- **A ping goes out on the login the supervisor's session was opened under,** so the turn after it finds
+  the program the ping left standing on the same command (`docs/keepalive-schedule.md`, 「Whether a ping
+  goes」).
 - **The `PATH` a run apart is handed is the bot service's, whoever launched it.** It is the launcher's own
   `PATH` with every directory of the bot's service unit that it lacks added after it, read from that
   unit's file in the code root. A launcher on a narrow shell — a scheduled unit, a job's shell — would
@@ -2826,7 +2613,7 @@ enters the prefix.
   - **A place written before takes the files at its next composition.** The token variables are part of
     the program's identity, so the first launch that composes an agent's program again writes the new one
     into its place and ends the one standing, which the head starts again on the same session
-    (「One standing pane per agent」). A place no launch composes again keeps what it holds until
+    (「One standing pane per supervisor」). A place no launch composes again keeps what it holds until
     `bmo-agency hand-tokens` rewrites it, which a deployment runs once its new server stands: every place's program has each token it holds by value replaced
     by its file, its identity made afresh, and a program standing on it goes on as it is until it next
     starts.
@@ -2856,9 +2643,9 @@ enters the prefix.
     32178 create 21523, and the job launched at once **read 53701 create 3948** — 53701 is exactly the ping's
     read plus create. Both times the job read every token of the prefix the ping stood on with none missed,
     and wrote only the job's prompt anew.
-  - The two ran as two programs one after the other on the same session; a resident program runs both
-    as two turns of one program, on the same argv and the same session, so the prefix the ping warms is
-    the one the job reads.
+  - The two ran as two programs one after the other on the same session, which is how a role's run
+    resumes a kept session: the next run on the same command reads the prefix the last one left while
+    its cache is warm.
 
 ### The job's release
 
@@ -2874,9 +2661,8 @@ enters the prefix.
   release.
   - The place's status line and its turn hooks are the exception: they report to the running bot,
     so they run the verbs' binary under the link.
-- **The bot hands on the release it runs on** to what it stands up itself, a worker standing with
-  nothing to do among them. A program a job finds standing on the job's own release is the same
-  program; one standing on another is started again before the job's turn goes in.
+- **The bot hands on the release it runs on** to what it stands up itself, a supervisor's program among
+  them. A job's run stands its own program on the job's release in a pane of its own.
 - **Agency's deploy tree is its own:** its link is `deploy` under `$HOME/.local/share/bmo-agency`,
   with the releases it names beside it, and it holds agency's binaries, its prompts, its tools and its
   units and nothing of another service's. The data root is not agency's alone:
@@ -2928,25 +2714,24 @@ them run a browser, and whose a place is.
   environment names (the place variable every agent's pane carries and every process under it
   inherits). Agency asks it for this machine through its published client and reads the standing: the
   reading, what each place holds, how many browsers run and the largest processes.
-- **The jobs, by agency:** every worker standing on this machine, its row naming no work node, with a
-  run open in the executions, each one job at work. A worker placed on a work node is that node's and
-  is not counted here.
+- **The jobs, by agency:** every job at work on this machine — a job's run open in the executions whose
+  repository's row names no work node. A job of a repository placed on a work node is that node's and is
+  not counted here.
 - **The jobs with a browser:** those whose place holds a browser in the node service's standing.
-- **Whose a place is:** a place named after a worker at work is that worker's, and its job and item are
-  the ones the worker's turn named (`docs/api.md`, 「Sessions」, a turn's context); any other place is
-  that agent's own.
+- **Whose a place is:** a place a job's run stands in is that run's, and its job and item are the ones
+  the run's turn named (`docs/api.md`, 「sessions」, a turn's context); any other place is that agent's
+  own.
 - **A reading that cannot be had holds nothing.** A node service that cannot be asked holds nothing of
   its part and a standing that cannot be read counts no browser; the job count still holds.
 
 ### The limits
 
-- **The six limits are rows of agency's settings table**, keyed `machine_limit:<name>`; for the four
-  judged over the machine's reading a missing row, or one that is not a positive number, reads as the
-  default, and the two job counts have none: no fixed number of jobs holds a launch, so a count holds
-  only where the owner wrote one, and otherwise how many jobs run is bounded by the workers that are free,
-  the machine's own room and each road's capacity (`docs/coworker-pool.md`). The four judged over the
-  machine's reading are agency's: the node service reports the standing and judges only the alerts it
-  tells.
+- **The six limits are rows of agency's settings table**, keyed `machine_limit:<name>`; for the four judged
+  over the machine's reading a missing row, or one that is not a positive number, reads as the default, and
+  the two job counts have none: no fixed number of jobs holds a launch, so a count holds only where the
+  owner wrote one, and otherwise how many jobs run is bounded by the roles' caps (`docs/role-slots.md`, 「The
+  cap」), the repositories' free checkouts and the machine's own room. The four judged over the machine's
+  reading are agency's: the node service reports the standing and judges only the alerts it tells.
 - **What holds a launch,** any one of them met:
 
   | Name | Default | Met when |
@@ -2976,8 +2761,8 @@ them run a browser, and whose a place is.
 ### A launch waits for room
 
 - **The launcher is the job unit.** Before it launches a job on this machine, after every refusal an
-  item is owed and before any row is opened, it asks agency for the room (`docs/api.md`, 「Workers」,
-  the machine's room), and agency asks the node service for the standing and judges the six limits.
+  item is owed and before any row is opened, it asks agency for the room (`docs/api.md`, 「road-blocks
+  and launch-room」), and agency asks the node service for the standing and judges the six limits.
   Where anything is held nothing is launched, and the launcher's answer names each reason with its
   figure.
 - **A held launch is no refusal of the item:** it keeps its place, its approval and its launch wait
@@ -2995,31 +2780,31 @@ them run a browser, and whose a place is.
 
 ### An idle queue is told to the owner
 
-- **Open work a free worker could take, with no job started, is an idle queue.** Every minute agency
-  reads the job service's items waiting for a lease (its `GET /items`, `state` `open`) and its queues
-  (`GET /queues`), beside its own jobs. An item stands open only once an approver approved it or it was
-  raised with one of the job service's unattended labels — a pull request's review among them — so its
-  state is the whole of whether it may be launched. An item waits on a free worker where it is open, its
-  queue is open and holds nothing, and its assignee is a worker that is not resting and has no job at
-  work, or it names no assignee while such a worker stands. An item a job of agency's is still at work on
-  — its lease run out, or a restart of agency under the job — waits on nothing and is told to nobody. Where one item waits so and no job has
-  started on this machine for the idle minutes (`policy/queue-idle.toml`, five, or the owner's own row
-  `queue_idle_minutes` of the settings table), the queue is idle.
+- **Open work that could go, with no job started, is an idle queue.** Every minute agency reads the job
+  service's items waiting for a lease (its `GET /items`, `state` `open`) and its queues (`GET /queues`),
+  beside its own jobs. An item stands open only once an approver approved it or it was raised with one of
+  the job service's unattended labels — a pull request's review among them — so its state is the whole of
+  whether it may be launched. An item waits to go where it is open, its queue is open and holds nothing, its
+  repository has a checkout no job holds, and its role has a free slot. An item a job of agency's is still
+  at work on — its lease run out, or a restart of agency under the job — waits on nothing and is told to
+  nobody. Where one item waits so and no job has started on this machine for the idle minutes
+  (`policy/queue-idle.toml`, five, or the owner's own row `queue_idle_minutes` of the settings table), the
+  queue is idle.
 - **The owner is told once, through the receiver.** Agency queues one owner notice, `POST /owner/notices`
-  of the receiver with the code `queue-idle`: the waiting items by number, title and assignee, the free
-  workers, the idle minutes and when the last job started, and that the chat agent picks the next item for
-  a free worker or says why it does not. The receiver hands it to the chat agent in the owner's private chat, which
+  of the receiver with the code `queue-idle`: the waiting items by number, title, repository and role,
+  the idle minutes and when the last job started, and that the chat agent launches the next item or says
+  why it does not. The receiver hands it to the chat agent in the owner's private chat, which
   voices it (the receiver's `docs/voiced-notices.md`). It is told once for each idle stretch: the moment it
   was told is kept, and nothing more is said until a job starts again.
-- **An item waiting on its own free worker is told to the chat agent on its own.** Where an open item
-  names as its assignee a worker that is free, and it is still waiting a minute after agency first
-  saw it so (`policy/queue-idle.toml`, `launch_seconds`), agency queues one instruction for the chat agent
-  in the room the item was asked in — its `roomId`, else the room its `scope` names — and in the owner's
-  private room only for an item that names none, through the receiver's `POST /instructions`, under the event
-  `item-awaits-launch:#<item>`: the item awaits a launch, so lease it (`job_lease_next`), assign its worker
-  (`assign_worker`), run it (`run_job`), or say in one line why not. It is told once for each item: the
-  moment it was first seen waiting and the moment it was told are kept by the item's number, the first let
-  go once the item no longer waits on a free worker, the second once the item is no longer open. It stands beside the idle stretch's notice and does not wait for the idle minutes.
+- **An item that could go is told to the chat agent on its own.** Where an open item waits to go, and it is
+  still waiting a minute after agency first saw it so (`policy/queue-idle.toml`, `launch_seconds`), agency
+  queues one instruction for the chat agent in the room the item was asked in — its `roomId`, else the room
+  its `scope` names — and in the owner's private room only for an item that names none, through the
+  receiver's `POST /instructions`, under the event `item-awaits-launch:#<item>`: the item awaits a launch,
+  so lease it (`job_lease_next`), run it (`run_job`), or say in one line why not. It is told once for each
+  item: the moment it was first seen waiting and the moment it was told are kept by the item's number, the
+  first let go once the item no longer waits to go, the second once the item is no longer open. It stands
+  beside the idle stretch's notice and does not wait for the idle minutes.
 - **A switch silences both,** the settings row `queue_idle_alarm` set to `off`; the next job that starts turns
   it on again. A deployment that names no job service or no receiver tells nothing.
 
@@ -3032,7 +2817,7 @@ them run a browser, and whose a place is.
 - **Agency publishes an alert it has not published yet,** and publishes it again only after it has
   ended and risen again. An alert that ends is not published.
 - **Agency names the job behind each place** and publishes the pressure as its own `machine-pressure`
-  (`docs/api.md`, 「Events」): the reading, the memory each place holds with the worker at work in it
+  (`docs/api.md`, 「Events」): the reading, the memory each place holds with the job's run at work in it
   and the job and item its turn named, the largest processes with whose each is, and the jobs and the
   jobs with a browser as the room counts them. The consumer that holds the owner's chat tells it to the
   chat agent as a fact.
@@ -3080,9 +2865,9 @@ row whole. It only reads and changes nothing. The text's headings, labels and fi
 - **The runs.** Every run the ledger holds open: its agent, its unit, when it started and how long ago, and
   what a stop of it is aimed at, written `stop <kind>:<id>`. A run in a unit of its own is named
   `unit:<unit>`.
-- **The jobs.** Every job the harness handed over that is starting or running: its worker, its item, its
-  state, when it started, and its stop, `item:<item>`.
-- **The executions.** Every execution with no end recorded: its line — a gate, a chat turn, a runner — what
+- **The jobs.** Every job the harness handed over that is starting or running: its repository, its role,
+  its item, its state, when it started, and its stop, `item:<item>`.
+- **The executions.** Every execution with no end recorded: its line — a chat turn, a runner — what
   it runs under, when it started, and its stop, `execution:<id>`.
 - **herdr.** With one snapshot, per pane the run's name, its label and the agent's status. A pane whose
   agent is blocked is waiting on a confirmation, which is not a failure (「A confirmation in the middle of
@@ -3105,12 +2890,12 @@ what the target's kind is, the reach 「Stopping」 above holds.
   `<kind>:<id>` the running report prints on every line, so the word read off one is the word handed
   back to the other. A row with nothing to aim at is left out of the list and counted in a line of its
   own, because a short list read as the whole of what is running is the one way this can mislead.
-- **Called with a target, it stops that one run.** `unit:` for a run in a unit of its own, its
-  cancellation written, a pane asked and waited on until its run has ended, and the unit stopped by
-  systemd where it still stands after that; `execution:` for a chat turn or a gate, the cancellation walked from its record; `item:`
+- **Called with a target, it stops that one run.** `unit:` for a run in a unit of its own, its cancellation
+  written, a pane asked and waited on until its run has ended, and the unit stopped by systemd where it
+  still stands after that; `execution:` for a chat turn, the cancellation walked from its record; `item:`
   for a work order, its job marked stopped and its run stopped, and `--why '<reason>'` because the item
-  carries that reason until it is taken up again. A word that is not a target is refused before anything
-  is asked.
+  carries that reason until it is taken up again. A word that is not a target is refused before anything is
+  asked.
 - **`--all` stops every target the reading names**, which is the owner's "stop every agent's running
   work" asked in one call, in the order the reading stands them.
 - **It says which of the two a stop got to.** Asked is the run told to end, confirmed is the run seen
@@ -3130,12 +2915,11 @@ Launch refusal cleanup closes the coordinator job and removes its private prompt
 
 | Entry | Physical model boundary |
 |---|---|
-| Task and co-work coordinator (agency's turn and pool routes) | `bmo-agency job-run`: every turn into its resident program, a co-work branch's stand-in roads as one run in the worker's host |
+| Task and co-work coordinator (agency's turn and slot routes) | `bmo-agency job-run`: every run in a pane of its own, a co-work branch's stand-in roads as one run in the host |
 | Search and browse, including search escalation | Runner → `spawnAgentProcess`; escalation invokes the search launcher again |
-| Worker warming and compaction | agency's server's keepalive pass and worker fold: a turn into the worker's resident program |
-| Worker keepalive and branch-prefix warming | agency's server's keepalive pool: a turn into the place's resident program |
-| Chat turns and chat compaction | agency's server's conversations: a turn through the chat agent's resident door, or a stand-in road run in the agent's host |
-| Gates | the gate unit's own runs; agency's TypeScript side starts none |
+| A role's session compaction | the fold between turns, typed into a run's program |
+| Supervisor keepalive | agency's server's keepalive pass: a turn into the supervisor's resident program |
+| Chat turns and chat compaction | agency's server's conversations: a turn through the supervisor's resident door, or a stand-in road run in the agent's host |
 | Runner and briefing coordinators | `launchDetachedExecution`, in the agent's host |
 
 The remaining `systemd-run` constructors are task/co-work coordination, deployment
@@ -3147,7 +2931,10 @@ with neither still reaches the manager.
 This entrypoint audit does not establish complete native-child identity, reconciliation,
 or live-provider outcomes; those have separate acceptance checks.
 
-Execution identity uses an explicit logical root and work key, with atomic per-root attempt allocation in SQLite. Physical launches receive fresh UUID tokens. Native identifiers are archived as opaque data and hashed with the parent/provider namespace for record IDs. Model and session associations travel separately from command arguments; stateless harnesses keep a null session.
+Execution identity uses an explicit logical root, with atomic per-root attempt allocation in SQLite.
+Physical launches receive fresh UUID tokens. Native identifiers are archived as opaque data and hashed with
+the parent/provider namespace for record IDs. Model and session associations travel separately from command
+arguments; stateless harnesses keep a null session.
 
 Co-work retry units map to their revisioned task key without the trailing retry number; their coordinator unit remains the parent association. Maintenance turns receive separate logical roots. A fallback request carries one root through provider changes and lost-session retries. Counter initialization preserves the highest existing attempt when upgrading older records. Identity fields cannot be reassigned by lifecycle updates.
 

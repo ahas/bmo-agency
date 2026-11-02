@@ -49,7 +49,7 @@ side of a remote agent, the rotation, and what a dropped node does.
      any session a person keeps there, is started where it does not stand, and its name and socket
      written into the node's setup record here, which the link reads; the name is the setup verb's,
      the packages under it taking it as given;
-  7. each node checkout of a worker placed there, cloned from its base's remote at its path, the
+  7. each node checkout of a repository placed there, cloned from its base checkout's remote at its path, the
      repository's own setup run in it, trusted in every account's directory on the node so no first
      turn stops at the folder check, and its push to the remote tried. The trust is written by the
      node's own host binary, built in step 4, since the node's deploy tree holds no `bmo-agency` and
@@ -76,7 +76,7 @@ side of a remote agent, the rotation, and what a dropped node does.
 
 - **One link per ready workplace:** a connect program of the crate workspace, under a unit of its own,
   which agency's server starts with the workplace's spec — as it starts, once a minute and whenever
-  the workers move — and stops for a workplace no longer ready. Agency's server keeps the links; a
+  the repositories move — and stops for a workplace no longer ready. Agency's server keeps the links; a
   process standing on a copy of the data root keeps none. The node's SSH login is asked of the node
   service, which keeps the nodes (`docs/api.md`, 「The node service」).
 - **Its spec is the server's:** a link record of the node's under the data root, written whole
@@ -191,7 +191,7 @@ side of a remote agent, the rotation, and what a dropped node does.
   connection, main is the remote's, brought up before the job's branch is made from it, and the graph
   is read through its shadow here. The job unit asks agency where that shadow stands for its checkout,
   and reads the nodes and how SSH reaches one through agency, which hands on the node service's reads
-  (`docs/api.md`, 「Workers」).
+  (`docs/api.md`, 「repositories, prefix-checks and room-holdings」).
 - **The records read here as they always did,** off the mirrored files: the turn's answer and
   activity, the session collection, the run log, the token usage, a job's quiet and stalled watch.
 

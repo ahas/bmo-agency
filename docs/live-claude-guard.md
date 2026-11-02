@@ -6,8 +6,8 @@
   session, or putting something like `/compact` into a CLI in a pane makes that session write its
   uncached prefix and conversation from the start. For a session with a long conversation, one such
   write exceeds a hundred thousand cache-write tokens.
-- **The bot's own sessions** — room answers, job turns, gates, runners, keepalive,
-  session folding — are opened knowing that cost.
+- **The bot's own sessions** — a supervisor's turns and its keepalive, every role's run, session
+  folding — are opened knowing that cost.
 - **A job's sessions** for a measurement or an experiment are opened only once the job has said
   what it is opening them for. The owner is not asked: the job opens the guard itself, and what it ran,
   and how many times, is kept and carried into the item's report.
@@ -40,8 +40,8 @@
   Bash command before it runs and judges it. The same hook also takes the job's file edits, for the
   document below.
 - **Who judges:** the job guard of the service that holds the jobs, which the deployment names in
-  agency's environment as `BMO_JOB_GUARD` and agency hands to every worker program it starts
-  (`docs/api.md`, 「Hooks」). The hook runs it through `sh` with the hook's input on standard input. A
+  agency's environment as `BMO_JOB_GUARD` and agency hands to every program of the worker line it starts
+  (`docs/api.md`, 「hooks」). The hook runs it through `sh` with the hook's input on standard input. A
   refusal comes back as a deny decision carrying the reason and the piece of the command the guard read
   it in — the program word, the redirect's target, the text handed to `eval` or a shell, and where a word
   was read as a command, why it was read that way. So a job reads what was blocked and why instead of
@@ -56,13 +56,13 @@
      word `CLAUDE_CONFIG_DIR` are always read as the records; so is the `projects` directory under
      every account's configuration directory, spelled as an absolute path, from `~`, from `$HOME`
      or from `${HOME}`.
-   - Which configuration directories there are is agency's store's: the accounts the owner registers
-     through agency's account routes (`docs/api.md`, 「Accounts」). The hook reads them off the store's database
-     before it judges a command, and hands the list to the guard; an endpoint account keeps its
-     records in its own configuration home, which is listed like a directory account's; a token
-     account keeps its records in the machine's directory, and the machine's own directory in the hook's environment
-     is added beside them. A store with no account, or one the hook cannot read, leaves the
-     guard with the machine's spellings alone, which it refuses exactly as before.
+   - Which configuration directories there are is agency's store's: the accounts the owner registers through
+     agency's account routes (`docs/api.md`, 「accounts, rest and usage」). The hook reads them off the
+     store's database before it judges a command, and hands the list to the guard; an endpoint account keeps
+     its records in its own configuration home, which is listed like a directory account's; a token account
+     keeps its records in the machine's directory, and the machine's own directory in the hook's environment
+     is added beside them. A store with no account, or one the hook cannot read, leaves the guard with the
+     machine's spellings alone, which it refuses exactly as before.
    - Among commands that mention the records anywhere: those that copy, move, link, delete or
      create (`cp`, `mv`, `ln`, `rm`, `rsync`, `tee`, `touch` and the like), edit in place
      (`sed -i`), or redirect to anything other than the null device or a literal path outside
@@ -112,7 +112,7 @@
   no guard, the guard is missing, or it fails or reads no input — the command is not blocked. The
   guard's judgement is waited for until the guard ends: the hook's limit is the longest the program
   takes, a day, and nothing cuts the guard short.
-- One hook failing to run must not stop every shell command of every worker, and the second layer
+- One hook failing to run must not stop every shell command of every job, and the second layer
   stands behind it.
 
 ### The hook moves the worker's prefix
@@ -231,17 +231,17 @@
 
 ## The same hook keeps a job in its own checkout
 
-- **What it guards:** every registered worker's checkout — each base and each support worker — but the
-  job's own worker's and the ones the job has borrowed (`docs/worker-slots.md`, 「A job writes only in
-  its own checkout」).
+- **What it guards:** every repository's checkout — each base and each support worktree — but the job's
+  own and the ones the job has borrowed (`docs/worker-slots.md`, 「A job writes only in its own
+  checkout」).
 - **What counts as a write there:** a file tool whose target lies in it, a redirect, a writer
   program, an in-place editor, a git command that changes files, an interpreter's inline script, and
   relative paths after a `cd` into it. A path is matched at a boundary, so a support
   worktree whose path begins with its base's is never read as the base, and `~` and `$HOME` spellings
   count.
-- **What it refuses with:** whose checkout it is, and `bmo-agency borrow <worker>` by the deploy tree's path,
-  which lends the job a free checkout of that repository.
-- **When it cannot tell:** a job whose row or worker it cannot read, or a store that holds no loans yet,
+- **What it refuses with:** whose checkout it is, and `bmo-agency borrow <repository>` by the deploy tree's
+  path, which lends the job a free checkout of that repository.
+- **When it cannot tell:** a job whose row or repository it cannot read, or a store that holds no loans yet,
   refuses nothing. The job's own checkout is also what the shell's verb refusals
   (`job-tools.md`) read as 「the checkout」.
 
@@ -261,17 +261,14 @@
     function that runs a turn, meets the same guard.
 - **What it blocks:** the lines that hold a session or write a prefix the next run will read — job,
   room, a companion's turn, search, browse, and a session inside a pane.
-- **A pane holding another provider's program** — Codex's, standing in an agent's pane — is still a
-  pane a job does not put words into, so the job refusal holds there too. No Claude session is
+- **A pane holding another provider's program** — Codex's, standing in a supervisor's or a run's pane — is
+  still a pane a job does not put words into, so the job refusal holds there too. No Claude session is
   written by it, so Claude being off does not refuse it and nothing is recorded as a Claude run.
 - **Agency's server's resident door asks the same marks.** In a test it reaches only a stand-in herdr under
   the test's home or the temporary directory; in a process carrying both of a job's marks it refuses,
   since the opening a job makes is read by the bun guard alone, except a run its procedure requires
   that the verb declared first (「A run the procedure requires declares itself」); and Claude Code switched off
   closes its turns on a Claude Code program as the bun guard does.
-- **What it lets through:** a gate run judges once on a small fixed instruction and leaves nothing
-  behind, and the tools a job uses (asking the owner, sending a message) may call one, so it is not
-  blocked.
 - **A test holds the list of files that start the CLI.** A file that starts the CLI without going
   through the guard fails that test.
 - **Tests:** a process carrying the test mark follows the test rules instead of this one

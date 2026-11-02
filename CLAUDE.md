@@ -2,10 +2,11 @@
 
 This repository is agency: the service that supplies, delivers and controls agents. It starts agent
 sessions, carries turns into them, reads their state and output, interrupts, folds and ends them, keeps
-the co-worker pool, the workers, the accounts and logins, the model registry and the links to other
-machines. It decides nothing about a turn's content: no turn assembly, no room, permission or rule
-judgement, no reference selection and no output check. Which role and which model a piece of work needs
-is the caller's decision; agency supplies it.
+the supervisors, the roles and their slots, the repositories, the accounts and logins, the model registry
+and the links to other machines. It decides nothing about a turn's content: no turn assembly, no room,
+permission or rule judgement, no reference selection and no output check. Which role a piece of work runs
+as is the caller's decision; the provider and model it runs on are the role's order's, and agency supplies
+them.
 
 ## Principles
 
@@ -26,8 +27,8 @@ is the caller's decision; agency supplies it.
   end, list. Every caller reaches agents through it. `crates/herdr` is only herdr's socket client; the
   herdr implementation of the contract is the server's `herdr_backend` module, since it is built over
   the server's door, places and lines.
-- **The co-worker pool is a module of the server, not a crate.** Its dispatch shares the request, the
-  tiers, the roads and the routes with the control routes, so a crate boundary between them would be a
+- **The role slots are a module of the server, not a crate.** Their dispatch shares the request, the roles,
+  the provider orders and the routes with the control routes, so a crate boundary between them would be a
   cycle.
 - **No other service's code.** Among other repositories only the base libraries `bmo-chat`,
   `bmo-chat-client` and `bmo-ui` may be depended on or imported, and the Rust side may also build on the

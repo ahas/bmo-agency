@@ -1,304 +1,221 @@
-# Agent roles
+# Roles
 
-Every agent of the system holds one role: what it is for, which decides the function bundles its
-turns are given. This document is the canonical statement of roles and their bundles. What each
-designated agent owns apart from the others is `docs/agent-ownership.md`; what a companion's turn is
-made of is `docs/companions.md`.
+A role is the executing axis of agency (`docs/agents.md`, 「Two axes」): what a run is for, which decides
+the prompt it opens on, the tools it is given, the providers and models it runs on, how many of its runs go
+at once and whether its runs keep their sessions. This document is the canonical statement of roles and
+their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run gets its provider is
+`docs/provider-order.md`.
 
 ## What a role is
 
-- **One role to an agent,** the `role` column of its row in the `agents` table. It is the owner's to
-  change, on the console or through the control port (「Changing an agent's role」 below).
-- **A role is what an agent is for; its kind is how it runs.** The kind names the machinery that
-  carries the agent — a conversation in rooms, a worker's jobs, a gate's judgements. The role names
-  what the agent is given to do. The chat agent and every companion are of the kind `chat`, carried by the one runner
-  their rows' settings steer (`docs/agents.md`, 「One runner」), and all of them hold the chat role; agents of
-  different kinds may share a role as well.
-- **A role gives function bundles, never an agent or a kind.** No code grants a bundle to an agent by
-  its name or its kind: every reader takes the agent a turn is for, reads its role and reads the
-  bundles that role gives. So a companion added as a row with the chat role is given everything the
-  chat role gives from its first turn, with no change anywhere else.
-- **A bundle is a capability of the tool host** (`mcp-host.md`, 「Namespaces and
-  capabilities」): a named set of tools a session is shown once its record holds it, and the right
-  the tools' own refusals read.
+- **Every run holds one role,** the one the work names (「Which role a run holds」 below). A role is never an
+  agent standing somewhere: it is a row every run of it reads as it starts.
+- **A role gives function bundles, never a run by its name.** Every reader takes the role a run holds and
+  reads its row, so a role added as a row is given everything its row says from its first run, with no
+  change anywhere else.
+- **A bundle is a capability of the tool host** (`mcp-host.md`, 「Namespaces and capabilities」): a named set
+  of tools a session is shown once its record holds it, and the right the tools' own refusals read.
+- **The workers, the helper, the video producer, the searcher, the browser, the translator, the
+  transliterator and every co-worker are roles alike.** Nothing tells a co-worker role from any other
+  role but what its row says.
 
-## The roles
+## What a role row holds
 
-- **Kept in agency's store,** the `agent_roles` table (`docs/store.md`), one row a role: its name, its
-  label, the bundles it gives, the bound on how many of its agents run at once, the prompt its agents
-  are given before their own and whether its runs keep their sessions (「A role's sessions」 below). The owner adds, changes and removes roles on the control port (「Changing
-  the roles」 below), and every reader takes a change at its next read, with no deployment and no
-  restart.
-- **The policy seeds them,** `policy/roles.toml`: every role it declares under `[[roles]]` is given to
-  the store once by its name, the first time the store is settled with it, its prompt the text of the
-  file the declaration names under `prompts/roles/`. A role the store holds is never touched by the policy
-  again, and one the owner removed stays removed. A role whose prompt file cannot be read is not given and
-  waits for the next settling that can read it.
-- **The policy keeps what is not a role's own,** read by the bun side and the Rust side alike: the bundles
-  a role may give, `[[bundles]]`, each with its label; the role each kind holds (「Where a role comes
-  from」); the role a co-worker holds; the role delegated work goes to where its ask names none (「The
-  helper role」 below); the role each of agency's own runs that stands for no agent row holds — the usage
-  reader's renewal turn, `renewal`, and the gate project's judging batch, `judging`; the bundle that opens
-  sending; each kind's mark; and the shape of a role's name.
-- **A label is an English word** a screen translates through its own language pack. A screen is handed
-  each role and bundle with its kebab-case code beside the label (`docs/api.md`, 「agents」 and
-  「agent-roles」), and words the code; the label is the English the log keeps.
-- **The roles the policy seeds:**
+- **Kept in agency's store,** the `roles` table (`docs/store.md`), one row a role:
+  - **its name,** its key, kebab-case as the policy's pattern says, and **its label**, an English word a
+    screen translates through its own language pack;
+  - **its prompt,** written in English, which every run of the role opens with after the platform's harness
+    opening; a role carrying none gives none;
+  - **its description,** one paragraph saying what the role is for and when to call it, which is what a
+    run that may call co-workers is shown of the role (「Co-workers」 below);
+  - **its bundles,** the function bundles its runs are given, each one the policy declares;
+  - **its line,** the launch line its runs go out on — the worker line, the search line, the browse line or
+    the translate line (`docs/launch-lines.md`);
+  - **its provider order,** the providers its runs go out on, in order, each with the model and the effort
+    the role runs on there, and its quota share, the remaining quota below which a provider is passed over,
+    1% where none is set (`docs/provider-order.md`);
+  - **its cap,** `max_concurrent`, the most of its runs that go at once (`docs/role-slots.md`);
+  - **its sessions,** `keep` or `fresh` (「A role's sessions」 below);
+  - **its compaction threshold,** the share of its model's window a run's session may fill before the
+    session is folded between turns (`docs/sessions.md`, 「Session compaction」);
+  - **whether it may be called as a co-worker,** by a run of another role naming it.
+- **A role's order is its own.** No order is shared between roles, and none is read from a supervisor or a
+  table of providers: every run of the role goes out on the role's active provider, the first of its order
+  that has quota above the share and can answer now.
+- **The owner adds, changes and removes roles on the control port** (「Changing the roles」 below), and every
+  reader takes a change at its next read, with no deployment and no restart.
 
-  | Role | Label | Bundles | Bound | Prompt | Sessions |
-  |---|---|---|---|---|---|
-  | `chat` | Chat | `room.chat`, `room.send`, `web.read` | 8 | none | keep |
-  | `worker` | Worker | `graph.read`, `queue.read`, `web.read` | 8 | none | keep |
-  | `searcher` | Searcher | `web.read`, `web.sites`, `web.branches`, `web.rulebooks` | 4 | none | fresh |
-  | `translator` | Translator | none | 4 | `translator.md` | fresh |
-  | `video` | Video producer | `queue.read`, `web.read`, `room.send` | 2 | `video.md` | keep |
-  | `helper` | Helper | `graph.read`, `queue.read`, `web.read` | 2 | `helper.md` | keep |
-  | `gate` | Gate | none | 8 | none | fresh |
-  | `upkeep` | Upkeep | none | none | none | fresh |
+## The bundles
 
-- **The translator is a runner, not a gate.** A gate judges a turn in the chain around it, its input and
-  answer fixed; a translation is work asked on demand — a document's part, a text a job worker reads, a
-  record the owner reads — and goes out on a road of its own (`docs/launch-lines.md`, 「Translate
-  runner」). Its agent, `translator`, is a row of kind `runner` holding the `translator` role, whose prompt,
-  seeded from `prompts/roles/translator.md`, stands before the instructions of the purpose it is asked for.
-  It holds no bundle: no web, no tool.
-
-- **Whatever role writes it, a result written for a person is written in the language of the person
-  who asked** (`docs/agent-documents.md`): a worker's report and the documents it files, in the language
-  the item's brief names for its requester, else its room; a searcher's result, in its question's
-  language. The worker role's standing rules and the job-end report rule say so; what agents read of
-  each other stays English.
-- **A role with no bundle of its own still names what the agent is for.** A gate's runs hold what
-  their line declares (`docs/launch-lines.md`) and nothing of a role.
-- **The upkeep role is held by agency's own upkeep runs that stand for no agent row,** the usage reader's
-  renewal turn among them; the gate project's judging batch holds the gate role. Neither gives a bundle:
-  what they hold of a role is its sessions setting.
-- **A role may carry a prompt its agents are given before their own,** the row's `prompt`, written in
-  English: the role's instruction stands for every agent holding it, and the agent's own documents follow
-  it. A role carrying none gives none. A changed prompt reaches an agent's next launch.
-- **A role may bound how many of its agents run at once,** the row's `max_concurrent`: a turn beyond the
-  bound waits for a place and none is refused. A role carrying none runs unbounded. The bound is on turns
-  running at that moment, never on how many sessions stand. It is read as every turn begins, so a changed
-  bound holds from the next turn on, and a turn already running finishes under the bound it began under;
-  none is cut.
-- **A role says whether its runs keep their sessions,** the row's `sessions` (「A role's sessions」
-  below), `keep` unless it is given `fresh`.
-- **A role may have a tier,** the tier its work key `role:<name>` is assigned in the tier settings
-  (`docs/model-tiers.md`). It is given as the role is made or changed; a role given none has none, and its
-  key stands in the tier settings once it is given one. Agency's own launches go out on their line's work
-  key — a worker's jobs on `job-worker`, the translator on `translate` — and read no role's key: the
-  role's tier is for a caller that runs work under the role by its name.
-- **A role's name is its key,** kebab-case as the policy's pattern says, and is neither another role's nor
-  a co-worker role's (`docs/coworker-pool.md`): both name their tier by `role:<name>`.
-- **A role the store does not hold gives nothing,** and the control port refuses to set one.
-- **A co-worker holds the role the policy names for co-workers,** the worker role: a co-worker is a
-  sub-agent for a worker's use alone, and the place it works in, a standing branch checkout, has no row
-  to name a role of its own (`docs/coworker-pool.md`, 「Standing branch checkouts and their list」).
-
-- **A role may list the tool entries its agents are shown by name,** by full name in its `shown`
-  list; every other entry its record holds is reached with `bmo use`. No role lists any now: each line's
-  declaration lists what its sessions are shown.
-- **The bundle that opens sending is named once,** as `send` in `roles.toml`, and every guard of a
-  send reads it there.
+- **The policy keeps what is not a role's own,** `policy/roles.toml`, read by the bun side and the Rust side
+  alike: the bundles a role may give, `[[bundles]]`, each with its label; the supervisor bundles every
+  supervisor holds (`docs/supervisors.md`, 「The bundles a supervisor holds」); the role a job runs as where
+  its item names none, `worker`; the role delegated work goes to where its ask names none, `helper`; the
+  role each of agency's own runs that stands for no one's work holds, `upkeep`; the bundle that opens
+  sending; and the shape of a role's name.
 - **A role gives only bundles the policy declares,** and the control port refuses a role naming another.
+- **A role may list the tool entries its runs are shown by name,** by full name in its `shown` list; every
+  other entry its record holds is reached with `bmo use`. No role lists any now: each line's declaration
+  lists what its sessions are shown.
+- **A screen is handed each role and bundle with its kebab-case code beside the label** (`docs/api.md`,
+  「roles」), and words the code; the label is the English the log keeps.
 
-## A role's sessions
+## The roles the policy seeds
 
-- **Whether a run goes on in the session an earlier run left is its role's setting,** the row's
-  `sessions`: `keep` or `fresh`. A role added names it or is given `keep`; the policy seeds each role's,
-  and the owner changes it on the row like any other field (「Changing the roles」 below). Nothing reads a
-  kind, a line's name or an agent's name to decide it: every reader takes the role the run holds and reads
-  its row.
-- **`keep`: a run resumes its session while the session's cache is warm.** The criterion is the worker's
-  warm/cold one, the cache lifetime the provider declares for the model (`docs/sessions.md`, 「A worker's
-  session per model」); a session past it, or one whose road or prefix moved, is replaced by a new one.
-- **`fresh`: every run opens a session of its own,** which no later run resumes.
-- **Who reads it:**
-  - every run apart, under the role its agent's row names or, for a run that stands for no row, the one
-    the policy names for it (`docs/agents.md`, 「Runs apart」; `docs/sessions.md`, 「A run apart's kept
-    session」);
-  - a worker's job turn, which under a `fresh` role opens a new session in place of the one the worker
-    holds on the turn's model (`docs/sessions.md`, 「A worker's session per model」); a turn that names
-    the session it continues still continues it.
-- **What it does not reach:** a conversation of the chat line is the room's session, kept and replaced as
-  `docs/sessions.md`, 「One session per chat」 says, and a co-work branch opens a session of its own as one
-  stage of its co-work (`docs/coworker-pool.md`, 「Standing branch checkouts and their list」); neither is a
-  role's run to keep or not.
-- **The policy seeds the searcher, the translator, the gate and the upkeep roles `fresh`,** and every
-  other `keep`. A role a store held before the column stood holds the value the policy seeds it with,
-  written once as the column is added, and `keep` where the policy seeds no role of its name.
-- **A changed setting holds from the next run;** a run already going keeps the session it started on.
+- **The policy seeds them,** `policy/roles.toml`: every role it declares under `[[roles]]` is given to the
+  store once by its name, the first time the store is settled with it, its prompt the text of the file the
+  declaration names under `prompts/roles/` and its description the text of the co-worker definition under
+  `prompts/agents/worker/coworkers/` where it names one. A role the store holds is never touched by the
+  policy again, and one the owner removed stays removed. A role whose prompt file cannot be read is not
+  given and waits for the next settling that can read it.
+- **The seeded roles:**
 
-## The chat role's bundles
+  | Role | Label | Line | Bundles | Cap | Prompt | Sessions | Co-worker |
+  |---|---|---|---|---|---|---|---|
+  | `worker` | Worker | worker | `graph.read`, `queue.read`, `web.read` | 8 | none | keep | no |
+  | `helper` | Helper | worker | `graph.read`, `queue.read`, `web.read` | 2 | `helper.md` | keep | no |
+  | `video` | Video producer | worker | `queue.read`, `web.read`, `room.send` | 2 | `video.md` | keep | no |
+  | `builder` | Builder | worker | `graph.read`, `queue.read`, `web.read` | 8 | none | keep | no |
+  | `verifier` | Verifier | worker | `graph.read`, `queue.read`, `web.read` | 6 | none | fresh | yes |
+  | `digest` | Digest | worker | `graph.read`, `queue.read`, `web.read` | 6 | none | fresh | yes |
+  | `scout` | Scout | worker | `graph.read`, `queue.read`, `web.read` | 12 | none | fresh | yes |
+  | `screener` | Screener | worker | `graph.read`, `queue.read`, `web.read` | 12 | none | fresh | yes |
+  | `searcher` | Searcher | search | `web.read`, `web.sites`, `web.branches`, `web.rulebooks` | 4 | none | fresh | no |
+  | `browser` | Browser | browse | `web.read`, `web.sites`, `web.branches`, `web.rulebooks` | 4 | none | fresh | no |
+  | `translator` | Translator | translate | none | 4 | `translator.md` | fresh | no |
+  | `transliterator` | Transliterator | search | none | 4 | none | keep | no |
+  | `upkeep` | Upkeep | worker | none | 1 | none | fresh | no |
 
-- **`room.chat` — its own records and the TODO,** the chat catalogue of the system's own MCP server
-  (`chat-mcp.md`, 「The chat role's catalogue」): its memories, notes and reminders, a TODO item
-  for its worker and the queue read, and the consult room.
-- **`room.send` — sending into the rooms it answers, under its own name,** with every verb the room's
-  road carries:
-  - `photo`, one picture or several as one album, each with the word to draw into it;
-  - `react`, `pin` and `sticker`, as tools of the same catalogue;
-  - in its shell (`docs/launch-lines.md`, 「A companion's turn」), a file it made,
-    sent out of the room's outbox, and a file the room was sent, sent again (the receiver's
-    `room-files.md`);
-  - its answer pinned to a message by the reply sentinel, as the chat agent's is.
-- **What the room's road cannot carry is refused in that road's one sentence,** as for every sender
-  (`chat-providers.md`): the bundle opens the verbs, and the road decides which of them go.
-- **`web.read` — web search and page fetch** of the web namespace, the same two tools the worker reads the
-  web with, shown to the chat line by name. What they find comes back to the session that called them;
-  the agent answers the room with it.
-- **The chat line itself holds `gate.translate`,** whatever its agent's role: the gate's translator,
-  `gate/translate`, shown to the line by name. An agent asked to translate does it through that tool unless
-  the asker says otherwise, and answers with the readings it returned.
-- **The chat line holds `gate.reference` too:** the gate's `gate/reference_index`, `gate/reference_piece`
-  and `gate/reference_search`, shown by name, which read the brain's index, one piece of it and a search
-  over its documents, rules and knowledge.
-- **The chat line holds `deploy`:** the testbed's `testbed/deploy`, booked rather than shown, which puts
-  one commit of a repository live through the tool host (the testbed's `docs/deploy.md`, 「The hosted deploy
-  tool」). The chat agent is the one that puts a closed job's commit live: a worker's close hands its commit
-  over as waiting to go live and never deploys, and the testbed's own verb refuses a harness's shell, so the
-  tool is the chat agent's one road to a deployment. The call is asynchronous; its outcome comes back to the
-  room as an instruction, which the agent relays.
-- **The chat line holds the voice namespace** under `room.tools`: the voice service's `voice/servers`, booked,
-  which reads the voice node list and whether each node's server answers (the voice's `docs/boundary-api.md`,
-  「The hosted tool」). The agent's shell is kept off every unit's port, so the list is read through the tool
-  host and never from the voice's store or its address.
+- **Each seeded role's provider order and compaction threshold are the policy's,** given with the row and
+  changed by the owner afterwards like any field.
+- **Whatever role writes it, a result written for a person is written in the language of the person who
+  asked** (`docs/agent-documents.md`): a job's report and the documents it files, in the language the item's
+  brief names for its requester, else its room; a searcher's result, in its question's language. What
+  roles read of each other stays English.
 
-## The worker role's bundles
+## The worker role
 
-- **`graph.read` and `queue.read` — the worker's own namespace,** the graph's four reading verbs and the
-  queue's two (`docs/worker-mcp.md`).
-- **`web.read` — web search and page fetch** of the web namespace. The site tools are the searcher's
-  alone; a page one of them claims is still read its way when the worker fetches it.
-- **Every run a worker's work goes out on holds them:** a job's turns in the worker's standing program,
-  its runs on another provider's road, the program a worker stands idle, and a co-work task's turns in
-  its place and the pings that warm it.
+- **The role a job runs as where its item names none.** Its run works in a repository's checkout, on what
+  the repository hands it — its prefix documents, the prompt that stands before the job's and its rules
+  (`docs/repositories.md`) — under the worker line's standing rules.
+- **Its bundles:** `graph.read` and `queue.read`, the worker's own namespace, the graph's four reading verbs
+  and the queue's two (`docs/worker-mcp.md`); and `web.read`, web search and page fetch. The site tools are
+  the searcher's and the browser's alone.
+- **Any job may name another role,** whichever the owner chose for the item (`docs/repositories.md`, 「A
+  job」), and its run holds that role's prompt, bundles, order and cap in the same repository's checkout.
 
 ## The helper role
 
-- **A worker, a co-worker and the helper are three different things.** A worker owns one fixed
-  repository: its prefix documents, the prompts that stand before its own and that repository's rules. A
-  co-worker is the pool's rule of how many runs of a model's tier go at once (`docs/coworker-pool.md`), and
-  a worker's co-work is governed by it. The helper is one role among the role definitions: the one the
-  supervisor, the chat agent, delegates hard work to.
-- **Its agent is a row of kind `worker` holding the `helper` role,** standing in a checkout of its own like
-  any worker, its role prompt, seeded from `prompts/roles/helper.md`, standing first in every turn. More than
-  one row may hold the role, and a delegation goes to a free one first.
-- **Delegated work reaches it through `bmo/delegate`** (`docs/tools.md`, 「The delegate」), as a turn of its
-  own worker session on the model its seat resolved to. The role is named for delegated work as `delegate`
-  in `policy/roles.toml`, and its `role:<name>` key is seeded at Reliable, the highest tier a co-worker is
-  borrowed at, so a delegated task's seat counts against that tier's limit; the owner changes it as any
-  role's tier.
+- **The role a supervisor's delegated task runs as where the ask names none** (`docs/tools.md`, 「The
+  delegate」). Its prompt, seeded from `prompts/roles/helper.md`, stands first in every run.
+- **Its runs work in the folder the task names,** the asking supervisor's scratch workspace under the data
+  root where none is named, so a delegation that follows another at the same folder on the same provider and
+  model goes on in the same session while it is valid (`docs/sessions.md`, 「A role's session」).
 - **Its bundles** are the worker's: `graph.read`, `queue.read` and `web.read`.
 
 ## The video role
 
-- **The video producer is a worker whose items make videos.** Its agent is a row of kind `worker` holding the
-  `video` role, standing in a repository of its own where its projects and its studio live; its line is the
-  worker line, and its role prompt, seeded from `prompts/roles/video.md`, stands first in every turn: what the studio is
-  (the video-shotcraft skill bundle driving Remotion, CPU rendering), how an item is made, how the file goes
-  out and the studio's licence rules. The worker plugin's `ahas-video-shotcraft` skill carries the setup, the
-  render and the checks.
+- **The video producer is a role whose items make videos.** Its runs work in the video repository's
+  checkout, where its projects and its studio live; its line is the worker line, and its role prompt,
+  seeded from `prompts/roles/video.md`, stands first in every run: what the studio is (the video-shotcraft
+  skill bundle driving Remotion, CPU rendering), how an item is made, how the file goes out and the studio's
+  licence rules. The worker plugin's `ahas-video-shotcraft` skill carries the setup, the render and the
+  checks.
 - **Its bundles:** `queue.read` for its items, `web.read` for the pages and assets an item names, and
   `room.send` for the finished file, which goes into the item's room through the receiver's file send tool
-  as a job's own material (the receiver's `docs/room-files.md`, 「A job's sends」). It holds no graph: its
-  repository is not code the graph maps.
+  as a job's own material (the receiver's `docs/room-files.md`, 「A job's sends」). It holds no graph.
 
-## The searcher role's bundles
+## The searcher and the browser roles
 
-- **`web.read`, `web.sites`, `web.branches` and `web.rulebooks` — the whole of the web
-  namespace:** search and fetch, the site tools, the branch tool and the rulebooks, the rulebook reader
-  standing in the research unit's namespace. The look at a
-  picture is the eye service's `eye/see`, which the search and browse lines hold through their `eye`
-  namespace and the `room.tools` capability its entries ask for (`policy/run-lines.toml`). The tools its line does not show are reached with `bmo use` under its own record, which no
-  other role holds.
-- **The session's caller narrows them** (`docs/api.md`, 「sessions」): an apart session on the search or
-  browse line keeps only the capabilities its start's `toolsAllowed` names, so the research unit decides
-  whether a search, a browse, a round or a branch holds the branch tool and the rulebooks.
+- **`web.read`, `web.sites`, `web.branches` and `web.rulebooks` — the whole of the web namespace:** search
+  and fetch, the site tools, the branch tool and the rulebooks, the rulebook reader standing in the research
+  unit's namespace. The look at a picture is the eye service's `eye/see`, which the search and browse lines
+  hold through their `eye` namespace (`policy/run-lines.toml`).
+- **The searcher runs on the search line, the browser on the browse line.** A session's caller names the
+  role and narrows the bundles (`docs/api.md`, 「sessions」): an apart session keeps only the capabilities
+  its start's `toolsAllowed` names, so the research unit decides whether a search, a browse, a round or a
+  branch holds the branch tool and the rulebooks.
 - **The search and browse lines hold the shared brain's writing tools** (`docs/launch-lines.md`, 「Search
-  runner」): `brain_learn` and `brain_similar` of the `bmo` namespace, on the chat agent's brain —
-  the agent whose row answers every room that names nobody. The line's session record names that agent as the
-  turn the brain tools run for, so a
-  run writes what it establishes into the same brain the chat agent reads, while the run itself
-  stays the runner's and its work stays the runner work key's.
-- **The search runner and the browse runner hold it,** and so does every run on their lines: a search, a
-  browse, a round and a branch the research unit sends.
+  runner」): `brain_learn` and `brain_similar` of the `bmo` namespace, on the default answerer's brain. The
+  line's session record names that supervisor as the turn the brain tools run for, so a run writes what it
+  establishes into the same brain the chat agent reads, while the run itself stays the role's.
 
-## Who a send goes out as
+## The translator and the transliterator roles
 
-- **A send made in an agent's turn is that agent's.** The turn's run names its agent, and every
-  sending tool and script reads it for every call (`chat-mcp.md`, 「Turn context」).
-- **Three things are asked before anything goes,** each refusing with a status code and one English
-  sentence that names the agent:
-  - the agent answers the room — it is among the room's answerers, or the room records none and the
-    agent is the chat agent (`docs/companions.md`, 「Who answers a room」);
-  - its role gives `room.send`;
-  - the room's road carries the verb.
-- **It is filed under the agent's own number and name** on a road that speaks for several speakers
-  (`chat-providers.md`, `speakers`). The chat agent is the road's own voice and names no
-  speaker. A road that speaks as the bot alone refuses another agent's send rather than file it as
-  the chat agent's.
-- **Only an agent's own round sends.** The receiver carries a send where the agent's round is working in
-  the room the turn answers and no job asks it. A send anything else asks — a job's check, a worker, a
-  person at a shell, a runner of its own, a script — goes out nowhere: the receiver hands its words to the
-  room's supervisor as a quiet instruction, and that supervisor says them in its own turn, in its own words
-  and voice, or lets them go (the receiver's `docs/messages.md`, 「Words handed to the room's supervisor」).
-- **Another agent's room stays closed:** an agent never sends into a room it does not answer,
-  whatever its role.
+- **The translator is asked on demand** — a document's part, a text a job reads, a record the owner reads
+  — and goes out on the translate line (`docs/launch-lines.md`, 「Translate runner」). Its prompt, seeded
+  from `prompts/roles/translator.md`, stands before the instructions of the purpose it is asked for. It holds
+  no bundle: no web, no tool.
+- **The transliterator is the voice unit's,** asked for a slot under its name with the search line, and
+  holds no bundle (the voice's `docs/boundary-api.md`).
+
+## The upkeep role
+
+- **Held by agency's own runs that stand for no one's work,** the usage reader's renewal turn among them. It
+  gives no bundle: what such a run holds of a role is its order, its cap and its sessions setting.
+
+## Co-workers
+
+- **A co-worker is a run of a role, called by the role's name from another role's run** — a co-work order's
+  branch, a search's branch, or a native call from a job's program — and is let in under that role's cap
+  (`docs/role-slots.md`, 「Who takes a slot」).
+- **Only a role marked as callable is called,** and **an unknown role is an error:** a call naming a role
+  the store does not hold, or one not marked callable, is refused with the name, and nothing starts. A CLI
+  default type such as `general-purpose` is no role and is refused the same way.
+- **The definitions a job's program is handed** are the callable roles, each with its description and the
+  model and effort its own order gives on the provider that program stands on (`docs/role-slots.md`,
+  「Native co-worker slots」).
+- **The builder role is the work order's own turn,** never called as a co-worker: a co-work order's builder
+  stage runs as `builder` in the order's checkout.
+
+## A role's sessions
+
+- **Whether a run goes on in the session an earlier run left is its role's setting,** the row's `sessions`:
+  `keep` or `fresh`. Nothing reads a line's name or a run's caller to decide it.
+- **`keep`: a run resumes the session the last answered run of the same role left at the same path on the
+  same provider and model, while that session is valid** — inside the cache lifetime the provider declares
+  for the model, and on the prefix it was opened on — and opens a new one otherwise (`docs/sessions.md`,
+  「A role's session」).
+- **`fresh`: every run opens a session of its own,** which no later run resumes.
+- **A changed setting holds from the next run;** a run already going keeps the session it started on.
+
+## Which role a run holds
+
+- **A job's run:** the role its item names, `worker` where it names none (`docs/repositories.md`, 「A job」).
+- **A delegated task:** the role the ask names, `helper` where it names none (`docs/tools.md`, 「The
+  delegate」).
+- **A worker ask:** `worker` (`docs/tools.md`, 「The worker ask」).
+- **A co-worker:** the role the calling run names.
+- **A session a caller starts:** the role the start names (`docs/api.md`, 「sessions」): the research unit
+  names `searcher` or `browser`, the voice unit `transliterator`, a translation's caller `translator`.
+- **A run standing for no one's work:** `upkeep`.
+- **A role the store does not hold gives nothing,** and every one of these refuses it with the name.
 
 ## Where the role is read
 
-- **The session record.** Every record is issued for the agent whose run it is, and holds its line's
-  capabilities with the bundles that agent's role gives, read from the store as the record is issued
-  (`mcp-host.md`, 「The session record」).
-  - The agent is the one the turn names, for a turn that names one — the chat agent's and each companion's;
-    otherwise the agent the launcher runs it for — the worker whose standing program it is, the agent
-    a run is recorded under.
-  - An agent the archive holds no row of holds no role, but for a co-worker's place, which holds the
-    co-workers' role, and an apart session's place, which holds the role of the agent whose session
-    it is.
-- **The catalogue a call is served.** The system's own MCP server serves a record the whole catalogue where it
-  holds `room.tools`, and otherwise the chat catalogue's tools whose bundles it holds.
+- **The session record.** Every record is issued for the run and holds its line's capabilities with the
+  bundles its role gives, read from the store as the record is issued (`mcp-host.md`, 「The session
+  record」).
+- **The catalogue a call is served.** The system's own MCP server serves a record the whole catalogue where
+  it holds `room.tools`, and otherwise the catalogue's tools whose bundles it holds.
 - **The send guard,** for every sending tool and script.
-- **The turn's places,** the bound of the agent's role, read from the store as every turn begins.
-- **The launch,** which reads the role's prompt from the store as it composes the agent's prompt.
-- **The console's agent list,** which shows each agent's role and lets the owner change it, and its
-  roles screen, which lists, adds, changes and removes the roles themselves.
-
-## Changing an agent's role
-
-- **The console's general tab** shows every agent's role and saves a new one as it is picked, through
-  `PATCH /agents/{agentName}` with `role` (`docs/api.md`, 「agents」), which refuses an agent the store
-  does not hold or a role it does not hold, each with a status code and one English sentence.
-- **A change reaches an agent's next record:** a companion's next turn, a worker's next run on
-  another road, a runner's next run, and a standing program's next placement. Nothing running is
-  stopped for it.
+- **The slot,** the cap of the run's role, read from the store as every run asks to be let in.
+- **The provider,** the role's order, read as every run starts.
+- **The launch,** which reads the role's prompt from the store as it composes the run's prompt.
+- **The console's role tab,** which lists, adds, changes and removes the roles, and shows each role's
+  session history (`docs/api.md`, 「roles」).
 
 ## Changing the roles
 
-- **`GET /agent-roles`** lists every role the store holds, in the order a screen lists them, each with its
-  bundles by name and label, its bound, its prompt, its tier, its sessions, how many agents hold it and
-  whether it is a kind's own; beside them, every bundle a role may give (`docs/api.md`, 「agent-roles」).
-- **`POST /agent-roles`** adds a role, and refuses a name out of the pattern or already taken, a bundle the
-  policy does not declare, a tier the ladder does not hold and a sessions setting other than `keep` or
-  `fresh`. A tier given is written as the role's key's assignment in the same write.
-- **`PATCH /agent-roles/{roleName}`** changes its label, bundles, bound, prompt, tier or sessions. A bound or a
-  prompt given as null is cleared, and a tier given as null takes the key's assignment away.
-- **`DELETE /agent-roles/{roleName}`** removes a role and its key's assignment in one write, and is refused
-  while an agent holds the role or a kind's own is it.
-- **A role added or changed is read at its next use,** each reader as 「Where the role is read」 says;
-  nothing running is stopped for it.
-
-## Where a role comes from
-
-- **The role each kind is for** is declared in `policy/roles.toml` under `kinds`: the chat role for the
-  `chat` kind, the worker role for `worker`, the searcher role for `runner` and the gate role for
-  `gate`. Agency's own processes register it as they load, so a row
-  the store makes for a kind with no role named holds its kind's. A role a kind holds is seeded with the
-  rest and is never removed from the store, so every kind's own always stands.
-- **Every row added names its role:** a row written for a kind holds its kind's role unless the writer
-  names another; a worker added by the owner holds the worker role; a companion's seed names its own,
-  and one that names none holds the chat role.
-- **A row that stood before roles** holds the role its kind is for, written once as the column is
-  added: the chat agent and every companion the chat role, a worker the worker role, a runner the
-  searcher role and a gate the gate role.
+- **`GET /roles`** lists every role the store holds, in the order a screen lists them, each with every field
+  of its row, how many of its runs go now and how many wait; beside them, every bundle a role may give and
+  every line a role may name (`docs/api.md`, 「roles」).
+- **`POST /roles`** adds a role, and refuses a name out of the pattern or already taken, a bundle the policy
+  does not declare, a line agency does not carry, an order naming a provider agency does not carry or a
+  model its provider does not hold, a cap that is no whole number of zero or more, and a sessions setting
+  other than `keep` or `fresh`.
+- **`PATCH /roles/{roleName}`** changes any field of the row, each judged as the add judges it.
+- **`DELETE /roles/{roleName}`** removes a role, and is refused while a run of it goes or waits, and for a
+  role the policy names as a default — `worker`, `helper` and `upkeep`.
+- **A role added or changed is read at its next use;** nothing running is stopped for it, and a run already
+  let in finishes under the row it began under.

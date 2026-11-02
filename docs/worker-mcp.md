@@ -114,9 +114,9 @@
 - The tools are served by the tool host, under the `worker` namespace of the worker line's one
   configuration, `worker.mcp.json`, beside the `web` namespace.
 - The graph a call answers out of is the one in the checkout the job works in, which the launcher
-  records in the session record's `labels` when it issues the token: a support worker's worktree is
+  records in the session record's `labels` when it issues the token: a support checkout's worktree is
   read as itself rather than as the base checkout the environment names
-  (`docs/worker-slots.md` 「A job on a support worker」). It is read on every call, so a job's own
+  (`docs/worker-slots.md` 「A job on a support checkout」). It is read on every call, so a job's own
   edits to it are in the next answer.
 - The queue a call answers out of is the archive the record names, read on every call.
 - The answers stand under the standing ceiling on what a verb of ours returns

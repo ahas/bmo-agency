@@ -8,60 +8,51 @@
   platform around it holds. Claude Code's own prompt reaches no line.
 - **The platform's harness opening is agency's own document, `prompts/harness.md`,** read out of the
   deploy tree as each line is composed, like the other agent documents (`docs/agent-documents.md`).
-  It is the harness layer of every line on Claude Code whose agent chooses no base prompt.
+  It is the harness layer of every line on Claude Code whose run goes out on no account naming a base
+  prompt.
 - **A program that is a harness of its own keeps its own prompt:** on dsh the role and the persona,
-  or a worker's rules, go as the persona suffix after dsh's own prompt, and the platform's opening is
-  not sent there (`docs/launch-lines.md`).
+  or the worker line's rules, go as the persona suffix after dsh's own prompt, and the platform's
+  opening is not sent there (`docs/launch-lines.md`).
 
 ## What a base prompt is
 
-- **A whole text an agent's system prompt opens with in place of the platform's harness opening** —
-  the base prompt on the console. It is for a harness whose own prompt is the opening the model was
-  made to run on and for which the platform's opening is the wrong one: dsh's, or an endpoint's own
-  harness.
-- **Several are kept, each under a name and a label,** and each agent chooses one of them or none;
-  a Claude account may name one too. Changing an agent's mind is choosing another — a prompt written
-  for another harness, pasted in whole — with nothing of the harness or the gateway rewritten.
-- **None is the platform's harness opening:** a worker that chooses none is handed
-  `prompts/harness.md` with the worker's rules after it (`docs/launch-lines.md`), unless its run goes
-  out on an account that names a base prompt; a companion that chooses none is handed the same opening
-  as its harness (`docs/companions.md`, 「What a turn is given」).
-- **An account's base is the account's answer, not the agent's.** An endpoint account
-  (`docs/cache-fallback.md`, 「The Claude Code road is a list of accounts」) runs Claude Code against a
-  model that is not Anthropic's, for which the platform's opening is the wrong one, so the account
-  names the prompt its endpoint's own harness runs on. Any account may name one.
+- **A whole text a run's system prompt opens with in place of the platform's harness opening.** It is
+  for a harness whose own prompt is the opening the model was made to run on and for which the
+  platform's opening is the wrong one: dsh's, or an endpoint's own harness.
+- **Several are kept, each under a name and a label,** and a Claude account may name one of them. An
+  account's base is changed by naming another — a prompt written for another harness, pasted in whole —
+  with nothing of the harness or the gateway rewritten.
+- **An account's base is the account's answer.** An endpoint account (`docs/cache-fallback.md`, 「The
+  Claude Code road is a list of accounts」) runs Claude Code against a model that is not Anthropic's,
+  for which the platform's opening is the wrong one, so the account names the prompt its endpoint's own
+  harness runs on. Any account may name one.
+- **No supervisor and no role chooses one.** Where the account a run goes out on names none, the run
+  opens on the platform's harness opening.
 
-## What each agent is sent
+## What each run is sent
 
-- **A worker** that chooses one is handed one file as its whole system prompt: the chosen prompt,
-  then the worker's rules — the owner's standing rules, the rulebook against destroying the system and
-  its own rules where it has them — joined by a blank line (`docs/launch-lines.md`). A worker that
-  chooses none is handed the platform's harness opening in the chosen prompt's place, with the same
-  rules after it.
-  - A worker whose run goes out on an account that names a base prompt is handed that account's base
-    in the same place, with the same rules after it, whether the worker chooses one or none: the
-    account's base wins, since it answers for the model the run reaches.
-  - A support worker takes its base's choice, as it takes its base's own rules.
-  - Its co-workers' prompts are as on any worker: the platform's harness opening, the role's own, then
-    the same rules. A co-worker is a Claude Code subagent of the worker's session whose definition's
-    prompt is its whole system prompt, so it opens on the platform's opening whatever base its worker
-    chooses.
-- **A companion** that chooses one is sent the chosen prompt as its harness, then the companion role whole,
-  then its persona (`docs/companions.md`, 「What a turn is given」); one that chooses none is sent the
-  platform's harness opening in the chosen prompt's place.
+- **A run of the worker line** on an account that names a base prompt is handed one file as its whole
+  system prompt: that base, then the role's prompt where the role carries one, then the line's rules —
+  the owner's standing rules, the rulebook against destroying the system and the repository's own rules
+  where it has them — joined by a blank line (`docs/launch-lines.md`). On an account that names none it
+  is handed the platform's harness opening in the base's place, with the same layers after it.
+  - Its co-workers' prompts are as on any run of the line: the platform's harness opening, the
+    co-worker role's own, then the same rules. A co-worker is a Claude Code subagent of the run's session
+    whose definition's prompt is its whole system prompt, so it opens on the platform's opening whatever
+    base its caller's account names.
+- **A companion** is sent the platform's harness opening as its harness, then the companion role whole,
+  then its persona (`docs/companions.md`, 「What a turn is given」).
 - **The other lines read no base prompt:** the chat agent's harness is the platform's opening, which its
   role and persona follow (`docs/agent-documents.md`, 「The chat agent」); the search and browse runners
-  and a search's branches open on it before their instructions; the gates, the translator and batch runs
-  are handed the prompt their caller or their line composes, whole; a companion reads its own choice
-  alone.
+  and a search's branches open on it before their instructions; the translator and batch runs are
+  handed the prompt their caller or their line composes, whole.
 
 ```mermaid
 flowchart TD
-  F[Account's base prompt] -- worker on that account --> C
-  A[Chosen base prompt] --> B{Agent}
-  H[prompts/harness.md] -- no base chosen --> B
-  B -- worker --> C[+ worker rules]
-  B -- companion --> D[+ companion role + persona]
+  F[The account's base prompt] -- the account names one --> B{The run's line}
+  H[prompts/harness.md] -- the account names none --> B
+  H --> D[Companion: + companion role + persona]
+  B -- worker line --> C[+ role prompt + line rules]
   C --> E[One file, whole system prompt]
   D --> E
 ```
@@ -98,12 +89,12 @@ flowchart TD
   own reading of the run.
 - **Any other `{{word}}` stays as written.**
 - **A filled-in value is part of the prompt:** one that changes — the date — changes what the run is
-  handed, and with it the program a worker stands in its pane.
+  handed, and with it the prefix the run's session stands on.
 
 ## The seeds
 
 - **One prompt is seeded, `dsh`,** from its seed file under `prompts/base/`. No seed reproduces Claude
-  Code's own prompt: a line on Claude Code that chooses no base opens on the platform's harness
+  Code's own prompt: a run on Claude Code whose account names no base opens on the platform's harness
   opening (「The harness layer」). A prompt a store already keeps under another name is the owner's and
   stands as it is.
 
@@ -118,59 +109,46 @@ flowchart TD
   approval policies and the like — since a run on Claude Code is told its environment by the program
   (「What the harness still adds around it」), the model's name, which the harness opening leaves
   unsaid, and the goal tools, which a standing session goes without.
-- **Who it is for:** an endpoint account whose model is DeepSeek's names it, so a worker's run on that
-  account opens on the prompt the model's own harness runs it on.
+- **Who it is for:** an endpoint account whose model is DeepSeek's names it, so a run of the worker line
+  on that account opens on the prompt the model's own harness runs it on.
 - **Its text is the seed file `prompts/base/dsh.md`.**
 
 ### How a seed reaches the store
 
 - **The deployment declares each seed in agency's policy** (`policy/base-prompts.toml`): its name,
-  label, seed file and the agents given it, with no code naming any of them. The repository's own
-  policy gives no agent a seed, since the agents are a deployment's.
+  label and seed file, with no code naming any of them.
 - **A seed is given once by its name,** as the store is settled on a start, and recorded as given
   (`base_prompt_seeded`): a store made before a seed was declared gains it on its next start, a prompt
   of that name already kept is left as it stands, and a seed the owner removed stays removed. From then
   on the archive's copy is the owner's, and the file is not read for it again.
 - **A seed file that cannot be read** is said as the server starts and not given, so the first start
   that can read it gives it.
-- **Who starts on it:** the agents the policy names for a seed, each given the choice as the seed's
-  prompt is written; a seed meeting a prompt of its name already kept gives no choice, and a choice an
-  agent already holds stands.
 
 ## Where it is kept
 
-- **In agency's store** (`base_prompts`, `agent_base_prompts`, `claude_accounts`):
+- **In agency's store** (`base_prompts`, `claude_accounts`):
   - the base prompts: name, label, text, and when and by whom each was last saved;
-  - each agent's choice, one row per agent that chooses one, the agent's row being no part of it;
   - each account's base, a field of the account's own row, empty where it names none.
-- **A save overwrites:** a prompt saved replaces its label and text, a prompt removed is gone, and
-  an agent's choice changed replaces the one it held. No earlier value is kept anywhere, so nothing
-  can be shown or put back from one.
+- **A save overwrites:** a prompt saved replaces its label and text, a prompt removed is gone, and an
+  account's base changed replaces the one it named. No earlier value is kept anywhere, so nothing can be
+  shown or put back from one.
 - **Read afresh for every run,** so a save reaches the next run with no deployment.
 
 ## Saving
 
-- **Who may change them:** the owner, on the console's general tab, through the base-prompt routes
-  (`docs/api.md`, 「Agents」).
+- **Who may change them:** the owner, through the prompt-document routes (`docs/api.md`,
+  「prompt-documents」).
 - **What a save is held to,** each refusal a status code with one English sentence and nothing of that save
   written; the name's pattern and the bounds are the policy's:
   - a name of lowercase letters, digits and hyphens beginning with a letter, at most 40 characters,
     unique, and fixed once made;
   - a label of 1 to 60 characters;
   - a text of 1 to 200,000 characters;
-  - a prompt an agent chooses or an account names is not removed, and the refusal names the agents
-    and the accounts;
-  - an agent's choice names a prompt that is kept, or none, and so does an account's base, set where
-    the account is added or changed (`docs/cache-fallback.md`, 「The Claude Code road is a list of
-    accounts」).
-- **A save starts each agent concerned afresh:** a prompt's text saved, or an agent's choice
-  changed, asks a reset of every session each agent concerned holds (`docs/session-resets.md`) — a
-  worker's sessions and its support workers', a companion's room sessions — so no conversation goes
-  on under a prompt it was not begun with. A label alone changes nothing a run is sent and resets nothing.
-  - The save and the asks it makes are written together, or neither is.
-  - An account asks no reset: neither an account's base changed nor the text of a base an account
-    names saved writes one. The worker's system-prompt file is named by what it holds, so the next run
-    on that account is handed another file, its line's prefix differs from the one the held session
-    began on, and the run opens a fresh session rather than going on in the old one.
-- **A worker's program is started again on the next turn,** since its line names the file by what
-  it holds: the program standing in its pane was started on the old text.
+  - a prompt an account names is not removed, and the refusal names the accounts;
+  - an account's base names a prompt that is kept, or none, set where the account is added or changed
+    (`docs/cache-fallback.md`, 「The Claude Code road is a list of accounts」).
+- **A save resets nothing.** Neither an account's base changed nor the text of a base an account names
+  saved writes a reset. A run's system-prompt file is named by what it holds, so the next run on that
+  account is handed another file, its prefix differs from the one a kept session began on, and the run
+  opens a fresh session rather than going on in the old one (`docs/sessions.md`, 「A role's session」). A
+  label alone changes nothing a run is sent.

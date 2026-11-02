@@ -1,12 +1,13 @@
 # The keepalive schedule
 
-When a kept prompt-cache prefix is worth a ping, and whether agency's keepalive pings go. The general
-rule is the schedule library `bmo-cache-warmer-schedule` publishes, plain values that use nothing
-outside themselves, which agency and any other repository that keeps prefixes warm build on
-(`docs/api.md`, 「Calls agency makes」). Agency's own schedule stands in the server's keepalive module
-and calls it: the owner's warming switch and the co-worker pool's rule for its places. The pool asks it
-before it judges a reservation's places and again before each ping goes (`docs/coworker-pool.md`,
-「Reserving places and keepalive」); which places stand, the ping itself and its record stay the pool's.
+When a kept prompt-cache prefix is worth a ping, and whose prefixes agency keeps warm. Agency warms
+supervisors alone: each supervisor's resident program, on each provider its row switches warming on for. No
+role, no repository and no standing branch checkout is warmed, and no switch warms or stops everything at
+once. The general rule is the schedule library `bmo-cache-warmer-schedule` publishes, plain values that use
+nothing outside themselves, which agency and any other repository that keeps prefixes warm build on
+(`docs/api.md`, 「Calls agency makes」). Agency's own schedule stands in the server's keepalive module and
+calls it; the ping itself goes into the supervisor's program (`docs/agent-control.md`, 「The keepalive ping
+goes into the same program as the turns」).
 
 ## The general rule
 
@@ -43,47 +44,40 @@ its own. Every moment and span is in epoch milliseconds.
 - **A reason is cut** to a count of UTF-16 units, the way a script counts a string; a surrogate pair the
   cut splits ends as the replacement character.
 
-## Whether pings go
+## Whose prefix is warmed
 
-- **Pings of a kind go on a provider unless the owner's warming switch stands.** The switch stops every
-  keepalive ping of the deployment's at once, whatever the kind and whatever the provider; while it
-  stands the pool pings nothing and writes nothing down, and its reservations keep holding their places.
-- **The switch is the owner's, thrown through the control port** (`docs/api.md`, 「Co-worker pool」, the
-  warming switch) and kept in the store's settings as `keepalive_stopped` (`docs/store.md`, 「The settings
-  table」). It stands while that row holds `1`, and a store that holds no such row warms. Its keeping is
-  the server's; the library knows no store.
-- **The switch is read again before each ping,** so one thrown during a long pass holds from the next
-  ping on.
-- **An agent's own switch and a worker's pause are no part of agency's schedule:** they are kept on the
-  agent's own row, and the pool warms no agent.
+- **A supervisor's, on the providers its row switches on.** A supervisor row carries, for each provider of its
+  order, whether its prefix is kept warm on that provider (`docs/supervisors.md`, 「What a supervisor row
+  holds」). The keepalive warms the program the supervisor stands on now, while the provider it stands on is
+  one switched on; a supervisor whose current provider is switched off is passed over and its prefix left to
+  cool.
+- **Nothing of a role.** A role's runs are spawned per run and keep no program between runs, and a reservation
+  of a role's slots warms nothing (`docs/role-slots.md`, 「Reserving slots」). A role's kept session is resumed
+  while its cache is still warm and opened afresh once it has gone (`docs/sessions.md`, 「A role's session」).
+- **Nothing of a repository or a place.** A standing branch checkout's list line is read to choose a place
+  whose prefix may still be cached, never pinged.
 
-## When a pool place is worth a ping
+## When a supervisor's prefix is worth a ping
 
-The pool judges each place by the general rule with clocks and a record of its own:
+The keepalive judges each supervisor by the general rule with clocks and a record of its own:
 
-- **Its clocks:** the provider's idle stretch, the lifetime the provider publishes, the pool's margin
-  (`policy/pool-warm.toml`), failures that do not touch, and no idle override. A place is chosen at one
-  instant and its run opens its prefix some minutes later, so a lifetime counted to its last second
-  promises a read the provider has already let go of; the margin is the same for every provider, while
-  the lifetime and the idle stretch are each provider's own declaration (`docs/coworker-pool.md`, 「The
-  list」). A provider whose lifetime leaves nothing after the margin is treated as one that publishes
-  none.
-- **Its record:** the place's last write as its last use, and the pool's record of its last answered
-  ping as its last warmed answer, so a restart never pings a place twice inside its stretch.
-- **Its prefix is still there** while its last write is inside its usable lifetime; a ping that
-  answered writes the place again through its own record.
-- **The usable lifetime a place is counted warm by** elsewhere in agency is the same: the published one
-  less the pool's margin.
+- **Its clocks:** the provider's idle stretch, the lifetime the provider publishes for the model the
+  supervisor stands on, the margin taken off a lifetime wherever agency counts one (`policy/pool-warm.toml`),
+  failures that do not touch, and no idle override. A provider whose lifetime leaves nothing after the margin is treated as one that publishes none.
+- **Its record:** the supervisor's last turn as its last use, and its last answered ping as its last warmed
+  answer, so a restart never pings a supervisor twice inside its stretch.
+- **A ping that finds a turn working is skipped:** that turn is keeping the prefix warm itself.
 
-## What stays with the pool
+## Whether a ping goes
 
-- **Which places a reservation's pings are for,** by the kind of place each reservation's source names.
-- **Whether a provider is on and lends co-workers,** read again before each ping.
-- **Whether a rest holds the pings:** none goes during a rest on a provider whose pings rest with the
-  account (`docs/cache-fallback.md`).
-- **Which accounts a ping may go out on:** the Claude Code road's accounts in their walk, less every
-  endpoint account, which is never pinged, since its endpoint keeps its own cache and a ping would only
-  be a paid request (`docs/cache-fallback.md`, 「Warming only enabled providers」).
-- **The ping and its record:** the run a ping becomes and the row the pool's ping table keeps of each.
-- **The clock:** the pool's warming runs on agency's own clock at the keepalive pass's period, after the
-  same start wait, never beside itself (`policy/keepalive.toml`).
+- **The supervisor's switch for the provider it stands on is read again before each ping,** so one thrown during
+  a long pass holds from the next ping on.
+- **A provider that cannot answer now is not warmed** — off, its credential gone, its balance spent, every login
+  it holds closed — since no turn goes out on it until it can.
+- **Claude Code's accounts:** a ping goes out on the login the supervisor's session was opened under; an account
+  that is off or resting is not pinged and its prefixes are left to cool, and an endpoint account is never
+  pinged, since its endpoint keeps its own cache and a ping would only be a paid request
+  (`docs/cache-fallback.md`, 「Warming only enabled providers」).
+- **None goes during a rest** on a provider whose pings rest with the account.
+- **The clock:** the keepalive pass runs on agency's own clock at the period and after the start wait
+  `policy/keepalive.toml` names, never beside itself.

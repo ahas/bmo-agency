@@ -16,7 +16,7 @@
 - **Agency's server links the crate.** It builds a binary of the same name as well, which answers the
   same questions from a shell.
 - **Nothing in it reads the store.** The server reads agency's store and hands the crate what the rows
-  hold: an address's key file, a companion's settings, the base prompt it chooses.
+  hold: an address's key file, a companion's settings.
 
 ```mermaid
 flowchart TD
@@ -116,18 +116,18 @@ flowchart TD
 ## A companion's system prompt
 
 - **Composed exactly as a turn sends it** (`docs/companions.md`, 「What a turn is given」): its harness at
-  the head — the base prompt it chooses, else the platform's harness opening where its program takes one —
-  then the companion role whole in its fixed order, then its persona, joined by a blank line.
+  the head — the platform's harness opening where its program takes one — then the companion role whole
+  in its fixed order, then its persona, joined by a blank line.
 - **Read out of the asset root for every call:** the platform's harness opening `prompts/harness.md`, the
   rulebooks under `prompts/rules/`, the companion frame, turn and hands under `prompts/agents/companion/`,
   and the `persona.md` of the companion's own prompt folder.
-- **What the caller hands it:** the companion's name, the prompt folder its agent row names under
-  `prompts/agents/` or none, the persona its settings hold or none, the text of the base prompt
-  it chooses or none, the model it is pinned to, and whether its program takes the platform's harness
-  opening — every program on Claude Code does, and one that is a harness of its own does not. The crate
-  never derives a prompt folder from the name, and a folder that is not one plain name is refused.
-- **The base prompt's values are filled in here** (`docs/base-prompts.md`, 「Values filled in as a run
-  is composed」): the folder it stands in, today's local date, the operating system's name, its
+- **What the caller hands it:** the companion's name, the prompt folder its supervisor row names under
+  `prompts/agents/` or none, the persona its settings hold or none, the model its turn goes out on, and
+  whether its program takes the platform's harness opening — every program on Claude Code does, and one that
+  is a harness of its own does not. The crate never derives a prompt folder from the name, and a folder that
+  is not one plain name is refused.
+- **A prompt's values are filled in here** (`docs/base-prompts.md`, 「Values filled in as a run is
+  composed」): the folder it stands in, today's local date, the operating system's name, its
   kernel's name and release, the shell's name and the model. A value the policy names that the
   prompt does not carry changes nothing, and any other `{{word}}` stays as written.
 - **The folder:** each companion's own under the data root's `companion-homes/`. The crate names the
@@ -145,10 +145,10 @@ flowchart TD
   health, or `null`.
 - **`harness-machine model-use start`** starts a choice's unit, **`model-use install`** runs an engine's
   installer into a log, and **`model-use log`** prints a log's last lines.
-- **`harness-machine companion-system`** reads a companion's settings and the base prompt it chooses
-  from standard input, with `ownHarness` true where its program is a harness of its own, and prints the
-  composed system prompt; **`companion-persona <folder>`**
-  prints the persona the prompt folder's file holds, or nothing where it has none.
+- **`harness-machine companion-system`** reads a companion's settings from standard input, with `ownHarness`
+  true where its program is a harness of its own, and prints the composed system prompt;
+  **`companion-persona <folder>`** prints the persona the prompt folder's file holds, or nothing where it
+  has none.
 - **Every answer is one line of JSON on standard output.** A refusal the owner reads ends with status
   2 and its field and sentence as JSON on standard error; any other failure ends with status 1 and
   its reason there.

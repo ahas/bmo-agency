@@ -4,9 +4,10 @@ How agency keeps the usage windows of every account that has them: the share of 
 account has used and when that limit resets. Directory and token accounts have them; an endpoint
 account is paid by the request and has none, so it holds no window slot and no window reader asks it
 (`docs/cache-fallback.md`, 「The Claude Code road is a list of accounts」). What a paid account has left
-is its balance, kept beside the windows (「Balances」 below). The account judgement, the stand-ins' walk, the fallback's view and the quota source
-all read them from here (`docs/cache-fallback.md`, 「The account judgement」, `docs/api.md`,
-「Accounts」). The keeping is the `cache-siren` crate, whose cache-lifetime judgement is
+is its balance, kept beside the windows (「Balances」 below). The account judgement, the provider order's
+reading of what a provider has left, the fallback's view and the quota source all read them from here
+(`docs/cache-fallback.md`, 「The account judgement」, `docs/provider-order.md`, 「Quota: what a provider has
+left」, `docs/api.md`, 「Accounts」). The keeping is the `cache-siren` crate, whose cache-lifetime judgement is
 `docs/sessions.md`'s.
 
 ## A window and its slot
@@ -71,16 +72,17 @@ all read them from here (`docs/cache-fallback.md`, 「The account judgement」, 
   young it is, since the account cannot be asked again until a run renews its login: the run the reader
   asks for (below), or any other run that goes out on it.
 - **A login found expired is renewed by one run of the CLI.** Where a directory account's token is found
-  expired, or the endpoint refuses it as unauthorised, the reader asks for one run of Claude Code on
-  that login: a run apart (`docs/agents.md`, 「Runs apart」) under the account's own configuration
-  directory, the way every run on the account goes out, on the model and effort the provider's usage
-  declaration names for it — the cheapest the login offers — with a one-word turn, no tools, and its
-  answer thrown away. The run holds the upkeep role the roles policy names for it, `renewal`, and opens
-  the session that role's setting gives it. The CLI renews the token for itself as the run goes out, a token run out taking the
-  account's renewal lock like any run near its login's end (`docs/cache-fallback.md`, 「A login that is
-  about to end」), and the next pass asks with what it wrote. The reader never refreshes a token itself: a refresh
-  token is replaced at every renewal and every pane on the login shares it, so a second refresher beside
-  the CLI would leave those panes holding a credential it had replaced.
+  expired, or the endpoint refuses it as unauthorised, the reader asks for one run of Claude Code on that
+  login: a run in a pane of its own (`docs/agents.md`, 「A run in a pane of its own」) under the account's own
+  configuration directory, the way every run on the account goes out, on the model and effort the provider's
+  usage declaration names for it — the cheapest the login offers — with a one-word turn, no tools, and its
+  answer thrown away. The run holds the role the roles policy names for agency's own runs, `upkeep`, and
+  opens the session that role's setting gives it. The CLI renews the token for itself as the run goes out, a
+  token run out taking the account's renewal lock like any run near its login's end
+  (`docs/cache-fallback.md`, 「A login that is about to end」), and the next pass asks with what it wrote. The
+  reader never refreshes a token itself: a refresh token is replaced at every renewal and every pane on the
+  login shares it, so a second refresher beside the CLI would leave those panes holding a credential it had
+  replaced.
   - **Only a directory account is renewed so.** A token account's long-lived token holds nothing to
     renew with and an endpoint account holds no login, so neither is ever run on for it; a token account
     refused stays marked until its file holds a token the endpoint takes. A login waiting for a person
@@ -135,10 +137,11 @@ all read them from here (`docs/cache-fallback.md`, 「The account judgement」, 
   for its answer as the account reader's does. A failure is said once when it starts, naming the provider, the account and the
   reason, and its recovery once when it ends.
 - **What reads it:** the accounts list answers an endpoint account's balance, and the fallback's view its
-  active slot's (`docs/api.md`, 「accounts, rest and usage」), each with the moment it was seen. The road
-  resolution reads a provider's own road's balance, and the account judgement an endpoint account's: one
-  at or below zero is a road that cannot answer now, and one never read closes nothing
-  (`docs/cache-fallback.md`, 「Availability: whether a provider can answer now」).
+  active slot's (`docs/api.md`, 「accounts, rest and usage」), each with the moment it was seen. The
+  provider order reads a provider's own road's balance as its quota (「What reads a provider's quota」
+  below), and the account judgement an endpoint account's: one at or below zero is a road that cannot
+  answer now, and one never read closes nothing (`docs/cache-fallback.md`, 「Availability: whether a
+  provider can answer now」).
 
 ## What reads the windows
 
@@ -147,8 +150,8 @@ all read them from here (`docs/cache-fallback.md`, 「The account judgement」, 
   back; one that names none, while its reading stands — younger than its reader's span and later than the
   account's unread mark (`docs/cache-fallback.md`, 「The account judgement」). An endpoint account has no
   window for it to read, and the judgement asks it nothing here.
-- **The stand-ins' walk** reads each login's week, the window its provider counts as its week
-  (`docs/cache-fallback.md`, 「While a fallback stands, the room is not silent」).
+- **The provider order** reads every window of a provider's slots for what the provider has left
+  (「What reads a provider's quota」 below).
 - **The fallback's view and the quota source** read each slot's two headline windows (`docs/api.md`,
   「Accounts」): the active slot's, and the fallback's view every directory and token account's own
   whichever road the chat stands on, so an account's windows are shown while another provider answers.
@@ -170,3 +173,23 @@ all read them from here (`docs/cache-fallback.md`, 「The account judgement」, 
   account has no windows until its new login is read.
 - **A keeping that cannot be read is a fault, said with its cause,** never read as an account with no
   windows.
+
+## What reads a provider's quota
+
+- **The provider order reads one quota for each provider,** afresh as each run starts, out of the windows
+  and the balances kept here (`docs/provider-order.md`, 「Quota: what a provider has left」). Each
+  provider's member says which of its readings count; the reader knows no provider, and nothing of a
+  quota is kept on an order.
+- **A provider with usage windows has left what its window with the least left has left:** one less the
+  used fraction of that window, the five-hour and the weekly window weighed alike. Codex's windows are
+  read under the empty account (「The Codex reader」).
+- **Claude Code's quota is read account by account:** each open account's own window with the least left,
+  so the provider has quota while one of its open accounts has quota above the row's share, and the account
+  walk offers that account first (`docs/cache-fallback.md`, 「The account judgement」). An endpoint account
+  has no window, and has quota while the account judgement holds it open.
+- **A window read at its ceiling and not reset is no quota left,** whatever the share.
+- **A provider whose member reads its quota from a balance — DeepSeek —** has quota while the balance its
+  reader last kept is above zero, and none once it is at or below zero; a balance never read reads as
+  quota (「Balances」 above).
+- **The registry's provider always has quota:** a registered model runs on the deployment's own engine
+  and reports neither a window nor a balance. **A provider that reports neither** has quota as well.

@@ -10,11 +10,10 @@
     five-hour and seven-day windows, Codex's primary and secondary, none for a provider that
     publishes none;
   - whether it holds logins of its own: Claude Code alone, whose logins are its accounts.
-- **What each provider is** — its label, its lines, its effort words, whether co-workers are borrowed
-  on it, the sentence it says where it is missing, where its catalogue is read — is its own file of
-  agency's policy (`policy/providers/`); whether its models are the registry's registrations is its own
-  member's answer. A consumer reads them, with whether the owner has each on, in the provider order
-  (`docs/api.md`, 「Models, registry, tiers, roads and fallback」).
+- **What each provider is** — its label, its lines, its effort words, the sentence it says where it is
+  missing, where its catalogue is read — is its own file of agency's policy (`policy/providers/`); whether
+  its models are the registry's registrations is its own member's answer. A consumer reads them, with
+  whether the owner has each on (`docs/api.md`, 「providers, models and model files」).
 - **Agency's server links the crate;** the TypeScript that asks — the verbs and the provider
   modules they import — runs its binary of the same name, out of the deploy tree's `bin/`. Where the
   deploy tree holds none — code running out of a checkout, a test among it — it runs the checkout's
@@ -49,10 +48,11 @@ flowchart TD
 - **A provider that cannot answer** says why twice over, both from its policy file: a kebab-case code a
   screen words in its own language, such as `openrouter-key-unset`, and the English sentence the log and
   the machine's output keep. Every route that answers a provider's reason answers its code beside it.
-- **Presence is the first of the questions the road resolution asks.** Whether a provider can answer now
-  adds what its member declares beside presence — a balance it offers, read above zero, and the logins
-  it holds, one of them open — and the resolution walks the owner's order on those answers alone
-  (`docs/cache-fallback.md`, 「Availability: whether a provider can answer now」). A provider whose balance
+- **Presence is the first of the questions a run's provider order asks.** Whether a provider can answer
+  now adds the owner's switch on it and what its member declares beside presence — a balance it offers,
+  read above zero, and the logins it holds, one of them open — and a run walks its own order on those
+  answers and its quota alone (`docs/cache-fallback.md`, 「Availability: whether a provider can answer
+  now」, `docs/provider-order.md`, 「Choosing the provider」). A provider whose balance
   is spent says where its member says it is topped up, from its own policy file.
 
 ## Which models a provider offers
@@ -61,7 +61,7 @@ flowchart TD
   thinking default. The installed Codex CLI's catalogue and the public OpenRouter listing are still read for
   the chooser that declares a member; neither is what a run is offered.
 - **Claude Code:** the catalogue the CLI keeps under the configuration directory of the login the caller
-  names (`docs/model-tiers.md`, 「The Claude catalogue」).
+  names (`docs/provider-order.md`, 「The Claude catalogue」).
   - The newest fetch among the files of the surface answers, and an unreadable neighbour is passed over.
   - A directory with no such file, nothing that parses, or a catalogue naming no model is a refusal.
   - Each model carries its id, whether the CLI serves it or has superseded it, and the efforts its entry
@@ -71,14 +71,14 @@ flowchart TD
 
 ## The binary
 
-- **`harness-providers presence --data-root <dir>`** prints one line of JSON: every provider in the
-  providers' order with the sentence it says as `missing` and its code as `missingCode`, both none where it
+- **`harness-providers presence --data-root <dir>`** prints one line of JSON: every provider the build
+  carries, with the sentence it says as `missing` and its code as `missingCode`, both none where it
   can answer.
 - **`harness-providers models <provider>`** prints the provider's catalogue as JSON;
   `--config-dir <dir>` names the login's directory for Claude Code. A listing that fails ends with a
   non-zero status and its reason on the standard error.
 - **Nothing it does writes:** it reads the machine and answers.
-- **One reading answers for a second.** A screen asks every provider for every work key at once, so
+- **One reading answers for a second.** A screen asks every provider for every order it shows at once, so
   the bun side keeps a presence reading for a second for the environment and data root it was asked
   in, and asks again after that; a reading that failed is not kept.
 

@@ -1,45 +1,40 @@
-# Support workers and their worktrees
+# A repository's checkouts
 
-- **What this says:** how one repository runs several jobs at once — the base worker, the support
-  workers beside it, the worktree each works in, the branch each job works on, how a job's work
-  lands on main, and what a job may write outside its own checkout.
+- **What this says:** how one repository runs several jobs at once — its base checkout, the support
+  checkouts beside it, the worktree each is, the branch each job works on, how a job's work lands on
+  main, and what a job may write outside its own checkout. Which role a job runs as and how many of a
+  role's runs go at once are `docs/role-slots.md`'s; a checkout bounds only how many jobs of one repository
+  stand in its tree at once.
 
-## Two kinds of worker per repository
+## The base checkout and the support checkouts
 
-- **The base worker:** the worker row the owner added, or the built-in one. It works in
-  the checkout its row names. Between jobs that checkout stands on main; while a job of a
-  repository with support workers is at work in it, it stands on that job's item branch (「A job in
-  the base checkout」). Its keepalive is on unless the owner turns it off.
-- **Support workers:** further workers of the same repository, each a worker row of
-  its own marked as the base's support and numbered from 2. They exist so that the queue can run
-  more than one item of one repository at a time.
-- **The two settings are the base worker's, one pair per repository, in agency's store:**
-  1. **The support count** — how many support workers the base may have, from 0 to 8. Zero is none,
-     and the repository then runs one job at a time.
-  2. **The support keepalive count** — how many of them are kept warm by the keepalive, from 0 up to
-     the support count and never above it.
-- **Where they are changed:** the worker's settings in the console's agent management, agency's worker
-  routes (`docs/api.md`, 「Workers」), and `bmo-agency agent --set <worker> --support <n> --support-keepalive <n>`. A
-  change settles the rows at once: missing support rows are written, and rows beyond the count are
-  removed once no job holds them. Agency settles every base's rows again as its server starts, so
-  a setting written while it was down takes effect then.
-- **A support row is the base's, not the owner's to edit on its own.** Its name, label, directory
-  and dev command follow from the base; it cannot be added, renamed, moved or removed by hand, only
-  counted up and down through the base's setting. A TODO item is never assigned to one: an item's
-  worker is the base, and the base's queue is its supports' queue.
+- **The base checkout:** the path the repository's row names (`docs/repositories.md`). Between jobs it
+  stands on main; while a job of a repository with support checkouts is at work in it, it stands on that
+  job's item branch (「A job in the base checkout」).
+- **Support checkouts:** further worktrees of the same repository, numbered from 2, which exist so that
+  the queue can run more than one item of one repository at a time. They are the repository's, never rows
+  of their own.
+- **The support count is the repository's setting,** from 0 to 8 (`policy/workers.toml`): how many support
+  checkouts stand beside the base. Zero is none, and the repository then runs one job at a time.
+- **Where it is changed:** the repository's settings in the console's repository tab, agency's repository
+  routes (`docs/api.md`, 「repositories, prefix-checks and room-holdings」), and `bmo-agency agent --set
+  <repository> --support <n>`. A change settles the checkouts at once: a missing one is made at its first
+  launch, and one beyond the count is removed once no job holds it. Agency settles every repository's
+  checkouts again as its server starts, so a setting written while it was down takes effect then.
+- **A TODO item names the repository, never a checkout:** the repository's queue is every one of its
+  checkouts' queue.
 
 ## Names and places
 
-- **Name:** `<base>-w<n>`, with `n` counting from 2 — the base is the first of its repository.
-- **Label:** the base's label followed by `#<n>` — Main worker#2 for the base labelled Main worker.
-  A support row whose label reads otherwise is rewritten to it whenever the base is settled.
-- **Directory:** a git worktree of the base's repository at the base's own path followed by
-  `-w<n>` — `<base path>-w2` for a repository's first support worker.
-- **The path is fixed for the life of the support worker.** A job does not get a directory of its
+- **Name:** `<repository>-w<n>`, with `n` counting from 2 — the base is the first of its repository.
+- **Label:** the repository's label followed by `#<n>`.
+- **Directory:** a git worktree of the repository at the base checkout's path followed by `-w<n>` — `<base
+  path>-w2` for a repository's first support checkout.
+- **The path is fixed for the life of the support checkout.** A job does not get a directory of its
   own: the directory is part of every Claude session's prefix, and a session is kept under its
   directory's name, so a path that moved per job would cold-start every session and could resume
   none of them.
-- **The worktree is made at the launch, before the worker's program is stood, the first time a job
+- **The worktree is made at the launch, before the run's program is stood, the first time a job
   lands on it** — on whichever road the launch takes. It is detached at the base's main branch, read
   off the base checkout, and the repository's own setup is then run in it: the script named
   `worktree:setup` in its `package.json`, where there is one. What it installs and links is that
@@ -52,12 +47,12 @@
     which would refuse the clone, so it is emptied first. What is open inside a submodule is left
     as it stands, and a submodule git will not move over it fails the setup. A repository's own
     script may bring them the same way before it installs, so a checkout set up by hand has them too.
-- **A support row whose worktree is missing gets it made again at its next launch,** by the same
+- **A support checkout whose worktree is missing gets it made again at its next launch,** by the same
   cut: detached at the base's main, the submodules first and the repository's setup after them. A
   directory holding anything that is not a checkout is somebody's and is refused rather than taken
   over, and a worktree whose setup failed is taken away so that the next launch starts it afresh. The
   setup runs until its script exits, however long a cold install takes, and a second launch of the same
-  support worker waits for the first to finish making the worktree, then finds it standing.
+  support checkout waits for the first to finish making the worktree, then finds it standing.
 - **The setup is run again every time a checkout's files may have moved under its installs:**
   whenever the runner, a work order or a borrowing puts a checkout on a job's branch — a support
   worktree or a base checkout alike — and whenever a close has rebased a branch onto main. Main
@@ -71,16 +66,16 @@
   1. The package installs share Bun's install cache, which hard-links the files, so a support
      worktree's `node_modules` costs links rather than copies and is still right for its own branch.
   2. Build output is each worktree's own, because several dev servers write it at once.
-  3. Each support worker has its own workbench folder under its own name, so its dev server reads
+  3. Each support checkout has its own workbench folder under its own name, so its dev server reads
      a data copy of its own and never the live data.
 
-## A job on a support worker
+## A job on a support checkout
 
 - **Every job works on a branch of its item,** made from main in that worktree: `work/<item>`, or
   `work/job-<job id>` for a job with no item. The worktree never has main checked out.
-- **Main is the branch the base checkout stands on,** read off the base checkout — the one the base
-  worker's row names — and never off the support worktree, which stands on a `work/` branch. A base
-  standing on a branch other than `main` has its support workers' jobs made from that branch, and
+- **Main is the branch the base checkout stands on,** read off the base checkout — the one the
+  repository's row names — and never off the support worktree, which stands on a `work/` branch. A base
+  standing on a branch other than `main` has its support checkouts' jobs made from that branch, and
   the job unit's landing verb and the close land them back on it.
   - Where the base checkout itself stands on a `work/` branch — its own job's — main is the branch
     that `work/` branch was put on from. Putting a checkout on a job's branch writes that down in
@@ -99,8 +94,7 @@
      stopped — and made from main where it does not.
   4. The repository's setup is run on what the branch holds.
 - **A job launched again on another road stands in the same checkout.** Where a job's road stops
-  answering and the job goes out again on the next one (`docs/cache-fallback.md`, 「One road
-  resolution」), its turn is put on the same branch of the same worktree, which is already the job's
+  answering and the job goes out again on the next one (`docs/cache-fallback.md`, 「The provider order's choice」), its turn is put on the same branch of the same worktree, which is already the job's
   own: what the first road left open there stays open, and the new road's turn is told it continues
   work already in the checkout.
 - **The job commits on its branch and does not push it.** The close lands it.
@@ -115,9 +109,9 @@
 
 ## A job in the base checkout
 
-- **A repository with support workers keeps main out of every job's hands.** An ordinary job the
-  base worker runs in the base checkout works on its item's branch there too, the same `work/`
-  branch a support worker would take, and lands the same way. A repository whose support count is
+- **A repository with support checkouts keeps main out of every job's hands.** An ordinary job the
+  repository runs in the base checkout works on its item's branch there too, the same `work/`
+  branch a support checkout would take, and lands the same way. A repository whose support count is
   zero has nobody to land beside it, and its base job works on main as it stands.
 - **Why:** a landing moves main, and a checkout standing on main with a job's uncommitted files open
   in it is one main cannot be moved in without either refusing or overwriting that job's work. With
@@ -128,11 +122,11 @@
      edit — is carried across as it stands rather than committed; it stays somebody else's to the
      job, as it always is in a shared checkout.
   2. From a `work/` branch an earlier job was left on, what is open is parked on that branch first,
-     as a support worker parks.
+     as a support checkout parks.
   3. The repository's setup is run on what the branch holds, as in a support worktree.
 - **As the job ends — before its report goes out — the runner puts the base checkout back on
   main:** what the job itself left uncommitted is committed onto its branch, which is parked work
-  exactly as on a support worker; main is checked out as the landings left it, so the checkout is
+  exactly as on a support checkout; main is checked out as the landings left it, so the checkout is
   current the moment the job is over; and the branch is deleted where main already holds all of it.
   What was open before the job began is carried back as it stands. A switch that cannot be made is
   named in the report, and the next job's start parks and moves off the branch.
@@ -146,31 +140,31 @@
   - An order that parked onto main or onto `wip/<item>` before it worked on branches has that parking
     brought back as before, onto its branch.
 - **A base checkout another repository's job borrows** is put on that job's branch and back the same
-  way, where its repository has support workers.
+  way, where its repository has support checkouts.
 
-## A worker of its own in a worktree
+## A repository whose base is a worktree of another's
 
-- **A worker row of its own may name a linked worktree of another checkout's repository** as its
-  directory — `<checkout path>-<worker>` for a worker pinned to one registered model, beside the
-  repository's base worker. It is no support worker: it keeps its own name, label, pin and queue, and no
-  base's settings count it.
-- **A worker renamed with its checkout has the worktree moved by agency,** as its server starts
-  and on the heads' clock, the rename read off agency's policy (`policy/agent-renames.toml`): git moves
-  it to the directory the rename names while agency holds the checkout's job lock, so no job of the worker is at work in it, and the row is pointed at the new directory only
-  once it stands there. A job holding the lock puts the move off to the next pass.
-- **Its checkout is its own:** its jobs hold that worktree's lock alone, so a job of the base never
-  holds it up nor it the base's, and a job of the base never reads as held by it.
-- **It works the way a support worker does:**
-  1. Main is read off the repository's main worktree — the checkout git keeps the repository in —
-     and never off the worktree, which cannot have main checked out while that checkout does.
-  2. Every job works on its item's branch made from that main, put on and parked as on a support
-     worker (「A job on a support worker」), and the worktree is never put back on main.
+- **A repository's path may be a linked worktree of another repository's checkout** — a repository kept
+  for one pinned model beside the code tree's own row, `<checkout path>-<name>`. It is a repository of its
+  own: its own name, label, pin, rules and queue, and no other repository's settings count it.
+- **A repository renamed with its checkout has the worktree moved by agency,** as its server starts and on
+  the heads' clock, the rename read off agency's policy (`policy/agent-renames.toml`): git moves it to the
+  directory the rename names while agency holds the checkout's job lock, so no job is at work in it, and the
+  row is pointed at the new directory only once it stands there. A job holding the lock puts the move off to
+  the next pass.
+- **Its checkout is its own:** its jobs hold that worktree's lock alone, so a job of the other repository
+  never holds it up nor it the other's.
+- **It works the way a support checkout does:**
+  1. Main is read off the repository's main worktree — the checkout git keeps the repository in — and never
+     off the worktree, which cannot have main checked out while that checkout does.
+  2. Every job works on its item's branch made from that main, put on and parked as on a support checkout
+     (「A job on a support checkout」), and the worktree is never put back on main.
   3. Nothing else writes in the worktree, so everything a job leaves open there is its own.
-  4. The close lands the branch on that main, and a work order and a borrowing take the worktree the
-     way they take a support worker's.
-- **The worktree is made once, by hand:** `git worktree add --detach <path> main` in the main
-  checkout, the repository's setup (`worktree:setup`) run in it, and the row then pointed at it with
-  `bmo-agency agent --set <worker> --path <path>`. Nothing makes or removes it for the row.
+  4. The close lands the branch on that main, and a work order and a borrowing take the worktree the way
+     they take a support checkout.
+- **The worktree is made once, by hand:** `git worktree add --detach <path> main` in the main checkout, the
+  repository's setup (`worktree:setup`) run in it, and the row then pointed at it with `bmo-agency agent
+  --set <repository> --path <path>`. Nothing makes or removes it for the row.
 
 ## Landing on main
 
@@ -283,10 +277,10 @@
 
 ## Checkouts on the nodes
 
-- **A base may also have one checkout on each work node,** a support row named `<base>-<node>` with
-  no number, added and removed one by one in its settings and never by the support count
+- **A repository may also have one checkout on each work node,** named `<repository>-<node>` with no
+  number, added and removed one by one in its settings and never by the support count
   (`docs/work-nodes.md`, 「A checkout on a node」).
-- **Its jobs work on their item's branch as every support worker's do,** made from the remote's main,
+- **Its jobs work on their item's branch as every support checkout's do,** made from the remote's main,
   which the runner brings up in that checkout first.
 - **Its landing keeps the rules above:** the node's close or the landing verb holds the repository's landing
   lock here through the home bridge, takes the remote's main in before each round and pushes it, and
@@ -297,67 +291,61 @@
 
 - **Parking is leaving the branch.** A job that ends without landing leaves its branch where it is,
   and the next job on that worktree commits what it left open onto it before moving off.
-- **A stopped work order on a support worker** commits everything open in its worktree onto its
+- **A stopped work order on a support checkout** commits everything open in its worktree onto its
   item's branch and lets the worktree go. Nothing else writes in that worktree, so all of it is the
   order's; no check runs and nothing is sorted by who wrote it. On resume it takes that worktree
   again once it is free, and checks its branch out there.
 - **A base checkout parks by time windows:** a stopped work order sorts out its own change there by
-  its turns' time windows. Where the repository has support workers the change goes onto the order's
+  its turns' time windows. Where the repository has support checkouts the change goes onto the order's
   branch (「A job in the base checkout」); where it has none it is checked and goes onto main or
   `wip/<item>`, as the job unit's `work-orders.md` states.
 
-## The queue with support workers
+## The queue with support checkouts
 
-- **A repository takes as many jobs as it has free checkouts** — the base's, and each support
-  worker's within the count. The fact that tells the chat agent the queue is waiting counts the
-  free checkouts of each base, and one item is launched per free checkout, each on the base worker.
-- **The launcher picks the checkout.** Named the base, it takes, in this order: a free support
-  worktree already on the item's branch; the base checkout; a free support worktree by number. A
-  launch naming a support worker directly takes that one or is refused. Where the base has checkouts
-  on the nodes, the launch first takes its machine from the rotation and then the checkouts there in
-  that order (`docs/work-nodes.md`, 「The rotation」).
-- **A stopped work order at the head of the queue is its runner's to resume** in the checkout it
-  holds; the items behind it are still told as waiting where the repository has another checkout.
-- **An item already at work is not launched a second time,** on any checkout of its repository; the
-  refusal names the job that has it.
+- **A repository takes as many jobs as it has free checkouts** — the base's, and each support checkout's
+  within the count — and each of them waits for a slot of the role it runs as as well
+  (`docs/role-slots.md`). The fact that tells the chat agent the queue is waiting counts the free checkouts
+  of each repository, and one item is launched per free checkout.
+- **The launcher picks the checkout.** It takes, in this order: a free support checkout already on the
+  item's branch; the base checkout; a free support checkout by number. A launch naming a support checkout
+  directly takes that one or is refused. Where the repository has checkouts on the nodes, the launch first
+  takes its machine from the rotation and then the checkouts there in that order (`docs/work-nodes.md`, 「The
+  rotation」).
+- **A stopped work order at the head of the queue is its runner's to resume** in the checkout it holds; the
+  items behind it are still told as waiting where the repository has another checkout.
+- **An item already at work is not launched a second time,** on any checkout of its repository; the refusal
+  names the job that has it.
 - **A launch meeting a held lock tries the next free checkout** before it refuses.
-- **Free checkouts are not room on the machine.** A launch with a free checkout is still held while
-  the machine is short of memory, threads or job places (`docs/agent-control.md`, 「Room on the
+- **Free checkouts are not room on the machine.** A launch with a free checkout and a free slot is still
+  held while the machine is short of memory, threads or job places (`docs/agent-control.md`, 「Room on the
   machine」), and the queue is told again once it has room.
-
-## Keepalive
-
-- The base worker is kept warm by its own switch.
-- Of its support workers, the first as many as the support keepalive count says, by number, are kept warm the
-  same way. The rest are not warmed at all: their sessions cool once their job ends.
 
 ## Dev servers
 
-- **A support worker's dev server stands only while a job of it runs and has asked for it,** as
-  every worker's does (`docs/worker-bench.md`, 「It stands only while a job of the worker runs」). It
-  runs the base's dev command in the support worktree, from its own workbench, and stops once the job
-  lets the job hold go or leaves it unused; a keepalive ping or a fold holding the checkout's job lock
-  does not stand it.
+- **A support checkout's dev server stands only while a job in it runs and has asked for it,** as
+  every checkout's does (`docs/worker-bench.md`, 「It stands only while a job runs」). It runs the
+  repository's dev command in the support worktree, from its own workbench, and stops once the job
+  lets the job hold go or leaves it unused; a fold holding the checkout's job lock does not stand it.
 - **It is told its number:** the pane runs it with `BMO_WORKER_SLOT=<n>` in its environment, and a
   dev server that binds ports moves them by that number. The operations repository's bench does
   (`docs/worker-bench.md`); the base's dev server runs with none and keeps its ports.
-- **The job's preamble says which worker it is:** a support worker's job opens with the base's
-  preamble under a header saying it is support worker `n` of the base, in its own worktree and on
+- **The job's preamble says which checkout it is:** a job in a support checkout opens with the
+  repository's preamble under a header saying it is support checkout `n` of the repository, in its own worktree and on
   its item's branch, that its dev server stands only once the job starts it, the lines that start,
   restart and stop that dev server, and that where the owner's text names the base's
-  workbench, console or ports, it means the support worker's own. A base job on its
+  workbench, console or ports, it means the support checkout's own. A base job on its
   item's branch is told the branch, and that the close lands it rather than a push.
 
 ## A job writes only in its own checkout
 
-- **Every registered worker's checkout is someone's.** A job may write in its own worker's checkout
-  and in a checkout it has borrowed, and in no other worker's checkout — base or support — whoever
-  holds it. A place no worker is registered at is not guarded by this.
+- **Every repository's checkout is someone's.** A job may write in its own checkout and in a checkout it
+  has borrowed, and in no other checkout of any repository — base or support — whoever holds it. A place no
+  repository names is not guarded by this.
 - **The job guard refuses the write,** from the file tools and from the shell alike, and the
   refusal names whose checkout it is and the verb that borrows one.
-- **Borrowing:** `bmo-agency borrow <worker>`, run inside a job, takes a free checkout of that
-  worker's repository for the rest of the job — a support worktree first, put on the job's item
-  branch, the base checkout where the repository has no support worker free — and prints its path.
+- **Borrowing:** `bmo-agency borrow <repository>`, run inside a job, takes a free checkout of that
+  repository for the rest of the job — a support worktree first, put on the job's item branch, the base
+  checkout where the repository has no support checkout free — and prints its path.
   While the job lives the borrowed checkout reads held everywhere a held checkout is read, and
   nothing is launched into it. The job closes it the way that repository closes a job.
 - **When the job ends the loan ends.** Whatever it left open in a borrowed support worktree is

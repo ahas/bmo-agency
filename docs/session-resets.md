@@ -37,15 +37,15 @@ flowchart TD
     nothing of the old one carried into it, as with any replaced session (`docs/sessions.md`,
     「Session replacement」).
   - That round settles the ask.
-- **A worker:** the sessions recorded for it, one for each model and login it ran on.
-  - Where no job of its runs, a reset removes those records at once and is settled, so its next job
-    opens a new session.
-  - Where one runs, the ask waits, and the worker's next job removes them as it starts and settles
-    it.
-  - Agency carries a worker's reset out, since it holds the program standing in the worker's pane
-    and knows which jobs run: once an ask is written, every waiting ask whose worker
-    runs nothing is carried out before the route answers, and so is it on a script's
-    `session-resets` word (`docs/api.md`, 「Events」).
+- **A role:** the sessions kept for it, one for each path, provider and model its runs went out on
+  (`docs/sessions.md`, 「A role's session」), or those of one path where the ask names one.
+  - Where no run of it holds one of them, a reset removes those records at once and is settled, so its
+    next run opens a new session.
+  - Where a run holds one, the ask waits for that run to end, and the record it gives back is removed
+    rather than kept.
+  - Agency carries a role's reset out, since it holds the records and knows which runs go: once an ask
+    is written, every waiting ask none of whose sessions a run holds is carried out before the route
+    answers, and so is it on a script's `session-resets` word (`docs/api.md`, 「Events」).
 - **A companion in a room:** that room's session, cleared by the next turn there
   (`docs/companions.md`, 「Clearing it」).
   - Its resident program standing on that session is taken down as the ask is written, where no

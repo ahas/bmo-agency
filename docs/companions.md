@@ -1,29 +1,31 @@
 # Companions
 
-A companion is a conversational agent of its own, answering in rooms beside the chat agent. Agency
-carries a companion's turns, keeps its sessions, stands its program in a pane and shares its engine,
-the same way it does for any agent; what a companion is told, whom it answers and what it remembers
-are the companion unit's, not agency's. This document covers only what agency holds of a companion.
+A companion is a supervisor (`docs/supervisors.md`): a conversational agent of its own, answering in rooms
+beside the chat agent. Agency carries a companion's turns, keeps its sessions, stands its program in a pane
+and shares its engine, the same way it does for every supervisor; what a companion is told, whom it answers
+and what it remembers are the companion unit's, not agency's. This document covers only what agency holds of
+a companion.
 
 ## Where a companion and its rooms come from
 
 - **A companion is seeded by the deployment or added on the console.** A seeded one stands again at
   every start, so it is never removed. One added on the console answers a room of the console's own
   alone, and the room is the consumer's that holds the console's rooms: its number, its title, its
-  answerers and the companion's sender number there. Agency holds the agent's half
-  (`docs/api.md`, 「Agents」).
-- **Adding it writes the agent's row,** once every field has passed, in the order the dialog shows them:
-  - the name follows the companions policy's pattern, and no agent holds it yet;
+  answerers and the companion's sender number there. Agency holds the supervisor's half
+  (`docs/api.md`, 「supervisors」).
+- **Adding it writes the supervisor's row,** once every field has passed, in the order the dialog shows
+  them:
+  - the name follows the companions policy's pattern, and no supervisor holds it yet;
   - the label is given;
-  - the provider carries a companion's answers, and the model has an address where that provider
-    answers only a registration;
-  - the worker its items go to is a worker.
-- **The row it writes:** the kind `chat`, the chat role, the `room` scope, the `pieces` shape — the shape the
-  console's added agents go by — not the
-  default answerer, the label, the console's mark from the companions policy, the pinned provider and
-  model it is added on, the worker, the brain folder `agents/<name>`, no prompt folder and not seeded. The
-  pin is its fixed model, and the console changes it to the supervisor route when the owner asks. Its
-  gate options are the gate's. Nothing is restarted: the runner reads the row and its settings for every
+  - the provider order names only providers that carry the chat line, each entry a model its provider
+    holds — on the registry's provider, an offered registration (`docs/provider-order.md`, 「What an order
+    is」);
+  - the repository its items go to is a repository (`docs/repositories.md`).
+- **The row it writes:** the `room` scope, the `pieces` shape — the shape the console's added supervisors go
+  by — not the default answerer, the label, the console's mark from the companions policy, the provider
+  order it is added with, the repository, the brain folder `agents/<name>`, no prompt folder and not seeded.
+  The order is the companion's own, and the owner changes it on the supervisor's page like any supervisor's.
+  Its gate options are the gate's. Nothing is restarted: the runner reads the row and its settings for every
   turn, and its place and program are stood by its first turn.
 - **Then its brain is made.** Once the row is written, the brain is asked whether it keeps a brain
   under the agent's name, and to make one where it keeps none, filed under the deployment's account key
@@ -32,7 +34,7 @@ are the companion unit's, not agency's. This document covers only what agency ho
 - **Removing it takes everything of its own,** and only a companion the console added:
   - first a reset of both ranges, every room the caller names read as one it shares, so each keeps its
     record (「Starting it afresh」);
-  - then in one write its settings, its base prompt choice, its session reset asks, its gate switches,
+  - then in one write its settings, its session reset asks, its gate switches,
     its sampling, its reset point and its row;
   - then what stands for it: its program killed, so it writes no record of what the removal took, its
     workspace closed, its place and home folder taken away, its execution rows with their envelopes —
@@ -51,14 +53,15 @@ are the companion unit's, not agency's. This document covers only what agency ho
   last message the agent took, the hash of the system prompt its last turn was sent with, when that
   last changed, and what the runs on the words not yet taken have spent (「A turn that goes nowhere」
   below).
-  - It is a table of its own because a companion holds one session in each room it answers, where the
-    agents table and the worker sessions keep one session for an agent or a worker.
+  - It is a table of its own because a companion holds one session in each room it answers, where a
+    supervisor of the `agent` scope keeps one session across every room and a role keeps its sessions by
+    role, path, provider and model (`docs/sessions.md`, 「A role's session」).
 - **Each turn goes on in that session.** The companion's program stands on the room's session — the
   one it stood on, or the same program started again on this room's in the same pane where it stood on
   another room's — and the turn's prompt is its new words alone: the program keeps the conversation,
-  so the turn goes on from the one before and the engine computes only what is new (`docs/agents.md`,
-  「The session's scope」).
-- **One turn at a time in the companion's program.** Turns of two rooms take the agent's own lock in
+  so the turn goes on from the one before and the engine computes only what is new
+  (`docs/supervisors.md`, 「The session's scope」).
+- **One turn at a time in the companion's program.** Turns of two rooms take the supervisor's own lock in
   turn, since they go into one program.
 - **The system prompt is handed to the harness as a file,** composed by the companion unit for each
   turn; agency hands it over as it stands and reads none of it. It is the same bytes from one turn to
@@ -79,8 +82,8 @@ are the companion unit's, not agency's. This document covers only what agency ho
 - **A new generation is a new harness session,** opened by the turn that finds:
   - no session held in the room yet;
   - a reset of the session asked for in the room and not yet carried out (「Clearing it」 below);
-  - the held one opened on another provider or model than the pin names now, or on a place its
-    registration no longer has;
+  - the held one opened on another provider or model than its order gives the turn now, or on a place
+    its registration no longer has;
   - the held one no longer there to resume: its program keeps no record of it, which the turn says in
     the program's own words before anything is stood. That turn is asked again once on a fresh session.
 - **What each turn was given and how it answered is kept,** generation by generation, in the room
@@ -95,10 +98,10 @@ are the companion unit's, not agency's. This document covers only what agency ho
 
 - **The window is its registration's.** The harness is told the registration's context window and
   answer ceiling as the run starts (`docs/own-llm.md`, 「How requests go」).
-- **The session hands itself over at the handoff mark,** as every conversational agent's session on
-  the registry's provider does, since that provider declares the handoff as its way of handing a full
-  session over (`docs/agents.md`, 「What a provider declares for a conversation」). A turn whose context
-  — its last request, as its harness reports it — has reached its fold ratio (`docs/sessions.md`,
+- **The session hands itself over at the handoff mark,** as every conversational agent's session on the
+  registry's provider does, since that provider declares the handoff as its way of handing a full session
+  over (`docs/supervisors.md`, 「What a provider declares for a conversation」). A turn whose context — its
+  last request, as its harness reports it — has reached its compaction threshold (`docs/sessions.md`,
   「Session compaction」), so with a margin of the window left, is followed by one more turn of the same
   session, after its answer has gone out and before the room's next turn:
   - the turn is the session itself asked for its handoff: its prompt is the companion handoff
@@ -142,22 +145,22 @@ are the companion unit's, not agency's. This document covers only what agency ho
   folder, and the room session turns table keeps its turns under their generation. The new generation
   starts from the last message the old one took, so nothing said before it is replayed.
 - **Who asks:**
-  - the owner, with the reset control of a room session on the companion's settings or on the agent
-    settings' session list;
+  - the owner, with the reset control of a room session on the companion's settings;
   - a change the companion unit makes that it asks a reset for — a save of the companion's generation
-    settings, a change of its base prompt (`docs/base-prompts.md`, 「Saving」) — which asks it of every
+    settings — which asks it of every
     room it holds a session in.
 - **The program on the session is taken down as the ask is written** (「The program on an ended
   session」 below), so nothing shows or keeps the cleared session while the ask waits; the ask itself,
   the new generation, is still carried out by the next turn.
 - **The turn that carries it out** settles the ask and says so in its log.
 
-- **The program's model is the one the companion answers on:** its pin's where it keeps a fixed model,
-  resolved to the registration its model names and an address that registration holds now, never the
-  row's `last_model`; else the supervisor route's, read as the supervisor key's road stands
-  (`docs/model-tiers.md`, 「An agent's own model」). A pin moved, a route moved or a registration that
-  lost the address the program stood on lets the old program go; the next turn stands the model the
-  companion answers on now.
+- **The program's model is the one the companion answers on:** the model its provider order gives the
+  turn now, on the first provider of the order with quota above its share that can answer
+  (`docs/provider-order.md`, 「Choosing the provider」) — on the registry's provider resolved to the
+  registration its entry names and an address that registration holds now — never the row's
+  `last_model`. An order changed, a move to another provider of it or a registration that lost the
+  address the program stood on lets the old program go; the next turn stands the model the companion
+  answers on now.
 
 ### The program on an ended session
 
@@ -206,9 +209,9 @@ are the companion unit's, not agency's. This document covers only what agency ho
     by the companion's key, so nothing it remembered comes back (`docs/api.md`, 「Calls agency makes」, the
     brain); agency takes the records
     its harnesses keep of the sessions run in its brain folder;
-  - what it keeps, whichever range — its agent row and pin, its settings, its base prompt choice, its
-    gate switches, the rooms themselves, the registry and the engine's placement, and whatever range
-    was not named.
+  - what it keeps, whichever range — its supervisor row and provider order, its settings,
+    its gate switches, the rooms themselves, the registry and the engine's placement, and whatever
+    range was not named.
 - **A dry run reads the same,** agency's rows counted and the brain asked for a preview, nothing
   written.
 - **Once begun it runs to its end,** apart from the request that asked it, so a caller that stops
@@ -257,14 +260,15 @@ are the companion unit's, not agency's. This document covers only what agency ho
 ## The engine it shares
 
 - **One engine, one slot, many sessions.** A companion's registration may be served by the same
-  engine a worker's jobs run on and the gates ask. The engine itself keeps each session's state apart,
+  engine jobs run on and other callers ask. The engine itself keeps each session's state apart,
   saving the slot and loading the matching saved state whenever a request does not go on from what the
   slot holds (`docs/work-nodes.md`), so no request reads another's from the start.
 - **While a job holds the engine, the companion's turns wait,** as every conversational agent's turns
   on a registration do, since the registry's provider declares the wait. The engine is held when an
   open job runs on the companion's registration. Both are read from rows: the job's from the run it
-  noted, or before it noted one from its worker's pin, and the companion's from its own pin; a run or a
-  pin resolves to the registration its model names, where the registry holds one.
+  noted, or before it noted one from its repository's pin, and the companion's from the entry its order
+  gives the turn; a run, a pin or an entry resolves to the registration its model names, where the
+  registry holds one.
   - Every room's turn of that companion waits, looking again every few seconds, until no such job is
     open. Words that come in meanwhile, and quiet instructions of its own, join the waiting turn and
     are answered with it.
@@ -278,11 +282,10 @@ are the companion unit's, not agency's. This document covers only what agency ho
 - **Its system prompt is three layers, each whole, in this order:** the harness, the companion's role and its
   persona, as every agent's is (`docs/agent-documents.md`, 「The chat agent」). No section of it is chosen or
   ordered per companion.
-  - **The harness** is the base prompt the companion chooses (`docs/base-prompts.md`), its values filled in;
-    a companion that chooses none has the platform's harness opening, `prompts/harness.md`, as the
-    harness. On Claude Code the three layers are one whole system prompt in the program's own place; on
+  - **The harness** is the platform's harness opening, `prompts/harness.md`, its values filled in. On
+    Claude Code the three layers are one whole system prompt in the program's own place; on
     a program that is a harness of its own and carries its turns through its inbox, as dsh does, what is
-    composed — the chosen base where there is one, the role and the persona — goes as its persona suffix
+    composed — the role and the persona — goes as its persona suffix
     after its own prompt, and the platform's opening is not sent.
   - **The role** is every companion's, the same for each: the rulebook against destroying the system, the
     absolute rules, the companion frame with its tools, the companion turn, and the rulebook on another
@@ -302,13 +305,13 @@ are the companion unit's, not agency's. This document covers only what agency ho
   it reaches any agent's.
 - **Its own pane shows each turn as it goes:** the head pane of the agent's workspace is its program's
   own screen, where a person reads its tool calls and its thinking as the program draws them and can
-  type into it (`docs/agent-control.md`, 「One standing pane per agent」).
+  type into it (`docs/agent-control.md`, 「One standing pane per supervisor」).
 - **A standing pane shows each session.** In the herdr workspace of the agent, named by its row's
   herdr label, each room session has a tab of its own named by the room's title, running
   `bmo-agency companion follow <room> --agent <agent>`, the room named by its number, out of the deploy
   tree's binary: every turn as it was given and every answer as it was written, as they are appended. A
-  pane started from an older binary is replaced. The pane stands apart from the panes of its worker's jobs, and the console's
-  agent screen lists the agent's room sessions and shows each pane.
+  pane started from an older binary is replaced. The pane stands apart from the panes of every role's
+  runs, and the console's supervisor page lists the companion's room sessions and shows each pane.
   - **The verb** prints every generation the session has had, each under a line naming its number — the
     newest with when it opened, which is all the session row keeps — then waits on the newest and
     prints each turn as it is appended, going on into the next generation when a new harness session
@@ -335,7 +338,7 @@ are the companion unit's, not agency's. This document covers only what agency ho
 ## A turn that goes nowhere
 
 - **A turn is watched as its run streams** where its provider declares these limits, as the registry's
-  provider does for every conversational agent on it (`docs/agents.md`, 「What a provider declares for a
+  provider does for every supervisor on it (`docs/supervisors.md`, 「What a provider declares for a
   conversation」), through the tool calls and their results the turn's log takes, and cut short at the
   first of these:
   - **the same tool failing six times in a row;**
